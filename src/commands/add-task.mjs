@@ -12,6 +12,18 @@ export default async function addTask({ statePath, flags, positional }) {
   return withLock(projectDir, async () => {
     const s = await readState(projectDir);
     if (s && s.tasks[id]) throw new Error(`add-task: ${id} already exists`);
+    const deps = flags["depends-on"]
+      ? flags["depends-on"].split(",").map((x) => x.trim()).filter(Boolean)
+      : [];
+    // Validate that every declared dep points to an existing task or decision.
+    // (If the state is empty, allow it; the user is starting from scratch.)
+    if (s) {
+      for (const dep of deps) {
+        if (!s.tasks[dep] && !s.decisions[dep]) {
+          throw new Error(`add-task: depends-on '${dep}' not found in tasks or decisions`);
+        }
+      }
+    }
     const node = {
       id,
       title: flags.title,
@@ -21,7 +33,7 @@ export default async function addTask({ statePath, flags, positional }) {
       skills: flags.skills ? flags.skills.split(",").map((x) => x.trim()).filter(Boolean) : [],
       effort: flags.effort || undefined,
       domain: flags.domain || undefined,
-      depends_on: flags["depends-on"] ? flags["depends-on"].split(",").map((x) => x.trim()).filter(Boolean) : [],
+      depends_on: deps,
     };
     await updateState(projectDir, (st) => {
       st.tasks[id] = node;

@@ -11,6 +11,10 @@ function lockPath(projectDir) {
   return path.join(path.dirname(stateFile(projectDir)), ".lock");
 }
 
+async function ensureTasksDir(projectDir) {
+  await fs.mkdir(path.dirname(stateFile(projectDir)), { recursive: true });
+}
+
 async function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
@@ -20,6 +24,9 @@ export async function withLock(projectDir, fn, opts = {}) {
   const retryEveryMs = opts.retryEveryMs ?? RETRY_BASE_MS;
   const lp = lockPath(projectDir);
   const start = Date.now();
+
+  // Make sure the target dir exists before we try to create a lock file there.
+  await ensureTasksDir(projectDir);
   let attempt = 0;
 
   // Spinlock: try to create the lock file exclusively.

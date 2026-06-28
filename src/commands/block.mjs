@@ -21,6 +21,9 @@ export default async function block({ statePath, flags, positional }) {
     if (t.status !== "in_progress") {
       throw new Error(`block: task ${id} is not in_progress (you can only block a claimed task)`);
     }
+    if (t.claimed_by && t.claimed_by !== as) {
+      throw new Error(`block: task ${id} is not yours (claimed by ${t.claimed_by})`);
+    }
     await updateState(projectDir, (st) => {
       st.tasks[id].block_reason = reason;
       return st;

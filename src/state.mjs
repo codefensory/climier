@@ -23,6 +23,12 @@ export async function readState(projectDir) {
     return JSON.parse(raw);
   } catch (err) {
     if (err.code === "ENOENT") return null;
+    if (err instanceof SyntaxError) {
+      const wrapped = new Error(`state: file at ${stateFile(projectDir)} is corrupt or not valid JSON: ${err.message}`);
+      wrapped.code = "CLIMIER_CORRUPT_STATE";
+      wrapped.cause = err;
+      throw wrapped;
+    }
     throw err;
   }
 }
