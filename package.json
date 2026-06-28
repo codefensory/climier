@@ -1,0 +1,19 @@
+{
+  "name": "climier",
+  "version": "0.1.0",
+  "description": "Task DAG harness for multi-agent workflows",
+  "type": "module",
+  "bin": {
+    "climier": "./bin/climier.mjs"
+  },
+  "main": "bin/climier.mjs",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "test:watch": "node --test --watch test/",
+    "test:concurrent": "node --test test/concurrent-claims.test.mjs test/orchestrator-flow.test.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT"
+}

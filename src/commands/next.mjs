@@ -1,0 +1,24 @@
+// next: task definition + acceptance + gotchas for a given task.
+import { readState } from "../state.mjs";
+import { forTask } from "../gotchas.mjs";
+
+export default async function next({ statePath, positional }) {
+  const [id] = positional;
+  if (!id) throw new Error("next: task id required");
+  const projectDir = statePath.replace(/\.agents\/tasks\/tasks\.json$/, "");
+  const s = await readState(projectDir);
+  if (!s) throw new Error("next: state file missing");
+  const t = s.tasks[id];
+  if (!t) throw new Error(`next: task ${id} not found`);
+  return {
+    id: t.id,
+    title: t.title,
+    initiative: t.initiative,
+    definition: t.definition || t.title,
+    acceptance: t.acceptance || "(no acceptance criteria defined)",
+    depends_on: t.depends_on || [],
+    skills: t.skills || [],
+    domain: t.domain,
+    gotchas: forTask(s, t),
+  };
+}
