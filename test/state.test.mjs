@@ -19,7 +19,7 @@ test("writeState then readState round-trips", async () => {
   const { readState: rs } = await importFresh("./state.mjs");
   const dir = await createTempProject();
   try {
-    const sample = { version: 1, tasks: { T1: { id: "T1", title: "x" } } };
+    const sample = { version: 1, tasks: { T1: { id: "T1", title: "x" } }, decisions: {}, gotchas: {}, initiatives: {}, log: [] };
     await ws(dir, sample);
     const back = await rs(dir);
     assert.deepEqual(back, sample);

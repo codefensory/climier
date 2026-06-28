@@ -7,7 +7,8 @@ export default async function block({ statePath, flags, positional }) {
   const [id, ...rest] = positional;
   if (!id) throw new Error("block: task id required");
   if (rest.length === 0) throw new Error("block: a reason is required");
-  const reason = rest.join(" ");
+  const reason = rest.join(" ").trim();
+  if (!reason) throw new Error("block: a non-empty reason is required");
   const as = flags.as;
   if (!as) throw new Error("block: --as <agent> required");
 

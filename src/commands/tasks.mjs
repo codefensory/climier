@@ -10,7 +10,7 @@ export default async function tasks({ statePath, flags }) {
   for (const t of Object.values(s.tasks)) {
     if (flags.initiative && t.initiative !== flags.initiative) continue;
     const st = statusOf(s, t.id);
-    if (flags.status && flags.status !== st) continue;
+    if (flags.status && flags.status.toLowerCase() !== st) continue;
     out.push({
       id: t.id,
       title: t.title,

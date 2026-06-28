@@ -20,7 +20,14 @@ export function emptyState() {
 export async function readState(projectDir) {
   try {
     const raw = await fs.readFile(stateFile(projectDir), "utf8");
-    return JSON.parse(raw);
+    const state = JSON.parse(raw);
+    // Forward-compatibility: surface a clear error if a future version is found.
+    if (state && typeof state === "object" && "version" in state && state.version > 1) {
+      const wrapped = new Error(`state: file at ${stateFile(projectDir)} has version ${state.version} but this climier only understands version 1`);
+      wrapped.code = "CLIMIER_INCOMPATIBLE_VERSION";
+      throw wrapped;
+    }
+    return state;
   } catch (err) {
     if (err.code === "ENOENT") return null;
     if (err instanceof SyntaxError) {
@@ -68,6 +75,16 @@ export async function addNode(projectDir, collection, id, node) {
 }
 
 export async function writeState(projectDir, state) {
+  // Schema validation: a state must have all five top-level collections.
+  const required = ["tasks", "decisions", "gotchas", "initiatives", "log"];
+  if (!state || typeof state !== "object") {
+    throw new Error("writeState: invalid state (not an object)");
+  }
+  for (const k of required) {
+    if (!(k in state)) {
+      throw new Error(`writeState: invalid state (missing '${k}' collection)`);
+    }
+  }
   const file = stateFile(projectDir);
   await fs.mkdir(path.dirname(file), { recursive: true });
   await fs.writeFile(file, JSON.stringify(state, null, 2) + "\n", "utf8");

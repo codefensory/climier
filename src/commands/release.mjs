@@ -20,7 +20,13 @@ export default async function release({ statePath, flags, positional }) {
       throw new Error(`release: task ${id} is not in_progress`);
     }
     if (t.claimed_by !== as) {
-      throw new Error(`release: task ${id} is not yours (claimed by ${t.claimed_by})`);
+      // Special case: orphan recovery. The orchestrator (or a designated recovery agent)
+      // can release an in_progress task even if the original claimer is gone.
+      const isOrphan = !t.claimed_by;
+      const isRecovery = as === "orchestrator" || as === "recovery";
+      if (!(isOrphan && isRecovery)) {
+        throw new Error(`release: task ${id} is not yours (claimed by ${t.claimed_by})`);
+      }
     }
     await updateState(projectDir, (st) => {
       delete st.tasks[id].claimed_by;

@@ -21,8 +21,8 @@ export function derive(state) {
 
   for (const [id, t] of Object.entries(s.tasks)) {
     if (t.status === "done" || t.status === "skipped" || t.status === "in_progress") continue;
-    const deps = t.depends_on || [];
-    const ok = deps.every((d) => isSatisfied(s, d));
+    const deps = Array.isArray(t.depends_on) ? t.depends_on : [];
+    const ok = deps.every((d) => d != null && isSatisfied(s, d));
     if (ok) ready.push(id);
     else blocked.push(id);
   }

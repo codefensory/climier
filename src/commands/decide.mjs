@@ -8,6 +8,10 @@ export default async function decide({ statePath, flags, positional }) {
   if (!id) throw new Error("decide: decision id required");
   if (rest.length === 0) throw new Error("decide: a choice is required (e.g. decide D1 'raw-postgres')");
   const choice = rest.join(" ");
+  // --as is optional for decide (defaults to orchestrator) but if provided must be non-empty.
+  if (flags.as !== undefined && flags.as !== true && flags.as === "") {
+    throw new Error("decide: --as cannot be empty");
+  }
   const as = flags.as || "orchestrator";
   const because = flags.because || "";
 

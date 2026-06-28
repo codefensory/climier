@@ -9,7 +9,15 @@ export default async function status({ statePath, flags }) {
     return { counts: {}, in_progress: [], ready: [], blocked: [], blocked_by_decision: {}, stale: [], active_gotchas: [], open_decisions: [] };
   }
   const d = derive(s);
-  const staleMs = flags.staleMs ? parseInt(flags.staleMs, 10) : 2 * 60 * 60 * 1000;
+  const staleMs = flags.staleMs !== undefined && flags.staleMs !== true
+    ? (() => {
+        const n = parseInt(flags.staleMs, 10);
+        if (Number.isNaN(n) || n < 0) {
+          throw new Error(`status: --staleMs must be a non-negative integer (got '${flags.staleMs}')`);
+        }
+        return n;
+      })()
+    : 2 * 60 * 60 * 1000;
   const inProgress = Object.values(s.tasks).filter((t) => t.status === "in_progress");
   const done = Object.values(s.tasks).filter((t) => t.status === "done");
   const counts = {};
