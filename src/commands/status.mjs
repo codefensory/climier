@@ -4,9 +4,14 @@ import { derive, blockedByDecision, staleClaims, statusOf } from "../dag.mjs";
 
 export default async function status({ statePath, flags }) {
   const projectDir = statePath.replace(/\.agents\/tasks\/tasks\.json$/, "");
-  const s = await readState(projectDir);
+  let s = await readState(projectDir);
   if (!s) {
     return { counts: {}, in_progress: [], ready: [], blocked: [], blocked_by_decision: {}, stale: [], active_gotchas: [], open_decisions: [] };
+  }
+  // Filter to a single initiative if requested.
+  if (flags.initiative) {
+    const init = flags.initiative;
+    s = { ...s, tasks: Object.fromEntries(Object.entries(s.tasks).filter(([_, t]) => t.initiative === init)) };
   }
   const d = derive(s);
   const staleMs = flags.staleMs !== undefined && flags.staleMs !== true

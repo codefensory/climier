@@ -14,14 +14,22 @@ let parsingCommand = false;
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
   if (a.startsWith("--")) {
-    const key = a.slice(2);
-    const next = args[i + 1];
-    if (next !== undefined && !next.startsWith("--")) {
-      flags[key] = next;
-      i++;
+    const eq = a.indexOf("=");
+    let key, val;
+    if (eq !== -1) {
+      key = a.slice(2, eq);
+      val = a.slice(eq + 1);
     } else {
-      flags[key] = true;
+      key = a.slice(2);
+      const next = args[i + 1];
+      if (next !== undefined && !next.startsWith("--")) {
+        val = next;
+        i++;
+      } else {
+        val = true;
+      }
     }
+    flags[key] = val;
     continue;
   }
   if (!parsingCommand) {
