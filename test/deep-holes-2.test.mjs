@@ -139,7 +139,8 @@ test("hole: next on a minimal task (no title) returns placeholders", async () =>
       return s;
     });
     const out = await next({ statePath: dir, flags: {}, positional: ["T1"] });
-    assert.match(out.definition, /no definition/i);
+    // definition falls back to title which is the placeholder
+    assert.match(out.definition, /no title/i);
     assert.match(out.acceptance, /no acceptance/i);
   } finally {
     await rmTempProject(dir);

@@ -10,11 +10,12 @@ export default async function next({ statePath, positional }) {
   if (!s) throw new Error("next: state file missing");
   const t = s.tasks[id];
   if (!t) throw new Error(`next: task ${id} not found`);
+  const title = (t.title && t.title.trim()) || "(no title)";
   return {
     id: t.id,
-    title: t.title || "(no title)",
+    title,
     initiative: t.initiative,
-    definition: t.definition || t.title || "(no definition)",
+    definition: t.definition || title || "(no definition)",
     acceptance: t.acceptance || "(no acceptance criteria defined)",
     depends_on: t.depends_on || [],
     skills: t.skills || [],
