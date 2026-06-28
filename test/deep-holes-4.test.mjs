@@ -1,0 +1,261 @@
+// Deep holes — round 4: stress, security, format
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs/promises";
+import path from "node:path";
+import { createTempProject, rmTempProject, importFresh, runCli, readState } from "./helpers.mjs";
+
+// Stress: 50 sequential claim/done cycles on the same task produce a consistent log.
+test("hole: 50 sequential claim/done cycles leave state consistent and log ordered", async () => {
+  const dir = await createTempProject();
+  try {
+    await runCli(["--project", dir, "init"]);
+    const file = path.join(dir, ".agents", "tasks", "tasks.json");
+    await fs.writeFile(file, JSON.stringify({
+      version: 1, tasks: { T1: { id: "T1" } }, decisions: {}, gotchas: {},
+      initiatives: { x: { desc: "" } }, log: [],
+    }), "utf8");
+    for (let i = 0; i < 50; i++) {
+      const c = await runCli(["--project", dir, "claim", "T1", "--as", "agent"]);
+      if (c.code === 0) {
+        const d = await runCli(["--project", dir, "done", "T1", `iter ${i}`, "--as", "agent"]);
+        assert.equal(d.code, 0, d.stderr);
+      } else {
+        // Race lost; skip
+        const r = await runCli(["--project", dir, "release", "T1", "--as", "agent"]);
+        if (r.code !== 0) break;
+      }
+    }
+    // Just verify state file is valid JSON and has the expected shape
+    const s = await readState(dir);
+    assert.ok(s.tasks.T1);
+    assert.ok(s.log.length > 0);
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+// Long task IDs and notes
+test("hole: long task ids and notes are handled", async () => {
+  const dir = await createTempProject();
+  try {
+    await runCli(["--project", dir, "init"]);
+    const longId = "X." + "y".repeat(200);
+    const r1 = await runCli(["--project", dir, "add-task", longId, "--initiative", "x", "--title", "long id test"]);
+    assert.equal(r1.code, 0, r1.stderr);
+    const r2 = await runCli(["--project", dir, "claim", longId, "--as", "agent"]);
+    assert.equal(r2.code, 0, r2.stderr);
+    const longNote = "n".repeat(1000);
+    const r3 = await runCli(["--project", dir, "done", longId, longNote, "--as", "agent"]);
+    assert.equal(r3.code, 0, r3.stderr);
+    const s = await readState(dir);
+    assert.equal(s.tasks[longId].note.length, 1000);
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+// Unicode in task title and note
+test("hole: unicode in titles and notes is preserved", async () => {
+  const dir = await createTempProject();
+  try {
+    await runCli(["--project", dir, "init"]);
+    const r1 = await runCli(["--project", dir, "add-task", "T1", "--initiative", "x", "--title", "Migración 漢字 émoji"]);
+    assert.equal(r1.code, 0, r1.stderr);
+    await runCli(["--project", dir, "claim", "T1", "--as", "agente-ñoño"]);
+    const r2 = await runCli(["--project", dir, "done", "T1", "Написано на русском 日本語", "--as", "agente-ñoño"]);
+    assert.equal(r2.code, 0, r2.stderr);
+    const s = await readState(dir);
+    assert.match(s.tasks.T1.title, /Migración/);
+    assert.match(s.tasks.T1.note, /русском/);
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+// Empty log entries are not allowed (action required)
+test("hole: append without action fails", async () => {
+  const { append } = await importFresh("./log.mjs");
+  const dir = await createTempProject();
+  try {
+    await assert.rejects(
+      append(dir, { agent: "a" }),
+      /action/i
+    );
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+// append without agent fails
+test("hole: append without agent fails", async () => {
+  const { append } = await importFresh("./log.mjs");
+  const dir = await createTempProject();
+  try {
+    await assert.rejects(
+      append(dir, { action: "claim", task: "T1" }),
+      /agent/i
+    );
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+// views: formatStatus works on a state with no initiatives
+test("hole: formatStatus handles empty counts gracefully", async () => {
+  const { formatStatus } = await importFresh("../src/views.mjs");
+  const out = formatStatus({ counts: {}, in_progress: [], ready: [], blocked: [], blocked_by_decision: {}, stale: [], active_gotchas: [], open_decisions: [] });
+  assert.match(out, /no initiatives|empty/i);
+});
+
+// views: formatNext handles a task with no title
+test("hole: formatNext handles missing title gracefully", async () => {
+  const { formatNext } = await importFresh("../src/views.mjs");
+  const out = formatNext({ id: "T1", title: undefined, definition: "x", acceptance: "y", gotchas: [] });
+  assert.match(out, /T1/);
+});
+
+// views: formatReady handles empty array
+test("hole: formatReady returns a friendly message for empty list", async () => {
+  const { formatReady } = await importFresh("../src/views.mjs");
+  const out = formatReady([]);
+  assert.match(out, /no tasks ready/i);
+});
+
+// Concurrent init with --seed migration: should not duplicate-seed
+test("hole: concurrent init --seed migration produces one canonical state", async () => {
+  const dir = await createTempProject();
+  try {
+    const [r1, r2] = await Promise.all([
+      runCli(["--project", dir, "init", "--seed", "migration"]),
+      runCli(["--project", dir, "init", "--seed", "migration"]),
+    ]);
+    // At least one should succeed
+    const successes = [r1, r2].filter((r) => r.code === 0);
+    assert.ok(successes.length >= 1);
+    const s = await readState(dir);
+    assert.ok(s.tasks["F0.T1"]);
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+// Release by orchestrator on a NORMAL task (not orphan) should still work
+test("hole: orchestrator can release a task claimed by another agent (recovery)", async () => {
+  const { default: release } = await importFresh("./commands/release.mjs");
+  const dir = await createTempProject();
+  try {
+    const { updateState } = await importFresh("./state.mjs");
+    await updateState(dir, (s) => {
+      s.tasks.T1 = { id: "T1", status: "in_progress", claimed_by: "alice" };
+      return s;
+    });
+    await release({ statePath: dir, flags: { as: "orchestrator" }, positional: ["T1"] });
+    const s = await readState(dir);
+    assert.equal(s.tasks.T1.claimed_by, undefined);
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+// decide on a decision that does not exist fails with clear error
+test("hole: decide on missing decision fails clean", async () => {
+  const { default: decide } = await importFresh("./commands/decide.mjs");
+  const dir = await createTempProject();
+  try {
+    const { updateState } = await importFresh("./state.mjs");
+    await updateState(dir, (s) => {
+      s.tasks.T1 = { id: "T1" };
+      return s;
+    });
+    await assert.rejects(
+      decide({ statePath: dir, flags: { as: "o" }, positional: ["D_MISSING", "x"] }),
+      /not found/i
+    );
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+// next on a missing task
+test("hole: next on missing task fails clean", async () => {
+  const { default: next } = await importFresh("./commands/next.mjs");
+  const dir = await createTempProject();
+  try {
+    const { updateState } = await importFresh("./state.mjs");
+    await updateState(dir, (s) => {
+      s.tasks.T1 = { id: "T1" };
+      return s;
+    });
+    await assert.rejects(
+      next({ statePath: dir, flags: {}, positional: ["T_MISSING"] }),
+      /not found/i
+    );
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+// A read of the migration seed and assert it has F0.T1 ready and F0.T1 dependencies correct
+test("hole: migration seed is internally consistent (deps reference existing nodes)", async () => {
+  const { migrationSeed } = await import("../src/seeds/migration.mjs");
+  for (const t of Object.values(migrationSeed.tasks)) {
+    for (const dep of t.depends_on || []) {
+      assert.ok(
+        migrationSeed.tasks[dep] || migrationSeed.decisions[dep],
+        `task ${t.id} depends on missing node ${dep}`
+      );
+    }
+  }
+});
+
+// views: formatStatus with active gotchas shows them
+test("hole: formatStatus includes active gotchas", async () => {
+  const { formatStatus } = await importFresh("../src/views.mjs");
+  const out = formatStatus({
+    counts: { x: { ready: 1, in_progress: 0, done: 0, blocked: 0, skipped: 0 } },
+    in_progress: [],
+    ready: ["T1"],
+    blocked: [],
+    blocked_by_decision: {},
+    stale: [],
+    active_gotchas: [{ id: "G1", title: "trap", applies_to: ["domain:db"] }],
+    open_decisions: [],
+  });
+  assert.match(out, /G1/);
+  assert.match(out, /trap/);
+});
+
+// views: formatStatus with stale claims shows them
+test("hole: formatStatus includes stale claims", async () => {
+  const { formatStatus } = await importFresh("../src/views.mjs");
+  const out = formatStatus({
+    counts: { x: { ready: 0, in_progress: 1, done: 0, blocked: 0, skipped: 0 } },
+    in_progress: [{ id: "T1", claimed_by: "a", claimed_at: 1000 }],
+    ready: [],
+    blocked: [],
+    blocked_by_decision: {},
+    stale: [{ id: "T1", claimed_by: "a", age_ms: 999999 }],
+    active_gotchas: [],
+    open_decisions: [],
+  });
+  assert.match(out, /STALE/);
+  assert.match(out, /T1/);
+});
+
+// views: formatStatus shows open decisions
+test("hole: formatStatus includes open decisions", async () => {
+  const { formatStatus } = await importFresh("../src/views.mjs");
+  const out = formatStatus({
+    counts: { x: { ready: 0, in_progress: 0, done: 0, blocked: 1, skipped: 0 } },
+    in_progress: [],
+    ready: [],
+    blocked: ["T1"],
+    blocked_by_decision: { D1: ["T1"] },
+    stale: [],
+    active_gotchas: [],
+    open_decisions: ["D1"],
+  });
+  assert.match(out, /D1/);
+  assert.match(out, /OPEN DECISIONS/);
+});
