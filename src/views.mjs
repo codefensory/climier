@@ -117,3 +117,50 @@ export function formatGraph(lines) {
 export function formatTaskShort(task) {
   return `${task.id}  ${task.title || ""}  [${task.initiative || "?"}]  → claimed by you`;
 }
+
+export function formatGotchas(arr) {
+  if (!arr.length) return "(no gotchas)";
+  const lines = ["─── GOTCHAS ───"];
+  for (const g of arr) {
+    lines.push(`  [${g.id}] ${g.title || ""}`);
+    lines.push(`        applies_to: ${(g.applies_to || []).join(", ")}  initiative: ${g.initiative || "-"}  status: ${g.status || "active"}`);
+    if (g.mitigation) lines.push(`        mitigation: ${g.mitigation}`);
+  }
+  return lines.join("\n");
+}
+
+export function formatDecisions(arr) {
+  if (!arr.length) return "(no decisions)";
+  const lines = ["─── DECISIONS ───"];
+  for (const d of arr) {
+    const status = d.status === "decided" ? `✓ decided → ${d.choice}` : "○ open";
+    lines.push(`  [${d.id}]  ${d.title || ""}  ${status}  [${d.initiative || "?"}]`);
+    if (d.rationale) lines.push(`        rationale: ${d.rationale}`);
+  }
+  return lines.join("\n");
+}
+
+export function formatLog(arr) {
+  if (!arr.length) return "(no log entries)";
+  const lines = ["─── LOG ───"];
+  for (const e of arr) {
+    const parts = [e.ts, e.agent, e.action];
+    if (e.task) parts.push(`task=${e.task}`);
+    if (e.decision) parts.push(`decision=${e.decision}`);
+    if (e.note) parts.push(`"${e.note}"`);
+    lines.push(`  ${parts.join("  ")}`);
+  }
+  return lines.join("\n");
+}
+
+export function formatShow({ type, node }) {
+  const lines = [`─── SHOW ${type.toUpperCase()}: ${node.id} ───`];
+  for (const [k, v] of Object.entries(node)) {
+    if (typeof v === "object" && v !== null) {
+      lines.push(`  ${k}: ${JSON.stringify(v)}`);
+    } else {
+      lines.push(`  ${k}: ${v}`);
+    }
+  }
+  return lines.join("\n");
+}
