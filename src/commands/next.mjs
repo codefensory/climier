@@ -12,9 +12,9 @@ export default async function next({ statePath, positional }) {
   if (!t) throw new Error(`next: task ${id} not found`);
   return {
     id: t.id,
-    title: t.title,
+    title: t.title || "(no title)",
     initiative: t.initiative,
-    definition: t.definition || t.title,
+    definition: t.definition || t.title || "(no definition)",
     acceptance: t.acceptance || "(no acceptance criteria defined)",
     depends_on: t.depends_on || [],
     skills: t.skills || [],

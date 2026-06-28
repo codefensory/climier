@@ -65,12 +65,16 @@ export async function updateState(projectDir, mutator) {
 }
 
 // Add a node to a top-level collection (tasks/decisions/gotchas).
+// Uses withLock so concurrent addNode calls are serialized.
 export async function addNode(projectDir, collection, id, node) {
-  return updateState(projectDir, (s) => {
-    s[collection] = s[collection] || {};
-    if (s[collection][id]) throw new Error(`${collection}/${id} already exists`);
-    s[collection][id] = { id, ...node };
-    return s;
+  const { withLock } = await import("./lock.mjs");
+  return withLock(projectDir, async () => {
+    return updateState(projectDir, (s) => {
+      s[collection] = s[collection] || {};
+      if (s[collection][id]) throw new Error(`${collection}/${id} already exists`);
+      s[collection][id] = { id, ...node };
+      return s;
+    });
   });
 }
 
