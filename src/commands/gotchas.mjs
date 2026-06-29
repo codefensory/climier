@@ -1,6 +1,8 @@
 // gotchas: list gotchas, optionally filtered.
 import { readState } from "../state.mjs";
 
+export const knownFlags = ["initiative", "domain"];
+
 export default async function gotchas({ statePath, flags }) {
   const projectDir = statePath.replace(/\.agents\/tasks\/tasks\.json$/, "");
   const s = await readState(projectDir);

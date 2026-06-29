@@ -2,6 +2,8 @@
 import { updateState, readState } from "../state.mjs";
 import { withLock } from "../lock.mjs";
 
+export const knownFlags = ["initiative", "title", "depends-on", "definition", "acceptance", "skills", "effort", "domain"];
+
 export default async function addTask({ statePath, flags, positional }) {
   const [id] = positional;
   if (!id) throw new Error("add-task: task id required (e.g. add-task F1.T1 --initiative migration --title 'monorepo')");

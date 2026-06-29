@@ -2,6 +2,8 @@
 import { readState } from "../state.mjs";
 import { derive, blockedByDecision, staleClaims, statusOf } from "../dag.mjs";
 
+export const knownFlags = ["initiative", "staleMs"];
+
 export default async function status({ statePath, flags }) {
   const projectDir = statePath.replace(/\.agents\/tasks\/tasks\.json$/, "");
   let s = await readState(projectDir);
@@ -32,13 +34,16 @@ export default async function status({ statePath, flags }) {
     counts[init][statusOf(s, t.id)] = (counts[init][statusOf(s, t.id)] || 0) + 1;
   }
   const activeGotchas = Object.values(s.gotchas).filter((g) => g.status !== "resolved");
+  const titleOf = (id) => s.tasks[id]?.title || "";
   return {
     counts,
     in_progress: inProgress.map((t) => ({ id: t.id, title: t.title, claimed_by: t.claimed_by, claimed_at: t.claimed_at, block_reason: t.block_reason, initiative: t.initiative })),
-    ready: d.ready,
+    ready: d.ready.map((id) => ({ id, title: titleOf(id) })),
     blocked: d.blocked,
-    blocked_by_decision: blockedByDecision(s, d),
-    stale: staleClaims(s, staleMs),
+    blocked_by_decision: Object.fromEntries(
+      Object.entries(blockedByDecision(s, d)).map(([did, tids]) => [did, tids.map((id) => ({ id, title: titleOf(id) }))])
+    ),
+    stale: staleClaims(s, staleMs).map((t) => ({ ...t, title: titleOf(t.id) })),
     active_gotchas: activeGotchas,
     open_decisions: d.openDecisions,
   };

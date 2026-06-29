@@ -3,10 +3,13 @@ import { readState, updateState } from "../state.mjs";
 import { withLock } from "../lock.mjs";
 import { append } from "../log.mjs";
 
+export const knownFlags = ["as"];
+
 export default async function release({ statePath, flags, positional }) {
   const [id] = positional;
   if (!id) throw new Error("release: task id required");
   const as = flags.as;
+  if (as === true) throw new Error("release: --as requires a value (e.g. --as alice)");
   if (!as) throw new Error("release: --as <agent> required");
 
   const projectDir = statePath.replace(/\.agents\/tasks\/tasks\.json$/, "");

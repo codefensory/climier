@@ -2,6 +2,8 @@
 import { readState } from "../state.mjs";
 import { forTask } from "../gotchas.mjs";
 
+export const knownFlags = [];
+
 export default async function next({ statePath, positional }) {
   const [id] = positional;
   if (!id) throw new Error("next: task id required");

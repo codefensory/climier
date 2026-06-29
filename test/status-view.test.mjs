@@ -53,7 +53,35 @@ test("status: reports tasks blocked by a decision", async () => {
     });
     const out = await status({ statePath: dir, flags: {} });
     assert.ok(out.blocked_by_decision.D1);
-    assert.ok(out.blocked_by_decision.D1.includes("T1"));
+    assert.ok(out.blocked_by_decision.D1.some((t) => t.id === "T1"));
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("status: ready, stale, and blocked_by_decision include task titles", async () => {
+  const { default: status } = await importFresh("./commands/status.mjs");
+  const dir = await createTempProject();
+  try {
+    const { updateState } = await importFresh("./state.mjs");
+    const old = Date.now() - 10_000;
+    await updateState(dir, (s) => {
+      s.decisions.D1 = { id: "D1" };
+      s.tasks.R1 = { id: "R1", title: "ready thing" };
+      s.tasks.S1 = { id: "S1", title: "stale thing", status: "in_progress", claimed_by: "a", claimed_at: old };
+      s.tasks.B1 = { id: "B1", title: "blocked thing", depends_on: ["D1"] };
+      return s;
+    });
+    const out = await status({ statePath: dir, flags: { staleMs: 1000 } });
+    const ready = out.ready.find((r) => r.id === "R1");
+    assert.ok(ready, "ready should contain R1");
+    assert.equal(ready.title, "ready thing");
+    const stale = out.stale.find((t) => t.id === "S1");
+    assert.ok(stale, "stale should contain S1");
+    assert.equal(stale.title, "stale thing");
+    const blocked = (out.blocked_by_decision.D1 || []).find((t) => t.id === "B1");
+    assert.ok(blocked, "blocked_by_decision[D1] should contain B1");
+    assert.equal(blocked.title, "blocked thing");
   } finally {
     await rmTempProject(dir);
   }

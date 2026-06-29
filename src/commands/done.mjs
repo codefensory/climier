@@ -3,12 +3,15 @@ import { readState, updateState } from "../state.mjs";
 import { withLock } from "../lock.mjs";
 import { append } from "../log.mjs";
 
+export const knownFlags = ["as"];
+
 export default async function done({ statePath, flags, positional }) {
   const [id, ...rest] = positional;
   if (!id) throw new Error("done: task id required");
   const note = rest.join(" ").trim();
   if (!note) throw new Error("done: a note is required (e.g. done T1 'shipped')");
   const as = flags.as;
+  if (as === true) throw new Error("done: --as requires a value (e.g. --as alice)");
   if (!as) throw new Error("done: --as <agent> required");
 
   const projectDir = statePath.replace(/\.agents\/tasks\/tasks\.json$/, "");

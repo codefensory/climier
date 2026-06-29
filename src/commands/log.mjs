@@ -1,6 +1,8 @@
 // log: read and filter the append-only log.
 import { readState } from "../state.mjs";
 
+export const knownFlags = ["limit", "action", "agent", "task", "decision"];
+
 export default async function log({ statePath, flags }) {
   const projectDir = statePath.replace(/\.agents\/tasks\/tasks\.json$/, "");
   const s = await readState(projectDir);

@@ -1,6 +1,8 @@
 // show: return the raw task or decision object by id.
 import { readState } from "../state.mjs";
 
+export const knownFlags = [];
+
 export default async function show({ statePath, positional }) {
   const [id] = positional;
   if (!id) throw new Error("show: id required (e.g. show T1 or show D1)");

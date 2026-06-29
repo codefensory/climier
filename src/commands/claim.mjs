@@ -4,10 +4,13 @@ import { withLock } from "../lock.mjs";
 import { derive } from "../dag.mjs";
 import { append } from "../log.mjs";
 
+export const knownFlags = ["as"];
+
 export default async function claim({ statePath, flags, positional }) {
   const [id] = positional;
   if (!id) throw new Error("claim: task id required");
   const as = flags.as;
+  if (as === true) throw new Error("claim: --as requires a value (e.g. --as alice)");
   if (!as) throw new Error("claim: --as <agent> required");
 
   const projectDir = statePath.replace(/\.agents\/tasks\/tasks\.json$/, "");

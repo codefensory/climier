@@ -120,8 +120,8 @@ test("hole: status --initiative filter narrows blocked_by_decision", async () =>
     const out = await status({ statePath: dir, flags: { initiative: "x" } });
     // Only T1 should be in blocked_by_decision since we're filtering to x
     if (out.blocked_by_decision.D1) {
-      assert.ok(out.blocked_by_decision.D1.includes("T1"));
-      assert.ok(!out.blocked_by_decision.D1.includes("T2"));
+      assert.ok(out.blocked_by_decision.D1.some((t) => t.id === "T1"));
+      assert.ok(!out.blocked_by_decision.D1.some((t) => t.id === "T2"));
     }
   } finally {
     await rmTempProject(dir);

@@ -5,6 +5,8 @@ import { withLock } from "../lock.mjs";
 import { stateFile, emptyState, writeState } from "../state.mjs";
 import { migrationSeed } from "../seeds/migration.mjs";
 
+export const knownFlags = ["seed", "force"];
+
 export default async function init({ statePath, flags, projectDir }) {
   return withLock(projectDir, async () => {
     const file = stateFile(projectDir);

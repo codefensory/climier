@@ -82,14 +82,17 @@ Cycles in the DAG must not crash. `derive` keeps cycle members blocked. Unknown 
 | `ready [--initiative X]` | `commands/ready.mjs` | no | no |
 | `claim <id>` | `commands/claim.mjs` | yes | yes |
 | `next <id>` | `commands/next.mjs` | no | no |
+| `pre-claim <id> [--staleMs N]` | `commands/pre-claim.mjs` | no | no |
 | `done <id> "note"` | `commands/done.mjs` | yes | yes |
 | `release <id>` | `commands/release.mjs` | yes | yes |
+| `reopen <id> "reason"` | `commands/reopen.mjs` | yes | yes (orchestrator or original done_by) |
 | `block <id> "reason"` | `commands/block.mjs` | yes | yes (must be the claimer) |
 | `decide <D> "<choice>" --because "..."` | `commands/decide.mjs` | yes | optional (defaults to `orchestrator`) |
 | `tasks [--initiative X] [--status Y]` | `commands/tasks.mjs` | no | no |
 | `graph [--initiative X]` | `commands/graph.mjs` | no | no |
 | `add-task <id> --initiative X --title "..." [--depends-on A,B] ...` | `commands/add-task.mjs` | yes | no |
 | `add-initiative <name> [--desc "..."]` | `commands/add-initiative.mjs` | yes | no |
+| `add-decision <id> --title "..." [--initiative X] [--applies-to F1,T2,...]` | `commands/add-decision.mjs` | yes | no |
 
 ## Hard rules for contributing
 
@@ -156,7 +159,7 @@ When you fix a bug, write a test that reproduces it BEFORE the fix. The test goe
 
 ## Non-obvious things that bit us
 
-- **`release` and `block` are not symmetric.** `release` has an escape hatch (`--as orchestrator`); `block` does not. By design.
+- **`release` and `block` are not symmetric.** `release` has an escape hatch (`--as orchestrator`); `block` does not. By design. `reopen` follows the same pattern as `release`: orchestrator (or recovery) can reopen any `done` task; the original `done_by` can self-reopen.
 - **`tasks --status DONE` (uppercase) works.** Case-insensitive. `tasks --status ""` lists everything (empty string is falsy → no filter).
 - **`status --staleMs 0` marks all in_progress as stale.** `staleMs: 0` is valid and means "everything in_progress is stale".
 - **`init --force` auto-recovers a corrupt state file** even without `--force`, but `--force` is still needed to overwrite a *valid* state.

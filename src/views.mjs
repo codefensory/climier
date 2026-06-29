@@ -30,21 +30,26 @@ export function formatStatus(s) {
     lines.push("");
     lines.push("STALE CLAIMS (revisar):");
     for (const t of s.stale) {
-      lines.push(`  ${t.id}  @${t.claimed_by}  ${Math.round(t.age_ms / 60000)}m`);
+      const title = t.title ? `  ${t.title}` : "";
+      lines.push(`  ${t.id}${title}  @${t.claimed_by}  ${Math.round(t.age_ms / 60000)}m`);
     }
   }
 
   if (s.ready && s.ready.length) {
     lines.push("");
     lines.push(`READY (${s.ready.length} claimable):`);
-    for (const id of s.ready) lines.push(`  ${id}`);
+    for (const r of s.ready) {
+      if (typeof r === "string") lines.push(`  ${r}`);
+      else lines.push(`  ${r.id}  ${r.title || ""}`.trimEnd());
+    }
   }
 
   if (s.blocked_by_decision && Object.keys(s.blocked_by_decision).length) {
     lines.push("");
     lines.push("BLOCKED BY DECISION:");
     for (const [did, tids] of Object.entries(s.blocked_by_decision)) {
-      lines.push(`  ${did} → ${tids.join(", ")}`);
+      const fmt = (t) => (typeof t === "string" ? t : `${t.id} (${t.title || "?"})`);
+      lines.push(`  ${did} → ${tids.map(fmt).join(", ")}`);
     }
   }
 
@@ -150,6 +155,50 @@ export function formatLog(arr) {
     if (e.note) parts.push(`"${e.note}"`);
     lines.push(`  ${parts.join("  ")}`);
   }
+  return lines.join("\n");
+}
+
+export function formatPreClaim(p) {
+  const lines = [];
+  lines.push(`─── PRE-CLAIM ${p.id}: ${p.title} ───`);
+  lines.push(`initiative: ${p.initiative || "?"}    domain: ${p.domain || "-"}    skills: ${(p.skills || []).join(", ") || "-"}`);
+  lines.push(`derived_status: ${p.derived_status}    can_claim: ${p.can_claim ? "YES" : "NO"}`);
+  if (p.depends_on && p.depends_on.length) lines.push(`depends_on: ${p.depends_on.join(", ")}`);
+  lines.push("");
+  lines.push("DEFINITION:");
+  lines.push(`  ${p.definition}`);
+  lines.push("");
+  lines.push("ACCEPTANCE:");
+  lines.push(`  ${p.acceptance}`);
+  if (p.gotchas && p.gotchas.length) {
+    lines.push("");
+    lines.push("GOTCHAS (read before claiming):");
+    for (const g of p.gotchas) {
+      lines.push(`  ⚠ [${g.id}] ${g.title}`);
+      if (g.mitigation) lines.push(`     mitigation: ${g.mitigation}`);
+    }
+  }
+  if (p.claim) {
+    lines.push("");
+    lines.push("CURRENT CLAIM:");
+    lines.push(`  by: ${p.claim.by || "(unknown)"}`);
+    if (p.claim.age_ms !== null && p.claim.age_ms !== undefined) {
+      lines.push(`  age: ${Math.round(p.claim.age_ms / 60000)}m`);
+    }
+    if (p.claim.block_reason) lines.push(`  block_reason: ${p.claim.block_reason}`);
+  }
+  if (p.blockers && p.blockers.length) {
+    lines.push("");
+    lines.push("BLOCKERS:");
+    for (const b of p.blockers) lines.push(`  ✗ ${b}`);
+  }
+  if (p.warnings && p.warnings.length) {
+    lines.push("");
+    lines.push("WARNINGS:");
+    for (const w of p.warnings) lines.push(`  ! ${w}`);
+  }
+  lines.push("");
+  lines.push(p.can_claim ? "→ ready to claim" : "→ do not claim");
   return lines.join("\n");
 }
 

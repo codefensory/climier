@@ -30,14 +30,17 @@ From any project that has `.agents/tasks/tasks.json` in it, run from the project
 | `ready` | Only the claimable-now tasks, with skills/effort/domain. This is the orchestrator's delegation view. |
 | `claim <id> --as <agent>` | Take a `ready` task atomically. |
 | `next <id>` | Definition + acceptance criteria + gotchas for the domain. |
+| `pre-claim <id> [--staleMs N]` | Read-only pre-flight: task, gotchas, derived status, current claim, stale warnings, GO/NO-GO verdict. |
 | `done <id> "note" --as <agent>` | Mark complete; recompute ready. |
 | `release <id> --as <agent>` | Free the claim without completing. |
+| `reopen <id> "reason" --as orchestrator` | Roll a `done` task back to `in_progress`; downstream tasks re-block. Authority: orchestrator (or the original `done_by`). |
 | `block <id> "reason" --as <agent>` | Mark a blocker on the current task. |
 | `decide <D> "<choice>" --because "..."` | Close a decision; unblocks tasks that depend on it. |
 | `tasks [--initiative X] [--status Y]` | List tasks. |
 | `graph` | Print the DAG as text. |
 | `add-task ...` | Add a task to the DAG. |
 | `add-initiative <name> --desc "..."` | Register an initiative. |
+| `add-decision <id> --title "..." [--initiative X] [--applies-to F1,T2,...]` | Register a new decision (use for research that yields a choice). |
 
 ## Concepts
 

@@ -2,6 +2,8 @@
 import { readState } from "../state.mjs";
 import { statusOf } from "../dag.mjs";
 
+export const knownFlags = ["initiative"];
+
 export default async function graph({ statePath, flags }) {
   const projectDir = statePath.replace(/\.agents\/tasks\/tasks\.json$/, "");
   const s = await readState(projectDir);

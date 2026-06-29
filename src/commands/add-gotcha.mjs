@@ -2,6 +2,8 @@
 import { addNode, updateState, readState } from "../state.mjs";
 import { withLock } from "../lock.mjs";
 
+export const knownFlags = ["title", "applies-to", "initiative", "mitigation"];
+
 export default async function addGotcha({ statePath, flags, positional }) {
   const [id] = positional;
   if (!id) throw new Error("add-gotcha: id required (e.g. add-gotcha G1 --title 'trap' --applies-to domain:db)");

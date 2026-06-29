@@ -3,6 +3,8 @@ import { readState, updateState } from "../state.mjs";
 import { withLock } from "../lock.mjs";
 import { append } from "../log.mjs";
 
+export const knownFlags = ["as"];
+
 export default async function block({ statePath, flags, positional }) {
   const [id, ...rest] = positional;
   if (!id) throw new Error("block: task id required");
@@ -10,6 +12,7 @@ export default async function block({ statePath, flags, positional }) {
   const reason = rest.join(" ").trim();
   if (!reason) throw new Error("block: a non-empty reason is required");
   const as = flags.as;
+  if (as === true) throw new Error("block: --as requires a value (e.g. --as alice)");
   if (!as) throw new Error("block: --as <agent> required");
 
   const projectDir = statePath.replace(/\.agents\/tasks\/tasks\.json$/, "");
