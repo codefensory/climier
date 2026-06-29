@@ -34,7 +34,7 @@ export default async function reopen({ statePath, flags, positional }) {
       );
     }
     const claimed_at = Date.now();
-    await updateState(projectDir, (st) => {
+    const updated = await updateState(projectDir, (st) => {
       st.tasks[id].status = "in_progress";
       st.tasks[id].claimed_by = as;
       st.tasks[id].claimed_at = claimed_at;
@@ -45,6 +45,6 @@ export default async function reopen({ statePath, flags, positional }) {
       return st;
     });
     await append(projectDir, { agent: as, action: "reopen", task: id, note: reason });
-    return { task: s.tasks[id] };
+    return { task: updated.tasks[id] };
   });
 }

@@ -1,5 +1,5 @@
 // Bug hunt: look for real bugs in the gap-filling changes and in code that
-// hasn't been stressed by tests yet.
+// hasn't been stressed by tests yet. Output is JSON-only.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
@@ -30,6 +30,8 @@ test("bug: log on empty project returns empty list (no crash)", async () => {
   try {
     const r = await runCli(["--project", dir, "log"]);
     assert.equal(r.code, 0, r.stderr);
+    const data = JSON.parse(r.stdout);
+    assert.deepEqual(data, []);
   } finally {
     await rmTempProject(dir);
   }
@@ -41,6 +43,8 @@ test("bug: gotchas on empty project returns empty list", async () => {
   try {
     const r = await runCli(["--project", dir, "gotchas"]);
     assert.equal(r.code, 0, r.stderr);
+    const data = JSON.parse(r.stdout);
+    assert.deepEqual(data, []);
   } finally {
     await rmTempProject(dir);
   }
@@ -52,70 +56,78 @@ test("bug: decisions on empty project returns empty list", async () => {
   try {
     const r = await runCli(["--project", dir, "decisions"]);
     assert.equal(r.code, 0, r.stderr);
+    const data = JSON.parse(r.stdout);
+    assert.deepEqual(data, []);
   } finally {
     await rmTempProject(dir);
   }
 });
 
 // 5. show without state file
-test("bug: show on empty project fails clean", async () => {
+test("bug: show on empty project fails clean with JSON error", async () => {
   const dir = await createTempProject();
   try {
     const r = await runCli(["--project", dir, "show", "T1"]);
     assert.notEqual(r.code, 0);
-    assert.match(r.stderr, /state/i);
+    const data = JSON.parse(r.stdout);
+    assert.equal(data.ok, false);
+    assert.match(data.error, /state/i);
   } finally {
     await rmTempProject(dir);
   }
 });
 
 // 6. show on a task with no id positional
-test("bug: show with no id fails clean", async () => {
+test("bug: show with no id fails clean with JSON error", async () => {
   const dir = await createTempProject();
   try {
     await runCli(["--project", dir, "init"]);
     const r = await runCli(["--project", dir, "show"]);
     assert.notEqual(r.code, 0);
-    assert.match(r.stderr, /id required/i);
+    const data = JSON.parse(r.stdout);
+    assert.match(data.error, /id required/i);
   } finally {
     await rmTempProject(dir);
   }
 });
 
 // 7. add-gotcha with no positional id
-test("bug: add-gotcha with no id fails clean", async () => {
+test("bug: add-gotcha with no id fails clean with JSON error", async () => {
   const dir = await createTempProject();
   try {
     await runCli(["--project", dir, "init"]);
     const r = await runCli(["--project", dir, "add-gotcha", "--title", "x", "--applies-to", "domain:db"]);
     assert.notEqual(r.code, 0);
-    assert.match(r.stderr, /id required/i);
+    const data = JSON.parse(r.stdout);
+    assert.match(data.error, /id required/i);
   } finally {
     await rmTempProject(dir);
   }
 });
 
 // 8. add-gotcha with no --title
-test("bug: add-gotcha with no --title fails clean", async () => {
+test("bug: add-gotcha with no --title fails clean with JSON error", async () => {
   const dir = await createTempProject();
   try {
     await runCli(["--project", dir, "init"]);
     const r = await runCli(["--project", dir, "add-gotcha", "G1", "--applies-to", "domain:db"]);
     assert.notEqual(r.code, 0);
-    assert.match(r.stderr, /title/i);
+    const data = JSON.parse(r.stdout);
+    assert.match(data.error, /title/i);
   } finally {
     await rmTempProject(dir);
   }
 });
 
 // 9. add-gotcha with no --applies-to
-test("bug: add-gotcha with no --applies-to fails clean", async () => {
+test("bug: add-gotcha with no --applies-to fails clean with JSON error", async () => {
   const dir = await createTempProject();
   try {
     await runCli(["--project", dir, "init"]);
     const r = await runCli(["--project", dir, "add-gotcha", "G1", "--title", "x"]);
     assert.notEqual(r.code, 0);
-    assert.match(r.stderr, /applies-to/i);
+    const data = JSON.parse(r.stdout);
+    assert.match(data.error, /applies-to/i);
   } finally {
     await rmTempProject(dir);
   }
@@ -135,17 +147,18 @@ test("bug: log --limit negative is treated as 0 or ignored", async () => {
   }
 });
 
-// 11. --json on a command that fails
-test("bug: --json on a failing command still produces parseable output (or clean error)", async () => {
+// 11. Failing command produces JSON error on stdout
+test("bug: failing command produces JSON error on stdout, never corrupts stdout", async () => {
   const dir = await createTempProject();
   try {
     await runCli(["--project", dir, "init"]);
     // claim a non-existent task
-    const r = await runCli(["--project", dir, "--json", "claim", "NOPE", "--as", "a"]);
-    // The error path: should exit non-zero, but the error message should be on stderr
-    // (not corrupt the stdout). Let's just verify exit code and stderr.
+    const r = await runCli(["--project", dir, "claim", "NOPE", "--as", "a"]);
     assert.notEqual(r.code, 0);
-    assert.match(r.stderr, /not found/i);
+    // The error must be valid JSON.
+    const data = JSON.parse(r.stdout);
+    assert.equal(data.ok, false);
+    assert.match(data.error, /not found/i);
   } finally {
     await rmTempProject(dir);
   }
@@ -158,6 +171,8 @@ test("bug: gotchas --domain with no matching gotchas returns empty", async () =>
     await runCli(["--project", dir, "init", "--seed", "migration"]);
     const r = await runCli(["--project", dir, "gotchas", "--domain", "nonexistent"]);
     assert.equal(r.code, 0, r.stderr);
+    const data = JSON.parse(r.stdout);
+    assert.deepEqual(data, []);
   } finally {
     await rmTempProject(dir);
   }
@@ -170,6 +185,8 @@ test("bug: log --action on empty log returns empty", async () => {
     await runCli(["--project", dir, "init"]);
     const r = await runCli(["--project", dir, "log", "--action", "claim"]);
     assert.equal(r.code, 0, r.stderr);
+    const data = JSON.parse(r.stdout);
+    assert.deepEqual(data, []);
   } finally {
     await rmTempProject(dir);
   }
@@ -194,15 +211,19 @@ test("bug: concurrent add-gotcha on different ids — all succeed", async () => 
   }
 });
 
-// 15. --json= and --json (no value) both work
-test("bug: --json=true and --json (boolean) both work", async () => {
+// 15. --json flag is no longer accepted (deleted, not deprecated)
+test("bug: --json flag is gone (unknown flag error)", async () => {
   const dir = await createTempProject();
   try {
     await runCli(["--project", dir, "init", "--seed", "migration"]);
-    const r1 = await runCli(["--project", dir, "--json=true", "ready"]);
-    assert.equal(r1.code, 0, r1.stderr);
-    const r2 = await runCli(["--project", dir, "--json", "ready"]);
-    assert.equal(r2.code, 0, r2.stderr);
+    // --json before the command → unknown flag, exit non-zero.
+    const r1 = await runCli(["--project", dir, "--json", "ready"]);
+    assert.notEqual(r1.code, 0);
+    const d1 = JSON.parse(r1.stdout);
+    assert.equal(d1.ok, false);
+    // --json=json after the command → still unknown flag.
+    const r2 = await runCli(["--project", dir, "ready", "--json=json"]);
+    assert.notEqual(r2.code, 0);
   } finally {
     await rmTempProject(dir);
   }
@@ -213,10 +234,11 @@ test("bug: show on a gotcha returns it", async () => {
   const dir = await createTempProject();
   try {
     await runCli(["--project", dir, "init", "--seed", "migration"]);
-    const r = await runCli(["--project", dir, "--json", "show", "G1"]);
+    const r = await runCli(["--project", dir, "show", "G1"]);
     assert.equal(r.code, 0, r.stderr);
     const data = JSON.parse(r.stdout);
-    assert.equal(data.id, "G1");
+    assert.equal(data.type, "gotcha");
+    assert.equal(data.node.id, "G1");
   } finally {
     await rmTempProject(dir);
   }
@@ -245,7 +267,7 @@ test("bug: log --action + --task combines filters", async () => {
     await runCli(["--project", dir, "decide", "D1", "x", "--because", "r"]);
     await runCli(["--project", dir, "decide", "D2", "y", "--because", "r"]);
     await runCli(["--project", dir, "claim", "F0.T1", "--as", "a"]);
-    const r = await runCli(["--project", dir, "--json", "log", "--action", "decide"]);
+    const r = await runCli(["--project", dir, "log", "--action", "decide"]);
     const data = JSON.parse(r.stdout);
     // Should have 2 decide entries, no claim
     assert.equal(data.length, 2);
@@ -271,18 +293,19 @@ test("bug: add-gotcha does not validate that --applies-to targets exist", async 
   }
 });
 
-// 20. show --json for a task that's been done
+// 20. show for a task that's been done
 test("bug: show on a done task returns the full state including done_at", async () => {
   const dir = await createTempProject();
   try {
     await runCli(["--project", dir, "init", "--seed", "migration"]);
     await runCli(["--project", dir, "claim", "F0.T1", "--as", "a"]);
     await runCli(["--project", dir, "done", "F0.T1", "shipped", "--as", "a"]);
-    const r = await runCli(["--project", dir, "--json", "show", "F0.T1"]);
+    const r = await runCli(["--project", dir, "show", "F0.T1"]);
     const data = JSON.parse(r.stdout);
-    assert.equal(data.status, "done");
-    assert.equal(data.note, "shipped");
-    assert.ok(data.done_at);
+    assert.equal(data.type, "task");
+    assert.equal(data.node.status, "done");
+    assert.equal(data.node.note, "shipped");
+    assert.ok(data.node.done_at);
   } finally {
     await rmTempProject(dir);
   }
@@ -295,7 +318,7 @@ test("bug: log --decision filter returns only entries for that decision", async 
     await runCli(["--project", dir, "init", "--seed", "migration"]);
     await runCli(["--project", dir, "decide", "D1", "x", "--because", "r"]);
     await runCli(["--project", dir, "decide", "D2", "y", "--because", "r"]);
-    const r = await runCli(["--project", dir, "--json", "log", "--decision", "D1"]);
+    const r = await runCli(["--project", dir, "log", "--decision", "D1"]);
     const data = JSON.parse(r.stdout);
     assert.equal(data.length, 1);
     assert.equal(data[0].decision, "D1");
@@ -304,11 +327,11 @@ test("bug: log --decision filter returns only entries for that decision", async 
   }
 });
 
-// 22. --json on a project with no state
-test("bug: --json status on project with no state returns the empty-status object (counts, in_progress, ... all empty)", async () => {
+// 22. status on a project with no state
+test("bug: status on project with no state returns the empty-status object (counts, in_progress, ... all empty)", async () => {
   const dir = await createTempProject();
   try {
-    const r = await runCli(["--project", dir, "--json", "status"]);
+    const r = await runCli(["--project", dir, "status"]);
     assert.equal(r.code, 0, r.stderr);
     const data = JSON.parse(r.stdout);
     // Returns the same shape status always returns, just with all collections empty.

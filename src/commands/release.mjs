@@ -31,7 +31,7 @@ export default async function release({ statePath, flags, positional }) {
         throw new Error(`release: task ${id} is not yours (claimed by ${t.claimed_by})`);
       }
     }
-    await updateState(projectDir, (st) => {
+    const updated = await updateState(projectDir, (st) => {
       delete st.tasks[id].claimed_by;
       delete st.tasks[id].claimed_at;
       delete st.tasks[id].block_reason;
@@ -39,6 +39,6 @@ export default async function release({ statePath, flags, positional }) {
       return st;
     });
     await append(projectDir, { agent: as, action: "release", task: id });
-    return { task: s.tasks[id] };
+    return { task: updated.tasks[id] };
   });
 }

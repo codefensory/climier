@@ -152,8 +152,10 @@ test("hole: two parallel in_progress tasks in same initiative", async () => {
     assert.equal(r1.code, 0);
     assert.equal(r2.code, 0);
     const r = await runCli(["--project", dir, "status"]);
-    assert.match(r.stdout, /T1/);
-    assert.match(r.stdout, /T2/);
+    const status = JSON.parse(r.stdout);
+    const ids = status.in_progress.map((t) => t.id);
+    assert.ok(ids.includes("T1"));
+    assert.ok(ids.includes("T2"));
   } finally {
     await rmTempProject(dir);
   }
@@ -196,23 +198,4 @@ test("hole: derive handles a self-referencing task", async () => {
   assert.ok(r.blocked.includes("T1"));
 });
 
-// formatTaskShort includes the initiative
-test("hole: formatTaskShort shows initiative", async () => {
-  const { formatTaskShort } = await importFresh("../src/views.mjs");
-  const out = formatTaskShort({ id: "T1", initiative: "mig" });
-  assert.match(out, /mig/);
-});
-
-// formatNext with a task that has no gotchas doesn't show the section
-test("hole: formatNext omits the gotchas section if no gotchas", async () => {
-  const { formatNext } = await importFresh("../src/views.mjs");
-  const out = formatNext({ id: "T1", title: "T", definition: "d", acceptance: "a", gotchas: [] });
-  assert.doesNotMatch(out, /GOTCHAS DEL DOMINIO/);
-});
-
-// formatGraph with an empty state returns just the headers
-test("hole: formatGraph handles empty state", async () => {
-  const { formatGraph } = await importFresh("../src/views.mjs");
-  const out = formatGraph([]);
-  assert.equal(out, "");
-});
+// formatTaskShort / formatNext / formatGraph: removed (formatters dropped in JSON-only refactor).

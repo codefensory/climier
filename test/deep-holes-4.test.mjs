@@ -101,26 +101,7 @@ test("hole: append without agent fails", async () => {
   }
 });
 
-// views: formatStatus works on a state with no initiatives
-test("hole: formatStatus handles empty counts gracefully", async () => {
-  const { formatStatus } = await importFresh("../src/views.mjs");
-  const out = formatStatus({ counts: {}, in_progress: [], ready: [], blocked: [], blocked_by_decision: {}, stale: [], active_gotchas: [], open_decisions: [] });
-  assert.match(out, /no initiatives|empty/i);
-});
-
-// views: formatNext handles a task with no title
-test("hole: formatNext handles missing title gracefully", async () => {
-  const { formatNext } = await importFresh("../src/views.mjs");
-  const out = formatNext({ id: "T1", title: undefined, definition: "x", acceptance: "y", gotchas: [] });
-  assert.match(out, /T1/);
-});
-
-// views: formatReady handles empty array
-test("hole: formatReady returns a friendly message for empty list", async () => {
-  const { formatReady } = await importFresh("../src/views.mjs");
-  const out = formatReady([]);
-  assert.match(out, /no tasks ready/i);
-});
+// views: formatters were removed in the JSON-only refactor.
 
 // Concurrent init with --seed migration: should not duplicate-seed
 test("hole: concurrent init --seed migration produces one canonical state", async () => {
@@ -209,53 +190,4 @@ test("hole: migration seed is internally consistent (deps reference existing nod
   }
 });
 
-// views: formatStatus with active gotchas shows them
-test("hole: formatStatus includes active gotchas", async () => {
-  const { formatStatus } = await importFresh("../src/views.mjs");
-  const out = formatStatus({
-    counts: { x: { ready: 1, in_progress: 0, done: 0, blocked: 0, skipped: 0 } },
-    in_progress: [],
-    ready: ["T1"],
-    blocked: [],
-    blocked_by_decision: {},
-    stale: [],
-    active_gotchas: [{ id: "G1", title: "trap", applies_to: ["domain:db"] }],
-    open_decisions: [],
-  });
-  assert.match(out, /G1/);
-  assert.match(out, /trap/);
-});
-
-// views: formatStatus with stale claims shows them
-test("hole: formatStatus includes stale claims", async () => {
-  const { formatStatus } = await importFresh("../src/views.mjs");
-  const out = formatStatus({
-    counts: { x: { ready: 0, in_progress: 1, done: 0, blocked: 0, skipped: 0 } },
-    in_progress: [{ id: "T1", claimed_by: "a", claimed_at: 1000 }],
-    ready: [],
-    blocked: [],
-    blocked_by_decision: {},
-    stale: [{ id: "T1", claimed_by: "a", age_ms: 999999 }],
-    active_gotchas: [],
-    open_decisions: [],
-  });
-  assert.match(out, /STALE/);
-  assert.match(out, /T1/);
-});
-
-// views: formatStatus shows open decisions
-test("hole: formatStatus includes open decisions", async () => {
-  const { formatStatus } = await importFresh("../src/views.mjs");
-  const out = formatStatus({
-    counts: { x: { ready: 0, in_progress: 0, done: 0, blocked: 1, skipped: 0 } },
-    in_progress: [],
-    ready: [],
-    blocked: ["T1"],
-    blocked_by_decision: { D1: ["T1"] },
-    stale: [],
-    active_gotchas: [],
-    open_decisions: ["D1"],
-  });
-  assert.match(out, /D1/);
-  assert.match(out, /OPEN DECISIONS/);
-});
+// views: formatters were removed in the JSON-only refactor.

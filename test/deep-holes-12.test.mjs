@@ -90,26 +90,7 @@ test("hole: 3 init --force on the same dir — all succeed, last wins", async ()
   }
 });
 
-// views: formatStatus with all sections
-test("hole: formatStatus renders every section when state is full", async () => {
-  const { formatStatus } = await importFresh("../src/views.mjs");
-  const out = formatStatus({
-    counts: { x: { ready: 1, in_progress: 1, done: 1, blocked: 1, skipped: 0 } },
-    in_progress: [{ id: "T1", claimed_by: "a", claimed_at: 1000 }],
-    ready: ["T2"],
-    blocked: ["T3"],
-    blocked_by_decision: { D1: ["T3"] },
-    stale: [{ id: "T1", claimed_by: "a", age_ms: 999999 }],
-    active_gotchas: [{ id: "G1", title: "trap", applies_to: ["domain:db"] }],
-    open_decisions: ["D1"],
-  });
-  assert.match(out, /IN PROGRESS/);
-  assert.match(out, /STALE/);
-  assert.match(out, /READY/);
-  assert.match(out, /BLOCKED BY DECISION/);
-  assert.match(out, /OPEN DECISIONS/);
-  assert.match(out, /ACTIVE GOTCHAS/);
-});
+// formatStatus renders every section when state is full — removed (formatters dropped in JSON-only refactor).
 
 // A task with claimed_by as a number (corruption) — should still work for basic ops
 test("hole: numeric claimed_by is preserved", async () => {

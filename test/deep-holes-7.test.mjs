@@ -104,13 +104,7 @@ test("hole: stale detection does not crash on in_progress with no claimed_at", a
   }
 });
 
-// Format task short with a task that has no title
-test("hole: formatTaskShort works with missing fields", async () => {
-  const { formatTaskShort } = await importFresh("../src/views.mjs");
-  const out = formatTaskShort({ id: "T1", initiative: "x" });
-  assert.match(out, /T1/);
-  assert.match(out, /x/);
-});
+// Format task short: removed (formatters dropped in JSON-only refactor).
 
 // Many concurrent ops: 100 different ops on 100 different tasks
 test("hole: 100 parallel claims on 100 different tasks — all succeed", async () => {

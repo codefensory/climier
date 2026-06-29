@@ -13,7 +13,10 @@ test("block: sets block_reason on the in_progress task; task still in_progress",
       s.tasks.T1 = { id: "T1", status: "in_progress", claimed_by: "agent-a" };
       return s;
     });
-    await block({ statePath: dir, flags: { as: "agent-a" }, positional: ["T1", "needs", "design", "decision"] });
+    const out = await block({ statePath: dir, flags: { as: "agent-a" }, positional: ["T1", "needs", "design", "decision"] });
+    // Returned task reflects the post-block state.
+    assert.equal(out.task.status, "in_progress");
+    assert.match(out.task.block_reason, /needs design decision/);
     const s = await readState(dir);
     assert.equal(s.tasks.T1.status, "in_progress");
     assert.match(s.tasks.T1.block_reason, /needs design decision/);

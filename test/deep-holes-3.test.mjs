@@ -92,7 +92,8 @@ test("hole: add-task with no id fails clean", async () => {
     await runCli(["--project", dir, "init"]);
     const r = await runCli(["--project", dir, "add-task", "--initiative", "x", "--title", "y"]);
     assert.notEqual(r.code, 0);
-    assert.match(r.stderr, /id required/i);
+    const data = JSON.parse(r.stdout);
+    assert.match(data.error, /id required/i);
   } finally {
     await rmTempProject(dir);
   }
@@ -105,7 +106,8 @@ test("hole: add-task with --title '' fails clean", async () => {
     await runCli(["--project", dir, "init"]);
     const r = await runCli(["--project", dir, "add-task", "T1", "--initiative", "x", "--title", ""]);
     assert.notEqual(r.code, 0);
-    assert.match(r.stderr, /title/i);
+    const data = JSON.parse(r.stdout);
+    assert.match(data.error, /title/i);
   } finally {
     await rmTempProject(dir);
   }

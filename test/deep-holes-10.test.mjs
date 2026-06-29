@@ -169,13 +169,7 @@ test("hole: migration seed structure is correct (F0 has 4 tasks, F1 has 2, F2-F9
   }
 });
 
-// views: formatStatus never throws even with weird inputs
-test("hole: formatStatus tolerates missing fields gracefully", async () => {
-  const { formatStatus } = await importFresh("../src/views.mjs");
-  // Missing some fields
-  const out = formatStatus({ counts: {} });
-  assert.ok(typeof out === "string");
-});
+// formatStatus tolerates missing fields gracefully — removed (formatters dropped in JSON-only refactor).
 
 // init with a custom --seed we don't recognize: doesn't crash, creates empty
 test("hole: init --seed 'unknown' creates empty state, doesn't crash", async () => {

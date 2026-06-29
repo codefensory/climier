@@ -32,7 +32,10 @@ test("hole: full real-world scenario with 2 workers, 1 orchestrator, decisions, 
 
     // 6. Orchestrator sees the block in status
     r = await runCli(["--project", dir, "status"]);
-    assert.match(r.stdout, /need more info/);
+    const status = JSON.parse(r.stdout);
+    const blocked = status.in_progress.find((t) => t.id === "F0.T1");
+    assert.ok(blocked);
+    assert.match(blocked.block_reason, /need more info/);
 
     // 7. Orchestrator recovers the task (force release)
     r = await runCli(["--project", dir, "release", "F0.T1", "--as", "orchestrator"]);
@@ -48,8 +51,10 @@ test("hole: full real-world scenario with 2 workers, 1 orchestrator, decisions, 
 
     // 10. After F0.T1 done, F0.T2 and F0.T4 are now ready
     r = await runCli(["--project", dir, "ready"]);
-    assert.match(r.stdout, /F0\.T2/);
-    assert.match(r.stdout, /F0\.T4/);
+    const readyData = JSON.parse(r.stdout);
+    const readyIds = readyData.map((t) => t.id);
+    assert.ok(readyIds.includes("F0.T2"));
+    assert.ok(readyIds.includes("F0.T4"));
 
     // 11. Final state: all 4 decisions decided, F0.T1 done, F0.T2/T4 ready
     const s = await readState(dir);
@@ -119,16 +124,7 @@ test("hole: orchestrator can read status while workers claim in parallel", async
   }
 });
 
-// Format output: status produces no exceptions for any state shape
-test("hole: formatStatus never throws on unusual state shapes", async () => {
-  const { formatStatus } = await importFresh("../src/views.mjs");
-  // Empty counts
-  let out = formatStatus({ counts: {}, in_progress: [], ready: [], blocked: [], blocked_by_decision: {}, stale: [], active_gotchas: [], open_decisions: [] });
-  assert.ok(typeof out === "string");
-  // No in_progress
-  out = formatStatus({ counts: { x: { ready: 1 } }, in_progress: [], ready: ["T1"], blocked: [], blocked_by_decision: {}, stale: [], active_gotchas: [], open_decisions: [] });
-  assert.ok(typeof out === "string");
-});
+// formatStatus never throws on unusual state shapes — removed (formatters dropped in JSON-only refactor).
 
 // addNode with non-existent collection creates the collection
 test("hole: addNode creates the collection if it doesn't exist", async () => {
@@ -180,15 +176,7 @@ test("hole: tasks with extra unknown fields don't break anything", async () => {
   }
 });
 
-// views formatReady with one task
-test("hole: formatReady with one task shows that task", async () => {
-  const { formatReady } = await importFresh("../src/views.mjs");
-  const out = formatReady([{ id: "T1", title: "x", skills: ["ts"], effort: "s", domain: "db" }]);
-  assert.match(out, /T1/);
-  assert.match(out, /ts/);
-  assert.match(out, /s/);
-  assert.match(out, /db/);
-});
+// views formatReady with one task — removed (formatters dropped in JSON-only refactor).
 
 // Concurrent: 5 add-initiative with different names
 test("hole: 5 concurrent add-initiative with different names — all succeed", async () => {

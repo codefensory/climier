@@ -1,4 +1,5 @@
 // Orchestrator flow: simulate an orchestrator + 3 workers running in parallel.
+// All output is JSON to stdout.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, runCli, readState } from "./helpers.mjs";
@@ -13,15 +14,16 @@ test("orchestrator flow: init seed, delegate, 3 workers complete tasks in parall
     // 2. Orchestrator reads status; expects a few ready tasks.
     r = await runCli(["--project", dir, "ready"]);
     assert.equal(r.code, 0, r.stderr);
-    assert.match(r.stdout, /F[01]\.T\d/);
+    const readyData = JSON.parse(r.stdout);
+    assert.ok(readyData.some((t) => /^F[01]\.T\d$/.test(t.id)));
 
     // 3. Orchestrator reads blocked-by-decision and decides D1.
     r = await runCli(["--project", dir, "status"]);
-    assert.match(r.stdout, /D1/);
+    const statusData = JSON.parse(r.stdout);
+    assert.ok(statusData.open_decisions.includes("D1"));
     r = await runCli(["--project", dir, "decide", "D1", "raw-postgres", "--because", "skip Directus"]);
     assert.equal(r.code, 0, r.stderr);
 
-    // 4. 3 workers claim 3 different tasks in parallel and complete them.
     // 4. 2 workers claim 2 different tasks in parallel and complete them.
     // F0.T1 is the only initially-ready task. Two-phase: claim F0.T1, do it,
     // then F0.T2 becomes ready and the other worker claims it.
@@ -76,13 +78,16 @@ test("orchestrator flow: a task depending only on a decision becomes ready after
     await fs.writeFile(file, JSON.stringify(state, null, 2) + "\n");
 
     let r = await runCli(["--project", dir, "ready"]);
-    assert.equal(r.stdout.trim(), "(no tasks ready)");
+    assert.equal(r.code, 0, r.stderr);
+    const readyBefore = JSON.parse(r.stdout);
+    assert.deepEqual(readyBefore, []);
 
     r = await runCli(["--project", dir, "decide", "D1", "yes", "--because", "ok"]);
     assert.equal(r.code, 0, r.stderr);
 
     r = await runCli(["--project", dir, "ready"]);
-    assert.match(r.stdout, /X\.1/);
+    const readyAfter = JSON.parse(r.stdout);
+    assert.ok(readyAfter.some((t) => t.id === "X.1"));
   } finally {
     await rmTempProject(dir);
   }

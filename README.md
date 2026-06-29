@@ -2,6 +2,16 @@
 
 Task DAG harness for multi-agent workflows. A single-file state in each project (`.agents/tasks/tasks.json`), a CLI to manage it, and a model designed for several agents (or an orchestrator + workers) to claim and complete work in parallel without stepping on each other.
 
+## Output: JSON-only
+
+Every command prints a single JSON value to stdout. Errors are JSON to stdout, with non-zero exit. There is no `--json` flag (it's the default), no text mode. Use `jq` for human reading.
+
+| Outcome | stdout | exit |
+|---|---|---|
+| Success | `{...}` or `[...]` (the command's result) | 0 |
+| Error | `{ "ok": false, "error": "<message>" }` | 1 (validation) or 2 (bad invocation) |
+| `--help` | plain text (the only non-JSON output) | 0 |
+
 ## What it is
 
 - A small Node CLI (no runtime dependencies, stdlib only).

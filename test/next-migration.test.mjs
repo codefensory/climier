@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, runCli } from "./helpers.mjs";
 
-test("CLI: next F1.T1 returns title, acceptance, gotchas after seed", async () => {
+test("CLI: next F1.T1 returns id, title, acceptance, gotchas after seed", async () => {
   const dir = await createTempProject();
   try {
     let r = await runCli(["--project", dir, "init", "--seed", "migration"]);
@@ -11,7 +11,9 @@ test("CLI: next F1.T1 returns title, acceptance, gotchas after seed", async () =
     r = await runCli(["--project", dir, "next", "F1.T1"]);
     assert.equal(r.code, 0, r.stderr);
     // F1.T1 is the monorepo skeleton, domain:monorepo
-    assert.match(r.stdout, /F1\.T1/);
+    const data = JSON.parse(r.stdout);
+    assert.equal(data.id, "F1.T1");
+    assert.ok(data.title);
   } finally {
     await rmTempProject(dir);
   }

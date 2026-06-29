@@ -79,7 +79,8 @@ test("hole: a stale .lock file does not block subsequent operations", async () =
     // We document it: code returns non-zero if the lock is stuck.
     // (If we ever implement stale-lock detection, this test should be updated.)
     if (r.code !== 0) {
-      assert.match(r.stderr, /lock|timeout/i);
+      const data = JSON.parse(r.stdout);
+      assert.match(data.error, /lock|timeout/i);
     }
   } finally {
     await rmTempProject(dir);

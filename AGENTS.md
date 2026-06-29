@@ -110,7 +110,7 @@ Cycles in the DAG must not crash. `derive` keeps cycle members blocked. Unknown 
 
 1. **Test first.** Add `test/<name>.test.mjs`. Test happy path, ownership/permission errors, state-missing errors, and at least one edge case (empty state, missing deps, etc).
 2. **Implement in `src/commands/<name>.mjs`.** Export default async function. Wrap mutating ops in `withLock`. Use `updateState` for atomic writes; use `append` to log.
-3. **Wire it in `bin/climier.mjs`.** Add a printer in the `printers` map. Add it to the unknown-command help text.
+3. **Wire it in `bin/climier.mjs`.** Add it to the unknown-command help text. (There is no `printers` map — the CLI is JSON-only. See "Output contract" below.)
 4. **Add a row to the Quick reference tables** in the project `AGENTS.md` (in the new-vegsport skill) and the README in this repo.
 5. **Add it to the integration tests** if it interacts with other commands (`cli-dispatch.test.mjs` covers end-to-end via the bin).
 6. **Run the full suite.** `npm test`. Don't commit if anything is red.
@@ -187,6 +187,25 @@ npm run test:watch
 node bin/climier.mjs --project /tmp/testproj init
 node bin/climier.mjs --project /tmp/testproj status
 ```
+
+## Output contract
+
+The CLI is **JSON-only**. There is no `--json` flag (it's the default), no text mode, no `printers` map. Every command prints a single JSON value to stdout. Errors are JSON to stdout too, with non-zero exit. Humans pipe through `jq`.
+
+| Outcome | stdout | stderr | exit |
+|---|---|---|---|
+| Success | `{ "task": {...} }`, `[...]`, `{...}` (whatever the command produces) | empty | 0 |
+| Validation / runtime error | `{ "ok": false, "error": "<message>" }` | empty | 1 |
+| Unknown command / no command | `{ "ok": false, "error": "<message>" }` | empty | 2 |
+| `--help` / `-h` / `help` | plain text help (the only text output) | empty | 0 |
+
+The convention for command return shapes is principled:
+- **Read commands** (`status`, `ready`, `tasks`, `graph`, `gotchas`, `decisions`, `log`, `next`, `show`, `pre-claim`) return raw data — the object/array the consumer cares about.
+- **Write commands** (`claim`, `done`, `release`, `reopen`, `block`, `decide`, `add-*`) return `{ entity }` envelopes (`{ task }`, `{ decision }`, `{ gotcha }`, `{ initiative }`).
+- `init` returns `{ ok, seeded, file }` (different shape because it is not creating an entity, it is setting up a state).
+- `show` returns `{ type, node }` because it can return any of three node types.
+
+When you add a new command, pick whichever shape fits the data. **Do not** add a new envelope unless the data demands it. Do not add text-mode output.
 
 ## What to do if you don't know where to start
 

@@ -28,11 +28,11 @@ export default async function block({ statePath, flags, positional }) {
     if (t.claimed_by && t.claimed_by !== as) {
       throw new Error(`block: task ${id} is not yours (claimed by ${t.claimed_by})`);
     }
-    await updateState(projectDir, (st) => {
+    const updated = await updateState(projectDir, (st) => {
       st.tasks[id].block_reason = reason;
       return st;
     });
     await append(projectDir, { agent: as, action: "block", task: id, note: reason });
-    return { task: s.tasks[id] };
+    return { task: updated.tasks[id] };
   });
 }
