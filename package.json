@@ -1,7 +1,16 @@
 {
   "name": "climier",
-  "version": "0.0.2",
+  "version": "1.0.0",
   "description": "Task DAG harness for multi-agent workflows",
+  "keywords": [
+    "dag",
+    "tasks",
+    "workflow",
+    "orchestrator",
+    "workers",
+    "multi-agent",
+    "cli"
+  ],
   "type": "module",
   "bin": {
     "climier": "./bin/climier.mjs"
@@ -10,8 +19,16 @@
   "scripts": {
     "test": "node --test test/*.test.mjs",
     "test:watch": "node --test --watch test/",
-    "test:concurrent": "node --test test/concurrent-claims.test.mjs test/orchestrator-flow.test.mjs"
+    "test:concurrent": "node --test test/concurrent-claims.test.mjs test/orchestrator-flow.test.mjs",
+    "pack:check": "npm pack --dry-run --json > /dev/null"
   },
+  "files": [
+    "bin",
+    "src",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
   "engines": {
     "node": ">=20"
   },

@@ -2,7 +2,14 @@
 // All output is JSON to stdout. All errors are JSON to stdout.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { createTempProject, rmTempProject, runCli } from "./helpers.mjs";
+
+const packageVersion = JSON.parse(
+  fs.readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "package.json"), "utf8")
+).version;
 
 test("CLI: init then status", async () => {
   const dir = await createTempProject();
@@ -161,6 +168,8 @@ test("CLI: --help prints help and exits 0", async () => {
     assert.match(r.stdout, /claim/);
     assert.match(r.stdout, /pre-claim/);
     assert.match(r.stdout, /add-decision/);
+    assert.doesNotMatch(r.stdout, /\.agents\/skills/i);
+    assert.doesNotMatch(r.stdout, /new-vegsport/i);
   } finally {
     await rmTempProject(dir);
   }
@@ -183,6 +192,28 @@ test("CLI: help command prints help and exits 0", async () => {
     const r = await runCli(["--project", dir, "help"]);
     assert.equal(r.code, 0, r.stderr);
     assert.match(r.stdout, /claim/);
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("CLI: --version prints the package version and exits 0", async () => {
+  const dir = await createTempProject();
+  try {
+    const r = await runCli(["--project", dir, "--version"]);
+    assert.equal(r.code, 0, r.stderr);
+    assert.equal(r.stdout.trim(), packageVersion);
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("CLI: version command prints the package version and exits 0", async () => {
+  const dir = await createTempProject();
+  try {
+    const r = await runCli(["--project", dir, "version"]);
+    assert.equal(r.code, 0, r.stderr);
+    assert.equal(r.stdout.trim(), packageVersion);
   } finally {
     await rmTempProject(dir);
   }

@@ -1,6 +1,5 @@
 // lock.mjs: file lock for atomic mutating operations.
 import fs from "node:fs/promises";
-import fsSync from "node:fs";
 import path from "node:path";
 import { stateFile } from "./state.mjs";
 

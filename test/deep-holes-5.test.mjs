@@ -63,25 +63,22 @@ test("hole: full recovery flow — corrupt state, init --force, resume work", as
   }
 });
 
-// Lock: stale lock file is overwritten by next claim
-test("hole: a stale .lock file does not block subsequent operations", async () => {
+// Lock: old .lock files are not auto-cleared; manual recovery is required.
+test("hole: an old .lock file still blocks operations until removed manually", async () => {
   const dir = await createTempProject();
   try {
     await runCli(["--project", dir, "init", "--seed", "migration"]);
-    // Write a fake lock file
     const lockPath = lockFilePath(dir);
     await fs.writeFile(lockPath, JSON.stringify({ pid: 99999, at: 0 }), "utf8");
-    // Operations should still work (timeout config for the test is short)
-    const r = await runCli(["--project", dir, "claim", "F0.T1", "--as", "agent"]);
-    // Either: lock is treated as valid and we wait (could timeout), or it overrides.
-    // Per current implementation, withLock uses fs.openSync(..., 'wx') which fails on existing.
-    // So a stale lock WILL block. This is a known ceiling.
-    // We document it: code returns non-zero if the lock is stuck.
-    // (If we ever implement stale-lock detection, this test should be updated.)
-    if (r.code !== 0) {
-      const data = JSON.parse(r.stdout);
-      assert.match(data.error, /lock|timeout/i);
-    }
+
+    const blocked = await runCli(["--project", dir, "claim", "F0.T1", "--as", "agent"]);
+    assert.notEqual(blocked.code, 0);
+    assert.match(JSON.parse(blocked.stdout).error, /lock: timeout acquiring/i);
+
+    await fs.unlink(lockPath);
+    const recovered = await runCli(["--project", dir, "claim", "F0.T1", "--as", "agent"]);
+    assert.equal(recovered.code, 0, recovered.stderr);
+    assert.equal(JSON.parse(recovered.stdout).task.id, "F0.T1");
   } finally {
     await rmTempProject(dir);
   }

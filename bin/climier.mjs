@@ -1,29 +1,42 @@
 #!/usr/bin/env node
 // Climier CLI entry point. Parses argv, resolves project path, dispatches to commands.
 // All command output is JSON to stdout. All errors are JSON to stdout with non-zero exit.
+import fsSync from "node:fs";
 import { resolveProject } from "../src/paths.mjs";
 
 const args = process.argv.slice(2);
+const PACKAGE_VERSION = JSON.parse(
+  fsSync.readFileSync(new URL("../package.json", import.meta.url), "utf8")
+).version;
 
 const HELP_TEXT = `climier — task DAG harness for multi-agent workflows
 
+Use it when an orchestrator and one or more workers need a shared source of
+truth for what is ready, claimed, blocked, decided, backlog, done, or archived.
+
+Typical flow:
+  orchestrator: status -> ready -> delegate -> decide/release/reopen
+  worker:       pre-claim -> claim -> next -> work -> done
+
 Usage: climier [--project <dir>] <command> [args...]
 
-Output: every command prints a single JSON object to stdout.
+Output: every command prints a single JSON value to stdout.
 Errors: { ok: false, error: "<message>" } on stdout, non-zero exit.
+Exceptions: --help/-h/help and --version/version print plain text.
 
 Read-only:
-  status [--initiative X] [--staleMs N]   Global view: summary (text + counts), alerts, in_progress, ready, blocked (with reasons), blocked_by_decision, stale, gotchas
+  status [--initiative X] [--staleMs N]   Global view: summary, alerts, in_progress, ready, backlog, blocked, open decisions, stale claims, gotchas
   ready [--initiative X]                  Tasks claimable right now (the delegation view)
   next <id>                               Definition + acceptance + gotchas for a task
   pre-claim <id> [--staleMs N]            Task detail + pre-flight: spec, gotchas, derived status, structured dep details, GO/NO-GO verdict
   tasks [--initiative X] [--status Y]     List tasks, filterable
   graph [--initiative X]                  Print the DAG as text
-  initiatives                              List registered initiatives with usage counts; surfaces orphan (unregistered) initiative references
-  next-id <phase> [--suffix R]           Get the next free task id for a phase (e.g. F1 -> F1.T3; --suffix R -> F1.T1R)
+  initiatives                             List registered initiatives with usage counts; surfaces orphan (unregistered) initiative references
+  next-id <phase> [--suffix R]            Get the next free task id for a phase (e.g. F1 -> F1.T3; --suffix R -> F1.T1R)
   gotchas [--initiative X] [--domain Y]   List gotchas
   decisions [--initiative X]              List decisions
-  log [--limit N] [--action X] [--agent X] [--task X]   Show the audit log
+  log [--limit N] [--action X] [--agent X] [--task X] [--decision X]
+                                           Show the audit log
   show <id>                               Print the raw task, decision, or gotcha object
 
 Mutating (require --as <agent-id>):
@@ -31,39 +44,47 @@ Mutating (require --as <agent-id>):
   done <id> "<note>"                      Mark complete, recompute ready
   release <id>                            Free a claim. --as orchestrator|recovery releases any agent's claim
   block <id> "<reason>"                   Mark a blocker on your claimed task (only the claim owner)
-  reopen <id> --as <agent>                Re-open a done task (archived is terminal)
+  reopen <id> "<reason>" --as <agent>     Re-open a done task; downstream tasks re-block
   archive <id> "<reason>" --as <agent>   Mark a task archived (terminal). in_progress requires claimer (or orchestrator|recovery).
   decide <D> "<choice>" [--because "..."]  Close a decision, unblock dependents (--as defaults to orchestrator)
   promote <id> --as <agent>               Move a backlog task into the ready pool (removes the backlog flag)
 
 Adding to the DAG:
-  add-task <id> --initiative X --title "..." [--depends-on A,B] [--skills ...] [--effort ...] [--domain ...] [--definition ...] [--acceptance ...] [--phase F1 [--suffix R]]
+  add-task <id> --initiative X --title "..." [--depends-on A,B] [--skills ...] [--effort ...] [--domain ...]
+           [--definition ...] [--acceptance ...] [--backlog true] [--priority high|medium|low]
+  add-task --phase F1 --initiative X --title "..." [--suffix R] [...same options...]
   add-initiative <name> [--desc "..."]
   add-gotcha <id> --title "..." --applies-to domain:X[,T1,...] [--mitigation "..."]
   add-decision <id> --title "..." [--initiative X] [--applies-to F1,T2,...] [--description "..."]
 
 Editing tasks (any agent; status guard applies):
-  update <id> [--title X] [--body "..."] [--definition "..."] [--acceptance "..."] [--skills a,b] [--effort S|M|L] [--domain Y] [--depends-on A,B] --as <agent>
-                              Edit a task. in_progress/done are locked. --depends-on rewrites the dependency list (use it to unblock).
-  add-note <id> "text" --as <agent>
-                              Append a note to a task's running thread (any status).
+  update <id> [--title X] [--body "..."] [--definition "..."] [--acceptance "..."] [--skills a,b]
+              [--effort S|M|L] [--domain Y] [--depends-on A,B] [--backlog true|false]
+              [--priority high|medium|low] --as <agent>
+                                           Edit a task. in_progress/done are locked. --depends-on rewrites the dependency list.
+  add-note <id> "text" --as <agent>       Append a note to a task's running thread (any status)
 
 Lifecycle (soft delete):
-  close-gotcha <id> --as <agent>         Mark a gotcha resolved (forTask and the gotchas view filter it out)
-  reopen-gotcha <id> --as <agent>        Undo a close-gotcha
+  close-gotcha <id> --as <agent>          Mark a gotcha resolved (normal views hide it)
+  reopen-gotcha <id> --as <agent>         Undo a close-gotcha
 
 Setup:
-  init [--seed NAME] [--force]            Create .climier.json and the project's live state (use --seed migration for the new-vegsport preset)
+  init [--seed NAME] [--force]            Create .climier.json and the project's live state (use --seed migration for the built-in example DAG)
 
 Global flags:
   --project <dir>                         Project root (default: CWD)
   --help, -h                              Show this help and exit
+  --version                               Show the package version and exit
 
-Docs: see .agents/skills/climier/SKILL.md in your project for the full guide.`;
+Docs: see README.md for quickstart, workflow, storage model, and command reference.`;
 
-// --help: handled before arg parsing so it works with or without --project.
+// --help / --version: handled before arg parsing so they work with or without --project.
 if (args.includes("--help") || args.includes("-h")) {
   console.log(HELP_TEXT);
+  process.exit(0);
+}
+if (args.includes("--version")) {
+  console.log(PACKAGE_VERSION);
   process.exit(0);
 }
 
@@ -119,9 +140,13 @@ function failJson(error, code) {
 }
 
 try {
-  // Handle the `help` command (alias for --help) before importing, since there's no help.mjs.
+  // Handle the plain-text meta commands before importing, since there's no help.mjs/version.mjs.
   if (command === "help") {
     console.log(HELP_TEXT);
+    process.exit(0);
+  }
+  if (command === "version") {
+    console.log(PACKAGE_VERSION);
     process.exit(0);
   }
   const mod = await import(`../src/commands/${command}.mjs`);
@@ -142,7 +167,7 @@ try {
   }
 } catch (err) {
   if (err.code === "MODULE_NOT_FOUND" || err.code === "ERR_MODULE_NOT_FOUND") {
-    if (!command) failJson("no command given. Available: status, ready, claim, next, pre-claim, done, release, reopen, archive, block, decide, promote, tasks, graph, next-id, gotchas, decisions, log, show, update, add-note, add-task, add-initiative, add-gotcha, add-decision, close-gotcha, reopen-gotcha, initiatives, init", 2);
+    if (!command) failJson("no command given. Available: status, ready, claim, next, pre-claim, done, release, reopen, archive, block, decide, promote, tasks, graph, next-id, gotchas, decisions, log, show, update, add-note, add-task, add-initiative, add-gotcha, add-decision, close-gotcha, reopen-gotcha, initiatives, init, help, version", 2);
     failJson(`unknown command '${command}'`, 2);
   }
   failJson(err.message, 1);

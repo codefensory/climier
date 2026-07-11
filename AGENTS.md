@@ -27,7 +27,6 @@ src/
   dag.mjs                   # PURE functions: derive, blockedByDecision, staleClaims, statusOf
   log.mjs                   # append log entries (delegates to updateState)
   gotchas.mjs               # forTask(state, task) — resolve gotchas by domain or task id
-  views.mjs                 # Human formatters (formatStatus, formatReady, formatNext, ...)
   seeds/migration.mjs       # The "migration" preset used by `climier init --seed migration`
   commands/                 # One file per command. Each exports default async fn({ positional, flags, statePath, projectDir })
                             # Commands use withLock for any mutating op
@@ -68,9 +67,9 @@ test/
 
 ### Derived state and the DAG
 
-`src/dag.mjs` is **pure**: given a state, it computes ready/blocked/open. No I/O. Tests rely on this purity — you can unit-test DAG logic without a filesystem.
+`src/dag.mjs` is **pure**: given a state, it computes ready/blocked/open/backlog. No I/O. Tests rely on this purity — you can unit-test DAG logic without a filesystem.
 
-`derive(state)` returns `{ ready: string[], blocked: string[], openDecisions: string[] }`. Tasks with `depends_on: [task_ids, decision_ids]` are ready only when ALL deps are satisfied (a task is satisfied if its `status` is `done` or `archived`; a decision is satisfied if its `status` is `decided`).
+`derive(state)` returns `{ ready: string[], blocked: string[], openDecisions: string[], backlog: string[] }`. Tasks with `depends_on: [task_ids, decision_ids]` are ready only when ALL deps are satisfied (a task is satisfied if its `status` is `done` or `archived`; a decision is satisfied if its `status` is `decided`). Backlog tasks are kept out of the ready/blocked pools until promoted.
 
 Cycles in the DAG must not crash. `derive` keeps cycle members blocked. Unknown dep ids also keep tasks blocked (defensive).
 
@@ -97,13 +96,20 @@ Cycles in the DAG must not crash. `derive` keeps cycle members blocked. Unknown 
 | `tasks [--initiative X] [--status Y]` | `commands/tasks.mjs` | no | no |
 | `graph [--initiative X]` | `commands/graph.mjs` | no | no |
 | `next-id <phase>` | `commands/next-id.mjs` | no | no |
+| `gotchas [--initiative X] [--domain Y]` | `commands/gotchas.mjs` | no | no |
+| `decisions [--initiative X]` | `commands/decisions.mjs` | no | no |
+| `initiatives` | `commands/initiatives.mjs` | no | no |
+| `log [--limit N] [--action X] [--agent X] [--task X] [--decision X]` | `commands/log.mjs` | no | no |
+| `show <id>` | `commands/show.mjs` | no | no |
 | `add-task <id> --initiative X --title "..." [--depends-on A,B] ...` | `commands/add-task.mjs` | yes | no |
+| `promote <id>` | `commands/promote.mjs` | yes | yes |
 
 `add-task` also accepts `--phase <prefix>` instead of the positional id; the CLI auto-allocates the next free id for that phase (e.g. `--phase F1` on a state with `F1.T1`, `F1.T2` creates `F1.T3`). Policy: next sequential, not fill-the-gap. See `commands/next-id.mjs` for the same logic exposed as a read-only command.
 
 `add-task --phase` and `next-id` also accept `--suffix <S>` to append a tag at the end of the generated id (e.g. `--phase F1 --suffix R` → `F1.T1R`, then `F1.T2R`, etc.). The default-family (`F1.T1`, `F1.T2`, ...) and the R family are independent sequences. `.OPEN` placeholders are still skipped. `--suffix` requires `--phase`; the suffix must be a non-empty string without a dot and not equal to `OPEN`.
 | `add-initiative <name> [--desc "..."]` | `commands/add-initiative.mjs` | yes | no |
 | `add-decision <id> --title "..." [--initiative X] [--applies-to F1,T2,...]` | `commands/add-decision.mjs` | yes | no |
+| `add-gotcha <id> --title "..." --applies-to domain:x[,T1,...] [--initiative X] [--mitigation "..."]` | `commands/add-gotcha.mjs` | yes | no |
 
 ## Hard rules for contributing
 
@@ -137,7 +143,7 @@ Cycles in the DAG must not crash. `derive` keeps cycle members blocked. Unknown 
 ## How to extend the DAG model
 
 - **New task status** (beyond `done`/`archived`/`in_progress`): add to the persisted set AND update `derive` to handle it. Don't treat unknown statuses as "ready" without thinking — `derive` currently passes through unknown statuses (treating them as candidates) for forward compat. If you want stricter behavior, add a test that locks down the policy.
-- **New decision-like node** (e.g. "milestone"): the current model is one collection per node type. Adding a new collection means changes in `state.mjs`, `dag.mjs`, `views.mjs`, the printers, and the migration seed. Document it.
+- **New decision-like node** (e.g. "milestone"): the current model is one collection per node type. Adding a new collection means changes in `state.mjs`, `dag.mjs`, the affected command outputs, and the migration seed. Document it.
 - **Cross-initiative dependencies**: already supported via `depends_on` ids. The `--initiative` filter is for views only, not for resolution.
 
 ## Conventions in the code
@@ -149,7 +155,7 @@ Cycles in the DAG must not crash. `derive` keeps cycle members blocked. Unknown 
 - **CSV in flag values.** `--skills "ts,sql"` not `--skill ts --skill sql`. Trim and filter empty strings.
 - **Pure functions in `dag.mjs`, `gotchas.mjs`.** No I/O, no side effects. Test them with literal state objects, no temp dirs.
 - **Imperative wrappers in `state.mjs` and `lock.mjs`.** These touch the filesystem. They are tested via `helpers.mjs` (temp dirs).
-- **Printers return strings, not console.log.** `bin/climier.mjs` is the only place that prints (except for errors).
+- **Commands return data, not console.log.** `bin/climier.mjs` is the only place that prints (except for errors).
 
 ## Testing
 

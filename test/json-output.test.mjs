@@ -2,7 +2,14 @@
 // Errors are JSON to stdout, not stderr. The --json flag is gone (it's the default).
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { createTempProject, rmTempProject, runCli } from "./helpers.mjs";
+
+const packageVersion = JSON.parse(
+  fs.readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "package.json"), "utf8")
+).version;
 
 async function seeded(dir) {
   const r = await runCli(["--project", dir, "init", "--seed", "migration"]);
@@ -177,6 +184,18 @@ test("contract: --help still prints human-readable help to stdout", async () => 
     assert.match(r.stdout, /claim/);
     // --help is plain text, not JSON.
     assert.throws(() => JSON.parse(r.stdout), "--help output should not be JSON");
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("contract: --version prints plain text to stdout", async () => {
+  const dir = await createTempProject();
+  try {
+    const r = await runCli(["--project", dir, "--version"]);
+    assert.equal(r.code, 0, r.stderr);
+    assert.equal(r.stdout.trim(), packageVersion);
+    assert.throws(() => JSON.parse(r.stdout), "--version output should not be JSON");
   } finally {
     await rmTempProject(dir);
   }

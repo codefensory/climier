@@ -62,11 +62,25 @@ test("withLock releases on mutator error (no deadlock)", async () => {
   }
 });
 
+test("withLock does not auto-clear an old lock file", async () => {
+  const { withLock } = await importFresh("./lock.mjs");
+  const dir = await createTempProject();
+  try {
+    const lockPath = path.join(dir, ".agents", "tasks", ".lock");
+    await fs.writeFile(lockPath, JSON.stringify({ heldBy: "ghost", at: 0 }));
+    await assert.rejects(
+      withLock(dir, async () => {}, { timeoutMs: 200, retryEveryMs: 50 }),
+      /lock/
+    );
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
 test("withLock times out if holder never releases", async () => {
   const { withLock } = await importFresh("./lock.mjs");
   const dir = await createTempProject();
   try {
-    // Hold the lock for 5s by simulating a stale lock file written manually.
     const lockPath = path.join(dir, ".agents", "tasks", ".lock");
     await fs.writeFile(lockPath, JSON.stringify({ heldBy: "ghost", at: Date.now() }));
     await assert.rejects(
