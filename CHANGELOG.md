@@ -6,6 +6,9 @@ The format is based on Keep a Changelog.
 
 ## [Unreleased]
 
+### Changed
+- Reframed the documentation around what `climier` is: a task DAG CLI for coordinating work across agents, sessions, or humans, with orchestrator/workers documented as one use case among several.
+
 ## [1.0.0] - 2026-07-11
 
 ### Added

@@ -9,14 +9,15 @@ const PACKAGE_VERSION = JSON.parse(
   fsSync.readFileSync(new URL("../package.json", import.meta.url), "utf8")
 ).version;
 
-const HELP_TEXT = `climier — task DAG harness for multi-agent workflows
+const HELP_TEXT = `climier — JSON-first task DAG CLI for coordinating work
 
-Use it when an orchestrator and one or more workers need a shared source of
-truth for what is ready, claimed, blocked, decided, backlog, done, or archived.
+Use it when one or many actors need a shared source of truth for what is
+ready, claimed, blocked, decided, backlog, done, or archived.
 
-Typical flow:
-  orchestrator: status -> ready -> delegate -> decide/release/reopen
-  worker:       pre-claim -> claim -> next -> work -> done
+Common patterns:
+  solo / multi-session: status -> ready -> claim -> next -> work -> done
+  human + AI:           add-task -> pre-claim -> claim -> add-note/block -> done
+  orchestrator/workers: status -> ready -> delegate -> decide/release/reopen
 
 Usage: climier [--project <dir>] <command> [args...]
 
@@ -26,7 +27,7 @@ Exceptions: --help/-h/help and --version/version print plain text.
 
 Read-only:
   status [--initiative X] [--staleMs N]   Global view: summary, alerts, in_progress, ready, backlog, blocked, open decisions, stale claims, gotchas
-  ready [--initiative X]                  Tasks claimable right now (the delegation view)
+  ready [--initiative X]                  Tasks claimable right now
   next <id>                               Definition + acceptance + gotchas for a task
   pre-claim <id> [--staleMs N]            Task detail + pre-flight: spec, gotchas, derived status, structured dep details, GO/NO-GO verdict
   tasks [--initiative X] [--status Y]     List tasks, filterable

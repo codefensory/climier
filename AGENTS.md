@@ -1,6 +1,6 @@
 # climier — Agent Notes
 
-You are working on **climier**, a task DAG harness for multi-agent workflows. Each repo gets stable metadata in `.climier.json`; the live JSON state for that project lives under `~/.climier/projects/<project-id>/tasks.json` (or `$CLIMIER_HOME/projects/<project-id>/tasks.json`). Legacy repo-local `.agents/tasks/tasks.json` files are still read when no project metadata exists.
+You are working on **climier**, a task DAG CLI for coordinating work across agents, sessions, or humans. Each repo gets stable metadata in `.climier.json`; the live JSON state for that project lives under `~/.climier/projects/<project-id>/tasks.json` (or `$CLIMIER_HOME/projects/<project-id>/tasks.json`). Legacy repo-local `.agents/tasks/tasks.json` files are still read when no project metadata exists.
 
 This file tells you how the code is organized, the rules you must follow, and the non-obvious decisions baked into the design. Read it before touching anything.
 

@@ -1,13 +1,14 @@
 {
   "name": "climier",
   "version": "1.0.0",
-  "description": "Task DAG harness for multi-agent workflows",
+  "description": "JSON-first task DAG CLI for coordinating work, decisions, and claims",
   "keywords": [
     "dag",
     "tasks",
     "workflow",
-    "orchestrator",
-    "workers",
+    "coordination",
+    "claims",
+    "multi-session",
     "multi-agent",
     "cli"
   ],

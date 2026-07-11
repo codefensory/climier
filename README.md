@@ -1,54 +1,64 @@
 # climier
 
-Task DAG harness for multi-agent workflows.
+JSON-first task DAG CLI for coordinating work across agents, sessions, or humans.
 
-Use `climier` when one orchestrator and one or more workers need a shared source of truth for what is **ready**, **claimed**, **blocked**, **decided**, **backlog**, **done**, or **archived**.
+`climier` keeps one shared source of truth for what is **ready**, **claimed**, **blocked**, **decided**, **backlog**, **done**, or **archived**. It works just as well for one person across multiple AI sessions as it does for a full orchestrator-and-workers setup.
 
-Typical use: the orchestrator watches `ready` and delegates work; each worker runs `pre-claim -> claim -> next -> work -> done` on exactly one task at a time.
+If your work has dependencies, decision gates, recovery needs, or parallel actors touching the same repo, `climier` gives that state a home.
 
 ## Why it exists
 
-Ad-hoc coordination breaks fast once several agents touch the same repo:
+Ad-hoc coordination breaks fast:
 
-- two workers pick the same task
-- a task looks ready but is blocked by a hidden dependency
-- a research choice lives in chat, not in the system of record
-- a stale claim blocks downstream work
-- the repo accumulates TODOs, side docs, and contradictory status notes
+- a task looks ready but is still blocked by a hidden dependency
+- the active task lives in chat, not in the system of record
+- a research choice never makes it back into the project state
+- one stale claim blocks downstream work
+- parallel sessions step on each other
+- TODOs, notes, and status drift apart
 
-`climier` keeps that state in one place:
+`climier` fixes that by storing the workflow state itself:
 
 - **tasks** form a DAG
-- **decisions** are DAG nodes too, so open decisions can block work
-- **gotchas** attach domain knowledge to tasks
-- **claim** is atomic, so two workers cannot take the same task
-- every mutation is logged in an append-only audit trail
+- **decisions** are DAG nodes too, so open choices can block work
+- **gotchas** attach reusable domain knowledge to tasks or domains
+- **claims** are atomic, so two claimants cannot take the same task
+- every mutation lands in an append-only audit log
 
-## Worker / orchestrator model
+## What climier is
 
-This is the model used in real multi-agent repos such as `new-vegsport`:
+At heart, `climier` is a small state machine around a project DAG:
 
-### Orchestrator
+- create tasks, decisions, gotchas, and initiatives
+- derive what is ready or blocked from dependencies
+- claim work safely
+- record decisions that unblock dependents
+- keep backlog separate from claimable work
+- recover from stale or wrong state with `release`, `reopen`, and `archive`
 
-The orchestrator does not implement tasks directly by default. It:
+It is a CLI, JSON-first, stdlib-only, and meant to be scriptable.
 
-1. reads `status` to see the whole project
-2. reads `ready` to find claimable work
-3. delegates a task id to a worker
-4. closes decisions with `decide` when research is done
-5. uses `release` / `reopen` as recovery tools when a worker got stuck or closed a task wrong
+## Good use cases
 
-### Worker
+### 1. One agent, many sessions
 
-A worker owns exactly one task at a time. It:
+You are working solo, but not from one continuous thread. Maybe you bounce between terminal sessions, AI chats, and worktrees. `climier` keeps the active task, blockers, and next-ready work outside the conversation that created it.
 
-1. runs `pre-claim <id>` to validate the contract
-2. runs `claim <id> --as <agent>` to reserve it
-3. runs `next <id>` to re-read the spec
-4. does the work
-5. closes with `done <id> "note" --as <agent>`
+### 2. One human + one or more AI agents
 
-If the worker cannot finish, it should `block` or `release` the task, never abandon it.
+Use `climier` as the contract between you and coding agents. You decide what enters the DAG, agents claim tasks, add notes, finish work, or block with reasons.
+
+### 3. Orchestrator + workers
+
+This is the classic multi-agent case: one coordinator delegates from `ready`, workers `claim -> next -> work -> done`, and the coordinator closes decisions or performs recovery.
+
+### 4. Migrations and long-running refactors
+
+When work unfolds in phases, with decision gates and domain gotchas, a DAG beats a flat checklist. `climier` keeps the dependency shape visible and the audit trail intact.
+
+### 5. Shared project state across worktrees or machines
+
+Because repo metadata is separate from live mutable state, multiple worktrees or sessions can point at the same project state without committing operational noise to git.
 
 ## Install
 
@@ -73,6 +83,8 @@ node bin/climier.mjs --help
 
 ## Quickstart
 
+A minimal solo flow:
+
 ```bash
 # 1. Initialize the project in the current directory
 climier init
@@ -87,16 +99,16 @@ climier add-task F0.T1 \
   --definition "Create the new service with a /health endpoint" \
   --acceptance "Service starts locally and GET /health returns 200"
 
-# 4. Orchestrator view: what is ready now?
+# 4. See what is ready
 climier ready
 
-# 5. Worker pre-flight + claim
+# 5. Pre-flight + claim from this session
 climier pre-claim F0.T1
-climier claim F0.T1 --as worker-api
+climier claim F0.T1 --as session-api
 climier next F0.T1
 
 # 6. Finish the work
-climier done F0.T1 "Scaffolded service and added /health" --as worker-api
+climier done F0.T1 "Scaffolded service and added /health" --as session-api
 ```
 
 Built-in seed:
@@ -106,6 +118,61 @@ climier init --seed migration
 ```
 
 That creates an example migration DAG with tasks, decisions, and gotchas.
+
+## Core concepts
+
+- **Task** — a unit of work. Persisted statuses: `in_progress`, `done`, `archived`. Derived statuses: `ready`, `blocked`, `backlog`.
+- **Decision** — a DAG node with `status: open | decided`. Tasks depending on an open decision stay blocked.
+- **Gotcha** — reusable domain knowledge attached to a domain or a specific task id.
+- **Backlog task** — a real task intentionally kept out of the ready pool until promoted.
+- **Initiative** — a tag grouping work streams such as `migration`, `auth`, or `research`.
+
+Important invariant: `ready` and `blocked` are derived from dependencies. They are not written into the state file.
+
+## Common workflow patterns
+
+### Solo / multi-session flow
+
+```bash
+climier status
+climier ready
+climier pre-claim F1.T2
+climier claim F1.T2 --as chatgpt-session-3
+climier next F1.T2
+# do the work
+climier done F1.T2 "Implemented endpoint and added smoke test" --as chatgpt-session-3
+```
+
+### Human + AI flow
+
+```bash
+climier add-task F1.T3 \
+  --initiative migration \
+  --title "Move auth middleware" \
+  --depends-on F1.T2,D1
+
+climier pre-claim F1.T3
+climier claim F1.T3 --as claude-auth
+climier add-note F1.T3 "Need confirmation about token shape" --as claude-auth
+climier block F1.T3 "Waiting on auth decision" --as claude-auth
+climier decide D1 "Keep JWT shape stable" --because "Avoids client breakage"
+climier release F1.T3 --as recovery
+```
+
+### Orchestrator + workers flow
+
+This is a **use case**, not the definition of the tool.
+
+```bash
+climier status
+climier ready
+climier decisions
+climier claim F1.T2 --as worker-api
+climier done F1.T2 "Implemented endpoint and verified staging smoke test" --as worker-api
+climier decide D4 "Keep Supabase JWT for now" --because "Fastest migration path; revisit later"
+climier release F2.T3 --as orchestrator
+climier reopen F1.T2 "Acceptance missed the timeout case" --as orchestrator
+```
 
 ## How state is stored
 
@@ -120,44 +187,9 @@ Legacy mode is still supported:
 
 - `<project>/.agents/tasks/tasks.json`
 
-If no `.climier.json` exists, climier falls back to the legacy repo-local file.
+If no `.climier.json` exists, `climier` falls back to the legacy repo-local file.
 
-Why the split? New mode lets multiple worktrees and agents share one lock and one live state file without committing operational noise to git.
-
-## Core concepts
-
-- **Task** — a unit of work. Persisted statuses: `in_progress`, `done`, `archived`. Derived statuses: `ready`, `blocked`, `backlog`.
-- **Decision** — a DAG node with `status: open | decided`. Tasks depending on an open decision stay blocked.
-- **Gotcha** — reusable domain knowledge attached to a domain or a specific task id.
-- **Backlog task** — a real task intentionally kept out of the ready pool until promoted.
-- **Initiative** — a tag grouping work streams such as `migration`, `auth`, or `research`.
-
-Important invariant: `ready` and `blocked` are derived from dependencies. They are not written into the state file.
-
-## The typical workflow
-
-### Worker flow
-
-```bash
-climier status
-climier ready
-climier pre-claim F1.T2
-climier claim F1.T2 --as claude-api
-climier next F1.T2
-# do the work
-climier done F1.T2 "Implemented endpoint and verified staging smoke test" --as claude-api
-```
-
-### Orchestrator flow
-
-```bash
-climier status
-climier ready
-climier decisions
-climier decide D4 "keep Supabase JWT for now" --because "Fastest migration path; revisit later"
-climier release F2.T3 --as orchestrator
-climier reopen F1.T2 "Acceptance missed the timeout case" --as orchestrator
-```
+Why the split? New mode lets multiple worktrees, sessions, or agents share one lock and one live state file without committing operational noise to git.
 
 ## Output contract: JSON-only
 
@@ -179,7 +211,7 @@ There is no `--json` flag. JSON is the default.
 | Command | Purpose |
 |---|---|
 | `status [--initiative X] [--staleMs N]` | Full project view: summary, alerts, in-progress work, ready tasks, backlog, blocked tasks, open decisions, stale claims, gotchas. |
-| `ready [--initiative X]` | Claimable-now tasks. This is the main delegation view for the orchestrator. |
+| `ready [--initiative X]` | Claimable-now tasks. Useful for any actor that wants the next safe unit of work. |
 | `pre-claim <id> [--staleMs N]` | Read-only pre-flight: spec, gotchas, dependency detail, derived status, GO/NO-GO verdict. |
 | `next <id>` | Task definition, acceptance criteria, and matching gotchas. |
 | `tasks [--initiative X] [--status Y]` | List tasks with optional filters. |
@@ -219,11 +251,11 @@ There is no `--json` flag. JSON is the default.
 | `add-decision <id> --title "..." [--initiative X] [--applies-to F1,T2,...] [--description "..."]` | Add a decision node. |
 | `add-gotcha <id> --title "..." --applies-to domain:x[,T1,...] [--mitigation "..."]` | Add a gotcha. |
 
-## Operational details that matter in production
+## Operational guarantees
 
 ### Claims are atomic
 
-Mutating commands run under a file lock. Two workers racing to claim the same task cannot both win.
+Mutating commands run under a file lock. Two sessions or agents racing to claim the same task cannot both win.
 
 ### Logging is part of the mutation
 
@@ -244,7 +276,7 @@ climier pre-claim <id>
 climier status
 ```
 
-### A worker disappeared and left a stale claim
+### A stale claim is blocking progress
 
 ```bash
 climier release <id> --as orchestrator
@@ -267,7 +299,7 @@ climier promote F3.T4 --as orchestrator
 
 ### `update` fails on `in_progress` or `done`
 
-That is by design. The spec is frozen while a worker owns the task or after the task becomes the audit-of-record. Use `add-note`, `release`, or `reopen` instead.
+That is by design. The spec is frozen while a task is actively owned or after it becomes the audit-of-record. Use `add-note`, `release`, or `reopen` instead.
 
 ### Stale lock file
 
