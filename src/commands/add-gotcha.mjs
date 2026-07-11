@@ -1,5 +1,5 @@
 // add-gotcha: register a new gotcha in the state.
-import { addNode, updateState, readState } from "../state.mjs";
+import { addNode, updateState, readState, assertInitiativeRegistered } from "../state.mjs";
 import { withLock } from "../lock.mjs";
 
 export const knownFlags = ["title", "applies-to", "initiative", "mitigation"];
@@ -14,6 +14,11 @@ export default async function addGotcha({ statePath, flags, positional }) {
   return withLock(projectDir, async () => {
     const s = await readState(projectDir);
     if (s && s.gotchas && s.gotchas[id]) throw new Error(`add-gotcha: ${id} already exists`);
+    // initiative is optional (gotchas can be transversal), but if given
+    // it must refer to a registered initiative.
+    if (flags.initiative) {
+      assertInitiativeRegistered(s, flags.initiative, "add-gotcha");
+    }
     const appliesTo = flags["applies-to"]
       .split(",").map((x) => x.trim()).filter(Boolean);
     const node = {

@@ -186,6 +186,7 @@ test("hole: add-task --skills '' produces empty skills array", async () => {
   const dir = await createTempProject();
   try {
     await runCli(["--project", dir, "init"]);
+    await runCli(["--project", dir, "add-initiative", "x", "--desc", ""]);
     await runCli(["--project", dir, "add-task", "T1", "--initiative", "x", "--title", "y", "--skills", ""]);
     const s = await readState(dir);
     assert.deepEqual(s.tasks.T1.skills, []);

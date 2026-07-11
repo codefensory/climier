@@ -89,7 +89,7 @@ test("hole: a task with no status field and no deps is ready", async () => {
 test("hole: a task with an unknown persisted status is still derived correctly", async () => {
   const { derive, statusOf } = await importFresh("./dag.mjs");
   const state = { tasks: { T1: { id: "T1", status: "future-state" } }, decisions: {} };
-  // status is not done/skipped/in_progress, so derive treats it as candidate
+  // status is not done/archived/in_progress, so derive treats it as candidate
   const r = derive(state);
   assert.deepEqual(r.ready, ["T1"]);
   assert.equal(statusOf(state, "T1"), "ready");

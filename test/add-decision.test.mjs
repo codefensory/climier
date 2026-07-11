@@ -24,9 +24,11 @@ test("add-decision: creates a decision with title and applies_to", async () => {
 });
 
 test("add-decision: initiative and description are optional", async () => {
+  const { default: addInit } = await importFresh("./commands/add-initiative.mjs");
   const { default: addDecision } = await importFresh("./commands/add-decision.mjs");
   const dir = await createTempProject();
   try {
+    await addInit({ statePath: dir, flags: { desc: "" }, positional: ["research"] });
     const out = await addDecision({
       statePath: dir, flags: { title: "x", initiative: "research" }, positional: ["D1"],
     });

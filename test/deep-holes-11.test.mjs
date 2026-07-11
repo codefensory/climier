@@ -98,6 +98,7 @@ test("hole: state file size stays bounded after 100 small operations", async () 
   const dir = await createTempProject();
   try {
     await runCli(["--project", dir, "init"]);
+    await runCli(["--project", dir, "add-initiative", "x", "--desc", ""]);
     const file = path.join(dir, ".agents", "tasks", "tasks.json");
     for (let i = 0; i < 100; i++) {
       await runCli(["--project", dir, "add-task", `T${i}`, "--initiative", "x", "--title", `task ${i}`]);
@@ -129,6 +130,7 @@ test("hole: a task with newlines in title is preserved (though not recommended)"
   const dir = await createTempProject();
   try {
     await runCli(["--project", dir, "init"]);
+    await runCli(["--project", dir, "add-initiative", "x", "--desc", ""]);
     // Use single-quoted title with embedded newline
     const r = await runCli(["--project", dir, "add-task", "T1", "--initiative", "x", "--title", "line1\nline2"]);
     assert.equal(r.code, 0, r.stderr);

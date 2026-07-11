@@ -90,6 +90,7 @@ test("hole: add-task with no id fails clean", async () => {
   const dir = await createTempProject();
   try {
     await runCli(["--project", dir, "init"]);
+    await runCli(["--project", dir, "add-initiative", "x", "--desc", ""]);
     const r = await runCli(["--project", dir, "add-task", "--initiative", "x", "--title", "y"]);
     assert.notEqual(r.code, 0);
     const data = JSON.parse(r.stdout);
@@ -104,6 +105,7 @@ test("hole: add-task with --title '' fails clean", async () => {
   const dir = await createTempProject();
   try {
     await runCli(["--project", dir, "init"]);
+    await runCli(["--project", dir, "add-initiative", "x", "--desc", ""]);
     const r = await runCli(["--project", dir, "add-task", "T1", "--initiative", "x", "--title", ""]);
     assert.notEqual(r.code, 0);
     const data = JSON.parse(r.stdout);
@@ -132,14 +134,14 @@ test("hole: release on a done task fails clean", async () => {
   }
 });
 
-// release: a task that is `skipped` cannot be released
-test("hole: release on a skipped task fails clean", async () => {
+// release: a task that is `archived` cannot be released
+test("hole: release on a archived task fails clean", async () => {
   const { default: release } = await importFresh("./commands/release.mjs");
   const dir = await createTempProject();
   try {
     const { updateState } = await importFresh("./state.mjs");
     await updateState(dir, (s) => {
-      s.tasks.T1 = { id: "T1", status: "skipped" };
+      s.tasks.T1 = { id: "T1", status: "archived" };
       return s;
     });
     await assert.rejects(
@@ -242,6 +244,7 @@ test("hole: concurrent add-task with same id — exactly one wins", async () => 
   const dir = await createTempProject();
   try {
     await runCli(["--project", dir, "init"]);
+    await runCli(["--project", dir, "add-initiative", "x", "--desc", ""]);
     const [r1, r2] = await Promise.all([
       runCli(["--project", dir, "add-task", "T1", "--initiative", "x", "--title", "first"]),
       runCli(["--project", dir, "add-task", "T1", "--initiative", "x", "--title", "second"]),

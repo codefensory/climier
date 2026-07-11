@@ -54,10 +54,10 @@ test("derive: done is neither ready nor blocked", async () => {
   assert.deepEqual(r.blocked, []);
 });
 
-test("derive: skipped counts as satisfied (does not block downstream)", async () => {
+test("derive: archived counts as satisfied (does not block downstream)", async () => {
   const { derive } = await importFresh("./dag.mjs"); const { emptyState } = await importFresh("./state.mjs");
   const s = emptyState();
-  s.tasks.T1 = { id: "T1", status: "skipped" };
+  s.tasks.T1 = { id: "T1", status: "archived" };
   s.tasks.T2 = { id: "T2", depends_on: ["T1"] };
   const r = derive(s);
   assert.deepEqual(r.ready, ["T2"]);

@@ -92,6 +92,7 @@ test("hole: 3 add-task on different ids in parallel — all succeed", async () =
   const dir = await createTempProject();
   try {
     await runCli(["--project", dir, "init"]);
+    await runCli(["--project", dir, "add-initiative", "x", "--desc", ""]);
     const results = await Promise.all([
       runCli(["--project", dir, "add-task", "T1", "--initiative", "x", "--title", "first"]),
       runCli(["--project", dir, "add-task", "T2", "--initiative", "x", "--title", "second"]),

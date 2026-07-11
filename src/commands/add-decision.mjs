@@ -1,5 +1,5 @@
 // add-decision: register a new decision in the state.
-import { updateState, readState } from "../state.mjs";
+import { updateState, readState, assertInitiativeRegistered } from "../state.mjs";
 import { withLock } from "../lock.mjs";
 
 export const knownFlags = ["title", "initiative", "applies-to", "description"];
@@ -13,6 +13,11 @@ export default async function addDecision({ statePath, flags, positional }) {
   return withLock(projectDir, async () => {
     const s = await readState(projectDir);
     if (s && s.decisions && s.decisions[id]) throw new Error(`add-decision: ${id} already exists`);
+    // initiative is optional (decisions can be transversal), but if given
+    // it must refer to a registered initiative.
+    if (flags.initiative) {
+      assertInitiativeRegistered(s, flags.initiative, "add-decision");
+    }
     const appliesToRaw = flags["applies-to"];
     const appliesTo = appliesToRaw
       ? appliesToRaw.split(",").map((x) => x.trim()).filter(Boolean)

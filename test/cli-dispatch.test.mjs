@@ -213,3 +213,95 @@ test("CLI: unknown command exits non-zero with JSON error", async () => {
     await rmTempProject(dir);
   }
 });
+
+test("CLI: update a task via the bin (edit title + body)", async () => {
+  const dir = await createTempProject();
+  try {
+    let r = await runCli(["--project", dir, "init", "--seed", "migration"]);
+    assert.equal(r.code, 0, r.stderr);
+    r = await runCli(["--project", dir, "update", "F0.T1", "--title", "new title", "--body", "## Spec\n\nDetails here", "--as", "alice"]);
+    assert.equal(r.code, 0, r.stderr);
+    const data = JSON.parse(r.stdout);
+    assert.equal(data.task.title, "new title");
+    assert.equal(data.task.body, "## Spec\n\nDetails here");
+    // verify it persisted
+    r = await runCli(["--project", dir, "show", "F0.T1"]);
+    const shown = JSON.parse(r.stdout);
+    assert.equal(shown.node.title, "new title");
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("CLI: add-note appends to the thread", async () => {
+  const dir = await createTempProject();
+  try {
+    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    let r = await runCli(["--project", dir, "add-note", "F0.T1", "first note", "--as", "alice"]);
+    assert.equal(r.code, 0, r.stderr);
+    r = await runCli(["--project", dir, "add-note", "F0.T1", "second note", "--as", "bob"]);
+    assert.equal(r.code, 0, r.stderr);
+    r = await runCli(["--project", dir, "show", "F0.T1"]);
+    const shown = JSON.parse(r.stdout);
+    assert.equal(shown.node.notes.length, 2);
+    assert.deepEqual(shown.node.notes.map((n) => n.text), ["first note", "second note"]);
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("CLI: update on an in_progress task fails with JSON error", async () => {
+  const dir = await createTempProject();
+  try {
+    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    // claim F0.T1 so it's in_progress
+    let r = await runCli(["--project", dir, "claim", "F0.T1", "--as", "alice"]);
+    assert.equal(r.code, 0, r.stderr);
+    r = await runCli(["--project", dir, "update", "F0.T1", "--title", "nope", "--as", "alice"]);
+    assert.notEqual(r.code, 0);
+    const data = JSON.parse(r.stdout);
+    assert.equal(data.ok, false);
+    assert.match(data.error, /in_progress/i);
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("CLI: archive a ready task end-to-end, unblocks downstream", async () => {
+  const dir = await createTempProject();
+  try {
+    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    // F0.T1 is ready. Archive it directly (no claim needed).
+    const a = await runCli(["--project", dir, "archive", "F0.T1", "obsolete", "--as", "alice"]);
+    assert.equal(a.code, 0, a.stderr);
+    const adata = JSON.parse(a.stdout);
+    assert.equal(adata.task.status, "archived");
+    assert.equal(adata.task.archived_by, "alice");
+    assert.equal(adata.task.archive_reason, "obsolete");
+    // F0.T2 depends on F0.T1. Archived counts as satisfied, so F0.T2 should be ready now.
+    const ready = await runCli(["--project", dir, "ready"]);
+    assert.equal(ready.code, 0, ready.stderr);
+    const readyData = JSON.parse(ready.stdout);
+    assert.ok(readyData.some((t) => t.id === "F0.T2"), "F0.T2 should be ready after F0.T1 is archived");
+    // Archived task should be reportable in status.
+    const s = await runCli(["--project", dir, "status"]);
+    const sdata = JSON.parse(s.stdout);
+    const totalArchived = Object.values(sdata.counts).reduce((acc, c) => acc + (c.archived || 0), 0);
+    assert.equal(totalArchived, 1);
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("CLI: archive without --as fails with JSON error", async () => {
+  const dir = await createTempProject();
+  try {
+    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    const r = await runCli(["--project", dir, "archive", "F0.T1", "obsolete"]);
+    assert.notEqual(r.code, 0);
+    const data = JSON.parse(r.stdout);
+    assert.match(data.error, /--as/);
+  } finally {
+    await rmTempProject(dir);
+  }
+});

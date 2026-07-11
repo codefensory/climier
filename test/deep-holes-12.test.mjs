@@ -154,6 +154,7 @@ test("hole: tasks with 255-char ids work", async () => {
   const dir = await createTempProject();
   try {
     await runCli(["--project", dir, "init"]);
+    await runCli(["--project", dir, "add-initiative", "x", "--desc", ""]);
     const longId = "X." + "y".repeat(250);
     const r1 = await runCli(["--project", dir, "add-task", longId, "--initiative", "x", "--title", "y"]);
     assert.equal(r1.code, 0, r1.stderr);

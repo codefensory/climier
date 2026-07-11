@@ -212,6 +212,7 @@ test("hole: add-task with --domain containing slashes works", async () => {
   const dir = await createTempProject();
   try {
     await runCli(["--project", dir, "init"]);
+    await runCli(["--project", dir, "add-initiative", "x", "--desc", ""]);
     const r = await runCli(["--project", dir, "add-task", "T1", "--initiative", "x", "--title", "y", "--domain", "team/api"]);
     assert.equal(r.code, 0, r.stderr);
     const s = await readState(dir);

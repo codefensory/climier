@@ -114,13 +114,13 @@ test("reopen: fails if task is ready (no status)", async () => {
   }
 });
 
-test("reopen: fails if task is skipped (terminal by decision)", async () => {
+test("reopen: fails if task is archived (terminal by decision)", async () => {
   const { default: reopen } = await importFresh("./commands/reopen.mjs");
   const dir = await createTempProject();
   try {
     const { updateState } = await importFresh("./state.mjs");
     await updateState(dir, (s) => {
-      s.tasks.T1 = { id: "T1", status: "skipped" };
+      s.tasks.T1 = { id: "T1", status: "archived" };
       return s;
     });
     await assert.rejects(

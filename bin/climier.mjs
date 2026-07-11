@@ -14,12 +14,14 @@ Output: every command prints a single JSON object to stdout.
 Errors: { ok: false, error: "<message>" } on stdout, non-zero exit.
 
 Read-only:
-  status [--initiative X] [--staleMs N]   Global view: counts, in_progress, ready, blocked, stale, gotchas
+  status [--initiative X] [--staleMs N]   Global view: summary (text + counts), alerts, in_progress, ready, blocked (with reasons), blocked_by_decision, stale, gotchas
   ready [--initiative X]                  Tasks claimable right now (the delegation view)
   next <id>                               Definition + acceptance + gotchas for a task
-  pre-claim <id> [--staleMs N]            Pre-flight: spec, gotchas, derived status, GO/NO-GO verdict
+  pre-claim <id> [--staleMs N]            Task detail + pre-flight: spec, gotchas, derived status, structured dep details, GO/NO-GO verdict
   tasks [--initiative X] [--status Y]     List tasks, filterable
   graph [--initiative X]                  Print the DAG as text
+  initiatives                              List registered initiatives with usage counts; surfaces orphan (unregistered) initiative references
+  next-id <phase> [--suffix R]           Get the next free task id for a phase (e.g. F1 -> F1.T3; --suffix R -> F1.T1R)
   gotchas [--initiative X] [--domain Y]   List gotchas
   decisions [--initiative X]              List decisions
   log [--limit N] [--action X] [--agent X] [--task X]   Show the audit log
@@ -30,14 +32,26 @@ Mutating (require --as <agent-id>):
   done <id> "<note>"                      Mark complete, recompute ready
   release <id>                            Free a claim. --as orchestrator|recovery releases any agent's claim
   block <id> "<reason>"                   Mark a blocker on your claimed task (only the claim owner)
-  reopen <id> --as <agent>                Re-open a done or skipped task
+  reopen <id> --as <agent>                Re-open a done task (archived is terminal)
+  archive <id> "<reason>" --as <agent>   Mark a task archived (terminal). in_progress requires claimer (or orchestrator|recovery).
   decide <D> "<choice>" [--because "..."]  Close a decision, unblock dependents (--as defaults to orchestrator)
+  promote <id> --as <agent>               Move a backlog task into the ready pool (removes the backlog flag)
 
 Adding to the DAG:
-  add-task <id> --initiative X --title "..." [--depends-on A,B] [--skills ...] [--effort ...] [--domain ...] [--definition ...] [--acceptance ...]
+  add-task <id> --initiative X --title "..." [--depends-on A,B] [--skills ...] [--effort ...] [--domain ...] [--definition ...] [--acceptance ...] [--phase F1 [--suffix R]]
   add-initiative <name> [--desc "..."]
   add-gotcha <id> --title "..." --applies-to domain:X[,T1,...] [--mitigation "..."]
   add-decision <id> --title "..." [--initiative X] [--applies-to F1,T2,...] [--description "..."]
+
+Editing tasks (any agent; status guard applies):
+  update <id> [--title X] [--body "..."] [--definition "..."] [--acceptance "..."] [--skills a,b] [--effort S|M|L] [--domain Y] [--depends-on A,B] --as <agent>
+                              Edit a task. in_progress/done are locked. --depends-on rewrites the dependency list (use it to unblock).
+  add-note <id> "text" --as <agent>
+                              Append a note to a task's running thread (any status).
+
+Lifecycle (soft delete):
+  close-gotcha <id> --as <agent>         Mark a gotcha resolved (forTask and the gotchas view filter it out)
+  reopen-gotcha <id> --as <agent>        Undo a close-gotcha
 
 Setup:
   init [--seed NAME] [--force]            Create .agents/tasks/tasks.json (use --seed migration for the new-vegsport preset)
@@ -129,7 +143,7 @@ try {
   }
 } catch (err) {
   if (err.code === "MODULE_NOT_FOUND" || err.code === "ERR_MODULE_NOT_FOUND") {
-    if (!command) failJson("no command given. Available: status, ready, claim, next, pre-claim, done, release, reopen, block, decide, tasks, graph, gotchas, decisions, log, show, add-task, add-initiative, add-gotcha, add-decision, init", 2);
+    if (!command) failJson("no command given. Available: status, ready, claim, next, pre-claim, done, release, reopen, archive, block, decide, promote, tasks, graph, next-id, gotchas, decisions, log, show, update, add-note, add-task, add-initiative, add-gotcha, add-decision, close-gotcha, reopen-gotcha, initiatives, init", 2);
     failJson(`unknown command '${command}'`, 2);
   }
   failJson(err.message, 1);

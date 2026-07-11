@@ -20,10 +20,13 @@ export default async function claim({ statePath, flags, positional }) {
     if (!s) throw new Error("claim: state file missing; run `climier init` first");
     const t = s.tasks[id];
     if (!t) throw new Error(`claim: task ${id} not found`);
+    if (t.backlog === true) {
+      throw new Error(`claim: task ${id} is in backlog (run 'climier promote ${id}' first)`);
+    }
     if (t.status === "in_progress") {
       throw new Error(`claim: task ${id} already in progress by ${t.claimed_by || "(unknown)"}`);
     }
-    if (t.status === "done" || t.status === "skipped") {
+    if (t.status === "done" || t.status === "archived") {
       throw new Error(`claim: task ${id} is already ${t.status}`);
     }
     const d = derive(s);

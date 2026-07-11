@@ -17,12 +17,12 @@ test("hole: derive handles task with decision dep + decision with task dep (cros
   assert.deepEqual(r.openDecisions, ["D1"]);
 });
 
-// Subtle: a task that is "skipped" with a block_reason should still derive correctly
-test("hole: a skipped task with block_reason is treated as satisfied", async () => {
+// Subtle: a task that is "archived" with a block_reason should still derive correctly
+test("hole: a archived task with block_reason is treated as satisfied", async () => {
   const { derive } = await importFresh("./dag.mjs");
   const state = {
     tasks: {
-      T1: { id: "T1", status: "skipped", block_reason: "obsolete" },
+      T1: { id: "T1", status: "archived", block_reason: "obsolete" },
       T2: { id: "T2", depends_on: ["T1"] },
     },
     decisions: {},
@@ -57,6 +57,7 @@ test("hole: task ids with multiple dots work", async () => {
   const dir = await createTempProject();
   try {
     await runCli(["--project", dir, "init"]);
+    await runCli(["--project", dir, "add-initiative", "x", "--desc", ""]);
     const r1 = await runCli(["--project", dir, "add-task", "F.0.T1", "--initiative", "x", "--title", "multi-dot"]);
     assert.equal(r1.code, 0, r1.stderr);
     const r2 = await runCli(["--project", dir, "claim", "F.0.T1", "--as", "agent"]);
@@ -68,14 +69,14 @@ test("hole: task ids with multiple dots work", async () => {
   }
 });
 
-// Subtle: when a task's status is "skipped" but it has claimed_by (corruption), what happens?
-test("hole: a skipped task with claimed_by is still done-equivalent", async () => {
+// Subtle: when a task's status is "archived" but it has claimed_by (corruption), what happens?
+test("hole: a archived task with claimed_by is still done-equivalent", async () => {
   const { statusOf, derive } = await importFresh("./dag.mjs");
   const state = {
-    tasks: { T1: { id: "T1", status: "skipped", claimed_by: "ghost" } },
+    tasks: { T1: { id: "T1", status: "archived", claimed_by: "ghost" } },
     decisions: {},
   };
-  assert.equal(statusOf(state, "T1"), "skipped");
+  assert.equal(statusOf(state, "T1"), "archived");
   assert.deepEqual(derive(state).ready, []);
 });
 

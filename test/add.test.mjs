@@ -4,10 +4,12 @@ import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, importFresh } from "./helpers.mjs";
 
 test("add-task: appends a new task to state", async () => {
+  const { default: addInit } = await importFresh("./commands/add-initiative.mjs");
   const { default: addTask } = await importFresh("./commands/add-task.mjs");
   const { readState } = await importFresh("./state.mjs");
   const dir = await createTempProject();
   try {
+    await addInit({ statePath: dir, flags: { desc: "" }, positional: ["migration"] });
     await addTask({
       statePath: dir,
       flags: { initiative: "migration", title: "first", skills: "ts,sql", effort: "m", domain: "db" },
@@ -25,10 +27,12 @@ test("add-task: appends a new task to state", async () => {
 });
 
 test("add-task: --depends-on attaches deps", async () => {
+  const { default: addInit } = await importFresh("./commands/add-initiative.mjs");
   const { default: addTask } = await importFresh("./commands/add-task.mjs");
   const { readState } = await importFresh("./state.mjs");
   const dir = await createTempProject();
   try {
+    await addInit({ statePath: dir, flags: { desc: "" }, positional: ["mig"] });
     await addTask({ statePath: dir, flags: { initiative: "mig", title: "x" }, positional: ["T1"] });
     await addTask({ statePath: dir, flags: { initiative: "mig", title: "y", "depends-on": "T1" }, positional: ["T2"] });
     const s = await readState(dir);
@@ -39,9 +43,11 @@ test("add-task: --depends-on attaches deps", async () => {
 });
 
 test("add-task: rejects duplicate id", async () => {
+  const { default: addInit } = await importFresh("./commands/add-initiative.mjs");
   const { default: addTask } = await importFresh("./commands/add-task.mjs");
   const dir = await createTempProject();
   try {
+    await addInit({ statePath: dir, flags: { desc: "" }, positional: ["mig"] });
     await addTask({ statePath: dir, flags: { initiative: "mig", title: "x" }, positional: ["T1"] });
     await assert.rejects(addTask({ statePath: dir, flags: { initiative: "mig", title: "y" }, positional: ["T1"] }));
   } finally {

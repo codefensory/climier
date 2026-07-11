@@ -94,4 +94,36 @@ export async function writeState(projectDir, state) {
   await fs.writeFile(file, JSON.stringify(state, null, 2) + "\n", "utf8");
 }
 
+// Validate that an initiative name is registered in state.initiatives.
+// Throws with a clear error listing valid names (or the bootstrap hint)
+// if not. Used by add-task / add-decision / add-gotcha to prevent silent
+// typo-driven orphan initiatives (the "qa" / "research" case in real
+// projects: an agent writes --initiative=qa and it just sticks).
+// ponytail: this is the only place initiative registration is enforced.
+// Validation lives here (state.mjs) not in dag.mjs because it's a state
+// concern, not a derivation. The helper is pure; callers pass the state
+// they already loaded.
+export function assertInitiativeRegistered(state, name, commandName) {
+  if (name === true) {
+    // CLI parser quirk: `--initiative` with no value becomes boolean true.
+    // The required-only flag checks (e.g. add-task's) catch this earlier
+    // for required fields, but for optional ones we surface a clear error.
+    throw new Error(`${commandName}: --initiative requires a value`);
+  }
+  if (
+    state &&
+    state.initiatives &&
+    Object.prototype.hasOwnProperty.call(state.initiatives, name)
+  ) {
+    return;
+  }
+  const valid =
+    state && state.initiatives ? Object.keys(state.initiatives).sort() : [];
+  const hint =
+    valid.length > 0
+      ? `valid initiatives: ${valid.join(", ")}`
+      : `no initiatives registered; run \`climier add-initiative <name> --desc "..."\` first`;
+  throw new Error(`${commandName}: --initiative '${name}' is not registered (${hint})`);
+}
+
 export { stateFile };

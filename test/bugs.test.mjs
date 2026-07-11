@@ -84,12 +84,14 @@ test("bug: corrupted state file produces a clear error, not a SyntaxError stack"
 // BUG #5 (coverage gap that revealed a bug): add-task with a non-existent --depends-on
 // should warn or fail, not silently create a task stuck forever.
 test("bug: add-task rejects --depends-on pointing to non-existent id", async () => {
+  const { default: addInit } = await importFresh("./commands/add-initiative.mjs");
   const { default: addTask } = await importFresh("./commands/add-task.mjs");
   const { default: init } = await importFresh("./commands/init.mjs");
   const dir = await createTempProject();
   try {
     // init first so the state file exists and the validator can run.
     await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
+    await addInit({ statePath: dir, flags: { desc: "" }, positional: ["mig"] });
     await assert.rejects(
       addTask({
         statePath: dir,

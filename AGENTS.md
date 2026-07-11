@@ -58,7 +58,7 @@ test/
 }
 ```
 
-`status: "ready"` and `"blocked"` are **derived** from the DAG. They are NOT persisted. Persisted statuses are only `in_progress`, `done`, `skipped`. A task with no `status` field is derived as `ready` (if no deps) or `blocked`.
+`status: "ready"` and `"blocked"` are **derived** from the DAG. They are NOT persisted. Persisted statuses are only `in_progress`, `done`, `archived`. A task with no `status` field is derived as `ready` (if no deps) or `blocked`.
 
 ### The two non-obvious invariants
 
@@ -69,7 +69,7 @@ test/
 
 `src/dag.mjs` is **pure**: given a state, it computes ready/blocked/open. No I/O. Tests rely on this purity — you can unit-test DAG logic without a filesystem.
 
-`derive(state)` returns `{ ready: string[], blocked: string[], openDecisions: string[] }`. Tasks with `depends_on: [task_ids, decision_ids]` are ready only when ALL deps are satisfied (a task is satisfied if its `status` is `done` or `skipped`; a decision is satisfied if its `status` is `decided`).
+`derive(state)` returns `{ ready: string[], blocked: string[], openDecisions: string[] }`. Tasks with `depends_on: [task_ids, decision_ids]` are ready only when ALL deps are satisfied (a task is satisfied if its `status` is `done` or `archived`; a decision is satisfied if its `status` is `decided`).
 
 Cycles in the DAG must not crash. `derive` keeps cycle members blocked. Unknown dep ids also keep tasks blocked (defensive).
 
@@ -86,11 +86,21 @@ Cycles in the DAG must not crash. `derive` keeps cycle members blocked. Unknown 
 | `done <id> "note"` | `commands/done.mjs` | yes | yes |
 | `release <id>` | `commands/release.mjs` | yes | yes |
 | `reopen <id> "reason"` | `commands/reopen.mjs` | yes | yes (orchestrator or original done_by) |
+| `archive <id> "reason"` | `commands/archive.mjs` | yes | yes (in_progress: claimer or orchestrator/recovery; ready/blocked: any agent) |
 | `block <id> "reason"` | `commands/block.mjs` | yes | yes (must be the claimer) |
 | `decide <D> "<choice>" --because "..."` | `commands/decide.mjs` | yes | optional (defaults to `orchestrator`) |
+| `update <id> [--title X] [--body "..."] [--skills a,b] [--depends-on A,B] ...` | `commands/update.mjs` | yes | required (any value; no ownership check) |
+| `add-note <id> "text"` | `commands/add-note.mjs` | yes | required (any value) |
+| `close-gotcha <id>` | `commands/close-gotcha.mjs` | yes | required |
+| `reopen-gotcha <id>` | `commands/reopen-gotcha.mjs` | yes | required |
 | `tasks [--initiative X] [--status Y]` | `commands/tasks.mjs` | no | no |
 | `graph [--initiative X]` | `commands/graph.mjs` | no | no |
+| `next-id <phase>` | `commands/next-id.mjs` | no | no |
 | `add-task <id> --initiative X --title "..." [--depends-on A,B] ...` | `commands/add-task.mjs` | yes | no |
+
+`add-task` also accepts `--phase <prefix>` instead of the positional id; the CLI auto-allocates the next free id for that phase (e.g. `--phase F1` on a state with `F1.T1`, `F1.T2` creates `F1.T3`). Policy: next sequential, not fill-the-gap. See `commands/next-id.mjs` for the same logic exposed as a read-only command.
+
+`add-task --phase` and `next-id` also accept `--suffix <S>` to append a tag at the end of the generated id (e.g. `--phase F1 --suffix R` → `F1.T1R`, then `F1.T2R`, etc.). The default-family (`F1.T1`, `F1.T2`, ...) and the R family are independent sequences. `.OPEN` placeholders are still skipped. `--suffix` requires `--phase`; the suffix must be a non-empty string without a dot and not equal to `OPEN`.
 | `add-initiative <name> [--desc "..."]` | `commands/add-initiative.mjs` | yes | no |
 | `add-decision <id> --title "..." [--initiative X] [--applies-to F1,T2,...]` | `commands/add-decision.mjs` | yes | no |
 
@@ -125,7 +135,7 @@ Cycles in the DAG must not crash. `derive` keeps cycle members blocked. Unknown 
 
 ## How to extend the DAG model
 
-- **New task status** (beyond `done`/`skipped`/`in_progress`): add to the persisted set AND update `derive` to handle it. Don't treat unknown statuses as "ready" without thinking — `derive` currently passes through unknown statuses (treating them as candidates) for forward compat. If you want stricter behavior, add a test that locks down the policy.
+- **New task status** (beyond `done`/`archived`/`in_progress`): add to the persisted set AND update `derive` to handle it. Don't treat unknown statuses as "ready" without thinking — `derive` currently passes through unknown statuses (treating them as candidates) for forward compat. If you want stricter behavior, add a test that locks down the policy.
 - **New decision-like node** (e.g. "milestone"): the current model is one collection per node type. Adding a new collection means changes in `state.mjs`, `dag.mjs`, `views.mjs`, the printers, and the migration seed. Document it.
 - **Cross-initiative dependencies**: already supported via `depends_on` ids. The `--initiative` filter is for views only, not for resolution.
 
@@ -201,6 +211,7 @@ The CLI is **JSON-only**. There is no `--json` flag (it's the default), no text 
 
 The convention for command return shapes is principled:
 - **Read commands** (`status`, `ready`, `tasks`, `graph`, `gotchas`, `decisions`, `log`, `next`, `show`, `pre-claim`) return raw data — the object/array the consumer cares about.
+  - `status` and `pre-claim` are deliberately richer than the other reads: the agent is the primary consumer, so the output is shaped to remove ambiguity. `status` adds `summary.text` (one-line plain English), `summary.{ready,in_progress,blocked,backlog,placeholders,stale,open_decisions,done,archived}` (totals), and `alerts[]` (kinds: `decision-gate`, `stale-claim`). `blocked` and `open_decisions` are arrays of objects, not bare IDs. `ready` carries `skills/effort/domain/phase/gotcha_count`. `pre-claim` adds `depends_on_detail[]` (kind/status/title/claimed_by per dep). Placeholders (`.OPEN` suffix or `task.placeholder: true`) are marked in `blocked` with `placeholder: true` and counted separately in `summary.placeholders` so the agent doesn't conflate them with real blocked work.
 - **Write commands** (`claim`, `done`, `release`, `reopen`, `block`, `decide`, `add-*`) return `{ entity }` envelopes (`{ task }`, `{ decision }`, `{ gotcha }`, `{ initiative }`).
 - `init` returns `{ ok, seeded, file }` (different shape because it is not creating an entity, it is setting up a state).
 - `show` returns `{ type, node }` because it can return any of three node types.

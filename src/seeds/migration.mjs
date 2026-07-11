@@ -22,28 +22,28 @@ export const migrationSeed = (() => {
   s.tasks["F1.T2"] = { id: "F1.T2", initiative: "migration", phase: "F1", title: "Smoke test E2E: ver video → marcar visto (en staging)", depends_on: ["F1.T1"], skills: ["ts", "e2e"], effort: "s", domain: "qa" };
 
   // F2 stub (depends on D4 + F1 done) — decompose when ready
-  s.tasks["F2.OPEN"] = { id: "F2.OPEN", initiative: "migration", phase: "F2", title: "Descomponer F2: Auth + cursos + progreso (resolver D4 primero)", depends_on: ["F1.T2", "D4"] };
+  s.tasks["F2.OPEN"] = { id: "F2.OPEN", initiative: "migration", phase: "F2", title: "Descomponer F2: Auth + cursos + progreso (resolver D4 primero)", depends_on: ["F1.T2", "D4"], placeholder: true };
 
   // F3 stub
-  s.tasks["F3.OPEN"] = { id: "F3.OPEN", initiative: "migration", phase: "F3", title: "Descomponer F3: Directus + migración CMS (resolver D1 primero)", depends_on: ["F2.OPEN", "D1"] };
+  s.tasks["F3.OPEN"] = { id: "F3.OPEN", initiative: "migration", phase: "F3", title: "Descomponer F3: Directus + migración CMS (resolver D1 primero)", depends_on: ["F2.OPEN", "D1"], placeholder: true };
 
   // F4 stub
-  s.tasks["F4.OPEN"] = { id: "F4.OPEN", initiative: "migration", phase: "F4", title: "Descomponer F4: edge functions de negocio (migración dominio por dominio)", depends_on: ["F2.OPEN", "F3.OPEN"] };
+  s.tasks["F4.OPEN"] = { id: "F4.OPEN", initiative: "migration", phase: "F4", title: "Descomponer F4: edge functions de negocio (migración dominio por dominio)", depends_on: ["F2.OPEN", "F3.OPEN"], placeholder: true };
 
   // F5 stub
-  s.tasks["F5.OPEN"] = { id: "F5.OPEN", initiative: "migration", phase: "F5", title: "Descomponer F5: Submissions + R2 + Exámenes (resolver D2 primero)", depends_on: ["F4.OPEN", "D2"] };
+  s.tasks["F5.OPEN"] = { id: "F5.OPEN", initiative: "migration", phase: "F5", title: "Descomponer F5: Submissions + R2 + Exámenes (resolver D2 primero)", depends_on: ["F4.OPEN", "D2"], placeholder: true };
 
   // F6 stub
-  s.tasks["F6.OPEN"] = { id: "F6.OPEN", initiative: "migration", phase: "F6", title: "Descomponer F6: Centeria dentro del backend (resolver D3 primero)", depends_on: ["F2.OPEN", "D3"] };
+  s.tasks["F6.OPEN"] = { id: "F6.OPEN", initiative: "migration", phase: "F6", title: "Descomponer F6: Centeria dentro del backend (resolver D3 primero)", depends_on: ["F2.OPEN", "D3"], placeholder: true };
 
   // F7 stub
-  s.tasks["F7.OPEN"] = { id: "F7.OPEN", initiative: "migration", phase: "F7", title: "Descomponer F7: Webhooks + misiones + ranking + postgrado", depends_on: ["F4.OPEN"] };
+  s.tasks["F7.OPEN"] = { id: "F7.OPEN", initiative: "migration", phase: "F7", title: "Descomponer F7: Webhooks + misiones + ranking + postgrado", depends_on: ["F4.OPEN"], placeholder: true };
 
   // F8 stub
-  s.tasks["F8.OPEN"] = { id: "F8.OPEN", initiative: "migration", phase: "F8", title: "Descomponer F8: Frontend cutover (apps/web apunta a Elysia)", depends_on: ["F4.OPEN", "F5.OPEN", "F6.OPEN", "F7.OPEN"] };
+  s.tasks["F8.OPEN"] = { id: "F8.OPEN", initiative: "migration", phase: "F8", title: "Descomponer F8: Frontend cutover (apps/web apunta a Elysia)", depends_on: ["F4.OPEN", "F5.OPEN", "F6.OPEN", "F7.OPEN"], placeholder: true };
 
   // F9 stub
-  s.tasks["F9.OPEN"] = { id: "F9.OPEN", initiative: "migration", phase: "F9", title: "Descomponer F9: Hardening + deploy + cleanup de edge functions legacy", depends_on: ["F8.OPEN"] };
+  s.tasks["F9.OPEN"] = { id: "F9.OPEN", initiative: "migration", phase: "F9", title: "Descomponer F9: Hardening + deploy + cleanup de edge functions legacy", depends_on: ["F8.OPEN"], placeholder: true };
 
   // Gotchas
   s.gotchas.G1 = { id: "G1", initiative: "migration", title: "RLS no protege con Service Role", applies_to: ["domain:db"], mitigation: "Filtrar por user_id del JWT en repository.ts, no delegar en RLS." };

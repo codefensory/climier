@@ -40,6 +40,7 @@ test("hole: long task ids and notes are handled", async () => {
   const dir = await createTempProject();
   try {
     await runCli(["--project", dir, "init"]);
+    await runCli(["--project", dir, "add-initiative", "x", "--desc", ""]);
     const longId = "X." + "y".repeat(200);
     const r1 = await runCli(["--project", dir, "add-task", longId, "--initiative", "x", "--title", "long id test"]);
     assert.equal(r1.code, 0, r1.stderr);
@@ -60,6 +61,7 @@ test("hole: unicode in titles and notes is preserved", async () => {
   const dir = await createTempProject();
   try {
     await runCli(["--project", dir, "init"]);
+    await runCli(["--project", dir, "add-initiative", "x", "--desc", ""]);
     const r1 = await runCli(["--project", dir, "add-task", "T1", "--initiative", "x", "--title", "Migración 漢字 émoji"]);
     assert.equal(r1.code, 0, r1.stderr);
     await runCli(["--project", dir, "claim", "T1", "--as", "agente-ñoño"]);

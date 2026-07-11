@@ -21,6 +21,10 @@ export default async function ready({ statePath, flags }) {
       effort: t.effort,
       domain: t.domain,
       depends_on: t.depends_on || [],
+      // Absent priority is shown as "medium" so consumers don't have to
+      // special-case missing. The state file itself never gets a default
+      // written — the field stays absent unless the user sets it.
+      priority: t.priority || "medium",
     };
   });
 }

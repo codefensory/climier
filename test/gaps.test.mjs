@@ -39,6 +39,7 @@ test("gap: add-gotcha --initiative sets the initiative tag", async () => {
   const dir = await createTempProject();
   try {
     await runCli(["--project", dir, "init"]);
+    await runCli(["--project", dir, "add-initiative", "x", "--desc", ""]);
     await runCli(["--project", dir, "add-gotcha", "G1", "--title", "x", "--applies-to", "domain:db", "--initiative", "x"]);
     const s = await readState(dir);
     assert.equal(s.gotchas.G1.initiative, "x");

@@ -20,6 +20,7 @@ export default async function tasks({ statePath, flags }) {
       status: st,
       depends_on: t.depends_on || [],
       claimed_by: t.claimed_by,
+      priority: t.priority || "medium",
     });
   }
   return out;

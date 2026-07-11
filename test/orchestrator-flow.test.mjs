@@ -20,7 +20,7 @@ test("orchestrator flow: init seed, delegate, 3 workers complete tasks in parall
     // 3. Orchestrator reads blocked-by-decision and decides D1.
     r = await runCli(["--project", dir, "status"]);
     const statusData = JSON.parse(r.stdout);
-    assert.ok(statusData.open_decisions.includes("D1"));
+    assert.ok(statusData.open_decisions.some((d) => d.id === "D1"));
     r = await runCli(["--project", dir, "decide", "D1", "raw-postgres", "--because", "skip Directus"]);
     assert.equal(r.code, 0, r.stderr);
 

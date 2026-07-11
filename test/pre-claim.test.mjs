@@ -195,17 +195,17 @@ test("pre-claim: done task → can_claim=false, derived_status=done", async () =
   }
 });
 
-test("pre-claim: skipped task → can_claim=false", async () => {
+test("pre-claim: archived task → can_claim=false", async () => {
   const { default: preClaim } = await importFresh("./commands/pre-claim.mjs");
   const dir = await createTempProject();
   try {
     const { updateState } = await importFresh("./state.mjs");
     await updateState(dir, (s) => {
-      s.tasks.T1 = { id: "T1", status: "skipped" };
+      s.tasks.T1 = { id: "T1", status: "archived" };
       return s;
     });
     const out = await preClaim({ statePath: dir, flags: {}, positional: ["T1"] });
-    assert.equal(out.derived_status, "skipped");
+    assert.equal(out.derived_status, "archived");
     assert.equal(out.can_claim, false);
   } finally {
     await rmTempProject(dir);

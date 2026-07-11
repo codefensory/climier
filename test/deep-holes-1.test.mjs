@@ -142,6 +142,8 @@ test("hole: init --force overwrites existing state", async () => {
     // Add a task
     const { addTask } = await importFresh("./commands/add-task.mjs");
     const { default: addTaskFn } = await importFresh("./commands/add-task.mjs");
+    const { default: addInit } = await importFresh("./commands/add-initiative.mjs");
+    await addInit({ statePath: dir, flags: { desc: "" }, positional: ["x"] });
     await addTaskFn({ statePath: dir, flags: { initiative: "x", title: "y" }, positional: ["T1"] });
     // Re-init with --force should succeed
     await init({ statePath: dir, flags: { force: true }, positional: [], projectDir: dir });
