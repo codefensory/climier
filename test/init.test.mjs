@@ -1,7 +1,9 @@
-// init: create an empty .agents/tasks/tasks.json.
+// init: create repo-local project metadata + global live state.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createTempProject, rmTempProject, stateExists, runCli, importFresh } from "./helpers.mjs";
+import fs from "node:fs/promises";
+import path from "node:path";
+import { createTempProject, rmTempProject, stateExists, stateFilePath, importFresh } from "./helpers.mjs";
 
 test("init: creates empty state file when none exists", async () => {
   const { default: init } = await importFresh("./commands/init.mjs");
@@ -10,6 +12,9 @@ test("init: creates empty state file when none exists", async () => {
     assert.equal(await stateExists(dir), false);
     await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
     assert.equal(await stateExists(dir), true);
+    const meta = JSON.parse(await fs.readFile(path.join(dir, ".climier.json"), "utf8"));
+    assert.match(meta.project_id, /\S/);
+    assert.equal(stateFilePath(dir).startsWith(path.join(process.env.CLIMIER_HOME, "projects")), true);
   } finally {
     await rmTempProject(dir);
   }

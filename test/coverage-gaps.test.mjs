@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createTempProject, rmTempProject, importFresh, runCli, readState } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, runCli, readState, stateFilePath } from "./helpers.mjs";
 
 // GAP: claim before init — should fail cleanly.
 test("coverage: claim before init fails with a clear error", async () => {
@@ -183,7 +183,7 @@ test("coverage: CLI defaults to CWD when --project is omitted", async () => {
   try {
     let r = await runCli(["init"], { cwd: dir });
     assert.equal(r.code, 0, r.stderr);
-    const exists = await fs.access(path.join(dir, ".agents", "tasks", "tasks.json")).then(() => true).catch(() => false);
+    const exists = await fs.access(stateFilePath(dir)).then(() => true).catch(() => false);
     assert.equal(exists, true);
   } finally {
     await rmTempProject(dir);

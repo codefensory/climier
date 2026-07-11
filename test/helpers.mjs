@@ -10,7 +10,28 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SRC_DIR = path.resolve(__dirname, "..", "src");
 const BIN = path.resolve(__dirname, "..", "bin", "climier.mjs");
 
-// Create an empty temp project dir with .agents/tasks/ ready.
+if (!process.env.CLIMIER_HOME) {
+  process.env.CLIMIER_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "climier-home-"));
+}
+
+function projectMetaPath(dir) {
+  return path.join(dir, ".climier.json");
+}
+
+export function stateFilePath(dir) {
+  const metaFile = projectMetaPath(dir);
+  if (fs.existsSync(metaFile)) {
+    const meta = JSON.parse(fs.readFileSync(metaFile, "utf8"));
+    return path.join(process.env.CLIMIER_HOME, "projects", meta.project_id, "tasks.json");
+  }
+  return path.join(dir, ".agents", "tasks", "tasks.json");
+}
+
+export function lockFilePath(dir) {
+  return path.join(path.dirname(stateFilePath(dir)), ".lock");
+}
+
+// Create an empty temp project dir with .agents/tasks/ ready for legacy-path tests.
 export async function createTempProject() {
   const dir = await fsp.mkdtemp(path.join(os.tmpdir(), "climier-test-"));
   await fsp.mkdir(path.join(dir, ".agents", "tasks"), { recursive: true });
@@ -22,19 +43,20 @@ export async function rmTempProject(dir) {
 }
 
 export async function writeState(dir, state) {
-  const file = path.join(dir, ".agents", "tasks", "tasks.json");
+  const file = stateFilePath(dir);
+  await fsp.mkdir(path.dirname(file), { recursive: true });
   await fsp.writeFile(file, JSON.stringify(state, null, 2) + "\n", "utf8");
 }
 
 export async function readState(dir) {
-  const file = path.join(dir, ".agents", "tasks", "tasks.json");
+  const file = stateFilePath(dir);
   const raw = await fsp.readFile(file, "utf8");
   return JSON.parse(raw);
 }
 
 export async function stateExists(dir) {
   try {
-    await fsp.access(path.join(dir, ".agents", "tasks", "tasks.json"));
+    await fsp.access(stateFilePath(dir));
     return true;
   } catch {
     return false;

@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 // Climier CLI entry point. Parses argv, resolves project path, dispatches to commands.
 // All command output is JSON to stdout. All errors are JSON to stdout with non-zero exit.
-import path from "node:path";
 import { resolveProject } from "../src/paths.mjs";
 
 const args = process.argv.slice(2);
@@ -54,7 +53,7 @@ Lifecycle (soft delete):
   reopen-gotcha <id> --as <agent>        Undo a close-gotcha
 
 Setup:
-  init [--seed NAME] [--force]            Create .agents/tasks/tasks.json (use --seed migration for the new-vegsport preset)
+  init [--seed NAME] [--force]            Create .climier.json and the project's live state (use --seed migration for the new-vegsport preset)
 
 Global flags:
   --project <dir>                         Project root (default: CWD)
@@ -109,7 +108,7 @@ for (let i = 0; i < args.length; i++) {
 }
 
 const projectDir = resolveProject({ project: flags.project });
-const statePath = path.join(projectDir, ".agents", "tasks", "tasks.json");
+const statePath = projectDir;
 
 const ctx = { positional, flags, statePath, projectDir };
 

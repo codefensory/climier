@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createTempProject, rmTempProject, importFresh, runCli, readState } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, runCli, readState, stateFilePath } from "./helpers.mjs";
 
 // A task with extremely long depends_on chain
 test("hole: derive handles a 50-deep dependency chain", async () => {
@@ -217,7 +217,7 @@ test("hole: release followed by immediate claim by the same agent works", async 
   const dir = await createTempProject();
   try {
     await runCli(["--project", dir, "init"]);
-    const file = path.join(dir, ".agents", "tasks", "tasks.json");
+    const file = stateFilePath(dir);
     await fs.writeFile(file, JSON.stringify({
       version: 1, tasks: { T1: { id: "T1" } }, decisions: {}, gotchas: {},
       initiatives: { x: { desc: "" } }, log: [],

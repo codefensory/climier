@@ -2,7 +2,7 @@
 // All output is JSON to stdout.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createTempProject, rmTempProject, runCli, readState } from "./helpers.mjs";
+import { createTempProject, rmTempProject, runCli, readState, stateFilePath } from "./helpers.mjs";
 
 test("orchestrator flow: init seed, delegate, 3 workers complete tasks in parallel, decide decision, dependents unblock", async () => {
   const dir = await createTempProject();
@@ -65,7 +65,7 @@ test("orchestrator flow: a task depending only on a decision becomes ready after
     // Manually set up: a decision D1 and a task that depends only on D1.
     const fs = await import("node:fs/promises");
     const path = await import("node:path");
-    const file = path.join(dir, ".agents", "tasks", "tasks.json");
+    const file = stateFilePath(dir);
     const state = {
       version: 1,
       tasks: { "X.1": { id: "X.1", title: "blocked by D1" } },

@@ -3,14 +3,14 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createTempProject, rmTempProject, importFresh, runCli, readState } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, runCli, readState, stateFilePath } from "./helpers.mjs";
 
 // Stress: 50 sequential claim/done cycles on the same task produce a consistent log.
 test("hole: 50 sequential claim/done cycles leave state consistent and log ordered", async () => {
   const dir = await createTempProject();
   try {
     await runCli(["--project", dir, "init"]);
-    const file = path.join(dir, ".agents", "tasks", "tasks.json");
+    const file = stateFilePath(dir);
     await fs.writeFile(file, JSON.stringify({
       version: 1, tasks: { T1: { id: "T1" } }, decisions: {}, gotchas: {},
       initiatives: { x: { desc: "" } }, log: [],

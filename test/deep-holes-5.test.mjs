@@ -3,14 +3,14 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createTempProject, rmTempProject, importFresh, runCli, readState } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, runCli, readState, stateFilePath, lockFilePath } from "./helpers.mjs";
 
 // Cross-process race: many parallel claim/done on the same task. Verify final state consistent.
 test("hole: 20 agents racing on the same task — final state has exactly one done and log is consistent", async () => {
   const dir = await createTempProject();
   try {
     await runCli(["--project", dir, "init"]);
-    const file = path.join(dir, ".agents", "tasks", "tasks.json");
+    const file = stateFilePath(dir);
     await fs.writeFile(file, JSON.stringify({
       version: 1, tasks: { T1: { id: "T1" } }, decisions: {}, gotchas: {},
       initiatives: { x: { desc: "" } }, log: [],
@@ -50,7 +50,7 @@ test("hole: 20 agents racing on the same task — final state has exactly one do
 test("hole: full recovery flow — corrupt state, init --force, resume work", async () => {
   const dir = await createTempProject();
   try {
-    const file = path.join(dir, ".agents", "tasks", "tasks.json");
+    const file = stateFilePath(dir);
     await fs.writeFile(file, "{ broken", "utf8");
     // init --force should recover
     const r1 = await runCli(["--project", dir, "init", "--force", "--seed", "migration"]);
@@ -67,9 +67,9 @@ test("hole: full recovery flow — corrupt state, init --force, resume work", as
 test("hole: a stale .lock file does not block subsequent operations", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init"]);
+    await runCli(["--project", dir, "init", "--seed", "migration"]);
     // Write a fake lock file
-    const lockPath = path.join(dir, ".agents", "tasks", ".lock");
+    const lockPath = lockFilePath(dir);
     await fs.writeFile(lockPath, JSON.stringify({ pid: 99999, at: 0 }), "utf8");
     // Operations should still work (timeout config for the test is short)
     const r = await runCli(["--project", dir, "claim", "F0.T1", "--as", "agent"]);

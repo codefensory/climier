@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createTempProject, rmTempProject, importFresh, runCli, readState } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, runCli, readState, stateFilePath } from "./helpers.mjs";
 
 // Worker can `next` a task that doesn't exist — should fail
 test("hole: next on a corrupt-claimed task returns the spec anyway", async () => {
@@ -142,7 +142,7 @@ test("hole: two parallel in_progress tasks in same initiative", async () => {
   const dir = await createTempProject();
   try {
     await runCli(["--project", dir, "init"]);
-    const file = path.join(dir, ".agents", "tasks", "tasks.json");
+    const file = stateFilePath(dir);
     await fs.writeFile(file, JSON.stringify({
       version: 1, tasks: { T1: { id: "T1" }, T2: { id: "T2" } },
       decisions: {}, gotchas: {}, initiatives: { x: { desc: "" } }, log: [],
@@ -181,7 +181,7 @@ test("hole: state file ends with a newline", async () => {
   const dir = await createTempProject();
   try {
     await runCli(["--project", dir, "init"]);
-    const raw = await fs.readFile(path.join(dir, ".agents", "tasks", "tasks.json"), "utf8");
+    const raw = await fs.readFile(stateFilePath(dir), "utf8");
     assert.match(raw, /\n$/);
   } finally {
     await rmTempProject(dir);

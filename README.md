@@ -1,6 +1,6 @@
 # climier
 
-Task DAG harness for multi-agent workflows. A single-file state in each project (`.agents/tasks/tasks.json`), a CLI to manage it, and a model designed for several agents (or an orchestrator + workers) to claim and complete work in parallel without stepping on each other.
+Task DAG harness for multi-agent workflows. Each repo gets a stable project id in `.climier.json`; the live mutable state is stored outside the repo under `~/.climier/projects/<project-id>/tasks.json` (or `$CLIMIER_HOME/projects/<project-id>/tasks.json`). Legacy repo-local `.agents/tasks/tasks.json` files are still read when no project metadata exists.
 
 ## Output: JSON-only
 
@@ -15,7 +15,10 @@ Every command prints a single JSON value to stdout. Errors are JSON to stdout, w
 ## What it is
 
 - A small Node CLI (no runtime dependencies, stdlib only).
-- State lives in **one JSON file per project**, committed to git.
+- State lives in **one JSON file per project**.
+- New projects store live state outside the repo (`~/.climier/projects/<project-id>/tasks.json`) so worktrees/subagents share one lock + state.
+- The repo only keeps stable project metadata in `.climier.json`.
+- Legacy repo-local `.agents/tasks/tasks.json` files still work until migrated.
 - Tasks form a **DAG** with dependencies. Decisions are also nodes in the DAG, so a decision gates the tasks that need it.
 - A task can be `ready` (deps done, claimable), `in_progress` (claimed by an agent), `done`, `blocked` (deps not met), or `archived`. `ready` and `blocked` are **derived** from the DAG; only `in_progress`/`done`/`archived` are persisted.
 - `claim` is **atomic** with a file lock, so two agents cannot claim the same task.
@@ -29,13 +32,13 @@ From this repo (development):
 node bin/climier.mjs <command>
 ```
 
-From any project that has `.agents/tasks/tasks.json` in it, run from the project root. Use `--project <dir>` to point at another directory.
+From any project that has `.climier.json` (new mode) or `.agents/tasks/tasks.json` (legacy mode), run from the project root. Use `--project <dir>` to point at another directory.
 
 ## Commands
 
 | Command | What |
 |---|---|
-| `init` | Create an empty `.agents/tasks/tasks.json` in the CWD (or `--project <dir>`). |
+| `init` | Create `.climier.json` plus an empty live state file under `~/.climier/projects/<project-id>/tasks.json` (or `--project <dir>`). |
 | `status` | Global view: per-initiative counts, in_progress (who), ready (with skills/effort/domain/gotcha_count), blocked (with unsatisfied_deps + placeholder flag), open_decisions (with title + impact), blocked_by_decision, stale claims, active gotchas. Includes `summary.text` (one-line plain English) and `alerts` (decision-gate, stale-claim). |
 | `ready` | Only the claimable-now tasks, with skills/effort/domain. This is the orchestrator's delegation view. |
 | `claim <id> --as <agent>` | Take a `ready` task atomically. |

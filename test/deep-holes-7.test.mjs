@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createTempProject, rmTempProject, importFresh, runCli, readState } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, runCli, readState, stateFilePath } from "./helpers.mjs";
 
 // addNode with duplicate id should fail
 test("hole: addNode with duplicate id fails", async () => {
@@ -116,7 +116,7 @@ test("hole: 100 parallel claims on 100 different tasks — all succeed", async (
       tasks: Object.fromEntries(Array.from({ length: 100 }, (_, i) => [`T${i}`, { id: `T${i}` }])),
       decisions: {}, gotchas: {}, initiatives: { x: { desc: "" } }, log: [],
     };
-    await fs.writeFile(path.join(dir, ".agents", "tasks", "tasks.json"), JSON.stringify(seed), "utf8");
+    await fs.writeFile(stateFilePath(dir), JSON.stringify(seed), "utf8");
     const claims = Array.from({ length: 100 }, (_, i) =>
       runCli(["--project", dir, "claim", `T${i}`, "--as", `agent-${i}`])
     );

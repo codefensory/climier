@@ -1,9 +1,48 @@
 // state.mjs: read/write/atomic-mutate the tasks.json state file.
+import crypto from "node:crypto";
+import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { climierHome, legacyStateFile, projectMetaFile } from "./paths.mjs";
 
-function stateFile(projectDir) {
-  return path.join(projectDir, ".agents", "tasks", "tasks.json");
+function readProjectMetaSync(projectDir) {
+  const file = projectMetaFile(projectDir);
+  if (!fsSync.existsSync(file)) return null;
+  let meta;
+  try {
+    meta = JSON.parse(fsSync.readFileSync(file, "utf8"));
+  } catch (err) {
+    const wrapped = new Error(`state: project metadata at ${file} is corrupt or not valid JSON: ${err.message}`);
+    wrapped.code = "CLIMIER_CORRUPT_PROJECT_META";
+    wrapped.cause = err;
+    throw wrapped;
+  }
+  if (!meta || typeof meta !== "object" || typeof meta.project_id !== "string" || !meta.project_id.trim()) {
+    throw new Error(`state: project metadata at ${file} is invalid (missing non-empty 'project_id')`);
+  }
+  return meta;
+}
+
+function globalStateFile(projectId) {
+  return path.join(climierHome(), "projects", projectId, "tasks.json");
+}
+
+export function stateFile(projectDir) {
+  const meta = readProjectMetaSync(projectDir);
+  return meta ? globalStateFile(meta.project_id) : legacyStateFile(projectDir);
+}
+
+export async function ensureProjectMeta(projectDir) {
+  const existing = readProjectMetaSync(projectDir);
+  if (existing) return existing;
+  const file = projectMetaFile(projectDir);
+  const meta = {
+    version: 1,
+    project_id: crypto.randomUUID(),
+  };
+  await fs.mkdir(path.dirname(file), { recursive: true });
+  await fs.writeFile(file, JSON.stringify(meta, null, 2) + "\n", "utf8");
+  return meta;
 }
 
 export function emptyState() {
@@ -126,4 +165,4 @@ export function assertInitiativeRegistered(state, name, commandName) {
   throw new Error(`${commandName}: --initiative '${name}' is not registered (${hint})`);
 }
 
-export { stateFile };
+export { readProjectMetaSync };

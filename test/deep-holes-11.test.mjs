@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createTempProject, rmTempProject, importFresh, runCli, readState } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, runCli, readState, stateFilePath, lockFilePath } from "./helpers.mjs";
 
 // The state file should never be partially written.
 // Even if the process is killed mid-update, the file should be either old or new, never broken.
@@ -32,7 +32,7 @@ test("hole: lock file is never left behind after a successful operation", async 
     await runCli(["--project", dir, "claim", "F0.T1", "--as", "a"]);
     await runCli(["--project", dir, "done", "F0.T1", "ok", "--as", "a"]);
     // No .lock file should remain
-    const lockExists = await fs.access(path.join(dir, ".agents", "tasks", ".lock")).then(() => true).catch(() => false);
+    const lockExists = await fs.access(lockFilePath(dir)).then(() => true).catch(() => false);
     assert.equal(lockExists, false);
   } finally {
     await rmTempProject(dir);
@@ -66,7 +66,7 @@ test("hole: state file is always valid JSON after any sequence of operations", a
     await runCli(["--project", dir, "block", "F0.T1", "stuck", "--as", "a"]);
     await runCli(["--project", dir, "done", "F0.T1", "ok", "--as", "a"]);
     // After all this, the file should be valid JSON
-    const raw = await fs.readFile(path.join(dir, ".agents", "tasks", "tasks.json"), "utf8");
+    const raw = await fs.readFile(stateFilePath(dir), "utf8");
     const parsed = JSON.parse(raw);
     assert.ok(parsed.tasks);
   } finally {
@@ -99,7 +99,7 @@ test("hole: state file size stays bounded after 100 small operations", async () 
   try {
     await runCli(["--project", dir, "init"]);
     await runCli(["--project", dir, "add-initiative", "x", "--desc", ""]);
-    const file = path.join(dir, ".agents", "tasks", "tasks.json");
+    const file = stateFilePath(dir);
     for (let i = 0; i < 100; i++) {
       await runCli(["--project", dir, "add-task", `T${i}`, "--initiative", "x", "--title", `task ${i}`]);
     }

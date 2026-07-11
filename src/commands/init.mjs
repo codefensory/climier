@@ -1,16 +1,18 @@
-// init: create .agents/tasks/tasks.json (empty or with a seed).
+// init: create global state storage and repo-local project metadata.
 import fs from "node:fs/promises";
-import path from "node:path";
 import { withLock } from "../lock.mjs";
-import { stateFile, emptyState, writeState } from "../state.mjs";
+import { legacyStateFile, projectMetaFile } from "../paths.mjs";
+import { stateFile, emptyState, writeState, ensureProjectMeta } from "../state.mjs";
 import { migrationSeed } from "../seeds/migration.mjs";
 
 export const knownFlags = ["seed", "force"];
 
 export default async function init({ statePath, flags, projectDir }) {
   return withLock(projectDir, async () => {
-    const file = stateFile(projectDir);
-    const exists = await fs.access(file).then(() => true).catch(() => false);
+    const legacyFile = legacyStateFile(projectDir);
+    const hadMeta = await fs.access(projectMetaFile(projectDir)).then(() => true).catch(() => false);
+    const existingFile = hadMeta ? stateFile(projectDir) : legacyFile;
+    const exists = await fs.access(existingFile).then(() => true).catch(() => false);
     if (exists && !flags.force) {
       // Check if the existing state is corrupt; if so, allow init without --force
       // to give a clean recovery path. Otherwise, require --force.
@@ -18,17 +20,17 @@ export default async function init({ statePath, flags, projectDir }) {
         const { readState } = await import("../state.mjs");
         await readState(projectDir);
         // Valid state exists; refuse.
-        throw new Error(`init: state file already exists at ${file} (use --force to overwrite)`);
+        throw new Error(`init: state file already exists at ${existingFile} (use --force to overwrite)`);
       } catch (e) {
         if (e.code === "CLIMIER_CORRUPT_STATE" || e instanceof SyntaxError) {
-          // Corrupt state: log and overwrite without --force.
+          // Corrupt state: overwrite without --force.
         } else {
           throw e;
         }
       }
     }
 
-    await fs.mkdir(path.dirname(file), { recursive: true });
+    await ensureProjectMeta(projectDir);
 
     let state;
     if (flags.seed === "migration") {
@@ -37,6 +39,6 @@ export default async function init({ statePath, flags, projectDir }) {
       state = emptyState();
     }
     await writeState(projectDir, state);
-    return { ok: true, seeded: flags.seed || null, file };
+    return { ok: true, seeded: flags.seed || null, file: stateFile(projectDir) };
   });
 }

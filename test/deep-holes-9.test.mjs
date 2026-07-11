@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createTempProject, rmTempProject, importFresh, runCli, readState } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, runCli, readState, stateFilePath } from "./helpers.mjs";
 
 // Full migration scenario: 2 workers, 1 orchestrator, decisions, recovery
 test("hole: full real-world scenario with 2 workers, 1 orchestrator, decisions, and stale recovery", async () => {
@@ -76,7 +76,7 @@ test("hole: 30 sequential claim/done cycles complete without errors", async () =
   const dir = await createTempProject();
   try {
     await runCli(["--project", dir, "init"]);
-    const file = path.join(dir, ".agents", "tasks", "tasks.json");
+    const file = stateFilePath(dir);
     await fs.writeFile(file, JSON.stringify({
       version: 1, tasks: { T1: { id: "T1" } }, decisions: {}, gotchas: {},
       initiatives: { x: { desc: "" } }, log: [],
@@ -101,7 +101,7 @@ test("hole: orchestrator can read status while workers claim in parallel", async
   const dir = await createTempProject();
   try {
     await runCli(["--project", dir, "init"]);
-    const file = path.join(dir, ".agents", "tasks", "tasks.json");
+    const file = stateFilePath(dir);
     await fs.writeFile(file, JSON.stringify({
       version: 1, tasks: { T1: { id: "T1" }, T2: { id: "T2" } },
       decisions: {}, gotchas: {}, initiatives: { x: { desc: "" } }, log: [],

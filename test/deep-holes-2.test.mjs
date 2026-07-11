@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createTempProject, rmTempProject, importFresh, runCli, readState } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, runCli, readState, stateFilePath } from "./helpers.mjs";
 
 // #33: log entry should be in the SAME atomic write as the state change.
 // Verify by counting the gap between mutation and log; under high contention,
@@ -184,7 +184,7 @@ test("hole: 5 different agents claim 5 different ready tasks in parallel — all
   try {
     await runCli(["--project", dir, "init"]);
     // Seed 5 independent tasks directly
-    const file = path.join(dir, ".agents", "tasks", "tasks.json");
+    const file = stateFilePath(dir);
     const seed = {
       version: 1,
       tasks: {

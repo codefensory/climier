@@ -1,6 +1,6 @@
 # climier — Agent Notes
 
-You are working on **climier**, a task DAG harness for multi-agent workflows. A single JSON state per project (`.agents/tasks/tasks.json`), a CLI to manage it, and a model where several agents (or an orchestrator + workers) claim and complete work in parallel without stepping on each other.
+You are working on **climier**, a task DAG harness for multi-agent workflows. Each repo gets stable metadata in `.climier.json`; the live JSON state for that project lives under `~/.climier/projects/<project-id>/tasks.json` (or `$CLIMIER_HOME/projects/<project-id>/tasks.json`). Legacy repo-local `.agents/tasks/tasks.json` files are still read when no project metadata exists.
 
 This file tells you how the code is organized, the rules you must follow, and the non-obvious decisions baked into the design. Read it before touching anything.
 
@@ -10,7 +10,7 @@ This file tells you how the code is organized, the rules you must follow, and th
 - ESM modules (`"type": "module"` in `package.json`).
 - Tests run with `node --test` (stdlib).
 - Entry point: `bin/climier.mjs`. Library code: `src/`. Tests: `test/`.
-- The CLI resolves a project root (CWD by default, `--project <dir>` to override) and operates on `<project>/.agents/tasks/tasks.json`.
+- The CLI resolves a project root (CWD by default, `--project <dir>` to override), reads `<project>/.climier.json`, and then operates on the matching live state file under `~/.climier/projects/<project-id>/tasks.json` (legacy fallback: `<project>/.agents/tasks/tasks.json`).
 
 ## Architecture
 
@@ -19,9 +19,10 @@ This file tells you how the code is organized, the rules you must follow, and th
 ```
 bin/climier.mjs             # CLI entry: argv parsing, dispatch, printer wiring
 src/
-  paths.mjs                 # resolveProject({ project })
+  paths.mjs                 # resolveProject({ project }), CLIMIER_HOME helpers, repo metadata paths
   state.mjs                 # emptyState, readState, writeState, updateState, addNode
-                            # state file is .agents/tasks/tasks.json per project
+                            # live state file is ~/.climier/projects/<project-id>/tasks.json
+                            # repo keeps only .climier.json (legacy fallback: .agents/tasks/tasks.json)
   lock.mjs                  # withLock(projectDir, fn) — file lock for atomicity
   dag.mjs                   # PURE functions: derive, blockedByDecision, staleClaims, statusOf
   log.mjs                   # append log entries (delegates to updateState)
@@ -62,7 +63,7 @@ test/
 
 ### The two non-obvious invariants
 
-1. **Atomicity: every mutating command goes through `withLock` → `updateState` (atomic tmp+rename).** Two agents in parallel can't corrupt the file. The `withLock` lock file (`.agents/tasks/.lock`) is created with `fs.openSync(..., 'wx')` (fails on EEXIST) and re-acquired in a spin loop with a 10s default timeout. Stale lock files (process died) are NOT auto-cleared — that's documented as the known ceiling for v1.
+1. **Atomicity: every mutating command goes through `withLock` → `updateState` (atomic tmp+rename).** Two agents in parallel can't corrupt the file. The `withLock` lock file lives next to the active state file (`~/.climier/projects/<project-id>/.lock` in the new mode; `.agents/tasks/.lock` in legacy mode), is created with `fs.openSync(..., 'wx')` (fails on EEXIST), and is re-acquired in a spin loop with a 10s default timeout. Stale lock files (process died) are NOT auto-cleared — that's documented as the known ceiling for v1.
 2. **Logging is part of the mutation.** Every command that changes state calls `updateState` (under `withLock`) and then `append` to the log. Both happen inside the same `withLock` block. Do not split them across locks.
 
 ### Derived state and the DAG
