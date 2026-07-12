@@ -116,6 +116,7 @@ test("hole: 100 parallel claims on 100 different tasks — all succeed", async (
       tasks: Object.fromEntries(Array.from({ length: 100 }, (_, i) => [`T${i}`, { id: `T${i}` }])),
       decisions: {}, gotchas: {}, initiatives: { x: { desc: "" } }, log: [],
     };
+    await fs.mkdir(path.dirname(stateFilePath(dir)), { recursive: true });
     await fs.writeFile(stateFilePath(dir), JSON.stringify(seed), "utf8");
     const claims = Array.from({ length: 100 }, (_, i) =>
       runCli(["--project", dir, "claim", `T${i}`, "--as", `agent-${i}`])
@@ -173,8 +174,9 @@ test("hole: readState on a path that's a directory fails clean", async () => {
   const dir = await createTempProject();
   try {
     // Remove tasks.json and replace with a directory
-    await fs.rm(path.join(dir, ".agents", "tasks", "tasks.json"), { force: true });
-    await fs.mkdir(path.join(dir, ".agents", "tasks", "tasks.json"));
+    await fs.rm(stateFilePath(dir), { force: true });
+    await fs.mkdir(path.dirname(stateFilePath(dir)), { recursive: true });
+    await fs.mkdir(stateFilePath(dir));
     await assert.rejects(readState(dir), /state:|corrupt|invalid|is a directory|EISDIR/i);
   } finally {
     await rmTempProject(dir);

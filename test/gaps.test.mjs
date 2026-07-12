@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createTempProject, rmTempProject, importFresh, runCli, readState } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, runCli, readState, initExampleProject} from "./helpers.mjs";
 
 // ---- add-gotcha ----
 test("gap: add-gotcha CLI command exists and creates a gotcha", async () => {
@@ -64,7 +64,7 @@ test("gap: add-gotcha rejects duplicate id", async () => {
 test("gap: status returns parseable JSON by default", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     const r = await runCli(["--project", dir, "status"]);
     assert.equal(r.code, 0, r.stderr);
     const data = JSON.parse(r.stdout);
@@ -79,7 +79,7 @@ test("gap: status returns parseable JSON by default", async () => {
 test("gap: ready returns parseable JSON by default", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     const r = await runCli(["--project", dir, "ready"]);
     assert.equal(r.code, 0, r.stderr);
     const data = JSON.parse(r.stdout);
@@ -93,7 +93,7 @@ test("gap: ready returns parseable JSON by default", async () => {
 test("gap: tasks returns parseable JSON by default", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     const r = await runCli(["--project", dir, "tasks"]);
     assert.equal(r.code, 0, r.stderr);
     const data = JSON.parse(r.stdout);
@@ -106,7 +106,7 @@ test("gap: tasks returns parseable JSON by default", async () => {
 test("gap: claim returns parseable JSON with the claimed task", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     const r = await runCli(["--project", dir, "claim", "F0.T1", "--as", "a"]);
     assert.equal(r.code, 0, r.stderr);
     const data = JSON.parse(r.stdout);
@@ -121,11 +121,11 @@ test("gap: claim returns parseable JSON with the claimed task", async () => {
 test("gap: init returns parseable JSON", async () => {
   const dir = await createTempProject();
   try {
-    const r = await runCli(["--project", dir, "init", "--seed", "migration"]);
+    const r = await initExampleProject(dir);
     assert.equal(r.code, 0, r.stderr);
     const data = JSON.parse(r.stdout);
     assert.equal(data.ok, true);
-    assert.equal(data.seeded, "migration");
+    assert.equal(data.seeded, null);
   } finally {
     await rmTempProject(dir);
   }
@@ -135,7 +135,7 @@ test("gap: init returns parseable JSON", async () => {
 test("gap: gotchas command lists all gotchas as JSON", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     const r = await runCli(["--project", dir, "gotchas"]);
     assert.equal(r.code, 0, r.stderr);
     const data = JSON.parse(r.stdout);
@@ -150,12 +150,12 @@ test("gap: gotchas command lists all gotchas as JSON", async () => {
 test("gap: gotchas --domain filter returns only matching gotchas", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     const r = await runCli(["--project", dir, "gotchas", "--domain", "db"]);
     assert.equal(r.code, 0, r.stderr);
     const data = JSON.parse(r.stdout);
     assert.ok(data.some((g) => g.id === "G1"));
-    assert.ok(data.some((g) => /RLS/.test(g.title)));
+    assert.ok(data.some((g) => /service-role|filter/i.test(g.title)));
     assert.ok(!data.some((g) => g.id === "G2"));
   } finally {
     await rmTempProject(dir);
@@ -166,7 +166,7 @@ test("gap: gotchas --domain filter returns only matching gotchas", async () => {
 test("gap: decisions command returns JSON with all decisions", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     const r = await runCli(["--project", dir, "decisions"]);
     assert.equal(r.code, 0, r.stderr);
     const data = JSON.parse(r.stdout);
@@ -183,7 +183,7 @@ test("gap: decisions command returns JSON with all decisions", async () => {
 test("gap: decisions JSON contains full decision objects with title and status", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     const r = await runCli(["--project", dir, "decisions"]);
     assert.equal(r.code, 0, r.stderr);
     const data = JSON.parse(r.stdout);
@@ -191,7 +191,7 @@ test("gap: decisions JSON contains full decision objects with title and status",
     const d1 = data.find((d) => d.id === "D1");
     assert.ok(d1);
     assert.equal(d1.status, "open");
-    assert.match(d1.title, /Directus/);
+    assert.match(d1.title, /strategy|storage|schema|auth/i);
   } finally {
     await rmTempProject(dir);
   }
@@ -200,7 +200,7 @@ test("gap: decisions JSON contains full decision objects with title and status",
 test("gap: decisions reflects decided status after decide", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     await runCli(["--project", dir, "decide", "D1", "raw-postgres", "--because", "r"]);
     const r = await runCli(["--project", dir, "decisions"]);
     const data = JSON.parse(r.stdout);
@@ -216,7 +216,7 @@ test("gap: decisions reflects decided status after decide", async () => {
 test("gap: log command returns JSON array", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     await runCli(["--project", dir, "decide", "D1", "x", "--because", "r"]);
     const r = await runCli(["--project", dir, "log"]);
     assert.equal(r.code, 0, r.stderr);
@@ -231,7 +231,7 @@ test("gap: log command returns JSON array", async () => {
 test("gap: log --limit N shows only the last N entries", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     // Generate a few log entries
     for (const d of ["D1", "D2", "D3", "D4"]) {
       await runCli(["--project", dir, "decide", d, "x", "--because", "r"]);
@@ -248,7 +248,7 @@ test("gap: log --limit N shows only the last N entries", async () => {
 test("gap: log --action filter", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     await runCli(["--project", dir, "decide", "D1", "x", "--because", "r"]);
     await runCli(["--project", dir, "decide", "D2", "y", "--because", "r"]);
     await runCli(["--project", dir, "claim", "F0.T1", "--as", "a"]);
@@ -265,7 +265,7 @@ test("gap: log --action filter", async () => {
 test("gap: show <task-id> returns the raw task object", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     const r = await runCli(["--project", dir, "show", "F0.T1"]);
     assert.equal(r.code, 0, r.stderr);
     const data = JSON.parse(r.stdout);
@@ -281,7 +281,7 @@ test("gap: show <task-id> returns the raw task object", async () => {
 test("gap: show <decision-id> returns the raw decision object", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     const r = await runCli(["--project", dir, "show", "D1"]);
     assert.equal(r.code, 0, r.stderr);
     const data = JSON.parse(r.stdout);
@@ -297,7 +297,7 @@ test("gap: show <decision-id> returns the raw decision object", async () => {
 test("gap: show on unknown id fails clean with JSON error", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     const r = await runCli(["--project", dir, "show", "NOPE"]);
     assert.notEqual(r.code, 0);
     const data = JSON.parse(r.stdout);

@@ -7,7 +7,7 @@ export const knownFlags = [];
 export default async function next({ statePath, positional }) {
   const [id] = positional;
   if (!id) throw new Error("next: task id required");
-  const projectDir = statePath.replace(/\.agents\/tasks\/tasks\.json$/, "");
+  const projectDir = statePath;
   const s = await readState(projectDir);
   if (!s) throw new Error("next: state file missing");
   const t = s.tasks[id];

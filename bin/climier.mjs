@@ -70,7 +70,7 @@ Lifecycle (soft delete):
   reopen-gotcha <id> --as <agent>         Undo a close-gotcha
 
 Setup:
-  init [--seed NAME] [--force]            Create .climier.json and the project's live state (use --seed migration for the built-in example DAG)
+  init [--force]                          Create .climier.json and the project's live state
 
 Global flags:
   --project <dir>                         Project root (default: CWD)

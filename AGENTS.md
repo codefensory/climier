@@ -1,6 +1,6 @@
 # climier — Agent Notes
 
-You are working on **climier**, a task DAG CLI for coordinating work across agents, sessions, or humans. Each repo gets stable metadata in `.climier.json`; the live JSON state for that project lives under `~/.climier/projects/<project-id>/tasks.json` (or `$CLIMIER_HOME/projects/<project-id>/tasks.json`). Legacy repo-local `.agents/tasks/tasks.json` files are still read when no project metadata exists.
+You are working on **climier**, a task DAG CLI for coordinating work across agents, sessions, or humans. Each repo gets stable metadata in `.climier.json`; the live JSON state for that project lives under `~/.climier/projects/<project-id>/tasks.json` (or `$CLIMIER_HOME/projects/<project-id>/tasks.json`).
 
 This file tells you how the code is organized, the rules you must follow, and the non-obvious decisions baked into the design. Read it before touching anything.
 
@@ -10,7 +10,7 @@ This file tells you how the code is organized, the rules you must follow, and th
 - ESM modules (`"type": "module"` in `package.json`).
 - Tests run with `node --test` (stdlib).
 - Entry point: `bin/climier.mjs`. Library code: `src/`. Tests: `test/`.
-- The CLI resolves a project root (CWD by default, `--project <dir>` to override), reads `<project>/.climier.json`, and then operates on the matching live state file under `~/.climier/projects/<project-id>/tasks.json` (legacy fallback: `<project>/.agents/tasks/tasks.json`).
+- The CLI resolves a project root (CWD by default, `--project <dir>` to override), reads `<project>/.climier.json`, and then operates on the matching live state file under `~/.climier/projects/<project-id>/tasks.json`.
 
 ## Architecture
 
@@ -22,12 +22,12 @@ src/
   paths.mjs                 # resolveProject({ project }), CLIMIER_HOME helpers, repo metadata paths
   state.mjs                 # emptyState, readState, writeState, updateState, addNode
                             # live state file is ~/.climier/projects/<project-id>/tasks.json
-                            # repo keeps only .climier.json (legacy fallback: .agents/tasks/tasks.json)
+                            # repo keeps only .climier.json
   lock.mjs                  # withLock(projectDir, fn) — file lock for atomicity
   dag.mjs                   # PURE functions: derive, blockedByDecision, staleClaims, statusOf
   log.mjs                   # append log entries (delegates to updateState)
   gotchas.mjs               # forTask(state, task) — resolve gotchas by domain or task id
-  seeds/migration.mjs       # The "migration" preset used by `climier init --seed migration`
+
   commands/                 # One file per command. Each exports default async fn({ positional, flags, statePath, projectDir })
                             # Commands use withLock for any mutating op
 test/
@@ -62,7 +62,7 @@ test/
 
 ### The two non-obvious invariants
 
-1. **Atomicity: every mutating command goes through `withLock` → `updateState` (atomic tmp+rename).** Two agents in parallel can't corrupt the file. The `withLock` lock file lives next to the active state file (`~/.climier/projects/<project-id>/.lock` in the new mode; `.agents/tasks/.lock` in legacy mode), is created with `fs.openSync(..., 'wx')` (fails on EEXIST), and is re-acquired in a spin loop with a 10s default timeout. Stale lock files (process died) are NOT auto-cleared — that's documented as the known ceiling for v1.
+1. **Atomicity: every mutating command goes through `withLock` → `updateState` (atomic tmp+rename).** Two agents in parallel can't corrupt the file. The `withLock` lock file lives next to the active state file (`~/.climier/projects/<project-id>/.lock`), is created with `fs.openSync(..., 'wx')` (fails on EEXIST), and is re-acquired in a spin loop with a 10s default timeout. Stale lock files (process died) are NOT auto-cleared — that's documented as the known ceiling for v1.
 2. **Logging is part of the mutation.** Every command that changes state calls `updateState` (under `withLock`) and then `append` to the log. Both happen inside the same `withLock` block. Do not split them across locks.
 
 ### Derived state and the DAG
@@ -77,7 +77,7 @@ Cycles in the DAG must not crash. `derive` keeps cycle members blocked. Unknown 
 
 | Command | File | Mutates? | Needs `--as`? |
 |---|---|---|---|
-| `init [--seed NAME] [--force]` | `commands/init.mjs` | yes (creates/overwrites state) | no |
+| `init [--force]` | `commands/init.mjs` | yes (creates/overwrites state) | no |
 | `status [--initiative X] [--staleMs N]` | `commands/status.mjs` | no | no |
 | `ready [--initiative X]` | `commands/ready.mjs` | no | no |
 | `claim <id>` | `commands/claim.mjs` | yes | yes |
@@ -128,7 +128,7 @@ Cycles in the DAG must not crash. `derive` keeps cycle members blocked. Unknown 
 1. **Test first.** Add `test/<name>.test.mjs`. Test happy path, ownership/permission errors, state-missing errors, and at least one edge case (empty state, missing deps, etc).
 2. **Implement in `src/commands/<name>.mjs`.** Export default async function. Wrap mutating ops in `withLock`. Use `updateState` for atomic writes; use `append` to log.
 3. **Wire it in `bin/climier.mjs`.** Add it to the unknown-command help text. (There is no `printers` map — the CLI is JSON-only. See "Output contract" below.)
-4. **Add a row to the Quick reference tables** in the project `AGENTS.md` (in the new-vegsport skill) and the README in this repo.
+4. **Add a row to the Quick reference tables** in this `AGENTS.md` and the README in this repo.
 5. **Add it to the integration tests** if it interacts with other commands (`cli-dispatch.test.mjs` covers end-to-end via the bin).
 6. **Run the full suite.** `npm test`. Don't commit if anything is red.
 
@@ -137,13 +137,13 @@ Cycles in the DAG must not crash. `derive` keeps cycle members blocked. Unknown 
 1. **Update `emptyState()` in `src/state.mjs`** if the field is required for new states.
 2. **Update `writeState` validation** if the field is required for all writes (most fields are optional, so this is rare).
 3. **Add tests for the new field's behavior.** If it's a derived field, test it via `derive` or `statusOf`. If it's persisted, test via the command that sets it.
-4. **Update the migration seed** in `src/seeds/migration.mjs` if the new field is meaningful for users starting from `--seed migration`.
+
 5. **Document in this file's "State shape" section** if the field is a primary concept; otherwise, leave it for code reading.
 
 ## How to extend the DAG model
 
 - **New task status** (beyond `done`/`archived`/`in_progress`): add to the persisted set AND update `derive` to handle it. Don't treat unknown statuses as "ready" without thinking — `derive` currently passes through unknown statuses (treating them as candidates) for forward compat. If you want stricter behavior, add a test that locks down the policy.
-- **New decision-like node** (e.g. "milestone"): the current model is one collection per node type. Adding a new collection means changes in `state.mjs`, `dag.mjs`, the affected command outputs, and the migration seed. Document it.
+- **New decision-like node** (e.g. "milestone"): the current model is one collection per node type. Adding a new collection means changes in `state.mjs`, `dag.mjs`, and the affected command outputs. Document it.
 - **Cross-initiative dependencies**: already supported via `depends_on` ids. The `--initiative` filter is for views only, not for resolution.
 
 ## Conventions in the code
@@ -181,7 +181,6 @@ When you fix a bug, write a test that reproduces it BEFORE the fix. The test goe
 - **`status --staleMs 0` marks all in_progress as stale.** `staleMs: 0` is valid and means "everything in_progress is stale".
 - **`init --force` auto-recovers a corrupt state file** even without `--force`, but `--force` is still needed to overwrite a *valid* state.
 - **`add-task --depends-on NONEXISTENT` fails** with a clear error. The validator only runs when the state file exists (so empty projects can still bootstrap).
-- **The `migration` seed is what `init --seed migration` loads.** Edit it in `src/seeds/migration.mjs`. The id `migration` is the only preset; unknown seed names create an empty state silently.
 - **The state file is owned by the script.** `writeState` validates the schema. Don't write to the file from outside the CLI — even tests should go through `updateState`/`writeState` (or write valid schemas).
 - **`derive` returns `blocked: []` and `ready: []` for an empty state, never throws.** New code that uses `derive` should preserve this.
 

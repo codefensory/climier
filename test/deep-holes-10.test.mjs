@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createTempProject, rmTempProject, importFresh, runCli, readState } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, runCli, readState, stateFilePath} from "./helpers.mjs";
 
 // Idempotency: running decide twice on the same decision (after first) is rejected
 test("hole: re-decide is idempotent in the sense of rejecting cleanly", async () => {
@@ -146,24 +146,26 @@ test("hole: an in_progress task without claimed_by appears in in_progress list",
   }
 });
 
-// Migration seed: 4 open decisions and 4 gotchas exactly
-test("hole: migration seed has exactly 4 decisions and 5 gotchas", async () => {
-  const { migrationSeed } = await import("../src/seeds/migration.mjs");
-  const decisions = Object.values(migrationSeed.decisions).filter((d) => d.status !== "decided");
+// Example fixture: 4 open decisions and 5 gotchas exactly
+test("hole: example fixture has exactly 4 decisions and 5 gotchas", async () => {
+  const { exampleState } = await import("./helpers.mjs");
+  const fixture = exampleState();
+  const decisions = Object.values(fixture.decisions).filter((d) => d.status !== "decided");
   assert.equal(decisions.length, 4);
-  const gotchas = Object.values(migrationSeed.gotchas);
+  const gotchas = Object.values(fixture.gotchas);
   assert.equal(gotchas.length, 5);
 });
 
-// Migration seed: F0 has 4 tasks, F1 has 2 tasks, F2-F9 have 1 stub each
-test("hole: migration seed structure is correct (F0 has 4 tasks, F1 has 2, F2-F9 are stubs)", async () => {
-  const { migrationSeed } = await import("../src/seeds/migration.mjs");
-  const f0 = Object.values(migrationSeed.tasks).filter((t) => t.id.startsWith("F0."));
-  const f1 = Object.values(migrationSeed.tasks).filter((t) => t.id.startsWith("F1."));
+// Example fixture: F0 has 4 tasks, F1 has 2 tasks, F2-F9 have 1 stub each
+test("hole: example fixture structure is correct (F0 has 4 tasks, F1 has 2, F2-F9 are stubs)", async () => {
+  const { exampleState } = await import("./helpers.mjs");
+  const fixture = exampleState();
+  const f0 = Object.values(fixture.tasks).filter((t) => t.id.startsWith("F0."));
+  const f1 = Object.values(fixture.tasks).filter((t) => t.id.startsWith("F1."));
   assert.equal(f0.length, 4);
   assert.equal(f1.length, 2);
   for (let p = 2; p <= 9; p++) {
-    const stubs = Object.values(migrationSeed.tasks).filter((t) => t.id.startsWith(`F${p}.`));
+    const stubs = Object.values(fixture.tasks).filter((t) => t.id.startsWith(`F${p}.`));
     assert.equal(stubs.length, 1, `F${p} should have 1 stub`);
     assert.match(stubs[0].id, /\.OPEN$/);
   }
@@ -171,14 +173,14 @@ test("hole: migration seed structure is correct (F0 has 4 tasks, F1 has 2, F2-F9
 
 // formatStatus tolerates missing fields gracefully — removed (formatters dropped in JSON-only refactor).
 
-// init with a custom --seed we don't recognize: doesn't crash, creates empty
-test("hole: init --seed 'unknown' creates empty state, doesn't crash", async () => {
+// init rejects the removed --seed flag via the CLI
+test("hole: init --seed is rejected as an unknown flag", async () => {
   const dir = await createTempProject();
   try {
     const r = await runCli(["--project", dir, "init", "--seed", "unknown_seed_value"]);
-    assert.equal(r.code, 0, r.stderr);
-    const s = await readState(dir);
-    assert.deepEqual(s.tasks, {});
+    assert.equal(r.code, 1, r.stderr);
+    const data = JSON.parse(r.stdout);
+    assert.match(data.error, /unknown flag/i);
   } finally {
     await rmTempProject(dir);
   }
@@ -196,7 +198,8 @@ test("hole: ready with 1000 tasks is fast (<500ms)", async () => {
       ),
       decisions: {}, gotchas: {}, initiatives: { x: { desc: "" } }, log: [],
     };
-    await fs.writeFile(path.join(dir, ".agents", "tasks", "tasks.json"), JSON.stringify(seed), "utf8");
+    await fs.mkdir(path.dirname(stateFilePath(dir)), { recursive: true });
+    await fs.writeFile(stateFilePath(dir), JSON.stringify(seed), "utf8");
     const t0 = Date.now();
     const out = await ready({ statePath: dir, flags: {} });
     const elapsed = Date.now() - t0;

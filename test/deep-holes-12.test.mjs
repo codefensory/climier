@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createTempProject, rmTempProject, importFresh, runCli, readState, stateFilePath } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, runCli, readState, stateFilePath, initExampleProject} from "./helpers.mjs";
 
 // A task with extremely long depends_on chain
 test("hole: derive handles a 50-deep dependency chain", async () => {
@@ -78,13 +78,13 @@ test("hole: 3 init --force on the same dir — all succeed, last wins", async ()
   const dir = await createTempProject();
   try {
     const results = await Promise.all([
-      runCli(["--project", dir, "init", "--force", "--seed", "migration"]),
-      runCli(["--project", dir, "init", "--force", "--seed", "migration"]),
-      runCli(["--project", dir, "init", "--force", "--seed", "migration"]),
+      runCli(["--project", dir, "init", "--force"]),
+      runCli(["--project", dir, "init", "--force"]),
+      runCli(["--project", dir, "init", "--force"]),
     ]);
     results.forEach((r) => assert.equal(r.code, 0, r.stderr));
     const s = await readState(dir);
-    assert.ok(s.tasks["F0.T1"]);
+    assert.deepEqual(s.tasks, {});
   } finally {
     await rmTempProject(dir);
   }
@@ -169,7 +169,7 @@ test("hole: tasks with 255-char ids work", async () => {
 test("hole: claim log entry has the exact agent id", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     await runCli(["--project", dir, "claim", "F0.T1", "--as", "agent-x"]);
     const s = await readState(dir);
     const entry = s.log.find((e) => e.action === "claim" && e.task === "F0.T1");
@@ -218,6 +218,7 @@ test("hole: release followed by immediate claim by the same agent works", async 
   try {
     await runCli(["--project", dir, "init"]);
     const file = stateFilePath(dir);
+    await fs.mkdir(path.dirname(file), { recursive: true });
     await fs.writeFile(file, JSON.stringify({
       version: 1, tasks: { T1: { id: "T1" } }, decisions: {}, gotchas: {},
       initiatives: { x: { desc: "" } }, log: [],
@@ -239,7 +240,7 @@ test("hole: project root with spaces in path works", async () => {
   const os = await import("node:os");
   const base = await fs.mkdtemp(path.join(os.tmpdir(), "climier space test-"));
   try {
-    await runCli(["--project", base, "init", "--seed", "migration"]);
+    await initExampleProject(base);
     const s = await readState(base);
     assert.ok(s.tasks["F0.T1"]);
   } finally {

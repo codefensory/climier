@@ -6,7 +6,7 @@ export const knownFlags = [];
 export default async function show({ statePath, positional }) {
   const [id] = positional;
   if (!id) throw new Error("show: id required (e.g. show T1 or show D1)");
-  const projectDir = statePath.replace(/\.agents\/tasks\/tasks\.json$/, "");
+  const projectDir = statePath;
   const s = await readState(projectDir);
   if (!s) throw new Error("show: state file missing");
   if (s.tasks[id]) return { type: "task", node: s.tasks[id] };

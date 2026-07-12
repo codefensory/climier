@@ -8,6 +8,8 @@ The format is based on Keep a Changelog.
 
 ### Changed
 - Reframed the documentation around what `climier` is: a task DAG CLI for coordinating work across agents, sessions, or humans, with orchestrator/workers documented as one use case among several.
+- Removed the built-in migration seed from the runtime CLI; tests now use a test-only example fixture instead.
+- Removed legacy repo-local `.agents/tasks/tasks.json` support; state now always lives under `~/.climier/projects/<project-id>/tasks.json`.
 
 ## [1.0.0] - 2026-07-11
 

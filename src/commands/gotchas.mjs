@@ -4,7 +4,7 @@ import { readState } from "../state.mjs";
 export const knownFlags = ["initiative", "domain"];
 
 export default async function gotchas({ statePath, flags }) {
-  const projectDir = statePath.replace(/\.agents\/tasks\/tasks\.json$/, "");
+  const projectDir = statePath;
   const s = await readState(projectDir);
   if (!s) return [];
   const wantDomain = flags.domain;

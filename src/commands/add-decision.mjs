@@ -8,7 +8,7 @@ export default async function addDecision({ statePath, flags, positional }) {
   const [id] = positional;
   if (!id) throw new Error("add-decision: decision id required (e.g. add-decision D1 --title 'pick library')");
   if (!flags.title) throw new Error("add-decision: --title required");
-  const projectDir = statePath.replace(/\.agents\/tasks\/tasks\.json$/, "");
+  const projectDir = statePath;
 
   return withLock(projectDir, async () => {
     const s = await readState(projectDir);

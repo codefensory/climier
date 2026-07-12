@@ -16,7 +16,7 @@ export default async function reopen({ statePath, flags, positional }) {
   const as = flags.as;
   if (!as) throw new Error("reopen: --as <agent> required");
 
-  const projectDir = statePath.replace(/\.agents\/tasks\/tasks\.json$/, "");
+  const projectDir = statePath;
 
   return withLock(projectDir, async () => {
     const s = await readState(projectDir);

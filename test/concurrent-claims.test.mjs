@@ -1,12 +1,12 @@
 // Multi-agent concurrency: two processes claim the same task; only one wins.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createTempProject, rmTempProject, runCli, readState } from "./helpers.mjs";
+import { createTempProject, rmTempProject, runCli, readState, initExampleProject, stateFilePath} from "./helpers.mjs";
 
 test("concurrent: two agents claim the same task simultaneously, exactly one wins", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
 
     // F0.T1 has no deps; safe to claim without first doing F0.x.
     const a = runCli(["--project", dir, "claim", "F0.T1", "--as", "agent-A"]);
@@ -32,8 +32,9 @@ test("concurrent: two agents claim different tasks in parallel, both succeed", a
   try {
     // Seed two independent ready tasks directly via the state file.
     const fs = await import("node:fs/promises");
-    const path = await import("node:path");
-    const file = path.join(dir, ".agents", "tasks", "tasks.json");
+    const { stateFilePath } = await import("./helpers.mjs");
+    const file = stateFilePath(dir);
+    await fs.mkdir((await import("node:path")).dirname(file), { recursive: true });
     const state = {
       version: 1,
       tasks: {
@@ -63,7 +64,7 @@ test("concurrent: two agents claim different tasks in parallel, both succeed", a
 test("concurrent: rapid claim/release sequence leaves state consistent (5 cycles on F0.T1)", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     // Cycle: claim, release, claim, release — task should remain not in_progress
     // and log should accumulate 5 claim + 5 release entries.
     for (let i = 0; i < 5; i++) {

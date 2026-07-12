@@ -5,14 +5,14 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createTempProject, rmTempProject, runCli } from "./helpers.mjs";
+import { createTempProject, rmTempProject, runCli, initExampleProject} from "./helpers.mjs";
 
 const packageVersion = JSON.parse(
   fs.readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "package.json"), "utf8")
 ).version;
 
 async function seeded(dir) {
-  const r = await runCli(["--project", dir, "init", "--seed", "migration"]);
+  const r = await initExampleProject(dir);
   assert.equal(r.code, 0, r.stderr);
 }
 
@@ -90,7 +90,7 @@ test("contract: every write command outputs valid JSON to stdout", async () => {
     // init (re-init in a new dir)
     const dir2 = await createTempProject();
     try {
-      r = await runCli(["--project", dir2, "init", "--seed", "migration"]);
+      r = await initExampleProject(dir2);
       assert.equal(r.code, 0, r.stderr);
       assert.doesNotThrow(() => JSON.parse(r.stdout), `init stdout not JSON: ${r.stdout.slice(0, 100)}`);
     } finally { await rmTempProject(dir2); }

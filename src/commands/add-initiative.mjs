@@ -7,7 +7,7 @@ export const knownFlags = ["desc"];
 export default async function addInitiative({ statePath, flags, positional }) {
   const [name] = positional;
   if (!name) throw new Error("add-initiative: name required (e.g. add-initiative migration --desc 'the big move')");
-  const projectDir = statePath.replace(/\.agents\/tasks\/tasks\.json$/, "");
+  const projectDir = statePath;
 
   return withLock(projectDir, async () => {
     await updateState(projectDir, (st) => {

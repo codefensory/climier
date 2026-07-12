@@ -4,7 +4,7 @@ import { readState } from "../state.mjs";
 export const knownFlags = ["limit", "action", "agent", "task", "decision"];
 
 export default async function log({ statePath, flags }) {
-  const projectDir = statePath.replace(/\.agents\/tasks\/tasks\.json$/, "");
+  const projectDir = statePath;
   const s = await readState(projectDir);
   if (!s) return [];
   let entries = s.log || [];

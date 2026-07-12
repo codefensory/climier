@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createTempProject, rmTempProject, importFresh, runCli, readState, stateFilePath, lockFilePath } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, runCli, readState, stateFilePath, lockFilePath, initExampleProject} from "./helpers.mjs";
 
 // Cross-process race: many parallel claim/done on the same task. Verify final state consistent.
 test("hole: 20 agents racing on the same task — final state has exactly one done and log is consistent", async () => {
@@ -11,6 +11,7 @@ test("hole: 20 agents racing on the same task — final state has exactly one do
   try {
     await runCli(["--project", dir, "init"]);
     const file = stateFilePath(dir);
+    await fs.mkdir(path.dirname(file), { recursive: true });
     await fs.writeFile(file, JSON.stringify({
       version: 1, tasks: { T1: { id: "T1" } }, decisions: {}, gotchas: {},
       initiatives: { x: { desc: "" } }, log: [],
@@ -51,9 +52,10 @@ test("hole: full recovery flow — corrupt state, init --force, resume work", as
   const dir = await createTempProject();
   try {
     const file = stateFilePath(dir);
+    await fs.mkdir(path.dirname(file), { recursive: true });
     await fs.writeFile(file, "{ broken", "utf8");
     // init --force should recover
-    const r1 = await runCli(["--project", dir, "init", "--force", "--seed", "migration"]);
+    const r1 = await initExampleProject(dir, { force: true });
     assert.equal(r1.code, 0, r1.stderr);
     // Now we should be able to work
     const r2 = await runCli(["--project", dir, "claim", "F0.T1", "--as", "agent"]);
@@ -67,8 +69,9 @@ test("hole: full recovery flow — corrupt state, init --force, resume work", as
 test("hole: an old .lock file still blocks operations until removed manually", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     const lockPath = lockFilePath(dir);
+    await fs.mkdir(path.dirname(lockPath), { recursive: true });
     await fs.writeFile(lockPath, JSON.stringify({ pid: 99999, at: 0 }), "utf8");
 
     const blocked = await runCli(["--project", dir, "claim", "F0.T1", "--as", "agent"]);
@@ -128,7 +131,7 @@ test("hole: 2 add-initiative in parallel — both succeed and desc is the last w
 test("hole: concurrent decide and claim on independent items — both succeed", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     const [r1, r2] = await Promise.all([
       runCli(["--project", dir, "claim", "F0.T1", "--as", "agent"]),
       runCli(["--project", dir, "decide", "D1", "raw-postgres", "--because", "skip Directus"]),

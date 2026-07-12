@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { climierHome, legacyStateFile, projectMetaFile } from "./paths.mjs";
+import { climierHome, projectMetaFile } from "./paths.mjs";
 
 function readProjectMetaSync(projectDir) {
   const file = projectMetaFile(projectDir);
@@ -27,9 +27,13 @@ function globalStateFile(projectId) {
   return path.join(climierHome(), "projects", projectId, "tasks.json");
 }
 
+function defaultProjectId(projectDir) {
+  return crypto.createHash("sha1").update(path.resolve(projectDir)).digest("hex").slice(0, 16);
+}
+
 export function stateFile(projectDir) {
   const meta = readProjectMetaSync(projectDir);
-  return meta ? globalStateFile(meta.project_id) : legacyStateFile(projectDir);
+  return globalStateFile(meta ? meta.project_id : defaultProjectId(projectDir));
 }
 
 export async function ensureProjectMeta(projectDir) {
@@ -38,7 +42,7 @@ export async function ensureProjectMeta(projectDir) {
   const file = projectMetaFile(projectDir);
   const meta = {
     version: 1,
-    project_id: crypto.randomUUID(),
+    project_id: defaultProjectId(projectDir),
   };
   await fs.mkdir(path.dirname(file), { recursive: true });
   await fs.writeFile(file, JSON.stringify(meta, null, 2) + "\n", "utf8");

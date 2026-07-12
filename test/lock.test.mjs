@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createTempProject, rmTempProject, importFresh } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, lockFilePath } from "./helpers.mjs";
 
 test("withLock acquires and releases on success", async () => {
   const { withLock } = await importFresh("./lock.mjs");
@@ -15,7 +15,7 @@ test("withLock acquires and releases on success", async () => {
     });
     assert.equal(ran, true);
     // Lock file should not exist after release
-    await assert.rejects(fs.access(path.join(dir, ".agents", "tasks", ".lock")));
+    await assert.rejects(fs.access(lockFilePath(dir)));
   } finally {
     await rmTempProject(dir);
   }
@@ -66,7 +66,8 @@ test("withLock does not auto-clear an old lock file", async () => {
   const { withLock } = await importFresh("./lock.mjs");
   const dir = await createTempProject();
   try {
-    const lockPath = path.join(dir, ".agents", "tasks", ".lock");
+    const lockPath = lockFilePath(dir);
+    await fs.mkdir(path.dirname(lockPath), { recursive: true });
     await fs.writeFile(lockPath, JSON.stringify({ heldBy: "ghost", at: 0 }));
     await assert.rejects(
       withLock(dir, async () => {}, { timeoutMs: 200, retryEveryMs: 50 }),
@@ -81,7 +82,8 @@ test("withLock times out if holder never releases", async () => {
   const { withLock } = await importFresh("./lock.mjs");
   const dir = await createTempProject();
   try {
-    const lockPath = path.join(dir, ".agents", "tasks", ".lock");
+    const lockPath = lockFilePath(dir);
+    await fs.mkdir(path.dirname(lockPath), { recursive: true });
     await fs.writeFile(lockPath, JSON.stringify({ heldBy: "ghost", at: Date.now() }));
     await assert.rejects(
       withLock(dir, async () => {}, { timeoutMs: 200, retryEveryMs: 50 }),

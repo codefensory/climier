@@ -16,7 +16,7 @@ export default async function promote({ statePath, flags, positional }) {
   if (as === true) throw new Error("promote: --as requires a value (e.g. --as alice)");
   if (!as) throw new Error("promote: --as <agent> required (for the audit log)");
 
-  const projectDir = statePath.replace(/\.agents\/tasks\/tasks\.json$/, "");
+  const projectDir = statePath;
 
   return withLock(projectDir, async () => {
     const s = await readState(projectDir);

@@ -5,7 +5,7 @@ import { derive } from "../dag.mjs";
 export const knownFlags = ["initiative"];
 
 export default async function ready({ statePath, flags }) {
-  const projectDir = statePath.replace(/\.agents\/tasks\/tasks\.json$/, "");
+  const projectDir = statePath;
   const s = await readState(projectDir);
   if (!s) return [];
   const d = derive(s);

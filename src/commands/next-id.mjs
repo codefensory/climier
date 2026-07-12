@@ -20,7 +20,7 @@ export default async function nextId({ statePath, flags, positional }) {
   }
   // nextTaskId itself throws on invalid suffix (empty, with dot, OPEN).
   // Passing undefined means "no suffix" — the default-family counter.
-  const projectDir = statePath.replace(/\.agents\/tasks\/tasks\.json$/, "");
+  const projectDir = statePath;
   const s = await readState(projectDir);
   return { next: nextTaskId(s || { tasks: {} }, phase, flags.suffix) };
 }

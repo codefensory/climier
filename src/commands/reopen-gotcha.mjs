@@ -14,7 +14,7 @@ export default async function reopenGotcha({ statePath, flags, positional }) {
   if (as === true) throw new Error("reopen-gotcha: --as requires a value (e.g. --as alice)");
   if (!as) throw new Error("reopen-gotcha: --as <agent> required");
 
-  const projectDir = statePath.replace(/\.agents\/tasks\/tasks\.json$/, "");
+  const projectDir = statePath;
 
   return withLock(projectDir, async () => {
     const s = await readState(projectDir);

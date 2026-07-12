@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createTempProject, rmTempProject, importFresh, runCli, readState, stateFilePath } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, runCli, readState, stateFilePath, initExampleProject} from "./helpers.mjs";
 
 // Stress: 50 sequential claim/done cycles on the same task produce a consistent log.
 test("hole: 50 sequential claim/done cycles leave state consistent and log ordered", async () => {
@@ -11,6 +11,7 @@ test("hole: 50 sequential claim/done cycles leave state consistent and log order
   try {
     await runCli(["--project", dir, "init"]);
     const file = stateFilePath(dir);
+    await fs.mkdir(path.dirname(file), { recursive: true });
     await fs.writeFile(file, JSON.stringify({
       version: 1, tasks: { T1: { id: "T1" } }, decisions: {}, gotchas: {},
       initiatives: { x: { desc: "" } }, log: [],
@@ -105,13 +106,13 @@ test("hole: append without agent fails", async () => {
 
 // views: formatters were removed in the JSON-only refactor.
 
-// Concurrent init with --seed migration: should not duplicate-seed
-test("hole: concurrent init --seed migration produces one canonical state", async () => {
+// Concurrent example fixture init should not duplicate state.
+test("hole: concurrent init example fixture produces one canonical state", async () => {
   const dir = await createTempProject();
   try {
     const [r1, r2] = await Promise.all([
-      runCli(["--project", dir, "init", "--seed", "migration"]),
-      runCli(["--project", dir, "init", "--seed", "migration"]),
+      initExampleProject(dir),
+      initExampleProject(dir),
     ]);
     // At least one should succeed
     const successes = [r1, r2].filter((r) => r.code === 0);
@@ -179,13 +180,14 @@ test("hole: next on missing task fails clean", async () => {
   }
 });
 
-// A read of the migration seed and assert it has F0.T1 ready and F0.T1 dependencies correct
-test("hole: migration seed is internally consistent (deps reference existing nodes)", async () => {
-  const { migrationSeed } = await import("../src/seeds/migration.mjs");
-  for (const t of Object.values(migrationSeed.tasks)) {
+// The example fixture used by integration tests should stay internally consistent.
+test("hole: example fixture is internally consistent (deps reference existing nodes)", async () => {
+  const { exampleState } = await import("./helpers.mjs");
+  const fixture = exampleState();
+  for (const t of Object.values(fixture.tasks)) {
     for (const dep of t.depends_on || []) {
       assert.ok(
-        migrationSeed.tasks[dep] || migrationSeed.decisions[dep],
+        fixture.tasks[dep] || fixture.decisions[dep],
         `task ${t.id} depends on missing node ${dep}`
       );
     }

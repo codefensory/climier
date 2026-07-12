@@ -111,14 +111,6 @@ climier next F0.T1
 climier done F0.T1 "Scaffolded service and added /health" --as session-api
 ```
 
-Built-in seed:
-
-```bash
-climier init --seed migration
-```
-
-That creates an example migration DAG with tasks, decisions, and gotchas.
-
 ## Core concepts
 
 - **Task** — a unit of work. Persisted statuses: `in_progress`, `done`, `archived`. Derived statuses: `ready`, `blocked`, `backlog`.
@@ -183,13 +175,7 @@ New projects use two locations:
 
 You can override `~/.climier` with `$CLIMIER_HOME`.
 
-Legacy mode is still supported:
-
-- `<project>/.agents/tasks/tasks.json`
-
-If no `.climier.json` exists, `climier` falls back to the legacy repo-local file.
-
-Why the split? New mode lets multiple worktrees, sessions, or agents share one lock and one live state file without committing operational noise to git.
+Why the split? It lets multiple worktrees, sessions, or agents share one lock and one live state file without committing operational noise to git.
 
 ## Output contract: JSON-only
 
@@ -312,12 +298,6 @@ In new mode the lock lives next to the live state file:
 ```bash
 $CLIMIER_HOME/projects/<project-id>/.lock
 # default CLIMIER_HOME is ~/.climier
-```
-
-In legacy mode it lives here:
-
-```bash
-<project>/.agents/tasks/.lock
 ```
 
 ### Boolean flag caveat

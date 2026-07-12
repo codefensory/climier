@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createTempProject, rmTempProject, importFresh, runCli, readState, stateFilePath } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, runCli, readState, stateFilePath, initExampleProject} from "./helpers.mjs";
 
 // #33: log entry should be in the SAME atomic write as the state change.
 // Verify by counting the gap between mutation and log; under high contention,
@@ -11,7 +11,7 @@ import { createTempProject, rmTempProject, importFresh, runCli, readState, state
 test("hole: log entries are atomic with state mutations (claim + log counted match)", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     // Fire 10 parallel claim/release cycles
     const ops = Array.from({ length: 10 }, (_, i) => (async () => {
       const c = await runCli(["--project", dir, "claim", "F0.T1", "--as", `agent-${i}`]);
@@ -102,7 +102,8 @@ test("hole: init without --force over a valid state file refuses", async () => {
   const { default: init } = await importFresh("./commands/init.mjs");
   const dir = await createTempProject();
   try {
-    const file = path.join(dir, ".agents", "tasks", "tasks.json");
+    const file = stateFilePath(dir);
+    await fs.mkdir(path.dirname(file), { recursive: true });
     await fs.writeFile(file, JSON.stringify({ version: 1, tasks: {}, decisions: {}, gotchas: {}, initiatives: {}, log: [] }), "utf8");
     await assert.rejects(
       init({ statePath: dir, flags: {}, positional: [], projectDir: dir }),
@@ -117,7 +118,8 @@ test("hole: init --force over a corrupt state file succeeds and produces a clean
   const { default: init } = await importFresh("./commands/init.mjs");
   const dir = await createTempProject();
   try {
-    const file = path.join(dir, ".agents", "tasks", "tasks.json");
+    const file = stateFilePath(dir);
+    await fs.mkdir(path.dirname(file), { recursive: true });
     await fs.writeFile(file, "{ broken json", "utf8");
     await init({ statePath: dir, flags: { force: true }, positional: [], projectDir: dir });
     const s = await readState(dir);
@@ -169,11 +171,11 @@ test("hole: claim on already-claimed task shows the claimer name in error", asyn
 });
 
 // Multiple add-initiative calls with --force-like behavior (overwrite desc) — already tested.
-// Add: get all known decisions via a hypothetical read; verify the seed has 4.
-test("hole: derive includes all 4 open decisions from the migration seed", async () => {
-  const { migrationSeed } = await import("../src/seeds/migration.mjs");
+// Example fixture keeps 4 open decisions for integration tests.
+test("hole: derive includes all 4 open decisions from the example fixture", async () => {
   const { derive } = await importFresh("./dag.mjs");
-  const r = derive(migrationSeed);
+  const { exampleState } = await import("./helpers.mjs");
+  const r = derive(exampleState());
   assert.equal(r.openDecisions.length, 4);
   assert.deepEqual(r.openDecisions.sort(), ["D1", "D2", "D3", "D4"]);
 });

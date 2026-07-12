@@ -1,6 +1,6 @@
 // Initiative validation: --initiative must refer to a registered initiative
 // on every write (add-task, add-decision, add-gotcha). Prevents silent
-// typo-driven orphan initiatives (the "qa" / "research" case in new-vegsport).
+// typo-driven orphan initiatives.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, importFresh } from "./helpers.mjs";

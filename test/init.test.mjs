@@ -31,17 +31,16 @@ test("init: fails if state already exists (no overwrite)", async () => {
   }
 });
 
-test("init: --seed migration loads the migration preset", async () => {
+test("init: ignores old seed flags and still creates an empty state", async () => {
   const { default: init } = await importFresh("./commands/init.mjs");
   const { readState } = await importFresh("./state.mjs");
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, flags: { seed: "migration" }, positional: [], projectDir: dir });
     const s = await readState(dir);
-    assert.ok(s.initiatives.migration);
-    assert.ok(s.tasks["F1.T1"]);
-    assert.ok(s.decisions.D1);
-    assert.ok(s.gotchas.G1);
+    assert.deepEqual(s.tasks, {});
+    assert.deepEqual(s.decisions, {});
+    assert.deepEqual(s.gotchas, {});
   } finally {
     await rmTempProject(dir);
   }

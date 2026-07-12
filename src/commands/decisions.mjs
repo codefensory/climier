@@ -25,7 +25,7 @@ function countByPool(state, derived, decisionId) {
 }
 
 export default async function decisions({ statePath, flags }) {
-  const projectDir = statePath.replace(/\.agents\/tasks\/tasks\.json$/, "");
+  const projectDir = statePath;
   const s = await readState(projectDir);
   if (!s) return [];
   const wantInit = flags.initiative;

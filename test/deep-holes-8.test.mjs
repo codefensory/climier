@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createTempProject, rmTempProject, importFresh, runCli, readState, stateFilePath } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, runCli, readState, stateFilePath, initExampleProject} from "./helpers.mjs";
 
 // Worker can `next` a task that doesn't exist — should fail
 test("hole: next on a corrupt-claimed task returns the spec anyway", async () => {
@@ -45,7 +45,7 @@ test("hole: status with an initiative but no tasks shows counts of 0", async () 
 test("hole: claim with --as containing a slash works", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     const r = await runCli(["--project", dir, "claim", "F0.T1", "--as", "team/api-agent"]);
     assert.equal(r.code, 0, r.stderr);
     const s = await readState(dir);
@@ -59,7 +59,7 @@ test("hole: claim with --as containing a slash works", async () => {
 test("hole: done with --as containing a slash works", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     await runCli(["--project", dir, "claim", "F0.T1", "--as", "team/api-agent"]);
     const r = await runCli(["--project", dir, "done", "F0.T1", "ok", "--as", "team/api-agent"]);
     assert.equal(r.code, 0, r.stderr);
@@ -143,6 +143,7 @@ test("hole: two parallel in_progress tasks in same initiative", async () => {
   try {
     await runCli(["--project", dir, "init"]);
     const file = stateFilePath(dir);
+    await fs.mkdir(path.dirname(file), { recursive: true });
     await fs.writeFile(file, JSON.stringify({
       version: 1, tasks: { T1: { id: "T1" }, T2: { id: "T2" } },
       decisions: {}, gotchas: {}, initiatives: { x: { desc: "" } }, log: [],
@@ -165,8 +166,8 @@ test("hole: two parallel in_progress tasks in same initiative", async () => {
 test("hole: add-task --depends-on can reference a decision", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
-    // D1 is from the migration seed
+    await initExampleProject(dir);
+    // D1 is from the example fixture
     const r = await runCli(["--project", dir, "add-task", "T.NEW", "--initiative", "migration", "--title", "new", "--depends-on", "D1"]);
     assert.equal(r.code, 0, r.stderr);
     const s = await readState(dir);

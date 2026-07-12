@@ -5,7 +5,7 @@ import { derive, statusOf } from "../dag.mjs";
 export const knownFlags = ["initiative", "status"];
 
 export default async function tasks({ statePath, flags }) {
-  const projectDir = statePath.replace(/\.agents\/tasks\/tasks\.json$/, "");
+  const projectDir = statePath;
   const s = await readState(projectDir);
   if (!s) return [];
   const out = [];

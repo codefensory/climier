@@ -1,17 +1,13 @@
 // init: create global state storage and repo-local project metadata.
 import fs from "node:fs/promises";
 import { withLock } from "../lock.mjs";
-import { legacyStateFile, projectMetaFile } from "../paths.mjs";
 import { stateFile, emptyState, writeState, ensureProjectMeta } from "../state.mjs";
-import { migrationSeed } from "../seeds/migration.mjs";
 
-export const knownFlags = ["seed", "force"];
+export const knownFlags = ["force"];
 
 export default async function init({ statePath, flags, projectDir }) {
   return withLock(projectDir, async () => {
-    const legacyFile = legacyStateFile(projectDir);
-    const hadMeta = await fs.access(projectMetaFile(projectDir)).then(() => true).catch(() => false);
-    const existingFile = hadMeta ? stateFile(projectDir) : legacyFile;
+    const existingFile = stateFile(projectDir);
     const exists = await fs.access(existingFile).then(() => true).catch(() => false);
     if (exists && !flags.force) {
       // Check if the existing state is corrupt; if so, allow init without --force
@@ -32,13 +28,7 @@ export default async function init({ statePath, flags, projectDir }) {
 
     await ensureProjectMeta(projectDir);
 
-    let state;
-    if (flags.seed === "migration") {
-      state = migrationSeed;
-    } else {
-      state = emptyState();
-    }
-    await writeState(projectDir, state);
-    return { ok: true, seeded: flags.seed || null, file: stateFile(projectDir) };
+    await writeState(projectDir, emptyState());
+    return { ok: true, seeded: null, file: stateFile(projectDir) };
   });
 }

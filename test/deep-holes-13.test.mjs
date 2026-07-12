@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createTempProject, rmTempProject, importFresh, runCli, readState } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, runCli, readState, initExampleProject} from "./helpers.mjs";
 
 // 1. add-gotcha validation: --applies-to with only whitespace
 test("bug: add-gotcha --applies-to with only commas produces empty applies_to (should fail)", async () => {
@@ -137,7 +137,7 @@ test("bug: add-gotcha with no --applies-to fails clean with JSON error", async (
 test("bug: log --limit negative is treated as 0 or ignored", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     await runCli(["--project", dir, "decide", "D1", "x", "--because", "r"]);
     const r = await runCli(["--project", dir, "log", "--limit", "-5"]);
     // Whatever happens, no crash
@@ -168,7 +168,7 @@ test("bug: failing command produces JSON error on stdout, never corrupts stdout"
 test("bug: gotchas --domain with no matching gotchas returns empty", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     const r = await runCli(["--project", dir, "gotchas", "--domain", "nonexistent"]);
     assert.equal(r.code, 0, r.stderr);
     const data = JSON.parse(r.stdout);
@@ -215,7 +215,7 @@ test("bug: concurrent add-gotcha on different ids — all succeed", async () => 
 test("bug: --json flag is gone (unknown flag error)", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     // --json before the command → unknown flag, exit non-zero.
     const r1 = await runCli(["--project", dir, "--json", "ready"]);
     assert.notEqual(r1.code, 0);
@@ -233,7 +233,7 @@ test("bug: --json flag is gone (unknown flag error)", async () => {
 test("bug: show on a gotcha returns it", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     const r = await runCli(["--project", dir, "show", "G1"]);
     assert.equal(r.code, 0, r.stderr);
     const data = JSON.parse(r.stdout);
@@ -263,7 +263,7 @@ test("bug: add-gotcha creates a state if missing (bootstrap behavior)", async ()
 test("bug: log --action + --task combines filters", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     await runCli(["--project", dir, "decide", "D1", "x", "--because", "r"]);
     await runCli(["--project", dir, "decide", "D2", "y", "--because", "r"]);
     await runCli(["--project", dir, "claim", "F0.T1", "--as", "a"]);
@@ -297,7 +297,7 @@ test("bug: add-gotcha does not validate that --applies-to targets exist", async 
 test("bug: show on a done task returns the full state including done_at", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     await runCli(["--project", dir, "claim", "F0.T1", "--as", "a"]);
     await runCli(["--project", dir, "done", "F0.T1", "shipped", "--as", "a"]);
     const r = await runCli(["--project", dir, "show", "F0.T1"]);
@@ -315,7 +315,7 @@ test("bug: show on a done task returns the full state including done_at", async 
 test("bug: log --decision filter returns only entries for that decision", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     await runCli(["--project", dir, "decide", "D1", "x", "--because", "r"]);
     await runCli(["--project", dir, "decide", "D2", "y", "--because", "r"]);
     const r = await runCli(["--project", dir, "log", "--decision", "D1"]);

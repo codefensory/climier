@@ -70,7 +70,7 @@ test("add-initiative: registers an initiative with description", async () => {
 
 test("add-decision and add-gotcha work", async () => {
   // We don't expose add-decision/add-gotcha as CLI commands in v1; they're seeded
-  // via the migration seed or added via JSON. But for completeness, expose a
+  // via the example fixture or added via JSON. But for completeness, expose a
   // minimal programmatic addNode helper that add-task uses.
   const { addNode } = await importFresh("./state.mjs");
   const { readState } = await importFresh("./state.mjs");

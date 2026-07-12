@@ -4,14 +4,11 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { createTempProject, rmTempProject, importFresh, stateFilePath, lockFilePath } from "./helpers.mjs";
 
-test("storage: init uses global state path and leaves repo-local tasks.json absent", async () => {
+test("storage: init uses the global state path", async () => {
   const { default: init } = await importFresh("./commands/init.mjs");
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
-    const local = path.join(dir, ".agents", "tasks", "tasks.json");
-    const localExists = await fs.access(local).then(() => true).catch(() => false);
-    assert.equal(localExists, false);
     assert.equal(stateFilePath(dir).startsWith(path.join(process.env.CLIMIER_HOME, "projects")), true);
   } finally {
     await rmTempProject(dir);
@@ -42,12 +39,12 @@ test("storage: project metadata makes sibling worktrees share the same state and
   }
 });
 
-test("storage: legacy repo-local tasks.json still works when project metadata is absent", async () => {
-  const { readState } = await importFresh("./state.mjs");
+test("storage: state path is deterministic even before metadata exists", async () => {
+  const { readState, writeState } = await importFresh("./state.mjs");
   const dir = await createTempProject();
   try {
-    const file = path.join(dir, ".agents", "tasks", "tasks.json");
-    await fs.writeFile(file, JSON.stringify({ version: 1, tasks: {}, decisions: {}, gotchas: {}, initiatives: {}, log: [] }), "utf8");
+    const file = stateFilePath(dir);
+    await writeState(dir, { version: 1, tasks: {}, decisions: {}, gotchas: {}, initiatives: {}, log: [] });
     const s = await readState(dir);
     assert.equal(s.version, 1);
     assert.equal(stateFilePath(dir), file);

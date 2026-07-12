@@ -15,7 +15,7 @@ export default async function addNote({ statePath, flags, positional }) {
   if (as === true) throw new Error("add-note: --as requires a value (e.g. --as alice)");
   if (!as) throw new Error("add-note: --as <agent> required");
 
-  const projectDir = statePath.replace(/\.agents\/tasks\/tasks\.json$/, "");
+  const projectDir = statePath;
 
   return withLock(projectDir, async () => {
     const s = await readState(projectDir);

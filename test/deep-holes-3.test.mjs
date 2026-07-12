@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createTempProject, rmTempProject, importFresh, runCli, readState } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, runCli, readState, initExampleProject} from "./helpers.mjs";
 
 // Atomicity: if a mutator throws AFTER making changes, the state should not be partially modified.
 test("hole: updateState that mutates partially then throws leaves no partial write", async () => {
@@ -46,10 +46,10 @@ test("hole: --flag= (empty) does not become true", async () => {
   const dir = await createTempProject();
   try {
     await runCli(["--project", dir, "init"]);
-    const r = await runCli(["--project", dir, "--force=true", "init", "--seed", "migration"]);
+    const r = await runCli(["--project", dir, "--force=true", "init"]);
     assert.equal(r.code, 0, r.stderr);
     const s = await readState(dir);
-    assert.ok(s.tasks["F0.T1"], "seed did not load");
+    assert.deepEqual(s.tasks, {});
   } finally {
     await rmTempProject(dir);
   }
@@ -59,7 +59,7 @@ test("hole: --flag= (empty) does not become true", async () => {
 test("hole: flag after positional still works (claim T1 --as agent)", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     const r = await runCli(["--project", dir, "claim", "F0.T1", "--as", "agent-x"]);
     assert.equal(r.code, 0, r.stderr);
   } finally {
@@ -73,7 +73,7 @@ test("hole: flag after positional still works (claim T1 --as agent)", async () =
 test("hole: done with a quoted note containing -- is parsed correctly", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     await runCli(["--project", dir, "claim", "F0.T1", "--as", "agent"]);
     // Single-arg note with -- inside; relies on the test runner passing it as one argv element.
     const r = await runCli(["--project", dir, "done", "F0.T1", "shipped -- not tested yet", "--as", "agent"]);

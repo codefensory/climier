@@ -46,7 +46,7 @@ export default async function addTask({ statePath, flags, positional }) {
   }
   if (!flags.initiative) throw new Error("add-task: --initiative required");
   if (!flags.title) throw new Error("add-task: --title required");
-  const projectDir = statePath.replace(/\.agents\/tasks\/tasks\.json$/, "");
+  const projectDir = statePath;
 
   return withLock(projectDir, async () => {
     const s = await readState(projectDir);

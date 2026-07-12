@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createTempProject, rmTempProject, importFresh, runCli, readState } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, runCli, readState, stateFilePath} from "./helpers.mjs";
 
 // #1+#26: orphaned task (in_progress without claimed_by) — release must work for the orchestrator
 test("hole: release works on orphaned task (in_progress without claimed_by) when called by orchestrator", async () => {
@@ -184,7 +184,8 @@ test("hole: writeState rejects an object missing required collections", async ()
 test("hole: readState surfaces a clear error for a state with a future version", async () => {
   const dir = await createTempProject();
   try {
-    const file = path.join(dir, ".agents", "tasks", "tasks.json");
+    const file = stateFilePath(dir);
+    await fs.mkdir(path.dirname(file), { recursive: true });
     await fs.writeFile(file, JSON.stringify({ version: 999, tasks: {}, decisions: {}, gotchas: {}, initiatives: {}, log: [] }), "utf8");
     const { readState } = await importFresh("./state.mjs");
     await assert.rejects(readState(dir), /version|incompatible/i);

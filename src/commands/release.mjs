@@ -12,7 +12,7 @@ export default async function release({ statePath, flags, positional }) {
   if (as === true) throw new Error("release: --as requires a value (e.g. --as alice)");
   if (!as) throw new Error("release: --as <agent> required");
 
-  const projectDir = statePath.replace(/\.agents\/tasks\/tasks\.json$/, "");
+  const projectDir = statePath;
 
   return withLock(projectDir, async () => {
     const s = await readState(projectDir);

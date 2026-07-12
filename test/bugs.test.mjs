@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createTempProject, rmTempProject, importFresh, runCli, readState } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, runCli, readState, stateFilePath} from "./helpers.mjs";
 
 // BUG #1: block does not verify ownership — any agent can mark a blocker on
 // another agent's task. Must FAIL before the fix.
@@ -48,20 +48,19 @@ test("bug: graph --initiative filter limits the output", async () => {
   }
 });
 
-// BUG #3: withLock crashes if .agents/tasks/ does not exist. Must FAIL before fix.
-test("bug: withLock creates the directory if missing", async () => {
+// BUG #3: withLock used to assume a pre-existing state directory.
+test("bug: withLock creates the state directory if missing", async () => {
   const { withLock } = await importFresh("./lock.mjs");
   const os = await import("node:os");
   const base = await fs.mkdtemp(path.join(os.tmpdir(), "climier-bug3-"));
   try {
-    // No .agents/tasks/ created
     let ran = false;
     await withLock(base, async () => {
       ran = true;
     });
     assert.equal(ran, true);
-    // The directory should now exist.
-    const stat = await fs.stat(path.join(base, ".agents", "tasks"));
+    const { stateFilePath } = await import("./helpers.mjs");
+    const stat = await fs.stat(path.dirname(stateFilePath(base)));
     assert.ok(stat.isDirectory());
   } finally {
     await fs.rm(base, { recursive: true, force: true });
@@ -73,7 +72,9 @@ test("bug: corrupted state file produces a clear error, not a SyntaxError stack"
   const { readState } = await importFresh("./state.mjs");
   const dir = await createTempProject();
   try {
-    const file = path.join(dir, ".agents", "tasks", "tasks.json");
+    const { stateFilePath } = await import("./helpers.mjs");
+    const file = stateFilePath(dir);
+    await fs.mkdir(path.dirname(file), { recursive: true });
     await fs.writeFile(file, "{ this is not valid json :::", "utf8");
     await assert.rejects(readState(dir), /corrupt|invalid.*json|parse/i);
   } finally {

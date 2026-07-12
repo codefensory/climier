@@ -3,14 +3,14 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createTempProject, rmTempProject, importFresh, runCli, readState, stateFilePath } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, runCli, readState, stateFilePath, initExampleProject} from "./helpers.mjs";
 
 // Full migration scenario: 2 workers, 1 orchestrator, decisions, recovery
 test("hole: full real-world scenario with 2 workers, 1 orchestrator, decisions, and stale recovery", async () => {
   const dir = await createTempProject();
   try {
     // 1. Init with seed
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
 
     // 2. Orchestrator reads status
     let r = await runCli(["--project", dir, "status"]);
@@ -77,6 +77,7 @@ test("hole: 30 sequential claim/done cycles complete without errors", async () =
   try {
     await runCli(["--project", dir, "init"]);
     const file = stateFilePath(dir);
+    await fs.mkdir(path.dirname(file), { recursive: true });
     await fs.writeFile(file, JSON.stringify({
       version: 1, tasks: { T1: { id: "T1" } }, decisions: {}, gotchas: {},
       initiatives: { x: { desc: "" } }, log: [],
@@ -102,6 +103,7 @@ test("hole: orchestrator can read status while workers claim in parallel", async
   try {
     await runCli(["--project", dir, "init"]);
     const file = stateFilePath(dir);
+    await fs.mkdir(path.dirname(file), { recursive: true });
     await fs.writeFile(file, JSON.stringify({
       version: 1, tasks: { T1: { id: "T1" }, T2: { id: "T2" } },
       decisions: {}, gotchas: {}, initiatives: { x: { desc: "" } }, log: [],

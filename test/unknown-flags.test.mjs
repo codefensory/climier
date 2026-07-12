@@ -3,12 +3,12 @@
 // Errors are JSON to stdout, not stderr.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createTempProject, rmTempProject, runCli } from "./helpers.mjs";
+import { createTempProject, rmTempProject, runCli, initExampleProject} from "./helpers.mjs";
 
 test("CLI: claim --banana exits non-zero with JSON error on stdout", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     const r = await runCli(["--project", dir, "claim", "F0.T1", "--as", "alice", "--banana", "split"]);
     assert.notEqual(r.code, 0);
     const data = JSON.parse(r.stdout);
@@ -23,7 +23,7 @@ test("CLI: claim --banana exits non-zero with JSON error on stdout", async () =>
 test("CLI: done --foo exits non-zero with JSON error on stdout", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     await runCli(["--project", dir, "claim", "F0.T1", "--as", "alice"]);
     const r = await runCli(["--project", dir, "done", "F0.T1", "shipped", "--as", "alice", "--foo", "bar"]);
     assert.notEqual(r.code, 0);
@@ -38,7 +38,7 @@ test("CLI: done --foo exits non-zero with JSON error on stdout", async () => {
 test("CLI: pre-claim --verbose exits non-zero with JSON error on stdout", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     const r = await runCli(["--project", dir, "pre-claim", "F0.T1", "--verbose"]);
     assert.notEqual(r.code, 0);
     const data = JSON.parse(r.stdout);
@@ -52,7 +52,7 @@ test("CLI: pre-claim --verbose exits non-zero with JSON error on stdout", async 
 test("CLI: status --watch exits non-zero with JSON error on stdout", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     const r = await runCli(["--project", dir, "status", "--watch"]);
     assert.notEqual(r.code, 0);
     const data = JSON.parse(r.stdout);
@@ -66,7 +66,7 @@ test("CLI: status --watch exits non-zero with JSON error on stdout", async () =>
 test("CLI: add-decision --color exits non-zero with JSON error on stdout", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     const r = await runCli(["--project", dir, "add-decision", "D9", "--title", "x", "--color", "blue"]);
     assert.notEqual(r.code, 0);
     const data = JSON.parse(r.stdout);
@@ -80,7 +80,7 @@ test("CLI: add-decision --color exits non-zero with JSON error on stdout", async
 test("CLI: error message lists the valid flags for the command", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     const r = await runCli(["--project", dir, "claim", "F0.T1", "--banana"]);
     assert.notEqual(r.code, 0);
     const data = JSON.parse(r.stdout);
@@ -93,7 +93,7 @@ test("CLI: error message lists the valid flags for the command", async () => {
 test("CLI: known flags still work and return JSON to stdout (no regression)", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     const r = await runCli(["--project", dir, "claim", "F0.T1", "--as", "alice"]);
     assert.equal(r.code, 0, r.stderr);
     const data = JSON.parse(r.stdout);
@@ -108,7 +108,7 @@ test("CLI: known flags still work and return JSON to stdout (no regression)", as
 test("CLI: --project is the only global flag (--json is gone)", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     // --project works for any command.
     const r = await runCli(["--project", dir, "ready"]);
     assert.equal(r.code, 0, r.stderr);

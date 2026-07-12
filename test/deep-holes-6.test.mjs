@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createTempProject, rmTempProject, importFresh, runCli, readState } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, runCli, readState, initExampleProject, stateFilePath} from "./helpers.mjs";
 
 // Subtle: derive on a state with circular task-decision references
 test("hole: derive handles task with decision dep + decision with task dep (cross-references)", async () => {
@@ -37,7 +37,8 @@ test("hole: a done task with no claim in log is allowed (state was edited)", asy
   const dir = await createTempProject();
   try {
     await runCli(["--project", dir, "init"]);
-    const file = path.join(dir, ".agents", "tasks", "tasks.json");
+    const file = stateFilePath(dir);
+    await fs.mkdir(path.dirname(file), { recursive: true });
     await fs.writeFile(file, JSON.stringify({
       version: 1,
       tasks: { T1: { id: "T1", status: "done" } },
@@ -122,7 +123,7 @@ test("hole: graph output is stable across calls", async () => {
   const { default: graph } = await importFresh("./commands/graph.mjs");
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     const a = await graph({ statePath: dir, flags: {} });
     const b = await graph({ statePath: dir, flags: {} });
     assert.deepEqual(a, b);
@@ -142,7 +143,8 @@ test("hole: state operations remain fast with 1000 log entries", async () => {
       initiatives: { x: { desc: "" } },
       log: Array.from({ length: 1000 }, (_, i) => ({ ts: new Date().toISOString(), agent: "a", action: "claim", task: "T1" })),
     };
-    await fs.writeFile(path.join(dir, ".agents", "tasks", "tasks.json"), JSON.stringify(seed), "utf8");
+    await fs.mkdir(path.dirname(stateFilePath(dir)), { recursive: true });
+    await fs.writeFile(stateFilePath(dir), JSON.stringify(seed), "utf8");
     // Verify it still works
     const s = await readState(dir);
     assert.equal(s.log.length, 1000);
@@ -165,15 +167,15 @@ test("hole: CLI accepts --flag=true (explicit) and --flag as final arg", async (
   try {
     await runCli(["--project", dir, "init"]);
     // --force=true is unambiguous
-    const r1 = await runCli(["--project", dir, "--force=true", "init", "--seed", "migration"]);
+    const r1 = await runCli(["--project", dir, "--force=true", "init"]);
     assert.equal(r1.code, 0, r1.stderr);
   } finally {
     await rmTempProject(dir);
   }
 });
 
-// init with --seed "" (empty) creates empty state, not migration
-test("hole: init --seed '' (empty) creates empty state, not migration", async () => {
+// Direct module calls ignore stale seed flags and still create an empty state.
+test("hole: init ignores an empty seed flag in direct calls", async () => {
   const { default: init } = await importFresh("./commands/init.mjs");
   const dir = await createTempProject();
   try {
@@ -185,8 +187,7 @@ test("hole: init --seed '' (empty) creates empty state, not migration", async ()
   }
 });
 
-// init with --seed "anything" (unknown) creates empty state, not migration (silent fallback)
-test("hole: init --seed 'unknown' silently creates empty state (not migration)", async () => {
+test("hole: init ignores an unknown seed flag in direct calls", async () => {
   const { default: init } = await importFresh("./commands/init.mjs");
   const dir = await createTempProject();
   try {

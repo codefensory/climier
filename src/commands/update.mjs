@@ -53,7 +53,7 @@ export default async function update({ statePath, flags, positional }) {
     if (flags[f] === true) throw new Error(`update: --${f} requires a value`);
   }
 
-  const projectDir = statePath.replace(/\.agents\/tasks\/tasks\.json$/, "");
+  const projectDir = statePath;
 
   return withLock(projectDir, async () => {
     const s = await readState(projectDir);

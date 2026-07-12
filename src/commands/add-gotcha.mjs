@@ -9,7 +9,7 @@ export default async function addGotcha({ statePath, flags, positional }) {
   if (!id) throw new Error("add-gotcha: id required (e.g. add-gotcha G1 --title 'trap' --applies-to domain:db)");
   if (!flags.title) throw new Error("add-gotcha: --title required");
   if (!flags["applies-to"]) throw new Error("add-gotcha: --applies-to required (e.g. --applies-to domain:db or --applies-to T1)");
-  const projectDir = statePath.replace(/\.agents\/tasks\/tasks\.json$/, "");
+  const projectDir = statePath;
 
   return withLock(projectDir, async () => {
     const s = await readState(projectDir);

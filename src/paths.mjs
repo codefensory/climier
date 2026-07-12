@@ -14,11 +14,3 @@ export function climierHome() {
 export function projectMetaFile(projectDir) {
   return path.join(projectDir, ".climier.json");
 }
-
-export function legacyTasksDir(projectDir) {
-  return path.join(projectDir, ".agents", "tasks");
-}
-
-export function legacyStateFile(projectDir) {
-  return path.join(legacyTasksDir(projectDir), "tasks.json");
-}

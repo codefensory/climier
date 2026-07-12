@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createTempProject, rmTempProject, importFresh, runCli, readState, stateFilePath, lockFilePath } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, runCli, readState, stateFilePath, lockFilePath, initExampleProject} from "./helpers.mjs";
 
 // The state file should never be partially written.
 // Even if the process is killed mid-update, the file should be either old or new, never broken.
@@ -16,7 +16,7 @@ test("hole: tmp file is never left behind after a successful update", async () =
       return s;
     });
     // Check no .tmp-* files remain
-    const files = await fs.readdir(path.join(dir, ".agents", "tasks"));
+    const files = await fs.readdir(path.dirname(stateFilePath(dir)));
     const tmpFiles = files.filter((f) => f.startsWith(".tmp-"));
     assert.equal(tmpFiles.length, 0, `tmp files left: ${tmpFiles.join(", ")}`);
   } finally {
@@ -39,15 +39,14 @@ test("hole: lock file is never left behind after a successful operation", async 
   }
 });
 
-// Operations on a fresh project (no .agents/ dir) should work
-test("hole: claim works even when .agents/ doesn't exist yet (creates it)", async () => {
+// Operations on a fresh project (no metadata yet) should fail cleanly, not crash.
+test("hole: claim works on a fresh project by failing cleanly", async () => {
   const { default: claim } = await importFresh("./commands/claim.mjs");
   const os = await import("node:os");
   const base = await fs.mkdtemp(path.join(os.tmpdir(), "climier-fresh-"));
   try {
-    // No .agents/ at all
     await assert.rejects(
-      claim({ statePath: base + "/.agents/tasks/tasks.json", flags: { as: "a" }, positional: ["T1"] }),
+      claim({ statePath: base, flags: { as: "a" }, positional: ["T1"] }),
       /state.*missing|init/i
     );
   } finally {
@@ -59,7 +58,7 @@ test("hole: claim works even when .agents/ doesn't exist yet (creates it)", asyn
 test("hole: state file is always valid JSON after any sequence of operations", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     // Sequence of ops
     await runCli(["--project", dir, "decide", "D1", "x", "--because", "r"]);
     await runCli(["--project", dir, "claim", "F0.T1", "--as", "a"]);
@@ -116,7 +115,8 @@ test("hole: readState handles pretty-printed JSON", async () => {
   const { readState } = await importFresh("./state.mjs");
   const dir = await createTempProject();
   try {
-    const file = path.join(dir, ".agents", "tasks", "tasks.json");
+    const file = stateFilePath(dir);
+    await fs.mkdir(path.dirname(file), { recursive: true });
     await fs.writeFile(file, '{\n  "version": 1,\n  "tasks": {},\n  "decisions": {},\n  "gotchas": {},\n  "initiatives": {},\n  "log": []\n}\n', "utf8");
     const s = await readState(dir);
     assert.equal(s.version, 1);
@@ -146,7 +146,8 @@ test("hole: readState ignores unknown top-level fields (forward compat)", async 
   const { readState } = await importFresh("./state.mjs");
   const dir = await createTempProject();
   try {
-    const file = path.join(dir, ".agents", "tasks", "tasks.json");
+    const file = stateFilePath(dir);
+    await fs.mkdir(path.dirname(file), { recursive: true });
     await fs.writeFile(file, JSON.stringify({
       version: 1,
       tasks: {}, decisions: {}, gotchas: {}, initiatives: {}, log: [],

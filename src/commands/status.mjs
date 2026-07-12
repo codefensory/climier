@@ -150,7 +150,7 @@ function emptyStatus() {
 }
 
 export default async function status({ statePath, flags }) {
-  const projectDir = statePath.replace(/\.agents\/tasks\/tasks\.json$/, "");
+  const projectDir = statePath;
   let s = await readState(projectDir);
   if (!s) return emptyStatus();
   // Filter to a single initiative if requested.

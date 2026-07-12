@@ -44,7 +44,7 @@ export default async function preClaim({ statePath, flags, positional }) {
     }
     staleMs = n;
   }
-  const projectDir = statePath.replace(/\.agents\/tasks\/tasks\.json$/, "");
+  const projectDir = statePath;
   const s = await readState(projectDir);
   if (!s) throw new Error("pre-claim: state file missing");
   const t = s.tasks[id];

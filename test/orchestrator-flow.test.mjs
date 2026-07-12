@@ -2,13 +2,13 @@
 // All output is JSON to stdout.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createTempProject, rmTempProject, runCli, readState, stateFilePath } from "./helpers.mjs";
+import { createTempProject, rmTempProject, runCli, readState, stateFilePath, initExampleProject} from "./helpers.mjs";
 
 test("orchestrator flow: init seed, delegate, 3 workers complete tasks in parallel, decide decision, dependents unblock", async () => {
   const dir = await createTempProject();
   try {
-    // 1. Init with migration seed.
-    let r = await runCli(["--project", dir, "init", "--seed", "migration"]);
+    // 1. Init with example fixture.
+    let r = await initExampleProject(dir);
     assert.equal(r.code, 0, r.stderr);
 
     // 2. Orchestrator reads status; expects a few ready tasks.

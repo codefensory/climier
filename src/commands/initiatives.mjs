@@ -6,7 +6,7 @@ import { readState } from "../state.mjs";
 export const knownFlags = [];
 
 export default async function initiatives({ statePath, flags }) {
-  const projectDir = statePath.replace(/\.agents\/tasks\/tasks\.json$/, "");
+  const projectDir = statePath;
   const s = await readState(projectDir);
   if (!s) {
     return { initiatives: [], unregistered: { nodes: 0, values: [] } };

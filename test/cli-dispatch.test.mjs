@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createTempProject, rmTempProject, runCli } from "./helpers.mjs";
+import { createTempProject, rmTempProject, runCli, initExampleProject} from "./helpers.mjs";
 
 const packageVersion = JSON.parse(
   fs.readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "package.json"), "utf8")
@@ -14,7 +14,7 @@ const packageVersion = JSON.parse(
 test("CLI: init then status", async () => {
   const dir = await createTempProject();
   try {
-    let r = await runCli(["--project", dir, "init", "--seed", "migration"]);
+    let r = await initExampleProject(dir);
     assert.equal(r.code, 0, r.stderr);
     r = await runCli(["--project", dir, "status"]);
     assert.equal(r.code, 0, r.stderr);
@@ -27,10 +27,10 @@ test("CLI: init then status", async () => {
   }
 });
 
-test("CLI: init --seed migration then ready lists claimable tasks", async () => {
+test("CLI: init example fixture then ready lists claimable tasks", async () => {
   const dir = await createTempProject();
   try {
-    let r = await runCli(["--project", dir, "init", "--seed", "migration"]);
+    let r = await initExampleProject(dir);
     assert.equal(r.code, 0, r.stderr);
     r = await runCli(["--project", dir, "ready"]);
     assert.equal(r.code, 0, r.stderr);
@@ -45,7 +45,7 @@ test("CLI: init --seed migration then ready lists claimable tasks", async () => 
 test("CLI: claim fails without --as", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     const r = await runCli(["--project", dir, "claim", "F0.T1"]);
     assert.notEqual(r.code, 0);
     const data = JSON.parse(r.stdout);
@@ -59,7 +59,7 @@ test("CLI: claim fails without --as", async () => {
 test("CLI: claim --as works, then done --as note works", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     // F0.T1 has no deps; claimable directly.
     const c = await runCli(["--project", dir, "claim", "F0.T1", "--as", "agent-1"]);
     assert.equal(c.code, 0, c.stderr);
@@ -77,7 +77,7 @@ test("CLI: claim --as works, then done --as note works", async () => {
 test("CLI: reopen --as orchestrator rolls back a done task end-to-end", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     await runCli(["--project", dir, "claim", "F0.T1", "--as", "agent-1"]);
     await runCli(["--project", dir, "done", "F0.T1", "shipped", "--as", "agent-1"]);
 
@@ -102,7 +102,7 @@ test("CLI: reopen --as orchestrator rolls back a done task end-to-end", async ()
 test("CLI: reopen by a stranger fails with non-zero exit", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     await runCli(["--project", dir, "claim", "F0.T1", "--as", "agent-1"]);
     await runCli(["--project", dir, "done", "F0.T1", "shipped", "--as", "agent-1"]);
 
@@ -120,7 +120,7 @@ test("CLI: reopen by a stranger fails with non-zero exit", async () => {
 test("CLI: pre-claim on a ready task reports can_claim true", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     const r = await runCli(["--project", dir, "pre-claim", "F0.T1"]);
     assert.equal(r.code, 0, r.stderr);
     const data = JSON.parse(r.stdout);
@@ -136,7 +136,7 @@ test("CLI: pre-claim on a ready task reports can_claim true", async () => {
 test("CLI: add-decision creates an open decision", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     const r = await runCli(["--project", dir, "add-decision", "D9", "--title", "investigar X", "--applies-to", "F9.T1,F9.T2"]);
     assert.equal(r.code, 0, r.stderr);
     const data = JSON.parse(r.stdout);
@@ -149,7 +149,7 @@ test("CLI: add-decision creates an open decision", async () => {
 test("CLI: add-decision fails without --title", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     const r = await runCli(["--project", dir, "add-decision", "D9"]);
     assert.notEqual(r.code, 0);
     const data = JSON.parse(r.stdout);
@@ -169,7 +169,7 @@ test("CLI: --help prints help and exits 0", async () => {
     assert.match(r.stdout, /pre-claim/);
     assert.match(r.stdout, /add-decision/);
     assert.doesNotMatch(r.stdout, /\.agents\/skills/i);
-    assert.doesNotMatch(r.stdout, /new-vegsport/i);
+    assert.doesNotMatch(r.stdout, /example fixture/i);
   } finally {
     await rmTempProject(dir);
   }
@@ -222,7 +222,7 @@ test("CLI: version command prints the package version and exits 0", async () => 
 test("CLI: pre-claim on a missing task exits non-zero with JSON error", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     const r = await runCli(["--project", dir, "pre-claim", "NOPE"]);
     assert.notEqual(r.code, 0);
     const data = JSON.parse(r.stdout);
@@ -248,7 +248,7 @@ test("CLI: unknown command exits non-zero with JSON error", async () => {
 test("CLI: update a task via the bin (edit title + body)", async () => {
   const dir = await createTempProject();
   try {
-    let r = await runCli(["--project", dir, "init", "--seed", "migration"]);
+    let r = await initExampleProject(dir);
     assert.equal(r.code, 0, r.stderr);
     r = await runCli(["--project", dir, "update", "F0.T1", "--title", "new title", "--body", "## Spec\n\nDetails here", "--as", "alice"]);
     assert.equal(r.code, 0, r.stderr);
@@ -267,7 +267,7 @@ test("CLI: update a task via the bin (edit title + body)", async () => {
 test("CLI: add-note appends to the thread", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     let r = await runCli(["--project", dir, "add-note", "F0.T1", "first note", "--as", "alice"]);
     assert.equal(r.code, 0, r.stderr);
     r = await runCli(["--project", dir, "add-note", "F0.T1", "second note", "--as", "bob"]);
@@ -284,7 +284,7 @@ test("CLI: add-note appends to the thread", async () => {
 test("CLI: update on an in_progress task fails with JSON error", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     // claim F0.T1 so it's in_progress
     let r = await runCli(["--project", dir, "claim", "F0.T1", "--as", "alice"]);
     assert.equal(r.code, 0, r.stderr);
@@ -301,7 +301,7 @@ test("CLI: update on an in_progress task fails with JSON error", async () => {
 test("CLI: archive a ready task end-to-end, unblocks downstream", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     // F0.T1 is ready. Archive it directly (no claim needed).
     const a = await runCli(["--project", dir, "archive", "F0.T1", "obsolete", "--as", "alice"]);
     assert.equal(a.code, 0, a.stderr);
@@ -327,7 +327,7 @@ test("CLI: archive a ready task end-to-end, unblocks downstream", async () => {
 test("CLI: archive without --as fails with JSON error", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--seed", "migration"]);
+    await initExampleProject(dir);
     const r = await runCli(["--project", dir, "archive", "F0.T1", "obsolete"]);
     assert.notEqual(r.code, 0);
     const data = JSON.parse(r.stdout);
