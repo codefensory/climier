@@ -49,7 +49,16 @@ export async function ensureProjectMeta(projectDir) {
   return meta;
 }
 
-export function emptyState() {
+export function emptyState(version = 1) {
+  if (version === 2) {
+    return {
+      version: 2,
+      nodes: {},
+      edges: [],
+      initiatives: {},
+      log: [],
+    };
+  }
   return {
     version: 1,
     tasks: {},
@@ -60,13 +69,23 @@ export function emptyState() {
   };
 }
 
+export function isV2State(state) {
+  return !!state && state.version === 2;
+}
+
+export function assertStateVersion(state, version, commandName) {
+  if (!state) return;
+  if (state.version === version) return;
+  throw new Error(`${commandName}: state version ${state.version} is not supported by this command (expected version ${version})`);
+}
+
 export async function readState(projectDir) {
   try {
     const raw = await fs.readFile(stateFile(projectDir), "utf8");
     const state = JSON.parse(raw);
     // Forward-compatibility: surface a clear error if a future version is found.
-    if (state && typeof state === "object" && "version" in state && state.version > 1) {
-      const wrapped = new Error(`state: file at ${stateFile(projectDir)} has version ${state.version} but this climier only understands version 1`);
+    if (state && typeof state === "object" && "version" in state && state.version > 2) {
+      const wrapped = new Error(`state: file at ${stateFile(projectDir)} has version ${state.version} but this climier only understands versions 1 and 2`);
       wrapped.code = "CLIMIER_INCOMPATIBLE_VERSION";
       throw wrapped;
     }
@@ -122,11 +141,13 @@ export async function addNode(projectDir, collection, id, node) {
 }
 
 export async function writeState(projectDir, state) {
-  // Schema validation: a state must have all five top-level collections.
-  const required = ["tasks", "decisions", "gotchas", "initiatives", "log"];
   if (!state || typeof state !== "object") {
     throw new Error("writeState: invalid state (not an object)");
   }
+  const version = state.version || 1;
+  const required = version === 2
+    ? ["nodes", "edges", "initiatives", "log"]
+    : ["tasks", "decisions", "gotchas", "initiatives", "log"];
   for (const k of required) {
     if (!(k in state)) {
       throw new Error(`writeState: invalid state (missing '${k}' collection)`);
