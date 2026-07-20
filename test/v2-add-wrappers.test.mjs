@@ -136,6 +136,23 @@ for (const field of ["initiative", "title", "body", "acceptance", "blocked-by"])
   });
 }
 
+test('add-task v2: missing --blocked-by explains that --blocked-by "" is valid', async () => {
+  await withV2(async (dir) => {
+    const flags = taskFlags();
+    delete flags["blocked-by"];
+    const addTask = await command("add-task");
+    await assert.rejects(
+      addTask({ statePath: dir, projectDir: dir, positional: ["T-auth"], flags }),
+      (err) => {
+        assert.equal(err.code, "MISSING_FIELD");
+        assert.match(err.message, /--blocked-by/);
+        assert.match(err.message, /\"\"/);
+        return true;
+      },
+    );
+  });
+});
+
 test("add-task v2: an explicitly empty --blocked-by means no blockers", async () => {
   await withV2(async (dir) => {
     const addTask = await command("add-task");

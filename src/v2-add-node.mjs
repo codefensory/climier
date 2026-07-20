@@ -8,7 +8,10 @@ export function requireFields(command, flags, fields, allowEmpty = []) {
   for (const field of fields) {
     const value = flags[field];
     if (typeof value !== "string" || (!allowEmpty.includes(field) && !value.trim())) {
-      throwV2("MISSING_FIELD", `${command}: --${field} required`, { field, command });
+      const hint = allowEmpty.includes(field)
+        ? ` (use --${field} "" for an explicit empty value)`
+        : "";
+      throwV2("MISSING_FIELD", `${command}: --${field} required${hint}`, { field, command });
     }
   }
 }
