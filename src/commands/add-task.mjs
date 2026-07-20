@@ -32,7 +32,7 @@ function parsePriority(raw) {
 export const knownFlags = [
   "initiative", "title", "body", "depends-on", "blocked-by", "supersedes", "derived-from",
   "definition", "acceptance", "skills", "effort", "domain", "tags", "refs",
-  "meta", "phase", "suffix", "backlog", "priority", "as",
+  "meta", "phase", "suffix", "backlog", "priority", "allow-unregistered-initiative", "as",
 ];
 
 export default async function addTask({ statePath, flags, positional, projectDir }) {
