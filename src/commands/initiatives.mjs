@@ -1,9 +1,11 @@
-// initiatives: list registered initiatives with usage counts (tasks,
-// decisions, gotchas) and detect orphan (unregistered) references —
-// the smoking gun for typo-driven initiative drift. Read-only.
-import { readState } from "../state.mjs";
+// initiatives: list registered initiatives with usage counts.
+// v1: also surfaces orphan (unregistered) references in tasks/decisions/gotchas.
+// v2: only v2 nodes exist; counts both resolvable and knowledge nodes per initiative.
+// --all includes initiatives with zero live nodes (default hides them, per the
+// v2 design doc: "Por defecto muestra solo initiatives con nodos vivos").
+import { readState, isV2State } from "../state.mjs";
 
-export const knownFlags = [];
+export const knownFlags = ["all"];
 
 export default async function initiatives({ statePath, flags }) {
   const projectDir = statePath;
@@ -12,9 +14,42 @@ export default async function initiatives({ statePath, flags }) {
     return { initiatives: [], unregistered: { nodes: 0, values: [] } };
   }
 
-  // Count usage per initiative name across tasks/decisions/gotchas.
-  // `null`/undefined initiative fields (transversal nodes) are NOT counted
-  // here — they're intentionally not in any initiative.
+  if (isV2State(s)) {
+    const usage = new Map();
+    for (const node of Object.values(s.nodes || {})) {
+      const name = node && node.initiative;
+      if (!name) continue;
+      const cur = usage.get(name) || { tasks: 0, knowledge: 0, nodes: 0 };
+      if (node.kind === "knowledge") cur.knowledge += 1;
+      else cur.tasks += 1;
+      cur.nodes += 1;
+      usage.set(name, cur);
+    }
+    const registered = Object.keys(s.initiatives || {}).map((name) => {
+      const u = usage.get(name) || { tasks: 0, knowledge: 0, nodes: 0 };
+      return {
+        name,
+        desc: s.initiatives[name]?.desc || "",
+        created_at: s.initiatives[name]?.created_at || null,
+        nodes: u.nodes,
+        tasks: u.tasks,
+        knowledge: u.knowledge,
+      };
+    });
+    const all = flags.all === true || flags.all === "true";
+    const visible = all ? registered : registered.filter((r) => r.nodes > 0);
+    visible.sort((a, b) => {
+      if (b.nodes !== a.nodes) return b.nodes - a.nodes;
+      return a.name.localeCompare(b.name);
+    });
+    return {
+      initiatives: visible,
+      unregistered: { nodes: 0, values: [] },
+      all: !!all,
+    };
+  }
+
+  // v1 path (unchanged)
   const usage = new Map();
   const bump = (name, key) => {
     if (!name) return;
@@ -26,9 +61,6 @@ export default async function initiatives({ statePath, flags }) {
   for (const d of Object.values(s.decisions || {})) bump(d.initiative, "decisions");
   for (const g of Object.values(s.gotchas || {})) bump(g.initiative, "gotchas");
 
-  // Registered initiatives: always show, even with 0 usage, so you can
-  // see what exists. Sort by task count desc, then name asc for stable
-  // ordering when counts tie.
   const registered = Object.keys(s.initiatives || {}).map((name) => {
     const u = usage.get(name) || { tasks: 0, decisions: 0, gotchas: 0 };
     return {
@@ -44,9 +76,6 @@ export default async function initiatives({ statePath, flags }) {
     return a.name.localeCompare(b.name);
   });
 
-  // Unregistered: any name in `usage` that's not in `state.initiatives`.
-  // This is the cleanup signal — typically caused by --initiative=qa typos
-  // or by data written before validation existed.
   const registeredNames = new Set(Object.keys(s.initiatives || {}));
   const orphanValues = [...usage.keys()].filter((n) => !registeredNames.has(n)).sort();
   const orphanNodes = orphanValues.reduce((acc, n) => {

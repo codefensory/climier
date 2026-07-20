@@ -2,9 +2,12 @@
 // (positional) or auto-allocated via --phase <prefix> (uses nextTaskId).
 // With --phase, --suffix <S> appends S at the end of the generated id
 // (e.g. --phase F1 --suffix R -> F1.T1R). --suffix without --phase is ignored.
-import { updateState, readState, assertInitiativeRegistered } from "../state.mjs";
+import { updateState, readState, assertInitiativeRegistered, isV2State } from "../state.mjs";
 import { withLock } from "../lock.mjs";
 import { nextTaskId } from "../dag.mjs";
+import { addV2Node, requireFields } from "../v2-add-node.mjs";
+import { throwV2 } from "../errors.mjs";
+import { resolveAgent } from "../agent.mjs";
 
 const VALID_PRIORITIES = ["high", "medium", "low"];
 
@@ -26,9 +29,39 @@ function parsePriority(raw) {
   return v;
 }
 
-export const knownFlags = ["initiative", "title", "depends-on", "definition", "acceptance", "skills", "effort", "domain", "phase", "suffix", "backlog", "priority"];
+export const knownFlags = [
+  "initiative", "title", "body", "depends-on", "blocked-by", "supersedes", "derived-from",
+  "definition", "acceptance", "skills", "effort", "domain", "tags", "refs",
+  "meta", "phase", "suffix", "backlog", "priority", "as",
+];
 
-export default async function addTask({ statePath, flags, positional }) {
+export default async function addTask({ statePath, flags, positional, projectDir }) {
+  if (flags.supersedes !== undefined) {
+    throwV2(
+      "INVALID_EDGE_KIND",
+      "add-task: --supersedes is only valid for gates and knowledge",
+      { type: "SUPERSEDES", fromKind: "task" },
+    );
+  }
+  const state = await readState(statePath);
+  if (isV2State(state)) {
+    requireFields(
+      "add-task",
+      flags,
+      ["initiative", "title", "body", "acceptance", "blocked-by"],
+      ["blocked-by"],
+    );
+    // F8: resolve here so MISSING_AGENT surfaces as `add-task:`, not as the
+    // underlying add-node's name (the wrapper delegates through add-node).
+    resolveAgent(flags, "add-task");
+    return addV2Node(
+      "add-task",
+      "T",
+      { kind: "resolvable", subkind: "task" },
+      { statePath, flags, positional, projectDir },
+    );
+  }
+
   const [explicitId] = positional;
   const phase = flags.phase;
   const suffix = flags.suffix;
@@ -46,10 +79,10 @@ export default async function addTask({ statePath, flags, positional }) {
   }
   if (!flags.initiative) throw new Error("add-task: --initiative required");
   if (!flags.title) throw new Error("add-task: --title required");
-  const projectDir = statePath;
+  const project = statePath;
 
-  return withLock(projectDir, async () => {
-    const s = await readState(projectDir);
+  return withLock(project, async () => {
+    const s = await readState(project);
     // Resolve the id inside the lock: nextTaskId needs a consistent view of state
     // and the result must not collide with a task created in the same race window.
     const id = explicitId || nextTaskId(s || { tasks: {} }, phase, suffix);
@@ -91,7 +124,7 @@ export default async function addTask({ statePath, flags, positional }) {
     if (flags.priority !== undefined) {
       node.priority = parsePriority(flags.priority);
     }
-    await updateState(projectDir, (st) => {
+    await updateState(project, (st) => {
       st.tasks[id] = node;
       return st;
     });

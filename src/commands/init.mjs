@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import { withLock } from "../lock.mjs";
 import { stateFile, emptyState, writeState, ensureProjectMeta } from "../state.mjs";
 
-export const knownFlags = ["force"];
+export const knownFlags = ["force", "v2"];
 
 export default async function init({ statePath, flags, projectDir }) {
   return withLock(projectDir, async () => {
@@ -28,7 +28,7 @@ export default async function init({ statePath, flags, projectDir }) {
 
     await ensureProjectMeta(projectDir);
 
-    await writeState(projectDir, emptyState());
+    await writeState(projectDir, emptyState(flags.v2 ? 2 : 1));
     return { ok: true, seeded: null, file: stateFile(projectDir) };
   });
 }

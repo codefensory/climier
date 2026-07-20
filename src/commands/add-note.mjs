@@ -1,6 +1,6 @@
-// add-note: append a timestamped comment to a task's notes thread. Any status.
+// add-note: append a timestamped comment to a task or v2 node's notes thread. Any status.
 // Notes are append-only by design — they are a record, not a state mutation.
-import { readState, updateState } from "../state.mjs";
+import { isV2State, readState, updateState } from "../state.mjs";
 import { withLock } from "../lock.mjs";
 import { append } from "../log.mjs";
 
@@ -8,7 +8,7 @@ export const knownFlags = ["as"];
 
 export default async function addNote({ statePath, flags, positional }) {
   const [id, ...rest] = positional;
-  if (!id) throw new Error("add-note: task id required (e.g. add-note T1 'found a blocker')");
+  if (!id) throw new Error("add-note: node id required (e.g. add-note T1 'found a blocker')");
   const text = rest.join(" ").trim();
   if (!text) throw new Error("add-note: note text required (e.g. add-note T1 '...')");
   const as = flags.as;
@@ -20,10 +20,23 @@ export default async function addNote({ statePath, flags, positional }) {
   return withLock(projectDir, async () => {
     const s = await readState(projectDir);
     if (!s) throw new Error("add-note: state file missing; run `climier init` first");
-    const t = s.tasks[id];
-    if (!t) throw new Error(`add-note: task ${id} not found`);
 
     const note = { ts: new Date().toISOString(), agent: as, text };
+
+    if (isV2State(s)) {
+      const node = s.nodes[id];
+      if (!node) throw new Error(`add-note: node ${id} not found`);
+      const updated = await updateState(projectDir, (st) => {
+        st.nodes[id].notes = st.nodes[id].notes || [];
+        st.nodes[id].notes.push(note);
+        return st;
+      });
+      await append(projectDir, { agent: as, action: "add-note", node: id, note: text });
+      return { node: updated.nodes[id] };
+    }
+
+    const t = s.tasks[id];
+    if (!t) throw new Error(`add-note: task ${id} not found`);
     const updated = await updateState(projectDir, (st) => {
       st.tasks[id].notes = st.tasks[id].notes || [];
       st.tasks[id].notes.push(note);

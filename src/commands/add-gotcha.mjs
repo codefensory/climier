@@ -1,5 +1,5 @@
 // add-gotcha: register a new gotcha in the state.
-import { addNode, updateState, readState, assertInitiativeRegistered } from "../state.mjs";
+import { addNode, updateState, readState, assertInitiativeRegistered, isV2State } from "../state.mjs";
 import { withLock } from "../lock.mjs";
 
 export const knownFlags = ["title", "applies-to", "initiative", "mitigation"];
@@ -13,6 +13,12 @@ export default async function addGotcha({ statePath, flags, positional }) {
 
   return withLock(projectDir, async () => {
     const s = await readState(projectDir);
+    // v2 projects model gotchas as knowledge nodes (kind=knowledge,
+    // scope.domains / scope.node_ids). Reject before any state write so v2
+    // callers get a clear pointer instead of a silent v1-style field.
+    if (s && isV2State(s)) {
+      throw new Error("add-gotcha: v1-only command; on v2 use `add-knowledge` with --scope-domains or --scope-node-ids instead");
+    }
     if (s && s.gotchas && s.gotchas[id]) throw new Error(`add-gotcha: ${id} already exists`);
     // initiative is optional (gotchas can be transversal), but if given
     // it must refer to a registered initiative.
