@@ -196,6 +196,8 @@ There is no `--json` flag. JSON is the default.
 
 Experimental v2: `init --v2` creates a `version: 2` snapshot with `{ initiatives, nodes, edges, log }`. Its creation flow uses `add-task`, `add-gate`, and `add-knowledge`; `add-node` and `add-edge` remain low-level escape hatches.
 
+Full v2 reference: `docs/v2.md`.
+
 Canonical v2 `BLOCKS` direction is `{ from: blocker, to: blocked, type: "BLOCKS" }`; blockers are incoming edges to the blocked node.
 
 ### Read-only
