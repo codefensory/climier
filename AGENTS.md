@@ -60,6 +60,22 @@ test/
 
 `status: "ready"` and `"blocked"` are **derived** from the DAG. They are NOT persisted. Persisted statuses are only `in_progress`, `done`, `archived`. A task with no `status` field is derived as `ready` (if no deps) or `blocked`.
 
+Experimental v2 is also supported behind `init --v2`. Its snapshot shape is:
+
+```js
+{
+  version: 2,
+  initiatives: { "auth-migration": { desc, created_at } },
+  nodes: { "T-auth-1": { id, kind, subkind, title, status, ... } },
+  edges: [{ from, to, type }],
+  log: []
+}
+```
+
+v2 scope (commands that route to `v2-${name}.mjs` when state.version === 2): `take`, `update`, `status`, `release`, `resolve`, `reopen`, `cancel`, `deprecate-knowledge`, `init`, `add-task`, `add-gate`, `add-knowledge`, `add-node`, `add-edge`, `add-initiative`, `context`, `search`, `show`, `history`, and `add-note` work on it. Commands that remain v1-only: `claim`, `done`, `block`, `archive`, `decide`, `promote`, `add-task` (v1 shape), `add-gotcha`, `add-decision`, `close-gotcha`, `reopen-gotcha`, `next-id`, `pre-claim`, `next`, `ready`, `tasks`, `graph`, `gotchas`, `decisions`, `log`. v2 stubs throw a clear v2-only error if invoked against a v1 state.
+
+Canonical v2 `BLOCKS` direction is `{ from: blocker, to: blocked, type: "BLOCKS" }`; blockers are incoming edges to the blocked node.
+
 ### The two non-obvious invariants
 
 1. **Atomicity: every mutating command goes through `withLock` → `updateState` (atomic tmp+rename).** Two agents in parallel can't corrupt the file. The `withLock` lock file lives next to the active state file (`~/.climier/projects/<project-id>/.lock`), is created with `fs.openSync(..., 'wx')` (fails on EEXIST), and is re-acquired in a spin loop with a 10s default timeout. Stale lock files (process died) are NOT auto-cleared — that's documented as the known ceiling for v1.
@@ -77,7 +93,9 @@ Cycles in the DAG must not crash. `derive` keeps cycle members blocked. Unknown 
 
 | Command | File | Mutates? | Needs `--as`? |
 |---|---|---|---|
-| `init [--force]` | `commands/init.mjs` | yes (creates/overwrites state) | no |
+| `init [--force] [--v2]` | `commands/init.mjs` | yes (creates/overwrites state) | no |
+| `context <id>` | `commands/context.mjs` | no | no |
+| `search "<query>" [--all]` | `commands/search.mjs` | no | no |
 | `status [--initiative X] [--staleMs N]` | `commands/status.mjs` | no | no |
 | `ready [--initiative X]` | `commands/ready.mjs` | no | no |
 | `claim <id>` | `commands/claim.mjs` | yes | yes |
@@ -110,6 +128,11 @@ Cycles in the DAG must not crash. `derive` keeps cycle members blocked. Unknown 
 | `add-initiative <name> [--desc "..."]` | `commands/add-initiative.mjs` | yes | no |
 | `add-decision <id> --title "..." [--initiative X] [--applies-to F1,T2,...]` | `commands/add-decision.mjs` | yes | no |
 | `add-gotcha <id> --title "..." --applies-to domain:x[,T1,...] [--initiative X] [--mitigation "..."]` | `commands/add-gotcha.mjs` | yes | no |
+| `add-task [id] --initiative X --title "..." --body "..." --acceptance "..." --blocked-by A,B` | `commands/add-task.mjs` | yes | no |
+| `add-gate [id] --initiative X --title "..." --body "..." --purpose decision\|approval\|external-dependency\|research [--supersedes OLD]` | `commands/add-gate.mjs` | yes | no |
+| `add-knowledge [id] --initiative X --title "..." --body "..." --scope-domains X [--supersedes OLD]` | `commands/add-knowledge.mjs` | yes | no |
+| `add-node <id> --kind resolvable\|knowledge --title "..." [--subkind task\|gate] [--blocked-by A,B] [--derived-from A,B] [--refs a,b] [--meta '{...}']` | `commands/add-node.mjs` | yes | no |
+| `add-edge <from> <to> --type BLOCKS\|SUPERSEDES\|DERIVED_FROM` | `commands/add-edge.mjs` | yes | no |
 
 ## Hard rules for contributing
 
@@ -216,7 +239,7 @@ The CLI is **JSON-only**. There is no `--json` flag (it's the default), no text 
 | `--help` / `-h` / `help` | plain text help (the only text output) | empty | 0 |
 
 The convention for command return shapes is principled:
-- **Read commands** (`status`, `ready`, `tasks`, `graph`, `gotchas`, `decisions`, `log`, `next`, `show`, `pre-claim`) return raw data — the object/array the consumer cares about.
+- **Read commands** (`status`, `ready`, `tasks`, `graph`, `gotchas`, `decisions`, `log`, `next`, `show`, `search`, `pre-claim`) return raw data — the object/array the consumer cares about.
   - `status` and `pre-claim` are deliberately richer than the other reads: the agent is the primary consumer, so the output is shaped to remove ambiguity. `status` adds `summary.text` (one-line plain English), `summary.{ready,in_progress,blocked,backlog,placeholders,stale,open_decisions,done,archived}` (totals), and `alerts[]` (kinds: `decision-gate`, `stale-claim`). `blocked` and `open_decisions` are arrays of objects, not bare IDs. `ready` carries `skills/effort/domain/phase/gotcha_count`. `pre-claim` adds `depends_on_detail[]` (kind/status/title/claimed_by per dep). Placeholders (`.OPEN` suffix or `task.placeholder: true`) are marked in `blocked` with `placeholder: true` and counted separately in `summary.placeholders` so the agent doesn't conflate them with real blocked work.
 - **Write commands** (`claim`, `done`, `release`, `reopen`, `block`, `decide`, `add-*`) return `{ entity }` envelopes (`{ task }`, `{ decision }`, `{ gotcha }`, `{ initiative }`).
 - `init` returns `{ ok, seeded, file }` (different shape because it is not creating an entity, it is setting up a state).

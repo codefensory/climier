@@ -13,6 +13,48 @@ const BIN = path.resolve(__dirname, "..", "bin", "climier.mjs");
 
 if (!process.env.CLIMIER_HOME) {
   process.env.CLIMIER_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "climier-home-"));
+  // Cleanup auto-created temp CLIMIER_HOME on exit. Real users set their
+  // own CLIMIER_HOME and never hit this branch; the temp dir is owned by
+  // us so deleting it is safe.
+  process.on("exit", () => {
+    try { fs.rmSync(process.env.CLIMIER_HOME, { recursive: true, force: true }); } catch {}
+  });
+} else {
+  // Guard rail: a developer must NEVER run the suite against the real
+  // ~/.climier. If CLIMIER_HOME is already set when helpers.mjs loads,
+  // we verify it points at a fresh temp dir or fail loudly.
+  // Acceptable paths:
+  //   - <tmpdir>/climier-home-*      (auto-created by us in another process)
+  //   - <tmpdir>/<anything>          (any other temp location)
+  //   - explicitly safe prefixes     (CI runners set CLIMIER_HOME=/tmp/ci-climier)
+  //
+  // Refused paths:
+  //   - ~/.climier
+  //   - any non-tmpdir location that exists (we don't want to wipe personal data)
+  const home = path.resolve(process.env.CLIMIER_HOME);
+  const tmpRoot = path.resolve(os.tmpdir());
+  const realUserHome = path.resolve(os.homedir(), ".climier");
+  if (home === realUserHome || home.startsWith(realUserHome + path.sep)) {
+    throw new Error(
+      `helpers.mjs: refusing to run with CLIMIER_HOME=${realUserHome}. ` +
+      `Tests would write to and potentially wipe the real global state. ` +
+      `Unset CLIMIER_HOME so each run gets an isolated temp dir, or point it ` +
+      `at an explicit temp location (e.g. CLIMIER_HOME=/tmp/climier-test).`
+    );
+  }
+  if (!home.startsWith(tmpRoot + path.sep) && home !== tmpRoot) {
+    throw new Error(
+      `helpers.mjs: refusing to run with CLIMIER_HOME=${home}. ` +
+      `It must live inside ${tmpRoot} to keep tests isolated. ` +
+      `Unset CLIMIER_HOME so each run gets an isolated temp dir.`
+    );
+  }
+}
+// Default CLIMIER_AGENT for tests that exercise v2 mutating commands but
+// don't pass --as. The new test file (v2-agent-source.test.mjs) deletes
+// this env var to exercise the MISSING_AGENT path. v1 commands ignore it.
+if (!("CLIMIER_AGENT" in process.env)) {
+  process.env.CLIMIER_AGENT = "test-agent";
 }
 
 function projectMetaPath(dir) {
@@ -114,11 +156,11 @@ export async function initExampleProject(dir, { force = false } = {}) {
 
 // Run the CLI as a child process. Returns { stdout, stderr, code }.
 import { spawn } from "node:child_process";
-export function runCli(args, { cwd } = {}) {
+export function runCli(args, { cwd, env } = {}) {
   return new Promise((resolve) => {
     const proc = spawn("node", [BIN, ...args], {
       cwd,
-      env: { ...process.env, NO_COLOR: "1" },
+      env: { ...process.env, ...(env || {}), NO_COLOR: "1" },
     });
     let stdout = "";
     let stderr = "";

@@ -88,6 +88,8 @@ A minimal solo flow:
 ```bash
 # 1. Initialize the project in the current directory
 climier init
+# or start the experimental nodes/edges schema
+climier init --v2
 
 # 2. Register an initiative
 climier add-initiative migration --desc "Move the API to the new stack"
@@ -192,6 +194,10 @@ There is no `--json` flag. JSON is the default.
 
 ## Command reference
 
+Experimental v2: `init --v2` creates a `version: 2` snapshot with `{ initiatives, nodes, edges, log }`. Its creation flow uses `add-task`, `add-gate`, and `add-knowledge`; `add-node` and `add-edge` remain low-level escape hatches.
+
+Canonical v2 `BLOCKS` direction is `{ from: blocker, to: blocked, type: "BLOCKS" }`; blockers are incoming edges to the blocked node.
+
 ### Read-only
 
 | Command | Purpose |
@@ -199,6 +205,8 @@ There is no `--json` flag. JSON is the default.
 | `status [--initiative X] [--staleMs N]` | Full project view: summary, alerts, in-progress work, ready tasks, backlog, blocked tasks, open decisions, stale claims, gotchas. |
 | `ready [--initiative X]` | Claimable-now tasks. Useful for any actor that wants the next safe unit of work. |
 | `pre-claim <id> [--staleMs N]` | Read-only pre-flight: spec, gotchas, dependency detail, derived status, GO/NO-GO verdict. |
+| `context <id>` | Experimental v2 agent-first view: node, blocking edges, informing edges, and scoped knowledge in one call. |
+| `search "<query>" [--all]` | Case-insensitive substring search over active v2 knowledge; `--all` includes deprecated knowledge. |
 | `next <id>` | Task definition, acceptance criteria, and matching gotchas. |
 | `tasks [--initiative X] [--status Y]` | List tasks with optional filters. |
 | `graph [--initiative X]` | DAG view. |
@@ -222,7 +230,7 @@ There is no `--json` flag. JSON is the default.
 | `promote <id> --as <agent>` | Pull a backlog task into the normal DAG flow. |
 | `decide <D> "choice" [--because "..."] [--as <agent>]` | Close an open decision and unblock dependents. Defaults to `orchestrator` if `--as` is omitted. |
 | `update <id> ... --as <agent>` | Edit task fields such as title, body, definition, acceptance, skills, effort, domain, dependencies, backlog, or priority. |
-| `add-note <id> "text" --as <agent>` | Append a note thread entry to a task. |
+| `add-note <id> "text" --as <agent>` | Append a note thread entry to a task or v2 node. |
 | `close-gotcha <id> --as <agent>` | Hide a resolved gotcha from normal views. |
 | `reopen-gotcha <id> --as <agent>` | Re-open a resolved gotcha. |
 
@@ -234,8 +242,13 @@ There is no `--json` flag. JSON is the default.
 | `add-task <id> --initiative X --title "..." [...]` | Add a task explicitly. |
 | `add-task --phase F1 --initiative X --title "..." [--suffix R] [...]` | Auto-allocate the next sequential task id inside a phase. |
 | `add-task ... [--backlog true] [--priority high\|medium\|low]` | Optionally create a task in backlog or assign a priority. |
+| `add-task [id] --initiative X --title "..." --body "..." --acceptance "..." --blocked-by A,B` | Add a v2 task; omit the id to generate one. |
+| `add-gate [id] --initiative X --title "..." --body "..." --purpose decision\|approval\|external-dependency\|research [--supersedes OLD]` | Add a v2 gate; omit the id to generate one. `--supersedes` atomically replaces an existing gate. |
+| `add-knowledge [id] --initiative X --title "..." --body "..." --scope-domains X [--supersedes OLD]` | Add scoped v2 knowledge; any `--scope-*` flag satisfies the scope requirement. `--supersedes` atomically replaces existing knowledge. |
 | `add-decision <id> --title "..." [--initiative X] [--applies-to F1,T2,...] [--description "..."]` | Add a decision node. |
 | `add-gotcha <id> --title "..." --applies-to domain:x[,T1,...] [--mitigation "..."]` | Add a gotcha. |
+| `add-node <id> --kind resolvable\|knowledge --title "..." [--subkind task\|gate] [--blocked-by A,B] [--derived-from A,B] [--refs a,b] [--meta '{...}']` | Experimental v2 node creation. |
+| `add-edge <from> <to> --type BLOCKS\|SUPERSEDES\|DERIVED_FROM` | Experimental v2 typed relationships. |
 
 ## Operational guarantees
 

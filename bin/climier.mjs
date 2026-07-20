@@ -26,10 +26,12 @@ Errors: { ok: false, error: "<message>" } on stdout, non-zero exit.
 Exceptions: --help/-h/help and --version/version print plain text.
 
 Read-only:
-  status [--initiative X] [--staleMs N]   Global view: summary, alerts, in_progress, ready, backlog, blocked, open decisions, stale claims, gotchas
+  status [--initiative X] [--staleMs N]   Global view: summary, alerts, in_progress, ready, backlog, blocked, open decisions, stale claims, gotchas (v1). On v2 projects: summary-shape with task buckets, open gates, knowledge count.
   ready [--initiative X]                  Tasks claimable right now
   next <id>                               Definition + acceptance + gotchas for a task
   pre-claim <id> [--staleMs N]            Task detail + pre-flight: spec, gotchas, derived status, structured dep details, GO/NO-GO verdict
+  context <id>                            v2 agent-first context view: node, blockers, informing edges, scoped knowledge
+  search "<query>" [--all]                Search active v2 knowledge; --all includes deprecated knowledge
   tasks [--initiative X] [--status Y]     List tasks, filterable
   graph [--initiative X]                  Print the DAG as text
   initiatives                             List registered initiatives with usage counts; surfaces orphan (unregistered) initiative references
@@ -38,12 +40,17 @@ Read-only:
   decisions [--initiative X]              List decisions
   log [--limit N] [--action X] [--agent X] [--task X] [--decision X]
                                            Show the audit log
-  show <id>                               Print the raw task, decision, or gotcha object
+  history <id> [--limit N]                Log entries that reference a node (v2) or task (v1)
+  show <id>                               Print the raw node object
 
 Mutating (require --as <agent-id>):
+  take [--initiative X] [--domain Y] [--tag Z] --as <agent>
+                                           Idempotently claim the first ready task matching the filters (or return the agent's existing claim)
   claim <id>                              Atomically reserve a ready task
   done <id> "<note>"                      Mark complete, recompute ready
   release <id>                            Free a claim. --as orchestrator|recovery releases any agent's claim
+  cancel <id> "<reason>" --as <agent>     (v2) Terminate a node without resolving (open/in_progress only)
+  resolve <id> --note "<text>" --as <agent>  (v2) Close a task as done; --choice/--rationale close a gate
   block <id> "<reason>"                   Mark a blocker on your claimed task (only the claim owner)
   reopen <id> "<reason>" --as <agent>     Re-open a done task; downstream tasks re-block
   archive <id> "<reason>" --as <agent>   Mark a task archived (terminal). in_progress requires claimer (or orchestrator|recovery).
@@ -53,24 +60,31 @@ Mutating (require --as <agent-id>):
 Adding to the DAG:
   add-task <id> --initiative X --title "..." [--depends-on A,B] [--skills ...] [--effort ...] [--domain ...]
            [--definition ...] [--acceptance ...] [--backlog true] [--priority high|medium|low]
+  add-task [id] --initiative X --title "..." --body "..." --acceptance "..." --blocked-by "..."  (v2)
+  add-gate [id] --initiative X --title "..." --body "..." --purpose decision|approval|external-dependency|research [--supersedes OLD]
+  add-knowledge [id] --initiative X --title "..." --body "..." --scope-domains X [--supersedes OLD]
   add-task --phase F1 --initiative X --title "..." [--suffix R] [...same options...]
   add-initiative <name> [--desc "..."]
   add-gotcha <id> --title "..." --applies-to domain:X[,T1,...] [--mitigation "..."]
   add-decision <id> --title "..." [--initiative X] [--applies-to F1,T2,...] [--description "..."]
+  add-node <id> --kind resolvable|knowledge --title "..." [--subkind task|gate] [--blocked-by A,B] [--derived-from A,B] [--refs a,b] [--meta '{...}']
+  add-edge <from> <to> --type BLOCKS|SUPERSEDES|DERIVED_FROM
 
 Editing tasks (any agent; status guard applies):
   update <id> [--title X] [--body "..."] [--definition "..."] [--acceptance "..."] [--skills a,b]
               [--effort S|M|L] [--domain Y] [--depends-on A,B] [--backlog true|false]
               [--priority high|medium|low] --as <agent>
                                            Edit a task. in_progress/done are locked. --depends-on rewrites the dependency list.
-  add-note <id> "text" --as <agent>       Append a note to a task's running thread (any status)
+  add-note <id> "text" --as <agent>       Append a note to a task or v2 node's running thread (any status)
 
 Lifecycle (soft delete):
   close-gotcha <id> --as <agent>          Mark a gotcha resolved (normal views hide it)
+  deprecate-knowledge <id> --reason "..." --as <agent>
+                                           Soft-delete a v2 knowledge node (sets status=deprecated + reason)
   reopen-gotcha <id> --as <agent>         Undo a close-gotcha
 
 Setup:
-  init [--force]                          Create .climier.json and the project's live state
+  init [--force] [--v2]                   Create .climier.json and the project's live state (--v2 creates the experimental nodes/edges schema)
 
 Global flags:
   --project <dir>                         Project root (default: CWD)
@@ -99,7 +113,7 @@ for (let i = 0; i < args.length; i++) {
   // Without this, `climier --force init` would parse as --force=init.
   // `json` is kept here so the parser treats it as boolean; the command's
   // knownFlags check then rejects it (it's no longer a global flag).
-  const BOOLEAN_FLAGS = new Set(["force", "json"]);
+  const BOOLEAN_FLAGS = new Set(["all", "force", "json", "v2"]);
 
   if (a.startsWith("--")) {
     const eq = a.indexOf("=");
@@ -150,7 +164,36 @@ try {
     console.log(PACKAGE_VERSION);
     process.exit(0);
   }
-  const mod = await import(`../src/commands/${command}.mjs`);
+  // F6 / F11 / F12: some commands swap their backing module when the project
+  // is v2. Resolve the target module BEFORE the default import so that v2-only
+  // commands (deprecate-knowledge, whose v2 module is named
+  // v2-deprecate-knowledge.mjs) don't blow up on a synchronous ENOENT.
+  // ponytail: the lifecycle commands all use the v2-${command}.mjs naming,
+  // so the dispatch chain below is just the exceptions (update, status,
+  // deprecate-knowledge) plus a `v2-${command}` fallback for everything else.
+  let v2Swap = false;
+  if (
+    command === "update"
+    || command === "status"
+    || command === "deprecate-knowledge"
+    || command === "release"
+    || command === "resolve"
+    || command === "reopen"
+    || command === "cancel"
+  ) {
+    const { isV2State, readState } = await import("../src/state.mjs");
+    const s = await readState(projectDir);
+    if (s && isV2State(s)) v2Swap = true;
+  }
+  let mod;
+  if (v2Swap) {
+    if (command === "update") mod = await import("../src/commands/v2-update.mjs");
+    else if (command === "status") mod = await import("../src/commands/v2-status.mjs");
+    else if (command === "deprecate-knowledge") mod = await import("../src/commands/v2-deprecate-knowledge.mjs");
+    else mod = await import(`../src/commands/v2-${command}.mjs`);
+  } else {
+    mod = await import(`../src/commands/${command}.mjs`);
+  }
   // Reject unknown flags. Global flag (--project) is always allowed.
   // --help / -h are handled before this point and never reach here.
   if (Array.isArray(mod.knownFlags)) {
@@ -168,8 +211,14 @@ try {
   }
 } catch (err) {
   if (err.code === "MODULE_NOT_FOUND" || err.code === "ERR_MODULE_NOT_FOUND") {
-    if (!command) failJson("no command given. Available: status, ready, claim, next, pre-claim, done, release, reopen, archive, block, decide, promote, tasks, graph, next-id, gotchas, decisions, log, show, update, add-note, add-task, add-initiative, add-gotcha, add-decision, close-gotcha, reopen-gotcha, initiatives, init, help, version", 2);
+    if (!command) failJson("no command given. Available: status, ready, take, claim, next, pre-claim, context, search, done, release, reopen, cancel, resolve, archive, block, decide, promote, tasks, graph, next-id, gotchas, decisions, log, history, show, update, add-note, add-task, add-gate, add-knowledge, add-initiative, add-gotcha, add-decision, add-node, add-edge, close-gotcha, deprecate-knowledge, reopen-gotcha, initiatives, init, help, version", 2);
     failJson(`unknown command '${command}'`, 2);
+  }
+  // F2: v2 commands throw with .code + .details via errors.mjs. Emit the
+  // rich shape. v1 commands still throw plain Error; their err.message is
+  // the contract.
+  if (err.code && err.details !== undefined) {
+    failJson({ code: err.code, message: err.message, details: err.details }, 1);
   }
   failJson(err.message, 1);
 }
