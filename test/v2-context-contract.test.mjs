@@ -491,7 +491,14 @@ test("context v2: allowed_actions for gate open", async () => {
       },
     });
     const out = await context({ statePath: dir, positional: ["G-x"], flags: { as: "alice" } });
-    for (const action of ["resolve", "cancel", "add-note", "supersede"]) {
+    // F13: gate resolve surfaces its required flags inline so the agent
+    // doesn't have to read the source to learn that --choice and --rationale
+    // are required. The literal substring "resolve" must still be present.
+    const resolveAction = out.allowed_actions.find((a) => a.startsWith("resolve"));
+    assert.ok(resolveAction, `expected a resolve action in ${JSON.stringify(out.allowed_actions)}`);
+    assert.match(resolveAction, /--choice/);
+    assert.match(resolveAction, /--rationale/);
+    for (const action of ["cancel", "add-note", "supersede"]) {
       assert.ok(out.allowed_actions.includes(action), `expected "${action}" in ${JSON.stringify(out.allowed_actions)}`);
     }
   } finally {

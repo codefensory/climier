@@ -180,10 +180,14 @@ export default async function statusV2({ statePath, flags }) {
     .filter((node) => !kindFilter || node.kind === kindFilter)
     .map((node) => node.id);
 
-  // --claimed-by X explicit filter; otherwise the default scope is the caller's
-  // claims (--as X), and if no --as either, show nothing in_progress.
+  // ponytail: --status X takes precedence over the default who-claimed scoping,
+  // because the user asked for a status view (e.g. `status --status in_progress`
+  // should show every in_progress task regardless of claimer). Without --status,
+  // the default scoping (caller's --as or --claimed-by) hides other agents' work.
   let inProgressScoped;
-  if (claimedByFilter) {
+  if (statusFilter) {
+    inProgressScoped = inProgressAll.filter(() => statusFilter === "in_progress");
+  } else if (claimedByFilter) {
     inProgressScoped = inProgressAll.filter((id) => claimBy(nodes[id]) === claimedByFilter);
   } else if (asFilter) {
     inProgressScoped = inProgressAll.filter((id) => claimBy(nodes[id]) === asFilter);
@@ -192,7 +196,7 @@ export default async function statusV2({ statePath, flags }) {
   }
 
   // open gates pool
-  const openGates = (derived.openGates || [])
+  const openGatesAll = (derived.openGates || [])
     .filter((id) => {
       const node = nodes[id];
       if (!node) return false;
@@ -200,6 +204,7 @@ export default async function statusV2({ statePath, flags }) {
       if (kindFilter && node.kind !== "resolvable") return false;
       return true;
     });
+  const openGates = statusFilter ? openGatesAll.filter(() => statusFilter === "open") : openGatesAll;
 
   // knowledge
   const knowledgeAll = Object.values(nodes).filter((n) => n.kind === "knowledge");

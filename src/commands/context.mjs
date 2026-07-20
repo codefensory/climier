@@ -136,7 +136,9 @@ function allowedActions(node, derivedStatus, claim, agent) {
     }
   } else if (node.kind === "resolvable" && node.subkind === "gate") {
     if (derivedStatus === "open") {
-      actions.push("resolve", "add-note", "supersede");
+      // ponytail: list the required flags inline so the agent doesn't have to
+      // read the source to learn that gate-resolve needs --choice AND --rationale.
+      actions.push("resolve --choice <X> --rationale <Y>", "add-note", "supersede");
       if (!isAnonymous) actions.push("cancel");
     } else if (derivedStatus === "resolved") {
       actions.push("reopen", "supersede");

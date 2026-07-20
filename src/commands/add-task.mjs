@@ -44,6 +44,19 @@ export default async function addTask({ statePath, flags, positional, projectDir
     );
   }
   const state = await readState(statePath);
+  // F13: --depends-on is v1 vocabulary. The v2 path goes through add-node,
+  // which has no concept of "depends-on" (v2 uses --blocked-by for the same
+  // edge from the dependent's POV). Accepting it silently dropped the flag
+  // and produced an unrelated task with no edge, which is the worst kind of
+  // bug for an automation tool. Reject it explicitly on v2 so the caller
+  // learns the right flag before any mutation runs.
+  if (state && isV2State(state) && flags["depends-on"] !== undefined) {
+    throwV2(
+      "INVALID_EDGE_KIND",
+      "add-task: --depends-on is v1 vocabulary; on a v2 state use --blocked-by instead",
+      { field: "depends-on", hint: "blocked-by" },
+    );
+  }
   if (isV2State(state)) {
     requireFields(
       "add-task",
