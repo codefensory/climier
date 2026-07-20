@@ -15,9 +15,9 @@ Use it when one or many actors need a shared source of truth for what is
 ready, claimed, blocked, decided, backlog, done, or archived.
 
 Common patterns:
-  solo / multi-session: status -> ready -> claim -> next -> work -> done
-  human + AI:           add-task -> pre-claim -> claim -> add-note/block -> done
-  orchestrator/workers: status -> ready -> delegate -> decide/release/reopen
+  solo / multi-session: status -> context -> take -> work -> resolve
+  human + AI:           add-task -> context -> take -> add-note -> resolve
+  orchestrator/workers: status -> context -> take -> add-note / block-on-knowledge / resolve / reopen
 
 Usage: climier [--project <dir>] <command> [args...]
 
@@ -26,8 +26,8 @@ Errors: { ok: false, error: "<message>" } on stdout, non-zero exit.
 Exceptions: --help/-h/help and --version/version print plain text.
 
 Read-only:
-  status [--initiative X] [--staleMs N]   Global view: summary, alerts, in_progress, ready, backlog, blocked, open decisions, stale claims, gotchas (v1). On v2 projects: summary-shape with task buckets, open gates, knowledge count.
-  ready [--initiative X]                  Tasks claimable right now
+  status [--initiative X] [--staleMs N]   Summary-shape: task buckets (ready/in_progress/blocked/backlog/done), open gates, knowledge count, alerts (v2). v1: legacy full view.
+  ready [--initiative X]                  (v1) Tasks claimable right now
   next <id>                               Definition + acceptance + gotchas for a task
   pre-claim <id> [--staleMs N]            Task detail + pre-flight: spec, gotchas, derived status, structured dep details, GO/NO-GO verdict
   context <id>                            v2 agent-first context view: node, blockers, informing edges, scoped knowledge
@@ -44,8 +44,7 @@ Read-only:
   show <id>                               Print the raw node object
 
 Mutating (require --as <agent-id>):
-  take [--initiative X] [--domain Y] [--tag Z] --as <agent>
-                                           Idempotently claim the first ready task matching the filters (or return the agent's existing claim)
+  take <id> --as <agent>                  (v2) Idempotently claim the explicit ready task; orchestrator may take over another claim
   claim <id>                              Atomically reserve a ready task
   done <id> "<note>"                      Mark complete, recompute ready
   release <id>                            Free a claim. --as orchestrator|recovery releases any agent's claim
@@ -69,12 +68,13 @@ Adding to the DAG:
   add-decision <id> --title "..." [--initiative X] [--applies-to F1,T2,...] [--description "..."]
   add-node <id> --kind resolvable|knowledge --title "..." [--subkind task|gate] [--blocked-by A,B] [--derived-from A,B] [--refs a,b] [--meta '{...}']
   add-edge <from> <to> --type BLOCKS|SUPERSEDES|DERIVED_FROM
+                                           (low-level; prefer add-task/add-gate/add-knowledge)
 
 Editing tasks (any agent; status guard applies):
   update <id> [--title X] [--body "..."] [--definition "..."] [--acceptance "..."] [--skills a,b]
               [--effort S|M|L] [--domain Y] [--depends-on A,B] [--backlog true|false]
-              [--priority high|medium|low] --as <agent>
-                                           Edit a task. in_progress/done are locked. --depends-on rewrites the dependency list.
+              [--priority high|medium|low] [--if-revision N] --as <agent>
+                                           Edit a task. in_progress/done are locked. --depends-on rewrites the dependency list. --if-revision is v2 optimistic-concurrency.
   add-note <id> "text" --as <agent>       Append a note to a task or v2 node's running thread (any status)
 
 Lifecycle (soft delete):
@@ -91,7 +91,15 @@ Global flags:
   --help, -h                              Show this help and exit
   --version                               Show the package version and exit
 
-Docs: see README.md for quickstart, workflow, storage model, and command reference.`;
+Docs: see README.md for quickstart, workflow, storage model, and command reference.
+
+Available commands (v2 surface, plus v1-legacy commands that work on v1 states):
+  v2: status, context, take, resolve, release, cancel, reopen, search, history,
+      show, update, add-note, add-initiative, add-task, add-gate, add-knowledge,
+      deprecate-knowledge, add-node, add-edge, initiatives, log, init, help, version
+  v1: ready, claim, done, block, archive, promote, decide, next, pre-claim,
+      tasks, graph, gotchas, decisions, next-id, add-decision, add-gotcha,
+      close-gotcha, reopen-gotcha`;
 
 // --help / --version: handled before arg parsing so they work with or without --project.
 if (args.includes("--help") || args.includes("-h")) {

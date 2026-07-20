@@ -222,6 +222,7 @@ Canonical v2 `BLOCKS` direction is `{ from: blocker, to: blocked, type: "BLOCKS"
 | Command | Purpose |
 |---|---|
 | `claim <id> --as <agent>` | Atomically reserve a ready task. |
+| `take <id> --as <agent>` | v2 only: idempotently claim the explicit ready task; the id is required. |
 | `done <id> "note" --as <agent>` | Mark a claimed task complete. |
 | `release <id> --as <agent>` | Free a claim without completing. `orchestrator` and `recovery` can release any claim. |
 | `block <id> "reason" --as <agent>` | Mark the current claimed task blocked. Only the claim owner can do this. |
@@ -233,6 +234,8 @@ Canonical v2 `BLOCKS` direction is `{ from: blocker, to: blocked, type: "BLOCKS"
 | `add-note <id> "text" --as <agent>` | Append a note thread entry to a task or v2 node. |
 | `close-gotcha <id> --as <agent>` | Hide a resolved gotcha from normal views. |
 | `reopen-gotcha <id> --as <agent>` | Re-open a resolved gotcha. |
+
+For v2 `take`, legacy selection flags are accepted but ignored and backlog tasks stay `NOT_READY`; `--as orchestrator` may take over another claim and records its `previous_owner`.
 
 ### Add to the DAG
 

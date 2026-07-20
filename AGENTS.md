@@ -74,6 +74,9 @@ Experimental v2 is also supported behind `init --v2`. Its snapshot shape is:
 
 v2 scope (commands that route to `v2-${name}.mjs` when state.version === 2): `take`, `update`, `status`, `release`, `resolve`, `reopen`, `cancel`, `deprecate-knowledge`, `init`, `add-task`, `add-gate`, `add-knowledge`, `add-node`, `add-edge`, `add-initiative`, `context`, `search`, `show`, `history`, and `add-note` work on it. Commands that remain v1-only: `claim`, `done`, `block`, `archive`, `decide`, `promote`, `add-task` (v1 shape), `add-gotcha`, `add-decision`, `close-gotcha`, `reopen-gotcha`, `next-id`, `pre-claim`, `next`, `ready`, `tasks`, `graph`, `gotchas`, `decisions`, `log`. v2 stubs throw a clear v2-only error if invoked against a v1 state.
 
+`take <id>` requires an explicit v2 task id; legacy `--initiative`/`--domain`/`--tag` flags are accepted but ignored, and backlog tasks remain `NOT_READY`.
+`take <id> --as orchestrator` may atomically replace another agent's claim; the `take` log entry records that agent as `previous_owner`.
+
 Canonical v2 `BLOCKS` direction is `{ from: blocker, to: blocked, type: "BLOCKS" }`; blockers are incoming edges to the blocked node.
 
 ### The two non-obvious invariants
@@ -98,6 +101,7 @@ Cycles in the DAG must not crash. `derive` keeps cycle members blocked. Unknown 
 | `search "<query>" [--all]` | `commands/search.mjs` | no | no |
 | `status [--initiative X] [--staleMs N]` | `commands/status.mjs` | no | no |
 | `ready [--initiative X]` | `commands/ready.mjs` | no | no |
+| `take <id>` | `commands/take.mjs` | yes | yes (v2 only) |
 | `claim <id>` | `commands/claim.mjs` | yes | yes |
 | `next <id>` | `commands/next.mjs` | no | no |
 | `pre-claim <id> [--staleMs N]` | `commands/pre-claim.mjs` | no | no |
