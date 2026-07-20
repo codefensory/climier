@@ -3,6 +3,9 @@
 // The CLI entry detects the resulting V2Error by err.code + err.details and
 // emits { ok: false, error: { code, message, details } } to stdout.
 
+// Claimability codes are deliberately split by cause: NOT_CLAIMABLE means
+// the node type cannot be claimed, NOT_READY means a task's state prevents a
+// claim, and ALREADY_CLAIMED means another agent owns the requested task.
 export const V2_ERROR_CODES = Object.freeze({
   NODE_NOT_FOUND: "NODE_NOT_FOUND",
   INITIATIVE_NOT_FOUND: "INITIATIVE_NOT_FOUND",
@@ -17,6 +20,8 @@ export const V2_ERROR_CODES = Object.freeze({
   MISSING_FIELD: "MISSING_FIELD",
   REVISION_CONFLICT: "REVISION_CONFLICT",
   NOT_READY: "NOT_READY",
+  NOT_CLAIMABLE: "NOT_CLAIMABLE",
+  ALREADY_CLAIMED: "ALREADY_CLAIMED",
   NOT_OWNER: "NOT_OWNER",
   INVALID_STATUS: "INVALID_STATUS",
 });

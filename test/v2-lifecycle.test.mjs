@@ -64,9 +64,9 @@ async function addGate(dir, id, extra = {}) {
   });
 }
 
-async function take(dir, as) {
+async function take(dir, as, id = "T-auth-1") {
   const { default: takeCmd } = await importFresh("./commands/take.mjs");
-  return takeCmd({ statePath: dir, flags: { as }, positional: [], projectDir: dir });
+  return takeCmd({ statePath: dir, flags: { as }, positional: [id], projectDir: dir });
 }
 
 // === release ============================================================
@@ -507,7 +507,7 @@ test("v2-reopen: re-blocks downstream tasks (DAG consequence)", async () => {
   try {
     await addTask(dir, "T-blocker");
     await addTask(dir, "T-down", { "blocked-by": "T-blocker" });
-    await take(dir, "alice");
+    await take(dir, "alice", "T-blocker");
     await resolve({ statePath: dir, flags: { as: "alice", note: "done" }, positional: ["T-blocker"] });
 
     let d = deriveV2(await readState(dir));
@@ -750,7 +750,7 @@ test("CLI: v2 release is routed to v2-release (clears claim, status=open)", asyn
       "--kind", "resolvable", "--subkind", "task", "--title", "t", "--initiative", "auth",
     ]);
     assert.equal(r.code, 0, r.stderr);
-    r = await runCli(["--project", dir, "take", "--as", "alice"]);
+    r = await runCli(["--project", dir, "take", "T-auth-1", "--as", "alice"]);
     assert.equal(r.code, 0, r.stderr);
 
     r = await runCli(["--project", dir, "release", "T-auth-1", "--as", "alice"]);
@@ -806,7 +806,7 @@ test("CLI: v2 reopen is routed to v2-reopen (status=open, claim cleared)", async
       "--kind", "resolvable", "--subkind", "task", "--title", "t", "--initiative", "auth",
     ]);
     assert.equal(r.code, 0, r.stderr);
-    r = await runCli(["--project", dir, "take", "--as", "alice"]);
+    r = await runCli(["--project", dir, "take", "T-auth-1", "--as", "alice"]);
     assert.equal(r.code, 0, r.stderr);
     r = await runCli([
       "--project", dir, "resolve", "T-auth-1",
@@ -834,7 +834,7 @@ test("CLI: v2 cancel is routed to v2-cancel (status=canceled)", async () => {
       "--kind", "resolvable", "--subkind", "task", "--title", "t", "--initiative", "auth",
     ]);
     assert.equal(r.code, 0, r.stderr);
-    r = await runCli(["--project", dir, "take", "--as", "alice"]);
+    r = await runCli(["--project", dir, "take", "T-auth-1", "--as", "alice"]);
     assert.equal(r.code, 0, r.stderr);
 
     r = await runCli(["--project", dir, "cancel", "T-auth-1", "--reason", "out of scope", "--as", "alice"]);

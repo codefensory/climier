@@ -1,9 +1,7 @@
-// F9 — `take`: idempotent claim of a ready v2 task.
-// First `take` from an agent claims the first alphabetically-sorted ready task
-// matching the filters and returns freshly_claimed=true. Subsequent `take`
-// calls from the same agent return the same task with freshly_claimed=false.
-// ponytail: idempotence is a single in-lock scan over the agent's in_progress
-// tasks; adding per-task or per-initiative indices here would be premature.
+// F9 — `take <id>`: idempotent claim of an explicit ready v2 task.
+// First `take <id>` from an agent claims that task and returns
+// freshly_claimed=true. Repeating the same id as the same agent returns it
+// with freshly_claimed=false. Legacy filters are accepted but ignored.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -40,9 +38,9 @@ async function addTask(dir, id, extra = {}) {
   });
 }
 
-async function take(dir, flags, positional = []) {
+async function take(dir, id, flags) {
   const { default: takeCmd } = await importFresh("./commands/take.mjs");
-  return takeCmd({ statePath: dir, flags, positional, projectDir: dir });
+  return takeCmd({ statePath: dir, flags, positional: [id], projectDir: dir });
 }
 
 // --- happy path --------------------------------------------------------
@@ -52,7 +50,7 @@ test("take: first call claims a ready task and returns freshly_claimed=true; sec
   try {
     await addTask(dir, "T-auth-1", { title: "Add session middleware", tags: "backend,api" });
 
-    const first = await take(dir, { as: "alice" });
+    const first = await take(dir, "T-auth-1", { as: "alice" });
     assert.equal(first.node.id, "T-auth-1");
     assert.equal(first.node.status, "in_progress");
     assert.deepEqual(first.node.claim, { by: "alice", at: first.node.claim.at });
@@ -66,7 +64,7 @@ test("take: first call claims a ready task and returns freshly_claimed=true; sec
     // revision bumped from 1 (initial) to 2 on claim.
     assert.equal(first.context.revision, 2);
 
-    const second = await take(dir, { as: "alice" });
+    const second = await take(dir, "T-auth-1", { as: "alice" });
     assert.equal(second.node.id, "T-auth-1");
     assert.equal(second.freshly_claimed, false);
     // No new state mutation: revision unchanged.
@@ -77,7 +75,7 @@ test("take: first call claims a ready task and returns freshly_claimed=true; sec
 
 // --- selection rule ----------------------------------------------------
 
-test("take: picks the alphabetically-first ready task and skips blocked tasks", async () => {
+test("take: claims the explicitly requested ready task instead of auto-selecting", async () => {
   const dir = await v2Project();
   try {
     await addTask(dir, "T-auth-zeta", { title: "Z task" });
@@ -85,19 +83,21 @@ test("take: picks the alphabetically-first ready task and skips blocked tasks", 
     await addTask(dir, "T-auth-alpha", { title: "A task", "blocked-by": "T-blocker" });
     await addTask(dir, "T-auth-mike", { title: "M task" });
 
-    const out = await take(dir, { as: "alice" });
-    assert.equal(out.node.id, "T-auth-mike");
+    const out = await take(dir, "T-auth-zeta", { as: "alice" });
+    assert.equal(out.node.id, "T-auth-zeta");
     assert.equal(out.freshly_claimed, true);
   } finally { await rmTempProject(dir); }
 });
 
 // --- no ready tasks ---------------------------------------------------
 
-test("take: throws NOT_READY with code NOT_READY when no task matches", async () => {
+test("take: throws NOT_READY when the requested task is blocked", async () => {
   const dir = await v2Project();
   try {
+    await addTask(dir, "T-blocker");
+    await addTask(dir, "T-blocked", { "blocked-by": "T-blocker" });
     await assert.rejects(
-      take(dir, { as: "alice" }),
+      take(dir, "T-blocked", { as: "alice" }),
       (err) => err.code === "NOT_READY",
     );
   } finally { await rmTempProject(dir); }
@@ -105,52 +105,50 @@ test("take: throws NOT_READY with code NOT_READY when no task matches", async ()
 
 // --- filters ----------------------------------------------------------
 
-test("take: --initiative only returns tasks of that initiative", async () => {
+test("take: accepts and ignores --initiative", async () => {
   const dir = await v2Project();
   try {
     await addInitiative(dir, "billing", "billing");
     await addTask(dir, "T-auth-1", { title: "auth task", initiative: "auth" });
     await addTask(dir, "T-billing-1", { title: "billing task", initiative: "billing" });
 
-    const out = await take(dir, { as: "alice", initiative: "billing" });
-    assert.equal(out.node.id, "T-billing-1");
+    const out = await take(dir, "T-auth-1", { as: "alice", initiative: "billing" });
+    assert.equal(out.node.id, "T-auth-1");
   } finally { await rmTempProject(dir); }
 });
 
-test("take: --initiative filter excludes everything when no match", async () => {
+test("take: an unmatched --initiative does not exclude the explicit id", async () => {
   const dir = await v2Project();
   try {
     await addTask(dir, "T-auth-1", { title: "auth task", initiative: "auth" });
-    await assert.rejects(
-      take(dir, { as: "alice", initiative: "ghost" }),
-      (err) => err.code === "NOT_READY",
-    );
+    const out = await take(dir, "T-auth-1", { as: "alice", initiative: "ghost" });
+    assert.equal(out.node.id, "T-auth-1");
   } finally { await rmTempProject(dir); }
 });
 
-test("take: --domain only returns tasks with that domain", async () => {
+test("take: accepts and ignores --domain", async () => {
   const dir = await v2Project();
   try {
     await addTask(dir, "T-auth-1", { title: "auth task", domain: "auth" });
     await addTask(dir, "T-auth-2", { title: "data task", domain: "data" });
 
-    const out = await take(dir, { as: "alice", domain: "data" });
-    assert.equal(out.node.id, "T-auth-2");
+    const out = await take(dir, "T-auth-1", { as: "alice", domain: "data" });
+    assert.equal(out.node.id, "T-auth-1");
   } finally { await rmTempProject(dir); }
 });
 
-test("take: --tag only returns tasks with that tag", async () => {
+test("take: accepts and ignores --tag", async () => {
   const dir = await v2Project();
   try {
     await addTask(dir, "T-auth-1", { title: "backend task", tags: "backend,api" });
     await addTask(dir, "T-auth-2", { title: "frontend task", tags: "frontend,ui" });
 
-    const out = await take(dir, { as: "alice", tag: "backend" });
-    assert.equal(out.node.id, "T-auth-1");
+    const out = await take(dir, "T-auth-2", { as: "alice", tag: "backend" });
+    assert.equal(out.node.id, "T-auth-2");
   } finally { await rmTempProject(dir); }
 });
 
-test("take: filter combinations are AND'd", async () => {
+test("take: accepts and ignores legacy filter combinations", async () => {
   const dir = await v2Project();
   try {
     await addInitiative(dir, "billing", "billing");
@@ -158,14 +156,14 @@ test("take: filter combinations are AND'd", async () => {
     await addTask(dir, "T-2", { title: "billing/backend", initiative: "billing", domain: "billing", tags: "backend" });
     await addTask(dir, "T-3", { title: "auth/frontend", initiative: "auth", domain: "auth", tags: "frontend" });
 
-    const out = await take(dir, { as: "alice", initiative: "auth", domain: "auth", tag: "backend" });
-    assert.equal(out.node.id, "T-1");
+    const out = await take(dir, "T-3", { as: "alice", initiative: "billing", domain: "billing", tag: "backend" });
+    assert.equal(out.node.id, "T-3");
   } finally { await rmTempProject(dir); }
 });
 
 // --- idempotence semantics --------------------------------------------
 
-test("take: idempotence respects filters — agent's existing claim with different initiative is NOT returned", async () => {
+test("take: explicit id wins over the agent's existing claim", async () => {
   const dir = await v2Project();
   try {
     await addInitiative(dir, "billing", "billing");
@@ -173,33 +171,27 @@ test("take: idempotence respects filters — agent's existing claim with differe
     await addTask(dir, "T-auth-2", { title: "auth2", initiative: "auth" });
     await addTask(dir, "T-billing-1", { title: "bill1", initiative: "billing" });
 
-    const first = await take(dir, { as: "alice", initiative: "auth" });
+    const first = await take(dir, "T-auth-1", { as: "alice", initiative: "auth" });
     assert.equal(first.node.id, "T-auth-1");
 
-    // Calling take with --initiative billing should NOT return T-auth-1
-    // (Alice already owns it but it does not match the filter); pick a
-    // billing task instead, freshly claimed.
-    const second = await take(dir, { as: "alice", initiative: "billing" });
+    const second = await take(dir, "T-billing-1", { as: "alice", initiative: "auth" });
     assert.equal(second.node.id, "T-billing-1");
     assert.equal(second.freshly_claimed, true);
   } finally { await rmTempProject(dir); }
 });
 
-test("take: another agent's in_progress task is invisible to take; second agent picks a different ready task (or errors NOT_READY if none)", async () => {
+test("take: another agent cannot take the explicit in-progress task", async () => {
   const dir = await v2Project();
   try {
     await addTask(dir, "T-only", { title: "only one ready" });
 
-    const alice = await take(dir, { as: "alice" });
+    const alice = await take(dir, "T-only", { as: "alice" });
     assert.equal(alice.node.id, "T-only");
     assert.equal(alice.node.claim.by, "alice");
 
-    // Bob's take with no other ready tasks should get NOT_READY — T-only is
-    // not in deriveV2.ready (it's in_progress by Alice), so there's nothing
-    // to claim. Bob NEVER sees Alice's task.
     await assert.rejects(
-      take(dir, { as: "bob" }),
-      (err) => err.code === "NOT_READY",
+      take(dir, "T-only", { as: "bob" }),
+      (err) => err.code === "ALREADY_CLAIMED",
     );
   } finally { await rmTempProject(dir); }
 });
@@ -210,11 +202,10 @@ test("take: second agent can claim a different task when another agent holds one
     await addTask(dir, "T-aaa");
     await addTask(dir, "T-zzz");
 
-    const alice = await take(dir, { as: "alice" });
+    const alice = await take(dir, "T-aaa", { as: "alice" });
     assert.equal(alice.node.id, "T-aaa");
 
-    const bob = await take(dir, { as: "bob" });
-    // Bob picks the next alphabetically-first ready task — T-zzz.
+    const bob = await take(dir, "T-zzz", { as: "bob" });
     assert.equal(bob.node.id, "T-zzz");
     assert.equal(bob.freshly_claimed, true);
     assert.equal(bob.node.claim.by, "bob");
@@ -229,7 +220,7 @@ test("take: rejects --as with no value (MISSING_AGENT)", async () => {
   delete process.env.CLIMIER_AGENT;
   try {
     await assert.rejects(
-      take(dir, { as: true }),
+      take(dir, "T-auth-1", { as: true }),
       (err) => err.code === "MISSING_AGENT" && /^take:/.test(err.message) && /--as/.test(err.message),
     );
   } finally {
@@ -245,7 +236,7 @@ test("take: rejects missing --as (MISSING_AGENT)", async () => {
   delete process.env.CLIMIER_AGENT;
   try {
     await assert.rejects(
-      take(dir, {}),
+      take(dir, "T-auth-1", {}),
       (err) => err.code === "MISSING_AGENT" && /^take:/.test(err.message),
     );
   } finally {
@@ -261,7 +252,7 @@ test("take: persists claim = { by, at }, status = 'in_progress', and bumps revis
   const dir = await v2Project();
   try {
     await addTask(dir, "T-auth-1", { title: "Auth task" });
-    await take(dir, { as: "alice" });
+    await take(dir, "T-auth-1", { as: "alice" });
     const s = await readState(dir);
     const node = s.nodes["T-auth-1"];
     assert.equal(node.status, "in_progress");
@@ -278,7 +269,7 @@ test("take: persists claim = { by, at }, status = 'in_progress', and bumps revis
 
 // --- CLI smoke ---------------------------------------------------------
 
-test("CLI: take --as agent-x returns node + context + freshly_claimed = true on a fresh v2 project", async () => {
+test("CLI: take <id> --as agent-x returns node + context + freshly_claimed = true on a fresh v2 project", async () => {
   const dir = await createTempProject();
   try {
     let r = await runCli(["--project", dir, "init", "--v2"]);
@@ -293,7 +284,7 @@ test("CLI: take --as agent-x returns node + context + freshly_claimed = true on 
     ]);
     assert.equal(r.code, 0, r.stderr);
 
-    r = await runCli(["--project", dir, "take", "--as", "agent-x"]);
+    r = await runCli(["--project", dir, "take", "T-auth-1", "--as", "agent-x"]);
     assert.equal(r.code, 0, r.stderr);
     const out = JSON.parse(r.stdout);
     assert.equal(out.node.id, "T-auth-1");
@@ -306,7 +297,7 @@ test("CLI: take --as agent-x returns node + context + freshly_claimed = true on 
   } finally { await rmTempProject(dir); }
 });
 
-test("CLI: take --as agent-x is idempotent across repeated invocations", async () => {
+test("CLI: take <id> --as agent-x is idempotent across repeated invocations", async () => {
   const dir = await createTempProject();
   try {
     await runCli(["--project", dir, "init", "--v2"]);
@@ -317,9 +308,9 @@ test("CLI: take --as agent-x is idempotent across repeated invocations", async (
       "--title", "Hello", "--initiative", "auth",
     ]);
 
-    const r1 = await runCli(["--project", dir, "take", "--as", "agent-x"]);
+    const r1 = await runCli(["--project", dir, "take", "T-auth-1", "--as", "agent-x"]);
     assert.equal(r1.code, 0, r1.stderr);
-    const r2 = await runCli(["--project", dir, "take", "--as", "agent-x"]);
+    const r2 = await runCli(["--project", dir, "take", "T-auth-1", "--as", "agent-x"]);
     assert.equal(r2.code, 0, r2.stderr);
 
     const first = JSON.parse(r1.stdout);

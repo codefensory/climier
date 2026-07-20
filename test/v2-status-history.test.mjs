@@ -177,8 +177,8 @@ test("status: in_progress only shows the calling agent's claims by default", asy
     await addTask(dir, "T-a", { title: "a" });
     await addTask(dir, "T-b", { title: "b" });
     const { default: take } = await importFresh("./commands/take.mjs");
-    await take({ statePath: dir, projectDir: dir, flags: { as: "alice" }, positional: [] });
-    await take({ statePath: dir, projectDir: dir, flags: { as: "bob" }, positional: [] });
+    await take({ statePath: dir, projectDir: dir, flags: { as: "alice" }, positional: ["T-a"] });
+    await take({ statePath: dir, projectDir: dir, flags: { as: "bob" }, positional: ["T-b"] });
 
     const alice = await v2Status(dir, { as: "alice" });
     assert.equal(alice.summary.in_progress, 1);
@@ -198,11 +198,9 @@ test("status: --all includes done groups and alerts", async () => {
     await addGate(dir, "G-done", { status: "resolved", choice: "yes", rationale: "ok" });
     await addTask(dir, "T-z", { title: "z" });
     const { default: take } = await importFresh("./commands/take.mjs");
-    const first = await take({ statePath: dir, projectDir: dir, flags: { as: "alice" }, positional: [] });
-    // Mark done via update + a follow-up; we just bump to done manually is
-    // not a route — use the runCli `done` path requires a v1 task. Instead,
-    // use take with a flag-less second call to claim T-z; then exercise
-    // `done` requires v1, so flip status by hand via state for verification.
+    const first = await take({ statePath: dir, projectDir: dir, flags: { as: "alice" }, positional: ["T-z"] });
+    // Flip status by hand because this test exercises the status view, not
+    // the resolve command.
     const state = await readRawState(dir);
     const tId = first.node.id;
     state.nodes[tId].status = "done";
