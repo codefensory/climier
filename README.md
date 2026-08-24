@@ -34,7 +34,7 @@ At heart, `climier` is a small state machine around a project DAG:
 - claim work safely
 - record decisions that unblock dependents
 - keep backlog separate from claimable work
-- recover from stale or wrong state with `release`, `reopen`, and `archive`
+- recover from stale or wrong state with `release`, `reopen`, and `cancel`
 
 It is a CLI, JSON-first, stdlib-only, and meant to be scriptable.
 
@@ -50,7 +50,7 @@ Use `climier` as the contract between you and coding agents. You decide what ent
 
 ### 3. Orchestrator + workers
 
-This is the classic multi-agent case: one coordinator delegates from `ready`, workers `claim -> next -> work -> done`, and the coordinator closes decisions or performs recovery.
+This is the classic multi-agent case: one coordinator delegates from `ready`, workers `take -> work -> resolve`, and the coordinator closes gates or performs recovery.
 
 ### 4. Migrations and long-running refactors
 
@@ -83,17 +83,17 @@ node bin/climier.mjs --help
 
 ## Quickstart
 
-A minimal v2 flow (v2 is the standard surface; v1 `init` is legacy):
+A minimal flow:
 
 ```bash
-# 1. Initialize the project in the current directory (v2 graph schema)
-climier init --v2
+# 1. Initialize the project in the current directory
+climier init
 
 # 2. Register an initiative
 climier add-initiative migration --desc "Move the API to the new stack" --as orchestrator
 
-# 3. Add a first task (v2 requires --body, --acceptance and --blocked-by)
-climier add-task F0.T1 \
+# 3. Add a first task (requires --body, --acceptance and --blocked-by)
+climier add-task T-mvp-1 \
   --initiative migration \
   --title "Create API skeleton" \
   --body "Create the new service with a /health endpoint" \
@@ -105,20 +105,20 @@ climier add-task F0.T1 \
 climier status
 
 # 5. Pre-flight + claim from this session
-climier context F0.T1
-climier take F0.T1 --as session-api
+climier context T-mvp-1
+climier take T-mvp-1 --as session-api
 
 # 6. Finish the work
-climier resolve F0.T1 --note "Scaffolded service and added /health" --as session-api
+climier resolve T-mvp-1 --note "Scaffolded service and added /health" --as session-api
 ```
 
-> v1 (plain `init`: tasks/decisions/gotchas, `claim`/`done`/`block`) is legacy. It still works for old projects, but all new work should use v2. Full v2 reference: `docs/v2.md`.
+> Full reference: `docs/v2.md`.
 
 ## Core concepts
 
-- **Task** — a unit of work. Persisted statuses: `in_progress`, `done`, `archived`. Derived statuses: `ready`, `blocked`, `backlog`.
-- **Decision** — a DAG node with `status: open | decided`. Tasks depending on an open decision stay blocked.
-- **Gotcha** — reusable domain knowledge attached to a domain or a specific task id.
+- **Task** — a unit of work (`subkind: "task"`). Persisted statuses: `in_progress`, `done`, `canceled`. Derived statuses: `ready`, `blocked`, `backlog`.
+- **Gate** — a resolvable node (`subkind: "gate"`, purpose `decision|approval|external-dependency|research`) that can block tasks via a `BLOCKS` edge until it is resolved.
+- **Knowledge** — a durable fact attached to a domain, initiative, tag, or specific node id (`kind: "knowledge"`).
 - **Backlog task** — a real task intentionally kept out of the ready pool until promoted.
 - **Initiative** — a tag grouping work streams such as `migration`, `auth`, or `research`.
 
@@ -130,28 +130,27 @@ Important invariant: `ready` and `blocked` are derived from dependencies. They a
 
 ```bash
 climier status
-climier ready
-climier pre-claim F1.T2
-climier claim F1.T2 --as chatgpt-session-3
-climier next F1.T2
+climier context T-auth-7
+climier take T-auth-7 --as chatgpt-session-3
 # do the work
-climier done F1.T2 "Implemented endpoint and added smoke test" --as chatgpt-session-3
+climier resolve T-auth-7 --note "Implemented endpoint and added smoke test" --as chatgpt-session-3
 ```
 
 ### Human + AI flow
 
 ```bash
-climier add-task F1.T3 \
+climier add-task T-auth-8 \
   --initiative migration \
   --title "Move auth middleware" \
-  --depends-on F1.T2,D1
+  --body "Move middleware from service A to service B." \
+  --acceptance "Same contract; staging smoke green." \
+  --blocked-by T-auth-7,G-auth-1
 
-climier pre-claim F1.T3
-climier claim F1.T3 --as claude-auth
-climier add-note F1.T3 "Need confirmation about token shape" --as claude-auth
-climier block F1.T3 "Waiting on auth decision" --as claude-auth
-climier decide D1 "Keep JWT shape stable" --because "Avoids client breakage"
-climier release F1.T3 --as recovery
+climier context T-auth-8
+climier take T-auth-8 --as claude-auth
+climier add-note T-auth-8 "Need confirmation about token shape" --as claude-auth
+climier release T-auth-8 --as claude-auth
+climier resolve G-auth-1 --choice "Keep JWT shape stable" --rationale "Avoids client breakage" --as orchestrator
 ```
 
 ### Orchestrator + workers flow
@@ -160,13 +159,13 @@ This is a **use case**, not the definition of the tool.
 
 ```bash
 climier status
-climier ready
-climier decisions
-climier claim F1.T2 --as worker-api
-climier done F1.T2 "Implemented endpoint and verified staging smoke test" --as worker-api
-climier decide D4 "Keep Supabase JWT for now" --because "Fastest migration path; revisit later"
-climier release F2.T3 --as orchestrator
-climier reopen F1.T2 "Acceptance missed the timeout case" --as orchestrator
+climier context T-auth-7
+climier take T-auth-7 --as worker-api
+# ...worker ships...
+climier resolve T-auth-7 --note "Implemented endpoint and verified staging smoke" --as worker-api
+climier resolve G-auth-2 --choice "Keep Supabase JWT for now" --rationale "Fastest migration path; revisit later" --as orchestrator
+climier release T-auth-9 --as orchestrator
+climier reopen T-auth-7 --reason "Acceptance missed the timeout case" --as orchestrator
 ```
 
 ## How state is stored
@@ -195,68 +194,52 @@ There is no `--json` flag. JSON is the default.
 
 ## Command reference
 
-Experimental v2: `init --v2` creates a `version: 2` snapshot with `{ initiatives, nodes, edges, log }`. Its creation flow uses `add-task`, `add-gate`, and `add-knowledge`; `add-node` and `add-edge` remain low-level escape hatches.
+`init` creates a `version: 2` state with `{ initiatives, nodes, edges, log }`. The creation flow uses `add-task`, `add-gate`, and `add-knowledge`; `add-node` and `add-edge` are low-level escape hatches.
 
-v2 is the **standard surface** for new projects; v1 (tasks/decisions/gotchas) is legacy. On a v2 state, v1-only commands (`claim`, `done`, `block`, `decide`, `promote`, `archive`, `ready`, `pre-claim`, `next`, `tasks`, `graph`, `gotchas`, `decisions`, `next-id`, `add-decision`, `add-gotcha`, `close-gotcha`, `reopen-gotcha`) fail with `V1_ONLY_ON_V2_STATE`.
+Projects coming from a v1 (`version: 1`) state fail with `STATE_V1_UNSUPPORTED` on first read; the error's `details.migration_steps` walks through backing up, exporting, and recreating the project. The hint suggests `climier init --force` after backup.
 
-Full v2 reference: `docs/v2.md`.
+Full reference: `docs/v2.md`.
 
-Canonical v2 `BLOCKS` direction is `{ from: blocker, to: blocked, type: "BLOCKS" }`; blockers are incoming edges to the blocked node.
+Canonical `BLOCKS` direction is `{ from: blocker, to: blocked, type: "BLOCKS" }`; blockers are incoming edges to the blocked node.
 
 ### Read-only
 
 | Command | Purpose |
 |---|---|
-| `status [--initiative X] [--staleMs N]` | Full project view: summary, alerts, in-progress work, ready tasks, backlog, blocked tasks, open decisions, stale claims, gotchas. |
-| `ready [--initiative X]` | Claimable-now tasks. Useful for any actor that wants the next safe unit of work. |
-| `pre-claim <id> [--staleMs N]` | Read-only pre-flight: spec, gotchas, dependency detail, derived status, GO/NO-GO verdict. |
-| `context <id>` | Experimental v2 agent-first view: node, blocking edges, informing edges, and scoped knowledge in one call. |
-| `search "<query>" [--all]` | Case-insensitive substring search over active v2 knowledge; `--all` includes deprecated knowledge. |
-| `next <id>` | Task definition, acceptance criteria, and matching gotchas. |
-| `tasks [--initiative X] [--status Y]` | List tasks with optional filters. |
-| `graph [--initiative X]` | DAG view. |
-| `gotchas [--initiative X] [--domain Y]` | List gotchas. |
-| `decisions [--initiative X]` | List decisions and their blocking impact. |
+| `status [--initiative X] [--staleMs N]` | Full project view: summary, alerts, in-progress work, ready tasks, backlog, blocked tasks, open gates, knowledge counts, stale claims. |
+| `context <id>` | Agent-first view of a node: spec, blockers, informing edges, scoped knowledge, allowed actions. |
+| `search "<query>" [--all]` | Case-insensitive substring search over active knowledge; `--all` includes deprecated knowledge. |
+| `history <id> [--limit N]` | Log entries that reference a node. |
+| `show <id>` | Raw node JSON. |
 | `initiatives` | List registered initiatives plus unregistered initiative values still present in nodes. |
 | `log [--limit N] [--action X] [--agent X] [--task X] [--decision X]` | Audit log. |
-| `show <id>` | Raw task, decision, or gotcha JSON. |
-| `next-id <phase> [--suffix R]` | Preview the next sequential task id for a phase. |
 
 ### Mutating
 
 | Command | Purpose |
 |---|---|
-| `claim <id> --as <agent>` | Atomically reserve a ready task. |
-| `take <id> --as <agent>` | v2 only: idempotently claim the explicit ready task; the id is required. |
-| `done <id> "note" --as <agent>` | Mark a claimed task complete. |
-| `release <id> --as <agent>` | Free a claim without completing. `orchestrator` and `recovery` can release any claim. |
-| `block <id> "reason" --as <agent>` | Mark the current claimed task blocked. Only the claim owner can do this. |
-| `reopen <id> "reason" --as <agent>` | Roll a `done` task back to `in_progress`. `orchestrator` / `recovery` can reopen any done task; the original `done_by` can self-reopen. |
-| `archive <id> "reason" --as <agent>` | Mark a task terminal without completing it. |
-| `promote <id> --as <agent>` | Pull a backlog task into the normal DAG flow. |
-| `decide <D> "choice" [--because "..."] [--as <agent>]` | Close an open decision and unblock dependents. Defaults to `orchestrator` if `--as` is omitted. |
-| `update <id> ... --as <agent>` | Edit task fields such as title, body, definition, acceptance, skills, effort, domain, dependencies, backlog, or priority. |
-| `add-note <id> "text" --as <agent>` | Append a note thread entry to a task or v2 node. |
-| `close-gotcha <id> --as <agent>` | Hide a resolved gotcha from normal views. |
-| `reopen-gotcha <id> --as <agent>` | Re-open a resolved gotcha. |
+| `init [--force]` | Create `.climier.json` and the project's live state. |
+| `take <id> --as <agent>` | Idempotently claim the explicit ready task; the id is required. |
+| `release <id> --as <agent>` | Free a claim. `orchestrator` and `recovery` can release any claim. |
+| `resolve <id> --note "<text>" --as <agent>` | Close a task as done. For gates, use `--choice "<text>" --rationale "<text>"` instead of `--note`. |
+| `reopen <id> --reason "<text>" --as <agent>` | Roll a `done` task back to `open`. `orchestrator` / `recovery` can reopen any done task; the original `done_by` can self-reopen. |
+| `cancel <id> --reason "<text>" --as <agent>` | Terminate a node without resolving (open/in_progress only). |
+| `deprecate-knowledge <id> --reason "<text>" --as <agent>` | Soft-delete a knowledge node (`status="deprecated"`). |
+| `update <id> ... --as <agent>` | Edit node fields such as title, body, definition, acceptance, domain, backlog, tags, or refs. |
+| `add-note <id> "<text>" --as <agent>` | Append a note thread entry to any node. |
 
-For v2 `take`, legacy selection flags are accepted but ignored and backlog tasks stay `NOT_READY`; `--as orchestrator` may take over another claim and records its `previous_owner`.
+For `take`, `--as orchestrator` may take over another claim and records its `previous_owner`.
 
 ### Add to the DAG
 
 | Command | Purpose |
 |---|---|
 | `add-initiative <name> [--desc "..."]` | Register an initiative. |
-| `add-task <id> --initiative X --title "..." [...]` | Add a task explicitly. |
-| `add-task --phase F1 --initiative X --title "..." [--suffix R] [...]` | Auto-allocate the next sequential task id inside a phase. |
-| `add-task ... [--backlog true] [--priority high\|medium\|low]` | Optionally create a task in backlog or assign a priority. |
-| `add-task [id] --initiative X --title "..." --body "..." --acceptance "..." --blocked-by A,B` | Add a v2 task; omit the id to generate one. |
-| `add-gate [id] --initiative X --title "..." --body "..." --purpose decision\|approval\|external-dependency\|research [--supersedes OLD]` | Add a v2 gate; omit the id to generate one. `--supersedes` atomically replaces an existing gate. |
-| `add-knowledge [id] --initiative X --title "..." --body "..." --scope-domains X [--supersedes OLD]` | Add scoped v2 knowledge; any `--scope-*` flag satisfies the scope requirement. `--supersedes` atomically replaces existing knowledge. |
-| `add-decision <id> --title "..." [--initiative X] [--applies-to F1,T2,...] [--description "..."]` | Add a decision node. |
-| `add-gotcha <id> --title "..." --applies-to domain:x[,T1,...] [--mitigation "..."]` | Add a gotcha. |
-| `add-node <id> --kind resolvable\|knowledge --title "..." [--subkind task\|gate] [--blocked-by A,B] [--derived-from A,B] [--refs a,b] [--meta '{...}']` | Experimental v2 node creation. |
-| `add-edge <from> <to> --type BLOCKS\|SUPERSEDES\|DERIVED_FROM` | Experimental v2 typed relationships. |
+| `add-task [id] --initiative X --title "..." --body "..." --acceptance "..." --blocked-by A,B [--backlog true] --as <agent>` | Append a task. The id is auto-allocated as `T-xxxxxxxx` when omitted. |
+| `add-gate [id] --initiative X --title "..." --body "..." --purpose decision\|approval\|external-dependency\|research [--supersedes OLD] --as <agent>` | Append a gate. `--supersedes` atomically replaces an existing gate and rewires downstream `BLOCKS` edges. |
+| `add-knowledge [id] --initiative X --title "..." --body "..." --scope-domains X [--scope-initiatives X] [--scope-tags X] [--scope-node-ids X] [--supersedes OLD] --as <agent>` | Append scoped knowledge; any `--scope-*` flag satisfies the scope requirement. `--supersedes` atomically replaces existing knowledge. |
+| `add-node <id> --kind resolvable\|knowledge --title "..." [--subkind task\|gate] [--blocked-by A,B] [--derived-from A,B] [--refs a,b] [--meta '{...}']` | Low-level node creation (prefer `add-task` / `add-gate` / `add-knowledge`). |
+| `add-edge <from> <to> --type BLOCKS\|SUPERSEDES\|DERIVED_FROM` | Low-level edge creation. |
 
 ## Operational guarantees
 
@@ -274,12 +257,12 @@ A cycle or an unknown dependency keeps a task blocked. The CLI stays defensive.
 
 ## Troubleshooting
 
-### `claim: task X is not ready`
+### `take: node X is not ready` (`NOT_READY`)
 
-The task is blocked, already claimed, in backlog, or gated by a decision. Run:
+The task is blocked, already claimed, in backlog, or gated by an open gate. Run:
 
 ```bash
-climier pre-claim <id>
+climier context <id>
 climier status
 ```
 
@@ -292,16 +275,17 @@ climier release <id> --as orchestrator
 ### A task was marked done but should not have been
 
 ```bash
-climier reopen <id> "reason" --as orchestrator
+climier reopen <id> --reason "..." --as orchestrator
 ```
 
 ### A task should exist, but not yet be claimable
 
-Create it in backlog, then promote it later:
+Create it in backlog, then take it later when it is no longer blocked:
 
 ```bash
-climier add-task F3.T4 --initiative migration --title "Cut over traffic" --backlog true
-climier promote F3.T4 --as orchestrator
+climier add-task T-cutover-1 --initiative migration --title "Cut over traffic" --body "..." --acceptance "..." --blocked-by "" --backlog true --as orchestrator
+# later, when blockers are clear:
+climier take T-cutover-1 --as orchestrator
 ```
 
 ### `update` fails on `in_progress` or `done`
@@ -310,11 +294,11 @@ That is by design. The spec is frozen while a task is actively owned or after it
 
 ### Stale lock file
 
-`climier` does **not** auto-clear stale lock files in v1. That is deliberate: age-based lock stealing can let two writers enter at once if a legitimate operation runs long.
+`climier` does **not** auto-clear stale lock files. That is deliberate: age-based lock stealing can let two writers enter at once if a legitimate operation runs long.
 
 If a process died and left `.lock` behind, inspect the active state directory and remove the stale file manually before retrying.
 
-In new mode the lock lives next to the live state file:
+The lock lives next to the live state file:
 
 ```bash
 $CLIMIER_HOME/projects/<project-id>/.lock

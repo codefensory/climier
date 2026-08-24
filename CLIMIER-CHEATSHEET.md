@@ -1,13 +1,13 @@
-# climier cheatsheet (v2)
+# climier cheatsheet
 
-Quick reference for agents working in this repository. State is v2: `{ version: 2, initiatives, nodes, edges, log }` at `~/.climier/projects/<project_id>/tasks.json` (global, machine-local, NOT in the repo). The repo commits only `.climier.json`, which pins the `<project_id>`.
+Quick reference for agents working in this repository. State shape: `{ version: 2, initiatives, nodes, edges, log }` at `~/.climier/projects/<project_id>/tasks.json` (global, machine-local, NOT in the repo). The repo commits only `.climier.json`, which pins the `<project_id>`.
 
 Errors are JSON to stdout with a structured shape: `{ ok: false, error: { code, message, details } }`. Branch on `error.code`, not `error.message`.
 
 ## Setup
 
-- `climier init --v2` — create the empty v2 state file for this project (one-time per machine).
-- `climier init --v2 --force` — full reset to empty v2 state (after backing up).
+- `climier init` — create the empty state file for this project (one-time per machine).
+- `climier init --force` — full reset to empty state (after backing up).
 
 ## Orient / read
 
@@ -17,7 +17,7 @@ Errors are JSON to stdout with a structured shape: `{ ok: false, error: { code, 
 - `climier status --kind task|gate|knowledge` — restrict buckets.
 - `climier status --claimed-by <agent>` — show that agent's in-progress tasks.
 - `climier status --stale-ms <N>` — change the stale threshold (default 2h).
-- `climier context <id>` — agent-first view: node, derived_status, claim, blocking, knowledge, informing, alerts, allowed_actions. Replaces v1 `next` + `pre-claim`.
+- `climier context <id>` — agent-first view: node, derived_status, claim, blocking, knowledge, informing, alerts, allowed_actions.
 - `climier context <id> --as <agent>` — scope `allowed_actions` to one agent.
 - `climier show <id>` — raw node by id (`{ type, node }`).
 - `climier history <id> [--limit N]` — log entries that reference a node.
@@ -28,7 +28,7 @@ Errors are JSON to stdout with a structured shape: `{ ok: false, error: { code, 
 ## Worker loop (take → resolve)
 
 - `climier take <id> --as <agent>` — idempotently claim a ready task. Sets `claim.by`, increments `revision`.
-- `climier resolve <id> --note "<text>" --as <agent>` — close a task as done. Replaces v1 `done`.
+- `climier resolve <id> --note "<text>" --as <agent>` — close a task as done.
 - `climier release <id> --as <agent>` — free the claim without resolving. Idempotent. `orchestrator` / `recovery` can release any agent's claim.
 - `climier cancel <id> --reason "<text>" --as <agent>` — terminate a node (open/in_progress only). Claim owner or orchestrator/recovery.
 - `climier reopen <id> --reason "<text>" --as <agent>` — roll a `done` task back to `open`. orchestrator/recovery, or original `done_by` for self-correction.
@@ -36,7 +36,7 @@ Errors are JSON to stdout with a structured shape: `{ ok: false, error: { code, 
 
 ## Spec edits
 
-- `climier update <id> [--title X] [--body "..."] [--definition "..."] [--acceptance "..."] [--domain Y] [--tags a,b] [--refs a,b] [--meta '{...}'] [--backlog true|false] [--if-revision N] --as <agent>` — edit a v2 node, bumps `revision`. v2 does not accept v1-only `--skills`, `--effort` or `--priority`; put such context in `body`/`meta` if it is genuinely needed.
+- `climier update <id> [--title X] [--body "..."] [--definition "..."] [--acceptance "..."] [--domain Y] [--tags a,b] [--refs a,b] [--meta '{...}'] [--backlog true|false] [--if-revision N] --as <agent>` — edit a node, bumps `revision`. Put extra context that doesn't fit a flag in `body`/`meta`.
 
 ## Add to the DAG
 

@@ -6,7 +6,7 @@ A worker agent starts a session, takes a task, does the work, and resolves it.
 
 ```bash
 cd ~/Dev/climier
-# (climier is on PATH via `npm link`; tasks.json was created with `climier init --v2`)
+# (climier is on PATH via `npm link`; tasks.json was created with `climier init`)
 ```
 
 ## 1. Orient

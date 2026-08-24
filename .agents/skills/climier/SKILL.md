@@ -1,11 +1,11 @@
 ---
 name: climier
-description: Use this skill when a climier task, gate, knowledge node, task graph, claim, worker, validator, or other Climier operation is already in scope. Climier coordinates tracked work through a machine-local v2 state file, atomic claims, and a structured error surface.
+description: Use this skill when a climier task, gate, knowledge node, task graph, claim, worker, validator, or other Climier operation is already in scope. Climier coordinates tracked work through a machine-local state file, atomic claims, and a structured error surface.
 ---
 
 # climier — graph harness for multi-agent workflows
 
-Climier is the coordination layer for tracked work in this repository. State lives at `~/.climier/projects/<project_id>/tasks.json` (global, machine-local, NOT in the repo and NOT under git's purview). The repo only commits `.climier.json`, which pins the `<project_id>` that resolves to that state file. Storage is **v2**: a graph of `nodes` (tasks, gates, knowledge) and typed `edges` (`BLOCKS`, `SUPERSEDES`, `DERIVED_FROM`). Workers claim one task at a time with an atomic file lock; the orchestrator reads `status` and delegates via `context` + `take` + `resolve`.
+Climier is the coordination layer for tracked work in this repository. State lives at `~/.climier/projects/<project_id>/tasks.json` (global, machine-local, NOT in the repo and NOT under git's purview). The repo only commits `.climier.json`, which pins the `<project_id>` that resolves to that state file. Storage is a graph of `nodes` (tasks, gates, knowledge) and typed `edges` (`BLOCKS`, `SUPERSEDES`, `DERIVED_FROM`). Workers claim one task at a time with an atomic file lock; the orchestrator reads `status` and delegates via `context` + `take` + `resolve`.
 
 ## When to use this skill
 
@@ -21,7 +21,7 @@ Climier is the coordination layer for tracked work in this repository. State liv
 1. **Never edit `~/.climier/projects/<project_id>/tasks.json` by hand.** Use climier commands. The state is owned by the script.
 2. **Take ONE task at a time.** `take` is exclusive. If you need two, take one, resolve, then take the other.
 3. **Never `resolve` without verifying the work.** The acceptance criteria from `context <id>` are the contract.
-4. **If you can't finish, `release` and leave a note — never just abandon.** Abandoned claims go stale and block others. There is no v2 `block`; an escalation is `add-note "blocked: ..."` plus either `release` or a handoff to the orchestrator.
+4. **If you can't finish, `release` and leave a note — never just abandon.** Abandoned claims go stale and block others. There is no `block` command; an escalation is `add-note "blocked: ..."` plus either `release` or a handoff to the orchestrator.
 5. **Identify yourself with `--as <agent-id>` on every mutating command.** Use a stable id (e.g. `claude-auth`, `pi-frontend`).
 6. **Read the scoped knowledge and gate resolutions that `context` shows you.** They are domain traps the team has already paid for; ignore them at your own risk.
 7. **Run `context <id>` before `take <id>`.** It's a read-only pre-flight: spec + knowledge + blockers + `allowed_actions` + a GO/NO-GO verdict via `derived_status`. Cheaper than discovering the task is blocked (or already taken) after you've claimed it.
@@ -106,7 +106,7 @@ After a worker resolves a task, stalls, gets cancelled, or leaves an ambiguous s
 - `.climier.json` is the only file climier-related in the repo. The state file is machine-local; backups are the operator's responsibility.
 - Multiple machines with the same repo checkout share the `.climier.json` but each have their own state file (this is by design — agents are local processes, state is the shared truth on the host that runs them).
 
-State shape (v2): `{ version: 2, initiatives, nodes, edges, log }`.
+State shape: `{ version: 2, initiatives, nodes, edges, log }`.
 
 - `nodes`: tasks (resolvable labor), gates (resolvable decisions/approvals/external deps/research), knowledge (durable facts).
 - `edges`: typed (`BLOCKS`, `SUPERSEDES`, `DERIVED_FROM`). Only `BLOCKS` affects readiness — `to` is blocked by `from`. The CLI surfaces `BLOCKS` from the dependent's POV as `--blocked-by`: `--blocked-by G-y` means "this node is blocked by G-y", and stores the canonical edge `{from: "G-y", to: <this node>, type: "BLOCKS"}`.
@@ -124,15 +124,15 @@ cd ~/Dev/climier && npm link
 If `~/.climier/projects/<project_id>/tasks.json` does not exist yet (no agent has run `init` from this repo on this machine):
 
 ```bash
-# v2 state (the only schema this repository uses)
-climier init --v2
+# default state (the only schema this repository uses)
+climier init
 ```
 
 `init` no longer accepts a `--seed` flag (removed in climier 1.0). To bootstrap with example tasks/gates/knowledge, use `climier add-initiative` → `climier add-task` → `climier add-gate` → `climier add-knowledge`. Storage is NOT in the repo and NOT under git's purview. It lives in `~/.climier/projects/<id>/`. The repo only commits `.climier.json`.
 
 ## Errors: structured shape
 
-Every climier error is JSON to stdout, exit code 1. v2 errors carry a code + details so callers can branch without parsing prose:
+Every climier error is JSON to stdout, exit code 1. Errors carry a code + details so callers can branch without parsing prose:
 
 ```bash
 $ climier take T-auth-7 --as ghost-agent
@@ -164,7 +164,7 @@ Branch on `error.code`, not on `error.message`.
 
 The CLI phrases edges from the dependent's point of view: `--blocked-by G-y` means "this node is blocked by G-y". Internally the edge is stored canonically as `from: G-y, to: <this node>, type: BLOCKS`. The `from BLOCKS to` reading is: **to is BLOCKED-BY from**. The CLI never asks for `--blocks` — only `--blocked-by`. `SUPERSEDES` and `DERIVED_FROM` keep the user-supplied direction (the new node is `from`, the older node is `to`).
 
-## The orchestrator loop (v2)
+## The orchestrator loop
 
 ```text
 status  → see who has what, what's blocked, what's stale, what gates are open
@@ -199,17 +199,17 @@ The default rule: only the claimer can `release` their own task. Escape hatches:
   climier release <id> --as orchestrator
   ```
 
-  The task returns to `open` (v2 surfaces the bucket as `ready` when nothing else blocks it) and any other agent can `take` it. `release` is idempotent: running it on an unclaimed task returns `{ released: false, node }` with no state mutation.
+  The task returns to `open` (the bucket is `ready` when nothing else blocks it) and any other agent can `take` it. `release` is idempotent: running it on an unclaimed task returns `{ released: false, node }` with no state mutation.
 
 - **`reopen` is the analogous escape hatch for `resolve`.** See "Correcting a wrong resolve" below.
 
 - **`init --force`**: overwrites a corrupt or stale state file. Use only when you're sure; it deletes the current state and re-creates an empty one.
 
   ```bash
-  climier init --v2 --force   # full reset to empty v2 state
+  climier init --force   # full reset to empty state
   ```
 
-- **There is no v2 `block`.** Escalation is `add-note "blocked: ..."` plus either `release` or a handoff to the orchestrator. The orchestrator can `release` the claim (which clears it), but cannot set a "block_reason" on a v2 task — that pattern was a v1 thing.
+- **There is no `block` command.** Escalation is `add-note "blocked: ..."` plus either `release` or a handoff to the orchestrator. The orchestrator can `release` the claim (which clears it); if the claim owner needs to record *why* they are blocked, they leave a note and release.
 
 ## Correcting a wrong resolve (`reopen`)
 
@@ -270,32 +270,32 @@ Gates have no claim lifecycle — anyone with `--as` can `resolve` a gate. Use `
 
 ## Quick reference
 
-Every command prints a single JSON value to stdout. There is no `--json` flag (it was removed in v0.2) and no text mode. Agents parse the JSON directly; humans pipe through `jq`.
+Every command prints a single JSON value to stdout. There is no `--json` flag and no text mode. Agents parse the JSON directly; humans pipe through `jq`.
 
 | Command | Purpose | Requires `--as` |
 |---|---|---|
 | `status [--initiative X] [--kind task\|gate\|knowledge] [--claimed-by X] [--stale-ms N] [--limit N] [--all]` | Global view: `summary` (ready/in_progress/blocked/backlog/open_gates/active_knowledge), task buckets, open gates, stale-claim alerts. `--all` adds done/canceled/resolved/superseded/deprecated. | no |
-| `context <id> [--as X] [--staleMs N]` | Agent-first view: `node`, `derived_status`, `revision`, `claim`, `blocking[]`, `knowledge[]` (scoped), `informing[]`, `alerts[]`, `allowed_actions[]`. Replaces v1 `next` + `pre-claim`. | no (optional `--as` to scope `allowed_actions`) |
+| `context <id> [--as X] [--staleMs N]` | Agent-first view: `node`, `derived_status`, `revision`, `claim`, `blocking[]`, `knowledge[]` (scoped), `informing[]`, `alerts[]`, `allowed_actions[]`. | no (optional `--as` to scope `allowed_actions`) |
 | `show <id>` | Print the raw node by id. Returns `{ type, node }`. | no |
-| `history <id> [--limit N]` | Log entries that reference a node (v2) or task (v1). | no |
-| `search "<query>" [--all]` | Search active v2 knowledge by id/title/body/mitigation/domain/tags/refs/meta. `--all` includes deprecated. | no |
+| `history <id> [--limit N]` | Log entries that reference a node. | no |
+| `search "<query>" [--all]` | Search active knowledge by id/title/body/mitigation/domain/tags/refs/meta. `--all` includes deprecated. | no |
 | `initiatives [--all]` | List registered initiatives with usage counts. `--all` includes zero-node initiatives. | no |
-| `log [--limit N] [--action X] [--agent X] [--task X] [--decision X]` | Show the audit log, filterable. v2 logs use `node:` (not `task:`/`decision:`). | no |
-| `take <id> --as <agent>` | Idempotently claim exactly one v2 task. Sets `claim.by`, increments `revision`. | yes |
+| `log [--limit N] [--action X] [--agent X] [--task X] [--decision X]` | Show the audit log, filterable. Logs use `node:` (not `task:`/`decision:`). | no |
+| `take <id> --as <agent>` | Idempotently claim exactly one task. Sets `claim.by`, increments `revision`. | yes |
 | `resolve <id> --note "<text>" --as <agent>` | Close a task as done. `--choice` + `--rationale` close a gate. | yes |
 | `release <id> --as <agent>` | Free a task's claim without resolving. `orchestrator`/`recovery` can release any agent's claim. Idempotent. | yes |
 | `reopen <id> --reason "<text>" --as <agent>` | Roll a `done` task back to `open`; downstream tasks re-block. `orchestrator`/`recovery` can reopen any task; the original `done_by` can self-reopen. Same rules for resolved gates. | yes |
 | `cancel <id> --reason "<text>" --as <agent>` | Terminate a node without resolving (open/in_progress only). Claim owner or `orchestrator`/`recovery`. | yes |
 | `update <id> [--title X] [--body "..."] [--definition "..."] [--acceptance "..."] [--domain Y] [--backlog true\|false] [--scope-* ...] [--meta '{...}'] [--if-revision N] --as <agent>` | Edit a node. Bumps `revision`. `--if-revision N` for optimistic concurrency. | yes |
 | `add-note <id> "<text>" --as <agent>` | Append a timestamped note to the node's `notes[]` thread. Any status. Append-only. | yes |
-| `add-task [id] --initiative X --title "..." --body "..." --acceptance "..." --blocked-by A,B [--definition ...] [--domain ...] [--backlog true] --as <agent>` | Add a task. v2 requires `--body`, `--acceptance` and `--blocked-by` (pass `--blocked-by ""` for none). Omit `id` to auto-allocate (`T-xxxxxxxx`). | yes |
+| `add-task [id] --initiative X --title "..." --body "..." --acceptance "..." --blocked-by A,B [--definition ...] [--domain ...] [--backlog true] --as <agent>` | Add a task. Requires `--body`, `--acceptance` and `--blocked-by` (pass `--blocked-by ""` for none). Omit `id` to auto-allocate (`T-xxxxxxxx`). | yes |
 | `add-gate [id] --initiative X --title "..." --body "..." --purpose decision\|approval\|external-dependency\|research [--blocked-by A,B] [--supersedes OLD] --as <agent>` | Add a gate (decision/approval/research/etc). `--supersedes OLD` rewires downstream BLOCKS edges and marks the old gate superseded atomically. | yes |
 | `add-knowledge [id] --initiative X --title "..." --body "..." [--scope-domains X] [--scope-initiatives X] [--scope-tags X] [--scope-node-ids X] [--mitigation "..."] [--supersedes OLD] --as <agent>` | Register a knowledge node. At least one `--scope-*` is required. | yes |
-| `add-initiative <name> [--desc "..."] --as <agent>` | Register an initiative. v2 rejects duplicates with `ID_CONFLICT`. | yes |
+| `add-initiative <name> [--desc "..."] --as <agent>` | Register an initiative. Duplicates are rejected with `ID_CONFLICT`. | yes |
 | `deprecate-knowledge <id> --reason "<text>" --as <agent>` | Soft-delete a knowledge node (`status="deprecated"`). | yes |
 | `add-node <id> --kind resolvable\|knowledge --title "..." [--subkind task\|gate] [--blocked-by A,B] [--derived-from A,B] [--refs a,b] [--meta '{...}'] [--initiative X] ...` | Escape hatch: low-level node creation. Prefer `add-task` / `add-gate` / `add-knowledge`. | yes |
 | `add-edge <from> <to> --type BLOCKS\|SUPERSEDES\|DERIVED_FROM --as <agent>` | Escape hatch: low-level edge CRUD. Rejects self-edges, cycles, duplicates. | yes |
-| `init [--force] [--v2]` | Create `.climier.json` and the project's live state. `--v2` creates the v2 graph schema. The `--seed` flag was removed in climier 1.0. | no |
+| `init [--force]` | Create `.climier.json` and the project's live state. The `--seed` flag was removed in climier 1.0. | no |
 
 ## Output: JSON only
 
@@ -352,7 +352,7 @@ fi
 cp ~/.climier/projects/<project_id>/tasks.json ~/.climier/projects/<project_id>/tasks.json.bak
 
 # Reset (only if you're sure; this loses log entries)
-climier init --v2 --force
+climier init --force
 # Then re-take / re-resolve the in-progress tasks you need
 ```
 
