@@ -9,11 +9,14 @@
 // Run via `climier ui` (see ../../src/commands/ui.mjs) or directly:
 //   node server/server.mjs --project <dir> [--port N]
 import path from "node:path";
+import fs from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import express from "express";
 import { readState, stateFile } from "../../src/state.mjs";
+import { projectMetaFile } from "../../src/paths.mjs";
 import {
   deriveV2,
+  statusOfV2,
   knowledgeForNode,
   blockingForNode,
   informingForNode,
@@ -52,73 +55,242 @@ function logForNode(state, id) {
   return (state.log || []).filter((e) => e.node === id || e.task === id);
 }
 
+// Coerce a `claim.at` / `claimed_at` value to epoch-ms, regardless of
+// whether it's already a number, an ISO string, or missing. Returns null
+// when the value can't be coerced. Mirrors src/commands/status.mjs.
+function claimAtMs(node) {
+  if (!node) return null;
+  const at = (node.claim && node.claim.at) || node.claimed_at;
+  if (at == null) return null;
+  if (typeof at === "number") return at;
+  if (typeof at === "string") {
+    const ms = Date.parse(at);
+    return Number.isFinite(ms) ? ms : null;
+  }
+  return null;
+}
+
+// Stale-claim detection is intentionally restricted to in_progress tasks
+// (the previous version looked at any node with a claim, including done
+// tasks — which never age out and cluttered alerts).
 function detectStaleClaims(state, staleMs = DEFAULT_STALE_MS) {
   const now = Date.now();
   const out = [];
   for (const node of Object.values(state.nodes || {})) {
-    const claim = node.claim;
-    if (!claim || !claim.ts) continue;
-    const age = now - new Date(claim.ts).getTime();
-    if (age > staleMs) out.push({ id: node.id, title: node.title, claim, age_ms: age });
+    if (node.kind !== "resolvable" || node.subkind !== "task") continue;
+    if ((node.status || "open") !== "in_progress") continue;
+    const at = claimAtMs(node);
+    if (at === null) continue;
+    const by = node.claim && node.claim.by;
+    if (!by) continue;
+    const age = now - at;
+    if (age > staleMs) {
+      out.push({
+        node_id: node.id,
+        title: node.title,
+        claimed_by: by,
+        age_ms: age,
+      });
+    }
   }
   return out;
 }
 
-function summaryOf(state, derived) {
+// Read the project_id from the repo-local metadata file (.climier.json).
+// Returns null if missing or unreadable — that's fine, the state file is
+// still the source of truth for everything else.
+async function readProjectId(projectDir) {
+  try {
+    const raw = await fs.readFile(projectMetaFile(projectDir), "utf8");
+    const meta = JSON.parse(raw);
+    if (meta && typeof meta.project_id === "string" && meta.project_id.trim()) {
+      return meta.project_id;
+    }
+  } catch {
+    /* .climier.json absent or corrupt: surface as null */
+  }
+  return null;
+}
+
+function zeroSummary() {
+  // The contract: missing metrics are 0, never undefined. Views can rely
+  // on every key being present.
+  return {
+    ready: 0,
+    in_progress: 0,
+    blocked: 0,
+    backlog: 0,
+    placeholders: 0,
+    stale: 0,
+    open_gates: 0,
+    open_decisions: 0,
+    done: 0,
+    archived: 0,
+    canceled: 0,
+    resolved_gates: 0,
+    superseded: 0,
+    active_knowledge: 0,
+    deprecated_knowledge: 0,
+    total_nodes: 0,
+  };
+}
+
+function summaryOf(state, derived, staleCount) {
   const nodes = Object.values(state.nodes || {});
-  const resolvables = nodes.filter((n) => n.kind === "resolvable");
-  const tasks = resolvables.filter((n) => n.subkind === "task");
-  const gates = resolvables.filter((n) => n.subkind === "gate");
+  const tasks = nodes.filter((n) => n.kind === "resolvable" && n.subkind === "task");
+  const gates = nodes.filter((n) => n.kind === "resolvable" && n.subkind === "gate");
   const knowledge = nodes.filter((n) => n.kind === "knowledge");
   return {
     ready: derived.ready.length,
-    in_progress: tasks.filter((n) => n.status === "in_progress").length,
+    in_progress: tasks.filter((n) => (n.status || "open") === "in_progress").length,
     blocked: derived.blocked.length,
     backlog: derived.backlog.length,
-    done: tasks.filter((n) => n.status === "done").length,
-    canceled: tasks.filter((n) => n.status === "canceled").length,
+    placeholders: tasks.filter((n) => n.placeholder === true).length,
+    stale: staleCount,
     open_gates: derived.openGates.length,
+    open_decisions: gates.filter((n) => (n.status || "open") === "open" && n.purpose === "decision").length,
+    done: tasks.filter((n) => n.status === "done").length,
+    archived: tasks.filter((n) => n.status === "archived").length,
+    canceled: tasks.filter((n) => n.status === "canceled").length,
     resolved_gates: gates.filter((n) => n.status === "resolved").length,
     superseded: nodes.filter((n) => n.status === "superseded").length,
-    active_knowledge: knowledge.filter((n) => n.status !== "deprecated").length,
+    active_knowledge: knowledge.filter((n) => (n.status || "active") !== "deprecated").length,
     deprecated_knowledge: knowledge.filter((n) => n.status === "deprecated").length,
     total_nodes: nodes.length,
   };
 }
 
+// Per-initiative breakdown grouped by kind (tasks/gates/knowledge) so
+// views don't have to re-derive the split and don't conflate kinds when
+// computing totals.
 function initiativeSummary(state) {
   const by = {};
   for (const node of Object.values(state.nodes || {})) {
     if (!node.initiative) continue;
-    by[node.initiative] = by[node.initiative] || { initiative: node.initiative, total: 0, done: 0, in_progress: 0 };
-    by[node.initiative].total += 1;
-    if (node.status === "done" || node.status === "resolved") by[node.initiative].done += 1;
-    if (node.status === "in_progress") by[node.initiative].in_progress += 1;
+    const slot = (by[node.initiative] = by[node.initiative] || {
+      initiative: node.initiative,
+      total: 0,
+      by_kind: {
+        tasks: { total: 0, ready: 0, in_progress: 0, blocked: 0, backlog: 0, done: 0, archived: 0, canceled: 0 },
+        gates: { total: 0, open: 0, resolved: 0, superseded: 0 },
+        knowledge: { total: 0, active: 0, deprecated: 0 },
+      },
+    });
+    slot.total += 1;
+    if (node.kind === "resolvable" && node.subkind === "task") {
+      const t = slot.by_kind.tasks;
+      t.total += 1;
+      const status = node.status || "open";
+      if (status === "in_progress") t.in_progress += 1;
+      else if (status === "done") t.done += 1;
+      else if (status === "archived") t.archived += 1;
+      else if (status === "canceled") t.canceled += 1;
+      else if (node.backlog === true) t.backlog += 1;
+      else if (status === "open") {
+        // The server's derived pools are ready/blocked; statusOfV2 keeps
+        // a single source of truth.
+        const derivedStatus = statusOfV2(state, node.id);
+        if (derivedStatus === "ready") t.ready += 1;
+        else if (derivedStatus === "blocked") t.blocked += 1;
+      }
+    } else if (node.kind === "resolvable" && node.subkind === "gate") {
+      const g = slot.by_kind.gates;
+      g.total += 1;
+      const status = node.status || "open";
+      if (status === "resolved") g.resolved += 1;
+      else if (status === "superseded") g.superseded += 1;
+      else g.open += 1;
+    } else if (node.kind === "knowledge") {
+      const k = slot.by_kind.knowledge;
+      k.total += 1;
+      if ((node.status || "active") === "deprecated") k.deprecated += 1;
+      else k.active += 1;
+    }
   }
   return Object.values(by).sort((a, b) => b.total - a.total);
 }
 
+// Normalize a log entry: expose the node id as `node_id`, decorate with
+// `node_title` from the current state (the log entry itself never carries
+// the title). For backward compatibility, callers that still expect
+// `node` or `task` get aliased fields too.
+function normalizeActivityEntry(state, entry) {
+  const id = entry.node || entry.task || null;
+  const node = id ? state.nodes[id] : null;
+  const out = {
+    ...entry,
+    node_id: id,
+    node_title: node ? node.title || null : null,
+  };
+  return out;
+}
+
 function recentActivity(state, limit = 20) {
   const log = state.log || [];
-  const entries = log.slice(-limit).reverse();
-  return entries.map((e) => {
-    const node = state.nodes[e.node] || state.nodes[e.task];
-    return { ...e, node_title: node ? node.title : null };
-  });
+  return log.slice(-limit).reverse().map((e) => normalizeActivityEntry(state, e));
+}
+
+function activityAll(state, limit, offset) {
+  const entries = state.log || [];
+  const total = entries.length;
+  const start = Math.max(0, total - limit - offset);
+  const end = Math.max(0, total - offset);
+  const page = entries.slice(start, end).reverse().map((e) => normalizeActivityEntry(state, e));
+  return { entries: page, total, limit, offset };
+}
+
+// Refs are always returned as structured objects {target, type, source}.
+// - explicit `node.refs` entries that are already objects pass through
+//   (with default type/source when missing);
+// - bare-string entries (legacy shape) are wrapped;
+// - markdown paths detected in body/definition/acceptance/notes are
+//   wrapped as type='doc', source=<the field they came from>.
+function normalizeRef(input, defaults = {}) {
+  if (input == null) return null;
+  if (typeof input === "string") {
+    return { target: input, type: defaults.type || "doc", source: defaults.source || "explicit" };
+  }
+  if (typeof input === "object") {
+    return {
+      target: String(input.target || ""),
+      type: String(input.type || defaults.type || "doc"),
+      source: String(input.source || defaults.source || "explicit"),
+    };
+  }
+  return null;
 }
 
 function refsOf(node) {
-  const seen = new Set();
   const out = [];
-  const add = (ref) => {
-    if (!ref || seen.has(ref)) return;
-    seen.add(ref);
-    out.push(ref);
+  const seen = new Set();
+  const push = (ref) => {
+    const normalized = normalizeRef(ref);
+    if (!normalized || !normalized.target) return;
+    const key = `${normalized.target}::${normalized.type}::${normalized.source}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(normalized);
   };
-  for (const ref of node.refs || []) add(ref);
-  const text = [node.body, node.definition, node.acceptance, ...(node.notes || []).map((n) => n.text)].join("\n");
-  const re = /(?:\.decisions\/|\.adrs\/|docs\/)[A-Za-z0-9_./-]+\.md/g;
-  for (const m of text.matchAll(re)) add(m[0]);
+  for (const ref of node.refs || []) push(ref);
+  const sources = [
+    ["body", node.body],
+    ["definition", node.definition],
+    ["acceptance", node.acceptance],
+  ];
+  for (const [source, text] of sources) {
+    if (!text) continue;
+    const re = /(?:\.decisions\/|\.adrs\/|docs\/)[A-Za-z0-9_./-]+\.md/g;
+    for (const m of String(text).matchAll(re)) {
+      push({ target: m[0], type: "doc", source });
+    }
+  }
+  for (const note of node.notes || []) {
+    if (!note || !note.text) continue;
+    const re = /(?:\.decisions\/|\.adrs\/|docs\/)[A-Za-z0-9_./-]+\.md/g;
+    for (const m of String(note.text).matchAll(re)) {
+      push({ target: m[0], type: "doc", source: "notes" });
+    }
+  }
   return out;
 }
 
@@ -128,10 +300,12 @@ export async function start({ projectDir, port = DEFAULT_PORT, log = console.err
   // Fail fast at boot on a corrupt state, like before. After that, every
   // request re-reads the live state file so the UI tracks CLI mutations in
   // real time: no server restart and no browser reload required.
-  let lastGood = await readState(projectDir).catch((err) => {
+  const initial = await readState(projectDir).catch((err) => {
     // Corrupt state: surface it clearly instead of serving an empty board.
     throw new Error(`ui: cannot read state for ${projectDir}: ${err.message}`);
   });
+  let lastGood = initial;
+  let lastProjectId = await readProjectId(projectDir);
 
   // Fresh read per request. If the file becomes unreadable mid-run, fall
   // back to the last good state and surface a visible alert instead of
@@ -139,16 +313,35 @@ export async function start({ projectDir, port = DEFAULT_PORT, log = console.err
   async function freshState() {
     try {
       lastGood = await readState(projectDir);
-      return { state: lastGood, read_error: null };
+      const nextProjectId = await readProjectId(projectDir);
+      if (nextProjectId !== lastProjectId) lastProjectId = nextProjectId;
+      return { state: lastGood, read_error: null, project_id: lastProjectId };
     } catch (err) {
-      return { state: lastGood, read_error: err };
+      return { state: lastGood, read_error: err, project_id: lastProjectId };
     }
   }
 
   function stateReadAlerts(readError) {
     return readError
-      ? [{ kind: "state-read-error", code: readError.code || "STATE_READ_ERROR", message: readError.message }]
+      ? [{
+          kind: "state-read-error",
+          severity: "error",
+          code: readError.code || "STATE_READ_ERROR",
+          node_id: null,
+          message: readError.message,
+        }]
       : [];
+  }
+
+  function staleAlerts(stale) {
+    return stale.map((s) => ({
+      kind: "stale-claim",
+      severity: "warning",
+      node_id: s.node_id,
+      claimed_by: s.claimed_by,
+      age_ms: s.age_ms,
+      message: `${s.node_id} claimed by ${s.claimed_by} is stale (${Math.round(s.age_ms / 60000)}m old)`,
+    }));
   }
 
   const app = express();
@@ -157,21 +350,23 @@ export async function start({ projectDir, port = DEFAULT_PORT, log = console.err
   app.get("/api/health", (req, res) => res.json({ ok: true }));
 
   app.get("/api/snapshot", async (req, res) => {
-    const { state, read_error } = await freshState();
+    const { state, read_error, project_id } = await freshState();
     if (!state) {
       return res.json({
-        project: { root: projectDir, state_file: stateFile(projectDir), initialized: false },
+        project: { root: projectDir, state_file: stateFile(projectDir), initialized: false, project_id },
         generated_at: new Date().toISOString(),
         initiatives: {},
         nodes: {},
         edges: [],
         derived: { ready: [], blocked: [], backlog: [], openGates: [] },
-        summary: null,
+        initiative_summary: [],
+        summary: zeroSummary(),
         alerts: stateReadAlerts(read_error),
         recent_activity: [],
       });
     }
     const derived = deriveV2(state);
+    const stale = detectStaleClaims(state);
     const lastActivity = {};
     for (const e of state.log || []) {
       const id = e.node || e.task;
@@ -182,7 +377,7 @@ export async function start({ projectDir, port = DEFAULT_PORT, log = console.err
         root: projectDir,
         state_file: stateFile(projectDir),
         initialized: true,
-        project_id: state.project_id || null,
+        project_id,
       },
       generated_at: new Date().toISOString(),
       initiatives: state.initiatives || {},
@@ -190,8 +385,9 @@ export async function start({ projectDir, port = DEFAULT_PORT, log = console.err
       edges: state.edges || [],
       derived,
       last_activity: lastActivity,
-      summary: summaryOf(state, derived),
-      alerts: [...stateReadAlerts(read_error), ...detectStaleClaims(state).map((s) => ({ kind: "stale-claim", ...s }))],
+      initiative_summary: initiativeSummary(state),
+      summary: summaryOf(state, derived, stale.length),
+      alerts: [...stateReadAlerts(read_error), ...staleAlerts(stale)],
       recent_activity: recentActivity(state),
     });
   });
@@ -207,7 +403,7 @@ export async function start({ projectDir, port = DEFAULT_PORT, log = console.err
     const dependents = dependentsOf(state, id);
     const informing = informingForNode(state, id);
     const knowledge = knowledgeForNode(state, id);
-    const history = logForNode(state, id).slice(-50);
+    const history = logForNode(state, id).slice(-50).map((e) => normalizeActivityEntry(state, e));
     res.json({
       node,
       blocking,
@@ -216,7 +412,9 @@ export async function start({ projectDir, port = DEFAULT_PORT, log = console.err
       knowledge,
       history,
       refs: refsOf(node),
-      derived_status: node.kind === "resolvable" ? deriveStatusFor(state, id) : node.status,
+      // Drive the derivation off the same function the CLI uses so the UI
+      // can't disagree about what an open gate / blocked task looks like.
+      derived_status: statusOfV2(state, id),
       is_current: isCurrent(state, id),
       superseded_by: supersededBy(state, id),
     });
@@ -226,19 +424,19 @@ export async function start({ projectDir, port = DEFAULT_PORT, log = console.err
     const { state } = await freshState();
     if (!state) return res.json({ entries: [], total: 0, limit: 50, offset: 0 });
     const { action, agent, node, limit = 50, offset = 0 } = req.query;
+    const lim = Math.max(0, parseInt(limit, 10) || 0);
+    const off = Math.max(0, parseInt(offset, 10) || 0);
     let entries = state.log || [];
     if (action) entries = entries.filter((e) => e.action === action);
     if (agent) entries = entries.filter((e) => e.agent === agent);
     if (node) entries = entries.filter((e) => e.node === node || e.task === node);
+    // After filtering, rebuild a windowed page off the filtered list so the
+    // client gets the same envelope shape regardless of query.
     const total = entries.length;
-    const page = entries
-      .slice(-parseInt(limit, 10) - parseInt(offset, 10), total - parseInt(offset, 10))
-      .map((e) => {
-        const n = state.nodes[e.node] || state.nodes[e.task];
-        return { ...e, node_title: n ? n.title : null };
-      })
-      .reverse();
-    res.json({ entries: page, total, limit: parseInt(limit, 10), offset: parseInt(offset, 10) });
+    const start = Math.max(0, total - lim - off);
+    const end = Math.max(0, total - off);
+    const page = entries.slice(start, end).reverse().map((e) => normalizeActivityEntry(state, e));
+    res.json({ entries: page, total, limit: lim, offset: off });
   });
 
   app.get("/api/search", async (req, res) => {
@@ -285,19 +483,9 @@ export async function start({ projectDir, port = DEFAULT_PORT, log = console.err
   return { url, server, state: lastGood };
 }
 
-function deriveStatusFor(state, id) {
-  // A node is ready when it has no unsatisfied blockers; otherwise blocked.
-  const node = state.nodes[id];
-  const status = node.status || "open";
-  if (status !== "open") return status;
-  if (node.backlog === true) return "backlog";
-  const blocking = blockingForNode(state, id);
-  return blocking.every((b) => b.satisfied) ? "ready" : "blocked";
-}
-
 async function exists(p) {
   try {
-    await import("node:fs/promises").then((fs) => fs.access(p));
+    await fs.access(p);
     return true;
   } catch {
     return false;

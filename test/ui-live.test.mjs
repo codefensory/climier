@@ -102,3 +102,182 @@ test("corrupt state mid-run serves last good snapshot with a state-read-error al
   assert.ok(snap.nodes["F0.T1"]);
   assert.ok(snap.alerts.some((a) => a.kind === "state-read-error"));
 });
+
+// --- Phase 1: contrato de lectura -----------------------------------------
+
+function withClaim(state, id, claim) {
+  return { ...state, nodes: { ...state.nodes, [id]: { ...state.nodes[id], claim } } };
+}
+
+test("open gate derived_status is 'open' (not 'ready')", { skip }, async (t) => {
+  const dir = await createTempProject();
+  t.after(() => rmTempProject(dir));
+  await writeState(dir, exampleState());
+
+  const { base, server } = await startServer(dir);
+  t.after(() => closeServer(server));
+
+  // D1 is an open decision gate in the example fixture.
+  const node = await getJson(`${base}/api/node/D1`);
+  assert.equal(node.derived_status, "open", "an open gate must report derived_status=open");
+});
+
+test("stale-claim alert uses claim.at (not claim.ts)", { skip }, async (t) => {
+  const dir = await createTempProject();
+  t.after(() => rmTempProject(dir));
+  const baseState = exampleState();
+  const staleAt = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString();
+  // Stale-claim alerts only fire on in_progress tasks (per the plan: a
+  // done task with an old claim is not stale work). Set the status too.
+  baseState.nodes["F0.T1"].status = "in_progress";
+  await writeState(dir, withClaim(baseState, "F0.T1", { by: "alice", at: staleAt }));
+
+  const { base, server } = await startServer(dir);
+  t.after(() => closeServer(server));
+
+  const snap = await getJson(`${base}/api/snapshot`);
+  const stale = snap.alerts.find((a) => a.kind === "stale-claim");
+  assert.ok(stale, "expected a stale-claim alert for an old in_progress claim");
+  assert.equal(stale.severity, "warning");
+  assert.equal(stale.node_id, "F0.T1");
+  assert.ok(stale.message && stale.message.includes("F0.T1"));
+});
+
+test("summary includes placeholders, archived, open_decisions and counts zero when missing", { skip }, async (t) => {
+  const dir = await createTempProject();
+  t.after(() => rmTempProject(dir));
+  // exampleState has multiple placeholders (F2.OPEN..F9.OPEN) and decision
+  // gates (D1..D4), so placeholders > 0, open_decisions = 4.
+  await writeState(dir, exampleState());
+
+  const { base, server } = await startServer(dir);
+  t.after(() => closeServer(server));
+
+  const snap = await getJson(`${base}/api/snapshot`);
+  assert.ok(snap.summary, "summary must exist");
+  assert.ok(Number.isInteger(snap.summary.placeholders));
+  // exampleState has 8 placeholders: F2-F9.OPEN
+  assert.ok(snap.summary.placeholders >= 8, `placeholders should count F2-F9 (>=8), got ${snap.summary.placeholders}`);
+  assert.equal(snap.summary.open_decisions, 4);
+  assert.equal(snap.summary.archived, 0);
+  assert.ok(Number.isInteger(snap.summary.canceled));
+  assert.ok(Number.isInteger(snap.summary.superseded));
+  assert.ok(Number.isInteger(snap.summary.resolved_gates));
+  assert.equal(snap.summary.total_nodes, Object.keys(snap.nodes).length);
+});
+
+test("refs come back as structured objects {target,type,source}", { skip }, async (t) => {
+  const dir = await createTempProject();
+  t.after(() => rmTempProject(dir));
+  const baseState = exampleState();
+  // Mix: a structured ref, a bare string ref, and a body that references a doc path.
+  baseState.nodes["F0.T1"].refs = [
+    { target: "docs/architecture.md", type: "doc", source: "body" },
+    "docs/notes.md",
+  ];
+  baseState.nodes["F0.T1"].body = "see docs/from-body.md for the design";
+  await writeState(dir, baseState);
+
+  const { base, server } = await startServer(dir);
+  t.after(() => closeServer(server));
+
+  const node = await getJson(`${base}/api/node/F0.T1`);
+  assert.ok(Array.isArray(node.refs));
+  const foundStructured = node.refs.find((r) => r.target === "docs/architecture.md" && r.source === "body");
+  assert.ok(foundStructured, "explicit structured ref must round-trip");
+  const foundString = node.refs.find((r) => r.target === "docs/notes.md");
+  assert.ok(foundString, "bare-string ref must be normalized to a structured object");
+  assert.ok(foundString.type);
+  assert.ok(foundString.source);
+  const foundBody = node.refs.find((r) => r.target === "docs/from-body.md");
+  assert.ok(foundBody, "doc paths referenced in the body must surface as structured refs");
+  for (const r of node.refs) {
+    assert.equal(typeof r.target, "string");
+    assert.equal(typeof r.type, "string");
+    assert.equal(typeof r.source, "string");
+  }
+});
+
+test("recent_activity entries expose node_id and node_title for add-node events", { skip }, async (t) => {
+  const dir = await createTempProject();
+  t.after(() => rmTempProject(dir));
+  const baseState = exampleState();
+  const ts = new Date().toISOString();
+  baseState.log = [
+    ...baseState.log,
+    { action: "add-node", node: "F2.OPEN", agent: "bob", ts, note: "added placeholder" },
+  ];
+  await writeState(dir, baseState);
+
+  const { base, server } = await startServer(dir);
+  t.after(() => closeServer(server));
+
+  const snap = await getJson(`${base}/api/snapshot`);
+  const last = snap.recent_activity[snap.recent_activity.length - 1];
+  assert.equal(last.action, "add-node");
+  assert.equal(last.node_id, "F2.OPEN");
+  assert.equal(last.node_title, baseState.nodes["F2.OPEN"].title);
+});
+
+test("project_id is read from .climier.json metadata", { skip }, async (t) => {
+  const dir = await createTempProject();
+  t.after(() => rmTempProject(dir));
+  // The meta file must exist BEFORE the state file so the global state
+  // path resolves to the same project_id the meta advertises. Otherwise
+  // writeState falls back to the default (hash-of-dir) project id and
+  // the server reads from a different path than we wrote.
+  await fs.promises.writeFile(
+    path.join(dir, ".climier.json"),
+    JSON.stringify({ version: 1, project_id: "abcdef1234567890" }),
+  );
+  await writeState(dir, exampleState());
+
+  const { base, server } = await startServer(dir);
+  t.after(() => closeServer(server));
+
+  const snap = await getJson(`${base}/api/snapshot`);
+  assert.equal(snap.project.initialized, true);
+  assert.equal(snap.project.project_id, "abcdef1234567890");
+});
+
+test("initiative_summary breaks down totals by kind", { skip }, async (t) => {
+  const dir = await createTempProject();
+  t.after(() => rmTempProject(dir));
+  await writeState(dir, exampleState());
+
+  const { base, server } = await startServer(dir);
+  t.after(() => closeServer(server));
+
+  const snap = await getJson(`${base}/api/snapshot`);
+  assert.ok(Array.isArray(snap.initiative_summary));
+  const mig = snap.initiative_summary.find((i) => i.initiative === "migration");
+  assert.ok(mig, "migration initiative must be present");
+  assert.ok(mig.by_kind, "initiative_summary must include by_kind breakdown");
+  // exampleState has 14 tasks (F0.T1-T4, F1.T1-T2, F2-F9.OPEN placeholders),
+  // 4 gates (D1-D4), 5 knowledge (G1-G5).
+  assert.ok(mig.by_kind.tasks && mig.by_kind.tasks.total >= 14, `tasks.total got ${mig.by_kind.tasks && mig.by_kind.tasks.total}`);
+  assert.ok(mig.by_kind.gates && mig.by_kind.gates.total >= 4);
+  assert.ok(mig.by_kind.knowledge && mig.by_kind.knowledge.total >= 5);
+});
+
+test("GET endpoints never mutate the live state file", { skip }, async (t) => {
+  const dir = await createTempProject();
+  t.after(() => rmTempProject(dir));
+  await writeState(dir, exampleState());
+
+  const { base, server } = await startServer(dir);
+  t.after(() => closeServer(server));
+
+  // Fire a handful of reads; the file mtime must not change.
+  const stateFile = stateFilePath(dir);
+  const before = fs.statSync(stateFile);
+  await new Promise((r) => setTimeout(r, 50));
+  await Promise.all([
+    fetch(`${base}/api/snapshot`).then((r) => r.json()),
+    fetch(`${base}/api/node/F0.T1`).then((r) => r.json()),
+    fetch(`${base}/api/node/D1`).then((r) => r.json()),
+    fetch(`${base}/api/activity`).then((r) => r.json()),
+  ]);
+  const after = fs.statSync(stateFile);
+  assert.equal(after.mtimeMs, before.mtimeMs, "GET requests must not rewrite the state file");
+});
