@@ -210,7 +210,7 @@ function KnowledgeCard(props) {
       <div class="flex flex-1 flex-col gap-3 px-4 pb-4 pt-1">
         <h3 class="text-[15px] leading-6 font-semibold text-ink">{k().title}</h3>
         <Show when={k().body}>
-          <p class="whitespace-pre-wrap text-[13px] leading-5 text-body">
+          <p class="whitespace-pre-wrap text-[13px] leading-5 text-body" title={k().body}>
             {previewBody(k().body, 4)}
           </p>
         </Show>

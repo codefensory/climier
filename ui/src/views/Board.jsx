@@ -111,7 +111,7 @@ function BoardCard(props) {
         <span class="mono shrink-0 text-[12px] text-mute">{n().id}</span>
         <StatusBadge status={props.status} />
       </div>
-      <div class="mt-2 line-clamp-2 text-[14px] font-medium leading-5 text-ink">
+      <div class="mt-2 line-clamp-2 text-[14px] font-medium leading-5 text-ink" title={n().title}>
         {n().title}
       </div>
       <div class="mt-3 flex flex-wrap items-center gap-1.5">
@@ -134,7 +134,7 @@ function BoardCard(props) {
             <span class="font-semibold text-ink">Blocked by</span>
             <span class="mono text-mute">{props.principalBlocker.id}</span>
           </div>
-          <div class="mt-0.5 line-clamp-1 text-ink">{props.principalBlocker.title}</div>
+          <div class="mt-0.5 line-clamp-1 text-ink" title={props.principalBlocker.title}>{props.principalBlocker.title}</div>
           <Show when={liveBlockers() > 1}>
             <div class="mt-1 text-mute">+{liveBlockers() - 1} more live blocker(s)</div>
           </Show>
@@ -196,11 +196,11 @@ function OpenGatesRail(props) {
                     <span class="mono text-[12px] text-gate">{g.id}</span>
                     <Chip tone="gate">{g.purpose || "decision"}</Chip>
                   </div>
-                  <div class="mt-2 line-clamp-2 text-[13px] font-medium leading-5 text-ink">
+                  <div class="mt-2 line-clamp-2 text-[13px] font-medium leading-5 text-ink" title={g.title}>
                     {g.title}
                   </div>
                   <Show when={g.body}>
-                    <div class="mt-1 line-clamp-2 text-[12px] leading-4 text-mute">
+                    <div class="mt-1 line-clamp-2 text-[12px] leading-4 text-mute" title={g.body}>
                       {g.body}
                     </div>
                   </Show>

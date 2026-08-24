@@ -315,7 +315,9 @@ export default function NodeDetail() {
       {/* ── Body ───────────────────────────────────────────────────── */}
       <div class="flex-1 space-y-4 overflow-auto p-4">
         <Show when={detailError()} fallback={
-          <Show when={d()} fallback={<DetailLoading />}>
+          <Show when={d()} fallback={
+            <div role="status" aria-live="polite" class="text-[12px] text-mute">Loading node detail…</div>
+          }>
             <DetailBody
               detail={d()}
               lastActivityMap={lastActivityMap()}
@@ -813,16 +815,6 @@ function NoteRow(props) {
       </div>
       <div class="mt-1 whitespace-pre-wrap text-[13px] leading-5 text-body">{note.text}</div>
     </li>
-  );
-}
-
-function DetailLoading() {
-  return (
-    <div class="space-y-3" aria-hidden="true">
-      <div class="h-7 w-2/3 rounded-full bg-panel-2" />
-      <div class="h-4 w-1/2 rounded-full bg-panel-2" />
-      <div class="h-4 w-1/3 rounded-full bg-panel-2" />
-    </div>
   );
 }
 

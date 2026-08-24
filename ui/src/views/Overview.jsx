@@ -134,6 +134,19 @@ export function groupAlertsByKind(alerts) {
   return Object.entries(groups);
 }
 
+// Shell-level alerts (F7a): kinds the shell banner owns. state-read-error is
+// surfaced by Main above the route on every view, so the Overview page
+// filters it from its per-kind groups to avoid showing the same critical
+// alert twice.
+export const SHELL_ALERT_KINDS = new Set(["state-read-error"]);
+
+// The alerts the Overview page renders itself. Everything the shell owns
+// (see SHELL_ALERT_KINDS) is dropped here; the shell banner already covers
+// it. Unknown kinds stay visible so future alert types still surface.
+export function pageAlerts(alerts) {
+  return (alerts || []).filter((a) => !(a && a.kind && SHELL_ALERT_KINDS.has(a.kind)));
+}
+
 // Ready tasks from the server's derived pool (point 4). Filters to tasks
 // only (the pool is resolvable nodes; gates are excluded by subkind) and
 // keeps server order. Respects the max limit.
@@ -539,7 +552,9 @@ export default function Overview() {
   const lastRefresh = () => lastSuccessfulAt() || s()?.generated_at;
 
   // === 2. Global alerts grouped by kind ====================================
-  const alertsByKind = createMemo(() => groupAlertsByKind(s()?.alerts));
+  // Shell-owned kinds (state-read-error) render as the Main-level banner;
+  // this section groups only the page-level alerts.
+  const alertsByKind = createMemo(() => groupAlertsByKind(pageAlerts(s()?.alerts)));
 
   // === 3. Operational status metrics ========================================
   const metrics = createMemo(() => buildMetrics(sum()));
@@ -598,7 +613,7 @@ export default function Overview() {
                         >
                           <button
                             type="button"
-                            class="flex min-h-[28px] items-center gap-2 rounded px-1 text-left hover:bg-panel-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
+                            class="flex min-h-[32px] items-center gap-2 rounded px-1 text-left hover:bg-panel-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
                             onClick={() => select(a.node_id)}
                           >
                             <span class="mono shrink-0 text-[12px]">{a.node_id}</span>

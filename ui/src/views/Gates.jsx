@@ -158,16 +158,16 @@ function GateRow(props) {
           </Show>
         </div>
         <div class="min-w-0">
-          <div class="truncate text-[13px] leading-5 font-medium text-ink">
+          <div class="truncate text-[13px] leading-5 font-medium text-ink" title={gate().title}>
             {gate().title}
           </div>
           <Show when={gate().resolution}>
-            <div class="mt-1 line-clamp-2 whitespace-pre-wrap text-[12px] leading-4 text-body">
+            <div class="mt-1 line-clamp-2 whitespace-pre-wrap text-[12px] leading-4 text-body" title={previewLines(gate().resolution.rationale, 2)}>
               {previewLines(gate().resolution.rationale, 2)}
             </div>
           </Show>
           <Show when={!gate().resolution && gate().body}>
-            <div class="mt-1 line-clamp-2 whitespace-pre-wrap text-[12px] leading-4 text-body">
+            <div class="mt-1 line-clamp-2 whitespace-pre-wrap text-[12px] leading-4 text-body" title={gate().body}>
               {previewLines(gate().body, 2)}
             </div>
           </Show>

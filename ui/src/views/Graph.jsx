@@ -324,17 +324,17 @@ export default function Graph() {
               {(k) => <option value={k}>{k === "knowledge" ? "Knowledge" : k === "gate" ? "Gates" : "Tasks"}</option>}
             </For>
           </select>
-          <label class="flex items-center gap-1.5 text-xs text-slate-600">
+          <label class="flex items-center gap-1.5 text-xs text-body">
             <input type="checkbox" checked={showHistory()} onChange={(e) => setShowHistory(e.currentTarget.checked)} />
             Show history
           </label>
-          <div class="ml-auto flex items-center gap-2 text-[11px] text-slate-600">
+          <div class="ml-auto flex items-center gap-2 text-[11px] text-mute">
             <button type="button" class={BTN_CLS} onClick={fit}>Fit</button>
             <button type="button" class={BTN_CLS} onClick={reset}>Reset</button>
             <span class="mono w-12 text-right tabular-nums">{Math.round(zoom() * 100)}%</span>
           </div>
         </FilterBar>
-        <div class="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1.5 text-[11px] text-slate-600">
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1.5 text-[11px] text-mute">
           <span><span class="text-rose-600">→</span> BLOCKS</span>
           <span><span class="text-purple-600">→</span> SUPERSEDES</span>
           <span><span class="text-sky-600">→</span> DERIVED_FROM</span>

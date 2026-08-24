@@ -71,6 +71,7 @@ import {
   drawerAvailable,
   railGlyph,
   projectDisplayName,
+  stateReadAlert,
 } from "./shell.mjs";
 
 // Glue the pure metadata (ui/src/routes.mjs) to the view components. The
@@ -380,6 +381,13 @@ function Main() {
     return parsed.unknown ? parsed.raw : "";
   });
 
+  // State-read-error is a shell-level alert: the server keeps serving the
+  // last good snapshot but tags it with a state-read-error alert. Surface it
+  // as one high-priority banner above the route so it is visible from every
+  // view (the Overview page filters the kind from its own alert groups to
+  // avoid duplicating it).
+  const stateReadError = createMemo(() => stateReadAlert(snapshot()?.alerts));
+
   // Pick the route component. Unknown ids already fall back to DEFAULT_ROUTE
   // in the store; this is a defensive second guard.
   const RouteComponent = createMemo(() => {
@@ -389,6 +397,22 @@ function Main() {
 
   return (
     <main class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" data-route={route()}>
+      {/* State read error — the highest-priority banner. The server is
+          serving a stale snapshot because the state file is unreadable.
+          Shown on every view, above both the route and the background
+          refresh banner. */}
+      <Show when={stateReadError()}>
+        <div class="shrink-0 px-4 pt-3 md:px-6">
+          <AlertBanner tone="error" title="State read error">
+            <span class="mono text-[12px]">{stateReadError().message}</span>
+            <span class="ml-2 text-mute">
+              Showing the last good snapshot. Fix the state file, or re-initialize from the CLI
+              (<span class="mono">climier init --force</span>).
+            </span>
+          </AlertBanner>
+        </div>
+      </Show>
+
       {/* Background error from the last poll: keep the snapshot on screen
           and surface a dismissible banner above the route. The nav lives
           outside Main, so it never disappears on a later error. */}

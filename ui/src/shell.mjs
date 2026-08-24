@@ -116,3 +116,14 @@ export function projectDisplayName(snapshot) {
   if (parts.length > 1) return parts[parts.length - 1];
   return id;
 }
+
+// === Shell-level alerts ====================================================
+// The server snapshot can carry alerts the whole shell must surface, not
+// just one view. `stateReadAlert` is the single source of truth for "the
+// state file could not be read" so Main can render one high-priority banner
+// regardless of the active route, and views can filter the kind out of their
+// own per-kind alert groups (see Overview.pageAlerts) without duplicating it.
+export function stateReadAlert(alerts) {
+  if (!Array.isArray(alerts)) return null;
+  return alerts.find((a) => a && a.kind === "state-read-error") || null;
+}
