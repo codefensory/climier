@@ -18,8 +18,17 @@
 //      placeholders. When everything is zero, a single compact line
 //      "No immediate coordination issues" — no dashed empty cards.
 //
-// Points 6-8 (initiatives, recent activity, project record) belong to
-// T-ui-overview-context and are intentionally NOT implemented here.
+//   6. Initiatives: one card per initiative (including registered ones
+//      with no nodes), description merged from state.initiatives with the
+//      server's initiative_summary breakdown, task total, a segmented bar
+//      by task states (never mixing kinds), open gates.
+//   7. Recent activity (max 8): relative time with absolute timestamp in
+//      the tooltip, humanized action, agent, node title+id, note preview;
+//      add-node events normalized (node_id from note) and clickable to
+//      NodeDetail; no duplicate (action, node) rows.
+//   8. Project record: compact linked rows for done / archived / canceled /
+//      superseded / resolved gates / active+deprecated knowledge, each
+//      navigating to the view that owns that entity.
 //
 // Data comes exclusively from the server snapshot (ui/server/server.mjs):
 // derived pools (ready/blocked/backlog/openGates), summary counters,
@@ -45,10 +54,12 @@ import {
   EmptyState,
   Time,
   LiveStatus,
+  ProgressBar,
 } from "../components.jsx";
 
 export const WORK_LIMIT = 4;
 export const ATTENTION_LIMIT = 4;
+export const ACTIVITY_LIMIT = 8;
 
 // Humanized titles for alert kinds the server can emit today. Unknown kinds
 // fall back to the raw kind so future alert types still render a readable
@@ -183,6 +194,163 @@ export function buildAttentionBlocks(input) {
   return blocks;
 }
 
+// === Activity helpers (point 7) ============================================
+// Recent activity is capped at ACTIVITY_LIMIT events. Rows are normalized
+// from the server's `recent_activity` snapshot array so legacy add-node log
+// entries (node id lives only in the note) stay clickable, and repeated
+// bookkeeping for the same (action, node) is collapsed so the 8 slots show
+// distinct activity instead of a run of identical events.
+
+// Humanized titles for log actions the CLI emits today. Unknown actions fall
+// back to the raw action so future log surface still renders a readable row.
+export const ACTION_LABELS = {
+  "add-node": "Node added",
+  "add-edge": "Edge added",
+  "add-note": "Note added",
+  "deprecate-knowledge": "Knowledge deprecated",
+  take: "Claimed",
+  release: "Released",
+  resolve: "Resolved",
+  reopen: "Reopened",
+  cancel: "Canceled",
+  update: "Updated",
+  supersede: "Superseded",
+};
+
+export function humanizeAction(action) {
+  return ACTION_LABELS[action] || String(action || "event");
+}
+
+// Resolve the canonical node id for an activity entry. The server exposes
+// `node_id`; legacy entries carry `node`/`task` aliases; and pre-normalization
+// add-node entries only have the new id in the note (add-node appends
+// note = id). Returns null when no id can be derived.
+export function activityNodeId(entry) {
+  if (!entry) return null;
+  if (entry.node_id) return entry.node_id;
+  if (entry.node || entry.task) return entry.node || entry.task;
+  if (entry.action === "add-node") return entry.note || null;
+  return null;
+}
+
+// Normalized recent-activity rows (point 7). Drops entries whose node is not
+// present in the snapshot (they could not open a NodeDetail), decorates with
+// the current title, collapses duplicate (action, node_id) events and caps
+// the list at ACTIVITY_LIMIT.
+export function recentActivity(entries, nodes, limit = ACTIVITY_LIMIT) {
+  const byId = nodes || {};
+  const out = [];
+  const seen = new Set();
+  for (const raw of entries || []) {
+    const nodeId = activityNodeId(raw);
+    if (!nodeId || !byId[nodeId]) continue;
+    const key = `${raw.action || ""}::${nodeId}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({
+      ...raw,
+      node_id: nodeId,
+      node_title: raw.node_title || byId[nodeId].title || null,
+    });
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+// === Initiative helpers (point 6) ==========================================
+// Merge the registered initiatives map (state.initiatives — carries the
+// description) with the server's initiative_summary breakdown (counts by
+// kind). Registered initiatives without any node still produce a row with
+// zero counts; summary entries not present in the registered map produce a
+// row with an empty description (defensive against drift).
+
+function zeroInitiativeBreakdown() {
+  return {
+    tasks: { total: 0, ready: 0, in_progress: 0, blocked: 0, backlog: 0, done: 0, archived: 0, canceled: 0 },
+    gates: { total: 0, open: 0, resolved: 0, superseded: 0 },
+    knowledge: { total: 0, active: 0, deprecated: 0 },
+  };
+}
+
+// Ordering contract: attention/activity first, then alphabetical. Attention
+// is the open/active work an operator would scan for: tasks being worked,
+// blocked, ready to claim, plus open gates. Backlog/done are parked or
+// closed, so they do not pull an initiative to the top.
+export function initiativeRows(initiatives, summary) {
+  const registered = initiatives || {};
+  const byName = new Map();
+  for (const name of Object.keys(registered)) {
+    byName.set(name, { desc: (registered[name] && registered[name].desc) || "", entry: null });
+  }
+  for (const entry of summary || []) {
+    if (!entry || !entry.initiative) continue;
+    byName.set(entry.initiative, {
+      desc: (registered[entry.initiative] && registered[entry.initiative].desc) || "",
+      entry,
+    });
+  }
+  const rows = [];
+  for (const [initiative, info] of byName) {
+    const byKind = (info.entry && info.entry.by_kind) || zeroInitiativeBreakdown();
+    const t = byKind.tasks || {};
+    const g = byKind.gates || {};
+    rows.push({
+      initiative,
+      desc: info.desc,
+      total: t.total || 0,
+      by_kind: byKind,
+      attention:
+        (t.ready || 0) + (t.in_progress || 0) + (t.blocked || 0) + (g.open || 0),
+    });
+  }
+  rows.sort(
+    (a, b) => b.attention - a.attention || a.initiative.localeCompare(b.initiative)
+  );
+  return rows;
+}
+
+// Segments for the initiative progress bar. Task states only — the bar never
+// mixes gates/knowledge into the same percentage (the plan forbids a
+// percentage that conflates kinds).
+export const TASK_SEGMENTS = [
+  ["ready", "Ready"],
+  ["in_progress", "In progress"],
+  ["blocked", "Blocked"],
+  ["backlog", "Backlog"],
+  ["done", "Done"],
+  ["archived", "Archived"],
+  ["canceled", "Canceled"],
+];
+
+export function initiativeSegments(row) {
+  const t = (row && row.by_kind && row.by_kind.tasks) || {};
+  return TASK_SEGMENTS.map(([tone, label]) => ({
+    tone,
+    label,
+    count: t[tone] || 0,
+  }));
+}
+
+// === Project record helpers (point 8) ======================================
+// Compact linked rows over the summary counters. Every row navigates to the
+// view that owns that entity: task statuses to Tasks, gate statuses to Gates,
+// knowledge statuses to Knowledge. Superseded can in principle touch any
+// kind, but the closest single home is the Gates view's All tab (superseding
+// is primarily a gate/ADR-history concept); this is a presentation choice,
+// not a re-derivation of the DAG.
+export function projectRecord(summary) {
+  const s = summary || {};
+  return [
+    { key: "done", label: "Done", value: s.done || 0, nav: "tasks" },
+    { key: "archived", label: "Archived", value: s.archived || 0, nav: "tasks" },
+    { key: "canceled", label: "Canceled", value: s.canceled || 0, nav: "tasks" },
+    { key: "superseded", label: "Superseded", value: s.superseded || 0, nav: "gates" },
+    { key: "resolved_gates", label: "Resolved gates", value: s.resolved_gates || 0, nav: "gates" },
+    { key: "active_knowledge", label: "Active knowledge", value: s.active_knowledge || 0, nav: "knowledge" },
+    { key: "deprecated_knowledge", label: "Deprecated knowledge", value: s.deprecated_knowledge || 0, nav: "knowledge" },
+  ];
+}
+
 // === WorkRow ===============================================================
 // One row in the Work now lists. Real <button>; opens NodeDetail via
 // store.select. Shows status, id, title, initiative and owner/last activity.
@@ -259,6 +427,102 @@ function AttentionBlock(props) {
   );
 }
 
+// === ActivityRow ===========================================================
+// One recent-activity event (point 7). A real <button>: opens NodeDetail via
+// store.select. Shows relative time (Time renders the absolute timestamp in
+// its tooltip), the humanized action, the agent, the node title+id and a
+// one-line note preview. Rendered only for events whose node still exists,
+// so the button always has a real detail to open.
+
+function ActivityRow(props) {
+  // entry (object, required — normalized activity entry from recentActivity)
+  const { select } = useStore();
+  const e = () => props.entry || {};
+  const note = () => (e().note ? String(e().note).trim() : "");
+  return (
+    <button
+      type="button"
+      class="flex min-h-[44px] w-full items-start gap-3 rounded-control border border-line bg-panel px-3 py-2 text-left transition-colors hover:bg-panel-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
+      onClick={() => select(e().node_id)}
+      aria-label={`${humanizeAction(e().action)} ${e().node_id} ${e().node_title || ""}`}
+    >
+      <Time value={e().ts} />
+      <div class="min-w-0 flex-1">
+        <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+          <span class="text-[12px] font-medium text-ink">{humanizeAction(e().action)}</span>
+          <Show when={e().agent}>
+            <span class="mono truncate text-[12px] text-mute">{e().agent}</span>
+          </Show>
+        </div>
+        <div class="mt-0.5 flex min-w-0 items-center gap-2">
+          <span class="mono shrink-0 text-[12px] text-body">{e().node_id}</span>
+          <span class="min-w-0 flex-1 truncate text-[13px] leading-5 text-ink" title={e().node_title || ""}>
+            {e().node_title || ""}
+          </span>
+        </div>
+        <Show when={note()}>
+          <div class="mt-0.5 truncate text-[12px] leading-4 text-mute" title={note()}>
+            {note()}
+          </div>
+        </Show>
+      </div>
+    </button>
+  );
+}
+
+// === InitiativeCard ========================================================
+// One initiative (point 6): name, description, task total, segmented bar by
+// task states (ProgressBar) and open gates. Informational — there is no
+// initiative route to navigate to.
+
+function InitiativeCard(props) {
+  // row (object, required — from initiativeRows)
+  const row = () => props.row || {};
+  const byKind = () => row().by_kind || {};
+  const tasks = () => byKind().tasks || {};
+  const openGates = () => (byKind().gates || {}).open || 0;
+  return (
+    <div class="rounded-control border border-line bg-panel p-4">
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          <h4 class="truncate text-[14px] font-semibold text-ink">{row().initiative}</h4>
+          <Show when={row().desc}>
+            <p class="mt-0.5 line-clamp-2 text-[12px] leading-4 text-mute">{row().desc}</p>
+          </Show>
+        </div>
+        <Chip>{tasks().total || 0} tasks</Chip>
+      </div>
+      <div class="mt-3">
+        <ProgressBar segments={initiativeSegments(row())} />
+      </div>
+      <div class="mt-2 text-[12px] leading-4 text-mute">
+        Open gates: <span class="tabular-nums">{openGates()}</span>
+      </div>
+    </div>
+  );
+}
+
+// === RecordRow =============================================================
+// One compact project-record line (point 8). A real <button>: navigates to
+// the view that owns that entity via setRoute.
+
+function RecordRow(props) {
+  // row (object, required — { label, value, nav } from projectRecord)
+  const { setRoute } = useStore();
+  const r = () => props.row || {};
+  return (
+    <button
+      type="button"
+      class="flex min-h-[32px] w-full items-center justify-between gap-2 rounded px-2 py-1 text-left transition-colors hover:bg-panel-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
+      onClick={() => setRoute(r().nav)}
+      aria-label={`${r().label}: ${r().value}`}
+    >
+      <span class="truncate text-[12px] text-body">{r().label}</span>
+      <span class="tabular-nums shrink-0 text-[13px] font-semibold text-ink">{r().value}</span>
+    </button>
+  );
+}
+
 // === Overview ==============================================================
 export default function Overview() {
   const { snapshot, select, setRoute, lastSuccessfulAt, refreshing, snapshotError } = useStore();
@@ -289,6 +553,17 @@ export default function Overview() {
     buildAttentionBlocks({ alerts: s()?.alerts, derived: derived(), nodes: nodes() })
   );
   const hasAttentionItems = createMemo(() => attentionBlocks().length > 0);
+
+  // === 6. Initiatives ======================================================
+  const initiativeRowsMemo = createMemo(() =>
+    initiativeRows(s()?.initiatives, s()?.initiative_summary)
+  );
+
+  // === 7. Recent activity (max 8) ==========================================
+  const activityMemo = createMemo(() => recentActivity(s()?.recent_activity, nodes()));
+
+  // === 8. Project record ===================================================
+  const recordMemo = createMemo(() => projectRecord(sum()));
 
   return (
     <div class="mx-auto max-w-[1440px] p-4 md:p-6">
@@ -428,6 +703,62 @@ export default function Overview() {
             </div>
           </Show>
         </Panel>
+      </div>
+
+      {/* 6. Initiatives — one card per initiative, segmented by task states */}
+      <div class="mt-6">
+        <Panel title="Initiatives">
+          <Show
+            when={initiativeRowsMemo().length > 0}
+            fallback={<EmptyState variant="compact" title="No initiatives registered." />}
+          >
+            <div class="grid gap-3 lg:grid-cols-2">
+              <For each={initiativeRowsMemo()}>
+                {(row) => <InitiativeCard row={row} />}
+              </For>
+            </div>
+          </Show>
+        </Panel>
+      </div>
+
+      {/* 7+8. Recent activity + Project record — 8/4 column split */}
+      <div class="mt-6 grid gap-4 lg:grid-cols-12">
+        <div class="lg:col-span-8">
+          <Panel
+            title="Recent activity"
+            right={
+              <Show when={activityMemo().length >= ACTIVITY_LIMIT}>
+                <button
+                  type="button"
+                  class="inline-flex min-h-[36px] items-center rounded-control border border-line bg-panel-2 px-3 text-[12px] text-body hover:bg-mid focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
+                  onClick={() => setRoute("activity")}
+                >
+                  View all
+                </button>
+              </Show>
+            }
+          >
+            <Show
+              when={activityMemo().length > 0}
+              fallback={<EmptyState variant="compact" title="No activity yet." />}
+            >
+              <div class="space-y-2">
+                <For each={activityMemo()}>
+                  {(e) => <ActivityRow entry={e} />}
+                </For>
+              </div>
+            </Show>
+          </Panel>
+        </div>
+        <div class="lg:col-span-4">
+          <Panel title="Project record">
+            <div class="space-y-0.5">
+              <For each={recordMemo()}>
+                {(r) => <RecordRow row={r} />}
+              </For>
+            </div>
+          </Panel>
+        </div>
       </div>
     </div>
   );
