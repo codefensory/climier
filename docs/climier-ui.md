@@ -1,6 +1,14 @@
 # Climier UI: tablero, DAG y contexto de nodos
 
-**Estado:** propuesta de producto y diseño
+**Estado:** propuesta de producto y diseño · **MVP implementado (lectura)** en `ui/`
+
+## Decisiones tomadas
+
+1. **Stack:** frontend Solid + Tailwind; backend Node.js + Express. Todo vive en la carpeta `ui/` como subproyecto con su propio `package.json` (el CLI raíz sigue stdlib-only; `climier ui` importa `ui/server/server.mjs`, que resuelve sus deps desde `ui/node_modules`).
+2. **Comando:** `climier ui [--port N] [--open=true|false]` levanta el server en localhost (127.0.0.1:7373 por defecto), imprime el JSON del contrato y queda vivo sirviendo. Abre el navegador por defecto (desactivable con `--open=false`). Buildea `ui/dist` on demand si falta.
+3. **Lecturas:** el server Node lee el state file con `readState` del propio CLI y deriva con `deriveV2` / `knowledgeForNode` / `blockingForNode` (cero drift de lógica). El snapshot se expone como endpoint `GET /api/snapshot`; no se crea un comando CLI `snapshot` por ahora. El browser nunca toca `tasks.json`.
+4. **Sin mutaciones por ahora:** Fase 3 (acciones) e identidad del humano van a backlog. La UI es read-only y lo declara en la interfaz.
+5. **Sin testing de la UI por ahora** (decisión explícita). La suite existente del CLI (`npm test`) se mantiene verde.
 
 ## 1. Resumen
 
@@ -475,58 +483,35 @@ No se debe mostrar todo el log en el tablero. El log debe tener:
 
 ### 13.1 UI local
 
-La primera versión debería ejecutarse localmente:
+Implementado: `climier ui --project <dir>` arranca el server Express local (`ui/server/server.mjs`) y abre la página (`ui/dist` generado por Vite; frontend Solid + Tailwind en `ui/src/`).
 
-```bash
-climier ui --project ~/Dev/vegsport
-```
-
-La UI no debe leer o modificar `tasks.json` desde el navegador.
-
-- Lecturas: mediante una API local o un comando de snapshot.
-- Mutaciones: mediante los comandos de Climier o funciones que respeten `withLock`, `updateState` y `append`.
+- El server escucha en `127.0.0.1` por defecto.
+- Lecturas: `GET /api/snapshot`, `GET /api/node/:id`, `GET /api/activity`, `GET /api/search`. El server es el único lector del state file (importa `readState` y las funciones puras de derivación del propio CLI).
+- Mutaciones (futuras, en backlog): mediante los comandos de Climier o funciones que respeten `withLock`, `updateState` y `append`.
 - El estado permanece en `CLIMIER_HOME`.
-- El servidor debe escuchar en localhost por defecto.
 
 Una UI remota requeriría resolver autenticación, almacenamiento compartido, control de acceso y exposición segura de notas. No forma parte del MVP.
 
 ### 13.2 Snapshot de lectura
 
-Actualmente climier tiene `status`, `context`, `show`, `history` y `log`, pero no una exportación completa del grafo. La UI no debería hacer cientos de llamadas independientes para construir la pantalla.
-
-Se propone una lectura futura como:
-
-```bash
-climier snapshot --all
-```
-
-Shape conceptual:
+Implementado como endpoint del server (`GET /api/snapshot`), no como comando CLI. Shape real:
 
 ```js
 {
-  version: 2,
-  project: {
-    root: "...",
-    project_id: "..."
-  },
-  generated_at: "...",
+  project: { root, state_file, initialized, project_id },
+  generated_at,
   initiatives: {},
   nodes: {},
   edges: [],
-  derived: {
-    "T-auth-1": {
-      status: "blocked",
-      blocking: [],
-      dependents: [],
-      knowledge: []
-    }
-  },
+  derived: { ready: [], blocked: [], backlog: [], openGates: [] },
+  last_activity: { "T-1": { action, agent, ts, note } },
   summary: {},
+  alerts: [],
   recent_activity: []
 }
 ```
 
-El snapshot debe conservar los campos originales y agregar sólo campos derivados claramente identificados.
+El snapshot conserva los campos originales y agrega sólo campos derivados claramente identificados (`derived`, `last_activity`, `summary`, `alerts`). La derivación reutiliza las funciones puras del CLI (`deriveV2`, `knowledgeForNode`, `blockingForNode`) para no duplicar lógica.
 
 ### 13.3 Actualizaciones en vivo
 
@@ -554,39 +539,28 @@ Toda mutación desde la UI debe:
 
 ## 15. Roadmap
 
-### MVP: lectura y aprendizaje
+### MVP: lectura y aprendizaje — IMPLEMENTADO (sin testing por decisión)
 
-- servidor/UI local;
-- Overview;
-- Board con `ready`, `in_progress`, `blocked`, `backlog`;
-- filtros por initiative, kind y status;
-- panel de detalle;
-- blockers, dependents y knowledge;
-- notes e historial;
-- glosario de términos Climier;
-- comando `snapshot` o equivalente interno.
+- [x] servidor/UI local (`climier ui`, Express + Solid + Tailwind en `ui/`);
+- [x] Overview;
+- [x] Board con `ready`, `in_progress`, `blocked`, `backlog` + fila `Gates`;
+- [x] filtros por initiative, kind y status;
+- [x] panel de detalle (spec, blockers, dependents, knowledge, notes, history, refs);
+- [x] Graph DAG filtrable (pan/zoom, initiative, history, shapes por tipo, leyenda);
+- [x] Nodes / Gates / Knowledge / Activity con filtros y paginación;
+- [x] glosario contextual vía explicaciones inline;
+- [x] snapshot como endpoint `/api/snapshot` (reutiliza la derivación del CLI).
 
-### Fase 2: grafo y actividad
+### Fase 2: grafo y actividad — PARCIAL (Graph y Activity ya existen; falta search global e impacto downstream dedicado)
 
-- DAG filtrable;
-- dirección y tipos de edges;
-- búsqueda global;
-- Activity / Log con filtros;
-- mostrar dependencias superseded o canceladas;
-- vista de impacto downstream.
+### Fase 3: acciones — A BACKLOG
 
-### Fase 3: acciones
-
-- `take`;
-- `add-note`;
-- `release`;
-- `resolve`;
-- `reopen`;
-- `cancel`;
+- `take`, `add-note`, `release`, `resolve`, `reopen`, `cancel`;
 - edición segura con revision conflict;
-- feedback del comando equivalente.
+- feedback del comando equivalente;
+- identidad del humano (qué `--as` usa la UI) — pendiente, depende de las acciones.
 
-### Fase 4: colaboración avanzada
+### Fase 4: colaboración avanzada — A BACKLOG
 
 - actualizaciones en vivo;
 - worktree y validator metadata estructurada;
@@ -666,3 +640,10 @@ Estas métricas deben validarse con usuarios antes de fijarlas como contrato:
 - `src/lock.mjs`: coordinación de mutaciones concurrentes.
 - `~/Dev/vegsport/AGENTS.md`: uso de Climier en el monorepo.
 - `~/Dev/vegsport/CLIMIER-CHEATSHEET.md`: workflow y vocabulario usado por agents.
+
+### Implementación de la UI (nueva)
+
+- `ui/server/server.mjs`: server Express local, API `/api/snapshot|node|activity|search`, static de `ui/dist`.
+- `ui/src/`: frontend Solid + Tailwind (vistas Overview, Board, Graph, Nodes, Gates, Knowledge, Activity, NodeDetail).
+- `src/commands/ui.mjs`: comando `climier ui` (deps check, build on demand, arranque y open browser).
+- `src/v2.mjs` / `src/state.mjs`: funciones puras reutilizadas por el server (`deriveV2`, `knowledgeForNode`, `blockingForNode`, `readState`).

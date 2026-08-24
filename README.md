@@ -213,6 +213,7 @@ Canonical `BLOCKS` direction is `{ from: blocker, to: blocked, type: "BLOCKS" }`
 | `show <id>` | Raw node JSON. |
 | `initiatives` | List registered initiatives plus unregistered initiative values still present in nodes. |
 | `log [--limit N] [--action X] [--agent X] [--task X] [--decision X]` | Audit log. |
+| `ui [--port N] [--open=true\|false]` | Start the local read-only web UI (board, DAG graph, node context, activity) and open it in the browser. Requires the `ui/` subproject deps (`npm install` in `ui/` once); the UI assets are built on demand. The server reads the live state with the CLI's own derivation functions; the browser never touches `tasks.json`. |
 
 ### Mutating
 

@@ -35,6 +35,8 @@ Read-only:
                                           Show the audit log.
   history <id> [--limit N]               Log entries that reference a node.
   show <id>                              Print the raw node object.
+  ui [--port N] [--open=true|false]      Start the local read-only web UI and open it in the browser.
+                                          Requires the ui/ subproject deps (npm install in ui/ once).
 
 Mutating (require --as <agent-id>):
   take <id> --as <agent>                 Idempotently claim a ready task; orchestrator may take over another claim.
@@ -80,7 +82,7 @@ Docs: see README.md for quickstart, workflow, storage model, and command referen
 Available commands:
   status, context, take, resolve, release, cancel, reopen, search, history,
   show, update, add-note, add-initiative, add-task, add-gate, add-knowledge,
-  deprecate-knowledge, add-node, add-edge, initiatives, log, init, help, version.`;
+  deprecate-knowledge, add-node, add-edge, initiatives, log, init, ui, help, version.`;
 
 // --help / --version: handled before arg parsing so they work with or without --project.
 if (args.includes("--help") || args.includes("-h")) {
@@ -173,7 +175,7 @@ try {
   if (err.code === "MODULE_NOT_FOUND" || err.code === "ERR_MODULE_NOT_FOUND") {
     if (!command) {
       failJson(
-        "no command given. Available: status, context, take, resolve, release, cancel, reopen, search, history, show, update, add-note, add-task, add-gate, add-knowledge, add-initiative, add-node, add-edge, deprecate-knowledge, initiatives, log, init, help, version",
+        "no command given. Available: status, context, take, resolve, release, cancel, reopen, search, history, show, update, add-note, add-task, add-gate, add-knowledge, add-initiative, add-node, add-edge, deprecate-knowledge, initiatives, log, init, ui, help, version",
         2,
       );
     }

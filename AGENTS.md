@@ -94,10 +94,11 @@ Cycles in the DAG must not crash. The derivation keeps cycle members blocked. Un
 | `deprecate-knowledge <id> --reason "<text>"` | `commands/deprecate-knowledge.mjs` | yes | required |
 | `add-node <id> --kind resolvable\|knowledge --title "..." [--subkind task\|gate] [--blocked-by A,B] [--derived-from A,B] [--refs a,b] [--meta '{...}']` | `commands/add-node.mjs` | yes | required |
 | `add-edge <from> <to> --type BLOCKS\|SUPERSEDES\|DERIVED_FROM` | `commands/add-edge.mjs` | yes | required |
+| `ui [--port N] [--open=true\|false]` | `commands/ui.mjs` (starts `ui/server/server.mjs`) | no (read-only) | no |
 
 ## Hard rules for contributing
 
-1. **No new runtime dependencies.** Stdlib only. If you think you need a package, you almost certainly don't.
+1. **No new runtime dependencies for the CLI.** Stdlib only. The `ui/` directory is an exception by design: it is a self-contained subproject (own `package.json`, `node_modules`, `dist/`) for the local web UI (Express server + Solid/Tailwind frontend). `climier ui` imports `ui/server/server.mjs`, which resolves its deps from `ui/node_modules`; the CLI package itself gains no runtime deps. If you think you need a package in `bin/`/`src/`, you almost certainly don't.
 2. **TDD strict.** Write the failing test first, then make it pass. The test suite is the spec.
 3. **No silent failures.** Every error path either throws with a clear message or has a tested behavior. If you find yourself "handling" an error by logging and continuing, write a test that documents the behavior, or change the code to fail loud.
 4. **Schema validation on write.** `writeState` rejects states missing `nodes`/`edges`/`initiatives`/`log`. Don't relax this without a test that says why.
