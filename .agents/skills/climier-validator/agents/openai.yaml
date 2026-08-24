@@ -1,0 +1,7 @@
+interface:
+  display_name: "Climier Validator"
+  short_description: "Validate climier worker output"
+  default_prompt: "Use $climier-validator to validate completed climier task <task-id>."
+
+policy:
+  allow_implicit_invocation: true

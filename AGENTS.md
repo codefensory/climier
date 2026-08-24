@@ -258,3 +258,19 @@ When you add a new command, pick whichever shape fits the data. **Do not** add a
 3. Read one command end-to-end (`commands/claim.mjs` is the most representative).
 4. Look at `test/concurrent-claims.test.mjs` — it shows the multi-agent guarantee in action.
 5. Then tackle your task. TDD: write the test, watch it fail, implement, watch it pass.
+
+## Local AI workflow
+
+This repository carries the portable agent workflow used by the Climier-based projects:
+
+- `.pi/SYSTEM.md` — operating policy for the principal agent;
+- `.pi/agents/climier-worker.md` — worker prompt;
+- `.pi/agents/climier-validator.md` — independent validator prompt;
+- `.pi/agents/rfc-reviewer.md` — RFC/ADR review prompt;
+- `.agents/skills/climier/` — v2 protocol and examples;
+- `.agents/skills/climier-worker/` — worktree, context and finish helpers;
+- `.agents/skills/climier-validator/` — validation and merge contract;
+- `.agents/skills/spec-pipeline/` — RFC → review → ADR → tasks pipeline;
+- `CLIMIER-CHEATSHEET.md` — quick command reference.
+
+These files define how this project uses Climier. The project-specific source of truth remains the code, tests and `docs/`; the live Climier state remains outside the repository and is accessed only through the CLI.

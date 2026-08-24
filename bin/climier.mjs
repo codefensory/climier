@@ -58,7 +58,7 @@ Mutating (require --as <agent-id>):
 
 Adding to the DAG:
   add-task <id> --initiative X --title "..." [--depends-on A,B] [--skills ...] [--effort ...] [--domain ...]
-           [--definition ...] [--acceptance ...] [--backlog true] [--priority high|medium|low]
+           [--definition ...] [--acceptance ...] [--backlog true] [--priority high|medium|low]  (v1)
   add-task [id] --initiative X --title "..." --body "..." --acceptance "..." --blocked-by "..."  (v2)
   add-gate [id] --initiative X --title "..." --body "..." --purpose decision|approval|external-dependency|research [--supersedes OLD]
   add-knowledge [id] --initiative X --title "..." --body "..." --scope-domains X [--supersedes OLD]
@@ -71,10 +71,9 @@ Adding to the DAG:
                                            (low-level; prefer add-task/add-gate/add-knowledge)
 
 Editing tasks (any agent; status guard applies):
-  update <id> [--title X] [--body "..."] [--definition "..."] [--acceptance "..."] [--skills a,b]
-              [--effort S|M|L] [--domain Y] [--depends-on A,B] [--backlog true|false]
-              [--priority high|medium|low] [--if-revision N] --as <agent>
-                                           Edit a task. in_progress/done are locked. --depends-on rewrites the dependency list. --if-revision is v2 optimistic-concurrency.
+  update <id> [--title X] [--body "..."] [--definition "..."] [--acceptance "..."] [--domain Y]
+              [--backlog true|false] [--if-revision N] --as <agent>  (v2)
+              [--skills a,b] [--effort S|M|L] [--priority high|medium|low] [--depends-on A,B]  (v1 only)
   add-note <id> "text" --as <agent>       Append a note to a task or v2 node's running thread (any status)
 
 Lifecycle (soft delete):
@@ -156,6 +155,36 @@ const statePath = projectDir;
 
 const ctx = { positional, flags, statePath, projectDir };
 
+// F14: v1-only commands that read s.tasks and are meaningless on a v2 state.
+// They fail early with V1_ONLY_ON_V2_STATE instead of a confusing "not found".
+const V1_ONLY_COMMANDS = new Set([
+  "claim", "done", "block", "decide", "promote", "archive",
+  "ready", "pre-claim", "next", "tasks", "graph", "gotchas",
+  "decisions", "next-id", "add-decision", "add-gotcha",
+  "close-gotcha", "reopen-gotcha",
+]);
+
+const V1_TO_V2_HINTS = {
+  claim: "take <id> --as <agent>",
+  done: "resolve <id> --note \"...\" --as <agent>",
+  block: "add-note <id> \"blocked: ...\" --as <agent> + release",
+  decide: "resolve <G> --choice \"...\" --rationale \"...\" --as orchestrator",
+  promote: "update <id> --backlog false --as <agent>",
+  archive: "cancel <id> --reason \"...\" --as <agent>",
+  ready: "status (bucket .tasks.ready)",
+  "pre-claim": "context <id>",
+  next: "context <id>",
+  tasks: "status",
+  graph: "context <id> (blocking[]/informing[]) o status",
+  gotchas: "search \"<query>\"",
+  decisions: "status (bucket .gates.open)",
+  "next-id": "(v2 auto-genera ids: add-task sin id)",
+  "add-decision": "add-gate --purpose decision",
+  "add-gotcha": "add-knowledge",
+  "close-gotcha": "deprecate-knowledge <id> --reason \"...\"",
+  "reopen-gotcha": "(v2 no reabre knowledge; editalo con update o crea uno nuevo)",
+};
+
 // Emit a JSON error to stdout and exit with the given code.
 function failJson(error, code) {
   console.log(JSON.stringify({ ok: false, error }, null, 2));
@@ -180,6 +209,7 @@ try {
   // so the dispatch chain below is just the exceptions (update, status,
   // deprecate-knowledge) plus a `v2-${command}` fallback for everything else.
   let v2Swap = false;
+  const { isV2State, readState } = await import("../src/state.mjs");
   if (
     command === "update"
     || command === "status"
@@ -188,10 +218,21 @@ try {
     || command === "resolve"
     || command === "reopen"
     || command === "cancel"
+    || V1_ONLY_COMMANDS.has(command)
   ) {
-    const { isV2State, readState } = await import("../src/state.mjs");
     const s = await readState(projectDir);
-    if (s && isV2State(s)) v2Swap = true;
+    if (s && isV2State(s)) {
+      // F14: v1-only commands read s.tasks and fail with confusing "not found"
+      // errors on a v2 state. Fail early with the v2 replacement instead.
+      if (V1_ONLY_COMMANDS.has(command)) {
+        failJson({
+          code: "V1_ONLY_ON_V2_STATE",
+          message: `${command}: is a v1 command; this project uses the v2 state schema. Use the v2 surface instead${V1_TO_V2_HINTS[command] ? ` (${V1_TO_V2_HINTS[command]})` : ""}.`,
+          details: { command, hint: V1_TO_V2_HINTS[command] || null },
+        }, 1);
+      }
+      v2Swap = true;
+    }
   }
   let mod;
   if (v2Swap) {

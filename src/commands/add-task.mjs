@@ -57,6 +57,21 @@ export default async function addTask({ statePath, flags, positional, projectDir
       { field: "depends-on", hint: "blocked-by" },
     );
   }
+  // F14: --skills/--effort/--priority are v1 task fields. The v2 node model
+  // has no such fields (docs/v2.md); accepting them silently dropped the
+  // data. Reject them explicitly on v2 so the caller learns the v2 surface
+  // (--body/--meta) before any mutation runs.
+  if (state && isV2State(state)) {
+    for (const field of ["skills", "effort", "priority"]) {
+      if (flags[field] !== undefined) {
+        throwV2(
+          "UNSUPPORTED_V2_FIELD",
+          `add-task: --${field} is v1 vocabulary; the v2 node model has no ${field} field. Put it in --body or --meta instead.`,
+          { field, hint: "body|meta" },
+        );
+      }
+    }
+  }
   if (isV2State(state)) {
     requireFields(
       "add-task",

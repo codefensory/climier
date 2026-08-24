@@ -11,7 +11,10 @@ test("package: npm pack only includes runtime files", () => {
     cwd: repoRoot,
     encoding: "utf8",
   });
-  const [{ files }] = JSON.parse(raw);
+  const packed = JSON.parse(raw);
+  // npm 10 returns an array here; npm 12 wraps the manifest by package name.
+  const report = Array.isArray(packed) ? packed[0] : Object.values(packed)[0];
+  const { files } = report;
   const paths = files.map((f) => f.path);
 
   assert.ok(paths.includes("bin/climier.mjs"));

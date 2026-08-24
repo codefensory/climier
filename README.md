@@ -83,35 +83,36 @@ node bin/climier.mjs --help
 
 ## Quickstart
 
-A minimal solo flow:
+A minimal v2 flow (v2 is the standard surface; v1 `init` is legacy):
 
 ```bash
-# 1. Initialize the project in the current directory
-climier init
-# or start the experimental nodes/edges schema
+# 1. Initialize the project in the current directory (v2 graph schema)
 climier init --v2
 
 # 2. Register an initiative
-climier add-initiative migration --desc "Move the API to the new stack"
+climier add-initiative migration --desc "Move the API to the new stack" --as orchestrator
 
-# 3. Add a first task
+# 3. Add a first task (v2 requires --body, --acceptance and --blocked-by)
 climier add-task F0.T1 \
   --initiative migration \
   --title "Create API skeleton" \
-  --definition "Create the new service with a /health endpoint" \
-  --acceptance "Service starts locally and GET /health returns 200"
+  --body "Create the new service with a /health endpoint" \
+  --acceptance "Service starts locally and GET /health returns 200" \
+  --blocked-by "" \
+  --as orchestrator
 
 # 4. See what is ready
-climier ready
+climier status
 
 # 5. Pre-flight + claim from this session
-climier pre-claim F0.T1
-climier claim F0.T1 --as session-api
-climier next F0.T1
+climier context F0.T1
+climier take F0.T1 --as session-api
 
 # 6. Finish the work
-climier done F0.T1 "Scaffolded service and added /health" --as session-api
+climier resolve F0.T1 --note "Scaffolded service and added /health" --as session-api
 ```
+
+> v1 (plain `init`: tasks/decisions/gotchas, `claim`/`done`/`block`) is legacy. It still works for old projects, but all new work should use v2. Full v2 reference: `docs/v2.md`.
 
 ## Core concepts
 
@@ -195,6 +196,8 @@ There is no `--json` flag. JSON is the default.
 ## Command reference
 
 Experimental v2: `init --v2` creates a `version: 2` snapshot with `{ initiatives, nodes, edges, log }`. Its creation flow uses `add-task`, `add-gate`, and `add-knowledge`; `add-node` and `add-edge` remain low-level escape hatches.
+
+v2 is the **standard surface** for new projects; v1 (tasks/decisions/gotchas) is legacy. On a v2 state, v1-only commands (`claim`, `done`, `block`, `decide`, `promote`, `archive`, `ready`, `pre-claim`, `next`, `tasks`, `graph`, `gotchas`, `decisions`, `next-id`, `add-decision`, `add-gotcha`, `close-gotcha`, `reopen-gotcha`) fail with `V1_ONLY_ON_V2_STATE`.
 
 Full v2 reference: `docs/v2.md`.
 
