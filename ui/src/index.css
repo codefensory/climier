@@ -1,15 +1,84 @@
 @import "tailwindcss";
 
+/*
+ * Climier UI design tokens (Phase 2 / F2a).
+ *
+ * Source of truth: docs/ui-redesign-plan.md section 4 (Dirección de diseño).
+ * Layering:
+ *   - Surface  → canvas → panel → panel-2 → mid → line
+ *   - Text     → ink (titles/main) → body (running text) → mute (metadata)
+ *   - Semantic → ready / progress / blocked / gate / knowledge / focus
+ *     Each semantic token has a `-soft` variant for tinted backgrounds on
+ *     chips/badges/rows. Soft variants are tuned for AA contrast against ink.
+ *
+ * No fonts are loaded. No icon library is loaded. The system font stack is
+ * the only text face. `.mono` (defined below) is reserved for IDs, command
+ * names, and technical metadata — never for body copy.
+ *
+ * Typography tokens follow Tailwind v4 conventions: `--text-<name>` exposes
+ * `text-<name>`, with `--text-<name>--line-height` and
+ * `--text-<name>--font-weight` controlling the matching properties.
+ */
+
 @theme {
-  --color-canvas: #ffffff;
-  --color-ink: #0a0a0a;
-  --color-body: #3f3f46;
-  --color-mute: #71717a;
-  --color-panel: #f7f7f8;
-  --color-panel-2: #f4f4f5;
-  --color-mid: #e4e4e7;
-  --color-line: #d4d4d8;
+  /* ── Surface ─────────────────────────────────────────────────────── */
+  --color-canvas: #f6f7f9;
+  --color-panel: #ffffff;
+  --color-panel-2: #f1f3f5;
+  --color-mid: #e5e7eb;
+  --color-line: #d9dee5;
+
+  /* ── Text ────────────────────────────────────────────────────────── */
+  --color-ink: #111318;
+  --color-body: #3f4652;
+  --color-mute: #6b7280;
+
+  /* ── Semantic (foreground / border / solid fills) ────────────────── */
+  --color-ready: #047857;
+  --color-progress: #0369a1;
+  --color-blocked: #be123c;
+  --color-gate: #a16207;
+  --color-knowledge: #6d28d9;
+  --color-focus: #2563eb;
+
+  /* ── Semantic soft (tinted backgrounds, AA-against-ink) ──────────── */
+  --color-ready-soft: #ecfdf5;
+  --color-progress-soft: #f0f9ff;
+  --color-blocked-soft: #fff1f3;
+  --color-gate-soft: #fefce8;
+  --color-knowledge-soft: #f5f3ff;
+  --color-focus-soft: #eff6ff;
+
+  /* ── Typography ──────────────────────────────────────────────────── */
+  --text-page: 24px;
+  --text-page--line-height: 32px;
+  --text-page--font-weight: 600;
+
+  --text-section: 16px;
+  --text-section--line-height: 24px;
+  --text-section--font-weight: 600;
+
+  --text-body: 14px;
+  --text-body--line-height: 20px;
+
+  --text-metadata: 12px;
+  --text-metadata--line-height: 16px;
+
+  --text-metric: 30px;
+  --text-metric--line-height: 36px;
+  --text-metric--font-weight: 600;
+
+  /* ── Radii ───────────────────────────────────────────────────────── */
+  --radius-card: 12px;
+  --radius-control: 8px;
 }
+
+/*
+ * Base layer
+ *
+ * One global font stack (system). `.mono` is opt-in and used sparingly for
+ * IDs, command names, and timestamps — see ui-redesign-plan.md section 4.
+ */
 
 html,
 body,
@@ -18,26 +87,85 @@ body,
 }
 
 body {
-  background: var(--color-canvas);
-  color: var(--color-ink);
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  background-color: var(--color-canvas);
+  color: var(--color-body);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
+  font-feature-settings: "cv11", "ss01", "tnum";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono",
+    monospace;
+  font-feature-settings: "tnum";
 }
+
+/*
+ * Focus / selection / motion
+ *
+ * `focus-visible` is the only ring source: keyboard focus shows a 2 px
+ * `focus` outline offset by 2 px; mouse focus stays invisible. Reduced-
+ * motion users get no transitions/animations at the CSS layer (Solid
+ * components are expected to consult the same media query when toggling
+ * state-driven animations).
+ */
+
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-control);
+}
+
+::selection {
+  background-color: var(--color-focus-soft);
+  color: var(--color-ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/*
+ * Scrollbars
+ *
+ * Subtle, theme-aligned. `panel-2` track keeps the canvas quiet;
+ * `mid` thumb reads as a soft divider.
+ */
 
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
-  background: #c9c9cf;
+  background: var(--color-mid);
   border-radius: 5px;
+  border: 2px solid var(--color-canvas);
 }
+
 ::-webkit-scrollbar-thumb:hover {
-  background: #b4b4bb;
+  background: var(--color-line);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
 }
