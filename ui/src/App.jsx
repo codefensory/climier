@@ -1,7 +1,8 @@
 // ui/src/App.jsx
 //
-// Shell + routing for the climier UI. Phase 3 / F3b of
-// docs/ui-redesign-plan.md (section 6 — Fase 3).
+// Shell + routing for the climier UI. Phase 3 / F3b + F3c of
+// docs/ui-redesign-plan.md (section 6 — Fase 3, section 4 — Layout,
+// and "Estados de datos").
 //
 // Scope of this file:
 //   - Route registry (id -> component + label + group). The single source of
@@ -12,20 +13,32 @@
 //     and on every `hashchange` / `popstate` event.
 //   - Grouped sidebar nav (Monitor / Work / Context / Audit) with
 //     `aria-current="page"` on the active item.
+//   - Responsive shell (F3c): breakpoint math lives in ui/src/shell.mjs
+//     (pure, testable). WIDE ≥1280 renders the full 240 px sidebar with
+//     labels; MID 768–1279 collapses to a 64–72 px rail with glyphs; NARROW
+//     <768 hides the sidebar and exposes the same nav through a drawer
+//     toggled from the header.
+//   - Header with project name, root, live status (LiveStatus — includes the
+//     Read-only badge) on every breakpoint.
+//   - Data states per ui/DESIGN.md §5: initial load skeleton, non-blocking
+//     refresh indicator, initial error screen with Retry, subsequent error
+//     as a banner that keeps the last good snapshot on screen.
 //   - Main area handles three project states — loading, error, uninitialized
 //     — before resolving the route. Unknown routes fall back to Overview
 //     with an AlertBanner instead of silently landing in Activity (the
 //     pre-Phase-3 bug).
 //   - Uninitialized projects render as the main content with the CLI init
 //     command shown as text. The UI never mutates the state file.
+//   - Layout: 100dvh, min-h-0 chain, exactly one scroll owner per view
+//     (the RouteView wrapper). No nested scrollers.
 //
 // Out of scope here:
 //   - NodeDetail still renders as a fixed overlay on top of the shell; it
 //     uses the store's `selectedId` and is independent of the route.
-//   - Responsive variants (rail/drawer) are a Fase 3 stretch; this commit
-//     ships the desktop shell that the design tokens are tuned for.
+//   - Board column min-width / horizontal scroll at MID is the Board view's
+//     responsibility (Fase 5A), not the shell's.
 
-import { Show, For, onMount, onCleanup, createMemo } from "solid-js";
+import { Show, For, onMount, onCleanup, createMemo, createSignal } from "solid-js";
 import { StoreProvider, useStore } from "./store.jsx";
 import Overview from "./views/Overview.jsx";
 import Board from "./views/Board.jsx";
@@ -41,6 +54,8 @@ import {
   AlertBanner,
   Skeleton,
   LiveStatus,
+  IconButton,
+  fmtTime,
 } from "./components.jsx";
 import {
   ROUTE_META,
@@ -49,6 +64,14 @@ import {
   parseHashRoute,
   writeHashRoute,
 } from "./routes.mjs";
+import {
+  BREAKPOINT,
+  classifyWidth,
+  sidebarWidthPx,
+  drawerAvailable,
+  railGlyph,
+  projectDisplayName,
+} from "./shell.mjs";
 
 // Glue the pure metadata (ui/src/routes.mjs) to the view components. The
 // metadata is the testable source of truth; this map is the rendering
@@ -114,11 +137,20 @@ function RouteSync() {
 // One nav link. Uses an anchor so middle-click / cmd+click open the route
 // in a new tab (the href is the URL). The click handler intercepts plain
 // left-clicks to keep the single-page feel without a router.
+//
+// Two render variants:
+//   - full (showLabel=true): label text next to an optional glyph slot.
+//   - rail (showLabel=false): centered 1-2 char glyph with the label as
+//     the accessible name and tooltip.
 function NavButton(props) {
-  // id      (string, required — must be a key of ROUTES)
-  // label   (string, required)
+  // id          (string, required — must be a key of ROUTES)
+  // label       (string, required)
+  // glyph       (string, optional — rail abbreviation)
+  // showLabel   (bool, default true)
+  // onNavigate  (function, optional — called after an in-app navigation)
   const { route, setRoute } = useStore();
   const active = () => route() === props.id;
+  const rail = props.showLabel === false;
   function go(e) {
     // Let the browser handle modifier-clicks (open in new tab, etc.).
     if (e.defaultPrevented) return;
@@ -128,59 +160,200 @@ function NavButton(props) {
     if (!ROUTES[props.id]) return;
     setRoute(props.id);
     writeHashRoute(props.id);
+    props.onNavigate?.();
   }
   return (
     <a
       href={`#/${props.id}`}
-      class="flex min-h-[36px] items-center rounded-control px-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
+      class={`flex min-h-[36px] items-center rounded-control transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 ${
+        rail ? "justify-center" : "gap-3 px-3"
+      }`}
       classList={{
         "bg-mid font-medium text-ink": active(),
         "text-body hover:bg-panel-2 hover:text-ink": !active(),
       }}
       aria-current={active() ? "page" : undefined}
+      aria-label={rail ? props.label : undefined}
+      title={rail ? props.label : undefined}
       onClick={go}
       data-route={props.id}
     >
-      {props.label}
+      <Show when={rail}>
+        <span class="text-[13px] font-semibold leading-none" aria-hidden="true">{props.glyph}</span>
+      </Show>
+      <Show when={!rail}>{props.label}</Show>
     </a>
   );
 }
 
-// === Sidebar ===============================================================
-function Sidebar() {
-  const { snapshot } = useStore();
-  const project = () => snapshot()?.project?.root || "";
+// === NavGroups =============================================================
+// Renders the grouped nav from routes.mjs in the order NAV_GROUPS declares.
+// variant "rail" hides labels and group headers (MID breakpoint); any other
+// variant renders the full labelled list (WIDE sidebar and NARROW drawer).
+function NavGroups(props) {
+  // variant     ("full" | "rail")
+  // onNavigate  (function, optional — forwarded to NavButton)
+  const rail = props.variant === "rail";
   return (
-    <aside class="flex w-60 shrink-0 flex-col border-r border-line bg-canvas">
-      <div class="border-b border-line px-4 py-3">
-        <div class="text-sm font-bold tracking-wide text-ink">
-          climier<span class="text-progress"> ui</span>
+    <For each={NAV_GROUPS}>
+      {(group) => (
+        <div class="space-y-0.5">
+          <Show when={!rail}>
+            <div
+              class="mono px-3 py-1 text-[11px] uppercase tracking-wider text-mute"
+              id={`nav-group-${group.label.toLowerCase()}`}
+            >
+              {group.label}
+            </div>
+          </Show>
+          <For each={group.ids}>
+            {(id) => (
+              <NavButton
+                id={id}
+                label={ROUTES[id].label}
+                glyph={railGlyph(id)}
+                showLabel={!rail}
+                onNavigate={props.onNavigate}
+              />
+            )}
+          </For>
         </div>
-        <div class="mono mt-1 truncate text-[11px] text-mute" title={project() || ""}>
-          {project() || "…"}
+      )}
+    </For>
+  );
+}
+
+// === Header ================================================================
+// Project identity + live status, present on every breakpoint. The project
+// name derives from the snapshot's project_id (shell.mjs); the root path is
+// the CLI root. LiveStatus carries the read-only badge and the last refresh
+// timestamp, and its pulse dot doubles as the non-blocking refresh
+// indicator in the header.
+function Header(props) {
+  // bp           (signal, required — current breakpoint)
+  // drawerOpen   (signal, required — reflects the NARROW drawer state)
+  // onOpenDrawer (function, required — opens the NARROW drawer)
+  const { snapshot, lastSuccessfulAt, refreshing, snapshotError } = useStore();
+  const showMenu = () => drawerAvailable(props.bp());
+  const project = () => snapshot()?.project || {};
+  const name = () => projectDisplayName(snapshot());
+  const root = () => project().root || "";
+  return (
+    <header class="flex h-14 shrink-0 items-center gap-3 border-b border-line bg-canvas px-4 md:px-5">
+      <Show when={showMenu()}>
+        <button
+          type="button"
+          class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-control border border-line bg-panel text-body hover:bg-panel-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
+          onClick={props.onOpenDrawer}
+          aria-label="Open navigation"
+          aria-expanded={props.drawerOpen()}
+        >
+          <span aria-hidden="true" class="text-[16px] leading-none">☰</span>
+        </button>
+      </Show>
+      <h1 class="min-w-0 truncate text-section font-semibold text-ink" title={name()}>
+        {name()}
+      </h1>
+      <span class="mono hidden min-w-0 truncate text-[12px] text-mute md:block" title={root()}>
+        {root() || ""}
+      </span>
+      <div class="ml-auto flex shrink-0 items-center">
+        <LiveStatus
+          lastAt={lastSuccessfulAt()}
+          refreshing={refreshing()}
+          error={snapshotError()}
+        />
+      </div>
+    </header>
+  );
+}
+
+// === Sidebar ===============================================================
+// Responsive permanent navigation:
+//   - WIDE:  full 240 px sidebar with brand, group headers, labelled links.
+//   - MID:   72 px rail with 1-2 char glyphs; labels + headers hidden, the
+//     label moves to title/aria-label.
+//   - NARROW: hidden; the drawer (see below) carries the same nav.
+// The pixel width comes from shell.mjs (sidebarWidthPx) so the geometry
+// stays testable; only the display toggle lives in JSX.
+function Sidebar(props) {
+  // bp (signal, required)
+  const bp = props.bp;
+  const narrow = () => bp() === BREAKPOINT.NARROW;
+  const rail = () => bp() === BREAKPOINT.MID;
+  const display = () => (narrow() ? "hidden" : "flex");
+  const width = () => `${sidebarWidthPx(bp())}px`;
+  return (
+    <aside
+      class={`${display()} shrink-0 flex-col border-r border-line bg-canvas`}
+      style={{ width: width() }}
+    >
+      <div class="flex h-14 shrink-0 items-center border-b border-line px-4">
+        <div class="truncate text-sm font-bold tracking-wide text-ink">
+          climier<span class="text-progress"> ui</span>
         </div>
       </div>
       <nav class="flex-1 space-y-4 overflow-y-auto p-2" aria-label="Primary">
-        <For each={NAV_GROUPS}>
-          {(group) => (
-            <div class="space-y-0.5">
-              <div
-                class="mono px-3 py-1 text-[11px] uppercase tracking-wider text-mute"
-                id={`nav-group-${group.label.toLowerCase()}`}
-              >
-                {group.label}
-              </div>
-              <For each={group.ids}>
-                {(id) => <NavButton id={id} label={ROUTES[id].label} />}
-              </For>
-            </div>
-          )}
-        </For>
+        <NavGroups variant={rail() ? "rail" : "full"} />
       </nav>
-      <div class="border-t border-line px-4 py-2 text-[11px] leading-4 text-mute">
-        Read-only projection · CLI stays the source of truth
-      </div>
+      <Show when={!rail()}>
+        <div class="border-t border-line px-4 py-2 text-[11px] leading-4 text-mute">
+          Read-only projection · CLI stays the source of truth
+        </div>
+      </Show>
     </aside>
+  );
+}
+
+// === Drawer ================================================================
+// NARROW-only overlay navigation. Mounted on demand; focuses the panel,
+// locks body scroll, closes on Escape or backdrop click. Nav items close the
+// drawer after navigating (onNavigate).
+function Drawer(props) {
+  // open    (signal, required)
+  // onClose (function, required)
+  return (
+    <Show when={props.open()}>
+      <DrawerPanel onClose={props.onClose} />
+    </Show>
+  );
+}
+
+function DrawerPanel(props) {
+  let panelRef;
+  onMount(() => {
+    panelRef?.focus();
+    document.body.style.overflow = "hidden";
+    const onKey = (e) => {
+      if (e.key === "Escape") props.onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    onCleanup(() => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = "";
+    });
+  });
+  return (
+    <div class="fixed inset-0 z-40 flex" role="dialog" aria-modal="true" aria-label="Navigation">
+      <div class="absolute inset-0 bg-ink/50" onClick={props.onClose} aria-hidden="true" />
+      <aside
+        ref={panelRef}
+        tabIndex={-1}
+        class="relative z-10 flex h-full w-72 max-w-[85vw] flex-col border-r border-line bg-canvas shadow-md outline-none"
+      >
+        <div class="flex h-14 shrink-0 items-center justify-between border-b border-line px-4">
+          <div class="text-sm font-bold tracking-wide text-ink">
+            climier<span class="text-progress"> ui</span>
+          </div>
+          <IconButton label="Close navigation" onClick={props.onClose}>
+            ✕
+          </IconButton>
+        </div>
+        <nav class="flex-1 space-y-4 overflow-y-auto p-2" aria-label="Primary">
+          <NavGroups variant="full" onNavigate={props.onClose} />
+        </nav>
+      </aside>
+    </div>
   );
 }
 
@@ -189,6 +362,10 @@ function Sidebar() {
 // renders the route's component. The `unknownRaw` memo re-reads the hash so
 // the AlertBanner can flag URLs that don't match the registry without
 // needing a second store signal.
+//
+// Scroll contract (ui/DESIGN.md §3.1): Main is a flex column with
+// min-h-0 + overflow-hidden; banners are shrink-0; the route area is the
+// single flex-1 min-h-0 scroll owner (RouteView). No nested scrollers.
 function Main() {
   const { route, snapshot, initialLoading, snapshotError, lastSuccessfulAt, refreshing, reload } = useStore();
   const initialized = () => snapshot()?.project?.initialized !== false;
@@ -211,18 +388,21 @@ function Main() {
   });
 
   return (
-    <main class="min-w-0 flex-1 overflow-hidden" data-route={route()}>
+    <main class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" data-route={route()}>
       {/* Background error from the last poll: keep the snapshot on screen
-          and surface a dismissible banner above the route. */}
+          and surface a dismissible banner above the route. The nav lives
+          outside Main, so it never disappears on a later error. */}
       <Show when={snapshotError() && snapshot()}>
-        <div class="px-6 pt-4">
+        <div class="shrink-0 px-4 pt-3 md:px-6">
           <AlertBanner
             tone="error"
             title="Background refresh failed"
             onDismiss={reload}
           >
             <span class="mono text-[12px]">{snapshotError()}</span>
-            <span class="ml-2 text-mute">Showing the last good snapshot. Retry to refresh.</span>
+            <span class="ml-2 text-mute">
+              Showing the last good snapshot{lastSuccessfulAt() ? ` from ${fmtTime(lastSuccessfulAt())}` : ""}. Retry to refresh.
+            </span>
           </AlertBanner>
         </div>
       </Show>
@@ -230,7 +410,7 @@ function Main() {
       {/* Unknown-route banner. Re-parses the hash so any URL the store's
           `route` signal had to fall back from surfaces here. */}
       <Show when={unknownRaw()}>
-        <div class="px-6 pt-4">
+        <div class="shrink-0 px-4 pt-3 md:px-6">
           <AlertBanner tone="warning" title="Unknown route">
             The URL hash <code class="mono">#{unknownRaw()}</code> doesn't match any known view.
             Showing <strong>Overview</strong> as a safe default.
@@ -238,23 +418,22 @@ function Main() {
         </div>
       </Show>
 
-      <Show
-        when={!initialLoading() && snapshot()}
-        fallback={
-          <div class="h-full overflow-auto p-6" aria-busy="true">
-            <Skeleton rows={1} class="mb-4" />
-            <Skeleton rows={3} />
-          </div>
-        }
-      >
+      <div class="min-h-0 flex-1">
         <Show
-          when={initialized()}
-          fallback={<UninitializedPanel />}
+          when={!initialLoading() && snapshot()}
+          fallback={<InitialState />}
         >
-          <RouteView Component={RouteComponent()} route={route()} />
+          <Show
+            when={initialized()}
+            fallback={<UninitializedPanel />}
+          >
+            <RouteView Component={RouteComponent()} route={route()} />
+          </Show>
         </Show>
-      </Show>
+      </div>
 
+      {/* Non-blocking refresh indicator: a floating chip that stays visible
+          while the user scrolls the route content. */}
       <div class="pointer-events-none fixed bottom-3 right-4">
         <div class="pointer-events-auto rounded-control border border-line bg-panel/95 px-3 py-1.5 shadow-sm backdrop-blur-[2px]">
           <LiveStatus
@@ -265,6 +444,61 @@ function Main() {
         </div>
       </div>
     </main>
+  );
+}
+
+// === InitialState ==========================================================
+// Covers the two pre-snapshot states: initial load skeleton and initial
+// error screen with Retry. Never shows a stale/empty view before the first
+// good snapshot lands.
+function InitialState() {
+  const { initialLoading, snapshotError, reload } = useStore();
+  return (
+    <div class="h-full overflow-auto p-4 md:p-6" aria-busy={initialLoading()}>
+      <Show
+        when={initialLoading()}
+        fallback={<InitialError message={snapshotError()} onRetry={reload} />}
+      >
+        <Skeleton rows={1} class="mb-4" />
+        <Skeleton rows={3} />
+      </Show>
+    </div>
+  );
+}
+
+// === InitialError ==========================================================
+// Full error screen (ui/DESIGN.md §5 state 3). No cached data fallback —
+// there is no snapshot yet, so the only recovery is Retry.
+function InitialError(props) {
+  return (
+    <div class="flex min-h-full items-center justify-center">
+      <div class="w-full max-w-xl">
+        <Panel tone="error" padding="loose">
+          <div class="flex items-center gap-2">
+            <span class="h-2 w-2 shrink-0 rounded-full bg-blocked" aria-hidden="true" />
+            <h2 class="text-section font-semibold text-ink">Couldn't load the project snapshot</h2>
+          </div>
+          <p class="mt-2 text-[13px] leading-5 text-body">
+            The UI couldn't reach the climier API. Check that the dev server is running
+            (<span class="mono">npm run dev:api</span>) and try again.
+          </p>
+          <Show when={props.message}>
+            <div class="mono mt-3 break-words rounded-control border border-line bg-mid px-3 py-2 text-[12px] leading-5 text-body">
+              {props.message}
+            </div>
+          </Show>
+          <div class="mt-4">
+            <button
+              type="button"
+              class="inline-flex min-h-[36px] items-center rounded-control border border-line bg-panel px-4 text-[13px] font-medium text-ink hover:bg-panel-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
+              onClick={props.onRetry}
+            >
+              Retry
+            </button>
+          </div>
+        </Panel>
+      </div>
+    </div>
   );
 }
 
@@ -288,7 +522,7 @@ function UninitializedPanel() {
   const { snapshot, reload } = useStore();
   const root = () => snapshot()?.project?.root || "this directory";
   return (
-    <div class="h-full overflow-auto p-6">
+    <div class="h-full overflow-auto p-4 md:p-6">
       <div class="mx-auto max-w-2xl">
         <PageHeader
           eyebrow="Climier"
@@ -325,14 +559,40 @@ function UninitializedPanel() {
 
 // === App ===================================================================
 // Root layout. The store provider wraps everything so the route sync, the
-// sidebar, and the main area all share the same reactive context.
+// sidebar, the header, and the main area all share the same reactive
+// context. 100dvh + min-h-0: the shell owns the viewport height and each
+// route owns its scroll.
 export default function App() {
+  const [bp, setBp] = createSignal(BREAKPOINT.WIDE);
+  const [drawerOpen, setDrawerOpen] = createSignal(false);
+
+  onMount(() => {
+    const update = () => {
+      const next = classifyWidth(window.innerWidth);
+      setBp(next);
+      // A drawer open on NARROW has nowhere to live once the user resizes
+      // up; close it so it can't linger as an invisible overlay.
+      if (!drawerAvailable(next)) setDrawerOpen(false);
+    };
+    update();
+    window.addEventListener("resize", update);
+    onCleanup(() => window.removeEventListener("resize", update));
+  });
+
   return (
     <StoreProvider>
       <RouteSync />
-      <div class="flex h-full min-h-0">
-        <Sidebar />
-        <Main />
+      <div class="flex h-dvh min-h-0 bg-canvas text-body">
+        <Sidebar bp={bp} />
+        <div class="flex min-w-0 flex-1 flex-col">
+          <Header
+            bp={bp}
+            drawerOpen={drawerOpen}
+            onOpenDrawer={() => setDrawerOpen(true)}
+          />
+          <Main />
+        </div>
+        <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
         <NodeDetail />
       </div>
     </StoreProvider>
