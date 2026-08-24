@@ -20,7 +20,7 @@ This file tells you how the code is organized, the rules you must follow, and th
 bin/climier.mjs             # CLI entry: argv parsing, dispatch, printer wiring
 src/
   paths.mjs                 # resolveProject({ project }), CLIMIER_HOME helpers, repo metadata paths
-  state.mjs                 # emptyState, readState, writeState, updateState, addNode
+  state.mjs                 # emptyState, readState, writeState, updateState
                             # live state file is ~/.climier/projects/<project-id>/tasks.json
                             # repo keeps only .climier.json
   lock.mjs                  # withLock(projectDir, fn) — file lock for atomicity
