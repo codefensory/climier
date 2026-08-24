@@ -1,4 +1,4 @@
-// Pure helpers for ui/src/views/Graph.jsx (Fase 5C pieza 1).
+// Pure helpers for ui/src/views/Graph.jsx (Fase 5C pieza 1 core + pieza 2 UX).
 //
 // Splitting the helpers out of the JSX file serves two purposes:
 //   1. Testability — Node can import this file directly without babel.
@@ -19,6 +19,15 @@
 //                                 scale + translate that fits the graph
 //   - abbreviate(title, max)      title truncation with ellipsis
 //   - buildEdgePath(from, to)     SVG `d` string clipped to the target boundary
+//
+// Fase 5C pieza 2 (UX) helpers:
+//   - nodeMatchesQuery       search by id/title, case-insensitive
+//   - historyChainIds        DERIVED_FROM/SUPERSEDES endpoints (history)
+//   - neighborIds            direct neighbors in both directions
+//   - edgeTouches            edge touches a focus set
+//   - uniqueStatuses         sorted statuses for the filter <select>
+//   - uniqueKinds            sorted dashboard kinds for the filter <select>
+//   - filterGraph            full visible-set pipeline (filters + history)
 
 export const NODE_W = 192;
 export const NODE_H = 56;
@@ -205,4 +214,111 @@ export function shouldShowIsolationCallout(allNodes, visibleNodeCount, visibleEd
   if (visibleNodeCount === 0) return false;
   if (visibleEdgeCount > 0) return false;
   return Object.values(allNodes || {}).length > 0;
+}
+
+// ---------------------------------------------------------------------------
+// Fase 5C pieza 2 (UX) helpers — search, filters, history chain, focus.
+// All pure functions over literal inputs so Node can test them directly.
+// ---------------------------------------------------------------------------
+
+// Case-insensitive search over node id or title. A blank query matches
+// everything. Missing/empty title falls back to id-only matching.
+export function nodeMatchesQuery(node, q) {
+  const query = (q || "").trim().toLowerCase();
+  if (!query) return true;
+  const id = (node.id || "").toLowerCase();
+  const title = (node.title || "").toLowerCase();
+  return id.includes(query) || title.includes(query);
+}
+
+// The "Show history" reveal set: ids of nodes that are endpoints of a
+// DERIVED_FROM or SUPERSEDES edge — the historical chain of the project.
+// BLOCKS and other edge types are not history; endpoints that are not in
+// `nodes` are ignored.
+export function historyChainIds(nodes, edges) {
+  const ids = new Set();
+  for (const e of edges || []) {
+    if (e.type !== "DERIVED_FROM" && e.type !== "SUPERSEDES") continue;
+    if (nodes[e.from]) ids.add(e.from);
+    if (nodes[e.to]) ids.add(e.to);
+  }
+  return ids;
+}
+
+// Direct neighbors of `id` across any edge type, in both directions.
+// Used for the focus-of-neighbors highlight.
+export function neighborIds(edges, id) {
+  const out = new Set();
+  for (const e of edges || []) {
+    if (e.from === id) out.add(e.to);
+    if (e.to === id) out.add(e.from);
+  }
+  return out;
+}
+
+// True when an edge touches any id in the focus set (selected node + its
+// neighbors). Used to keep related edges bright and dim unrelated ones.
+export function edgeTouches(edge, ids) {
+  return ids.has(edge.from) || ids.has(edge.to);
+}
+
+// Sorted unique persisted statuses across the nodes (missing status
+// defaults to "open" — the schema default). Drives the status <select>.
+export function uniqueStatuses(nodes) {
+  const set = new Set();
+  for (const n of Object.values(nodes || {})) set.add(n.status || "open");
+  return [...set].sort();
+}
+
+// Sorted unique dashboard kinds (task / gate / knowledge) across the
+// nodes. Drives the kind <select>.
+export function uniqueKinds(nodes) {
+  const set = new Set();
+  for (const n of Object.values(nodes || {})) set.add(kindFor(n));
+  return [...set].sort();
+}
+
+// The full visible-set pipeline for Graph.jsx. Applies every active filter
+// with AND semantics and prunes edges to endpoints that remain visible.
+//
+// Filters:
+//   - ini:          node.initiative === ini
+//   - kind:         dashboard kind (task/gate/knowledge) === kind
+//   - status:       explicit persisted status; overrides the closed-status
+//                   default hiding (an explicit filter is user intent)
+//   - search:       id/title match via nodeMatchesQuery
+//   - showHistory:  reveal closed-status nodes that are endpoints of a
+//                   DERIVED_FROM / SUPERSEDES edge (the historical chain)
+//
+// Defaults kept from the plan:
+//   - closed-status nodes are hidden unless showHistory or an explicit
+//     status filter reveals them;
+//   - disconnected knowledge nodes are always hidden.
+export function filterGraph(nodes, edges, filters = {}) {
+  const { ini = "", search = "", status = "", kind = "", showHistory = false } = filters;
+  const CLOSED = new Set(["done", "canceled", "resolved", "superseded", "deprecated"]);
+  const chain = showHistory ? historyChainIds(nodes, edges) : new Set();
+  const incident = new Set();
+  for (const e of edges || []) {
+    incident.add(e.from);
+    incident.add(e.to);
+  }
+  const out = {};
+  for (const [id, n] of Object.entries(nodes || {})) {
+    if (ini && n.initiative !== ini) continue;
+    if (kind && kindFor(n) !== kind) continue;
+    const st = n.status || "open";
+    if (status) {
+      if (st !== status) continue;
+    } else if (CLOSED.has(st) && !chain.has(id)) {
+      continue;
+    }
+    if (search && !nodeMatchesQuery(n, search)) continue;
+    if (kindFor(n) === "knowledge" && !incident.has(id)) continue;
+    out[id] = n;
+  }
+  return {
+    nodes: out,
+    edges: (edges || []).filter((e) => out[e.from] && out[e.to]),
+  };
 }
