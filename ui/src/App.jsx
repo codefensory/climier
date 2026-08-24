@@ -48,6 +48,7 @@ import Gates from "./views/Gates.jsx";
 import Knowledge from "./views/Knowledge.jsx";
 import Activity from "./views/Activity.jsx";
 import NodeDetail from "./views/NodeDetail.jsx";
+import Finder from "./views/Finder.jsx";
 import {
   PageHeader,
   Panel,
@@ -618,6 +619,7 @@ export default function App() {
         </div>
         <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
         <NodeDetail />
+        <Finder />
       </div>
     </StoreProvider>
   );
