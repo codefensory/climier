@@ -1,44 +1,59 @@
-// release: free a claim without completing.
+// F11 — release: free a task's claim without resolving it.
+//
+// Behaviour:
+//   - Owner: `claim = null`, `status = "open"`, revision++, log entry.
+//   - Orchestrator or recovery: same, on any agent's claim.
+//   - Anyone else: NOT_OWNER.
+//   - Node without a claim (never claimed or already released): idempotent
+//     `{ released: false, node }`, no state mutation, no log entry.
+//   - Non-task nodes (gate / knowledge) cannot be released — they have no
+//     claim lifecycle. Surfaces as INVALID_STATUS.
 import { readState, updateState } from "../state.mjs";
 import { withLock } from "../lock.mjs";
 import { append } from "../log.mjs";
+import { throwV2 } from "../errors.mjs";
+import { resolveAgent } from "../agent.mjs";
 
 export const knownFlags = ["as"];
 
-export default async function release({ statePath, flags, positional }) {
+export default async function releaseV2({ statePath, flags, positional }) {
   const [id] = positional;
-  if (!id) throw new Error("release: task id required");
-  const as = flags.as;
-  if (as === true) throw new Error("release: --as requires a value (e.g. --as alice)");
-  if (!as) throw new Error("release: --as <agent> required");
-
+  if (!id) throwV2("MISSING_FIELD", "release: node id required", { field: "id" });
   const projectDir = statePath;
+  const as = resolveAgent(flags, "release");
 
   return withLock(projectDir, async () => {
     const s = await readState(projectDir);
     if (!s) throw new Error("release: state file missing");
-    const t = s.tasks[id];
-    if (!t) throw new Error(`release: task ${id} not found`);
-    if (t.status !== "in_progress") {
-      throw new Error(`release: task ${id} is not in_progress`);
+    const node = s.nodes[id];
+    if (!node) throwV2("NODE_NOT_FOUND", `release: node ${id} not found`, { id });
+    if (node.kind !== "resolvable" || node.subkind !== "task") {
+      throwV2(
+        "INVALID_STATUS",
+        `release: node ${id} is not a task (subkind=${node.subkind || node.kind})`,
+        { id, subkind: node.subkind, kind: node.kind },
+      );
     }
-    if (t.claimed_by !== as) {
-      // Special case: orphan or recovery. The orchestrator (or a designated recovery agent)
-      // can release an in_progress task even if the original claimer is gone or different.
-      const isOrphan = !t.claimed_by;
-      const isRecovery = as === "orchestrator" || as === "recovery";
-      if (!(isOrphan && isRecovery) && !isRecovery) {
-        throw new Error(`release: task ${id} is not yours (claimed by ${t.claimed_by})`);
-      }
+    // Idempotent: no claim → nothing to release.
+    if (!node.claim || !node.claim.by) {
+      return { released: false, node };
+    }
+    const isOrchestrator = as === "orchestrator" || as === "recovery";
+    if (node.claim.by !== as && !isOrchestrator) {
+      throwV2(
+        "NOT_OWNER",
+        `release: node ${id} is not yours (claimed by ${node.claim.by})`,
+        { id, owner: node.claim.by },
+      );
     }
     const updated = await updateState(projectDir, (st) => {
-      delete st.tasks[id].claimed_by;
-      delete st.tasks[id].claimed_at;
-      delete st.tasks[id].block_reason;
-      delete st.tasks[id].status;
+      const target = st.nodes[id];
+      target.claim = null;
+      target.status = "open";
+      target.revision = (target.revision || 0) + 1;
       return st;
     });
-    await append(projectDir, { agent: as, action: "release", task: id });
-    return { task: updated.tasks[id] };
+    await append(projectDir, { agent: as, action: "release", node: id });
+    return { released: true, node: updated.nodes[id] };
   });
 }

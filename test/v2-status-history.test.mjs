@@ -84,13 +84,13 @@ async function addKnowledge(dir, id, extra) {
 
 async function v2Status(dir, flags) {
   flags = flags || {};
-  const { default: status } = await importFresh("./commands/v2-status.mjs");
+  const { default: status } = await importFresh("./commands/status.mjs");
   return status({ statePath: dir, flags, positional: [] });
 }
 
 async function v2Deprecate(dir, id, flags) {
   flags = flags || {};
-  const { default: deprecate } = await importFresh("./commands/v2-deprecate-knowledge.mjs");
+  const { default: deprecate } = await importFresh("./commands/deprecate-knowledge.mjs");
   return deprecate({ statePath: dir, positional: [id], flags });
 }
 

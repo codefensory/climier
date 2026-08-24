@@ -183,7 +183,7 @@ test("v2-update: missing agent emits MISSING_AGENT", async () => {
       positional: ["T-a"],
       flags: { kind: "resolvable", subkind: "task", title: "a", initiative: "auth", as: "setup" },
     });
-    const { default: update } = await importFresh("./commands/v2-update.mjs");
+    const { default: update } = await importFresh("./commands/update.mjs");
     let caught;
     try {
       await update({

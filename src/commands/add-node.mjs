@@ -93,9 +93,9 @@ export default async function addNode({ statePath, flags, positional }) {
     assertStateVersion(s, 2, "add-node");
     if (s.nodes[id]) throwV2("ID_CONFLICT", `add-node: ${id} already exists`, { id });
 
-    // v2 mandates a registered --initiative on every node (F3).
-    // The escape hatch --allow-unregistered-initiative is for v1-compat
-    // scenarios only — tests, recovery imports, bulk migration tooling.
+    // F3: a registered --initiative is required on every node.
+    // --allow-unregistered-initiative is the escape hatch used by tests,
+    // recovery imports, and bulk migration tooling.
     const initiative = flags.initiative;
     if (!initiative) {
       throwV2(

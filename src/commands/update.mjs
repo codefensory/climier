@@ -1,120 +1,175 @@
-// update: edit a task's mutable fields. Atomic + audited.
-// Status guard: in_progress and done are locked (release or reopen first).
-// A task with no persisted status (ready or blocked) is always editable —
-// changing depends_on is the supported way to unblock a task.
+// F6 — update: edit a v2 node's fields, incrementing its revision counter.
+// Supports --if-revision for optimistic-concurrency control: if the caller's
+// expected revision doesn't match the stored one, REVISION_CONFLICT is thrown
+// and nothing is written.
 import { readState, updateState } from "../state.mjs";
 import { withLock } from "../lock.mjs";
 import { append } from "../log.mjs";
+import { throwV2 } from "../errors.mjs";
+import { resolveAgent } from "../agent.mjs";
 
-const VALID_PRIORITIES = ["high", "medium", "low"];
+export const knownFlags = [
+  "title",
+  "body",
+  "initiative",
+  "domain",
+  "tags",
+  "refs",
+  "meta",
+  "definition",
+  "acceptance",
+  "backlog",
+  "purpose",
+  "resolution-mode",
+  "knowledge-type",
+  "mitigation",
+  "scope-domains",
+  "scope-initiatives",
+  "scope-tags",
+  "scope-node-ids",
+  "if-revision",
+  "as",
+];
 
-function parseBacklogUpdate(raw) {
+function csv(raw) {
+  if (!raw || raw === true) return [];
+  return String(raw).split(",").map((x) => x.trim()).filter(Boolean);
+}
+
+function refs(raw) {
+  return csv(raw).map((target) => ({ type: "external", target }));
+}
+
+function parseMeta(raw) {
+  if (raw === undefined) return undefined;
+  if (raw === true) throw new Error("update: --meta requires a JSON object value");
+  let parsed;
+  try {
+    parsed = JSON.parse(String(raw));
+  } catch (err) {
+    throw new Error(`update: --meta must be valid JSON (${err.message})`);
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("update: --meta must be a JSON object");
+  }
+  return parsed;
+}
+
+function parseBacklog(raw) {
+  if (raw === undefined) return undefined;
   if (raw === true) throw new Error("update: --backlog requires a value (true or false)");
-  const v = String(raw).toLowerCase();
-  if (v !== "true" && v !== "false") {
+  const value = String(raw).toLowerCase();
+  if (value !== "true" && value !== "false") {
     throw new Error(`update: --backlog must be 'true' or 'false' (got '${raw}')`);
   }
-  return v === "true";
+  return value === "true";
 }
 
-function parsePriorityUpdate(raw) {
-  if (raw === true) throw new Error("update: --priority requires a value (high, medium, or low)");
-  const v = String(raw).toLowerCase();
-  if (!VALID_PRIORITIES.includes(v)) {
-    throw new Error(`update: --priority must be one of ${VALID_PRIORITIES.join(", ")} (got '${raw}')`);
+function parseIfRevision(raw) {
+  if (raw === undefined) return undefined;
+  if (raw === true) throw new Error("update: --if-revision requires a numeric value");
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 1) {
+    throw new Error(`update: --if-revision must be a positive integer (got '${raw}')`);
   }
-  return v;
+  return n;
 }
 
-export const knownFlags = ["title", "definition", "acceptance", "skills", "effort", "domain", "body", "depends-on", "as", "backlog", "priority"];
+// Flag name -> path to the field within the node. `meta` is special-cased
+// (replaces the object), `tags`/`refs` replace the array wholesale, `scope-*`
+// lives under node.scope.
+const SCALAR_FIELDS = ["title", "body", "initiative", "domain", "definition", "acceptance", "purpose", "resolution-mode", "knowledge-type", "mitigation"];
+const ARRAY_FIELDS = ["tags", "refs"];
 
-const MUTABLE = ["title", "definition", "acceptance", "skills", "effort", "domain", "body", "depends-on", "backlog", "priority"];
-
-// Map of kebab-case flag -> snake_case task field. Flags not in the map map to themselves.
-const FIELD_FOR = { "depends-on": "depends_on" };
-
-function parseDeps(v) {
-  return v.split(",").map((x) => x.trim()).filter(Boolean);
-}
-
-export default async function update({ statePath, flags, positional }) {
+export default async function updateV2({ statePath, flags, positional }) {
   const [id] = positional;
-  if (!id) throw new Error("update: task id required (e.g. update T1 --title 'new title')");
-  const as = flags.as;
-  if (as === true) throw new Error("update: --as requires a value (e.g. --as alice)");
-  if (!as) throw new Error("update: --as <agent> required (for the audit log)");
-
-  const provided = MUTABLE.filter((f) => flags[f] !== undefined);
-  if (provided.length === 0) {
-    throw new Error(`update: at least one field required (valid: --${MUTABLE.join(", --")})`);
-  }
-  // Reject bare flags (e.g. `--title` with no value) which the parser turns into `true`.
-  for (const f of provided) {
-    if (flags[f] === true) throw new Error(`update: --${f} requires a value`);
-  }
-
+  if (!id) throwV2("MISSING_FIELD", "update: node id required", { field: "id" });
   const projectDir = statePath;
 
   return withLock(projectDir, async () => {
     const s = await readState(projectDir);
-    if (!s) throw new Error("update: state file missing; run `climier init` first");
-    const t = s.tasks[id];
-    if (!t) throw new Error(`update: task ${id} not found`);
+    if (!s) throw new Error("update: state file missing");
+    const node = s.nodes[id];
+    if (!node) throwV2("NODE_NOT_FOUND", `update: node ${id} not found`, { id });
 
-    // Status guard: in_progress (someone is working) and done (audit-trail frozen)
-    // are locked. Everything else — ready, blocked, archived — is editable.
-    if (t.status === "in_progress") {
-      throw new Error(`update: task ${id} is in_progress (release it first)`);
-    }
-    if (t.status === "done") {
-      throw new Error(`update: task ${id} is done (reopen it first to edit)`);
+    const expectedRevision = parseIfRevision(flags["if-revision"]);
+    if (expectedRevision !== undefined && node.revision !== expectedRevision) {
+      throwV2(
+        "REVISION_CONFLICT",
+        `update: node ${id} changed since revision ${expectedRevision}`,
+        { expected: expectedRevision, current: node.revision },
+      );
     }
 
-    // Build the patch and the log diff in one pass.
     const changes = {};
-    const patch = {};
-    for (const flag of provided) {
-      const field = FIELD_FOR[flag] || flag;
-      const before = t[field];
-      let after;
-      if (flag === "skills") {
-        after = flags.skills ? flags.skills.split(",").map((x) => x.trim()).filter(Boolean) : [];
-      } else if (flag === "depends-on") {
-        after = parseDeps(flags["depends-on"]);
-        // Validate every dep points to a known task or decision (no-op if deps are empty).
-        for (const dep of after) {
-          if (!s.tasks[dep] && !s.decisions[dep]) {
-            throw new Error(`update: depends-on '${dep}' not found in tasks or decisions`);
-          }
-        }
-      } else if (flag === "backlog") {
-        after = parseBacklogUpdate(flags.backlog);
-      } else if (flag === "priority") {
-        after = parsePriorityUpdate(flags.priority);
-      } else {
-        after = flags[flag];
-      }
-      if (JSON.stringify(before) !== JSON.stringify(after)) {
-        changes[flag] = { from: before ?? null, to: after ?? null };
-        patch[field] = after;
-      }
+    const patch = (path) => (value) => { changes[path] = value; };
+
+    // Scalar fields. Use `?? undefined` to allow clearing by passing an empty
+    // string — but only when the flag is explicitly provided (undefined check).
+    for (const field of SCALAR_FIELDS) {
+      if (flags[field] === undefined) continue;
+      if (flags[field] === true) throw new Error(`update: --${field} requires a value`);
+      changes[field] = flags[field];
     }
 
-    if (Object.keys(patch).length === 0) {
-      throw new Error("update: nothing actually changed (values match the existing task)");
+    if (flags.tags !== undefined) {
+      if (flags.tags === true) throw new Error("update: --tags requires a value");
+      changes.tags = csv(flags.tags);
+    }
+    if (flags.refs !== undefined) {
+      if (flags.refs === true) throw new Error("update: --refs requires a value");
+      changes.refs = refs(flags.refs);
     }
 
+    if (flags.meta !== undefined) {
+      changes.meta = parseMeta(flags.meta);
+    }
+
+    const backlog = parseBacklog(flags.backlog);
+    if (backlog !== undefined) changes.backlog = backlog;
+
+    // scope-* replace the matching sub-array on node.scope.
+    const scopePatch = {};
+    for (const f of ["scope-domains", "scope-initiatives", "scope-tags", "scope-node-ids"]) {
+      if (flags[f] === undefined) continue;
+      if (flags[f] === true) throw new Error(`update: --${f} requires a value`);
+      const key = f.replace(/^scope-/, "").replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+      // scope-node-ids -> node_ids
+      const scopeKey = key === "nodeIds" ? "node_ids" : key;
+      scopePatch[scopeKey] = csv(flags[f]);
+    }
+    if (Object.keys(scopePatch).length > 0) changes.scope = scopePatch;
+
+    if (Object.keys(changes).length === 0) {
+      throw new Error("update: at least one field required (e.g. --title X)");
+    }
+
+    const as = resolveAgent(flags, "update");
     const updated = await updateState(projectDir, (st) => {
-      Object.assign(st.tasks[id], patch);
-      // For --backlog false we want to remove the field entirely (not set it to false),
-      // so the diff above sees `from: true, to: false` and the patch sets `backlog: false`.
-      // Strip the field if the patch is setting it to false.
-      if (patch.backlog === false) {
-        delete st.tasks[id].backlog;
+      const target = st.nodes[id];
+      for (const [field, value] of Object.entries(changes)) {
+        if (field === "scope") {
+          target.scope = { ...(target.scope || {}), ...value };
+        } else if (field === "backlog" && value === false) {
+          // Mirror add-node behaviour: false means "remove the flag", so the
+          // task drops back into the ready/blocked pool.
+          delete target.backlog;
+        } else {
+          target[field] = value;
+        }
       }
+      target.revision = (target.revision || 0) + 1;
       return st;
     });
-    await append(projectDir, { agent: as, action: "update", task: id, changes });
-    return { task: updated.tasks[id] };
+
+    await append(projectDir, {
+      agent: as,
+      action: "update",
+      node: id,
+      revision: updated.nodes[id].revision,
+      changes,
+    });
+
+    return { node: updated.nodes[id] };
   });
 }

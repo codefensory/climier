@@ -43,7 +43,7 @@ test("add-node: initializes revision = 1 on a new v2 node", async () => {
 // --- happy path: field edits bump the revision --------------------------
 
 test("update: changes title and bumps revision to 2", async () => {
-  const { default: update } = await importFresh("./commands/v2-update.mjs");
+  const { default: update } = await importFresh("./commands/update.mjs");
   const dir = await v2Project();
   try {
     await seedTask(dir);
@@ -62,7 +62,7 @@ test("update: changes title and bumps revision to 2", async () => {
 });
 
 test("update: parses --meta JSON and persists it", async () => {
-  const { default: update } = await importFresh("./commands/v2-update.mjs");
+  const { default: update } = await importFresh("./commands/update.mjs");
   const dir = await v2Project();
   try {
     await seedTask(dir);
@@ -77,7 +77,7 @@ test("update: parses --meta JSON and persists it", async () => {
 });
 
 test("update: parses --tags CSV and replaces the tag set", async () => {
-  const { default: update } = await importFresh("./commands/v2-update.mjs");
+  const { default: update } = await importFresh("./commands/update.mjs");
   const dir = await v2Project();
   try {
     await seedTask(dir);
@@ -91,7 +91,7 @@ test("update: parses --tags CSV and replaces the tag set", async () => {
 });
 
 test("update: bumps revision on every successful mutation", async () => {
-  const { default: update } = await importFresh("./commands/v2-update.mjs");
+  const { default: update } = await importFresh("./commands/update.mjs");
   const dir = await v2Project();
   try {
     await seedTask(dir);
@@ -107,7 +107,7 @@ test("update: bumps revision on every successful mutation", async () => {
 // --- --if-revision optimistic concurrency --------------------------------
 
 test("update: --if-revision matching current revision applies and increments", async () => {
-  const { default: update } = await importFresh("./commands/v2-update.mjs");
+  const { default: update } = await importFresh("./commands/update.mjs");
   const dir = await v2Project();
   try {
     await seedTask(dir);
@@ -122,7 +122,7 @@ test("update: --if-revision matching current revision applies and increments", a
 });
 
 test("update: --if-revision mismatch returns REVISION_CONFLICT with expected/current", async () => {
-  const { default: update } = await importFresh("./commands/v2-update.mjs");
+  const { default: update } = await importFresh("./commands/update.mjs");
   const dir = await v2Project();
   try {
     await seedTask(dir);
@@ -149,7 +149,7 @@ test("update: --if-revision mismatch returns REVISION_CONFLICT with expected/cur
 });
 
 test("update: without --if-revision a stale snapshot still mutates", async () => {
-  const { default: update } = await importFresh("./commands/v2-update.mjs");
+  const { default: update } = await importFresh("./commands/update.mjs");
   const dir = await v2Project();
   try {
     await seedTask(dir);
@@ -168,7 +168,7 @@ test("update: without --if-revision a stale snapshot still mutates", async () =>
 // --- error cases ---------------------------------------------------------
 
 test("update: missing node returns NODE_NOT_FOUND", async () => {
-  const { default: update } = await importFresh("./commands/v2-update.mjs");
+  const { default: update } = await importFresh("./commands/update.mjs");
   const dir = await v2Project();
   try {
     let caught;
@@ -182,7 +182,7 @@ test("update: missing node returns NODE_NOT_FOUND", async () => {
 });
 
 test("update: rejects update on a v1 state", async () => {
-  const { default: update } = await importFresh("./commands/v2-update.mjs");
+  const { default: update } = await importFresh("./commands/update.mjs");
   const dir = await createTempProject();
   try {
     // Bootstrap .climier.json + an empty v2 state, then overwrite the

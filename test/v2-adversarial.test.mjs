@@ -90,7 +90,7 @@ async function takeNode(dir, id, as) {
 }
 
 async function resolveTask(dir, id, as, note = "shipped") {
-  const { default: resolve } = await importFresh("./commands/v2-resolve.mjs");
+  const { default: resolve } = await importFresh("./commands/resolve.mjs");
   return resolve({ statePath: dir, flags: { as, note }, positional: [id] });
 }
 
@@ -119,7 +119,7 @@ describe("v2-status: --status filter applies to ALL buckets (not just derived)",
       await addTaskNode(dir, "T-b");
       await takeNode(dir, "T-a", "alice");
       // Two tasks; one is in_progress (claimed by alice), one is ready.
-      const { default: status } = await importFresh("./commands/v2-status.mjs");
+      const { default: status } = await importFresh("./commands/status.mjs");
       const out = await status({
         statePath: dir,
         flags: { status: "ready", as: "alice" },
@@ -136,7 +136,7 @@ describe("v2-status: --status filter applies to ALL buckets (not just derived)",
     try {
       await addTaskNode(dir, "T-a");
       await takeNode(dir, "T-a", "alice");
-      const { default: status } = await importFresh("./commands/v2-status.mjs");
+      const { default: status } = await importFresh("./commands/status.mjs");
       const out = await status({
         statePath: dir,
         flags: { status: "done", as: "alice" },
@@ -155,7 +155,7 @@ describe("v2-status: --status filter applies to ALL buckets (not just derived)",
       await addTaskNode(dir, "T-b");
       await takeNode(dir, "T-a", "alice");
       await takeNode(dir, "T-b", "bob");
-      const { default: status } = await importFresh("./commands/v2-status.mjs");
+      const { default: status } = await importFresh("./commands/status.mjs");
       const out = await status({
         statePath: dir,
         flags: { status: "in_progress" },
@@ -173,7 +173,7 @@ describe("v2-status: --status filter applies to ALL buckets (not just derived)",
     try {
       await addTaskNode(dir, "T-a");
       await takeNode(dir, "T-a", "alice");
-      const { default: status } = await importFresh("./commands/v2-status.mjs");
+      const { default: status } = await importFresh("./commands/status.mjs");
       const out = await status({ statePath: dir, flags: { status: "open" } });
       assert.equal(out.summary.in_progress, 0,
         `summary.in_progress must be 0 when --status open; got ${out.summary.in_progress}`);
@@ -188,9 +188,9 @@ describe("v2-status: --status filter applies to ALL buckets (not just derived)",
       await addGateNode(dir, "G-a");
       await addGateNode(dir, "G-b");
       // Resolve G-b to leave one open gate.
-      const { default: resolve } = await importFresh("./commands/v2-resolve.mjs");
+      const { default: resolve } = await importFresh("./commands/resolve.mjs");
       await resolve({ statePath: dir, flags: { as: "alice", choice: "yes", rationale: "ok" }, positional: ["G-b"] });
-      const { default: status } = await importFresh("./commands/v2-status.mjs");
+      const { default: status } = await importFresh("./commands/status.mjs");
       const out = await status({ statePath: dir, flags: { status: "open" } });
       // open gates should be included; resolved should not.
       assert.equal(out.summary.open_gates, 1,
@@ -202,43 +202,30 @@ describe("v2-status: --status filter applies to ALL buckets (not just derived)",
 // =====================================================================
 // Class B — silent flag drops in add-task v2
 //
-// add-task.mjs lists `--depends-on` in knownFlags but the v2 path
-// (which delegates to add-node) does NOT propagate it. So a user calling
-// `add-task T-x --initiative auth --title t --body b --acceptance a
-//  --depends-on T-y` on a v2 state silently creates an unrelated task
-// with no BLOCKS edge. That's data loss without a warning.
+// `add-task` in v2 has no v1 vocabulary. Calling it with a v1 flag like
+// --depends-on must be rejected at the CLI entry (unknown flag) so the
+// caller is never confused into thinking the flag had an effect. A direct
+// programmatic call still no-ops the unknown flag, so the v2 surface must
+// keep the surface narrow (no v1 fields in knownFlags).
 // =====================================================================
 
 describe("add-task v2: --depends-on must NOT be silently dropped", () => {
-  test("add-task v2 --depends-on T-y: rejects explicitly with structured error (not silently dropped)", async () => {
+  test("add-task CLI: --depends-on is rejected as an unknown flag (not silently dropped)", async () => {
     const dir = await v2Project();
     try {
       await addTaskNode(dir, "T-y");
-      // v2 path requires body+acceptance AND --blocked-by. Pass them.
-      // --depends-on is v1 vocabulary; v2 should reject it explicitly.
-      let caught;
-      try {
-        const { default: addTask } = await importFresh("./commands/add-task.mjs");
-        await addTask({
-          statePath: dir,
-          flags: {
-            initiative: "auth",
-            title: "x",
-            body: "b",
-            acceptance: "a",
-            "blocked-by": "",
-            "depends-on": "T-y",
-            as: "alice",
-          },
-          positional: ["T-x"],
-        });
-      } catch (e) { caught = e; }
-      assert.ok(caught, "add-task v2 --depends-on must throw, not silently drop");
-      assert.match(caught.message, /depends-on.*v1|--blocked-by/);
+      const out = await runCli([
+        "--project", dir, "add-task", "T-x",
+        "--initiative", "auth", "--title", "x", "--body", "b",
+        "--acceptance", "a", "--blocked-by", "",
+        "--depends-on", "T-y", "--as", "alice",
+      ]);
+      assert.notEqual(out.code, 0, `expected non-zero exit; stdout=${out.stdout} stderr=${out.stderr}`);
+      assert.match(out.stdout, /--depends-on/);
       const s = await readRawState(dir);
       // No partial mutation: T-x must not exist and no edges added.
       assert.equal(s.nodes["T-x"], undefined,
-        `add-task v2 must not create T-x when --depends-on is rejected; got ${JSON.stringify(s.nodes["T-x"])}`);
+        `add-task must not create T-x when --depends-on is rejected; got ${JSON.stringify(s.nodes["T-x"])}`);
       assert.equal(s.edges.length, 0, `no edges should be added on rejection; got ${JSON.stringify(s.edges)}`);
     } finally { await rmTempProject(dir); }
   });
@@ -627,7 +614,7 @@ describe("revision control", () => {
     const dir = await v2Project();
     try {
       await addTaskNode(dir, "T-a");
-      const { default: update } = await importFresh("./commands/v2-update.mjs");
+      const { default: update } = await importFresh("./commands/update.mjs");
       const out = await update({
         statePath: dir, positional: ["T-a"],
         flags: { title: "v2", "if-revision": "1", as: "alice" },
@@ -640,7 +627,7 @@ describe("revision control", () => {
     const dir = await v2Project();
     try {
       await addTaskNode(dir, "T-a");
-      const { default: update } = await importFresh("./commands/v2-update.mjs");
+      const { default: update } = await importFresh("./commands/update.mjs");
       await update({
         statePath: dir, positional: ["T-a"],
         flags: { title: "first", as: "alice" },
@@ -668,7 +655,7 @@ describe("revision control", () => {
     try {
       await addTaskNode(dir, "T-a");
       await takeNode(dir, "T-a", "alice"); // 1 → 2
-      const { default: update } = await importFresh("./commands/v2-update.mjs");
+      const { default: update } = await importFresh("./commands/update.mjs");
       // Without --if-revision, apply.
       const out = await update({
         statePath: dir, positional: ["T-a"],
@@ -691,7 +678,7 @@ describe("revision control", () => {
     const dir = await v2Project();
     try {
       await addTaskNode(dir, "T-a");
-      const { default: update } = await importFresh("./commands/v2-update.mjs");
+      const { default: update } = await importFresh("./commands/update.mjs");
       let caught;
       try {
         await update({
@@ -1023,7 +1010,7 @@ describe("resolve: newly_ready is the diff of pre/post derive", () => {
     try {
       await addGateNode(dir, "G-a");
       await addTaskNode(dir, "T-x", { "blocked-by": "G-a" });
-      const { default: resolve } = await importFresh("./commands/v2-resolve.mjs");
+      const { default: resolve } = await importFresh("./commands/resolve.mjs");
       const out = await resolve({
         statePath: dir, flags: { as: "alice", choice: "yes", rationale: "ok" },
         positional: ["G-a"],
@@ -1036,7 +1023,7 @@ describe("resolve: newly_ready is the diff of pre/post derive", () => {
     const dir = await v2Project();
     try {
       await addGateNode(dir, "G-a");
-      const { default: resolve } = await importFresh("./commands/v2-resolve.mjs");
+      const { default: resolve } = await importFresh("./commands/resolve.mjs");
       const out = await resolve({
         statePath: dir, flags: { as: "alice", choice: "yes", rationale: "ok" },
         positional: ["G-a"],

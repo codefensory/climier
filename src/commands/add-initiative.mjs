@@ -1,7 +1,6 @@
 // add-initiative: register an initiative with description.
-// v1 contract: silent overwrite on duplicate (legacy idempotent use).
-// v2 contract: reject duplicate names with ID_CONFLICT (the design doc
-// mandates pre-registration; F3 enforces it).
+// Duplicate names are rejected with ID_CONFLICT (F3 enforces
+// pre-registration per the v2 design doc).
 import { updateState, isV2State } from "../state.mjs";
 import { withLock } from "../lock.mjs";
 import { throwV2 } from "../errors.mjs";
@@ -33,8 +32,7 @@ export default async function addInitiative({ statePath, flags, positional }) {
   validateName(name);
   // F8: agent resolution sits at the end of the validation chain so the
   // caller sees bad-data errors (MISSING_FIELD / INVALID_NAME) before identity
-  // errors. Same precedence for v1 and v2 — add-initiative is the only
-  // command that mutates the initiatives collection in either version.
+  // errors.
   resolveAgent(flags, "add-initiative");
   const projectDir = statePath;
   const desc = typeof flags.desc === "string" ? flags.desc : "";

@@ -1,17 +1,14 @@
-// F12 — `history <id>`: log entries that reference a node/task.
+// F12 — `history <id>`: log entries that reference a node id.
 //
-// For v2, be generous — an entry counts if `node === id` OR `task === id` OR
+// Be generous — an entry counts if `node === id` OR `task === id` OR
 // `decision === id` OR `gotcha === id` OR the string `id` appears in `note`
 // (covers things like `add-edge A B` whose note string mentions B).
-// For v1, surface a v1-flavored view under the same {id, entries} envelope:
+// The legacy `task`/`decision`/`gotcha` fields are kept matched so old log
+// entries remain searchable without migration.
 //
-//   { id, entries: [...] }   — entries is [] when nothing matches.
-//
-// v1 detail view (per-id with task/decision/gotcha) is not provided here;
-// use `climier log --task X` for that.
+// Returns { id, entries }; entries is [] when nothing matches.
 
 import { readState } from "../state.mjs";
-import { isV2State } from "../state.mjs";
 
 export const knownFlags = ["limit"];
 
@@ -48,8 +45,3 @@ export default async function history({ statePath, flags, positional }) {
   if (limit !== null && limit > 0) entries = entries.slice(-limit);
   return { id, entries };
 }
-
-// Exported for the bin router: detect v2 and route to a v2-aware histogram
-// when needed. (Currently the same implementation handles both versions;
-// the keep-both-files split lets future v2-only filters live elsewhere.)
-export { isV2State };
