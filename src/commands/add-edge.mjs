@@ -43,7 +43,7 @@ export default async function addEdge({ statePath, positional, flags }) {
       st.edges.push(edge);
       return st;
     });
-    await append(projectDir, { agent, action: "add-edge", note: `${from} ${type} ${to}` });
+    await append(projectDir, { agent, action: "add-edge", node: to, note: `${from} ${type} ${to}` });
     return { edge };
   });
 }

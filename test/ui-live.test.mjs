@@ -12,6 +12,9 @@ import {
   createTempProject,
   rmTempProject,
   writeState,
+  readState,
+  initExampleProject,
+  runCli,
   exampleState,
   stateFilePath,
 } from "./helpers.mjs";
@@ -258,6 +261,194 @@ test("initiative_summary breaks down totals by kind", { skip }, async (t) => {
   assert.ok(mig.by_kind.tasks && mig.by_kind.tasks.total >= 14, `tasks.total got ${mig.by_kind.tasks && mig.by_kind.tasks.total}`);
   assert.ok(mig.by_kind.gates && mig.by_kind.gates.total >= 4);
   assert.ok(mig.by_kind.knowledge && mig.by_kind.knowledge.total >= 5);
+});
+
+// --- Phase 5D Track D: Activity endpoint (q, initiative, facets) ---------
+
+test("activity endpoint supports q filter (substring across note/agent/action/node)", { skip }, async (t) => {
+  const dir = await createTempProject();
+  t.after(() => rmTempProject(dir));
+  const baseState = exampleState();
+  baseState.log = [
+    { action: "add-note", node: "F0.T1", agent: "alice", ts: new Date().toISOString(), note: "first discovery" },
+    { action: "take", node: "F0.T2", agent: "bob", ts: new Date().toISOString(), note: "F0.T2" },
+    { action: "resolve", node: "F0.T3", agent: "alice", ts: new Date().toISOString(), note: "shipped to staging" },
+  ];
+  await writeState(dir, baseState);
+
+  const { base, server } = await startServer(dir);
+  t.after(() => closeServer(server));
+
+  // q matches against agent
+  const r1 = await getJson(`${base}/api/activity?q=alice`);
+  assert.equal(r1.total, 2, "q=alice must match the two entries with agent=alice");
+  for (const e of r1.entries) assert.equal(e.agent, "alice");
+
+  // q matches against note text
+  const r2 = await getJson(`${base}/api/activity?q=staging`);
+  assert.equal(r2.total, 1);
+  assert.equal(r2.entries[0].node_id, "F0.T3");
+
+  // q matches against action
+  const r3 = await getJson(`${base}/api/activity?q=add-note`);
+  assert.equal(r3.total, 1);
+  assert.equal(r3.entries[0].action, "add-note");
+});
+
+test("activity endpoint supports initiative filter (against the node's initiative)", { skip }, async (t) => {
+  const dir = await createTempProject();
+  t.after(() => rmTempProject(dir));
+  const baseState = exampleState();
+  // Two entries, two different initiatives.
+  baseState.nodes["F0.T1"].initiative = "alpha";
+  baseState.nodes["F0.T2"].initiative = "beta";
+  baseState.log = [
+    { action: "take", node: "F0.T1", agent: "alice", ts: new Date().toISOString(), note: "F0.T1" },
+    { action: "take", node: "F0.T2", agent: "bob", ts: new Date().toISOString(), note: "F0.T2" },
+  ];
+  await writeState(dir, baseState);
+
+  const { base, server } = await startServer(dir);
+  t.after(() => closeServer(server));
+
+  const r = await getJson(`${base}/api/activity?initiative=alpha`);
+  assert.equal(r.total, 1);
+  assert.equal(r.entries[0].node_id, "F0.T1");
+
+  const r2 = await getJson(`${base}/api/activity?initiative=beta`);
+  assert.equal(r2.total, 1);
+  assert.equal(r2.entries[0].node_id, "F0.T2");
+});
+
+test("activity endpoint returns facets for actions and agents (derived from the log)", { skip }, async (t) => {
+  const dir = await createTempProject();
+  t.after(() => rmTempProject(dir));
+  const baseState = exampleState();
+  // Custom action that would NOT exist in a fixed list of actions.
+  baseState.log = [
+    { action: "take", node: "F0.T1", agent: "alice", ts: new Date().toISOString(), note: "F0.T1" },
+    { action: "take", node: "F0.T2", agent: "alice", ts: new Date().toISOString(), note: "F0.T2" },
+    { action: "resolve", node: "F0.T3", agent: "bob", ts: new Date().toISOString(), note: "shipped" },
+    { action: "supersede", node: "F0.T4", agent: "alice", ts: new Date().toISOString(), note: "F0.T4 supersedes X" },
+    // A future / custom action must still appear in facets.
+    { action: "import-batch", node: "F0.T1", agent: "importer", ts: new Date().toISOString(), note: "bulk import" },
+  ];
+  await writeState(dir, baseState);
+
+  const { base, server } = await startServer(dir);
+  t.after(() => closeServer(server));
+
+  const r = await getJson(`${base}/api/activity`);
+  assert.ok(r.facets, "response must include facets");
+  const actionByName = Object.fromEntries(r.facets.actions.map((a) => [a.action, a.count]));
+  assert.equal(actionByName.take, 2);
+  assert.equal(actionByName.resolve, 1);
+  assert.equal(actionByName.supersede, 1);
+  assert.equal(actionByName["import-batch"], 1, "custom / future actions must appear in facets");
+  const agentByName = Object.fromEntries(r.facets.agents.map((a) => [a.agent, a.count]));
+  assert.equal(agentByName.alice, 3);
+  assert.equal(agentByName.bob, 1);
+  assert.equal(agentByName.importer, 1);
+});
+
+test("activity node_title is read from the current state (not from the log entry)", { skip }, async (t) => {
+  const dir = await createTempProject();
+  t.after(() => rmTempProject(dir));
+  const baseState = exampleState();
+  baseState.log = [
+    { action: "take", node: "F0.T1", agent: "alice", ts: new Date().toISOString(), note: "F0.T1" },
+  ];
+  // Rename the node AFTER the log entry was written.
+  baseState.nodes["F0.T1"].title = "Renamed skeleton task";
+  await writeState(dir, baseState);
+
+  const { base, server } = await startServer(dir);
+  t.after(() => closeServer(server));
+
+  const r = await getJson(`${base}/api/activity`);
+  const entry = r.entries.find((e) => e.node_id === "F0.T1");
+  assert.ok(entry);
+  assert.equal(entry.node_title, "Renamed skeleton task", "node_title must reflect the current title");
+});
+
+test("activity entry for an unknown node has node_id set but node_title null", { skip }, async (t) => {
+  const dir = await createTempProject();
+  t.after(() => rmTempProject(dir));
+  const baseState = exampleState();
+  // Log entry pointing at a node that does not exist in state.nodes.
+  baseState.log = [
+    { action: "take", node: "GHOST", agent: "alice", ts: new Date().toISOString(), note: "GHOST" },
+  ];
+  await writeState(dir, baseState);
+
+  const { base, server } = await startServer(dir);
+  t.after(() => closeServer(server));
+
+  const r = await getJson(`${base}/api/activity`);
+  assert.equal(r.entries.length, 1);
+  assert.equal(r.entries[0].node_id, "GHOST");
+  assert.equal(r.entries[0].node_title, null);
+});
+
+// --- Phase 5D Track D: normalize log writes so the UI can open the detail -
+
+test("add-node (real CLI path) writes a log entry with `node` so the UI can open the detail", { skip }, async (t) => {
+  const dir = await createTempProject();
+  t.after(() => rmTempProject(dir));
+  await initExampleProject(dir);
+
+  const r = await runCli([
+    "--project", dir,
+    "add-node", "T-new",
+    "--kind", "resolvable",
+    "--subkind", "task",
+    "--initiative", "migration",
+    "--title", "Brand new task",
+    "--as", "tester",
+  ]);
+  assert.equal(r.code, 0, `add-node failed: ${r.stderr}`);
+
+  const state = await readState(dir);
+  const logEntry = state.log.find((e) => e.action === "add-node" && e.note === "T-new");
+  assert.ok(logEntry, "add-node must write a log entry");
+  assert.equal(logEntry.node, "T-new", "log entry must carry node=T-new so the UI can navigate");
+
+  const { base, server } = await startServer(dir);
+  t.after(() => closeServer(server));
+
+  const activity = await getJson(`${base}/api/activity?action=add-node`);
+  const entry = activity.entries.find((e) => e.note === "T-new");
+  assert.ok(entry);
+  assert.equal(entry.node_id, "T-new");
+  assert.equal(entry.node_title, "Brand new task");
+});
+
+test("add-edge (real CLI path) writes a log entry with `node` for activity linking", { skip }, async (t) => {
+  const dir = await createTempProject();
+  t.after(() => rmTempProject(dir));
+  await initExampleProject(dir);
+
+  const r = await runCli([
+    "--project", dir,
+    "add-edge", "F0.T1", "F0.T3",
+    "--type", "BLOCKS",
+    "--as", "tester",
+  ]);
+  assert.equal(r.code, 0, `add-edge failed: ${r.stderr}`);
+
+  const state = await readState(dir);
+  const logEntry = state.log.find((e) => e.action === "add-edge" && /F0\.T1.*BLOCKS.*F0\.T3/.test(e.note));
+  assert.ok(logEntry, "add-edge must write a log entry");
+  assert.ok(logEntry.node, "add-edge log entry must carry a node so the activity list links to it");
+
+  const { base, server } = await startServer(dir);
+  t.after(() => closeServer(server));
+
+  const activity = await getJson(`${base}/api/activity?action=add-edge`);
+  assert.ok(activity.entries.length >= 1, "add-edge must surface in the activity endpoint");
+  for (const e of activity.entries) {
+    assert.ok(e.node_id, "every add-edge entry must expose node_id");
+  }
 });
 
 test("GET endpoints never mutate the live state file", { skip }, async (t) => {
