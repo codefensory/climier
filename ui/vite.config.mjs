@@ -13,14 +13,15 @@ export default defineConfig({
   server: {
     // Forward all /api requests to the local climier UI server.
     // The dev:api script (ui/package.json) boots that server on 127.0.0.1:7373.
-    // We strip the /api prefix so the upstream sees clean routes.
+    // Keep the /api prefix intact: the upstream only mounts /api/* routes
+    // (/api/snapshot, /api/health, /api/node/:id, /api/activity, /api/search);
+    // stripping the prefix would route everything to the SPA fallback (HTML).
     proxy: {
       "/api": {
         target: API_TARGET,
         changeOrigin: true,
         secure: false,
         ws: false,
-        rewrite: (path) => path.replace(/^\/api/, ""),
       },
     },
   },
