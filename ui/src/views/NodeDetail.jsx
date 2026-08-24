@@ -1,6 +1,6 @@
 // NodeDetail — drawer for a single node.
 //
-// Scope (Fase 6 pieza F6a, per docs/ui-redesign-plan.md section 6-Fase 6):
+// Scope (Fase 6 per docs/ui-redesign-plan.md section 6-Fase 6):
 //   1. Sticky header with back/close, real kind (task/gate/knowledge — never
 //      the umbrella 'resolvable'), status, id and revision.
 //   2. Title in the 20-24 px range (the `text-page` token).
@@ -8,12 +8,17 @@
 //      Fase 1 contract), revision and last activity timestamp.
 //   4. Visible callout for blocked, stale or superseded via AlertBanner.
 //   5. Specification and open blockers visible by default.
-//   6. Knowledge, notes, history, refs, secondary relations and the
+//   6. Knowledge, notes, history, refs, relationships and the
 //      equivalent-CLI command live inside collapsible <details>.
 //   7. Times use claim.at (Time/ClaimTime prefer claim.at over claim.ts).
-//
-// Pieza F6b (T-ui-detail-rel) owns the relationships breakdown; here we
-// only render a coarse Dependents link into a <details> until that lands.
+//   8. Relationships are split by direction/type (F6b, T-ui-detail-rel):
+//      incoming blockers stay in the open Blockers panel; outgoing edges
+//      are grouped into Blocks / Derived from / Supersedes / Informing-legacy
+//      inside one collapsible Relationships zone. The drawer never
+//      re-derives the DAG — it only re-groups what /api/node/:id returns.
+//   9. Back navigates within the drawer (blocker -> node -> back) and only
+//      closes when there is no history (F6b).
+//  10. Basic focus trap keeps Tab inside the dialog (F6b).
 
 import { Show, For, createMemo, createSignal, createEffect, onCleanup } from "solid-js";
 import { Portal } from "solid-js/web";
@@ -28,6 +33,45 @@ import {
   StatusBadge,
   Time,
 } from "../components.jsx";
+
+// === Relationship + navigation helpers (pure, exported for tests) ==========
+// The drawer splits the server's `dependents` array (outgoing edges of every
+// type) plus `blocking`/`superseded_by` into direction-aware groups so each
+// relationship kind gets its own zone. This is presentation logic only: the
+// derivation itself stays in src/v2.mjs / the server.
+//
+// Legacy edge types (INFORMS, RELATES_TO, CONFLICTS_WITH) are deprecated in
+// the schema but can still exist in data; they are grouped together as
+// informational edges.
+export function splitRelationships(detail) {
+  const dependents = Array.isArray(detail && detail.dependents) ? detail.dependents : [];
+  const outBlocks = dependents.filter((e) => e && e.edge_type === "BLOCKS");
+  const derivedFrom = dependents.filter((e) => e && e.edge_type === "DERIVED_FROM");
+  const supersedes = dependents.filter((e) => e && e.edge_type === "SUPERSEDES");
+  const legacy = dependents.filter((e) =>
+    e && ["INFORMS", "RELATES_TO", "CONFLICTS_WITH"].includes(e.edge_type)
+  );
+  const supersededBy =
+    (detail && detail.superseded_by) ||
+    (detail && detail.node && detail.node.superseded_by) ||
+    null;
+  return { outBlocks, derivedFrom, supersedes, legacy, supersededBy };
+}
+
+// Drawer back-history. Navigating from A to B while the drawer is open
+// records A so Back can return without closing; closing the drawer (next id
+// null) resets the stack. Pure so the contract is unit-testable without DOM.
+export function pushHistory(stack, fromId, toId) {
+  if (!toId) return [];
+  if (!fromId || fromId === toId) return stack || [];
+  return [...(stack || []), fromId];
+}
+
+export function popHistory(stack) {
+  const s = stack || [];
+  if (!s.length) return { stack: [], back: null };
+  return { stack: s.slice(0, -1), back: s[s.length - 1] };
+}
 
 // Brief human-language rationale for each derived/persisted status. Used
 // in the summary card so the user does not have to guess what a status
@@ -145,20 +189,39 @@ export default function NodeDetail() {
 
   // Focus + keyboard contract for the dialog:
   //  - opening moves focus inside the drawer
+  //  - navigating between nodes keeps the drawer open and records history
+  //  - Back returns to the previous node (closes only when there is no
+  //    history)
   //  - Escape closes the drawer
+  //  - Tab cycles inside the drawer (basic focus trap)
   //  - previous focus is restored on close
   let drawerRef;
   let restoreFocusEl = null;
+  let prevSelected = null;
   const [openedAt, setOpenedAt] = createSignal(null);
+  const [navStack, setNavStack] = createSignal([]);
+
+  function goBack() {
+    const { stack, back } = popHistory(navStack());
+    setNavStack(stack);
+    select(back || null);
+  }
 
   createEffect(() => {
     const id = selectedId();
     if (id) {
-      setOpenedAt(Date.now());
-      // Capture the active element so we can restore focus on close.
-      if (typeof document !== "undefined") {
-        restoreFocusEl = document.activeElement;
+      if (prevSelected === null) {
+        // Fresh open: capture the element that opened us so close can
+        // restore focus. Navigation inside the drawer must not overwrite it.
+        if (typeof document !== "undefined") {
+          restoreFocusEl = document.activeElement;
+        }
+      } else {
+        // Navigation while the drawer is already open: remember where we
+        // came from so Back returns without closing.
+        setNavStack((s) => pushHistory(s, prevSelected, id));
       }
+      setOpenedAt(Date.now());
       // Defer focus until the drawer has rendered.
       queueMicrotask(() => {
         const root = drawerRef;
@@ -168,17 +231,44 @@ export default function NodeDetail() {
       });
     } else {
       setOpenedAt(null);
+      setNavStack([]);
       if (restoreFocusEl && typeof restoreFocusEl.focus === "function") {
         try { restoreFocusEl.focus(); } catch {}
       }
       restoreFocusEl = null;
     }
+    prevSelected = id;
   });
 
   function handleKeyDown(e) {
     if (e.key === "Escape") {
       e.preventDefault();
       select(null);
+      return;
+    }
+    // Basic focus trap: when focus reaches the first/last focusable element
+    // inside the drawer, Tab / Shift+Tab wraps around instead of leaving the
+    // dialog. This is deliberately lightweight — the drawer is the only
+    // interactive surface while open.
+    if (e.key === "Tab") {
+      const root = drawerRef;
+      if (!root || typeof document === "undefined") return;
+      const focusables = Array.from(
+        root.querySelectorAll(
+          'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((el) => el.offsetParent !== null || el === document.activeElement);
+      if (!focusables.length) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement;
+      if (e.shiftKey && (active === first || active === root)) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault();
+        first.focus();
+      }
     }
   }
 
@@ -207,7 +297,7 @@ export default function NodeDetail() {
     >
       {/* ── Header ─────────────────────────────────────────────────── */}
       <header class="sticky top-0 z-10 flex items-center gap-2 border-b border-line bg-canvas/95 px-4 py-3 backdrop-blur-[2px]">
-        <IconButton size="sm" label="Back" onClick={() => select(null)}>
+        <IconButton size="sm" label="Back" onClick={goBack}>
           <span class="text-[14px]" aria-hidden="true">←</span>
         </IconButton>
         <span class="mono truncate text-[12px] text-body" title={d()?.node?.id}>{d()?.node?.id}</span>
@@ -278,6 +368,15 @@ function DetailBody(props) {
   const { detail: d, lastActivityMap, nodeAlerts, onSelect } = props;
   const n = () => d.node;
   const lastAt = () => lastActivityTs(d, lastActivityMap);
+
+  // Direction/type split of the relationships the server exposes (see
+  // splitRelationships above). Presentation only — never re-derives the DAG.
+  const rel = createMemo(() => splitRelationships(d));
+  const relationshipsCount = createMemo(() => {
+    const r = rel();
+    return r.outBlocks.length + r.derivedFrom.length + r.supersedes.length +
+      (r.supersededBy ? 1 : 0) + r.legacy.length;
+  });
 
   // Banner triage: pick the most actionable alert for the headline, list
   // the rest as muted extras. Severity > kind for ordering. The server only
@@ -407,6 +506,7 @@ function DetailBody(props) {
           </span>
         }
       >
+        <p class="mb-2 text-[12px] text-mute">Incoming BLOCKS — this node is blocked by these.</p>
         <Show when={(d.blocking || []).length} fallback={
           <EmptyState variant="compact" title="No blockers." />
         }>
@@ -542,33 +642,65 @@ function DetailBody(props) {
       </DetailsSection>
 
       <DetailsSection
-        title="Dependents"
-        count={(d.dependents || []).length}
-        hint="Nodes that reference this one. Granular relationships land in F6b."
+        title="Relationships"
+        count={relationshipsCount()}
+        hint="Direction-aware links: blocks, derived from, supersedes, legacy informs."
       >
-        <Show when={(d.dependents || []).length} fallback={
-          <EmptyState variant="compact" title="No dependents." />
-        }>
-          <ul class="space-y-1.5">
-            <For each={d.dependents}>
-              {(dp) => (
-                <li>
-                  <button
-                    type="button"
-                    class="flex min-h-[36px] w-full items-center gap-2 rounded-control border border-line bg-panel px-3 py-2 text-left transition-colors hover:bg-panel-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
-                    onClick={() => onSelect(dp.node && dp.node.id)}
-                    aria-label={`Open dependent ${dp.node && dp.node.id}`}
-                  >
-                    <KindBadge node={dp.node} />
-                    <span class="mono shrink-0 text-[12px] text-body">{dp.node && dp.node.id}</span>
-                    <span class="min-w-0 flex-1 truncate text-[12px] text-body">{dp.node && dp.node.title}</span>
-                    <span class="ml-auto text-[11px] uppercase tracking-wider text-mute">{dp.edge_type}</span>
-                  </button>
-                </li>
-              )}
-            </For>
-          </ul>
-        </Show>
+        <div class="space-y-4">
+          <RelGroup label="Blocks" hint="outgoing BLOCKS — nodes this one keeps from being ready.">
+            <Show when={rel().outBlocks.length} fallback={
+              <EmptyState variant="compact" title="No blocked nodes." />
+            }>
+              <ul class="space-y-1.5">
+                <For each={rel().outBlocks}>{(e) => <RelationRow edge={e} onSelect={onSelect} />}</For>
+              </ul>
+            </Show>
+          </RelGroup>
+
+          <RelGroup label="Derived from" hint="outgoing DERIVED_FROM — source nodes this was built from.">
+            <Show when={rel().derivedFrom.length} fallback={
+              <EmptyState variant="compact" title="No derivation sources." />
+            }>
+              <ul class="space-y-1.5">
+                <For each={rel().derivedFrom}>{(e) => <RelationRow edge={e} onSelect={onSelect} />}</For>
+              </ul>
+            </Show>
+          </RelGroup>
+
+          <RelGroup label="Supersedes / superseded by" hint="SUPERSEDES in both directions.">
+            <Show when={rel().supersededBy}>
+              <div class="mb-1.5 flex min-h-[36px] items-center gap-2 rounded-control border border-line bg-panel px-3 py-2">
+                <span class="text-[11px] uppercase tracking-wider text-mute">Superseded by</span>
+                <button
+                  type="button"
+                  class="flex min-w-0 flex-1 items-center gap-2 rounded-control px-1 py-0.5 text-left transition-colors hover:bg-panel-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
+                  onClick={() => onSelect(rel().supersededBy)}
+                  aria-label={`Open superseding node ${rel().supersededBy}`}
+                >
+                  <span class="mono shrink-0 text-[12px] text-body">{rel().supersededBy}</span>
+                  <span class="text-[12px] text-mute" aria-hidden="true">→</span>
+                </button>
+              </div>
+            </Show>
+            <Show when={rel().supersedes.length} fallback={
+              <EmptyState variant="compact" title="No superseded nodes." />
+            }>
+              <ul class="space-y-1.5">
+                <For each={rel().supersedes}>{(e) => <RelationRow edge={e} onSelect={onSelect} />}</For>
+              </ul>
+            </Show>
+          </RelGroup>
+
+          <RelGroup label="Informing / legacy" hint="INFORMS, RELATES_TO, CONFLICTS_WITH — informational edges.">
+            <Show when={rel().legacy.length} fallback={
+              <EmptyState variant="compact" title="No legacy informational edges." />
+            }>
+              <ul class="space-y-1.5">
+                <For each={rel().legacy}>{(e) => <RelationRow edge={e} onSelect={onSelect} />}</For>
+              </ul>
+            </Show>
+          </RelGroup>
+        </div>
       </DetailsSection>
 
       <DetailsSection
@@ -622,6 +754,47 @@ function DetailsSection(props) {
       </summary>
       <div class="border-t border-line p-4">{props.children}</div>
     </details>
+  );
+}
+
+// Label + hint block for one relationship sub-group inside the
+// Relationships <details>.
+function RelGroup(props) {
+  // label (string, required), hint (string, optional), children
+  return (
+    <section>
+      <div class="mb-1.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <h4 class="mono text-[11px] uppercase tracking-wider text-mute">{props.label}</h4>
+        <Show when={props.hint}>
+          <span class="text-[11px] text-mute/80">{props.hint}</span>
+        </Show>
+      </div>
+      {props.children}
+    </section>
+  );
+}
+
+// One navigable row for a related node. Navigation goes through the store's
+// select() (GET /api/node/:id only) — the drawer never issues a mutating
+// request, and the target is a button, not an anchor.
+function RelationRow(props) {
+  // edge ({ edge_type, node }), onSelect (id -> void)
+  const edge = props.edge || {};
+  const related = edge.node || {};
+  return (
+    <li>
+      <button
+        type="button"
+        class="flex min-h-[36px] w-full items-center gap-2 rounded-control border border-line bg-panel px-3 py-2 text-left transition-colors hover:bg-panel-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
+        onClick={() => props.onSelect && props.onSelect(related.id)}
+        aria-label={`Open ${related.id}`}
+      >
+        <KindBadge node={related} />
+        <span class="mono shrink-0 text-[12px] text-body">{related.id}</span>
+        <span class="min-w-0 flex-1 truncate text-[12px] text-body">{related.title || "—"}</span>
+        <StatusBadge status={related.status || "open"} />
+      </button>
+    </li>
   );
 }
 

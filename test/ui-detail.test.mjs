@@ -88,6 +88,7 @@ process.on("exit", () => {
 });
 
 // --- fixtures ---------------------------------------------------------------
+
 //
 // The snapshot contract from Fase 1: detail() returns the full payload from
 // /api/node/:id. We hand-build representative payloads so the tests stay
@@ -361,4 +362,115 @@ test("NodeDetail does not render Markdown or HTML inside ref targets", { skip },
     `ref targets must be rendered as text, not as live HTML: ${html}`);
   assert.ok(html.includes("&lt;script&gt;") || html.includes("<script>alert(1)</script>") === false,
     `ref target must be escaped: ${html}`);
+});
+
+// --- F6b (T-ui-detail-rel): relationships + navigation + a11y --------------
+// The drawer never re-derives the DAG. It splits the server's `dependents`
+// (outgoing edges of every type) + `blocking`/`superseded_by` into
+// direction-aware groups, and keeps a back-history so blocker -> node ->
+// back works without closing the dialog. These tests pin that split and the
+// navigation helpers; the visual separation is verified via renderToString.
+
+test("splitRelationships separates outgoing edges by type and direction", { skip }, async (t) => {
+  const { mod } = await compileDetail(t, { storeStub: true });
+  const detail = makeDetail({
+    derived_status: "in_progress",
+    dependents: [
+      { edge_type: "BLOCKS", node: { id: "T-child" } },
+      { edge_type: "DERIVED_FROM", node: { id: "T-base" } },
+      { edge_type: "SUPERSEDES", node: { id: "T-old" } },
+      { edge_type: "INFORMS", node: { id: "K-notes" } },
+      { edge_type: "RELATES_TO", node: { id: "T-peer" } },
+      { edge_type: "CONFLICTS_WITH", node: { id: "T-rival" } },
+    ],
+    superseded_by: "T-new",
+  });
+  const rel = mod.splitRelationships(detail);
+  assert.deepEqual(rel.outBlocks.map((e) => e.node.id), ["T-child"], "outgoing BLOCKS must be grouped as 'blocks'");
+  assert.deepEqual(rel.derivedFrom.map((e) => e.node.id), ["T-base"], "DERIVED_FROM must be grouped separately");
+  assert.deepEqual(rel.supersedes.map((e) => e.node.id), ["T-old"], "outgoing SUPERSEDES must be grouped separately");
+  assert.deepEqual(rel.legacy.map((e) => e.node.id), ["K-notes", "T-peer", "T-rival"], "INFORMS/RELATES_TO/CONFLICTS_WITH are legacy/informing");
+  assert.equal(rel.supersededBy, "T-new", "incoming SUPERSEDES (superseded_by) must be surfaced");
+});
+
+test("splitRelationships is defensive with empty/missing payloads", { skip }, async (t) => {
+  const { mod } = await compileDetail(t, { storeStub: true });
+  const rel = mod.splitRelationships({ node: { id: "T-x" }, dependents: null, informing: null });
+  assert.deepEqual(rel.outBlocks, []);
+  assert.deepEqual(rel.derivedFrom, []);
+  assert.deepEqual(rel.supersedes, []);
+  assert.deepEqual(rel.legacy, []);
+  assert.equal(rel.supersededBy, null);
+});
+
+test("back-stack helpers record navigation and pop LIFO without closing", { skip }, async (t) => {
+  const { mod } = await compileDetail(t, { storeStub: true });
+  const { pushHistory, popHistory } = mod;
+  // Fresh open (no previous node): nothing to record.
+  assert.deepEqual(pushHistory([], null, "T-A"), []);
+  // Navigation A -> B records A so Back can return.
+  assert.deepEqual(pushHistory([], "T-A", "T-B"), ["T-A"]);
+  // Reselecting the same node must not push a duplicate.
+  assert.deepEqual(pushHistory(["T-A"], "T-B", "T-B"), ["T-A"]);
+  // Closing the drawer (next id null) resets the stack.
+  assert.deepEqual(pushHistory(["T-A", "T-B"], "T-B", null), []);
+  // Pop returns the previous node and shrinks the stack.
+  assert.deepEqual(popHistory(["T-A", "T-B"]), { stack: ["T-A"], back: "T-B" });
+  // Pop on an empty stack means "no history" -> Back closes the drawer.
+  assert.deepEqual(popHistory([]), { stack: [], back: null });
+});
+
+test("NodeDetail renders direction-separated relationship sections", { skip }, async (t) => {
+  const { mod } = await compileDetail(t, { storeStub: true });
+  const detail = makeDetail({
+    derived_status: "in_progress",
+    dependents: [
+      { edge_type: "BLOCKS", node: { id: "T-child", title: "Child task", status: "open", subkind: "task", kind: "resolvable" } },
+      { edge_type: "DERIVED_FROM", node: { id: "T-base", title: "Base", status: "done", subkind: "task", kind: "resolvable" } },
+      { edge_type: "SUPERSEDES", node: { id: "T-old", title: "Old task", status: "superseded", subkind: "task", kind: "resolvable" } },
+      { edge_type: "INFORMS", node: { id: "K-notes", title: "Notes knowledge", status: "active", kind: "knowledge" } },
+      { edge_type: "RELATES_TO", node: { id: "T-peer", title: "Peer", status: "open", subkind: "task", kind: "resolvable" } },
+    ],
+    superseded_by: "T-new",
+  });
+  globalThis.__NODE_DETAIL_STORE__ = makeStore(detail);
+  const html = solidWeb.renderToString(() => mod.default());
+  // Each relationship kind has its own labelled zone.
+  assert.match(html, />\s*Blocks\s*</, `outgoing BLOCKS zone must be labelled 'Blocks': ${html}`);
+  assert.match(html, />\s*Derived from\s*</, `DERIVED_FROM zone must be labelled 'Derived from': ${html}`);
+  assert.match(html, />\s*Supersedes\s*/, `SUPERSEDES zone must be labelled 'Supersedes': ${html}`);
+  assert.match(html, />\s*Informing/, `legacy/informing zone must be labelled 'Informing': ${html}`);
+  // Related node ids all surface.
+  for (const id of ["T-child", "T-base", "T-old", "K-notes", "T-peer"]) {
+    assert.ok(html.includes(id), `related node ${id} must be visible in the drawer: ${html}`);
+  }
+  // superseded_by is surfaced as a navigation affordance, not state logic.
+  assert.ok(html.includes("T-new"), `superseded_by id must be visible: ${html}`);
+  assert.match(html, /aria-label="[^"]*T-new[^"]*"/, `superseded_by must be reachable (button aria-label): ${html}`);
+  // Incoming blockers stay a separate, open-by-default panel (not merged
+  // into the collapsed Relationships <details>).
+  const relIdx = html.indexOf("Relationships");
+  assert.ok(relIdx > -1, `Relationships <details> must exist: ${html}`);
+  const beforeRel = html.slice(0, relIdx);
+  assert.ok(beforeRel.includes("Blockers"), `incoming Blockers panel must render before the collapsed Relationships zone: ${html}`);
+  // The Relationships zone itself is collapsed by default.
+  assert.ok(!/<details[^>]*\bopen\b/.test(html),
+    `secondary <details> must default to closed; saw <details open>: ${html}`);
+});
+
+test("NodeDetail relationship rows are keyboard-reachable buttons, not links/scripts", { skip }, async (t) => {
+  const { mod } = await compileDetail(t, { storeStub: true });
+  const detail = makeDetail({
+    derived_status: "in_progress",
+    dependents: [
+      { edge_type: "DERIVED_FROM", node: { id: "T-base", title: "Base", status: "done", subkind: "task", kind: "resolvable" } },
+    ],
+  });
+  globalThis.__NODE_DETAIL_STORE__ = makeStore(detail);
+  const html = solidWeb.renderToString(() => mod.default());
+  // The related node is opened with a button (navigation), never an anchor
+  // that could be a mutating request.
+  assert.match(html, /<button[^>]*aria-label="Open T-base"/, `related node must be opened via a button: ${html}`);
+  // No raw URLs or script tags leak into the drawer.
+  assert.ok(!html.includes("<a "), `relationships must not render raw anchors: ${html}`);
 });
