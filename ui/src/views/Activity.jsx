@@ -1,86 +1,380 @@
-import { createSignal, Show, For, onMount } from "solid-js";
-import { useStore } from "../store.jsx";
+import { createSignal, Show, For, createEffect, onCleanup, createMemo } from "solid-js";
 import { getActivity } from "../api.js";
-import { Empty, fmtTime } from "../components.jsx";
+import { useStore } from "../store.jsx";
+import { fmtTime } from "../components.jsx";
 
-const ACTIONS = [
-  "", "add-node", "add-note", "take", "resolve", "release", "reopen", "cancel", "update", "supersede", "deprecate-knowledge",
-];
+const DEBOUNCE_MS = 280;
+const PAGE_SIZES = [25, 50, 100, 200];
+
+// Monotonic token used to discard stale responses. Combined with
+// AbortController cancellation this guarantees that a slow earlier
+// request can't clobber a newer one (typing fast, filter changes,
+// pagination).
+function nextToken() {
+  nextToken.n = (nextToken.n || 0) + 1;
+  return nextToken.n;
+}
+
+function isAbortError(err) {
+  return err && (err.name === "AbortError" || err.code === 20);
+}
+
+function SkeletonRow() {
+  return (
+    <div class="flex gap-3 py-1.5">
+      <div class="h-3 w-20 rounded bg-panel-2" />
+      <div class="h-3 w-16 rounded bg-panel-2" />
+      <div class="h-3 w-24 rounded bg-panel-2" />
+      <div class="h-3 flex-1 rounded bg-panel-2" />
+    </div>
+  );
+}
+
+function Skeleton(props) {
+  return (
+    <div class="animate-pulse space-y-1 px-4 py-2" aria-busy="true" aria-live="polite" aria-label="Loading activity">
+      <For each={Array.from({ length: props.rows || 8 })}>{() => <SkeletonRow />}</For>
+    </div>
+  );
+}
+
+function rowKey(e) {
+  return `${e.ts || ""}::${e.action || ""}::${e.agent || ""}::${e.node_id || e.node || e.task || ""}`;
+}
 
 export default function Activity() {
   const { select } = useStore();
+
+  // Inputs (raw) vs applied filters. `q` is the only debounced field
+  // because it's keystroke-driven; the rest are explicit filter
+  // changes (select / commit) and re-fetch immediately.
+  const [q, setQ] = createSignal("");
+  const [debouncedQ, setDebouncedQ] = createSignal("");
+  const [initiative, setInitiative] = createSignal("");
   const [action, setAction] = createSignal("");
   const [agent, setAgent] = createSignal("");
-  const [node, setNode] = createSignal("");
-  const [limit, setLimit] = createSignal(100);
+  const [limit, setLimit] = createSignal(50);
   const [offset, setOffset] = createSignal(0);
-  const [data, setData] = createSignal(null);
-  const [error, setError] = createSignal(null);
 
-  async function load() {
+  const [data, setData] = createSignal(null); // last successful payload
+  const [error, setError] = createSignal(null);
+  const [loading, setLoading] = createSignal(false);
+  const [initialLoading, setInitialLoading] = createSignal(true);
+  const [lastRefreshedAt, setLastRefreshedAt] = createSignal(null);
+  const [expanded, setExpanded] = createSignal(new Set());
+
+  let reqToken = 0;
+  let abortCtrl = null;
+  let debounceTimer = null;
+
+  async function refresh() {
+    const token = nextToken();
+    reqToken = token;
+    abortCtrl?.abort();
+    const ctl = new AbortController();
+    abortCtrl = ctl;
+    setLoading(true);
     try {
-      setData(await getActivity({ action: action(), agent: agent(), node: node(), limit: limit(), offset: offset() }));
+      const params = {
+        q: debouncedQ() || undefined,
+        initiative: initiative() || undefined,
+        action: action() || undefined,
+        agent: agent() || undefined,
+        limit: limit(),
+        offset: offset(),
+      };
+      const r = await getActivity(params, { signal: ctl.signal });
+      if (token !== reqToken) return; // stale
+      setData(r);
       setError(null);
+      setLastRefreshedAt(new Date().toISOString());
     } catch (e) {
-      setError(e.message);
+      if (isAbortError(e)) return;
+      if (token !== reqToken) return;
+      setError(e.message || String(e));
+    } finally {
+      if (token === reqToken) {
+        setLoading(false);
+        setInitialLoading(false);
+      }
     }
   }
-  onMount(load);
+
+  // Debounce only `q`. Resets offset so users land on the first page of
+  // the new result set, not the same offset within a smaller total.
+  createEffect(() => {
+    const v = q();
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      setDebouncedQ(v);
+      setOffset(0);
+    }, DEBOUNCE_MS);
+  });
+
+  // Re-fetch on any applied filter change. createEffect tracks the
+  // dependencies by reading the signals, so it fires exactly when one
+  // of them updates (including the debounced q landing).
+  createEffect(() => {
+    // touch reactive deps
+    debouncedQ();
+    initiative();
+    action();
+    agent();
+    limit();
+    offset();
+    refresh();
+  });
+
+  onCleanup(() => {
+    if (debounceTimer) clearTimeout(debounceTimer);
+    abortCtrl?.abort();
+  });
 
   const entries = () => data()?.entries || [];
+  const facets = () => data()?.facets || { actions: [], agents: [] };
   const total = () => data()?.total || 0;
+
+  // Pagination range. The endpoint orders entries most-recent-first and
+  // `offset` skips the N oldest matching entries, so:
+  //   offset=0, total=100, limit=25 -> 76..100
+  //   offset=75, total=100, limit=25 -> 1..25
+  // Empty state must read "0 of 0", never "1–0 of 0".
+  const range = createMemo(() => {
+    const t = total();
+    if (t === 0) return { from: 0, to: 0 };
+    const lim = limit();
+    const off = offset();
+    const to = Math.max(1, t - off);
+    const from = Math.max(1, to - lim + 1);
+    return { from, to };
+  });
+
+  function toggleExpand(key) {
+    const s = new Set(expanded());
+    if (s.has(key)) s.delete(key);
+    else s.add(key);
+    setExpanded(s);
+  }
+
+  function clearFilters() {
+    setQ("");
+    setDebouncedQ("");
+    setInitiative("");
+    setAction("");
+    setAgent("");
+    setOffset(0);
+  }
 
   return (
     <div class="flex h-full flex-col">
       <div class="flex flex-wrap items-center gap-3 border-b border-line px-4 py-2">
-        <h1 class="text-sm font-semibold">Activity <span class="text-xs font-normal text-slate-500">({total()} entries)</span></h1>
-        <select class="rounded-lg border border-line bg-panel px-2 py-1 text-xs text-slate-700 outline-none" value={action()} onChange={(e) => { setAction(e.currentTarget.value); setOffset(0); load(); }}>
-          <For each={ACTIONS}>{(a) => <option value={a}>{a || "All actions"}</option>}</For>
+        <h1 class="text-sm font-semibold">
+          Activity{" "}
+          <span class="text-xs font-normal text-slate-500">({total()} entries)</span>
+        </h1>
+        <input
+          class="mono w-44 rounded-lg border border-line bg-panel px-2 py-1 text-xs outline-none focus:border-sky-600/50"
+          placeholder="search (q)…"
+          value={q()}
+          onInput={(e) => setQ(e.currentTarget.value)}
+          aria-label="Search activity"
+        />
+        <input
+          class="mono w-32 rounded-lg border border-line bg-panel px-2 py-1 text-xs outline-none focus:border-sky-600/50"
+          placeholder="initiative…"
+          value={initiative()}
+          onChange={(e) => {
+            setInitiative(e.currentTarget.value);
+            setOffset(0);
+          }}
+          aria-label="Initiative filter"
+        />
+        <select
+          class="rounded-lg border border-line bg-panel px-2 py-1 text-xs text-slate-700 outline-none"
+          value={action()}
+          onChange={(e) => {
+            setAction(e.currentTarget.value);
+            setOffset(0);
+          }}
+          aria-label="Action filter"
+        >
+          <option value="">All actions</option>
+          <For each={facets().actions}>
+            {(a) => <option value={a.action}>{a.action} ({a.count})</option>}
+          </For>
         </select>
-        <input class="mono w-40 rounded-lg border border-line bg-panel px-2 py-1 text-xs outline-none focus:border-sky-600/50" placeholder="agent…" value={agent()} onInput={(e) => { setAgent(e.currentTarget.value); setOffset(0); load(); }} />
-        <input class="mono w-40 rounded-lg border border-line bg-panel px-2 py-1 text-xs outline-none focus:border-sky-600/50" placeholder="node id…" value={node()} onInput={(e) => { setNode(e.currentTarget.value); setOffset(0); load(); }} />
-        <button class="rounded-full border border-line bg-panel px-2 py-1 text-xs text-slate-600 hover:bg-panel-2" onClick={load}>Refresh</button>
+        <select
+          class="rounded-lg border border-line bg-panel px-2 py-1 text-xs text-slate-700 outline-none"
+          value={agent()}
+          onChange={(e) => {
+            setAgent(e.currentTarget.value);
+            setOffset(0);
+          }}
+          aria-label="Agent filter"
+        >
+          <option value="">All agents</option>
+          <For each={facets().agents}>
+            {(a) => <option value={a.agent}>{a.agent} ({a.count})</option>}
+          </For>
+        </select>
+        <label class="flex items-center gap-1 text-xs text-slate-600">
+          page
+          <select
+            class="rounded-lg border border-line bg-panel px-2 py-1 text-xs text-slate-700 outline-none"
+            value={limit()}
+            onChange={(e) => {
+              setLimit(parseInt(e.currentTarget.value, 10) || 50);
+              setOffset(0);
+            }}
+            aria-label="Page size"
+          >
+            <For each={PAGE_SIZES}>{(n) => <option value={n}>{n}</option>}</For>
+          </select>
+        </label>
+        <button
+          class="inline-flex items-center gap-2 rounded-full border border-line bg-panel px-2 py-1 text-xs text-slate-600 hover:bg-panel-2 disabled:opacity-60"
+          onClick={refresh}
+          disabled={loading()}
+          aria-label="Refresh activity"
+        >
+          <Show
+            when={loading()}
+            fallback={<span>Refresh</span>}
+          >
+            <span class="inline-block h-2 w-2 animate-pulse rounded-full bg-sky-600" aria-hidden="true" />
+            <span>Refreshing…</span>
+          </Show>
+        </button>
+        <Show when={lastRefreshedAt()}>
+          <span class="mono text-[11px] text-slate-400">updated {fmtTime(lastRefreshedAt())}</span>
+        </Show>
       </div>
+
+      {/* Non-destructive error: keep last successful data, surface banner. */}
+      <Show when={error() && data()}>
+        <div class="border-b border-amber-600/30 bg-amber-500/10 px-4 py-2 text-xs text-amber-900" role="status">
+          Refresh failed: {error()}. Showing previous results.
+        </div>
+      </Show>
+
       <div class="flex-1 overflow-auto">
-        <Show when={!error()} fallback={<div class="p-6 text-sm text-rose-700">{error()}</div>}>
-          <Show when={entries().length} fallback={<div class="p-6"><Empty>No log entries match.</Empty></div>}>
-            <table class="w-full text-sm">
-              <thead class="sticky top-0 bg-canvas">
-                <tr class="text-left text-xs uppercase tracking-wider text-slate-500">
-                  <th class="px-4 py-2">When</th>
-                  <th class="px-2 py-2">Action</th>
-                  <th class="px-2 py-2">Agent</th>
-                  <th class="px-2 py-2">Node</th>
-                  <th class="px-4 py-2">Note</th>
-                </tr>
-              </thead>
-              <tbody>
-                <For each={entries()}>
-                  {(e) => (
-                    <tr class="border-t border-line hover:bg-panel">
-                      <td class="mono whitespace-nowrap px-4 py-1.5 text-xs text-slate-500">{fmtTime(e.ts)}</td>
-                      <td class="mono px-2 py-1.5 text-xs text-sky-700">{e.action}</td>
-                      <td class="mono px-2 py-1.5 text-xs text-slate-600">{e.agent}</td>
-                      <td class="px-2 py-1.5">
-                        <Show when={e.node || e.task} fallback={<span class="text-slate-400">—</span>}>
-                          <button class="mono text-xs text-amber-700 hover:underline" onClick={() => select(e.node || e.task)}>
-                            {e.node || e.task}
-                          </button>
-                        </Show>
-                      </td>
-                      <td class="max-w-xl truncate px-4 py-1.5 text-xs text-slate-600" title={e.note}>{e.note}</td>
-                    </tr>
-                  )}
-                </For>
-              </tbody>
-            </table>
+        <Show when={initialLoading()}>
+          <Skeleton rows={6} />
+        </Show>
+        <Show when={!initialLoading()}>
+          <Show
+            when={!error() || data()}
+            fallback={
+              <div class="p-6 text-sm text-rose-700">Failed to load activity: {error()}</div>
+            }
+          >
+            <Show
+              when={entries().length}
+              fallback={
+                <div class="p-6 text-sm text-slate-500">
+                  No log entries match.
+                  <Show when={debouncedQ() || initiative() || action() || agent()}>
+                    <button
+                      class="ml-3 rounded-full border border-line bg-panel px-2 py-1 text-xs text-slate-600 hover:bg-panel-2"
+                      onClick={clearFilters}
+                    >
+                      Clear filters
+                    </button>
+                  </Show>
+                </div>
+              }
+            >
+              <table class="w-full text-sm">
+                <thead class="sticky top-0 bg-canvas">
+                  <tr class="text-left text-xs uppercase tracking-wider text-slate-500">
+                    <th class="px-4 py-2">When</th>
+                    <th class="px-2 py-2">Action</th>
+                    <th class="px-2 py-2">Agent</th>
+                    <th class="px-2 py-2">Node</th>
+                    <th class="px-4 py-2">Note</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <For each={entries()}>
+                    {(e) => {
+                      const key = rowKey(e);
+                      const isOpen = () => expanded().has(key);
+                      const nodeId = e.node_id || e.node || e.task || null;
+                      const label = () => e.node_title || nodeId || "—";
+                      const showIdUnder = () => !!e.node_title && !!nodeId;
+                      return (
+                        <>
+                          <tr
+                            class="border-t border-line hover:bg-panel cursor-pointer"
+                            onClick={() => toggleExpand(key)}
+                            aria-expanded={isOpen()}
+                          >
+                            <td class="mono whitespace-nowrap px-4 py-1.5 text-xs text-slate-500">{fmtTime(e.ts)}</td>
+                            <td class="mono px-2 py-1.5 text-xs text-sky-700">{e.action}</td>
+                            <td class="mono px-2 py-1.5 text-xs text-slate-600">{e.agent}</td>
+                            <td class="px-2 py-1.5 align-top">
+                              <Show
+                                when={nodeId}
+                                fallback={<span class="text-slate-400">—</span>}
+                              >
+                                <button
+                                  class="block text-left leading-tight"
+                                  onClick={(ev) => {
+                                    ev.stopPropagation();
+                                    select(nodeId);
+                                  }}
+                                  title={nodeId}
+                                >
+                                  <div class="text-xs font-medium text-amber-800">{label()}</div>
+                                  <Show when={showIdUnder()}>
+                                    <div class="mono text-[11px] text-slate-400">{nodeId}</div>
+                                  </Show>
+                                </button>
+                              </Show>
+                            </td>
+                            <td class="max-w-xl truncate px-4 py-1.5 text-xs text-slate-600" title={e.note}>
+                              {e.note}
+                            </td>
+                          </tr>
+                          <Show when={isOpen()}>
+                            <tr class="border-t border-line bg-canvas/60">
+                              <td colspan="5" class="px-4 py-2 text-xs text-slate-700">
+                                <div class="mono mb-1 text-[11px] uppercase tracking-wider text-slate-500">Full note</div>
+                                <pre class="mono whitespace-pre-wrap break-words text-xs text-slate-800">{e.note || "(empty)"}</pre>
+                              </td>
+                            </tr>
+                          </Show>
+                        </>
+                      );
+                    }}
+                  </For>
+                </tbody>
+              </table>
+            </Show>
           </Show>
         </Show>
       </div>
+
       <div class="flex items-center gap-3 border-t border-line px-4 py-2 text-xs text-slate-600">
-        <button class="rounded-full border border-line bg-panel px-2 py-1 hover:bg-panel-2 disabled:opacity-40" disabled={offset() === 0} onClick={() => { setOffset(Math.max(0, offset() - limit())); load(); }}>← Newer</button>
-        <span class="tabular-nums">{offset() + 1}–{Math.min(offset() + limit(), total())} of {total()}</span>
-        <button class="rounded-full border border-line bg-panel px-2 py-1 hover:bg-panel-2 disabled:opacity-40" disabled={offset() + limit() >= total()} onClick={() => { setOffset(offset() + limit()); load(); }}>Older →</button>
+        <button
+          class="rounded-full border border-line bg-panel px-2 py-1 hover:bg-panel-2 disabled:opacity-40"
+          disabled={offset() === 0 || total() === 0}
+          onClick={() => setOffset(Math.max(0, offset() - limit()))}
+        >
+          ← Newer
+        </button>
+        <span class="tabular-nums">
+          <Show when={total() > 0} fallback={<>0 of 0</>}>
+            {range().from}–{range().to} of {total()}
+          </Show>
+        </span>
+        <button
+          class="rounded-full border border-line bg-panel px-2 py-1 hover:bg-panel-2 disabled:opacity-40"
+          disabled={range().from <= 1 || total() === 0}
+          onClick={() => setOffset(offset() + limit())}
+        >
+          Older →
+        </button>
       </div>
     </div>
   );
