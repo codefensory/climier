@@ -1,8 +1,10 @@
 // climier UI local server.
-// Read-only projection of a climier project's live state. The browser never
-// touches the state file: this server (running on the user's machine) is the
-// only reader, and it uses the CLI's own pure derivation functions
+// Live projection of a climier project's state. The browser never touches
+// the state file: this server (running on the user's machine) is the only
+// reader, and it uses the CLI's own pure derivation functions
 // (../../src/v2.mjs, ../../src/state.mjs) so the projection can't drift.
+// Every request re-reads the state file, so CLI mutations show up in real
+// time (the frontend polls /api/snapshot); no restart or reload needed.
 //
 // Run via `climier ui` (see ../../src/commands/ui.mjs) or directly:
 //   node server/server.mjs --project <dir> [--port N]
@@ -123,17 +125,39 @@ function refsOf(node) {
 // --- server ----------------------------------------------------------------
 
 export async function start({ projectDir, port = DEFAULT_PORT, log = console.error }) {
-  const state = await readState(projectDir).catch((err) => {
+  // Fail fast at boot on a corrupt state, like before. After that, every
+  // request re-reads the live state file so the UI tracks CLI mutations in
+  // real time: no server restart and no browser reload required.
+  let lastGood = await readState(projectDir).catch((err) => {
     // Corrupt state: surface it clearly instead of serving an empty board.
     throw new Error(`ui: cannot read state for ${projectDir}: ${err.message}`);
   });
+
+  // Fresh read per request. If the file becomes unreadable mid-run, fall
+  // back to the last good state and surface a visible alert instead of
+  // killing the UI (the snapshot carries the state-read-error alert).
+  async function freshState() {
+    try {
+      lastGood = await readState(projectDir);
+      return { state: lastGood, read_error: null };
+    } catch (err) {
+      return { state: lastGood, read_error: err };
+    }
+  }
+
+  function stateReadAlerts(readError) {
+    return readError
+      ? [{ kind: "state-read-error", code: readError.code || "STATE_READ_ERROR", message: readError.message }]
+      : [];
+  }
 
   const app = express();
   app.use(express.json());
 
   app.get("/api/health", (req, res) => res.json({ ok: true }));
 
-  app.get("/api/snapshot", (req, res) => {
+  app.get("/api/snapshot", async (req, res) => {
+    const { state, read_error } = await freshState();
     if (!state) {
       return res.json({
         project: { root: projectDir, state_file: stateFile(projectDir), initialized: false },
@@ -143,7 +167,7 @@ export async function start({ projectDir, port = DEFAULT_PORT, log = console.err
         edges: [],
         derived: { ready: [], blocked: [], backlog: [], openGates: [] },
         summary: null,
-        alerts: [],
+        alerts: stateReadAlerts(read_error),
         recent_activity: [],
       });
     }
@@ -167,12 +191,13 @@ export async function start({ projectDir, port = DEFAULT_PORT, log = console.err
       derived,
       last_activity: lastActivity,
       summary: summaryOf(state, derived),
-      alerts: detectStaleClaims(state).map((s) => ({ kind: "stale-claim", ...s })),
+      alerts: [...stateReadAlerts(read_error), ...detectStaleClaims(state).map((s) => ({ kind: "stale-claim", ...s }))],
       recent_activity: recentActivity(state),
     });
   });
 
-  app.get("/api/node/:id", (req, res) => {
+  app.get("/api/node/:id", async (req, res) => {
+    const { state } = await freshState();
     if (!state || !state.nodes[req.params.id]) {
       return res.status(404).json({ error: { code: "NODE_NOT_FOUND", message: `node ${req.params.id} not found` } });
     }
@@ -197,7 +222,8 @@ export async function start({ projectDir, port = DEFAULT_PORT, log = console.err
     });
   });
 
-  app.get("/api/activity", (req, res) => {
+  app.get("/api/activity", async (req, res) => {
+    const { state } = await freshState();
     if (!state) return res.json({ entries: [], total: 0, limit: 50, offset: 0 });
     const { action, agent, node, limit = 50, offset = 0 } = req.query;
     let entries = state.log || [];
@@ -215,7 +241,8 @@ export async function start({ projectDir, port = DEFAULT_PORT, log = console.err
     res.json({ entries: page, total, limit: parseInt(limit, 10), offset: parseInt(offset, 10) });
   });
 
-  app.get("/api/search", (req, res) => {
+  app.get("/api/search", async (req, res) => {
+    const { state } = await freshState();
     if (!state) return res.json({ tasks: [], gates: [], knowledge: [] });
     const q = String(req.query.q || "").trim().toLowerCase();
     const all = req.query.all === "true";
@@ -255,7 +282,7 @@ export async function start({ projectDir, port = DEFAULT_PORT, log = console.err
   });
   const url = `http://127.0.0.1:${port}`;
   log(`climier ui listening at ${url} (project: ${projectDir})`);
-  return { url, server, state };
+  return { url, server, state: lastGood };
 }
 
 function deriveStatusFor(state, id) {
