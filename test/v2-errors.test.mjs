@@ -335,42 +335,5 @@ test("CLI: show v2 missing node emits NODE_NOT_FOUND with details", async () => 
   } finally { await rmTempProject(dir); }
 });
 
-// --- v1 backward compat: v1 commands keep the old shape -----------------
-
-test("CLI: v1 claim without --as keeps the v1 { ok:false, error: <string> } shape", async () => {
-  const dir = await createTempProject();
-  try {
-    await runCli(["--project", dir, "init"]);
-    const r = await runCli(["--project", dir, "claim", "F0.T1"]);
-    assert.equal(r.code, 1);
-    const data = JSON.parse(r.stdout);
-    assert.equal(data.ok, false);
-    assert.equal(typeof data.error, "string", "v1 error must remain a string");
-    assert.match(data.error, /--as/i);
-  } finally { await rmTempProject(dir); }
-});
-
-test("CLI: v1 pre-claim on missing task keeps the v1 shape", async () => {
-  const dir = await createTempProject();
-  try {
-    await runCli(["--project", dir, "init"]);
-    // Seed one task so the state file is well-formed.
-    const seeded = {
-      version: 1,
-      tasks: { "F0.T1": { id: "F0.T1", title: "t", initiative: "x" } },
-      decisions: {}, gotchas: {}, initiatives: { x: {} }, log: [],
-    };
-    const fs = await import("node:fs/promises");
-    const path = await import("node:path");
-    const meta = path.join(dir, ".climier.json");
-    const projectId = JSON.parse(await fs.readFile(meta, "utf8")).project_id;
-    const stateFile = path.join(process.env.CLIMIER_HOME, "projects", projectId, "tasks.json");
-    await fs.writeFile(stateFile, JSON.stringify(seeded, null, 2));
-    const r = await runCli(["--project", dir, "pre-claim", "NOPE"]);
-    assert.equal(r.code, 1);
-    const data = JSON.parse(r.stdout);
-    assert.equal(data.ok, false);
-    assert.equal(typeof data.error, "string", "v1 error must remain a string");
-    assert.match(data.error, /not found/i);
-  } finally { await rmTempProject(dir); }
-});
+// --- v1 backward compat: v1 commands are no longer dispatched -----------
+// (claim, pre-claim, etc. no longer exist; v2 commands emit structured errors.)

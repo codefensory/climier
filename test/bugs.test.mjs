@@ -5,48 +5,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { createTempProject, rmTempProject, importFresh, runCli, readState, stateFilePath} from "./helpers.mjs";
 
-// BUG #1: block does not verify ownership — any agent can mark a blocker on
-// another agent's task. Must FAIL before the fix.
-test("bug: block by a non-owner agent is rejected", async () => {
-  const { default: block } = await importFresh("./commands/block.mjs");
-  const dir = await createTempProject();
-  try {
-    const { updateState } = await importFresh("./state.mjs");
-    await updateState(dir, (s) => {
-      s.tasks.T1 = { id: "T1", status: "in_progress", claimed_by: "agent-x" };
-      return s;
-    });
-    await assert.rejects(
-      block({ statePath: dir, flags: { as: "agent-y" }, positional: ["T1", "stolen block"] }),
-      /not yours|not owner|not the owner/i
-    );
-    // And the state should not have been modified.
-    const s = await (await importFresh("./state.mjs")).readState(dir);
-    assert.equal(s.tasks.T1.block_reason, undefined);
-  } finally {
-    await rmTempProject(dir);
-  }
-});
-
-// BUG #2: graph ignores --initiative flag. Must FAIL before fix.
-test("bug: graph --initiative filter limits the output", async () => {
-  const { default: graph } = await importFresh("./commands/graph.mjs");
-  const dir = await createTempProject();
-  try {
-    const { updateState } = await importFresh("./state.mjs");
-    await updateState(dir, (s) => {
-      s.tasks.T1 = { id: "T1", title: "alpha", initiative: "x" };
-      s.tasks.T2 = { id: "T2", title: "beta", initiative: "y" };
-      return s;
-    });
-    const lines = await graph({ statePath: dir, flags: { initiative: "x" } });
-    const flat = lines.join("\n");
-    assert.match(flat, /T1/);
-    assert.doesNotMatch(flat, /T2/);
-  } finally {
-    await rmTempProject(dir);
-  }
-});
+// v1 bug #1 (block) — deleted: v1 block command no longer exists.
+// v1 bug #2 (graph --initiative) — deleted: v1 graph command no longer exists; v2 status supports --initiative.
 
 // BUG #3: withLock used to assume a pre-existing state directory.
 test("bug: withLock creates the state directory if missing", async () => {
@@ -84,7 +44,8 @@ test("bug: corrupted state file produces a clear error, not a SyntaxError stack"
 
 // BUG #5 (coverage gap that revealed a bug): add-task with a non-existent --depends-on
 // should warn or fail, not silently create a task stuck forever.
-test("bug: add-task rejects --depends-on pointing to non-existent id", async () => {
+// v2 equivalent: add-task --blocked-by=NONEXISTENT must fail edge validation.
+test("bug: add-task rejects --blocked-by pointing to non-existent id", async () => {
   const { default: addInit } = await importFresh("./commands/add-initiative.mjs");
   const { default: addTask } = await importFresh("./commands/add-task.mjs");
   const { default: init } = await importFresh("./commands/init.mjs");
@@ -96,10 +57,16 @@ test("bug: add-task rejects --depends-on pointing to non-existent id", async () 
     await assert.rejects(
       addTask({
         statePath: dir,
-        flags: { initiative: "mig", title: "x", "depends-on": "NONEXISTENT" },
+        flags: {
+          initiative: "mig",
+          title: "x",
+          body: "b",
+          acceptance: "a",
+          "blocked-by": "NONEXISTENT",
+        },
         positional: ["T1"],
       }),
-      /depends.*not found|unknown dep|non-existent dep/i
+      /references missing node|not found|unknown dep|NONEXISTENT|INVALID_EDGE_TARGET/i
     );
   } finally {
     await rmTempProject(dir);

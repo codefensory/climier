@@ -170,24 +170,6 @@ test("CLI: add-initiative v2 duplicate emits ID_CONFLICT", async () => {
   }
 });
 
-// --- v1 backward compat: silent overwrite still works -------------------
-
-test("add-initiative (v1): still overwrites desc on duplicate (backward compat)", async () => {
-  const { default: addInit } = await importFresh("./commands/add-initiative.mjs");
-  const { readState } = await importFresh("./state.mjs");
-  const dir = await createTempProject();
-  try {
-    await addInit({ statePath: dir, flags: { desc: "first" }, positional: ["mig"] });
-    // v1 contract: second call updates desc, no rejection. See coverage-gaps
-    // for the explicit test that locks this in.
-    await addInit({ statePath: dir, flags: { desc: "second" }, positional: ["mig"] });
-    const s = await readState(dir);
-    assert.equal(s.initiatives.mig.desc, "second");
-  } finally {
-    await rmTempProject(dir);
-  }
-});
-
 // --- initiatives command: v2 path ---------------------------------------
 
 test("initiatives (v2): lists only initiatives with at least one live node by default", async () => {

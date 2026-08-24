@@ -845,28 +845,23 @@ test("CLI: v2 cancel is routed to v2-cancel (status=canceled)", async () => {
   } finally { await rmTempProject(dir); }
 });
 
-test("CLI: v1 commands still work on v1 state (release, reopen unchanged)", async () => {
+test("CLI: v1 states are rejected with STATE_V1_UNSUPPORTED", async () => {
+  // The v1 schema is no longer supported. v1 state files are rejected at
+  // read time; the migration path is documented in the error message.
   const dir = await createTempProject();
   try {
     await seedV1State(dir, {
       version: 1,
       tasks: {
-        T1: { id: "T1", title: "v1 done", status: "done", done_by: "alice", done_at: "2026-01-01T00:00:00.000Z" },
-        T2: { id: "T2", title: "v1 in-progress", status: "in_progress", claimed_by: "alice", claimed_at: Date.now() },
+        T1: { id: "T1", title: "v1 done", status: "done", done_by: "alice" },
       },
       decisions: {}, gotchas: {}, initiatives: { migration: {} }, log: [],
     });
 
-    // v1 reopen path.
-    let r = await runCli(["--project", dir, "reopen", "T1", "rollback", "--as", "orchestrator"]);
-    assert.equal(r.code, 0, r.stderr);
-    const reopenOut = JSON.parse(r.stdout);
-    assert.equal(reopenOut.task.status, "in_progress");
-
-    // v1 release path.
-    r = await runCli(["--project", dir, "release", "T2", "--as", "alice"]);
-    assert.equal(r.code, 0, r.stderr);
-    const releaseOut = JSON.parse(r.stdout);
-    assert.equal(releaseOut.task.claimed_by, undefined);
+    const r = await runCli(["--project", dir, "status"]);
+    assert.equal(r.code, 1, r.stderr);
+    const out = JSON.parse(r.stdout);
+    assert.equal(out.ok, false);
+    assert.match(out.error.message || out.error, /version 1|STATE_V1_UNSUPPORTED|v2/i);
   } finally { await rmTempProject(dir); }
 });
