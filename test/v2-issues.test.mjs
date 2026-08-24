@@ -256,13 +256,14 @@ test("Issue 5: add-decision on v2 state throws a clear v1-only error (no silent 
   try {
     await freshV2(dir);
     const out = await runCli(["--project", dir, "add-decision", "D1", "--title", "pick", "--initiative", "x"]);
-    assert.equal(out.code, 1, `expected exit 1, got ${out.code}: stdout=${out.stdout}`);
+    // The v1 command no longer exists in the v2-only surface; the CLI must
+    // reject the call (unknown command) and must not write anything to the
+    // v2 state.
+    assert.notEqual(out.code, 0, `expected non-zero exit, got ${out.code}: stdout=${out.stdout}`);
     const data = JSON.parse(out.stdout);
     assert.equal(data.ok, false);
-    // v2 commands use the rich error shape; v1 commands use string. add-decision
-    // is v1-only — but it should still emit a clear error explaining why.
     const msg = typeof data.error === "string" ? data.error : data.error.message;
-    assert.match(msg, /v1[- ]only|v2 does not|v2 state/i, `got: ${msg}`);
+    assert.match(msg, /unknown command|not (a|found)|v1[- ]only|v2 does not|v2 state/i, `got: ${msg}`);
     // The state file must NOT have a `decisions` collection written.
     const s = await readState(dir);
     assert.equal(s.decisions, undefined, `decisions collection must not be written to v2 state`);
@@ -278,11 +279,11 @@ test("Issue 5: add-gotcha on v2 state throws a clear v1-only error (no silent mu
       "--project", dir, "add-gotcha", "G1",
       "--title", "trap", "--applies-to", "domain:db",
     ]);
-    assert.equal(out.code, 1, `expected exit 1, got ${out.code}: stdout=${out.stdout}`);
+    assert.notEqual(out.code, 0, `expected non-zero exit, got ${out.code}: stdout=${out.stdout}`);
     const data = JSON.parse(out.stdout);
     assert.equal(data.ok, false);
     const msg = typeof data.error === "string" ? data.error : data.error.message;
-    assert.match(msg, /v1[- ]only|v2 does not|v2 state/i, `got: ${msg}`);
+    assert.match(msg, /unknown command|not (a|found)|v1[- ]only|v2 does not|v2 state/i, `got: ${msg}`);
     const s = await readState(dir);
     assert.equal(s.gotchas, undefined, `gotchas collection must not be written to v2 state`);
     assert.equal(s.log.length, 0, `log should be empty`);

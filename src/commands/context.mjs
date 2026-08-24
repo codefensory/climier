@@ -37,7 +37,7 @@ function parseStaleMs(flags) {
 }
 
 // Coerce a `claim.at` / `claimed_at` value to an epoch-ms number, regardless
-// of whether it's stored as a number (v1 style) or an ISO string (F9 take).
+// of whether it's stored as a number or an ISO string.
 function parseAtMs(at) {
   if (at == null) return null;
   if (typeof at === "number") return at;

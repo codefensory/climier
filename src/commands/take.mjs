@@ -30,10 +30,7 @@ export default async function take({ positional = [], flags = {}, projectDir, st
   return withLock(dir, async () => {
     const state = await readState(dir);
     if (!state) {
-      throwV2("NODE_NOT_FOUND", "take: state file missing; run `climier init --v2` first", { projectDir: dir });
-    }
-    if (state.version !== 2) {
-      throwV2("NODE_NOT_FOUND", "take: requires a v2 state (run `climier init --v2`)", { version: state.version });
+      throwV2("NODE_NOT_FOUND", "take: state file missing; run `climier init` first", { projectDir: dir });
     }
 
     const node = state.nodes[id];

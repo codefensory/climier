@@ -1,50 +1,79 @@
-// reopen: roll back a done task to in_progress. Authority: orchestrator OR the
-// original done_by agent. The point is to correct the DAG: reopening T1
-// re-blocks every task that depends on T1, instead of leaving them unblocked
-// on a "done" foundation that is no longer true.
+// F11 — reopen: roll a terminal resolvable back to open.
+//
+// Behaviour:
+//   - task (subkind=task, status=done): status -> "open", claim cleared,
+//     done_by/at/note removed, revision++. Log with reason.
+//   - gate (subkind=gate, status=resolved): same; clearing the gate means
+//     re-deciding it, so the previous resolution is removed too.
+//   - Authority: original done_by (from the stored node.done_by) OR
+//     orchestrator/recovery. Anyone else: NOT_OWNER.
+//   - Wrong status: INVALID_STATUS.
+//   - Non-resolvable nodes: INVALID_STATUS.
 import { readState, updateState } from "../state.mjs";
 import { withLock } from "../lock.mjs";
 import { append } from "../log.mjs";
+import { throwV2 } from "../errors.mjs";
+import { resolveAgent } from "../agent.mjs";
 
-export const knownFlags = ["as"];
+export const knownFlags = ["as", "reason"];
 
-export default async function reopen({ statePath, flags, positional }) {
-  const [id, ...rest] = positional;
-  if (!id) throw new Error("reopen: task id required");
-  const reason = rest.join(" ").trim();
-  if (!reason) throw new Error("reopen: a reason is required");
-  const as = flags.as;
-  if (!as) throw new Error("reopen: --as <agent> required");
+function readReason(flags, positional) {
+  if (typeof flags.reason === "string" && flags.reason.trim()) return flags.reason.trim();
+  // Fallback: accept a trailing positional reason so a careless agent
+  // doesn't get a confusing MISSING_FIELD.
+  const trailing = positional.slice(1).join(" ").trim();
+  return trailing;
+}
 
+export default async function reopenV2({ statePath, flags, positional }) {
+  const [id] = positional;
+  if (!id) throwV2("MISSING_FIELD", "reopen: node id required", { field: "id" });
+  const reason = readReason(flags, positional);
+  if (!reason) throwV2("MISSING_FIELD", "reopen: --reason required", { field: "reason" });
   const projectDir = statePath;
+  const as = resolveAgent(flags, "reopen");
 
   return withLock(projectDir, async () => {
     const s = await readState(projectDir);
     if (!s) throw new Error("reopen: state file missing");
-    const t = s.tasks[id];
-    if (!t) throw new Error(`reopen: task ${id} not found`);
-    if (t.status !== "done") {
-      throw new Error(`reopen: task ${id} is not done (status: ${t.status || "ready"})`);
-    }
-    const isOrchestrator = as === "orchestrator" || as === "recovery";
-    const isSelf = t.done_by && t.done_by === as;
-    if (!isOrchestrator && !isSelf) {
-      throw new Error(
-        `reopen: task ${id} is not authorized (only orchestrator or the original done_by can reopen; done_by is ${t.done_by || "(none)"})`,
+    const node = s.nodes[id];
+    if (!node) throwV2("NODE_NOT_FOUND", `reopen: node ${id} not found`, { id });
+    if (node.kind !== "resolvable") {
+      throwV2(
+        "INVALID_STATUS",
+        `reopen: node ${id} is not resolvable (kind=${node.kind})`,
+        { id, kind: node.kind },
       );
     }
-    const claimed_at = Date.now();
+    const terminal = node.subkind === "task" ? "done" : "resolved";
+    if (node.status !== terminal) {
+      throwV2(
+        "INVALID_STATUS",
+        `reopen: node ${id} is not ${terminal} (status=${node.status || "open"})`,
+        { id, current: node.status || "open", expected: terminal },
+      );
+    }
+    const isOrchestrator = as === "orchestrator" || as === "recovery";
+    const isSelf = node.done_by && node.done_by === as;
+    if (!isOrchestrator && !isSelf) {
+      throwV2(
+        "NOT_OWNER",
+        `reopen: node ${id} is not authorized (only done_by or orchestrator can reopen; done_by=${node.done_by || "(none)"})`,
+        { id, owner: node.done_by },
+      );
+    }
     const updated = await updateState(projectDir, (st) => {
-      st.tasks[id].status = "in_progress";
-      st.tasks[id].claimed_by = as;
-      st.tasks[id].claimed_at = claimed_at;
-      delete st.tasks[id].done_at;
-      delete st.tasks[id].done_by;
-      delete st.tasks[id].note;
-      delete st.tasks[id].block_reason;
+      const target = st.nodes[id];
+      target.status = "open";
+      target.claim = null;
+      delete target.done_by;
+      delete target.done_at;
+      delete target.note;
+      delete target.resolution;
+      target.revision = (target.revision || 0) + 1;
       return st;
     });
-    await append(projectDir, { agent: as, action: "reopen", task: id, note: reason });
-    return { task: updated.tasks[id] };
+    await append(projectDir, { agent: as, action: "reopen", node: id, note: reason });
+    return { node: updated.nodes[id] };
   });
 }
