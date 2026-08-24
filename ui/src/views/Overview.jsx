@@ -25,7 +25,7 @@ export default function Overview() {
     <div class="h-full overflow-auto p-6">
       <div class="mb-4 flex items-baseline justify-between">
         <h1 class="text-lg font-semibold">Overview</h1>
-        <span class="text-xs text-slate-500">Snapshot {new Date(s()?.generated_at || Date.now()).toLocaleTimeString()}</span>
+        <span class="text-xs text-mute">Snapshot {new Date(s()?.generated_at || Date.now()).toLocaleTimeString()}</span>
       </div>
 
       <Show when={sum()} fallback={<Empty>No data yet.</Empty>}>
@@ -48,13 +48,13 @@ export default function Overview() {
               <div class="space-y-2">
                 <For each={gatesOpen()}>
                   {(g) => (
-                    <button class="w-full rounded border border-line bg-panel-2 p-2 text-left hover:border-sky-500/40" onClick={() => select(g.id)}>
+                    <button class="w-full rounded-lg border border-line bg-panel p-2 text-left hover:border-sky-600/50" onClick={() => select(g.id)}>
                       <div class="flex items-center gap-2">
                         <StatusBadge status="open" />
-                        <span class="mono text-xs text-amber-300">{g.id}</span>
+                        <span class="mono text-xs text-amber-700">{g.id}</span>
                         <Chip>{g.purpose || "decision"}</Chip>
                       </div>
-                      <div class="mt-1 text-sm text-slate-200">{g.title}</div>
+                      <div class="mt-1 text-sm text-slate-800">{g.title}</div>
                     </button>
                   )}
                 </For>
@@ -67,12 +67,12 @@ export default function Overview() {
               <div class="space-y-2">
                 <For each={s()?.alerts}>
                   {(a) => (
-                    <button class="w-full rounded border border-rose-500/30 bg-rose-500/5 p-2 text-left hover:border-rose-500/50" onClick={() => select(a.id)}>
+                    <button class="w-full rounded-lg border border-rose-500/30 bg-rose-500/5 p-2 text-left hover:border-rose-600/60" onClick={() => select(a.id)}>
                       <div class="flex items-center gap-2">
-                        <span class="mono text-xs text-rose-300">{a.id}</span>
-                        <span class="text-xs text-slate-400">claimed by {a.claim.by}</span>
+                        <span class="mono text-xs text-rose-700">{a.id}</span>
+                        <span class="text-xs text-slate-500">claimed by {a.claim.by}</span>
                       </div>
-                      <div class="text-xs text-slate-300">{a.title}</div>
+                      <div class="text-xs text-slate-700">{a.title}</div>
                     </button>
                   )}
                 </For>
@@ -97,14 +97,14 @@ export default function Overview() {
                   {([name, v]) => (
                     <tr class="border-t border-line">
                       <td class="py-1.5">
-                        <span class="mono text-xs text-sky-300">{name}</span>
+                        <span class="mono text-xs text-sky-700">{name}</span>
                         <Show when={ini().find((i) => i.name === name)?.desc}>
                           <div class="text-xs text-slate-500">{ini().find((i) => i.name === name).desc}</div>
                         </Show>
                       </td>
                       <td class="py-1.5 text-right tabular-nums">{v.total}</td>
-                      <td class="py-1.5 text-right tabular-nums text-emerald-400">{v.done}</td>
-                      <td class="py-1.5 text-right tabular-nums text-sky-300">{v.in_progress}</td>
+                      <td class="py-1.5 text-right tabular-nums text-emerald-600">{v.done}</td>
+                      <td class="py-1.5 text-right tabular-nums text-sky-700">{v.in_progress}</td>
                     </tr>
                   )}
                 </For>
@@ -118,8 +118,8 @@ export default function Overview() {
                 {(e) => (
                   <button class="flex w-full items-start gap-2 rounded p-1 text-left hover:bg-panel-2" onClick={() => e.node && select(e.node)}>
                     <span class="mono shrink-0 text-[11px] text-slate-500">{fmtTime(e.ts)}</span>
-                    <span class="mono shrink-0 rounded bg-panel-2 px-1 text-[11px] text-sky-300">{e.action}</span>
-                    <span class="truncate text-xs text-slate-300">
+                    <span class="mono shrink-0 rounded-full bg-panel-2 px-1 text-[11px] text-sky-700">{e.action}</span>
+                    <span class="truncate text-xs text-slate-600">
                       <Show when={e.node} fallback={e.note}>{e.node}</Show>
                       <span class="text-slate-500"> · {e.note}</span>
                     </span>
@@ -136,9 +136,9 @@ export default function Overview() {
               <div class="flex flex-wrap gap-2">
                 <For each={knowledgeActive()}>
                   {(k) => (
-                    <button class="rounded border border-violet-500/30 bg-violet-500/5 px-2 py-1 text-left hover:border-violet-500/50" onClick={() => select(k.id)}>
-                      <span class="mono mr-2 text-xs text-violet-300">{k.id}</span>
-                      <span class="text-xs text-slate-200">{k.title}</span>
+                    <button class="rounded-full border border-violet-600/30 bg-violet-500/5 px-2 py-1 text-left hover:border-violet-600/60" onClick={() => select(k.id)}>
+                      <span class="mono mr-2 text-xs text-violet-700">{k.id}</span>
+                      <span class="text-xs text-slate-800">{k.title}</span>
                     </button>
                   )}
                 </For>

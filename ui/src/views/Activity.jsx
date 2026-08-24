@@ -34,18 +34,18 @@ export default function Activity() {
     <div class="flex h-full flex-col">
       <div class="flex flex-wrap items-center gap-3 border-b border-line px-4 py-2">
         <h1 class="text-sm font-semibold">Activity <span class="text-xs font-normal text-slate-500">({total()} entries)</span></h1>
-        <select class="rounded border border-line bg-panel px-2 py-1 text-xs text-slate-300 outline-none" value={action()} onChange={(e) => { setAction(e.currentTarget.value); setOffset(0); load(); }}>
+        <select class="rounded-lg border border-line bg-panel px-2 py-1 text-xs text-slate-700 outline-none" value={action()} onChange={(e) => { setAction(e.currentTarget.value); setOffset(0); load(); }}>
           <For each={ACTIONS}>{(a) => <option value={a}>{a || "All actions"}</option>}</For>
         </select>
-        <input class="mono w-40 rounded border border-line bg-panel px-2 py-1 text-xs outline-none focus:border-sky-500/50" placeholder="agent…" value={agent()} onInput={(e) => { setAgent(e.currentTarget.value); setOffset(0); load(); }} />
-        <input class="mono w-40 rounded border border-line bg-panel px-2 py-1 text-xs outline-none focus:border-sky-500/50" placeholder="node id…" value={node()} onInput={(e) => { setNode(e.currentTarget.value); setOffset(0); load(); }} />
-        <button class="rounded border border-line bg-panel px-2 py-1 text-xs text-slate-300 hover:bg-panel-2" onClick={load}>Refresh</button>
+        <input class="mono w-40 rounded-lg border border-line bg-panel px-2 py-1 text-xs outline-none focus:border-sky-600/50" placeholder="agent…" value={agent()} onInput={(e) => { setAgent(e.currentTarget.value); setOffset(0); load(); }} />
+        <input class="mono w-40 rounded-lg border border-line bg-panel px-2 py-1 text-xs outline-none focus:border-sky-600/50" placeholder="node id…" value={node()} onInput={(e) => { setNode(e.currentTarget.value); setOffset(0); load(); }} />
+        <button class="rounded-full border border-line bg-panel px-2 py-1 text-xs text-slate-600 hover:bg-panel-2" onClick={load}>Refresh</button>
       </div>
       <div class="flex-1 overflow-auto">
-        <Show when={!error()} fallback={<div class="p-6 text-sm text-rose-300">{error()}</div>}>
+        <Show when={!error()} fallback={<div class="p-6 text-sm text-rose-700">{error()}</div>}>
           <Show when={entries().length} fallback={<div class="p-6"><Empty>No log entries match.</Empty></div>}>
             <table class="w-full text-sm">
-              <thead class="sticky top-0 bg-ink">
+              <thead class="sticky top-0 bg-canvas">
                 <tr class="text-left text-xs uppercase tracking-wider text-slate-500">
                   <th class="px-4 py-2">When</th>
                   <th class="px-2 py-2">Action</th>
@@ -59,16 +59,16 @@ export default function Activity() {
                   {(e) => (
                     <tr class="border-t border-line hover:bg-panel">
                       <td class="mono whitespace-nowrap px-4 py-1.5 text-xs text-slate-500">{fmtTime(e.ts)}</td>
-                      <td class="mono px-2 py-1.5 text-xs text-sky-300">{e.action}</td>
-                      <td class="mono px-2 py-1.5 text-xs text-slate-300">{e.agent}</td>
+                      <td class="mono px-2 py-1.5 text-xs text-sky-700">{e.action}</td>
+                      <td class="mono px-2 py-1.5 text-xs text-slate-600">{e.agent}</td>
                       <td class="px-2 py-1.5">
-                        <Show when={e.node || e.task} fallback={<span class="text-slate-600">—</span>}>
-                          <button class="mono text-xs text-amber-300 hover:underline" onClick={() => select(e.node || e.task)}>
+                        <Show when={e.node || e.task} fallback={<span class="text-slate-400">—</span>}>
+                          <button class="mono text-xs text-amber-700 hover:underline" onClick={() => select(e.node || e.task)}>
                             {e.node || e.task}
                           </button>
                         </Show>
                       </td>
-                      <td class="max-w-xl truncate px-4 py-1.5 text-xs text-slate-400" title={e.note}>{e.note}</td>
+                      <td class="max-w-xl truncate px-4 py-1.5 text-xs text-slate-600" title={e.note}>{e.note}</td>
                     </tr>
                   )}
                 </For>
@@ -77,10 +77,10 @@ export default function Activity() {
           </Show>
         </Show>
       </div>
-      <div class="flex items-center gap-3 border-t border-line px-4 py-2 text-xs text-slate-400">
-        <button class="rounded border border-line bg-panel px-2 py-1 hover:bg-panel-2 disabled:opacity-40" disabled={offset() === 0} onClick={() => { setOffset(Math.max(0, offset() - limit())); load(); }}>← Newer</button>
+      <div class="flex items-center gap-3 border-t border-line px-4 py-2 text-xs text-slate-600">
+        <button class="rounded-full border border-line bg-panel px-2 py-1 hover:bg-panel-2 disabled:opacity-40" disabled={offset() === 0} onClick={() => { setOffset(Math.max(0, offset() - limit())); load(); }}>← Newer</button>
         <span class="tabular-nums">{offset() + 1}–{Math.min(offset() + limit(), total())} of {total()}</span>
-        <button class="rounded border border-line bg-panel px-2 py-1 hover:bg-panel-2 disabled:opacity-40" disabled={offset() + limit() >= total()} onClick={() => { setOffset(offset() + limit()); load(); }}>Older →</button>
+        <button class="rounded-full border border-line bg-panel px-2 py-1 hover:bg-panel-2 disabled:opacity-40" disabled={offset() + limit() >= total()} onClick={() => { setOffset(offset() + limit()); load(); }}>Older →</button>
       </div>
     </div>
   );

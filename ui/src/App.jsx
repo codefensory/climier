@@ -23,17 +23,17 @@ function Sidebar() {
   const { route, setRoute, snapshot } = useStore();
   const project = () => snapshot()?.project?.root || "";
   return (
-    <aside class="flex w-56 shrink-0 flex-col border-r border-line bg-panel">
+    <aside class="flex w-56 shrink-0 flex-col border-r border-line bg-canvas">
       <div class="border-b border-line px-4 py-3">
-        <div class="text-sm font-bold tracking-wide text-slate-100">climier<span class="text-sky-400"> ui</span></div>
-        <div class="mono mt-1 truncate text-[11px] text-slate-500" title={project()}>{project() || "…"}</div>
+        <div class="text-sm font-bold tracking-wide text-ink">climier<span class="text-sky-600"> ui</span></div>
+        <div class="mono mt-1 truncate text-[11px] text-mute" title={project()}>{project() || "…"}</div>
       </div>
       <nav class="flex-1 space-y-0.5 p-2">
         <For each={NAV}>
           {([key, label]) => (
             <button
-              class={`w-full rounded px-3 py-1.5 text-left text-sm ${
-                route() === key ? "bg-panel-2 font-medium text-sky-300" : "text-slate-400 hover:bg-panel-2 hover:text-slate-200"
+              class={`w-full rounded-full px-3 py-1.5 text-left text-sm ${
+                route() === key ? "bg-ink font-medium text-white" : "text-slate-600 hover:bg-panel-2 hover:text-ink"
               }`}
               onClick={() => setRoute(key)}
             >
@@ -42,7 +42,7 @@ function Sidebar() {
           )}
         </For>
       </nav>
-      <div class="border-t border-line px-4 py-2 text-[11px] text-slate-500">
+      <div class="border-t border-line px-4 py-2 text-[11px] text-mute">
         Read-only projection · CLI stays the source of truth
       </div>
     </aside>
@@ -55,8 +55,8 @@ function Main() {
     <main class="min-w-0 flex-1 overflow-hidden">
       <Show when={!error()} fallback={
         <div class="p-8">
-          <div class="text-sm text-rose-300">Failed to load snapshot: {error()}</div>
-          <button class="mt-3 rounded border border-line bg-panel px-3 py-1 text-xs text-slate-300 hover:bg-panel-2" onClick={reload}>Retry</button>
+          <div class="text-sm text-rose-700">Failed to load snapshot: {error()}</div>
+          <button class="mt-3 rounded-full border border-line bg-panel px-3 py-1 text-xs text-slate-600 hover:bg-panel-2" onClick={reload}>Retry</button>
         </div>
       }>
         <Show when={!loading()} fallback={<div class="p-8 text-sm text-slate-500">Loading snapshot…</div>}>
@@ -64,7 +64,7 @@ function Main() {
         </Show>
       </Show>
       <Show when={snapshot() && !snapshot().project.initialized}>
-        <div class="mx-8 mt-4 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-200">
+        <div class="mx-8 mt-4 rounded-lg border border-amber-600/40 bg-amber-500/10 p-3 text-sm text-amber-900">
           This project has no climier state yet. Run <code class="mono">climier init</code> in {snapshot().project.root} to create it.
         </div>
       </Show>

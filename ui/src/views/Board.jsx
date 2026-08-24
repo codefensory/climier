@@ -15,21 +15,21 @@ function NodeCard(props) {
   const last = () => props.last;
   return (
     <button
-      class="w-full rounded-lg border border-line bg-panel p-2.5 text-left shadow-sm transition-colors hover:border-sky-500/50"
+      class="w-full rounded-lg border border-line bg-panel p-2.5 text-left transition-colors hover:border-sky-600/50"
       onClick={() => select(n().id)}
     >
       <div class="flex items-center justify-between gap-2">
-        <span class="mono text-[11px] text-slate-400">{n().id}</span>
+        <span class="mono text-[11px] text-slate-500">{n().id}</span>
         <StatusBadge status={props.status} />
       </div>
-      <div class="mt-1 line-clamp-2 text-[13px] font-medium leading-snug text-slate-100">{n().title}</div>
+      <div class="mt-1 line-clamp-2 text-[13px] font-medium leading-snug text-slate-900">{n().title}</div>
       <div class="mt-1.5 flex flex-wrap items-center gap-1">
-        <Show when={n().initiative}><Chip><span class="text-sky-300">{n().initiative}</span></Chip></Show>
+        <Show when={n().initiative}><Chip><span class="text-sky-700">{n().initiative}</span></Chip></Show>
         <Show when={n().domain}><Chip>{n().domain}</Chip></Show>
       </div>
       <div class="mt-2 flex items-center gap-2 text-[11px] text-slate-500">
         <Show when={n().claim && n().claim.by}>
-          <span class="rounded bg-sky-500/10 px-1 py-0.5 text-sky-300">⚑ {n().claim.by}</span>
+          <span class="rounded-full bg-sky-500/10 px-1 py-0.5 text-sky-700">⚑ {n().claim.by}</span>
         </Show>
         <span>notes {n().notes?.length || 0}</span>
         <span>blockers {blockersOf(props.edges, n().id)}</span>
@@ -37,7 +37,7 @@ function NodeCard(props) {
       </div>
       <Show when={last()}>
         <div class="mt-1 truncate text-[11px] text-slate-500">
-          <span class="text-slate-400">{lastActionLabel(last().action)}</span> · {last().agent} · {fmtTime(last().ts)}
+          <span class="text-slate-600">{lastActionLabel(last().action)}</span> · {last().agent} · {fmtTime(last().ts)}
         </div>
       </Show>
     </button>
@@ -92,16 +92,16 @@ export default function Board() {
       <div class="flex flex-wrap items-center gap-3 border-b border-line px-4 py-2">
         <h1 class="text-sm font-semibold">Board</h1>
         <input
-          class="mono w-56 rounded border border-line bg-panel px-2 py-1 text-xs outline-none focus:border-sky-500/50"
+          class="mono w-56 rounded-lg border border-line bg-panel px-2 py-1 text-xs outline-none focus:border-sky-600/50"
           placeholder="search id / title / domain…"
           value={q()}
           onInput={(e) => setQ(e.currentTarget.value)}
         />
-        <select class="rounded border border-line bg-panel px-2 py-1 text-xs text-slate-300 outline-none" value={initiative()} onChange={(e) => setInitiative(e.currentTarget.value)}>
+        <select class="rounded-lg border border-line bg-panel px-2 py-1 text-xs text-slate-700 outline-none" value={initiative()} onChange={(e) => setInitiative(e.currentTarget.value)}>
           <option value="">All initiatives</option>
           <For each={initiatives()}>{(i) => <option value={i}>{i}</option>}</For>
         </select>
-        <label class="flex items-center gap-1.5 text-xs text-slate-400">
+        <label class="flex items-center gap-1.5 text-xs text-slate-600">
           <input type="checkbox" checked={showHistory()} onChange={(e) => setShowHistory(e.currentTarget.checked)} />
           Show history (done / canceled / superseded)
         </label>
@@ -110,9 +110,9 @@ export default function Board() {
       <div class="grid flex-1 grid-cols-4 gap-3 overflow-auto p-4">
         <For each={columns()}>
           {(col) => (
-            <div class={`flex min-h-full flex-col rounded-lg border bg-panel/40 ${col.tone}`}>
+            <div class={`flex min-h-full flex-col rounded-lg border bg-panel/60 ${col.tone}`}>
               <div class="flex items-center justify-between border-b border-line px-3 py-2">
-                <span class="text-xs font-semibold uppercase tracking-wider text-slate-300">{col.label}</span>
+                <span class="mono text-[11px] font-semibold uppercase tracking-wider text-slate-600">{col.label}</span>
                 <span class="text-xs tabular-nums text-slate-500">
                   {col.ids ? pool(col.ids).length : inProgress().length}
                 </span>
@@ -134,16 +134,16 @@ export default function Board() {
 
       <Show when={gatesOpen().length}>
         <div class="border-t border-line px-4 py-2">
-          <div class="mb-2 text-xs font-semibold uppercase tracking-wider text-amber-300">Gates · open</div>
+          <div class="mb-2 mono text-[11px] font-semibold uppercase tracking-wider text-amber-700">Gates · open</div>
           <div class="flex gap-2 overflow-x-auto pb-1">
             <For each={gatesOpen()}>
               {(g) => (
-                <button class="w-64 shrink-0 rounded-lg border border-amber-500/30 bg-amber-500/5 p-2.5 text-left hover:border-amber-500/50" onClick={() => select(g.id)}>
+                <button class="w-64 shrink-0 rounded-lg border border-amber-500/30 bg-amber-500/5 p-2.5 text-left hover:border-amber-600/60" onClick={() => select(g.id)}>
                   <div class="flex items-center justify-between">
-                    <span class="mono text-[11px] text-amber-300">{g.id}</span>
+                    <span class="mono text-[11px] text-amber-700">{g.id}</span>
                     <Chip>{g.purpose || "decision"}</Chip>
                   </div>
-                  <div class="mt-1 text-[13px] font-medium text-slate-100">{g.title}</div>
+                  <div class="mt-1 text-[13px] font-medium text-slate-900">{g.title}</div>
                   <div class="mt-1 text-[11px] text-slate-500">blocks {dependentsOf(edges(), g.id)} task(s)</div>
                 </button>
               )}
@@ -154,7 +154,7 @@ export default function Board() {
 
       <Show when={historyNodes().length}>
         <div class="border-t border-line px-4 py-2">
-          <div class="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">History · {historyNodes().length} node(s)</div>
+          <div class="mb-2 mono text-[11px] font-semibold uppercase tracking-wider text-slate-500">History · {historyNodes().length} node(s)</div>
           <div class="grid grid-cols-2 gap-2 opacity-70 lg:grid-cols-4">
             <For each={historyNodes().slice(0, 16)}>
               {(n) => <NodeCard node={n} status={n.status} edges={edges()} last={s()?.last_activity?.[n.id]} />}

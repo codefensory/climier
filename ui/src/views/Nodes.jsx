@@ -45,18 +45,18 @@ export default function Nodes() {
     <div class="flex h-full flex-col">
       <div class="flex flex-wrap items-center gap-3 border-b border-line px-4 py-2">
         <h1 class="text-sm font-semibold">Nodes <span class="text-xs font-normal text-slate-500">({list().length} tasks)</span></h1>
-        <input class="mono w-52 rounded border border-line bg-panel px-2 py-1 text-xs outline-none focus:border-sky-500/50" placeholder="search…" value={q()} onInput={(e) => setQ(e.currentTarget.value)} />
-        <select class="rounded border border-line bg-panel px-2 py-1 text-xs text-slate-300 outline-none" value={status()} onChange={(e) => setStatus(e.currentTarget.value)}>
+        <input class="mono w-52 rounded-lg border border-line bg-panel px-2 py-1 text-xs outline-none focus:border-sky-600/50" placeholder="search…" value={q()} onInput={(e) => setQ(e.currentTarget.value)} />
+        <select class="rounded-lg border border-line bg-panel px-2 py-1 text-xs text-slate-700 outline-none" value={status()} onChange={(e) => setStatus(e.currentTarget.value)}>
           <For each={STATUS_OPTIONS}>{(st) => <option value={st}>{st || "All statuses"}</option>}</For>
         </select>
-        <select class="rounded border border-line bg-panel px-2 py-1 text-xs text-slate-300 outline-none" value={ini()} onChange={(e) => setIni(e.currentTarget.value)}>
+        <select class="rounded-lg border border-line bg-panel px-2 py-1 text-xs text-slate-700 outline-none" value={ini()} onChange={(e) => setIni(e.currentTarget.value)}>
           <option value="">All initiatives</option>
           <For each={initiatives()}>{(i) => <option value={i}>{i}</option>}</For>
         </select>
       </div>
       <div class="flex-1 overflow-auto">
         <table class="w-full text-sm">
-          <thead class="sticky top-0 bg-ink">
+          <thead class="sticky top-0 bg-canvas">
             <tr class="text-left text-xs uppercase tracking-wider text-slate-500">
               <th class="px-4 py-2">Id</th>
               <th class="px-2 py-2">Status</th>
@@ -72,13 +72,13 @@ export default function Nodes() {
             <For each={list()}>
               {(n) => (
                 <tr class="cursor-pointer border-t border-line hover:bg-panel" onClick={() => select(n.id)}>
-                  <td class="mono px-4 py-1.5 text-xs text-sky-300">{n.id}</td>
+                  <td class="mono px-4 py-1.5 text-xs text-sky-700">{n.id}</td>
                   <td class="px-2 py-1.5"><StatusBadge status={derivedStatus(n)} /></td>
-                  <td class="max-w-md truncate px-2 py-1.5 text-slate-200">{n.title}</td>
-                  <td class="mono px-2 py-1.5 text-xs text-slate-400">{n.initiative || "—"}</td>
-                  <td class="px-2 py-1.5 text-xs text-slate-400">{n.domain || "—"}</td>
-                  <td class="px-2 py-1.5 text-right tabular-nums text-slate-400">{n.notes?.length || 0}</td>
-                  <td class="px-2 py-1.5 text-xs text-sky-300">{n.claim?.by || "—"}</td>
+                  <td class="max-w-md truncate px-2 py-1.5 text-slate-800">{n.title}</td>
+                  <td class="mono px-2 py-1.5 text-xs text-slate-500">{n.initiative || "—"}</td>
+                  <td class="px-2 py-1.5 text-xs text-slate-500">{n.domain || "—"}</td>
+                  <td class="px-2 py-1.5 text-right tabular-nums text-slate-500">{n.notes?.length || 0}</td>
+                  <td class="px-2 py-1.5 text-xs text-sky-700">{n.claim?.by || "—"}</td>
                   <td class="px-4 py-1.5 text-right text-xs text-slate-500">{s()?.last_activity?.[n.id] ? fmtTime(s().last_activity[n.id].ts) : "—"}</td>
                 </tr>
               )}

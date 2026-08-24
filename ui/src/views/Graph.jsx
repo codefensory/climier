@@ -3,12 +3,12 @@ import { useStore } from "../store.jsx";
 import { StatusBadge, Empty } from "../components.jsx";
 
 const EDGE_COLORS = {
-  BLOCKS: "#f43f5e",
-  SUPERSEDES: "#a855f7",
-  DERIVED_FROM: "#38bdf8",
-  INFORMS: "#64748b",
-  RELATES_TO: "#64748b",
-  CONFLICTS_WITH: "#64748b",
+  BLOCKS: "#e11d48",
+  SUPERSEDES: "#9333ea",
+  DERIVED_FROM: "#0284c7",
+  INFORMS: "#94a3b8",
+  RELATES_TO: "#94a3b8",
+  CONFLICTS_WITH: "#94a3b8",
 };
 
 const ACTIVE_STATUSES = new Set(["open", "in_progress", "done", "canceled", "resolved", "superseded", "deprecated"]);
@@ -93,21 +93,21 @@ export default function Graph() {
 
   const shapeFor = (n, pos, selected) => {
     const common = {
-      stroke: selected ? "#38bdf8" : "#334a6e",
+      stroke: selected ? "#0284c7" : "#d4d4d8",
       "stroke-width": selected ? 2 : 1.2,
-      fill: "#16223c",
+      fill: "#f7f7f8",
       class: "cursor-pointer",
       onClick: () => select(n.id),
     };
     const label = (
-      <text x={pos.x} y={pos.y + (n.kind === "knowledge" ? 4 : 22)} text-anchor="middle" font-size="10" fill={n.kind === "knowledge" ? "#c4b5fd" : "#cbd5e1"} class="mono pointer-events-none">
+      <text x={pos.x} y={pos.y + (n.kind === "knowledge" ? 4 : 22)} text-anchor="middle" font-size="10" fill={n.kind === "knowledge" ? "#7c3aed" : n.subkind === "gate" ? "#9a3412" : "#3f3f46"} class="mono pointer-events-none">
         {n.id}
       </text>
     );
     if (n.kind === "knowledge") {
       return (
         <g>
-          <circle cx={pos.x} cy={pos.y} r={9} {...common} fill="#2e1065" />
+          <circle cx={pos.x} cy={pos.y} r={9} {...common} fill="#ede9fe" />
           {label}
         </g>
       );
@@ -117,7 +117,7 @@ export default function Graph() {
       const pts = `${pos.x},${pos.y - r} ${pos.x + r},${pos.y} ${pos.x},${pos.y + r} ${pos.x - r},${pos.y}`;
       return (
         <g>
-          <polygon points={pts} {...common} fill="#2d1b00" />
+          <polygon points={pts} {...common} fill="#fff4e6" />
           {label}
         </g>
       );
@@ -134,23 +134,23 @@ export default function Graph() {
     <div class="flex h-full flex-col">
       <div class="flex flex-wrap items-center gap-3 border-b border-line px-4 py-2">
         <h1 class="text-sm font-semibold">Graph</h1>
-        <select class="rounded border border-line bg-panel px-2 py-1 text-xs text-slate-300 outline-none" value={ini()} onChange={(e) => setIni(e.currentTarget.value)}>
+        <select class="rounded-lg border border-line bg-panel px-2 py-1 text-xs text-slate-700 outline-none" value={ini()} onChange={(e) => setIni(e.currentTarget.value)}>
           <option value="">All initiatives</option>
           <For each={initiatives()}>{(i) => <option value={i}>{i}</option>}</For>
         </select>
-        <label class="flex items-center gap-1.5 text-xs text-slate-400">
+        <label class="flex items-center gap-1.5 text-xs text-slate-600">
           <input type="checkbox" checked={showHistory()} onChange={(e) => setShowHistory(e.currentTarget.checked)} />
           Show history
         </label>
-        <div class="ml-auto flex items-center gap-3 text-[11px] text-slate-500">
-          <span><span class="text-rose-400">━</span> BLOCKS</span>
-          <span><span class="text-purple-400">╌</span> SUPERSEDES</span>
-          <span><span class="text-sky-400">╌</span> DERIVED_FROM</span>
+        <div class="ml-auto flex items-center gap-3 text-[11px] text-slate-600">
+          <span><span class="text-rose-600">━</span> BLOCKS</span>
+          <span><span class="text-purple-600">╌</span> SUPERSEDES</span>
+          <span><span class="text-sky-600">╌</span> DERIVED_FROM</span>
           <span>· drag to pan · wheel to zoom</span>
         </div>
       </div>
 
-      <div class="flex-1 overflow-auto bg-[radial-gradient(circle,#1a2540_1px,transparent_1px)] [background-size:24px_24px]">
+      <div class="flex-1 overflow-auto bg-[radial-gradient(circle,#d4d4d8_1px,transparent_1px)] [background-size:24px_24px]">
         <Show when={Object.keys(visible().nodes).length} fallback={<div class="p-8"><Empty>No nodes match the current filters.</Empty></div>}>
           <svg
             width={visible().layout.width * zoom()}
@@ -166,7 +166,7 @@ export default function Graph() {
             <g>
               <For each={visible().layout.iniRows}>
                 {(row) => (
-                  <text x={8} y={row.y} font-size="11" fill="#475569" class="mono">{row.ini}</text>
+                  <text x={8} y={row.y} font-size="11" fill="#71717a" class="mono">{row.ini}</text>
                 )}
               </For>
               <For each={visible().edges}>
