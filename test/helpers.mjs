@@ -107,39 +107,61 @@ export async function stateExists(dir) {
 }
 
 export function exampleState() {
+  // v2 fixture. Tasks become nodes with subkind=task; decisions become gates;
+  // gotchas become knowledge. Placeholders are kept via the placeholder flag.
+  // blocked-by edges use the v2 BLOCKS shape (blocker -> blocked).
   return {
-    version: 1,
-    tasks: {
-      "F0.T1": { id: "F0.T1", initiative: "migration", phase: "F0", title: "Create monorepo skeleton", skills: ["node"], effort: "s", domain: "monorepo" },
-      "F0.T2": { id: "F0.T2", initiative: "migration", phase: "F0", title: "Scaffold API service with /health", depends_on: ["F0.T1"], skills: ["node", "http"], effort: "s", domain: "api" },
-      "F0.T3": { id: "F0.T3", initiative: "migration", phase: "F0", title: "Add auth middleware compatible with current tokens", depends_on: ["F0.T2"], skills: ["ts", "auth"], effort: "m", domain: "auth" },
-      "F0.T4": { id: "F0.T4", initiative: "migration", phase: "F0", title: "Create shared event schemas", depends_on: ["F0.T1"], skills: ["ts", "schema"], effort: "m", domain: "shared" },
-      "F1.T1": { id: "F1.T1", initiative: "migration", phase: "F1", title: "Migrate one pilot endpoint with dual-write fallback", depends_on: ["F0.T3", "F0.T4"], skills: ["ts", "api"], effort: "m", domain: "api", acceptance: "New endpoint and legacy endpoint behave the same in staging for one week." },
-      "F1.T2": { id: "F1.T2", initiative: "migration", phase: "F1", title: "Run end-to-end smoke test for the pilot flow", depends_on: ["F1.T1"], skills: ["ts", "e2e"], effort: "s", domain: "qa" },
-      "F2.OPEN": { id: "F2.OPEN", initiative: "migration", phase: "F2", title: "Decompose F2: auth, catalog, and progress (resolve D4 first)", depends_on: ["F1.T2", "D4"], placeholder: true },
-      "F3.OPEN": { id: "F3.OPEN", initiative: "migration", phase: "F3", title: "Decompose F3: data model and content migration (resolve D1 first)", depends_on: ["F2.OPEN", "D1"], placeholder: true },
-      "F4.OPEN": { id: "F4.OPEN", initiative: "migration", phase: "F4", title: "Decompose F4: business workflows by domain", depends_on: ["F2.OPEN", "F3.OPEN"], placeholder: true },
-      "F5.OPEN": { id: "F5.OPEN", initiative: "migration", phase: "F5", title: "Decompose F5: file handling and submissions (resolve D2 first)", depends_on: ["F4.OPEN", "D2"], placeholder: true },
-      "F6.OPEN": { id: "F6.OPEN", initiative: "migration", phase: "F6", title: "Decompose F6: background jobs and async workers (resolve D3 first)", depends_on: ["F2.OPEN", "D3"], placeholder: true },
-      "F7.OPEN": { id: "F7.OPEN", initiative: "migration", phase: "F7", title: "Decompose F7: integrations, notifications, and reporting", depends_on: ["F4.OPEN"], placeholder: true },
-      "F8.OPEN": { id: "F8.OPEN", initiative: "migration", phase: "F8", title: "Decompose F8: frontend cutover", depends_on: ["F4.OPEN", "F5.OPEN", "F6.OPEN", "F7.OPEN"], placeholder: true },
-      "F9.OPEN": { id: "F9.OPEN", initiative: "migration", phase: "F9", title: "Decompose F9: hardening, deploy, and cleanup", depends_on: ["F8.OPEN"], placeholder: true }
+    version: 2,
+    nodes: {
+      "F0.T1": { id: "F0.T1", kind: "resolvable", subkind: "task", title: "Create monorepo skeleton", initiative: "migration", domain: "monorepo", tags: ["node"], resolution_mode: "labor", status: "open", revision: 1 },
+      "F0.T2": { id: "F0.T2", kind: "resolvable", subkind: "task", title: "Scaffold API service with /health", initiative: "migration", domain: "api", tags: ["node", "http"], resolution_mode: "labor", status: "open", revision: 1 },
+      "F0.T3": { id: "F0.T3", kind: "resolvable", subkind: "task", title: "Add auth middleware compatible with current tokens", initiative: "migration", domain: "auth", tags: ["ts", "auth"], resolution_mode: "labor", status: "open", revision: 1 },
+      "F0.T4": { id: "F0.T4", kind: "resolvable", subkind: "task", title: "Create shared event schemas", initiative: "migration", domain: "shared", tags: ["ts", "schema"], resolution_mode: "labor", status: "open", revision: 1 },
+      "F1.T1": { id: "F1.T1", kind: "resolvable", subkind: "task", title: "Migrate one pilot endpoint with dual-write fallback", initiative: "migration", domain: "api", tags: ["ts", "api"], resolution_mode: "labor", status: "open", revision: 1, acceptance: "New endpoint and legacy endpoint behave the same in staging for one week." },
+      "F1.T2": { id: "F1.T2", kind: "resolvable", subkind: "task", title: "Run end-to-end smoke test for the pilot flow", initiative: "migration", domain: "qa", tags: ["ts", "e2e"], resolution_mode: "labor", status: "open", revision: 1 },
+      "F2.OPEN": { id: "F2.OPEN", kind: "resolvable", subkind: "task", title: "Decompose F2: auth, catalog, and progress (resolve D4 first)", initiative: "migration", status: "open", revision: 1, placeholder: true },
+      "F3.OPEN": { id: "F3.OPEN", kind: "resolvable", subkind: "task", title: "Decompose F3: data model and content migration (resolve D1 first)", initiative: "migration", status: "open", revision: 1, placeholder: true },
+      "F4.OPEN": { id: "F4.OPEN", kind: "resolvable", subkind: "task", title: "Decompose F4: business workflows by domain", initiative: "migration", status: "open", revision: 1, placeholder: true },
+      "F5.OPEN": { id: "F5.OPEN", kind: "resolvable", subkind: "task", title: "Decompose F5: file handling and submissions (resolve D2 first)", initiative: "migration", status: "open", revision: 1, placeholder: true },
+      "F6.OPEN": { id: "F6.OPEN", kind: "resolvable", subkind: "task", title: "Decompose F6: background jobs and async workers (resolve D3 first)", initiative: "migration", status: "open", revision: 1, placeholder: true },
+      "F7.OPEN": { id: "F7.OPEN", kind: "resolvable", subkind: "task", title: "Decompose F7: integrations, notifications, and reporting", initiative: "migration", status: "open", revision: 1, placeholder: true },
+      "F8.OPEN": { id: "F8.OPEN", kind: "resolvable", subkind: "task", title: "Decompose F8: frontend cutover", initiative: "migration", status: "open", revision: 1, placeholder: true },
+      "F9.OPEN": { id: "F9.OPEN", kind: "resolvable", subkind: "task", title: "Decompose F9: hardening, deploy, and cleanup", initiative: "migration", status: "open", revision: 1, placeholder: true },
+      D1: { id: "D1", kind: "resolvable", subkind: "gate", title: "Data model migration strategy", initiative: "migration", status: "open", revision: 1, purpose: "decision" },
+      D2: { id: "D2", kind: "resolvable", subkind: "gate", title: "File storage target", initiative: "migration", status: "open", revision: 1, purpose: "decision" },
+      D3: { id: "D3", kind: "resolvable", subkind: "gate", title: "When to migrate background jobs", initiative: "migration", status: "open", revision: 1, purpose: "decision" },
+      D4: { id: "D4", kind: "resolvable", subkind: "gate", title: "Authentication migration strategy", initiative: "migration", status: "open", revision: 1, purpose: "decision" },
+      G1: { id: "G1", kind: "knowledge", title: "Service-role access still needs app-level filters", initiative: "migration", status: "active", knowledge_type: "warning", mitigation: "Filter by tenant or user in repositories, not only in the database.", scope: { domains: ["db"], initiatives: [], tags: [], node_ids: [] } },
+      G2: { id: "G2", kind: "knowledge", title: "Dual-write endpoints need idempotency", initiative: "migration", status: "active", knowledge_type: "warning", mitigation: "Use idempotency keys or dedupe guards before enabling retries.", scope: { domains: ["api"], initiatives: [], tags: [], node_ids: [] } },
+      G3: { id: "G3", kind: "knowledge", title: "Session redirects break easily during auth swaps", initiative: "migration", status: "active", knowledge_type: "warning", mitigation: "Cover login, logout, expiry, and redirect flows with E2E checks.", scope: { domains: ["auth"], initiatives: [], tags: [], node_ids: [] } },
+      G4: { id: "G4", kind: "knowledge", title: "Storage migrations need stable object naming", initiative: "migration", status: "active", knowledge_type: "warning", mitigation: "Keep naming deterministic before copying or reindexing files.", scope: { domains: ["storage"], initiatives: [], tags: [], node_ids: [] } },
+      G5: { id: "G5", kind: "knowledge", title: "Background jobs need rate limits and replay safety", initiative: "migration", status: "active", knowledge_type: "warning", mitigation: "Keep retry-safe handlers and verify rate limits before cutover.", scope: { domains: ["jobs"], initiatives: [], tags: [], node_ids: [] } },
     },
-    decisions: {
-      D1: { id: "D1", title: "Data model migration strategy", applies_to: ["F3"] },
-      D2: { id: "D2", title: "File storage target", applies_to: ["F5"] },
-      D3: { id: "D3", title: "When to migrate background jobs", applies_to: ["F6"] },
-      D4: { id: "D4", title: "Authentication migration strategy", applies_to: ["F2"] }
-    },
-    gotchas: {
-      G1: { id: "G1", initiative: "migration", title: "Service-role access still needs app-level filters", applies_to: ["domain:db"], mitigation: "Filter by tenant or user in repositories, not only in the database." },
-      G2: { id: "G2", initiative: "migration", title: "Dual-write endpoints need idempotency", applies_to: ["domain:api"], mitigation: "Use idempotency keys or dedupe guards before enabling retries." },
-      G3: { id: "G3", initiative: "migration", title: "Session redirects break easily during auth swaps", applies_to: ["domain:auth"], mitigation: "Cover login, logout, expiry, and redirect flows with E2E checks." },
-      G4: { id: "G4", initiative: "migration", title: "Storage migrations need stable object naming", applies_to: ["domain:storage"], mitigation: "Keep naming deterministic before copying or reindexing files." },
-      G5: { id: "G5", initiative: "migration", title: "Background jobs need rate limits and replay safety", applies_to: ["domain:jobs"], mitigation: "Keep retry-safe handlers and verify rate limits before cutover." }
-    },
+    edges: [
+      { from: "F0.T1", to: "F0.T2", type: "BLOCKS" },
+      { from: "F0.T2", to: "F0.T3", type: "BLOCKS" },
+      { from: "F0.T1", to: "F0.T4", type: "BLOCKS" },
+      { from: "F0.T3", to: "F1.T1", type: "BLOCKS" },
+      { from: "F0.T4", to: "F1.T1", type: "BLOCKS" },
+      { from: "F1.T1", to: "F1.T2", type: "BLOCKS" },
+      { from: "F1.T2", to: "F2.OPEN", type: "BLOCKS" },
+      { from: "F2.OPEN", to: "F3.OPEN", type: "BLOCKS" },
+      { from: "F2.OPEN", to: "F4.OPEN", type: "BLOCKS" },
+      { from: "F4.OPEN", to: "F5.OPEN", type: "BLOCKS" },
+      { from: "F2.OPEN", to: "F6.OPEN", type: "BLOCKS" },
+      { from: "F4.OPEN", to: "F7.OPEN", type: "BLOCKS" },
+      { from: "F4.OPEN", to: "F8.OPEN", type: "BLOCKS" },
+      { from: "F5.OPEN", to: "F8.OPEN", type: "BLOCKS" },
+      { from: "F6.OPEN", to: "F8.OPEN", type: "BLOCKS" },
+      { from: "F7.OPEN", to: "F8.OPEN", type: "BLOCKS" },
+      { from: "F8.OPEN", to: "F9.OPEN", type: "BLOCKS" },
+      { from: "D4", to: "F2.OPEN", type: "BLOCKS" },
+      { from: "D1", to: "F3.OPEN", type: "BLOCKS" },
+      { from: "D2", to: "F5.OPEN", type: "BLOCKS" },
+      { from: "D3", to: "F6.OPEN", type: "BLOCKS" },
+    ],
     initiatives: {
-      migration: { desc: "Example phased migration plan" }
+      migration: { desc: "Example phased migration plan", created_at: "2024-01-01T00:00:00.000Z" },
     },
     log: [],
   };

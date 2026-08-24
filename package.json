@@ -20,7 +20,7 @@
   "scripts": {
     "test": "node --test test/*.test.mjs",
     "test:watch": "node --test --watch test/",
-    "test:concurrent": "node --test test/concurrent-claims.test.mjs test/orchestrator-flow.test.mjs",
+    "test:concurrent": "node --test test/v2-take.test.mjs test/v2-take-by-id.test.mjs test/v2-adversarial.test.mjs",
     "pack:check": "npm pack --dry-run --json > /dev/null"
   },
   "files": [

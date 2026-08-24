@@ -45,85 +45,10 @@ async function freshV2(dir) {
 // ---------------------------------------------------------------------------
 // Issue 1: v1 stubs for cancel / resolve / deprecate-knowledge.
 //
-// The bin routes these to v2-${cmd}.mjs when state is v2, but on a v1 state
-// the dynamic import to src/commands/${cmd}.mjs raises MODULE_NOT_FOUND
-// (no v1 module exists). The fix: tiny v1 stubs that throw a clear
-// v2-only error so the caller gets a useful message instead of
-// "unknown command 'cancel'" (which is what the MODULE_NOT_FOUND path
-// currently produces).
+// The v1 schema is no longer supported. The bin now rejects v1 states with
+// STATE_V1_UNSUPPORTED, and the v1-only commands are gone. The remaining
+// surface (cancel / resolve / deprecate-knowledge) is v2-only.
 // ---------------------------------------------------------------------------
-
-for (const cmd of ["cancel", "resolve", "deprecate-knowledge"]) {
-  test(`Issue 1: ${cmd} on a v1 state throws a clear v2-only error (NOT 'unknown command')`, async () => {
-    const dir = await createTempProject();
-    try {
-      const r = await runCli(["--project", dir, "init"]);
-      assert.equal(r.code, 0, r.stderr);
-      // Provide the minimum flags the v2 commands expect; the v1 stub
-      // should reject them before any field/agent validation runs.
-      const extra = cmd === "deprecate-knowledge"
-        ? ["--reason", "stale"]
-        : cmd === "cancel"
-        ? ["--reason", "abandoned"]
-        : ["--note", "done"];
-      const out = await runCli(["--project", dir, cmd, "X", "--as", "alice", ...extra]);
-      assert.equal(out.code, 1,
-        `expected exit 1 (validation/runtime error), got ${out.code}: stdout=${out.stdout} stderr=${out.stderr}`);
-      const data = JSON.parse(out.stdout);
-      assert.equal(data.ok, false);
-      assert.equal(typeof data.error, "string", "v1 stub must emit the v1 string-error shape");
-      assert.match(data.error, new RegExp(`${cmd}:.*v2|v2.*${cmd}|v2-only`, "i"),
-        `expected v2-only message, got: ${data.error}`);
-      assert.doesNotMatch(data.error, /unknown command/i,
-        `v1 stub must NOT emit 'unknown command' (that's the bug): ${data.error}`);
-    } finally { await rmTempProject(dir); }
-  });
-}
-
-test("Issue 1: cancel/resolve/deprecate-knowledge v1 stubs do not mutate state or log", async () => {
-  const dir = await createTempProject();
-  try {
-    const r = await runCli(["--project", dir, "init"]);
-    assert.equal(r.code, 0);
-    const before = JSON.parse(await fs.readFile(
-      path.join(process.env.CLIMIER_HOME, "projects",
-        JSON.parse(await fs.readFile(path.join(dir, ".climier.json"), "utf8")).project_id,
-        "tasks.json"),
-      "utf8",
-    ));
-    const beforeLen = before.log.length;
-    const out = await runCli(["--project", dir, "cancel", "T1", "--as", "alice", "--reason", "x"]);
-    assert.equal(out.code, 1);
-    const after = JSON.parse(await fs.readFile(
-      path.join(process.env.CLIMIER_HOME, "projects",
-        JSON.parse(await fs.readFile(path.join(dir, ".climier.json"), "utf8")).project_id,
-        "tasks.json"),
-      "utf8",
-    ));
-    assert.equal(after.log.length, beforeLen, "log should not grow on rejected v1 stub call");
-  } finally { await rmTempProject(dir); }
-});
-
-test("Issue 1: release on v1 still works (no regression on existing v1 module)", async () => {
-  const dir = await createTempProject();
-  try {
-    const r = await runCli(["--project", dir, "init"]);
-    assert.equal(r.code, 0, r.stderr);
-    // Seed a task + claim it, then release it.
-    const state = {
-      version: 1,
-      tasks: { "F0.T1": { id: "F0.T1", title: "t", initiative: "x", status: "in_progress", claimed_by: "alice", claimed_at: new Date().toISOString() } },
-      decisions: {}, gotchas: {}, initiatives: { x: {} }, log: [],
-    };
-    await fs.writeFile(path.join(process.env.CLIMIER_HOME, "projects",
-      JSON.parse(await fs.readFile(path.join(dir, ".climier.json"), "utf8")).project_id,
-      "tasks.json"), JSON.stringify(state, null, 2));
-    const out = await runCli(["--project", dir, "release", "F0.T1", "--as", "alice"]);
-    assert.equal(out.code, 0, `stdout=${out.stdout} stderr=${out.stderr}`);
-    const data = JSON.parse(out.stdout);
-    assert.equal(data.task.id, "F0.T1");
-  } finally { await rmTempProject(dir); }
-});
 
 // ---------------------------------------------------------------------------
 // Issue 2: resolveAgent must run BEFORE updateState in add-node / add-edge.
@@ -290,32 +215,31 @@ test("Issue 5: add-gotcha on v2 state throws a clear v1-only error (no silent mu
   } finally { await rmTempProject(dir); }
 });
 
-test("Issue 5: add-decision still works on v1 (no regression)", async () => {
+test("Issue 5: add-decision on v2 state is rejected as unknown command", async () => {
+  // Replaces the v1 regression test: v1 commands no longer exist.
   const dir = await createTempProject();
   try {
-    const r = await runCli(["--project", dir, "init"]);
-    assert.equal(r.code, 0);
-    const out = await runCli([
-      "--project", dir, "add-decision", "D1",
-      "--title", "pick library", "--applies-to", "T1",
-    ]);
-    assert.equal(out.code, 0, `stdout=${out.stdout} stderr=${out.stderr}`);
+    await freshV2(dir);
+    const out = await runCli(["--project", dir, "add-decision", "D1", "--title", "pick", "--initiative", "auth"]);
+    assert.notEqual(out.code, 0);
     const data = JSON.parse(out.stdout);
-    assert.equal(data.decision.id, "D1");
+    assert.equal(data.ok, false);
+    assert.match(data.error, /unknown command/i);
   } finally { await rmTempProject(dir); }
 });
 
-test("Issue 5: add-gotcha still works on v1 (no regression)", async () => {
+test("Issue 5: add-gotcha on v2 state is rejected as unknown command", async () => {
+  // Replaces the v1 regression test: v1 commands no longer exist.
   const dir = await createTempProject();
   try {
-    const r = await runCli(["--project", dir, "init"]);
-    assert.equal(r.code, 0);
+    await freshV2(dir);
     const out = await runCli([
       "--project", dir, "add-gotcha", "G1",
       "--title", "trap", "--applies-to", "domain:db",
     ]);
-    assert.equal(out.code, 0, `stdout=${out.stdout} stderr=${out.stderr}`);
+    assert.notEqual(out.code, 0);
     const data = JSON.parse(out.stdout);
-    assert.equal(data.gotcha.id, "G1");
+    assert.equal(data.ok, false);
+    assert.match(data.error, /unknown command/i);
   } finally { await rmTempProject(dir); }
 });
