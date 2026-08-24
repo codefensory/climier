@@ -40,7 +40,7 @@ done
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
 
-# v2 surface: a single `climier context` call replaces pre-claim + show + next.
+# v2 surface: a single `climier context` call is the canonical snapshot.
 # `context` returns node + derived_status + can_claim + revision + claim +
 # blocking[] + knowledge[] + informing[] + alerts[] + allowed_actions[].
 climier --project "$project_root" context "$task_id" >"$tmpdir/context.json"
@@ -182,7 +182,7 @@ printSection(
     `can_claim: ${String(context.can_claim)}`,
     `revision: ${context.revision ?? "(none)"}`,
     `claim: ${claim ? JSON.stringify(claim) : "(none)"}`,
-    "snapshot: single climier context call; do not rerun pre-claim/show/next manually unless state changed.",
+    "snapshot: single context call is the snapshot; do not re-run unless state changed.",
   ].join("\n"),
 );
 

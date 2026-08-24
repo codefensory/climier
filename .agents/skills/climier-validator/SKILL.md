@@ -92,7 +92,7 @@ For micro-tasks, proportionality is part of the contract: fail for missing targe
 - If the done note claims a check passed but the diff suggests risk, run a targeted check.
 - If a command is expensive, run the narrowest equivalent first.
 - Do not inspect every changed line. Inspect the changed file list, then open only files needed to verify acceptance or obvious risk.
-- Do not chase style, naming, or architecture preferences unless they violate the task contract or a gotcha.
+- Do not chase style, naming, or architecture preferences unless they violate the task contract or a scoped knowledge node.
 - If validation depends on local dirty changes from another worker or a non-task worktree, report `BLOCKED` instead of guessing.
 - If the task changes are not committed, return `FAIL` for incomplete worker handoff. If uncommitted files are unrelated but make validation ambiguous, return `BLOCKED`.
 - Do not mutate source files, snapshots, task specs, or decisions during validation.
