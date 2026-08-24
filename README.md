@@ -2,7 +2,7 @@
 
 JSON-first task DAG CLI for coordinating work across agents, sessions, or humans.
 
-`climier` keeps one shared source of truth for what is **ready**, **claimed**, **blocked**, **decided**, **backlog**, **done**, or **archived**. It works just as well for one person across multiple AI sessions as it does for a full orchestrator-and-workers setup.
+`climier` keeps one shared source of truth for what is **ready**, **blocked**, **in_progress**, **backlog**, **done**, **canceled**, **resolved**, or **deprecated**. It works just as well for one person across multiple AI sessions as it does for a full orchestrator-and-workers setup.
 
 If your work has dependencies, decision gates, recovery needs, or parallel actors touching the same repo, `climier` gives that state a home.
 
@@ -20,19 +20,19 @@ Ad-hoc coordination breaks fast:
 `climier` fixes that by storing the workflow state itself:
 
 - **tasks** form a DAG
-- **decisions** are DAG nodes too, so open choices can block work
-- **gotchas** attach reusable domain knowledge to tasks or domains
-- **claims** are atomic, so two claimants cannot take the same task
+- **gates** are DAG nodes too, so open choices (decisions, approvals, external deps, research) can block work
+- **knowledge** holds reusable facts scoped to domains, initiatives, tags, or specific nodes
+- **take** is atomic: two agents racing for the same task cannot both win
 - every mutation lands in an append-only audit log
 
 ## What climier is
 
 At heart, `climier` is a small state machine around a project DAG:
 
-- create tasks, decisions, gotchas, and initiatives
+- create tasks, gates, knowledge, and initiatives
 - derive what is ready or blocked from dependencies
-- claim work safely
-- record decisions that unblock dependents
+- take one task at a time, atomically
+- resolve tasks and gates that unblock dependents
 - keep backlog separate from claimable work
 - recover from stale or wrong state with `release`, `reopen`, and `cancel`
 
@@ -46,7 +46,7 @@ You are working solo, but not from one continuous thread. Maybe you bounce betwe
 
 ### 2. One human + one or more AI agents
 
-Use `climier` as the contract between you and coding agents. You decide what enters the DAG, agents claim tasks, add notes, finish work, or block with reasons.
+Use `climier` as the contract between you and coding agents. You decide what enters the DAG; agents take tasks, add notes, resolve them, or escalate when they are stuck.
 
 ### 3. Orchestrator + workers
 
@@ -54,7 +54,7 @@ This is the classic multi-agent case: one coordinator delegates from `ready`, wo
 
 ### 4. Migrations and long-running refactors
 
-When work unfolds in phases, with decision gates and domain gotchas, a DAG beats a flat checklist. `climier` keeps the dependency shape visible and the audit trail intact.
+When work unfolds in phases, with decision gates and scoped knowledge, a DAG beats a flat checklist. `climier` keeps the dependency shape visible and the audit trail intact.
 
 ### 5. Shared project state across worktrees or machines
 
@@ -104,7 +104,7 @@ climier add-task T-mvp-1 \
 # 4. See what is ready
 climier status
 
-# 5. Pre-flight + claim from this session
+# 5. Pre-flight + take from this session
 climier context T-mvp-1
 climier take T-mvp-1 --as session-api
 
@@ -119,7 +119,7 @@ climier resolve T-mvp-1 --note "Scaffolded service and added /health" --as sessi
 - **Task** — a unit of work (`subkind: "task"`). Persisted statuses: `in_progress`, `done`, `canceled`. Derived statuses: `ready`, `blocked`, `backlog`.
 - **Gate** — a resolvable node (`subkind: "gate"`, purpose `decision|approval|external-dependency|research`) that can block tasks via a `BLOCKS` edge until it is resolved.
 - **Knowledge** — a durable fact attached to a domain, initiative, tag, or specific node id (`kind: "knowledge"`).
-- **Backlog task** — a real task intentionally kept out of the ready pool until promoted.
+- **Backlog task** — a real task intentionally kept out of the ready pool until it is edited back into the DAG via `update --backlog false`.
 - **Initiative** — a tag grouping work streams such as `migration`, `auth`, or `research`.
 
 Important invariant: `ready` and `blocked` are derived from dependencies. They are not written into the state file.

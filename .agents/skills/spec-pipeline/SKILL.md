@@ -81,7 +81,7 @@ Verificar: <comando>." \
 
 ## Knowledge
 
-Solo gotchas y facts durables transversales (minimo un `--scope-*`). No ADRs (eso es gate), no obviedades.
+Solo knowledge nodes y facts durables transversales (minimo un `--scope-*`). No ADRs (eso es gate), no obviedades.
 
 ## Templates
 
