@@ -28,11 +28,11 @@ test("storage: project metadata makes sibling worktrees share the same state and
     assert.equal(lockFilePath(a), lockFilePath(b));
 
     await updateState(a, (s) => {
-      s.tasks.T1 = { id: "T1", title: "shared" };
+      s.nodes.T1 = { id: "T1", title: "shared" };
       return s;
     });
     const back = await readState(b);
-    assert.equal(back.tasks.T1.title, "shared");
+    assert.equal(back.nodes.T1.title, "shared");
   } finally {
     await rmTempProject(a);
     await rmTempProject(b);
@@ -44,9 +44,9 @@ test("storage: state path is deterministic even before metadata exists", async (
   const dir = await createTempProject();
   try {
     const file = stateFilePath(dir);
-    await writeState(dir, { version: 1, tasks: {}, decisions: {}, gotchas: {}, initiatives: {}, log: [] });
+    await writeState(dir, { version: 2, nodes: {}, edges: [], initiatives: {}, log: [] });
     const s = await readState(dir);
-    assert.equal(s.version, 1);
+    assert.equal(s.version, 2);
     assert.equal(stateFilePath(dir), file);
   } finally {
     await rmTempProject(dir);

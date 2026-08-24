@@ -1,5 +1,5 @@
 // add-gotcha: register a new gotcha in the state.
-import { addNode, updateState, readState, assertInitiativeRegistered, isV2State } from "../state.mjs";
+import { updateState, readState, assertInitiativeRegistered, isV2State } from "../state.mjs";
 import { withLock } from "../lock.mjs";
 
 export const knownFlags = ["title", "applies-to", "initiative", "mitigation"];

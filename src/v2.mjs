@@ -107,7 +107,7 @@ export function isCurrent(state, id) {
 }
 
 export function statusOfV2(state, id) {
-  const s = state || emptyState(2);
+  const s = state || emptyState();
   const node = s.nodes[id];
   if (!node) return "unknown";
   if (node.kind === "knowledge") return node.status || "active";
@@ -141,7 +141,7 @@ export function isSatisfiedV2(state, id) {
 }
 
 export function deriveV2(state) {
-  const s = state || emptyState(2);
+  const s = state || emptyState();
   const ready = [];
   const blocked = [];
   const backlog = [];

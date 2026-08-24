@@ -15,7 +15,7 @@ import { createTempProject, rmTempProject, runCli, readState as readRawState } f
 test("storage: add-task --blocked-by G-y stores edge {from:G-y, to:T-x, BLOCKS}", async () => {
   const dir = await createTempProject();
   try {
-    let r = await runCli(["--project", dir, "init", "--v2"]);
+    let r = await runCli(["--project", dir, "init"]);
     assert.equal(r.code, 0, r.stderr);
 
     r = await runCli([

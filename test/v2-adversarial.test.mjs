@@ -851,36 +851,63 @@ describe("agent source precedence", () => {
 });
 
 // =====================================================================
-// Class J — init --v2 --force on existing state
+// Class J — init --force on existing state
 //
-// init --v2 must require --force when a valid state file exists. --force
-// wipes the existing state. This pins the bootstrap path so a careless
-// re-init doesn't silently keep v1 data while claiming v2.
+// init always creates a v2 state; --force is required to overwrite an
+// existing state (valid v2 or v1). v1 states must be overwritten
+// explicitly because the v1 schema is no longer supported — init refuses
+// without --force and surfaces the STATE_V1_UNSUPPORTED error so the
+// user is guided to back up and recreate.
 // =====================================================================
 
-describe("init --v2 --force", () => {
-  test("init --v2 on an existing v1 state without --force refuses", async () => {
+describe("init --force on existing state", () => {
+  test("init on an existing v1 state without --force refuses with STATE_V1_UNSUPPORTED", async () => {
     const dir = await createTempProject();
     try {
-      // Bootstrap a v1 state.
+      // Bootstrap .climier.json + an empty v2 state, then overwrite the
+      // state file directly with a v1 shape (writeState now rejects v1).
       const r1 = await runCli(["--project", dir, "init"]);
       assert.equal(r1.code, 0, r1.stderr);
-      // Try to init --v2 without --force.
-      const r2 = await runCli(["--project", dir, "init", "--v2"]);
+      const fs = await import("node:fs/promises");
+      const path = await import("node:path");
+      const meta = JSON.parse(await fs.readFile(path.join(dir, ".climier.json"), "utf8"));
+      const v1File = path.join(process.env.CLIMIER_HOME, "projects", meta.project_id, "tasks.json");
+      await fs.writeFile(v1File, JSON.stringify({
+        version: 1,
+        tasks: { T1: { id: "T1", title: "x" } },
+        decisions: {}, gotchas: {}, initiatives: {}, log: [],
+      }), "utf8");
+      // Try to init without --force on the v1 state.
+      const r2 = await runCli(["--project", dir, "init"]);
       assert.equal(r2.code, 1, `expected exit 1; got ${r2.code}: ${r2.stdout}`);
-      assert.match(JSON.parse(r2.stdout).error, /use --force to overwrite|already exists/i);
+      const data = JSON.parse(r2.stdout);
+      assert.equal(data.ok, false);
+      // v1 error surfaces as the structured STATE_V1_UNSUPPORTED shape.
+      const code = typeof data.error === "string" ? null : data.error && data.error.code;
+      const msg = typeof data.error === "string" ? data.error : (data.error && data.error.message);
+      assert.ok(code === "STATE_V1_UNSUPPORTED" || /STATE_V1_UNSUPPORTED|--force/i.test(msg),
+        `expected STATE_V1_UNSUPPORTED or --force guidance; got code=${code} msg=${msg}`);
+      assert.match(msg, /--force/);
       // File is still v1.
       const s = await readRawState(dir);
       assert.equal(s.version, 1);
     } finally { await rmTempProject(dir); }
   });
 
-  test("init --v2 --force on an existing v1 state overwrites to empty v2", async () => {
+  test("init --force on an existing v1 state overwrites to empty v2", async () => {
     const dir = await createTempProject();
     try {
       const r1 = await runCli(["--project", dir, "init"]);
       assert.equal(r1.code, 0, r1.stderr);
-      const r2 = await runCli(["--project", dir, "init", "--v2", "--force"]);
+      const fs = await import("node:fs/promises");
+      const path = await import("node:path");
+      const meta = JSON.parse(await fs.readFile(path.join(dir, ".climier.json"), "utf8"));
+      const v1File = path.join(process.env.CLIMIER_HOME, "projects", meta.project_id, "tasks.json");
+      await fs.writeFile(v1File, JSON.stringify({
+        version: 1, tasks: { T1: { id: "T1", title: "v1" } },
+        decisions: {}, gotchas: {}, initiatives: {}, log: [],
+      }), "utf8");
+      const r2 = await runCli(["--project", dir, "init", "--force"]);
       assert.equal(r2.code, 0, r2.stderr);
       const s = await readRawState(dir);
       assert.equal(s.version, 2);
@@ -889,16 +916,16 @@ describe("init --v2 --force", () => {
     } finally { await rmTempProject(dir); }
   });
 
-  test("init --v2 --force on an existing v2 state overwrites (data loss, but explicit)", async () => {
+  test("init --force on an existing v2 state overwrites (data loss, but explicit)", async () => {
     const dir = await createTempProject();
     try {
-      let r = await runCli(["--project", dir, "init", "--v2"]);
+      let r = await runCli(["--project", dir, "init"]);
       assert.equal(r.code, 0, r.stderr);
       r = await runCli(["--project", dir, "add-initiative", "auth", "--desc", "x"]);
       assert.equal(r.code, 0, r.stderr);
       r = await runCli(["--project", dir, "add-node", "T-a", "--kind", "resolvable", "--subkind", "task", "--title", "x", "--initiative", "auth"]);
       assert.equal(r.code, 0, r.stderr);
-      r = await runCli(["--project", dir, "init", "--v2", "--force"]);
+      r = await runCli(["--project", dir, "init", "--force"]);
       assert.equal(r.code, 0, r.stderr);
       const s = await readRawState(dir);
       assert.equal(s.version, 2);

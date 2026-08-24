@@ -741,7 +741,7 @@ async function seedV1State(dir, state) {
 test("CLI: v2 release is routed to v2-release (clears claim, status=open)", async () => {
   const dir = await createTempProject();
   try {
-    let r = await runCli(["--project", dir, "init", "--v2"]);
+    let r = await runCli(["--project", dir, "init"]);
     assert.equal(r.code, 0, r.stderr);
     r = await runCli(["--project", dir, "add-initiative", "auth", "--desc", "auth"]);
     assert.equal(r.code, 0, r.stderr);
@@ -765,7 +765,7 @@ test("CLI: v2 release is routed to v2-release (clears claim, status=open)", asyn
 test("CLI: v2 resolve is routed to v2-resolve and emits { node, newly_ready }", async () => {
   const dir = await createTempProject();
   try {
-    let r = await runCli(["--project", dir, "init", "--v2"]);
+    let r = await runCli(["--project", dir, "init"]);
     assert.equal(r.code, 0, r.stderr);
     r = await runCli(["--project", dir, "add-initiative", "auth", "--desc", "auth"]);
     assert.equal(r.code, 0, r.stderr);
@@ -797,7 +797,7 @@ test("CLI: v2 resolve is routed to v2-resolve and emits { node, newly_ready }", 
 test("CLI: v2 reopen is routed to v2-reopen (status=open, claim cleared)", async () => {
   const dir = await createTempProject();
   try {
-    let r = await runCli(["--project", dir, "init", "--v2"]);
+    let r = await runCli(["--project", dir, "init"]);
     assert.equal(r.code, 0, r.stderr);
     r = await runCli(["--project", dir, "add-initiative", "auth", "--desc", "auth"]);
     assert.equal(r.code, 0, r.stderr);
@@ -825,7 +825,7 @@ test("CLI: v2 reopen is routed to v2-reopen (status=open, claim cleared)", async
 test("CLI: v2 cancel is routed to v2-cancel (status=canceled)", async () => {
   const dir = await createTempProject();
   try {
-    let r = await runCli(["--project", dir, "init", "--v2"]);
+    let r = await runCli(["--project", dir, "init"]);
     assert.equal(r.code, 0, r.stderr);
     r = await runCli(["--project", dir, "add-initiative", "auth", "--desc", "auth"]);
     assert.equal(r.code, 0, r.stderr);

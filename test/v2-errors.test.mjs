@@ -20,7 +20,7 @@ function assertV2Error(data, code) {
 }
 
 async function v2Project(dir) {
-  const r = await runCli(["--project", dir, "init", "--v2"]);
+  const r = await runCli(["--project", dir, "init"]);
   assert.equal(r.code, 0, r.stderr);
   // Pre-register the default initiative used by the add-node helper below
   // so the existing error-shape tests don't all have to spell it out.

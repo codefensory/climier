@@ -391,7 +391,7 @@ test("history: missing id is a clear error", async () => {
 test("CLI: status routes to v2-shape on a v2 state", async () => {
   const dir = await createTempProject();
   try {
-    let r = await runCli(["--project", dir, "init", "--v2"]);
+    let r = await runCli(["--project", dir, "init"]);
     assert.equal(r.code, 0, r.stderr);
     r = await runCli(["--project", dir, "add-initiative", "work", "--desc", "x", "--as", "test-agent"]);
     assert.equal(r.code, 0, r.stderr);
@@ -410,7 +410,7 @@ test("CLI: status routes to v2-shape on a v2 state", async () => {
 test("CLI: deprecate-knowledge routes and writes log entry via the bin", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--v2"]);
+    await runCli(["--project", dir, "init"]);
     await runCli(["--project", dir, "add-initiative", "work", "--desc", "x", "--as", "test-agent"]);
     await runCli([
       "--project", dir, "add-knowledge", "K-1",
