@@ -161,14 +161,17 @@ test("Issue 4: AGENTS.md mentions the v2 lifecycle commands beyond the original 
     path.resolve(import.meta.dirname, "..", "AGENTS.md"),
     "utf8",
   );
-  // Find the v2-scope paragraph by its leading sentinel and check the
-  // paragraph (not just the sentence fragment before the first '.').
-  const match = text.match(/v2 scope \([\s\S]*?\.\s/);
-  assert.ok(match, "AGENTS.md must have a 'v2 scope (...)' paragraph");
-  const paragraph = match[0];
+  // The Commands table is the canonical place where the v2 lifecycle
+  // surface is described. Verify the table covers the v2-only commands
+  // beyond the original six (the v1-only 'v2 scope (...)' sentinel was
+  // removed when the v1 surface was dropped; the Commands table replaces
+  // it as the source of truth).
+  const section = text.match(/## Commands[\s\S]*?(?=\n## |\s*$)/);
+  assert.ok(section, "AGENTS.md must have a '## Commands' section");
+  const commands = section[0];
   for (const cmd of ["cancel", "resolve", "release", "reopen", "take", "update", "deprecate-knowledge"]) {
-    assert.match(paragraph, new RegExp(`\\b${cmd}\\b`),
-      `AGENTS.md v2 description should mention '${cmd}': ${paragraph}`);
+    assert.match(commands, new RegExp(`\\b${cmd}\\b`),
+      `AGENTS.md Commands table should mention '${cmd}'`);
   }
 });
 

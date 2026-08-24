@@ -7,8 +7,7 @@ const DOC = path.resolve(import.meta.dirname, "..", "docs", "v2.md");
 const README = path.resolve(import.meta.dirname, "..", "README.md");
 
 const REQUIRED_SNIPPETS = [
-  "# climier v2",
-  "init --v2",
+  "# climier reference",
   "version: 2",
   "nodes",
   "edges",
@@ -54,8 +53,6 @@ const REQUIRED_SNIPPETS = [
   "ALREADY_CLAIMED",
   "NOT_OWNER",
   "REVISION_CONFLICT",
-  "add-decision",
-  "add-gotcha",
 ];
 
 test("v2 docs: docs/v2.md exists and covers the implemented v2 surface", async () => {
