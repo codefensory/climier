@@ -197,7 +197,7 @@ Si devuelve `FAIL`, crea una nueva task de correccion desde su reporte y asigna 
 
 Si devuelve `BLOCKED`, resuelve la evidencia faltante antes de delegar dependientes.
 
-Si la spec estaba floja, corrigela. Si dejo un hallazgo reusable, conviertelo en note o gotcha. Si falta una decision del usuario, pregunta.
+Si la spec estaba floja, corrigela. Si dejo un hallazgo reusable, conviertelo en note o knowledge. Si falta una decision del usuario, pregunta.
 
 No reemplaces al worker por reflejo. Si todavia conserva contexto util, retomalo con `resume`.
 
