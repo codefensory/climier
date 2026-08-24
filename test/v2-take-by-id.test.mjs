@@ -206,7 +206,7 @@ test("take by id: orchestrator takes over another agent's in-progress task", asy
 test("CLI: take T-x --as agent-x works end to end", async () => {
   const dir = await createTempProject();
   try {
-    let result = await runCli(["--project", dir, "init", "--v2"]);
+    let result = await runCli(["--project", dir, "init"]);
     assert.equal(result.code, 0, result.stdout);
     result = await runCli(["--project", dir, "add-initiative", "auth", "--desc", "Auth"]);
     assert.equal(result.code, 0, result.stdout);

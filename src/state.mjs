@@ -49,21 +49,14 @@ export async function ensureProjectMeta(projectDir) {
   return meta;
 }
 
-export function emptyState(version = 1) {
-  if (version === 2) {
-    return {
-      version: 2,
-      nodes: {},
-      edges: [],
-      initiatives: {},
-      log: [],
-    };
-  }
+// v2-only: there is no v1 schema anymore. v1 states are rejected by
+// readState with STATE_V1_UNSUPPORTED; the migration path lives in that
+// error message. See ./commands/init.mjs for the bootstrap path.
+export function emptyState() {
   return {
-    version: 1,
-    tasks: {},
-    decisions: {},
-    gotchas: {},
+    version: 2,
+    nodes: {},
+    edges: [],
     initiatives: {},
     log: [],
   };
@@ -83,9 +76,33 @@ export async function readState(projectDir) {
   try {
     const raw = await fs.readFile(stateFile(projectDir), "utf8");
     const state = JSON.parse(raw);
+    // v1 states are no longer supported. Surface a structured error so the
+    // caller (CLI entry or init) can guide the user through manual
+    // migration. The migration path is documented in the message and
+    // details: backup, export, init --force, recreate nodes.
+    if (state && typeof state === "object" && state.version === 1) {
+      const migrationSteps = [
+        "1. Backup the existing tasks.json file.",
+        "2. Export any nodes you want to keep (the v1 schema uses tasks/decisions/gotchas; recreate them with add-task/add-gate/add-knowledge).",
+        "3. Run `climier init --force` to recreate the project state in v2.",
+        "4. Recreate each node with add-initiative / add-task / add-gate / add-knowledge (see `climier --help` for the v2 surface).",
+      ];
+      const wrapped = new Error(
+        `state: file at ${stateFile(projectDir)} has version 1; this version of climier no longer supports the v1 schema. ` +
+        `To migrate, follow these steps:\n${migrationSteps.join("\n")}`,
+      );
+      wrapped.code = "STATE_V1_UNSUPPORTED";
+      wrapped.details = {
+        file: stateFile(projectDir),
+        version: 1,
+        migration_steps: migrationSteps,
+        hint: "Run `climier init --force` to overwrite the v1 state with a fresh v2 state (this will erase the v1 data).",
+      };
+      throw wrapped;
+    }
     // Forward-compatibility: surface a clear error if a future version is found.
     if (state && typeof state === "object" && "version" in state && state.version > 2) {
-      const wrapped = new Error(`state: file at ${stateFile(projectDir)} has version ${state.version} but this climier only understands versions 1 and 2`);
+      const wrapped = new Error(`state: file at ${stateFile(projectDir)} has version ${state.version} but this climier only understands version 2`);
       wrapped.code = "CLIMIER_INCOMPATIBLE_VERSION";
       throw wrapped;
     }
@@ -114,6 +131,24 @@ export async function updateState(projectDir, mutator) {
     if (err.code !== "ENOENT") throw err;
     state = emptyState();
   }
+  // If state.version !== 2, surface the same v1 / incompatible-version error
+  // readState would. updateState is the path most mutating commands hit on
+  // existing state files; it must reject v1 the same way so callers don't
+  // bypass the check.
+  if (state && typeof state === "object" && state.version === 1) {
+    const wrapped = new Error(
+      `state: file at ${file} has version 1; this version of climier no longer supports the v1 schema. ` +
+      `Run \`climier init --force\` to overwrite the v1 state with a fresh v2 state.`,
+    );
+    wrapped.code = "STATE_V1_UNSUPPORTED";
+    wrapped.details = { file, version: 1, hint: "Run `climier init --force` to overwrite the v1 state." };
+    throw wrapped;
+  }
+  if (state && typeof state === "object" && "version" in state && state.version > 2) {
+    const wrapped = new Error(`state: file at ${file} has version ${state.version} but this climier only understands version 2`);
+    wrapped.code = "CLIMIER_INCOMPATIBLE_VERSION";
+    throw wrapped;
+  }
   const next = mutator({ ...state });
   if (next === undefined) {
     // mutator mutated in-place; we wrote the spread so the outer state is stale.
@@ -126,28 +161,22 @@ export async function updateState(projectDir, mutator) {
   return next;
 }
 
-// Add a node to a top-level collection (tasks/decisions/gotchas).
-// Uses withLock so concurrent addNode calls are serialized.
-export async function addNode(projectDir, collection, id, node) {
-  const { withLock } = await import("./lock.mjs");
-  return withLock(projectDir, async () => {
-    return updateState(projectDir, (s) => {
-      s[collection] = s[collection] || {};
-      if (s[collection][id]) throw new Error(`${collection}/${id} already exists`);
-      s[collection][id] = { id, ...node };
-      return s;
-    });
-  });
-}
-
+// writeState: validate and persist a v2 state. Rejects v1 shapes and any
+// state missing the v2 collections. This is the single source of truth for
+// the on-disk schema; helpers must not bypass it for v2 writes.
 export async function writeState(projectDir, state) {
   if (!state || typeof state !== "object") {
     throw new Error("writeState: invalid state (not an object)");
   }
-  const version = state.version || 1;
-  const required = version === 2
-    ? ["nodes", "edges", "initiatives", "log"]
-    : ["tasks", "decisions", "gotchas", "initiatives", "log"];
+  if (state.version === 1) {
+    throw new Error(
+      "writeState: invalid state (version 1 is no longer supported; this build of climier only writes v2 states)",
+    );
+  }
+  if (state.version !== 2) {
+    throw new Error(`writeState: invalid state (version ${state.version} is not supported; expected version 2)`);
+  }
+  const required = ["nodes", "edges", "initiatives", "log"];
   for (const k of required) {
     if (!(k in state)) {
       throw new Error(`writeState: invalid state (missing '${k}' collection)`);

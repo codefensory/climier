@@ -272,7 +272,7 @@ test("take: persists claim = { by, at }, status = 'in_progress', and bumps revis
 test("CLI: take <id> --as agent-x returns node + context + freshly_claimed = true on a fresh v2 project", async () => {
   const dir = await createTempProject();
   try {
-    let r = await runCli(["--project", dir, "init", "--v2"]);
+    let r = await runCli(["--project", dir, "init"]);
     assert.equal(r.code, 0, r.stderr);
     r = await runCli(["--project", dir, "add-initiative", "auth", "--desc", "Auth"]);
     assert.equal(r.code, 0, r.stderr);
@@ -300,7 +300,7 @@ test("CLI: take <id> --as agent-x returns node + context + freshly_claimed = tru
 test("CLI: take <id> --as agent-x is idempotent across repeated invocations", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init", "--v2"]);
+    await runCli(["--project", dir, "init"]);
     await runCli(["--project", dir, "add-initiative", "auth", "--desc", "Auth"]);
     await runCli([
       "--project", dir, "add-node", "T-auth-1",

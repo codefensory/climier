@@ -185,18 +185,25 @@ test("update: rejects update on a v1 state", async () => {
   const { default: update } = await importFresh("./commands/v2-update.mjs");
   const dir = await createTempProject();
   try {
-    // Bootstrap a v1 state.
-    const { writeState } = await importFresh("./state.mjs");
-    await writeState(dir, {
+    // Bootstrap .climier.json + an empty v2 state, then overwrite the
+    // state file directly with a v1 shape (writeState now rejects v1).
+    const { default: init } = await importFresh("./commands/init.mjs");
+    await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
+    const fs = await import("node:fs/promises");
+    const path = await import("node:path");
+    const meta = JSON.parse(await fs.readFile(path.join(dir, ".climier.json"), "utf8"));
+    const v1File = path.join(process.env.CLIMIER_HOME, "projects", meta.project_id, "tasks.json");
+    await fs.writeFile(v1File, JSON.stringify({
       version: 1,
       tasks: { F0T1: { id: "F0T1", title: "v1 task", initiative: "x" } },
       decisions: {}, gotchas: {}, initiatives: { x: {} }, log: [],
-    });
+    }), "utf8");
     let caught;
     try {
       await update({ statePath: dir, positional: ["F0T1"], flags: { title: "y", as: "alice" } });
     } catch (e) { caught = e; }
     assert.ok(caught, "should have thrown");
+    assert.equal(caught.code, "STATE_V1_UNSUPPORTED");
     assert.match(caught.message, /v1/i);
   } finally { await rmTempProject(dir); }
 });
@@ -206,7 +213,7 @@ test("update: rejects update on a v1 state", async () => {
 test("CLI: v2 update emits REVISION_CONFLICT with structured details", async () => {
   const dir = await createTempProject();
   try {
-    let r = await runCli(["--project", dir, "init", "--v2"]);
+    let r = await runCli(["--project", dir, "init"]);
     assert.equal(r.code, 0, r.stderr);
     r = await runCli(["--project", dir, "add-initiative", "auth", "--desc", "test"]);
     assert.equal(r.code, 0, r.stderr);
@@ -240,7 +247,7 @@ test("CLI: v2 update emits REVISION_CONFLICT with structured details", async () 
 test("CLI: v2 update missing node emits NODE_NOT_FOUND", async () => {
   const dir = await createTempProject();
   try {
-    let r = await runCli(["--project", dir, "init", "--v2"]);
+    let r = await runCli(["--project", dir, "init"]);
     assert.equal(r.code, 0, r.stderr);
     r = await runCli(["--project", dir, "update", "ghost", "--title", "x", "--as", "alice"]);
     assert.equal(r.code, 1);

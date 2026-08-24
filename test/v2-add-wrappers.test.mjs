@@ -270,7 +270,7 @@ for (const [name, flags] of [
 test("CLI: add-task, add-gate, and add-knowledge wrappers dispatch end-to-end", async () => {
   const dir = await createTempProject();
   try {
-    let r = await runCli(["--project", dir, "init", "--v2"]);
+    let r = await runCli(["--project", dir, "init"]);
     assert.equal(r.code, 0, r.stdout);
     r = await runCli(["--project", dir, "add-initiative", "auth", "--desc", "Auth migration"]);
     assert.equal(r.code, 0, r.stdout);

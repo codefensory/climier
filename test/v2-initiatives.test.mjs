@@ -139,7 +139,7 @@ test("add-initiative (v2): missing name emits MISSING_FIELD", async () => {
 test("CLI: add-initiative v2 registers and emits a created_at envelope", async () => {
   const dir = await createTempProject();
   try {
-    let r = await runCli(["--project", dir, "init", "--v2"]);
+    let r = await runCli(["--project", dir, "init"]);
     assert.equal(r.code, 0, r.stderr);
 
     r = await runCli(["--project", dir, "add-initiative", "auth", "--desc", "auth swap"]);
@@ -156,7 +156,7 @@ test("CLI: add-initiative v2 registers and emits a created_at envelope", async (
 test("CLI: add-initiative v2 duplicate emits ID_CONFLICT", async () => {
   const dir = await createTempProject();
   try {
-    let r = await runCli(["--project", dir, "init", "--v2"]);
+    let r = await runCli(["--project", dir, "init"]);
     assert.equal(r.code, 0);
     r = await runCli(["--project", dir, "add-initiative", "auth", "--desc", "x"]);
     assert.equal(r.code, 0);
@@ -389,7 +389,7 @@ test("add-node (v2): knowledge nodes also require --initiative", async () => {
 test("CLI: add-node (v2) without --initiative emits MISSING_FIELD with initiative field", async () => {
   const dir = await createTempProject();
   try {
-    let r = await runCli(["--project", dir, "init", "--v2"]);
+    let r = await runCli(["--project", dir, "init"]);
     assert.equal(r.code, 0);
     r = await runCli([
       "--project", dir, "add-node", "T1",
@@ -407,7 +407,7 @@ test("CLI: add-node (v2) without --initiative emits MISSING_FIELD with initiativ
 test("CLI: add-node (v2) with unregistered initiative emits INITIATIVE_NOT_FOUND", async () => {
   const dir = await createTempProject();
   try {
-    let r = await runCli(["--project", dir, "init", "--v2"]);
+    let r = await runCli(["--project", dir, "init"]);
     assert.equal(r.code, 0);
     r = await runCli([
       "--project", dir, "add-node", "T1",
@@ -426,7 +426,7 @@ test("CLI: add-node (v2) with unregistered initiative emits INITIATIVE_NOT_FOUND
 test("CLI: add-node --initiative registered works end-to-end", async () => {
   const dir = await createTempProject();
   try {
-    let r = await runCli(["--project", dir, "init", "--v2"]);
+    let r = await runCli(["--project", dir, "init"]);
     assert.equal(r.code, 0);
     r = await runCli(["--project", dir, "add-initiative", "auth", "--desc", ""]);
     assert.equal(r.code, 0, r.stderr);

@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, importFresh, readState as readRawState, runCli, writeState as writeRawState } from "./helpers.mjs";
 
-test("init --v2: creates an empty v2 state", async () => {
+test("init: creates an empty v2 state by default", async () => {
   const { default: init } = await importFresh("./commands/init.mjs");
   const { readState } = await importFresh("./state.mjs");
   const dir = await createTempProject();
@@ -148,7 +148,7 @@ test("add-node: stores refs as external targets", async () => {
 test("CLI: add-node --refs persists refs in v2", async () => {
   const dir = await createTempProject();
   try {
-    let r = await runCli(["--project", dir, "init", "--v2"]);
+    let r = await runCli(["--project", dir, "init"]);
     assert.equal(r.code, 0, r.stderr);
     r = await runCli(["--project", dir, "add-initiative", "auth-migration", "--desc", "test"]);
     assert.equal(r.code, 0, r.stderr);
@@ -212,7 +212,7 @@ test("add-node: stores meta from JSON", async () => {
 test("CLI: add-node --meta persists metadata in v2", async () => {
   const dir = await createTempProject();
   try {
-    let r = await runCli(["--project", dir, "init", "--v2"]);
+    let r = await runCli(["--project", dir, "init"]);
     assert.equal(r.code, 0, r.stderr);
     r = await runCli(["--project", dir, "add-initiative", "auth-migration", "--desc", "test"]);
     assert.equal(r.code, 0, r.stderr);
@@ -273,7 +273,7 @@ test("add-note: appends notes to a v2 node", async () => {
 test("CLI: add-note works on a v2 node", async () => {
   const dir = await createTempProject();
   try {
-    let r = await runCli(["--project", dir, "init", "--v2"]);
+    let r = await runCli(["--project", dir, "init"]);
     assert.equal(r.code, 0, r.stderr);
     r = await runCli(["--project", dir, "add-initiative", "auth-migration", "--desc", "test"]);
     assert.equal(r.code, 0, r.stderr);
@@ -423,7 +423,7 @@ test("context: returns blockers, informing edges, and scoped knowledge for a v2 
 test("CLI: v2 commands work end-to-end", async () => {
   const dir = await createTempProject();
   try {
-    let r = await runCli(["--project", dir, "init", "--v2"]);
+    let r = await runCli(["--project", dir, "init"]);
     assert.equal(r.code, 0, r.stderr);
     r = await runCli(["--project", dir, "add-initiative", "auth-migration", "--desc", "test"]);
     assert.equal(r.code, 0, r.stderr);

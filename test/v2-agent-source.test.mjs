@@ -250,7 +250,7 @@ test("add-node: CLIMIER_AGENT is recorded in the log when --as is absent", async
 test("CLI: CLIMIER_AGENT works for add-initiative without --as", async () => {
   const dir = await createTempProject();
   try {
-    const initR = await runCli(["--project", dir, "init", "--v2"], { env: { CLIMIER_AGENT: "agent-x" } });
+    const initR = await runCli(["--project", dir, "init"], { env: { CLIMIER_AGENT: "agent-x" } });
     assert.equal(initR.code, 0, initR.stderr);
     const r = await runCli(["--project", dir, "add-initiative", "foo"], { env: { CLIMIER_AGENT: "agent-x" } });
     assert.equal(r.code, 0, r.stderr);
@@ -262,7 +262,7 @@ test("CLI: CLIMIER_AGENT works for add-initiative without --as", async () => {
 test("CLI: --as takes precedence over CLIMIER_AGENT in the log entry", async () => {
   const dir = await createTempProject();
   try {
-    let r = await runCli(["--project", dir, "init", "--v2"], { env: { CLIMIER_AGENT: "env-agent" } });
+    let r = await runCli(["--project", dir, "init"], { env: { CLIMIER_AGENT: "env-agent" } });
     assert.equal(r.code, 0, r.stderr);
     // Register the initiative so add-node doesn't trip INITIATIVE_NOT_FOUND.
     r = await runCli(
@@ -290,7 +290,7 @@ test("CLI: --as takes precedence over CLIMIER_AGENT in the log entry", async () 
 test("CLI: missing agent emits MISSING_AGENT", async () => {
   const dir = await createTempProject();
   try {
-    let r = await runCli(["--project", dir, "init", "--v2"], { env: { CLIMIER_AGENT: "" } });
+    let r = await runCli(["--project", dir, "init"], { env: { CLIMIER_AGENT: "" } });
     assert.equal(r.code, 0, r.stderr);
     r = await runCli(["--project", dir, "add-initiative", "foo"], { env: { CLIMIER_AGENT: "" } });
     assert.equal(r.code, 1);

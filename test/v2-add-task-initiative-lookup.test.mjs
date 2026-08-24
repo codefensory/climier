@@ -54,7 +54,7 @@ test("v2 add-task accepts an initiative registered by add-initiative", async () 
 
 test("CLI v2 add-task accepts an initiative registered by add-initiative", async () => {
   await withProject(async (dir) => {
-    let result = await runCli(["init", "--v2"], { cwd: dir });
+    let result = await runCli(["init"], { cwd: dir });
     assert.equal(result.code, 0, result.stdout);
     result = await runCli(["add-initiative", "foo", "--desc", "x", "--as", "orchestrator"], { cwd: dir });
     assert.equal(result.code, 0, result.stdout);
@@ -89,7 +89,7 @@ test("v2 add-task rejects an unregistered initiative with INITIATIVE_NOT_FOUND",
 
 test("CLI v2 add-task allows an unregistered initiative with the escape hatch", async () => {
   await withProject(async (dir) => {
-    let result = await runCli(["init", "--v2"], { cwd: dir });
+    let result = await runCli(["init"], { cwd: dir });
     assert.equal(result.code, 0, result.stdout);
 
     result = await runCli([
@@ -105,7 +105,7 @@ test("CLI v2 add-task allows an unregistered initiative with the escape hatch", 
 
 test("CLI v2 add-task returns a structured error when initiative is missing", async () => {
   await withProject(async (dir) => {
-    let result = await runCli(["init", "--v2"], { cwd: dir });
+    let result = await runCli(["init"], { cwd: dir });
     assert.equal(result.code, 0, result.stdout);
 
     result = await runCli([

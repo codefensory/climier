@@ -146,7 +146,7 @@ test("add-node: --blocked-by with missing target emits INVALID_EDGE_TARGET", asy
 test("CLI: add-node --blocked-by emits a BLOCKS edge with the blocker as `from`", async () => {
   const dir = await createTempProject();
   try {
-    let r = await runCli(["--project", dir, "init", "--v2"]);
+    let r = await runCli(["--project", dir, "init"]);
     assert.equal(r.code, 0, r.stderr);
     r = await runCli(["--project", dir, "add-initiative", "auth", "--desc", "test"]);
     assert.equal(r.code, 0, r.stderr);
