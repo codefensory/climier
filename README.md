@@ -112,7 +112,7 @@ climier take T-mvp-1 --as session-api
 climier resolve T-mvp-1 --note "Scaffolded service and added /health" --as session-api
 ```
 
-> Full reference: `docs/v2.md`.
+> Full reference: `docs/reference.md`.
 
 ## Core concepts
 
@@ -198,7 +198,7 @@ There is no `--json` flag. JSON is the default.
 
 Projects coming from a v1 (`version: 1`) state fail with `STATE_V1_UNSUPPORTED` on first read; the error's `details.migration_steps` walks through backing up, exporting, and recreating the project. The hint suggests `climier init --force` after backup.
 
-Full reference: `docs/v2.md`.
+Full reference: `docs/reference.md`.
 
 Canonical `BLOCKS` direction is `{ from: blocker, to: blocked, type: "BLOCKS" }`; blockers are incoming edges to the blocked node.
 

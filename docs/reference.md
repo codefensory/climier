@@ -164,7 +164,7 @@ So `CLIMIER_AGENT` is the fallback, not the override.
 
 ## Initiative rules
 
-V2 requires initiatives to be pre-registered.
+Initiatives must be pre-registered.
 
 - register with `add-initiative <name>`
 - nodes require `--initiative`
@@ -183,7 +183,7 @@ Duplicate initiative names are rejected.
 
 ### `add-task [id]`
 
-V2 `add-task [id]` creates a task node. If the id is omitted, a `T-xxxxxxxx` id is generated.
+`add-task [id]` creates a task node. If the id is omitted, a `T-xxxxxxxx` id is generated.
 
 Required flags:
 
@@ -692,7 +692,7 @@ Output shape:
 
 ## Structured errors
 
-V2 command failures use a structured error shape:
+Command failures use a structured error shape:
 
 ```js
 { ok: false, error: { code, message, details } }
@@ -716,7 +716,7 @@ Important codes you will actually hit:
 - `ALREADY_CLAIMED`
 - `NOT_OWNER`
 - `INVALID_STATUS`
-- `STATE_V1_UNSUPPORTED` — a `version: 1` state file was found. v1 is no longer supported. The error `details.migration_steps` explains how to back up and recreate the project in v2; `details.hint` points at `climier init --force` as the path to overwrite a v1 state file (after backup).
+- `STATE_V1_UNSUPPORTED` — a `version: 1` state file was found. v1 is no longer supported. The error `details.migration_steps` explains how to back up and recreate the project; `details.hint` points at `climier init --force` as the path to overwrite a v1 state file (after backup).
 
 ## Minimal flow
 

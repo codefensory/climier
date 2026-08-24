@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
-const DOC = path.resolve(import.meta.dirname, "..", "docs", "v2.md");
+const DOC = path.resolve(import.meta.dirname, "..", "docs", "reference.md");
 const README = path.resolve(import.meta.dirname, "..", "README.md");
 
 const REQUIRED_SNIPPETS = [
@@ -55,14 +55,14 @@ const REQUIRED_SNIPPETS = [
   "REVISION_CONFLICT",
 ];
 
-test("v2 docs: docs/v2.md exists and covers the implemented v2 surface", async () => {
+test("docs: reference.md exists and covers the implemented surface", async () => {
   const text = await readFile(DOC, "utf8");
   for (const snippet of REQUIRED_SNIPPETS) {
-    assert.match(text, new RegExp(snippet.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), `docs/v2.md should mention ${snippet}`);
+    assert.match(text, new RegExp(snippet.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), `reference.md should mention ${snippet}`);
   }
 });
 
 test("v2 docs: README links to the dedicated v2 documentation", async () => {
   const text = await readFile(README, "utf8");
-  assert.match(text, /docs\/v2\.md/, "README.md should link to docs/v2.md");
+  assert.match(text, /docs\/reference\.md/, "README.md should link to docs/reference.md");
 });

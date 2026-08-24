@@ -65,7 +65,7 @@ Hallazgos relevantes para la UI:
 - Las notas son parte importante del sistema de coordinación: no son solamente comentarios informales.
 - Las referencias estructuradas (`refs`) todavía se usan poco en Vegsport; muchos documentos se mencionan dentro de `body` o notas.
 - Las tareas pequeñas también pueden ejecutarse fuera de Climier mediante el direct lane. La UI debe declarar que representa el trabajo registrado en Climier, no necesariamente todo el trabajo del repositorio.
-- En v2, `ready` y `blocked` son estados derivados del DAG. No deben tratarse como valores que el usuario pueda editar libremente.
+- En el modelo actual, `ready` y `blocked` son estados derivados del DAG. No deben tratarse como valores que el usuario pueda editar libremente.
 
 ## 3. Objetivos
 
@@ -280,7 +280,7 @@ Para tasks activas, la tarjeta debe destacar:
 - última actividad;
 - stale claim si aplica.
 
-La UI no debe mostrar `priority`, `effort` o `skills` como campos de primera clase en v2 mientras no formen parte estable del modelo v2.
+La UI no debe mostrar `priority`, `effort` o `skills` como campos de primera clase mientras no formen parte estable del modelo.
 
 ### Interacción
 
@@ -492,7 +492,7 @@ Una UI remota requeriría resolver autenticación, almacenamiento compartido, co
 
 ### 13.2 Snapshot de lectura
 
-Actualmente el v2 tiene `status`, `context`, `show`, `history` y `log`, pero no una exportación completa del grafo. La UI no debería hacer cientos de llamadas independientes para construir la pantalla.
+Actualmente climier tiene `status`, `context`, `show`, `history` y `log`, pero no una exportación completa del grafo. La UI no debería hacer cientos de llamadas independientes para construir la pantalla.
 
 Se propone una lectura futura como:
 
@@ -596,7 +596,7 @@ Toda mutación desde la UI debe:
 
 ## 16. No objetivos
 
-- No reemplazar el modelo v2 de Climier.
+- No reemplazar el modelo de Climier.
 - No renombrar `tasks`, `gates`, `knowledge`, `initiatives` o edges.
 - No convertir `ready` o `blocked` en estados editables manualmente.
 - No construir un Trello genérico independiente del DAG.
@@ -655,9 +655,9 @@ Estas métricas deben validarse con usuarios antes de fijarlas como contrato:
 ## 19. Referencias de implementación
 
 - `README.md`: propósito, workflow y output contract.
-- `docs/v2.md`: modelo v2, nodes, edges, estados y comandos.
+- `docs/reference.md`: modelo, nodes, edges, estados y comandos.
 - `src/v2.mjs`: derivación de status, blockers, knowledge y edges.
-- `src/commands/v2-status.mjs`: buckets y resumen v2.
+- `src/commands/status.mjs`: buckets y resumen.
 - `src/commands/context.mjs`: contexto de node, blockers, knowledge y allowed actions.
 - `src/commands/show.mjs`: node raw.
 - `src/commands/history.mjs`: historial por node.

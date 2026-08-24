@@ -35,7 +35,7 @@ fi
 
 mkdir -p "$project_root/$worktree_parent"
 
-# v2 surface: take replaces claim. take's response already includes the full
+# take replaces claim. take's response already includes the full
 # context envelope (node, blocking, knowledge, allowed_actions) so a separate
 # context call is redundant. Print silenced so the WORKTREE summary is the
 # only thing on stdout.

@@ -1,9 +1,9 @@
 ---
 name: climier-validator
-description: Validate climier task worktrees (v2) after a worker resolves, stalls, or gets cancelled. Use when Codex must audit whether a task's worktree satisfies the contract, discover the worktree from task notes or git worktree paths containing the task id, return PASS/FAIL/BLOCKED without implementing fixes, merge only on PASS, and produce an orchestrator-ready follow-up report when correction is needed.
+description: Validate climier task worktrees after a worker resolves, stalls, or gets cancelled. Use when Codex must audit whether a task's worktree satisfies the contract, discover the worktree from task notes or git worktree paths containing the task id, return PASS/FAIL/BLOCKED without implementing fixes, merge only on PASS, and produce an orchestrator-ready follow-up report when correction is needed.
 ---
 
-# Climier Validator (v2)
+# Climier Validator
 
 Validate one task worktree. Be fast, strict, and evidence-based. Do not fix code. Prefer an 80/20 audit that catches contract-breaking issues without redoing the worker's job.
 

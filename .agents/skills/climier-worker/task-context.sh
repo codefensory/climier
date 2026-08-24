@@ -40,7 +40,7 @@ done
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
 
-# v2 surface: a single `climier context` call is the canonical snapshot.
+# a single `climier context` call is the canonical snapshot.
 # `context` returns node + derived_status + can_claim + revision + claim +
 # blocking[] + knowledge[] + informing[] + alerts[] + allowed_actions[].
 climier --project "$project_root" context "$task_id" >"$tmpdir/context.json"

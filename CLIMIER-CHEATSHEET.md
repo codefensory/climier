@@ -40,8 +40,8 @@ Errors are JSON to stdout with a structured shape: `{ ok: false, error: { code, 
 
 ## Add to the DAG
 
-- `climier add-initiative <name> [--desc "..."] --as <agent>` — register an initiative. v2 rejects duplicates with `ID_CONFLICT`.
-- `climier add-task [id] --initiative X --title "..." --body "..." --acceptance "..." --blocked-by A,B --as <agent>` — add a v2 task. `--body`, `--acceptance` and `--blocked-by` are required; pass `--blocked-by ""` when there are no blockers. Omit `id` to auto-allocate (`T-xxxxxxxx`).
+- `climier add-initiative <name> [--desc "..."] --as <agent>` — register an initiative. Duplicates are rejected with `ID_CONFLICT`.
+- `climier add-task [id] --initiative X --title "..." --body "..." --acceptance "..." --blocked-by A,B --as <agent>` — add a task. `--body`, `--acceptance` and `--blocked-by` are required; pass `--blocked-by ""` when there are no blockers. Omit `id` to auto-allocate (`T-xxxxxxxx`).
 - `climier add-gate [id] --initiative X --title "..." --body "..." --purpose decision|approval|external-dependency|research [--blocked-by A,B] [--supersedes OLD] --as <agent>` — add a gate (decision/approval/etc). `--supersedes OLD` rewires downstream BLOCKS edges atomically.
 - `climier add-knowledge [id] --initiative X --title "..." --body "..." [--scope-domains X] [--scope-initiatives X] [--scope-tags X] [--scope-node-ids X] [--mitigation "..."] [--supersedes OLD] --as <agent>` — register a knowledge node. At least one `--scope-*` is required.
 - `climier deprecate-knowledge <id> --reason "<text>" --as <agent>` — soft-delete a knowledge node.

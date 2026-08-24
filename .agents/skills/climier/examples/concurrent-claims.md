@@ -33,7 +33,7 @@ What happens:
 
 ## Verified by tests
 
-The climier test suite has `concurrent-claims.test.mjs` (and the v2 variants in `v2-*.test.mjs`) that spawn two child processes taking the same task in parallel and asserts exactly one succeeds. This runs on every `npm test` in the climier repo.
+The climier test suite has `concurrent-claims.test.mjs` (and the race variants in `v2-*.test.mjs`) that spawn two child processes taking the same task in parallel and asserts exactly one succeeds. This runs on every `npm test` in the climier repo.
 
 ## For the orchestrator: don't pre-assign
 

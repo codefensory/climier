@@ -234,7 +234,7 @@ Same rules apply to gates: reopen rolls a `resolved` gate back to `open` and cle
 
 When to use `reopen` vs creating a new task:
 - **`reopen`** (default): the original task is incomplete; correcting it is "finishing the work", not a different piece of work. The DAG stays clean.
-- **New task** (e.g. `T-auth-7-v2`): the correction is structurally different from the original — a v2, a migration, a new approach. Not a retry.
+- **New task** (e.g. `T-auth-7-v2`): the correction is structurally different from the original — a rewrite, a migration, a new approach. Not a retry.
 
 Prefer `reopen`. The DAG is the system's view of reality; don't create a sibling task that leaves dependents unblocked on a foundation that isn't actually done.
 

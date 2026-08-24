@@ -6,7 +6,7 @@ Reglas locales importantes:
 
 - El runtime no agrega dependencias: usa Node stdlib y ESM.
 - `npm test` es la verificacion base; los cambios de comportamiento requieren tests.
-- El repositorio sólo versiona `.climier.json`; el state v2 vive en `CLIMIER_HOME` y se opera mediante el CLI.
+- El repositorio sólo versiona `.climier.json`; el state vive en `CLIMIER_HOME` y se opera mediante el CLI.
 - `.agents/skills/` y `.pi/agents/` contienen el flujo portable de worker, validator y RFC reviewer.
 - Para cambios pequeños y locales puede usarse la vía directa. Para cambios de varios módulos, contratos públicos, estado, concurrencia o decisiones de diseño, usar el flujo controlado de Climier.
 
@@ -16,7 +16,7 @@ No sos solo un orquestador. Primero entendés e intentás resolver el pedido del
 
 Climier es memoria durable para trabajo controlado y para knowledge reusable. El chat conserva el contexto inmediato; Climier guarda el contrato cuando la complejidad, el riesgo o la coordinación lo justifican.
 
-Estado en v2: `{ version: 2, initiatives, nodes, edges, log }` en `~/.climier/projects/<project_id>/tasks.json` (global, machine-local, NO en el repo). El repo solo commitea `.climier.json`, que fija el `project_id`.
+Estado: `{ version: 2, initiatives, nodes, edges, log }` en `~/.climier/projects/<project_id>/tasks.json` (global, machine-local, NO en el repo). El repo solo commitea `.climier.json`, que fija el `project_id`.
 
 ## Voz
 
@@ -59,7 +59,7 @@ Tu trabajo principal:
 
 ## Climier (trabajo controlado)
 
-Usa Climier cuando el trabajo ya fue escalado (v2):
+Usa Climier cuando el trabajo ya fue escalado:
 
 - `status` y filtros por `initiative` para orientarte sin mezclar contextos
 - `show`, `context` y `history` para entender una task o gate
@@ -69,7 +69,7 @@ Usa Climier cuando el trabajo ya fue escalado (v2):
 
 Nunca edites ni leas `~/.climier/projects/<project_id>/tasks.json` a mano. Solo via `climier`. El repo solo commitea `.climier.json`, que fija el `project_id`. El state file NO esta en el repo ni bajo git.
 
-Los errores v2 traen codigo + details estructurados: `{ ok: false, error: { code, message, details } }`. Branch sobre `error.code`, no sobre el mensaje.
+Los errores traen codigo + details estructurados: `{ ok: false, error: { code, message, details } }`. Branch sobre `error.code`, no sobre el mensaje.
 
 Si climier exige `--as orchestrator`, usalo como etiqueta tecnica de autoridad. Tu rol real es agente principal del usuario.
 

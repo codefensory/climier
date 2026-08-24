@@ -1,9 +1,9 @@
 ---
 name: climier-worker
-description: Ejecutar una task de climier end-to-end (v2). Hace preflight deterministico, cura la task si el contrato esta flojo, toma, implementa, verifica y resuelve.
+description: Ejecutar una task de climier end-to-end. Hace preflight deterministico, cura la task si el contrato esta flojo, toma, implementa, verifica y resuelve.
 ---
 
-# Worker protocol (v2)
+# Worker protocol
 
 La task es tu contrato. No heredas el chat del orchestrator. Si una nuance no esta en climier o en un doc referenciado por la task, no existe.
 
@@ -98,7 +98,7 @@ Antes del `take`, usa `climier --project "$project_root" update <id> --as <tu-ag
 - paths viejos
 - doc faltante pero claramente referido por la spec
 - acceptance floja pero deducible de la misma spec o gate
-- domain, tags, refs o meta desalineados (skills/effort/priority no existen en el modelo v2; van en --body o --meta)
+- domain, tags, refs o meta desalineados (skills/effort/priority no existen en el modelo; van en --body o --meta)
 - restriccion ya conocida que deberia vivir en body, notes o scope de knowledge
 
 Despues de `update`, vuelve a correr solo el comando que estabas usando para validar el contrato (`context` o `task-context.sh`).
@@ -227,7 +227,7 @@ Encontre: <bloqueo exacto>.
 Necesito: <decision, spec update, secreto, dependencia>. Resume recomendado: si/no.
 ```
 
-> v2 no tiene `block`. La escalacion es `add-note "<id>" "blocked: ..."` + `release` + handoff al orchestrator. El orchestrator puede reabrir la task (`update`), resolver el gate que la bloquea (`resolve <G>`), o asignar otro worker.
+> climier no tiene `block`. La escalacion es `add-note "<id>" "blocked: ..."` + `release` + handoff al orchestrator. El orchestrator puede reabrir la task (`update`), resolver el gate que la bloquea (`resolve <G>`), o asignar otro worker.
 
 ## Firmas de CLI y mutaciones raras
 

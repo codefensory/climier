@@ -48,7 +48,7 @@ fi
 branch="$(git -C "$current_root" branch --show-current)"
 base_branch="$(git -C "$project_root" branch --show-current)"
 
-# v2 surface: add-note unchanged. resolve replaces done and accepts --note
+# add-note unchanged. resolve replaces done and accepts --note
 # (instead of a positional arg). Resolve returns {node, newly_ready}; we
 # echo the JSON so callers can inspect it, then surface newly_ready as a
 # single line for the orchestrator.
