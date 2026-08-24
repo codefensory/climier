@@ -231,6 +231,7 @@ export default async function addNode({ statePath, flags, positional }) {
     await append(projectDir, {
       agent,
       action: supersedes ? "supersede" : "add-node",
+      node: id,
       note: supersedes ? `${id} supersedes ${supersedes}` : id,
     });
     return { node };

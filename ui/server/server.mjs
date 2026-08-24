@@ -230,13 +230,85 @@ function recentActivity(state, limit = 20) {
   return log.slice(-limit).reverse().map((e) => normalizeActivityEntry(state, e));
 }
 
-function activityAll(state, limit, offset) {
-  const entries = state.log || [];
-  const total = entries.length;
+// Apply the activity filters to a log slice. The same predicate is used
+// for the response page AND for the facets, so a UI that narrows by `q`
+// sees the action/agent counts shrink in lockstep. Empty/undefined
+// filters are no-ops.
+function applyActivityFilters(state, entries, filters) {
+  const { action, agent, node, q, initiative } = filters;
+  let out = entries;
+  if (action) out = out.filter((e) => e.action === action);
+  if (agent) out = out.filter((e) => e.agent === agent);
+  if (node) out = out.filter((e) => e.node === node || e.task === node);
+  if (initiative) {
+    out = out.filter((e) => {
+      const id = e.node || e.task;
+      if (!id) return false;
+      const n = state.nodes[id];
+      return !!n && n.initiative === initiative;
+    });
+  }
+  if (q) {
+    const needle = String(q).toLowerCase();
+    out = out.filter((e) => {
+      const id = e.node || e.task || null;
+      const n = id ? state.nodes[id] : null;
+      const haystack = [
+        e.note || "",
+        e.agent || "",
+        e.action || "",
+        id || "",
+        n ? n.title || "" : "",
+      ]
+        .join("\n")
+        .toLowerCase();
+      return haystack.includes(needle);
+    });
+  }
+  return out;
+}
+
+// Build facets over a log slice. We deliberately do NOT use a fixed list
+// of actions: add-edge and any future / custom action surface in the
+// dropdown because they are derived from the log itself. Counts include
+// every entry that passes the filter; the most common values come first.
+function buildFacets(state, entries, filters) {
+  const countBy = (arr, key) => {
+    const m = new Map();
+    for (const e of arr) {
+      const v = e[key];
+      if (v == null) continue;
+      m.set(v, (m.get(v) || 0) + 1);
+    }
+    return [...m.entries()]
+      .map(([k, count]) => ({ [key]: k, count }))
+      .sort((a, b) => b.count - a.count || String(a[key]).localeCompare(String(b[key])));
+  };
+  // Actions facet: re-apply every filter EXCEPT the action filter, so
+  // the dropdown shows the actions still reachable when the user changes
+  // the current action selection.
+  const actionEntries = applyActivityFilters(state, entries, { ...filters, action: undefined });
+  // Agents facet: same trick, leave the agent filter off.
+  const agentEntries = applyActivityFilters(state, entries, { ...filters, agent: undefined });
+  return {
+    actions: countBy(actionEntries, "action"),
+    agents: countBy(agentEntries, "agent"),
+  };
+}
+
+function activityPage(state, limit, offset, filters = {}) {
+  const filtered = applyActivityFilters(state, state.log || [], filters);
+  const total = filtered.length;
   const start = Math.max(0, total - limit - offset);
   const end = Math.max(0, total - offset);
-  const page = entries.slice(start, end).reverse().map((e) => normalizeActivityEntry(state, e));
-  return { entries: page, total, limit, offset };
+  const page = filtered.slice(start, end).reverse().map((e) => normalizeActivityEntry(state, e));
+  return {
+    entries: page,
+    total,
+    limit,
+    offset,
+    facets: buildFacets(state, state.log || [], filters),
+  };
 }
 
 // Refs are always returned as structured objects {target, type, source}.
@@ -422,21 +494,25 @@ export async function start({ projectDir, port = DEFAULT_PORT, log = console.err
 
   app.get("/api/activity", async (req, res) => {
     const { state } = await freshState();
-    if (!state) return res.json({ entries: [], total: 0, limit: 50, offset: 0 });
-    const { action, agent, node, limit = 50, offset = 0 } = req.query;
-    const lim = Math.max(0, parseInt(limit, 10) || 0);
-    const off = Math.max(0, parseInt(offset, 10) || 0);
-    let entries = state.log || [];
-    if (action) entries = entries.filter((e) => e.action === action);
-    if (agent) entries = entries.filter((e) => e.agent === agent);
-    if (node) entries = entries.filter((e) => e.node === node || e.task === node);
-    // After filtering, rebuild a windowed page off the filtered list so the
-    // client gets the same envelope shape regardless of query.
-    const total = entries.length;
-    const start = Math.max(0, total - lim - off);
-    const end = Math.max(0, total - off);
-    const page = entries.slice(start, end).reverse().map((e) => normalizeActivityEntry(state, e));
-    res.json({ entries: page, total, limit: lim, offset: off });
+    const lim = Math.max(0, parseInt(req.query.limit, 10) || 50);
+    const off = Math.max(0, parseInt(req.query.offset, 10) || 0);
+    if (!state) {
+      return res.json({
+        entries: [],
+        total: 0,
+        limit: lim,
+        offset: off,
+        facets: { actions: [], agents: [] },
+      });
+    }
+    const filters = {
+      action: req.query.action || undefined,
+      agent: req.query.agent || undefined,
+      node: req.query.node || undefined,
+      initiative: req.query.initiative || undefined,
+      q: req.query.q || undefined,
+    };
+    res.json(activityPage(state, lim, off, filters));
   });
 
   app.get("/api/search", async (req, res) => {
