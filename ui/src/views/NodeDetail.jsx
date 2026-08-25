@@ -447,36 +447,14 @@ function DetailBody(props) {
       {/* ── Title + summary ────────────────────────────────────────── */}
       <section class="ui-detail-hero">
         <h1 class="text-page leading-tight text-ink">{n().title || n().id}</h1>
-        <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          <SummaryRow label="Status">
-            <div class="flex items-center gap-2">
-              <StatusBadge status={d.derived_status || n().status || "open"} />
-              <Show when={d.derived_status !== n().status}>
-                <span class="text-[11px] text-mute">persisted: {n().status || "open"}</span>
-              </Show>
-            </div>
-          </SummaryRow>
-          <SummaryRow label="Initiative">
-            <span class="mono text-[12px] text-body">{n().initiative || "—"}</span>
-          </SummaryRow>
-          <Show when={n().claim}>
-            <SummaryRow label="Claim">
-              <div class="flex flex-wrap items-center gap-2 text-[12px] text-body">
-                <span class="mono text-progress">{n().claim.by || "?"}</span>
-                <ClaimTime claim={n().claim} />
-              </div>
-            </SummaryRow>
-          </Show>
-          <SummaryRow label="Revision">
-            <span class="mono text-[12px] text-body">{n().revision || 0}</span>
-          </SummaryRow>
-          <SummaryRow label="Last activity">
-            <Time value={lastAt()} />
-          </SummaryRow>
-          <Show when={EXPLAIN[d.derived_status]}>
-            <SummaryRow label="Why this status">
-              <span class="text-[12px] leading-5 text-mute">{EXPLAIN[d.derived_status]}</span>
-            </SummaryRow>
+        <div class="ui-summary-line mt-3 flex flex-wrap items-center gap-2 text-[12px] text-mute">
+          <StatusBadge status={d.derived_status || n().status || "open"} />
+          <span>Initiative <strong class="font-semibold text-body">{n().initiative || "—"}</strong></span>
+          <span class="ui-summary-dot" aria-hidden="true" />
+          <span>Revision <strong class="mono font-semibold text-body">{n().revision || 0}</strong></span>
+          <Show when={n().claim?.by}>
+            <span class="ui-summary-dot" aria-hidden="true" />
+            <span>Claimed by <strong class="mono font-semibold text-body">{n().claim.by}</strong></span>
           </Show>
         </div>
       </section>
@@ -545,10 +523,10 @@ function DetailBody(props) {
         </Show>
       </Panel>
 
-      {/* ── Secondary zones: collapsed by default. The drawer is wide
-             (92vw), so the collapsible zones sit in a two-column grid on
-             large screens instead of a single long column. ─────────── */}
-      <div class="grid gap-4 xl:grid-cols-2">
+      {/* ── Secondary zones: collapsed by default. Keep the disclosure
+             stack vertical so each section reads like the reference drawer
+             instead of splitting the reading flow into two columns. ─── */}
+      <div class="space-y-3">
       <DetailsSection
         title="Knowledge"
         count={(d.knowledge || []).length}
@@ -719,19 +697,6 @@ function DetailBody(props) {
       </DetailsSection>
       </div>
 
-      <DetailsSection
-        title="Equivalent CLI command"
-        hint="Read-only suggestion. Never executed by the UI."
-      >
-        <Show when={equivalentCommand(n(), d.derived_status)} fallback={
-          <EmptyState variant="compact" title="No CLI equivalent (knowledge has no labor surface)." />
-        }>
-          <div class="flex items-start gap-2 rounded-control border border-line bg-mid px-3 py-2">
-            <pre class="mono flex-1 whitespace-pre-wrap break-all text-[12px] leading-5 text-progress">{equivalentCommand(n(), d.derived_status)}</pre>
-            <CopyButton text={equivalentCommand(n(), d.derived_status)} />
-          </div>
-        </Show>
-      </DetailsSection>
       </main>
       <DetailSidebar node={n()} detail={d} lastAt={lastAt()} />
     </div>
@@ -785,8 +750,12 @@ function DetailSidebar(props) {
             <PropertyRow label="Revision"><span class="mono text-[12px] text-body">{node().revision || 0}</span></PropertyRow>
             <PropertyRow label="Last activity"><Time value={props.lastAt} /></PropertyRow>
             <Show when={node().claim}>
-              <PropertyRow label="Owner"><span class="mono text-[12px] text-progress">{node().claim.by || "—"}</span></PropertyRow>
-              <PropertyRow label="Claimed"><ClaimTime claim={node().claim} /></PropertyRow>
+              <PropertyRow label="Claim">
+                <div class="flex min-w-0 flex-wrap items-center gap-1.5">
+                  <span class="mono text-progress">{node().claim.by || "—"}</span>
+                  <ClaimTime claim={node().claim} />
+                </div>
+              </PropertyRow>
             </Show>
           </div>
           <div class="mt-3 rounded-control bg-panel-2 px-2.5 py-2 text-[12px] leading-5 text-body">
@@ -816,6 +785,20 @@ function DetailSidebar(props) {
           <span>Read-only detail</span>
           <CopyButton text={node().id || ""} />
         </section>
+
+        <DetailsSection
+          title="Equivalent CLI command"
+          hint="Read-only suggestion. Never executed by the UI."
+        >
+          <Show when={equivalentCommand(node(), status())} fallback={
+            <EmptyState variant="compact" title="No CLI equivalent (knowledge has no labor surface)." />
+          }>
+            <div class="flex items-start gap-2 rounded-control border border-line bg-mid px-2.5 py-2">
+              <pre class="mono min-w-0 flex-1 whitespace-pre-wrap break-all text-[12px] leading-5 text-progress">{equivalentCommand(node(), status())}</pre>
+              <CopyButton text={equivalentCommand(node(), status())} />
+            </div>
+          </Show>
+        </DetailsSection>
       </Show>
 
       <Show when={tab() === "activity"}>
@@ -851,17 +834,6 @@ function PropertyRow(props) {
     <div class="grid min-h-[32px] grid-cols-[88px_minmax(0,1fr)] items-center gap-2 rounded px-1 py-1 hover:bg-panel-2">
       <span class="text-[12px] text-mute">{props.label}</span>
       <div class="min-w-0 text-[12px] text-body">{props.children}</div>
-    </div>
-  );
-}
-
-function SummaryRow(props) {
-  // label (string, required)
-  // children (node, required)
-  return (
-    <div class="flex flex-col gap-0.5">
-      <span class="mono text-[12px] uppercase tracking-wider text-mute">{props.label}</span>
-      <div class="text-[13px] leading-5 text-body">{props.children}</div>
     </div>
   );
 }

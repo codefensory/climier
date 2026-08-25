@@ -124,8 +124,10 @@ content allows:
   functional.
 
 The drawer hierarchy is: alert → title and status line → specification →
-blockers → collapsible knowledge/notes/history/refs/relationships/CLI
-sections. The right rail keeps properties and recent activity close at hand.
+blockers → one vertical stack of collapsible knowledge/notes/history/refs/
+relationships sections. The equivalent CLI command and node metadata live in
+the right rail, which keeps the main reading flow clean and uses the available
+space. The right rail also keeps properties and recent activity close at hand.
 
 ## 4. Shared components
 

@@ -419,6 +419,14 @@ pre {
   letter-spacing: -0.035em;
 }
 
+.ui-summary-dot {
+  width: 3px;
+  height: 3px;
+  flex: 0 0 auto;
+  border-radius: 9999px;
+  background: var(--ui-muted-2);
+}
+
 .ui-detail-main > .ui-panel {
   border-right: 0;
   border-bottom: 0;
