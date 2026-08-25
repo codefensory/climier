@@ -73,7 +73,7 @@ Cycles in the DAG must not crash. The derivation keeps cycle members blocked. Un
 | Command | File | Mutates? | Needs `--as`? |
 |---|---|---|---|
 | `init [--force]` | `commands/init.mjs` | yes (creates/overwrites state) | no |
-| `status [--initiative X] [--staleMs N]` | `commands/status.mjs` | no | no |
+| `status [--initiative X] [--kind task\|gate\|knowledge] [--status X] [--domain X] [--claimed-by X] [--stale-ms N] [--limit N] [--all]` | `commands/status.mjs` | no | no |
 | `context <id>` | `commands/context.mjs` | no | no |
 | `search "<query>" [--all]` | `commands/search.mjs` | no | no |
 | `history <id> [--limit N]` | `commands/history.mjs` | no | no |
@@ -164,6 +164,7 @@ When you fix a bug, write a test that reproduces it BEFORE the fix. The test goe
 - **`release` and `reopen` honor the orchestrator/recovery escape hatch.** `release --as orchestrator` (or `--as recovery`) can free any agent's claim; `reopen --as orchestrator` can roll back any `done` task. The original `done_by` can self-reopen. By design.
 - **`status --status DONE` (uppercase) works in `tasks` style filters.** Case-insensitive.
 - **`status --staleMs 0` marks all in_progress as stale.** `staleMs: 0` is valid and means "everything in_progress is stale".
+- **`status` is global by default for in_progress.** `tasks.in_progress` and `summary.in_progress` include every in_progress task in scope, regardless of caller. `--claimed-by <agent>` is the only way to narrow claims; `--as` is an identity tag for `context` and is intentionally not a filter for `status`. Stale-claim alerts follow the same rule.
 - **`init --force` auto-recovers a corrupt state file** even without `--force`, but `--force` is still needed to overwrite a *valid* state.
 - **`add-task --blocked-by NONEXISTENT` fails** with a clear error. The validator only runs when the state file exists (so empty projects can still bootstrap).
 - **The state file is owned by the script.** `writeState` validates the schema. Don't write to the file from outside the CLI — even tests should go through `updateState`/`writeState` (or write valid schemas).

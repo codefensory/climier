@@ -17,7 +17,9 @@
 //   --status X              restrict the in_progress / blocked / ready buckets by
 //                           exact status (rare; mainly 'in_progress' / 'ready' / 'blocked')
 //   --domain X              narrow by node.domain
-//   --claimed-by X          restrict in_progress to one agent (default: only caller's claims)
+//   --claimed-by X          restrict in_progress to one agent (default: all in_progress visible)
+//   --as <agent>            scopes allowed_actions in `context`; it is NOT a filter for `status`.
+//                           `status` shows every in_progress task by default, regardless of caller.
 //   --stale-ms N            threshold for stale-claim alerts (default 2h)
 //   --limit N               cap per-bucket list sizes
 //   --all                   include done / canceled / resolved / superseded / deprecated
@@ -150,7 +152,9 @@ export default async function statusV2({ statePath, flags }) {
   const kindFilter = flags.kind || null; // task | gate | knowledge
   const statusFilter = flags.status || null; // rarely used; tests pass an exact match
   const claimedByFilter = flags["claimed-by"] || null;
-  const asFilter = flags.as || null;
+  // `--as` is accepted (it's a known identity tag) but intentionally not a
+  // filter here. The status view is global by default; see the in_progress
+  // scoping below.
   const staleMs = parseStaleMs(flags);
   const limit = parseLimit(flags);
 
@@ -177,19 +181,19 @@ export default async function statusV2({ statePath, flags }) {
     .filter((node) => !kindFilter || node.kind === kindFilter)
     .map((node) => node.id);
 
-  // ponytail: --status X takes precedence over the default who-claimed scoping,
-  // because the user asked for a status view (e.g. `status --status in_progress`
-  // should show every in_progress task regardless of claimer). Without --status,
-  // the default scoping (caller's --as or --claimed-by) hides other agents' work.
+  // in_progress visibility is global by default: every in_progress task is listed
+  // unless the caller narrows it explicitly. `--claimed-by` is the only implicit
+  // filter for claims; `--as` is an identity tag (it scopes `context`'s
+  // allowed_actions) and is intentionally NOT a filter for `status`. `--status`
+  // keeps its own contract: `in_progress` is the only value that surfaces the
+  // bucket; any other value leaves it empty.
   let inProgressScoped;
   if (statusFilter) {
-    inProgressScoped = inProgressAll.filter(() => statusFilter === "in_progress");
+    inProgressScoped = statusFilter === "in_progress" ? inProgressAll : [];
   } else if (claimedByFilter) {
     inProgressScoped = inProgressAll.filter((id) => claimBy(nodes[id]) === claimedByFilter);
-  } else if (asFilter) {
-    inProgressScoped = inProgressAll.filter((id) => claimBy(nodes[id]) === asFilter);
   } else {
-    inProgressScoped = [];
+    inProgressScoped = inProgressAll;
   }
 
   // open gates pool
@@ -261,11 +265,12 @@ export default async function statusV2({ statePath, flags }) {
     // --kind knowledge alone: keep count only (per spec).
   }
 
-  // Stale-claim alerts (always-on when in_progress exists).
+  // Stale-claim alerts (always-on when in_progress exists). They mirror the
+  // in_progress bucket visibility: global by default, narrowed only by an
+  // explicit `--claimed-by`. `--as` is an identity tag, not a filter here.
   const stale = detectStaleClaims(s, staleMs, initiativeFilter);
   for (const s of stale) {
     if (claimedByFilter && s.claimed_by !== claimedByFilter) continue;
-    if (asFilter && s.claimed_by !== asFilter) continue;
     result.alerts.push({
       kind: "stale-claim",
       severity: "warning",

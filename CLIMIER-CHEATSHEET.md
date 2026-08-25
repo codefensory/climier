@@ -11,11 +11,12 @@ Errors are JSON to stdout with a structured shape: `{ ok: false, error: { code, 
 
 ## Orient / read
 
-- `climier status` — summary + ready/in_progress/blocked/backlog task buckets + open gates + alerts.
+- `climier status` — summary + ready/in_progress/blocked/backlog task buckets + open gates + alerts. **in_progress is global by default** (every in_progress task is listed and counted regardless of caller); use `--claimed-by <agent>` to narrow to one agent's claims. `--as` is an identity tag for `context` and is intentionally not a filter for `status`.
 - `climier status --all` — also dumps done / canceled / resolved / superseded / deprecated nodes.
 - `climier status --initiative <name>` — narrow to one initiative.
 - `climier status --kind task|gate|knowledge` — restrict buckets.
-- `climier status --claimed-by <agent>` — show that agent's in-progress tasks.
+- `climier status --claimed-by <agent>` — narrow in_progress to one agent's claims (the only way to filter claims in `status`).
+- `climier status --status in_progress` — same as the default in_progress view (any other `--status` value leaves the bucket empty).
 - `climier status --stale-ms <N>` — change the stale threshold (default 2h).
 - `climier context <id>` — agent-first view: node, derived_status, claim, blocking, knowledge, informing, alerts, allowed_actions.
 - `climier context <id> --as <agent>` — scope `allowed_actions` to one agent.

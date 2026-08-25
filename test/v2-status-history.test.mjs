@@ -170,7 +170,7 @@ test("status: --initiative filters the nodes", async () => {
   } finally { await rmTempProject(dir); }
 });
 
-test("status: in_progress only shows the calling agent's claims by default", async () => {
+test("status: in_progress visibility is global by default; --as does not restrict", async () => {
   const dir = await createTempProject();
   try {
     await bootstrapV2(dir);
@@ -180,14 +180,136 @@ test("status: in_progress only shows the calling agent's claims by default", asy
     await take({ statePath: dir, projectDir: dir, flags: { as: "alice" }, positional: ["T-a"] });
     await take({ statePath: dir, projectDir: dir, flags: { as: "bob" }, positional: ["T-b"] });
 
-    const alice = await v2Status(dir, { as: "alice" });
-    assert.equal(alice.summary.in_progress, 1);
-    assert.equal(alice.tasks.in_progress.length, 1);
-    assert.equal(alice.tasks.in_progress[0].claimed_by, "alice");
+    // No --as, no --claimed-by: every in_progress task is listed and counted.
+    const all = await v2Status(dir);
+    assert.equal(all.summary.in_progress, 2,
+      `expected summary.in_progress=2 by default; got ${all.summary.in_progress}`);
+    assert.equal(all.tasks.in_progress.length, 2);
+    const owners = all.tasks.in_progress.map((t) => t.claimed_by).sort();
+    assert.deepEqual(owners, ["alice", "bob"]);
 
-    const explicit = await v2Status(dir, { "claimed-by": "bob" });
-    assert.equal(explicit.summary.in_progress, 1);
-    assert.equal(explicit.tasks.in_progress[0].claimed_by, "bob");
+    // --as is an identity tag, not a filter: alice still sees both claims.
+    const alice = await v2Status(dir, { as: "alice" });
+    assert.equal(alice.summary.in_progress, 2,
+      `expected summary.in_progress=2 with --as alice; got ${alice.summary.in_progress}`);
+    assert.equal(alice.tasks.in_progress.length, 2);
+  } finally { await rmTempProject(dir); }
+});
+
+test("status: --claimed-by X narrows in_progress to one agent", async () => {
+  const dir = await createTempProject();
+  try {
+    await bootstrapV2(dir);
+    await addTask(dir, "T-a", { title: "a" });
+    await addTask(dir, "T-b", { title: "b" });
+    const { default: take } = await importFresh("./commands/take.mjs");
+    await take({ statePath: dir, projectDir: dir, flags: { as: "alice" }, positional: ["T-a"] });
+    await take({ statePath: dir, projectDir: dir, flags: { as: "bob" }, positional: ["T-b"] });
+
+    const aliceOnly = await v2Status(dir, { "claimed-by": "alice" });
+    assert.equal(aliceOnly.summary.in_progress, 1);
+    assert.equal(aliceOnly.tasks.in_progress.length, 1);
+    assert.equal(aliceOnly.tasks.in_progress[0].claimed_by, "alice");
+
+    const bobOnly = await v2Status(dir, { "claimed-by": "bob" });
+    assert.equal(bobOnly.summary.in_progress, 1);
+    assert.equal(bobOnly.tasks.in_progress[0].claimed_by, "bob");
+  } finally { await rmTempProject(dir); }
+});
+
+test("status: in_progress honors --status (in_progress shows all; other values leave it empty)", async () => {
+  const dir = await createTempProject();
+  try {
+    await bootstrapV2(dir);
+    await addTask(dir, "T-a", { title: "a" });
+    await addTask(dir, "T-b", { title: "b" });
+    const { default: take } = await importFresh("./commands/take.mjs");
+    await take({ statePath: dir, projectDir: dir, flags: { as: "alice" }, positional: ["T-a"] });
+    await take({ statePath: dir, projectDir: dir, flags: { as: "bob" }, positional: ["T-b"] });
+
+    const ip = await v2Status(dir, { status: "in_progress" });
+    assert.equal(ip.summary.in_progress, 2);
+    assert.equal(ip.tasks.in_progress.length, 2);
+
+    const open = await v2Status(dir, { status: "open" });
+    assert.equal(open.summary.in_progress, 0);
+    assert.deepEqual(open.tasks.in_progress, []);
+
+    const done = await v2Status(dir, { status: "done" });
+    assert.equal(done.summary.in_progress, 0);
+    assert.deepEqual(done.tasks.in_progress, []);
+  } finally { await rmTempProject(dir); }
+});
+
+test("status: in_progress list honors --limit", async () => {
+  const dir = await createTempProject();
+  try {
+    await bootstrapV2(dir);
+    for (const id of ["T-a", "T-b", "T-c"]) {
+      await addTask(dir, id, { title: id });
+    }
+    const { default: take } = await importFresh("./commands/take.mjs");
+    await take({ statePath: dir, projectDir: dir, flags: { as: "alice" }, positional: ["T-a"] });
+    await take({ statePath: dir, projectDir: dir, flags: { as: "bob" }, positional: ["T-b"] });
+    await take({ statePath: dir, projectDir: dir, flags: { as: "carol" }, positional: ["T-c"] });
+
+    const out = await v2Status(dir, { limit: 2 });
+    assert.equal(out.summary.in_progress, 3,
+      "summary count is unaffected by --limit; only the list is capped");
+    assert.equal(out.tasks.in_progress.length, 2,
+      "list respects --limit");
+  } finally { await rmTempProject(dir); }
+});
+
+test("status: in_progress list honors --initiative (and --as does not re-scope)", async () => {
+  const dir = await createTempProject();
+  try {
+    await bootstrapV2(dir);
+    const { default: addInitiative } = await importFresh("./commands/add-initiative.mjs");
+    await addInitiative({ statePath: dir, flags: { desc: "other" }, positional: ["other"] });
+    await addTask(dir, "T-w", { title: "w", initiative: "work" });
+    await addTask(dir, "T-o", { title: "o", initiative: "other" });
+    const { default: take } = await importFresh("./commands/take.mjs");
+    await take({ statePath: dir, projectDir: dir, flags: { as: "alice" }, positional: ["T-w"] });
+    await take({ statePath: dir, projectDir: dir, flags: { as: "bob" }, positional: ["T-o"] });
+
+    const work = await v2Status(dir, { initiative: "work" });
+    assert.equal(work.summary.in_progress, 1);
+    assert.equal(work.tasks.in_progress[0].id, "T-w");
+    assert.equal(work.tasks.in_progress[0].initiative, "work");
+
+    const other = await v2Status(dir, { initiative: "other", as: "alice" });
+    assert.equal(other.summary.in_progress, 1,
+      "--as must not restrict; --initiative does");
+    assert.equal(other.tasks.in_progress[0].id, "T-o");
+  } finally { await rmTempProject(dir); }
+});
+
+test("status: stale-claim alerts are global by default; --claimed-by X narrows them", async () => {
+  const dir = await createTempProject();
+  try {
+    await bootstrapV2(dir);
+    await addTask(dir, "T-a", { title: "a" });
+    await addTask(dir, "T-b", { title: "b" });
+    const { default: take } = await importFresh("./commands/take.mjs");
+    await take({ statePath: dir, projectDir: dir, flags: { as: "alice" }, positional: ["T-a"] });
+    await take({ statePath: dir, projectDir: dir, flags: { as: "bob" }, positional: ["T-b"] });
+
+    // --stale-ms 0 forces every in_progress claim to be stale.
+    const all = await v2Status(dir, { "stale-ms": 0 });
+    const staleAlerts = all.alerts.filter((a) => a.kind === "stale-claim");
+    assert.equal(staleAlerts.length, 2,
+      `expected 2 stale-claim alerts by default; got ${staleAlerts.length}`);
+
+    const aliceOnly = await v2Status(dir, { "claimed-by": "alice", "stale-ms": 0 });
+    const aliceAlerts = aliceOnly.alerts.filter((a) => a.kind === "stale-claim");
+    assert.equal(aliceAlerts.length, 1);
+    assert.equal(aliceAlerts[0].claimed_by, "alice");
+
+    const aliceViaAs = await v2Status(dir, { as: "alice", "stale-ms": 0 });
+    const aliceViaAsAlerts = aliceViaAs.alerts.filter((a) => a.kind === "stale-claim");
+    assert.equal(aliceViaAsAlerts.length, 2,
+      "--as must not narrow stale-claim alerts either");
   } finally { await rmTempProject(dir); }
 });
 

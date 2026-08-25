@@ -26,8 +26,13 @@ Errors: { ok: false, error: "<message>" } on stdout, non-zero exit.
 Exceptions: --help/-h/help and --version/version print plain text.
 
 Read-only:
-  status [--initiative X] [--staleMs N]
-                                          Summary-shape: task buckets (ready/in_progress/blocked/backlog/done), open gates, knowledge count, alerts.
+  status [--initiative X] [--kind task|gate|knowledge] [--status X] [--domain X]
+        [--claimed-by X] [--stale-ms N] [--limit N] [--all]
+                                          Summary-shape: task buckets (ready/in_progress/blocked/backlog), open gates, knowledge count, alerts.
+                                          in_progress is global by default: every in_progress task is listed and counted
+                                          regardless of caller. Use --claimed-by <agent> to narrow to one agent's claims.
+                                          --as is an identity tag (it scopes context's allowed_actions) and is not a filter
+                                          for status.
   context <id>                           Agent-first view of a node: spec, blockers, informing edges, scoped knowledge, allowed actions.
   search "<query>" [--all]               Search active knowledge; --all includes deprecated knowledge.
   initiatives                            List registered initiatives with usage counts.

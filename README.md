@@ -206,7 +206,7 @@ Canonical `BLOCKS` direction is `{ from: blocker, to: blocked, type: "BLOCKS" }`
 
 | Command | Purpose |
 |---|---|
-| `status [--initiative X] [--staleMs N]` | Full project view: summary, alerts, in-progress work, ready tasks, backlog, blocked tasks, open gates, knowledge counts, stale claims. |
+| `status [--initiative X] [--kind task\|gate\|knowledge] [--status X] [--domain X] [--claimed-by X] [--stale-ms N] [--limit N] [--all]` | Full project view: summary, alerts, in-progress work, ready tasks, backlog, blocked tasks, open gates, knowledge counts, stale claims. `in_progress` is global by default (every in_progress task is listed and counted regardless of caller); use `--claimed-by <agent>` to narrow to one agent's claims. `--as` is an identity tag for `context` and is intentionally not a filter for `status`. |
 | `context <id>` | Agent-first view of a node: spec, blockers, informing edges, scoped knowledge, allowed actions. |
 | `search "<query>" [--all]` | Case-insensitive substring search over active knowledge; `--all` includes deprecated knowledge. |
 | `history <id> [--limit N]` | Log entries that reference a node. |
