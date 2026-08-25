@@ -59,9 +59,11 @@ export function kindFor(node) {
 }
 
 // === PageHeader =============================================================
-// Top-of-view header: eyebrow + title + subtitle on the left, meta + actions
-// on the right. Sticky mode adds a subtle canvas-tinted backdrop so the
-// header keeps the title visible while the body scrolls under it.
+// Top-of-view header: eyebrow + title + subtitle on the left, contextual
+// meta + actions on the right. Global refresh/read-only status belongs to the
+// shell's floating LiveStatus indicator, not to individual page headers.
+// Sticky mode adds a subtle canvas-tinted backdrop so the header keeps the
+// title visible while the body scrolls under it.
 
 export function PageHeader(props) {
   // title       (string, required)

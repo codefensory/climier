@@ -18,8 +18,8 @@
 //     labels; MID 768–1279 collapses to a 64–72 px rail with glyphs; NARROW
 //     <768 hides the sidebar and exposes the same nav through a drawer
 //     toggled from the header.
-//   - Header with project name, root, live status (LiveStatus — includes the
-//     Read-only badge) on every breakpoint.
+//   - Header with project name and root on every breakpoint.
+//     LiveStatus is shown once in the floating shell indicator.
 //   - Data states per ui/DESIGN.md §5: initial load skeleton, non-blocking
 //     refresh indicator, initial error screen with Retry, subsequent error
 //     as a banner that keeps the last good snapshot on screen.
@@ -227,11 +227,10 @@ function NavGroups(props) {
 }
 
 // === Header ================================================================
-// Project identity + live status, present on every breakpoint. The project
+// Project identity, present on every breakpoint. The project
 // name derives from the snapshot's project_id (shell.mjs); the root path is
-// the CLI root. LiveStatus carries the read-only badge and the last refresh
-// timestamp, and its pulse dot doubles as the non-blocking refresh
-// indicator in the header.
+// the CLI root. The global LiveStatus indicator is rendered once by Main as
+// a floating chip so page headers stay focused on their own content.
 function Header(props) {
   // bp           (signal, required — current breakpoint)
   // drawerOpen   (signal, required — reflects the NARROW drawer state)
@@ -260,9 +259,6 @@ function Header(props) {
       <span class="mono hidden min-w-0 truncate text-[12px] text-mute md:block" title={root()}>
         {root() || ""}
       </span>
-      {/* Live status (pulse + last refresh + Read-only badge) lives in the
-          floating chip at the bottom-right of Main — showing it here too
-          repeats the same information on every view. */}
     </header>
   );
 }
@@ -295,11 +291,6 @@ function Sidebar(props) {
       <nav class="flex-1 space-y-4 overflow-y-auto p-2" aria-label="Primary">
         <NavGroups variant={rail() ? "rail" : "full"} />
       </nav>
-      <Show when={!rail()}>
-        <div class="border-t border-line px-4 py-2 text-[11px] leading-4 text-mute">
-          Read-only projection · CLI stays the source of truth
-        </div>
-      </Show>
     </aside>
   );
 }

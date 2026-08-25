@@ -41,7 +41,6 @@ import {
   StatusBadge,
   KindBadge,
   Chip,
-  LiveStatus,
   Time,
 } from "../components.jsx";
 
@@ -291,7 +290,7 @@ function KnowledgeCard(props) {
 }
 
 export default function Knowledge() {
-  const { snapshot, select, lastSuccessfulAt, refreshing } = useStore();
+  const { snapshot, select } = useStore();
   const s = () => snapshot();
   const nodes = () => s()?.nodes || {};
 
@@ -376,9 +375,6 @@ export default function Knowledge() {
         eyebrow="Context"
         title="Knowledge"
         subtitle="Durable facts and warnings scoped to initiatives, domains, tags, or specific nodes. Deprecated entries stay visible so the audit trail is complete."
-        meta={
-          <LiveStatus lastAt={lastSuccessfulAt()} refreshing={refreshing()} />
-        }
         right={
           <span class="text-[12px] text-mute tabular-nums">
             <span class="font-medium text-ink">{summary().active}</span>

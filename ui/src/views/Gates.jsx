@@ -29,7 +29,6 @@ import {
   StatusBadge,
   KindBadge,
   Chip,
-  LiveStatus,
   Time,
 } from "../components.jsx";
 
@@ -202,7 +201,7 @@ function GateRow(props) {
 }
 
 export default function Gates() {
-  const { snapshot, select, lastSuccessfulAt, refreshing } = useStore();
+  const { snapshot, select } = useStore();
   const s = () => snapshot();
   const nodes = () => s()?.nodes || {};
   const edges = () => s()?.edges || [];
@@ -271,9 +270,6 @@ export default function Gates() {
         eyebrow="Decisions"
         title="Gates"
         subtitle="Open decisions, approvals, and research that block downstream work. Resolved and superseded gates stay on the record for audit."
-        meta={
-          <LiveStatus lastAt={lastSuccessfulAt()} refreshing={refreshing()} />
-        }
         right={
           <span class="text-[12px] text-mute tabular-nums">
             <span class="font-medium text-ink">{summary().open}</span>

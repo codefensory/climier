@@ -131,7 +131,7 @@ Use `100dvh`, `min-h-0`, and one scroll owner per view. No nested scrollers.
 Defined in `ui/src/components.jsx`. The list is the contract; new shared
 primitives are added to `components.jsx`, not to view files.
 
-- `PageHeader` — title, breadcrumb, last refresh, live/read-only badge.
+- `PageHeader` — title, subtitle, contextual meta, and actions.
 - `Panel` — surface with hairline border and `card` radius.
 - `MetricCard` — number, label, one-line explanation. Becomes a `<button>`
   when it navigates; `<div>` otherwise.
@@ -146,7 +146,7 @@ primitives are added to `components.jsx`, not to view files.
   (single line for "all healthy").
 - `NodeRow` — row in the Tasks / Gates / Knowledge tables.
 - `ProgressBar` — segmented bar for initiative breakdown by state.
-- `LiveStatus` — last refresh timestamp + read-only badge.
+- `LiveStatus` — the single floating last-refresh timestamp + read-only badge.
 - `Skeleton` — initial load placeholder. Never mixes with content.
 - `IconButton` — square icon-only control; requires `aria-label`.
 - `Time` — relative time with absolute timestamp in `title`.

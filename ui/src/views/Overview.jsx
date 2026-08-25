@@ -3,8 +3,9 @@
 // Contract: docs/ui-redesign-plan.md section 5 points 1-5 and section 6
 // Fase 4. This piece implements the operational core of the overview:
 //
-//   1. Header: project name/base, "Registered Climier work only", last
-//      refresh, live/read-only state, total nodes as context.
+//   1. Header: project name/base, "Registered Climier work only", and total
+//      nodes as context. The global refresh/read-only state lives in the
+//      shell's floating indicator.
 //   2. Global alerts only when they exist (state-read-error, stale claims,
 //      anomalous blockers), grouped by kind with AlertBanner.
 //   3. Operational status: 4 primary metrics (Ready / In progress /
@@ -53,7 +54,6 @@ import {
   AlertBanner,
   EmptyState,
   Time,
-  LiveStatus,
   ProgressBar,
 } from "../components.jsx";
 
@@ -538,7 +538,7 @@ function RecordRow(props) {
 
 // === Overview ==============================================================
 export default function Overview() {
-  const { snapshot, select, setRoute, lastSuccessfulAt, refreshing, snapshotError } = useStore();
+  const { snapshot, select, setRoute } = useStore();
   const s = () => snapshot();
   const sum = () => s()?.summary || {};
   const derived = () => s()?.derived || { ready: [], blocked: [], backlog: [], openGates: [] };
@@ -549,8 +549,6 @@ export default function Overview() {
   const projectName = () => projectDisplayName(s());
   const projectRoot = () => s()?.project?.root || "";
   const totalNodes = () => sum().total_nodes || 0;
-  const lastRefresh = () => lastSuccessfulAt() || s()?.generated_at;
-
   // === 2. Global alerts grouped by kind ====================================
   // Shell-owned kinds (state-read-error) render as the Main-level banner;
   // this section groups only the page-level alerts.
@@ -588,13 +586,6 @@ export default function Overview() {
         title={projectName()}
         subtitle={projectRoot()}
         meta={`${totalNodes()} nodes`}
-        right={
-          <LiveStatus
-            lastAt={lastRefresh()}
-            refreshing={refreshing()}
-            error={snapshotError()}
-          />
-        }
       />
 
       {/* 2. Global alerts grouped by kind */}

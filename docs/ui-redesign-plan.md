@@ -171,7 +171,7 @@ Agregar variantes soft accesibles. Los SVG deben usar estas variables.
 
 ## 5. Overview rediseñado
 
-1. **Header**: nombre/base del proyecto, "Registered Climier work only", último refresh, live/read-only, total nodes como contexto.
+1. **Header**: nombre/base del proyecto, "Registered Climier work only" y total nodes como contexto. El estado global de refresh/read-only vive en un único indicador flotante.
 2. **Alertas globales** (solo si existen): state-read-error, stale claims, blockers anómalos.
 3. **Operational status** (4 métricas primarias): Ready, In progress, Blocked, Backlog — cada una con número, explicación de una línea y navegación a Board/Tasks con filtro.
 4. **Work now** (8 cols): Ready tasks ≤4 e In-progress tasks ≤4; fila con status, ID, título, initiative, owner/última actividad; click → NodeDetail. Con el estado actual debe verse `T-ui-tests` de inmediato.
@@ -215,7 +215,7 @@ Verificación: `cd ui && npm run build`.
 ### Fase 3 — Shell, navegación y estados globales
 Archivos: `ui/src/App.jsx`, `ui/src/store.jsx`, `ui/src/components.jsx`, `ui/vite.config.mjs`, `ui/package.json`.
 
-Registry de rutas (reemplaza SwitchRoute); hash sync sin router; grupos de nav (Monitor: Overview/Board/Graph · Work: Tasks/Gates · Context: Knowledge · Audit: Activity); nombre de proyecto, root, live status, badge Read-only; sidebar expandido/rail/drawer; estado no inicializado como contenido principal; errores de background como banner conservando datos; `aria-current`, focus, targets; proxy Vite `/api` → `127.0.0.1:7373`; script `dev:api`.
+Registry de rutas (reemplaza SwitchRoute); hash sync sin router; grupos de nav (Monitor: Overview/Board/Graph · Work: Tasks/Gates · Context: Knowledge · Audit: Activity); nombre de proyecto y root; un único indicador flotante de live status/read-only; sidebar expandido/rail/drawer; estado no inicializado como contenido principal; errores de background como banner conservando datos; `aria-current`, focus, targets; proxy Vite `/api` → `127.0.0.1:7373`; script `dev:api`.
 Acceptance: back/forward cambia vista; refresh conserva ruta; shell OK a 1440/1024/390; proyecto no inicializado muestra comando sin ejecutarlo; nav sobrevive a error posterior.
 Verificación: `npm run dev:api` + `npm run dev -- --host 127.0.0.1`.
 

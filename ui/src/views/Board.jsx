@@ -37,7 +37,6 @@ import {
   StatusBadge,
   EmptyState,
   FilterBar,
-  LiveStatus,
   ClaimTime,
 } from "../components.jsx";
 
@@ -246,7 +245,7 @@ function Column(props) {
 // history (done / canceled / superseded).
 
 export default function Board() {
-  const { snapshot, select, refreshing, snapshotError, setRoute } = useStore();
+  const { snapshot, select, setRoute } = useStore();
   const s = () => snapshot();
 
   // Local filter state. Filters apply across every column and gate.
@@ -388,13 +387,6 @@ export default function Board() {
           eyebrow="Work"
           title="Board"
           subtitle="What is moving, what is blocked, and what is queued — one column per status."
-          right={
-            <LiveStatus
-              lastAt={s()?.generated_at}
-              refreshing={refreshing()}
-              error={snapshotError()}
-            />
-          }
         />
       </div>
 
