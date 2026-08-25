@@ -168,7 +168,7 @@ function NavButton(props) {
   return (
     <a
       href={`#/${props.id}`}
-      class={`flex min-h-[36px] items-center rounded-control transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 ${
+      class={`ui-nav-link flex min-h-[36px] items-center rounded-control transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 ${
         rail ? "justify-center" : "gap-3 px-3"
       }`}
       classList={{
@@ -182,7 +182,7 @@ function NavButton(props) {
       data-route={props.id}
     >
       <Show when={rail}>
-        <span class="text-[13px] font-semibold leading-none" aria-hidden="true">{props.glyph}</span>
+        <span class="ui-nav-glyph text-[13px] font-semibold leading-none" aria-hidden="true">{props.glyph}</span>
       </Show>
       <Show when={!rail}>{props.label}</Show>
     </a>
@@ -241,7 +241,7 @@ function Header(props) {
   const name = () => projectDisplayName(snapshot());
   const root = () => project().root || "";
   return (
-    <header class="flex h-14 shrink-0 items-center gap-3 border-b border-line bg-canvas px-4 md:px-5">
+    <header class="ui-shell-topbar flex h-14 shrink-0 items-center gap-3 border-b border-line bg-canvas px-4 md:px-5">
       <Show when={showMenu()}>
         <button
           type="button"
@@ -253,9 +253,12 @@ function Header(props) {
           <span aria-hidden="true" class="text-[16px] leading-none">☰</span>
         </button>
       </Show>
-      <h1 class="min-w-0 truncate text-section font-semibold text-ink" title={name()}>
-        {name()}
-      </h1>
+      <div class="flex min-w-0 items-center gap-2">
+        <span class="ui-brand-mark" aria-hidden="true">C</span>
+        <h1 class="ui-brand min-w-0 truncate text-section font-semibold text-ink" title={name()}>
+          {name()}
+        </h1>
+      </div>
       <span class="mono hidden min-w-0 truncate text-[12px] text-mute md:block" title={root()}>
         {root() || ""}
       </span>
@@ -280,12 +283,15 @@ function Sidebar(props) {
   const width = () => `${sidebarWidthPx(bp())}px`;
   return (
     <aside
-      class={`${display()} shrink-0 flex-col border-r border-line bg-canvas`}
+      class={`ui-sidebar ${display()} shrink-0 flex-col border-r border-line bg-canvas`}
       style={{ width: width() }}
     >
       <div class="flex h-14 shrink-0 items-center border-b border-line px-4">
-        <div class="truncate text-sm font-bold tracking-wide text-ink">
-          climier<span class="text-progress"> ui</span>
+        <div class="flex min-w-0 items-center gap-2 truncate text-sm font-bold tracking-wide text-ink" title="climier ui">
+          <span class="ui-brand-mark" aria-hidden="true">C</span>
+          <Show when={!rail()}>
+            <span class="ui-brand">climier<span class="text-progress"> ui</span></span>
+          </Show>
         </div>
       </div>
       <nav class="flex-1 space-y-4 overflow-y-auto p-2" aria-label="Primary">
@@ -325,15 +331,16 @@ function DrawerPanel(props) {
   });
   return (
     <div class="fixed inset-0 z-40 flex" role="dialog" aria-modal="true" aria-label="Navigation">
-      <div class="absolute inset-0 bg-ink/50" onClick={props.onClose} aria-hidden="true" />
+      <div class="ui-drawer-scrim absolute inset-0" onClick={props.onClose} aria-hidden="true" />
       <aside
         ref={panelRef}
         tabIndex={-1}
-        class="relative z-10 flex h-full w-72 max-w-[85vw] flex-col border-r border-line bg-canvas shadow-md outline-none"
+        class="ui-drawer relative z-10 flex h-full w-72 max-w-[85vw] flex-col rounded-r-[18px] border-r border-line bg-canvas shadow-md outline-none"
       >
-        <div class="flex h-14 shrink-0 items-center justify-between border-b border-line px-4">
-          <div class="text-sm font-bold tracking-wide text-ink">
-            climier<span class="text-progress"> ui</span>
+        <div class="ui-drawer-topbar flex h-14 shrink-0 items-center justify-between border-b border-line px-4">
+          <div class="flex items-center gap-2 text-sm font-bold tracking-wide text-ink">
+            <span class="ui-brand-mark" aria-hidden="true">C</span>
+            <span class="ui-brand">climier<span class="text-progress"> ui</span></span>
           </div>
           <IconButton label="Close navigation" onClick={props.onClose}>
             ✕
@@ -385,7 +392,7 @@ function Main() {
   });
 
   return (
-    <main class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" data-route={route()}>
+    <main class="ui-main flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden" data-route={route()}>
       {/* State read error — the highest-priority banner. The server is
           serving a stale snapshot because the state file is unreadable.
           Shown on every view, above both the route and the background
@@ -448,7 +455,7 @@ function Main() {
       {/* Non-blocking refresh indicator: a floating chip that stays visible
           while the user scrolls the route content. */}
       <div class="pointer-events-none fixed bottom-3 right-4">
-        <div class="pointer-events-auto rounded-control border border-line bg-panel/95 px-3 py-1.5 shadow-sm backdrop-blur-[2px]">
+        <div class="ui-live-chip pointer-events-auto rounded-control border border-line bg-panel/95 px-3 py-1.5 shadow-sm backdrop-blur-[2px]">
           <LiveStatus
             lastAt={lastSuccessfulAt()}
             refreshing={refreshing()}
@@ -596,7 +603,7 @@ export default function App() {
   return (
     <StoreProvider>
       <RouteSync />
-      <div class="flex h-dvh min-h-0 bg-canvas text-body">
+      <div class="ui-shell flex h-dvh min-h-0 bg-canvas text-body">
         <Sidebar bp={bp} />
         <div class="flex min-w-0 flex-1 flex-col">
           <Header

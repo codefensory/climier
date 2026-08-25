@@ -293,33 +293,36 @@ export default function NodeDetail() {
       aria-modal="true"
       aria-label={d()?.node ? `Detail for ${d().node.title || d().node.id}` : "Node detail"}
       onKeyDown={handleKeyDown}
-      class="fixed right-0 top-0 z-50 flex h-full w-[min(92vw,80rem)] flex-col border-l border-line bg-canvas shadow-md"
+      class="ui-drawer fixed right-3 top-3 bottom-3 z-50 flex w-[min(1120px,calc(100vw-48px))] flex-col overflow-hidden rounded-[18px] border border-line bg-panel shadow-md"
     >
       {/* ── Header ─────────────────────────────────────────────────── */}
-      <header class="sticky top-0 z-10 flex items-center gap-2 border-b border-line bg-canvas/95 px-4 py-3 backdrop-blur-[2px]">
-        <IconButton size="sm" label="Back" onClick={goBack}>
-          <span class="text-[14px]" aria-hidden="true">←</span>
-        </IconButton>
-        <span class="mono truncate text-[12px] text-body" title={d()?.node?.id}>{d()?.node?.id}</span>
-        <KindBadge node={d()?.node} />
-        <Show when={d()?.node?.subkind}>
-          <span class="text-[11px] uppercase tracking-wider text-mute">{d().node.subkind}</span>
-        </Show>
-        <StatusBadge status={d()?.derived_status || d()?.node?.status || "open"} />
-        <span
-          class="min-w-0 flex-1 truncate px-2 text-[13px] font-medium text-ink"
-          title={d()?.node?.title}
-        >
-          {d()?.node?.title || ""}
-        </span>
-        <span class="shrink-0 text-[12px] text-mute">rev {d()?.node?.revision || 0}</span>
-        <IconButton size="sm" label="Close" onClick={() => select(null)}>
-          <span class="text-[14px]" aria-hidden="true">✕</span>
-        </IconButton>
+      <header class="ui-drawer-topbar relative z-10 grid shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b border-line px-3">
+        <div class="flex min-w-0 items-center gap-2">
+          <IconButton size="sm" label="Back" onClick={goBack}>
+            <span class="text-[14px]" aria-hidden="true">←</span>
+          </IconButton>
+        </div>
+        <div class="flex min-w-0 items-center gap-2 overflow-hidden text-[13px]">
+          <span class="mono hidden shrink-0 text-[12px] text-mute sm:inline" title={d()?.node?.id}>{d()?.node?.id}</span>
+          <span class="hidden text-mute sm:inline" aria-hidden="true">›</span>
+          <KindBadge node={d()?.node} />
+          <StatusBadge status={d()?.derived_status || d()?.node?.status || "open"} />
+          <span class="hidden text-mute sm:inline" aria-hidden="true">›</span>
+          <strong class="min-w-0 truncate font-semibold text-ink" title={d()?.node?.title}>
+            {d()?.node?.title || ""}
+          </strong>
+        </div>
+        <div class="flex items-center justify-end gap-1">
+          <span class="mono hidden px-1 text-[12px] text-mute sm:inline">rev {d()?.node?.revision || 0}</span>
+          <CopyButton text={d()?.node?.id || ""} />
+          <IconButton size="sm" label="Close" onClick={() => select(null)}>
+            <span class="text-[14px]" aria-hidden="true">✕</span>
+          </IconButton>
+        </div>
       </header>
 
       {/* ── Body ───────────────────────────────────────────────────── */}
-      <div class="flex-1 space-y-4 overflow-auto p-4">
+      <div class="ui-drawer-body min-h-0 flex-1 overflow-hidden">
         <Show when={detailError()} fallback={
           <Show when={d()} fallback={
             <div role="status" aria-live="polite" class="text-[12px] text-mute">Loading node detail…</div>
@@ -345,7 +348,7 @@ export default function NodeDetail() {
       <Show when={isServer} fallback={
         <Portal>
           <div
-            class="fixed inset-0 z-40 bg-black/40"
+            class="ui-drawer-scrim fixed inset-0 z-40"
             onClick={() => select(null)}
             aria-hidden="true"
           />
@@ -353,7 +356,7 @@ export default function NodeDetail() {
         </Portal>
       }>
         <div
-          class="fixed inset-0 z-40 bg-black/40"
+          class="ui-drawer-scrim fixed inset-0 z-40"
           onClick={() => select(null)}
           aria-hidden="true"
         />
@@ -424,8 +427,9 @@ function DetailBody(props) {
   });
 
   return (
-    <>
-      {/* ── Banner: blocked / stale / superseded / state-read-error ─── */}
+    <div class="ui-detail-layout">
+      <main class="ui-detail-main space-y-5 p-6 lg:p-7">
+        {/* ── Banner: blocked / stale / superseded / state-read-error ─── */}
       <Show when={headlineAlert()}>
         <AlertBanner
           tone={bannerTone(headlineAlert())}
@@ -441,7 +445,7 @@ function DetailBody(props) {
       </Show>
 
       {/* ── Title + summary ────────────────────────────────────────── */}
-      <section>
+      <section class="ui-detail-hero">
         <h1 class="text-page leading-tight text-ink">{n().title || n().id}</h1>
         <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
           <SummaryRow label="Status">
@@ -642,7 +646,7 @@ function DetailBody(props) {
                 <li class="flex items-center gap-2 rounded-control border border-line bg-panel-2 px-2 py-1.5">
                   <div class="min-w-0 flex-1">
                     <div class="mono truncate text-[12px] text-body" title={escapeAttr(r.target)}>{r.target}</div>
-                    <div class="text-[11px] text-mute">{r.type || "doc"} · {r.source || "explicit"}</div>
+                    <div class="text-[12px] text-mute">{r.type || "doc"} · {r.source || "explicit"}</div>
                   </div>
                   <CopyButton text={r.target} />
                 </li>
@@ -728,18 +732,135 @@ function DetailBody(props) {
           </div>
         </Show>
       </DetailsSection>
-    </>
+      </main>
+      <DetailSidebar node={n()} detail={d} lastAt={lastAt()} />
+    </div>
   );
 }
 
 // --- subcomponents ---------------------------------------------------------
+
+// The right rail keeps the high-signal properties visible while the main
+// column is used for specification, blockers and progressive disclosure.
+// It intentionally stays read-only: the only action is copying an existing
+// identifier or command.
+function DetailSidebar(props) {
+  const [tab, setTab] = createSignal("properties");
+  const node = () => props.node || {};
+  const detail = () => props.detail || {};
+  const status = () => detail().derived_status || node().status || "open";
+  const activity = () => [...(detail().history || [])].reverse().slice(0, 8);
+  const tags = () => Array.isArray(node().tags) ? node().tags : [];
+  return (
+    <aside class="ui-detail-side p-3">
+      <div class="ui-tab-strip mb-3 flex gap-1 rounded-control p-1" role="tablist" aria-label="Node detail panels">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab() === "properties"}
+          class="min-h-[36px] flex-1 rounded-control px-2 text-[12px] font-medium text-mute transition-colors hover:text-ink"
+          classList={{ active: tab() === "properties" }}
+          onClick={() => setTab("properties")}
+        >
+          Properties
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab() === "activity"}
+          class="min-h-[36px] flex-1 rounded-control px-2 text-[12px] font-medium text-mute transition-colors hover:text-ink"
+          classList={{ active: tab() === "activity" }}
+          onClick={() => setTab("activity")}
+        >
+          Activity
+        </button>
+      </div>
+
+      <Show when={tab() === "properties"}>
+        <section class="ui-detail-card mb-3 rounded-control border p-3">
+          <h3 class="mb-3 text-[12px] font-bold text-ink">Overview</h3>
+          <div class="grid gap-1">
+            <PropertyRow label="Status"><StatusBadge status={status()} /></PropertyRow>
+            <PropertyRow label="Initiative"><span class="mono text-[12px] text-progress">{node().initiative || "—"}</span></PropertyRow>
+            <PropertyRow label="Revision"><span class="mono text-[12px] text-body">{node().revision || 0}</span></PropertyRow>
+            <PropertyRow label="Last activity"><Time value={props.lastAt} /></PropertyRow>
+            <Show when={node().claim}>
+              <PropertyRow label="Owner"><span class="mono text-[12px] text-progress">{node().claim.by || "—"}</span></PropertyRow>
+              <PropertyRow label="Claimed"><ClaimTime claim={node().claim} /></PropertyRow>
+            </Show>
+          </div>
+          <div class="mt-3 rounded-control bg-panel-2 px-2.5 py-2 text-[12px] leading-5 text-body">
+            {EXPLAIN[status()] || "Read-only snapshot of this node."}
+          </div>
+        </section>
+
+        <section class="ui-detail-card mb-3 rounded-control border p-3">
+          <h3 class="mb-3 text-[12px] font-bold text-ink">Context</h3>
+          <div class="grid gap-1">
+            <PropertyRow label="Kind"><KindBadge node={node()} /></PropertyRow>
+            <Show when={node().domain}><PropertyRow label="Domain"><span class="text-[12px] text-body">{node().domain}</span></PropertyRow></Show>
+            <Show when={node().purpose}><PropertyRow label="Purpose"><Chip tone="gate">{node().purpose}</Chip></PropertyRow></Show>
+          </div>
+        </section>
+
+        <Show when={tags().length > 0}>
+          <section class="ui-detail-card mb-3 rounded-control border p-3">
+            <h3 class="mb-3 text-[12px] font-bold text-ink">Labels</h3>
+            <div class="flex flex-wrap gap-1.5">
+              <For each={tags()}>{(tag) => <Chip>{tag}</Chip>}</For>
+            </div>
+          </section>
+        </Show>
+
+        <section class="ui-command-bar flex items-center justify-between gap-2 rounded-control border px-2.5 py-2 text-[12px] text-mute">
+          <span>Read-only detail</span>
+          <CopyButton text={node().id || ""} />
+        </section>
+      </Show>
+
+      <Show when={tab() === "activity"}>
+        <section class="ui-detail-card rounded-control border p-3">
+          <h3 class="mb-3 text-[12px] font-bold text-ink">Recent activity</h3>
+          <Show when={activity().length > 0} fallback={<EmptyState variant="compact" title="No activity yet." />}>
+            <div class="grid gap-3">
+              <For each={activity()}>
+                {(event) => (
+                  <div class="grid grid-cols-[8px_1fr] gap-2">
+                    <span class="mt-1.5 h-1.5 w-1.5 rounded-full bg-progress" aria-hidden="true" />
+                    <div class="min-w-0">
+                      <div class="text-[12px] font-semibold text-ink">{event.action || "event"}</div>
+                      <div class="mt-0.5 flex flex-wrap items-center gap-1.5 text-[12px] text-mute">
+                        <Time value={event.ts} />
+                        <Show when={event.agent}><span class="mono truncate">{event.agent}</span></Show>
+                      </div>
+                      <Show when={event.note}><div class="mt-1 line-clamp-3 text-[12px] leading-4 text-body">{event.note}</div></Show>
+                    </div>
+                  </div>
+                )}
+              </For>
+            </div>
+          </Show>
+        </section>
+      </Show>
+    </aside>
+  );
+}
+
+function PropertyRow(props) {
+  return (
+    <div class="grid min-h-[32px] grid-cols-[88px_minmax(0,1fr)] items-center gap-2 rounded px-1 py-1 hover:bg-panel-2">
+      <span class="text-[12px] text-mute">{props.label}</span>
+      <div class="min-w-0 text-[12px] text-body">{props.children}</div>
+    </div>
+  );
+}
 
 function SummaryRow(props) {
   // label (string, required)
   // children (node, required)
   return (
     <div class="flex flex-col gap-0.5">
-      <span class="mono text-[11px] uppercase tracking-wider text-mute">{props.label}</span>
+      <span class="mono text-[12px] uppercase tracking-wider text-mute">{props.label}</span>
       <div class="text-[13px] leading-5 text-body">{props.children}</div>
     </div>
   );
@@ -759,7 +880,7 @@ function DetailsSection(props) {
     </div>
   );
   return (
-    <details class="group rounded-card border border-line bg-panel">
+    <details class="ui-detail-card group rounded-card border border-line bg-panel">
       <summary class="flex cursor-pointer list-none items-center gap-2 px-4 py-3 transition-colors hover:bg-panel-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
         <span class="mono text-[12px] text-mute transition-transform group-open:rotate-90" aria-hidden="true">▶</span>
         {heading}
@@ -776,7 +897,7 @@ function RelGroup(props) {
   return (
     <section>
       <div class="mb-1.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-        <h4 class="mono text-[11px] uppercase tracking-wider text-mute">{props.label}</h4>
+        <h4 class="mono text-[12px] uppercase tracking-wider text-mute">{props.label}</h4>
         <Show when={props.hint}>
           <span class="text-[11px] text-mute/80">{props.hint}</span>
         </Show>
@@ -797,7 +918,7 @@ function RelationRow(props) {
     <li>
       <button
         type="button"
-        class="flex min-h-[36px] w-full items-center gap-2 rounded-control border border-line bg-panel px-3 py-2 text-left transition-colors hover:bg-panel-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
+        class="ui-list-row flex min-h-[36px] w-full items-center gap-2 rounded-control border border-line bg-panel px-3 py-2 text-left transition-colors hover:bg-panel-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
         onClick={() => props.onSelect && props.onSelect(related.id)}
         aria-label={`Open ${related.id}`}
       >
@@ -816,11 +937,11 @@ function NoteRow(props) {
   const isValidation = typeof note.text === "string" && /VALIDATION (PASS|FAIL|BLOCKED)/.test(note.text);
   return (
     <li class={`rounded-control border p-2 ${isValidation ? "border-progress/40 bg-progress-soft" : "border-line bg-panel-2"}`}>
-      <div class="flex items-center gap-2 text-[11px] text-mute">
+      <div class="flex items-center gap-2 text-[12px] text-mute">
         <span class="mono text-progress">{note.agent || "—"}</span>
         <Time value={note.ts} />
         <Show when={isValidation}>
-          <span class="mono rounded-full border border-progress/40 bg-panel px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-progress">validation</span>
+          <span class="mono rounded-full border border-progress/40 bg-panel px-1.5 py-0.5 text-[11px] uppercase tracking-wider text-progress">validation</span>
         </Show>
       </div>
       <div class="mt-1 whitespace-pre-wrap text-[13px] leading-5 text-body">{note.text}</div>

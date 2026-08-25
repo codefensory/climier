@@ -246,7 +246,7 @@ export default function Nodes() {
   // stay aligned with the header. min-h-[48px] guarantees the 48-56 px
   // band called out in the spec; the row can grow when the title wraps.
   const rowBtnCls =
-    "grid min-h-[48px] w-full items-center gap-3 border-b border-line bg-panel px-3 py-2 text-left transition-colors hover:bg-panel-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-0";
+    "ui-list-row grid min-h-[48px] w-full items-center gap-3 border-b border-line bg-panel px-3 py-2 text-left transition-colors hover:bg-panel-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-0";
 
   const totalLabel = () => {
     const t = tasks().length;
@@ -254,7 +254,7 @@ export default function Nodes() {
   };
 
   return (
-    <div class="flex h-full flex-col gap-4 p-6">
+    <div class="flex h-full flex-col gap-4 p-5 md:p-8">
       <PageHeader
         title="Tasks"
         eyebrow="Work"
@@ -334,11 +334,11 @@ export default function Nodes() {
         scroll horizontally on screens narrower than that — the headers
         stay aligned because they're part of the same grid.
       */}
-      <div class="hidden min-h-0 flex-1 overflow-auto rounded-card border border-line bg-panel md:block">
+      <div class="ui-panel hidden min-h-0 flex-1 overflow-auto rounded-card border border-line bg-panel md:block">
         <div class="flex min-w-[960px] flex-col">
           <div
             role="row"
-            class="sticky top-0 z-10 grid border-b border-line bg-canvas"
+            class="sticky top-0 z-10 grid border-b border-line bg-panel-2"
             style={{ "grid-template-columns": GRID_TEMPLATE }}
           >
             <For each={COLUMNS}>

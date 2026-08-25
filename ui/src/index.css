@@ -1,62 +1,55 @@
 @import "tailwindcss";
 
 /*
- * Climier UI design tokens (Phase 2 / F2a).
+ * Climier UI — Linear-inspired operations desk.
  *
- * Source of truth: docs/ui-redesign-plan.md section 4 (Dirección de diseño).
- * Layering:
- *   - Surface  → canvas → panel → panel-2 → mid → line
- *   - Text     → ink (titles/main) → body (running text) → mute (metadata)
- *   - Semantic → ready / progress / blocked / gate / knowledge / focus
- *     Each semantic token has a `-soft` variant for tinted backgrounds on
- *     chips/badges/rows. Soft variants are tuned for AA contrast against ink.
- *
- * No fonts are loaded. No icon library is loaded. The system font stack is
- * the only text face. `.mono` (defined below) is reserved for IDs, command
- * names, and technical metadata — never for body copy.
- *
- * Typography tokens follow Tailwind v4 conventions: `--text-<name>` exposes
- * `text-<name>`, with `--text-<name>--line-height` and
- * `--text-<name>--font-weight` controlling the matching properties.
+ * The visual reference for this layer is ui/EXAMPLE.html: a quiet grey
+ * canvas, translucent white surfaces, hairline borders, compact controls and
+ * a generous rounded drawer. The UI remains read-only; these tokens only
+ * describe its presentation.
  */
 
 @theme {
-  /* ── Surface ─────────────────────────────────────────────────────── */
+  /* Surfaces */
   --color-canvas: #f6f7f9;
-  --color-panel: #ffffff;
-  --color-panel-2: #f1f3f5;
-  --color-mid: #e5e7eb;
-  --color-line: #d9dee5;
+  --color-panel: rgba(255, 255, 255, 0.94);
+  --color-panel-solid: #ffffff;
+  --color-panel-muted: #fafbfc;
+  --color-panel-2: #fafbfc;
+  --color-mid: #f2f4f7;
+  --color-line: #e7e9ee;
+  --color-line-strong: #d9dde5;
 
-  /* ── Text ────────────────────────────────────────────────────────── */
-  --color-ink: #111318;
+  /* Text */
+  --color-ink: #181a20;
   --color-body: #3f4652;
-  --color-mute: #6b7280;
+  --color-mute: #717886;
+  --color-mute-2: #9aa1ad;
 
-  /* ── Semantic (foreground / border / solid fills) ────────────────── */
-  --color-ready: #047857;
-  --color-progress: #0369a1;
+  /* Semantic foregrounds */
+  --color-ready: #188a5b;
+  --color-progress: #1769e0;
   --color-blocked: #be123c;
-  --color-gate: #a16207;
-  --color-knowledge: #6d28d9;
-  --color-focus: #2563eb;
+  --color-gate: #a86509;
+  --color-knowledge: #7157d9;
+  --color-focus: #1769e0;
 
-  /* ── Semantic soft (tinted backgrounds, AA-against-ink) ──────────── */
-  --color-ready-soft: #ecfdf5;
-  --color-progress-soft: #f0f9ff;
+  /* Semantic soft surfaces */
+  --color-ready-soft: #ebfbf3;
+  --color-progress-soft: #edf5ff;
   --color-blocked-soft: #fff1f3;
-  --color-gate-soft: #fefce8;
-  --color-knowledge-soft: #f5f3ff;
-  --color-focus-soft: #eff6ff;
+  --color-gate-soft: #fff7e8;
+  --color-knowledge-soft: #f2efff;
+  --color-focus-soft: #edf5ff;
 
-  /* ── Typography ──────────────────────────────────────────────────── */
-  --text-page: 24px;
-  --text-page--line-height: 32px;
-  --text-page--font-weight: 600;
+  /* Type */
+  --text-page: 25px;
+  --text-page--line-height: 30px;
+  --text-page--font-weight: 700;
 
-  --text-section: 16px;
-  --text-section--line-height: 24px;
-  --text-section--font-weight: 600;
+  --text-section: 15px;
+  --text-section--line-height: 21px;
+  --text-section--font-weight: 700;
 
   --text-body: 14px;
   --text-body--line-height: 20px;
@@ -65,20 +58,37 @@
   --text-metadata--line-height: 16px;
 
   --text-metric: 30px;
-  --text-metric--line-height: 36px;
-  --text-metric--font-weight: 600;
+  --text-metric--line-height: 34px;
+  --text-metric--font-weight: 700;
 
-  /* ── Radii ───────────────────────────────────────────────────────── */
-  --radius-card: 12px;
-  --radius-control: 8px;
+  /* Shapes */
+  --radius-card: 14px;
+  --radius-control: 9px;
 }
 
-/*
- * Base layer
- *
- * One global font stack (system). `.mono` is opt-in and used sparingly for
- * IDs, command names, and timestamps — see ui-redesign-plan.md section 4.
- */
+:root {
+  --ui-bg: #f6f7f9;
+  --ui-panel: rgba(255, 255, 255, 0.94);
+  --ui-panel-solid: #fff;
+  --ui-panel-muted: #fafbfc;
+  --ui-line: #e7e9ee;
+  --ui-line-strong: #d9dde5;
+  --ui-text: #181a20;
+  --ui-body: #3f4652;
+  --ui-muted: #717886;
+  --ui-muted-2: #9aa1ad;
+  --ui-blue: #1769e0;
+  --ui-blue-soft: #edf5ff;
+  --ui-green: #188a5b;
+  --ui-green-soft: #ebfbf3;
+  --ui-amber: #a86509;
+  --ui-amber-soft: #fff7e8;
+  --ui-violet: #7157d9;
+  --ui-violet-soft: #f2efff;
+  --ui-shadow-drawer: 0 22px 70px rgba(20, 25, 35, 0.14), 0 2px 8px rgba(20, 25, 35, 0.06);
+  --ui-shadow-popover: 0 14px 40px rgba(20, 25, 35, 0.12), 0 2px 8px rgba(20, 25, 35, 0.05);
+  --ui-ease: cubic-bezier(.22, .8, .2, 1);
+}
 
 html,
 body,
@@ -86,47 +96,422 @@ body,
   height: 100%;
 }
 
+html {
+  background: var(--ui-bg);
+}
+
 body {
-  background-color: var(--color-canvas);
-  color: var(--color-body);
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+  margin: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 12% 4%, rgba(32, 103, 230, 0.055), transparent 28%),
+    radial-gradient(circle at 88% 10%, rgba(113, 87, 217, 0.05), transparent 24%),
+    var(--ui-bg);
+  color: var(--ui-body, #3f4652);
+  font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
-  font-size: var(--text-body);
-  line-height: var(--text-body--line-height);
+  font-size: 14px;
+  line-height: 1.45;
   font-feature-settings: "cv11", "ss01", "tnum";
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  color: inherit;
+}
+
+button:not(:disabled),
+a[href],
+select,
+summary {
+  cursor: pointer;
+}
+
+button:disabled,
+select:disabled {
+  cursor: not-allowed;
+}
+
 .mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono",
-    monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
   font-feature-settings: "tnum";
 }
 
-/*
- * Focus / selection / motion
- *
- * `focus-visible` is the only ring source: keyboard focus shows a 2 px
- * `focus` outline offset by 2 px; mouse focus stays invisible. Reduced-
- * motion users get no transitions/animations at the CSS layer (Solid
- * components are expected to consult the same media query when toggling
- * state-driven animations).
- */
+code,
+pre {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
 
+/* Shared focus contract. Individual utilities still add the same ring for
+ * Tailwind builds; this rule keeps native controls and SVG nodes consistent. */
 :focus {
   outline: none;
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-focus);
+  outline: 2px solid var(--ui-blue);
   outline-offset: 2px;
   border-radius: var(--radius-control);
 }
 
 ::selection {
-  background-color: var(--color-focus-soft);
-  color: var(--color-ink);
+  background: var(--ui-blue-soft);
+  color: var(--ui-text);
+}
+
+::placeholder {
+  color: var(--ui-muted-2);
+  opacity: 1;
+}
+
+/* Keep compact labels readable even when a legacy view asks for 10/11px. */
+.text-\[11px\],
+.text-\[10px\] {
+  font-size: 12px;
+  line-height: 16px;
+}
+
+/* -------------------------------------------------------------------------
+ * Shared visual language
+ * ---------------------------------------------------------------------- */
+
+.ui-shell {
+  background:
+    radial-gradient(circle at 8% 0%, rgba(32, 103, 230, 0.045), transparent 28%),
+    radial-gradient(circle at 96% 6%, rgba(113, 87, 217, 0.04), transparent 24%),
+    var(--ui-bg);
+}
+
+.ui-shell-topbar {
+  background: rgba(255, 255, 255, 0.66);
+  border-color: var(--ui-line);
+  backdrop-filter: saturate(130%) blur(14px);
+}
+
+.ui-sidebar {
+  background: rgba(255, 255, 255, 0.62);
+  border-color: var(--ui-line);
+  backdrop-filter: saturate(130%) blur(14px);
+}
+
+.ui-brand {
+  letter-spacing: -0.02em;
+}
+
+.ui-brand-mark {
+  display: inline-grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 1px solid #b9d4ff;
+  border-radius: 8px;
+  color: var(--ui-blue);
+  background: var(--ui-blue-soft);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+.ui-nav-link {
+  border: 1px solid transparent;
+  color: var(--ui-muted);
+  transition: background-color .16s ease, border-color .16s ease, color .16s ease, transform .16s ease;
+}
+
+.ui-nav-link:hover {
+  border-color: var(--ui-line);
+  background: rgba(255, 255, 255, 0.76);
+  color: var(--ui-text);
+}
+
+.ui-nav-link[aria-current="page"] {
+  border-color: #cfe2ff;
+  background: var(--ui-blue-soft);
+  color: var(--ui-blue);
+  box-shadow: inset 2px 0 0 var(--ui-blue);
+}
+
+.ui-nav-glyph {
+  display: inline-grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border: 1px solid var(--ui-line);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--ui-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+[aria-current="page"] .ui-nav-glyph {
+  border-color: #b9d4ff;
+  background: #fff;
+  color: var(--ui-blue);
+}
+
+.ui-main {
+  background: rgba(246, 247, 249, 0.48);
+}
+
+.ui-page-header {
+  border-color: var(--ui-line);
+}
+
+.ui-page-header h1 {
+  letter-spacing: -0.035em;
+}
+
+@media (max-width: 640px) {
+  .ui-page-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .ui-page-header > :last-child {
+    align-self: flex-start;
+  }
+}
+
+.ui-panel {
+  border-color: var(--ui-line);
+  box-shadow: 0 1px 2px rgba(20, 25, 35, 0.025);
+  backdrop-filter: saturate(125%);
+}
+
+.ui-panel > :first-child {
+  border-color: var(--ui-line);
+}
+
+.ui-panel-elevated {
+  box-shadow: var(--ui-shadow-popover);
+}
+
+.ui-metric-card {
+  min-height: 108px;
+  border-color: var(--ui-line);
+  background: rgba(255, 255, 255, 0.82);
+  transition: border-color .16s ease, background-color .16s ease, transform .16s ease, box-shadow .16s ease;
+}
+
+.ui-metric-card:hover {
+  border-color: var(--ui-line-strong);
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(20, 25, 35, 0.055);
+  transform: translateY(-1px);
+}
+
+.ui-filter-bar {
+  border-color: var(--ui-line);
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: 0 1px 2px rgba(20, 25, 35, 0.025);
+  backdrop-filter: saturate(125%);
+}
+
+.ui-filter-bar input,
+.ui-filter-bar select,
+.ui-control {
+  border-color: var(--ui-line-strong);
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.ui-filter-bar input:focus,
+.ui-filter-bar select:focus,
+.ui-control:focus {
+  border-color: #9ec8ff;
+  box-shadow: 0 0 0 3px rgba(23, 105, 224, 0.11);
+}
+
+.ui-alert {
+  box-shadow: 0 1px 2px rgba(20, 25, 35, 0.025);
+}
+
+.ui-live-chip {
+  border-color: rgba(214, 218, 226, 0.9);
+  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.1);
+  backdrop-filter: saturate(140%) blur(10px);
+}
+
+.ui-list-row {
+  border-color: var(--ui-line);
+  transition: background-color .16s ease, border-color .16s ease, transform .16s ease;
+}
+
+.ui-list-row:hover {
+  border-color: var(--ui-line-strong);
+  background: #fff;
+}
+
+.ui-empty-page {
+  background: rgba(255, 255, 255, 0.72);
+  border-color: var(--ui-line);
+}
+
+.ui-drawer-scrim {
+  background: rgba(18, 23, 32, 0.26);
+  backdrop-filter: blur(2px);
+}
+
+.ui-drawer {
+  border-color: rgba(214, 218, 226, 0.88);
+  background: var(--ui-panel);
+  box-shadow: var(--ui-shadow-drawer);
+  backdrop-filter: saturate(140%) blur(18px);
+}
+
+.ui-drawer-topbar {
+  height: 54px;
+  background: rgba(255, 255, 255, 0.86);
+  border-color: var(--ui-line);
+}
+
+.ui-drawer-body {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd0d8 transparent;
+}
+
+.ui-detail-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 286px;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+
+.ui-detail-main {
+  min-width: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd0d8 transparent;
+}
+
+.ui-detail-side {
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd0d8 transparent;
+  border-left: 1px solid var(--ui-line);
+  background: rgba(250, 251, 252, 0.82);
+}
+
+.ui-detail-section {
+  border-top-color: var(--ui-line);
+}
+
+/* The drawer's primary content follows the specimen's section rhythm rather
+ * than turning every block into a floating card. Secondary zones remain
+ * rounded disclosures below. */
+.ui-detail-hero {
+  padding-bottom: 2px;
+}
+
+.ui-detail-hero h1 {
+  letter-spacing: -0.035em;
+}
+
+.ui-detail-main > .ui-panel {
+  border-right: 0;
+  border-bottom: 0;
+  border-left: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.ui-detail-main > .ui-panel > :first-child {
+  border-bottom: 0;
+  padding-right: 0;
+  padding-left: 0;
+}
+
+.ui-detail-main > .ui-panel > .flex-1 {
+  padding-right: 0;
+  padding-left: 0;
+}
+
+.ui-detail-card {
+  border-color: var(--ui-line);
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.ui-tab-strip {
+  background: #f2f4f7;
+}
+
+.ui-tab-strip button[aria-selected="true"],
+.ui-tab-strip button.active {
+  background: #fff;
+  color: var(--ui-text);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
+}
+
+.ui-command-bar {
+  border-color: var(--ui-line);
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.ui-finder {
+  border-color: rgba(214, 218, 226, 0.88);
+  box-shadow: var(--ui-shadow-popover);
+  backdrop-filter: saturate(140%) blur(18px);
+}
+
+.ui-table thead {
+  background: rgba(250, 251, 252, 0.9);
+}
+
+.ui-table tbody tr {
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.ui-table tbody tr:hover {
+  background: #fff;
+}
+
+/* SVG graph: keep it in the same paper-like workspace as the rest of the UI. */
+.ui-graph-canvas {
+  background-color: rgba(250, 251, 252, 0.62);
+  background-image: radial-gradient(circle, #dfe2e8 1px, transparent 1px);
+}
+
+/* Native details marker is noisy in Chromium and Safari. */
+details > summary::-webkit-details-marker {
+  display: none;
+}
+
+details > summary {
+  list-style: none;
+}
+
+@media (max-width: 900px) {
+  .ui-detail-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .ui-detail-side {
+    display: none;
+  }
+}
+
+@media (max-width: 767px) {
+  .ui-drawer {
+    top: 8px !important;
+    right: 8px !important;
+    bottom: 8px !important;
+    width: calc(100vw - 16px) !important;
+    border-radius: 14px !important;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -140,13 +525,7 @@ body {
   }
 }
 
-/*
- * Scrollbars
- *
- * Subtle, theme-aligned. `panel-2` track keeps the canvas quiet;
- * `mid` thumb reads as a soft divider.
- */
-
+/* Quiet, theme-aligned scrollbars. */
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
@@ -157,13 +536,15 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-mid);
+  background: #d9dde5;
+  border: 2px solid transparent;
   border-radius: 5px;
-  border: 2px solid var(--color-canvas);
+  background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-line);
+  background: #cbd0d8;
+  background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-corner {

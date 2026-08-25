@@ -182,7 +182,7 @@ function KnowledgeCard(props) {
   };
   return (
     <article
-      class={`flex h-full flex-col rounded-card border border-line bg-panel transition-colors hover:border-mid focus-within:border-mid`}
+      class={`ui-detail-card flex h-full flex-col rounded-card border border-line bg-panel transition-colors hover:border-mid focus-within:border-mid`}
     >
       <button
         type="button"
@@ -391,11 +391,11 @@ export default function Knowledge() {
         sticky
       />
 
-      <div class="border-b border-line bg-canvas/95 px-4 py-3">
+      <div class="border-b border-line bg-canvas/70 px-4 py-3">
         <div class="mx-auto max-w-[1280px]">
           <div
             role="tablist"
-            class="-mb-px flex flex-wrap items-center gap-1 border-b border-line"
+            class="ui-tab-strip flex flex-wrap items-center gap-1 rounded-control border border-line p-1"
             aria-label="Knowledge status filter"
           >
             <For each={TABS}>
@@ -411,10 +411,10 @@ export default function Knowledge() {
                     type="button"
                     role="tab"
                     aria-selected={active()}
-                    class={`inline-flex min-h-[36px] items-center gap-2 border-b-2 px-3 py-1.5 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 ${
+                    class={`inline-flex min-h-[36px] items-center gap-2 rounded-control px-3 py-1.5 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 ${
                       active()
-                        ? "border-knowledge text-ink"
-                        : "border-transparent text-mute hover:text-body"
+                        ? "bg-panel text-ink shadow-sm"
+                        : "text-mute hover:bg-panel hover:text-body"
                     }`}
                     onClick={() => setTab(t.key)}
                   >
@@ -496,7 +496,7 @@ export default function Knowledge() {
       </div>
 
       <div class="flex-1 overflow-auto">
-        <div class="mx-auto max-w-[1280px] p-4 lg:p-6">
+        <div class="mx-auto max-w-[1280px] p-5 lg:p-8">
           <Show
             when={allKnowledge().length > 0}
             fallback={

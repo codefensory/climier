@@ -1,210 +1,205 @@
 # Climier UI — Design Contract
 
-Read-only dashboard for the Climier CLI. The CLI is the source of truth; the
-UI projects its state. No mutations, no shadow databases, no optimistic
-writes. Everything below describes the visual contract that the dashboard
-implements.
+This is the visual contract for `ui/`. The UI is a read-only projection of
+Climier state. `ui/EXAMPLE.html` is the reference specimen for the detail
+drawer: soft grey canvas, translucent white surfaces, compact Linear-like
+controls, subtle semantic colour and a two-column detail workspace.
 
-This document supersedes the prior `DESIGN.md` (which described an unrelated
-marketing site). It is the single source of truth for visual rules in `ui/`.
-It evolves together with `docs/ui-redesign-plan.md`.
+The dashboard should feel like a calm operations desk, not a marketing site.
+Attention comes first, context follows, and history is progressively
+disclosed.
 
-## 1. Concept
+## 1. Visual direction
 
-**An operations desk** — calm, clear, prioritised. The dashboard answers
-three questions first:
-
-1. What needs attention right now?
-2. What is the project doing, and who is doing it?
-3. What is the historical record?
-
-Everything else (board, graph, detail, audit) lives behind progressive
-disclosure. Attention surfaces first; context follows; history is opt-in.
+- Light-only, quiet and dense without becoming cramped.
+- Use the grey canvas to separate the workspace from white surfaces.
+- Prefer hairline borders and small changes in surface colour over heavy
+  shadows or saturated fills.
+- The drawer is the strongest surface in the hierarchy: it floats above a
+  blurred scrim and uses the reference specimen's inset, rounded treatment.
+- Semantic colour is an accent, never the only carrier of meaning. Always
+  pair it with a label, shape or position.
+- The UI never mutates Climier state and never invents data.
 
 ## 2. Tokens
 
-Defined in `ui/src/index.css` via Tailwind v4 `@theme`. The values below are
-the contract; the CSS file is the implementation.
+The implementation lives in `ui/src/index.css`. Values intentionally mirror
+`ui/EXAMPLE.html` where the reference has a more specific value.
 
-### 2.1 Surface (light only)
+### 2.1 Surfaces and lines
 
-| Token         | Value     | Role                                                    |
-| ------------- | --------- | ------------------------------------------------------- |
-| `canvas`      | `#F6F7F9` | App background                                          |
-| `panel`       | `#FFFFFF` | Cards, tables, surfaces on top of canvas                |
-| `panel-2`     | `#F1F3F5` | Nested surfaces, hovered rows, sub-panels               |
-| `mid`         | `#E5E7EB` | Selected controls, strong dividers                       |
-| `line`        | `#D9DEE5` | Hairline borders (1 px solid)                           |
+| Token | Value | Use |
+| --- | --- | --- |
+| `canvas` | `#F6F7F9` | Application background |
+| `panel` | `rgba(255,255,255,.94)` | Cards, tables, drawer surface |
+| `panel-solid` | `#FFFFFF` | Opaque controls and selected tabs |
+| `panel-muted` | `#FAFBFC` | Nested surfaces and side rails |
+| `mid` | `#F2F4F7` | Selected controls, code blocks, separators |
+| `line` | `#E7E9EE` | Hairline borders |
+| `line-strong` | `#D9DDE5` | Hovered and focused borders |
+
+The canvas may use the two very low-opacity radial gradients from the
+reference. Gradients must stay quiet and must not compete with content.
 
 ### 2.2 Text
 
-| Token   | Value     | Role                                                   |
-| ------- | --------- | ------------------------------------------------------ |
-| `ink`   | `#111318` | Titles and primary content                             |
-| `body`  | `#3F4652` | Running copy                                           |
-| `mute`  | `#6B7280` | Metadata, timestamps, captions                         |
+| Token | Value | Use |
+| --- | --- | --- |
+| `ink` | `#181A20` | Titles and primary content |
+| `body` | `#3F4652` | Running copy and values |
+| `mute` | `#717886` | Metadata, hints and timestamps |
+| `mute-2` | `#9AA1AD` | Placeholder and tertiary metadata |
 
-Body text uses `ink`/`body`/`mute` in that order. No fourth text colour.
+Use no extra arbitrary text colours in normal HTML. The graph may use its
+semantic SVG palette for node labels and edges.
 
-### 2.3 Semantic
+### 2.3 Semantic accents
 
-| Token        | Foreground | Soft background | Meaning                       |
-| ------------ | ---------- | --------------- | ----------------------------- |
-| `ready`      | `#047857`  | `#ECFDF5`       | Ready / healthy / pass        |
-| `progress`   | `#0369A1`  | `#F0F9FF`       | In progress / claim / live    |
-| `blocked`    | `#BE123C`  | `#FFF1F3`       | Blocked / error / fail        |
-| `gate`       | `#A16207`  | `#FEFCE8`       | Gate / decision / pending     |
-| `knowledge`  | `#6D28D9`  | `#F5F3FF`       | Knowledge / fact              |
-| `focus`      | `#2563EB`  | `#EFF6FF`       | Focus ring and selection      |
+| Token | Foreground | Soft surface | Meaning |
+| --- | --- | --- | --- |
+| `ready` | `#188A5B` | `#EBFBF3` | Ready, healthy, pass |
+| `progress` | `#1769E0` | `#EDF5FF` | In progress, claimed, live |
+| `blocked` | `#BE123C` | `#FFF1F3` | Blocked, error, fail |
+| `gate` | `#A86509` | `#FFF7E8` | Gate, decision, pending |
+| `knowledge` | `#7157D9` | `#F2EFFF` | Knowledge, durable context |
+| `focus` | `#1769E0` | `#EDF5FF` | Keyboard focus and selection |
 
-Soft variants are tinted backgrounds for chips, badges, and rows. Foreground
-on a soft background must meet WCAG AA (≥4.5:1) against `ink`; the soft
-backgrounds above were chosen so that the foreground colour itself remains
-the readable layer on white. Pair semantics with **shape and text**, never
-colour alone — see §6.
+Semantic colours appear in badges, dots, small callouts and graph edges. A
+status must still be understandable from its visible text and shape.
 
 ### 2.4 Typography
 
-System font stack. No web fonts. The mono stack is reserved for IDs,
-command names, timestamps, and counters.
+System fonts only. The mono stack is reserved for IDs, agent names, action
+names, commands, timestamps and numeric counters.
 
-| Role     | Size | Line height | Weight | Used by                          |
-| -------- | ---- | ----------- | ------ | -------------------------------- |
-| Page     | 24px | 32px        | 600    | Page titles (Overview, Tasks)    |
-| Section  | 16px | 24px        | 600    | Section titles, card headers     |
-| Body     | 14px | 20px        | 400    | Running copy, list items         |
-| Metadata | 12px | 16px        | 400    | IDs, timestamps, captions        |
-| Metric   | 30px | 36px        | 600    | Operational numbers on Overview  |
+| Role | Size / line height | Weight | Use |
+| --- | --- | --- | --- |
+| Page | `25 / 30px` | 700 | View and drawer titles |
+| Section | `15 / 21px` | 700 | Card and section headings |
+| Body | `14 / 20px` | 400 | Normal copy and list content |
+| Metadata | `12 / 16px` | 400 | IDs, timestamps and captions |
+| Metric | `30 / 34px` | 700 | Operational counts |
 
-**Nothing renders below 12 px.** Internal graph nodes may compress to 11 px
-if the layout demands it, but never for text the user is expected to read.
+Normal readable HTML must not render below 12px. The graph may use 9–11px
+inside its internal SVG labels when required by the layout.
 
-Mono is opt-in via `.mono`. Use it for: node IDs, agent IDs, command names,
-timestamps (relative and absolute), byte/count metrics. Do not use it for
-titles, body copy, or any sentence the user reads.
+## 3. Geometry and layout
 
-### 2.5 Radii and shapes
+- Base spacing unit: 4px.
+- Desktop page gutter: 20–32px; mobile gutter: 16–20px.
+- Cards use 14px radius and 12–20px padding.
+- Controls use 9px radius and are at least 36px tall; mobile controls are
+  at least 44px when practical.
+- Pills are reserved for statuses, kinds and tags. Buttons and cards are
+  rounded rectangles, not pills.
+- Tables use 48–56px rows. Lists use a minimum 36px hit area.
+- Use `100dvh`, `min-h-0` and one intentional scroll owner per view.
 
-| Token         | Value | Role                                          |
-| ------------- | ----- | --------------------------------------------- |
-| `card`        | 12px  | Cards, panels, drawer surfaces                |
-| `control`     | 8px   | Buttons, inputs, selects, tabs                |
-| `pill`        | 9999  | Reserved for badges and status chips only     |
+### 3.1 Responsive shell
 
-Cards are rectangles with rounded corners; controls are softer rectangles.
-Pills are not a generic shape — they exist for badges, status chips, and
-counters. Buttons are not pills.
+| Width | Shell |
+| --- | --- |
+| `>=1280px` | 240px labelled sidebar + topbar |
+| `768–1279px` | 72px rail with glyphs + topbar |
+| `<768px` | topbar with navigation drawer |
 
-### 2.6 Elevation
+The project identity stays in the topbar. The active navigation item uses a
+blue soft surface and a subtle inset accent; inactive items stay quiet.
 
-| Level | Treatment                                  | Used by                       |
-| ----- | ------------------------------------------ | ----------------------------- |
-| 0     | No shadow, no border                       | Canvas                        |
-| 1     | 1 px solid `line`                          | Cards, panels, tables         |
-| 2     | Hairline + 2 px solid `mid`                | Selected rows, focused card   |
-| 3     | Hairline + soft shadow (drawer / popover)  | Drawers, popovers, dialogs    |
+### 3.2 Detail drawer
 
-No drop shadows on cards. Drawers and popovers separate from the canvas
-through a soft shadow; everything else stays flat with a hairline.
+The node detail drawer follows `ui/EXAMPLE.html` as closely as the product
+content allows:
 
-## 3. Spacing and layout
+- fixed to the right with 12px desktop inset;
+- width `min(1120px, calc(100vw - 48px))`;
+- 18px radius, white translucent surface, soft drawer shadow and backdrop
+  saturation/blur;
+- 54px topbar with breadcrumbs, kind/status, revision, copy, more and close;
+- main content plus a 286px properties/activity rail;
+- the main and rail scroll independently inside the drawer;
+- at narrow widths the rail disappears and the drawer becomes an almost
+  full-screen panel with 8px inset and 14px radius;
+- Escape, backdrop click, Back, focus restoration and keyboard trapping remain
+  functional.
 
-- Base unit: **4 px**.
-- Card padding: 16 px (compact) or 20 px (standard).
-- Table row height: 48 px (compact) or 56 px (standard).
-- Section separation: 24 px.
-- Page gutter: 32 px desktop, 16 px mobile.
-- Controls: minimum **36 px** desktop, **44 px** mobile touch target.
+The drawer hierarchy is: alert → title and status line → specification →
+blockers → collapsible knowledge/notes/history/refs/relationships/CLI
+sections. The right rail keeps properties and recent activity close at hand.
 
-### 3.1 Breakpoints
+## 4. Shared components
 
-| Name   | Width       | Sidebar        | Board                       |
-| ------ | ----------- | -------------- | --------------------------- |
-| Wide   | ≥ 1280 px   | 240 px         | Full bleed                  |
-| Mid    | 768–1279 px | 64 px rail     | min 280 px columns + hscroll |
-| Narrow | < 768 px    | Topbar + drawer | Cards in single column     |
+Shared presentation primitives live in `ui/src/components.jsx`:
 
-Use `100dvh`, `min-h-0`, and one scroll owner per view. No nested scrollers.
+- `PageHeader` — eyebrow, title, subtitle, meta and actions.
+- `Panel` — neutral surface with hairline border; no heavy shadow by default.
+- `MetricCard` — operational count; becomes a button only with a real target.
+- `StatusBadge` — semantic status pill with dot and visible text.
+- `KindBadge` — compact squared task/gate/knowledge marker.
+- `Chip` — compact initiative, scope or tag pill.
+- `FilterBar` — white compact control strip with composable filters.
+- `AlertBanner` — non-modal status/error surface.
+- `EmptyState` — page, section and compact variants.
+- `NodeRow` — keyboard-accessible node row.
+- `ProgressBar` — task-state segments; never mixes kinds.
+- `LiveStatus` — one read-only/last-refresh indicator in the shell.
+- `Skeleton` — initial-load placeholder only.
+- `IconButton` — labelled square control.
+- `Time` / `ClaimTime` — relative time with absolute tooltip; claims prefer
+  `claim.at` and fall back to `claim.ts`.
 
-## 4. Components
+New reusable visual primitives belong in `components.jsx`, not in a single
+view. View-specific layout classes may live in `index.css` when they describe
+the drawer, shell or graph workspace rather than a data rule.
 
-Defined in `ui/src/components.jsx`. The list is the contract; new shared
-primitives are added to `components.jsx`, not to view files.
+## 5. Interaction and accessibility
 
-- `PageHeader` — title, subtitle, contextual meta, and actions.
-- `Panel` — surface with hairline border and `card` radius.
-- `MetricCard` — number, label, one-line explanation. Becomes a `<button>`
-  when it navigates; `<div>` otherwise.
-- `StatusBadge` — pill with semantic foreground + soft background.
-- `KindBadge` — pill distinguishing task / gate / knowledge.
-- `Chip` — small pill for initiative, scope, tag.
-- `FilterBar` — search + filters + clear-all. Empty result includes
-  "Clear filters".
-- `AlertBanner` — non-modal banner at the top of the page; preserves the
-  underlying view.
-- `EmptyState` — variants: page (with CTA), section (compact), compact
-  (single line for "all healthy").
-- `NodeRow` — row in the Tasks / Gates / Knowledge tables.
-- `ProgressBar` — segmented bar for initiative breakdown by state.
-- `LiveStatus` — the single floating last-refresh timestamp + read-only badge.
-- `Skeleton` — initial load placeholder. Never mixes with content.
-- `IconButton` — square icon-only control; requires `aria-label`.
-- `Time` — relative time with absolute timestamp in `title`.
+- Every interactive element is keyboard reachable and has an accessible name.
+- Every interactive element has a visible `focus-visible` ring in `focus`.
+- Minimum desktop target is 36px; use 44px on mobile touch controls.
+- Hover changes surface/border, not only colour.
+- Reduced-motion users receive no meaningful CSS animation or transition.
+- Dialogs use `role="dialog"`, `aria-modal="true"`, a labelled name and
+  focus management.
+- Disclosure sections use native `<details>`/`<summary>` or equivalent
+  keyboard-accessible controls.
+- Truncated titles and previews expose the complete value through `title`.
 
-## 5. Data states
+## 6. Data states
 
-The dashboard projects a live snapshot. Every view handles four states
-without leaking between them:
+The visual language preserves the snapshot contract:
 
-1. **Initial load** — skeleton. No partial data, no empty state.
-2. **Refresh in progress** — non-blocking indicator. Last snapshot stays
-   on screen.
-3. **Initial error** — error screen with retry. No cached data fallback.
-4. **Subsequent error** — last snapshot stays on screen + `AlertBanner`
-   with the error. The view never blanks.
+1. Initial load shows skeletons, never a premature empty state.
+2. Background refresh is non-blocking and leaves the last good snapshot in
+   place.
+3. Initial failure shows a retry surface.
+4. Subsequent failure shows an alert while retaining the snapshot.
+5. An uninitialized project explains `climier init`; the UI never runs it.
+6. Empty collections use a compact, useful message. Filters offer a clear
+   action when there are no matches.
 
-If the project is not initialised (no state file), the dashboard renders a
-single empty state pointing to the CLI command (`climier init`). The UI
-never runs the mutation itself.
+## 7. Status and kind semantics
 
-## 6. Status semantics
+Status uses a dotted pill plus text (`ready`, `in_progress`, `blocked`,
+`backlog`, `open`, `done`, etc.). Kind uses a compact squared marker so task,
+gate and knowledge are distinguishable before reading the title. The graph
+uses shape as a third channel: tasks are rectangles, gates diamonds and
+knowledge circles.
 
-State is conveyed by **colour + shape + text**, never colour alone.
+No view may silently re-derive server-owned status semantics. The UI reads
+pools and derived fields from the API snapshot.
 
-- Pill (status badge): ready / progress / blocked / gate / knowledge.
-- Square (kind badge): task / gate / knowledge.
-- Border + text colour together: selected row, current item.
-- Iconography in the future may add a fourth channel; never a substitute
-  for the first three.
+## 8. Explicit non-goals
 
-A colourblind user must still be able to distinguish `blocked` from `gate`
-without parsing hue. The pill shape plus the label text is the redundancy.
-
-## 7. Interaction
-
-- Every interactive element is reachable by keyboard.
-- Every interactive element has a visible `focus-visible` ring (`focus`,
-  2 px, 2 px offset, `control` radius).
-- Every interactive element has an accessible name (`aria-label` if
-  icon-only; visible label otherwise).
-- Touch targets ≥ 36 px desktop, ≥ 44 px mobile.
-- Reduced-motion users get no animations at the CSS layer; state-driven
-  transitions should also consult `prefers-reduced-motion`.
-- Selection colour is `focus` on `focus-soft`.
-
-## 8. What this UI does not do
-
-- No dark mode (light canvas only, by design).
-- No web fonts (system stack only).
-- No icon library (iconography deferred).
-- No drag-and-drop (board is read-only).
-- No charts or trend lines (no time-series in the snapshot).
-- No markdown rendering in the UI (text is text; commands are copy buttons).
-- No writes (every endpoint is GET; the UI never mutates state).
+- No dark mode.
+- No web fonts or icon dependency.
+- No drag-and-drop or optimistic writes.
+- No markdown/HTML rendering in user text.
+- No charts without a time-series contract.
+- No new runtime dependencies for the CLI.
 
 ## 9. Versioning
 
-This document ships in lock-step with the visual changes it describes.
-Changes to tokens, components, or states require updating this file in
-the same commit. The companion implementation is `ui/src/index.css`;
-companion plan is `docs/ui-redesign-plan.md`.
+Update this file in the same change as token, component or drawer changes.
+`ui/src/index.css` is the implementation companion; `ui/EXAMPLE.html` is the
+visual reference specimen.

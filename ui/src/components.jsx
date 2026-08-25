@@ -76,7 +76,7 @@ export function PageHeader(props) {
     ? "sticky top-0 z-10 border-line bg-canvas/95 backdrop-blur-[2px]"
     : "";
   return (
-    <header class={`flex items-end justify-between gap-4 border-b border-line pb-4 ${stickyCls}`}>
+    <header class={`ui-page-header flex items-end justify-between gap-4 border-b border-line pb-4 ${stickyCls}`}>
       <div class="min-w-0">
         <Show when={props.eyebrow}>
           <div class="mono text-[12px] uppercase tracking-wider text-mute">{props.eyebrow}</div>
@@ -119,9 +119,9 @@ export function Panel(props) {
   const tone = TONE[props.tone];
   const border = tone ? tone.border : "border-line";
   const surface = tone ? tone.soft : "bg-panel";
-  const shadow = props.elevated ? "shadow-md" : "";
+  const shadow = props.elevated ? "shadow-md ui-panel-elevated" : "";
   return (
-    <section class={`flex flex-col rounded-card border ${border} ${surface} ${shadow}`}>
+    <section class={`ui-panel flex flex-col rounded-card border ${border} ${surface} ${shadow}`}>
       <Show when={props.title || props.eyebrow || props.right}>
         <div class="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
           <div class="min-w-0">
@@ -163,7 +163,7 @@ export function MetricCard(props) {
   const tone = props.tone ? STATUS_TOKEN[props.tone] : null;
   const valueColor = tone ? tone.text : "text-ink";
   const interactive = typeof props.onClick === "function";
-  const baseCls = "block w-full rounded-card border border-line bg-panel p-4";
+  const baseCls = "ui-metric-card block w-full rounded-card border border-line bg-panel p-4";
   const interactiveCls = "cursor-pointer transition-colors hover:border-mid";
   const focusCls = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2";
   const valueCls = `text-metric tabular-nums ${valueColor}`;
@@ -200,7 +200,7 @@ export function MetricCard(props) {
 export function StatusBadge(props) {
   const tone = STATUS_TOKEN[props.status] || STATUS_TOKEN.missing;
   return (
-    <span class={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[12px] font-medium leading-4 ${tone.soft} ${tone.text} ${tone.border}`}>
+    <span class={`inline-flex min-h-[24px] items-center gap-1.5 rounded-full border px-2 py-0.5 text-[12px] font-semibold leading-4 ${tone.soft} ${tone.text} ${tone.border}`}>
       <span class={`h-1.5 w-1.5 shrink-0 rounded-full ${tone.dot}`} aria-hidden="true" />
       <span>{props.status}</span>
     </span>
@@ -215,7 +215,7 @@ export function KindBadge(props) {
   const kind = kindFor(props.node);
   const tone = KIND_TOKEN[kind] || KIND_TOKEN.task;
   return (
-    <span class={`inline-flex items-center rounded-[6px] border px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${tone.soft} ${tone.text} ${tone.border}`}>
+    <span class={`inline-flex min-h-[22px] items-center rounded-[6px] border px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${tone.soft} ${tone.text} ${tone.border}`}>
       {kind}
     </span>
   );
@@ -258,7 +258,7 @@ export function FilterBar(props) {
   // clearLabel  (string, optional override)
   const clearCls = "ml-auto inline-flex min-h-[36px] items-center rounded-control border border-line bg-panel-2 px-3 text-[12px] text-body hover:bg-mid focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2";
   return (
-    <div class="flex min-h-[36px] flex-wrap items-center gap-2 rounded-control border border-line bg-panel px-3 py-2">
+    <div class="ui-filter-bar flex min-h-[36px] flex-wrap items-center gap-2 rounded-control border border-line bg-panel px-3 py-2">
       <Show when={props.label}>
         <span class="mono text-[12px] uppercase tracking-wider text-mute">{props.label}</span>
       </Show>
@@ -293,7 +293,7 @@ export function AlertBanner(props) {
   const role = props.tone === "error" ? "alert" : "status";
   const dismissCls = "rounded-control px-2 py-1 text-[12px] text-mute hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2";
   return (
-    <div class={`flex items-start gap-3 rounded-control border ${tone.border} ${tone.soft} px-4 py-3 text-[13px] leading-5 ${tone.text}`} role={role}>
+    <div class={`ui-alert flex items-start gap-3 rounded-control border ${tone.border} ${tone.soft} px-4 py-3 text-[13px] leading-5 ${tone.text}`} role={role}>
       <div class="min-w-0 flex-1">
         <Show when={props.title}>
           <div class="font-semibold text-ink">{props.title}</div>
@@ -324,7 +324,7 @@ export function EmptyState(props) {
   // children  (node, optional body)
   const variant = props.variant || "section";
   const VARIANT_CLS = {
-    page:    "rounded-card border border-line bg-panel p-8 text-center",
+    page:    "ui-empty-page rounded-card border border-line bg-panel p-8 text-center",
     section: "rounded-card border border-dashed border-line bg-panel p-6 text-center",
     compact: "text-[12px] leading-4 text-mute",
   };
@@ -383,13 +383,13 @@ export function NodeRow(props) {
   );
   return (
     <Show when={interactive} fallback={
-      <div class={`flex items-center gap-3 rounded-control border px-3 py-2 ${selectedCls}`}>
+      <div class={`ui-list-row flex items-center gap-3 rounded-control border px-3 py-2 ${selectedCls}`}>
         {inner}
       </div>
     }>
       <button
         type="button"
-        class={`flex min-h-[36px] w-full items-center gap-3 rounded-control border px-3 py-2 text-left ${selectedCls} ${interactiveCls}`}
+        class={`ui-list-row flex min-h-[36px] w-full items-center gap-3 rounded-control border px-3 py-2 text-left ${selectedCls} ${interactiveCls}`}
         onClick={props.onClick}
       >
         {inner}
@@ -526,9 +526,9 @@ export function IconButton(props) {
   // children (node, required — the icon glyph)
   const size = props.size === "sm" ? "h-8 w-8" : "h-9 w-9";
   const toneCls = props.tone === "danger"
-    ? "border-line text-blocked hover:bg-blocked-soft"
-    : "border-line text-body hover:bg-panel-2";
-  const baseCls = `inline-flex ${size} shrink-0 items-center justify-center rounded-control border bg-panel focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${toneCls}`;
+    ? "border-blocked/30 text-blocked hover:bg-blocked-soft"
+    : "border-transparent text-body hover:border-line hover:bg-panel-2";
+  const baseCls = `inline-flex ${size} shrink-0 items-center justify-center rounded-control border bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${toneCls}`;
   return (
     <button
       type="button"

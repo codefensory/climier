@@ -18,7 +18,7 @@
 import { createSignal, Show, For, createEffect, onCleanup, createMemo } from "solid-js";
 import { getActivity } from "../api.js";
 import { useStore } from "../store.jsx";
-import { fmtTime } from "../components.jsx";
+import { fmtTime, PageHeader } from "../components.jsx";
 
 const DEBOUNCE_MS = 280;
 const PAGE_SIZES = [25, 50, 100, 200];
@@ -126,13 +126,13 @@ export function ActivityRow(props) {
 }
 
 const FILTER_INPUT_CLS =
-  "min-h-[36px] rounded-control border border-line bg-panel px-3 text-[13px] text-body outline-none placeholder:text-mute focus:border-mid focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2";
+  "ui-control min-h-[36px] rounded-control border border-line bg-panel px-3 text-[13px] text-body outline-none placeholder:text-mute focus:border-mid focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2";
 
 const FILTER_SELECT_CLS =
-  "min-h-[36px] rounded-control border border-line bg-panel px-2 text-[13px] text-body outline-none focus:border-mid focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2";
+  "ui-control min-h-[36px] rounded-control border border-line bg-panel px-2 text-[13px] text-body outline-none focus:border-mid focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2";
 
 const BUTTON_CLS =
-  "inline-flex min-h-[36px] items-center gap-2 rounded-control border border-line bg-panel px-3 text-[13px] text-body hover:bg-panel-2 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2";
+  "ui-control inline-flex min-h-[36px] items-center gap-2 rounded-control border border-line bg-panel px-3 text-[13px] text-body hover:bg-panel-2 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2";
 
 export default function Activity() {
   const { select } = useStore();
@@ -261,11 +261,15 @@ export default function Activity() {
 
   return (
     <div class="flex h-full flex-col">
-      <div class="flex flex-wrap items-center gap-2 border-b border-line px-4 py-3">
-        <h1 class="mr-2 text-section font-semibold text-ink">
-          Activity{" "}
-          <span class="text-[12px] font-normal text-mute">({total()} entries)</span>
-        </h1>
+      <div class="px-5 pt-5 md:px-8 md:pt-7">
+        <PageHeader
+          eyebrow="Audit"
+          title="Activity"
+          subtitle="A chronological, read-only record of changes across the project."
+          meta={`${total()} entries`}
+        />
+      </div>
+      <div class="ui-filter-bar mx-5 mt-4 flex flex-wrap items-center gap-2 rounded-control border border-line px-3 py-3 md:mx-8">
         <input
           class={`${FILTER_INPUT_CLS} w-48`}
           placeholder="Search (q)…"
@@ -351,7 +355,7 @@ export default function Activity() {
 
       {/* Non-destructive error: keep last successful data, surface banner. */}
       <Show when={error() && data()}>
-        <div class="border-b border-gate bg-gate-soft px-4 py-2 text-[12px] text-body" role="status">
+        <div class="ui-alert border-b border-gate bg-gate-soft px-4 py-2 text-[12px] text-body" role="status">
           <span class="font-medium text-gate">Refresh failed: </span>
           {error()}. Showing previous results.
         </div>
@@ -385,7 +389,8 @@ export default function Activity() {
                 </div>
               }
             >
-              <table class="w-full text-sm">
+              <div class="ui-panel mx-5 mt-4 overflow-hidden rounded-card border border-line bg-panel md:mx-8">
+              <table class="w-full text-sm ui-table">
                 <thead class="sticky top-0 bg-canvas">
                   <tr class="text-left text-[11px] uppercase tracking-wider text-mute">
                     <th class="px-2 py-2">
@@ -415,12 +420,13 @@ export default function Activity() {
                   </For>
                 </tbody>
               </table>
+              </div>
             </Show>
           </Show>
         </Show>
       </div>
 
-      <div class="flex items-center gap-3 border-t border-line px-4 py-2 text-xs text-mute">
+      <div class="ui-command-bar flex items-center gap-3 border-t border-line px-4 py-2 text-[12px] text-mute">
         <button
           type="button"
           class={BUTTON_CLS}

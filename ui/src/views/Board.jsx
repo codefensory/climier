@@ -102,7 +102,7 @@ function BoardCard(props) {
   return (
     <button
       type="button"
-      class="block w-full rounded-card border border-line bg-panel p-4 text-left transition-colors hover:border-mid focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
+      class="ui-list-row block w-full rounded-card border border-line bg-panel p-4 text-left transition-colors hover:border-mid focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
       onClick={() => select(n().id)}
       aria-label={`${n().id} ${n().title}`}
     >
@@ -187,7 +187,7 @@ function OpenGatesRail(props) {
               {(g) => (
                 <button
                   type="button"
-                  class="w-64 shrink-0 rounded-card border border-gate bg-gate-soft p-3 text-left transition-colors hover:bg-panel focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
+                  class="ui-list-row w-64 shrink-0 rounded-card border border-gate bg-gate-soft p-3 text-left transition-colors hover:bg-panel focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
                   onClick={() => select(g.id)}
                   aria-label={`${g.id} ${g.title}`}
                 >
@@ -224,7 +224,7 @@ function Column(props) {
   // count       (number, required)
   // children    (node, required — list of cards or empty state)
   return (
-    <div class="flex h-full min-h-0 flex-col overflow-auto rounded-card border border-line bg-panel">
+    <div class="ui-detail-card flex h-full min-h-0 flex-col overflow-auto rounded-card border border-line bg-panel">
       <header class="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-line bg-panel/95 px-4 py-3 backdrop-blur-[2px]">
         <div class="min-w-0">
           <div class="text-section text-ink">{props.label}</div>
@@ -382,7 +382,7 @@ export default function Board() {
 
   return (
     <div class="flex h-full min-h-0 flex-col">
-      <div class="px-6 pt-6 pb-4">
+      <div class="px-5 pt-5 pb-4 md:px-8 md:pt-7">
         <PageHeader
           eyebrow="Work"
           title="Board"
@@ -390,7 +390,7 @@ export default function Board() {
         />
       </div>
 
-      <div class="flex min-h-0 flex-1 flex-col gap-4 px-6 pb-6">
+      <div class="flex min-h-0 flex-1 flex-col gap-4 px-5 pb-6 md:px-8">
         <FilterBar
           label="Filters"
           hint={
@@ -493,7 +493,7 @@ export default function Board() {
         </Show>
 
         <Show when={hasAnyActiveWork()}>
-          <div class="flex items-center justify-between gap-3 rounded-control border border-line bg-panel px-4 py-2.5 text-[12px] leading-4 text-mute">
+          <div class="ui-command-bar flex items-center justify-between gap-3 rounded-control border border-line bg-panel px-4 py-2.5 text-[12px] leading-4 text-mute">
             <span>
               Done, canceled and superseded tasks are not shown here. Open the Tasks view to filter them.
             </span>

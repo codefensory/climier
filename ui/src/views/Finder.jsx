@@ -136,10 +136,10 @@ export function FinderDialog(props) {
       role="dialog"
       aria-modal="true"
       aria-label="Search"
-      class="fixed left-1/2 top-[12vh] z-50 w-[min(42rem,calc(100vw-2rem))] -translate-x-1/2 overflow-hidden rounded-card border border-line bg-canvas shadow-md"
+      class="ui-finder fixed left-1/2 top-[10vh] z-50 w-[min(42rem,calc(100vw-2rem))] -translate-x-1/2 overflow-hidden rounded-card border border-line bg-panel shadow-md"
     >
       {/* Input row */}
-      <div class="flex items-center gap-2 border-b border-line px-3 py-2">
+      <div class="ui-drawer-topbar flex items-center gap-2 border-b border-line px-3 py-2">
         <span class="text-mute" aria-hidden="true">⌕</span>
         <input
           ref={props.inputRef}
@@ -189,7 +189,7 @@ export function FinderDialog(props) {
                               tabindex="-1"
                               aria-selected={props.active === it.index}
                               onClick={() => props.onOpen(it.node.id)}
-                              class="flex min-h-[36px] w-full items-center gap-2 rounded-control px-2 py-1.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
+                              class="ui-list-row flex min-h-[36px] w-full items-center gap-2 rounded-control px-2 py-1.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
                               classList={{
                                 "bg-panel-2": props.active === it.index,
                                 "hover:bg-panel-2": true,
@@ -227,7 +227,7 @@ export function FinderDialog(props) {
       </div>
 
       {/* Footer hint */}
-      <div class="flex items-center gap-3 border-t border-line bg-panel-2 px-4 py-2 text-[11px] text-mute">
+      <div class="ui-command-bar flex items-center gap-3 border-t border-line bg-panel-2 px-4 py-2 text-[12px] text-mute">
         <span><span class="mono">↑↓</span> navigate</span>
         <span><span class="mono">Enter</span> open</span>
         <span><span class="mono">Esc</span> close</span>
@@ -239,11 +239,11 @@ export function FinderDialog(props) {
   return (
     <Show when={isServer} fallback={
       <Portal>
-        <div class="fixed inset-0 z-40 bg-ink/40" onClick={props.onClose} aria-hidden="true" />
+        <div class="ui-drawer-scrim fixed inset-0 z-40" onClick={props.onClose} aria-hidden="true" />
         {dialog}
       </Portal>
     }>
-      <div class="fixed inset-0 z-40 bg-ink/40" onClick={props.onClose} aria-hidden="true" />
+      <div class="ui-drawer-scrim fixed inset-0 z-40" onClick={props.onClose} aria-hidden="true" />
       {dialog}
     </Show>
   );

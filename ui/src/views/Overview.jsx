@@ -378,7 +378,7 @@ function WorkRow(props) {
   return (
     <button
       type="button"
-      class="flex min-h-[44px] w-full items-center gap-3 rounded-control border border-line bg-panel px-3 py-2 text-left transition-colors hover:bg-panel-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
+      class="ui-list-row flex min-h-[44px] w-full items-center gap-3 rounded-control border border-line bg-panel px-3 py-2 text-left transition-colors hover:bg-panel-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
       onClick={() => select(n().id)}
       aria-label={`${n().id} ${n().title}`}
     >
@@ -409,7 +409,7 @@ function AttentionBlock(props) {
   // items  (array of { id, title }, required)
   const { select } = useStore();
   return (
-    <div class="rounded-control border border-line bg-panel p-3">
+    <div class="ui-detail-card rounded-control border border-line bg-panel p-3">
       <div class="flex items-center justify-between gap-2">
         <span class="text-[12px] font-semibold uppercase tracking-wider text-mute">{props.title}</span>
         <Chip>{props.items.length}</Chip>
@@ -455,7 +455,7 @@ function ActivityRow(props) {
   return (
     <button
       type="button"
-      class="flex min-h-[44px] w-full items-start gap-3 rounded-control border border-line bg-panel px-3 py-2 text-left transition-colors hover:bg-panel-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
+      class="ui-list-row flex min-h-[44px] w-full items-start gap-3 rounded-control border border-line bg-panel px-3 py-2 text-left transition-colors hover:bg-panel-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
       onClick={() => select(e().node_id)}
       aria-label={`${humanizeAction(e().action)} ${e().node_id} ${e().node_title || ""}`}
     >
@@ -495,7 +495,7 @@ function InitiativeCard(props) {
   const tasks = () => byKind().tasks || {};
   const openGates = () => (byKind().gates || {}).open || 0;
   return (
-    <div class="rounded-control border border-line bg-panel p-4">
+    <div class="ui-detail-card rounded-control border border-line bg-panel p-4">
       <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
           <h4 class="truncate text-[14px] font-semibold text-ink">{row().initiative}</h4>
@@ -526,7 +526,7 @@ function RecordRow(props) {
   return (
     <button
       type="button"
-      class="flex min-h-[32px] w-full items-center justify-between gap-2 rounded px-2 py-1 text-left transition-colors hover:bg-panel-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
+      class="ui-list-row flex min-h-[32px] w-full items-center justify-between gap-2 rounded px-2 py-1 text-left transition-colors hover:bg-panel-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
       onClick={() => setRoute(r().nav)}
       aria-label={`${r().label}: ${r().value}`}
     >
@@ -579,7 +579,7 @@ export default function Overview() {
   const recordMemo = createMemo(() => projectRecord(sum()));
 
   return (
-    <div class="mx-auto max-w-[1440px] p-4 md:p-6">
+    <div class="mx-auto max-w-[1440px] p-5 md:p-8">
       {/* 1. Header */}
       <PageHeader
         eyebrow="Registered Climier work only"

@@ -1,6 +1,6 @@
 import { createEffect, createMemo, createSignal, onCleanup, onMount, Show, For } from "solid-js";
 import { useStore } from "../store.jsx";
-import { Empty, AlertBanner, FilterBar } from "../components.jsx";
+import { Empty, AlertBanner, FilterBar, PageHeader } from "../components.jsx";
 import {
   kindFor,
   computeLayout,
@@ -16,34 +16,34 @@ import {
 } from "./graph-helpers.mjs";
 
 const EDGE_COLORS = {
-  BLOCKS: "#e11d48",
-  SUPERSEDES: "#9333ea",
-  DERIVED_FROM: "#0284c7",
-  INFORMS: "#94a3b8",
-  RELATES_TO: "#94a3b8",
-  CONFLICTS_WITH: "#94a3b8",
+  BLOCKS: "#be123c",
+  SUPERSEDES: "#7157d9",
+  DERIVED_FROM: "#1769e0",
+  INFORMS: "#9aa1ad",
+  RELATES_TO: "#9aa1ad",
+  CONFLICTS_WITH: "#9aa1ad",
 };
 
 const STATUS_COLORS = {
-  open:        { stroke: "#38bdf8", text: "#0369a1" },
-  in_progress: { stroke: "#fbbf24", text: "#92400e" },
-  done:        { stroke: "#34d399", text: "#065f46" },
-  canceled:    { stroke: "#cbd5e1", text: "#64748b" },
-  blocked:     { stroke: "#f87171", text: "#b91c1c" },
-  resolved:    { stroke: "#a78bfa", text: "#6d28d9" },
-  superseded:  { stroke: "#c084fc", text: "#7e22ce" },
-  deprecated:  { stroke: "#cbd5e1", text: "#64748b" },
-  active:      { stroke: "#34d399", text: "#065f46" },
-  stale:       { stroke: "#fb923c", text: "#c2410c" },
+  open:        { stroke: "#a86509", text: "#a86509" },
+  in_progress: { stroke: "#1769e0", text: "#1769e0" },
+  done:        { stroke: "#188a5b", text: "#188a5b" },
+  canceled:    { stroke: "#d9dde5", text: "#717886" },
+  blocked:     { stroke: "#be123c", text: "#be123c" },
+  resolved:    { stroke: "#7157d9", text: "#7157d9" },
+  superseded:  { stroke: "#7157d9", text: "#7157d9" },
+  deprecated:  { stroke: "#d9dde5", text: "#717886" },
+  active:      { stroke: "#7157d9", text: "#7157d9" },
+  stale:       { stroke: "#a86509", text: "#a86509" },
 };
-const STATUS_DEFAULT = { stroke: "#d4d4d8", text: "#3f3f46" };
+const STATUS_DEFAULT = { stroke: "#d9dde5", text: "#3f4652" };
 
 const BTN_CLS =
-  "rounded-control border border-line bg-panel px-2.5 py-1 text-[11px] font-medium text-slate-700 " +
-  "hover:border-sky-600/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2";
+  "ui-control inline-flex min-h-[36px] items-center rounded-control border border-line bg-panel px-3 text-[12px] font-medium text-body " +
+  "hover:border-line-strong hover:bg-panel-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2";
 
-const SEL_COLORS = { stroke: "#0284c7", halo: "rgba(2,132,199,0.55)", ring: "#0284c7" };
-const NEI_COLORS = { stroke: null, halo: "rgba(2,132,199,0.3)", ring: null };
+const SEL_COLORS = { stroke: "#1769e0", halo: "rgba(23,105,224,0.28)", ring: "#1769e0" };
+const NEI_COLORS = { stroke: null, halo: "rgba(23,105,224,0.16)", ring: null };
 
 // Node label inside the SVG: ID + abbreviated title + kind/status as text,
 // so the direction and state are readable without relying on color alone.
@@ -66,7 +66,7 @@ function NodeShape(props) {
   const label = (
     <g class="pointer-events-none">
       <text x={pos().x} y={pos().y - 17} text-anchor="middle" font-size="10" fill={meta().text} class="mono">{n().id}</text>
-      <text x={pos().x} y={pos().y + 1} text-anchor="middle" font-size="11" fill="#27272a">{abbreviate(n().title, 32)}</text>
+      <text x={pos().x} y={pos().y + 1} text-anchor="middle" font-size="11" fill="var(--ui-text)">{abbreviate(n().title, 32)}</text>
       <text x={pos().x} y={pos().y + 19} text-anchor="middle" font-size="9" fill="#71717a" class="mono">{kindFor(n())} · {n().status || "open"}</text>
     </g>
   );
@@ -89,7 +89,7 @@ function NodeShape(props) {
       <g>
         {halo() && <circle cx={pos().x} cy={pos().y} r={33} fill="none" stroke={haloColor()} stroke-width="3" class="pointer-events-none" />}
         {ring() && <circle cx={pos().x} cy={pos().y} r={32} fill="none" stroke={SEL_COLORS.ring} stroke-width="1.5" stroke-dasharray="4 3" class="pointer-events-none" />}
-        <circle cx={pos().x} cy={pos().y} r={28} stroke={stroke()} stroke-width={sw()} fill="#f5f3ff" class="cursor-pointer" {...shapeProps} />
+        <circle cx={pos().x} cy={pos().y} r={28} stroke={stroke()} stroke-width={sw()} fill="var(--ui-violet-soft)" class="cursor-pointer" {...shapeProps} />
         {label}
       </g>
     );
@@ -102,7 +102,7 @@ function NodeShape(props) {
       <g>
         {halo() && <polygon points={haloPts} fill="none" stroke={haloColor()} stroke-width="3" class="pointer-events-none" />}
         {ring() && <polygon points={ringPts} fill="none" stroke={SEL_COLORS.ring} stroke-width="1.5" stroke-dasharray="4 3" class="pointer-events-none" />}
-        <polygon points={pts} stroke={stroke()} stroke-width={sw()} fill="#fff4e6" class="cursor-pointer" {...shapeProps} />
+        <polygon points={pts} stroke={stroke()} stroke-width={sw()} fill="var(--ui-amber-soft)" class="cursor-pointer" {...shapeProps} />
         {label}
       </g>
     );
@@ -111,7 +111,7 @@ function NodeShape(props) {
     <g>
       {halo() && <rect x={pos().x - 102} y={pos().y - 34} width={204} height={68} rx={10} fill="none" stroke={haloColor()} stroke-width="3" class="pointer-events-none" />}
       {ring() && <rect x={pos().x - 101} y={pos().y - 33} width={202} height={66} rx={9} fill="none" stroke={SEL_COLORS.ring} stroke-width="1.5" stroke-dasharray="4 3" class="pointer-events-none" />}
-      <rect x={pos().x - 96} y={pos().y - 28} width={192} height={56} rx={8} stroke={stroke()} stroke-width={sw()} fill="#f7f7f8" class="cursor-pointer" {...shapeProps} />
+      <rect x={pos().x - 96} y={pos().y - 28} width={192} height={56} rx={8} stroke={stroke()} stroke-width={sw()} fill="var(--ui-panel-muted)" class="cursor-pointer" {...shapeProps} />
       {label}
     </g>
   );
@@ -281,7 +281,14 @@ export default function Graph() {
 
   return (
     <div class="flex h-full flex-col">
-      <div class="border-b border-line px-4 py-2">
+      <div class="border-b border-line px-5 pt-5 pb-3 md:px-8">
+        <PageHeader
+          eyebrow="Monitor"
+          title="Graph"
+          subtitle="Trace blockers, derivations and superseding relationships across registered work."
+          meta={`${Object.keys(visible().nodes).length} nodes`}
+        />
+        <div class="pt-4">
         <FilterBar
           label="Graph"
           hint={filtersActive() ? `${Object.keys(visible().nodes).length} node(s)` : undefined}
@@ -324,25 +331,26 @@ export default function Graph() {
               {(k) => <option value={k}>{k === "knowledge" ? "Knowledge" : k === "gate" ? "Gates" : "Tasks"}</option>}
             </For>
           </select>
-          <label class="flex items-center gap-1.5 text-xs text-body">
+          <label class="flex items-center gap-1.5 text-[12px] text-body">
             <input type="checkbox" checked={showHistory()} onChange={(e) => setShowHistory(e.currentTarget.checked)} />
             Show history
           </label>
-          <div class="ml-auto flex items-center gap-2 text-[11px] text-mute">
+          <div class="ml-auto flex items-center gap-2 text-[12px] text-mute">
             <button type="button" class={BTN_CLS} onClick={fit}>Fit</button>
             <button type="button" class={BTN_CLS} onClick={reset}>Reset</button>
             <span class="mono w-12 text-right tabular-nums">{Math.round(zoom() * 100)}%</span>
           </div>
         </FilterBar>
-        <div class="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1.5 text-[11px] text-mute">
-          <span><span class="text-rose-600">→</span> BLOCKS</span>
-          <span><span class="text-purple-600">→</span> SUPERSEDES</span>
-          <span><span class="text-sky-600">→</span> DERIVED_FROM</span>
+        </div>
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-1 pt-2 text-[12px] text-mute">
+          <span><span class="text-blocked">→</span> BLOCKS</span>
+          <span><span class="text-knowledge">→</span> SUPERSEDES</span>
+          <span><span class="text-progress">→</span> DERIVED_FROM</span>
           <span class="ml-auto">drag to pan · wheel to zoom · tab to focus nodes</span>
         </div>
       </div>
 
-      <div class="relative flex-1 overflow-hidden bg-[radial-gradient(circle,#d4d4d8_1px,transparent_1px)] [background-size:24px_24px]">
+      <div class="ui-graph-canvas relative flex-1 overflow-hidden [background-size:24px_24px]">
         <Show when={Object.keys(visible().nodes).length} fallback={<div class="p-8"><Empty>No nodes match the current filters.</Empty></div>}>
           <Show when={showIsolation()}>
             <div class="absolute inset-x-0 top-3 z-10 px-4">
@@ -369,13 +377,13 @@ export default function Graph() {
                 </marker>
               ))}
               <marker id="arrow-default" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-                <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b" />
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--ui-muted)" />
               </marker>
             </defs>
             <g transform={`translate(${pan().x} ${pan().y}) scale(${zoom()})`}>
               <For each={visible().layout.iniRows}>
                 {(row) => (
-                  <text x={8} y={row.y} font-size="11" fill="#71717a" class="mono">{row.ini}</text>
+                  <text x={8} y={row.y} font-size="11" fill="var(--ui-muted)" class="mono">{row.ini}</text>
                 )}
               </For>
               <For each={visible().edges}>
@@ -383,7 +391,7 @@ export default function Graph() {
                   const a = visible().layout.pos[e.from];
                   const b = visible().layout.pos[e.to];
                   if (!a || !b) return null;
-                  const color = EDGE_COLORS[e.type] || "#64748b";
+                  const color = EDGE_COLORS[e.type] || "#9aa1ad";
                   const dash = e.type === "BLOCKS" ? "" : "6 4";
                   const marker = EDGE_COLORS[e.type] ? `url(#arrow-${e.type})` : "url(#arrow-default)";
                   return (
