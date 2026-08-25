@@ -1019,11 +1019,56 @@ pre {
   background: #fff;
 }
 
-/* SVG graph: keep it in the same paper-like workspace as the rest of the UI. */
+/* Graph canvas: a quiet coordinate field that supports, rather than competes
+ * with, the semantic color carried by cards, nodes and relationship lines. */
 .ui-graph-canvas {
-  background-color: rgba(250, 251, 252, 0.62);
-  background-image: radial-gradient(circle, #dfe2e8 1px, transparent 1px);
+  background-color: rgba(250, 251, 252, 0.82);
+  background-image:
+    linear-gradient(rgba(225, 229, 236, 0.4) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(225, 229, 236, 0.4) 1px, transparent 1px),
+    radial-gradient(circle at 50% 0%, rgba(23, 105, 224, 0.045), transparent 58%);
+  background-size: 24px 24px, 24px 24px, auto;
 }
+
+/* Atlas headers are DOM chrome, not Cytoscape labels: their type remains
+ * readable when Fit takes a broad overview below a 1:1 canvas zoom. There is
+ * one lightweight header per initiative, never an overlay per graph node. */
+.ui-graph-atlas-header {
+  position: absolute;
+  display: grid;
+  min-width: 0;
+  gap: 0;
+  color: var(--ui-text);
+  font-size: 12px;
+  line-height: 15px;
+  letter-spacing: -0.01em;
+}
+
+.ui-graph-atlas-title {
+  overflow: hidden;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-graph-atlas-metric {
+  overflow: hidden;
+  color: var(--ui-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-graph-atlas-header.tone-0 { color: #1559ae; }
+.ui-graph-atlas-header.tone-1 { color: #5b46b5; }
+.ui-graph-atlas-header.tone-2 { color: #14734c; }
+.ui-graph-atlas-header.tone-3 { color: #885207; }
+.ui-graph-atlas-header.tone-4 { color: #a30d35; }
+.ui-graph-atlas-header.tone-5 { color: #176a73; }
 
 /* Native details marker is noisy in Chromium and Safari. */
 details > summary::-webkit-details-marker {

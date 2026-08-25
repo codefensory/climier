@@ -29,8 +29,8 @@ import { readGraphPalette } from "./graph-palette.mjs";
 
 const EXECUTION_NODE = { width: 184, height: 58 };
 const HISTORY_NODE = { width: 164, height: 52 };
-const ALL_NODE = 18;
-const FIT_PADDING = 48;
+const ALL_NODE = 22;
+const FIT_PADDING = 36;
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 2.8;
 const MODE_LABEL = { execution: "Execution", history: "History", all: "All" };
@@ -178,42 +178,65 @@ function atlasProjection(nodes) {
     if (!byInitiative.has(initiative)) byInitiative.set(initiative, []);
     byInitiative.get(initiative).push(id);
   }
+
+  // This is deliberately a small masonry, rather than a rectangular grid.
+  // A single dense initiative must not create three empty rows beside it and
+  // force the whole atlas into an unusably low zoom level.
   const sections = [...byInitiative.entries()]
     .map(([label, ids]) => ({ label, ids }))
-    .sort((a, b) => a.label.localeCompare(b.label));
-  const columns = Math.max(2, Math.min(4, Math.ceil(Math.sqrt(Math.max(1, sections.length)))));
-  const tileWidth = 312;
-  const tileGap = 36;
-  const rowHeights = [];
+    .sort((a, b) => b.ids.length - a.ids.length || a.label.localeCompare(b.label));
+  const columns = Math.max(1, Math.min(4, sections.length));
+  const tileWidth = 392;
+  const tileGap = 28;
+  const headerHeight = 54;
+  const nodeStep = 27;
   const positions = {};
   const groups = [];
+  const columnHeights = Array(columns).fill(28);
+
   sections.forEach((section, index) => {
-    const column = index % columns;
-    const row = Math.floor(index / columns);
     const count = section.ids.length;
-    const gridColumns = Math.max(3, Math.min(9, Math.ceil(Math.sqrt(count))));
+    // Dense initiatives use more columns inside their card. The nodes still
+    // retain a clear 5 px gap at native scale, but the card grows downward
+    // slowly enough for Fit to use a meaningful desktop zoom.
+    const gridColumns = Math.max(4, Math.min(14, Math.ceil(Math.sqrt(count * 1.7))));
     const gridRows = Math.max(1, Math.ceil(count / gridColumns));
-    const height = 42 + gridRows * 30 + 20;
-    rowHeights[row] = Math.max(rowHeights[row] || 0, height);
-    const x = column * (tileWidth + tileGap);
-    groups.push({ id: `__group__${safeId(section.label)}`, label: section.label, x, row, width: tileWidth, height, ids: section.ids });
+    const height = headerHeight + gridRows * nodeStep + 22;
+    const column = columnHeights.reduce((best, value, candidate) => value < columnHeights[best] ? candidate : best, 0);
+    const left = column * (tileWidth + tileGap);
+    const top = columnHeights[column];
+    const statusCounts = section.ids.reduce((counts, id) => {
+      const current = nodes[id]?.status || "open";
+      counts[current] = (counts[current] || 0) + 1;
+      return counts;
+    }, {});
+    const openCount = statusCounts.open || 0;
+    groups.push({
+      id: `__group__${safeId(section.label)}`,
+      label: section.label,
+      metric: `${count} nodes · ${openCount} open`,
+      x: left + tileWidth / 2,
+      y: top + height / 2,
+      width: tileWidth,
+      height,
+      tone: index % 6,
+      ids: section.ids,
+      gridColumns,
+    });
+    columnHeights[column] += height + tileGap;
   });
-  let y = 32;
-  const rowY = [];
-  for (let row = 0; row < rowHeights.length; row += 1) {
-    rowY[row] = y;
-    y += rowHeights[row] + tileGap;
-  }
+
   for (const group of groups) {
-    group.y = rowY[group.row];
-    group.x += group.width / 2;
-    const gridColumns = Math.max(3, Math.min(9, Math.ceil(Math.sqrt(group.ids.length))));
     group.ids.forEach((id, index) => {
-      const col = index % gridColumns;
-      const row = Math.floor(index / gridColumns);
-      positions[id] = { x: group.x - group.width / 2 + 24 + col * 29, y: group.y + 42 + row * 30 };
+      const col = index % group.gridColumns;
+      const row = Math.floor(index / group.gridColumns);
+      positions[id] = {
+        x: group.x - group.width / 2 + 25 + col * nodeStep,
+        y: group.y - group.height / 2 + headerHeight + 11 + row * nodeStep,
+      };
     });
     delete group.ids;
+    delete group.gridColumns;
   }
   return { positions, groups, size: { width: ALL_NODE, height: ALL_NODE } };
 }
@@ -262,7 +285,9 @@ function buildStyle(palette) {
       },
     },
     { selector: "node.history-node", style: { width: HISTORY_NODE.width, height: HISTORY_NODE.height, "text-max-width": 138 } },
-    { selector: "node.all-node", style: { width: ALL_NODE, height: ALL_NODE, label: "", "border-width": 1.25 } },
+    { selector: "node.all-node", style: { width: ALL_NODE, height: ALL_NODE, label: "", "border-width": 1.65, "background-opacity": 0.2 } },
+    ...Object.entries(status).map(([name, value]) => ({ selector: `node.all-node[status = "${name}"]`, style: { "background-color": value.stroke, "border-color": value.stroke } })),
+    { selector: "node.all-node.closed", style: { opacity: 0.76 } },
     { selector: "node.gate", style: { shape: "diamond", "background-color": palette.gateFill } },
     { selector: "node.knowledge", style: { shape: "ellipse", "background-color": palette.knowledgeFill } },
     ...Object.entries(status).map(([name, value]) => ({ selector: `node[status = "${name}"]`, style: { "border-color": value.stroke } })),
@@ -275,13 +300,20 @@ function buildStyle(palette) {
       selector: "node.group",
       style: {
         width: "data(width)", height: "data(height)", label: "data(label)",
-        shape: "round-rectangle", "background-color": "#ffffff", "background-opacity": 0.52,
-        "border-color": "#d9dde5", "border-width": 1, "border-style": "solid",
-        color: "#717886", "font-size": 11, "font-weight": 600,
-        "text-valign": "top", "text-halign": "left", "text-margin-x": 12, "text-margin-y": 9,
+        shape: "round-rectangle", "background-color": "#ffffff", "background-opacity": 0.72,
+        "border-color": "#cfd5df", "border-width": 1.25, "border-style": "solid",
+        color: "#596171", "font-size": 12, "font-weight": 700,
+        "text-valign": "top", "text-halign": "left", "text-margin-x": 14, "text-margin-y": 10,
         "z-index": 0, events: "no",
       },
     },
+    { selector: "node.group.all-group", style: { label: "", "background-opacity": 0.9 } },
+    { selector: "node.group.all-group.tone-0", style: { "background-color": "#edf5ff", "border-color": "#b9d4ff" } },
+    { selector: "node.group.all-group.tone-1", style: { "background-color": "#f2efff", "border-color": "#d5cbff" } },
+    { selector: "node.group.all-group.tone-2", style: { "background-color": "#ebfbf3", "border-color": "#b9e8d0" } },
+    { selector: "node.group.all-group.tone-3", style: { "background-color": "#fff7e8", "border-color": "#f0d39c" } },
+    { selector: "node.group.all-group.tone-4", style: { "background-color": "#fff1f3", "border-color": "#fecdd6" } },
+    { selector: "node.group.all-group.tone-5", style: { "background-color": "#eef7f8", "border-color": "#b9e2e7" } },
     {
       selector: "edge",
       style: {
@@ -313,11 +345,61 @@ function fallbackPalette() {
   };
 }
 
-function relationshipEdges(edges, mode, selected, relationMode) {
+function overviewEdges(nodes, edges) {
+  // All can contain hundreds of BLOCKS edges. Drawing all of them answers
+  // nothing: the map turns into a red knot. Keep a representative backbone:
+  // bridges between initiatives first, then a few high-signal local links per
+  // card. Selecting a node always adds its complete incident set below.
+  const initiatives = new Set(Object.values(nodes).map(initiativeOf));
+  const budget = Math.min(42, Math.max(16, initiatives.size * 3));
+  const activity = (node) => CLOSED.has(node?.status || "open") ? 0 : 1;
+  const sorted = [...edges].sort((left, right) => {
+    const leftCross = initiativeOf(nodes[left.from]) !== initiativeOf(nodes[left.to]) ? 1 : 0;
+    const rightCross = initiativeOf(nodes[right.from]) !== initiativeOf(nodes[right.to]) ? 1 : 0;
+    const leftScore = leftCross * 8 + activity(nodes[left.from]) + activity(nodes[left.to]);
+    const rightScore = rightCross * 8 + activity(nodes[right.from]) + activity(nodes[right.to]);
+    return rightScore - leftScore || `${left.from}>${left.to}:${left.type || ""}`.localeCompare(`${right.from}>${right.to}:${right.type || ""}`);
+  });
+  const picked = [];
+  const seen = new Set();
+  const localCounts = new Map();
+  const add = (edge) => {
+    const key = `${edge.from}>${edge.to}:${edge.type || ""}`;
+    if (seen.has(key) || picked.length >= budget) return false;
+    seen.add(key); picked.push(edge); return true;
+  };
+
+  // Cross-initiative links explain hand-offs, but are capped so they cannot
+  // dominate a dense snapshot.
+  for (const edge of sorted) {
+    if (initiativeOf(nodes[edge.from]) !== initiativeOf(nodes[edge.to])) add(edge);
+    if (picked.length >= Math.min(16, budget)) break;
+  }
+  for (const edge of sorted) {
+    const sourceInitiative = initiativeOf(nodes[edge.from]);
+    if (initiativeOf(nodes[edge.to]) !== sourceInitiative) continue;
+    if ((localCounts.get(sourceInitiative) || 0) >= 3) continue;
+    if (add(edge)) localCounts.set(sourceInitiative, (localCounts.get(sourceInitiative) || 0) + 1);
+  }
+  for (const edge of sorted) {
+    if (picked.length >= budget) break;
+    add(edge);
+  }
+  return picked;
+}
+
+function relationshipEdges(nodes, edges, mode, selected, relationMode) {
   if (relationMode === "all") return edges;
   if (relationMode === "selected") return selected ? edges.filter((edge) => edge.from === selected || edge.to === selected) : [];
-  // The overview keeps the operational skeleton visible but does not render
-  // every neutral relation. This is the default that keeps All readable.
+  if (mode === "all") {
+    const core = overviewEdges(nodes, edges);
+    // Detail is progressive: the atlas stays quiet until a node is selected,
+    // then all of that node's relationships become visible without asking the
+    // user to change a control.
+    if (!selected) return core;
+    const coreKeys = new Set(core.map((edge) => `${edge.from}>${edge.to}:${edge.type || ""}`));
+    return [...core, ...edges.filter((edge) => (edge.from === selected || edge.to === selected) && !coreKeys.has(`${edge.from}>${edge.to}:${edge.type || ""}`))];
+  }
   return edges.filter((edge) => edge.type === "BLOCKS" || (mode === "history" && (edge.type === "SUPERSEDES" || edge.type === "DERIVED_FROM")));
 }
 
@@ -338,6 +420,7 @@ export default function Graph() {
   const [relationMode, setRelationMode] = createSignal("overview");
   const [zoom, setZoom] = createSignal(1);
   const [narrow, setNarrow] = createSignal(false);
+  const [atlasHeaders, setAtlasHeaders] = createSignal([]);
   let host;
   let cy;
   let resizeObserver;
@@ -345,6 +428,7 @@ export default function Graph() {
   let disposed = false;
   let topologyKey = "";
   let shouldFit = true;
+  let atlasHeaderFrame;
 
   const nodes = () => snapshot()?.nodes || {};
   const edges = () => snapshot()?.edges || [];
@@ -355,7 +439,7 @@ export default function Graph() {
     const set = filteredSet();
     return { nodes: set.nodes, edges: set.edges.filter((edge) => set.nodes[edge.from] && set.nodes[edge.to]) };
   });
-  const displayEdges = createMemo(() => relationshipEdges(validSet().edges, mode(), selectedId(), relationMode()));
+  const displayEdges = createMemo(() => relationshipEdges(validSet().nodes, validSet().edges, mode(), selectedId(), relationMode()));
   const projection = createMemo(() => projectionFor(validSet().nodes, validSet().edges, mode()));
   const nodeCount = createMemo(() => Object.keys(validSet().nodes).length);
   const initiatives = createMemo(() => [...new Set(Object.values(nodes()).map(initiativeOf))].sort((a, b) => a.localeCompare(b)));
@@ -372,8 +456,8 @@ export default function Graph() {
     const currentZoom = zoom();
     const elements = layout.groups.map((group) => ({
       group: "nodes",
-      data: { id: group.id, label: group.label, width: group.width, height: group.height },
-      position: { x: group.x, y: group.y }, classes: "group", selectable: false, grabbable: false, locked: true,
+      data: { id: group.id, label: mode() === "all" ? "" : group.label, width: group.width, height: group.height },
+      position: { x: group.x, y: group.y }, classes: `group ${mode() === "all" ? `all-group tone-${group.tone}` : ""}`, selectable: false, grabbable: false, locked: true,
     }));
     for (const [id, node] of Object.entries(current.nodes)) {
       const nodeKind = kindFor(node);
@@ -402,12 +486,36 @@ export default function Graph() {
     return cy?.nodes().filter((node) => !node.hasClass("group"));
   }
 
+  function syncAtlasHeaders() {
+    if (!cy || mode() !== "all") { setAtlasHeaders([]); return; }
+    const pan = cy.pan();
+    const currentZoom = cy.zoom();
+    const { width: hostWidth, height: hostHeight } = host.getBoundingClientRect();
+    const headers = projection().groups.map((group) => {
+      const left = (group.x - group.width / 2) * currentZoom + pan.x;
+      const top = (group.y - group.height / 2) * currentZoom + pan.y;
+      const width = group.width * currentZoom;
+      return { ...group, left, top, width, visible: left + width > 0 && left < hostWidth && top + 34 > 0 && top < hostHeight };
+    }).filter((group) => group.visible && group.width > 84);
+    setAtlasHeaders(headers);
+  }
+
+  function scheduleAtlasHeaders() {
+    cancelAnimationFrame(atlasHeaderFrame);
+    atlasHeaderFrame = requestAnimationFrame(syncAtlasHeaders);
+  }
+
   function fitGraph() {
-    const real = realNodes();
-    if (!cy || !real?.length) return;
+    // In All the cards carry essential grouping context, so include their
+    // finite bounds in Fit. Other modes retain their node-only camera to keep
+    // execution/history lanes from adding decorative empty space.
+    if (!cy) return;
+    const fitElements = mode() === "all" ? cy.nodes() : realNodes();
+    if (!fitElements?.length) return;
     cy.resize();
-    cy.fit(real, FIT_PADDING);
+    cy.fit(fitElements, FIT_PADDING);
     setZoom(cy.zoom());
+    scheduleAtlasHeaders();
   }
 
   function centerNode(id) {
@@ -466,6 +574,7 @@ export default function Graph() {
     cy.add(makeElements());
     applySelection();
     refreshLabels();
+    scheduleAtlasHeaders();
     if (shouldFit) requestAnimationFrame(fitGraph);
     shouldFit = false;
   }
@@ -503,6 +612,7 @@ export default function Graph() {
     if (!cy) return;
     const next = cy.zoom();
     if (Math.abs(next - zoom()) > 0.03) setZoom(next);
+    scheduleAtlasHeaders();
   }
 
   createEffect(() => {
@@ -544,6 +654,7 @@ export default function Graph() {
       wheelSensitivity: 0.28, autoungrabify: true, boxSelectionEnabled: false,
     });
     cy.on("zoom", onZoom);
+    cy.on("pan", scheduleAtlasHeaders);
     cy.on("tap", (event) => { if (event.target === cy) select(null); });
     cy.on("tap", "node", (event) => { if (!event.target.hasClass("group")) select(event.target.id()); });
     resizeObserver = new ResizeObserver(() => { if (cy) { cy.resize(); fitGraph(); } });
@@ -558,6 +669,7 @@ export default function Graph() {
   onCleanup(() => {
     disposed = true;
     resizeObserver?.disconnect();
+    cancelAnimationFrame(atlasHeaderFrame);
     if (onWindowResize) window.removeEventListener("resize", onWindowResize);
     if (cy) { cy.destroy(); cy = null; }
   });
@@ -569,7 +681,7 @@ export default function Graph() {
           eyebrow="Monitor"
           title="Graph"
           subtitle={MODE_HINT[mode()]}
-          meta={`${nodeCount()} nodes · ${displayEdges().length}/${validSet().edges.length} relations`}
+          meta={mode() === "all" ? `${nodeCount()} nodes · ${displayEdges().length} highlighted / ${validSet().edges.length} total relations` : `${nodeCount()} nodes · ${displayEdges().length}/${validSet().edges.length} relations`}
         />
         <div class="mt-4 ui-filter-bar flex flex-wrap items-center gap-2 rounded-control border border-line bg-panel p-2">
           <div class="inline-flex items-center rounded-control bg-mid p-0.5" role="group" aria-label="Graph view mode">
@@ -593,7 +705,7 @@ export default function Graph() {
             <For each={kinds()}>{(item) => <option value={item}>{item}</option>}</For>
           </select>
           <select class={CONTROL} value={relationMode()} onChange={(event) => { shouldFit = false; setRelationMode(event.currentTarget.value); }} aria-label="Relationship disclosure">
-            <option value="overview">Core relations</option>
+            <option value="overview">Overview links</option>
             <option value="selected">Selected node only</option>
             <option value="all">All relations</option>
           </select>
@@ -625,6 +737,16 @@ export default function Graph() {
           <div class="absolute inset-0">
             <div ref={host} style={{ width: "100%", height: "100%", touchAction: "none" }} />
           </div>
+          <Show when={mode() === "all" && atlasHeaders().length}>
+            <div class="pointer-events-none absolute inset-0 z-[1] overflow-hidden" aria-hidden="true">
+              <For each={atlasHeaders()}>{(header) => (
+                <div class={`ui-graph-atlas-header tone-${header.tone}`} style={{ left: `${header.left + 10}px`, top: `${header.top + 9}px`, width: `${Math.max(74, header.width - 20)}px` }}>
+                  <span class="ui-graph-atlas-title">{header.label}</span>
+                  <span class="ui-graph-atlas-metric">{header.metric}</span>
+                </div>
+              )}</For>
+            </div>
+          </Show>
           <Show when={narrow()} fallback={<>
             <Show when={mismatch() && !validSet().nodes[selectedId()]}>
               <div class="absolute left-3 top-3 z-10 max-w-xl"><AlertBanner tone="info" title="Selected node is outside this view"><button type="button" class="underline" onClick={() => changeMode(mismatch())}>Switch to {MODE_LABEL[mismatch()]} to inspect it in the graph.</button></AlertBanner></div>
