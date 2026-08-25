@@ -47,6 +47,7 @@ import { useStore } from "../store.jsx";
 import { projectDisplayName } from "../shell.mjs";
 import {
   PageHeader,
+  PageLayout,
   Panel,
   MetricCard,
   StatusBadge,
@@ -579,7 +580,7 @@ export default function Overview() {
   const recordMemo = createMemo(() => projectRecord(sum()));
 
   return (
-    <div class="mx-auto max-w-[1440px] p-5 md:p-8">
+    <PageLayout>
       {/* 1. Header */}
       <PageHeader
         eyebrow="Registered Climier work only"
@@ -590,7 +591,7 @@ export default function Overview() {
 
       {/* 2. Global alerts grouped by kind */}
       <Show when={alertsByKind().length > 0}>
-        <div class="mt-6 space-y-3">
+        <div class="space-y-3">
           <For each={alertsByKind()}>
             {([kind, alerts]) => (
               <AlertBanner tone={ALERT_TONES[kind] || "warning"} title={ALERT_TITLES[kind] || kind}>
@@ -622,7 +623,7 @@ export default function Overview() {
       </Show>
 
       {/* 3. Operational status — 4 primary metrics, real buttons to Board */}
-      <div class="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <For each={metrics()}>
           {(m) => (
             <MetricCard
@@ -637,7 +638,7 @@ export default function Overview() {
       </div>
 
       {/* 4. Work now — real ready / in-progress task lists */}
-      <div class="mt-6 grid gap-4 lg:grid-cols-2">
+      <div class="grid gap-4 lg:grid-cols-2">
         <Panel
           title="Ready now"
           eyebrow="Work now"
@@ -694,7 +695,7 @@ export default function Overview() {
       </div>
 
       {/* 5. Needs attention — only when there is something to coordinate */}
-      <div class="mt-6">
+      <div>
         <Panel title="Needs attention">
           <Show
             when={hasAttentionItems()}
@@ -712,7 +713,7 @@ export default function Overview() {
       </div>
 
       {/* 6. Initiatives — one card per initiative, segmented by task states */}
-      <div class="mt-6">
+      <div>
         <Panel title="Initiatives">
           <Show
             when={initiativeRowsMemo().length > 0}
@@ -728,7 +729,7 @@ export default function Overview() {
       </div>
 
       {/* 7+8. Recent activity + Project record — 8/4 column split */}
-      <div class="mt-6 grid gap-4 lg:grid-cols-12">
+      <div class="grid gap-4 lg:grid-cols-12">
         <div class="lg:col-span-8">
           <Panel
             title="Recent activity"
@@ -766,6 +767,6 @@ export default function Overview() {
           </Panel>
         </div>
       </div>
-    </div>
+    </PageLayout>
   );
 }

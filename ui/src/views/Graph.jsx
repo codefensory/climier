@@ -1,6 +1,6 @@
 import { createEffect, createMemo, createSignal, onCleanup, onMount, Show, For } from "solid-js";
 import { useStore } from "../store.jsx";
-import { Empty, AlertBanner, FilterBar, PageHeader } from "../components.jsx";
+import { Empty, AlertBanner, FilterBar, PageHeader, PageLayout } from "../components.jsx";
 import {
   kindFor,
   computeLayout,
@@ -280,8 +280,8 @@ export default function Graph() {
     "focus:border-mid focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2";
 
   return (
-    <div class="flex h-full flex-col">
-      <div class="border-b border-line px-5 pt-5 pb-3 md:px-8">
+    <PageLayout mode="workspace">
+      <div class="ui-workspace-header">
         <PageHeader
           eyebrow="Monitor"
           title="Graph"
@@ -350,7 +350,7 @@ export default function Graph() {
         </div>
       </div>
 
-      <div class="ui-graph-canvas relative flex-1 overflow-hidden [background-size:24px_24px]">
+      <div class="ui-workspace-body ui-graph-canvas relative flex-1 overflow-hidden [background-size:24px_24px]">
         <Show when={Object.keys(visible().nodes).length} fallback={<div class="p-8"><Empty>No nodes match the current filters.</Empty></div>}>
           <Show when={showIsolation()}>
             <div class="absolute inset-x-0 top-3 z-10 px-4">
@@ -433,6 +433,6 @@ export default function Graph() {
           </svg>
         </Show>
       </div>
-    </div>
+    </PageLayout>
   );
 }

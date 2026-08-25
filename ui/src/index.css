@@ -263,12 +263,79 @@ pre {
   background: rgba(246, 247, 249, 0.48);
 }
 
+.ui-page-layout {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ui-page-layout-standard {
+  width: min(100%, 1440px);
+  min-height: 100%;
+  margin-inline: auto;
+  padding: 28px 32px 40px;
+  gap: 20px;
+}
+
+.ui-page-layout-workspace {
+  height: 100%;
+  min-height: 0;
+}
+
+.ui-page-layout-standard > .ui-page-header {
+  flex-shrink: 0;
+}
+
+.ui-page-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.ui-page-results {
+  min-width: 0;
+}
+
+.ui-workspace-header {
+  flex-shrink: 0;
+  padding: 28px 32px 16px;
+  border-bottom: 1px solid var(--ui-line);
+}
+
+.ui-workspace-header .ui-page-header {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.ui-workspace-body {
+  min-width: 0;
+  padding: 0 32px 24px;
+}
+
 .ui-page-header {
   border-color: var(--ui-line);
 }
 
 .ui-page-header h1 {
   letter-spacing: -0.035em;
+}
+
+@media (max-width: 767px) {
+  .ui-page-layout-standard {
+    padding: 20px 16px 28px;
+    gap: 16px;
+  }
+
+  .ui-workspace-header {
+    padding: 20px 16px 14px;
+  }
+
+  .ui-workspace-body {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
 }
 
 @media (max-width: 640px) {

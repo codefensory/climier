@@ -18,7 +18,7 @@
 import { createSignal, Show, For, createEffect, onCleanup, createMemo } from "solid-js";
 import { getActivity } from "../api.js";
 import { useStore } from "../store.jsx";
-import { fmtTime, PageHeader } from "../components.jsx";
+import { fmtTime, PageHeader, PageLayout } from "../components.jsx";
 
 const DEBOUNCE_MS = 280;
 const PAGE_SIZES = [25, 50, 100, 200];
@@ -260,16 +260,15 @@ export default function Activity() {
   }
 
   return (
-    <div class="flex h-full flex-col">
-      <div class="px-5 pt-5 md:px-8 md:pt-7">
-        <PageHeader
-          eyebrow="Audit"
-          title="Activity"
-          subtitle="A chronological, read-only record of changes across the project."
-          meta={`${total()} entries`}
-        />
-      </div>
-      <div class="ui-filter-bar mx-5 mt-4 flex flex-wrap items-center gap-2 rounded-control border border-line px-3 py-3 md:mx-8">
+    <PageLayout>
+      <PageHeader
+        eyebrow="Audit"
+        title="Activity"
+        subtitle="A chronological, read-only record of changes across the project."
+        meta={`${total()} entries`}
+        sticky
+      />
+      <div class="ui-filter-bar flex flex-wrap items-center gap-2 rounded-control border border-line px-3 py-3">
         <input
           class={`${FILTER_INPUT_CLS} w-48`}
           placeholder="Search (q)…"
@@ -389,8 +388,8 @@ export default function Activity() {
                 </div>
               }
             >
-              <div class="ui-panel mx-5 mt-4 overflow-hidden rounded-card border border-line bg-panel md:mx-8">
-              <table class="w-full text-sm ui-table">
+              <div class="ui-panel overflow-hidden rounded-card border border-line bg-panel">
+                <table class="w-full text-sm ui-table">
                 <thead class="sticky top-0 bg-canvas">
                   <tr class="text-left text-[11px] uppercase tracking-wider text-mute">
                     <th class="px-2 py-2">
@@ -419,7 +418,7 @@ export default function Activity() {
                     }}
                   </For>
                 </tbody>
-              </table>
+                </table>
               </div>
             </Show>
           </Show>
@@ -449,6 +448,6 @@ export default function Activity() {
           Older →
         </button>
       </div>
-    </div>
+    </PageLayout>
   );
 }

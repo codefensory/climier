@@ -25,6 +25,7 @@ import { Portal } from "solid-js/web";
 import { useStore } from "../store.jsx";
 import {
   AlertBanner,
+  Chip,
   ClaimTime,
   EmptyState,
   IconButton,
@@ -296,7 +297,7 @@ export default function NodeDetail() {
       class="ui-drawer fixed right-3 top-3 bottom-3 z-50 flex w-[min(1120px,calc(100vw-48px))] flex-col overflow-hidden rounded-[18px] border border-line bg-panel shadow-md"
     >
       {/* ── Header ─────────────────────────────────────────────────── */}
-      <header class="ui-drawer-topbar relative z-10 grid shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b border-line px-3">
+      <header class="ui-drawer-topbar sticky top-0 relative z-10 grid shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b border-line px-3">
         <div class="flex min-w-0 items-center gap-2">
           <IconButton size="sm" label="Back" onClick={goBack}>
             <span class="text-[14px]" aria-hidden="true">←</span>

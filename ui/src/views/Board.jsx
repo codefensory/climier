@@ -32,6 +32,7 @@ import { createMemo, createSignal, Show, For } from "solid-js";
 import { useStore } from "../store.jsx";
 import {
   PageHeader,
+  PageLayout,
   Panel,
   Chip,
   StatusBadge,
@@ -381,8 +382,8 @@ export default function Board() {
   });
 
   return (
-    <div class="flex h-full min-h-0 flex-col">
-      <div class="px-5 pt-5 pb-4 md:px-8 md:pt-7">
+    <PageLayout mode="workspace">
+      <div class="ui-workspace-header">
         <PageHeader
           eyebrow="Work"
           title="Board"
@@ -390,7 +391,7 @@ export default function Board() {
         />
       </div>
 
-      <div class="flex min-h-0 flex-1 flex-col gap-4 px-5 pb-6 md:px-8">
+      <div class="ui-workspace-body flex min-h-0 flex-1 flex-col gap-4">
         <FilterBar
           label="Filters"
           hint={
@@ -507,6 +508,6 @@ export default function Board() {
           </div>
         </Show>
       </div>
-    </div>
+    </PageLayout>
   );
 }

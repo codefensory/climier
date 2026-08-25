@@ -133,6 +133,7 @@ space. The right rail also keeps properties and recent activity close at hand.
 
 Shared presentation primitives live in `ui/src/components.jsx`:
 
+- `PageLayout` — shared reading-width page frame, with a full-height workspace variant for Board and Graph.
 - `PageHeader` — eyebrow, title, subtitle, meta and actions.
 - `Panel` — neutral surface with hairline border; no heavy shadow by default.
 - `MetricCard` — operational count; becomes a button only with a real target.

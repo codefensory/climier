@@ -22,6 +22,7 @@ import { createMemo, createSignal, Show, For } from "solid-js";
 import { useStore } from "../store.jsx";
 import {
   PageHeader,
+  PageLayout,
   FilterBar,
   StatusBadge,
   Chip,
@@ -254,12 +255,13 @@ export default function Nodes() {
   };
 
   return (
-    <div class="flex h-full flex-col gap-4 p-5 md:p-8">
+    <PageLayout>
       <PageHeader
         title="Tasks"
         eyebrow="Work"
         subtitle="Track every task and its current state."
         meta={totalLabel()}
+        sticky
       />
 
       <FilterBar
@@ -477,6 +479,6 @@ export default function Nodes() {
           </div>
         </Show>
       </div>
-    </div>
+    </PageLayout>
   );
 }

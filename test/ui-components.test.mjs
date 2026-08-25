@@ -44,6 +44,7 @@ const skip = UI_DEPS_OK ? false : "ui dependencies not installed (run npm instal
 // Primitives required by the Fase 2 F2b contract (task body + ui/DESIGN.md §4).
 const REQUIRED_EXPORTS = [
   "PageHeader",
+  "PageLayout",
   "Panel",
   "MetricCard",
   "StatusBadge",
@@ -119,6 +120,19 @@ test("components.jsx exists and exports every required primitive", { skip }, asy
   for (const name of REQUIRED_EXPORTS) {
     assert.equal(typeof mod[name], "function", `expected ${name} to be exported as a function`);
   }
+});
+
+test("PageLayout provides the shared standard and workspace frames", { skip }, async (t) => {
+  const { module: mod } = await compileComponents(t);
+  const { renderToString } = await UI_REQUIRE("solid-js/web");
+
+  const standard = renderToString(() => mod.PageLayout({ children: "content" }));
+  assert.ok(standard.includes("ui-page-layout-standard"));
+  assert.ok(!standard.includes("ui-page-layout-workspace"));
+
+  const workspace = renderToString(() => mod.PageLayout({ mode: "workspace", children: "canvas" }));
+  assert.ok(workspace.includes("ui-page-layout-workspace"));
+  assert.ok(workspace.includes("canvas"));
 });
 
 test("components.jsx keeps legacy exports for current views", { skip }, async (t) => {

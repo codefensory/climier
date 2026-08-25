@@ -96,6 +96,20 @@ export function PageHeader(props) {
   );
 }
 
+// === PageLayout ============================================================
+// Shared page frame. Standard pages use one reading-width container and one
+// spacing rhythm; workspace pages (Board / Graph) keep the full viewport
+// height for their own canvas while sharing the same header gutters.
+export function PageLayout(props) {
+  const workspace = props.mode === "workspace";
+  const variant = workspace ? "ui-page-layout-workspace" : "ui-page-layout-standard";
+  return (
+    <div class={`ui-page-layout ${variant} ${props.class || ""}`}>
+      {props.children}
+    </div>
+  );
+}
+
 // === Panel =================================================================
 // Surface card. Hairline border, card radius, no shadow by default.
 // Header is optional; footer is optional; body padding is configurable.

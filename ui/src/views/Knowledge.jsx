@@ -10,7 +10,7 @@
 //      hierarchy — distinctly softer than the body — so the operator can
 //      scan "what to do about it" without it dominating the title.
 //   4. Cards live inside a 2-column grid only when the viewport is wide
-//      enough; on smaller screens they stack. A `max-w-[1280px]` wrapper
+//      enough; on smaller screens they stack. The shared 1440px page frame
 //      keeps reading width controlled on big monitors.
 //   5. The semantic accent sits on the badges/icon, not on a coloured
 //      border around every card. Cards share the same hairline neutral
@@ -35,6 +35,7 @@ import { createMemo, createSignal, Show, For } from "solid-js";
 import { useStore } from "../store.jsx";
 import {
   PageHeader,
+  PageLayout,
   FilterBar,
   Panel,
   EmptyState,
@@ -370,7 +371,7 @@ export default function Knowledge() {
   }
 
   return (
-    <div class="flex h-full flex-col">
+    <PageLayout>
       <PageHeader
         eyebrow="Context"
         title="Knowledge"
@@ -391,8 +392,8 @@ export default function Knowledge() {
         sticky
       />
 
-      <div class="border-b border-line bg-canvas/70 px-4 py-3">
-        <div class="mx-auto max-w-[1280px]">
+      <div class="ui-page-controls">
+        <div>
           <div
             role="tablist"
             class="ui-tab-strip flex flex-wrap items-center gap-1 rounded-control border border-line p-1"
@@ -495,8 +496,8 @@ export default function Knowledge() {
         </div>
       </div>
 
-      <div class="flex-1 overflow-auto">
-        <div class="mx-auto max-w-[1280px] p-5 lg:p-8">
+      <div class="ui-page-results">
+        <div>
           <Show
             when={allKnowledge().length > 0}
             fallback={
@@ -544,6 +545,6 @@ export default function Knowledge() {
           </Show>
         </div>
       </div>
-    </div>
+    </PageLayout>
   );
 }

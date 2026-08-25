@@ -6,7 +6,7 @@
 //      gate is `from` and the target is still actionable).
 //   3. Resolved gates preview only the choice + a 2-line clamp of the
 //      rationale; full body lives behind the existing NodeDetail drawer.
-//   4. Reading width is bounded (max-w-[1280px]) on big monitors; rows
+//   4. Reading width is bounded by the shared 1440px page frame on big monitors; rows
 //      don't stretch edge-to-edge forever.
 //   5. Order is by initiative first, then status (open first), with impact
 //      as the tiebreaker — never id alone.
@@ -23,6 +23,7 @@ import { createMemo, createSignal, Show, For } from "solid-js";
 import { useStore } from "../store.jsx";
 import {
   PageHeader,
+  PageLayout,
   FilterBar,
   Panel,
   EmptyState,
@@ -265,7 +266,7 @@ export default function Gates() {
     Boolean(q() || initiative() || purpose() || tab() !== "all");
 
   return (
-    <div class="flex h-full flex-col">
+    <PageLayout>
       <PageHeader
         eyebrow="Decisions"
         title="Gates"
@@ -282,8 +283,8 @@ export default function Gates() {
         sticky
       />
 
-      <div class="border-b border-line bg-canvas/70 px-4 py-3">
-        <div class="mx-auto max-w-[1280px]">
+      <div class="ui-page-controls">
+        <div>
           <div
             role="tablist"
             class="ui-tab-strip flex flex-wrap items-center gap-1 rounded-control border border-line p-1"
@@ -358,8 +359,8 @@ export default function Gates() {
         </div>
       </div>
 
-      <div class="flex-1 overflow-auto">
-        <div class="mx-auto max-w-[1280px] space-y-6 p-5 lg:p-8">
+      <div class="ui-page-results space-y-6">
+        <div>
           <Show when={grouped().length === 0}>
             <Show
               when={filterIsActive()}
@@ -428,6 +429,6 @@ export default function Gates() {
           </For>
         </div>
       </div>
-    </div>
+    </PageLayout>
   );
 }
