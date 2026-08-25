@@ -126,8 +126,8 @@ content allows:
 The drawer hierarchy is: alert → title and status line → specification →
 blockers → visible Notes → one vertical stack of collapsible knowledge/refs/
 relationships sections. Notes keep the CLI vocabulary but render as a quiet
-author thread with an avatar rail, metadata and lightly bordered bodies, so
-coordination is readable without another disclosure. History is intentionally
+compact author thread with a small avatar rail, restrained metadata and
+lightly bordered bodies, so coordination is readable without another disclosure. History is intentionally
 kept in the right-rail Activity tab, alongside properties and recent activity;
 the CLI command and node metadata also live in that rail, keeping the main
 reading flow clean and using the available space.

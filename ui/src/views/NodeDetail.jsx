@@ -899,7 +899,6 @@ function NotesSection(props) {
         <h3 id="detail-notes-title" class="text-section text-ink">
           Notes <span class="ui-detail-notes-count">({notes().length})</span>
         </h3>
-        <span class="mono text-[12px] text-mute">Append-only</span>
       </div>
       <Show when={notes().length} fallback={
         <EmptyState variant="compact" title="No notes yet." />

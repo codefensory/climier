@@ -614,7 +614,7 @@ pre {
  * issue thread without turning them into another dense disclosure card. */
 .ui-detail-notes {
   border-top: 1px solid var(--ui-line);
-  padding-top: 20px;
+  padding-top: 16px;
 }
 
 .ui-detail-notes-header {
@@ -622,7 +622,7 @@ pre {
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
 }
 
 .ui-detail-notes-header h3 {
@@ -638,7 +638,7 @@ pre {
 
 .ui-notes-thread {
   display: grid;
-  gap: 18px;
+  gap: 12px;
   list-style: none;
   margin: 0;
   padding: 0;
@@ -647,16 +647,16 @@ pre {
 .ui-note {
   position: relative;
   display: grid;
-  grid-template-columns: 32px minmax(0, 1fr);
-  gap: 10px;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 8px;
   min-width: 0;
 }
 
 .ui-note:not(:last-child)::before {
   position: absolute;
-  top: 32px;
-  bottom: -18px;
-  left: 15px;
+  top: 24px;
+  bottom: -12px;
+  left: 11px;
   width: 1px;
   background: var(--ui-line);
   content: "";
@@ -666,15 +666,15 @@ pre {
   position: relative;
   z-index: 1;
   display: grid;
-  width: 32px;
-  height: 32px;
+  width: 24px;
+  height: 24px;
   place-items: center;
-  border: 1px solid #cfe2ff;
+  border: 1px solid var(--ui-line-strong);
   border-radius: 50%;
-  background: var(--ui-blue-soft);
-  color: var(--ui-blue);
+  background: var(--ui-panel-solid);
+  color: var(--ui-muted);
   font-size: 11px;
-  font-weight: 750;
+  font-weight: 700;
   letter-spacing: -0.02em;
 }
 
@@ -684,16 +684,16 @@ pre {
 
 .ui-note-meta {
   display: flex;
-  min-height: 32px;
+  min-height: 24px;
   align-items: center;
   flex-wrap: wrap;
-  gap: 7px;
+  gap: 6px;
   color: var(--ui-muted);
 }
 
 .ui-note-author {
   color: var(--ui-text);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 650;
 }
 
@@ -702,22 +702,23 @@ pre {
 }
 
 .ui-note-body {
-  margin-top: 6px;
+  margin-top: 3px;
   border: 1px solid var(--ui-line);
-  border-radius: 9px;
-  background: rgba(255, 255, 255, 0.72);
-  padding: 10px 12px;
+  border-radius: 7px;
+  background: rgba(250, 251, 252, 0.72);
+  padding: 7px 10px;
   overflow-wrap: anywhere;
 }
 
 .ui-note:hover .ui-note-body {
   border-color: var(--ui-line-strong);
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--ui-panel-solid);
 }
 
 .ui-note--validation .ui-note-avatar {
   border-color: #b9d4ff;
   background: var(--ui-blue-soft);
+  color: var(--ui-blue);
 }
 
 .ui-note--validation .ui-note-body {
@@ -727,15 +728,15 @@ pre {
 
 .ui-note-badge {
   border: 1px solid rgba(23, 105, 224, 0.28);
-  border-radius: 9999px;
+  border-radius: 5px;
   background: var(--ui-panel-solid);
-  padding: 2px 6px;
+  padding: 1px 5px;
   color: var(--ui-blue);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
   font-size: 12px;
   line-height: 16px;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
 }
 
 .ui-summary-dot {
