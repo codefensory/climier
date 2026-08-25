@@ -46,8 +46,8 @@ test("routes.mjs exists and exports the expected helpers", () => {
   assert.equal(typeof writeHashRoute, "function");
 });
 
-test("ROUTE_META covers the seven required views", () => {
-  const required = ["overview", "board", "graph", "tasks", "gates", "knowledge", "activity"];
+test("ROUTE_META covers the six required views", () => {
+  const required = ["overview", "board", "tasks", "gates", "knowledge", "activity"];
   for (const id of required) {
     assert.ok(ROUTE_META[id], `ROUTE_META.${id} must exist`);
     assert.equal(typeof ROUTE_META[id].label, "string", `${id} needs a label`);
@@ -71,9 +71,9 @@ test("NAV_GROUPS order and composition match the plan", () => {
   const labels = NAV_GROUPS.map((g) => g.label);
   assert.deepEqual(labels, ["Monitor", "Work", "Context", "Audit"]);
 
-  // Monitor must hold Overview/Board/Graph (no Activity fallback target).
+  // Monitor must hold Overview/Board (no Activity fallback target).
   const monitor = NAV_GROUPS.find((g) => g.label === "Monitor");
-  assert.deepEqual(monitor.ids, ["overview", "board", "graph"]);
+  assert.deepEqual(monitor.ids, ["overview", "board"]);
 
   // Work must hold Tasks/Gates.
   const work = NAV_GROUPS.find((g) => g.label === "Work");
