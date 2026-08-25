@@ -50,8 +50,7 @@ reference. Gradients must stay quiet and must not compete with content.
 | `mute` | `#717886` | Metadata, hints and timestamps |
 | `mute-2` | `#9AA1AD` | Placeholder and tertiary metadata |
 
-Use no extra arbitrary text colours in normal HTML. The graph may use its
-semantic SVG palette for node labels and edges.
+Use no extra arbitrary text colours in normal HTML.
 
 ### 2.3 Semantic accents
 
@@ -64,10 +63,10 @@ semantic SVG palette for node labels and edges.
 | `knowledge` | `#7157D9` | `#F2EFFF` | Knowledge, durable context |
 | `focus` | `#1769E0` | `#EDF5FF` | Keyboard focus and selection |
 
-Semantic colours appear in badges, dots, small callouts and graph edges. A
+Semantic colours appear in badges, dots, small callouts and relationship rows. A
 status must still be understandable from its visible text and shape.
 
-### 2.4 Typography
+### 2.4 Type
 
 System fonts only. The mono stack is reserved for IDs, agent names, action
 names, commands, timestamps and numeric counters.
@@ -80,8 +79,7 @@ names, commands, timestamps and numeric counters.
 | Metadata | `12 / 16px` | 400 | IDs, timestamps and captions |
 | Metric | `30 / 34px` | 700 | Operational counts |
 
-Normal readable HTML must not render below 12px. The graph may use 9–11px
-inside its internal SVG labels when required by the layout.
+Normal readable HTML must not render below 12px.
 
 ## 3. Geometry and layout
 
@@ -139,7 +137,7 @@ reading flow clean and using the available space.
 
 Shared presentation primitives live in `ui/src/components.jsx`:
 
-- `PageLayout` — shared reading-width page frame, with a full-height workspace variant for Board and Graph.
+- `PageLayout` — shared reading-width page frame, with a full-height workspace variant for Board.
 - `PageHeader` — eyebrow, title, subtitle, meta and actions.
 - `Panel` — neutral surface with hairline border; no heavy shadow by default.
 - `MetricCard` — operational count; becomes a button only with a real target.
@@ -159,7 +157,7 @@ Shared presentation primitives live in `ui/src/components.jsx`:
 
 New reusable visual primitives belong in `components.jsx`, not in a single
 view. View-specific layout classes may live in `index.css` when they describe
-the drawer, shell or graph workspace rather than a data rule.
+the drawer or shell rather than a data rule.
 
 ## 5. Interaction and accessibility
 
@@ -191,9 +189,7 @@ The visual language preserves the snapshot contract:
 
 Status uses a dotted pill plus text (`ready`, `in_progress`, `blocked`,
 `backlog`, `open`, `done`, etc.). Kind uses a compact squared marker so task,
-gate and knowledge are distinguishable before reading the title. The graph
-uses shape as a third channel: tasks are rectangles, gates diamonds and
-knowledge circles.
+gate and knowledge are distinguishable before reading the title.
 
 No view may silently re-derive server-owned status semantics. The UI reads
 pools and derived fields from the API snapshot.

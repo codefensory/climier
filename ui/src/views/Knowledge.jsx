@@ -56,7 +56,7 @@ const TABS = [
 
 // Scope dimension metadata. The tone stays neutral except for `node_ids`,
 // which inherits the BLOCKS / relational semantic so operators can tell at
-// a glance that those IDs are pointing at specific graph nodes.
+// a glance that those IDs are pointing at specific DAG nodes.
 const SCOPE_DIMENSIONS = [
   { key: "domains", label: "Domains", tone: "neutral" },
   { key: "initiatives", label: "Initiatives", tone: "neutral" },

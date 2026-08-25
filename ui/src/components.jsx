@@ -98,8 +98,8 @@ export function PageHeader(props) {
 
 // === PageLayout ============================================================
 // Shared page frame. Standard pages use one reading-width container and one
-// spacing rhythm; workspace pages (Board / Graph) keep the full viewport
-// height for their own canvas while sharing the same header gutters.
+// spacing rhythm; the Board workspace keeps the full viewport
+// height for its own canvas while sharing the same header gutters.
 export function PageLayout(props) {
   const workspace = props.mode === "workspace";
   const variant = workspace ? "ui-page-layout-workspace" : "ui-page-layout-standard";
