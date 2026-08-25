@@ -9,7 +9,7 @@
 //   4. Visible callout for blocked, stale or superseded via AlertBanner.
 //   5. Specification and open blockers visible by default.
 //   6. Knowledge, notes, history, refs, relationships and the
-//      equivalent-CLI command live inside collapsible <details>.
+//      read-only CLI command live in the properties rail.
 //   7. Times use claim.at (Time/ClaimTime prefer claim.at over claim.ts).
 //   8. Relationships are split by direction/type (F6b, T-ui-detail-rel):
 //      incoming blockers stay in the open Blockers panel; outgoing edges
@@ -91,8 +91,8 @@ const EXPLAIN = {
 
 // Build the equivalent CLI command string for a given node + derived
 // status. Returns null when there's no command (knowledge nodes have no
-// labor surface). The drawer's "Equivalent CLI command" section renders
-// this verbatim — never executes it.
+// labor surface). The drawer's command block renders this verbatim — never
+// executes it.
 function equivalentCommand(node, derived) {
   const id = node.id;
   if (node.kind === "knowledge") return null;
@@ -786,19 +786,14 @@ function DetailSidebar(props) {
           <CopyButton text={node().id || ""} />
         </section>
 
-        <DetailsSection
-          title="Equivalent CLI command"
-          hint="Read-only suggestion. Never executed by the UI."
-        >
-          <Show when={equivalentCommand(node(), status())} fallback={
-            <EmptyState variant="compact" title="No CLI equivalent (knowledge has no labor surface)." />
-          }>
-            <div class="flex items-start gap-2 rounded-control border border-line bg-mid px-2.5 py-2">
+        <Show when={equivalentCommand(node(), status())}>
+          <div class="mt-5 rounded-control border border-line bg-mid p-3">
+            <div class="flex items-start gap-2">
               <pre class="mono min-w-0 flex-1 whitespace-pre-wrap break-all text-[12px] leading-5 text-progress">{equivalentCommand(node(), status())}</pre>
               <CopyButton text={equivalentCommand(node(), status())} />
             </div>
-          </Show>
-        </DetailsSection>
+          </div>
+        </Show>
       </Show>
 
       <Show when={tab() === "activity"}>

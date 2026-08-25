@@ -125,7 +125,7 @@ content allows:
 
 The drawer hierarchy is: alert → title and status line → specification →
 blockers → one vertical stack of collapsible knowledge/notes/history/refs/
-relationships sections. The equivalent CLI command and node metadata live in
+relationships sections. The CLI command and node metadata live in
 the right rail, which keeps the main reading flow clean and uses the available
 space. The right rail also keeps properties and recent activity close at hand.
 
