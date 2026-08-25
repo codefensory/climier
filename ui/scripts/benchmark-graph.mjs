@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ui/scripts/benchmark-graph.mjs — Graph layout baselines (T-ui-graph-benchmark,
-// T-ui-graph-renderer-baseline).
+// T-ui-graph-renderer-baseline, T-ui-graph-layout-bench).
 //
 // Reproducible headless benchmark that exercises the pure layout helpers
 // used by ui/src/views/Graph.jsx over a 200-node fixture. See
@@ -16,12 +16,29 @@
 //     pure ESM with no DOM deps) so we measure the same code path the
 //     renderer calls before handing off to cytoscape.
 //
-// The script reports two clearly-labelled profiles (see result.metrics):
+// The script reports four clearly-labelled profiles (see result.metrics):
 //   - helper_pure              — computeLayout + toCytoscapeElements, no DOM
+//   - execution_pure           — computeExecutionLayout (ADR-002 §Algoritmo y
+//                                Hash) over the same nodes/edges, no DOM
 //   - cytoscape_dagre_headless — cytoscape instance (headless: true) running
-//                                cytoscape-dagre over the SAME helper-built
-//                                elements; does NOT measure canvas paint,
-//                                the DOM overlay, gestures or browser FPS
+//                                cytoscape-dagre over the helper-built
+//                                elements; kept for the dagre baseline
+//   - cytoscape_preset_headless — fresh headless cytoscape with positions
+//                                produced by computeExecutionLayout applied
+//                                via cy.layout({ name: "preset" })
+//   None of these profiles measure canvas paint, the DOM overlay of focus
+//   buttons, pan/zoom gestures, wheel latency or browser FPS.
+//
+// The script also runs a "snapshot N → N+1" non-topological poll scenario
+// (see result.non_topological_poll): it mutates title/status/claim on one
+// node, re-runs computeExecutionLayout and verifies that topologyHash and
+// positionedSetHash are unchanged so the renderer's "relayout only if
+// topology changes" policy does not re-execute the layout.
+//
+// Budgets from ADR-002 §Presupuestos are checked after the timing loop.
+//   - execution_pure.layout_ms p95 must be <= 5 ms
+//   - cytoscape_preset_headless.layout_ms p95 must be <= 82 ms
+// On any budget miss the script exits with code 1 and a clear message.
 //
 // Usage:
 //   node scripts/benchmark-graph.mjs                # human-readable summary
@@ -30,8 +47,10 @@
 //   FIXTURE=path/to/other.json node scripts/benchmark-graph.mjs --json
 //
 // Exit codes:
-//   0  benchmark ran and the fixture satisfied every invariant
-//   1  fixture invariant failed (clear error printed to stderr)
+//   0  benchmark ran; fixture invariants, budgets and non-topological
+//      verification all passed
+//   1  fixture invariant failed, OR a budget was missed, OR the
+//      non-topological verification failed (clear error printed to stderr)
 //   2  bad CLI usage (e.g. unknown flag without --help)
 
 import { readFileSync } from "node:fs";
@@ -48,6 +67,7 @@ import {
   computeLayout,
   toCytoscapeElements,
 } from "../src/views/graph-helpers.mjs";
+import { computeExecutionLayout } from "../src/views/execution-layout.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_FIXTURE = path.resolve(HERE, "..", "fixtures", "graph-200.json");
@@ -81,8 +101,16 @@ Env:
   RUNS=N         Number of timed iterations (default 20, must be >= 3).
   WARMUP=N       Warmup iterations excluded from samples (default 3).
 
+Profiles reported in result.metrics:
+  helper_pure, execution_pure, cytoscape_dagre_headless,
+  cytoscape_preset_headless. Plus a snapshot N -> N+1 non-topological
+  poll scenario in result.non_topological_poll and budget checks in
+  result.budgets.
+
 Exit codes:
-  0  success    1  fixture invariant failed    2  bad CLI usage
+  0  success (invariants, budgets, non-topological verification all passed)
+  1  fixture invariant, budget, or non-topological verification failed
+  2  bad CLI usage
 `;
 
 const { flags, kv } = parseArgs(process.argv.slice(2));
@@ -241,16 +269,23 @@ if (invariants.some((i) => !i.ok)) {
 
 // ---------- Timed runs -------------------------------------------------------
 //
-// Two profiles, both over the same fixture/elements. Each profile runs its
+// Four profiles, all over the same fixture/elements. Each profile runs its
 // own warmup + RUNS and is summarised independently so the JSON output can
-// distinguish the two unambiguously.
+// distinguish them unambiguously.
 //
 //   1) helper_pure
 //        computeLayout + toCytoscapeElements executed in plain Node. This is
 //        the pure-compute budget that the renderer spends before handing off
 //        to cytoscape. No DOM, no canvas, no cytoscape instance.
 //
-//   2) cytoscape_dagre_headless
+//   2) execution_pure
+//        computeExecutionLayout (ADR-002) executed in plain Node. Same
+//        pure-compute contract as helper_pure but for the new helper that
+//        drives Execution: BLOCKS-only rank, initiative lanes, stable
+//        ordering, FNV-1a topologyHash/positionedSetHash. No DOM, no
+//        cytoscape instance.
+//
+//   3) cytoscape_dagre_headless
 //        A fresh cytoscape({ headless: true, styleEnabled: false }) instance
 //        with cytoscape-dagre registered, fed the SAME elements produced by
 //        toCytoscapeElements(). The timed slice is just the synchronous
@@ -258,23 +293,44 @@ if (invariants.some((i) => !i.ok)) {
 //        algorithm cost over the helper-built elements. The instance is
 //        destroyed after each iteration so cached layout state cannot bleed
 //        across samples.
-//        This profile does NOT measure canvas paint, the DOM overlay of
-//        focus buttons, pan/zoom gestures, wheel latency or browser FPS.
-//        Anything tied to a real <canvas> or the browser must be measured
-//        separately (out of scope for this script by design).
+//
+//   4) cytoscape_preset_headless
+//        A fresh headless cytoscape instance fed the SAME elements and a
+//        positions map produced once by computeExecutionLayout. The timed
+//        slice is the synchronous cy.layout({ name: "preset", positions,
+//        fit: false, animate: false }).run() call. This isolates the cost of
+//        applying a preset layout to a pre-computed geometry and is the
+//        baseline the ADR-002 budget compares against the dagre baseline.
+//
+// None of these profiles measure canvas paint, the DOM overlay of focus
+// buttons, pan/zoom gestures, wheel latency or browser FPS. Anything tied
+// to a real <canvas> or the browser must be measured separately (out of
+// scope for this script by design).
 
 const buildSamples = [];
 const layoutSamples = [];
+const executionSamples = [];
 const cytoDagreSamples = [];
+const cytoPresetSamples = [];
+
+// Pre-compute the preset positions once outside the timed loop. The cost
+// of computing the positions is reported by execution_pure; here we only
+// measure the cost of applying them via the cytoscape preset layout.
+const presetPositions = computeExecutionLayout(nodes, edges).positions;
 
 for (let i = 0; i < WARMUP; i++) {
   toCytoscapeElements(nodes, edges);
   computeLayout(nodes, edges);
-  const cy = cytoscape({ headless: true, styleEnabled: false });
+  computeExecutionLayout(nodes, edges);
+  const cyW = cytoscape({ headless: true, styleEnabled: false });
   cytoscape.use(dagre);
-  cy.add(toCytoscapeElements(nodes, edges).elements);
-  cy.layout({ name: "dagre", rankDir: "LR", fit: false, animate: false }).run();
-  cy.destroy();
+  cyW.add(toCytoscapeElements(nodes, edges).elements);
+  cyW.layout({ name: "dagre", rankDir: "LR", fit: false, animate: false }).run();
+  cyW.destroy();
+  const cyP = cytoscape({ headless: true, styleEnabled: false });
+  cyP.add(toCytoscapeElements(nodes, edges).elements);
+  cyP.layout({ name: "preset", positions: presetPositions, fit: false, animate: false }).run();
+  cyP.destroy();
 }
 
 // helper_pure profile --------------------------------------------------------
@@ -291,6 +347,32 @@ for (let i = 0; i < RUNS; i++) {
   }
   buildSamples.push(t1 - t0);
   layoutSamples.push(t2 - t1);
+}
+
+// execution_pure profile -----------------------------------------------------
+//
+// computeExecutionLayout produces the positions consumed by
+// cytoscape_preset_headless. The timed slice is just the synchronous call
+// to the pure helper; no DOM, no cytoscape instance. ADR-002 budgets this
+// profile to p95 <= 5 ms for the 200-node fixture.
+
+for (let i = 0; i < RUNS; i++) {
+  const t0 = performance.now();
+  const result = computeExecutionLayout(nodes, edges);
+  const t1 = performance.now();
+  if (i === 0) {
+    if (Object.keys(result.positions).length !== Object.keys(nodes).length) {
+      process.stderr.write(
+        `benchmark-graph: computeExecutionLayout dropped nodes (got ${Object.keys(result.positions).length}, expected ${Object.keys(nodes).length})\n`,
+      );
+      process.exit(1);
+    }
+    if (!result.topologyHash || !result.positionedSetHash) {
+      process.stderr.write("benchmark-graph: computeExecutionLayout produced empty hashes (sanity failure)\n");
+      process.exit(1);
+    }
+  }
+  executionSamples.push(t1 - t0);
 }
 
 // cytoscape_dagre_headless profile -------------------------------------------
@@ -321,6 +403,162 @@ for (let i = 0; i < RUNS; i++) {
   cy.destroy();
 }
 
+// cytoscape_preset_headless profile ------------------------------------------
+//
+// Apply pre-computed positions (from presetPositions above) via the
+// cytoscape preset layout. Each timed iteration spins up a fresh headless
+// cytoscape instance, adds the SAME helper-built elements and runs the
+// preset layout. Only the synchronous .run() call sits inside the timed
+// window so the sample reflects the cost of applying a preset layout, not
+// cytoscape bootstrap or toCytoscapeElements. ADR-002 budgets this profile
+// to p95 <= 82 ms for the 200-node fixture.
+
+for (let i = 0; i < RUNS; i++) {
+  const cy = cytoscape({ headless: true, styleEnabled: false });
+  cy.add(cytoElements);
+  const t0 = performance.now();
+  cy.layout({ name: "preset", positions: presetPositions, fit: false, animate: false }).run();
+  const t1 = performance.now();
+  if (i === 0) {
+    if (cy.nodes().length !== Object.keys(nodes).length) {
+      process.stderr.write(
+        `benchmark-graph: cytoscape preset dropped nodes (got ${cy.nodes().length}, expected ${Object.keys(nodes).length})\n`,
+      );
+      process.exit(1);
+    }
+    // Sanity: the preset layout must have applied a known position to at
+    // least one node. If not, the positions map did not flow through.
+    let positioned = 0;
+    for (const n of cy.nodes()) {
+      const p = n.position();
+      if (Number.isFinite(p.x) && Number.isFinite(p.y)) positioned += 1;
+    }
+    if (positioned === 0) {
+      process.stderr.write("benchmark-graph: cytoscape preset did not apply any position (sanity failure)\n");
+      process.exit(1);
+    }
+  }
+  cytoPresetSamples.push(t1 - t0);
+  cy.destroy();
+}
+
+// ---------- Non-topological poll scenario ----------------------------------
+//
+// ADR-002 §Hash, actualizaciones y relayout says a renderer should only
+// re-execute the layout when topologyHash (or positionedSetHash) changes.
+// This scenario takes a snapshot of the fixture, runs the layout, mutates
+// only non-topological fields (title, status, claim) on one node, re-runs
+// the layout and asserts that both hashes are unchanged so the renderer
+// would correctly skip a relayout.
+//
+// We do NOT mutate ids, initiatives, edge membership or edge types. Those
+// are the inputs the layout hashes and would correctly trigger a relayout.
+
+const fixtureClone = JSON.parse(JSON.stringify(fixture));
+
+function runLayoutOver(snapshot) {
+  return computeExecutionLayout(snapshot.nodes, snapshot.edges);
+}
+
+const snapshotN = {
+  fixture: fixtureClone,
+  layout: runLayoutOver(fixtureClone),
+};
+
+const snapshotN1Fixture = JSON.parse(JSON.stringify(fixtureClone));
+const mutationCandidates = Object.values(snapshotN1Fixture.nodes || {}).filter(
+  (n) => n && typeof n === "object" && n.id,
+);
+const mutationTarget = mutationCandidates.find(
+  (n) => n.kind === "resolvable" && n.subkind === "task",
+) || mutationCandidates[0] || null;
+const mutatedFields = [];
+if (mutationTarget) {
+  if (typeof mutationTarget.title === "string") {
+    mutationTarget.title = `[poll] ${mutationTarget.title}`;
+    mutatedFields.push("title");
+  } else {
+    mutationTarget.title = "[poll] mutated";
+    mutatedFields.push("title");
+  }
+  mutationTarget.status = mutationTarget.status === "in_progress" ? "open" : "in_progress";
+  mutatedFields.push("status");
+  if (mutationTarget.claim === undefined || mutationTarget.claim === null) {
+    mutationTarget.claim = { by: "codex-wkr", at: "2026-08-25T00:00:00.000Z" };
+    mutatedFields.push("claim");
+  } else if (typeof mutationTarget.claim === "object") {
+    mutationTarget.claim = { ...mutationTarget.claim, by: "codex-wkr" };
+    mutatedFields.push("claim");
+  } else {
+    mutationTarget.claim = { by: "codex-wkr", previous: mutationTarget.claim };
+    mutatedFields.push("claim");
+  }
+}
+const snapshotN1 = {
+  fixture: snapshotN1Fixture,
+  layout: runLayoutOver(snapshotN1Fixture),
+};
+
+function positionsEqual(a, b) {
+  const ids = Object.keys(a);
+  if (ids.length !== Object.keys(b).length) return false;
+  for (const id of ids) {
+    const pa = a[id];
+    const pb = b[id];
+    if (!pa || !pb) return false;
+    if (pa.x !== pb.x || pa.y !== pb.y) return false;
+  }
+  return true;
+}
+
+const nonTopologicalPoll = {
+  description:
+    "Snapshot N -> N+1 over the same fixture: only title, status and claim are mutated on one node. topologyHash and positionedSetHash must remain identical so the renderer's 'relayout only if topology changes' policy correctly skips a second execution.",
+  mutated_node_id: mutationTarget ? mutationTarget.id : null,
+  mutated_fields: mutatedFields,
+  snapshot_N: {
+    node_count: Object.keys(snapshotN.fixture.nodes).length,
+    edge_count: snapshotN.fixture.edges.length,
+    topologyHash: snapshotN.layout.topologyHash,
+    positionedSetHash: snapshotN.layout.positionedSetHash,
+    lane_count: snapshotN.layout.lanes.length,
+  },
+  snapshot_N_plus_1: {
+    node_count: Object.keys(snapshotN1.fixture.nodes).length,
+    edge_count: snapshotN1.fixture.edges.length,
+    topologyHash: snapshotN1.layout.topologyHash,
+    positionedSetHash: snapshotN1.layout.positionedSetHash,
+    lane_count: snapshotN1.layout.lanes.length,
+  },
+  verification: {
+    topologyHash_unchanged:
+      snapshotN.layout.topologyHash === snapshotN1.layout.topologyHash,
+    positionedSetHash_unchanged:
+      snapshotN.layout.positionedSetHash === snapshotN1.layout.positionedSetHash,
+    positions_identical: positionsEqual(snapshotN.layout.positions, snapshotN1.layout.positions),
+    node_count_unchanged:
+      Object.keys(snapshotN.fixture.nodes).length === Object.keys(snapshotN1.fixture.nodes).length,
+    edge_count_unchanged:
+      snapshotN.fixture.edges.length === snapshotN1.fixture.edges.length,
+  },
+  relayout_required: false,
+};
+nonTopologicalPoll.relayout_required = !(
+  nonTopologicalPoll.verification.topologyHash_unchanged &&
+  nonTopologicalPoll.verification.positionedSetHash_unchanged &&
+  nonTopologicalPoll.verification.positions_identical
+);
+
+// ---------- Budget checks (ADR-002 §Presupuestos) --------------------------
+//
+// Budgets are checked against the local p95 of the profile they govern.
+// The budget is intentionally machine-readable so a CI gate can surface it.
+
+const BUDGETS = Object.freeze({
+  execution_pure: { metric: "layout_ms.p95", ceiling_ms: 5 },
+  cytoscape_preset_headless: { metric: "layout_ms.p95", ceiling_ms: 82 },
+});
+
 function percentile(samples, p) {
   const sorted = samples.slice().sort((a, b) => a - b);
   if (sorted.length === 0) return 0;
@@ -343,6 +581,39 @@ function summary(samples) {
   };
 }
 
+const executionSummary = summary(executionSamples);
+const cytoPresetSummary = summary(cytoPresetSamples);
+
+const budgetResults = [];
+function recordBudget(profile, budget, actual) {
+  budgetResults.push({
+    profile,
+    metric: budget.metric,
+    ceiling_ms: budget.ceiling_ms,
+    actual_ms: actual,
+    ok: actual <= budget.ceiling_ms,
+  });
+}
+recordBudget("execution_pure", BUDGETS.execution_pure, executionSummary.p95);
+recordBudget(
+  "cytoscape_preset_headless",
+  BUDGETS.cytoscape_preset_headless,
+  cytoPresetSummary.p95,
+);
+const budgets = Object.fromEntries(
+  budgetResults.map((b) => [
+    b.profile,
+    {
+      metric: b.metric,
+      ceiling_ms: b.ceiling_ms,
+      actual_ms: b.actual_ms,
+      ok: b.ok,
+    },
+  ]),
+);
+const allBudgetsOk = budgetResults.every((b) => b.ok);
+const allNonTopologicalChecksOk = Object.values(nonTopologicalPoll.verification).every(Boolean);
+
 const cpus = os.cpus() || [];
 const cytoscapeVersion = (cytoscape && cytoscape.version) || null;
 // cytoscape-dagre exposes its package.json via require.resolve; resolve the
@@ -358,7 +629,7 @@ try {
 }
 
 const result = {
-  ok: true,
+  ok: allBudgetsOk && allNonTopologicalChecksOk,
   fixture: {
     path: path.relative(process.cwd(), FIXTURE_PATH) || FIXTURE_PATH,
     version: fixture.version || null,
@@ -397,6 +668,13 @@ const result = {
       build_elements_ms: summary(buildSamples),
       layout_ms: summary(layoutSamples),
     },
+    execution_pure: {
+      description:
+        "computeExecutionLayout (ADR-002 §Algoritmo y Hash) executed in plain Node over the same nodes/edges; no DOM, no cytoscape instance.",
+      renderer: "execution-layout (computeExecutionLayout)",
+      rendering_target: "none — pure compute, no canvas, no DOM",
+      layout_ms: executionSummary,
+    },
     cytoscape_dagre_headless: {
       description:
         "Fresh cytoscape({ headless: true, styleEnabled: false }) instance with cytoscape-dagre registered, fed the same elements produced by toCytoscapeElements(). Timed slice is the synchronous layout.run() call (animate: false).",
@@ -412,7 +690,24 @@ const result = {
       instances_per_sample: 1,
       layout_ms: summary(cytoDagreSamples),
     },
+    cytoscape_preset_headless: {
+      description:
+        "Fresh cytoscape({ headless: true, styleEnabled: false }) instance fed the same elements plus positions produced once by computeExecutionLayout. Timed slice is the synchronous cy.layout({ name: 'preset', positions, fit: false, animate: false }).run() call.",
+      renderer: `cytoscape@${cytoscapeVersion || "?"} preset (headless) + execution-layout positions`,
+      rendering_target:
+        "none — headless mode without DOM/canvas/window; does NOT measure browser canvas paint, the focus-overlay buttons, pan/zoom gestures, wheel latency or FPS",
+      layout_options: {
+        name: "preset",
+        fit: false,
+        animate: false,
+        positions_source: "computeExecutionLayout (pre-computed once outside the timed loop)",
+      },
+      instances_per_sample: 1,
+      layout_ms: cytoPresetSummary,
+    },
   },
+  budgets,
+  non_topological_poll: nonTopologicalPoll,
 };
 
 if (WANTS_JSON) {
@@ -420,7 +715,11 @@ if (WANTS_JSON) {
 } else {
   const f = (n) => `${n.toFixed(3)} ms`;
   const hp = result.metrics.helper_pure;
+  const ep = result.metrics.execution_pure;
   const cd = result.metrics.cytoscape_dagre_headless;
+  const cp = result.metrics.cytoscape_preset_headless;
+  const budgetTag = (b) => (b.ok ? "ok" : "OVER");
+  const ntp = result.non_topological_poll;
   process.stdout.write(
     [
       `fixture: ${result.fixture.path}`,
@@ -430,11 +729,48 @@ if (WANTS_JSON) {
       `runs: warmup=${WARMUP} timed=${RUNS}`,
       `helper_pure.build_elements_ms:        p50=${f(hp.build_elements_ms.p50)} p95=${f(hp.build_elements_ms.p95)} mean=${f(hp.build_elements_ms.mean)}`,
       `helper_pure.layout_ms:                p50=${f(hp.layout_ms.p50)} p95=${f(hp.layout_ms.p95)} mean=${f(hp.layout_ms.mean)}`,
+      `execution_pure.layout_ms:             p50=${f(ep.layout_ms.p50)} p95=${f(ep.layout_ms.p95)} mean=${f(ep.layout_ms.mean)} [budget ${budgetTag(result.budgets.execution_pure)} <= ${result.budgets.execution_pure.ceiling_ms}ms]`,
       `cytoscape_dagre_headless.layout_ms:   p50=${f(cd.layout_ms.p50)} p95=${f(cd.layout_ms.p95)} mean=${f(cd.layout_ms.mean)}`,
+      `cytoscape_preset_headless.layout_ms:  p50=${f(cp.layout_ms.p50)} p95=${f(cp.layout_ms.p95)} mean=${f(cp.layout_ms.mean)} [budget ${budgetTag(result.budgets.cytoscape_preset_headless)} <= ${result.budgets.cytoscape_preset_headless.ceiling_ms}ms]`,
+      `non_topological_poll:                 mutated=${ntp.mutated_node_id || "-"} fields=${ntp.mutated_fields.join(",") || "-"} relayout_required=${ntp.relayout_required} topologyHash_unchanged=${ntp.verification.topologyHash_unchanged} positionedSetHash_unchanged=${ntp.verification.positionedSetHash_unchanged} positions_identical=${ntp.verification.positions_identical}`,
       ``,
       `(headless profile does NOT measure canvas, overlay or browser FPS)`,
       `(use --json for the full machine-readable result)`,
       ``,
     ].join("\n"),
   );
+}
+
+// ---------- Post-run checks: budgets + non-topological verification -------
+//
+// The benchmark fails clearly (exit 1) if any budget is missed or if the
+// non-topological verification reports that the renderer policy would
+// need to relayout. Fixture invariants already exit 1 above; this is the
+// second gate.
+
+let postRunFailures = [];
+
+for (const b of budgetResults) {
+  if (!b.ok) {
+    postRunFailures.push(
+      `budget [${b.profile} ${b.metric}] actual=${b.actual_ms.toFixed(3)}ms > ceiling=${b.ceiling_ms}ms`,
+    );
+  }
+}
+
+if (!allNonTopologicalChecksOk) {
+  const failed = Object.entries(nonTopologicalPoll.verification)
+    .filter(([, ok]) => !ok)
+    .map(([k]) => k);
+  postRunFailures.push(
+    `non_topological_poll verification failed: ${failed.join(", ")} (relayout_required=${nonTopologicalPoll.relayout_required})`,
+  );
+}
+
+if (postRunFailures.length > 0) {
+  process.stderr.write("benchmark-graph: post-run check failed:\n");
+  for (const f of postRunFailures) {
+    process.stderr.write(`  - ${f}\n`);
+  }
+  process.exit(1);
 }
