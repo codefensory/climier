@@ -5,55 +5,92 @@
 
 ## Contexto
 
-`cytoscape-dagre` organiza un DAG LR pero no soporta compound nodes en el Graph actual. Por eso las initiatives terminaron como texto dentro de labels y no como estructura espacial. Graph 2.0 necesita lanes reales, cruces entre initiatives explicables y posiciones estables bajo polling.
+`cytoscape-dagre` organiza un DAG LR, pero no soporta compound nodes y no produce lanes reales por initiative. Graph 2.0 necesita estructura espacial estable bajo polling, cruces entre initiatives explicables y un contrato que no mezcle coste de helpers con coste de renderer.
 
-Un proyecto observado llegó a 209 nodos, pero no existe fixture ni baseline reproducible. Antes de fijar la implementación, `T-ui-graph-benchmark` debe aportar un fixture determinista y una medición de referencia.
+Se completaron dos baselines sobre el fixture versionado de 200 nodos (`RUNS=20`, `WARMUP=3`, Node 26.7.0 en el host de validación):
 
-## Decisión propuesta
+| Perfil | Qué mide | p95 observado |
+|---|---|---:|
+| `helper_pure` | `toCytoscapeElements` + `computeLayout`, sin Cytoscape/DOM | 0.285 ms layout |
+| `cytoscape_dagre_headless` | instancia Cytoscape headless + `cy.layout({ name: "dagre" })` | 74.63 ms layout |
 
-1. Mantener Cytoscape para renderer, hit testing, zoom, pan y edges.
-2. Sustituir dagre como layout de Execution por un algoritmo puro y determinista de aplicación, aplicado mediante Cytoscape `preset`:
-   - calcular ranks X por aristas `BLOCKS`;
-   - asignar cada node a lane Y por `initiative`;
-   - ordenar nodos de cada lane de manera estable, usando posición previa y vecinos para reducir cruces;
-   - reservar rutas/espacio para edges cross-initiative;
-   - contener ciclos y referencias incompletas sin fallar.
-3. Las lanes son parte del layout, no compound nodes ni un fondo decorativo. En un proyecto de una sola initiative se minimizan/ocultan sus chrome.
-4. Cross-initiative se deriva comparando initiatives de ambos endpoints; no se cambia el schema.
-5. Calcular `topologyHash` con nodes/edges que afectan posiciones. Cambios de estado, claim, título, selección, filtro o foco actualizan estilo/conjunto visible sin correr layout cuando la topología y el conjunto posicionado no cambian.
-6. Conservar `cytoscape-dagre` solo hasta completar la migración; ADR/implementación debe decidir su retiro si queda sin uso.
+El segundo perfil mide el layout actual real, pero no canvas, overlay DOM, pan/zoom, FPS ni gestos. Ambos perfiles siguen siendo útiles y no son intercambiables.
 
-## Presupuesto y evidencia
+La política aprobada para Graph 2.0 es no crear ni modificar archivos bajo `test/`; las verificaciones de layout viven en el benchmark versionado y build/manual documentado.
 
-La tarea `T-ui-graph-benchmark` deja:
+## Decisión
 
-- fixture de 200 nodos con múltiples initiatives, `BLOCKS`, history y relaciones cross-initiative;
-- script reproducible que registra tiempos de construir elementos y ejecutar el layout base en varias corridas;
-- hardware/runtime y resultados en la nota de la tarea.
+### Algoritmo y contrato puro
 
-La tarea de layout posterior debe:
+Execution usa `computeExecutionLayout(nodes, edges, options)` nuevo y puro. Cytoscape conserva renderer, hit testing, zoom/pan y edges, pero aplica las posiciones resultantes con `preset`; dagre deja de decidir la geometría de Execution.
 
-- ejecutar layout sobre el fixture y no superar en más de 10% la baseline aprobada para el mismo entorno;
-- demostrar que una actualización no topológica no invoca el layout;
-- mantener pan/zoom y selección interactivos durante el fixture; la verificación visual/manual documenta navegador y viewport;
-- declarar el comportamiento para 200+ nodos antes de introducir virtualización o worker.
+Entrada:
+
+```js
+{
+  nodes, edges,
+  previousPositionsById: Record<string, { x, y }> | undefined,
+  visibleIds: Set<string>,
+}
+```
+
+Salida:
+
+```js
+{
+  positions: Record<string, { x, y }>,
+  lanes: [{ initiative, y, height, nodeIds }],
+  topologyHash: string,
+  positionedSetHash: string,
+  diagnostics: { cycles: string[][], missingEndpoints: string[] },
+}
+```
+
+- Solo `BLOCKS` afecta rank X. `SUPERSEDES`, `DERIVED_FROM` y legacy no alteran posiciones.
+- Cada initiative forma una lane Y. El nombre es `node.initiative || "(none)"`; lanes se ordenan alfabéticamente con `(none)` al final, igual que el selector de initiatives.
+- La coordenada X es rank de `BLOCKS`; Y es lane. Dentro de un rank/lane se conserva el orden de `previousPositionsById`; sin posición previa, desempata por ID léxico. No se ejecuta un minimizador no acotado de cruces.
+- Los SCC se calculan de forma determinista. Todos los miembros de un SCC comparten `rank = 1 + max(rank de bloqueadores externos)`; si no tienen bloqueadores externos, rank 0. Su orden interno es léxico. Edges internos se conservan como backedges visibles. Endpoints inexistentes se excluyen del cálculo, se listan en diagnostics y no hacen fallar el layout.
+- Lane única: se calcula pero se oculta su chrome visual; la geometría no desperdicia una banda adicional.
+
+### Cruces entre initiatives
+
+v1 no implementa channel routing ni bend points por edge. Reserva un gutter fijo de 48 px entre lanes y deja que Cytoscape trace bezier/edge existente. El bridge visual de un edge cross-initiative se activa al foco/selección según ADR-001. Así la geometría es determinista y no se intenta optimizar cada cruce de forma costosa.
+
+### Hash, actualizaciones y relayout
+
+- `topologyHash` contiene IDs visibles, initiative normalizada y aristas `BLOCKS` visibles ordenadas.
+- `positionedSetHash` contiene IDs y edges que realmente reciben posiciones.
+- Título, status, claim, selección y foco pertenecen a un `styleHash`/estado visual y nunca cambian `topologyHash`.
+- Cambiar modo/filtro relayout solo si cambia `positionedSetHash`; cambiar un dato no topológico actualiza elementos/clases en lote y conserva posiciones.
+- `computeLayout` actual coexiste sin cambios para compatibilidad. `computeExecutionLayout` es el único layout de Execution una vez integrado.
+
+### Presupuestos y verificación
+
+El benchmark mantiene dos perfiles. Para el fixture de 200 nodos y `RUNS=20/WARMUP=3`:
+
+1. `computeExecutionLayout` debe producir p95 ≤ **5 ms** en el perfil puro.
+2. La aplicación headless de elementos + posiciones `preset` debe producir p95 ≤ **82 ms**, comparable con el baseline dagre de 74.63 ms y con margen absoluto de 7.37 ms.
+3. El benchmark añade un escenario `snapshot N → N+1` con cambio solo de título/status/claim y registra que la política de layout no invoca una segunda ejecución.
+4. La tarea de integración documenta revisión manual en navegador y viewport para canvas, overlay y gestos; no presenta la métrica headless como FPS.
 
 ## Consecuencias
 
-- Se evita una nueva dependencia/adaptador sin probar para suplir compound nodes.
-- El algoritmo es una responsabilidad explícita y testeable/purable, no una limitación oculta de un plugin.
-- El equipo puede cambiar renderer sin perder el modelo espacial.
+- El modelo de lanes no depende de compound support de una extensión.
+- El layout es inspectable, determinista y reutilizable si cambia el renderer; Cytoscape queda como renderer v1.
+- Los dos benchmarks evitan comparar métricas incompatibles.
+- `cytoscape-dagre` se elimina solo en una tarea posterior, una vez que ningún Graph path lo importe.
 
 ## Acceptance para la decisión
 
-- Algoritmo rank × lane, entradas, salidas y fallback de ciclos están definidos.
-- Las reglas de orden, estabilidad y cruces cross-initiative son verificables.
-- Baseline, fixture, umbral y política de relayout quedan escritos tras `T-ui-graph-benchmark`.
-- Declara la transición/eliminación de `cytoscape-dagre` si el preset layout lo reemplaza.
+- Firma, salida, SCCs, endpoints faltantes, lane vacía y orden estable están definidos.
+- Cross-initiative usa gutter fijo y bezier; no hay channel routing implícito.
+- Hashes y condiciones exactas de relayout están definidos.
+- Baselines, métricas, runs/warmup y umbrales son comparables.
+- No se tocan `test/`; el benchmark y build son la evidencia automatizable.
 
 ## Plan por piezas candidato
 
-1. Fixture/benchmark independiente (`T-ui-graph-benchmark`).
-2. Helper puro de layout y snapshot de posiciones.
-3. Integración `preset` y lanes canvas/DOM.
-4. Medición final e integración con modos/foco.
+1. **Helper de layout:** `computeExecutionLayout` + diagnostics, coexistiendo con `computeLayout`; sin tocar renderer.
+2. **Benchmark de política:** extiende `ui/scripts/benchmark-graph.mjs` con preset y escenario no-topológico; depende de 1.
+3. **Integración Execution:** `Graph.jsx` consume preset/lanes y separa topology/style hashes; depende de 1–2 y ADR-001.
+4. **Retiro dagre:** quita `cytoscape-dagre` de `ui/package.json`, lock y Graph solo tras 3; tarea exclusiva de esas rutas.

@@ -5,39 +5,62 @@
 
 ## Contexto
 
-Cytoscape pinta los nodos en canvas; no produce semántica DOM. El Graph actual compensa con un botón transparente por cada node sincronizado en cada render. Graph 2.0 necesita cards informativas y tres niveles de zoom, pero 200 cards DOM sincronizadas en pan continuo pueden degradar interacción y accesibilidad.
+Cytoscape pinta nodes en canvas y no crea semántica DOM. El overlay actual crea un botón por node, sincronizado en cada render. Graph 2.0 necesita cards con tres niveles de zoom, pero no debe mantener contenido DOM rico para 200 nodos fuera de viewport ni perder una ruta de teclado hacia nodos no visibles.
 
-El Graph debe seguir light. Canvas no consume CSS variables, por lo que `CY_STYLE` hoy duplica hex que también viven en `index.css`.
+El Graph queda en light mode. CSS variables son la fuente de verdad visual; canvas requiere valores computados. La política aprobada para Graph 2.0 es **A: no crear ni modificar archivos bajo `test/`**. La accesibilidad se verifica con build y recorridos manuales de teclado documentados, preservando sin edición los tests existentes.
 
-## Decisión propuesta
+## Decisión
 
-1. Crear un mapa de paleta versionado para Graph (`graph-palette.mjs` o equivalente) que traduzca tokens semánticos light a valores consumibles por canvas; CSS/DOM y Cytoscape usan la misma fuente de nombres y no hex dispersos.
-2. Definir tres tiers de zoom por bandas discretas, no por frame:
-   - **detail:** card task/gate/knowledge completa y metadatos mínimos;
-   - **compact:** ID, título y estado/rol;
-   - **overview:** glyph/marker legible, sin texto ilegible.
-3. Renderizar contenido DOM rico solo para elementos dentro de viewport y el tier que lo necesite. El resto conserva hit target y una alternativa navegable por teclado; nunca se pierde el nombre accesible.
-4. Mantener botones DOM reales, nombre accesible, título, foco visible, Enter/Space, Escape y gesto drag→pan. Añadir navegación alternativa de lista/búsqueda para viewport estrecho.
-5. Diferenciar tipos por rol, shape/glyph y texto; color no es la única señal.
-6. Execution vacío, single initiative y History deben tener representaciones light específicas sin estados vacíos genéricos.
+### Paleta y alcance de renderer
+
+`index.css` y sus `--ui-*` siguen siendo la fuente canónica de color. Se agrega `ui/src/views/graph-palette.mjs`, que exporta nombres semánticos de variables y `readGraphPalette(root)`; en montaje de navegador usa `getComputedStyle(root)` para obtener valores concretos. `Graph.jsx` construye el stylesheet de Cytoscape mediante `createGraphStyle(palette)`; no duplica hex en `CY_STYLE`.
+
+La portabilidad aplica a selectores y layout puro. Cytoscape es el renderer comprometido para v1; sustituirlo es una decisión futura, no una promesa implícita de esta ADR.
+
+### Tiers de zoom
+
+Con zoom permitido 0.25–2.5, las bandas son discretas:
+
+| Tier | Rango estable | Representación |
+|---|---|---|
+| `overview` | `< 0.65` | glyph/marker y estado; sin texto ilegible |
+| `compact` | `0.65–<1.15` | ID, título abreviado y estado/rol |
+| `detail` | `≥ 1.15` | card de tipo con metadatos operacionales mínimos |
+
+Para evitar flicker, el tier usa histéresis de 0.05 alrededor de cada frontera: no cambia hasta atravesar el umbral más/menos el margen desde el tier actual. El cálculo ocurre solamente en eventos de zoom, Fit, Reset o resize; nunca por frame/render.
+
+Task, Gate y Knowledge se distinguen por rol, shape/glyph y texto; color no es la única señal.
+
+### Overlay, teclado y fallback estrecho
+
+Los botones overlay/cards DOM se montan solo para nodes dentro de viewport con margen de 96 px y en el tier que requiera contenido DOM. Mantienen nombre accesible, título, foco visible, Enter/Space, Escape y gesto drag→pan.
+
+El camino de teclado para **todos** los nodes no depende de botones off-viewport: Finder existente es la vía canónica de búsqueda/teclado global (`/` o Ctrl/Cmd+K). Desde Graph, elegir un resultado selecciona y enfoca/camera-fit el node cuando pertenece al modo actual; si no pertenece, informa y ofrece cambiar al modo correspondiente. No se crea un segundo navigator, árbol ni drawer.
+
+En pantalla estrecha no se miniaturiza el canvas: Graph ofrece Finder y `NodeDetail` existente como fallback. No se duplican resultados, detalle ni navegación de `Finder.jsx`/`NodeDetail.jsx`. Cualquier cambio de detalle se realiza en la tarea aislada de ADR-001.
+
+### Alcance de rendimiento
+
+La baseline de 200 nodos es una dependencia satisfecha (`T-ui-graph-benchmark` y `T-ui-graph-renderer-baseline`). El tier y culling se verifican sobre ese fixture mediante benchmark/manual documentado; no cambian la semántica de pan/zoom ni fuerzan relayout por frame.
 
 ## Consecuencias
 
-- La capa accesible deja de ser solo un parche invisible y pasa a formar parte del sistema de representación.
-- El renderer no puede sustituirse sin volver a validar el contrato DOM/teclado.
-- Mobile prioriza búsqueda, lista, foco y `NodeDetail`, en lugar de un canvas miniaturizado.
+- La capa DOM accesible es intencional, pero no reproduce 200 cards completas en cada render.
+- Finder preserva acceso por teclado a nodes fuera del viewport sin un orden de Tab infinito.
+- Canvas y DOM comparten tokens CSS computados sin una segunda paleta de hex mantenida a mano.
+- Los tests existentes se preservan intactos; no se agregan suites de tiers/a11y por la política A.
 
 ## Acceptance para la decisión
 
-- Mapa de paleta light y responsabilidades CSS/canvas están definidos.
-- Tier thresholds, contenido por tier y reglas de viewport están definidos.
-- Contrato de teclado, foco, nombre accesible, selección, Escape y drag está especificado.
-- Fallback de pantalla estrecha es navegable sin depender del canvas.
-- Declara qué comprobaciones de helpers son renderer-agnostic y cuáles verifican la capa accesible del renderer activo.
+- Fuente de paleta, lectura browser-only y construcción de stylesheet Cytoscape están definidas.
+- Thresholds, histéresis y disparadores de tier son numéricos y deterministas.
+- Culling viewport, margen y ruta Finder para nodes no visibles están definidos.
+- Teclado, foco, Escape, drag→pan y fallback estrecho reutilizan componentes existentes.
+- Cytoscape queda explícitamente como renderer v1; no se cambia `test/`.
 
 ## Plan por piezas candidato
 
-1. Paleta semántica y estilos de tipo/estado.
-2. Overlay/tier/culling accesible.
-3. Controles y fallback estrecho.
-4. Revisión visual y de teclado integrada con Execution/History.
+1. **Paleta:** `graph-palette.mjs` y stylesheet factory; no modifica zoom ni navegación.
+2. **Representación:** Graph usa paleta, tipos y tiers; depende de 1 y no toca `NodeDetail`.
+3. **Overlay/fallback:** viewport culling, Finder→Graph focus y fallback estrecho; depende de 2, reutiliza Finder/NodeDetail sin modificarlos.
+4. **Verificación:** benchmark fixture + build + teclado/pan/zoom manual documentado; no es una task de código separada.
