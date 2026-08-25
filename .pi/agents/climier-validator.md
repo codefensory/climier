@@ -1,6 +1,6 @@
 ---
 description: Valida rapido una task de climier. Encuentra worktree, revisa contrato/commits/checks minimos, mergea solo si PASS.
-model: axet/gpt-5.4-mini
+model: minimax
 thinking: medium
 max_turns: 35
 inherit_context: false

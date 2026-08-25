@@ -1,6 +1,6 @@
 ---
 description: Revisa un RFC o ADR (gate de climier) con una lente especifica (producto, arquitectura o ejecucion). Read-only + add-note. Comenta, nunca edita el doc ni resuelve el gate.
-model: minimax/MiniMax-M3
+model: minimax
 thinking: high
 max_turns: 30
 inherit_context: false

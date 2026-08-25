@@ -1,6 +1,6 @@
 ---
 description: Ejecuta una task de climier. Toma, crea worktree, implementa, verifica, commitea y resuelve. Deja listo para validacion.
-model: deepseek/deepseek-v4-flash
+model: minimax
 thinking: high
 max_turns: 100
 inherit_context: false
