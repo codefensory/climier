@@ -213,6 +213,7 @@ Canonical `BLOCKS` direction is `{ from: blocker, to: blocked, type: "BLOCKS" }`
 | `show <id>` | Raw node JSON. |
 | `initiatives` | List registered initiatives plus unregistered initiative values still present in nodes. |
 | `log [--limit N] [--action X] [--agent X] [--task X] [--decision X]` | Audit log. |
+| `snapshots` | List recoverable snapshots captured under `<state-dir>/snapshots/`, newest first. Each entry carries `id`, `created_at`, `reason` (`force-init`, `corrupt-recovery`, `pre-restore`), `bytes`, and `sha256`. Only complete pairs (raw + metadata) appear; orphans are excluded. |
 | `ui [--port N] [--open=true\|false]` | Start the local read-only web UI (board, DAG graph, node context, activity) and open it in the browser. Requires the `ui/` subproject deps (`npm install` in `ui/` once); the UI assets are built on demand. The server reads the live state with the CLI's own derivation functions; the browser never touches `tasks.json`. |
 
 ### Mutating
@@ -224,6 +225,7 @@ Canonical `BLOCKS` direction is `{ from: blocker, to: blocked, type: "BLOCKS" }`
 | `release <id> --as <agent>` | Free a claim. `orchestrator` and `recovery` can release any claim. |
 | `resolve <id> --note "<text>" --as <agent>` | Close a task as done. For gates, use `--choice "<text>" --rationale "<text>"` instead of `--note`. |
 | `reopen <id> --reason "<text>" --as <agent>` | Roll a `done` task back to `open`. `orchestrator` / `recovery` can reopen any done task; the original `done_by` can self-reopen. |
+| `restore <snapshot-id> --as orchestrator\|recovery` | Replace the live state with the snapshot's raw bytes. Validates target v2 + required collections before any state change; takes a `pre-restore` snapshot of the current state under the same lock; restores via `tmp+rename`; appends `{ action: "restore", agent, snapshot_id }` to the restored log. Returns `{ snapshot }`. Authority is restricted to `orchestrator` or `recovery` — no per-agent restore. Targets that are absent, incomplete, corrupt, v1, future versions, or missing required collections fail with structured errors and do not mutate state. |
 | `cancel <id> --reason "<text>" --as <agent>` | Terminate a node without resolving (open/in_progress only). |
 | `deprecate-knowledge <id> --reason "<text>" --as <agent>` | Soft-delete a knowledge node (`status="deprecated"`). |
 | `update <id> ... --as <agent>` | Edit node fields such as title, body, definition, acceptance, domain, backlog, tags, or refs. |
