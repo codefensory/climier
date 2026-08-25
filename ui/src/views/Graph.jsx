@@ -71,6 +71,69 @@ const CLOSED_FOR_BLOCKING = new Set([
   "deprecated",
 ]);
 
+// === Tier model (ADR-003 §Tiers de zoom) ===================================
+//
+// Three discrete bands. Thresholds come from ADR-003; the hysteresis
+// margin keeps the tier stable while the wheel oscillates near a
+// boundary. The state lives in `tier()` (a signal); recompute happens
+// only on zoom/Fit/Reset/resize, never on every render frame.
+const TIER_OVERVIEW_MAX = 0.65; // exclusive upper bound of overview
+const TIER_DETAIL_MIN = 1.15;   // inclusive lower bound of detail
+const TIER_HYSTERESIS = 0.05;   // band around each frontier
+const OVERLAY_MARGIN_PX = 96;   // viewport + margin for DOM buttons
+const NARROW_VIEWPORT_PX = 768; // ADR-003 fallback threshold
+
+// computeTier returns the new tier ("overview" | "compact" | "detail")
+// given the previous tier and the current zoom. The first call (no
+// previous tier) selects by raw threshold so the initial paint is
+// deterministic. Subsequent calls apply hysteresis: a transition only
+// fires after the zoom crosses the boundary by at least 0.05 in the
+// direction of motion.
+export function computeTier(currentTier, zoom) {
+  const z = Number.isFinite(zoom) ? zoom : 1;
+  if (currentTier !== "overview" && currentTier !== "compact" && currentTier !== "detail") {
+    if (z < TIER_OVERVIEW_MAX) return "overview";
+    if (z >= TIER_DETAIL_MIN) return "detail";
+    return "compact";
+  }
+  if (currentTier === "overview") {
+    // Stay overview until zoom reaches overview_max + hysteresis. Above
+    // that we land in compact (or detail if also past detail_min).
+    if (z < TIER_OVERVIEW_MAX + TIER_HYSTERESIS) return "overview";
+    return z >= TIER_DETAIL_MIN ? "detail" : "compact";
+  }
+  if (currentTier === "detail") {
+    // Stay detail until zoom drops below detail_min - hysteresis.
+    if (z >= TIER_DETAIL_MIN - TIER_HYSTERESIS) return "detail";
+    return z < TIER_OVERVIEW_MAX ? "overview" : "compact";
+  }
+  // currentTier === "compact"
+  if (z < TIER_OVERVIEW_MAX - TIER_HYSTERESIS) return "overview";
+  if (z >= TIER_DETAIL_MIN + TIER_HYSTERESIS) return "detail";
+  return "compact";
+}
+
+// boxesIntersect returns true when two axis-aligned rectangles overlap.
+// Used by the overlay cull to decide whether a node's rendered bounding
+// box intersects the viewport plus the 96 px margin. Touching edges do
+// not count as overlapping (strict inequalities).
+export function boxesIntersect(a, b) {
+  return a.x1 < b.x2 && a.x2 > b.x1 && a.y1 < b.y2 && a.y2 > b.y1;
+}
+
+// modeForNode returns the first GRAPH_VIEW_MODES entry whose visible
+// set contains the given id. Used by the mode-mismatch banner when the
+// user picks a node from the global Finder that the current mode
+// hides. Returns null when the id is unknown to the snapshot.
+function modeForNode(nodes, edges, id) {
+  if (!id || !nodes || !nodes[id]) return null;
+  for (const m of GRAPH_VIEW_MODES) {
+    const set = visibleSetForMode(nodes, edges, m);
+    if (set.nodes && set.nodes[id]) return m;
+  }
+  return null;
+}
+
 // === Palette bridge ========================================================
 //
 // Cytoscape paints on canvas and cannot consume CSS variables directly,
@@ -180,7 +243,7 @@ function buildStyle(palette) {
 // ordinary cytoscape nodes with reserved id prefixes; they are added
 // before the real nodes so the default z-index places real nodes on top
 // (the style table reinforces this with explicit z-index values).
-function buildElements(visibleSet, layoutResult, crossInitiativeSet, allNodes) {
+function buildElements(visibleSet, layoutResult, crossInitiativeSet, allNodes, tier) {
   const elements = [];
   const lanes = layoutResult ? layoutResult.lanes : [];
   for (const lane of lanes) {
@@ -243,8 +306,16 @@ function cssEscape(s) {
   return String(s).replace(/[()\s]/g, "_");
 }
 
-function formatLabel(id, node) {
+function formatLabel(id, node, tier) {
+  // Tier-aware label (ADR-003 §Tiers). Overview paints no legible text;
+  // compact carries id + short title; detail mirrors the full card
+  // content the previous version rendered at every zoom.
+  const t = tier === "overview" || tier === "compact" || tier === "detail" ? tier : "detail";
   const ini = node.initiative ? ` · ${node.initiative}` : "";
+  if (t === "overview") return "";
+  if (t === "compact") {
+    return `${id}\n${abbreviate(node.title, 18)}\n${kindFor(node)} · ${node.status || "open"}`;
+  }
   return `${id}\n${abbreviate(node.title, 32)}\n${kindFor(node)} · ${node.status || "open"}${ini}`;
 }
 
@@ -366,6 +437,14 @@ export default function Graph() {
   const [kindFilter, setKindFilter] = createSignal("");
   const [zoom, setZoom] = createSignal(1);
   const [overlay, setOverlay] = createSignal([]);
+  // Tier (ADR-003 §Tiers) — "overview" | "compact" | "detail". Recomputed
+  // on zoom/Fit/Reset/resize events, never on every render frame.
+  const [tier, setTier] = createSignal(computeTier(null, 1));
+  // Narrow viewport flag (ADR-003 §Overlay, teclado y fallback estrecho):
+  // when the window is below NARROW_VIEWPORT_PX the canvas hides and the
+  // Finder/NodeDetail fallback takes its place. Tracked locally because
+  // the store does not own layout state.
+  const [narrow, setNarrow] = createSignal(false);
   let cyHost;
   let cy = null;
   let palette = null;
@@ -447,7 +526,7 @@ export default function Graph() {
   // re-runs cy work when something structural actually changed.
   const elements = createMemo(() => {
     const r = layoutResult();
-    return buildElements(visibleSet(), r, crossInitiative(), allNodes());
+    return buildElements(visibleSet(), r, crossInitiative(), allNodes(), tier());
   });
 
   // === Auto-upstream on selection of a blocked node =====================
@@ -606,12 +685,13 @@ export default function Graph() {
   // shows the new title. We batch label updates per poll tick.
   function refreshLabels() {
     if (!cy) return;
+    const currentTier = tier();
     cy.batch(() => {
       const set = visibleSet();
       for (const [id, n] of Object.entries(set.nodes)) {
         const ele = cy.getElementById(id);
         if (!ele || ele.length === 0) continue;
-        const newLabel = formatLabel(id, n);
+        const newLabel = formatLabel(id, n, currentTier);
         if (ele.data("label") !== newLabel) ele.data("label", newLabel);
         const status = n.status || "open";
         if (ele.data("status") !== status) ele.data("status", status);
@@ -622,6 +702,20 @@ export default function Graph() {
   function syncOverlay() {
     if (!cy) return;
     const nodes = visibleSet().nodes;
+    // Viewport in cytoscape container pixels plus the ADR-003 margin.
+    // Nodes whose rendered bounding box does not intersect the
+    // expanded viewport are skipped; they remain in cytoscape and
+    // stay reachable via Finder, but no DOM button is rendered for
+    // them (ADR-003 §Overlay, teclado y fallback estrecho).
+    const container = cy.container();
+    const cw = container ? container.clientWidth : 0;
+    const ch = container ? container.clientHeight : 0;
+    const viewportBox = {
+      x1: -OVERLAY_MARGIN_PX,
+      y1: -OVERLAY_MARGIN_PX,
+      x2: cw + OVERLAY_MARGIN_PX,
+      y2: ch + OVERLAY_MARGIN_PX,
+    };
     const items = [];
     for (const n of cy.nodes()) {
       const id = n.id();
@@ -629,6 +723,7 @@ export default function Graph() {
       const node = nodes[id];
       if (!node) continue;
       const bb = n.renderedBoundingBox({ includeLabels: false });
+      if (!boxesIntersect(bb, viewportBox)) continue;
       items.push({ id, node, x: bb.x1, y: bb.y1, w: bb.w, h: bb.h });
     }
     setOverlay(items);
@@ -662,11 +757,37 @@ export default function Graph() {
   }
 
   function onCyZoom() {
-    setZoom(cy.zoom());
+    if (!cy) return;
+    const z = cy.zoom();
+    setZoom(z);
+    // Tier recompute happens on zoom (per ADR-003 §Tiers: only zoom/Fit/
+    // Reset/resize events, never per-frame). The setTier call is a no-op
+    // when the tier stays the same; the canvas label effect re-runs when
+    // it changes.
+    const next = computeTier(tier(), z);
+    if (next !== tier()) setTier(next);
+  }
+
+  function onCyPan() {
+    // Pan changes the visible viewport but does not change the zoom
+    // tier. The overlay list still needs a refresh so buttons move with
+    // the graph.
+    syncOverlay();
   }
 
   function onWindowResize() {
     if (cy) cy.resize();
+    // Container size drives the overlay viewport box, so the cull must
+    // refresh on resize even when the user has not interacted with cytoscape.
+    syncOverlay();
+    if (typeof window !== "undefined") {
+      setNarrow(window.innerWidth < NARROW_VIEWPORT_PX);
+    }
+  }
+
+  function onNarrowUpdate() {
+    if (typeof window === "undefined") return;
+    setNarrow(window.innerWidth < NARROW_VIEWPORT_PX);
   }
 
   function onNodeFocus(id) {
@@ -755,10 +876,14 @@ export default function Graph() {
     applyStyleClasses();
   });
 
-  // Title/status updates from polling → refresh labels in place.
+  // Title/status updates from polling → refresh labels in place. Tier
+  // is also a dependency: when the zoom crosses a frontier, the
+  // canvas label content must change without rebuilding the cytoscape
+  // elements (ADR-003 §Tiers).
   createEffect(() => {
     if (!cy) return;
     allNodes();
+    tier();
     refreshLabels();
   });
 
@@ -786,8 +911,8 @@ export default function Graph() {
       wheelSensitivity: WHEEL_SENSITIVITY,
       style: buildStyle(palette),
     });
-    cy.on("render", syncOverlay);
     cy.on("zoom", onCyZoom);
+    cy.on("pan", onCyPan);
     cy.on("tap", (e) => {
       if (e.target === cy) select(null);
     });
@@ -796,6 +921,7 @@ export default function Graph() {
       if (typeof id === "string" && id.startsWith("__lane__")) return;
       select(id);
     });
+    onNarrowUpdate();
     window.addEventListener("resize", onWindowResize);
     cy.one("layoutstop", () => {
       if (disposed) return;
@@ -809,8 +935,8 @@ export default function Graph() {
     if (fitTimer) clearTimeout(fitTimer);
     window.removeEventListener("resize", onWindowResize);
     if (cy) {
-      cy.removeListener("render", syncOverlay);
       cy.removeListener("zoom", onCyZoom);
+      cy.removeListener("pan", onCyPan);
       cy.destroy();
       cy = null;
     }
@@ -836,6 +962,49 @@ export default function Graph() {
 
   // === Empty / cross-initiative helpers ==================================
   const executionEmpty = createMemo(() => isExecutionEmpty(allNodes(), allEdges()));
+
+  // === Mode-mismatch (Finder → Graph selection) ==========================
+  // When Finder selects a node that the current mode hides, surface an
+  // offer to switch to the mode that includes it (ADR-003 §Overlay,
+  // teclado y fallback estrecho: "si no pertenece, informa y ofrece
+  // cambiar al modo correspondiente"). Pure derivation from the
+  // snapshot + current mode; no cytoscape work involved.
+  const modeMismatch = createMemo(() => {
+    const id = selectedId();
+    if (!id) return null;
+    const set = visibleSet();
+    if (set.nodes && set.nodes[id]) return null;
+    return modeForNode(allNodes(), allEdges(), id);
+  });
+
+  // === Camera-fit on Finder selection ====================================
+  // ADR-003 §Overlay: when the user picks a result from Finder, Graph
+  // centers the selected node without changing zoom. The effect waits
+  // for cytoscape to settle (queueMicrotask) so the rendered bounding
+  // box reflects the latest layout. We only center when the node is
+  // materially off-screen; in-viewport selections stay where the user
+  // left them.
+  createEffect(() => {
+    const id = selectedId();
+    if (!id || disposed) return;
+    queueMicrotask(() => {
+      if (!cy || disposed) return;
+      const set = visibleSet();
+      if (!set.nodes || !set.nodes[id]) return;
+      const ele = cy.getElementById(id);
+      if (!ele || ele.length === 0) return;
+      const bb = ele.renderedBoundingBox({ includeLabels: false });
+      const container = cy.container();
+      const cw = container ? container.clientWidth : 0;
+      const ch = container ? container.clientHeight : 0;
+      const offLeft = bb.x1 < 0;
+      const offRight = bb.x2 > cw;
+      const offTop = bb.y1 < 0;
+      const offBottom = bb.y2 > ch;
+      if (!offLeft && !offRight && !offTop && !offBottom) return;
+      cy.animate({ center: { eles: ele }, duration: 220 });
+    });
+  });
 
   return (
     <PageLayout mode="workspace">
@@ -958,60 +1127,100 @@ export default function Graph() {
       </div>
 
       <div class="ui-workspace-body ui-graph-canvas relative flex-1 overflow-hidden [background-size:24px_24px]">
-        <div ref={cyHost} class="absolute inset-0" style={{ touchAction: "none" }}>
-          <Index each={overlay()}>
-            {(item) => (
-              <button
-                type="button"
-                class={OVERLAY_BTN_CLS}
-                tabindex="0"
-                aria-label={`${item().id}: ${item().node.title || ""} (${kindFor(item().node)}, ${item().node.status || "open"})`}
-                title={item().node.title || ""}
-                style={{
-                  left: `${item().x}px`,
-                  top: `${item().y}px`,
-                  width: `${item().w}px`,
-                  height: `${item().h}px`,
-                }}
-                onPointerDown={(e) => onNodePointerDown(e, item().id)}
-                onPointerMove={onNodePointerMove}
-                onPointerUp={(e) => onNodePointerUp(e, item().id)}
-                onPointerCancel={() => { dragState = null; }}
-                onKeyDown={(e) => onNodeKeyDown(e, item().id)}
-                onFocus={() => onNodeFocus(item().id)}
-                onBlur={() => onNodeBlur(item().id)}
-              />
-            )}
-          </Index>
-        </div>
-        <Show when={hasNodes() && visibleEdgeCount() === 0 && Object.keys(allNodes()).length > 0}>
-          <div class="absolute inset-x-0 top-3 z-10 px-4">
-            <AlertBanner tone="info" title="Sin relaciones visibles">
-              Hay nodos en el grafo pero ninguna dependencia visible entre ellos.
-            </AlertBanner>
+        <Show when={!narrow()} fallback={<NarrowFallback />}>
+          <div ref={cyHost} class="absolute inset-0" style={{ touchAction: "none" }}>
+            <Index each={overlay()}>
+              {(item) => (
+                <button
+                  type="button"
+                  class={OVERLAY_BTN_CLS}
+                  tabindex="0"
+                  aria-label={`${item().id}: ${item().node.title || ""} (${kindFor(item().node)}, ${item().node.status || "open"})`}
+                  title={item().node.title || ""}
+                  style={{
+                    left: `${item().x}px`,
+                    top: `${item().y}px`,
+                    width: `${item().w}px`,
+                    height: `${item().h}px`,
+                  }}
+                  onPointerDown={(e) => onNodePointerDown(e, item().id)}
+                  onPointerMove={onNodePointerMove}
+                  onPointerUp={(e) => onNodePointerUp(e, item().id)}
+                  onPointerCancel={() => { dragState = null; }}
+                  onKeyDown={(e) => onNodeKeyDown(e, item().id)}
+                  onFocus={() => onNodeFocus(item().id)}
+                  onBlur={() => onNodeBlur(item().id)}
+                />
+              )}
+            </Index>
           </div>
-        </Show>
-        <Show when={!hasNodes() && graphView().mode === "execution" && executionEmpty()}>
-          <div class="absolute inset-0 z-10 overflow-auto p-8">
-            <Empty>No active operational work. Switch to History to inspect superseded decisions and derivations.</Empty>
-            <div class="mt-3 flex justify-center">
-              <button
-                type="button"
-                class={BTN_CLS}
-                onClick={() => handleModeChange("history")}
-              >
-                Switch to History
-              </button>
+          <Show when={modeMismatch()}>
+            <div class="absolute inset-x-0 top-3 z-10 px-4">
+              <AlertBanner tone="info" title="Node no visible en este modo">
+                <span>
+                  El nodo seleccionado pertenece al modo{" "}
+                  <strong>{MODE_LABEL[modeMismatch()]}</strong>. Cambiá de modo para inspeccionarlo en el grafo, o usá NodeDetail.
+                </span>{" "}
+                <button
+                  type="button"
+                  class={MODE_BTN_CLS}
+                  aria-label={`Switch to ${MODE_LABEL[modeMismatch()]} view`}
+                  onClick={() => handleModeChange(modeMismatch())}
+                >
+                  Switch to {MODE_LABEL[modeMismatch()]}
+                </button>
+              </AlertBanner>
             </div>
-          </div>
-        </Show>
-        <Show when={!hasNodes() && !(graphView().mode === "execution" && executionEmpty())}>
-          <div class="absolute inset-0 z-10 overflow-auto p-8">
-            <Empty>No nodes match the current filters.</Empty>
-          </div>
+          </Show>
+          <Show when={hasNodes() && visibleEdgeCount() === 0 && Object.keys(allNodes()).length > 0}>
+            <div class="absolute inset-x-0 top-3 z-10 px-4">
+              <AlertBanner tone="info" title="Sin relaciones visibles">
+                Hay nodos en el grafo pero ninguna dependencia visible entre ellos.
+              </AlertBanner>
+            </div>
+          </Show>
+          <Show when={!hasNodes() && graphView().mode === "execution" && executionEmpty()}>
+            <div class="absolute inset-0 z-10 overflow-auto p-8">
+              <Empty>No active operational work. Switch to History to inspect superseded decisions and derivations.</Empty>
+              <div class="mt-3 flex justify-center">
+                <button
+                  type="button"
+                  class={BTN_CLS}
+                  onClick={() => handleModeChange("history")}
+                >
+                  Switch to History
+                </button>
+              </div>
+            </div>
+          </Show>
+          <Show when={!hasNodes() && !(graphView().mode === "execution" && executionEmpty())}>
+            <div class="absolute inset-0 z-10 overflow-auto p-8">
+              <Empty>No nodes match the current filters.</Empty>
+            </div>
+          </Show>
         </Show>
       </div>
     </PageLayout>
+  );
+}
+
+// === Narrow viewport fallback =========================================
+//
+// ADR-003 §Overlay, teclado y fallback estrecho: en pantalla estrecha
+// no se miniaturiza el canvas; en su lugar, se ofrece Finder +
+// NodeDetail como ruta accesible. Finder vive en App.jsx (global, / o
+// Ctrl/Cmd+K) y NodeDetail lo monta App.jsx también; aquí sólo dejamos
+// un panel que explique al usuario cómo usarlos desde este modo.
+function NarrowFallback() {
+  return (
+    <div class="absolute inset-0 z-10 overflow-auto p-8">
+      <Empty>Vista de grafo no disponible en pantalla estrecha.</Empty>
+      <p class="mt-3 text-center text-[13px] text-body">
+        Usá el buscador global (<kbd class="rounded border border-line bg-panel-2 px-1 text-[12px]">/</kbd> o{" "}
+        <kbd class="rounded border border-line bg-panel-2 px-1 text-[12px]">Ctrl/Cmd+K</kbd>) para abrir Finder y seleccionar
+        un nodo; su detalle aparece en NodeDetail.
+      </p>
+    </div>
   );
 }
 
