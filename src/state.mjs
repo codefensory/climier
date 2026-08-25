@@ -179,6 +179,11 @@ function snapshotDir(projectDir) {
   return path.join(path.dirname(stateFile(projectDir)), "snapshots");
 }
 
+// Public accessor for the snapshot directory of a project. Exported so
+// commands (notably `restore`) can compose against the same layout the
+// primitives write into without recomputing the path.
+export { snapshotDir };
+
 function buildSnapshotId(reason) {
   // toISOString() returns `YYYY-MM-DDTHH:mm:ss.SSSZ`. Strip the dashes,
   // colons and dot so the id prefix is a sortable UTC timestamp with
