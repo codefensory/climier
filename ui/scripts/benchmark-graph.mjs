@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// ui/scripts/benchmark-graph.mjs — Graph layout baseline (T-ui-graph-benchmark).
+// ui/scripts/benchmark-graph.mjs — Graph layout baselines (T-ui-graph-benchmark,
+// T-ui-graph-renderer-baseline).
 //
 // Reproducible headless benchmark that exercises the pure layout helpers
 // used by ui/src/views/Graph.jsx over a 200-node fixture. See
@@ -14,6 +15,13 @@
 //   - The graph-helpers are imported directly (the existing module is
 //     pure ESM with no DOM deps) so we measure the same code path the
 //     renderer calls before handing off to cytoscape.
+//
+// The script reports two clearly-labelled profiles (see result.metrics):
+//   - helper_pure              — computeLayout + toCytoscapeElements, no DOM
+//   - cytoscape_dagre_headless — cytoscape instance (headless: true) running
+//                                cytoscape-dagre over the SAME helper-built
+//                                elements; does NOT measure canvas paint,
+//                                the DOM overlay, gestures or browser FPS
 //
 // Usage:
 //   node scripts/benchmark-graph.mjs                # human-readable summary
@@ -31,6 +39,10 @@ import { performance } from "node:perf_hooks";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
+
+import cytoscape from "cytoscape";
+import dagre from "cytoscape-dagre";
 
 import {
   computeLayout,
@@ -228,14 +240,44 @@ if (invariants.some((i) => !i.ok)) {
 }
 
 // ---------- Timed runs -------------------------------------------------------
+//
+// Two profiles, both over the same fixture/elements. Each profile runs its
+// own warmup + RUNS and is summarised independently so the JSON output can
+// distinguish the two unambiguously.
+//
+//   1) helper_pure
+//        computeLayout + toCytoscapeElements executed in plain Node. This is
+//        the pure-compute budget that the renderer spends before handing off
+//        to cytoscape. No DOM, no canvas, no cytoscape instance.
+//
+//   2) cytoscape_dagre_headless
+//        A fresh cytoscape({ headless: true, styleEnabled: false }) instance
+//        with cytoscape-dagre registered, fed the SAME elements produced by
+//        toCytoscapeElements(). The timed slice is just the synchronous
+//        layout.run() call (animate: false). This isolates the dagre
+//        algorithm cost over the helper-built elements. The instance is
+//        destroyed after each iteration so cached layout state cannot bleed
+//        across samples.
+//        This profile does NOT measure canvas paint, the DOM overlay of
+//        focus buttons, pan/zoom gestures, wheel latency or browser FPS.
+//        Anything tied to a real <canvas> or the browser must be measured
+//        separately (out of scope for this script by design).
 
 const buildSamples = [];
 const layoutSamples = [];
+const cytoDagreSamples = [];
 
 for (let i = 0; i < WARMUP; i++) {
   toCytoscapeElements(nodes, edges);
   computeLayout(nodes, edges);
+  const cy = cytoscape({ headless: true, styleEnabled: false });
+  cytoscape.use(dagre);
+  cy.add(toCytoscapeElements(nodes, edges).elements);
+  cy.layout({ name: "dagre", rankDir: "LR", fit: false, animate: false }).run();
+  cy.destroy();
 }
+
+// helper_pure profile --------------------------------------------------------
 
 for (let i = 0; i < RUNS; i++) {
   const t0 = performance.now();
@@ -249,6 +291,34 @@ for (let i = 0; i < RUNS; i++) {
   }
   buildSamples.push(t1 - t0);
   layoutSamples.push(t2 - t1);
+}
+
+// cytoscape_dagre_headless profile -------------------------------------------
+//
+// Build the elements once outside the timed loop (the construction cost is
+// already covered by helper_pure.build_elements_ms). Each timed iteration
+// spins up a fresh cytoscape instance, registers dagre, adds the elements,
+// runs the dagre layout and destroys the instance. Only the synchronous
+// .run() call sits inside the timed window so the sample reflects dagre's
+// algorithm cost, not cytoscape bootstrap.
+
+const cytoElements = toCytoscapeElements(nodes, edges).elements;
+
+for (let i = 0; i < RUNS; i++) {
+  const cy = cytoscape({ headless: true, styleEnabled: false });
+  cytoscape.use(dagre);
+  cy.add(cytoElements);
+  const t0 = performance.now();
+  cy.layout({ name: "dagre", rankDir: "LR", fit: false, animate: false }).run();
+  const t1 = performance.now();
+  if (i === 0 && cy.nodes().length !== Object.keys(nodes).length) {
+    process.stderr.write(
+      `benchmark-graph: cytoscape headless dropped nodes (got ${cy.nodes().length}, expected ${Object.keys(nodes).length})\n`,
+    );
+    process.exit(1);
+  }
+  cytoDagreSamples.push(t1 - t0);
+  cy.destroy();
 }
 
 function percentile(samples, p) {
@@ -274,6 +344,19 @@ function summary(samples) {
 }
 
 const cpus = os.cpus() || [];
+const cytoscapeVersion = (cytoscape && cytoscape.version) || null;
+// cytoscape-dagre exposes its package.json via require.resolve; resolve the
+// installed copy so we surface the actual version that ran the layout.
+const require = createRequire(import.meta.url);
+let cytoscapeDagreVersion = null;
+try {
+  const pkgPath = require.resolve("cytoscape-dagre/package.json");
+  const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
+  cytoscapeDagreVersion = pkg.version || null;
+} catch (err) {
+  cytoscapeDagreVersion = null;
+}
+
 const result = {
   ok: true,
   fixture: {
@@ -297,31 +380,59 @@ const result = {
     cpu_model: cpus[0] ? cpus[0].model : null,
     cpus: cpus.length,
     headless: true,
-    renderer: "graph-helpers (computeLayout + toCytoscapeElements)",
     json_output: WANTS_JSON,
+    cytoscape_version: cytoscapeVersion,
+    cytoscape_dagre_version: cytoscapeDagreVersion,
   },
   iterations: {
     warmup: WARMUP,
     runs: RUNS,
   },
-  build_elements_ms: summary(buildSamples),
-  layout_ms: summary(layoutSamples),
+  metrics: {
+    helper_pure: {
+      description:
+        "Pure ESM helpers (computeLayout + toCytoscapeElements) executed in plain Node over the fixture; no DOM, no cytoscape instance.",
+      renderer: "graph-helpers (computeLayout + toCytoscapeElements)",
+      rendering_target: "none — pure compute, no canvas, no DOM",
+      build_elements_ms: summary(buildSamples),
+      layout_ms: summary(layoutSamples),
+    },
+    cytoscape_dagre_headless: {
+      description:
+        "Fresh cytoscape({ headless: true, styleEnabled: false }) instance with cytoscape-dagre registered, fed the same elements produced by toCytoscapeElements(). Timed slice is the synchronous layout.run() call (animate: false).",
+      renderer: `cytoscape@${cytoscapeVersion || "?"} + cytoscape-dagre@${cytoscapeDagreVersion || "?"} (headless)`,
+      rendering_target:
+        "none — headless mode without DOM/canvas/window; does NOT measure browser canvas paint, the focus-overlay buttons, pan/zoom gestures, wheel latency or FPS",
+      layout_options: {
+        name: "dagre",
+        rankDir: "LR",
+        fit: false,
+        animate: false,
+      },
+      instances_per_sample: 1,
+      layout_ms: summary(cytoDagreSamples),
+    },
+  },
 };
 
 if (WANTS_JSON) {
   process.stdout.write(JSON.stringify(result, null, 2) + "\n");
 } else {
   const f = (n) => `${n.toFixed(3)} ms`;
+  const hp = result.metrics.helper_pure;
+  const cd = result.metrics.cytoscape_dagre_headless;
   process.stdout.write(
     [
       `fixture: ${result.fixture.path}`,
       `nodes=${result.fixture.nodes} edges=${result.fixture.edges} initiatives=${result.fixture.initiatives}`,
       `kinds: ${JSON.stringify(result.fixture.kinds)}`,
-      `runtime: node ${result.runtime.node} ${result.runtime.platform}/${result.runtime.arch} (${result.runtime.cpus} CPUs)`,
+      `runtime: node ${result.runtime.node} ${result.runtime.platform}/${result.runtime.arch} (${result.runtime.cpus} CPUs) cytoscape@${result.runtime.cytoscape_version} cytoscape-dagre@${result.runtime.cytoscape_dagre_version}`,
       `runs: warmup=${WARMUP} timed=${RUNS}`,
-      `build_elements_ms: p50=${f(result.build_elements_ms.p50)} p95=${f(result.build_elements_ms.p95)} mean=${f(result.build_elements_ms.mean)}`,
-      `layout_ms:        p50=${f(result.layout_ms.p50)} p95=${f(result.layout_ms.p95)} mean=${f(result.layout_ms.mean)}`,
+      `helper_pure.build_elements_ms:        p50=${f(hp.build_elements_ms.p50)} p95=${f(hp.build_elements_ms.p95)} mean=${f(hp.build_elements_ms.mean)}`,
+      `helper_pure.layout_ms:                p50=${f(hp.layout_ms.p50)} p95=${f(hp.layout_ms.p95)} mean=${f(hp.layout_ms.mean)}`,
+      `cytoscape_dagre_headless.layout_ms:   p50=${f(cd.layout_ms.p50)} p95=${f(cd.layout_ms.p95)} mean=${f(cd.layout_ms.mean)}`,
       ``,
+      `(headless profile does NOT measure canvas, overlay or browser FPS)`,
       `(use --json for the full machine-readable result)`,
       ``,
     ].join("\n"),
