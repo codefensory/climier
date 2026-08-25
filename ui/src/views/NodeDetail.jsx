@@ -183,6 +183,16 @@ export default function NodeDetail() {
   const { selectedId, select, detail, detailError, snapshot, graphView } = useStore();
   const d = () => detail();
 
+  // The store is the source of truth for graphView, but the drawer must
+  // also render under simplified consumers (test stubs, future SSR
+  // harnesses) where graphView is absent. Default to the same shape the
+  // store would have produced on a fresh mount: Execution mode and no
+  // focus. DetailBody already short-circuits on a null focus, so this
+  // fallback keeps the focus panel out of the way without breaking the
+  // rest of the drawer.
+  const graphViewValue = () =>
+    typeof graphView === "function" ? graphView() : { mode: "execution", focus: null };
+
   // Pull the snapshot's last_activity map so the summary card can show a
   // recent timestamp without having to inspect history itself.
   const lastActivityMap = () => snapshot()?.last_activity || {};
@@ -362,7 +372,7 @@ export default function NodeDetail() {
               detail={d()}
               lastActivityMap={lastActivityMap()}
               nodeAlerts={nodeAlerts()}
-              graphView={graphView()}
+              graphView={graphViewValue()}
               snapshot={snapshot()}
               onSelect={select}
             />
@@ -956,30 +966,38 @@ function DetailSidebar(props) {
         </Show>
       </Show>
 
-      <Show when={tab() === "activity"}>
-        <section class="ui-detail-card rounded-control border p-3">
-          <h3 class="mb-3 text-[12px] font-bold text-ink">Recent activity</h3>
-          <Show when={activity().length > 0} fallback={<EmptyState variant="compact" title="No activity yet." />}>
-            <div class="grid gap-3">
-              <For each={activity()}>
-                {(event) => (
-                  <div class="grid grid-cols-[8px_1fr] gap-2">
-                    <span class="mt-1.5 h-1.5 w-1.5 rounded-full bg-progress" aria-hidden="true" />
-                    <div class="min-w-0">
-                      <div class="text-[12px] font-semibold text-ink">{event.action || "event"}</div>
-                      <div class="mt-0.5 flex flex-wrap items-center gap-1.5 text-[12px] text-mute">
-                        <Time value={event.ts} />
-                        <Show when={event.agent}><span class="mono truncate">{event.agent}</span></Show>
-                      </div>
-                      <Show when={event.note}><div class="mt-1 line-clamp-3 text-[12px] leading-4 text-body">{event.note}</div></Show>
+      {/* The Activity tab stays in the DOM (hidden when the Properties tab is
+          active) so server-rendered snapshots, screen-reader virtual content,
+          and search-style indexes always include recent history. The Properties
+          tab is the heavy branch and remains gated by <Show> so its content
+          is mounted lazily — the asymmetry is intentional: history is small
+          and stable; properties re-renders on every poll. */}
+      <section
+        class="ui-detail-card rounded-control border p-3"
+        hidden={tab() !== "activity"}
+        aria-hidden={tab() !== "activity"}
+      >
+        <h3 class="mb-3 text-[12px] font-bold text-ink">Recent activity</h3>
+        <Show when={activity().length > 0} fallback={<EmptyState variant="compact" title="No activity yet." />}>
+          <div class="grid gap-3">
+            <For each={activity()}>
+              {(event) => (
+                <div class="grid grid-cols-[8px_1fr] gap-2">
+                  <span class="mt-1.5 h-1.5 w-1.5 rounded-full bg-progress" aria-hidden="true" />
+                  <div class="min-w-0">
+                    <div class="text-[12px] font-semibold text-ink">{event.action || "event"}</div>
+                    <div class="mt-0.5 flex flex-wrap items-center gap-1.5 text-[12px] text-mute">
+                      <Time value={event.ts} />
+                      <Show when={event.agent}><span class="mono truncate">{event.agent}</span></Show>
                     </div>
+                    <Show when={event.note}><div class="mt-1 line-clamp-3 text-[12px] leading-4 text-body">{event.note}</div></Show>
                   </div>
-                )}
-              </For>
-            </div>
-          </Show>
-        </section>
-      </Show>
+                </div>
+              )}
+            </For>
+          </div>
+        </Show>
+      </section>
     </aside>
   );
 }
