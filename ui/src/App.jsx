@@ -43,7 +43,6 @@ import { Dynamic } from "solid-js/web";
 import { StoreProvider, useStore } from "./store.jsx";
 import Overview from "./views/Overview.jsx";
 import Board from "./views/Board.jsx";
-import Graph from "./views/Graph.jsx";
 import Nodes from "./views/Nodes.jsx"; // Tasks view; the file keeps the name
 import Gates from "./views/Gates.jsx";
 import Knowledge from "./views/Knowledge.jsx";
@@ -82,7 +81,6 @@ import {
 const ROUTE_COMPONENTS = {
   overview:  Overview,
   board:     Board,
-  graph:     Graph,
   tasks:     Nodes,
   gates:     Gates,
   knowledge: Knowledge,

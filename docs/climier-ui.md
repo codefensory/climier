@@ -219,7 +219,6 @@ La dirección de `BLOCKS` debe estar visible para evitar invertir la interpretac
 ```text
 Overview
 ├── Board
-├── Graph
 ├── Nodes
 ├── Gates
 ├── Knowledge
@@ -308,43 +307,7 @@ Un modo avanzado puede mostrar el comando equivalente:
 climier take T-auth-7 --as pi-worker
 ```
 
-## 9. Graph / DAG
-
-El grafo completo será una vista secundaria y filtrable. No se deben mostrar todos los nodes históricos de entrada.
-
-### Layout
-
-- Eje horizontal: profundidad de dependencia, desde blockers hacia dependents.
-- Agrupación vertical: `initiative` o `domain`.
-- Filtro inicial: sólo nodes activos de una initiative.
-- Acción `Show history`: agrega done, canceled, resolved y superseded.
-- Acción `Focus node`: muestra el node, sus blockers y sus dependents.
-
-### Apariencia
-
-- Task: rectángulo.
-- Gate: rombo.
-- Knowledge: nodo pequeño o badge contextual.
-- `BLOCKS`: línea sólida naranja o roja.
-- `SUPERSEDES`: línea punteada morada.
-- `DERIVED_FROM`: línea punteada azul o gris.
-- Done o superseded: opacidad reducida, pero no desaparecen cuando el usuario está viendo historial.
-
-Los colores no serán el único indicador: cada node tendrá texto, icono y tipo visible.
-
-### Herramientas del grafo
-
-- zoom y pan;
-- búsqueda por id o título;
-- filtro por initiative, domain, status y kind;
-- mini-map;
-- mostrar sólo blockers;
-- mostrar sólo dependents;
-- resaltar el camino entre dos nodes;
-- contador de impacto: cuántos nodes downstream dependen de un node;
-- alerta para blockers cancelados o superseded.
-
-## 10. Panel de detalle del node
+## 9. Panel de detalle del node
 
 El panel lateral o página de detalle tendrá estas secciones:
 
@@ -427,7 +390,7 @@ Mostrar `refs` estructuradas cuando existan y detectar referencias a:
 
 Las referencias detectadas automáticamente deben distinguirse de las referencias persistidas en `refs`.
 
-## 11. Familiarización con agentes y Climier
+## 10. Familiarización con agentes y Climier
 
 La UI debe enseñar el protocolo, no sólo mostrar datos.
 
@@ -463,7 +426,7 @@ Cada término importante tendrá un tooltip o enlace a documentación:
 - `BLOCKS`;
 - `Knowledge scope`.
 
-## 12. Comentarios, referencias y actividad
+## 11. Comentarios, referencias y actividad
 
 La UI tendrá tres niveles de actividad:
 
@@ -479,7 +442,7 @@ No se debe mostrar todo el log en el tablero. El log debe tener:
 - agrupación por node;
 - links a la pantalla de detalle.
 
-## 13. Arquitectura técnica propuesta
+## 12. Arquitectura técnica propuesta
 
 ### 13.1 UI local
 
@@ -527,7 +490,7 @@ Toda mutación desde la UI debe:
 - usar `revision` y `--if-revision` cuando aplique;
 - mostrar un conflicto claramente si otro agente modificó el node.
 
-## 14. Seguridad y privacidad
+## 13. Seguridad y privacidad
 
 - No exponer el state file directamente al browser.
 - No iniciar el servidor en una interfaz pública por defecto.
@@ -537,7 +500,7 @@ Toda mutación desde la UI debe:
 - No exponer la UI Climier dentro de la aplicación pública Vegsport.
 - Ocultar contenido sensible en una eventual modalidad remota mediante permisos por initiative/node.
 
-## 15. Roadmap
+## 14. Roadmap
 
 ### MVP: lectura y aprendizaje — IMPLEMENTADO (sin testing por decisión)
 
@@ -546,12 +509,11 @@ Toda mutación desde la UI debe:
 - [x] Board con `ready`, `in_progress`, `blocked`, `backlog` + fila `Gates`;
 - [x] filtros por initiative, kind y status;
 - [x] panel de detalle (spec, blockers, dependents, knowledge, notes, history, refs);
-- [x] Graph DAG filtrable (pan/zoom, initiative, history, shapes por tipo, leyenda);
 - [x] Nodes / Gates / Knowledge / Activity con filtros y paginación;
 - [x] glosario contextual vía explicaciones inline;
 - [x] snapshot como endpoint `/api/snapshot` (reutiliza la derivación del CLI).
 
-### Fase 2: grafo y actividad — PARCIAL (Graph y Activity ya existen; falta search global e impacto downstream dedicado)
+### Fase 2: actividad — IMPLEMENTADO (falta search global e impacto downstream dedicado en Nodes / Gates)
 
 ### Fase 3: acciones — A BACKLOG
 
@@ -568,7 +530,7 @@ Toda mutación desde la UI debe:
 - permisos para múltiples usuarios;
 - modalidad remota, si existe una necesidad real.
 
-## 16. No objetivos
+## 15. No objetivos
 
 - No reemplazar el modelo de Climier.
 - No renombrar `tasks`, `gates`, `knowledge`, `initiatives` o edges.
@@ -579,7 +541,7 @@ Toda mutación desde la UI debe:
 - No hacer que un resumen generado por IA reemplace los datos originales.
 - No soportar inicialmente un dashboard remoto multiusuario.
 
-## 17. Criterios de aceptación
+## 16. Criterios de aceptación
 
 ### Vocabulario y modelo
 
@@ -616,7 +578,7 @@ Toda mutación desde la UI debe:
 - El flujo `context → take → work → add-note → resolve` está visible y documentado.
 - La UI permite abrir el comando equivalente para entender cómo opera el agente.
 
-## 18. Métricas propuestas
+## 17. Métricas propuestas
 
 Estas métricas deben validarse con usuarios antes de fijarlas como contrato:
 
@@ -626,7 +588,7 @@ Estas métricas deben validarse con usuarios antes de fijarlas como contrato:
 - El tiempo de carga local del snapshot se mantiene aceptable para proyectos de al menos 250 nodes.
 - Todas las mutaciones realizadas por la UI dejan una entrada auditable en Climier.
 
-## 19. Referencias de implementación
+## 18. Referencias de implementación
 
 - `README.md`: propósito, workflow y output contract.
 - `docs/reference.md`: modelo, nodes, edges, estados y comandos.
@@ -644,6 +606,6 @@ Estas métricas deben validarse con usuarios antes de fijarlas como contrato:
 ### Implementación de la UI (nueva)
 
 - `ui/server/server.mjs`: server Express local, API `/api/snapshot|node|activity|search`, static de `ui/dist`.
-- `ui/src/`: frontend Solid + Tailwind (vistas Overview, Board, Graph, Nodes, Gates, Knowledge, Activity, NodeDetail).
+- `ui/src/`: frontend Solid + Tailwind (vistas Overview, Board, Nodes, Gates, Knowledge, Activity, NodeDetail).
 - `src/commands/ui.mjs`: comando `climier ui` (deps check, build on demand, arranque y open browser).
 - `src/v2.mjs` / `src/state.mjs`: funciones puras reutilizadas por el server (`deriveV2`, `knowledgeForNode`, `blockingForNode`, `readState`).

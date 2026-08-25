@@ -21,7 +21,6 @@
 export const ROUTE_META = {
   overview:  { label: "Overview",  group: "Monitor" },
   board:     { label: "Board",     group: "Monitor" },
-  graph:     { label: "Graph",     group: "Monitor" },
   tasks:     { label: "Tasks",     group: "Work" },
   gates:     { label: "Gates",     group: "Work" },
   knowledge: { label: "Knowledge", group: "Context" },
@@ -33,7 +32,7 @@ export const DEFAULT_ROUTE = "overview";
 // Group order = sidebar order. Activity sits in "Audit" and is never the
 // fallback target — unknown routes land on Overview.
 export const NAV_GROUPS = [
-  { label: "Monitor", ids: ["overview", "board", "graph"] },
+  { label: "Monitor", ids: ["overview", "board"] },
   { label: "Work",    ids: ["tasks", "gates"] },
   { label: "Context", ids: ["knowledge"] },
   { label: "Audit",   ids: ["activity"] },

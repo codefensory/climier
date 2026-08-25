@@ -2,18 +2,15 @@
   "name": "climier-ui",
   "version": "0.1.0",
   "private": true,
-  "description": "Local web UI for climier: board, DAG graph and node context",
+  "description": "Local web UI for climier: board and node context",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "dev:api": "node server/server.mjs --project ..",
     "build": "vite build",
-    "preview": "vite preview",
-    "benchmark:graph": "node scripts/benchmark-graph.mjs",
-    "benchmark:graph:json": "node scripts/benchmark-graph.mjs --json"
+    "preview": "vite preview"
   },
   "dependencies": {
-    "cytoscape": "^3.34.2",
     "express": "^4.21.2"
   },
   "devDependencies": {

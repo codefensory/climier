@@ -87,7 +87,6 @@ export function drawerAvailable(breakpoint) {
 export const RAIL_GLYPH = Object.freeze({
   overview:  "Ov",
   board:     "Bo",
-  graph:     "Gr",
   tasks:     "Tk",
   gates:     "Gt",
   knowledge: "Kn",
