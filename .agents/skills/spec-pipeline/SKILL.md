@@ -36,6 +36,8 @@ Lanza un `rfc-reviewer` (`.pi/agents/rfc-reviewer.md`) por lente, en paralelo (b
 
 Prompt: `Revisa <gate-id> con lente <lente>. El doc esta en el body del gate. Deja notas, no edites.`
 
+Convencion de notas: cada lente (`rfc-reviewer`) deja exactamente **una nota consolidada** con secciones Bloqueos/Preguntas/Sugerencias, o `LGTM`. Multiples notas sueltas de la misma lente rompen la convencion.
+
 Consolidacion: `climier show <G>` → agrupa notas por tema → resuelve `[bloqueo]` con el usuario → edita el doc → nota de cierre por bloqueo resuelto. Aprobar solo con OK del usuario:
 
 ```bash
