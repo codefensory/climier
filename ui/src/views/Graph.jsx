@@ -1,20 +1,34 @@
-import { createEffect, createMemo, createSignal, onCleanup, onMount, Show, For } from "solid-js";
+import { createEffect, createMemo, createSignal, onCleanup, onMount, Show, For, Index } from "solid-js";
 import { useStore } from "../store.jsx";
 import { Empty, AlertBanner, FilterBar, PageHeader, PageLayout } from "../components.jsx";
 import {
   kindFor,
-  computeLayout,
-  fitTransform,
   abbreviate,
-  buildEdgePath,
   shouldShowIsolationCallout,
   filterGraph,
-  neighborIds,
-  edgeTouches,
   uniqueStatuses,
   uniqueKinds,
+  toCytoscapeElements,
 } from "./graph-helpers.mjs";
 
+// Cytoscape renderer for the DAG graph (T-ui-graph-cyto).
+//
+// The old renderer drew native SVG shapes; Cytoscape paints on <canvas>, so
+// there are no DOM nodes to focus. Accessibility (the T-ui-a11y contract:
+// every node is a focusable role="button" with aria-label + title, keyboard
+// activation, visible focus) is preserved with a DOM overlay of real <button>
+// elements positioned over each rendered node via renderedBoundingBox() and
+// kept in sync on cy pan/zoom/render/resize.
+//
+// cytoscape + cytoscape-dagre are loaded with a dynamic import inside onMount
+// (not at module top level) so the existing ui-graph-core smoke test, which
+// compiles and imports Graph.jsx in plain Node, keeps passing untouched: the
+// modules are only resolved when the component actually mounts in the browser.
+
+// Colors and status palette are mapped 1:1 from the previous SVG renderer
+// (Fase 5C). Cytoscape paints on canvas, so var(--ui-*) CSS variables cannot
+// be used inside the stylesheet; the concrete hex values below mirror the
+// design tokens from ui/src/index.css.
 const EDGE_COLORS = {
   BLOCKS: "#be123c",
   SUPERSEDES: "#7157d9",
@@ -38,83 +52,101 @@ const STATUS_COLORS = {
 };
 const STATUS_DEFAULT = { stroke: "#d9dde5", text: "#3f4652" };
 
+const NODE_W = 192;
+const NODE_H = 56;
+const KNOWLEDGE_D = 56; // circle diameter, matches the old r=28 knowledge node
+const FIT_PADDING = 40;
+// Wheel sensitivity calibrated so a typical mouse notch (~deltaY 100) zooms
+// by ~1.12x, the same factor the old SVG wheel handler used (2^(100/250*0.4)).
+const WHEEL_SENSITIVITY = 0.4;
+
+// Cytoscape stylesheet. Class rules are ordered so dimming/focus overrides
+// the per-status and per-kind base styles (cytoscape resolves ties by order).
+const CY_STYLE = [
+  {
+    selector: "node",
+    style: {
+      width: NODE_W,
+      height: NODE_H,
+      shape: "round-rectangle",
+      "corner-radius": 8,
+      "background-color": "#fafbfc", // --ui-panel-muted
+      "border-width": 1.2,
+      "border-color": STATUS_DEFAULT.stroke,
+      color: "#3f4652", // --ui-body (single canvas label keeps the title readable)
+      "font-family": "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+      "font-size": 10,
+      "text-wrap": "wrap",
+      "text-max-width": 190,
+      "text-valign": "center",
+      "text-halign": "center",
+      label: "data(label)",
+    },
+  },
+  { selector: "node.gate", style: { shape: "diamond", "background-color": "#fff7e8" } }, // --ui-amber-soft
+  { selector: "node.knowledge", style: { shape: "ellipse", width: KNOWLEDGE_D, height: KNOWLEDGE_D, "background-color": "#f2efff" } }, // --ui-violet-soft
+  ...Object.keys(STATUS_COLORS).map((status) => ({
+    selector: `node[status = "${status}"]`,
+    style: { "border-color": STATUS_COLORS[status].stroke },
+  })),
+  { selector: "node.faded", style: { opacity: 0.55 } },
+  { selector: "node.selected", style: { "border-width": 2, "border-color": "#1769e0" } },
+  { selector: "node.focused", style: { "border-style": "dashed" } },
+  { selector: "node.dimmed", style: { opacity: 0.25 } },
+  {
+    selector: "edge",
+    style: {
+      width: 1.4,
+      "line-color": EDGE_COLORS.INFORMS,
+      "line-style": "dashed",
+      opacity: 0.65,
+      "curve-style": "bezier",
+      "target-arrow-shape": "triangle",
+      "target-arrow-fill": "filled",
+      "target-arrow-color": EDGE_COLORS.INFORMS,
+    },
+  },
+  { selector: "edge.BLOCKS", style: { "line-color": EDGE_COLORS.BLOCKS, "target-arrow-color": EDGE_COLORS.BLOCKS, "line-style": "solid", opacity: 0.9 } },
+  { selector: "edge.SUPERSEDES", style: { "line-color": EDGE_COLORS.SUPERSEDES, "target-arrow-color": EDGE_COLORS.SUPERSEDES } },
+  { selector: "edge.DERIVED_FROM", style: { "line-color": EDGE_COLORS.DERIVED_FROM, "target-arrow-color": EDGE_COLORS.DERIVED_FROM } },
+  { selector: "edge.bright", style: { opacity: 0.9 } },
+  { selector: "edge.dimmed", style: { opacity: 0.12 } },
+];
+
 const BTN_CLS =
   "ui-control inline-flex min-h-[36px] items-center rounded-control border border-line bg-panel px-3 text-[12px] font-medium text-body " +
   "hover:border-line-strong hover:bg-panel-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2";
 
-const SEL_COLORS = { stroke: "#1769e0", halo: "rgba(23,105,224,0.28)", ring: "#1769e0" };
-const NEI_COLORS = { stroke: null, halo: "rgba(23,105,224,0.16)", ring: null };
+// Overlay button: a real <button> (keyboard reachable, accessible name) that
+// covers the rendered node box. pointer-events stay enabled so a click without
+// drag selects the node; a drag that starts on the button is delegated to the
+// cytoscape pan (Graph keeps pan/zoom fully operable over nodes).
+const OVERLAY_BTN_CLS =
+  "graph-node-overlay absolute z-[5] cursor-pointer touch-none rounded-[8px] border-0 bg-transparent p-0 " +
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2";
 
-// Node label inside the SVG: ID + abbreviated title + kind/status as text,
-// so the direction and state are readable without relying on color alone.
-//
-// Fase 5C pieza 2 keyboard + focus support: every shape is a focusable
-// role="button" (tabIndex=0). Enter/Space activates the same action as a
-// click; Escape blurs the node (and deselects it when it was the selected
-// node — see Graph.onNodeKeyDown). Focused nodes render a dashed ring, the
-// selected node and its direct neighbors render a soft halo behind the
-// shape so the focus-of-neighbors state is readable without color alone.
-function NodeShape(props) {
-  const n = () => props.n;
-  const pos = () => props.pos;
-  const selected = () => props.selected;
-  const focused = () => props.focused;
-  const neighbor = () => props.neighbor;
-  const meta = () => STATUS_COLORS[n().status] || STATUS_DEFAULT;
-  const stroke = () => (selected() ? SEL_COLORS.stroke : meta().stroke);
-  const sw = () => (selected() ? 2 : 1.2);
-  const label = (
-    <g class="pointer-events-none">
-      <text x={pos().x} y={pos().y - 17} text-anchor="middle" font-size="10" fill={meta().text} class="mono">{n().id}</text>
-      <text x={pos().x} y={pos().y + 1} text-anchor="middle" font-size="11" fill="var(--ui-text)">{abbreviate(n().title, 32)}</text>
-      <text x={pos().x} y={pos().y + 19} text-anchor="middle" font-size="9" fill="#71717a" class="mono">{kindFor(n())} · {n().status || "open"}</text>
-    </g>
-  );
-  const haloColor = () => (selected() ? SEL_COLORS.halo : NEI_COLORS.halo);
-  const halo = () => selected() || neighbor();
-  const ring = () => focused() && !selected();
-  const click = () => props.onSelect(n().id);
-  const keydown = (e) => props.onKeyDown?.(e, n().id);
-  const shapeProps = {
-    role: "button",
-    tabindex: 0,
-    "aria-label": `${n().id}: ${n().title || ""} (${kindFor(n())}, ${n().status || "open"})`,
-    onClick: click,
-    onKeyDown: keydown,
-    onFocus: props.onFocus,
-    onBlur: props.onBlur,
-  };
-  if (kindFor(n()) === "knowledge") {
-    return (
-      <g>
-        {halo() && <circle cx={pos().x} cy={pos().y} r={33} fill="none" stroke={haloColor()} stroke-width="3" class="pointer-events-none" />}
-        {ring() && <circle cx={pos().x} cy={pos().y} r={32} fill="none" stroke={SEL_COLORS.ring} stroke-width="1.5" stroke-dasharray="4 3" class="pointer-events-none" />}
-        <circle cx={pos().x} cy={pos().y} r={28} stroke={stroke()} stroke-width={sw()} fill="var(--ui-violet-soft)" class="cursor-pointer" {...shapeProps} />
-        {label}
-      </g>
-    );
+function nodeLabelText(data) {
+  const [id, title, meta] = data.label;
+  const ini = data.initiative ? ` · ${data.initiative}` : "";
+  return `${id}\n${title}\n${meta}${ini}`;
+}
+
+// Stable signature of the cytoscape elements so the 2s snapshot polling does
+// not churn the layout when nothing about the visible graph actually changed.
+function graphSignature(elements) {
+  const nodes = [];
+  const edges = [];
+  for (const el of elements) {
+    if (el.data && el.data.source === undefined) {
+      const d = el.data;
+      nodes.push(`${d.id}|${d.status}|${d.initiative}|${d.label.join("\u0001")}`);
+    } else if (el.data) {
+      edges.push(`${el.data.source}>${el.data.target}|${el.data.type}`);
+    }
   }
-  if (kindFor(n()) === "gate") {
-    const pts = `${pos().x},${pos().y - 28} ${pos().x + 96},${pos().y} ${pos().x},${pos().y + 28} ${pos().x - 96},${pos().y}`;
-    const haloPts = `${pos().x},${pos().y - 34} ${pos().x + 102},${pos().y} ${pos().x},${pos().y + 34} ${pos().x - 102},${pos().y}`;
-    const ringPts = `${pos().x},${pos().y - 32} ${pos().x + 100},${pos().y} ${pos().x},${pos().y + 32} ${pos().x - 100},${pos().y}`;
-    return (
-      <g>
-        {halo() && <polygon points={haloPts} fill="none" stroke={haloColor()} stroke-width="3" class="pointer-events-none" />}
-        {ring() && <polygon points={ringPts} fill="none" stroke={SEL_COLORS.ring} stroke-width="1.5" stroke-dasharray="4 3" class="pointer-events-none" />}
-        <polygon points={pts} stroke={stroke()} stroke-width={sw()} fill="var(--ui-amber-soft)" class="cursor-pointer" {...shapeProps} />
-        {label}
-      </g>
-    );
-  }
-  return (
-    <g>
-      {halo() && <rect x={pos().x - 102} y={pos().y - 34} width={204} height={68} rx={10} fill="none" stroke={haloColor()} stroke-width="3" class="pointer-events-none" />}
-      {ring() && <rect x={pos().x - 101} y={pos().y - 33} width={202} height={66} rx={9} fill="none" stroke={SEL_COLORS.ring} stroke-width="1.5" stroke-dasharray="4 3" class="pointer-events-none" />}
-      <rect x={pos().x - 96} y={pos().y - 28} width={192} height={56} rx={8} stroke={stroke()} stroke-width={sw()} fill="var(--ui-panel-muted)" class="cursor-pointer" {...shapeProps} />
-      {label}
-    </g>
-  );
+  nodes.sort();
+  edges.sort();
+  return `${nodes.join(";")}::${edges.join(";")}`;
 }
 
 export default function Graph() {
@@ -125,14 +157,15 @@ export default function Graph() {
   const [statusFilter, setStatusFilter] = createSignal("");
   const [kindFilter, setKindFilter] = createSignal("");
   const [showHistory, setShowHistory] = createSignal(false);
-  const [zoom, setZoom] = createSignal(0.9);
-  const [pan, setPan] = createSignal({ x: 0, y: 0 });
-  const [drag, setDrag] = createSignal(null);
-  const [viewport, setViewport] = createSignal({ w: 0, h: 0 });
-  const [didFit, setDidFit] = createSignal(false);
-  const [focusedId, setFocusedId] = createSignal(null);
-  let moved = false;
-  let host;
+  const [zoom, setZoom] = createSignal(1);
+  const [overlay, setOverlay] = createSignal([]);
+  let cyHost;
+  let cy = null;
+  let lastSig = null;
+  let dragState = null;
+  let disposed = false;
+  let fitRetries = 0;
+  let fitTimer = null;
 
   const initiatives = createMemo(() => {
     const set = new Set();
@@ -159,8 +192,10 @@ export default function Graph() {
       kind: kindFilter(),
       showHistory: showHistory(),
     });
-    return { nodes: vn, edges: ve, layout: computeLayout(vn, ve) };
+    return { nodes: vn, edges: ve };
   });
+
+  const hasNodes = () => Object.keys(visible().nodes).length > 0;
 
   const showIsolation = () =>
     shouldShowIsolationCallout(
@@ -169,111 +204,216 @@ export default function Graph() {
       visible().edges.length,
     );
 
-  // Focus-of-neighbors: when a node is selected, the highlight set is the
-  // selected node plus its direct neighbors in the visible graph. Every
-  // other visible node and every unrelated edge is dimmed.
-  const focusIds = createMemo(() => {
+  const graphElements = createMemo(() => toCytoscapeElements(visible().nodes, visible().edges));
+
+  // --- Cytoscape lifecycle -------------------------------------------------
+
+  function applyElements() {
+    const { elements } = graphElements();
+    cy.elements().remove();
+    cy.add(
+      elements.map((el) =>
+        el.data.source === undefined
+          ? { ...el, data: { ...el.data, label: nodeLabelText(el.data) } }
+          : el,
+      ),
+    );
+    // Flat dagre LR layout: blocker -> blocked flows left to right. The
+    // initiative is rendered as a label chip on each node instead of compound
+    // initiative bands (cytoscape-dagre v4 does not support compound nodes).
+    cy.layout({ name: "dagre", rankDir: "LR", fit: false }).run();
+    applyFocusClasses();
+    syncOverlay();
+  }
+
+  function applyFocusClasses() {
+    if (!cy) return;
+    cy.elements().removeClass("selected neighbor bright dimmed");
     const id = selectedId();
-    if (!id) return null;
-    const set = neighborIds(visible().edges, id);
-    set.add(id);
-    return set;
-  });
-
-  function nodeOpacity(n) {
-    const faded = ["done", "resolved", "superseded", "deprecated"].includes(n.status) ? 0.55 : 1;
-    if (!focusIds()) return faded;
-    return focusIds().has(n.id) ? 1 : 0.25;
+    if (!id) return;
+    const n = cy.getElementById(id);
+    if (!n || n.length === 0) return;
+    n.addClass("selected");
+    const hood = n.neighborhood();
+    hood.addClass("neighbor");
+    hood.edges().addClass("bright");
+    cy.elements().not(n).not(hood).addClass("dimmed");
   }
 
-  function edgeOpacity(e) {
-    if (!focusIds()) return e.type === "BLOCKS" ? 0.9 : 0.65;
-    return edgeTouches(e, focusIds()) ? 0.9 : 0.12;
-  }
-
-  function measure() {
-    if (!host) return;
-    const r = host.getBoundingClientRect();
-    setViewport({ w: r.width, h: r.height });
-  }
-
-  function onWheel(e) {
-    e.preventDefault();
-    const factor = e.deltaY < 0 ? 1.12 : 0.89;
-    const vp = viewport();
-    const cx = vp.w / 2;
-    const cy = vp.h / 2;
-    const next = Math.min(2.5, Math.max(0.25, zoom() * factor));
-    // Keep the world point under the viewport center fixed while scaling.
-    const wx = (cx - pan().x) / zoom();
-    const wy = (cy - pan().y) / zoom();
-    setPan({ x: cx - wx * next, y: cy - wy * next });
-    setZoom(next);
-  }
-
-  function fit() {
-    const vp = viewport();
-    if (!vp.w || !vp.h) return;
-    const t = fitTransform(visible().layout, vp.w, vp.h, 40);
-    setZoom(t.scale);
-    setPan({ x: t.tx, y: t.ty });
-  }
-
-  function reset() {
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
-  }
-
-  onMount(() => {
-    measure();
-    window.addEventListener("resize", measure);
-    host?.addEventListener("wheel", onWheel, { passive: false });
-  });
-  onCleanup(() => {
-    window.removeEventListener("resize", measure);
-    host?.removeEventListener("wheel", onWheel);
-  });
-
-  // One automatic fit after the first measure so the initial view shows
-  // the whole graph; afterwards the user drives zoom/pan via Fit/Reset.
-  createEffect(() => {
-    if (viewport().w > 0 && viewport().h > 0 && !didFit()) {
-      fit();
-      setDidFit(true);
+  function syncOverlay() {
+    if (!cy) return;
+    const nodes = visible().nodes;
+    const items = [];
+    for (const n of cy.nodes()) {
+      const id = n.id();
+      const node = nodes[id];
+      if (!node) continue;
+      const bb = n.renderedBoundingBox({ includeLabels: false });
+      items.push({ id, node, x: bb.x1, y: bb.y1, w: bb.w, h: bb.h });
     }
-  });
+    setOverlay(items);
+  }
 
-  const onPointerDown = (e) => {
-    moved = false;
-    setDrag({ x: e.clientX, y: e.clientY, px: pan().x, py: pan().y });
-  };
-  const onPointerMove = (e) => {
-    if (!drag()) return;
-    const dx = e.clientX - drag().x;
-    const dy = e.clientY - drag().y;
-    if (Math.abs(dx) + Math.abs(dy) > 3) moved = true;
-    setPan({ x: drag().px + dx, y: drag().py + dy });
-  };
-  const onPointerUp = () => setDrag(null);
-  const onNodeSelect = (id) => {
-    if (!moved) select(id);
-  };
-  const onNodeKeyDown = (e, id) => {
+  function fitGraph() {
+    if (!cy) return;
+    cy.fit(cy.elements(), FIT_PADDING);
+  }
+
+  // Auto-fit once the container has known dimensions (same first-measure
+  // intent as the old didFit). If the container is still zero-sized when the
+  // first layout stops, retry briefly until layout/paint settles.
+  function fitWhenSized() {
+    if (disposed || !cy) return;
+    if (cyHost && cyHost.clientWidth > 0 && cyHost.clientHeight > 0) {
+      cy.fit(cy.elements(), FIT_PADDING);
+      return;
+    }
+    if (fitRetries < 40) {
+      fitRetries += 1;
+      fitTimer = setTimeout(fitWhenSized, 50);
+    }
+  }
+
+  function resetGraph() {
+    if (!cy) return;
+    cy.zoom(1);
+    cy.pan({ x: 0, y: 0 });
+  }
+
+  function onCyZoom() {
+    setZoom(cy.zoom());
+  }
+
+  function onWindowResize() {
+    if (cy) cy.resize();
+  }
+
+  function onNodeFocus(id) {
+    if (cy) {
+      cy.elements().removeClass("focused");
+      cy.getElementById(id).addClass("focused");
+    }
+  }
+
+  function onNodeBlur(id) {
+    if (cy) cy.getElementById(id).removeClass("focused");
+  }
+
+  // Drag on an overlay button delegates to the cytoscape pan (same gesture as
+  // dragging the canvas background); a click without drag selects the node.
+  function onNodePointerDown(e, id) {
+    if (!cy) return;
+    dragState = {
+      id,
+      x: e.clientX,
+      y: e.clientY,
+      px: cy.pan().x,
+      py: cy.pan().y,
+      moved: false,
+    };
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  }
+
+  function onNodePointerMove(e) {
+    if (!dragState) return;
+    const dx = e.clientX - dragState.x;
+    const dy = e.clientY - dragState.y;
+    if (Math.abs(dx) + Math.abs(dy) > 3) dragState.moved = true;
+    cy.pan({ x: dragState.px + dx, y: dragState.py + dy });
+  }
+
+  function onNodePointerUp(e, id) {
+    if (!dragState || dragState.id !== id) return;
+    const wasDrag = dragState.moved;
+    dragState = null;
+    try {
+      e.currentTarget.releasePointerCapture?.(e.pointerId);
+    } catch {}
+    if (!wasDrag) {
+      e.currentTarget.focus?.();
+      select(id);
+    }
+  }
+
+  function onNodeKeyDown(e, id) {
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
+      e.stopPropagation();
       select(id);
     } else if (e.key === "Escape") {
       // Stop propagation so NodeDetail's window-level Escape handler
       // doesn't double-handle the same keypress.
       e.stopPropagation();
-      // SVGElement does not expose HTMLElement.blur() in every browser;
-      // fall back to blurring whatever is focused when it does not.
       const el = e.currentTarget;
       if (typeof el.blur === "function") el.blur();
       else if (document.activeElement === el) document.activeElement.blur?.();
       if (selectedId() === id) select(null);
     }
-  };
+  }
+
+  // Rebuild cytoscape elements when the visible graph content changes
+  // (filters, snapshot updates). Skipped when the signature is unchanged so
+  // the 2s polling does not re-run the layout over an identical graph.
+  createEffect(() => {
+    if (!cy) return;
+    const sig = graphSignature(graphElements().elements);
+    if (sig === lastSig) return;
+    lastSig = sig;
+    applyElements();
+  });
+
+  // Re-apply the focus-of-neighbors classes when the selection changes.
+  createEffect(() => {
+    selectedId();
+    applyFocusClasses();
+  });
+
+  onMount(async () => {
+    // Dynamic import keeps the ui-graph-core smoke test (which compiles and
+    // imports Graph.jsx in plain Node) passing without modification.
+    const cytoscape = (await import("cytoscape")).default;
+    const dagre = (await import("cytoscape-dagre")).default;
+    cytoscape.use(dagre);
+    if (disposed) return;
+    cy = cytoscape({
+      container: cyHost,
+      headless: false,
+      autoungrabify: true, // read-only: dragging over a node pans, never moves it
+      minZoom: 0.25,
+      maxZoom: 2.5,
+      wheelSensitivity: WHEEL_SENSITIVITY,
+      style: CY_STYLE,
+    });
+    cy.on("render", syncOverlay);
+    cy.on("zoom", onCyZoom);
+    cy.on("tap", (e) => {
+      // Tap on the background deselects. Cytoscape only fires "tap" when the
+      // pointer did not drag, so this doubles as the moved guard.
+      if (e.target === cy) select(null);
+    });
+    cy.on("tap", "node", (e) => select(e.target.id()));
+    window.addEventListener("resize", onWindowResize);
+    // One automatic fit after the first layout; afterwards the user drives
+    // zoom/pan via Fit/Reset (same behavior as the old didFit).
+    cy.one("layoutstop", () => {
+      if (disposed) return;
+      fitWhenSized();
+    });
+    lastSig = graphSignature(graphElements().elements);
+    applyElements();
+  });
+
+  onCleanup(() => {
+    disposed = true;
+    if (fitTimer) clearTimeout(fitTimer);
+    window.removeEventListener("resize", onWindowResize);
+    if (cy) {
+      cy.removeListener("render", syncOverlay);
+      cy.removeListener("zoom", onCyZoom);
+      cy.destroy();
+      cy = null;
+    }
+  });
 
   const controlCls =
     "min-h-[36px] rounded-control border border-line bg-panel-2 px-3 text-[13px] text-body outline-none " +
@@ -336,8 +476,8 @@ export default function Graph() {
             Show history
           </label>
           <div class="ml-auto flex items-center gap-2 text-[12px] text-mute">
-            <button type="button" class={BTN_CLS} onClick={fit}>Fit</button>
-            <button type="button" class={BTN_CLS} onClick={reset}>Reset</button>
+            <button type="button" class={BTN_CLS} onClick={fitGraph}>Fit</button>
+            <button type="button" class={BTN_CLS} onClick={resetGraph}>Reset</button>
             <span class="mono w-12 text-right tabular-nums">{Math.round(zoom() * 100)}%</span>
           </div>
         </FilterBar>
@@ -351,86 +491,43 @@ export default function Graph() {
       </div>
 
       <div class="ui-workspace-body ui-graph-canvas relative flex-1 overflow-hidden [background-size:24px_24px]">
-        <Show when={Object.keys(visible().nodes).length} fallback={<div class="p-8"><Empty>No nodes match the current filters.</Empty></div>}>
-          <Show when={showIsolation()}>
-            <div class="absolute inset-x-0 top-3 z-10 px-4">
-              <AlertBanner tone="info" title="Sin relaciones visibles">
-                Hay nodos en el grafo pero ninguna dependencia visible entre ellos.
-              </AlertBanner>
-            </div>
-          </Show>
-          <svg
-            ref={host}
-            width="100%"
-            height="100%"
-            class="block select-none"
-            style={{ touchAction: "none" }}
-            onPointerDown={onPointerDown}
-            onPointerMove={onPointerMove}
-            onPointerUp={onPointerUp}
-            onPointerLeave={onPointerUp}
-          >
-            <defs>
-              {Object.entries(EDGE_COLORS).map(([type, color]) => (
-                <marker key={type} id={`arrow-${type}`} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-                  <path d="M 0 0 L 10 5 L 0 10 z" fill={color} />
-                </marker>
-              ))}
-              <marker id="arrow-default" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-                <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--ui-muted)" />
-              </marker>
-            </defs>
-            <g transform={`translate(${pan().x} ${pan().y}) scale(${zoom()})`}>
-              <For each={visible().layout.iniRows}>
-                {(row) => (
-                  <text x={8} y={row.y} font-size="11" fill="var(--ui-muted)" class="mono">{row.ini}</text>
-                )}
-              </For>
-              <For each={visible().edges}>
-                {(e) => {
-                  const a = visible().layout.pos[e.from];
-                  const b = visible().layout.pos[e.to];
-                  if (!a || !b) return null;
-                  const color = EDGE_COLORS[e.type] || "#9aa1ad";
-                  const dash = e.type === "BLOCKS" ? "" : "6 4";
-                  const marker = EDGE_COLORS[e.type] ? `url(#arrow-${e.type})` : "url(#arrow-default)";
-                  return (
-                    <path
-                      d={buildEdgePath(a, b)}
-                      fill="none"
-                      stroke={color}
-                      stroke-width="1.4"
-                      stroke-dasharray={dash}
-                      marker-end={marker}
-                      opacity={edgeOpacity(e)}
-                    />
-                  );
+        <div ref={cyHost} class="absolute inset-0" style={{ touchAction: "none" }}>
+          <Index each={overlay()}>
+            {(item) => (
+              <button
+                type="button"
+                class={OVERLAY_BTN_CLS}
+                tabindex="0"
+                aria-label={`${item().id}: ${item().node.title || ""} (${kindFor(item().node)}, ${item().node.status || "open"})`}
+                title={item().node.title || ""}
+                style={{
+                  left: `${item().x}px`,
+                  top: `${item().y}px`,
+                  width: `${item().w}px`,
+                  height: `${item().h}px`,
                 }}
-              </For>
-              <For each={Object.entries(visible().nodes)}>
-                {([id, n]) => {
-                  const p = visible().layout.pos[id];
-                  if (!p) return null;
-                  const sel = selectedId() === id;
-                  return (
-                    <g opacity={nodeOpacity(n)}>
-                      <NodeShape
-                        n={n}
-                        pos={p}
-                        selected={sel}
-                        focused={focusedId() === id}
-                        neighbor={!sel && focusIds()?.has(id)}
-                        onSelect={onNodeSelect}
-                        onKeyDown={onNodeKeyDown}
-                        onFocus={() => setFocusedId(id)}
-                        onBlur={() => setFocusedId((cur) => (cur === id ? null : cur))}
-                      />
-                    </g>
-                  );
-                }}
-              </For>
-            </g>
-          </svg>
+                onPointerDown={(e) => onNodePointerDown(e, item().id)}
+                onPointerMove={onNodePointerMove}
+                onPointerUp={(e) => onNodePointerUp(e, item().id)}
+                onPointerCancel={() => { dragState = null; }}
+                onKeyDown={(e) => onNodeKeyDown(e, item().id)}
+                onFocus={() => onNodeFocus(item().id)}
+                onBlur={() => onNodeBlur(item().id)}
+              />
+            )}
+          </Index>
+        </div>
+        <Show when={hasNodes() && showIsolation()}>
+          <div class="absolute inset-x-0 top-3 z-10 px-4">
+            <AlertBanner tone="info" title="Sin relaciones visibles">
+              Hay nodos en el grafo pero ninguna dependencia visible entre ellos.
+            </AlertBanner>
+          </div>
+        </Show>
+        <Show when={!hasNodes()}>
+          <div class="absolute inset-0 z-10 overflow-auto p-8">
+            <Empty>No nodes match the current filters.</Empty>
+          </div>
         </Show>
       </div>
     </PageLayout>
