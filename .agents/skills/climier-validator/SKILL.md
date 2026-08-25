@@ -55,7 +55,19 @@ Find the task worktree in this order:
 3. If multiple candidates match, choose the one whose branch/path most specifically contains the full task id; otherwise return `BLOCKED`.
 4. If no candidate exists, return `BLOCKED`.
 
-Then inspect only that worktree and only the files/checks relevant to the task:
+Then inspect only that worktree and only the files/checks relevant to the task.
+
+## Aislamiento de smokes
+
+Si necesitas reproducir o auditar una mutación de Climier contra un proyecto temporal — `init`, `init --force`, `take`, `resolve`, etc. — **usa siempre** el helper:
+
+```bash
+bash .agents/skills/climier/smoke-sandbox.sh -- <comando> [args...]
+```
+
+El helper aísla `CLIMIER_HOME` a un temporal privado bajo `/tmp` y limpia en `EXIT`/`HUP`/`INT`/`TERM`. **Prohibido** ejecutar `init`, `init --force` o cualquier mutación de smoke directamente contra un proyecto temporal fuera del helper: si la metadata se copia, el comando reescribe el estado activo real. Reproducir un bug del worker o verificar el comportamiento de un mutante siempre va por el sandbox.
+
+Read-only contra un proyecto temporal sin metadata (`status`, `context`, `show`) no requiere sandbox porque no toca el home real.
 
 ```bash
 cd <worktree-path>
