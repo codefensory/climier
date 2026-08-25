@@ -609,6 +609,135 @@ pre {
   letter-spacing: -0.035em;
 }
 
+/* Notes stay in the reading flow after blockers. The avatar rail and the
+ * quiet bordered body give append-only notes the visual rhythm of a Linear
+ * issue thread without turning them into another dense disclosure card. */
+.ui-detail-notes {
+  border-top: 1px solid var(--ui-line);
+  padding-top: 20px;
+}
+
+.ui-detail-notes-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.ui-detail-notes-header h3 {
+  margin: 0;
+  letter-spacing: -0.012em;
+}
+
+.ui-detail-notes-count {
+  color: var(--ui-muted-2);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.ui-notes-thread {
+  display: grid;
+  gap: 18px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ui-note {
+  position: relative;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 10px;
+  min-width: 0;
+}
+
+.ui-note:not(:last-child)::before {
+  position: absolute;
+  top: 32px;
+  bottom: -18px;
+  left: 15px;
+  width: 1px;
+  background: var(--ui-line);
+  content: "";
+}
+
+.ui-note-avatar {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 1px solid #cfe2ff;
+  border-radius: 50%;
+  background: var(--ui-blue-soft);
+  color: var(--ui-blue);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
+
+.ui-note-content {
+  min-width: 0;
+}
+
+.ui-note-meta {
+  display: flex;
+  min-height: 32px;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  color: var(--ui-muted);
+}
+
+.ui-note-author {
+  color: var(--ui-text);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.ui-note-separator {
+  color: var(--ui-muted-2);
+}
+
+.ui-note-body {
+  margin-top: 6px;
+  border: 1px solid var(--ui-line);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.72);
+  padding: 10px 12px;
+  overflow-wrap: anywhere;
+}
+
+.ui-note:hover .ui-note-body {
+  border-color: var(--ui-line-strong);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.ui-note--validation .ui-note-avatar {
+  border-color: #b9d4ff;
+  background: var(--ui-blue-soft);
+}
+
+.ui-note--validation .ui-note-body {
+  border-color: rgba(23, 105, 224, 0.28);
+  background: var(--ui-blue-soft);
+}
+
+.ui-note-badge {
+  border: 1px solid rgba(23, 105, 224, 0.28);
+  border-radius: 9999px;
+  background: var(--ui-panel-solid);
+  padding: 2px 6px;
+  color: var(--ui-blue);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 16px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
 .ui-summary-dot {
   width: 3px;
   height: 3px;

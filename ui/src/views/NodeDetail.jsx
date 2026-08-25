@@ -8,8 +8,9 @@
 //      Fase 1 contract), revision and last activity timestamp.
 //   4. Visible callout for blocked, stale or superseded via AlertBanner.
 //   5. Specification and open blockers visible by default.
-//   6. Knowledge, notes, history, refs, relationships and the
-//      read-only CLI command live in the properties rail.
+//   6. Notes stay in the main reading flow after blockers; knowledge, refs,
+//      relationships and the read-only CLI command remain progressively
+//      disclosed below. History lives in the right-rail Activity tab.
 //   7. Times use claim.at (Time/ClaimTime prefer claim.at over claim.ts).
 //   8. Relationships are split by direction/type (F6b, T-ui-detail-rel):
 //      incoming blockers stay in the open Blockers panel; outgoing edges
@@ -550,6 +551,12 @@ function DetailBody(props) {
         </Show>
       </Panel>
 
+      {/* ── Notes: visible after blockers, styled as a quiet author thread
+             rather than another disclosure card. The label remains Notes so
+             it keeps the CLI vocabulary while the reading flow feels like
+             the discussion area in a Linear-style issue detail. ─── */}
+      <NotesSection notes={n().notes} />
+
       {/* ── Secondary zones: collapsed by default. Keep the disclosure
              stack vertical so each section reads like the reference drawer
              instead of splitting the reading flow into two columns. ─── */}
@@ -589,47 +596,6 @@ function DetailBody(props) {
                       </Show>
                     </div>
                   </button>
-                </li>
-              )}
-            </For>
-          </ul>
-        </Show>
-      </DetailsSection>
-
-      <DetailsSection
-        title="Notes"
-        count={(n().notes || []).length}
-        hint="Append-only thread — evidence and coordination live here."
-      >
-        <Show when={(n().notes || []).length} fallback={
-          <EmptyState variant="compact" title="No notes yet." />
-        }>
-          <ul class="space-y-2">
-            <For each={[...(n().notes || [])].reverse()}>
-              {(note) => <NoteRow note={note} />}
-            </For>
-          </ul>
-        </Show>
-      </DetailsSection>
-
-      <DetailsSection
-        title="History"
-        count={(d.history || []).length}
-        hint="Most recent log entries for this node."
-      >
-        <Show when={(d.history || []).length} fallback={
-          <EmptyState variant="compact" title="No history yet." />
-        }>
-          <ul class="space-y-1">
-            <For each={[...(d.history || [])].reverse()}>
-              {(h) => (
-                <li class="flex items-center gap-2 text-[12px] leading-5 text-body">
-                  <Time value={h.ts} />
-                  <span class="mono rounded-full bg-panel-2 px-1.5 py-0.5 text-[11px] text-progress">{h.action}</span>
-                  <span class="mono text-[11px] text-mute">{h.agent}</span>
-                  <Show when={h.note}>
-                    <span class="truncate text-[12px] text-mute" title={h.note}>{h.note}</span>
-                  </Show>
                 </li>
               )}
             </For>
@@ -925,20 +891,58 @@ function RelationRow(props) {
   );
 }
 
+function NotesSection(props) {
+  const notes = () => Array.isArray(props.notes) ? props.notes : [];
+  return (
+    <section class="ui-detail-notes" aria-labelledby="detail-notes-title">
+      <div class="ui-detail-notes-header">
+        <h3 id="detail-notes-title" class="text-section text-ink">
+          Notes <span class="ui-detail-notes-count">({notes().length})</span>
+        </h3>
+        <span class="mono text-[12px] text-mute">Append-only</span>
+      </div>
+      <Show when={notes().length} fallback={
+        <EmptyState variant="compact" title="No notes yet." />
+      }>
+        <ol class="ui-notes-thread" aria-label="Notes">
+          <For each={[...notes()].reverse()}>
+            {(note) => <NoteRow note={note} />}
+          </For>
+        </ol>
+      </Show>
+    </section>
+  );
+}
+
+function noteInitials(agent) {
+  const value = String(agent || "").trim();
+  if (!value) return "—";
+  const words = value.split(/[\s._-]+/).filter(Boolean);
+  if (words.length > 1) {
+    return `${words[0][0]}${words[words.length - 1][0]}`.toUpperCase();
+  }
+  return value.slice(0, 2).toUpperCase();
+}
+
 function NoteRow(props) {
   // note ({ agent, ts, text }), optional `validation` flag in the text.
   const note = props.note || {};
+  const author = note.agent || "—";
   const isValidation = typeof note.text === "string" && /VALIDATION (PASS|FAIL|BLOCKED)/.test(note.text);
   return (
-    <li class={`rounded-control border p-2 ${isValidation ? "border-progress/40 bg-progress-soft" : "border-line bg-panel-2"}`}>
-      <div class="flex items-center gap-2 text-[12px] text-mute">
-        <span class="mono text-progress">{note.agent || "—"}</span>
-        <Time value={note.ts} />
-        <Show when={isValidation}>
-          <span class="mono rounded-full border border-progress/40 bg-panel px-1.5 py-0.5 text-[11px] uppercase tracking-wider text-progress">validation</span>
-        </Show>
+    <li class={`ui-note ${isValidation ? "ui-note--validation" : ""}`}>
+      <span class="ui-note-avatar" aria-hidden="true" title={author}>{noteInitials(author)}</span>
+      <div class="ui-note-content">
+        <div class="ui-note-meta">
+          <span class="ui-note-author">{author}</span>
+          <span aria-hidden="true" class="ui-note-separator">·</span>
+          <Time value={note.ts} />
+          <Show when={isValidation}>
+            <span class="ui-note-badge">validation</span>
+          </Show>
+        </div>
+        <div class="ui-note-body whitespace-pre-wrap text-[13px] leading-5 text-body">{note.text}</div>
       </div>
-      <div class="mt-1 whitespace-pre-wrap text-[13px] leading-5 text-body">{note.text}</div>
     </li>
   );
 }

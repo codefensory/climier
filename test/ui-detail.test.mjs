@@ -8,8 +8,9 @@
 //      activity.
 //   4. Alert banner when the node is blocked / stale / superseded.
 //   5. Specification + open blockers open by default.
-//   6. Knowledge, notes, history, refs, secondary relations live in
-//      collapsible <details>.
+//   6. Notes stay visible after blockers as an author thread; knowledge,
+//      refs and secondary relations remain in collapsible <details>.
+//      History is shown in the drawer's right-rail Activity tab.
 //   7. Time uses claim.at (not claim.ts).
 //
 // The structural rebuild is verified end-to-end via `cd ui && npm run build`
@@ -273,7 +274,7 @@ test("NodeDetail renders Specification and Blockers open by default", { skip }, 
   assert.ok(html.includes("T-old"), `Blocker list must surface satisfied blockers for context: ${html}`);
 });
 
-test("NodeDetail places Knowledge, Notes, History, Refs, EqCommand, Dependents in <details>", { skip }, async (t) => {
+test("NodeDetail keeps Notes visible as a Linear-like thread after Blockers", { skip }, async (t) => {
   const { mod } = await compileDetail(t, { storeStub: true });
   const detail = makeDetail({
     derived_status: "in_progress",
@@ -289,21 +290,33 @@ test("NodeDetail places Knowledge, Notes, History, Refs, EqCommand, Dependents i
   });
   globalThis.__NODE_DETAIL_STORE__ = makeStore(detail);
   const html = solidWeb.renderToString(() => mod.default());
-  // Knowledge, notes, history, refs, dependents and the EqCommand must all
-  // live inside a <details> element (collapsed by default).
-  assert.ok(/<details[\s>]/.test(html), `secondary sections must use <details>: ${html}`);
-  // Count of <details> must cover at least: knowledge, notes, history,
-  // refs, dependents, equivalent-cli (six collapsible zones).
+  // Notes are part of the main reading flow, immediately after the open
+  // Blockers panel, rather than hidden behind a disclosure.
+  const blockersIndex = html.indexOf("Blockers");
+  const notesIndex = html.indexOf(">Notes ");
+  assert.ok(blockersIndex >= 0 && notesIndex > blockersIndex,
+    `Notes must follow Blockers in the drawer: ${html}`);
+  assert.match(html, /class="[^"]*ui-detail-notes[^"]*"/,
+    `Notes must use the visible detail section: ${html}`);
+  assert.match(html, /class="[^"]*ui-notes-thread[^"]*"/,
+    `Notes must render as a thread: ${html}`);
+  assert.match(html, /class="[^"]*ui-note-avatar[^"]*"/,
+    `Notes must expose a comment-style author marker: ${html}`);
+  assert.ok(html.includes("Starting work"), `note text must remain visible: ${html}`);
+
+  // Knowledge, refs, dependents and the equivalent CLI remain progressively
+  // disclosed secondary zones; history belongs to the right rail Activity tab.
   const detailsCount = (html.match(/<details[\s>]/g) || []).length;
-  assert.ok(detailsCount >= 5, `expected at least 5 <details> sections, got ${detailsCount}: ${html}`);
-  // The Knowledge id, note text, history action, ref target, and child id
-  // must still appear (collapsed != hidden).
+  assert.ok(detailsCount >= 3, `expected at least 3 secondary <details> sections, got ${detailsCount}: ${html}`);
+  const mainStart = html.indexOf('<main class="ui-detail-main');
+  const sideStart = html.indexOf('<aside class="ui-detail-side');
+  assert.ok(mainStart >= 0 && sideStart > mainStart);
+  assert.ok(!html.slice(mainStart, sideStart).includes(">History<"),
+    `History should remain in the right rail, not the main detail flow: ${html}`);
   assert.ok(html.includes("K-1"), `Knowledge id must appear inside its <details>: ${html}`);
-  assert.ok(html.includes("Starting work"), `note text must appear inside its <details>: ${html}`);
-  assert.ok(html.includes("update"), `history action must appear inside its <details>: ${html}`);
+  assert.ok(html.includes("update"), `history action must remain visible in the Activity tab: ${html}`);
   assert.ok(html.includes("docs/ui-redesign-plan.md"), `ref target must appear inside its <details>: ${html}`);
   assert.ok(html.includes("T-child"), `dependent id must appear inside its <details>: ${html}`);
-  // Default to closed (no `open` attribute on the secondary <details>).
   assert.ok(!/<details[^>]*\bopen\b/.test(html),
     `secondary <details> must default to closed; saw <details open>: ${html}`);
 });
