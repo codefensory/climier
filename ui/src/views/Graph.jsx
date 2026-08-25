@@ -619,7 +619,12 @@ export default function Graph() {
 
       <div class="ui-workspace-body flex min-h-0 flex-1 pt-4">
         <div class="ui-graph-canvas ui-graph-premium relative min-h-0 flex-1 overflow-hidden rounded-card border border-line" role="region" aria-label={`${MODE_LABEL[mode()]} graph. Select a node to open its read-only detail.`}>
-          <div ref={host} class="absolute inset-0" />
+          {/* Cytoscape mutates its container (including positioning). Keep the
+              geometric absolute frame separate so that mutation cannot collapse
+              the canvas height. */}
+          <div class="absolute inset-0">
+            <div ref={host} style={{ width: "100%", height: "100%", touchAction: "none" }} />
+          </div>
           <Show when={narrow()} fallback={<>
             <Show when={mismatch() && !validSet().nodes[selectedId()]}>
               <div class="absolute left-3 top-3 z-10 max-w-xl"><AlertBanner tone="info" title="Selected node is outside this view"><button type="button" class="underline" onClick={() => changeMode(mismatch())}>Switch to {MODE_LABEL[mismatch()]} to inspect it in the graph.</button></AlertBanner></div>
