@@ -52,6 +52,10 @@ const FIT_PADDING = 40;
 const POS_OFFSET_X = NODE_W / 2;
 const POS_OFFSET_Y = NODE_H / 2;
 const WHEEL_SENSITIVITY = 0.4;
+// A project can have hundreds of nodes distributed over many initiative
+// lanes. 0.25 cannot fit that map in a normal workspace, so allow a true
+// overview while keeping the semantic tier thresholds unchanged.
+const MIN_ZOOM = 0.02;
 
 // Lane chrome geometry. The hairline band uses a very large width so it
 // stays under the visible viewport while the user pans; the label sits
@@ -454,6 +458,9 @@ export default function Graph() {
   let disposed = false;
   let fitRetries = 0;
   let fitTimer = null;
+  // Initial render and an explicit mode change replace the positioned set,
+  // so they must also reframe the camera. Polls and style-only updates do not.
+  let fitOnNextTopology = true;
   // previousPositionsById feeds computeExecutionLayout so the layout
   // stays stable across re-runs that share the same visible set.
   const [previousPositionsById, setPreviousPositionsById] = createSignal(null);
@@ -561,6 +568,7 @@ export default function Graph() {
   });
 
   function handleModeChange(next) {
+    if (next !== graphView().mode) fitOnNextTopology = true;
     userTouchedFocus = false;
     lastAutoSeed = null;
     setGraphViewMode(next);
@@ -606,20 +614,34 @@ export default function Graph() {
     }
     cy.elements().remove();
     cy.add(els);
-    if (posKey !== lastPositionedKey) {
+    const shouldFit = fitOnNextTopology;
+    const didRunPreset = posKey !== lastPositionedKey;
+    if (didRunPreset) {
       lastPositionedKey = posKey;
       const positions = {};
       for (const [id, p] of Object.entries(layoutResult().positions)) {
         positions[id] = { x: p.x + POS_OFFSET_X, y: p.y + POS_OFFSET_Y };
       }
-      cy.layout({ name: "preset", positions, fit: false, animate: false }).run();
+      const preset = cy.layout({ name: "preset", positions, fit: false, animate: false });
+      // Preset applies positions asynchronously in browser Cytoscape. Fit only
+      // after layoutstop; fitting before then sees every new node at (0, 0).
+      if (shouldFit) {
+        preset.one("layoutstop", () => {
+          if (!disposed) fitWhenSized();
+        });
+      }
+      preset.run();
       const prev = {};
       for (const [id, p] of Object.entries(layoutResult().positions)) prev[id] = p;
       setPreviousPositionsById(prev);
     }
+    fitOnNextTopology = false;
     lastVisibleIds = visibleIds;
     applyStyleClasses();
     syncOverlay();
+    // A mode may change non-positioned history edges while preserving the
+    // BLOCKS skeleton. There is no preset event in that case, so fit directly.
+    if (shouldFit && !didRunPreset) fitWhenSized();
   }
 
   function applyStyleClasses() {
@@ -701,6 +723,13 @@ export default function Graph() {
 
   function syncOverlay() {
     if (!cy) return;
+    // At an overview zoom the canvas glyphs are the useful aggregate view.
+    // Do not create hundreds of transparent DOM buttons; Finder remains the
+    // canonical keyboard route for offscreen/overview nodes.
+    if (tier() === "overview") {
+      setOverlay([]);
+      return;
+    }
     const nodes = visibleSet().nodes;
     // Viewport in cytoscape container pixels plus the ADR-003 margin.
     // Nodes whose rendered bounding box does not intersect the
@@ -741,7 +770,9 @@ export default function Graph() {
   function fitWhenSized() {
     if (disposed || !cy) return;
     if (cyHost && cyHost.clientWidth > 0 && cyHost.clientHeight > 0) {
+      cy.resize();
       fitGraph();
+      syncOverlay();
       return;
     }
     if (fitRetries < 40) {
@@ -862,17 +893,21 @@ export default function Graph() {
   // The `lastPositionedKey` gate inside applyTopology then decides
   // whether to re-run the preset layout.
   createEffect(() => {
-    if (!cy) return;
+    // Read reactive keys before the Cytoscape guard. Effects run once before
+    // onMount creates `cy`; reading them first subscribes this effect so mode,
+    // filter and snapshot changes still rebuild the renderer afterwards.
     visibleSetKeyMemo();
     positionedKeyMemo();
+    if (!cy) return;
     applyTopology();
   });
 
   // Style change → re-apply classes only, no relayout.
   createEffect(() => {
-    if (!cy) return;
+    // As above, subscribe before Cytoscape exists on the initial pass.
     selectedId();
     graphView().focus;
+    if (!cy) return;
     applyStyleClasses();
   });
 
@@ -881,10 +916,12 @@ export default function Graph() {
   // canvas label content must change without rebuilding the cytoscape
   // elements (ADR-003 §Tiers).
   createEffect(() => {
-    if (!cy) return;
+    // Keep polling labels and semantic-zoom overlays reactive after mount.
     allNodes();
     tier();
+    if (!cy) return;
     refreshLabels();
+    syncOverlay();
   });
 
   onMount(async () => {
@@ -906,7 +943,7 @@ export default function Graph() {
       container: cyHost,
       headless: false,
       autoungrabify: true,
-      minZoom: 0.25,
+      minZoom: MIN_ZOOM,
       maxZoom: 2.5,
       wheelSensitivity: WHEEL_SENSITIVITY,
       style: buildStyle(palette),
@@ -923,10 +960,6 @@ export default function Graph() {
     });
     onNarrowUpdate();
     window.addEventListener("resize", onWindowResize);
-    cy.one("layoutstop", () => {
-      if (disposed) return;
-      fitWhenSized();
-    });
     applyTopology();
   });
 
