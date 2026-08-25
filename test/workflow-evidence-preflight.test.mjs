@@ -6,9 +6,14 @@
 // contract for "structured evidence + preflight" agreed in
 // T-workflow-evidence-preflight.
 //
-// Important: smoke-sandbox.sh gives each invocation a fresh CLIMIER_HOME.
-// Tests run setup + finish-task + preflight inside a SINGLE sandbox
-// invocation so state is shared.
+// Important: each invocation runs in its own private CLIMIER_HOME under
+// /tmp/climier-wp-test-* (a namespace distinct from smoke-sandbox's
+// climier-smoke-*). Tests run setup + finish-task + preflight inside a
+// SINGLE subprocess invocation so state is shared, and the private home
+// is removed when that subprocess closes. We deliberately avoid
+// smoke-sandbox.sh here because its /tmp/climier-smoke-* namespace is
+// observed by test/smoke-sandbox.test.mjs; running both files in
+// parallel under npm test would race on that directory listing.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -21,7 +26,6 @@ import { BIN } from "./helpers.mjs";
 const ROOT = path.resolve(process.cwd());
 const FINISH = path.join(ROOT, ".agents/skills/climier-worker", "finish-task.sh");
 const PREFLIGHT = path.join(ROOT, ".agents/skills/climier-validator", "integration-preflight.sh");
-const SANDBOX = path.join(ROOT, ".agents/skills/climier", "smoke-sandbox.sh");
 
 function tmp(prefix = path.join(os.tmpdir(), "climier-wp-test-")) {
   return fs.mkdtempSync(prefix);
@@ -31,18 +35,27 @@ function git(cwd, args) {
   return spawnSync("git", args, { cwd, encoding: "utf8" });
 }
 
-// Run a script body inside the climier sandbox, returning { stdout, stderr, code }.
-function runSandboxScript(script, env = process.env) {
+// Run a script body with a private CLIMIER_HOME under a namespace that
+// does not collide with /tmp/climier-smoke-* (used by smoke-sandbox.sh
+// and asserted by test/smoke-sandbox.test.mjs). The home is removed
+// after the subprocess closes; if the test runner is killed mid-flight,
+// the dir is left under /tmp and never touches the real ~/.climier.
+function runIsolated(script, env = process.env) {
+  const home = tmp();
+  fs.chmodSync(home, 0o700);
   return new Promise((resolve) => {
-    const proc = spawn("bash", [SANDBOX, "--", "bash", "-c", script], {
-      env,
+    const proc = spawn("bash", ["-c", script], {
+      env: { ...env, CLIMIER_HOME: home },
       cwd: ROOT,
     });
     let stdout = "";
     let stderr = "";
     proc.stdout.on("data", (d) => (stdout += d.toString()));
     proc.stderr.on("data", (d) => (stderr += d.toString()));
-    proc.on("close", (code) => resolve({ stdout, stderr, code }));
+    proc.on("close", (code) => {
+      try { fs.rmSync(home, { recursive: true, force: true }); } catch {}
+      resolve({ stdout, stderr, code });
+    });
   });
 }
 
@@ -122,7 +135,7 @@ function parseEvidence(r) {
 test("finish-task.sh: emits WORKTREE + EVIDENCE notes with required fields", async () => {
   const { repo, wt, baseSha } = makeRepo();
   try {
-    const r = await runSandboxScript(setupFinishScript({ repo, wt }));
+    const r = await runIsolated(setupFinishScript({ repo, wt }));
     assert.equal(r.code, 0, `finish exited ${r.code}; stderr=${r.stderr}`);
     assert.match(r.stdout, /WORKTREE path=.*branch=work\/T-wp-test-agent1/);
     const payload = parseEvidence(r);
@@ -144,7 +157,7 @@ test("finish-task.sh: emits WORKTREE + EVIDENCE notes with required fields", asy
 test("finish-task.sh: EVIDENCE records per-check ok and does not leak commit body", async () => {
   const { repo, wt } = makeRepo();
   try {
-    const r = await runSandboxScript(setupFinishScript({ repo, wt }));
+    const r = await runIsolated(setupFinishScript({ repo, wt }));
     assert.equal(r.code, 0, `finish exited ${r.code}; stderr=${r.stderr}`);
     const payload = parseEvidence(r);
     const body = "do task [T-wp-test]";
@@ -170,7 +183,7 @@ test("finish-task.sh: --evidence-file merges caller JSON with auto-detected fiel
     };
     fs.writeFileSync(evidencePath, JSON.stringify(caller));
     const script = setupFinishScript({ repo, wt, extraFinishArgs: `--evidence-file=${evidencePath}` });
-    const r = await runSandboxScript(script);
+    const r = await runIsolated(script);
     assert.equal(r.code, 0, `finish exited ${r.code}; stderr=${r.stderr}`);
     const payload = parseEvidence(r);
     assert.deepEqual(payload.files, caller.files);
@@ -189,7 +202,7 @@ test("integration-preflight.sh: parses EVIDENCE JSON and reports clean state", a
       bash '${PREFLIGHT}' --project-root '${repo}' --task T-wp-test --json
       echo "PREFLIGHT_EC=$?"
     `;
-    const r = await runSandboxScript(script);
+    const r = await runIsolated(script);
     const m = r.stdout.match(/\{[\s\S]*\}\nPREFLIGHT_EC=(\d+)/);
     assert.ok(m, "no preflight output captured");
     assert.equal(m[1], "0", `preflight exit 1; stdout=${r.stdout.slice(-500)} stderr=${r.stderr}`);
@@ -225,7 +238,7 @@ test("integration-preflight.sh: legacy WORKTREE note degrades with explicit reas
       `bash '${PREFLIGHT}' --project-root '${repo}' --task T-wp-test --json`,
       `echo "PREFLIGHT_EC=$?"`,
     ].join("\n");
-    const r = await runSandboxScript(script);
+    const r = await runIsolated(script);
     const m = r.stdout.match(/\{[\s\S]*\}\nPREFLIGHT_EC=(\d+)/);
     assert.ok(m);
     assert.equal(m[1], "0");
@@ -251,7 +264,7 @@ test("integration-preflight.sh: detects overlap when main advances after finish"
       bash '${PREFLIGHT}' --project-root '${repo}' --task T-wp-test --json
       echo "PREFLIGHT_EC=$?"
     `;
-    const r = await runSandboxScript(script);
+    const r = await runIsolated(script);
     const m = r.stdout.match(/\{[\s\S]*\}\nPREFLIGHT_EC=(\d+)/);
     assert.ok(m);
     assert.equal(m[1], "1", `preflight exit ${m[1]}; expected 1 on overlap`);
@@ -281,8 +294,8 @@ test("integration-preflight.sh: never mutates git state (read-only invariant)", 
       echo "BRANCH_MATCH=\$([ "\$BEFORE_BRANCH" = "\$AFTER_BRANCH" ] && echo yes || echo no)"
       echo "STATUS_EMPTY=\$([ -z "\$AFTER_STATUS" ] && echo yes || echo no)"
     `;
-    const r = await runSandboxScript(script);
-    assert.equal(r.code, 0, `sandbox exit ${r.code}; stderr=${r.stderr}`);
+    const r = await runIsolated(script);
+    assert.equal(r.code, 0, `isolated exit ${r.code}; stderr=${r.stderr}`);
     assert.match(r.stdout, /HEAD_MATCH=yes/);
     assert.match(r.stdout, /BRANCH_MATCH=yes/);
     assert.match(r.stdout, /STATUS_EMPTY=yes/);
