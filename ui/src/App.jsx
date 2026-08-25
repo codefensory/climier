@@ -38,7 +38,7 @@
 //   - Board column min-width / horizontal scroll at MID is the Board view's
 //     responsibility (Fase 5A), not the shell's.
 
-import { Show, For, onMount, onCleanup, createMemo, createSignal } from "solid-js";
+import { Show, For, onMount, onCleanup, createMemo, createSignal, createEffect } from "solid-js";
 import { Dynamic } from "solid-js/web";
 import { StoreProvider, useStore } from "./store.jsx";
 import Overview from "./views/Overview.jsx";
@@ -308,9 +308,44 @@ function Sidebar(props) {
 function Drawer(props) {
   // open    (signal, required)
   // onClose (function, required)
+  // Keep the shell mounted for the short exit animation. This is deliberately
+  // local presence state rather than a dependency: the drawer still owns no
+  // application state and closes through the same callback as before.
+  const [present, setPresent] = createSignal(false);
+  const [closing, setClosing] = createSignal(false);
+
+  createEffect(() => {
+    if (props.open()) {
+      setPresent(true);
+      setClosing(false);
+    } else if (present()) {
+      setClosing(true);
+    }
+  });
+
+  function requestClose() {
+    if (!props.open()) return;
+    setClosing(true);
+    props.onClose();
+  }
+
+  function finishClose(e) {
+    if (
+      e.target !== e.currentTarget ||
+      e.animationName !== "ui-drawer-nav-out" ||
+      !closing()
+    ) return;
+    setPresent(false);
+    setClosing(false);
+  }
+
   return (
-    <Show when={props.open()}>
-      <DrawerPanel onClose={props.onClose} />
+    <Show when={props.open() || present()}>
+      <DrawerPanel
+        onClose={requestClose}
+        closing={closing}
+        onAnimationEnd={finishClose}
+      />
     </Show>
   );
 }
@@ -331,11 +366,18 @@ function DrawerPanel(props) {
   });
   return (
     <div class="fixed inset-0 z-40 flex" role="dialog" aria-modal="true" aria-label="Navigation">
-      <div class="ui-drawer-scrim absolute inset-0" onClick={props.onClose} aria-hidden="true" />
+      <div
+        class="ui-drawer-scrim absolute inset-0"
+        classList={{ "ui-drawer-scrim--closing": props.closing() }}
+        onClick={props.onClose}
+        aria-hidden="true"
+      />
       <aside
         ref={panelRef}
         tabIndex={-1}
-        class="ui-drawer relative z-10 flex h-full w-72 max-w-[85vw] flex-col rounded-r-[18px] border-r border-line bg-canvas shadow-md outline-none"
+        class="ui-drawer ui-drawer-nav relative z-10 flex h-full w-72 max-w-[85vw] flex-col rounded-r-[18px] border-r border-line bg-canvas shadow-md outline-none"
+        classList={{ "ui-drawer-nav--closing": props.closing() }}
+        onAnimationEnd={props.onAnimationEnd}
       >
         <div class="ui-drawer-topbar flex h-14 shrink-0 items-center justify-between border-b border-line px-4">
           <div class="flex items-center gap-2 text-sm font-bold tracking-wide text-ink">

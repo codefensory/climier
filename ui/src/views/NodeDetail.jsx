@@ -201,16 +201,38 @@ export default function NodeDetail() {
   let prevSelected = null;
   const [openedAt, setOpenedAt] = createSignal(null);
   const [navStack, setNavStack] = createSignal([]);
+  const [closing, setClosing] = createSignal(false);
+
+  function requestClose() {
+    if (closing()) return;
+    setClosing(true);
+  }
+
+  function finishClose(e) {
+    if (
+      e.target !== e.currentTarget ||
+      e.animationName !== "ui-drawer-detail-out" ||
+      !closing()
+    ) return;
+    // Keep the node selected until the exit frame completes so the panel does
+    // not flash empty while it leaves the screen.
+    select(null);
+    setClosing(false);
+  }
 
   function goBack() {
     const { stack, back } = popHistory(navStack());
     setNavStack(stack);
-    select(back || null);
+    if (back) select(back);
+    else requestClose();
   }
 
   createEffect(() => {
     const id = selectedId();
     if (id) {
+      // A new selection while the exit is running cancels the exit and keeps
+      // navigation inside the same dialog.
+      setClosing(false);
       if (prevSelected === null) {
         // Fresh open: capture the element that opened us so close can
         // restore focus. Navigation inside the drawer must not overwrite it.
@@ -244,7 +266,7 @@ export default function NodeDetail() {
   function handleKeyDown(e) {
     if (e.key === "Escape") {
       e.preventDefault();
-      select(null);
+      requestClose();
       return;
     }
     // Basic focus trap: when focus reaches the first/last focusable element
@@ -294,7 +316,9 @@ export default function NodeDetail() {
       aria-modal="true"
       aria-label={d()?.node ? `Detail for ${d().node.title || d().node.id}` : "Node detail"}
       onKeyDown={handleKeyDown}
-      class="ui-drawer fixed right-3 top-3 bottom-3 z-50 flex w-[min(1120px,calc(100vw-48px))] flex-col overflow-hidden rounded-[18px] border border-line bg-panel shadow-md"
+      class="ui-drawer ui-drawer-detail fixed right-3 top-3 bottom-3 z-50 flex w-[min(1120px,calc(100vw-48px))] flex-col overflow-hidden rounded-[18px] border border-line bg-panel shadow-md"
+      classList={{ "ui-drawer-detail--closing": closing() }}
+      onAnimationEnd={finishClose}
     >
       {/* ── Header ─────────────────────────────────────────────────── */}
       <header class="ui-drawer-topbar sticky top-0 relative z-10 grid shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b border-line px-3">
@@ -316,7 +340,7 @@ export default function NodeDetail() {
         <div class="flex items-center justify-end gap-1">
           <span class="mono hidden px-1 text-[12px] text-mute sm:inline">rev {d()?.node?.revision || 0}</span>
           <CopyButton text={d()?.node?.id || ""} />
-          <IconButton size="sm" label="Close" onClick={() => select(null)}>
+          <IconButton size="sm" label="Close" onClick={requestClose}>
             <span class="text-[14px]" aria-hidden="true">✕</span>
           </IconButton>
         </div>
@@ -345,12 +369,13 @@ export default function NodeDetail() {
   );
 
   return (
-    <Show when={open()}>
+    <Show when={open() || closing()}>
       <Show when={isServer} fallback={
         <Portal>
           <div
             class="ui-drawer-scrim fixed inset-0 z-40"
-            onClick={() => select(null)}
+            classList={{ "ui-drawer-scrim--closing": closing() }}
+            onClick={requestClose}
             aria-hidden="true"
           />
           {drawerMarkup}
@@ -358,7 +383,8 @@ export default function NodeDetail() {
       }>
         <div
           class="ui-drawer-scrim fixed inset-0 z-40"
-          onClick={() => select(null)}
+          classList={{ "ui-drawer-scrim--closing": closing() }}
+          onClick={requestClose}
           aria-hidden="true"
         />
         {drawerMarkup}

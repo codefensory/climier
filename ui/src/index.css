@@ -426,6 +426,13 @@ pre {
 .ui-drawer-scrim {
   background: rgba(18, 23, 32, 0.26);
   backdrop-filter: blur(2px);
+  animation: ui-drawer-scrim-in 420ms var(--ui-ease) both;
+  will-change: opacity, backdrop-filter;
+}
+
+.ui-drawer-scrim--closing {
+  animation: ui-drawer-scrim-out 260ms ease both;
+  pointer-events: none;
 }
 
 .ui-drawer {
@@ -433,6 +440,126 @@ pre {
   background: var(--ui-panel);
   box-shadow: var(--ui-shadow-drawer);
   backdrop-filter: saturate(140%) blur(18px);
+  backface-visibility: hidden;
+  transform: translateZ(0);
+  will-change: transform, opacity;
+}
+
+/* Motion is directional and restrained: the detail surface arrives from the
+ * right with a tiny settle, while mobile navigation enters from the left.
+ * Keeping the two names separate avoids making a left-side nav feel like a
+ * detail panel. The scrim and the first content rows resolve just after the
+ * surface, which gives the drawer a composed, premium reveal rather than a
+ * single block popping in. */
+.ui-drawer-detail {
+  transform-origin: right center;
+  animation: ui-drawer-detail-in 520ms var(--ui-ease) both;
+}
+
+.ui-drawer-detail--closing {
+  animation: ui-drawer-detail-out 360ms cubic-bezier(.4, 0, 1, 1) both;
+  pointer-events: none;
+}
+
+.ui-drawer-nav {
+  transform-origin: left center;
+  animation: ui-drawer-nav-in 460ms var(--ui-ease) both;
+}
+
+.ui-drawer-nav--closing {
+  animation: ui-drawer-nav-out 320ms cubic-bezier(.4, 0, 1, 1) both;
+  pointer-events: none;
+}
+
+.ui-drawer-detail > .ui-drawer-topbar,
+.ui-drawer-nav > .ui-drawer-topbar {
+  animation: ui-drawer-content-in 440ms var(--ui-ease) 70ms both;
+}
+
+.ui-drawer-detail > .ui-drawer-body,
+.ui-drawer-nav > nav {
+  animation: ui-drawer-content-in 560ms var(--ui-ease) 110ms both;
+}
+
+@keyframes ui-drawer-scrim-in {
+  from {
+    opacity: 0;
+    backdrop-filter: blur(0);
+  }
+  to {
+    opacity: 1;
+    backdrop-filter: blur(3px);
+  }
+}
+
+@keyframes ui-drawer-scrim-out {
+  from {
+    opacity: 1;
+    backdrop-filter: blur(3px);
+  }
+  to {
+    opacity: 0;
+    backdrop-filter: blur(0);
+  }
+}
+
+@keyframes ui-drawer-detail-in {
+  from {
+    opacity: 0;
+    transform: translate3d(42px, 0, 0) scale(.985);
+  }
+  68% {
+    opacity: 1;
+    transform: translate3d(-2px, 0, 0) scale(1.001);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes ui-drawer-detail-out {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(30px, 0, 0) scale(.985);
+  }
+}
+
+@keyframes ui-drawer-nav-in {
+  from {
+    opacity: 0;
+    transform: translate3d(-32px, 0, 0) scale(.985);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes ui-drawer-nav-out {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(-24px, 0, 0) scale(.985);
+  }
+}
+
+@keyframes ui-drawer-content-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
 }
 
 .ui-drawer-topbar {
@@ -594,6 +721,7 @@ details > summary {
   *::before,
   *::after {
     animation-duration: 0.001ms !important;
+    animation-delay: 0s !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
