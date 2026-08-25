@@ -7,13 +7,14 @@
 //   3. Summary card: status, initiative, claim (using claim.at per the
 //      Fase 1 contract), revision and last activity timestamp.
 //   4. Visible callout for blocked, stale or superseded via AlertBanner.
-//   5. Specification and open blockers visible by default.
+//   5. Specification stays in the main reading flow; blockers live in the
+//      right rail on desktop and fall back into the main flow on narrow screens.
 //   6. Notes stay in the main reading flow after blockers; knowledge, refs,
 //      relationships and the read-only CLI command remain progressively
 //      disclosed below. History lives in the right-rail Activity tab.
 //   7. Times use claim.at (Time/ClaimTime prefer claim.at over claim.ts).
 //   8. Relationships are split by direction/type (F6b, T-ui-detail-rel):
-//      incoming blockers stay in the open Blockers panel; outgoing edges
+//      incoming blockers stay in the open right-rail Blockers panel; outgoing
 //      are grouped into Blocks / Derived from / Supersedes / Informing-legacy
 //      inside one collapsible Relationships zone. The drawer never
 //      re-derives the DAG — it only re-groups what /api/node/:id returns.
@@ -515,41 +516,10 @@ function DetailBody(props) {
         </Show>
       </Panel>
 
-      {/* ── Blockers (open by default; relevant blockers surfaced) ──── */}
-      <Panel
-        title="Blockers"
-        right={
-          <span class="text-[12px] text-mute">
-            {(d.blocking || []).filter((b) => !b.satisfied).length} unsatisfied · {(d.blocking || []).length} total
-          </span>
-        }
-      >
-        <p class="mb-2 text-[12px] text-mute">Incoming BLOCKS — this node is blocked by these.</p>
-        <Show when={(d.blocking || []).length} fallback={
-          <EmptyState variant="compact" title="No blockers." />
-        }>
-          <ul class="space-y-1.5">
-            <For each={d.blocking}>
-              {(b) => (
-                <li>
-                  <button
-                    type="button"
-                    class={`flex min-h-[36px] w-full items-center gap-2 rounded-control border px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 ${b.satisfied ? "border-line opacity-70 hover:opacity-100" : "border-blocked/40 bg-blocked-soft hover:border-blocked"}`}
-                    onClick={() => onSelect(b.node && b.node.id)}
-                    aria-label={`Open blocker ${b.node && b.node.id}`}
-                  >
-                    <span class={`h-2 w-2 shrink-0 rounded-full ${b.satisfied ? "bg-ready" : "bg-blocked"}`} aria-hidden="true" />
-                    <KindBadge node={b.node} />
-                    <span class="mono shrink-0 text-[12px] text-body">{b.node && b.node.id}</span>
-                    <span class="min-w-0 flex-1 truncate text-[12px] text-body">{b.node && b.node.title}</span>
-                    <StatusBadge status={b.satisfied ? "done" : (b.node && b.node.status) || "open"} />
-                  </button>
-                </li>
-              )}
-            </For>
-          </ul>
-        </Show>
-      </Panel>
+      {/* Blockers move to the right rail on desktop. Keeping this compact
+          duplicate in the main flow gives narrow drawers the same dependency
+          visibility once the rail collapses. */}
+      <BlockersSection blocking={d.blocking} onSelect={onSelect} />
 
       {/* ── Notes: visible after blockers, styled as a quiet author thread
              rather than another disclosure card. The label remains Notes so
@@ -691,17 +661,147 @@ function DetailBody(props) {
       </div>
 
       </main>
-      <DetailSidebar node={n()} detail={d} lastAt={lastAt()} />
+      <DetailSidebar node={n()} detail={d} lastAt={lastAt()} onSelect={onSelect} />
     </div>
   );
 }
 
 // --- subcomponents ---------------------------------------------------------
 
-// The right rail keeps the high-signal properties visible while the main
-// column is used for specification, blockers and progressive disclosure.
-// It intentionally stays read-only: the only action is copying an existing
-// identifier or command.
+// Narrow drawers do not have enough room for the properties rail. This keeps
+// the same open-by-default dependency surface in the reading column there;
+// desktop users get the richer BlockersRail below instead.
+function BlockersSection(props) {
+  const blockers = () => Array.isArray(props.blocking) ? props.blocking : [];
+  const unsatisfied = () => blockers().filter((blocker) => !blocker.satisfied).length;
+  return (
+    <section class="ui-detail-blockers-mobile">
+      <Panel
+        title="Blockers"
+        right={
+          <span class="text-[12px] text-mute">
+            {unsatisfied()} unsatisfied · {blockers().length} total
+          </span>
+        }
+      >
+        <p class="mb-2 text-[12px] text-mute">Incoming BLOCKS — this node is blocked by these.</p>
+        <Show when={blockers().length} fallback={<EmptyState variant="compact" title="No blockers." />}>
+          <ul class="space-y-1.5">
+            <For each={blockers()}>
+              {(blocker) => <BlockerRow blocker={blocker} onSelect={props.onSelect} />}
+            </For>
+          </ul>
+        </Show>
+      </Panel>
+    </section>
+  );
+}
+
+// The rail is intentionally a single, always-visible health module rather
+// than another tab. A user should never have to hunt for the reason a node is
+// not ready, especially while inspecting its activity.
+function BlockersRail(props) {
+  const blockers = () => Array.isArray(props.blocking) ? props.blocking : [];
+  const unsatisfied = () => blockers().filter((blocker) => !blocker.satisfied).length;
+  const resolved = () => blockers().length - unsatisfied();
+  const clear = () => unsatisfied() === 0;
+  const title = () => clear() ? "Dependency chain is clear" : "Waiting on an incoming dependency";
+
+  return (
+    <section
+      class={`ui-blockers-rail ${clear() ? "ui-blockers-rail--clear" : "ui-blockers-rail--blocked"}`}
+      aria-labelledby="detail-blockers-title"
+    >
+      <div class="ui-blockers-rail-heading">
+        <div class="flex min-w-0 items-center gap-2.5">
+          <span class="ui-blockers-rail-icon" aria-hidden="true">{clear() ? "✓" : "!"}</span>
+          <div class="min-w-0">
+            <div class="mono text-[10px] uppercase tracking-[0.13em] text-mute">Dependency health</div>
+            <h3 id="detail-blockers-title" class="mt-0.5 text-[15px] font-bold tracking-[-0.015em] text-ink">Blockers</h3>
+          </div>
+        </div>
+        <span class="ui-blockers-rail-count" aria-label={`${unsatisfied()} unsatisfied blockers`}>{unsatisfied()}</span>
+      </div>
+
+      <p class="ui-blockers-rail-message">{title()}</p>
+
+      <div class="ui-blockers-summary" aria-label="Blocker summary">
+        <div class="ui-blockers-stat ui-blockers-stat--active">
+          <strong>{unsatisfied()}</strong>
+          <span>active</span>
+        </div>
+        <div class="ui-blockers-stat">
+          <strong>{resolved()}</strong>
+          <span>resolved</span>
+        </div>
+      </div>
+
+      <Show when={blockers().length} fallback={
+        <div class="ui-blockers-empty">
+          <span class="ui-blockers-empty-mark" aria-hidden="true">✓</span>
+          <div>
+            <strong>All clear</strong>
+            <span>No incoming dependencies.</span>
+          </div>
+        </div>
+      }>
+        <div class="ui-blockers-list-meta">
+          <span>Incoming BLOCKS</span>
+          <span>{blockers().length} total</span>
+        </div>
+        <ul class="ui-blockers-list">
+          <For each={blockers()}>
+            {(blocker) => <BlockerRow blocker={blocker} onSelect={props.onSelect} rail />}
+          </For>
+        </ul>
+      </Show>
+    </section>
+  );
+}
+
+function BlockerRow(props) {
+  const blocker = () => props.blocker || {};
+  const node = () => blocker().node || {};
+  const satisfied = () => Boolean(blocker().satisfied);
+  const status = () => satisfied() ? "Resolved" : "Active";
+  const label = () => node().id || "Unknown blocker";
+  const open = () => props.onSelect && props.onSelect(node().id);
+
+  return (
+    <li>
+      <button
+        type="button"
+        class={props.rail ? "ui-blocker-rail-row" : `flex min-h-[36px] w-full items-center gap-2 rounded-control border px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 ${satisfied() ? "border-line opacity-70 hover:opacity-100" : "border-blocked/40 bg-blocked-soft hover:border-blocked"}`}
+        onClick={open}
+        aria-label={`Open blocker ${label()}`}
+      >
+        <span class={`ui-blocker-dot ${satisfied() ? "ui-blocker-dot--resolved" : "ui-blocker-dot--active"}`} aria-hidden="true" />
+        <Show when={props.rail} fallback={
+          <>
+            <KindBadge node={node()} />
+            <span class="mono shrink-0 text-[12px] text-body">{node().id}</span>
+            <span class="min-w-0 flex-1 truncate text-[12px] text-body">{node().title}</span>
+            <StatusBadge status={satisfied() ? "done" : node().status || "open"} />
+          </>
+        }>
+          <div class="min-w-0 flex-1">
+            <div class="flex min-w-0 items-center gap-1.5">
+              <span class="mono truncate text-[11px] font-semibold text-body">{node().id}</span>
+              <span class={`ui-blocker-state ${satisfied() ? "ui-blocker-state--resolved" : "ui-blocker-state--active"}`}>{status()}</span>
+            </div>
+            <span class="mt-0.5 block truncate text-[12px] text-ink" title={node().title}>{node().title || "Untitled node"}</span>
+          </div>
+          <span class="ui-blocker-arrow" aria-hidden="true">→</span>
+        </Show>
+      </button>
+    </li>
+  );
+}
+
+// The right rail keeps dependency health and high-signal properties visible
+// while the main column is reserved for the reading flow. Blockers stay above
+// the tabs so they remain visible while the user switches to Activity.
+// Everything remains read-only: navigation and copy are the only actions.
 function DetailSidebar(props) {
   const [tab, setTab] = createSignal("properties");
   const node = () => props.node || {};
@@ -711,6 +811,8 @@ function DetailSidebar(props) {
   const tags = () => Array.isArray(node().tags) ? node().tags : [];
   return (
     <aside class="ui-detail-side p-3">
+      <BlockersRail blocking={detail().blocking} onSelect={props.onSelect} />
+
       <div class="ui-tab-strip mb-3 flex gap-1 rounded-control p-1" role="tablist" aria-label="Node detail panels">
         <button
           type="button"

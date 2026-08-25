@@ -85,6 +85,8 @@
   --ui-amber-soft: #fff7e8;
   --ui-violet: #7157d9;
   --ui-violet-soft: #f2efff;
+  --ui-red: #be123c;
+  --ui-red-soft: #fff1f3;
   --ui-shadow-drawer: 0 22px 70px rgba(20, 25, 35, 0.14), 0 2px 8px rgba(20, 25, 35, 0.06);
   --ui-shadow-popover: 0 14px 40px rgba(20, 25, 35, 0.12), 0 2px 8px rgba(20, 25, 35, 0.05);
   --ui-ease: cubic-bezier(.22, .8, .2, 1);
@@ -594,6 +596,290 @@ pre {
   background: rgba(250, 251, 252, 0.82);
 }
 
+/* Dependency health lives at the top of the right rail, outside the tabs, so
+ * it remains visible while Properties and Activity change underneath it. The
+ * treatment is intentionally quieter than a modal alert: this is a durable
+ * operational signal, not an interruption. */
+.ui-blockers-rail {
+  margin-bottom: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(190, 18, 60, 0.2);
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(255, 220, 227, 0.72), transparent 42%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(255, 247, 248, 0.92));
+  box-shadow: inset 3px 0 0 rgba(190, 18, 60, 0.72), 0 5px 16px rgba(190, 18, 60, 0.055);
+}
+
+.ui-blockers-rail--clear {
+  border-color: rgba(24, 138, 91, 0.2);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(211, 247, 229, 0.7), transparent 42%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(246, 253, 249, 0.94));
+  box-shadow: inset 3px 0 0 rgba(24, 138, 91, 0.65), 0 5px 16px rgba(24, 138, 91, 0.045);
+}
+
+.ui-blockers-rail-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 13px 0;
+}
+
+.ui-blockers-rail-icon {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid rgba(190, 18, 60, 0.24);
+  border-radius: 9px;
+  background: var(--ui-red-soft);
+  color: var(--ui-red);
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.ui-blockers-rail--clear .ui-blockers-rail-icon {
+  border-color: rgba(24, 138, 91, 0.24);
+  background: var(--ui-green-soft);
+  color: var(--ui-green);
+}
+
+.ui-blockers-rail-count {
+  display: inline-grid;
+  min-width: 26px;
+  height: 26px;
+  place-items: center;
+  border: 1px solid rgba(190, 18, 60, 0.25);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.74);
+  color: var(--ui-red);
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.ui-blockers-rail--clear .ui-blockers-rail-count {
+  border-color: rgba(24, 138, 91, 0.24);
+  color: var(--ui-green);
+}
+
+.ui-blockers-rail-message {
+  margin: 9px 13px 0;
+  color: var(--ui-body);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.ui-blockers-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin: 12px 13px 0;
+  padding-top: 10px;
+  border-top: 1px solid rgba(190, 18, 60, 0.13);
+}
+
+.ui-blockers-rail--clear .ui-blockers-summary {
+  border-top-color: rgba(24, 138, 91, 0.13);
+}
+
+.ui-blockers-stat {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+  padding: 7px 8px;
+  border: 1px solid rgba(214, 218, 226, 0.76);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.ui-blockers-stat strong {
+  color: var(--ui-text);
+  font-size: 15px;
+  font-weight: 750;
+  line-height: 17px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ui-blockers-stat span {
+  overflow: hidden;
+  color: var(--ui-muted);
+  font-size: 10px;
+  line-height: 13px;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.ui-blockers-stat--active strong {
+  color: var(--ui-red);
+}
+
+.ui-blockers-rail--clear .ui-blockers-stat--active strong {
+  color: var(--ui-green);
+}
+
+.ui-blockers-list-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 13px 13px 7px;
+  color: var(--ui-muted);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ui-blockers-list-meta span:last-child {
+  color: var(--ui-muted-2);
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.ui-blockers-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0 9px 10px;
+  list-style: none;
+}
+
+.ui-blocker-rail-row {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(190, 18, 60, 0.18);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.76);
+  padding: 8px 8px 8px 9px;
+  text-align: left;
+  transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.ui-blocker-rail-row:hover {
+  border-color: rgba(190, 18, 60, 0.42);
+  background: #fff;
+  box-shadow: 0 4px 12px rgba(190, 18, 60, 0.08);
+  transform: translateY(-1px);
+}
+
+.ui-blocker-rail-row:focus-visible {
+  position: relative;
+  z-index: 1;
+}
+
+.ui-blocker-dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 9999px;
+  background: var(--ui-red);
+  box-shadow: 0 0 0 3px rgba(190, 18, 60, 0.11);
+}
+
+.ui-blocker-dot--resolved {
+  background: var(--ui-green);
+  box-shadow: 0 0 0 3px rgba(24, 138, 91, 0.1);
+}
+
+.ui-blocker-state {
+  display: inline-flex;
+  max-width: 68px;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(190, 18, 60, 0.2);
+  border-radius: 9999px;
+  background: var(--ui-red-soft);
+  padding: 1px 5px;
+  color: var(--ui-red);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.045em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-blocker-state--resolved {
+  border-color: rgba(24, 138, 91, 0.2);
+  background: var(--ui-green-soft);
+  color: var(--ui-green);
+}
+
+.ui-blocker-arrow {
+  flex: 0 0 auto;
+  color: var(--ui-muted-2);
+  font-size: 15px;
+  line-height: 1;
+  transition: color 160ms ease, transform 160ms ease;
+}
+
+.ui-blocker-rail-row:hover .ui-blocker-arrow {
+  color: var(--ui-red);
+  transform: translateX(2px);
+}
+
+.ui-blockers-empty {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 13px 9px 10px;
+  padding: 10px 9px;
+  border: 1px solid rgba(24, 138, 91, 0.16);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.ui-blockers-empty-mark {
+  display: inline-grid;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 7px;
+  background: var(--ui-green-soft);
+  color: var(--ui-green);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.ui-blockers-empty div {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.ui-blockers-empty strong {
+  color: var(--ui-text);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.ui-blockers-empty span:not(.ui-blockers-empty-mark) {
+  color: var(--ui-muted);
+  font-size: 11px;
+  line-height: 14px;
+}
+
+.ui-detail-blockers-mobile {
+  display: none;
+}
+
 .ui-detail-section {
   border-top-color: var(--ui-line);
 }
@@ -829,6 +1115,17 @@ details > summary {
 
   .ui-detail-side {
     display: none;
+  }
+
+  /* The right rail becomes a compact open section in the reading flow so
+   * narrow drawers never hide dependency context behind a breakpoint. */
+  .ui-detail-blockers-mobile {
+    display: block;
+  }
+
+  .ui-detail-blockers-mobile .ui-panel {
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.88);
   }
 }
 
