@@ -161,6 +161,121 @@ export async function updateState(projectDir, mutator) {
   return next;
 }
 
+// =====================================================================
+// Snapshot primitives (ADR-004 §§Snapshots/Plan 1)
+//
+// A snapshot lives under `<state-dir>/snapshots/` and is an immutable
+// raw copy of the state file at the moment of capture, plus a sibling
+// metadata file with id/created_at/reason/bytes/sha256. Creation is
+// always paired with temp+rename so a partial pair never appears as
+// "complete" in `listSnapshots`. The caller is expected to hold
+// `withLock(projectDir)` for the lifetime of the mutation; we do not
+// take the lock here so the primitive stays composable.
+// =====================================================================
+
+const VALID_SNAPSHOT_REASONS = new Set(["force-init", "corrupt-recovery", "pre-restore"]);
+
+function snapshotDir(projectDir) {
+  return path.join(path.dirname(stateFile(projectDir)), "snapshots");
+}
+
+function buildSnapshotId(reason) {
+  // toISOString() returns `YYYY-MM-DDTHH:mm:ss.SSSZ`. Strip the dashes,
+  // colons and dot so the id prefix is a sortable UTC timestamp with
+  // millisecond precision (matches the ADR format).
+  const iso = new Date().toISOString();
+  const ts = iso.replace(/[-:.]/g, "");
+  const random = crypto.randomBytes(4).toString("hex");
+  return `${ts}-${reason}-${random}`;
+}
+
+async function tryChmod(target, mode) {
+  // Best-effort: chmod is a no-op on Windows beyond the read-only bit
+  // and can fail with EPERM/ENOTSUP on locked-down filesystems. The
+  // primitive contract is "do not throw on permission errors".
+  try {
+    await fs.chmod(target, mode);
+  } catch {
+    // ignored by design
+  }
+}
+
+export async function createSnapshot(projectDir, reason) {
+  if (!VALID_SNAPSHOT_REASONS.has(reason)) {
+    const allowed = [...VALID_SNAPSHOT_REASONS].join(", ");
+    throw new Error(`createSnapshot: invalid reason '${reason}' (allowed: ${allowed})`);
+  }
+  const statePath = stateFile(projectDir);
+  // Read raw bytes (may include non-JSON content for corrupt-recovery;
+  // we never parse the state file here, by design).
+  const raw = await fs.readFile(statePath);
+  const dir = snapshotDir(projectDir);
+  await fs.mkdir(dir, { recursive: true });
+  await tryChmod(dir, 0o700);
+  const sha256 = crypto.createHash("sha256").update(raw).digest("hex");
+  const id = buildSnapshotId(reason);
+  const finalRawPath = path.join(dir, `${id}.json`);
+  const finalMetaPath = path.join(dir, `${id}.meta.json`);
+  const tmpRawPath = `${finalRawPath}.tmp-${process.pid}-${Date.now()}`;
+  const tmpMetaPath = `${finalMetaPath}.tmp-${process.pid}-${Date.now()}`;
+  const metadata = {
+    id,
+    created_at: new Date().toISOString(),
+    reason,
+    bytes: raw.length,
+    sha256,
+  };
+  // Write raw first, then metadata. Both use temp+rename so a crash
+  // mid-write never leaves a half-written file at the final path.
+  await fs.writeFile(tmpRawPath, raw);
+  await tryChmod(tmpRawPath, 0o600);
+  await fs.writeFile(tmpMetaPath, JSON.stringify(metadata, null, 2) + "\n", "utf8");
+  await tryChmod(tmpMetaPath, 0o600);
+  await fs.rename(tmpRawPath, finalRawPath);
+  await fs.rename(tmpMetaPath, finalMetaPath);
+  return metadata;
+}
+
+export async function listSnapshots(projectDir) {
+  const dir = snapshotDir(projectDir);
+  let entries;
+  try {
+    entries = await fs.readdir(dir);
+  } catch (err) {
+    if (err.code === "ENOENT") return [];
+    throw err;
+  }
+  const result = [];
+  for (const name of entries) {
+    // We anchor on the metadata file: a metadata file without its raw
+    // pair is incomplete, and an orphan raw file has no metadata to
+    // describe it. The primitive surfaces only complete pairs.
+    if (!name.endsWith(".meta.json")) continue;
+    const id = name.slice(0, -".meta.json".length);
+    const rawPath = path.join(dir, `${id}.json`);
+    const metaPath = path.join(dir, `${id}.meta.json`);
+    try {
+      await fs.access(rawPath);
+    } catch {
+      continue;
+    }
+    let meta;
+    try {
+      meta = JSON.parse(await fs.readFile(metaPath, "utf8"));
+    } catch {
+      continue;
+    }
+    // Mismatched id (tampered metadata) is treated as incomplete.
+    if (!meta || typeof meta !== "object" || meta.id !== id) continue;
+    result.push(meta);
+  }
+  // Sort descending: ids are timestamp-prefixed, so lexicographic order
+  // matches creation order. Newest first matches the ADR §Snapshots
+  // listing contract for the future `snapshots` command.
+  result.sort((a, b) => (a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
+  return result;
+}
+
 // writeState: validate and persist a v2 state. Rejects v1 shapes and any
 // state missing the v2 collections. This is the single source of truth for
 // the on-disk schema; helpers must not bypass it for v2 writes.
