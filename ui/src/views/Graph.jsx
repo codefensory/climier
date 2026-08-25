@@ -623,14 +623,13 @@ export default function Graph() {
         positions[id] = { x: p.x + POS_OFFSET_X, y: p.y + POS_OFFSET_Y };
       }
       const preset = cy.layout({ name: "preset", positions, fit: false, animate: false });
-      // Preset applies positions asynchronously in browser Cytoscape. Fit only
-      // after layoutstop; fitting before then sees every new node at (0, 0).
-      if (shouldFit) {
-        preset.one("layoutstop", () => {
-          if (!disposed) fitWhenSized();
-        });
-      }
       preset.run();
+      // Cytoscape's browser preset lifecycle may paint once before its
+      // layoutstop observer has committed the supplied map. Write the same
+      // deterministic coordinates directly to the collection as the final
+      // renderer contract: no node may remain at the default origin.
+      cy.nodes().positions((node) => positions[node.id()] || node.position());
+      if (shouldFit) fitWhenSized();
       const prev = {};
       for (const [id, p] of Object.entries(layoutResult().positions)) prev[id] = p;
       setPreviousPositionsById(prev);
