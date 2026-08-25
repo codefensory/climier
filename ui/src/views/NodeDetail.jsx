@@ -26,6 +26,10 @@ import { Show, For, createMemo, createSignal, createEffect, onCleanup } from "so
 import { Portal } from "solid-js/web";
 import { useStore } from "../store.jsx";
 import {
+  upstreamBlockers,
+  downstreamImpact,
+} from "./graph-view-model.mjs";
+import {
   AlertBanner,
   Chip,
   ClaimTime,
@@ -176,7 +180,7 @@ function CopyButton(props) {
 // === Drawer =================================================================
 
 export default function NodeDetail() {
-  const { selectedId, select, detail, detailError, snapshot } = useStore();
+  const { selectedId, select, detail, detailError, snapshot, graphView } = useStore();
   const d = () => detail();
 
   // Pull the snapshot's last_activity map so the summary card can show a
@@ -358,6 +362,8 @@ export default function NodeDetail() {
               detail={d()}
               lastActivityMap={lastActivityMap()}
               nodeAlerts={nodeAlerts()}
+              graphView={graphView()}
+              snapshot={snapshot()}
               onSelect={select}
             />
           </Show>
@@ -404,8 +410,10 @@ function DetailBody(props) {
   // props.detail          — full /api/node/:id payload
   // props.lastActivityMap — snapshot.last_activity
   // props.nodeAlerts      — alerts scoped to this node
+  // props.graphView       — store graphView ({ mode, focus | null })
+  // props.snapshot        — store snapshot ({ nodes, edges, ... })
   // props.onSelect        — back/click handler (id -> void)
-  const { detail: d, lastActivityMap, nodeAlerts, onSelect } = props;
+  const { detail: d, lastActivityMap, nodeAlerts, graphView, snapshot, onSelect } = props;
   const n = () => d.node;
   const lastAt = () => lastActivityTs(d, lastActivityMap);
 
@@ -455,6 +463,52 @@ function DetailBody(props) {
     return sorted[0];
   });
 
+  // Graph focus context. The drawer's job is to explain what the Graph view
+  // is currently focused on and to offer the navigation defined by ADR-001
+  // §Controles y detalle: clicking a related node goes through select(),
+  // never a new endpoint. The BFS comes from the new pure model module
+  // (graph-view-model.mjs) so we never re-derive the DAG in this view.
+  // The focus only applies when its id matches the open node — per ADR-001
+  // §Estado y ciclo de vida, "el foco siempre tiene como objetivo el nodo
+  // seleccionado"; if the user navigated inside the drawer to a different
+  // node, the focus section hides (the focus belongs to its seed, not to
+  // the new selection).
+  const focus = () => (graphView && graphView.focus) || null;
+  const focusApplies = createMemo(() => {
+    const f = focus();
+    return Boolean(f && d.node && f.id === d.node.id);
+  });
+  const focusRelated = createMemo(() => {
+    if (!focusApplies()) return [];
+    const f = focus();
+    const snap = snapshot || {};
+    const nodes = snap.nodes || {};
+    const edges = snap.edges || [];
+    const seed = nodes[f.id];
+    if (!seed) return [];
+    if (f.kind === "upstream") {
+      const ids = upstreamBlockers(edges, f.id);
+      const out = [];
+      for (const id of ids) if (nodes[id]) out.push(nodes[id]);
+      return out;
+    }
+    if (f.kind === "downstream") {
+      const ids = downstreamImpact(edges, f.id);
+      const out = [];
+      for (const id of ids) if (nodes[id]) out.push(nodes[id]);
+      return out;
+    }
+    if (f.kind === "initiative") {
+      const ini = seed.initiative || "";
+      const out = [];
+      for (const n of Object.values(nodes)) {
+        if (n && n.id !== f.id && n.initiative === ini) out.push(n);
+      }
+      return out;
+    }
+    return [];
+  });
+
   return (
     <div class="ui-detail-layout">
       <main class="ui-detail-main space-y-5 p-6 lg:p-7">
@@ -487,6 +541,35 @@ function DetailBody(props) {
           </Show>
         </div>
       </section>
+
+      {/* ── Graph focus context (only when the focus applies to this node)
+             The drawer reuses the existing layout; it does not open a parallel
+             inspector. Navigation goes through the same select() handler as
+             every other related-node row. ─── */}
+      <Show when={focusApplies()}>
+        <Panel
+          title={FOCUS_TITLE[focus().kind] || "Graph focus"}
+          right={
+            <span class="text-[12px] text-mute">
+              {focusRelated().length} node{focusRelated().length === 1 ? "" : "s"}
+            </span>
+          }
+        >
+          <p class="mb-2 text-[12px] text-mute">{FOCUS_HINT[focus().kind]}</p>
+          <Show
+            when={focusRelated().length}
+            fallback={
+              <EmptyState variant="compact" title="No nodes in this focus set." />
+            }
+          >
+            <ul class="space-y-1.5">
+              <For each={focusRelated()}>
+                {(related) => <FocusRow node={related} onSelect={onSelect} />}
+              </For>
+            </ul>
+          </Show>
+        </Panel>
+      </Show>
 
       {/* ── Specification (open by default) ─────────────────────────── */}
       <Panel title="Specification">
@@ -1026,6 +1109,49 @@ function NoteRow(props) {
         </div>
         <div class="ui-note-body whitespace-pre-wrap text-[13px] leading-5 text-body">{note.text}</div>
       </div>
+    </li>
+  );
+}
+
+// === Graph focus (consumed via store.graphView, see ADR-001) ===============
+//
+// Title + hint shown above the focus set. The kind is one of
+// "upstream" | "downstream" | "initiative" — the same set the store
+// validates on write, so we do not need a defensive default here. The
+// fallback in JSX is purely cosmetic in case a future kind slips in
+// before this map is updated.
+const FOCUS_TITLE = {
+  upstream: "Graph focus · Upstream blockers",
+  downstream: "Graph focus · Downstream impact",
+  initiative: "Graph focus · Initiative",
+};
+const FOCUS_HINT = {
+  upstream:
+    "Every node reachable upstream through BLOCKS edges from this one. Cycle-safe BFS.",
+  downstream:
+    "Every node reachable downstream through BLOCKS edges from this one. Cycle-safe BFS.",
+  initiative: "Other nodes that share this one's initiative.",
+};
+
+// One navigable row inside the Graph focus panel. Same shape as the rows
+// in the Relationships section (KindBadge + id + title + StatusBadge) so
+// the visual language stays consistent; navigation goes through the
+// shared select() handler, no new endpoint, no new drawer.
+function FocusRow(props) {
+  const node = () => props.node || {};
+  return (
+    <li>
+      <button
+        type="button"
+        class="ui-list-row flex min-h-[36px] w-full items-center gap-2 rounded-control border border-line bg-panel px-3 py-2 text-left transition-colors hover:bg-panel-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
+        onClick={() => props.onSelect && props.onSelect(node().id)}
+        aria-label={`Open ${node().id || "node"}`}
+      >
+        <KindBadge node={node()} />
+        <span class="mono shrink-0 text-[12px] text-body">{node().id}</span>
+        <span class="min-w-0 flex-1 truncate text-[12px] text-body">{node().title || "—"}</span>
+        <StatusBadge status={node().status || "open"} />
+      </button>
     </li>
   );
 }
