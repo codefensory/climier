@@ -586,12 +586,35 @@ pre {
 }
 
 .ui-detail-side {
-  overflow: auto;
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
   scrollbar-color: #cbd0d8 transparent;
   border-left: 1px solid var(--ui-line);
   background: rgba(250, 251, 252, 0.82);
+}
+
+.ui-detail-side > *,
+.ui-detail-side .ui-tab-strip,
+.ui-detail-side .ui-detail-card,
+.ui-detail-side .ui-command-bar {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.ui-detail-side .ui-tab-strip button {
+  min-width: 0;
+}
+
+.ui-detail-side .ui-detail-card {
+  overflow: hidden;
+}
+
+.ui-detail-side .truncate {
+  min-width: 0;
+  max-width: 100%;
 }
 
 /* Blockers share the rail's card treatment instead of becoming a competing
@@ -690,6 +713,10 @@ pre {
 
 .ui-blocker-rail-row--resolved:hover {
   opacity: 1;
+}
+
+.ui-blocker-rail-row > * {
+  min-width: 0;
 }
 
 .ui-blocker-rail-row:focus-visible {

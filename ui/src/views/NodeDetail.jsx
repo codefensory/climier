@@ -792,7 +792,7 @@ function DetailSidebar(props) {
   const activity = () => [...(detail().history || [])].reverse().slice(0, 8);
   const tags = () => Array.isArray(node().tags) ? node().tags : [];
   return (
-    <aside class="ui-detail-side p-3">
+    <aside class="ui-detail-side min-w-0 p-3">
       <div class="ui-tab-strip mb-3 flex gap-1 rounded-control p-1" role="tablist" aria-label="Node detail panels">
         <button
           type="button"
