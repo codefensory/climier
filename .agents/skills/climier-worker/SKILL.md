@@ -11,13 +11,7 @@ La task es tu contrato. No heredas el chat del orchestrator. Si una nuance no es
 
 El worker no pide contexto largo por prompt. Lo saca de la task.
 
-Antes de cualquier accion de climier o git operacional, revisa si el worktree actual esta limpio. Esta guardia va primero: antes de `context`, antes de `take`, antes de curar la task y antes de crear un worktree.
-
-```bash
-project_root="$(bash .agents/skills/climier-worker/worker-guard.sh)"
-```
-
-Si `worker-guard.sh` falla, falla de inmediato y pasa su output al orchestrator: hay cambios pendientes sin commitear que deben commitearse antes de delegar la task. No tomes la task, no corras `context`, no crees worktree, no stages nada y no intentes arreglar esos cambios.
+La ruta de inicio es **una sola**: `bash .agents/skills/climier-worker/start-worktree.sh <task-id> <tu-agent>`. Ese script corre la guardia de estado limpio **exactamente una vez** (`worker-guard.sh`) y luego hace `take` + `git worktree add` + nota `WORKTREE`. No invoques `worker-guard.sh` a mano antes ni despues: lo harias correr dos veces sobre el mismo estado. Si la guardia falla, el script aborta con un mensaje claro y el orchestrator debe commitear los cambios pendientes antes de reintentar.
 
 Ruta rapida obligatoria: usa los scripts empaquetados para procesos repetitivos. No repitas manualmente sus pasos internos (`git status`, resolver `project_root`, `take`, `context`, `git worktree add`, `add-note WORKTREE`, `resolve`) salvo que sea estrictamente necesario por un fallo concreto del script o una task de recuperacion que lo pida explicitamente. Si haces una excepcion, deja un handoff corto explicando por que el script no aplicaba.
 
@@ -37,12 +31,11 @@ Si el body referencia un ADR (`./.adrs/NNN-*.md`), ese ADR + los archivos listad
 La ruta default debe ser barata. No hagas bundle pesado si la task se entiende con los comandos base:
 
 ```bash
-project_root="$(bash .agents/skills/climier-worker/worker-guard.sh)"
-climier --project "$project_root" context <task-id>
+climier context <task-id>
 bash .agents/skills/climier-worker/start-worktree.sh <task-id> <tu-agent>
 ```
 
-`start-worktree.sh` valida que no exista la rama/path, hace `take`, `context`, crea el worktree, registra la nota `WORKTREE ... status=started` e imprime el `cd` siguiente. No vuelvas a correr esos comandos a mano si el script ya corrio bien.
+`start-worktree.sh` es el unico punto de entrada. Corre la guardia de estado limpio, valida que no exista la rama/path, hace `take`, crea el worktree, registra la nota `WORKTREE ... status=started` (con `path`, `branch`, `base`, `base_ref`, `base_sha`) e imprime el `cd` siguiente. No vuelvas a correr esos comandos a mano ni invoques `worker-guard.sh` por separado.
 
 Usa `task-context.sh` solo cuando necesites compactar contexto disperso:
 
@@ -77,23 +70,22 @@ No hagas rituales de `pwd`, `cd` manual ni rutas copiadas a mano. El script ya r
 
 ## Preflight
 
+La preflight es de **lectura**: solo inspecciona el contrato de la task, no muta nada. El unico script que corre la guardia de estado limpio es `start-worktree.sh`; no la invoques a mano.
+
 Secuencia fija:
 
-1. corre `project_root="$(bash .agents/skills/climier-worker/worker-guard.sh)"`
-2. si falla, reporta al orchestrator el output del script: debe commitear esos cambios pendientes
-3. reutiliza ese `project_root`; no lo recalcules por separado
-4. corre `climier --project "$project_root" context <id>`
-5. si el contrato esta disperso, corre `bash .agents/skills/climier-worker/task-context.sh <id>` y no repitas manualmente lo que el script ya hizo
-6. lee el veredicto (derived_status + can_claim + allowed_actions)
-7. si ves un gap objetivo y la task sigue `ready`, corrige la task
-8. vuelve a correr solo el comando que valida el cambio (`context` o `task-context.sh`, no ambos salvo necesidad)
-9. recien ahi llama `start-worktree.sh`; no tomes ni crees el worktree a mano
+1. corre `climier context <id>` desde el root del proyecto (descubre el proyecto por CWD)
+2. si el contrato esta disperso, corre `bash .agents/skills/climier-worker/task-context.sh <id>` y no repitas manualmente lo que el script ya hizo
+3. lee el veredicto (derived_status + can_claim + allowed_actions)
+4. si ves un gap objetivo y la task sigue `ready`, corrige la task con `climier --project . update <id> --as <tu-agent> ...` (el CLI descubre el proyecto desde CWD; no necesitas resolver `project_root` a mano)
+5. vuelve a correr solo el comando que valida el cambio (`context` o `task-context.sh`, no ambos salvo necesidad)
+6. recien ahi llama `bash .agents/skills/climier-worker/start-worktree.sh <id> <tu-agent>`; no tomes ni crees el worktree a mano, y no corras `worker-guard.sh` por separado
 
-El preflight termina rapido. Objetivo: saber que tocar, que no tocar, como verificar, y si el contrato esta lo bastante curado para ejecutarse.
+El preflight termina rapido. Objetivo: saber que tocar, que no tocar, como verificar, y si el contrato esta lo bastante curado para ejecutarse. La guardia de estado limpio la corre `start-worktree.sh` y solo `start-worktree.sh`.
 
 ## Cuando curar la task
 
-Antes del `take`, usa `climier --project "$project_root" update <id> --as <tu-agent> ...` si el problema es objetivo:
+Antes del `take`, usa `climier --project . update <id> --as <tu-agent> ...` si el problema es objetivo:
 
 - paths viejos
 - doc faltante pero claramente referido por la spec
@@ -108,7 +100,7 @@ No cures metadatos menores. Si la task es entendible y tomable, trabaja. Cura so
 No cures producto ni negocio por tu cuenta. Si falta una decision real:
 
 ```bash
-climier --project "$project_root" add-note <id> "NO-GO preflight: <problema exacto>. Necesito que orchestrator decida o cure <X>." --as <tu-agent>
+climier --project . add-note <id> "NO-GO preflight: <problema exacto>. Necesito que orchestrator decida o cure <X>." --as <tu-agent>
 ```
 
 Y no tomes.
@@ -121,9 +113,11 @@ Cuando el preflight diga `GO`:
 2. entra al path que imprime el script
 3. trabaja solo dentro de ese worktree
 4. haz el diff minimo necesario
-5. deja `climier --project "$project_root" add-note` solo cuando descubras algo que otro worker pagaria por reaprender
+5. deja `climier --project . add-note` solo cuando descubras algo que otro worker pagaria por reaprender
 
 Regla dura de aislamiento: el worker nunca modifica `main` ni el worktree principal. Tiene prohibido hacer `merge`, `pull`, `rebase`, `reset`, `commit`, `checkout` o `switch` sobre `main`; tampoco puede traer su rama de task a `main`, actualizar `main` ni corregir archivos desde el arbol principal. Todo cambio de implementacion, verificacion y commit vive exclusivamente en el worktree/rama de la task. La integracion con `main` queda fuera del worker y pertenece al validador/orchestrator.
+
+El script `start-worktree.sh` usa el `main` actual como base solo para capturar `base_ref` + `base_sha` inmutables; nunca muta `main`.
 
 Este protocolo asume que recibiste una task de Climier ya preparada para delegacion. No decidas por tu cuenta cambiar su modelo de ejecucion ni uses el worktree principal.
 
@@ -228,8 +222,8 @@ Despues de cada worker, el siguiente paso del flujo es obligatorio: ejecutar un 
 
 Si ya tomaste y aparece un bloqueo real:
 
-1. `climier --project "$project_root" add-note <id> "<que intentaste>; <que encontraste>; <decision tactica o bloqueo>" --as <tu-agent>`
-2. `climier --project "$project_root" release <id> --as <tu-agent>` para liberar el claim y permitir que el orchestrator o otro worker siga
+1. `climier --project . add-note <id> "<que intentaste>; <que encontraste>; <decision tactica o bloqueo>" --as <tu-agent>`
+2. `climier --project . release <id> --as <tu-agent>` para liberar el claim y permitir que el orchestrator o otro worker siga
 3. devuelve un handoff concreto al orchestrator
 
 Formato:
@@ -263,8 +257,8 @@ Si la task te empuja a `DROP`, `TRUNCATE`, `DELETE FROM` sin `WHERE`, `DROP SCHE
 Deja nota y libera el claim:
 
 ```bash
-climier --project "$project_root" add-note <id> "Iba a ejecutar <comando>; no lo hice porque excede el scope o es destructivo." --as <tu-agent>
-climier --project "$project_root" release <id> --as <tu-agent>
+climier --project . add-note <id> "Iba a ejecutar <comando>; no lo hice porque excede el scope o es destructivo." --as <tu-agent>
+climier --project . release <id> --as <tu-agent>
 ```
 
 La excepcion tiene que estar escrita de forma literal en la spec.
