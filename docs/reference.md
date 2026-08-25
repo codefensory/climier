@@ -555,8 +555,9 @@ With `--all`, additional groups appear:
 Notes:
 
 - `summary` is always present
-- without `--claimed-by`, in-progress items default to the caller from `--as`
-- `--status` filters all buckets, not just derived ones
+- `in_progress` is **global by default** — every in_progress task in scope is listed and counted regardless of caller. Use `--claimed-by <agent>` to narrow to one agent's claims; `--as` is an identity tag (it scopes `context`'s `allowed_actions`) and is intentionally NOT a filter for `status`.
+- `--status` filters all buckets, not just derived ones. The only `--status` value that surfaces the in_progress bucket is `in_progress`; any other value leaves it empty.
+- Stale-claim alerts follow the same rule: global by default, narrowed only by `--claimed-by`.
 
 ### `context <id>`
 
