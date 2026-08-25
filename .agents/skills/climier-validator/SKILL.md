@@ -98,6 +98,26 @@ Check in this order and stop as soon as a verdict is justified:
 Do not require perfect architecture if the task did not ask for it. Do require the task's stated contract.
 For micro-tasks, proportionality is part of the contract: fail for missing targeted evidence, not for skipping unrelated repository checks.
 
+## Preflight before merge
+
+Before merging on `PASS`, run the read-only integration preflight to detect divergence early:
+
+```bash
+bash .agents/skills/climier-validator/integration-preflight.sh --task <id> --project-root <project>
+```
+
+Behavior:
+
+- Discovers the task worktree from the latest `EVIDENCE` JSON note (with `task`, `commit`, `branch`, `worktree`, `base_ref`, `base_sha`, `files`, `checks`) or, for older notes, from the legacy `WORKTREE path=... branch=... base=... commit=...` key=value line. Tolerates missing fields without crashing.
+- Compares the recorded `base_sha` against the current tip of `base_ref` and reports whether main has advanced, rewound, or diverged.
+- Lists files the task changed and any overlap with files that landed in main since `base_sha`.
+- Exit code: `0` clean, `1` divergence or overlap detected, `2` error.
+- NEVER mutates git state: no checkout, merge, reset, commit, push, fetch, worktree remove, or file edits.
+
+Use `--json` for machine-readable output. Treat exit code `1` as a flag for review (rerun, inspect overlap paths, decide between rebase or merge resolution) — it does not by itself force `FAIL`. If the worker shipped a WORKTREE-only note without EVIDENCE, the script still runs in degraded mode (verdict = `clean`, `overlap_paths = []`, `degraded_reasons` populated).
+
+When integration-preflight reports verdict `overlap`, do not merge blindly: surface overlap paths in the validator summary and recommend a strategy (rebase vs merge) before the orchestrator decides.
+
 ## Evidence Rules
 
 - Prefer direct evidence from diffs, files, command output, and climier task metadata.

@@ -1,11 +1,38 @@
 #!/usr/bin/env bash
+# finish-task.sh — worker close-out for a claimed climier task.
+#
+# Validates that the worktree is clean, the last commit ends with [<task-id>],
+# then emits:
+#   - a backward-compatible WORKTREE note (key=value) for legacy validators,
+#   - a structured EVIDENCE JSON note appended via `climier add-note` so the
+#     the validator protocol can run `integration-preflight.sh` against it,
+#   - and finally `climier resolve <id> --note "..."` to close the task.
+#
+# Optional caller-supplied evidence:
+#   - Pass --evidence-file <path> (4th positional or flag) to use a JSON file
+#     the caller already prepared. The file's contents are parsed, validated,
+#     and merged with auto-detected fields (commit, branch, worktree, base_ref,
+#     base_sha, files). Caller values for `task`, `commit`, `branch`, `worktree`,
+#     `base_ref`, and `base_sha` are passed through unless obviously wrong.
+#   - Caller-supplied `files` and `checks` arrays are preserved as-is; otherwise
+#     the script auto-fills `files` from `git diff --name-status base_ref HEAD`
+#     and `checks` from the task's `meta.execution.checks` (running each).
+#
+# The EVIDENCE note text is `EVIDENCE <compact JSON>` — single-line, JSON-
+# parseable, and structured for `integration-preflight.sh`.
+
 set -euo pipefail
 
 usage() {
-  echo "Usage: bash .agents/skills/climier-worker/finish-task.sh <task-id> <agent-id> \"<done-note>\"" >&2
+  cat >&2 <<'EOF'
+Usage: bash .agents/skills/climier-worker/finish-task.sh <task-id> <agent-id> "<done-note>" [--evidence-file <path>]
+
+Emits a back-compat WORKTREE note, an EVIDENCE JSON note, and resolves the task.
+EOF
 }
 
-if [[ $# -ne 3 ]]; then
+if [[ $# -lt 3 ]] || [[ "$1" == "-h" ]] || [[ "$1" == "--help" ]]; then
+  if [[ "$1" == "-h" ]] || [[ "$1" == "--help" ]]; then usage; exit 0; fi
   usage
   exit 1
 fi
@@ -13,6 +40,16 @@ fi
 task_id="$1"
 agent_id="$2"
 done_note="$3"
+shift 3
+evidence_file=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --evidence-file) evidence_file="${2-}"; shift 2 ;;
+    --evidence-file=*) evidence_file="${1#*=}"; shift ;;
+    *) echo "finish-task: unknown argument: $1" >&2; usage; exit 2 ;;
+  esac
+done
 
 current_root="$(git rev-parse --show-toplevel)"
 project_root="$(git -C "$current_root" worktree list --porcelain | sed -n '1{s/^worktree //p;}')"
@@ -47,12 +84,143 @@ fi
 
 branch="$(git -C "$current_root" branch --show-current)"
 base_branch="$(git -C "$project_root" branch --show-current)"
+base_sha="$(git -C "$project_root" rev-parse "$base_branch" 2>/dev/null || echo "")"
 
-# add-note unchanged. resolve replaces done and accepts --note
+# 1. Legacy WORKTREE note (back-compat — keep exact format). Echo to stdout
+# AFTER the add-note succeeds so callers (validator, integration-preflight,
+# orchestrator) can see exactly what was logged without re-querying state.
+worktree_note="WORKTREE path=$current_root branch=$branch base=$base_branch commit=$commit_sha status=ready-for-validation"
+climier --project "$project_root" add-note "$task_id" "$worktree_note" --as "$agent_id" >/dev/null
+printf '%s\n' "$worktree_note"
+
+# 2. EVIDENCE note. Single-line JSON, prefixed with EVIDENCE so the validator
+# script can pick it up via simple prefix matching. We build it in node so
+# quoting stays safe.
+task_meta_json="$(climier --project "$project_root" show "$task_id" 2>/dev/null || echo '{"node":{}}')"
+files_status_json="$(git -C "$current_root" diff --name-status "$base_branch...HEAD" 2>/dev/null | awk -F'\t' '
+  NF >= 2 { status=$1; path=$2; printf("{\"path\":\"%s\",\"status\":\"%s\"}\n", path, status) }
+  NF == 1 { printf("{\"path\":\"%s\",\"status\":\"?\"}\n", $1) }
+' | node -e '
+let s = "";
+process.stdin.on("data", d => s += d);
+process.stdin.on("end", () => {
+  const lines = s.split("\n").filter(Boolean);
+  process.stdout.write("[" + lines.join(",") + "]");
+});
+')"
+
+# Run the checks declared in meta.execution.checks. Output: [{name, ok}].
+# Each check is run via bash -c to honor simple commands and short flags.
+# We never echo the stdout; only the name and pass/fail are recorded.
+checks_json="$(printf '%s' "$task_meta_json" | node -e '
+const { spawnSync } = require("node:child_process");
+let s = "";
+process.stdin.on("data", (d) => s += d);
+process.stdin.on("end", () => {
+  let declared = [];
+  try {
+    const o = JSON.parse(s);
+    const checks = (o && o.node && o.node.meta && Array.isArray(o.node.meta.execution && o.node.meta.execution.checks))
+      ? o.node.meta.execution.checks : [];
+    for (const c of checks) if (typeof c === "string") declared.push(c);
+  } catch {}
+
+  const results = [];
+  for (const cmd of declared) {
+    let code = -1;
+    try {
+      const r = spawnSync("bash", ["-c", cmd], { stdio: "ignore" });
+      code = r.status === null ? -1 : r.status;
+    } catch {}
+    results.push({ name: cmd, ok: code === 0, exit_code: code });
+  }
+  process.stdout.write(JSON.stringify(results));
+});
+' 2>/dev/null)"
+
+# Build and emit the EVIDENCE note text. If the caller supplied --evidence-file,
+# its object is merged in via node (caller fields win on conflict).
+if [[ -n "$evidence_file" ]]; then
+  if [[ ! -f "$evidence_file" ]]; then
+    echo "finish-task: --evidence-file not found: $evidence_file" >&2
+    exit 2
+  fi
+  caller_json="$(cat "$evidence_file")"
+  evidence_note_text="$(TASK_ID="$task_id" COMMIT_SHA="$commit_sha" BRANCH="$branch" CURRENT_ROOT="$current_root" BASE_BRANCH="$base_branch" BASE_SHA="$base_sha" FILES_JSON="$files_status_json" CHECKS_JSON="$checks_json" CALLER_JSON="$caller_json" node -e '
+const env = process.env;
+let caller = {};
+try { caller = JSON.parse(env.CALLER_JSON); } catch { caller = {}; }
+let files = [];
+try { files = JSON.parse(env.FILES_JSON); } catch { files = []; }
+let checks = [];
+try { checks = JSON.parse(env.CHECKS_JSON); } catch { checks = []; }
+const out = {
+  task: typeof caller.task === "string" ? caller.task : env.TASK_ID,
+  commit: typeof caller.commit === "string" ? caller.commit : env.COMMIT_SHA,
+  branch: typeof caller.branch === "string" ? caller.branch : env.BRANCH,
+  worktree: typeof caller.worktree === "string" ? caller.worktree : env.CURRENT_ROOT,
+  base_ref: typeof caller.base_ref === "string" ? caller.base_ref : env.BASE_BRANCH,
+  base_sha: typeof caller.base_sha === "string" ? caller.base_sha : env.BASE_SHA,
+  files: Array.isArray(caller.files) ? caller.files : files,
+  checks: Array.isArray(caller.checks) ? caller.checks : checks,
+};
+const json = JSON.stringify(out);
+if (typeof process.send === "function") {
+  process.stdout.write(`EVIDENCE ${json}`);
+} else {
+  process.stdout.write(`EVIDENCE ${json}`);
+}
+')"
+else
+  evidence_note_text="$(TASK_ID="$task_id" COMMIT_SHA="$commit_sha" BRANCH="$branch" CURRENT_ROOT="$current_root" BASE_BRANCH="$base_branch" BASE_SHA="$base_sha" FILES_JSON="$files_status_json" CHECKS_JSON="$checks_json" node -e '
+const env = process.env;
+let files = [];
+try { files = JSON.parse(env.FILES_JSON); } catch { files = []; }
+let checks = [];
+try { checks = JSON.parse(env.CHECKS_JSON); } catch { checks = []; }
+const out = {
+  task: env.TASK_ID,
+  commit: env.COMMIT_SHA,
+  branch: env.BRANCH,
+  worktree: env.CURRENT_ROOT,
+  base_ref: env.BASE_BRANCH,
+  base_sha: env.BASE_SHA,
+  files,
+  checks,
+};
+process.stdout.write(`EVIDENCE ${JSON.stringify(out)}`);
+')"
+fi
+
+# Validate that the note text parses as JSON before we send it through add-note
+# (defensive: surfaces malformed caller evidence before mutating state).
+case "$evidence_note_text" in
+  "EVIDENCE "*)
+    payload="${evidence_note_text#EVIDENCE }"
+    if ! printf '%s' "$payload" | node -e '
+let s = "";
+process.stdin.on("data", d => s += d);
+process.stdin.on("end", () => { try { JSON.parse(s); } catch { process.exit(1); } });
+' >/dev/null 2>&1; then
+      echo "finish-task: constructed EVIDENCE JSON failed to parse; refusing to add-note" >&2
+      exit 2
+    fi
+    ;;
+  *)
+    echo "finish-task: EVIDENCE note text does not start with EVIDENCE marker" >&2
+    exit 2
+    ;;
+esac
+
+climier --project "$project_root" add-note "$task_id" "$evidence_note_text" --as "$agent_id" >/dev/null
+# Echo to stdout (after add-note succeeds) so callers/tests can capture it
+# without re-reading climier state. Matches the WORKTREE note visibility.
+printf '%s\n' "$evidence_note_text"
+
+# 3. Resolve. add-note unchanged. resolve replaces done and accepts --note
 # (instead of a positional arg). Resolve returns {node, newly_ready}; we
 # echo the JSON so callers can inspect it, then surface newly_ready as a
 # single line for the orchestrator.
-climier --project "$project_root" add-note "$task_id" "WORKTREE path=$current_root branch=$branch base=$base_branch commit=$commit_sha status=ready-for-validation" --as "$agent_id" >/dev/null
 resolve_output="$(climier --project "$project_root" resolve "$task_id" --note "$done_note; commit $commit_sha" --as "$agent_id")"
 printf '%s\n' "$resolve_output"
 
@@ -74,4 +242,6 @@ process.stdin.on("end", () => {
   } catch {}
 });
 ')"
-[[ -n "$newly_ready" ]] && printf 'NEWLY_READY %s\n' "$newly_ready"
+if [[ -n "$newly_ready" ]]; then
+  printf 'NEWLY_READY %s\n' "$newly_ready"
+fi
