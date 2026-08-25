@@ -4,6 +4,7 @@ import { append } from "../log.mjs";
 import { EDGE_TYPES, blocksEdge, validateEdge } from "../v2.mjs";
 import { throwV2 } from "../errors.mjs";
 import { resolveAgent } from "../agent.mjs";
+import { validateExecution } from "../execution-contract.mjs";
 
 export const knownFlags = [
   "kind",
@@ -56,7 +57,11 @@ function parseMeta(raw) {
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     throw new Error("add-node: --meta must be a JSON object");
   }
-  return parsed;
+  // Validate meta.execution when present. validateExecution re-throws with
+  // the INVALID_EXECUTION_CONTRACT code so callers can branch on it; other
+  // top-level keys on `parsed` are preserved unchanged so historical meta
+  // blocks continue to round-trip.
+  return validateExecution(parsed);
 }
 
 function parseBacklog(raw) {
