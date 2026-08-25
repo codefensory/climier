@@ -116,8 +116,8 @@ content allows:
 - 18px radius, white translucent surface, soft drawer shadow and backdrop
   saturation/blur;
 - 54px topbar with breadcrumbs, kind/status, revision, copy, more and close;
-- main content plus a 286px right rail; dependency health/blockers stay
-  pinned above the Properties/Activity tabs;
+- main content plus a 286px right rail; Blockers is the first compact card in
+  the default Properties tab;
 - the main and rail scroll independently inside the drawer;
 - at narrow widths the rail disappears and the drawer becomes an almost
   full-screen panel with 8px inset and 14px radius;
@@ -126,8 +126,8 @@ content allows:
 
 The drawer hierarchy is: alert → title and status line → specification →
 visible Notes → one vertical stack of collapsible knowledge/refs/relationships
-sections. Incoming blockers are a persistent dependency-health module at the top
-of the right rail; narrow drawers move the same open module back into the main
+sections. Incoming blockers are a compact card at the top of the default
+Properties tab; narrow drawers move the same open module back into the main
 reading flow. Notes keep the CLI vocabulary but render as a quiet
 compact author thread with a small avatar rail, restrained metadata and
 lightly bordered bodies, so coordination is readable without another disclosure. History is intentionally

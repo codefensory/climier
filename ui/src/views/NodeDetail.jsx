@@ -697,63 +697,43 @@ function BlockersSection(props) {
   );
 }
 
-// The rail is intentionally a single, always-visible health module rather
-// than another tab. A user should never have to hunt for the reason a node is
-// not ready, especially while inspecting its activity.
+// Blockers use the same quiet card language as the rest of the rail. Keeping
+// them in Properties preserves the drawer's original tab-first hierarchy while
+// making dependencies immediately visible in its default state.
 function BlockersRail(props) {
   const blockers = () => Array.isArray(props.blocking) ? props.blocking : [];
   const unsatisfied = () => blockers().filter((blocker) => !blocker.satisfied).length;
-  const resolved = () => blockers().length - unsatisfied();
   const clear = () => unsatisfied() === 0;
-  const title = () => clear() ? "Dependency chain is clear" : "Waiting on an incoming dependency";
 
   return (
-    <section
-      class={`ui-blockers-rail ${clear() ? "ui-blockers-rail--clear" : "ui-blockers-rail--blocked"}`}
-      aria-labelledby="detail-blockers-title"
-    >
+    <section class="ui-detail-card ui-blockers-rail mb-3 rounded-control border p-3" aria-labelledby="detail-blockers-title">
       <div class="ui-blockers-rail-heading">
-        <div class="flex min-w-0 items-center gap-2.5">
-          <span class="ui-blockers-rail-icon" aria-hidden="true">{clear() ? "✓" : "!"}</span>
-          <div class="min-w-0">
-            <div class="mono text-[10px] uppercase tracking-[0.13em] text-mute">Dependency health</div>
-            <h3 id="detail-blockers-title" class="mt-0.5 text-[15px] font-bold tracking-[-0.015em] text-ink">Blockers</h3>
-          </div>
+        <div class="min-w-0">
+          <h3 id="detail-blockers-title" class="text-[12px] font-bold text-ink">Blockers</h3>
+          <p class="mt-0.5 text-[11px] leading-4 text-mute">Incoming dependencies</p>
         </div>
-        <span class="ui-blockers-rail-count" aria-label={`${unsatisfied()} unsatisfied blockers`}>{unsatisfied()}</span>
-      </div>
-
-      <p class="ui-blockers-rail-message">{title()}</p>
-
-      <div class="ui-blockers-summary" aria-label="Blocker summary">
-        <div class="ui-blockers-stat ui-blockers-stat--active">
-          <strong>{unsatisfied()}</strong>
-          <span>active</span>
-        </div>
-        <div class="ui-blockers-stat">
-          <strong>{resolved()}</strong>
-          <span>resolved</span>
-        </div>
+        <span
+          class={`ui-blockers-rail-count ${clear() ? "ui-blockers-rail-count--clear" : "ui-blockers-rail-count--active"}`}
+          aria-label={`${unsatisfied()} unsatisfied blockers`}
+        >
+          {unsatisfied()} active
+        </span>
       </div>
 
       <Show when={blockers().length} fallback={
         <div class="ui-blockers-empty">
-          <span class="ui-blockers-empty-mark" aria-hidden="true">✓</span>
-          <div>
-            <strong>All clear</strong>
-            <span>No incoming dependencies.</span>
-          </div>
+          <span aria-hidden="true">✓</span>
+          <span>No blockers. This node is clear to proceed.</span>
         </div>
       }>
-        <div class="ui-blockers-list-meta">
-          <span>Incoming BLOCKS</span>
-          <span>{blockers().length} total</span>
-        </div>
         <ul class="ui-blockers-list">
           <For each={blockers()}>
             {(blocker) => <BlockerRow blocker={blocker} onSelect={props.onSelect} rail />}
           </For>
         </ul>
+        <div class="ui-blockers-rail-footer">
+          {unsatisfied()} unsatisfied · {blockers().length} total
+        </div>
       </Show>
     </section>
   );
@@ -763,7 +743,6 @@ function BlockerRow(props) {
   const blocker = () => props.blocker || {};
   const node = () => blocker().node || {};
   const satisfied = () => Boolean(blocker().satisfied);
-  const status = () => satisfied() ? "Resolved" : "Active";
   const label = () => node().id || "Unknown blocker";
   const open = () => props.onSelect && props.onSelect(node().id);
 
@@ -771,7 +750,9 @@ function BlockerRow(props) {
     <li>
       <button
         type="button"
-        class={props.rail ? "ui-blocker-rail-row" : `flex min-h-[36px] w-full items-center gap-2 rounded-control border px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 ${satisfied() ? "border-line opacity-70 hover:opacity-100" : "border-blocked/40 bg-blocked-soft hover:border-blocked"}`}
+        class={props.rail
+          ? `ui-blocker-rail-row ${satisfied() ? "ui-blocker-rail-row--resolved" : "ui-blocker-rail-row--active"}`
+          : `flex min-h-[36px] w-full items-center gap-2 rounded-control border px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 ${satisfied() ? "border-line opacity-70 hover:opacity-100" : "border-blocked/40 bg-blocked-soft hover:border-blocked"}`}
         onClick={open}
         aria-label={`Open blocker ${label()}`}
       >
@@ -785,9 +766,11 @@ function BlockerRow(props) {
           </>
         }>
           <div class="min-w-0 flex-1">
-            <div class="flex min-w-0 items-center gap-1.5">
+            <div class="flex min-w-0 items-center justify-between gap-2">
               <span class="mono truncate text-[11px] font-semibold text-body">{node().id}</span>
-              <span class={`ui-blocker-state ${satisfied() ? "ui-blocker-state--resolved" : "ui-blocker-state--active"}`}>{status()}</span>
+              <span class={`ui-blocker-state ${satisfied() ? "ui-blocker-state--resolved" : "ui-blocker-state--active"}`}>
+                {satisfied() ? "Resolved" : "Active"}
+              </span>
             </div>
             <span class="mt-0.5 block truncate text-[12px] text-ink" title={node().title}>{node().title || "Untitled node"}</span>
           </div>
@@ -798,10 +781,9 @@ function BlockerRow(props) {
   );
 }
 
-// The right rail keeps dependency health and high-signal properties visible
-// while the main column is reserved for the reading flow. Blockers stay above
-// the tabs so they remain visible while the user switches to Activity.
-// Everything remains read-only: navigation and copy are the only actions.
+// The right rail keeps high-signal properties in the default tab and recent
+// activity in the alternate tab. Everything remains read-only: navigation and
+// copy are the only actions.
 function DetailSidebar(props) {
   const [tab, setTab] = createSignal("properties");
   const node = () => props.node || {};
@@ -811,8 +793,6 @@ function DetailSidebar(props) {
   const tags = () => Array.isArray(node().tags) ? node().tags : [];
   return (
     <aside class="ui-detail-side p-3">
-      <BlockersRail blocking={detail().blocking} onSelect={props.onSelect} />
-
       <div class="ui-tab-strip mb-3 flex gap-1 rounded-control p-1" role="tablist" aria-label="Node detail panels">
         <button
           type="button"
@@ -837,6 +817,8 @@ function DetailSidebar(props) {
       </div>
 
       <Show when={tab() === "properties"}>
+        <BlockersRail blocking={detail().blocking} onSelect={props.onSelect} />
+
         <section class="ui-detail-card mb-3 rounded-control border p-3">
           <h3 class="mb-3 text-[12px] font-bold text-ink">Overview</h3>
           <div class="grid gap-1">
