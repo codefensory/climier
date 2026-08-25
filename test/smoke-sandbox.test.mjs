@@ -11,7 +11,12 @@
 // These tests use real subprocesses (no mocking) because the helper is a shell
 // script that mutates the filesystem and traps signals. The project root is
 // the current worktree; CLIMIER_HOME is overridden with a sentinel tmpdir so
-// nothing leaks to the real ~/.climier.
+// nothing leaks to the real ~/.climier. TMPDIR is also pinned to a private
+// dir (PRIVATE_TMPDIR) so the helper's `mktemp -d "${TMPDIR:-/tmp}/..."`
+// drops sandboxes inside this test process, and so our cleanup assertions
+// never collide with /tmp/climier-smoke-* sandboxes created by sibling test
+// files — notably state-resilience-regression.test.mjs, which also wraps
+// the helper and runs in parallel under `npm test`.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -25,15 +30,36 @@ import { createTempProject, rmTempProject, BIN } from "./helpers.mjs";
 const ROOT = path.resolve(process.cwd());
 const HELPER = path.join(ROOT, ".agents/skills/climier", "smoke-sandbox.sh");
 const SENTINEL_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "climier-sandbox-sentinel-"));
+// Private TMPDIR so the helper's `mktemp -d "${TMPDIR:-/tmp}/climier-smoke-XXXXXX"`
+// creates sandboxes inside this test process, and so listSmokeSandboxes()
+// never observes /tmp/climier-smoke-* entries created by sibling test files
+// (notably state-resilience-regression.test.mjs, which also wraps the helper
+// and runs in parallel under `npm test`).
+const PRIVATE_TMPDIR = fs.mkdtempSync(path.join(os.tmpdir(), "climier-smoke-test-"));
 
 function sentinelEnv() {
   // Force CLIMIER_HOME to a known safe temp dir. The helper must override
   // this; if anything leaks through, the assertion below catches it.
-  return { ...process.env, CLIMIER_HOME: SENTINEL_HOME, NO_COLOR: "1" };
+  // Force TMPDIR so the helper's sandboxes land in PRIVATE_TMPDIR, not in
+  // the global /tmp where other test files also drop climier-smoke-*.
+  return {
+    ...process.env,
+    CLIMIER_HOME: SENTINEL_HOME,
+    TMPDIR: PRIVATE_TMPDIR,
+    NO_COLOR: "1",
+  };
 }
 
 function listSmokeSandboxes() {
-  return fs.readdirSync(os.tmpdir()).filter((n) => n.startsWith("climier-smoke-"));
+  return fs.readdirSync(PRIVATE_TMPDIR).filter((n) => n.startsWith("climier-smoke-"));
+}
+
+// The helper uses `mktemp -d "${TMPDIR:-/tmp}/climier-smoke-XXXXXX"`, so
+// every sandbox home it produces is exactly
+// `<PRIVATE_TMPDIR>/climier-smoke-<rand>/home`.
+function privateSmokeHomeRe() {
+  const escaped = PRIVATE_TMPDIR.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp("^" + escaped + "/climier-smoke-[^/]+/home$");
 }
 
 function runHelper(args, env = {}) {
@@ -104,7 +130,7 @@ test("smoke-sandbox.sh: forces CLIMIER_HOME to a private temp dir", async () => 
   const homeLine = r.stdout.split("\n").find((l) => l.startsWith("HOME="));
   assert.ok(homeLine, "no HOME= line emitted");
   const home = homeLine.slice("HOME=".length);
-  assert.match(home, /^\/tmp\/climier-smoke-[^/]+\/home$/);
+  assert.match(home, privateSmokeHomeRe());
   // Sentinel CLIMIER_HOME was overridden; the wrapped command observed
   // the helper's CLIMIER_HOME.
   assert.notEqual(home, SENTINEL_HOME);
@@ -203,7 +229,8 @@ test("smoke-sandbox.sh: works with a project that has no metadata", async () => 
   }
 });
 
-// Best-effort cleanup of the sentinel dir at process exit.
+// Best-effort cleanup of the sentinel dir and the private TMPDIR at process exit.
 process.on("exit", () => {
   try { fs.rmSync(SENTINEL_HOME, { recursive: true, force: true }); } catch {}
+  try { fs.rmSync(PRIVATE_TMPDIR, { recursive: true, force: true }); } catch {}
 });
