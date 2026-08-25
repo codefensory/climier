@@ -235,7 +235,7 @@ function Header(props) {
   // bp           (signal, required — current breakpoint)
   // drawerOpen   (signal, required — reflects the NARROW drawer state)
   // onOpenDrawer (function, required — opens the NARROW drawer)
-  const { snapshot, lastSuccessfulAt, refreshing, snapshotError } = useStore();
+  const { snapshot } = useStore();
   const showMenu = () => drawerAvailable(props.bp());
   const project = () => snapshot()?.project || {};
   const name = () => projectDisplayName(snapshot());
@@ -259,13 +259,9 @@ function Header(props) {
       <span class="mono hidden min-w-0 truncate text-[12px] text-mute md:block" title={root()}>
         {root() || ""}
       </span>
-      <div class="ml-auto flex shrink-0 items-center">
-        <LiveStatus
-          lastAt={lastSuccessfulAt()}
-          refreshing={refreshing()}
-          error={snapshotError()}
-        />
-      </div>
+      {/* Live status (pulse + last refresh + Read-only badge) lives in the
+          floating chip at the bottom-right of Main — showing it here too
+          repeats the same information on every view. */}
     </header>
   );
 }

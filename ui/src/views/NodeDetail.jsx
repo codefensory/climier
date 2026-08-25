@@ -293,7 +293,7 @@ export default function NodeDetail() {
       aria-modal="true"
       aria-label={d()?.node ? `Detail for ${d().node.title || d().node.id}` : "Node detail"}
       onKeyDown={handleKeyDown}
-      class="fixed right-0 top-0 z-50 flex h-full w-full max-w-2xl flex-col border-l border-line bg-canvas shadow-md"
+      class="fixed right-0 top-0 z-50 flex h-full w-[min(92vw,80rem)] flex-col border-l border-line bg-canvas shadow-md"
     >
       {/* ── Header ─────────────────────────────────────────────────── */}
       <header class="sticky top-0 z-10 flex items-center gap-2 border-b border-line bg-canvas/95 px-4 py-3 backdrop-blur-[2px]">
@@ -306,7 +306,13 @@ export default function NodeDetail() {
           <span class="text-[11px] uppercase tracking-wider text-mute">{d().node.subkind}</span>
         </Show>
         <StatusBadge status={d()?.derived_status || d()?.node?.status || "open"} />
-        <span class="ml-auto text-[12px] text-mute">rev {d()?.node?.revision || 0}</span>
+        <span
+          class="min-w-0 flex-1 truncate px-2 text-[13px] font-medium text-ink"
+          title={d()?.node?.title}
+        >
+          {d()?.node?.title || ""}
+        </span>
+        <span class="shrink-0 text-[12px] text-mute">rev {d()?.node?.revision || 0}</span>
         <IconButton size="sm" label="Close" onClick={() => select(null)}>
           <span class="text-[14px]" aria-hidden="true">✕</span>
         </IconButton>
@@ -437,7 +443,7 @@ function DetailBody(props) {
       {/* ── Title + summary ────────────────────────────────────────── */}
       <section>
         <h1 class="text-page leading-tight text-ink">{n().title || n().id}</h1>
-        <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
           <SummaryRow label="Status">
             <div class="flex items-center gap-2">
               <StatusBadge status={d.derived_status || n().status || "open"} />
@@ -535,7 +541,10 @@ function DetailBody(props) {
         </Show>
       </Panel>
 
-      {/* ── Secondary zones: collapsed by default ───────────────────── */}
+      {/* ── Secondary zones: collapsed by default. The drawer is wide
+             (92vw), so the collapsible zones sit in a two-column grid on
+             large screens instead of a single long column. ─────────── */}
+      <div class="grid gap-4 xl:grid-cols-2">
       <DetailsSection
         title="Knowledge"
         count={(d.knowledge || []).length}
@@ -704,6 +713,7 @@ function DetailBody(props) {
           </RelGroup>
         </div>
       </DetailsSection>
+      </div>
 
       <DetailsSection
         title="Equivalent CLI command"

@@ -17,6 +17,7 @@
     "@babel/core": "^7.29.7",
     "@tailwindcss/vite": "^4.1.11",
     "babel-preset-solid": "^1.9.15",
+    "jsdom": "^30.0.1",
     "solid-js": "^1.9.5",
     "tailwindcss": "^4.1.11",
     "vite": "^7.0.0",
