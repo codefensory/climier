@@ -94,6 +94,8 @@ Cycles in the DAG must not crash. The derivation keeps cycle members blocked. Un
 | `deprecate-knowledge <id> --reason "<text>"` | `commands/deprecate-knowledge.mjs` | yes | required |
 | `add-node <id> --kind resolvable\|knowledge --title "..." [--subkind task\|gate] [--blocked-by A,B] [--derived-from A,B] [--refs a,b] [--meta '{...}']` | `commands/add-node.mjs` | yes | required |
 | `add-edge <from> <to> --type BLOCKS\|SUPERSEDES\|DERIVED_FROM` | `commands/add-edge.mjs` | yes | required |
+| `snapshots` | `commands/snapshots.mjs` | no (read-only) | no |
+| `restore <id> --as orchestrator\|recovery` | `commands/restore.mjs` | yes (locked; validates target v2/shape; pre-snapshot) | yes (orchestrator\|recovery only) |
 | `ui [--port N] [--open=true\|false]` | `commands/ui.mjs` (starts `ui/server/server.mjs`) | no (read-only) | no |
 
 ## Hard rules for contributing

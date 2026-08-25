@@ -40,6 +40,7 @@ Read-only:
                                           Show the audit log.
   history <id> [--limit N]               Log entries that reference a node.
   show <id>                              Print the raw node object.
+  snapshots                              List recoverable snapshots captured under <state-dir>/snapshots/, newest first.
   ui [--port N] [--open=true|false]      Start the local read-only web UI and open it in the browser.
                                           Requires the ui/ subproject deps (npm install in ui/ once).
 
@@ -52,6 +53,9 @@ Mutating (require --as <agent-id>):
                                           Close a task as done; --choice/--rationale close a gate.
   reopen <id> --reason "<text>" --as <agent>
                                           Re-open a done task or resolved gate; downstream tasks re-block.
+  restore <snapshot-id> --as orchestrator|recovery
+                                          Replace the live state with the snapshot's raw bytes (validates target
+                                          v2/shape first; takes a pre-restore raw snapshot before changing state).
   deprecate-knowledge <id> --reason "..." --as <agent>
                                           Soft-delete a knowledge node (sets status=deprecated + reason).
 
@@ -87,7 +91,8 @@ Docs: see README.md for quickstart, workflow, storage model, and command referen
 Available commands:
   status, context, take, resolve, release, cancel, reopen, search, history,
   show, update, add-note, add-initiative, add-task, add-gate, add-knowledge,
-  deprecate-knowledge, add-node, add-edge, initiatives, log, init, ui, help, version.`;
+  deprecate-knowledge, add-node, add-edge, initiatives, log, init, snapshots,
+  restore, ui, help, version.`;
 
 // --help / --version: handled before arg parsing so they work with or without --project.
 if (args.includes("--help") || args.includes("-h")) {
@@ -180,7 +185,7 @@ try {
   if (err.code === "MODULE_NOT_FOUND" || err.code === "ERR_MODULE_NOT_FOUND") {
     if (!command) {
       failJson(
-        "no command given. Available: status, context, take, resolve, release, cancel, reopen, search, history, show, update, add-note, add-task, add-gate, add-knowledge, add-initiative, add-node, add-edge, deprecate-knowledge, initiatives, log, init, ui, help, version",
+        "no command given. Available: status, context, take, resolve, release, cancel, reopen, search, history, show, update, add-note, add-task, add-gate, add-knowledge, add-initiative, add-node, add-edge, deprecate-knowledge, initiatives, log, init, snapshots, restore, ui, help, version",
         2,
       );
     }
