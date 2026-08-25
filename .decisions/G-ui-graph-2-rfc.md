@@ -1,6 +1,6 @@
 # RFC: Graph 2.0 — Execution Map light
 
-- Gate: `G-ui-graph-2-rfc` · Iniciativa: `ui` · Estado: borrador
+- Gate: `G-ui-graph-2-rfc` · Iniciativa: `ui` · Estado: en review
 - Autor: orchestrator, con dirección del usuario · Fecha: 2026-08-25
 
 ## Problema
