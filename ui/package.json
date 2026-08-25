@@ -8,7 +8,9 @@
     "dev": "vite",
     "dev:api": "node server/server.mjs --project ..",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "benchmark:graph": "node scripts/benchmark-graph.mjs",
+    "benchmark:graph:json": "node scripts/benchmark-graph.mjs --json"
   },
   "dependencies": {
     "cytoscape": "^3.34.2",
