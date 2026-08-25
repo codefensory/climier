@@ -1,7 +1,20 @@
 import { createContext, createSignal, useContext, onMount, onCleanup } from "solid-js";
 import { getSnapshot, getNode } from "./api.js";
+import {
+  normalizeGraphView,
+  GRAPH_VIEW_MODES,
+  GRAPH_VIEW_FOCUS_KINDS,
+} from "./views/graph-view-model.mjs";
 
 const POLL_MS = 2000;
+
+// Initial graphView state. Lives in memory only: not serialised to URL,
+// localStorage or the server. Survives internal route changes because
+// StoreProvider wraps the whole app shell; it is reset on full reload.
+const INITIAL_GRAPH_VIEW = Object.freeze({
+  mode: "execution",
+  focus: null,
+});
 
 const StoreContext = createContext();
 
@@ -28,6 +41,12 @@ export function StoreProvider(props) {
   const [selectedId, setSelectedId] = createSignal(null);
   const [detail, setDetail] = createSignal(null);
   const [detailError, setDetailError] = createSignal(null);
+  // graphView: { mode, focus }. See .adrs/001-graph-view-model.md.
+  // The store is the single owner of this state so a future renderer
+  // change can wire it up without re-deriving the invariants elsewhere.
+  // Read via `graphView()`; mutate via the dedicated setters below — they
+  // validate the shape and keep focus non-accumulating.
+  const [graphView, setGraphViewSignal] = createSignal({ ...INITIAL_GRAPH_VIEW });
 
   let pollToken = 0;
   let detailToken = 0;
@@ -123,6 +142,64 @@ export function StoreProvider(props) {
     refreshDetail(id);
   }
 
+  // --- graphView mutations -------------------------------------------------
+  //
+  // The store validates every write so consumers (Graph.jsx, future
+  // commands, tests) cannot put graphView into an invalid shape. The
+  // invariant we enforce: mode ∈ {execution, history, all} and focus
+  // is either null or { kind ∈ {upstream, downstream, initiative},
+  // id: string }. Focus is single-valued; setting it again replaces the
+  // previous focus, never accumulates (ADR-001 §Estado y ciclo de vida).
+
+  function setGraphViewMode(mode) {
+    if (!GRAPH_VIEW_MODES.includes(mode)) {
+      throw new Error(
+        `graphView.mode must be one of ${GRAPH_VIEW_MODES.join(", ")}; got ${JSON.stringify(mode)}`,
+      );
+    }
+    setGraphViewSignal((prev) => ({ mode, focus: prev.focus }));
+  }
+
+  // Replace the focus object. Accepts null (clear) or a fully-formed
+  // { kind, id } pair. Partial updates are intentionally not allowed
+  // here — callers compose the full object before calling so the store
+  // can validate it atomically and the renderer can read a consistent
+  // shape on every read.
+  function setGraphViewFocus(focus) {
+    if (focus === null) {
+      setGraphViewSignal((prev) => ({ ...prev, focus: null }));
+      return;
+    }
+    if (!focus || typeof focus !== "object") {
+      throw new Error("graphView.focus must be null or an object");
+    }
+    const { kind, id } = focus;
+    if (!GRAPH_VIEW_FOCUS_KINDS.includes(kind)) {
+      throw new Error(
+        `graphView.focus.kind must be one of ${GRAPH_VIEW_FOCUS_KINDS.join(", ")}; got ${JSON.stringify(kind)}`,
+      );
+    }
+    if (typeof id !== "string" || !id) {
+      throw new Error("graphView.focus.id must be a non-empty string");
+    }
+    setGraphViewSignal((prev) => ({ ...prev, focus: { kind, id } }));
+  }
+
+  // Sugar over setGraphViewFocus(null).
+  function clearGraphViewFocus() {
+    setGraphViewFocus(null);
+  }
+
+  // Replace the whole graphView object in one shot. Validates via
+  // normalizeGraphView (the same pure normaliser the model module uses
+  // internally) so partial / malformed input never lands in the store.
+  // Returns the normalised shape for the caller's convenience.
+  function setGraphView(next) {
+    const normalised = normalizeGraphView(next);
+    setGraphViewSignal({ ...normalised });
+    return normalised;
+  }
+
   const store = {
     snapshot,
     error: snapshotError, // legacy alias kept for back-compat with existing views
@@ -138,6 +215,11 @@ export function StoreProvider(props) {
     detail,
     detailError,
     reload: load,
+    graphView,
+    setGraphView,
+    setGraphViewMode,
+    setGraphViewFocus,
+    clearGraphViewFocus,
   };
   return <StoreContext.Provider value={store}>{props.children}</StoreContext.Provider>;
 }
