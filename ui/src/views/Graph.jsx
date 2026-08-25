@@ -1128,7 +1128,11 @@ export default function Graph() {
 
       <div class="ui-workspace-body ui-graph-canvas relative flex-1 overflow-hidden [background-size:24px_24px]">
         <Show when={!narrow()} fallback={<NarrowFallback />}>
-          <div ref={cyHost} class="absolute inset-0" style={{ touchAction: "none" }}>
+          <div class="absolute inset-0">
+            {/* Cytoscape mutates its container to position: relative. Keep that
+                mutable host separate from the absolute overlay frame; otherwise
+                its height collapses to zero and the canvas renders blank. */}
+            <div ref={cyHost} style={{ width: "100%", height: "100%", touchAction: "none" }} />
             <Index each={overlay()}>
               {(item) => (
                 <button
