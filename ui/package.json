@@ -14,7 +14,6 @@
   },
   "dependencies": {
     "cytoscape": "^3.34.2",
-    "cytoscape-dagre": "^4.0.0",
     "express": "^4.21.2"
   },
   "devDependencies": {
