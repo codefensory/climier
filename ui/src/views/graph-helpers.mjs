@@ -322,3 +322,52 @@ export function filterGraph(nodes, edges, filters = {}) {
     edges: (edges || []).filter((e) => out[e.from] && out[e.to]),
   };
 }
+
+// ---------------------------------------------------------------------------
+// Cytoscape renderer (T-ui-graph-cyto)
+// ---------------------------------------------------------------------------
+
+// Statuses that render faded in the graph (mirrors the old SVG nodeOpacity).
+const FADED_STATUSES = new Set(["done", "resolved", "superseded", "deprecated"]);
+
+// Convert the visible graph (filterGraph output) into Cytoscape elements.
+// Pure, no I/O, no DOM: literal nodes/edges in, cytoscape-shaped data out so
+// Graph.jsx can feed it straight to `cy.add()`.
+//
+// Returns { elements, parents }:
+//   - elements: node entries `{ data: { id, label: [id, title, kind · status],
+//     kind, status, initiative }, classes: [kind, ...] }` and edge entries
+//     `{ data: { id: "from>to", source, target, type }, classes: [type] }`.
+//   - parents: per-initiative compound parent descriptors `{ id, label }`.
+//     Empty today: cytoscape-dagre v4 does not support compound nodes (parents
+//     stay pinned at the origin and never contain their children), so the
+//     renderer uses the flat dagre layout and renders the initiative as a
+//     label chip on each node instead of compound initiative bands.
+export function toCytoscapeElements(nodes, edges) {
+  const elements = [];
+  const parents = [];
+  for (const [id, n] of Object.entries(nodes || {})) {
+    const status = n.status || "open";
+    const kind = kindFor(n);
+    const classes = [kind];
+    if (FADED_STATUSES.has(status)) classes.push("faded");
+    elements.push({
+      data: {
+        id,
+        label: [id, abbreviate(n.title, 32), `${kind} · ${status}`],
+        kind,
+        status,
+        initiative: n.initiative || "",
+      },
+      classes,
+    });
+  }
+  for (const e of edges || []) {
+    const type = e.type || "default";
+    elements.push({
+      data: { id: `${e.from}>${e.to}`, source: e.from, target: e.to, type },
+      classes: [type],
+    });
+  }
+  return { elements, parents };
+}
