@@ -25,6 +25,7 @@ Errors are JSON to stdout with a structured shape: `{ ok: false, error: { code, 
 - `climier search "<query>" [--all]` — search knowledge by id/title/body/mitigation/domain/tags/refs/meta. `--all` includes deprecated.
 - `climier initiatives [--all]` — registered initiatives with usage counts.
 - `climier log [--limit N] [--action X] [--agent X] [--task X] [--decision X]` — raw audit log.
+- `climier snapshots` — list recoverable snapshots under `<state-dir>/snapshots/`, newest first. Each entry has `id`, `created_at`, `reason` (`force-init` / `corrupt-recovery` / `pre-restore`), `bytes`, and `sha256`. Only complete pairs (raw + metadata) appear.
 
 ## Worker loop (take → resolve)
 
@@ -33,6 +34,7 @@ Errors are JSON to stdout with a structured shape: `{ ok: false, error: { code, 
 - `climier release <id> --as <agent>` — free the claim without resolving. Idempotent. `orchestrator` / `recovery` can release any agent's claim.
 - `climier cancel <id> --reason "<text>" --as <agent>` — terminate a node (open/in_progress only). Claim owner or orchestrator/recovery.
 - `climier reopen <id> --reason "<text>" --as <agent>` — roll a `done` task back to `open`. orchestrator/recovery, or original `done_by` for self-correction.
+- `climier restore <snapshot-id> --as orchestrator|recovery` — replace the live state with a snapshot's raw bytes. Validates target v2 + required collections before any state change; takes a `pre-restore` snapshot of the current state under the same lock; restores via `tmp+rename`; appends `{ action: "restore", agent, snapshot_id }` to the restored log; returns `{ snapshot }`. Restricted to `orchestrator` / `recovery` — no per-agent restore. Targets that are absent, incomplete, corrupt, v1, future versions, or missing required collections fail with structured errors and leave state untouched.
 - `climier add-note <id> "<text>" --as <agent>` — append a timestamped note (any status, append-only). Use for breadcrumb findings; also use `add-note "<id>" "blocked: ..."` for escalations.
 
 ## Spec edits
@@ -70,6 +72,7 @@ CLI phrases edges from the dependent's POV: `--blocked-by G-y` means "this node 
 | `add-note` | any | any | any |
 | `add-task` / `add-gate` / `add-knowledge` | n/a (creates new node) | any | any |
 | `deprecate-knowledge` | n/a | any | any |
+| `restore <snapshot>` | n/a | yes | no (`NOT_OWNER`) |
 
 ## Common error codes
 

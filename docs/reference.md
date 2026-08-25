@@ -683,6 +683,58 @@ Output shape:
 }
 ```
 
+### `snapshots`
+
+Read-only listing of recoverable snapshots captured under `<state-dir>/snapshots/`. Mirrors the `listSnapshots` primitive from `src/state.mjs`: only complete pairs (raw + metadata) appear, metadata id mismatches with the filename are excluded, and the result is sorted descending by id (timestamp-prefixed, so lexicographic order matches creation order — newest first).
+
+Output shape:
+
+```js
+{ snapshots: [ { id, created_at, reason, bytes, sha256 }, ... ] }
+```
+
+Reasons:
+
+- `force-init` — taken by `init --force` over a previous state file
+- `corrupt-recovery` — taken by `init` when the existing file was corrupt JSON
+- `pre-restore` — taken by `restore` of the state that is about to be displaced
+
+No flags.
+
+### `restore <snapshot-id>`
+
+Replace the live state with a snapshot's raw bytes. Authority is restricted to `orchestrator` / `recovery` — no per-agent restore.
+
+Requires:
+
+- `--as orchestrator|recovery`
+
+Behavior:
+
+- Validates the snapshot exists as a complete pair (`<id>.json` + `<id>.meta.json`); metadata id matches the filename; metadata parses.
+- Validates the raw bytes parse as JSON v2 and carry every required collection (`nodes`, `edges`, `initiatives`, `log`). v1, future versions, missing fields, or unparseable raw → fail with `INVALID_STATUS` without mutating state.
+- All target validation runs BEFORE the pre-restore snapshot, so a bad target leaves no trace in `<state-dir>/snapshots/`.
+- Under `withLock`:
+  - asserts the current state file exists (no current state to displace → fail)
+  - calls `createSnapshot(projectDir, "pre-restore")` (raw + metadata, same `tmp+rename` discipline as `init --force`)
+  - writes the snapshot raw bytes to the state path via `tmp+rename`
+  - appends `{ ts, agent, action: "restore", snapshot_id }` to the restored log (the entry lands in the state we just wrote, not the displaced one)
+- Returns `{ snapshot: <metadata> }`.
+
+Output shape:
+
+```js
+{ snapshot: { id, created_at, reason, bytes, sha256 } }
+```
+
+Error codes:
+
+- `MISSING_AGENT` — `--as` missing or empty
+- `NOT_OWNER` — `--as` is some agent other than `orchestrator` or `recovery`
+- `MISSING_FIELD` — no snapshot id passed positionally
+- `NODE_NOT_FOUND` — target absent, incomplete pair, corrupt metadata, or `meta.id` does not match filename
+- `INVALID_STATUS` — raw is unparseable, not an object, missing version, v1, future version, or missing a required collection; or current state file is missing (no pre-restore snapshot possible)
+
 ## Low-level semantics worth knowing
 
 - every created node starts at `revision: 1`
