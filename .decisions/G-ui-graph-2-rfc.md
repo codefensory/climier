@@ -1,114 +1,106 @@
 # RFC: Graph 2.0 — Execution Map light
 
-- Gate: `G-ui-graph-2-rfc` · Iniciativa: `ui` · Estado: en review
+- Gate: `G-ui-graph-2-rfc` · Iniciativa: `ui` · Estado: aprobado
 - Autor: orchestrator, con dirección del usuario · Fecha: 2026-08-25
 
 ## Problema
 
-La vista `ui/src/views/Graph.jsx` ya migró de SVG nativo a Cytoscape con layout dagre LR, zoom/pan, filtros y un overlay accesible de botones. Esa migración resolvió el renderer, pero no el producto: conserva el lenguaje del grafo anterior y presenta una topología plana donde todos los nodos y relaciones compiten por atención.
+El Graph actual ya usa Cytoscape, dagre LR, zoom/pan, filtros y un overlay accesible. Esa migración resolvió el renderer, pero no el producto: conserva una topología plana donde los tipos de relación y nodos compiten por atención. `BLOCKS` expresa disponibilidad de trabajo; `SUPERSEDES` expresa reemplazo histórico; `DERIVED_FROM` expresa procedencia; knowledge y relaciones legacy aportan contexto. No deben tener el mismo peso visual ni aparecer siempre juntos.
 
-El modelo de Climier no es un grafo homogéneo. `BLOCKS` expresa ejecución y disponibilidad; `SUPERSEDES` expresa reemplazo histórico; `DERIVED_FROM` expresa procedencia; knowledge y relaciones legacy aportan contexto. En la implementación actual estas relaciones comparten el mismo canvas, los grupos por initiative se reducen a texto dentro del label porque `cytoscape-dagre` no soporta compound nodes, y la selección solo ilumina vecinos directos. El resultado no responde con prioridad: «¿qué trabajo avanza, qué lo bloquea y qué contexto necesito para desbloquearlo?».
+La audiencia es interna: una persona que orquesta trabajo es el usuario primario; una persona/agente que retoma contexto y un validator que audita impacto son secundarios. No es una vista de reporte para stakeholders externos.
 
-La UI sigue siendo una proyección local y read-only del snapshot del CLI. El snapshot se refresca cada 2 s y la vista debe funcionar con proyectos del orden de 200 nodos (la observación histórica documentada llega a 209) sin relayout ni reconstrucción innecesarios.
+**Job principal:** cuando alguien vuelve a un proyecto coordinado, debe poder responder en menos de 30 segundos qué puede avanzar, qué lo bloquea y qué decisión o knowledge explica el bloqueo, sin reconstruir el contexto entre terminal, chat y detalle de nodos.
+
+La UI continúa como proyección local, read-only, del snapshot del CLI. El snapshot se refresca cada 2 s. La experiencia debe operar con 200 nodos sin relayout por cambios no topológicos.
 
 ## Propuesta
 
-Rediseñar Graph como un **Execution Map light**: un espacio operacional para entender y navegar trabajo registrado, no una visualización exhaustiva de cada edge por defecto.
+Rediseñar Graph como un **Execution Map light**: un espacio operacional para orientar, enfocar y explicar trabajo registrado; no una visualización exhaustiva de todos los edges por defecto.
 
-La dirección visual queda fijada por el usuario: **light mode**, con superficies claras, contraste tipográfico alto, color semántico moderado y sin depender de un canvas oscuro para crear jerarquía. «Premium» significa claridad, ritmo espacial, interacción predecible y densidad controlada; no glassmorphism, decoración ni un arcoíris de edges.
+Light mode es una dirección explícita del dueño del producto. La implementación reutiliza y consolida la paleta clara existente; no introduce dark mode ni convierte este RFC en un restyle global de la UI. «Premium» significa jerarquía, densidad controlada, consistencia y respuestas operacionales rápidas; no decoración ni color como única señal.
 
-### Preguntas que debe responder
+### Vistas con intención
 
-1. ¿Qué se puede ejecutar ahora y qué está impidiendo avanzar?
-2. ¿Cuál es la cadena de bloqueo o impacto de un task/gate?
-3. ¿Qué decisión o knowledge explica ese trabajo?
-4. ¿Cómo se coordina el trabajo entre initiatives?
-5. ¿Qué parte es historia y no debe distraer de la ejecución actual?
+- **Execution (default):** tareas activas, gates abiertas y `BLOCKS` necesarios para explicar qué se puede ejecutar y qué no.
+- **History:** cadenas `SUPERSEDES`, trabajo cerrado y procedencia histórica.
+- **All relations:** auditoría avanzada y explícita de todas las relaciones visibles.
 
-### Modelo de vistas
+Decision, knowledge y contexto no son un cuarto modo. Aparecen en el inspector al seleccionar un nodo, de modo que entender un bloqueo no requiere abandonar Execution.
 
-La vista no parte de «mostrar todo». Ofrece modos con intención explícita:
-
-- **Execution (default):** tasks activas, gates abiertas y los `BLOCKS` necesarios para explicar disponibilidad. Nodos cerrados y knowledge periférico se omiten o se retraen.
-- **Decision & context:** gates, knowledge y relaciones `DERIVED_FROM` / informativas que explican el porqué de una pieza de trabajo.
-- **History:** cadenas `SUPERSEDES`, nodos cerrados, deprecated y procedencia histórica.
-- **All relations (advanced):** auditoría explícita; nunca default.
-
-Los filtros dejan de ser el mecanismo principal de comprensión. Búsqueda, initiative, estado, tipo y toggles de relaciones complementan el modo activo desde una barra de comando y un panel de filtros progresivo.
+Los modos son mutuamente excluyentes; búsqueda y filtros se aplican después del conjunto base definido por el modo. El estado de vista no se persiste entre sesiones.
 
 ### Gramática espacial y de relaciones
 
-- El layout de **Execution** usa `BLOCKS` como estructura: el edge canónico `from BLOCKS to` debe leerse sin ambigüedad como «from bloquea a to».
-- Las initiatives son regiones/lanes de coordinación, no un chip repetido en cada card. Los cruces entre initiatives son información relevante y deben poder enfocarse.
-- El estado no reordena el flujo; cambia la presencia visual. Trabajo blocked, ready e in-progress domina. Done/resolved/deprecated se retraen salvo que el modo los solicite.
-- `BLOCKS` es sólido, direccional y dominante. `SUPERSEDES` solo aparece en History o al enfocar. `DERIVED_FROM` e informativas pertenecen a Context o selección. Labels de edges aparecen en foco/hover, no como ruido permanente.
-- Ciclos, endpoints inexistentes y nodos sin relaciones deben seguir visibles y explicables, sin asumir que el DAG sea perfecto.
+Execution usa un layout determinista propiedad de la aplicación, no compound nodes de `cytoscape-dagre`:
 
-### Nodos, detalle y navegación
+- eje X: rank de dependencias `BLOCKS`, leyendo el edge canónico `from BLOCKS to` como «from bloquea a to»;
+- eje Y: lanes por initiative;
+- orden de nodos dentro de cada lane: estable y orientado a reducir cruces, sin cambiar la semántica del DAG;
+- cruces entre initiatives: se derivan comparando `node.initiative` en ambos extremos; no requieren campos nuevos en edges ni cambios de schema;
+- Cytoscape conserva renderer, hit testing, zoom/pan y edges, pero recibe posiciones mediante layout `preset`.
 
-Los tipos siguen siendo los conceptos canónicos de Climier, pero su presentación responde a su rol:
+`BLOCKS` es sólido, direccional y dominante. `SUPERSEDES` vive en History o foco. `DERIVED_FROM` e informativas viven en All relations o en contexto de selección. Los labels de edge se revelan en foco/hover, no como ruido continuo. Ciclos, endpoints inexistentes y nodos aislados siguen explicables sin asumir un DAG perfecto.
 
-- **Task:** card de trabajo con título, estado derivado/persistido, initiative y señal de claim o bloqueo relevante.
+### Nodos, foco y detalle
+
+- **Task:** card de trabajo con título, estado, initiative y señal de claim/bloqueo relevante.
 - **Gate:** card de decisión/aprobación/investigación con propósito e impacto downstream.
-- **Knowledge:** contexto compacto, claramente secundario a ejecución pero recuperable desde Context y selección.
+- **Knowledge:** contexto compacto y secundario, recuperable desde selección y All relations.
 
-El zoom es semántico:
+El zoom es semántico: card completa cerca, ID+título+estado a distancia media y glyph/marker legible lejos. Las cards DOM y labels se limitan por viewport y umbral de zoom.
 
-| Nivel | Representación |
-|---|---|
-| Cercano | Card completa y metadatos operacionales relevantes. |
-| Medio | ID, título y estado/rol. |
-| Lejano | Marker/glyph agrupado; labels selectivos, nunca texto ilegible. |
+El foco no afirma una ruta crítica inexistente. Ofrece dos acciones explícitas sobre `BLOCKS`:
 
-Seleccionar abre o actualiza el inspector `NodeDetail`, con una primera respuesta de «por qué está así», ruta de blockers/dependents, decisiones y knowledge aplicable. La acción **Focus path** muestra camino relevante, no solo vecinos. **Focus initiative** aísla una initiative sin esconder cruces externos necesarios. Búsqueda lleva la cámara al resultado y conserva navegación por teclado.
+- **Upstream blockers:** todos los nodos alcanzables hacia atrás.
+- **Downstream impact:** todos los nodos alcanzables hacia adelante.
 
-### Accesibilidad
+La traversía usa BFS sobre índices de adjacency, protege ciclos y no requiere endpoints nuevos. Focus initiative aísla una initiative preservando conexiones externas relevantes.
 
-Cytoscape canvas no expone nodos semánticos al DOM. La implementación debe mantener una capa DOM accesible sincronizada con el grafo: foco visible, nombre accesible, teclado, selección, Escape y una alternativa de navegación para usuarios que no puedan operar un canvas. La capa no puede degradar pan/zoom ni rendimiento.
+La selección reutiliza `NodeDetail`; Graph no crea un inspector paralelo ni reimplementa el drawer. La integración añade estado de vista/foco y una sección contextual mínima, coordinada con el track de detalle para evitar ediciones concurrentes de `NodeDetail.jsx`.
 
-### Rendimiento y robustez
+### Accesibilidad, responsive y rendimiento
 
-- Normalizar una vez por snapshot: índices de adjacency, tipos de relación, estados visibles y rutas de foco.
-- Recalcular layout solo si cambia topología o la vista/modo lo requiere; no por cada poll, cambio de claim o label.
-- Conservar posiciones por firma de topología y aplicar actualizaciones de estilo en lote.
-- Usar culling/semantic zoom para cards y labels. Una capa DOM rica no debe mantener trabajo de layout por todos los nodos cuando están fuera de viewport o por debajo del umbral de zoom.
-- Definir presupuesto verificable antes de implementación: interacción de pan/zoom fluida y selección inmediata en un fixture de al menos 200 nodos; degradación controlada antes de introducir virtualización o workers.
-- El snapshot, el CLI, las reglas DAG y el carácter read-only no cambian.
+Cytoscape canvas no expone nodos al DOM. La implementación mantiene una capa DOM accesible sincronizada con el grafo: nombre accesible, foco visible, teclado, selección y Escape. No puede interferir con pan/zoom ni mantener cards detalladas fuera de viewport.
+
+En pantalla estrecha, v1 no intenta miniaturizar el canvas desktop: ofrece búsqueda, lista navegable por teclado, foco y `NodeDetail`.
+
+Antes del layout de producto se crea un fixture determinista de 200 nodos y un benchmark versionado que registra baseline de construcción/layout. Los ADRs posteriores fijan presupuesto concreto y verifican que cambios no topológicos no corran layout. La actualización por polling aplica estilos en lote y conserva posiciones por firma de topología.
 
 ## Alternativas consideradas
 
 | Opción | Pros | Contras |
 |---|---|---|
-| A. Retocar el Graph actual (estilos, colores y más filtros sobre dagre plano) | Menor cambio y aprovecha el renderer recién migrado. | No resuelve la jerarquía de relaciones, la intención de navegación, lanes por initiative ni la densidad; sería otro restyle. |
-| B. Execution Map light con modos semánticos, lanes, semantic zoom e inspector integrado — **recomendada** | Alinea la visualización con el modelo de Climier; hace que `BLOCKS` sea operacional y el contexto sea recuperable sin ruido; permite escalar la experiencia. | Requiere decidir layout/agrupación, redefinir interacción y dividir la implementación en varias tareas. |
-| C. Sustituir Graph por tablas/board y dejar una vista de relaciones mínima | Más simple y accesible. | Pierde la navegación espacial de coordinación y hace difícil entender cruces entre initiatives y caminos de bloqueo. |
+| A. Retocar el Graph actual sobre dagre plano | Menor cambio. | No resuelve propósito, jerarquía de relaciones, lanes reales ni densidad. |
+| B. Execution Map light con layout rank × initiative propio, foco semántico e inspector integrado — **recomendada** | Representa el modelo real de Climier, mantiene el renderer probado y evita la limitación de compound nodes. | Requiere decisiones explícitas de view model, layout y accesibilidad. |
+| C. Sustituir Graph por tablas/board | Más simple. | Pierde orientación espacial y coordinación entre initiatives. |
 
 ## Alcance
 
 - Dentro:
-  - Redefinir propósito, modos, jerarquía de relaciones, arquitectura de información e interacción de `Graph`.
-  - Light mode para la experiencia del Graph y su integración con los tokens existentes.
-  - Estrategia de layout que soporte la estructura de initiatives o una alternativa equivalente que no convierta la initiative en mero texto.
-  - Semantic zoom, path focus, búsqueda/navegación, inspector integrado, accesibilidad y presupuesto de rendimiento.
-  - Mantener Cytoscape como candidato a renderer; evaluar si dagre sigue siendo suficiente para layout.
+  - Propósito operacional, vistas, jerarquía de relaciones e interacción de Graph.
+  - Layout `BLOCKS` rank × initiative lanes, semantic zoom, path focus, búsqueda, accesibilidad y presupuesto de rendimiento.
+  - Integración coordinada con `NodeDetail` existente.
+  - Paleta clara compartida entre canvas y DOM.
 - Fuera:
-  - Mutaciones desde la UI o cambios al CLI/state schema/snapshot contract salvo que un ADR justifique un campo estrictamente necesario.
-  - Rediseñar Board, Overview, Gates, Knowledge, Activity o toda la shell en este RFC.
-  - Dark mode como dirección principal.
-  - Implementación directa antes de resolver decisiones derivadas.
+  - Stakeholders externos, exportar/compartir, preferencias persistentes, métricas operacionales, notificaciones y mutaciones desde la UI.
+  - Cambios al CLI, state schema o snapshot contract; derivación client-side sobre el snapshot actual.
+  - Rediseñar Board, Overview, Gates, Knowledge, Activity o toda la shell.
+  - Dark mode y un restyle global de tokens.
 
-## Riesgos y open questions
+## Riesgos resueltos y decisiones de review
 
-- **`cytoscape-dagre` no soporta compound nodes** (hecho confirmado en la migración actual) → investigar layout alternativo con agrupación jerárquica/lanes, o definir lanes de aplicación sin falsear el layout.
-- **Cards DOM + canvas** pueden afectar pan, foco y performance → prototipo con semantic zoom, viewport culling y presupuesto medible antes de fijar la técnica.
-- **Todos los edges visibles** puede volver ilegible el mapa → cada modo debe declarar qué relaciones muestra y qué revela bajo demanda.
-- **Mobile y pantalla estrecha** → no intentar reproducir el canvas desktop; definir navegación centrada en búsqueda, foco y detalle.
-- **Escala real futura** → validar el presupuesto inicial con 200 nodos y decidir umbral para clustering/virtualización o layout en worker.
-- **Semántica de «ruta relevante»** → decidir si Focus path recorre todos los `BLOCKS`, solo la ruta crítica, o permite ambas opciones.
-- **Lanes por initiative** → decidir si son obligatorios en Execution o si la initiative se resuelve mejor con focus/agrupación bajo demanda.
+- **Lanes:** se adopta layout de aplicación rank × initiative; no se depende de compound support de `cytoscape-dagre`.
+- **Focus path:** se divide en upstream blockers y downstream impact; no hay «critical path» sin datos de duración/prioridad.
+- **Modos:** Execution, History y All relations son exclusivos; Context pertenece al inspector.
+- **Rendimiento:** fixture/benchmark es trabajo previo con dueño; layout posterior se compara contra baseline y no se ejecuta por cambios no topológicos.
+- **Detalle:** se reutiliza `NodeDetail`; sus cambios se serializan en una tarea propia para evitar conflicto.
+- **Casos de producto:** Execution vacío conduce a History; una sola initiative minimiza el tratamiento de lanes; gates resueltas aparecen en History/inspector.
 
-## ADRs derivados (se completa al aprobar)
+## ADRs derivados
 
-- [ ] ADR-001: Modelo de vistas y semántica de relaciones del Execution Map → `.adrs/001-graph-view-model.md`
-- [ ] ADR-002: Estrategia de layout, lanes por initiative y rendimiento → `.adrs/002-graph-layout-and-performance.md`
-- [ ] ADR-003: Representación de nodos, semantic zoom y contrato accesible → `.adrs/003-graph-node-and-accessibility.md`
+- [ ] ADR-001: Modelo de vistas, selección y relaciones del Execution Map → `.adrs/001-graph-view-model.md`
+  - Criterio: define view/focus state, visible sets, traversal y contrato client-side sin endpoints nuevos.
+- [ ] ADR-002: Layout de lanes por initiative y presupuesto de rendimiento → `.adrs/002-graph-layout-and-performance.md`
+  - Criterio: fija algoritmo rank × lane, baseline/umbral de 200 nodos y política de relayout.
+- [ ] ADR-003: Nodos, semantic zoom, paleta light y contrato accesible → `.adrs/003-graph-node-and-accessibility.md`
+  - Criterio: fija tiers visuales, mapa token→canvas, overlay accesible y fallback estrecho.
