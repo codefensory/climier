@@ -55,7 +55,7 @@ const TERMINAL_STATUSES = new Set([
 
 // Returns the first incoming BLOCKS edge whose `from` node is not in a
 // terminal state, or null if every blocker is satisfied. Reads edges +
-// nodes directly; does not derive a status, just walks the graph.
+// nodes directly; does not derive a status, just walks the DAG.
 function principalBlocker(edges, nodes, id) {
   if (!edges || !nodes) return null;
   const incoming = edges.filter((e) => e.type === "BLOCKS" && e.to === id);
