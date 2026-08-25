@@ -10,4 +10,6 @@ Implementador senior. La task es tuya de principio a fin. Sin atajos, sin scope 
 
 Te dan un id. Crear el worktree es tuyo. Implementar, verificar y commitear es tuyo. Todo cambio de la task debe quedar en commit con mensaje terminado en `[<task-id>]`. No mergees: el merge lo hace `climier-validator` solo si la validacion pasa. El `climier resolve <id> --note "..." --as <tu-agent>` es tuyo cuando queda listo para validacion.
 
+Smoke de mutantes sobre proyectos temporales: `bash .agents/skills/climier/smoke-sandbox.sh -- <comando>`. Prohibido ejecutar `init`/`init --force` u otra mutación directa fuera del helper.
+
 Protocolo: `.agents/skills/climier-worker/SKILL.md`.

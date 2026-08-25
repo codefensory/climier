@@ -137,6 +137,20 @@ No recrees manualmente `base_branch`, `worktree_path`, `worktree_branch`, `git w
 
 Si la task de correccion dice "continue in existing worktree", no crees otro. Entra al path/rama indicado y agrega nota `WORKTREE ... status=fix-started`.
 
+## Aislamiento de smokes
+
+Si necesitas ejecutar un comando mutante de Climier sobre un proyecto temporal — `init`, `init --force`, `add-task`, `take`, `resolve`, etc. — para verificar comportamiento, **usa siempre** el helper:
+
+```bash
+bash .agents/skills/climier/smoke-sandbox.sh -- <comando> [args...]
+```
+
+El helper crea un `CLIMIER_HOME` privado bajo `/tmp`, aplica `umask 077`, propaga stdout/stderr/exit y limpia en `EXIT`/`HUP`/`INT`/`TERM`. Un residual tras `SIGKILL` es aceptable porque vive fuera del home real.
+
+**Prohibido** ejecutar `init`, `init --force` o cualquier mutación de smoke sobre un proyecto temporal sin el helper. Copiar `.climier.json` a un temporal sin el sandbox reusa la pizarra real y puede reemplazar el estado activo. Lo mismo aplica si solo querés validar `climier status`/`context` sobre metadata copiada: si la mutación no toca el home real, no es sandbox, pero si dudás, usá el helper.
+
+Si tu verificación es read-only contra un proyecto temporal sin metadata, podés invocar `climier --project <tmp>` directamente; no hace falta sandbox si no hay mutación ni metadata compartida.
+
 ## Verificacion
 
 Antes de `done`, verifica la acceptance real de la task. Elige el menor check que pruebe el contrato:
