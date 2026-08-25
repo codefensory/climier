@@ -508,7 +508,7 @@ export default function Board() {
             <button
               type="button"
               class="inline-flex min-h-[36px] items-center rounded-control border border-line bg-panel-2 px-3 text-[13px] text-body hover:bg-mid focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
-              onClick={() => setRoute("nodes")}
+              onClick={() => setRoute("tasks")}
             >
               Open Tasks
             </button>

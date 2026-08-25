@@ -148,9 +148,12 @@ test("sidebar click switches the view without reload (regression)", { skip }, as
       document.querySelector('main[data-route="tasks"]'),
       "main route flips to tasks after the click",
     );
-    assert.ok(
-      document.querySelector('[data-view="tasks"]'),
-      "RouteView renders the tasks view after the click",
+    const tasksView = document.querySelector('[data-view="tasks"]');
+    assert.ok(tasksView, "RouteView renders the tasks view after the click");
+    assert.equal(
+      tasksView.querySelector("h1")?.textContent.trim(),
+      "Tasks",
+      "the routed component changes, not just the URL and wrapper metadata",
     );
     assert.equal(dom.window.location.hash, "#/tasks", "hash is written for deep-link/back");
 

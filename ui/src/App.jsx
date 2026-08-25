@@ -39,6 +39,7 @@
 //     responsibility (Fase 5A), not the shell's.
 
 import { Show, For, onMount, onCleanup, createMemo, createSignal } from "solid-js";
+import { Dynamic } from "solid-js/web";
 import { StoreProvider, useStore } from "./store.jsx";
 import Overview from "./views/Overview.jsx";
 import Board from "./views/Board.jsx";
@@ -525,12 +526,13 @@ function InitialError(props) {
 
 // === RouteView =============================================================
 // Mounts the route's component. Wrapped in a div that owns the scroll so
-// the route views don't need to repeat `h-full overflow-auto`.
+// the route views don't need to repeat `h-full overflow-auto`. Dynamic is
+// intentional: Component is a reactive prop and capturing it in a local
+// constant would mount the initial view once without switching on navigation.
 function RouteView(props) {
-  const C = props.Component;
   return (
     <div class="h-full overflow-auto" data-view={props.route}>
-      <C />
+      <Dynamic component={props.Component} />
     </div>
   );
 }
