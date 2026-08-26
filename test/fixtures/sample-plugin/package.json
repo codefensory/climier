@@ -1,0 +1,12 @@
+{
+  "name": "sample-plugin",
+  "version": "1.0.0",
+  "description": "T-plugin-fixture V1 sample plugin. Exercises every API method declared in ADR-005 §API y persistencia without runtime dependencies.",
+  "private": true,
+  "type": "module",
+  "climier": {
+    "id": "sample",
+    "command": "sample",
+    "entry": "./climier.mjs"
+  }
+}
