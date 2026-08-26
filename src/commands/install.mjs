@@ -291,6 +291,22 @@ export default async function install({ positional = [], flags = {} } = {}) {
       const entryAbsPath = path.resolve(installedPkgDir, descriptor.entry);
       await importEntry(entryAbsPath);
 
+      // T-plugin-fixture regression fix: npm install --prefix staging
+      // <local-path> drops the package under <staging>/node_modules/<basename>/
+      // and writes its own (climier-less) package.json at <staging>/package.json.
+      // T-plugin-dispatch's loader reads <installed>/<id>/package.json to
+      // find the descriptor and resolves the entry as
+      // path.resolve(<installed>/<id>, descriptor.entry) — neither lookup
+      // lands on the npm layout. Mirror the package's files into the
+      // staging root so the loader can find both the descriptor and the
+      // entry at their expected locations after the promotion rename.
+      // We only mirror the descriptor and the entry (plus any non-node_modules
+      // sibling files the entry may transitively import); the npm
+      // node_modules/<basename>/ tree stays in place so transitive deps
+      // (if any) remain reachable. plugin-install.test.mjs continues to
+      // read the descriptor from node_modules/<basename>/package.json.
+      await mirrorPluginFilesToStagingRoot(installedPkgDir, stagingDir, descriptor.entry);
+
       // Step 8: atomic promotion by rename to installed/<id>.
       const targetDir = pluginInstalledDir(descriptor.id);
       await fs.rename(stagingDir, targetDir);
@@ -313,6 +329,42 @@ export default async function install({ positional = [], flags = {} } = {}) {
   });
 }
 
+// mirrorPluginFilesToStagingRoot: copy the descriptor and the entry (and
+// any sibling files the entry may transitively import via relative
+// paths) from <staging>/node_modules/<basename>/ to <staging>/ itself.
+// Skips the package's own node_modules/ subtree so we do not collide
+// with npm's structure. Used by install() to make the dispatcher's
+// <installed>/<id>/{package.json, entry} layout work after the npm-
+// driven install path (T-plugin-fixture regression fix).
+async function mirrorPluginFilesToStagingRoot(pkgDir, stagingDir, entryRel) {
+  // Normalize the entry relative path so it is rooted at pkgDir.
+  const entryPath = path.resolve(pkgDir, entryRel);
+  if (!entryPath.startsWith(pkgDir + path.sep) && entryPath !== pkgDir) {
+    throw new Error(`install: entry '${entryRel}' escapes the package root`);
+  }
+  // Copy the descriptor (package.json) and the entry file. The entry's
+  // own relative imports resolve against pkgDir, but their destination
+  // under stagingDir mirrors that directory layout — we copy the whole
+  // package contents (minus node_modules) so relative imports keep
+  // working after the loader imports the entry from <installed>/<id>/.
+  await copyPackageContents(pkgDir, stagingDir);
+}
+
+async function copyPackageContents(srcDir, destDir) {
+  const entries = await fs.readdir(srcDir, { withFileTypes: true });
+  for (const entry of entries) {
+    if (entry.name === "node_modules") continue;
+    const s = path.join(srcDir, entry.name);
+    const d = path.join(destDir, entry.name);
+    if (entry.isDirectory()) {
+      await fs.mkdir(d, { recursive: true });
+      await copyPackageContents(s, d);
+    } else if (entry.isFile()) {
+      await fs.copyFile(s, d);
+    }
+  }
+}
+
 // Local-only re-export for tests; the function is intentionally not part
 // of the CLI surface (no flag for it).
-export { isLocalPath };
+export { isLocalPath, mirrorPluginFilesToStagingRoot };
