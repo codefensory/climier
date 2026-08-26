@@ -69,7 +69,7 @@ test("NAV_GROUPS order and composition match the plan", () => {
   // The plan (docs/ui-redesign-plan.md section 6) names exactly these
   // four groups in this order.
   const labels = NAV_GROUPS.map((g) => g.label);
-  assert.deepEqual(labels, ["Monitor", "Work", "Context", "Audit"]);
+  assert.deepEqual(labels, ["Monitor", "Work", "Context", "History"]);
 
   // Monitor must hold Overview/Board (no Activity fallback target).
   const monitor = NAV_GROUPS.find((g) => g.label === "Monitor");
@@ -83,9 +83,9 @@ test("NAV_GROUPS order and composition match the plan", () => {
   const context = NAV_GROUPS.find((g) => g.label === "Context");
   assert.deepEqual(context.ids, ["knowledge"]);
 
-  // Audit must hold only Activity.
-  const audit = NAV_GROUPS.find((g) => g.label === "Audit");
-  assert.deepEqual(audit.ids, ["activity"]);
+  // History must hold only Activity.
+  const history = NAV_GROUPS.find((g) => g.label === "History");
+  assert.deepEqual(history.ids, ["activity"]);
 });
 
 test("every id in NAV_GROUPS exists in ROUTE_META and is unique", () => {

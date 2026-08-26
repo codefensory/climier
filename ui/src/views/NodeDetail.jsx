@@ -15,7 +15,7 @@
 //   7. Times use claim.at (Time/ClaimTime prefer claim.at over claim.ts).
 //   8. Relationships are split by direction/type (F6b, T-ui-detail-rel):
 //      incoming blockers stay in the open right-rail Blockers panel; outgoing
-//      are grouped into Blocks / Derived from / Supersedes / Informing-legacy
+//      are grouped into Blocks / Derived from / Supersedes / Informing
 //      inside one collapsible Relationships zone. The drawer never
 //      re-derives the DAG — it only re-groups what /api/node/:id returns.
 //   9. Back navigates within the drawer (blocker -> node -> back) and only
@@ -43,22 +43,22 @@ import {
 // relationship kind gets its own zone. This is presentation logic only: the
 // derivation itself stays in src/v2.mjs / the server.
 //
-// Legacy edge types (INFORMS, RELATES_TO, CONFLICTS_WITH) are deprecated in
-// the schema but can still exist in data; they are grouped together as
-// informational edges.
+// Informational edge types (INFORMS, RELATES_TO, CONFLICTS_WITH) are
+// retained for reading older state; they are grouped together as informing
+// edges.
 export function splitRelationships(detail) {
   const dependents = Array.isArray(detail && detail.dependents) ? detail.dependents : [];
   const outBlocks = dependents.filter((e) => e && e.edge_type === "BLOCKS");
   const derivedFrom = dependents.filter((e) => e && e.edge_type === "DERIVED_FROM");
   const supersedes = dependents.filter((e) => e && e.edge_type === "SUPERSEDES");
-  const legacy = dependents.filter((e) =>
+  const informing = dependents.filter((e) =>
     e && ["INFORMS", "RELATES_TO", "CONFLICTS_WITH"].includes(e.edge_type)
   );
   const supersededBy =
     (detail && detail.superseded_by) ||
     (detail && detail.node && detail.node.superseded_by) ||
     null;
-  return { outBlocks, derivedFrom, supersedes, legacy, supersededBy };
+  return { outBlocks, derivedFrom, supersedes, informing, supersededBy };
 }
 
 // Drawer back-history. Navigating from A to B while the drawer is open
@@ -417,7 +417,7 @@ function DetailBody(props) {
   const relationshipsCount = createMemo(() => {
     const r = rel();
     return r.outBlocks.length + r.derivedFrom.length + r.supersedes.length +
-      (r.supersededBy ? 1 : 0) + r.legacy.length;
+      (r.supersededBy ? 1 : 0) + r.informing.length;
   });
 
   // Banner triage: pick the most actionable alert for the headline, list
@@ -602,7 +602,7 @@ function DetailBody(props) {
       <DetailsSection
         title="Relationships"
         count={relationshipsCount()}
-        hint="Direction-aware links: blocks, derived from, supersedes, legacy informs."
+        hint="Direction-aware links: blocks, derived from, supersedes, informing."
       >
         <div class="space-y-4">
           <RelGroup label="Blocks" hint="outgoing BLOCKS — nodes this one keeps from being ready.">
@@ -649,12 +649,12 @@ function DetailBody(props) {
             </Show>
           </RelGroup>
 
-          <RelGroup label="Informing / legacy" hint="INFORMS, RELATES_TO, CONFLICTS_WITH — informational edges.">
-            <Show when={rel().legacy.length} fallback={
-              <EmptyState variant="compact" title="No legacy informational edges." />
+          <RelGroup label="Informing" hint="INFORMS, RELATES_TO, CONFLICTS_WITH — informational edges.">
+            <Show when={rel().informing.length} fallback={
+              <EmptyState variant="compact" title="No informing edges." />
             }>
               <ul class="space-y-1.5">
-                <For each={rel().legacy}>{(e) => <RelationRow edge={e} onSelect={onSelect} />}</For>
+                <For each={rel().informing}>{(e) => <RelationRow edge={e} onSelect={onSelect} />}</For>
               </ul>
             </Show>
           </RelGroup>
@@ -853,7 +853,7 @@ function DetailSidebar(props) {
 
         <Show when={tags().length > 0}>
           <section class="ui-detail-card mb-3 rounded-control border p-3">
-            <h3 class="mb-3 text-[12px] font-bold text-ink">Labels</h3>
+            <h3 class="mb-3 text-[12px] font-bold text-ink">Tags</h3>
             <div class="flex flex-wrap gap-1.5">
               <For each={tags()}>{(tag) => <Chip>{tag}</Chip>}</For>
             </div>
@@ -1018,21 +1018,17 @@ function noteInitials(agent) {
 }
 
 function NoteRow(props) {
-  // note ({ agent, ts, text }), optional `validation` flag in the text.
+  // note ({ agent, ts, text }) — all notes use the same presentation.
   const note = props.note || {};
   const author = note.agent || "—";
-  const isValidation = typeof note.text === "string" && /VALIDATION (PASS|FAIL|BLOCKED)/.test(note.text);
   return (
-    <li class={`ui-note ${isValidation ? "ui-note--validation" : ""}`}>
+    <li class="ui-note">
       <span class="ui-note-avatar" aria-hidden="true" title={author}>{noteInitials(author)}</span>
       <div class="ui-note-content">
         <div class="ui-note-meta">
           <span class="ui-note-author">{author}</span>
           <span aria-hidden="true" class="ui-note-separator">·</span>
           <Time value={note.ts} />
-          <Show when={isValidation}>
-            <span class="ui-note-badge">validation</span>
-          </Show>
         </div>
         <div class="ui-note-body whitespace-pre-wrap text-[13px] leading-5 text-body">{note.text}</div>
       </div>

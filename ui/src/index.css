@@ -927,30 +927,6 @@ pre {
   background: var(--ui-panel-solid);
 }
 
-.ui-note--validation .ui-note-avatar {
-  border-color: #b9d4ff;
-  background: var(--ui-blue-soft);
-  color: var(--ui-blue);
-}
-
-.ui-note--validation .ui-note-body {
-  border-color: rgba(23, 105, 224, 0.28);
-  background: var(--ui-blue-soft);
-}
-
-.ui-note-badge {
-  border: 1px solid rgba(23, 105, 224, 0.28);
-  border-radius: 5px;
-  background: var(--ui-panel-solid);
-  padding: 1px 5px;
-  color: var(--ui-blue);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
-  font-size: 12px;
-  line-height: 16px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
 .ui-summary-dot {
   width: 3px;
   height: 3px;

@@ -4,8 +4,8 @@
 //   - uses the snapshot's derived pools (ready/blocked/backlog) instead of
 //     re-deriving status locally — the UI must agree with the CLI;
 //   - shows the columns the user actually needs (status, id, title,
-//     initiative, domain, owner, last activity) with rows 48-56 px tall;
-//   - exposes real filters (status / domain / owner / initiative), column
+//     initiative, domain, claimed-by agent, last activity) with rows 48-56 px tall;
+//   - exposes real filters (status / domain / claimed-by agent / initiative), column
 //     sorting, and a "Clear filters" action;
 //   - lists `archived` as a status option only when at least one task is
 //     archived (per spec: "visualizar si existe, no crear");
@@ -62,7 +62,7 @@ const COLUMNS = [
   { key: "title",         label: "Title",         sortable: true, gridCol: "minmax(220px,2.2fr)" },
   { key: "initiative",    label: "Initiative",    sortable: true, gridCol: "minmax(120px,1fr)"   },
   { key: "domain",        label: "Domain",        sortable: true, gridCol: "minmax(120px,1fr)"   },
-  { key: "owner",         label: "Owner",         sortable: true, gridCol: "minmax(120px,1fr)"   },
+  { key: "claimed_by",    label: "Claimed by",    sortable: true, gridCol: "minmax(120px,1fr)"   },
   { key: "last_activity", label: "Last activity", sortable: true, gridCol: "minmax(140px,1fr)"   },
 ];
 
@@ -107,7 +107,7 @@ function compareTasks(a, b, column, derived) {
       case "title":         return (n.title || "").toLowerCase();
       case "initiative":    return (n.initiative || "").toLowerCase();
       case "domain":        return (n.domain || "").toLowerCase();
-      case "owner":         return (n.claim?.by || "").toLowerCase();
+      case "claimed_by":    return (n.claim?.by || "").toLowerCase();
       case "last_activity": return n.__lastTs || "";
       default:              return "";
     }
@@ -126,7 +126,7 @@ export default function Nodes() {
   const [q, setQ] = createSignal("");
   const [status, setStatus] = createSignal("");
   const [domain, setDomain] = createSignal("");
-  const [owner, setOwner] = createSignal("");
+  const [claimedBy, setClaimedBy] = createSignal("");
   const [ini, setIni] = createSignal("");
   const [sortBy, setSortBy] = createSignal("id");
   const [sortDir, setSortDir] = createSignal("asc");
@@ -150,7 +150,7 @@ export default function Nodes() {
     return [...set].sort();
   });
 
-  const owners = createMemo(() => {
+  const claimedAgents = createMemo(() => {
     const set = new Set();
     for (const n of tasks()) if (n.claim && n.claim.by) set.add(n.claim.by);
     return [...set].sort();
@@ -186,7 +186,7 @@ export default function Nodes() {
       out = out.filter((n) => resolveStatus(n, derived()) === want);
     }
     if (domain()) out = out.filter((n) => n.domain === domain());
-    if (owner()) out = out.filter((n) => n.claim?.by === owner());
+    if (claimedBy()) out = out.filter((n) => n.claim?.by === claimedBy());
     if (ini()) out = out.filter((n) => n.initiative === ini());
     return out;
   });
@@ -207,14 +207,14 @@ export default function Nodes() {
   });
 
   const hasFilters = createMemo(
-    () => Boolean(q() || status() || domain() || owner() || ini())
+    () => Boolean(q() || status() || domain() || claimedBy() || ini())
   );
 
   function clearFilters() {
     setQ("");
     setStatus("");
     setDomain("");
-    setOwner("");
+    setClaimedBy("");
     setIni("");
   }
 
@@ -317,14 +317,14 @@ export default function Nodes() {
           </For>
         </select>
         <select
-          aria-label="Filter by owner"
+          aria-label="Filter by claimed agent"
           class="min-h-[36px] rounded-control border border-line bg-panel px-3 text-[13px] text-body outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
-          value={owner()}
-          onChange={(e) => setOwner(e.currentTarget.value)}
-          disabled={owners().length === 0}
+          value={claimedBy()}
+          onChange={(e) => setClaimedBy(e.currentTarget.value)}
+          disabled={claimedAgents().length === 0}
         >
-          <option value="">All owners</option>
-          <For each={owners()}>
+          <option value="">All claimed agents</option>
+          <For each={claimedAgents()}>
             {(o) => <option value={o}>{o}</option>}
           </For>
         </select>

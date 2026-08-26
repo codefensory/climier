@@ -262,7 +262,7 @@ export default function Activity() {
   return (
     <PageLayout>
       <PageHeader
-        eyebrow="Audit"
+        eyebrow="History"
         title="Activity"
         subtitle="A chronological, read-only record of changes across the project."
         meta={`${total()} entries`}

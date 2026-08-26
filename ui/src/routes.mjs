@@ -24,18 +24,18 @@ export const ROUTE_META = {
   tasks:     { label: "Tasks",     group: "Work" },
   gates:     { label: "Gates",     group: "Work" },
   knowledge: { label: "Knowledge", group: "Context" },
-  activity:  { label: "Activity",  group: "Audit" },
+  activity:  { label: "Activity",  group: "History" },
 };
 
 export const DEFAULT_ROUTE = "overview";
 
-// Group order = sidebar order. Activity sits in "Audit" and is never the
+// Group order = sidebar order. Activity sits in "History" and is never the
 // fallback target — unknown routes land on Overview.
 export const NAV_GROUPS = [
   { label: "Monitor", ids: ["overview", "board"] },
   { label: "Work",    ids: ["tasks", "gates"] },
   { label: "Context", ids: ["knowledge"] },
-  { label: "Audit",   ids: ["activity"] },
+  { label: "History", ids: ["activity"] },
 ];
 
 // === Hash helpers ==========================================================

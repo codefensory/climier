@@ -8,7 +8,7 @@
 //   - Sticky column header with count and a one-line explanation of what the
 //     column means in the dashboard's vocabulary.
 //   - Cards use the visual contract (16 px padding, radius 12, hairline
-//     border, no shadow). Hierarchy: id + status, title, initiative + owner,
+//     border, no shadow). Hierarchy: id + status, title, initiative + claim,
 //     principal blocker callout only when blocked.
 //   - Open gates rail above the columns. Collapsible; the rail is hidden
 //     entirely when there are no open gates.

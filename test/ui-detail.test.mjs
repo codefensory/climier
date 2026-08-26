@@ -303,6 +303,8 @@ test("NodeDetail keeps Notes visible as a Linear-like thread after Blockers", { 
   assert.match(html, /class="[^"]*ui-note-avatar[^"]*"/,
     `Notes must expose a comment-style author marker: ${html}`);
   assert.ok(html.includes("Starting work"), `note text must remain visible: ${html}`);
+  assert.match(html, />\s*Tags\s*</, `node tags must use the Climier vocabulary: ${html}`);
+  assert.ok(!html.match(/>\s*Labels\s*</), `node tags must not be called Labels: ${html}`);
 
   // Knowledge, refs, dependents and the equivalent CLI remain progressively
   // disclosed secondary zones; history belongs to the right rail Activity tab.
@@ -319,6 +321,22 @@ test("NodeDetail keeps Notes visible as a Linear-like thread after Blockers", { 
   assert.ok(html.includes("T-child"), `dependent id must appear inside its <details>: ${html}`);
   assert.ok(!/<details[^>]*\bopen\b/.test(html),
     `secondary <details> must default to closed; saw <details open>: ${html}`);
+});
+
+test("NodeDetail renders validator notes as ordinary notes without a validation badge", { skip }, async (t) => {
+  const { mod } = await compileDetail(t, { storeStub: true });
+  const detail = makeDetail({
+    node: {
+      notes: [
+        { agent: "validator", ts: "2025-01-02T00:00:00.000Z", text: "VALIDATION PASS checked" },
+      ],
+    },
+  });
+  globalThis.__NODE_DETAIL_STORE__ = makeStore(detail);
+  const html = solidWeb.renderToString(() => mod.default());
+  assert.ok(html.includes("VALIDATION PASS checked"), `the note text must remain visible: ${html}`);
+  assert.ok(!html.includes("ui-note-badge"), `validator notes must not get a special badge: ${html}`);
+  assert.ok(!html.includes("ui-note--validation"), `validator notes must use ordinary note styling: ${html}`);
 });
 
 test("NodeDetail renders refs as structured {target, type, source} (not raw strings)", { skip }, async (t) => {
@@ -402,7 +420,7 @@ test("splitRelationships separates outgoing edges by type and direction", { skip
   assert.deepEqual(rel.outBlocks.map((e) => e.node.id), ["T-child"], "outgoing BLOCKS must be grouped as 'blocks'");
   assert.deepEqual(rel.derivedFrom.map((e) => e.node.id), ["T-base"], "DERIVED_FROM must be grouped separately");
   assert.deepEqual(rel.supersedes.map((e) => e.node.id), ["T-old"], "outgoing SUPERSEDES must be grouped separately");
-  assert.deepEqual(rel.legacy.map((e) => e.node.id), ["K-notes", "T-peer", "T-rival"], "INFORMS/RELATES_TO/CONFLICTS_WITH are legacy/informing");
+  assert.deepEqual(rel.informing.map((e) => e.node.id), ["K-notes", "T-peer", "T-rival"], "informational edge types are grouped as informing");
   assert.equal(rel.supersededBy, "T-new", "incoming SUPERSEDES (superseded_by) must be surfaced");
 });
 
@@ -412,7 +430,7 @@ test("splitRelationships is defensive with empty/missing payloads", { skip }, as
   assert.deepEqual(rel.outBlocks, []);
   assert.deepEqual(rel.derivedFrom, []);
   assert.deepEqual(rel.supersedes, []);
-  assert.deepEqual(rel.legacy, []);
+  assert.deepEqual(rel.informing, []);
   assert.equal(rel.supersededBy, null);
 });
 
@@ -452,7 +470,8 @@ test("NodeDetail renders direction-separated relationship sections", { skip }, a
   assert.match(html, />\s*Blocks\s*</, `outgoing BLOCKS zone must be labelled 'Blocks': ${html}`);
   assert.match(html, />\s*Derived from\s*</, `DERIVED_FROM zone must be labelled 'Derived from': ${html}`);
   assert.match(html, />\s*Supersedes\s*/, `SUPERSEDES zone must be labelled 'Supersedes': ${html}`);
-  assert.match(html, />\s*Informing/, `legacy/informing zone must be labelled 'Informing': ${html}`);
+  assert.match(html, />\s*Informing\s*</, `informational zone must be labelled 'Informing': ${html}`);
+  assert.ok(!html.match(/>\s*legacy\s*</i), `the UI must not expose legacy as a user-facing category: ${html}`);
   // Related node ids all surface.
   for (const id of ["T-child", "T-base", "T-old", "K-notes", "T-peer"]) {
     assert.ok(html.includes(id), `related node ${id} must be visible in the drawer: ${html}`);

@@ -11,7 +11,7 @@
 //   - Hash-based routing without a router. `location.hash` is the URL state.
 //     Back/forward and refresh both work because the hash is read on mount
 //     and on every `hashchange` / `popstate` event.
-//   - Grouped sidebar nav (Monitor / Work / Context / Audit) with
+//   - Grouped sidebar nav (Monitor / Work / Context / History) with
 //     `aria-current="page"` on the active item.
 //   - Responsive shell (F3c): breakpoint math lives in ui/src/shell.mjs
 //     (pure, testable). WIDE ≥1280 renders the full 240 px sidebar with

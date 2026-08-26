@@ -13,7 +13,7 @@
 //      navigation to Board/Tasks with a filter — MetricCard is a real
 //      <button> with a real destination.
 //   4. Work now: real lists of ready tasks (max 4) and in-progress tasks
-//      (max 4). Row = status, id, title, initiative, owner/last activity.
+//      (max 4). Row = status, id, title, initiative, claim/last activity.
 //      Click opens NodeDetail via store.select(id).
 //   5. Needs attention: stale, blocked, open gates, open decisions,
 //      placeholders. When everything is zero, a single compact line
@@ -367,7 +367,7 @@ export function projectRecord(summary) {
 
 // === WorkRow ===============================================================
 // One row in the Work now lists. Real <button>; opens NodeDetail via
-// store.select. Shows status, id, title, initiative and owner/last activity.
+// store.select. Shows status, id, title, initiative and claim/last activity.
 
 function WorkRow(props) {
   // node    (object, required — task node from the snapshot)

@@ -275,7 +275,7 @@ Domain: postgrado
 Notes: 7
 Refs: 0
 Dependents: 5
-Last activity: validator PASS
+Last activity: add-note
 ```
 
 Para tasks activas, la tarjeta debe destacar:
@@ -360,7 +360,7 @@ Thread append-only con:
 - filtros por tipo de actividad;
 - enlaces y paths detectados.
 
-La UI puede reconocer convenciones existentes como `[review:arquitectura]`, `[bloqueo]`, `VALIDATION PASS` y `WORKTREE`, pero no debe depender permanentemente de texto libre para lógica crítica. A futuro conviene agregar metadata estructurada a las notes.
+La UI muestra las notes como texto libre y no depende de convenciones de agentes para lógica crítica. A futuro conviene agregar metadata estructurada a las notes.
 
 ### History
 
@@ -432,7 +432,7 @@ La UI tendrá tres niveles de actividad:
 
 1. **Última actividad en la tarjeta:** una línea o timestamp.
 2. **Thread de notes del node:** comentarios y evidencia contextual.
-3. **Activity / Log global:** auditoría de todo el proyecto con filtros por agent, action, node e initiative.
+3. **Activity / Log global:** historial de todo el proyecto con filtros por agent, action, node e initiative.
 
 No se debe mostrar todo el log en el tablero. El log debe tener:
 
