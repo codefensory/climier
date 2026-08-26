@@ -1,8 +1,18 @@
 #!/usr/bin/env node
 // Climier CLI entry point. Parses argv, resolves project path, dispatches to commands.
 // All command output is JSON to stdout. All errors are JSON to stdout with non-zero exit.
+//
+// T-plugin-dispatch: after argv parsing, if the first non-flag token is
+// not a reserved core command and an installed plugin exists at that
+// namespace, route through src/plugin-dispatch.mjs. Plugin errors keep
+// the same { ok: false, error: { code, message, details } } envelope as
+// core v2 errors, so the existing catch can serialize them without
+// changes.
 import fsSync from "node:fs";
+import path from "node:path";
 import { resolveProject } from "../src/paths.mjs";
+import { pluginsHome } from "../src/plugin-paths.mjs";
+import { RESERVED_NAMESPACES } from "../src/commands/reserved-namespaces.mjs";
 
 const args = process.argv.slice(2);
 const PACKAGE_VERSION = JSON.parse(
@@ -104,6 +114,13 @@ if (args.includes("--version")) {
   process.exit(0);
 }
 
+// Capture the original argv verbatim (before the parsing loop below).
+// Plugin dispatch needs to forward tokens to the handler in their
+// original order, including flags placed before the namespace — the
+// parsing loop consumes flags into a `flags` object and does not
+// preserve order on its own.
+const originalArgv = args.slice();
+
 let command = null;
 const flags = {};
 const positional = [];
@@ -165,21 +182,57 @@ try {
     console.log(PACKAGE_VERSION);
     process.exit(0);
   }
-  const mod = await import(`../src/commands/${command}.mjs`);
+
+  // T-plugin-dispatch: route to the plugin host when the first non-flag
+  // token is neither a reserved core namespace nor a known core file.
+  // Plugin dispatch throws PLUGIN_* errors on every failure path; the
+  // existing catch below serializes them via the { code, message,
+  // details } envelope (exit 1). If no plugin is installed for the
+  // namespace, we fall through to the core dispatch, which fails with
+  // MODULE_NOT_FOUND → `unknown command '<x>'` (exit 2).
+  let pluginDispatched = false;
+  if (command !== null && !RESERVED_NAMESPACES.includes(command)) {
+    const installedPath = path.join(pluginsHome(), "installed", command);
+    let installed = false;
+    try {
+      installed = fsSync.statSync(installedPath).isDirectory();
+    } catch (err) {
+      if (err.code !== "ENOENT") throw err;
+    }
+    if (installed) {
+      const { dispatchPlugin } = await import("../src/plugin-dispatch.mjs");
+      const pluginResult = await dispatchPlugin({
+        originalArgv,
+        namespace: command,
+        projectDir,
+        flags,
+      });
+      if (pluginResult !== undefined) {
+        console.log(JSON.stringify(pluginResult, null, 2));
+      }
+      pluginDispatched = true;
+    }
+  }
+
+  if (pluginDispatched) {
+    // Skip the core dispatch entirely.
+  } else {
+    const mod = await import(`../src/commands/${command}.mjs`);
   // Reject unknown flags. Global flag (--project) is always allowed.
   // --help / -h are handled before this point and never reach here.
   if (Array.isArray(mod.knownFlags)) {
-    const allowed = new Set([...mod.knownFlags, "project"]);
-    for (const key of Object.keys(flags)) {
-      if (!allowed.has(key)) {
-        const sorted = [...allowed].filter((k) => k !== "project").sort();
-        throw new Error(`${command}: unknown flag --${key} (valid flags: --${sorted.join(", --")})`);
+      const allowed = new Set([...mod.knownFlags, "project"]);
+      for (const key of Object.keys(flags)) {
+        if (!allowed.has(key)) {
+          const sorted = [...allowed].filter((k) => k !== "project").sort();
+          throw new Error(`${command}: unknown flag --${key} (valid flags: --${sorted.join(", --")})`);
+        }
       }
     }
-  }
-  const result = await mod.default(ctx);
-  if (result !== undefined) {
-    console.log(JSON.stringify(result, null, 2));
+    const result = await mod.default(ctx);
+    if (result !== undefined) {
+      console.log(JSON.stringify(result, null, 2));
+    }
   }
 } catch (err) {
   if (err.code === "MODULE_NOT_FOUND" || err.code === "ERR_MODULE_NOT_FOUND") {
