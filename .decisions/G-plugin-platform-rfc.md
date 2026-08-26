@@ -1,78 +1,112 @@
-# RFC: plugins instalables V1 para CLI y datos compatibles
+# RFC: host de plugins V1 para CLI y datos compatibles
 
 - Gate: `G-plugin-platform-rfc` · Iniciativa: `plugin-platform` · Estado: borrador revisado
 - Autor: orchestrator · Fecha: 2026-08-26
-- Revisión V1: reduce la propuesta después de reviews de arquitectura, ejecución y sobreingeniería.
+- Revisión V1.1: incorpora las decisiones del usuario y la segunda ronda de reviews.
 
 ## Problema
 
-Climier solo se amplía hoy modificando su código: el dispatcher de `bin/climier.mjs` carga comandos desde `src/commands/`, y el estado no ofrece un namespace estable para datos de extensiones. Protocolos como validator, worker y memoria de agentes viven como skills o convenciones externas; no se pueden instalar como paquetes que añadan comandos y persistan datos sin editar el repositorio.
+Climier solo se amplía hoy modificando su código: el dispatcher de `bin/climier.mjs` carga comandos desde `src/commands/`, y el estado no ofrece un namespace estable para datos de extensiones. Integraciones que deberían poder evolucionar fuera del core requieren hoy editar el repositorio para añadir comandos y persistencia.
 
-El objetivo de V1 es que un autor publique un paquete npm y un usuario pueda instalarlo con `climier install <paquete o path>`. Una vez instalado, el plugin debe poder añadir comandos, consultar el proyecto y guardar JSON propio sobre un node o el proyecto. V1 debe probar el host con un validator de referencia, no diseñar desde ahora todas las formas en que un plugin podría modificar el workflow.
+El objetivo de V1 es que un autor publique un paquete npm y un usuario pueda instalarlo con `climier install <paquete o path>`. Una vez instalado, el plugin puede añadir comandos, consultar el proyecto y guardar JSON propio sobre un node o el proyecto. V1 entrega el host y sus fixtures de prueba; no entrega validator ni ningún plugin de producto.
 
 ## Recorte explícito de V1
 
 V1 **no** incluye `api.core.run`, `data.update`, hooks, eventos, workers, UI, permisos, enable/disable, configuración por proyecto, nuevos estados core ni reglas del DAG.
 
-`api.core.run` y cualquier automatización que necesite crear/modificar tasks, gates o edges pasan a una RFC V2 futura. Se conserva como backlog `T-plugin-v2-rfc-backlog`; solo se promoverá cuando V1 o un segundo plugin presenten un caso concreto que no pueda resolverse con comandos propios y datos de plugin.
+`api.core.run` y toda automatización que necesite crear o modificar tasks, gates o edges pasan a una RFC V2 futura. La entrada `T-plugin-v2-rfc-backlog` conserva ese trabajo: se promoverá solo cuando un plugin real presente un caso que no pueda resolverse con comandos propios y datos de plugin.
 
-El recorte evita diseñar reentrancia de `withLock`, transacciones compuestas, surface de acciones core y actualizadores arbitrarios antes de tener un consumidor real. V1 conserva `data.project` porque registro de agentes y memoria pequeña son casos de uso concretos solicitados para el sistema, no especulación.
+El recorte evita diseñar reentrancia de `withLock`, transacciones compuestas, eventos y acciones core antes de tener un consumidor real. V1 conserva `data.project` porque registro de agentes y memoria pequeña son casos de uso explícitos del sistema.
 
 ## Propuesta
 
-### Modelo de uso
+### Modelo de uso e identidad
 
-La instalación es global a la máquina y el paquete instalado queda disponible para todos sus proyectos:
+La instalación es global a la máquina y un plugin instalado queda disponible para todos sus proyectos:
 
 ```bash
-climier install @climier/validator
-climier validator validate T-ui-1 --as validator
+climier install @example/climier-audit
+climier audit check T-1 --as reviewer
 
-climier install ./plugins/agents
-climier agents add claude-auth --skill auth --as orchestrator
-
-climier uninstall @climier/validator
+climier uninstall example.audit
 ```
 
-No existe `enable`, `disable`, registry propio ni configuración de plugins en `.climier.json` durante V1. `install` usa npm como proceso externo contra un prefijo bajo `CLIMIER_HOME`; acepta una ruta local que npm pueda instalar. Si npm no está disponible, devuelve un error estructurado; el core no agrega una librería npm como dependencia runtime.
-
-`install` y `uninstall` usan un lock global bajo `CLIMIER_HOME/plugins` porque su prefijo es compartido por todos los proyectos de la máquina. Los paquetes se descubren desde ese prefijo. `uninstall` elimina el código instalado, pero conserva los datos de plugin ya escritos en estados de proyecto; reinstalar el mismo package id puede reutilizarlos. No habrá `purge` en V1.
-
-### Forma mínima de un plugin
-
-El `package.json` declara un namespace CLI y un entrypoint ESM:
+El paquete npm es solo el origen de instalación. La identidad persistida del plugin es obligatoriamente `climier.id`, no el campo npm `name`:
 
 ```json
 {
-  "name": "@climier/validator",
+  "name": "@example/climier-audit",
   "version": "1.0.0",
   "type": "module",
   "climier": {
-    "command": "validator",
+    "id": "example.audit",
+    "command": "audit",
     "entry": "./climier.mjs"
   }
 }
 ```
 
-El entrypoint exporta un objeto:
+- `id` es un string no vacío, único entre los plugins instalados; se usa como key de datos y argumento de `uninstall`.
+- `command` es el namespace CLI; también debe ser único y no puede coincidir con un comando core reservado.
+- `entry` es la ruta ESM del paquete.
+
+Si el descriptor no contiene `climier.id`, `install` falla con `PLUGIN_INVALID_DESCRIPTOR` y `details.field = "climier.id"`; no se registra como plugin instalado. Si otro paquete ya declara ese id, la instalación falla con `PLUGIN_ID_CONFLICT`. Para reemplazar un plugin se ejecuta primero `climier uninstall <id>` y luego `climier install <origen>`.
+
+No existe `enable`, `disable`, registry propio ni configuración de plugins en `.climier.json`. `install` usa npm como proceso externo contra un prefijo bajo `CLIMIER_HOME`; acepta una ruta local que npm pueda instalar. Si npm no está disponible, devuelve un error estructurado; el core no agrega una librería npm como dependencia runtime.
+
+`install` y `uninstall` usan un lock global bajo `CLIMIER_HOME/plugins` porque el prefijo es compartido entre todos los proyectos de la máquina. El lock serializa operaciones iniciadas por Climier; la consistencia de staging, lockfiles y árbol `node_modules` interno se delega a npm. Tras instalar, el host valida el descriptor, importa el entrypoint y verifica que su export default tenga `commands` como objeto de funciones. Si esa validación falla, la instalación se revierte y devuelve `PLUGIN_INVALID_DESCRIPTOR` o `PLUGIN_LOAD_FAILED`.
+
+`uninstall <id>` resuelve el paquete instalado buscando el descriptor cuyo `climier.id` coincida, elimina su código y conserva los datos ya escritos en estados de proyecto. No habrá `purge` en V1. Instalar código sigue siendo una acción explícita de confianza del usuario: V1 no agrega firmas, hashes, pinning ni sandboxing.
+
+### Forma de un plugin y dispatch
+
+El entrypoint exporta:
 
 ```js
 export default {
   commands: {
-    async validate({ args, api }) {
+    async check({ args, api }) {
       // api es la superficie V1 del host.
     }
   }
 };
 ```
 
-El descriptor se lee antes de importar el entrypoint. El módulo se importa *lazy*, solo cuando se invoca su namespace; cada invocación de la CLI es un proceso nuevo, por lo que V1 no necesita cache ni invalidación entre `install`/`uninstall`.
+La forma de invocación es:
 
-Los namespaces core, incluidos `install` y `uninstall`, están reservados. Un descriptor ausente o inválido, un namespace que choque y un import que falle devuelven respectivamente errores estructurados `PLUGIN_INVALID_DESCRIPTOR`, `PLUGIN_NAMESPACE_CONFLICT` y `PLUGIN_LOAD_FAILED`. Los node ids no chocan con estos comandos: un id se entrega después de un comando core, por ejemplo `climier show install`.
+```text
+climier <namespace> <subcommand> [args del plugin] [--project <dir>] [--as <agent>]
+```
 
-Los argumentos posteriores al namespace se entregan al plugin sin validación de flags del parser core. `--project` se extrae como flag global y aparece en `api.runtime.project_dir`; no se entrega mezclado en `args`. Las mutaciones de datos exigen la misma identidad existente (`--as` y luego `CLIMIER_AGENT`) para preservar autoría en el log.
+El dispatcher vive en `bin/climier.mjs`, antes del fallback que importa `src/commands/<command>.mjs`:
 
-Un plugin es código confiado por quien ejecuta `climier install`; V1 no promete sandbox. El host convierte en JSON estructurado los errores del import y de la promesa que devuelve el handler. Trabajo en background no esperado ni errores no esperados después de que el handler termina están fuera del contrato: V1 no ofrece scheduler, timeout ni hooks.
+1. Si el primer token no es un comando core ni un namespace instalado, conserva el error actual de comando desconocido y exit `2`.
+2. Si coincide con un namespace instalado, el segundo token es el `subcommand` y se resuelve como `commands[subcommand]`.
+3. `--project` y `--as` se extraen para el host y no aparecen en `args`; el resto de tokens después del subcommand se entrega intacto al plugin. `CLIMIER_AGENT` no es un argumento: es el fallback existente cuando no hay `--as`.
+4. Una invocación de namespace válido sin subcommand o con subcommand inexistente falla con `PLUGIN_SUBCOMMAND_NOT_FOUND`, envelope estructurado y exit `1`.
+
+Los comandos core conservan su parser y comportamiento actuales. La lista de namespaces core reservados debe vivir en un módulo único exportado y tener una prueba de unicidad contra el dispatcher; incluye los comandos existentes más `install` y `uninstall`. Un node id no choca con un namespace: por ejemplo, `climier show install` sigue siendo válido porque `install` ahí es un argumento de `show`.
+
+El descriptor se lee e importa de forma lazy al ejecutar su namespace. Cada ejecución de CLI es un proceso nuevo, así que V1 no necesita cache ni invalidación entre `install`/`uninstall`.
+
+El host usa el contrato JSON existente. Todo error de plugin se expresa como:
+
+```json
+{
+  "ok": false,
+  "error": {
+    "code": "PLUGIN_HANDLER_FAILED",
+    "message": "plugin audit check failed",
+    "details": {
+      "plugin_id": "example.audit",
+      "namespace": "audit",
+      "subcommand": "check"
+    }
+  }
+}
+```
+
+con exit `1`. Los errores de descriptor, id, namespace, import y datos usan el mismo envelope estructurado. Solo el namespace completamente desconocido conserva exit `2` como el CLI actual. El host captura los errores de import y de la promesa devuelta por el handler. Trabajo en background y errores posteriores al retorno del handler quedan fuera del contrato: V1 no ofrece scheduler, timeout ni hooks.
 
 ### API V1 del host
 
@@ -80,6 +114,7 @@ La API no permite escribir `tasks.json`, tomar locks ni cambiar `node.status` di
 
 ```js
 api.runtime.project_dir
+api.runtime.agent
 
 api.query.node(id)
 api.query.context(id)
@@ -92,20 +127,21 @@ api.data.project.get(key)
 api.data.project.set(key, value)
 ```
 
-- `runtime.project_dir` es el root resuelto por el flag global `--project` o CWD.
-- `query.node` devuelve el node raw actual. `query.context` conserva el envelope documentado del comando `context`; `query.status` y `query.history` delegan sus formas públicas existentes. La API V1 no promete subcampos que esos comandos no documenten.
-- `data.node` lee/escribe el JSON del package actual sobre un node. Es adecuado para resultados de validación, links externos, deployment o review ligados a una task, gate o knowledge.
-- `data.project` almacena pares key/value JSON en el namespace del package para el proyecto. Es adecuado para el registro de agentes, cursores de sync, preferencias o memoria pequeña. No es global entre proyectos, no es `.climier.json`, no es para secretos y no sustituye knowledge para hechos reutilizables.
+- `runtime.project_dir` es el root resuelto por `--project` o CWD. `runtime.agent` es `--as` cuando existe; en su defecto, `CLIMIER_AGENT`; de no existir ambos es `null`.
+- `query.*` es lectura sin lock: refleja el último estado serializado observable cuando se ejecuta la consulta. `query.context` usa `runtime.agent` para mantener el comportamiento existente de `--as`; si es `null`, conserva el contexto anónimo actual.
+- `query.node` devuelve el node raw, incluidos datos de plugins que ya existan. `data.node.get`, en cambio, devuelve solo el `data` del plugin llamante para ese node; no expone el `data` de otros plugins.
+- `data.node` guarda el JSON del plugin llamante sobre un node. Es adecuado para resultados, links externos, deployment o review ligados a una task, gate o knowledge.
+- `data.project` almacena pares key/value JSON para el plugin llamante en ese proyecto. Es adecuado para registro de agentes, cursores de sync, preferencias o memoria pequeña. No es global entre proyectos, no es `.climier.json`, no es para secretos y no sustituye knowledge para hechos reutilizables.
 
-`set` reemplaza un valor completo; no hay `update(fn)` en V1. Si dos invocaciones hacen read-modify-write sobre el mismo valor, la última escritura gana. Un caso real que necesite una actualización compuesta y atómica es evidencia para promover el RFC V2, no motivo para diseñar closures de plugin en V1.
+`set` reemplaza un valor completo; no hay `update(fn)` en V1. Si dos invocaciones hacen read-modify-write sobre el mismo valor, la última escritura gana. Un caso real que necesite una actualización compuesta y atómica promueve el RFC V2.
 
-Cada `data.*.set` es una transacción independiente: el host toma el lock de proyecto, relee estado, modifica solo `plugins[package]`, escribe atómicamente, agrega su entrada de log y libera el lock antes de resolver la promesa al plugin. El handler nunca recibe ni mantiene un lock. Por tanto no hay lock reentrante ni transacción compuesta en V1.
+Cada `data.*.set` es una transacción independiente: el host exige una identidad no vacía, toma el lock de proyecto, relee estado, modifica solo el keyspace del plugin llamante, escribe atómicamente, agrega una entrada de log sin incluir el valor completo y libera el lock antes de resolver la promesa. El handler nunca recibe ni mantiene un lock.
 
-Los valores deben ser JSON serializable. V1 limita cada blob `data.node` a 16 KiB codificados y cada valor de `data.project` a 32 KiB; la suma de datos de un package en un proyecto no puede superar 128 KiB. Rechazos de JSON o tamaño devuelven `PLUGIN_DATA_INVALID` o `PLUGIN_DATA_TOO_LARGE` sin mutar ni loguear. Estos límites mantienen proporcional el coste actual de reescribir `tasks.json` completo en cada mutación.
+Los valores deben ser JSON serializable. V1 no impone límite de tamaño: el usuario administra el coste de guardar datos grandes dentro de `tasks.json`. Un valor no serializable falla con `PLUGIN_DATA_INVALID` sin mutar ni loguear.
 
 ### Persistencia compatible con v2
 
-Los datos de plugin son campos **opcionales y aditivos** dentro del estado v2:
+Los datos son campos **opcionales y aditivos** dentro del estado v2:
 
 ```json
 {
@@ -116,12 +152,9 @@ Los datos de plugin son campos **opcionales y aditivos** dentro del estado v2:
       "id": "T-1",
       "status": "done",
       "plugins": {
-        "@climier/validator": {
+        "example.audit": {
           "data": {
-            "validation": {
-              "phase": "finished",
-              "verdict": "pass"
-            }
+            "result": "pass"
           }
         }
       }
@@ -130,7 +163,7 @@ Los datos de plugin son campos **opcionales y aditivos** dentro del estado v2:
   "edges": [],
   "log": [],
   "plugins": {
-    "@climier/agents": {
+    "example.agents": {
       "data": {
         "agents": {
           "claude-auth": { "skills": ["auth"] }
@@ -141,7 +174,9 @@ Los datos de plugin son campos **opcionales y aditivos** dentro del estado v2:
 }
 ```
 
-No se incrementa el schema a v3. La decisión es de compatibilidad: los campos `plugins` son opcionales, no cambian el significado de los campos v2 existentes ni son requeridos para que un binario v2 previo lea, derive o escriba tasks/gates/knowledge. Los mutadores existentes conservan campos desconocidos al releer, modificar el estado y serializarlo; una versión anterior puede ignorar datos de plugin sin reinterpretar el DAG.
+No se incrementa el schema a v3. La decisión es de compatibilidad: `plugins` es opcional, no cambia el significado de campos v2 existentes y no es requerido para que una CLI v2 previa lea, derive o escriba tasks/gates/knowledge. Los mutadores deben preservar campos desconocidos al releer, modificar el estado y serializarlo; una versión anterior puede ignorar datos de plugin sin reinterpretar el DAG.
+
+`meta` y `nodes[id].plugins` son keyspaces disjuntos del mismo node. Bajo el lock compartido, una mutación core de `meta` preserva `plugins`, y una mutación `data.node.set` preserva `meta`; la última escritura solo puede ganar dentro del campo que modifica, nunca borra el otro keyspace.
 
 La regla del proyecto queda actualizada: se incrementa la versión y se migra solo cuando un cambio elimina o reinterpreta datos existentes, hace obligatorio un campo para comportamiento correcto, cambia semántica core o impide que una CLI anterior lea y escriba con seguridad. Una extensión opcional y preservable como `plugins` no cumple esas condiciones.
 
@@ -151,40 +186,37 @@ Matriz V1:
 |---|---|
 | `show` | Devuelve el node raw, incluido su campo opcional `plugins`. |
 | `context`, `status`, `search`, `history` | Mantienen su contrato v2 y no derivan semántica desde esos datos. |
-| Mutaciones core ordinarias | Preservan los namespaces `plugins` que no modifican. |
-| `snapshots` y `restore` | Copian/restauran raw state, por lo que preservan los datos embebidos. |
+| Mutaciones core ordinarias | Preservan root `plugins`, `nodes[*].plugins` y los keyspaces disjuntos del node. |
+| `snapshots` y `restore` | Copian/restauran raw state y preservan los datos embebidos. |
 | `init --force` | Reemplaza intencionalmente todo el estado por un proyecto vacío, incluidos datos de plugin. |
 | Plugin desinstalado | Los datos permanecen raw e inertes; el core no los interpreta ni los borra. |
 
-`plugins` no introduce una segunda máquina de estados. `ready`, `blocked`, `in_progress`, `done`, `resolved` y demás lifecycle core mantienen su significado. Un validator guarda `validation.phase` y `validation.verdict`, pero no modifica `deriveV2`, `take`, `resolve` ni `BLOCKS`.
+`plugins` no introduce una segunda máquina de estados. `ready`, `blocked`, `in_progress`, `done`, `resolved` y demás lifecycle core mantienen su significado.
 
-### Plugin validator de referencia
+### Fixture y acceptance del host
 
-El paquete de referencia debe implementar:
+V1 incluye un fixture de prueba, no un plugin de producto. El fixture declara `climier.id`, un namespace y un comando que consulta contexto y escribe datos de node/proyecto.
 
-```text
-climier validator validate T-1 --as validator
-```
+Acceptance verificable del host:
 
-Acceptance verificable del paquete y del host:
-
-1. Con un node existente `T-1`, el comando devuelve JSON `{ ok: true|false, task: "T-1", verdict: "pass"|"fail"|"blocked" }`.
-2. Antes de ejecutar el check, persiste `validation.phase = "running"` en `nodes["T-1"].plugins["@climier/validator"].data`.
-3. Al terminar, persiste `validation.phase = "finished"`, `validation.verdict` y un array JSON de checks.
-4. Un check de fixture exitoso produce `verdict: "pass"`; uno fallido produce `verdict: "fail"`; evidencia ausente produce `verdict: "blocked"`.
-5. No cambia `node.status`, edges, claims ni estados derivados.
-
-El core no contiene una regla especial para validator, no agrega `VALIDATION` como entidad y no cambia sus estados.
+1. `install` acepta un paquete/route con descriptor válido que incluya `climier.id`, `command` y `entry`; falta de `id`, descriptor, import o shape devuelve su error estructurado durante instalación y no deja un plugin registrado.
+2. El dispatcher ejecuta `climier <namespace> <subcommand>`; preserva args del plugin, extrae `--project`/`--as`, rechaza subcommands desconocidos con exit `1` y mantiene exit `2` para namespaces desconocidos.
+3. El fixture puede leer `runtime`, `query.context`, escribir `data.node` y `data.project`; las escrituras quedan namespaced, son atómicas y registran agente/acción sin volcar el valor completo al log.
+4. Un handler que lanza devuelve `PLUGIN_HANDLER_FAILED` en el envelope JSON estructurado y exit `1`.
+5. Datos no JSON se rechazan sin cambio de estado ni entrada de log.
+6. Un estado v2 con datos root y node de plugins conserva esos datos al ejecutar cada mutador core aplicable, al snapshot/restore y al uninstall/reinstall del mismo `climier.id`; la derivación DAG continúa idéntica.
+7. Dos `install` concurrentes se serializan mediante el lock global y no dejan un registro de plugin duplicado o incompleto.
+8. Una mutación de `meta` y una `data.node.set` sobre el mismo node preservan ambos keyspaces.
 
 ### Secuencia de implementación posterior al ADR
 
-Ninguna task de implementación arranca hasta que el ADR derivado esté resuelto. El orden esperado es:
+Ninguna task de implementación arranca hasta que el ADR derivado esté resuelto. Después se crean estas tasks bloqueadas por ese ADR, con acceptance extraída de la sección anterior:
 
-1. helpers de compatibilidad v2 y persistencia `plugins`, con límites y pruebas de round-trip/concurrencia;
-2. lock global, `install`/`uninstall` y discovery npm, con pruebas de instalación concurrente;
-3. descriptor, loader lazy y dispatcher namespaced, con colisiones, import roto y flags globales;
-4. API `query`/`data`, log e identidad, con errores JSON y datos desinstalados preservados;
-5. fixture plugin y validator de referencia, con la acceptance anterior;
+1. persistencia compatible v2 y pruebas de preservación/restore;
+2. lock global, instalación/desinstalación npm e identidad `climier.id`;
+3. descriptor, loader lazy, namespaces reservados y dispatcher;
+4. API `runtime`/`query`/`data`, identidad, log y errores;
+5. fixture de tests e integración end-to-end;
 6. documentación de instalación y autoría.
 
 ### Exclusiones expresas
@@ -197,7 +229,7 @@ También quedan fuera de V1:
 - hooks, eventos, daemons, colas y ejecución automática tras `resolve`;
 - nuevos tipos de node, edge o lifecycle core;
 - participación de datos de plugin en `ready`, `blocked` o satisfacción de `BLOCKS`;
-- permisos, firmas, sandbox, aprobación por proyecto, enable/disable y registry propio;
+- permisos, firmas, hashes, pinning, sandbox, aprobación por proyecto, enable/disable y registry propio;
 - frontend arbitrario, rutas, componentes o acciones UI;
 - configuración de plugin en `.climier.json`;
 - secretos, artefactos grandes, sincronización remota y almacenamiento externo gestionado por el host.
@@ -206,33 +238,32 @@ También quedan fuera de V1:
 
 | Opción | Pros | Contras |
 |---|---|---|
-| Seguir agregando features al core | Contratos actuales simples; no hay loader | Cada integración requiere editar, probar y publicar Climier; validator/agentes/memoria no son reutilizables como paquetes. |
+| Seguir agregando features al core | Contratos actuales simples; no hay loader | Cada integración requiere editar, probar y publicar Climier. |
 | Plugins solo como scripts que leen/escriben archivos | Casi no exige cambios al CLI | Rompe lock, atomicidad, schema y logs; no integra comandos ni datos de forma segura. |
-| Host amplio desde el inicio: `core.run`, hooks, workers, UI custom y políticas de DAG | Máxima expresividad inicial | Diseña reentrancia, transacciones, eventos y superficie core antes de tener consumidor; dificulta implementar y probar el primer plugin. |
-| **Host V1: install/uninstall, namespace de comandos, query y datos compatibles; sin UI ni automatización** | Prueba instalación, comandos y persistencia con validator/agentes/memoria; conserva invariantes core y es pequeño de verificar | No permite que un plugin cree/modifique entidades core ni automatiza trabajo; esas necesidades se investigan en V2 cuando existan casos reales. |
+| Host amplio desde el inicio: `core.run`, hooks, workers, UI custom y políticas de DAG | Máxima expresividad inicial | Diseña reentrancia, transacciones, eventos y superficie core antes de tener consumidor. |
+| **Host V1: install/uninstall, id explícito, namespace de comandos, query y datos compatibles; sin UI ni automatización** | Prueba instalación, dispatch y persistencia independiente del package npm; conserva invariantes core y es pequeño de verificar | No permite que un plugin cree/modifique entidades core ni automatiza trabajo; esas necesidades se investigan en V2 cuando existan casos reales. |
 
 ## Alcance
 
 - Dentro:
-  - campos opcionales `plugins` compatibles con schema v2, límites y pruebas de preservación;
-  - instalación/desinstalación npm bajo `CLIMIER_HOME`, lock global, discovery y errores estructurados;
-  - descriptor mínimo en `package.json`, carga ESM lazy y dispatcher por namespace;
+  - campos opcionales `plugins` compatibles con schema v2 y pruebas de preservación;
+  - instalación/desinstalación npm bajo `CLIMIER_HOME`, lock global, identidad `climier.id`, discovery y errores estructurados;
+  - descriptor mínimo en `package.json`, validación al instalar, carga ESM lazy y dispatcher por namespace;
   - API V1 `runtime`, `query` y `data` con lock, log, identidad y JSON validado;
-  - pruebas unitarias, de CLI y de concurrencia para datos, instalación y dispatch;
-  - fixture plugin y validator de referencia con acceptance verificable;
+  - fixtures y pruebas unitarias, CLI, compatibilidad, snapshot/restore y concurrencia;
   - documentación de autoría, instalación y forma de error del plugin API V1.
-- Fuera: lo enumerado en `§Exclusiones expresas`, incluido UI y el RFC V2 de operaciones core.
+- Fuera: lo enumerado en `§Exclusiones expresas`, incluido UI, plugins de producto y el RFC V2 de operaciones core.
 
 ## Riesgos y open questions
 
-- Un package npm puede ejecutar código con permisos del usuario → instalar es una acción explícita de confianza; V1 no afirma sandboxing.
+- Un package npm puede ejecutar código con permisos del usuario → instalar es una acción explícita de confianza; V1 no afirma sandboxing, pinning ni protección contra sustitución maliciosa de un paquete en npm.
 - npm puede no existir en una instalación Node mínima → `install` falla explícitamente, sin fallback silencioso ni dependencia runtime nueva.
 - Un plugin puede bloquear su propio comando → handlers deben devolver su promesa y no iniciar trabajo en background; V1 no ofrece timeout ni scheduler.
-- El parser actual resuelve flags antes del comando → el dispatcher debe extraer `--project` sin cambiar el comportamiento documentado de comandos core ni sus boolean flags.
-- Los datos de plugin pueden inflar `tasks.json` → V1 fija límites concretos; knowledge continúa siendo el mecanismo para hechos durables reutilizables.
+- El parser actual resuelve flags antes del comando → el dispatcher debe extraer flags host sin cambiar el comportamiento documentado de comandos core ni sus boolean flags.
+- No hay límite de datos de plugin por decisión de producto → el usuario asume el coste de `tasks.json`; knowledge continúa siendo el mecanismo para hechos durables reutilizables.
 - Una CLI v2 anterior puede ignorar datos de plugin → es seguro mientras se mantengan opcionales y no afecten lifecycle/DAG; un cambio que deje de cumplirlo exige bump y migración.
-- Automatizar validator o ejecutar operaciones core requiere eventos/locking compuesto → ambos quedan fuera y son la razón de la entrada backlog V2.
+- Automatización y operaciones core requieren eventos/locking compuesto → ambos quedan fuera y son la razón de `T-plugin-v2-rfc-backlog`.
 
 ## ADR derivado (se completa al aprobar)
 
-- [ ] ADR-005: host de plugins V1 — instalación, dispatch, API de datos y compatibilidad v2 → `.adrs/005-plugin-host-v1.md`
+- [ ] ADR-005: host de plugins V1 — instalación, identidad, dispatch, API de datos y compatibilidad v2 → `.adrs/005-plugin-host-v1.md`
