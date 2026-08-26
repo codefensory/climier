@@ -46,17 +46,21 @@ El paquete npm es solo el origen de instalación. La identidad persistida del pl
 }
 ```
 
-- `id` es un string no vacío, único entre los plugins instalados; se usa como key de datos y argumento de `uninstall`.
+- `id` debe coincidir con `^[A-Za-z0-9][A-Za-z0-9._-]*$`, es único entre los plugins instalados y se usa como key de datos y argumento de `uninstall`.
 - `command` es el namespace CLI; también debe ser único y no puede coincidir con un comando core reservado.
 - `entry` es la ruta ESM del paquete.
 
-Si el descriptor no contiene `climier.id`, `install` falla con `PLUGIN_INVALID_DESCRIPTOR` y `details.field = "climier.id"`; no se registra como plugin instalado. Si otro paquete ya declara ese id, la instalación falla con `PLUGIN_ID_CONFLICT`. Para reemplazar un plugin se ejecuta primero `climier uninstall <id>` y luego `climier install <origen>`.
+Si el descriptor no contiene `climier.id`, `install` falla con `PLUGIN_INVALID_DESCRIPTOR` y `details.field = "climier.id"`; si otro paquete ya declara ese id, falla con `PLUGIN_ID_CONFLICT`. Para reemplazar un plugin se ejecuta primero `climier uninstall <id>` y luego `climier install <origen>`.
 
-No existe `enable`, `disable`, registry propio ni configuración de plugins en `.climier.json`. `install` usa npm como proceso externo contra un prefijo bajo `CLIMIER_HOME`; acepta una ruta local que npm pueda instalar. Si npm no está disponible, devuelve un error estructurado; el core no agrega una librería npm como dependencia runtime.
+No existe `enable`, `disable`, registry central propio ni configuración de plugins en `.climier.json`. `install` usa npm como proceso externo y acepta una ruta local que npm pueda instalar. Si npm no está disponible, devuelve un error estructurado; el core no agrega una librería npm como dependencia runtime.
 
-`install` y `uninstall` usan un lock global bajo `CLIMIER_HOME/plugins` porque el prefijo es compartido entre todos los proyectos de la máquina. El lock serializa operaciones iniciadas por Climier; la consistencia de staging, lockfiles y árbol `node_modules` interno se delega a npm. Tras instalar, el host valida el descriptor, importa el entrypoint y verifica que su export default tenga `commands` como objeto de funciones. Si esa validación falla, la instalación se revierte y devuelve `PLUGIN_INVALID_DESCRIPTOR` o `PLUGIN_LOAD_FAILED`.
+Cada plugin instalado tiene un prefijo npm autocontenido en `CLIMIER_HOME/plugins/installed/<climier.id>/`; su `package.json` y el `node_modules` que npm creó conservan el descriptor y el paquete directo. No hay índice o manifest de registro adicional: discovery y `uninstall` derivan la instalación de ese directorio determinista.
 
-`uninstall <id>` resuelve el paquete instalado buscando el descriptor cuyo `climier.id` coincida, elimina su código y conserva los datos ya escritos en estados de proyecto. No habrá `purge` en V1. Instalar código sigue siendo una acción explícita de confianza del usuario: V1 no agrega firmas, hashes, pinning ni sandboxing.
+`install` y `uninstall` usan un lock global bajo `CLIMIER_HOME/plugins` porque ese árbol es compartido por todos los proyectos de la máquina. Bajo el lock, `install` crea un prefijo vacío en `CLIMIER_HOME/plugins/.staging/<nonce>`, ejecuta `npm install --prefix` contra el origen y obtiene el único paquete directo del `package.json` generado por npm. Lee su descriptor, valida `id`/`command`/`entry`, importa el entrypoint y exige un export default con `commands` como objeto de funciones. Tras verificar que id y namespace no colisionen con los directorios instalados, promociona el staging mediante rename a `installed/<climier.id>`.
+
+Si npm, descriptor, import o shape fallan, el host elimina solo el directorio de staging con `fs.rm` y devuelve `PLUGIN_INVALID_DESCRIPTOR` o `PLUGIN_LOAD_FAILED`; no ejecuta un rollback con npm ni promete revertir side effects arbitrarios del módulo importado. El lock serializa operaciones iniciadas por Climier; npm sigue siendo responsable de la consistencia interna de cada prefijo individual.
+
+`uninstall <id>` elimina el directorio determinista `installed/<id>` y conserva los datos ya escritos en estados de proyecto. No habrá `purge` en V1. Instalar código sigue siendo una acción explícita de confianza del usuario: V1 no agrega firmas, hashes, pinning ni sandboxing.
 
 ### Forma de un plugin y dispatch
 
@@ -82,7 +86,7 @@ El dispatcher vive en `bin/climier.mjs`, antes del fallback que importa `src/com
 
 1. Si el primer token no es un comando core ni un namespace instalado, conserva el error actual de comando desconocido y exit `2`.
 2. Si coincide con un namespace instalado, el segundo token es el `subcommand` y se resuelve como `commands[subcommand]`.
-3. `--project` y `--as` se extraen para el host y no aparecen en `args`; el resto de tokens después del subcommand se entrega intacto al plugin. `CLIMIER_AGENT` no es un argumento: es el fallback existente cuando no hay `--as`.
+3. El host resuelve `--project` y `--as` para sí mismo, pero entrega al handler una copia de todos los tokens de la invocación salvo namespace y subcommand, en su orden original: incluye `--project` y `--as` cuando estén presentes, incluso antes del namespace. El resto de flags, incluidos booleanos como `--force` o `--all`, llega intacto y sin validación del parser core. Los flags globales siguen reservados: los valores efectivos son `api.runtime.project_dir` y `api.runtime.agent`; los tokens reenviados no pueden alterarlos. `CLIMIER_AGENT` no es un argumento: es el fallback existente cuando no hay `--as`.
 4. Una invocación de namespace válido sin subcommand o con subcommand inexistente falla con `PLUGIN_SUBCOMMAND_NOT_FOUND`, envelope estructurado y exit `1`.
 
 Los comandos core conservan su parser y comportamiento actuales. La lista de namespaces core reservados debe vivir en un módulo único exportado y tener una prueba de unicidad contra el dispatcher; incluye los comandos existentes más `install` y `uninstall`. Un node id no choca con un namespace: por ejemplo, `climier show install` sigue siendo válido porque `install` ahí es un argumento de `show`.
@@ -195,18 +199,18 @@ Matriz V1:
 
 ### Fixture y acceptance del host
 
-V1 incluye un fixture de prueba, no un plugin de producto. El fixture declara `climier.id`, un namespace y un comando que consulta contexto y escribe datos de node/proyecto.
+V1 incluye un fixture de prueba, no un plugin de producto. El fixture declara `climier.id`, un namespace y comandos mínimos que ejercitan cada método `query.*`, `data.*` y `runtime` de V1.
 
 Acceptance verificable del host:
 
-1. `install` acepta un paquete/route con descriptor válido que incluya `climier.id`, `command` y `entry`; falta de `id`, descriptor, import o shape devuelve su error estructurado durante instalación y no deja un plugin registrado.
-2. El dispatcher ejecuta `climier <namespace> <subcommand>`; preserva args del plugin, extrae `--project`/`--as`, rechaza subcommands desconocidos con exit `1` y mantiene exit `2` para namespaces desconocidos.
-3. El fixture puede leer `runtime`, `query.context`, escribir `data.node` y `data.project`; las escrituras quedan namespaced, son atómicas y registran agente/acción sin volcar el valor completo al log.
+1. `install` acepta un paquete/ruta con descriptor válido que incluya `climier.id`, `command` y `entry`, lo promueve desde staging al prefijo determinista del id y deja el descriptor descubrible allí. Falta de `id`, descriptor, import o shape devuelve su error estructurado, no deja directorio instalado ni staging residual y no registra un plugin.
+2. El dispatcher ejecuta `climier <namespace> <subcommand>`; reenvía al plugin los tokens originales, incluidos `--project`, `--as` y booleanos propios, mientras resuelve los dos flags globales para `runtime`; rechaza subcommands desconocidos con exit `1` y mantiene exit `2` para namespaces desconocidos.
+3. El fixture puede leer `runtime`, `query.node`, `query.context`, `query.status` y `query.history`, y leer/escribir `data.node` y `data.project`; las escrituras quedan namespaced, son atómicas y registran agente/acción sin volcar el valor completo al log.
 4. Un handler que lanza devuelve `PLUGIN_HANDLER_FAILED` en el envelope JSON estructurado y exit `1`.
 5. Datos no JSON se rechazan sin cambio de estado ni entrada de log.
-6. Un estado v2 con datos root y node de plugins conserva esos datos al ejecutar cada mutador core aplicable, al snapshot/restore y al uninstall/reinstall del mismo `climier.id`; la derivación DAG continúa idéntica.
-7. Dos `install` concurrentes se serializan mediante el lock global y no dejan un registro de plugin duplicado o incompleto.
-8. Una mutación de `meta` y una `data.node.set` sobre el mismo node preservan ambos keyspaces.
+6. Un estado v2 con datos root y node de plugins conserva esos datos al ejecutar `take`, `resolve`, `release`, `reopen`, `cancel`, `update`, `add-note`, `add-task`, `add-gate`, `add-knowledge`, `deprecate-knowledge`, `add-initiative`, `add-node` y `add-edge`; snapshot/restore y uninstall/reinstall del mismo `climier.id` también los preservan y la derivación DAG continúa idéntica.
+7. Una prueba inicia dos procesos `climier install` del mismo fixture en paralelo, usando un stub controlado de npm para demostrar que el segundo no entra a instalar hasta que el primero libera el lock; el resultado es una instalación válida y un único segundo fallo estructurado `PLUGIN_ID_CONFLICT`, sin staging residual ni directorio incompleto.
+8. Una prueba inicia en paralelo `climier update <id> --meta ...` y un comando fixture que hace `data.node.set(<id>, ...)`; ambos terminan correctamente y el node final conserva exactamente ambos keyspaces.
 
 ### Secuencia de implementación posterior al ADR
 
@@ -259,7 +263,7 @@ También quedan fuera de V1:
 - Un package npm puede ejecutar código con permisos del usuario → instalar es una acción explícita de confianza; V1 no afirma sandboxing, pinning ni protección contra sustitución maliciosa de un paquete en npm.
 - npm puede no existir en una instalación Node mínima → `install` falla explícitamente, sin fallback silencioso ni dependencia runtime nueva.
 - Un plugin puede bloquear su propio comando → handlers deben devolver su promesa y no iniciar trabajo en background; V1 no ofrece timeout ni scheduler.
-- El parser actual resuelve flags antes del comando → el dispatcher debe extraer flags host sin cambiar el comportamiento documentado de comandos core ni sus boolean flags.
+- El dispatcher de plugin identifica y resuelve solo `--project` y `--as` como flags globales, sin cambiar el parser ni el comportamiento de comandos core; reenvía todos los tokens, incluidos esos dos y booleanos, al handler para que el autor del plugin los interprete si lo necesita.
 - No hay límite de datos de plugin por decisión de producto → el usuario asume el coste de `tasks.json`; knowledge continúa siendo el mecanismo para hechos durables reutilizables.
 - Una CLI v2 anterior puede ignorar datos de plugin → es seguro mientras se mantengan opcionales y no afecten lifecycle/DAG; un cambio que deje de cumplirlo exige bump y migración.
 - Automatización y operaciones core requieren eventos/locking compuesto → ambos quedan fuera y son la razón de `T-plugin-v2-rfc-backlog`.
