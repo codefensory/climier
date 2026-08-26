@@ -1,6 +1,6 @@
 # ADR-005: host de plugins V1
 
-- Gate: `G-plugin-host-v1-adr` · Deriva de: `G-plugin-platform-rfc` · Estado: borrador
+- Gate: `G-plugin-host-v1-adr` · Deriva de: `G-plugin-platform-rfc` · Estado: aprobado
 - Fecha: 2026-08-26
 
 ## Contexto
