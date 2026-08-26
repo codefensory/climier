@@ -231,7 +231,7 @@ test("plugin-dispatch: dispatches to handler and returns its result with forward
     const createApi = ({ projectDir, agent, pluginId }) => {
       receivedApi = { projectDir, agent, pluginId };
       return {
-        runtime: { project_dir: projectDir, agent, plugin_id: pluginId },
+        runtime: { project_dir: projectDir, agent },
         query: {},
         data: {},
       };
@@ -250,7 +250,6 @@ test("plugin-dispatch: dispatches to handler and returns its result with forward
     assert.deepEqual(result.args, ["--project", env.projectDir, "--as", "alice", "--foo", "bar"]);
     assert.equal(result.api_runtime.project_dir, env.projectDir);
     assert.equal(result.api_runtime.agent, "alice");
-    assert.equal(result.api_runtime.plugin_id, "audit");
     assert.deepEqual(receivedApi, {
       projectDir: env.projectDir,
       agent: "alice",
@@ -271,7 +270,7 @@ test("plugin-dispatch: missing subcommand throws PLUGIN_SUBCOMMAND_NOT_FOUND wit
           projectDir: env.projectDir,
           flags: { as: "alice" },
           createApi: ({ projectDir, agent, pluginId }) => ({
-            runtime: { project_dir: projectDir, agent, plugin_id: pluginId },
+            runtime: { project_dir: projectDir, agent },
             query: {},
             data: {},
           }),
@@ -296,7 +295,7 @@ test("plugin-dispatch: unknown subcommand throws PLUGIN_SUBCOMMAND_NOT_FOUND", a
           projectDir: env.projectDir,
           flags: { as: "alice" },
           createApi: ({ projectDir, agent, pluginId }) => ({
-            runtime: { project_dir: projectDir, agent, plugin_id: pluginId },
+            runtime: { project_dir: projectDir, agent },
             query: {},
             data: {},
           }),
@@ -321,7 +320,7 @@ test("plugin-dispatch: handler throwing is mapped to PLUGIN_HANDLER_FAILED with 
         projectDir: env.projectDir,
         flags: { as: "alice" },
         createApi: ({ projectDir, agent, pluginId }) => ({
-          runtime: { project_dir: projectDir, agent, plugin_id: pluginId },
+          runtime: { project_dir: projectDir, agent },
           query: {},
           data: {},
         }),
@@ -350,7 +349,7 @@ test("plugin-dispatch: handler throwing an existing PLUGIN_* error is propagated
         projectDir: env.projectDir,
         flags: { as: "alice" },
         createApi: ({ projectDir, agent, pluginId }) => ({
-          runtime: { project_dir: projectDir, agent, plugin_id: pluginId },
+          runtime: { project_dir: projectDir, agent },
           query: {},
           data: {},
         }),
@@ -374,7 +373,7 @@ test("plugin-dispatch: forwarded tokens preserve original order even when flags 
       projectDir: "/tmp/p",
       flags: { project: "/tmp/p", as: "alice" },
       createApi: ({ projectDir, agent, pluginId }) => ({
-        runtime: { project_dir: projectDir, agent, plugin_id: pluginId },
+        runtime: { project_dir: projectDir, agent },
         query: {},
         data: {},
       }),
@@ -397,7 +396,7 @@ test("plugin-dispatch: missing --as throws PLUGIN_HANDLER_FAILED with agent deta
         projectDir: env.projectDir,
         flags: {},
         createApi: ({ projectDir, agent, pluginId }) => ({
-          runtime: { project_dir: projectDir, agent, plugin_id: pluginId },
+          runtime: { project_dir: projectDir, agent },
           query: {},
           data: {},
         }),
@@ -437,7 +436,7 @@ test("plugin-dispatch: api.runtime uses effective project/agent even if forwarde
       projectDir: env.projectDir,
       flags: { project: env.projectDir, as: "alice" },
       createApi: ({ projectDir, agent, pluginId }) => ({
-        runtime: { project_dir: projectDir, agent, plugin_id: pluginId },
+        runtime: { project_dir: projectDir, agent },
         query: {},
         data: {},
       }),
@@ -523,7 +522,6 @@ test("bin: installed namespace dispatches to its handler and returns its JSON", 
     assert.deepEqual(data.args, ["--project", env.projectDir, "--as", "alice", "--foo", "bar"]);
     assert.equal(data.api_runtime.project_dir, env.projectDir);
     assert.equal(data.api_runtime.agent, "alice");
-    assert.equal(data.api_runtime.plugin_id, "audit");
   });
 });
 
