@@ -970,3 +970,594 @@ test("api.core.run: an opaque core error (no code/details) is normalized to CORE
     await rmTempProject(dir);
   }
 });
+
+// =========================================================================
+// T-plugin-core-parity — api.core.run for the 11 remaining ops
+// (ADR-006 §"API y compatibilidad").
+//
+// Each parity op must:
+//   - dispatch through core.run to its real handler;
+//   - return the handler's normal envelope (no PLUGIN_* envelope);
+//   - leave its log entry tagged with plugin_id (the parity handlers
+//     were adapted to use appendWithContext in this slice);
+//   - leave CLI invocations unchanged (no plugin_id tag when the
+//     handler is called without ctx.pluginId).
+// =========================================================================
+
+// Init a fresh v2 project with the `plugin-platform` initiative registered.
+// Parity tests below need a valid registered initiative for the resolvable
+// creation ops (task.update/etc indirectly, gate.create, knowledge.create),
+// so this helper insulates each test from the boilerplate.
+async function readyProject() {
+  const dir = await createTempProject();
+  const { default: init } = await importFresh("./commands/init.mjs");
+  const { default: addInit } = await importFresh("./commands/add-initiative.mjs");
+  await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+  await addInit({
+    statePath: dir,
+    flags: { desc: "plugin platform" },
+    positional: ["plugin-platform"],
+  });
+  return dir;
+}
+
+// ---- initiative.create ---------------------------------------------
+
+test("api.core.run: initiative.create dispatches to add-initiative and returns the initiative envelope", async () => {
+  const dir = await readyProject();
+  try {
+    const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
+    const out = await api.core.run({
+      op: "initiative.create",
+      input: { name: "fresh-initiative", desc: "parity slice" },
+    });
+    assert.ok(out && out.initiative, "handler returned an initiative envelope");
+    assert.equal(out.initiative.name, "fresh-initiative");
+    assert.equal(out.initiative.desc, "parity slice");
+    const after = await readRawState(dir);
+    assert.ok(after.initiatives["fresh-initiative"], "initiative is registered in state");
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("api.core.run: initiative.create without name throws PLUGIN_CORE_INVALID_OPERATION", async () => {
+  const dir = await readyProject();
+  try {
+    const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
+    await assert.rejects(
+      api.core.run({ op: "initiative.create", input: { desc: "no name" } }),
+      (err) =>
+        err &&
+        err.code === "PLUGIN_CORE_INVALID_OPERATION" &&
+        /missing required field 'name'/.test(err.details.reason || ""),
+    );
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+// ---- task.update ----------------------------------------------------
+
+test("api.core.run: task.update dispatches to update with positional [id] and bumps revision", async () => {
+  const dir = await readyProject();
+  try {
+    const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
+    // Seed a task via task.create.
+    const created = await api.core.run({
+      op: "task.create",
+      input: {
+        id: "T-parity-update",
+        initiative: "plugin-platform",
+        title: "before",
+        body: "b",
+        acceptance: "a",
+        blocked_by: "",
+      },
+    });
+    assert.equal(created.node.revision, 1);
+    // Now patch its title via task.update.
+    const updated = await api.core.run({
+      op: "task.update",
+      input: { id: "T-parity-update", title: "after" },
+    });
+    assert.equal(updated.node.title, "after");
+    assert.equal(updated.node.revision, 2, "task.update bumps revision by exactly 1");
+    const after = await readRawState(dir);
+    assert.equal(after.nodes["T-parity-update"].title, "after");
+    assert.equal(after.nodes["T-parity-update"].revision, 2);
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("api.core.run: task.update log entry carries plugin_id (parity handler uses appendWithContext)", async () => {
+  const dir = await readyProject();
+  try {
+    const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
+    await api.core.run({
+      op: "task.create",
+      input: {
+        id: "T-parity-update-log",
+        initiative: "plugin-platform",
+        title: "x",
+        body: "b",
+        acceptance: "a",
+        blocked_by: "",
+      },
+    });
+    await api.core.run({
+      op: "task.update",
+      input: { id: "T-parity-update-log", title: "y" },
+    });
+    const after = await readRawState(dir);
+    const updateLogs = after.log.filter(
+      (e) => e.action === "update" && e.node === "T-parity-update-log",
+    );
+    assert.ok(updateLogs.length === 1, "exactly one update log entry");
+    assert.equal(updateLogs[0].plugin_id, "example.audit", "parity log carries plugin_id");
+    assert.equal(updateLogs[0].agent, "alice", "log records api.runtime.agent, not the plugin id");
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+// ---- task.release / task.reopen / task.cancel -----------------------
+
+test("api.core.run: task.release dispatches to release after a take (idempotent lifecycle)", async () => {
+  const dir = await readyProject();
+  try {
+    const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
+    const created = await api.core.run({
+      op: "task.create",
+      input: {
+        id: "T-parity-release",
+        initiative: "plugin-platform",
+        title: "release me",
+        body: "b",
+        acceptance: "a",
+        blocked_by: "",
+      },
+    });
+    assert.equal(created.node.status, "open");
+    await api.core.run({ op: "task.take", input: { id: "T-parity-release" } });
+    const released = await api.core.run({ op: "task.release", input: { id: "T-parity-release" } });
+    assert.equal(released.released, true, "release produced the released:true envelope");
+    assert.equal(released.node.status, "open", "status returned to open after release");
+    assert.equal(released.node.claim, null, "claim cleared after release");
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("api.core.run: task.cancel dispatches to cancel and sets status='canceled'", async () => {
+  const dir = await readyProject();
+  try {
+    const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
+    await api.core.run({
+      op: "task.create",
+      input: {
+        id: "T-parity-cancel",
+        initiative: "plugin-platform",
+        title: "cancel me",
+        body: "b",
+        acceptance: "a",
+        blocked_by: "",
+      },
+    });
+    // Take it first so alice owns the claim; otherwise cancel refuses with
+    // NOT_OWNER (cancel requires claim ownership or orchestrator).
+    await api.core.run({ op: "task.take", input: { id: "T-parity-cancel" } });
+    const out = await api.core.run({
+      op: "task.cancel",
+      input: { id: "T-parity-cancel", reason: "out of scope" },
+    });
+    assert.equal(out.node.status, "canceled");
+    assert.equal(out.node.claim, null, "claim cleared on cancel");
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("api.core.run: task.cancel without --reason is rejected by the adapter as PLUGIN_CORE_INVALID_OPERATION (required-field check, before lock)", async () => {
+  const dir = await readyProject();
+  try {
+    const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
+    // The registry requires `reason` for task.cancel; the adapter
+    // enforces it before any lock is taken and surfaces as
+    // PLUGIN_CORE_INVALID_OPERATION with details.reason set, never
+    // reaching the handler's own MISSING_FIELD branch.
+    await assert.rejects(
+      api.core.run({ op: "task.cancel", input: { id: "T-parity-cancel-no-reason" } }),
+      (err) =>
+        err &&
+        err.code === "PLUGIN_CORE_INVALID_OPERATION" &&
+        /missing required field 'reason'/.test(err.details.reason || ""),
+    );
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("api.core.run: task.reopen works after a resolve (close -> roll back to open)", async () => {
+  const dir = await readyProject();
+  try {
+    const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
+    await api.core.run({
+      op: "task.create",
+      input: {
+        id: "T-parity-reopen",
+        initiative: "plugin-platform",
+        title: "reopen me",
+        body: "b",
+        acceptance: "a",
+        blocked_by: "",
+      },
+    });
+    await api.core.run({ op: "task.take", input: { id: "T-parity-reopen" } });
+    await api.core.run({ op: "task.resolve", input: { id: "T-parity-reopen", note: "shipped" } });
+    const reopened = await api.core.run({
+      op: "task.reopen",
+      input: { id: "T-parity-reopen", reason: "wrong acceptance" },
+    });
+    assert.equal(reopened.node.status, "open");
+    assert.equal(reopened.node.claim, null, "claim cleared by reopen");
+    assert.equal(reopened.node.done_by, undefined, "done_by cleared by reopen");
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+// ---- gate.create / gate.resolve / gate.reopen / gate.cancel ----------
+
+test("api.core.run: gate.create dispatches to add-gate and stores a gate node with --purpose", async () => {
+  const dir = await readyProject();
+  try {
+    const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
+    const out = await api.core.run({
+      op: "gate.create",
+      input: {
+        id: "G-parity-create",
+        initiative: "plugin-platform",
+        title: "gate decision",
+        body: "pick the way",
+        purpose: "decision",
+      },
+    });
+    assert.ok(out.node, "gate envelope present");
+    assert.equal(out.node.subkind, "gate");
+    assert.equal(out.node.purpose, "decision");
+    const after = await readRawState(dir);
+    assert.ok(after.nodes["G-parity-create"], "gate is in state");
+    assert.equal(after.nodes["G-parity-create"].subkind, "gate");
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("api.core.run: gate.create without --purpose throws PLUGIN_CORE_INVALID_OPERATION", async () => {
+  const dir = await readyProject();
+  try {
+    const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
+    await assert.rejects(
+      api.core.run({
+        op: "gate.create",
+        input: {
+          id: "G-parity-no-purpose",
+          initiative: "plugin-platform",
+          title: "x",
+          body: "b",
+        },
+      }),
+      (err) =>
+        err &&
+        err.code === "PLUGIN_CORE_INVALID_OPERATION" &&
+        /missing required field 'purpose'/.test(err.details.reason || ""),
+    );
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("api.core.run: gate.resolve stores resolution = {choice, rationale}", async () => {
+  const dir = await readyProject();
+  try {
+    const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
+    await api.core.run({
+      op: "gate.create",
+      input: {
+        id: "G-parity-resolve",
+        initiative: "plugin-platform",
+        title: "x",
+        body: "b",
+        purpose: "decision",
+      },
+    });
+    const out = await api.core.run({
+      op: "gate.resolve",
+      input: {
+        id: "G-parity-resolve",
+        choice: "approve V2",
+        rationale: "ADR-006 defines it; parity closes the surface",
+      },
+    });
+    assert.equal(out.node.status, "resolved");
+    assert.deepEqual(out.node.resolution, {
+      choice: "approve V2",
+      rationale: "ADR-006 defines it; parity closes the surface",
+    });
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("api.core.run: gate.resolve without --rationale throws PLUGIN_CORE_INVALID_OPERATION", async () => {
+  const dir = await readyProject();
+  try {
+    const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
+    await api.core.run({
+      op: "gate.create",
+      input: {
+        id: "G-parity-resolve-no-rationale",
+        initiative: "plugin-platform",
+        title: "x",
+        body: "b",
+        purpose: "decision",
+      },
+    });
+    await assert.rejects(
+      api.core.run({
+        op: "gate.resolve",
+        input: { id: "G-parity-resolve-no-rationale", choice: "x" },
+      }),
+      (err) =>
+        err &&
+        err.code === "PLUGIN_CORE_INVALID_OPERATION" &&
+        /missing required field 'rationale'/.test(err.details.reason || ""),
+    );
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("api.core.run: gate.reopen and gate.cancel roll back or terminate gates with --reason", async () => {
+  // Reopening a resolved gate requires either orchestrator or the
+  // original done_by; the resolve handler does not stamp done_by on
+  // gates (gates are not claimable), so reopen only succeeds through
+  // orchestrator. The orchestrator `api` below exercises that path.
+  const dir = await readyProject();
+  try {
+    const apiAlice = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
+    const apiOrchestrator = await freshApi(dir, { agent: "orchestrator", pluginId: "example.audit" });
+    // Resolve path (reopen must follow resolve).
+    await apiAlice.core.run({
+      op: "gate.create",
+      input: {
+        id: "G-parity-reopen",
+        initiative: "plugin-platform",
+        title: "x",
+        body: "b",
+        purpose: "decision",
+      },
+    });
+    await apiAlice.core.run({
+      op: "gate.resolve",
+      input: { id: "G-parity-reopen", choice: "yes", rationale: "first decision" },
+    });
+    const reopened = await apiOrchestrator.core.run({
+      op: "gate.reopen",
+      input: { id: "G-parity-reopen", reason: "second thoughts" },
+    });
+    assert.equal(reopened.node.status, "open", "gate reopened");
+    assert.equal(reopened.node.resolution, undefined, "resolution cleared by reopen");
+
+    // Cancel path on a fresh open gate must run as orchestrator because
+    // gates are not claimable and cancel requires claim ownership OR
+    // orchestrator.
+    await apiAlice.core.run({
+      op: "gate.create",
+      input: {
+        id: "G-parity-cancel",
+        initiative: "plugin-platform",
+        title: "y",
+        body: "b",
+        purpose: "decision",
+      },
+    });
+    const canceled = await apiOrchestrator.core.run({
+      op: "gate.cancel",
+      input: { id: "G-parity-cancel", reason: "irrelevant" },
+    });
+    assert.equal(canceled.node.status, "canceled", "gate cancelled");
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+// ---- knowledge.create / knowledge.deprecate ------------------------
+
+test("api.core.run: knowledge.create dispatches to add-knowledge (requires --scope-*)", async () => {
+  const dir = await readyProject();
+  try {
+    const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
+    const out = await api.core.run({
+      op: "knowledge.create",
+      input: {
+        id: "K-parity-create",
+        initiative: "plugin-platform",
+        title: "appendWithContext seam",
+        body: "log entries gain plugin_id",
+        scope_initiatives: "plugin-platform",
+      },
+    });
+    assert.ok(out.node, "knowledge envelope present");
+    assert.equal(out.node.kind, "knowledge");
+    assert.equal(out.node.status, "active");
+    assert.deepEqual(out.node.scope.initiatives, ["plugin-platform"]);
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("api.core.run: knowledge.create without any --scope-* throws PLUGIN_CORE_ACTION_FAILED", async () => {
+  // The any-of-scope rule is delegated to the handler (the adapter's
+  // `required` check is "all of" only); the handler throws
+  // MISSING_FIELD which the adapter wraps as PLUGIN_CORE_ACTION_FAILED.
+  const dir = await readyProject();
+  try {
+    const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
+    await assert.rejects(
+      api.core.run({
+        op: "knowledge.create",
+        input: {
+          id: "K-parity-no-scope",
+          initiative: "plugin-platform",
+          title: "x",
+          body: "b",
+        },
+      }),
+      (err) =>
+        err &&
+        err.code === "PLUGIN_CORE_ACTION_FAILED" &&
+        err.details.cause &&
+        err.details.cause.code === "MISSING_FIELD",
+    );
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("api.core.run: knowledge.deprecate sets status='deprecated' on an active knowledge node", async () => {
+  const dir = await readyProject();
+  try {
+    const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
+    await api.core.run({
+      op: "knowledge.create",
+      input: {
+        id: "K-parity-deprecate",
+        initiative: "plugin-platform",
+        title: "to deprecate",
+        body: "b",
+        scope_initiatives: "plugin-platform",
+      },
+    });
+    const out = await api.core.run({
+      op: "knowledge.deprecate",
+      input: { id: "K-parity-deprecate", reason: "superseded by ADR-007" },
+    });
+    assert.equal(out.node.status, "deprecated");
+    assert.equal(out.node.deprecated_by, "alice");
+    assert.equal(out.node.deprecation_reason, "superseded by ADR-007");
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("api.core.run: knowledge.deprecate without --reason is rejected by the adapter as PLUGIN_CORE_INVALID_OPERATION", async () => {
+  const dir = await readyProject();
+  try {
+    const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
+    await api.core.run({
+      op: "knowledge.create",
+      input: {
+        id: "K-parity-dep-noreason",
+        initiative: "plugin-platform",
+        title: "x",
+        body: "b",
+        scope_initiatives: "plugin-platform",
+      },
+    });
+    await assert.rejects(
+      api.core.run({ op: "knowledge.deprecate", input: { id: "K-parity-dep-noreason" } }),
+      (err) =>
+        err &&
+        err.code === "PLUGIN_CORE_INVALID_OPERATION" &&
+        /missing required field 'reason'/.test(err.details.reason || ""),
+    );
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+// ---- CLI parity (no plugin_id when pluginId is absent) --------------
+
+test("cli parity: a parity handler called without ctx.pluginId does NOT tag its log entry with plugin_id", async () => {
+  // The seam is opt-in: when the dispatcher is invoked the CLI way
+  // (no pluginId in ctx), appendWithContext drops plugin_id. This is
+  // the same path bin/climier.mjs exercises, so we keep the contract
+  // for callers that wrap the handler directly.
+  const dir = await readyProject();
+  try {
+    await seedState(dir, (s) => {
+      s.nodes["T-cli-parity"] = {
+        id: "T-cli-parity",
+        kind: "resolvable",
+        subkind: "task",
+        title: "cli task",
+        initiative: "plugin-platform",
+        status: "open",
+        revision: 1,
+      };
+      s.initiatives["plugin-platform"] = { desc: "plugin platform" };
+      s.log = [];
+    });
+    const { default: updateV2 } = await importFresh("./commands/update.mjs");
+    await updateV2({
+      statePath: dir,
+      positional: ["T-cli-parity"],
+      flags: { as: "alice", title: "edited from CLI" },
+      projectDir: dir,
+      // no `pluginId` — the CLI passes nothing here.
+    });
+    const after = await readRawState(dir);
+    const updateLog = after.log.filter(
+      (e) => e.action === "update" && e.node === "T-cli-parity",
+    );
+    assert.ok(updateLog.length === 1, "exactly one CLI update log entry");
+    assert.equal(updateLog[0].plugin_id, undefined, "CLI parity: no plugin_id tag");
+    assert.equal(updateLog[0].agent, "alice");
+    assert.equal(after.nodes["T-cli-parity"].title, "edited from CLI");
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("cli parity: parity task.cancel + update chain leaves logs free of plugin_id when called from CLI", async () => {
+  // Wider CLI parity smoke covering release/reopen/cancel/deprecate-knowledge
+  // through their core handlers directly. This prevents plugin-side path
+  // from regressing the existing CLI behavior — the contract that the
+  // CLI bin keeps working exactly as before. Cancel requires claim
+  // ownership OR orchestrator, so this test runs as orchestrator to
+  // exercise the no-claim path (the more interesting CLI case).
+  const dir = await readyProject();
+  try {
+    await seedState(dir, (s) => {
+      s.nodes["T-cli-parity-2"] = {
+        id: "T-cli-parity-2",
+        kind: "resolvable",
+        subkind: "task",
+        title: "cli task 2",
+        initiative: "plugin-platform",
+        status: "open",
+        revision: 1,
+      };
+      s.initiatives["plugin-platform"] = { desc: "plugin platform" };
+      s.log = [];
+    });
+    const { default: cancelV2 } = await importFresh("./commands/cancel.mjs");
+    await cancelV2({
+      statePath: dir,
+      positional: ["T-cli-parity-2"],
+      flags: { as: "orchestrator", reason: "deprioritised" },
+      projectDir: dir,
+    });
+    const after = await readRawState(dir);
+    const lastLog = after.log[after.log.length - 1];
+    assert.equal(lastLog.action, "cancel");
+    assert.equal(lastLog.plugin_id, undefined, "CLI parity: cancel log has no plugin_id");
+    assert.equal(lastLog.agent, "orchestrator");
+    assert.equal(after.nodes["T-cli-parity-2"].status, "canceled");
+  } finally {
+    await rmTempProject(dir);
+  }
+});

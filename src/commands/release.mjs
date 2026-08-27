@@ -10,13 +10,13 @@
 //     claim lifecycle. Surfaces as INVALID_STATUS.
 import { readState, updateState } from "../state.mjs";
 import { withLock } from "../lock.mjs";
-import { append } from "../log.mjs";
+import { appendWithContext } from "../log.mjs";
 import { throwV2 } from "../errors.mjs";
 import { resolveAgent } from "../agent.mjs";
 
 export const knownFlags = ["as"];
 
-export default async function releaseV2({ statePath, flags, positional }) {
+export default async function releaseV2({ statePath, flags, positional, pluginId }) {
   const [id] = positional;
   if (!id) throwV2("MISSING_FIELD", "release: node id required", { field: "id" });
   const projectDir = statePath;
@@ -53,7 +53,11 @@ export default async function releaseV2({ statePath, flags, positional }) {
       target.revision = (target.revision || 0) + 1;
       return st;
     });
-    await append(projectDir, { agent: as, action: "release", node: id });
+    await appendWithContext(
+      projectDir,
+      { agent: as, action: "release", node: id },
+      { pluginId },
+    );
     return { released: true, node: updated.nodes[id] };
   });
 }
