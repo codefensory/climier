@@ -65,7 +65,7 @@ El adaptador construye los valores que cada handler ya recibe y fija `flags.as` 
 
 Cada acción deja el log que produce su comando y añade `plugin_id` al entry. La implementación propaga explícitamente ese dato interno desde el adaptador hasta `append`; no se acepta `plugin_id` dentro de `input` y no se usa un contexto async implícito. La atribución queda visible en `history <id>` sin guardar los valores completos de `body`, `meta` o datos de plugin. La implementación debe conservar el contrato actual de log: cambio y log ocurren dentro del mismo lock, aunque no existe una garantía de grupo entre dos llamadas distintas.
 
-El resultado exitoso de `api.core.run` es el envelope normal del handler correspondiente (`{ node }`, `{ edge }`, `{ initiative }`, etc.), sin un wrapper de secuencia adicional. La primera entrega verificable cubre `api.core.version`, `task.create`, `task.take`, `task.resolve` y `note.add`; las demás operaciones se incorporan usando la misma registry y se validan por grupo.
+El resultado exitoso de `api.core.run` es el envelope normal del handler correspondiente (`{ node }`, `{ edge }`, `{ initiative }`, etc.), sin un wrapper de secuencia adicional. La superficie final de V2 es la lista completa de operaciones de esta sección; no se limita al primer hito. El primer hito de implementación —una decisión de secuenciación, no una reducción de alcance— cubre `api.core.version`, `task.create`, `edge.add`, `task.take`, `task.resolve` y `note.add`, para validar el flujo spec-to-DAG mínimo. Las demás operaciones se incorporan después usando la misma registry y se validan por grupo.
 
 ### Ejemplos de uso
 
@@ -136,7 +136,7 @@ V1 conserva exactamente `runtime`, `query` y `data`. Un host V2 agrega `api.core
 ## Verificación requerida
 
 1. `api.core.version === 2` existe en V2; en V1 `api.core` está ausente y un plugin puede detectarlo sin romper su comando.
-2. La primera entrega cubre `task.create`, `task.take`, `task.resolve` y `note.add`; luego cada operación restante tiene una prueba de paridad: misma entrada y estado inicial producen la misma entidad, lifecycle, validación y error core que el comando CLI equivalente.
+2. El primer hito de implementación cubre `task.create`, `edge.add`, `task.take`, `task.resolve` y `note.add`; esto no reduce la superficie final. Cada operación restante también tiene una prueba de paridad: misma entrada y estado inicial producen la misma entidad, lifecycle, validación y error core que el comando CLI equivalente.
 3. El dispatcher real entrega `api.core`; una fixture crea una task, usa el ID devuelto para agregar un edge, actualiza una task y añade una nota.
 4. Operación desconocida, input no mapeable, agente vacío, ownership inválido, revisión obsoleta y ciclo devuelven su envelope `PLUGIN_CORE_*` sin mutar. No se agrega una validación de privilegios distinta de la del core.
 5. Dos `child_process` concurrentes, uno ejecutando un plugin con `api.core.run` y otro un mutador CLI o `data.*.set`, comparten `CLIMIER_HOME`; los cambios compatibles se preservan y los incompatibles se serializan o rechazan sin lock reentrante.
