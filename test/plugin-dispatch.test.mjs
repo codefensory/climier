@@ -177,15 +177,88 @@ test("plugin-loader: loadInstalledPlugin throws PLUGIN_LOAD_FAILED when installe
   });
 });
 
-test("plugin-loader: loadInstalledPlugin throws PLUGIN_INVALID_DESCRIPTOR when descriptor.id != namespace", async () => {
+test("plugin-loader: loadInstalledPlugin throws PLUGIN_LOAD_FAILED when no plugin claims the namespace", async () => {
   await withEnv(async (env) => {
-    // Seed with descriptor id != namespace
-    await seedInstalledPlugin(env.home, "audit", { id: "different.id", command: "audit" });
+    // Seed with descriptor command != namespace. The loader scans
+    // installed/<*> for descriptor.command === namespace, so this
+    // resolves to no installed dir. PLUGIN_LOAD_FAILED (not
+    // PLUGIN_INVALID_DESCRIPTOR) because the namespace itself is not
+    // claimed — the descriptor's mismatch is incidental.
+    await seedInstalledPlugin(env.home, "audit", { id: "audit", command: "different.command" });
     const { loadInstalledPlugin } = await importFresh(LOADER_MODULE);
     await assert.rejects(
       () => loadInstalledPlugin("audit"),
-      (err) => err.code === "PLUGIN_INVALID_DESCRIPTOR" && err.details.namespace === "audit",
+      (err) => err.code === "PLUGIN_LOAD_FAILED" && err.details.namespace === "audit",
     );
+  });
+});
+
+test("plugin-loader: loadInstalledPlugin loads the dir whose descriptor.command matches the namespace, even when id != command", async () => {
+  await withEnv(async (env) => {
+    // T-plugin-command-layout-fix / ADR-005 §"Instalación e identidad":
+    // installed dir name is descriptor.id. The loader scans installed/*/
+    // package.json for descriptor.command === namespace, then reads the
+    // matching dir. pluginId returned to createApi is descriptor.id.
+    await seedInstalledPlugin(env.home, "example.audit", {
+      id: "example.audit",
+      command: "audit",
+    });
+    const { loadInstalledPlugin } = await importFresh(LOADER_MODULE);
+    const loaded = await loadInstalledPlugin("audit");
+    assert.equal(loaded.pluginId, "example.audit");
+    assert.equal(loaded.descriptor.id, "example.audit");
+    assert.equal(loaded.descriptor.command, "audit");
+    assert.equal(typeof loaded.commands.ping, "function");
+    assert.ok(loaded.installedDir.endsWith(path.join("installed", "example.audit")));
+  });
+});
+
+test("plugin-loader: loadInstalledPlugin throws PLUGIN_INVALID_DESCRIPTOR when descriptor.id != installed dir name", async () => {
+  await withEnv(async (env) => {
+    // Defense-in-depth: if someone edits the descriptor and changes its
+    // id without renaming the dir, the loader must reject. We seed a
+    // dir whose descriptor.command === namespace (so the scan finds it)
+    // but descriptor.id !== dirName.
+    const installedRoot = path.join(env.home, "plugins", "installed", "mismatch");
+    await fs.mkdir(installedRoot, { recursive: true });
+    await fs.writeFile(
+      path.join(installedRoot, "package.json"),
+      JSON.stringify({
+        name: "mismatch-pkg",
+        version: "1.0.0",
+        type: "module",
+        climier: { id: "wrong.id", command: "mismatch", entry: "./climier.mjs" },
+      }, null, 2) + "\n",
+      "utf8",
+    );
+    await fs.writeFile(
+      path.join(installedRoot, "climier.mjs"),
+      "export default { commands: { ping: () => ({ ok: true }) } };\n",
+      "utf8",
+    );
+    const { loadInstalledPlugin } = await importFresh(LOADER_MODULE);
+    await assert.rejects(
+      () => loadInstalledPlugin("mismatch"),
+      (err) =>
+        err.code === "PLUGIN_INVALID_DESCRIPTOR" &&
+        err.details.descriptor_id === "wrong.id" &&
+        err.details.namespace === "mismatch",
+    );
+  });
+});
+
+test("plugin-loader: hasInstalledPlugin returns true only when descriptor.command === namespace", async () => {
+  await withEnv(async (env) => {
+    // Seed a plugin with id != command. The dir is installed/<id> but
+    // hasInstalledPlugin must answer via descriptor.command.
+    await seedInstalledPlugin(env.home, "example.audit", {
+      id: "example.audit",
+      command: "audit",
+    });
+    const { hasInstalledPlugin } = await importFresh(LOADER_MODULE);
+    assert.equal(await hasInstalledPlugin("audit"), true);
+    assert.equal(await hasInstalledPlugin("example.audit"), false);
+    assert.equal(await hasInstalledPlugin("ghost"), false);
   });
 });
 
@@ -611,6 +684,38 @@ test("bin: flags placed before the namespace are still forwarded to the handler 
     assert.equal(r.code, 0, r.stderr);
     const data = JSON.parse(r.stdout);
     assert.deepEqual(data.args, ["--project", env.projectDir, "--as", "alice", "--foo", "bar"]);
+  });
+});
+
+test("bin: dispatches by command (first token), not by descriptor.id, when id != command", async () => {
+  await withEnv(async (env) => {
+    // T-plugin-command-layout-fix / ADR-005 §"Instalación e identidad":
+    // installed dir name IS descriptor.id. The bin dispatches by
+    // descriptor.command — the first non-flag token — by scanning
+    // installed/*/package.json for descriptor.command === command.
+    await seedInstalledPlugin(env.home, "example.audit", {
+      id: "example.audit",
+      command: "audit",
+    });
+    const r = await runCli([
+      "--project", env.projectDir, "--as", "alice",
+      "audit", "ping",
+    ]);
+    assert.equal(r.code, 0, r.stderr);
+    const data = JSON.parse(r.stdout);
+    assert.equal(data.command, "ping");
+    assert.equal(data.api_runtime.project_dir, env.projectDir);
+    assert.equal(data.api_runtime.agent, "alice");
+    // The dispatched plugin's identity is descriptor.id; the installed
+    // dir is installed/example.audit (not installed/audit).
+    const installedPkg = JSON.parse(
+      await fs.readFile(
+        path.join(env.home, "plugins", "installed", "example.audit", "package.json"),
+        "utf8",
+      ),
+    );
+    assert.equal(installedPkg.climier.id, "example.audit");
+    assert.equal(installedPkg.climier.command, "audit");
   });
 });
 

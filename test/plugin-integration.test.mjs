@@ -134,6 +134,7 @@ test("fixture: climier.mjs default export exposes one dedicated command per V1 m
 
 test("smoke: install + per-method commands + uninstall + reinstall + data persists; flags forwarded in original order; log redacted", async () => {
   await withFreshEnv(async ({ home, projectDir }) => {
+    // T-plugin-command-layout-fix: installed dir name = descriptor.id.
     const installedDir = path.join(home, "plugins", "installed", FIXTURE_ID);
 
     // 1. Initialize the project so plugin handlers can read/write state.
