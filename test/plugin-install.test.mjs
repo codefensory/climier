@@ -341,10 +341,10 @@ test("install: valid descriptor installs with promotion by rename; staging is go
     const stagings = await listStagingDirs(env);
     assert.deepEqual(stagings, []);
     // Installed at the right location with the expected layout.
-    // T-plugin-command-namespace: the directory name MUST be
-    // descriptor.command (the CLI namespace), not descriptor.id.
-    const installedAt = await installedDir(env, "happy");
-    assert.equal(await pathEqual(pluginInstalledDir("happy"), installedAt), true);
+    // T-plugin-command-layout-fix / ADR-005 §"Instalación e identidad":
+    // the directory name IS descriptor.id, NOT descriptor.command.
+    const installedAt = await installedDir(env, "happy.plugin");
+    assert.equal(await pathEqual(pluginInstalledDir("happy.plugin"), installedAt), true);
     const st = await fs.stat(installedAt);
     assert.ok(st.isDirectory());
     // The promoted directory must contain node_modules/<basename>/package.json
@@ -361,7 +361,7 @@ test("install: valid descriptor installs with promotion by rename; staging is go
   }
 });
 
-test("install: descriptor with id != command lands at installed/<command>", async () => {
+test("install: descriptor with id != command lands at installed/<id>", async () => {
   const env = await freshEnv();
   const { default: install } = await importFresh(INSTALL_MODULE);
   const fixtureDir = await fs.mkdtemp(path.join(os.tmpdir(), "climier-plugin-fixture-"));
@@ -381,12 +381,12 @@ test("install: descriptor with id != command lands at installed/<command>", asyn
     });
     assert.equal(result.plugin.id, "example.audit");
     assert.equal(result.plugin.command, "audit");
-    // Directory name is the CLI namespace (descriptor.command), not the
-    // descriptor.id. installed/<example.audit> must NOT exist.
-    const dirByCommand = await installedDir(env, "audit");
+    // Directory name is descriptor.id (the CLI namespace "audit" is
+    // discovered by descriptor scan at dispatch time, not via dir name).
     const dirById = await installedDir(env, "example.audit");
-    assert.ok((await fs.stat(dirByCommand)).isDirectory(), "installed/audit exists");
-    await assert.rejects(fs.access(dirById), "installed/example.audit must NOT exist");
+    const dirByCommand = await installedDir(env, "audit");
+    assert.ok((await fs.stat(dirById)).isDirectory(), "installed/example.audit exists");
+    await assert.rejects(fs.access(dirByCommand), "installed/audit must NOT exist");
     // Staging is clean.
     assert.deepEqual(await listStagingDirs(env), []);
   } finally {
@@ -524,11 +524,11 @@ test("install: id already installed returns PLUGIN_ID_CONFLICT and cleans stagin
       (err) =>
         err.code === "PLUGIN_ID_CONFLICT" &&
         err.details.id === "double.id" &&
-        err.details.reason === "command-already-installed",
+        err.details.reason === "id-already-installed",
     );
     assert.deepEqual(await listStagingDirs(env), []);
-    // First plugin still installed at installed/<command>.
-    const installedAt = await installedDir(env, "double");
+    // First plugin still installed at installed/<id>.
+    const installedAt = await installedDir(env, "double.id");
     assert.ok((await fs.stat(installedAt)).isDirectory());
   } finally {
     env.restore();
@@ -537,51 +537,53 @@ test("install: id already installed returns PLUGIN_ID_CONFLICT and cleans stagin
   }
 });
 
-test("install: id collision across different commands is rejected and cleans staging", async () => {
+test("install: command collision across different ids is rejected and cleans staging", async () => {
   const env = await freshEnv();
   const { default: install } = await importFresh(INSTALL_MODULE);
   const fixtureDir = await fs.mkdtemp(path.join(os.tmpdir(), "climier-plugin-fixture-"));
   try {
-    // First install lands at installed/alpha; id="shared.id", command="alpha".
+    // First install lands at installed/shared.first; id="shared.first",
+    // command="shared". The dir is named after the id.
     await createFixturePackage(fixtureDir, {
-      id: "shared.id",
-      command: "alpha",
-      npmName: "alpha-pkg",
-      dirName: "alpha-pkg",
+      id: "shared.first",
+      command: "shared",
+      npmName: "first-pkg",
+      dirName: "first-pkg",
     });
     await install({
-      positional: [path.join(fixtureDir, "alpha-pkg")],
+      positional: [path.join(fixtureDir, "first-pkg")],
       flags: {},
       projectDir: fixtureDir,
       statePath: fixtureDir,
     });
-    // Second install has id="shared.id" but command="beta"; commands do
-    // NOT collide (different dir names) but ids DO collide. Install must
-    // reject with PLUGIN_ID_CONFLICT and reason=id-already-installed.
-    const secondDir = path.join(fixtureDir, "beta-pkg");
+    // Second install has id="shared.second" but command="shared"; ids do
+    // NOT collide (different dir names) but commands DO collide (two
+    // plugins claiming the same CLI namespace). Install must reject with
+    // PLUGIN_ID_CONFLICT and reason=command-already-installed.
+    const secondDir = path.join(fixtureDir, "second-pkg");
     await mkdirp(secondDir);
     await createFixturePackage(secondDir, {
-      id: "shared.id",
-      command: "beta",
-      npmName: "beta-pkg",
-      dirName: "beta-pkg",
+      id: "shared.second",
+      command: "shared",
+      npmName: "second-pkg",
+      dirName: "second-pkg",
     });
     await assert.rejects(
       install({
-        positional: [path.join(secondDir, "beta-pkg")],
+        positional: [path.join(secondDir, "second-pkg")],
         flags: {},
         projectDir: fixtureDir,
         statePath: fixtureDir,
       }),
       (err) =>
         err.code === "PLUGIN_ID_CONFLICT" &&
-        err.details.id === "shared.id" &&
-        err.details.reason === "id-already-installed",
+        err.details.id === "shared.second" &&
+        err.details.reason === "command-already-installed",
     );
     assert.deepEqual(await listStagingDirs(env), []);
     // First plugin still installed; the rejected second never promoted.
-    assert.ok((await fs.stat(await installedDir(env, "alpha"))).isDirectory());
-    await assert.rejects(fs.access(await installedDir(env, "beta")));
+    assert.ok((await fs.stat(await installedDir(env, "shared.first"))).isDirectory());
+    await assert.rejects(fs.access(await installedDir(env, "shared.second")));
   } finally {
     env.restore();
     await env.cleanup();
@@ -706,8 +708,8 @@ test("install: two concurrent installs against the same source serialize via glo
     assert.equal(callOrder.length, 2);
     // No staging leftover.
     assert.deepEqual(await listStagingDirs(env), []);
-    // Installed exactly once (directory name is the command, not the id).
-    const installedAt = await installedDir(env, "conc");
+    // Installed exactly once (directory name is the id, not the command).
+    const installedAt = await installedDir(env, "conc.id");
     assert.ok((await fs.stat(installedAt)).isDirectory());
   } finally {
     env.restore();
@@ -813,8 +815,9 @@ test("uninstall: removes installed/<id> and nothing else; project state is untou
     });
     await install({ positional: [path.join(fixtureDir, "b-pkg")], flags: {}, projectDir, statePath: projectDir });
 
-    const aPath = await installedDir(env, "a");
-    const bPath = await installedDir(env, "b");
+    // T-plugin-command-layout-fix: installed dir name is descriptor.id.
+    const aPath = await installedDir(env, "plugin.a");
+    const bPath = await installedDir(env, "plugin.b");
     assert.ok((await fs.stat(aPath)).isDirectory());
     assert.ok((await fs.stat(bPath)).isDirectory());
 
@@ -848,9 +851,9 @@ test("uninstall: removes installed/<id> even when no project state exists", asyn
       dirName: "lone-pkg",
     });
     await install({ positional: [path.join(fixtureDir, "lone-pkg")], flags: {}, projectDir: "/tmp/x", statePath: "/tmp/x" });
-    // T-plugin-command-namespace: installed dir is named after command,
-    // not id; uninstall by id still removes it via descriptor scan.
-    const aPath = await installedDir(env, "lone");
+    // T-plugin-command-layout-fix: installed dir IS descriptor.id;
+    // uninstall <id> removes it by path directly.
+    const aPath = await installedDir(env, "lone.plugin");
     assert.ok((await fs.stat(aPath)).isDirectory());
     const result = await uninstall({ positional: ["lone.plugin"], flags: {}, projectDir: "/tmp/x", statePath: "/tmp/x" });
     assert.equal(result.plugin.id, "lone.plugin");
@@ -889,7 +892,7 @@ test("uninstall: id not installed is a no-op that still resolves", async () => {
   }
 });
 
-test("uninstall: removes installed/<command> when uninstall <id> and id != command", async () => {
+test("uninstall: removes installed/<id> by path directly even when id != command", async () => {
   const env = await freshEnv();
   const { default: install } = await importFresh(INSTALL_MODULE);
   const { default: uninstall } = await importFresh(UNINSTALL_MODULE);
@@ -907,11 +910,14 @@ test("uninstall: removes installed/<command> when uninstall <id> and id != comma
       projectDir: "/tmp/x",
       statePath: "/tmp/x",
     });
-    const dirByCommand = await installedDir(env, "audit");
+    // T-plugin-command-layout-fix: installed dir IS descriptor.id
+    // (NOT descriptor.command). The bin dispatches `climier audit ...`
+    // via descriptor scan; uninstall `example.audit` removes the dir
+    // named after that id.
     const dirById = await installedDir(env, "example.audit");
-    assert.ok((await fs.stat(dirByCommand)).isDirectory(), "installed/audit exists");
-    await assert.rejects(fs.access(dirById), "installed/example.audit must NOT exist");
-    // User types uninstall by id; host must find and remove installed/audit.
+    const dirByCommand = await installedDir(env, "audit");
+    assert.ok((await fs.stat(dirById)).isDirectory(), "installed/example.audit exists");
+    await assert.rejects(fs.access(dirByCommand), "installed/audit must NOT exist");
     const result = await uninstall({
       positional: ["example.audit"],
       flags: {},
@@ -920,7 +926,7 @@ test("uninstall: removes installed/<command> when uninstall <id> and id != comma
     });
     assert.equal(result.plugin.id, "example.audit");
     assert.equal(result.plugin.uninstalled, true);
-    await assert.rejects(fs.access(dirByCommand));
+    await assert.rejects(fs.access(dirById));
   } finally {
     env.restore();
     await env.cleanup();

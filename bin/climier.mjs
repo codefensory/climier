@@ -9,9 +9,7 @@
 // core v2 errors, so the existing catch can serialize them without
 // changes.
 import fsSync from "node:fs";
-import path from "node:path";
 import { resolveProject } from "../src/paths.mjs";
-import { pluginsHome } from "../src/plugin-paths.mjs";
 import { RESERVED_NAMESPACES } from "../src/commands/reserved-namespaces.mjs";
 
 const args = process.argv.slice(2);
@@ -190,17 +188,16 @@ try {
   // details } envelope (exit 1). If no plugin is installed for the
   // namespace, we fall through to the core dispatch, which fails with
   // MODULE_NOT_FOUND → `unknown command '<x>'` (exit 2).
+  //
+  // T-plugin-command-layout-fix / ADR-005: discovery scans
+  // installed/*/package.json for descriptor.command === first-token
+  // (no persistent registry). The loader raises PLUGIN_LOAD_FAILED if
+  // a non-installed first token slips through.
   let pluginDispatched = false;
   if (command !== null && !RESERVED_NAMESPACES.includes(command)) {
-    const installedPath = path.join(pluginsHome(), "installed", command);
-    let installed = false;
-    try {
-      installed = fsSync.statSync(installedPath).isDirectory();
-    } catch (err) {
-      if (err.code !== "ENOENT") throw err;
-    }
-    if (installed) {
-      const { dispatchPlugin } = await import("../src/plugin-dispatch.mjs");
+    const { hasInstalledPlugin } = await import("../src/plugin-loader.mjs");
+    const { dispatchPlugin } = await import("../src/plugin-dispatch.mjs");
+    if (await hasInstalledPlugin(command)) {
       const pluginResult = await dispatchPlugin({
         originalArgv,
         namespace: command,
