@@ -10,7 +10,7 @@
 //   - Non-resolvable nodes: INVALID_STATUS.
 import { readState, updateState } from "../state.mjs";
 import { withLock } from "../lock.mjs";
-import { append } from "../log.mjs";
+import { appendWithContext } from "../log.mjs";
 import { throwV2 } from "../errors.mjs";
 import { resolveAgent } from "../agent.mjs";
 
@@ -23,7 +23,7 @@ function readReason(flags, positional) {
   return positional.slice(1).join(" ").trim();
 }
 
-export default async function cancelV2({ statePath, flags, positional }) {
+export default async function cancelV2({ statePath, flags, positional, pluginId }) {
   const [id] = positional;
   if (!id) throwV2("MISSING_FIELD", "cancel: node id required", { field: "id" });
   const reason = readReason(flags, positional);
@@ -68,7 +68,11 @@ export default async function cancelV2({ statePath, flags, positional }) {
       target.revision = (target.revision || 0) + 1;
       return st;
     });
-    await append(projectDir, { agent: as, action: "cancel", node: id, note: reason });
+    await appendWithContext(
+      projectDir,
+      { agent: as, action: "cancel", node: id, note: reason },
+      { pluginId },
+    );
     return { node: updated.nodes[id] };
   });
 }

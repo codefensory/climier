@@ -7,13 +7,13 @@
 // ponytail: minimal validations inline; reuse take.mjs's pattern of resolveAgent.
 import { readState, updateState } from "../state.mjs";
 import { withLock } from "../lock.mjs";
-import { append } from "../log.mjs";
+import { appendWithContext } from "../log.mjs";
 import { throwV2 } from "../errors.mjs";
 import { resolveAgent } from "../agent.mjs";
 
 export const knownFlags = ["reason", "as"];
 
-export default async function deprecateKnowledge({ statePath, flags, positional }) {
+export default async function deprecateKnowledge({ statePath, flags, positional, pluginId }) {
   const [id] = positional;
   if (!id) throwV2("MISSING_FIELD", "deprecate-knowledge: node id required", { field: "id" });
   const reason = flags.reason;
@@ -47,12 +47,16 @@ export default async function deprecateKnowledge({ statePath, flags, positional 
       target.revision = (target.revision || 0) + 1;
       return st;
     });
-    await append(projectDir, {
-      agent: as,
-      action: "deprecate-knowledge",
-      node: id,
-      reason: String(reason),
-    });
+    await appendWithContext(
+      projectDir,
+      {
+        agent: as,
+        action: "deprecate-knowledge",
+        node: id,
+        reason: String(reason),
+      },
+      { pluginId },
+    );
     return { node: updated.nodes[id] };
   });
 }

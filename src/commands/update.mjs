@@ -4,7 +4,7 @@
 // and nothing is written.
 import { readState, updateState } from "../state.mjs";
 import { withLock } from "../lock.mjs";
-import { append } from "../log.mjs";
+import { appendWithContext } from "../log.mjs";
 import { throwV2 } from "../errors.mjs";
 import { resolveAgent } from "../agent.mjs";
 import { validateExecution } from "../execution-contract.mjs";
@@ -86,7 +86,7 @@ function parseIfRevision(raw) {
 const SCALAR_FIELDS = ["title", "body", "initiative", "domain", "definition", "acceptance", "purpose", "resolution-mode", "knowledge-type", "mitigation"];
 const ARRAY_FIELDS = ["tags", "refs"];
 
-export default async function updateV2({ statePath, flags, positional }) {
+export default async function updateV2({ statePath, flags, positional, pluginId }) {
   const [id] = positional;
   if (!id) throwV2("MISSING_FIELD", "update: node id required", { field: "id" });
   const projectDir = statePath;
@@ -167,13 +167,17 @@ export default async function updateV2({ statePath, flags, positional }) {
       return st;
     });
 
-    await append(projectDir, {
-      agent: as,
-      action: "update",
-      node: id,
-      revision: updated.nodes[id].revision,
-      changes,
-    });
+    await appendWithContext(
+      projectDir,
+      {
+        agent: as,
+        action: "update",
+        node: id,
+        revision: updated.nodes[id].revision,
+        changes,
+      },
+      { pluginId },
+    );
 
     return { node: updated.nodes[id] };
   });
