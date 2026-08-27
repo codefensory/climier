@@ -1,13 +1,13 @@
 import { readState, updateState, assertStateVersion } from "../state.mjs";
 import { withLock } from "../lock.mjs";
-import { append } from "../log.mjs";
+import { appendWithContext } from "../log.mjs";
 import { EDGE_TYPES, existingEdge, validateEdge } from "../v2.mjs";
 import { throwV2 } from "../errors.mjs";
 import { resolveAgent } from "../agent.mjs";
 
 export const knownFlags = ["type", "as"];
 
-export default async function addEdge({ statePath, positional, flags }) {
+export default async function addEdge({ statePath, positional, flags, pluginId }) {
   const [from, to] = positional;
   if (!from || !to) throwV2("MISSING_FIELD", "add-edge: from and to ids required", { field: "from,to" });
   if (!flags.type) throwV2("MISSING_FIELD", "add-edge: --type required", { field: "type" });
@@ -43,7 +43,11 @@ export default async function addEdge({ statePath, positional, flags }) {
       st.edges.push(edge);
       return st;
     });
-    await append(projectDir, { agent, action: "add-edge", node: to, note: `${from} ${type} ${to}` });
+    await appendWithContext(
+      projectDir,
+      { agent, action: "add-edge", node: to, note: `${from} ${type} ${to}` },
+      { pluginId },
+    );
     return { edge };
   });
 }

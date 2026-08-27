@@ -1,6 +1,6 @@
 import { readState, updateState, assertStateVersion } from "../state.mjs";
 import { withLock } from "../lock.mjs";
-import { append } from "../log.mjs";
+import { appendWithContext } from "../log.mjs";
 import { EDGE_TYPES, blocksEdge, validateEdge } from "../v2.mjs";
 import { throwV2 } from "../errors.mjs";
 import { resolveAgent } from "../agent.mjs";
@@ -85,7 +85,7 @@ function edgeTargets(id, flags) {
   ];
 }
 
-export default async function addNode({ statePath, flags, positional }) {
+export default async function addNode({ statePath, flags, positional, pluginId }) {
   const [id] = positional;
   if (!id) throwV2("MISSING_FIELD", "add-node: node id required", { field: "id" });
   if (!flags.kind) throwV2("MISSING_FIELD", "add-node: --kind required", { field: "kind" });
@@ -233,12 +233,16 @@ export default async function addNode({ statePath, flags, positional }) {
       st.edges.push(...edges);
       return st;
     });
-    await append(projectDir, {
-      agent,
-      action: supersedes ? "supersede" : "add-node",
-      node: id,
-      note: supersedes ? `${id} supersedes ${supersedes}` : id,
-    });
+    await appendWithContext(
+      projectDir,
+      {
+        agent,
+        action: supersedes ? "supersede" : "add-node",
+        node: id,
+        note: supersedes ? `${id} supersedes ${supersedes}` : id,
+      },
+      { pluginId },
+    );
     return { node };
   });
 }
