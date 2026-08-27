@@ -1,6 +1,6 @@
 # ADR-006: acciones core individuales para plugins V2
 
-- Gate: `G-plugin-core-actions-v2-adr` · Deriva de: `G-plugin-v2-rfc` · Estado: borrador
+- Gate: `G-plugin-core-actions-v2-adr` · Deriva de: `G-plugin-v2-rfc` · Estado: aprobado
 - Fecha: 2026-08-27
 
 ## Contexto
