@@ -3,7 +3,7 @@
 
 import { readState, updateState } from "../state.mjs";
 import { withLock } from "../lock.mjs";
-import { append } from "../log.mjs";
+import { appendWithContext } from "../log.mjs";
 import { blockingForNode, statusOfV2 } from "../v2.mjs";
 import { throwV2 } from "../errors.mjs";
 import { resolveAgent } from "../agent.mjs";
@@ -21,7 +21,7 @@ function buildContext(state, id) {
   };
 }
 
-export default async function take({ positional = [], flags = {}, projectDir, statePath }) {
+export default async function take({ positional = [], flags = {}, projectDir, statePath, pluginId }) {
   const id = positional[0];
   if (!id) throwV2("MISSING_FIELD", "take: node id required", { field: "id" });
   const agent = resolveAgent(flags, "take");
@@ -65,12 +65,16 @@ export default async function take({ positional = [], flags = {}, projectDir, st
       target.revision = (target.revision || 0) + 1;
       return next;
     });
-    await append(dir, {
-      agent,
-      action: "take",
-      node: id,
-      ...(takeover ? { previous_owner: owner } : {}),
-    });
+    await appendWithContext(
+      dir,
+      {
+        agent,
+        action: "take",
+        node: id,
+        ...(takeover ? { previous_owner: owner } : {}),
+      },
+      { pluginId },
+    );
 
     return {
       node: updated.nodes[id],

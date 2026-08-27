@@ -23,7 +23,7 @@ export const knownFlags = [
   "as",
 ];
 
-export default async function addTask({ statePath, flags, positional, projectDir }) {
+export default async function addTask({ statePath, flags, positional, projectDir, pluginId }) {
   if (flags.supersedes !== undefined) {
     throwV2(
       "INVALID_EDGE_KIND",
@@ -40,10 +40,14 @@ export default async function addTask({ statePath, flags, positional, projectDir
     ["initiative", "title", "body", "acceptance", "blocked-by"],
     ["blocked-by"],
   );
+  // Forward pluginId through ctx so add-node's log entry carries
+  // plugin_id when this call originated from a plugin core action.
+  // addV2Node spreads ctx into addNode, which destructures pluginId
+  // and feeds appendWithContext.
   return addV2Node(
     "add-task",
     "T",
     { kind: "resolvable", subkind: "task" },
-    { statePath, flags, positional, projectDir },
+    { statePath, flags, positional, projectDir, pluginId },
   );
 }

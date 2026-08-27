@@ -15,7 +15,7 @@
 // gate and no other blockers becomes ready.
 import { readState, updateState } from "../state.mjs";
 import { withLock } from "../lock.mjs";
-import { append } from "../log.mjs";
+import { appendWithContext } from "../log.mjs";
 import { throwV2 } from "../errors.mjs";
 import { resolveAgent } from "../agent.mjs";
 import { deriveV2 } from "../v2.mjs";
@@ -29,7 +29,7 @@ function nonEmpty(raw, field, command) {
   return raw;
 }
 
-export default async function resolveV2({ statePath, flags, positional }) {
+export default async function resolveV2({ statePath, flags, positional, pluginId }) {
   const [id] = positional;
   if (!id) throwV2("MISSING_FIELD", "resolve: node id required", { field: "id" });
   const projectDir = statePath;
@@ -84,7 +84,11 @@ export default async function resolveV2({ statePath, flags, positional }) {
       });
       const afterReady = new Set(deriveV2(updated).ready);
       const newlyReady = [...afterReady].filter((rid) => !beforeReady.has(rid)).sort();
-      await append(projectDir, { agent: as, action: "resolve", node: id, note });
+      await appendWithContext(
+        projectDir,
+        { agent: as, action: "resolve", node: id, note },
+        { pluginId },
+      );
       return { node: updated.nodes[id], newly_ready: newlyReady };
     }
 
@@ -100,7 +104,11 @@ export default async function resolveV2({ statePath, flags, positional }) {
       });
       const afterReady = new Set(deriveV2(updated).ready);
       const newlyReady = [...afterReady].filter((rid) => !beforeReady.has(rid)).sort();
-      await append(projectDir, { agent: as, action: "resolve", node: id, choice, rationale });
+      await appendWithContext(
+        projectDir,
+        { agent: as, action: "resolve", node: id, choice, rationale },
+        { pluginId },
+      );
       return { node: updated.nodes[id], newly_ready: newlyReady };
     }
 

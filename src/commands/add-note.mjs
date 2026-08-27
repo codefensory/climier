@@ -2,11 +2,11 @@
 // Notes are append-only by design — they are a record, not a state mutation.
 import { isV2State, readState, updateState } from "../state.mjs";
 import { withLock } from "../lock.mjs";
-import { append } from "../log.mjs";
+import { appendWithContext } from "../log.mjs";
 
 export const knownFlags = ["as"];
 
-export default async function addNote({ statePath, flags, positional }) {
+export default async function addNote({ statePath, flags, positional, pluginId }) {
   const [id, ...rest] = positional;
   if (!id) throw new Error("add-note: node id required (e.g. add-note T1 'found a blocker')");
   const text = rest.join(" ").trim();
@@ -31,7 +31,11 @@ export default async function addNote({ statePath, flags, positional }) {
         st.nodes[id].notes.push(note);
         return st;
       });
-      await append(projectDir, { agent: as, action: "add-note", node: id, note: text });
+      await appendWithContext(
+        projectDir,
+        { agent: as, action: "add-note", node: id, note: text },
+        { pluginId },
+      );
       return { node: updated.nodes[id] };
     }
 
@@ -42,7 +46,11 @@ export default async function addNote({ statePath, flags, positional }) {
       st.tasks[id].notes.push(note);
       return st;
     });
-    await append(projectDir, { agent: as, action: "add-note", task: id, note: text });
+    await appendWithContext(
+      projectDir,
+      { agent: as, action: "add-note", task: id, note: text },
+      { pluginId },
+    );
     return { task: updated.tasks[id] };
   });
 }
