@@ -39,7 +39,7 @@ await api.core.run({
 
 Cada llamada ejecuta **una** acción del core. El host garantiza que esa acción individual respeta sus reglas y termina escrita o rechazada con su log bajo el lock de proyecto. No ofrece batches, rollback automático ni una transacción entre llamadas: una llamada exitosa permanece si la siguiente falla.
 
-El autor del plugin controla la secuencia y puede decidir cómo recuperarse. No existe borrado de nodes: eliminar una task borraría historia, dependencias o trabajo humano. Una compensación, cuando sea válida, es otra acción explícita como `task.cancel`, que conserva auditoría y sigue las reglas ordinarias de ownership. Un plugin nunca puede suponer que una compensación será posible ni revertir cambios externos que haya producido.
+El autor del plugin controla la secuencia mediante su propio código y puede envolverla en `try/catch`. El host no agrega un envelope de secuencia ni intenta compensar llamadas anteriores; el plugin decide qué resultados conserva y qué respuesta devuelve a su caller. No existe borrado de nodes: eliminar una task borraría historia, dependencias o trabajo humano. `task.cancel` es una acción ordinaria con sus reglas de ownership, no un rollback garantizado. Un plugin no puede suponer que una compensación será posible ni revertir cambios externos que haya producido.
 
 ### Superficie general V2
 
@@ -53,29 +53,48 @@ Todos los plugins instalados tienen acceso a `api.core`; V2 no introduce capabil
 | Knowledge | `knowledge.create`, `knowledge.deprecate` |
 | Grafo y conversación | `edge.add`, `note.add` |
 
-Cada `input` usa campos JSON equivalentes a la operación core, no flags. Por ejemplo, `task.create` recibe `initiative`, `title`, `body`, `acceptance`, `blocked_by`, `tags`, `meta` y un `id` opcional; si falta `id`, el host conserva la asignación automática existente y devuelve el node creado. Para una secuencia, el plugin usa ese ID retornado en la siguiente llamada.
+Cada `input` usa campos JSON equivalentes a la operación core, no flags. Por ejemplo, `task.create` recibe `initiative`, `title`, `body`, `acceptance`, `blocked_by`, `tags`, `meta` y un `id` opcional; si falta `id`, el host conserva la asignación automática existente y devuelve el node creado. El mismo comportamiento aplica a `gate.create` y `knowledge.create`; `initiative.create` recibe `name` y no autoasigna un nombre. Para una secuencia, el plugin usa el ID retornado en la siguiente llamada. La matriz completa `op → handler, positional e input` queda fijada en el ADR y en el plan de ejecución; `allow-unregistered-initiative` no se expone.
 
 No entran en la superficie `init`, `install`, `uninstall`, `restore`, snapshots ni operaciones sobre el árbol global de plugins: son administración del host, no mutaciones de proyecto para extensiones.
 
 ### Adaptador hacia los comandos existentes
 
-`api.core.run` valida `op` e `input`, los normaliza a argumentos del dominio e invoca **un solo** handler de comando core por llamada. `api.core.run` no adquiere un lock propio: el comando adaptado conserva su `withLock → updateState → append` actual. Así no hay lock reentrante ni se obliga a refactorizar todos los comandos a una transacción común antes de entregar V2.
+`api.core.run` valida `op` e `input`, los normaliza a argumentos del dominio e invoca **un solo** handler de comando core por llamada. La implementación mantiene una registry explícita `op → handler + mapeo JSON`, sin ejecutar el parser de argv. `api.core.run` no adquiere un lock propio: el comando adaptado conserva su `withLock → updateState → append` actual. Así no hay lock reentrante ni se obliga a refactorizar todos los comandos a una transacción común antes de entregar V2.
 
-El adaptador no ejecuta el parser de argv. Construye los valores que cada handler ya recibe y fija `--as` al agente efectivo de `api.runtime`. Rechaza las identidades reservadas `orchestrator` y `recovery`: son escapes de recuperación del host, no identidades que un plugin pueda usar. Las mismas reglas de claim/owner aplican a `take`, `release`, `resolve`, `reopen` y `cancel`.
+El adaptador construye los valores que cada handler ya recibe y fija `flags.as` al valor efectivo de `api.runtime.agent`. `api.runtime.agent` es el string recibido por `--as` (o por `CLIMIER_AGENT` como fallback); no es autenticación ni una capacidad. Solo conserva la identidad que el core ya usa para ownership y auditoría. El adaptador no agrega una política nueva: los valores `orchestrator` y `recovery` conservan exactamente la semántica que ya tengan los comandos core.
 
-Cada acción deja el log que hoy produce su comando y añade `plugin_id` al entry. La atribución queda visible en `history <id>` sin guardar los valores completos de `body`, `meta` o datos de plugin. La implementación debe conservar el contrato actual de log: cambio y log ocurren dentro del mismo lock, aunque no existe una garantía de grupo entre dos llamadas distintas.
+Cada acción deja el log que produce su comando y añade `plugin_id` al entry. La implementación propaga explícitamente ese dato interno desde el adaptador hasta `append`; no se acepta `plugin_id` dentro de `input` y no se usa un contexto async implícito. La atribución queda visible en `history <id>` sin guardar los valores completos de `body`, `meta` o datos de plugin. La implementación debe conservar el contrato actual de log: cambio y log ocurren dentro del mismo lock, aunque no existe una garantía de grupo entre dos llamadas distintas.
+
+El resultado exitoso de `api.core.run` es el envelope normal del handler correspondiente (`{ node }`, `{ edge }`, `{ initiative }`, etc.), sin un wrapper de secuencia adicional. La primera entrega verificable cubre `api.core.version`, `task.create`, `task.take`, `task.resolve` y `note.add`; las demás operaciones se incorporan usando la misma registry y se validan por grupo.
 
 ### Ejemplos de uso
 
-**Spec-to-DAG.** Un plugin recibe un plan y llama `initiative.create` si hace falta. Luego llama `task.create` para cada pieza y usa los IDs devueltos para `edge.add`. Si la quinta creación falla, las cuatro anteriores siguen en el proyecto; el plugin devuelve sus IDs y puede dejarlo así o intentar acciones de compensación explícitas. No hay un DAG medio invisible ni rollback implícito.
+**Spec-to-DAG.** Un plugin recibe un plan y llama `initiative.create` si hace falta. Luego llama `task.create` para cada pieza y usa los IDs devueltos para `edge.add`:
 
-**Auditoría y sincronización.** Un auditor crea una task de remediación con `task.create` y añade su evidencia con `note.add`. Un sincronizador externo actualiza una task conocida con `task.update` y después añade un enlace como nota. Cada paso conserva el log, agente y validación del core; si el sistema externo falla, no se altera retroactivamente el estado de Climier.
+```js
+const completed = [];
+try {
+  for (const piece of plan.tasks) {
+    completed.push(await api.core.run({ op: "task.create", input: piece }));
+  }
+  for (const edge of plan.edges) {
+    await api.core.run({ op: "edge.add", input: edge });
+  }
+  return { ok: true, completed };
+} catch (error) {
+  return { ok: false, completed, failed: error };
+}
+```
+
+Si una llamada falla, las anteriores siguen en el proyecto y el plugin decide qué informar o qué cleanup explícito intentar. No hay rollback implícito ni un envelope de batch del host.
+
+**Auditoría y sincronización.** Un auditor crea una task de remediación con `task.create` y añade su evidencia con `note.add`. Un sincronizador externo actualiza una task conocida con `task.update` y después añade un enlace como nota. Cada paso conserva el log, la identidad `--as` y la validación del core; si el sistema externo falla, no se altera retroactivamente el estado de Climier.
 
 ## Errores y resultados
 
-Cada éxito devuelve el resultado normalizado del comando core correspondiente (`{ node }`, `{ edge }`, etc.). Errores de forma del adaptador usan `PLUGIN_CORE_INVALID_OPERATION`; un rechazo del comando core usa `PLUGIN_CORE_ACTION_FAILED` con `details.op` y la causa estructurada del core (`ID_CONFLICT`, `NODE_NOT_FOUND`, `NOT_OWNER`, `REVISION_CONFLICT`, `CYCLE_DETECTED`, etc.). Ambos son errores `PLUGIN_*`, por lo que el dispatcher los conserva sin envolverlos como un fallo opaco del handler.
+Cada éxito devuelve el envelope normal del comando core correspondiente (`{ node }`, `{ edge }`, etc.). Errores de forma del adaptador usan `PLUGIN_CORE_INVALID_OPERATION`; una operación desconocida o un input que el adaptador no puede mapear se rechaza antes de tomar el lock y no muta. Un rechazo del comando core usa `PLUGIN_CORE_ACTION_FAILED` con `details.op` como string estable y la causa estructurada del core (`ID_CONFLICT`, `NODE_NOT_FOUND`, `NOT_OWNER`, `REVISION_CONFLICT`, `CYCLE_DETECTED`, etc.). Ambos son errores `PLUGIN_*`, por lo que el dispatcher los conserva sin envolverlos como un fallo opaco del handler.
 
-Una operación desconocida se rechaza antes de mutar. El contrato se anuncia como `api.core.version === 2`; un plugin debe detectar esa versión antes de llamar a `api.core.run`, de modo que un host V1 no se interprete como compatible.
+El contrato se anuncia como `api.core.version === 2`. En un host V1 `api.core` está ausente, no es un stub que falla tarde; un plugin debe detectar `api.core?.version` antes de llamar a `api.core.run`.
 
 ## Compatibilidad
 
@@ -107,21 +126,22 @@ V1 conserva exactamente `runtime`, `query` y `data`. Un host V2 agrega `api.core
 
 ## Riesgos y preguntas abiertas
 
-- Un plugin que intenta varias acciones puede dejar resultados parciales por diseño → debe mostrar los resultados de cada llamada y elegir explícitamente si intenta una compensación.
+- Un plugin que intenta varias acciones puede dejar resultados parciales por diseño → el plugin puede capturar el error, conservar los resultados exitosos y devolver su propio resultado; el host no modela la secuencia.
 - `task.cancel` conserva sus reglas actuales: una task no reclamada no se puede cancelar por un agente ordinario. Un autor no debe modelar rollback como borrado; un consumidor real que necesite reversión fuerte promueve `T-plugin-v3-transactions-backlog`.
-- Mapear todos los campos JSON de cada operación sin invocar el parser puede revelar diferencias entre wrappers CLI → cada adaptador requiere prueba de paridad contra su comando y errores explícitos por campos no admitidos.
+- Mapear todos los campos JSON de cada operación sin invocar el parser puede revelar diferencias entre wrappers CLI → la registry debe enumerar positional, campos requeridos/opcionales y flags no expuestos; cada adaptador requiere prueba de paridad contra su comando.
+- `api.runtime.agent` es una identidad declarada por `--as`, no una prueba de permisos. V2 conserva las reglas de ownership y los escapes que ya existen en el core, sin agregar grants ni capabilities.
 - Un plugin instalado corre con permisos del usuario y V2 no agrega permisos por plugin por decisión de producto → la confianza de instalación sigue siendo responsabilidad del usuario.
 - Un error de almacenamiento sigue la política de fallo explícito existente; no hay compensación de side effects externos de código de plugin.
 
 ## Verificación requerida
 
-1. `api.core.version` existe en V2; un plugin puede detectar su ausencia en V1 sin romper su comando.
-2. Cada operación listada tiene una prueba de paridad: misma entrada y estado inicial producen la misma entidad, lifecycle, validación y error core que el comando CLI equivalente.
+1. `api.core.version === 2` existe en V2; en V1 `api.core` está ausente y un plugin puede detectarlo sin romper su comando.
+2. La primera entrega cubre `task.create`, `task.take`, `task.resolve` y `note.add`; luego cada operación restante tiene una prueba de paridad: misma entrada y estado inicial producen la misma entidad, lifecycle, validación y error core que el comando CLI equivalente.
 3. El dispatcher real entrega `api.core`; una fixture crea una task, usa el ID devuelto para agregar un edge, actualiza una task y añade una nota.
-4. Operación desconocida, input inválido, agente vacío, identidad reservada, ownership inválido, revisión obsoleta y ciclo devuelven su envelope `PLUGIN_CORE_*` sin mutar.
-5. Dos procesos concurrentes, uno con `api.core.run` y otro con un mutador CLI o `data.*.set`, preservan los cambios compatibles y serializan o rechazan los incompatibles sin lock reentrante.
+4. Operación desconocida, input no mapeable, agente vacío, ownership inválido, revisión obsoleta y ciclo devuelven su envelope `PLUGIN_CORE_*` sin mutar. No se agrega una validación de privilegios distinta de la del core.
+5. Dos `child_process` concurrentes, uno ejecutando un plugin con `api.core.run` y otro un mutador CLI o `data.*.set`, comparten `CLIMIER_HOME`; los cambios compatibles se preservan y los incompatibles se serializan o rechazan sin lock reentrante.
 6. Logs e `history <id>` identifican `plugin_id`, agente y acción sin volcar `body`, `meta` ni valores privados.
-7. Un smoke install → comando V2 con varias llamadas → `history/context` demuestra qué acciones quedaron; una falla posterior no borra ni oculta las anteriores.
+7. Un smoke install → comando V2 con varias llamadas → `history/context` demuestra qué acciones quedaron; una falla posterior conserva las anteriores y el plugin puede devolver los resultados acumulados mediante `try/catch`.
 8. `npm test` y las pruebas específicas de plugin pasan.
 
 ## ADRs derivados (se completa al aprobar)
