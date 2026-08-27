@@ -23,6 +23,13 @@
 1. <pieza> — archivos: <paths>
 2. ...
 
+## Checkpoint de planificacion post-ADR
+
+Antes de materializar tasks, el orquestador decide y registra una opcion:
+
+- [ ] Sin bootstrap — <por que el ADR ya deja paths, dependencias, batches y verificacion suficientemente claros>.
+- [ ] Bootstrap — `T-<tema>-bootstrap` entrega `docs/plans/<tema>-execution.md` antes de crear tasks de implementacion.
+
 ## Verificacion
 
 <como se prueba que el ADR quedo implementado: comandos, comportamiento observable>

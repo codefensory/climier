@@ -109,6 +109,24 @@ No conviertas una idea vaga en task ejecutable. Primero ordenala, pregunta lo ne
 
 Una buena task permite que el worker empiece sin volver al chat.
 
+### Checkpoint de planificacion post-ADR
+
+Despues de resolver un ADR y **antes de crear cualquier task de implementacion**, el orquestador hace un checkpoint de planificacion. No materializa un DAG por reflejo: verifica que el ADR sea suficiente para partir el trabajo con seguridad y velocidad.
+
+El checkpoint define o confirma:
+
+- limites de cada cambio, paths que posee y contratos compartidos;
+- dependencias reales, batches paralelos seguros y punto de integracion;
+- estrategia de pruebas y evidencia por task;
+- riesgos de concurrencia, migracion, compatibilidad o ambiguedad que un worker no deba redescubrir.
+
+El orquestador decide explicitamente una de estas salidas antes de mutar tasks:
+
+1. **Sin bootstrap:** el ADR ya permite un DAG pequeño y claro. Deja una nota breve con el razonamiento y materializa las tasks.
+2. **Bootstrap:** crea una unica task de planificacion `T-<tema>-bootstrap`, bloqueada por el ADR. Su unico entregable es `docs/plans/<tema>-execution.md`: mapa de codigo, seams, ownership de paths, batches, dependencias, verificacion, riesgos y propuestas de tasks con acceptance. No implementa producto ni crea tasks hijas. Tras validarla y mergearla, el orquestador revisa ese plan y recien entonces crea el DAG de implementacion.
+
+El bootstrap es una herramienta, no un ritual: se usa cuando hay varios modulos, contratos compartidos, incertidumbre tecnica, trabajo paralelo o integracion delicada. Una mutacion local y evidente no lo necesita. Ningun worker recibe una task de implementacion hasta que este checkpoint haya terminado.
+
 Antes de crear o delegar, deja claro:
 
 - objetivo exacto

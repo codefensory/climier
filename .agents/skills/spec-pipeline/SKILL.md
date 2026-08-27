@@ -11,6 +11,7 @@ idea → [RFC: gate research + .decisions/<G>.md]
      → [resolve G-rfc --choice aprobado]
      → [ADR(s): gate decision --blocked-by G-rfc + .adrs/NNN-slug.md]
      → [resolve G-adrN cuando este listo para ejecutarse]
+     → [checkpoint de planificacion: sin bootstrap | bootstrap]
      → [tasks: --blocked-by G-adrN, body = puntero al ADR]
      → worker → validator → merge
 ```
@@ -63,7 +64,16 @@ climier resolve <G-adrN> --choice aprobado --rationale "<resumen de la decision>
 
 Si un ADR reemplaza a otro: `add-gate ... --supersedes <viejo>` (rewire automatico de dependencias). ADR riesgoso → tambien pasa por rfc-reviewer antes de resolverse.
 
-## 4. Tasks (Technical Spec)
+## 4. Checkpoint de planificacion post-ADR
+
+Antes de crear tasks de implementacion, el orquestador revisa el ADR y deja una decision explicita: **sin bootstrap** o **bootstrap**. Evalua paths y ownership, contratos compartidos, dependencias reales, batches paralelos, integracion, riesgos y estrategia de verificacion. No delega implementacion hasta terminar este checkpoint.
+
+- **Sin bootstrap:** si el trabajo es acotado y el ADR ya permite tasks independientes con acceptance y verificacion claras, deja una nota breve en el gate ADR con el razonamiento y pasa al paso 5.
+- **Bootstrap:** si hay varios modulos, seams inciertos, contratos compartidos, migraciones, concurrencia, paralelismo o integracion delicada, crea solo `T-<tema>-bootstrap`, bloqueada por el ADR. Su body apunta al ADR y su acceptance exige `docs/plans/<tema>-execution.md` con: mapa de codigo, boundaries/paths exclusivos, contratos y riesgos, estrategia de pruebas, batches/dependencias y propuestas de tasks con acceptance. El bootstrap no implementa producto ni materializa tasks hijas. Un validator debe hacer merge del plan; despues el orquestador lo revisa y crea el DAG de implementacion.
+
+El bootstrap es condicional: no se crea por ritual para cambios locales evidentes.
+
+## 5. Tasks (Technical Spec)
 
 ```bash
 climier add-task --initiative <init> \
@@ -76,9 +86,9 @@ Verificar: <comando>." \
   --blocked-by <G-adrN> --as orchestrator
 ```
 
-- La spec vive en el ADR; el body es puntero + archivos + acceptance. El worker lee su ADR, no el proyecto.
+- La spec vive en el ADR y, si existio bootstrap, tambien en `docs/plans/<tema>-execution.md`; el body es puntero + archivos + acceptance. El worker lee esos artefactos, no el proyecto a ciegas.
 - Una task = un cambio principal + acceptance verificable. "Y ademas" → otra task.
-- Orden: contratos compartidos primero, implementaciones en paralelo, integracion al final. Edges `--blocked-by` solo reales.
+- Materializa el DAG solo despues del checkpoint: contratos compartidos primero, implementaciones en paralelo, integracion al final. Edges `--blocked-by` solo reales.
 - Dos workers no tocan el mismo modulo a la vez.
 
 ## Knowledge
