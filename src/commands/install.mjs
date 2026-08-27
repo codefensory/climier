@@ -1,6 +1,12 @@
 // T-plugin-install — `climier install <source>`: install a plugin into
-// <CLIMIER_HOME>/plugins/installed/<climier.id>/ using an isolated
-// staging prefix and a global plugin lock.
+// <CLIMIER_HOME>/plugins/installed/<descriptor.command>/ using an
+// isolated staging prefix and a global plugin lock.
+//
+// T-plugin-command-namespace: ADR-005 §"Instalación e identidad" — the
+// installed directory name is the CLI namespace (descriptor.command),
+// not descriptor.id. descriptor.id is the identity for data keys,
+// plugin_id in logs, and the uninstall argument. id and command can
+// differ; the host does not introduce implicit aliases.
 //
 // Lifecycle:
 //   1. Take the global plugin lock (withGlobalPluginLock).
@@ -15,14 +21,15 @@
 //      node_modules/<source>/package.json for registry sources).
 //   5. Validate descriptor shape (PLUGIN_INVALID_DESCRIPTOR) and
 //      reserved-namespace uniqueness (PLUGIN_INVALID_DESCRIPTOR).
-//   6. Validate id uniqueness against installed/ (PLUGIN_ID_CONFLICT)
-//      and command uniqueness against installed commands
-//      (PLUGIN_ID_CONFLICT).
+//   6. Validate command uniqueness against installed/ dir names
+//      (PLUGIN_ID_CONFLICT, reason=command-already-installed) and id
+//      uniqueness against all installed descriptors
+//      (PLUGIN_ID_CONFLICT, reason=id-already-installed).
 //   7. Import the entrypoint ESM and assert default.commands is an
 //      object (PLUGIN_LOAD_FAILED).
-//   8. Promote via fs.rename from .staging/<nonce> to installed/<id>.
-//      This rename is atomic on the same filesystem, matching ADR-005
-//      §"Instalación e identidad".
+//   8. Promote via fs.rename from .staging/<nonce> to
+//      installed/<descriptor.command>. This rename is atomic on the
+//      same filesystem, matching ADR-005 §"Instalación e identidad".
 //
 // On any failure inside the lock, the staging directory is removed with
 // fs.rm(recursive, force). The host does NOT roll back npm's internal
@@ -198,28 +205,25 @@ async function listInstalledDescriptors() {
 }
 
 async function checkUniqueness(descriptor) {
-  // Id collision against an already-installed plugin.
-  const targetDir = pluginInstalledDir(descriptor.id);
-  try {
-    await fs.access(targetDir);
-  } catch (err) {
-    if (err.code === "ENOENT") {
-      // fall through to command uniqueness check below.
-    } else {
-      throw err;
-    }
-  }
+  // T-plugin-command-namespace: command uniqueness is a dir-name
+  // collision at installed/<command>; id uniqueness scans every other
+  // installed descriptor (data and logs are keyed by id, so two
+  // plugins sharing an id would clobber each other's keyspace).
+  const targetDir = pluginInstalledDir(descriptor.command);
   if (await pathExists(targetDir)) {
-    throw new PluginIdConflict(descriptor.id, { reason: "id-already-installed" });
+    throw new PluginIdConflict(descriptor.id, {
+      reason: "command-already-installed",
+      conflict_command: descriptor.command,
+      target_dir: targetDir,
+    });
   }
-  // Command collision against any other installed plugin's climier.command.
+  // Id collision against any other installed plugin's climier.id.
   const installed = await listInstalledDescriptors();
   for (const { dirName, descriptor: other } of installed) {
-    if (other && other.command === descriptor.command) {
+    if (other && other.id === descriptor.id) {
       throw new PluginIdConflict(descriptor.id, {
-        reason: "command-already-installed",
+        reason: "id-already-installed",
         existing_plugin: dirName,
-        conflict_command: descriptor.command,
       });
     }
   }
@@ -307,8 +311,10 @@ export default async function install({ positional = [], flags = {} } = {}) {
       // read the descriptor from node_modules/<basename>/package.json.
       await mirrorPluginFilesToStagingRoot(installedPkgDir, stagingDir, descriptor.entry);
 
-      // Step 8: atomic promotion by rename to installed/<id>.
-      const targetDir = pluginInstalledDir(descriptor.id);
+      // Step 8: atomic promotion by rename to installed/<command>.
+      // T-plugin-command-namespace: ADR-005 §"Instalación e identidad"
+      // — the dir name is the CLI namespace, not the descriptor id.
+      const targetDir = pluginInstalledDir(descriptor.command);
       await fs.rename(stagingDir, targetDir);
 
       return {

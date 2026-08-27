@@ -134,7 +134,8 @@ test("fixture: climier.mjs default export exposes one dedicated command per V1 m
 
 test("smoke: install + per-method commands + uninstall + reinstall + data persists; flags forwarded in original order; log redacted", async () => {
   await withFreshEnv(async ({ home, projectDir }) => {
-    const installedDir = path.join(home, "plugins", "installed", FIXTURE_ID);
+    // T-plugin-command-namespace: installed dir name = descriptor.command.
+    const installedDir = path.join(home, "plugins", "installed", FIXTURE_COMMAND);
 
     // 1. Initialize the project so plugin handlers can read/write state.
     const init = await cli(["--project", projectDir, "init"]);
@@ -170,7 +171,7 @@ test("smoke: install + per-method commands + uninstall + reinstall + data persis
     assert.equal(installRes.plugin.id, FIXTURE_ID);
     assert.equal(installRes.plugin.command, FIXTURE_COMMAND);
     assert.equal(installRes.plugin.entry, "./climier.mjs");
-    assert.ok((await fs.stat(installedDir)).isDirectory(), "installed/<id> exists");
+    assert.ok((await fs.stat(installedDir)).isDirectory(), "installed/<command> exists");
     // npm puts the package under node_modules/<basename>/package.json.
     const installedPkg = JSON.parse(
       await fs.readFile(
@@ -327,7 +328,7 @@ test("smoke: install + per-method commands + uninstall + reinstall + data persis
       "project-scoped log entry must not carry `node_id`",
     );
 
-    // 13. Uninstall: removes installed/<id> but does NOT purge data
+    // 13. Uninstall: removes installed/<command> but does NOT purge data
     //     (ADR-005 §"Instalación e identidad": `uninstall <id>` elimina
     //     ese directorio y no purga datos de proyectos).
     const uninstallRes = await cli([

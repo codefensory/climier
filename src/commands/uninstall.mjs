@@ -1,20 +1,58 @@
 // T-plugin-install — `climier uninstall <id>`: remove the installed
-// plugin directory at <CLIMIER_HOME>/plugins/installed/<id>.
+// plugin directory at <CLIMIER_HOME>/plugins/installed/<command>.
 //
-// ADR-005 §"Instalación e identidad":
-//   - `uninstall <id>` elimina ese directorio y no purga datos de
-//     proyectos.
-//   - Errors of npm, descriptor, import, or shape remove the staging
-//     with fs.rm — uninstall has no staging to clean.
+// T-plugin-command-namespace: ADR-005 §"Instalación e identidad" —
+// `uninstall <id>` accepts the descriptor.id (not the CLI namespace),
+// and the host resolves the matching installed directory by scanning
+// descriptors (the spec forbids introducing a persistent manifest).
+// The data layer keeps its data across uninstall.
 //
 // The global plugin lock is taken so concurrent install/uninstall cannot
-// race on the same installed/<id>.
+// race on the same installed/<command>.
 
 import fs from "node:fs/promises";
+import path from "node:path";
 import { withGlobalPluginLock } from "../plugin-lock.mjs";
-import { pluginInstalledDir } from "../plugin-paths.mjs";
+import { pluginsHome } from "../plugin-paths.mjs";
 
 export const knownFlags = ["as"];
+
+// findInstalledDirById — scans installed/ for a directory whose
+// package.json#climier.id matches the requested id. Returns the
+// absolute dir path or null when no match is found. Skips entries
+// whose package.json is unreadable (defense-in-depth: a tampered dir
+// cannot silently swallow an uninstall of a different plugin).
+async function findInstalledDirById(id) {
+  const installedRoot = path.join(pluginsHome(), "installed");
+  let entries = [];
+  try {
+    entries = await fs.readdir(installedRoot);
+  } catch (err) {
+    if (err.code === "ENOENT") return null;
+    throw err;
+  }
+  for (const entry of entries) {
+    if (entry.startsWith(".")) continue;
+    const pkgPath = path.join(installedRoot, entry, "package.json");
+    let raw;
+    try {
+      raw = await fs.readFile(pkgPath, "utf8");
+    } catch (err) {
+      if (err.code === "ENOENT") continue;
+      throw err;
+    }
+    let pkg;
+    try {
+      pkg = JSON.parse(raw);
+    } catch {
+      continue;
+    }
+    if (pkg && pkg.climier && typeof pkg.climier === "object" && pkg.climier.id === id) {
+      return path.join(installedRoot, entry);
+    }
+  }
+  return null;
+}
 
 export default async function uninstall({ positional = [], flags = {} } = {}) {
   const id = positional[0];
@@ -25,13 +63,17 @@ export default async function uninstall({ positional = [], flags = {} } = {}) {
   }
 
   return withGlobalPluginLock(async () => {
-    const targetDir = pluginInstalledDir(id);
-    try {
-      await fs.rm(targetDir, { recursive: true, force: true });
-    } catch (err) {
-      // Removing a non-existent dir is a successful no-op; everything
-      // else propagates.
-      if (err.code !== "ENOENT") throw err;
+    // T-plugin-command-namespace: locate the dir by descriptor.id, not
+    // by the id literal. The directory name is descriptor.command.
+    const targetDir = await findInstalledDirById(id);
+    if (targetDir) {
+      try {
+        await fs.rm(targetDir, { recursive: true, force: true });
+      } catch (err) {
+        // Removing a non-existent dir is a successful no-op; everything
+        // else propagates.
+        if (err.code !== "ENOENT") throw err;
+      }
     }
     return {
       plugin: {

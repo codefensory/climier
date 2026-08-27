@@ -36,7 +36,9 @@ import {
 const REPO_ROOT = path.resolve(".");
 const FIXTURE_DIR = path.join(REPO_ROOT, "test/fixtures/core-plugin");
 const FIXTURE_ID = "example.core";
-const FIXTURE_NAMESPACE = FIXTURE_ID;
+// T-plugin-command-namespace: CLI namespace = descriptor.command,
+// installed dir name = descriptor.command, uninstall arg = descriptor.id.
+const FIXTURE_NAMESPACE = "core";
 const FIXTURE_BASENAME = "core-plugin";
 const BIN = path.join(REPO_ROOT, "bin", "climier.mjs");
 

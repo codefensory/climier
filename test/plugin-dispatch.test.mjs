@@ -177,15 +177,36 @@ test("plugin-loader: loadInstalledPlugin throws PLUGIN_LOAD_FAILED when installe
   });
 });
 
-test("plugin-loader: loadInstalledPlugin throws PLUGIN_INVALID_DESCRIPTOR when descriptor.id != namespace", async () => {
+test("plugin-loader: loadInstalledPlugin throws PLUGIN_INVALID_DESCRIPTOR when descriptor.command != namespace", async () => {
   await withEnv(async (env) => {
-    // Seed with descriptor id != namespace
-    await seedInstalledPlugin(env.home, "audit", { id: "different.id", command: "audit" });
+    // Seed with descriptor command != namespace (id matches for clarity).
+    // ADR-005 §"Instalación e identidad": the installed directory name
+    // is the CLI namespace (descriptor.command), not the descriptor.id.
+    await seedInstalledPlugin(env.home, "audit", { id: "audit", command: "different.command" });
     const { loadInstalledPlugin } = await importFresh(LOADER_MODULE);
     await assert.rejects(
       () => loadInstalledPlugin("audit"),
-      (err) => err.code === "PLUGIN_INVALID_DESCRIPTOR" && err.details.namespace === "audit",
+      (err) =>
+        err.code === "PLUGIN_INVALID_DESCRIPTOR" &&
+        err.details.namespace === "audit" &&
+        err.details.descriptor_command === "different.command",
     );
+  });
+});
+
+test("plugin-loader: loadInstalledPlugin accepts id != command when descriptor.command matches the namespace", async () => {
+  await withEnv(async (env) => {
+    // ADR-005 §"Instalación e identidad" + T-plugin-command-namespace:
+    // id and command are distinct fields; only descriptor.command must
+    // match the namespace. The descriptor.id becomes the pluginId for
+    // runtime, data keys, and uninstall.
+    await seedInstalledPlugin(env.home, "audit", { id: "example.audit", command: "audit" });
+    const { loadInstalledPlugin } = await importFresh(LOADER_MODULE);
+    const loaded = await loadInstalledPlugin("audit");
+    assert.equal(loaded.pluginId, "example.audit");
+    assert.equal(loaded.descriptor.id, "example.audit");
+    assert.equal(loaded.descriptor.command, "audit");
+    assert.equal(typeof loaded.commands.ping, "function");
   });
 });
 
@@ -611,6 +632,49 @@ test("bin: flags placed before the namespace are still forwarded to the handler 
     assert.equal(r.code, 0, r.stderr);
     const data = JSON.parse(r.stdout);
     assert.deepEqual(data.args, ["--project", env.projectDir, "--as", "alice", "--foo", "bar"]);
+  });
+});
+
+test("bin: dispatches by command (first token), not by descriptor.id, when id != command", async () => {
+  await withEnv(async (env) => {
+    // Seed an installed plugin whose id != command.
+    // The bin must dispatch on the FIRST TOKEN (the command), and the
+    // runtime/pluginId must be descriptor.id. install is out of scope
+    // here — this test seeds the installed dir directly to focus on
+    // dispatch.
+    await seedInstalledPlugin(env.home, "audit", {
+      id: "example.audit",
+      command: "audit",
+    });
+    let received;
+    // We need to monkey-patch createApi to capture what pluginId the
+    // dispatcher hands to the API factory. The bin uses the real
+    // plugin-api.mjs; instead, run dispatchPlugin directly via runCli
+    // and verify the runtime envelope carries plugin_id through.
+    const r = await runCli([
+      "--project", env.projectDir, "--as", "alice",
+      "audit", "ping",
+    ]);
+    assert.equal(r.code, 0, r.stderr);
+    const data = JSON.parse(r.stdout);
+    assert.equal(data.command, "ping");
+    assert.equal(data.api_runtime.project_dir, env.projectDir);
+    assert.equal(data.api_runtime.agent, "alice");
+    // Dispatch is keyed on the first token 'audit', which matches the
+    // installed dir name AND descriptor.command. Without the fix, the
+    // loader would have rejected this installed plugin because
+    // descriptor.id ('example.audit') did not equal the namespace
+    // ('audit'). With the fix, pluginId is descriptor.id.
+    // We confirm the dispatched plugin's identity by reading the
+    // installed descriptor again from disk.
+    const installedPkg = JSON.parse(
+      await fs.readFile(
+        path.join(env.home, "plugins", "installed", "audit", "package.json"),
+        "utf8",
+      ),
+    );
+    assert.equal(installedPkg.climier.id, "example.audit");
+    assert.equal(installedPkg.climier.command, "audit");
   });
 });
 

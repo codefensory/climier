@@ -36,10 +36,11 @@ const FIXTURE_ID = "example.core";
 const FIXTURE_COMMAND = "core";
 const FIXTURE_BASENAME = "core-plugin";
 // Dispatch namespace: the bin routes `climier <namespace> <sub>` through
-// plugin-dispatch when the installed dir matches the descriptor's id
-// (T-plugin-dispatch: descriptor.id === namespace; the install path
-// always lands at <CLIMIER_HOME>/plugins/installed/<id>).
-const FIXTURE_NAMESPACE = FIXTURE_ID;
+// plugin-dispatch when the installed dir matches the namespace. T-plugin-
+// command-namespace: the namespace / installed dir name is descriptor
+// .command, NOT descriptor.id. The CLI invokes the plugin by command; the
+// descriptor.id stays as the plugin identity for data, logs, and uninstall.
+const FIXTURE_NAMESPACE = FIXTURE_COMMAND;
 
 // ---- Per-test environment wrapper ----------------------------------
 
@@ -133,7 +134,8 @@ test("fixture: climier.mjs default export exposes one dedicated command per e2e 
 
 test("e2e: install + happy — full first slice leaves intact state, plugin_id on every log entry, and history with plugin_id", async () => {
   await withFreshEnv(async ({ home, projectDir }) => {
-    const installedDir = path.join(home, "plugins", "installed", FIXTURE_ID);
+    // T-plugin-command-namespace: installed dir name is descriptor.command.
+    const installedDir = path.join(home, "plugins", "installed", FIXTURE_COMMAND);
 
     // 1. Initialize the project so plugin handlers can read/write state.
     const init = await cli(["--project", projectDir, "init"]);
@@ -154,7 +156,7 @@ test("e2e: install + happy — full first slice leaves intact state, plugin_id o
     assert.equal(installRes.plugin.id, FIXTURE_ID);
     assert.equal(installRes.plugin.command, FIXTURE_COMMAND);
     assert.equal(installRes.plugin.entry, "./climier.mjs");
-    assert.ok((await fs.stat(installedDir)).isDirectory(), "installed/<id> exists");
+    assert.ok((await fs.stat(installedDir)).isDirectory(), "installed/<command> exists");
     const installedPkg = JSON.parse(
       await fs.readFile(
         path.join(installedDir, "node_modules", FIXTURE_BASENAME, "package.json"),

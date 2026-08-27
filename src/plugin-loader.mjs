@@ -4,8 +4,14 @@
 // (owned by T-plugin-install) so the descriptor module stays focused on
 // shape validation, while this module owns the dispatch-time loading
 // path: resolve installed dir by namespace, read descriptor, lazy-import
-// the ESM entry, validate the descriptor.id matches the namespace, and
-// return `{ pluginId, descriptor, commands, entryPath, installedDir }`.
+// the ESM entry, validate the descriptor.command matches the namespace
+// (T-plugin-command-namespace: ADR-005 §"Instalación e identidad" — the
+// installed directory name IS the CLI namespace / descriptor.command,
+// not descriptor.id), and return
+// `{ pluginId, descriptor, commands, entryPath, installedDir }`.
+//
+// pluginId is descriptor.id; this is the identity the host uses for
+// data keys, log plugin_id, and uninstall arguments.
 //
 // Errors are wrapped in PLUGIN_LOAD_FAILED / PLUGIN_INVALID_DESCRIPTOR so
 // the bin's existing catch can emit the structured envelope without
@@ -53,9 +59,10 @@ export function resolveInstalledDir(namespace) {
 //      namespaces; this is a defense-in-depth guard).
 //   2. descriptor is read and shaped (PLUGIN_INVALID_DESCRIPTOR or
 //      PLUGIN_LOAD_FAILED via readDescriptor).
-//   3. descriptor.id === namespace (PLUGIN_INVALID_DESCRIPTOR — the
-//      installed dir name must match the descriptor id, otherwise
-//      install was tampered with).
+//   3. descriptor.command === namespace (PLUGIN_INVALID_DESCRIPTOR —
+//      the installed dir name MUST equal descriptor.command, otherwise
+//      install was tampered with or the descriptor was edited to claim
+//      a different namespace).
 //   4. ESM entry lazy-imports and exposes default.commands (PLUGIN_LOAD_FAILED).
 export async function loadInstalledPlugin(namespace) {
   if (typeof namespace !== "string" || !namespace.trim()) {
@@ -102,11 +109,16 @@ export async function loadInstalledPlugin(namespace) {
     );
   }
 
-  // 3. descriptor.id matches the namespace (dir name).
-  if (descriptor.id !== namespace) {
+  // 3. descriptor.command matches the namespace (dir name).
+  // T-plugin-command-namespace: the installed dir is named after the
+  // CLI namespace (descriptor.command), not the descriptor.id. The id
+  // is the plugin identity for data/logs/uninstall; the command is the
+  // dispatch key and the install dir name. ADR-005 §"Instalación e
+  // identidad".
+  if (descriptor.command !== namespace) {
     throw new PluginInvalidDescriptor(
-      `plugin-loader: namespace '${namespace}' does not match descriptor.id '${descriptor.id}'`,
-      { namespace, descriptor_id: descriptor.id, installed_dir: installedDir },
+      `plugin-loader: namespace '${namespace}' does not match descriptor.command '${descriptor.command}'`,
+      { namespace, descriptor_command: descriptor.command, installed_dir: installedDir },
     );
   }
 

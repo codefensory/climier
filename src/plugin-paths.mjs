@@ -1,12 +1,17 @@
 // T-plugin-install — global plugin layout under CLIMIER_HOME/plugins/.
 //
+// T-plugin-command-namespace: the installed directory name is the CLI
+// namespace (descriptor.command), NOT descriptor.id. descriptor.id is
+// the identity for data, plugin_id in logs, and the uninstall argument.
+//
 // Layout:
 //   <CLIMIER_HOME>/plugins/
 //     .lock                  — global plugin lock (see plugin-lock.mjs)
-//     installed/<id>/        — promoted plugin (one dir per climier.id)
+//     installed/<command>/   — promoted plugin (one dir per descriptor.command)
 //     .staging/<nonce>/      — transient npm install prefix
 //
-// "id" is the validated climier.id from the descriptor (regex in
+// "command" is descriptor.command from the descriptor. "id" is the
+// validated climier.id from the descriptor (regex in
 // plugin-descriptor.mjs). "nonce" is a per-install random hex string.
 
 import path from "node:path";
