@@ -521,9 +521,11 @@ test("cancel preserves root plugins and per-node plugins", async () => {
     const base = await bootstrapState(dir);
     seedPluginData(base);
     await writeState(dir, base);
-    // Use a policy-allow actor so we can cancel an unclaimed open task;
-    // the preservation contract is independent of the authority rule and
-    // is exercised separately elsewhere.
+    // Cancel an unclaimed open task. Under ADR-009 the core lets any
+    // actor cancel; the policy-fixture is kept here so the test still
+    // covers the seam allow branch alongside the default core path.
+    // The preservation contract is independent of the authority rule
+    // and is exercised separately elsewhere.
     const { default: cancel } = await importFresh("./commands/cancel.mjs");
     await cancel({
       statePath: dir,

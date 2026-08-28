@@ -78,8 +78,10 @@ test("CLI: take --as works, then resolve --as note works", async () => {
 });
 
 test("CLI: reopen --as policy-allow actor rolls back a done task end-to-end", async () => {
-  // T-plugin-policy-seam-lifecycle / ADR-008: the historical
-  // orchestrator-bypass reopen path is replaced by a policy seam allow.
+  // ADR-008 §"`task.reopen`" exercises the seam allow path via the
+  // policy-fixture: under ADR-009 the core itself accepts any actor,
+  // so this case pins the policy allow behavior explicitly. Without
+  // the fixture the same reopen would also succeed (default core).
   const dir = await createTempProject();
   await installPolicyFixture(dir);
   try {
@@ -107,7 +109,11 @@ test("CLI: reopen --as policy-allow actor rolls back a done task end-to-end", as
   }
 });
 
-test("CLI: reopen by a stranger fails with non-zero exit", async () => {
+test("CLI: reopen by a stranger succeeds under ADR-009 (no ownership compare on done_by)", async () => {
+  // ADR-009 §"Resto de operaciones": reopen may roll back any terminal
+  // resolvable from any actor; the core only checks state validity and
+  // required fields. State validation and required-field enforcement
+  // are still verified separately (see the next two tests).
   const dir = await createTempProject();
   try {
     await initExampleProject(dir);
@@ -117,9 +123,42 @@ test("CLI: reopen by a stranger fails with non-zero exit", async () => {
     const r = await runCli([
       "--project", dir, "reopen", "F0.T1", "--reason", "I want to", "--as", "agent-2",
     ]);
+    assert.equal(r.code, 0, r.stderr);
+    const data = JSON.parse(r.stdout);
+    assert.equal(data.node.id, "F0.T1");
+    assert.equal(data.node.status, "open");
+    assert.equal(data.node.done_by, undefined, "done_by cleared on reopen");
+    assert.equal(data.node.done_at, undefined, "done_at cleared on reopen");
+    assert.equal(data.node.note, undefined, "note cleared on reopen");
+    assert.equal(data.node.claim, null, "claim cleared on reopen");
+
+    // F0.T2 (depends on F0.T1) must be blocked again.
+    const s = await runCli(["--project", dir, "status"]);
+    assert.equal(s.code, 0, s.stderr);
+    const sdata = JSON.parse(s.stdout);
+    const blockedIds = (sdata.tasks.blocked || []).map((t) => t.id);
+    assert.equal(blockedIds.includes("F0.T2"), true, "F0.T2 should be blocked after reopen");
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("CLI: reopen without --reason still fails with MISSING_FIELD (required field is enforced)", async () => {
+  // ADR-009 §"Resto de operaciones": state validation and required fields
+  // are part of the core contract; only ownership checks were removed.
+  const dir = await createTempProject();
+  try {
+    await initExampleProject(dir);
+    await runCli(["--project", dir, "take", "F0.T1", "--as", "agent-1"]);
+    await runCli(["--project", dir, "resolve", "F0.T1", "--note", "shipped", "--as", "agent-1"]);
+
+    const r = await runCli([
+      "--project", dir, "reopen", "F0.T1", "--as", "agent-2",
+    ]);
     assert.notEqual(r.code, 0);
     const data = JSON.parse(r.stdout);
-    assert.match(data.error.message || data.error, /not authorized/i);
+    assert.equal(data.ok, false);
+    assert.match(data.error.message || data.error, /--reason/);
   } finally {
     await rmTempProject(dir);
   }
@@ -327,7 +366,10 @@ test("CLI: update on an in_progress task is allowed (v2 contract: no claim lock)
   }
 });
 
-test("CLI: resolve on a ready task fails with JSON error (v2: must take first)", async () => {
+test("CLI: resolve on a ready task succeeds without prior take (ADR-009: no claim required)", async () => {
+  // ADR-009 §"Resto de operaciones": the core no longer requires a
+  // claim to resolve a task. Required fields (--note) and state
+  // validation still apply — see the following two tests.
   const dir = await createTempProject();
   try {
     let r = await runCli(["--project", dir, "init"]);
@@ -337,10 +379,37 @@ test("CLI: resolve on a ready task fails with JSON error (v2: must take first)",
     const seed = await runCli(["--project", dir, "add-task", "--initiative", "migration", "--title", "x", "--body", "b", "--acceptance", "a", "--blocked-by", ""]);
     assert.equal(seed.code, 0, seed.stderr);
     const seedId = JSON.parse(seed.stdout).node.id;
-    r = await runCli(["--project", dir, "resolve", seedId, "--note", "no take yet", "--as", "alice"]);
+
+    r = await runCli(["--project", dir, "resolve", seedId, "--note", "resolved from ready", "--as", "alice"]);
+    assert.equal(r.code, 0, r.stderr);
+    const data = JSON.parse(r.stdout);
+    assert.equal(data.node.id, seedId);
+    assert.equal(data.node.status, "done");
+    assert.equal(data.node.done_by, "alice", "done_by reflects the actual actor, not the original claim");
+    assert.equal(data.node.claim, null, "claim cleared on resolve");
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("CLI: resolve without --note still fails with MISSING_FIELD (required field is enforced)", async () => {
+  // ADR-009: only the ownership check was removed; --note is still
+  // required to resolve a task.
+  const dir = await createTempProject();
+  try {
+    let r = await runCli(["--project", dir, "init"]);
+    assert.equal(r.code, 0, r.stderr);
+    r = await runCli(["--project", dir, "add-initiative", "migration", "--desc", "x"]);
+    assert.equal(r.code, 0, r.stderr);
+    const seed = await runCli(["--project", dir, "add-task", "--initiative", "migration", "--title", "x", "--body", "b", "--acceptance", "a", "--blocked-by", ""]);
+    assert.equal(seed.code, 0, seed.stderr);
+    const seedId = JSON.parse(seed.stdout).node.id;
+
+    r = await runCli(["--project", dir, "resolve", seedId, "--as", "alice"]);
     assert.notEqual(r.code, 0);
     const data = JSON.parse(r.stdout);
     assert.equal(data.ok, false);
+    assert.match(data.error.message || data.error, /--note/);
   } finally {
     await rmTempProject(dir);
   }
