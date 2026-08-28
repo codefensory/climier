@@ -1,25 +1,19 @@
 // F11 — release: free a task's claim without resolving it.
 //
-// Behaviour (T-plugin-policy-seam-lifecycle / ADR-008):
-//   - Owner: `claim = null`, `status = "open"`, revision++, log entry.
-//   - Non-owner: NOT_OWNER (unless a policy plugin explicitly allows
-//     the operation; ADR-008 §"Invariantes core" + §"Tabla de take").
-//   - Anyone else (no policy installed, or policy abstains): NOT_OWNER
-//     — the default-core owner check still applies (ADR-008 §3.4).
+// Behaviour (ADR-009 §"Resto de operaciones"):
+//   - Any actor with `--as` can release a task with an active claim;
+//     `claim = null`, `status = "open"`, revision++, log entry.
 //   - Node without a claim (never claimed or already released): idempotent
 //     `{ released: false, node }`, no state mutation, no log entry,
-//     no seam invocation (the idempotent short-circuits BEFORE the
-//     seam per ADR-008 §3.4 / plan §3.4).
+//     no seam invocation.
 //   - Non-task nodes (gate / knowledge) cannot be released — they have no
 //     claim lifecycle. Surfaces as INVALID_STATUS.
 //
 // Policy seam (ADR-008 §"Tabla de resolve" / §3.4):
 //   - Action: `task.release`.
-//   - allow   → proceed (the no-owner check is skipped because policy
-//               already authorized the actor; a plugin can grant
-//               takeover-style release to non-owners).
+//   - allow   → proceed.
 //   - deny    → POLICY_DENIED, no state mutation, no log entry.
-//   - abstain → default core (NOT_OWNER for non-owners).
+//   - abstain → default core (proceed; any actor is authorized).
 //   - throw / invalid response → POLICY_ERROR propagates verbatim.
 import { readState, updateState } from "../state.mjs";
 import { withLock } from "../lock.mjs";
@@ -78,11 +72,10 @@ export default async function releaseV2({ statePath, flags, positional, pluginId
       initiatives: { ...s.initiatives },
     };
 
-    // ADR-008 §"Tabla de resolve" + §3.4: decision contract for
-    // task.release is { allow → proceed, deny → POLICY_DENIED,
-    // abstain → defaults core }. authorizeAction surfaces deny/throw
-    // by throwing; we map allow/abstain to the action-specific path
-    // below.
+    // ADR-008 §"Tabla de resolve" + §3.4 + ADR-009: decision contract
+    // for task.release is { allow/abstain → proceed, deny → POLICY_DENIED,
+    // throw → POLICY_ERROR }. The core no longer compares the actor
+    // against the claim; any actor is authorized to release by default.
     const decision = await authorizeAction({
       policy,
       action: "task.release",
@@ -100,16 +93,7 @@ export default async function releaseV2({ statePath, flags, positional, pluginId
         decision.reason || "denied by policy",
       );
     }
-    // decision is "allow" or "abstain". "allow" skips the owner check
-    // (the policy already authorized the actor); "abstain" falls back
-    // to the default-core owner check.
-    if (decision.decision === "abstain" && node.claim.by !== as) {
-      throwV2(
-        "NOT_OWNER",
-        `release: node ${id} is not yours (claimed by ${node.claim.by})`,
-        { id, owner: node.claim.by },
-      );
-    }
+    // allow / abstain → proceed.
 
     const updated = await updateState(projectDir, (st) => {
       const target = st.nodes[id];

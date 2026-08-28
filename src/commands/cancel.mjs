@@ -1,10 +1,9 @@
 // F11 — cancel: terminate a node without resolving it.
 //
-// Behaviour (T-plugin-policy-seam-lifecycle / ADR-008):
+// Behaviour (ADR-009 §"Resto de operaciones"):
 //   - Allowed when node.status is "open" or "in_progress".
-//   - Authority: claim owner. For an unclaimed node (status=open) only
-//     a policy plugin may authorize cancellation by another actor
-//     (ADR-008 §"Tabla de resolve" + §3.4).
+//   - Any actor with `--as` can cancel. The core no longer requires
+//     the actor to be the claim owner.
 //   - status -> "canceled", claim cleared, revision++. Log with reason.
 //   - Anything else (done, resolved, canceled, superseded, deprecated,
 //     backlog): INVALID_STATUS with allowed=["open","in_progress"].
@@ -13,10 +12,9 @@
 // Policy seam (ADR-008 §"Tabla de resolve" / §3.4):
 //   - Action: `task.cancel` (used for both tasks and gates because
 //     cancellation applies to any open/in_progress resolvable).
-//   - allow   → proceed (skip the no-claim check).
+//   - allow   → proceed.
 //   - deny    → POLICY_DENIED, no state mutation, no log entry.
-//   - abstain → default core (NOT_OWNER for non-owners; for unclaimed
-//               nodes the owner check fails because there is no claim).
+//   - abstain → default core (proceed; any actor is authorized).
 //   - throw / invalid response → POLICY_ERROR propagates verbatim.
 import { readState, updateState } from "../state.mjs";
 import { withLock } from "../lock.mjs";
@@ -66,16 +64,9 @@ export default async function cancelV2({ statePath, flags, positional, pluginId 
       );
     }
 
-    const ownerBy = node.claim && node.claim.by;
-    const isOwner = ownerBy === as;
-
-    // Build snapshot + target for the seam. ADR-008 §"Invariantes
-    // core" + §3.4: gates do not have a claim lifecycle, but cancel
-    // is still routed through the seam because the action can mutate
-    // status. The owner check uses claim for tasks; for gates the
-    // claim is null and any non-policy decision falls back to NOT_OWNER
-    // so a no-actor can never cancel a gate by default (matches the
-    // historical behaviour — cancellation is not bootstrap).
+    // Build snapshot + target for the seam. ADR-009 removes the owner
+    // invariant: the seam decides whether to deny; the default core
+    // (abstain) lets any actor cancel an open/in_progress node.
     const target = {
       id: node.id,
       kind: node.kind,
@@ -107,16 +98,7 @@ export default async function cancelV2({ statePath, flags, positional, pluginId 
         decision.reason || "denied by policy",
       );
     }
-
-    // Default core: only the claim owner can cancel. For unclaimed
-    // nodes (open) this fails because ownerBy is null.
-    if (decision.decision === "abstain" && !isOwner) {
-      throwV2(
-        "NOT_OWNER",
-        `cancel: node ${id} is not yours (no claim by ${as})`,
-        { id, owner: ownerBy || null },
-      );
-    }
+    // allow / abstain → proceed.
 
     const updated = await updateState(projectDir, (st) => {
       const target = st.nodes[id];

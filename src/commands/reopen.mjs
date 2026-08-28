@@ -1,22 +1,21 @@
 // F11 — reopen: roll a terminal resolvable back to open.
 //
-// Behaviour (T-plugin-policy-seam-lifecycle / ADR-008):
+// Behaviour (ADR-009 §"Resto de operaciones"):
 //   - task (subkind=task, status=done): status -> "open", claim cleared,
 //     done_by/at/note removed, revision++. Log with reason.
 //   - gate (subkind=gate, status=resolved): same; clearing the gate means
 //     re-deciding it, so the previous resolution is removed too.
-//   - Authority: original done_by (from the stored node.done_by). Anyone
-//     else: NOT_OWNER unless a policy plugin explicitly allows the
-//     reopen for another actor (ADR-008 §"Tabla de resolve" + §3.4).
+//   - Any actor with `--as` may reopen. The core no longer compares
+//     against `done_by` (which is also removed as part of the reopen).
 //   - Wrong status: INVALID_STATUS.
 //   - Non-resolvable nodes: INVALID_STATUS.
 //
 // Policy seam (ADR-008 §"Tabla de resolve" / §3.4):
 //   - Action: `task.reopen` (and gate reopen shares the same action
 //     identifier; the seam distinguishes by `target.subkind`).
-//   - allow   → proceed (the no-done_by check is skipped).
+//   - allow   → proceed.
 //   - deny    → POLICY_DENIED, no state mutation, no log entry.
-//   - abstain → default core (NOT_OWNER for non-done_by actors).
+//   - abstain → default core (proceed; any actor is authorized).
 //   - throw / invalid response → POLICY_ERROR propagates verbatim.
 import { readState, updateState } from "../state.mjs";
 import { withLock } from "../lock.mjs";
@@ -99,18 +98,7 @@ export default async function reopenV2({ statePath, flags, positional, pluginId 
         decision.reason || "denied by policy",
       );
     }
-
-    // Default core: only the original done_by may reopen. Gate reopen
-    // accepts any agent (gates do not carry a claim lifecycle, so the
-    // "done_by" check is task-only).
-    const isSelf = node.subkind === "task" ? node.done_by && node.done_by === as : true;
-    if (decision.decision === "abstain" && !isSelf) {
-      throwV2(
-        "NOT_OWNER",
-        `reopen: node ${id} is not authorized (only done_by can reopen; done_by=${node.done_by || "(none)"})`,
-        { id, owner: node.done_by || null },
-      );
-    }
+    // allow / abstain → proceed.
 
     const updated = await updateState(projectDir, (st) => {
       const target = st.nodes[id];
