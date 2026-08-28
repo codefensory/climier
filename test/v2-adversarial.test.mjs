@@ -24,6 +24,8 @@ import {
   runCli,
   writeState as writeRawState,
   readState as readRawState,
+  installPolicyFixture,
+  uninstallPolicyFixture,
 } from "./helpers.mjs";
 
 // --- shared scaffolding ------------------------------------------------
@@ -947,20 +949,28 @@ describe("take idempotency and takeover", () => {
     } finally { await rmTempProject(dir); }
   });
 
-  test("take as orchestrator takes over alice's in_progress claim", async () => {
+  test("take as policy-allow actor takes over alice's in_progress claim", async () => {
+    // T-plugin-policy-seam-lifecycle / ADR-008 §"Tabla de take": the
+    // historical orchestrator takeover is replaced by a policy seam
+    // allow. We install the policy-fixture and exercise the
+    // `task.takeover` action with mode=allow.
     const dir = await v2Project();
+    await installPolicyFixture(dir);
     try {
       await addTaskNode(dir, "T-a");
       await takeNode(dir, "T-a", "alice");
       const { default: take } = await importFresh("./commands/take.mjs");
-      const out = await take({ statePath: dir, flags: { as: "orchestrator" }, positional: ["T-a"], projectDir: dir });
+      const out = await take({ statePath: dir, flags: { as: "recovery-agent" }, positional: ["T-a"], projectDir: dir });
       assert.equal(out.freshly_claimed, true);
       const s = await readRawState(dir);
-      assert.equal(s.nodes["T-a"].claim.by, "orchestrator");
+      assert.equal(s.nodes["T-a"].claim.by, "recovery-agent");
       // Log entry records previous_owner.
       const lastTake = s.log.filter((e) => e.action === "take").slice(-1)[0];
       assert.equal(lastTake.previous_owner, "alice");
-    } finally { await rmTempProject(dir); }
+    } finally {
+      await uninstallPolicyFixture(dir);
+      await rmTempProject(dir);
+    }
   });
 
   test("take as bob on alice's claim: ALREADY_CLAIMED, not a takeover", async () => {

@@ -1,19 +1,30 @@
 // F11 — reopen: roll a terminal resolvable back to open.
 //
-// Behaviour:
+// Behaviour (T-plugin-policy-seam-lifecycle / ADR-008):
 //   - task (subkind=task, status=done): status -> "open", claim cleared,
 //     done_by/at/note removed, revision++. Log with reason.
 //   - gate (subkind=gate, status=resolved): same; clearing the gate means
 //     re-deciding it, so the previous resolution is removed too.
-//   - Authority: original done_by (from the stored node.done_by) OR
-//     orchestrator/recovery. Anyone else: NOT_OWNER.
+//   - Authority: original done_by (from the stored node.done_by). Anyone
+//     else: NOT_OWNER unless a policy plugin explicitly allows the
+//     reopen for another actor (ADR-008 §"Tabla de resolve" + §3.4).
 //   - Wrong status: INVALID_STATUS.
 //   - Non-resolvable nodes: INVALID_STATUS.
+//
+// Policy seam (ADR-008 §"Tabla de resolve" / §3.4):
+//   - Action: `task.reopen` (and gate reopen shares the same action
+//     identifier; the seam distinguishes by `target.subkind`).
+//   - allow   → proceed (the no-done_by check is skipped).
+//   - deny    → POLICY_DENIED, no state mutation, no log entry.
+//   - abstain → default core (NOT_OWNER for non-done_by actors).
+//   - throw / invalid response → POLICY_ERROR propagates verbatim.
 import { readState, updateState } from "../state.mjs";
 import { withLock } from "../lock.mjs";
 import { appendWithContext } from "../log.mjs";
 import { throwV2 } from "../errors.mjs";
 import { resolveAgent } from "../agent.mjs";
+import { loadApplicablePolicy, authorizeAction } from "../policy.mjs";
+import { PolicyDenied } from "../plugin-errors.mjs";
 
 export const knownFlags = ["as", "reason"];
 
@@ -32,6 +43,8 @@ export default async function reopenV2({ statePath, flags, positional, pluginId 
   if (!reason) throwV2("MISSING_FIELD", "reopen: --reason required", { field: "reason" });
   const projectDir = statePath;
   const as = resolveAgent(flags, "reopen");
+
+  const policy = await loadApplicablePolicy({ projectDir });
 
   return withLock(projectDir, async () => {
     const s = await readState(projectDir);
@@ -53,15 +66,52 @@ export default async function reopenV2({ statePath, flags, positional, pluginId 
         { id, current: node.status || "open", expected: terminal },
       );
     }
-    const isOrchestrator = as === "orchestrator" || as === "recovery";
-    const isSelf = node.done_by && node.done_by === as;
-    if (!isOrchestrator && !isSelf) {
-      throwV2(
-        "NOT_OWNER",
-        `reopen: node ${id} is not authorized (only done_by or orchestrator can reopen; done_by=${node.done_by || "(none)"})`,
-        { id, owner: node.done_by },
+
+    // Build snapshot + target for the seam.
+    const target = {
+      id: node.id,
+      kind: node.kind,
+      subkind: node.subkind,
+      status: node.status,
+      done_by: node.done_by || null,
+    };
+    const snapshot = {
+      state: s,
+      nodes: { ...s.nodes },
+      edges: s.edges.slice(),
+      initiatives: { ...s.initiatives },
+    };
+
+    const decision = await authorizeAction({
+      policy,
+      action: "task.reopen",
+      actor: as,
+      target,
+      snapshot,
+      projectDir,
+      projectConfig: policy ? policy.projectConfig : {},
+    });
+    if (decision.decision === "deny") {
+      throw new PolicyDenied(
+        policy && policy.pluginId ? policy.pluginId : "(unknown)",
+        "task.reopen",
+        as,
+        decision.reason || "denied by policy",
       );
     }
+
+    // Default core: only the original done_by may reopen. Gate reopen
+    // accepts any agent (gates do not carry a claim lifecycle, so the
+    // "done_by" check is task-only).
+    const isSelf = node.subkind === "task" ? node.done_by && node.done_by === as : true;
+    if (decision.decision === "abstain" && !isSelf) {
+      throwV2(
+        "NOT_OWNER",
+        `reopen: node ${id} is not authorized (only done_by can reopen; done_by=${node.done_by || "(none)"})`,
+        { id, owner: node.done_by || null },
+      );
+    }
+
     const updated = await updateState(projectDir, (st) => {
       const target = st.nodes[id];
       target.status = "open";

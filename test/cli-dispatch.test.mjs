@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createTempProject, rmTempProject, runCli, initExampleProject} from "./helpers.mjs";
+import { createTempProject, rmTempProject, runCli, initExampleProject, installPolicyFixture, uninstallPolicyFixture } from "./helpers.mjs";
 
 const packageVersion = JSON.parse(
   fs.readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "package.json"), "utf8")
@@ -77,15 +77,18 @@ test("CLI: take --as works, then resolve --as note works", async () => {
   }
 });
 
-test("CLI: reopen --as orchestrator rolls back a done task end-to-end", async () => {
+test("CLI: reopen --as policy-allow actor rolls back a done task end-to-end", async () => {
+  // T-plugin-policy-seam-lifecycle / ADR-008: the historical
+  // orchestrator-bypass reopen path is replaced by a policy seam allow.
   const dir = await createTempProject();
+  await installPolicyFixture(dir);
   try {
     await initExampleProject(dir);
     await runCli(["--project", dir, "take", "F0.T1", "--as", "agent-1"]);
     await runCli(["--project", dir, "resolve", "F0.T1", "--note", "shipped", "--as", "agent-1"]);
 
     const r = await runCli([
-      "--project", dir, "reopen", "F0.T1", "--reason", "le falta validacion", "--as", "orchestrator",
+      "--project", dir, "reopen", "F0.T1", "--reason", "le falta validacion", "--as", "auditor",
     ]);
     assert.equal(r.code, 0, r.stderr);
     const data = JSON.parse(r.stdout);
@@ -99,6 +102,7 @@ test("CLI: reopen --as orchestrator rolls back a done task end-to-end", async ()
     const blockedIds = (sdata.tasks.blocked || []).map((t) => t.id);
     assert.equal(blockedIds.includes("F0.T2"), true, "F0.T2 should be blocked after reopen");
   } finally {
+    await uninstallPolicyFixture(dir);
     await rmTempProject(dir);
   }
 });
