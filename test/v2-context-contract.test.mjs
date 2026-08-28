@@ -371,7 +371,7 @@ test("context v2: allowed_actions for task in_progress owned by other -> add-not
   }
 });
 
-test("context v2: allowed_actions for task in_progress --as orchestrator (not owner) -> add-note only", async () => {
+test("context v2: allowed_actions for task in_progress --as test-agent (non-owner) -> add-note only (ADR-008: actor name has no authority)", async () => {
   const { default: context } = await importFresh("./commands/context.mjs");
   const dir = await createTempProject();
   try {
@@ -390,10 +390,10 @@ test("context v2: allowed_actions for task in_progress --as orchestrator (not ow
         },
       },
     });
-    // The actor name "orchestrator" no longer grants any authority.
-    // Since the actor is not the claim owner, the action list is
-    // identical to any other non-owner (ADR-008 §"Invariantes core").
-    const out = await context({ statePath: dir, positional: ["T-x"], flags: { as: "orchestrator" } });
+    // ADR-008 §"Invariantes core": the actor name has no authority;
+    // since the actor is not the claim owner, only add-note remains
+    // available (the owner still gets resolve/release/add-note/update).
+    const out = await context({ statePath: dir, positional: ["T-x"], flags: { as: "test-agent" } });
     assert.deepEqual(out.allowed_actions, ["add-note"]);
   } finally {
     await rmTempProject(dir);

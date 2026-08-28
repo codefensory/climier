@@ -33,7 +33,7 @@ async function bootstrapV2(dir) {
     statePath: dir,
     projectDir: dir,
     positional: ["wf"],
-    flags: { desc: "workflow", as: "orchestrator" },
+    flags: { desc: "workflow", as: "test-agent" },
   });
 }
 
@@ -217,7 +217,7 @@ test("add-node: rejects meta.execution with INVALID_EXECUTION_CONTRACT code", as
     await bootstrapV2(dir);
     let caught;
     try {
-      await addTask(dir, "T-bad", { meta: '{"execution":{"effort":"XL"}}', as: "orchestrator" });
+      await addTask(dir, "T-bad", { meta: '{"execution":{"effort":"XL"}}', as: "test-agent" });
     } catch (e) { caught = e; }
     assert.ok(caught, "should have thrown");
     assert.equal(caught.code, "INVALID_EXECUTION_CONTRACT");
@@ -241,7 +241,7 @@ test("add-node: accepts a fully-valid meta.execution and persists normalized for
           checks: ["node --test test/foo.test.mjs"],
         },
       }),
-      as: "orchestrator",
+      as: "test-agent",
     });
     const s = await readRawState(dir);
     const node = s.nodes["T-good"];
@@ -262,7 +262,7 @@ test("add-node: meta without execution key stays compatible (historical meta)", 
     await bootstrapV2(dir);
     await addTask(dir, "T-historical", {
       meta: '{"ticket":"OLD-1","reviewer":"alice","custom_array":[1,2,3]}',
-      as: "orchestrator",
+      as: "test-agent",
     });
     const s = await readRawState(dir);
     const node = s.nodes["T-historical"];
@@ -281,7 +281,7 @@ test("add-node: meta with execution:null strips it and keeps the rest", async ()
     await bootstrapV2(dir);
     await addTask(dir, "T-strip", {
       meta: '{"execution":null,"ticket":"STRIP"}',
-      as: "orchestrator",
+      as: "test-agent",
     });
     const s = await readRawState(dir);
     assert.deepEqual(s.nodes["T-strip"].meta, { ticket: "STRIP" });
@@ -303,7 +303,7 @@ test("update: rejects meta.execution with INVALID_EXECUTION_CONTRACT", async () 
       await update({
         statePath: dir,
         positional: ["T-x"],
-        flags: { meta: '{"execution":{"risk":"yolo"}}', as: "orchestrator" },
+        flags: { meta: '{"execution":{"risk":"yolo"}}', as: "test-agent" },
       });
     } catch (e) { caught = e; }
     assert.ok(caught, "should have thrown");
@@ -325,7 +325,7 @@ test("update: valid meta.execution persists the normalized contract", async () =
         meta: JSON.stringify({
           execution: { effort: "L", risk: "public-surface", owns: ["src/commands/bar.mjs"], seam: "commands.bar" },
         }),
-        as: "orchestrator",
+        as: "test-agent",
       },
     });
     const s = await readRawState(dir);
@@ -348,12 +348,12 @@ test("update: meta.execution={} clears the existing contract while keeping sibli
         ticket: "WF-9",
         execution: { effort: "S", risk: "isolated", owns: ["src/commands/x.mjs"], seam: "x" },
       }),
-      as: "orchestrator",
+      as: "test-agent",
     });
     await update({
       statePath: dir,
       positional: ["T-x"],
-      flags: { meta: JSON.stringify({ execution: {}, ticket: "WF-9" }), as: "orchestrator" },
+      flags: { meta: JSON.stringify({ execution: {}, ticket: "WF-9" }), as: "test-agent" },
     });
     const s = await readRawState(dir);
     assert.equal("execution" in s.nodes["T-x"].meta, false);
@@ -733,7 +733,7 @@ test("CLI: add-task rejects invalid meta.execution with INVALID_EXECUTION_CONTRA
   try {
     let r = await runCli(["init"], { cwd: dir });
     assert.equal(r.code, 0, r.stdout);
-    r = await runCli(["add-initiative", "wf", "--desc", "x", "--as", "orchestrator"], { cwd: dir });
+    r = await runCli(["add-initiative", "wf", "--desc", "x", "--as", "test-agent"], { cwd: dir });
     assert.equal(r.code, 0, r.stdout);
     r = await runCli([
       "add-task", "T-bad",
@@ -743,7 +743,7 @@ test("CLI: add-task rejects invalid meta.execution with INVALID_EXECUTION_CONTRA
       "--acceptance", "Z",
       "--blocked-by", "",
       "--meta", '{"execution":{"effort":"XL"}}',
-      "--as", "orchestrator",
+      "--as", "test-agent",
     ], { cwd: dir });
     assert.equal(r.code, 1, r.stdout);
     const err = JSON.parse(r.stdout);
@@ -757,7 +757,7 @@ test("CLI: context surfaces execution_contract and ownership_conflicts via JSON"
   try {
     let r = await runCli(["init"], { cwd: dir });
     assert.equal(r.code, 0, r.stdout);
-    r = await runCli(["add-initiative", "wf", "--desc", "x", "--as", "orchestrator"], { cwd: dir });
+    r = await runCli(["add-initiative", "wf", "--desc", "x", "--as", "test-agent"], { cwd: dir });
     assert.equal(r.code, 0, r.stdout);
     r = await runCli([
       "add-task", "T-self",
@@ -769,7 +769,7 @@ test("CLI: context surfaces execution_contract and ownership_conflicts via JSON"
       "--meta", JSON.stringify({
         execution: { effort: "M", risk: "isolated", owns: ["src/commands/x.mjs"], seam: "x" },
       }),
-      "--as", "orchestrator",
+      "--as", "test-agent",
     ], { cwd: dir });
     assert.equal(r.code, 0, r.stdout);
     r = await runCli([
@@ -782,7 +782,7 @@ test("CLI: context surfaces execution_contract and ownership_conflicts via JSON"
       "--meta", JSON.stringify({
         execution: { effort: "S", risk: "isolated", owns: ["src/commands/x.mjs"], seam: "x" },
       }),
-      "--as", "orchestrator",
+      "--as", "test-agent",
     ], { cwd: dir });
     assert.equal(r.code, 0, r.stdout);
 

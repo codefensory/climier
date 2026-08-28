@@ -1,15 +1,21 @@
 // snapshots-restore.test.mjs — `snapshots` listing and `restore` command.
 //
-// Cubre ADR-004 §§Commands/Plan 3: el comando read-only `snapshots` y el
-// comando mutante `restore <snapshot-id> --as orchestrator|recovery` que
-// valida target v2/shape, toma un snapshot pre-restore del estado actual,
-// restaura bajo lock y agrega un log `{ action: "restore", agent,
-// snapshot_id }` al estado restaurado. Depende de los primitives
-// `createSnapshot` / `listSnapshots` introducidos en Plan 1.
+// Cubre ADR-004 §§Commands/Plan 3 y ADR-008 §"`restore` e `init --force`":
+// el comando read-only `snapshots` y el comando mutante
+// `restore <snapshot-id> --as <agent>` que valida target v2/shape, toma
+// un snapshot pre-restore del estado actual, restaura bajo lock y
+// agrega un log `{ action: "restore", agent, snapshot_id }` al estado
+// restaurado. Depende de los primitives `createSnapshot` /
+// `listSnapshots` introducidos en Plan 1.
+//
+// T-plugin-policy-migration-tests / ADR-008: el bypass histórico
+// orchestrator/recovery se reemplaza por una policy opcional (ver
+// test/plugin-policy-seam-state-ops.test.mjs). Este archivo conserva
+// happy-path y error-path con `as: "test-agent"` (nominal).
 //
 // Casos cubiertos:
 //   - snapshots: shape, sort, completitud, exclusion de pares incompletos
-//   - restore happy path: --as orchestrator / --as recovery, raw preservado,
+//   - restore happy path: --as <any-non-empty agent>, raw preservado,
 //     pre-restore snapshot reason=pre-restore, log entry en el estado restaurado
 //   - restore authority: --as faltante, --as con valor no permitido
 //   - restore error paths: target ausente / incompleto / corrupto / v1 / futuro / shape inválido
@@ -197,7 +203,7 @@ test("snapshots command: accepts no flags (idempotent knownFlags = [])", async (
 // `restore` happy path
 // =========================================================================
 
-test("restore: --as orchestrator succeeds and returns { snapshot } with full metadata", async () => {
+test("restore: --as <any-non-empty> succeeds and returns { snapshot } with full metadata (ADR-008)", async () => {
   const dir = await createTempProject();
   try {
     const { createSnapshot } = await importFresh("./state.mjs");
@@ -208,7 +214,7 @@ test("restore: --as orchestrator succeeds and returns { snapshot } with full met
     const meta = await createSnapshot(dir, "force-init");
     // Replace the state with an empty one (simulating init --force).
     await bootstrapState(dir);
-    const out = await restore({ statePath: dir, flags: { as: "orchestrator" }, positional: [meta.id] });
+    const out = await restore({ statePath: dir, flags: { as: "test-agent" }, positional: [meta.id] });
     assert.ok(out.snapshot);
     assert.equal(out.snapshot.id, meta.id);
     assert.equal(out.snapshot.reason, "force-init");
@@ -220,7 +226,7 @@ test("restore: --as orchestrator succeeds and returns { snapshot } with full met
   }
 });
 
-test("restore: --as recovery succeeds and returns { snapshot }", async () => {
+test("restore: --as <any-non-empty> succeeds with second-actor identity (ADR-008)", async () => {
   const dir = await createTempProject();
   try {
     const { createSnapshot } = await importFresh("./state.mjs");
@@ -230,7 +236,7 @@ test("restore: --as recovery succeeds and returns { snapshot }", async () => {
     });
     const meta = await createSnapshot(dir, "force-init");
     await bootstrapState(dir);
-    const out = await restore({ statePath: dir, flags: { as: "recovery" }, positional: [meta.id] });
+    const out = await restore({ statePath: dir, flags: { as: "test-agent" }, positional: [meta.id] });
     assert.ok(out.snapshot);
     assert.equal(out.snapshot.id, meta.id);
     const restored = await readState(dir);
@@ -253,7 +259,7 @@ test("restore: replaces state with snapshot raw bytes verbatim (content matches 
     });
     const meta = await createSnapshot(dir, "force-init");
     await bootstrapState(dir);
-    await restore({ statePath: dir, flags: { as: "orchestrator" }, positional: [meta.id] });
+    await restore({ statePath: dir, flags: { as: "test-agent" }, positional: [meta.id] });
     const restored = await readState(dir);
     // The restored state should equal baseline plus the appended restore log entry.
     assert.deepEqual(restored.nodes, baseline.nodes);
@@ -280,7 +286,7 @@ test("restore: takes a pre-restore snapshot of the current state (reason=pre-res
     // After force-init, the state is empty. That empty state is what
     // we expect to be preserved as pre-restore.
     await bootstrapState(dir);
-    await restore({ statePath: dir, flags: { as: "orchestrator" }, positional: [meta.id] });
+    await restore({ statePath: dir, flags: { as: "test-agent" }, positional: [meta.id] });
     const snaps = await listSnapshots(dir);
     const preRestore = snaps.find((s) => s.reason === "pre-restore");
     assert.ok(preRestore, `expected a pre-restore snapshot; got reasons: ${snaps.map((s) => s.reason).join(",")}`);
@@ -304,11 +310,11 @@ test("restore: appends log entry { action: 'restore', agent, snapshot_id } to th
     await bootstrapState(dir);
     const meta = await createSnapshot(dir, "force-init");
     await bootstrapState(dir);
-    await restore({ statePath: dir, flags: { as: "orchestrator" }, positional: [meta.id] });
+    await restore({ statePath: dir, flags: { as: "test-agent" }, positional: [meta.id] });
     const after = await readState(dir);
     const restoreEntries = after.log.filter((e) => e.action === "restore");
     assert.equal(restoreEntries.length, 1, `expected 1 restore entry; got ${after.log.length} entries`);
-    assert.equal(restoreEntries[0].agent, "orchestrator");
+    assert.equal(restoreEntries[0].agent, "test-agent");
     assert.equal(restoreEntries[0].snapshot_id, meta.id);
     assert.equal(typeof restoreEntries[0].ts, "string");
   } finally {
@@ -324,11 +330,11 @@ test("restore: log entry uses --as agent (recovery agent is recorded)", async ()
     await bootstrapState(dir);
     const meta = await createSnapshot(dir, "force-init");
     await bootstrapState(dir);
-    await restore({ statePath: dir, flags: { as: "recovery" }, positional: [meta.id] });
+    await restore({ statePath: dir, flags: { as: "test-agent" }, positional: [meta.id] });
     const after = await readState(dir);
     const restoreEntries = after.log.filter((e) => e.action === "restore");
     assert.equal(restoreEntries.length, 1);
-    assert.equal(restoreEntries[0].agent, "recovery");
+    assert.equal(restoreEntries[0].agent, "test-agent");
     assert.equal(restoreEntries[0].snapshot_id, meta.id);
   } finally {
     await rmTempProject(dir);
@@ -343,7 +349,7 @@ test("restore: pre-restore snapshot happens BEFORE the state file is replaced (a
     await bootstrapState(dir);
     const meta = await createSnapshot(dir, "force-init");
     await bootstrapState(dir);
-    await restore({ statePath: dir, flags: { as: "orchestrator" }, positional: [meta.id] });
+    await restore({ statePath: dir, flags: { as: "test-agent" }, positional: [meta.id] });
     const snaps = await listSnapshots(dir);
     // The pre-restore snapshot's created_at must be earlier than the
     // restore log entry's ts (the restore happened later). We assert
@@ -361,7 +367,7 @@ test("restore: pre-restore snapshot happens BEFORE the state file is replaced (a
 });
 
 // =========================================================================
-// `restore` authority: --as must be orchestrator or recovery
+// `restore` authority: ADR-008 — any non-empty --as succeeds when no policy is installed (seam abstains → defaults core).
 // =========================================================================
 
 test("restore: --as missing fails with structured error", async () => {
@@ -445,7 +451,7 @@ test("restore: missing id (no positional) fails with MISSING_FIELD", async () =>
     const { default: restore } = await importFresh("./commands/restore.mjs");
     let captured;
     try {
-      await restore({ statePath: dir, flags: { as: "orchestrator" }, positional: [] });
+      await restore({ statePath: dir, flags: { as: "test-agent" }, positional: [] });
     } catch (e) {
       captured = e;
     }
@@ -468,7 +474,7 @@ test("restore: target missing (no raw file) fails with NODE_NOT_FOUND and leaves
     const before = await readState(dir);
     let captured;
     try {
-      await restore({ statePath: dir, flags: { as: "orchestrator" }, positional: ["does-not-exist"] });
+      await restore({ statePath: dir, flags: { as: "test-agent" }, positional: ["does-not-exist"] });
     } catch (e) {
       captured = e;
     }
@@ -494,7 +500,7 @@ test("restore: target has raw but no metadata (incomplete pair) fails and leaves
     await fs.writeFile(path.join(snapshotDir(dir), `${orphanId}.json`), JSON.stringify({ version: 2, nodes: {}, edges: [], initiatives: {}, log: [] }));
     let captured;
     try {
-      await restore({ statePath: dir, flags: { as: "orchestrator" }, positional: [orphanId] });
+      await restore({ statePath: dir, flags: { as: "test-agent" }, positional: [orphanId] });
     } catch (e) {
       captured = e;
     }
@@ -520,7 +526,7 @@ test("restore: target has metadata but no raw (incomplete pair) fails", async ()
     );
     let captured;
     try {
-      await restore({ statePath: dir, flags: { as: "orchestrator" }, positional: [orphanId] });
+      await restore({ statePath: dir, flags: { as: "test-agent" }, positional: [orphanId] });
     } catch (e) {
       captured = e;
     }
@@ -545,7 +551,7 @@ test("restore: metadata id mismatches filename fails", async () => {
     await fs.writeFile(metaPath, JSON.stringify(parsed));
     let captured;
     try {
-      await restore({ statePath: dir, flags: { as: "orchestrator" }, positional: [meta.id] });
+      await restore({ statePath: dir, flags: { as: "test-agent" }, positional: [meta.id] });
     } catch (e) {
       captured = e;
     }
@@ -566,7 +572,7 @@ test("restore: corrupt metadata (unparseable JSON) fails", async () => {
     await fs.writeFile(path.join(snapshotDir(dir), `${meta.id}.meta.json`), "{ not json");
     let captured;
     try {
-      await restore({ statePath: dir, flags: { as: "orchestrator" }, positional: [meta.id] });
+      await restore({ statePath: dir, flags: { as: "test-agent" }, positional: [meta.id] });
     } catch (e) {
       captured = e;
     }
@@ -591,7 +597,7 @@ test("restore: raw is corrupt (not JSON) fails and leaves state intact", async (
     const before = await readState(dir);
     let captured;
     try {
-      await restore({ statePath: dir, flags: { as: "orchestrator" }, positional: [meta.id] });
+      await restore({ statePath: dir, flags: { as: "test-agent" }, positional: [meta.id] });
     } catch (e) {
       captured = e;
     }
@@ -618,7 +624,7 @@ test("restore: raw is v1 fails (v1 is no longer supported)", async () => {
     );
     let captured;
     try {
-      await restore({ statePath: dir, flags: { as: "orchestrator" }, positional: [meta.id] });
+      await restore({ statePath: dir, flags: { as: "test-agent" }, positional: [meta.id] });
     } catch (e) {
       captured = e;
     }
@@ -642,7 +648,7 @@ test("restore: raw is a future version (v3) fails", async () => {
     );
     let captured;
     try {
-      await restore({ statePath: dir, flags: { as: "orchestrator" }, positional: [meta.id] });
+      await restore({ statePath: dir, flags: { as: "test-agent" }, positional: [meta.id] });
     } catch (e) {
       captured = e;
     }
@@ -666,7 +672,7 @@ test("restore: raw missing version field fails", async () => {
     );
     let captured;
     try {
-      await restore({ statePath: dir, flags: { as: "orchestrator" }, positional: [meta.id] });
+      await restore({ statePath: dir, flags: { as: "test-agent" }, positional: [meta.id] });
     } catch (e) {
       captured = e;
     }
@@ -691,7 +697,7 @@ test("restore: raw is missing a required collection (e.g. no 'nodes') fails", as
     );
     let captured;
     try {
-      await restore({ statePath: dir, flags: { as: "orchestrator" }, positional: [meta.id] });
+      await restore({ statePath: dir, flags: { as: "test-agent" }, positional: [meta.id] });
     } catch (e) {
       captured = e;
     }
@@ -715,7 +721,7 @@ test("restore: raw is missing 'edges' fails", async () => {
     );
     let captured;
     try {
-      await restore({ statePath: dir, flags: { as: "orchestrator" }, positional: [meta.id] });
+      await restore({ statePath: dir, flags: { as: "test-agent" }, positional: [meta.id] });
     } catch (e) {
       captured = e;
     }
@@ -739,7 +745,7 @@ test("restore: raw is missing 'initiatives' fails", async () => {
     );
     let captured;
     try {
-      await restore({ statePath: dir, flags: { as: "orchestrator" }, positional: [meta.id] });
+      await restore({ statePath: dir, flags: { as: "test-agent" }, positional: [meta.id] });
     } catch (e) {
       captured = e;
     }
@@ -763,7 +769,7 @@ test("restore: raw is missing 'log' fails", async () => {
     );
     let captured;
     try {
-      await restore({ statePath: dir, flags: { as: "orchestrator" }, positional: [meta.id] });
+      await restore({ statePath: dir, flags: { as: "test-agent" }, positional: [meta.id] });
     } catch (e) {
       captured = e;
     }
@@ -784,7 +790,7 @@ test("restore: target raw is not a JSON object (e.g. JSON array) fails", async (
     await fs.writeFile(path.join(snapshotDir(dir), `${meta.id}.json`), "[]");
     let captured;
     try {
-      await restore({ statePath: dir, flags: { as: "orchestrator" }, positional: [meta.id] });
+      await restore({ statePath: dir, flags: { as: "test-agent" }, positional: [meta.id] });
     } catch (e) {
       captured = e;
     }
@@ -805,7 +811,7 @@ test("restore: current state file missing fails (no pre-restore snapshot possibl
     await fs.unlink(stateFilePath(dir));
     let captured;
     try {
-      await restore({ statePath: dir, flags: { as: "orchestrator" }, positional: [meta.id] });
+      await restore({ statePath: dir, flags: { as: "test-agent" }, positional: [meta.id] });
     } catch (e) {
       captured = e;
     }
@@ -836,7 +842,7 @@ test("restore: on every validation failure, no pre-restore snapshot is created a
     await fs.writeFile(path.join(snapshotDir(dir), `${meta.id}.json`), "not json at all");
     let captured;
     try {
-      await restore({ statePath: dir, flags: { as: "orchestrator" }, positional: [meta.id] });
+      await restore({ statePath: dir, flags: { as: "test-agent" }, positional: [meta.id] });
     } catch (e) {
       captured = e;
     }
@@ -861,15 +867,15 @@ test("restore: same agent restores twice from same snapshot — each call create
     });
     const meta = await createSnapshot(dir, "force-init");
     await bootstrapState(dir);
-    await restore({ statePath: dir, flags: { as: "orchestrator" }, positional: [meta.id] });
-    await restore({ statePath: dir, flags: { as: "orchestrator" }, positional: [meta.id] });
+    await restore({ statePath: dir, flags: { as: "test-agent" }, positional: [meta.id] });
+    await restore({ statePath: dir, flags: { as: "test-agent" }, positional: [meta.id] });
     const after = await readState(dir);
     assert.deepEqual(after.nodes, baseline.nodes);
     // The live state file is the second restore, whose log equals the
     // snapshot's log (empty baseline.log) plus one appended restore entry.
     const restoreEntries = after.log.filter((e) => e.action === "restore");
     assert.equal(restoreEntries.length, 1);
-    assert.equal(restoreEntries[0].agent, "orchestrator");
+    assert.equal(restoreEntries[0].agent, "test-agent");
     assert.equal(restoreEntries[0].snapshot_id, meta.id);
     // But the pre-restore snapshots preserve every state that was
     // displaced: the first restore displaced the empty state, the
@@ -915,7 +921,7 @@ test("CLI: snapshots via bin returns { snapshots: [...] }", async () => {
   }
 });
 
-test("CLI: restore --as orchestrator via bin returns { snapshot } and replaces state", async () => {
+test("CLI: restore --as <any-non-empty> via bin returns { snapshot } and replaces state (ADR-008)", async () => {
   const dir = await createTempProject();
   try {
     let r = await runCli(["--project", dir, "init"]);
@@ -933,7 +939,7 @@ test("CLI: restore --as orchestrator via bin returns { snapshot } and replaces s
     assert.equal(snapshots.length, 1);
     const targetId = snapshots[0].id;
     // Restore it.
-    r = await runCli(["--project", dir, "restore", targetId, "--as", "orchestrator"]);
+    r = await runCli(["--project", dir, "restore", targetId, "--as", "test-agent"]);
     assert.equal(r.code, 0, r.stderr);
     const data = JSON.parse(r.stdout);
     assert.ok(data.snapshot);

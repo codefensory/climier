@@ -605,7 +605,7 @@ test("restore preserves `plugins` and `nodes[id].plugins` from the snapshot raw 
       statePath: dir,
       projectDir: dir,
       positional: [meta.id],
-      flags: { as: "orchestrator" },
+      flags: { as: "test-agent" },
     });
     assert.ok(out.snapshot);
     const after = await readState(dir);
@@ -631,7 +631,7 @@ test("end-to-end: snapshot with plugin data survives restore, then take/resolve 
       statePath: dir,
       projectDir: dir,
       positional: [meta.id],
-      flags: { as: "orchestrator" },
+      flags: { as: "test-agent" },
     });
     // Now run the lifecycle on the restored state.
     await take({
@@ -835,7 +835,7 @@ test("CLI: snapshot + restore preserves plugin data via bin", async () => {
       initiatives: {},
       log: [],
     });
-    r = await runCli(["--project", dir, "restore", targetId, "--as", "orchestrator"]);
+    r = await runCli(["--project", dir, "restore", targetId, "--as", "test-agent"]);
     assert.equal(r.code, 0, r.stderr);
     const after = await readState(dir);
     assertPluginDataPreserved(after);
