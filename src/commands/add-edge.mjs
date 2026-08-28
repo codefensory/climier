@@ -4,6 +4,8 @@ import { appendWithContext } from "../log.mjs";
 import { EDGE_TYPES, existingEdge, validateEdge } from "../v2.mjs";
 import { throwV2 } from "../errors.mjs";
 import { resolveAgent } from "../agent.mjs";
+import { loadApplicablePolicy, authorizeAction } from "../policy.mjs";
+import { PolicyDenied } from "../plugin-errors.mjs";
 
 export const knownFlags = ["type", "as"];
 
@@ -21,6 +23,11 @@ export default async function addEdge({ statePath, positional, flags, pluginId }
   }
   const projectDir = statePath;
 
+  // T-plugin-policy-seam-dag — ADR-008 §"Seam por handler":
+  // load the applicable policy BEFORE the lock. The decision itself
+  // runs INSIDE the lock against the snapshot read under the lock.
+  const policy = await loadApplicablePolicy({ projectDir });
+
   return withLock(projectDir, async () => {
     const s = await readState(projectDir);
     if (!s) throw new Error("add-edge: state file missing");
@@ -35,10 +42,28 @@ export default async function addEdge({ statePath, positional, flags, pluginId }
       );
     }
 
-    // F8: resolveAgent runs before updateState so a missing agent rejects
-    // without leaving an orphan edge / log entry. Edge validation already
-    // ran above; this is the last gate before mutating.
+    // F8: resolveAgent runs after edge validation but BEFORE the seam,
+    // so a missing agent rejects without entering authorizeAction or
+    // updateState.
     const agent = resolveAgent(flags, "add-edge");
+
+    // T-plugin-policy-seam-dag — ADR-008 §"Acciones canónicas":
+    // `edge.add` is the canonical action for any new edge. The target
+    // carries the edge payload (no node id); the snapshot exposes the
+    // full DAG so the policy can branch on from/to/type.
+    const decision = await authorizeAction({
+      policy,
+      action: "edge.add",
+      actor: agent,
+      target: { from, to, type },
+      snapshot: s,
+      projectDir,
+      projectConfig: policy && policy.projectConfig ? policy.projectConfig : {},
+    });
+    if (decision.decision === "deny") {
+      throw new PolicyDenied(policy.pluginId, "edge.add", agent, decision.reason);
+    }
+
     await updateState(projectDir, (st) => {
       st.edges.push(edge);
       return st;

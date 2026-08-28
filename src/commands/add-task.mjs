@@ -19,7 +19,6 @@ export const knownFlags = [
   "tags",
   "refs",
   "meta",
-  "allow-unregistered-initiative",
   "as",
 ];
 

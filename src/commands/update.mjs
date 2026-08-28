@@ -8,6 +8,8 @@ import { appendWithContext } from "../log.mjs";
 import { throwV2 } from "../errors.mjs";
 import { resolveAgent } from "../agent.mjs";
 import { validateExecution } from "../execution-contract.mjs";
+import { loadApplicablePolicy, authorizeAction } from "../policy.mjs";
+import { PolicyDenied } from "../plugin-errors.mjs";
 
 export const knownFlags = [
   "title",
@@ -91,6 +93,11 @@ export default async function updateV2({ statePath, flags, positional, pluginId 
   if (!id) throwV2("MISSING_FIELD", "update: node id required", { field: "id" });
   const projectDir = statePath;
 
+  // T-plugin-policy-seam-dag — ADR-008 §"Seam por handler":
+  // load the applicable policy BEFORE the lock. The decision itself
+  // runs INSIDE the lock against the snapshot read under the lock.
+  const policy = await loadApplicablePolicy({ projectDir });
+
   return withLock(projectDir, async () => {
     const s = await readState(projectDir);
     if (!s) throw new Error("update: state file missing");
@@ -150,6 +157,52 @@ export default async function updateV2({ statePath, flags, positional, pluginId 
     }
 
     const as = resolveAgent(flags, "update");
+
+    // T-plugin-policy-seam-dag — ADR-008 §"Acciones canónicas" +
+    // §"update.mjs clasifica por subkind": the canonical action for
+    // `update` is split into task.update / gate.update / knowledge.update
+    // based on the resolved node's kind/subkind. The CLI/API surface
+    // still exposes a single `update <id>`; the seam sees the action
+    // matching what is about to be mutated. node.kind is `resolvable`
+    // for tasks and gates, `knowledge` for knowledge; resolvable
+    // carries the subkind discriminator.
+    let action;
+    if (node.kind === "knowledge") {
+      action = "knowledge.update";
+    } else if (node.kind === "resolvable" && node.subkind === "task") {
+      action = "task.update";
+    } else if (node.kind === "resolvable" && node.subkind === "gate") {
+      action = "gate.update";
+    } else {
+      // Should be unreachable: every node has either kind=knowledge or
+      // kind=resolvable with subkind in {task, gate}. Defensive
+      // fall-through so the seam does not silently accept unknown
+      // shapes.
+      throw new Error(
+        `update: internal error: cannot classify node ${id} (kind=${node.kind} subkind=${node.subkind})`,
+      );
+    }
+
+    // Seam (plan §3.4): authorize against the snapshot read under the
+    // lock. deny throws PolicyDenied without mutating state.
+    const decision = await authorizeAction({
+      policy,
+      action,
+      actor: as,
+      target: {
+        id,
+        kind: node.kind,
+        subkind: node.subkind,
+        status: node.status,
+      },
+      snapshot: s,
+      projectDir,
+      projectConfig: policy && policy.projectConfig ? policy.projectConfig : {},
+    });
+    if (decision.decision === "deny") {
+      throw new PolicyDenied(policy.pluginId, action, as, decision.reason);
+    }
+
     const updated = await updateState(projectDir, (st) => {
       const target = st.nodes[id];
       for (const [field, value] of Object.entries(changes)) {

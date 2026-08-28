@@ -87,7 +87,14 @@ test("v2 add-task rejects an unregistered initiative with INITIATIVE_NOT_FOUND",
   });
 });
 
-test("CLI v2 add-task allows an unregistered initiative with the escape hatch", async () => {
+test("CLI v2 add-task rejects --allow-unregistered-initiative as unknown flag (T-plugin-policy-seam-dag)", async () => {
+  // T-plugin-policy-seam-dag (ADR-008 §"Capacidad interna"):
+  // --allow-unregistered-initiative is no longer accepted on the
+  // public CLI surface. The bin's knownFlags check rejects it before
+  // the handler runs. The internal capability lives in
+  // `addNodeInternal({ allowUnregisteredInitiative: true })` in
+  // src/v2-add-node.mjs; see test/plugin-policy-seam-dag.test.mjs for
+  // the corresponding positive test.
   await withProject(async (dir) => {
     let result = await runCli(["init"], { cwd: dir });
     assert.equal(result.code, 0, result.stdout);
@@ -98,8 +105,10 @@ test("CLI v2 add-task allows an unregistered initiative with the escape hatch", 
       "--allow-unregistered-initiative",
     ], { cwd: dir });
 
-    assert.equal(result.code, 0, result.stdout);
-    assert.equal(JSON.parse(result.stdout).node.initiative, "foo");
+    assert.equal(result.code, 1, result.stdout);
+    const body = JSON.parse(result.stdout);
+    assert.equal(body.ok, false);
+    assert.match(body.error, /unknown flag --allow-unregistered-initiative/);
   });
 });
 

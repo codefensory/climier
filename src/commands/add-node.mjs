@@ -5,6 +5,8 @@ import { EDGE_TYPES, blocksEdge, validateEdge } from "../v2.mjs";
 import { throwV2 } from "../errors.mjs";
 import { resolveAgent } from "../agent.mjs";
 import { validateExecution } from "../execution-contract.mjs";
+import { loadApplicablePolicy, authorizeAction } from "../policy.mjs";
+import { PolicyDenied } from "../plugin-errors.mjs";
 
 export const knownFlags = [
   "kind",
@@ -14,7 +16,6 @@ export const knownFlags = [
   "refs",
   "meta",
   "initiative",
-  "allow-unregistered-initiative",
   "domain",
   "tags",
   "status",
@@ -92,6 +93,14 @@ export default async function addNode({ statePath, flags, positional, pluginId }
   if (!flags.title) throwV2("MISSING_FIELD", "add-node: --title required", { field: "title" });
   const projectDir = statePath;
 
+  // T-plugin-policy-seam-dag — ADR-008 §"Seam por handler":
+  // load the applicable policy BEFORE the lock so plugin import/load
+  // cost is not paid under withLock. The decision itself runs INSIDE
+  // the lock against the snapshot read under the lock. With no
+  // applicable policy, loadApplicablePolicy returns null and the seam
+  // is inert (defaults core).
+  const policy = await loadApplicablePolicy({ projectDir });
+
   return withLock(projectDir, async () => {
     const s = await readState(projectDir);
     if (!s) throw new Error("add-node: state file missing");
@@ -99,18 +108,25 @@ export default async function addNode({ statePath, flags, positional, pluginId }
     if (s.nodes[id]) throwV2("ID_CONFLICT", `add-node: ${id} already exists`, { id });
 
     // F3: a registered --initiative is required on every node.
-    // --allow-unregistered-initiative is the escape hatch used by tests,
-    // recovery imports, and bulk migration tooling.
+    // --allow-unregistered-initiative is the escape hatch used by
+    // tests, recovery imports, and bulk migration tooling. The flag
+    // is set ONLY by addNodeInternal (src/v2-add-node.mjs); the public
+    // CLI surface rejects it via the bin's knownFlags check.
+    //
+    // When the internal escape hatch is enabled the node may be
+    // appended with no initiative at all (both MISSING_FIELD and
+    // INITIATIVE_NOT_FOUND are bypassed). The public surface still
+    // requires --initiative and a registered initiative.
     const initiative = flags.initiative;
-    if (!initiative) {
+    const allowUnregistered = flags["allow-unregistered-initiative"] === true || flags["allow-unregistered-initiative"] === "true";
+    if (!initiative && !allowUnregistered) {
       throwV2(
         "MISSING_FIELD",
         "add-node: --initiative is required for v2 (run `climier add-initiative <name> --desc \"...\"` first)",
         { field: "initiative" },
       );
     }
-    const allowUnregistered = flags["allow-unregistered-initiative"] === true || flags["allow-unregistered-initiative"] === "true";
-    const registered = s.initiatives && Object.prototype.hasOwnProperty.call(s.initiatives, initiative);
+    const registered = initiative && s.initiatives && Object.prototype.hasOwnProperty.call(s.initiatives, initiative);
     if (!registered && !allowUnregistered) {
       throwV2(
         "INITIATIVE_NOT_FOUND",
@@ -216,9 +232,56 @@ export default async function addNode({ statePath, flags, positional, pluginId }
       }
     }
 
-    // F8: resolveAgent runs after all data validation but BEFORE updateState,
-    // so a missing agent rejects without leaving an orphan node / log entry.
+    // F8: resolveAgent runs after all data validation but BEFORE the
+    // seam, so a missing agent rejects without entering authorizeAction
+    // or updateState. This keeps the error precedence identical to the
+    // pre-seam behaviour (data validation failures still surface
+    // before MISSING_AGENT).
     const agent = resolveAgent(flags, "add-node");
+
+    // T-plugin-policy-seam-dag — ADR-008 §"Acciones canónicas":
+    // classify the action by kind/subkind before invoking authorizeAction.
+    // The public CLI/API surface retains a single add-node entry point;
+    // the policy seam sees the action the new node will commit as.
+    let action;
+    let target;
+    if (kind === "resolvable" && subkind === "task") {
+      action = "task.create";
+      target = { id, kind, subkind };
+    } else if (kind === "resolvable" && subkind === "gate") {
+      action = "gate.create";
+      target = { id, kind, subkind };
+    } else if (kind === "knowledge") {
+      action = "knowledge.create";
+      target = { id, kind };
+    } else {
+      // Unreachable: kind/subkind validation above guarantees one of
+      // the three branches.
+      throw new Error(`add-node: internal error: unknown action for kind=${kind} subkind=${subkind}`);
+    }
+
+    // Seam (plan §3.4): authorize against the snapshot read under the
+    // lock. POLICY_DENIED throws a structured envelope without
+    // mutating state; POLICY_ERROR propagates as-is. allow/abstain
+    // both proceed with the core mutation.
+    const decision = await authorizeAction({
+      policy,
+      action,
+      actor: agent,
+      target,
+      snapshot: s,
+      projectDir,
+      projectConfig: policy && policy.projectConfig ? policy.projectConfig : {},
+    });
+    if (decision.decision === "deny") {
+      throw new PolicyDenied(
+        policy.pluginId,
+        action,
+        agent,
+        decision.reason,
+      );
+    }
+
     await updateState(projectDir, (st) => {
       st.nodes[id] = node;
       if (supersedes) {
