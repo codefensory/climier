@@ -25,7 +25,9 @@ ready, claimed, blocked, decided, backlog, done, or archived.
 Common patterns:
   solo / multi-session: status -> context -> take -> work -> resolve
   human + AI:           add-task -> context -> take -> add-note -> resolve
-  orchestrator/workers: status -> context -> take -> add-note / resolve / reopen
+  with a policy plugin: see docs/PLUGINS.md (ADR-007/008); the core
+                        no longer recognises actor names like
+                        "orchestrator"/"recovery" as authority.
 
 Usage: climier [--project <dir>] <command> [args...]
 
@@ -53,17 +55,19 @@ Read-only:
                                           Requires the ui/ subproject deps (npm install in ui/ once).
 
 Mutating (require --as <agent-id>):
-  take <id> --as <agent>                 Idempotently claim a ready task; orchestrator may take over another claim.
-  release <id> --as <agent>              Free a claim. --as orchestrator|recovery releases any agent's claim.
+  take <id> --as <agent>                 Claim a ready task (idempotent when you already hold the claim).
+                                          A policy plugin may authorise taking over another actor's claim.
+  release <id> --as <agent>              Free a claim (idempotent when the task is unclaimed). A policy
+                                          plugin may authorise releasing any claim.
   cancel <id> --reason "<text>" --as <agent>
                                           Terminate a node without resolving (open/in_progress only).
   resolve <id> --note "<text>" --as <agent>
                                           Close a task as done; --choice/--rationale close a gate.
   reopen <id> --reason "<text>" --as <agent>
                                           Re-open a done task or resolved gate; downstream tasks re-block.
-  restore <snapshot-id> --as orchestrator|recovery
-                                          Replace the live state with the snapshot's raw bytes (validates target
+  restore <snapshot-id> --as <agent>      Replace the live state with the snapshot's raw bytes (validates target
                                           v2/shape first; takes a pre-restore raw snapshot before changing state).
+                                          A policy plugin may deny or further restrict this action.
   deprecate-knowledge <id> --reason "..." --as <agent>
                                           Soft-delete a knowledge node (sets status=deprecated + reason).
 

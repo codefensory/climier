@@ -52,6 +52,11 @@ export default {
 };
 ```
 
+An optional `default.policy` field adds a policy plugin (ADR-007); see
+§9 for the contract. `commands` and `policy` are independent: a plugin
+may ship both, only one of them, or neither — `importEntry` rejects a
+shape that mixes the two incorrectly.
+
 Each handler receives:
 
 - `args`: an array of strings — the original CLI tokens with the
@@ -231,3 +236,209 @@ descriptor and entrypoint.
   leaves this cost to the author.
 - A new `climier` invocation is a fresh Node process; the loader does
   not cache between invocations.
+
+## 9. Policy plugins (ADR-007 / ADR-008)
+
+Policy plugins extend the V1 contract with an optional authorisation
+face. A plugin MAY export `default.policy = { applies?, authorize }`;
+if it does, the host selects the policy at runtime, asks it to
+_authorise_ every mutating handler, and either lets the mutation
+proceed or rejects it with a structured `POLICY_*` error. The
+descriptor, install path, plugin id, and `api.*` surface are
+unchanged.
+
+This section fixes the public contract. It does NOT promise
+authentication, composition, sandboxing, a dedicated timeout, or
+persistent auditing — those are explicitly out of scope (ADR-007
+§"Decisión", ADR-008 §"Negativas").
+
+### 9.1 Shape
+
+```js
+// climier.mjs
+export default {
+  policy: {
+    // Optional. Returns true when this policy applies to the current
+    // project config; false (or absent) means "always applies".
+    // Receives the frozen raw `.climier.json` object (or `{}` when
+    // missing). MUST be a pure function over its input.
+    async applies(projectConfig) { … },
+
+    // Required when `default.policy` is exported. Receives the
+    // action + snapshot under the lock; returns one of:
+    //   { decision: "allow" }
+    //   { decision: "deny", reason: "<human readable>" }
+    //   { decision: "abstain" }
+    // Any other return is a POLICY_ERROR. Throwing is a POLICY_ERROR.
+    async authorize({ action, actor, target, snapshot,
+                      projectDir, projectConfig }) { … },
+  },
+};
+```
+
+`importEntry` accepts `default.policy` only when its shape is strict:
+`policy` is a plain object, `authorize` is a function when present,
+`applies` is a function when present, and no field beyond those two
+exists. Violations fail the entire plugin load with
+`PLUGIN_LOAD_FAILED` (carrying `details.field`) — `commands` is not
+loaded either, so the host is never half-wired.
+
+### 9.2 Canonical actions
+
+ADR-008 §"Acciones canónicas" lists the action names the seam sends
+to `authorize`:
+
+```text
+task.create    task.take        task.takeover*   task.resolve
+task.release   task.reopen      task.cancel      task.update
+gate.create    gate.resolve     gate.reopen      gate.cancel
+gate.update
+knowledge.create   knowledge.deprecate   knowledge.update
+initiative.create   edge.add   note.add
+state.restore*   state.init_force*
+```
+
+`*` = internal to the seam; never exposed through the public
+plugin-core registry, never accepted as a `core.run({ op })` argument.
+The public registry keeps the legacy `task.update` shape for
+backwards compatibility; the handler classifies by subkind inside
+`update.mjs` and translates to `task.update`, `gate.update`, or
+`knowledge.update` before the seam sees it.
+
+A plugin can only `deny` an action it understands — the host does
+not interpret the response further than `allow`/`deny`/`abstain`.
+Defaults core apply on `abstain` and on no policy installed; see
+§9.5.
+
+### 9.3 Discovery and selection
+
+`loadApplicablePolicy({ projectDir })` runs once per mutating command,
+before the project lock:
+
+1. `readProjectConfig(projectDir)` — reads `.climier.json` raw, or `{}`
+   when the file is missing. The object is frozen before being passed
+   to `applies`.
+2. `loadInstalledPolicyPlugins()` scans `installed/*/package.json` for
+   entries with a valid `default.policy`. Selection is NOT cached
+   across commands — installing or uninstalling a policy plugin is
+   observable on the next invocation.
+3. For each candidate:
+   - `applies` absent → always a candidate.
+   - `applies(projectConfig)` present → invoked once with the frozen
+     config; truthy means applicable.
+4. Exactly one applicable policy → returned to the handler.
+5. Zero applicable → handler receives `null` and applies defaults
+   core.
+6. Two or more applicable → `POLICY_CONFLICT`. Details carry both
+   the installed `plugin_ids` and their `namespaces`.
+
+### 9.4 Authorisation under the lock
+
+The decision runs INSIDE the handler's existing `withLock(projectDir)`,
+against a snapshot taken from the read state:
+
+```js
+const decision = await authorizeAction({
+  policy,        // loadApplicablePolicy result, or null
+  action,        // canonical action from §9.2
+  actor,         // --as / CLIMIER_AGENT (never empty for mutators)
+  target,        // { id, kind, subkind, status?, claim? }
+  snapshot,      // read-only view of state under the lock
+  projectDir,
+  projectConfig, // frozen raw .climier.json (or {})
+});
+```
+
+The snapshot is a defensive copy of `nodes`, `edges`, and
+`initiatives`. Plugins MUST treat it as read-only — the host does
+not enforce immutability for performance, but a mutation will not
+be persisted and may corrupt the live read.
+
+`authorizeAction` returns:
+
+| Policy outcome | Decision shape | Handler behaviour |
+|---|---|---|
+| `policy === null` | `{ decision: "abstain" }` | defaults core |
+| `authorize` returns `{ decision: "allow" }` | `{ decision: "allow" }` | mutation proceeds |
+| `authorize` returns `{ decision: "deny", reason }` | `{ decision: "deny", reason }` | handler throws `POLICY_DENIED` |
+| `authorize` returns `{ decision: "abstain" }` | `{ decision: "abstain" }` | defaults core |
+| `authorize` throws or returns a malformed shape | — | handler throws `POLICY_ERROR` |
+
+The seam does NOT cache decisions across calls; each mutation re-runs
+the full selection + authorisation. The seam does NOT introduce a
+new lock; it runs on the handler's critical path (ADR-008
+§"Seam por handler").
+
+### 9.5 Core invariants the seam cannot weaken
+
+ADR-008 §"Invariantes core" lists the rules that no `allow` may
+override. Plugins that return `allow` for any of these are still
+rejected by the handler:
+
+- DAG and state shape remain valid (validation runs before the seam
+  where relevant; otherwise the handler rejects after).
+- Atomicity, lock and logging: deny/error never produces a state
+  mutation or a success log entry.
+- A task without a claim can only receive a winning claim under
+  concurrency; the seam arbitrates who wins.
+- `task.resolve` requires `claim.by === actor`. The owner check runs
+  BEFORE the seam — a non-owner cannot resolve even when the policy
+  returns `allow`.
+- `done_by` records the actor that resolved.
+- `--allow-unregistered-initiative` is not a public capability and
+  not a policy action; the internal escape hatch lives in
+  `addNodeInternal({ allowUnregisteredInitiative: true })`.
+
+When the policy is absent or abstains, the handler enforces these
+invariants on its own. `release`, `cancel`, and `reopen` no longer
+compare against actor names like `"orchestrator"` or `"recovery"`;
+the only authority signal is `claim.by` for tasks (or `done_by` for
+`reopen`). A non-owner that asks for `release` on someone else's
+claim without policy `allow` gets `NOT_OWNER`.
+
+### 9.6 Takeover table (task.take / task.takeover)
+
+ADR-008 §"Tabla de take" specifies the only place actor strings
+affect the result:
+
+| State at lock | Action | `allow` | `deny` | `abstain` |
+|---|---|---|---|---|
+| task free | `task.take` | claim created | `POLICY_DENIED` | claim created (default core) |
+| same actor holds claim | (none) | idempotent | idempotent | idempotent |
+| other actor holds claim | `task.takeover` | claim replaced; `previous_owner` recorded | `POLICY_DENIED` | `ALREADY_CLAIMED` |
+
+The classification runs inside the lock, never on actor names alone.
+
+### 9.7 Errors
+
+| Code | When |
+|---|---|
+| `POLICY_LOAD_FAILED` | plugin export shape invalid at install/load time (re-uses the existing `PluginLoadFailed` plumbing). |
+| `POLICY_ERROR` | `applies` or `authorize` threw, returned a non-object, or returned an unknown `decision`. `details.cause_message` carries the original cause. |
+| `POLICY_DENIED` | `authorize` returned `{ decision: "deny" }`. `details` carries `plugin_id`, `op`, `action`, `reason`, `actor`. State and log are untouched. |
+| `POLICY_CONFLICT` | more than one installed policy `applies` to the project. `details` carries `plugin_ids` and `namespaces`. |
+
+Denials and errors do NOT add a state-log entry in this version
+(ADR-008 §"Contexto, help y auditoría"). The error envelope is the
+audit trail.
+
+### 9.8 Out of scope (explicit non-goals)
+
+ADR-007 §"Decisión" + ADR-008 §"Negativas" carve out what policy
+plugins do not provide today. Documenting them here so authors do
+not assume otherwise:
+
+- **No authentication.** `actor` is the literal `--as` /
+  `CLIMIER_AGENT` string. The host does not verify identity.
+- **No composition.** When more than one policy is applicable, the
+  seam returns `POLICY_CONFLICT`. There is no priority, merge, or
+  chain logic.
+- **No sandboxing.** The plugin's `authorize` runs in-process, with
+  the user's permissions, with access to the host's module cache and
+  the filesystem. Plugins MUST NOT write to state files directly.
+- **No dedicated timeout.** A slow policy holds the project lock
+  for the duration of its `authorize`. The host does not cancel
+  long-running policies; if you need a cap, enforce it inside your
+  own `authorize`.
+- **No persistent auditing.** Denials do not append to the state
+  log. The JSON error is the only record.
