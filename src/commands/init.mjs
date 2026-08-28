@@ -15,6 +15,16 @@
 // data is wiped with them. The corrupt-recovery path cannot extract
 // plugin data from a non-parseable state file, so it writes a clean
 // `emptyState()` without `plugins`.
+//
+// ADR-008 §"restore e init --force" (T-plugin-policy-seam-state-ops):
+// `init` without `--force` is pure bootstrap and stays OUT of the policy
+// seam. `init --force` is a destructive reset: it requires an actor
+// (`--as` or CLIMIER_AGENT — breaking change for actorless scripts) and
+// goes through `authorizeAction` with the canonical action
+// `state.init_force`. The order is: resolve actor → ensureProjectMeta →
+// read projectConfig (inside loadApplicablePolicy) → withLock →
+// authorize → createSnapshot → writeState. A deny/throw therefore leaves
+// state and snapshots untouched.
 import fs from "node:fs/promises";
 import { withLock } from "../lock.mjs";
 import {
@@ -25,15 +35,29 @@ import {
   readState,
   createSnapshot,
 } from "../state.mjs";
+import { resolveAgent } from "../agent.mjs";
+import { loadApplicablePolicy, authorizeAction } from "../policy.mjs";
+import { PolicyDenied } from "../plugin-errors.mjs";
 
-export const knownFlags = ["force"];
+export const knownFlags = ["force", "as"];
 
 export default async function init({ statePath, flags, projectDir }) {
+  // Force-init preflight, outside the lock (ADR-008 §"restore e init
+  // --force"). Plain `init` never resolves an actor nor loads a policy.
+  let as = null;
+  let policy = null;
+  if (flags.force) {
+    as = resolveAgent(flags, "init");
+    await ensureProjectMeta(projectDir);
+    policy = await loadApplicablePolicy({ projectDir });
+  }
+
   return withLock(projectDir, async () => {
     const existingFile = stateFile(projectDir);
     const exists = await fs.access(existingFile).then(() => true).catch(() => false);
     let snapshotReason = null;
     let preservedPlugins = null;
+    let previousState = null;
     if (exists && flags.force) {
       snapshotReason = "force-init";
       // Pre-extract root `plugins` so the wipe preserves them. We do
@@ -57,6 +81,7 @@ export default async function init({ statePath, flags, projectDir }) {
       ) {
         preservedPlugins = prev.plugins;
       }
+      previousState = prev;
     } else if (exists) {
       // No --force and a file is present: check whether the existing
       // state is parseable. Two cases:
@@ -75,6 +100,41 @@ export default async function init({ statePath, flags, projectDir }) {
         }
       }
     }
+    // Policy seam for the destructive reset, under the lock and BEFORE
+    // any snapshot or write (ADR-008 §"restore e init --force"). Plain
+    // `init` and the corrupt-recovery path never reach this branch.
+    if (flags.force) {
+      const decision = await authorizeAction({
+        policy,
+        action: "state.init_force",
+        actor: as,
+        target: { id: null, kind: "state", state_file: existingFile, exists },
+        snapshot: {
+          state: previousState,
+          nodes: previousState && previousState.nodes ? { ...previousState.nodes } : {},
+          edges:
+            previousState && Array.isArray(previousState.edges)
+              ? previousState.edges.slice()
+              : [],
+          initiatives:
+            previousState && previousState.initiatives
+              ? { ...previousState.initiatives }
+              : {},
+        },
+        projectDir,
+        projectConfig: policy ? policy.projectConfig : {},
+      });
+      if (decision.decision === "deny") {
+        throw new PolicyDenied(
+          policy && policy.pluginId ? policy.pluginId : "(unknown)",
+          "state.init_force",
+          as,
+          decision.reason || "denied by policy",
+        );
+      }
+      // "allow" and "abstain" proceed with the core default.
+    }
+
     // Snapshot under the same lock as the upcoming writeState. The lock
     // already serializes mutating operations on this project, so the
     // raw copy and the new write cannot interleave with another agent.

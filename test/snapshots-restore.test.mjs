@@ -389,7 +389,7 @@ test("restore: --as missing fails with structured error", async () => {
   }
 });
 
-test("restore: --as with a normal agent (e.g. alice) fails with NOT_OWNER and does not mutate state", async () => {
+test("restore: a plain agent (e.g. alice) restores when no policy is installed (ADR-008: no role hatch)", async () => {
   const dir = await createTempProject();
   try {
     const { createSnapshot } = await importFresh("./state.mjs");
@@ -397,21 +397,18 @@ test("restore: --as with a normal agent (e.g. alice) fails with NOT_OWNER and do
     await bootstrapState(dir);
     const meta = await createSnapshot(dir, "force-init");
     await bootstrapState(dir);
-    let captured;
-    try {
-      await restore({ statePath: dir, flags: { as: "alice" }, positional: [meta.id] });
-    } catch (e) {
-      captured = e;
-    }
-    assert.ok(captured, "expected restore to throw");
-    assert.equal(captured.code, "NOT_OWNER");
-    // State is unchanged (still the post-force-init empty state).
-    const after = await readState(dir);
-    assert.deepEqual(after.nodes, {});
-    // The NOT_OWNER must NOT have created a pre-restore snapshot.
+    // ADR-008 §"restore e init --force" removed the
+    // orchestrator/recovery comparison: with no policy installed the
+    // seam abstains and the default core lets any actor restore.
+    // Policy allow/deny/abstain/throw coverage (including "deny leaves
+    // no orphan pre-restore snapshot") lives in
+    // test/plugin-policy-seam-state-ops.test.mjs.
+    const out = await restore({ statePath: dir, flags: { as: "alice" }, positional: [meta.id] });
+    assert.equal(out.snapshot.id, meta.id);
+    // The successful restore DID create the pre-restore snapshot.
     const { listSnapshots } = await importFresh("./state.mjs");
     const snaps = await listSnapshots(dir);
-    assert.equal(snaps.find((s) => s.reason === "pre-restore"), undefined);
+    assert.ok(snaps.find((s) => s.reason === "pre-restore"));
   } finally {
     await rmTempProject(dir);
   }
@@ -951,7 +948,7 @@ test("CLI: restore --as orchestrator via bin returns { snapshot } and replaces s
   }
 });
 
-test("CLI: restore rejects non-orchestrator --as via bin with structured error", async () => {
+test("CLI: restore accepts any non-empty --as via bin (ADR-008 removed the role check)", async () => {
   const dir = await createTempProject();
   try {
     let r = await runCli(["--project", dir, "init"]);
@@ -959,16 +956,17 @@ test("CLI: restore rejects non-orchestrator --as via bin with structured error",
     await writeState(dir, {
       version: 2, nodes: { "Sentinel": { id: "Sentinel", title: "alive" } }, edges: [], initiatives: {}, log: [],
     });
-    r = await runCli(["--project", dir, "init", "--force"]);
+    r = await runCli(["--project", dir, "init", "--force", "--as", "alice"]);
     assert.equal(r.code, 0, r.stderr);
     const list = await runCli(["--project", dir, "snapshots"]);
     const { snapshots } = JSON.parse(list.stdout);
     const targetId = snapshots[0].id;
     r = await runCli(["--project", dir, "restore", targetId, "--as", "alice"]);
-    assert.notEqual(r.code, 0);
+    assert.equal(r.code, 0, r.stdout + r.stderr);
     const data = JSON.parse(r.stdout);
-    assert.equal(data.ok, false);
-    assert.equal(data.error.code, "NOT_OWNER");
+    assert.equal(data.snapshot.id, targetId);
+    const shown = JSON.parse((await runCli(["--project", dir, "show", "Sentinel"])).stdout);
+    assert.equal(shown.node.title, "alive");
   } finally {
     await rmTempProject(dir);
   }
