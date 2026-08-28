@@ -9,7 +9,17 @@
 // caller ranks them by specificity.
 //
 // `allowed_actions` is computed from (kind, derived_status, claim, agent).
-// Pass --as <agent> to surface actions available to a specific agent.
+//
+// ADR-009 §"Contexto y documentación": `allowed_actions` describes the
+// actions the node's state permits. It MUST NOT project ownership
+// (claim.by vs actor), actor roles (`isOrchestrator`), or hatch-shaped
+// commands like `"release --as orchestrator"`. The only actor signal
+// reflected here is whether the caller identified themselves with
+// `--as` / `CLIMIER_AGENT`; mutating actions that record the actor
+// (claim, resolve, release, reopen, cancel, supersede) are surfaced
+// when an actor is present, otherwise only read-shaped actions
+// (add-note, update) remain. Plugins that authorise takeovers do so
+// dynamically and are not projected here.
 //
 // `claim` is `{ by, at, stale }` when the node is currently claimed (either
 // via F9 take.mjs's structured claim or via legacy claimed_by/claimed_at),
@@ -121,29 +131,36 @@ function buildAlerts(id, blocking, knowledge, claim, ownershipConflicts) {
 }
 
 function allowedActions(node, derivedStatus, claim, agent) {
+  // ADR-009 §"Contexto y documentación": allowed_actions describes the
+  // actions the node's state permits. It does not project ownership,
+  // roles, or hatch-shaped commands. The only actor signal here is
+  // whether the caller identified themselves (`--as` / `CLIMIER_AGENT`);
+  // mutating actions that record an actor are surfaced when an actor
+  // is present, otherwise only read-shaped actions remain.
   const actions = [];
   if (!node) return actions;
-  const claimer = claim && claim.by;
-  const isOwner = !!agent && claimer === agent;
   const isAnonymous = !agent;
+  const claimer = claim && claim.by;
 
   if (node.kind === "resolvable" && node.subkind === "task") {
     if (derivedStatus === "ready") {
+      // claim records the actor; only surface it for identified callers.
       if (!isAnonymous) actions.push("claim");
       actions.push("update", "add-note", "cancel");
     } else if (derivedStatus === "in_progress") {
-      // ADR-008 §"Contexto, help y auditoría": `allowed_actions` only
-      // surfaces actions guaranteed by core invariants. The historical
-      // role-based hatch for `orchestrator`/`recovery` is gone — a
-      // non-owner can release another actor's claim only when a
-      // policy plugin explicitly allows it, which is a dynamic grant
-      // and therefore not projected here.
-      if (isOwner) {
+      // resolve and release record the actor; with --as, any actor may
+      // resolve/release a task whose state allows it (ADR-009 §"Resto
+      // de operaciones"). Ownership of the current claim is not
+      // projected: a policy plugin that authorises a takeover may
+      // replace the claim, and that decision is dynamic.
+      if (!isAnonymous) {
         actions.push("resolve", "release", "add-note", "update");
       } else {
         actions.push("add-note");
       }
     } else if (derivedStatus === "done") {
+      // reopen records the actor; ADR-009 makes `done_by` irrelevant,
+      // so any identified caller can reopen.
       actions.push("add-note");
       if (!isAnonymous) actions.push("reopen");
     } else if (derivedStatus === "canceled") {
@@ -168,6 +185,10 @@ function allowedActions(node, derivedStatus, claim, agent) {
       actions.push("update", "add-note");
     }
   }
+  // `claimer` is preserved for callers that still want the audit-only
+  // signal via the `claim` field; allowed_actions itself must never
+  // differentiate by ownership.
+  void claimer;
   return actions;
 }
 
