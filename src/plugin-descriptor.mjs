@@ -102,6 +102,16 @@ export async function readDescriptor(pkgJsonPath) {
 // importEntry: dynamic-import an ESM entrypoint and assert that
 // default.commands is a plain object. Returns { mod, commands } so callers
 // can reuse either.
+//
+// ADR-007 §"Entry único": `default.policy` is OPTIONAL. When present,
+// `policy.authorize` MUST be a function; `policy.applies` MUST be a
+// function when present; extra fields are rejected. An invalid
+// `default.policy` invalidates the entire plugin (its commands are not
+// exposed). The shape check re-uses `PluginLoadFailed` — the same code
+// that guards `default.commands` — so the descriptor module emits one
+// envelope for "shape is broken at load time". Runtime policy errors
+// (`applies`/`authorize` throw or return invalid responses) live in
+// `src/plugin-errors.mjs` under the `POLICY_*` namespace.
 export async function importEntry(entryAbsPath) {
   let mod;
   try {
@@ -126,5 +136,51 @@ export async function importEntry(entryAbsPath) {
       { entry: entryAbsPath },
     );
   }
-  return { mod, commands };
+  // ADR-007 §"Entry único": optional `default.policy` with strict shape.
+  // When the field is absent we return { mod, commands } — the same
+  // shape command-only plugins have always returned — so existing
+  // callers (plugin-loader, plugin-install) keep working unchanged.
+  const policy = validatePolicyShape(mod.default.policy, entryAbsPath);
+  return { mod, commands, policy };
+}
+
+// validatePolicyShape — return `undefined` when `default.policy` is
+// absent; otherwise enforce the strict ADR-007 shape and return the
+// validated object. Throws PluginLoadFailed with `details.field` set to
+// the offending key path when the shape is invalid.
+function validatePolicyShape(raw, entryAbsPath) {
+  if (raw === undefined) return undefined;
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
+    throw new PluginLoadFailed(
+      `plugin-descriptor: entrypoint at ${entryAbsPath} has invalid default.policy (must be an object)`,
+      { entry: entryAbsPath, field: "policy" },
+    );
+  }
+  const keys = Object.keys(raw);
+  const allowed = ["applies", "authorize"];
+  for (const key of keys) {
+    if (!allowed.includes(key)) {
+      throw new PluginLoadFailed(
+        `plugin-descriptor: entrypoint at ${entryAbsPath} has unknown default.policy.${key}`,
+        { entry: entryAbsPath, field: "policy", unknown: key },
+      );
+    }
+  }
+  if (typeof raw.authorize !== "function") {
+    throw new PluginLoadFailed(
+      `plugin-descriptor: entrypoint at ${entryAbsPath} has invalid default.policy.authorize (must be a function)`,
+      { entry: entryAbsPath, field: "policy.authorize" },
+    );
+  }
+  if (raw.applies !== undefined && typeof raw.applies !== "function") {
+    throw new PluginLoadFailed(
+      `plugin-descriptor: entrypoint at ${entryAbsPath} has invalid default.policy.applies (must be a function when present)`,
+      { entry: entryAbsPath, field: "policy.applies" },
+    );
+  }
+  // `applies` is optional; we surface `undefined` rather than the
+  // absent key so callers can short-circuit.
+  const policy = { authorize: raw.authorize };
+  if (typeof raw.applies === "function") policy.applies = raw.applies;
+  return policy;
 }

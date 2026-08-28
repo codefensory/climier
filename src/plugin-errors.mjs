@@ -225,3 +225,100 @@ export function isPluginCoreError(err) {
     err.details !== undefined,
   );
 }
+
+// ---- ADR-007 §"Errores" — policy plugin namespace -------------------
+//
+// Errors emitted by `src/policy.mjs` for runtime decisions on
+// `applies`/`authorize`. Shape contract:
+//
+//   POLICY_DENIED   decision === "deny"   → handler aborts mutation
+//   POLICY_ERROR    exception or invalid response → handler aborts mutation
+//   POLICY_CONFLICT selection failed or >1 applicable → handler aborts mutation
+//
+// Shape validation failures of `default.policy` at load time use the
+// existing `PLUGIN_LOAD_FAILED` (see `src/plugin-descriptor.mjs`),
+// matching the same re-use pattern as other descriptor shapes
+// (ADR-007 §"Errores" reserves POLICY_LOAD_FAILED only for runtime
+// policy failures; the load-time shape check is shared with
+// descriptor). The three classes below cover the remaining codes.
+
+function normalizePolicyCause(cause) {
+  if (!cause) return { code: null, message: null };
+  if (typeof cause === "string") {
+    return { code: null, message: cause };
+  }
+  if (typeof cause === "object") {
+    return {
+      code: typeof cause.code === "string" ? cause.code : null,
+      message: typeof cause.message === "string" ? cause.message : null,
+    };
+  }
+  return { code: null, message: String(cause) };
+}
+
+// PolicyDenied — the policy explicitly returned
+// `{ decision: "deny", reason }`. The handler MUST abort the
+// mutation; state must remain intact.
+export class PolicyDenied extends PluginError {
+  constructor(pluginId, action, actor, reason) {
+    super(
+      "POLICY_DENIED",
+      `policy: plugin '${pluginId}' denied action '${action}' for actor '${actor}': ${reason}`,
+      {
+        plugin_id: pluginId,
+        op: action,
+        action,
+        reason: typeof reason === "string" ? reason : null,
+        actor,
+      },
+    );
+  }
+}
+
+// PolicyError — `applies`/`authorize` threw, or returned a response
+// that does not match `{ decision: "allow"|"deny"|"abstain" }`. The
+// handler MUST abort the mutation; state must remain intact. The
+// original cause (if any) is preserved as `cause_message` so the
+// orchestrator/operator can attribute the failure.
+export class PolicyError extends PluginError {
+  constructor(pluginId, action, cause) {
+    const normalized = normalizePolicyCause(cause);
+    const causeMessage = normalized.message ?? "(unknown)";
+    super(
+      "POLICY_ERROR",
+      `policy: plugin '${pluginId}' raised an error during action '${action}': ${causeMessage}`,
+      {
+        plugin_id: pluginId,
+        op: action,
+        action,
+        cause_code: normalized.code,
+        cause_message: causeMessage,
+      },
+    );
+  }
+}
+
+// PolicyConflict — selection could not pick a single applicable
+// policy. Either more than one candidate applied, or the single
+// candidate raised during `applies`. The handler MUST abort the
+// mutation. The list of plugin_ids and namespaces is included so the
+// orchestrator can disambiguate, plus a cause_message when
+// selection failed for a non-multi-applicable reason.
+export class PolicyConflict extends PluginError {
+  constructor(pluginIds, namespaces, causeMessage = null) {
+    const ids = Array.isArray(pluginIds) ? pluginIds.slice() : [];
+    const ns = Array.isArray(namespaces) ? namespaces.slice() : [];
+    const reason = causeMessage
+      ? `selection failed: ${causeMessage}`
+      : `${ids.length} applicable policies conflict`;
+    super(
+      "POLICY_CONFLICT",
+      `policy: ${reason} (${ids.join(", ") || "(none)"})`,
+      {
+        plugin_ids: ids,
+        namespaces: ns,
+        cause_message: typeof causeMessage === "string" ? causeMessage : null,
+      },
+    );
+  }
+}
