@@ -121,7 +121,9 @@ fs.writeFileSync(TASKS_FILE, JSON.stringify(SENTINEL, null, 2) + "\\n");
 
 // 3. init --force: snapshots the sentinel (reason=force-init) and
 // then resets the state to empty.
-cli("init", "--force");
+// ADR-008 §"restore e init --force" (T-plugin-policy-seam-state-ops):
+// init --force now requires an explicit actor (--as / CLIMIER_AGENT).
+cli("init", "--force", "--as", "orchestrator");
 
 // 4. List snapshots. We expect exactly one force-init snapshot.
 const list1 = cli("snapshots");
@@ -276,7 +278,9 @@ test("NEGATIVE CONTROL: without smoke-sandbox, init --force with copied project_
     // is the npm test runner's tmpdir; we override to CONTROL via the
     // subprocess env so the smoke targets our sentinel home.
     const r = await spawnCli(
-      [BIN, "--project", tempProj, "init", "--force"],
+      // --as is mandatory for init --force since ADR-008
+      // §"restore e init --force"; the actor is opaque to the core.
+      [BIN, "--project", tempProj, "init", "--force", "--as", "smoke"],
       { CLIMIER_HOME: control }
     );
     assert.equal(

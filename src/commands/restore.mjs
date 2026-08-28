@@ -1,9 +1,15 @@
-// restore <snapshot-id> --as orchestrator|recovery
+// restore <snapshot-id> --as <agent>
 //
-// ADR-004 §§Commands/Plan 3: restore is the only restore path. Authority
-// is restricted to orchestrator / recovery: no per-agent restore. We do
-// not give any task claim lifecycle to this command; it is a recovery
-// primitive, not a labor action.
+// ADR-004 §§Commands/Plan 3: restore is the only restore path. It is a
+// recovery primitive, not a labor action: no task claim lifecycle.
+//
+// ADR-008 §"restore e init --force" (T-plugin-policy-seam-state-ops):
+// authority is no longer decided by comparing the actor against the
+// `orchestrator`/`recovery` strings. The core only requires a non-empty
+// actor (`--as` or CLIMIER_AGENT); the decision belongs to the policy
+// seam, invoked INSIDE the lock with the canonical action
+// `state.restore`. With no policy installed, or with `abstain`, the
+// default core behaviour is to proceed.
 //
 // Contract:
 //   - The snapshot must exist as a complete pair (raw + metadata) under
@@ -13,11 +19,11 @@
 //   - The raw bytes must parse as JSON v2 and carry every required
 //     collection (nodes, edges, initiatives, log). v1, future versions,
 //     missing fields, or unparseable raw → fail without touching state.
-//   - Authority gate runs BEFORE any I/O beyond reading the target
-//     itself, so a non-orchestrator caller never even snapshots the
-//     pre-restore state (which would leak current state into the
-//     snapshot dir as a side-effect of the failed call).
-//   - Under withLock: validate target → take a `pre-restore` snapshot of
+//   - The policy seam runs BEFORE any write, so a denied caller never
+//     snapshots the pre-restore state (which would leak current state
+//     into the snapshot dir as a side-effect of the failed call).
+//   - Under withLock: validate target → authorize("state.restore") →
+//     take a `pre-restore` snapshot of
 //     the CURRENT state file → write the snapshot raw bytes to the state
 //     path with tmp+rename → append a log entry `{ action: "restore",
 //     agent, snapshot_id }` to the new state. The log append re-reads
@@ -30,7 +36,7 @@
 // them with code + details. We map:
 //   - missing snapshot id → MISSING_FIELD
 //   - missing/empty --as    → MISSING_AGENT
-//   - non-orchestrator --as → NOT_OWNER
+//   - policy deny           → POLICY_DENIED (policy throw → POLICY_ERROR)
 //   - target absent / incomplete / corrupt → NODE_NOT_FOUND
 //   - target wrong shape    → INVALID_STATUS
 //
@@ -42,10 +48,13 @@ import {
   stateFile,
   snapshotDir,
   createSnapshot,
+  readState,
 } from "../state.mjs";
 import { append } from "../log.mjs";
 import { throwV2 } from "../errors.mjs";
 import { resolveAgent } from "../agent.mjs";
+import { loadApplicablePolicy, authorizeAction } from "../policy.mjs";
+import { PolicyDenied } from "../plugin-errors.mjs";
 
 export const knownFlags = ["as"];
 
@@ -144,13 +153,11 @@ export default async function restore({ statePath, flags, positional }) {
   // authority gate below only fires when --as was supplied and is
   // some other non-empty value.
   const as = resolveAgent(flags, "restore");
-  if (as !== "orchestrator" && as !== "recovery") {
-    throwV2(
-      "NOT_OWNER",
-      `restore: only orchestrator or recovery may restore (got --as ${JSON.stringify(as)})`,
-      { agent: as, allowed: ["orchestrator", "recovery"] },
-    );
-  }
+
+  // Policy selection/import happens BEFORE the lock (ADR-007
+  // §"Discovery global"; ADR-008 §"Seam por handler"). Only the
+  // DECISION runs inside the lock, with the snapshot read there.
+  const policy = await loadApplicablePolicy({ projectDir });
 
   return withLock(projectDir, async () => {
     const { rawPath, metaPath } = snapshotPaths(projectDir, id);
@@ -227,6 +234,45 @@ export default async function restore({ statePath, flags, positional }) {
         { id, state_file: statePathAbs },
       );
     }
+
+    // ADR-008 §"restore e init --force": the authorization decision is
+    // taken under the lock, against the CURRENT state, and BEFORE any
+    // write. A deny/throw therefore leaves state and snapshots
+    // untouched — no orphan `pre-restore` snapshot.
+    //
+    // The current state may be corrupt (restore is a recovery
+    // primitive); a snapshot the policy can read is best-effort.
+    let current = null;
+    try {
+      current = await readState(projectDir);
+    } catch {
+      current = null;
+    }
+    const decision = await authorizeAction({
+      policy,
+      action: "state.restore",
+      actor: as,
+      target: { id, kind: "snapshot", snapshot: meta },
+      snapshot: {
+        state: current,
+        nodes: current && current.nodes ? { ...current.nodes } : {},
+        edges: current && Array.isArray(current.edges) ? current.edges.slice() : [],
+        initiatives: current && current.initiatives ? { ...current.initiatives } : {},
+      },
+      projectDir,
+      projectConfig: policy ? policy.projectConfig : {},
+    });
+    if (decision.decision === "deny") {
+      throw new PolicyDenied(
+        policy && policy.pluginId ? policy.pluginId : "(unknown)",
+        "state.restore",
+        as,
+        decision.reason || "denied by policy",
+      );
+    }
+    // "allow" and "abstain" both proceed: with no policy installed the
+    // default core rule is that any actor may restore (ADR-008 removed
+    // the role hatch).
 
     // Pre-restore snapshot of the CURRENT state. Same lock, same atomic
     // primitives as init --force; a partial pair cannot appear because
