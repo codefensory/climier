@@ -8,7 +8,7 @@ const taskFlags = (initiative) => ({
   body: "y",
   acceptance: "z",
   "blocked-by": "",
-  as: "orchestrator",
+  as: "test-agent",
 });
 
 async function withProject(fn) {
@@ -31,7 +31,7 @@ async function registerFoo(dir) {
     statePath: dir,
     projectDir: dir,
     positional: ["foo"],
-    flags: { desc: "x", as: "orchestrator" },
+    flags: { desc: "x", as: "test-agent" },
   });
 }
 
@@ -56,12 +56,12 @@ test("CLI v2 add-task accepts an initiative registered by add-initiative", async
   await withProject(async (dir) => {
     let result = await runCli(["init"], { cwd: dir });
     assert.equal(result.code, 0, result.stdout);
-    result = await runCli(["add-initiative", "foo", "--desc", "x", "--as", "orchestrator"], { cwd: dir });
+    result = await runCli(["add-initiative", "foo", "--desc", "x", "--as", "test-agent"], { cwd: dir });
     assert.equal(result.code, 0, result.stdout);
 
     result = await runCli([
       "add-task", "T-x", "--initiative", "foo", "--title", "x", "--body", "y",
-      "--acceptance", "z", "--blocked-by", "", "--as", "orchestrator",
+      "--acceptance", "z", "--blocked-by", "", "--as", "test-agent",
     ], { cwd: dir });
 
     assert.equal(result.code, 0, result.stdout);
@@ -101,7 +101,7 @@ test("CLI v2 add-task rejects --allow-unregistered-initiative as unknown flag (T
 
     result = await runCli([
       "add-task", "T-z", "--initiative", "foo", "--title", "x", "--body", "y",
-      "--acceptance", "z", "--blocked-by", "", "--as", "orchestrator",
+      "--acceptance", "z", "--blocked-by", "", "--as", "test-agent",
       "--allow-unregistered-initiative",
     ], { cwd: dir });
 
@@ -119,7 +119,7 @@ test("CLI v2 add-task returns a structured error when initiative is missing", as
 
     result = await runCli([
       "add-task", "T-y", "--initiative", "NOT_REGISTERED", "--title", "x", "--body", "y",
-      "--acceptance", "z", "--blocked-by", "", "--as", "orchestrator",
+      "--acceptance", "z", "--blocked-by", "", "--as", "test-agent",
     ], { cwd: dir });
 
     assert.equal(result.code, 1, result.stdout);

@@ -292,7 +292,7 @@ test("v2-resolve: task resolve returns newly_ready for tasks whose only blocker 
     // Resolving the gate should unblock T-auth-1 only.
     const gate = await resolve({
       statePath: dir,
-      flags: { as: "orchestrator", choice: "opaque", rationale: "revocation" },
+      flags: { as: "test-agent", choice: "opaque", rationale: "revocation" },
       positional: ["G-auth-v2"],
     });
     assert.deepEqual(gate.newly_ready, ["T-auth-1"]);
@@ -321,7 +321,7 @@ test("v2-resolve: task resolve does NOT include downstream tasks that still have
 
     const out = await resolve({
       statePath: dir,
-      flags: { as: "orchestrator", choice: "x", rationale: "y" },
+      flags: { as: "test-agent", choice: "x", rationale: "y" },
       positional: ["G-a"],
     });
     assert.deepEqual(out.newly_ready, []);
@@ -355,7 +355,7 @@ test("v2-resolve: gate resolve — --choice and --rationale required, status=res
     await addGate(dir, "G-auth-v2");
     const out = await resolve({
       statePath: dir,
-      flags: { as: "orchestrator", choice: "opaque sessions", rationale: "immediate revocation" },
+      flags: { as: "test-agent", choice: "opaque sessions", rationale: "immediate revocation" },
       positional: ["G-auth-v2"],
     });
     assert.equal(out.node.status, "resolved");
@@ -367,7 +367,7 @@ test("v2-resolve: gate resolve — --choice and --rationale required, status=res
     const s = await readState(dir);
     const last = s.log.at(-1);
     assert.equal(last.action, "resolve");
-    assert.equal(last.agent, "orchestrator");
+    assert.equal(last.agent, "test-agent");
     assert.equal(last.choice, "opaque sessions");
     assert.equal(last.rationale, "immediate revocation");
   } finally { await rmTempProject(dir); }
@@ -382,7 +382,7 @@ test("v2-resolve: gate resolve missing --choice returns MISSING_FIELD", async ()
     try {
       await resolve({
         statePath: dir,
-        flags: { as: "orchestrator", rationale: "x" },
+        flags: { as: "test-agent", rationale: "x" },
         positional: ["G-auth-v2"],
       });
     } catch (e) { caught = e; }
@@ -401,7 +401,7 @@ test("v2-resolve: gate resolve missing --rationale returns MISSING_FIELD", async
     try {
       await resolve({
         statePath: dir,
-        flags: { as: "orchestrator", choice: "x" },
+        flags: { as: "test-agent", choice: "x" },
         positional: ["G-auth-v2"],
       });
     } catch (e) { caught = e; }
@@ -585,7 +585,7 @@ test("v2-reopen: not-done node returns INVALID_STATUS", async () => {
     try {
       await reopen({
         statePath: dir,
-        flags: { as: "orchestrator", reason: "x" },
+        flags: { as: "test-agent", reason: "x" },
         positional: ["T-auth-1"],
       });
     } catch (e) { caught = e; }
@@ -603,7 +603,7 @@ test("v2-reopen: missing node returns NODE_NOT_FOUND", async () => {
     try {
       await reopen({
         statePath: dir,
-        flags: { as: "orchestrator", reason: "x" },
+        flags: { as: "test-agent", reason: "x" },
         positional: ["ghost"],
       });
     } catch (e) { caught = e; }
@@ -708,7 +708,7 @@ test("v2-cancel: done task returns INVALID_STATUS (cannot cancel terminal)", asy
     try {
       await cancel({
         statePath: dir,
-        flags: { as: "orchestrator", reason: "x" },
+        flags: { as: "test-agent", reason: "x" },
         positional: ["T-auth-1"],
       });
     } catch (e) { caught = e; }
@@ -725,7 +725,7 @@ test("v2-cancel: missing --reason returns MISSING_FIELD", async () => {
     await addTask(dir, "T-auth-1");
     let caught;
     try {
-      await cancel({ statePath: dir, flags: { as: "orchestrator" }, positional: ["T-auth-1"] });
+      await cancel({ statePath: dir, flags: { as: "test-agent" }, positional: ["T-auth-1"] });
     } catch (e) { caught = e; }
     assert.ok(caught);
     assert.equal(caught.code, "MISSING_FIELD");
@@ -741,7 +741,7 @@ test("v2-cancel: missing node returns NODE_NOT_FOUND", async () => {
     try {
       await cancel({
         statePath: dir,
-        flags: { as: "orchestrator", reason: "x" },
+        flags: { as: "test-agent", reason: "x" },
         positional: ["ghost"],
       });
     } catch (e) { caught = e; }
@@ -820,7 +820,7 @@ test("CLI: v2 resolve is routed to v2-resolve and emits { node, newly_ready }", 
     r = await runCli([
       "--project", dir, "resolve", "G-auth-v2",
       "--choice", "opaque", "--rationale", "revocation",
-      "--as", "orchestrator",
+      "--as", "test-agent",
     ]);
     assert.equal(r.code, 0, r.stderr);
     const out = JSON.parse(r.stdout);

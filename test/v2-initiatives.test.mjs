@@ -302,28 +302,10 @@ test("add-node (v2): unregistered initiative emits INITIATIVE_NOT_FOUND with det
   }
 });
 
-test("add-node (v2): --allow-unregistered-initiative bypasses INITIATIVE_NOT_FOUND", async () => {
-  const { default: init } = await importFresh("./commands/init.mjs");
-  const { default: addNode } = await importFresh("./commands/add-node.mjs");
-  const dir = await createTempProject();
-  try {
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
-    const out = await addNode({
-      statePath: dir,
-      positional: ["T1"],
-      flags: {
-        kind: "resolvable",
-        subkind: "task",
-        title: "t",
-        initiative: "ghost",
-        "allow-unregistered-initiative": true,
-      },
-    });
-    assert.equal(out.node.initiative, "ghost");
-  } finally {
-    await rmTempProject(dir);
-  }
-});
+// T-plugin-policy-migration-tests / ADR-008 §"Capacidad interna": the
+// historical `--allow-unregistered-initiative` bypass test moved to
+// test/v2-internal-capabilities.test.mjs (which exercises
+// addNodeInternal, the only sanctioned caller of the flag).
 
 test("add-node (v2): registered initiative is accepted with no INITIATIVE_NOT_FOUND", async () => {
   const { default: init } = await importFresh("./commands/init.mjs");

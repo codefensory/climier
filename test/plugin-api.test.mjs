@@ -1147,8 +1147,10 @@ test("api.core.run: task.cancel dispatches to cancel and sets status='canceled'"
         blocked_by: "",
       },
     });
-    // Take it first so alice owns the claim; otherwise cancel refuses with
-    // NOT_OWNER (cancel requires claim ownership or orchestrator).
+    // Take it first so alice owns the claim; otherwise cancel refuses
+    // with NOT_OWNER. ADR-008 §"Tabla de cancel": the policy seam
+    // (task.cancel action) authorizes the cancellation after the
+    // claim-owner check, not an actor-name hatch.
     await api.core.run({ op: "task.take", input: { id: "T-parity-cancel" } });
     const out = await api.core.run({
       op: "task.cancel",

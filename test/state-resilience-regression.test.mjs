@@ -123,7 +123,7 @@ fs.writeFileSync(TASKS_FILE, JSON.stringify(SENTINEL, null, 2) + "\\n");
 // then resets the state to empty.
 // ADR-008 §"restore e init --force" (T-plugin-policy-seam-state-ops):
 // init --force now requires an explicit actor (--as / CLIMIER_AGENT).
-cli("init", "--force", "--as", "orchestrator");
+cli("init", "--force", "--as", "test-agent");
 
 // 4. List snapshots. We expect exactly one force-init snapshot.
 const list1 = cli("snapshots");
@@ -146,7 +146,7 @@ if (forceInitSnap.reason !== "force-init") {
 // the target, takes a pre-restore raw snapshot of the current state,
 // writes the raw bytes back to tasks.json, and appends a
 // { action: "restore", agent, snapshot_id } log entry.
-const restored = cli("restore", forceInitSnap.id, "--as", "orchestrator");
+const restored = cli("restore", forceInitSnap.id, "--as", "test-agent");
 if (!restored.snapshot || restored.snapshot.id !== forceInitSnap.id) {
   console.error(
     "orchestrator: restore did not echo the requested snapshot"
@@ -378,7 +378,7 @@ test("REGRESSION: with smoke-sandbox, init --force with copied project_id does N
     // Restore log entry shape: action, agent, snapshot_id, ts.
     const restoreEntry = summary.restore_log_first;
     assert.equal(restoreEntry.action, "restore");
-    assert.equal(restoreEntry.agent, "orchestrator");
+    assert.equal(restoreEntry.agent, "test-agent");
     assert.equal(restoreEntry.snapshot_id, summary.restored_snapshot_id);
     assert.equal(typeof restoreEntry.ts, "string");
     assert.ok(!Number.isNaN(Date.parse(restoreEntry.ts)));
