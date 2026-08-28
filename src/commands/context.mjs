@@ -125,7 +125,6 @@ function allowedActions(node, derivedStatus, claim, agent) {
   if (!node) return actions;
   const claimer = claim && claim.by;
   const isOwner = !!agent && claimer === agent;
-  const isOrchestrator = agent === "orchestrator";
   const isAnonymous = !agent;
 
   if (node.kind === "resolvable" && node.subkind === "task") {
@@ -133,15 +132,16 @@ function allowedActions(node, derivedStatus, claim, agent) {
       if (!isAnonymous) actions.push("claim");
       actions.push("update", "add-note", "cancel");
     } else if (derivedStatus === "in_progress") {
+      // ADR-008 §"Contexto, help y auditoría": `allowed_actions` only
+      // surfaces actions guaranteed by core invariants. The historical
+      // role-based hatch for `orchestrator`/`recovery` is gone — a
+      // non-owner can release another actor's claim only when a
+      // policy plugin explicitly allows it, which is a dynamic grant
+      // and therefore not projected here.
       if (isOwner) {
         actions.push("resolve", "release", "add-note", "update");
-      } else if (isOrchestrator) {
-        actions.push("release", "add-note");
-      } else if (isAnonymous) {
-        actions.push("add-note");
       } else {
-        // Some other agent: they can release only via the orchestrator hatch.
-        actions.push("add-note", "release --as orchestrator");
+        actions.push("add-note");
       }
     } else if (derivedStatus === "done") {
       actions.push("add-note");

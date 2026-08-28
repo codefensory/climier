@@ -333,13 +333,16 @@ test("context v2: allowed_actions for task in_progress owned by --as", async () 
     for (const action of ["resolve", "release", "add-note", "update"]) {
       assert.ok(out.allowed_actions.includes(action), `expected "${action}" in ${JSON.stringify(out.allowed_actions)}`);
     }
-    assert.ok(!out.allowed_actions.includes("release --as orchestrator"));
+    // The historical `release --as orchestrator` hatch is gone (ADR-008
+    // §"Contexto, help y auditoría"): allowed_actions reflects core
+    // invariants only. The owner surfaces plain `release`.
+    assert.ok(!out.allowed_actions.some((a) => a.includes("orchestrator")));
   } finally {
     await rmTempProject(dir);
   }
 });
 
-test("context v2: allowed_actions for task in_progress owned by other -> add-note + release --as orchestrator", async () => {
+test("context v2: allowed_actions for task in_progress owned by other -> add-note only (no release hatch)", async () => {
   const { default: context } = await importFresh("./commands/context.mjs");
   const dir = await createTempProject();
   try {
@@ -359,16 +362,16 @@ test("context v2: allowed_actions for task in_progress owned by other -> add-not
       },
     });
     const out = await context({ statePath: dir, positional: ["T-x"], flags: { as: "bob" } });
-    assert.ok(out.allowed_actions.includes("add-note"));
-    assert.ok(out.allowed_actions.includes("release --as orchestrator"));
-    // bob cannot release directly.
-    assert.ok(!out.allowed_actions.includes("release"));
+    // ADR-008: non-owner gets add-note only. Releasing someone else's
+    // claim is a policy decision, not a core invariant, so it is not
+    // projected here.
+    assert.deepEqual(out.allowed_actions, ["add-note"]);
   } finally {
     await rmTempProject(dir);
   }
 });
 
-test("context v2: allowed_actions for task in_progress --as orchestrator -> plain release", async () => {
+test("context v2: allowed_actions for task in_progress --as orchestrator (not owner) -> add-note only", async () => {
   const { default: context } = await importFresh("./commands/context.mjs");
   const dir = await createTempProject();
   try {
@@ -387,9 +390,11 @@ test("context v2: allowed_actions for task in_progress --as orchestrator -> plai
         },
       },
     });
+    // The actor name "orchestrator" no longer grants any authority.
+    // Since the actor is not the claim owner, the action list is
+    // identical to any other non-owner (ADR-008 §"Invariantes core").
     const out = await context({ statePath: dir, positional: ["T-x"], flags: { as: "orchestrator" } });
-    assert.ok(out.allowed_actions.includes("release"));
-    assert.ok(!out.allowed_actions.includes("release --as orchestrator"));
+    assert.deepEqual(out.allowed_actions, ["add-note"]);
   } finally {
     await rmTempProject(dir);
   }
