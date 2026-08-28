@@ -540,7 +540,7 @@ test("policy-foundation: loadApplicablePolicy throws POLICY_CONFLICT when >1 pol
   });
 });
 
-test("policy-foundation: loadApplicablePolicy wraps applies() throws as POLICY_CONFLICT (selection failed)", async () => {
+test("policy-foundation: loadApplicablePolicy wraps applies() throws as POLICY_ERROR (plugin contract violation)", async () => {
   await withEnv(async (env) => {
     await writePlugin(env.home, {
       id: "boom",
@@ -554,11 +554,19 @@ test("policy-foundation: loadApplicablePolicy wraps applies() throws as POLICY_C
     } catch (err) {
       caught = err;
     }
-    assert.ok(caught, "expected POLICY_CONFLICT");
-    assert.equal(caught.code, "POLICY_CONFLICT");
-    // ADR-007 says the host returns POLICY_CONFLICT when selection can't
-    // resolve a single plugin; the boom from applies() must be surfaced
-    // under details so operators can attribute the failure.
+    assert.ok(caught, "expected POLICY_ERROR");
+    // ADR-007 §"Errores" + docs/plans/plugin-policy-execution.md §3.2:
+    // POLICY_ERROR covers any exception or invalid response from
+    // `applies` (or `authorize`); POLICY_CONFLICT is reserved for
+    // two or more applicable policies. The plugin's `applies` raised
+    // here, so the envelope must surface POLICY_ERROR — NOT
+    // POLICY_CONFLICT — with the plugin id, the `"applies"` operation
+    // name, and the original cause preserved under `cause_message`.
+    assert.equal(caught.code, "POLICY_ERROR");
+    assert.notEqual(caught.code, "POLICY_CONFLICT");
+    assert.equal(caught.details.plugin_id, "boom");
+    assert.equal(caught.details.op, "applies");
+    assert.equal(caught.details.action, "applies");
     assert.equal(caught.details.cause_message, "applies boom");
   });
 });

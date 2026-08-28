@@ -41,11 +41,16 @@ import { PolicyDenied, PolicyError, PolicyConflict } from "./plugin-errors.mjs";
 //          result means applicable, falsy means excluded. The host
 //          does NOT inspect the return value beyond truthiness.
 //   4. More than one applicable → POLICY_CONFLICT (with plugin_ids
-//      and namespaces; ADR-007 §"Errores" §POLICY_CONFLICT).
+//      and namespaces; ADR-007 §"Errores" + plan §3.2).
 //   5. Zero applicable → return null (defaults core).
-//   6. An `applies()` exception is treated as selection failure →
-//      POLICY_CONFLICT with `cause_message` carrying the original
-//      error so operators can attribute the failure.
+//   6. An `applies()` exception is treated as a contract violation
+//      from the plugin → POLICY_ERROR with `op` (and `action`) set to
+//      `"applies"` and the original cause preserved under
+//      `cause_message` so operators can attribute the failure
+//      (ADR-007 §"Errores" + plan §3.2: POLICY_ERROR covers any
+//      exception or invalid response in `applies`/`authorize`;
+//      POLICY_CONFLICT is reserved exclusively for more than one
+//      applicable policy).
 //
 // Selection does NOT cache. Each call re-reads the install set and
 // the project config, so `climier install <plugin>` followed by an
@@ -68,16 +73,15 @@ export async function loadApplicablePolicy({ projectDir }) {
     try {
       result = await policy.applies(projectConfig);
     } catch (err) {
-      // Selection failed for this candidate; surface the failure as a
-      // POLICY_CONFLICT so the handler aborts the mutation rather than
-      // continuing with a partial / unknown set of applicable
-      // plugins. The candidate's id and namespace are recorded so the
-      // orchestrator can attribute the failure.
-      throw new PolicyConflict(
-        [pluginId],
-        [namespace],
-        err && err.message ? err.message : String(err ?? "(unknown)"),
-      );
+      // The plugin's `applies` raised. Per ADR-007 §"Errores" +
+      // plan §3.2, an exception or invalid response from `applies`
+      // (or `authorize`) maps to POLICY_ERROR, NOT POLICY_CONFLICT
+      // (which is reserved for >1 applicable policy). The structured
+      // envelope records the candidate plugin id under `plugin_id`,
+      // the operation name as `"applies"` in both `op` and `action`,
+      // and preserves the original cause via `cause_message` so the
+      // orchestrator/operator can attribute the failure.
+      throw new PolicyError(pluginId, "applies", err);
     }
     if (result) applicable.push(candidate);
   }
