@@ -10,6 +10,8 @@ import { withLock } from "../lock.mjs";
 import { appendWithContext } from "../log.mjs";
 import { throwV2 } from "../errors.mjs";
 import { resolveAgent } from "../agent.mjs";
+import { loadApplicablePolicy, authorizeAction } from "../policy.mjs";
+import { PolicyDenied } from "../plugin-errors.mjs";
 
 export const knownFlags = ["reason", "as"];
 
@@ -21,6 +23,11 @@ export default async function deprecateKnowledge({ statePath, flags, positional,
     throwV2("MISSING_FIELD", "deprecate-knowledge: --reason is required", { field: "reason" });
   }
   const projectDir = statePath;
+
+  // T-plugin-policy-seam-dag — ADR-008 §"Seam por handler":
+  // load the applicable policy BEFORE the lock. The decision itself
+  // runs INSIDE the lock against the snapshot read under the lock.
+  const policy = await loadApplicablePolicy({ projectDir });
 
   return withLock(projectDir, async () => {
     const s = await readState(projectDir);
@@ -38,6 +45,34 @@ export default async function deprecateKnowledge({ statePath, flags, positional,
     }
 
     const as = resolveAgent(flags, "deprecate-knowledge");
+
+    // T-plugin-policy-seam-dag — ADR-008 §"Acciones canónicas":
+    // `knowledge.deprecate` is the canonical action; the target carries
+    // the existing node's id/kind/subkind/status so the policy can
+    // branch on the live snapshot.
+    const decision = await authorizeAction({
+      policy,
+      action: "knowledge.deprecate",
+      actor: as,
+      target: {
+        id,
+        kind: node.kind,
+        subkind: node.subkind,
+        status: node.status,
+      },
+      snapshot: s,
+      projectDir,
+      projectConfig: policy && policy.projectConfig ? policy.projectConfig : {},
+    });
+    if (decision.decision === "deny") {
+      throw new PolicyDenied(
+        policy.pluginId,
+        "knowledge.deprecate",
+        as,
+        decision.reason,
+      );
+    }
+
     const updated = await updateState(projectDir, (st) => {
       const target = st.nodes[id];
       target.status = "deprecated";

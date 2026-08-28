@@ -36,3 +36,43 @@ export async function addV2Node(command, prefix, shape, ctx) {
     flags: { ...ctx.flags, ...shape },
   });
 }
+
+// T-plugin-policy-seam-dag — internal capability (ADR-008 §"Capacidad interna").
+//
+// addNodeInternal lets a privileged in-process caller (recovery imports,
+// bulk migration tooling, future bootstrap paths) bypass the
+// INITIATIVE_NOT_FOUND guard without exposing `--allow-unregistered-initiative`
+// on the public CLI surface. The flag is fixed internally by this wrapper;
+// the bin's `knownFlags` check rejects any user-supplied occurrence of
+// the flag (handlers consume `flags["allow-unregistered-initiative"]`
+// only when this wrapper sets it).
+//
+// Contract (plan §3.7):
+//   - allowUnregisteredInitiative: false (default) → equivalent to
+//     addNode (no internal escape hatch).
+//   - allowUnregisteredInitiative: true            → INITIATIVE_NOT_FOUND
+//     is suppressed; the node is appended regardless of whether
+//     `initiative` was registered.
+//   - No other behaviour changes (the seam still runs, validation still
+//     runs, log entry is still appended).
+//
+// The wrapper is intentionally not exposed on the public CLI/API
+// surface: no public handler wraps it, no plugin receives it, and the
+// flag it sets is not in `add-task.mjs`/`add-node.mjs` `knownFlags`.
+export async function addNodeInternal({
+  statePath,
+  flags,
+  positional,
+  pluginId,
+  allowUnregisteredInitiative = false,
+}) {
+  return addNode({
+    statePath,
+    flags: {
+      ...flags,
+      "allow-unregistered-initiative": allowUnregisteredInitiative,
+    },
+    positional,
+    pluginId,
+  });
+}
