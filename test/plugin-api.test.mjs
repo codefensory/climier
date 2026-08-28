@@ -21,6 +21,8 @@ import {
   importFresh,
   writeState as writeRawState,
   readState as readRawState,
+  installPolicyFixture,
+  uninstallPolicyFixture,
 } from "./helpers.mjs";
 
 const ID_REGEX = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
@@ -1321,14 +1323,16 @@ test("api.core.run: gate.resolve without --rationale throws PLUGIN_CORE_INVALID_
 });
 
 test("api.core.run: gate.reopen and gate.cancel roll back or terminate gates with --reason", async () => {
-  // Reopening a resolved gate requires either orchestrator or the
-  // original done_by; the resolve handler does not stamp done_by on
-  // gates (gates are not claimable), so reopen only succeeds through
-  // orchestrator. The orchestrator `api` below exercises that path.
+  // Reopening a resolved gate requires either the actor who resolved
+  // it or a policy that explicitly allows another actor. Gates are not
+  // claimable so the historical orchestrator bypass is replaced by a
+  // policy seam allow. The `apiAdmin` below exercises the policy allow
+  // path.
   const dir = await readyProject();
+  await installPolicyFixture(dir);
   try {
     const apiAlice = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
-    const apiOrchestrator = await freshApi(dir, { agent: "orchestrator", pluginId: "example.audit" });
+    const apiAdmin = await freshApi(dir, { agent: "release-admin", pluginId: "example.audit" });
     // Resolve path (reopen must follow resolve).
     await apiAlice.core.run({
       op: "gate.create",
@@ -1344,16 +1348,15 @@ test("api.core.run: gate.reopen and gate.cancel roll back or terminate gates wit
       op: "gate.resolve",
       input: { id: "G-parity-reopen", choice: "yes", rationale: "first decision" },
     });
-    const reopened = await apiOrchestrator.core.run({
+    const reopened = await apiAdmin.core.run({
       op: "gate.reopen",
       input: { id: "G-parity-reopen", reason: "second thoughts" },
     });
     assert.equal(reopened.node.status, "open", "gate reopened");
     assert.equal(reopened.node.resolution, undefined, "resolution cleared by reopen");
 
-    // Cancel path on a fresh open gate must run as orchestrator because
-    // gates are not claimable and cancel requires claim ownership OR
-    // orchestrator.
+    // Cancel path on a fresh open gate: gates are not claimable so the
+    // historical orchestrator bypass is replaced by a policy seam allow.
     await apiAlice.core.run({
       op: "gate.create",
       input: {
@@ -1364,12 +1367,13 @@ test("api.core.run: gate.reopen and gate.cancel roll back or terminate gates wit
         purpose: "decision",
       },
     });
-    const canceled = await apiOrchestrator.core.run({
+    const canceled = await apiAdmin.core.run({
       op: "gate.cancel",
       input: { id: "G-parity-cancel", reason: "irrelevant" },
     });
     assert.equal(canceled.node.status, "canceled", "gate cancelled");
   } finally {
+    await uninstallPolicyFixture(dir);
     await rmTempProject(dir);
   }
 });
@@ -1527,9 +1531,11 @@ test("cli parity: parity task.cancel + update chain leaves logs free of plugin_i
   // through their core handlers directly. This prevents plugin-side path
   // from regressing the existing CLI behavior — the contract that the
   // CLI bin keeps working exactly as before. Cancel requires claim
-  // ownership OR orchestrator, so this test runs as orchestrator to
-  // exercise the no-claim path (the more interesting CLI case).
+  // ownership OR a policy that explicitly allows another actor, so this
+  // test installs the policy-fixture and exercises the no-claim path
+  // (the more interesting CLI case).
   const dir = await readyProject();
+  await installPolicyFixture(dir);
   try {
     await seedState(dir, (s) => {
       s.nodes["T-cli-parity-2"] = {
@@ -1548,16 +1554,17 @@ test("cli parity: parity task.cancel + update chain leaves logs free of plugin_i
     await cancelV2({
       statePath: dir,
       positional: ["T-cli-parity-2"],
-      flags: { as: "orchestrator", reason: "deprioritised" },
+      flags: { as: "release-manager", reason: "deprioritised" },
       projectDir: dir,
     });
     const after = await readRawState(dir);
     const lastLog = after.log[after.log.length - 1];
     assert.equal(lastLog.action, "cancel");
     assert.equal(lastLog.plugin_id, undefined, "CLI parity: cancel log has no plugin_id");
-    assert.equal(lastLog.agent, "orchestrator");
+    assert.equal(lastLog.agent, "release-manager");
     assert.equal(after.nodes["T-cli-parity-2"].status, "canceled");
   } finally {
+    await uninstallPolicyFixture(dir);
     await rmTempProject(dir);
   }
 });

@@ -1,9 +1,16 @@
 // `take <id>` claims exactly the requested v2 task.
 // Filters are accepted but ignored; backlog tasks remain unclaimable.
-// Orchestrator may take over another agent's claim and the log retains the old owner.
+//
+// T-plugin-policy-seam-lifecycle / ADR-008 §"Tabla de take": takeover
+// (a take on another agent's in-progress task) is now policy-driven.
+// The historical orchestrator takeover test is migrated below to use
+// the policy-fixture plugin (T-plugin-policy-fixture) with applies=true
+// and mode=allow, exercising the `task.takeover` seam allow path.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs/promises";
+import path from "node:path";
 import {
   createTempProject,
   rmTempProject,
@@ -11,6 +18,8 @@ import {
   runCli,
   writeState,
   readState,
+  installPolicyFixture,
+  uninstallPolicyFixture,
 } from "./helpers.mjs";
 
 async function v2Project() {
@@ -182,8 +191,14 @@ test("take by id: backlog tasks remain NOT_READY", async () => {
   } finally { await rmTempProject(dir); }
 });
 
-test("take by id: orchestrator takes over another agent's in-progress task", async () => {
+test("take by id: takeover is policy-driven (task.takeover allow replaces claim + previous_owner)", async () => {
+  // T-plugin-policy-seam-lifecycle / ADR-008 §"Tabla de take": takeover
+  // (a take on another agent's in-progress task) is now driven by the
+  // policy seam. We install the policy-fixture plugin (T-plugin-policy-fixture)
+  // with applies=true and mode=allow so the seam's allow path replaces
+  // the claim and preserves previous_owner in the log entry.
   const dir = await v2Project();
+  await installPolicyFixture(dir);
   try {
     await addTask(dir, "T-x");
     await patchNode(dir, "T-x", {
@@ -191,16 +206,19 @@ test("take by id: orchestrator takes over another agent's in-progress task", asy
       claim: { by: "other-agent", at: "2026-01-01T00:00:00.000Z" },
     });
 
-    const out = await take(dir, "T-x", { as: "orchestrator" });
-    assert.equal(out.node.claim.by, "orchestrator");
+    const out = await take(dir, "T-x", { as: "recovery-agent" });
+    assert.equal(out.node.claim.by, "recovery-agent");
     assert.equal(out.node.status, "in_progress");
     assert.equal(out.freshly_claimed, true);
     const state = await readState(dir);
     const entry = state.log.at(-1);
     assert.equal(entry.action, "take");
-    assert.equal(entry.agent, "orchestrator");
+    assert.equal(entry.agent, "recovery-agent");
     assert.equal(entry.previous_owner, "other-agent");
-  } finally { await rmTempProject(dir); }
+  } finally {
+    await uninstallPolicyFixture(dir);
+    await rmTempProject(dir);
+  }
 });
 
 test("CLI: take T-x --as agent-x works end to end", async () => {

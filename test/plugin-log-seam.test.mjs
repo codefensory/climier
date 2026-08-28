@@ -314,12 +314,19 @@ test("add-task: two consecutive calls (one CLI, one plugin) produce two distinct
       pluginId: "example.audit",
     });
     const s = await readState(dir);
-    // init writes no log; the two add-task calls each write exactly one.
-    assert.equal(s.log.length, 2);
-    assert.equal(s.log[0].node, "T-cli");
+    // initV2Project calls add-initiative once (which now writes a log
+    // entry per ADR-006 §"Locks y logs" / plan §4.3 to close the
+    // parity-slice gap), plus the two add-task calls — three entries
+    // total. The first entry is the initiative bootstrap, the next
+    // two are the add-task CLI + plugin calls.
+    assert.equal(s.log.length, 3);
+    assert.equal(s.log[0].action, "add-initiative");
+    assert.equal(s.log[0].node, "plugin-platform");
     assert.equal(s.log[0].plugin_id, undefined);
-    assert.equal(s.log[1].node, "T-plugin");
-    assert.equal(s.log[1].plugin_id, "example.audit");
+    assert.equal(s.log[1].node, "T-cli");
+    assert.equal(s.log[1].plugin_id, undefined);
+    assert.equal(s.log[2].node, "T-plugin");
+    assert.equal(s.log[2].plugin_id, "example.audit");
   } finally {
     await rmTempProject(dir);
   }

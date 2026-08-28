@@ -13,11 +13,25 @@
 // (computed as the symmetric diff of deriveV2().ready before/after).
 // Includes the case of a gate resolving: a task blocked by exactly this
 // gate and no other blockers becomes ready.
+//
+// T-plugin-policy-seam-lifecycle / ADR-008 §"Tabla de resolve":
+//   - The no-owner invariant for tasks is enforced BEFORE the seam
+//     (ADR-008 §"Tabla de resolve" item 1). A plugin can restrict the
+//     owner but can never authorize a non-owner to resolve.
+//   - Action: `task.resolve` (used for both tasks and gates; the
+//     no-claim rule differs by subkind).
+//   - allow   → proceed (resolve).
+//   - deny    → POLICY_DENIED, no state mutation, no log entry.
+//   - abstain → default core (resolve for owner; for non-owner the
+//               pre-seam check already rejected).
+//   - throw / invalid response → POLICY_ERROR propagates verbatim.
 import { readState, updateState } from "../state.mjs";
 import { withLock } from "../lock.mjs";
 import { appendWithContext } from "../log.mjs";
 import { throwV2 } from "../errors.mjs";
 import { resolveAgent } from "../agent.mjs";
+import { loadApplicablePolicy, authorizeAction } from "../policy.mjs";
+import { PolicyDenied } from "../plugin-errors.mjs";
 import { deriveV2 } from "../v2.mjs";
 
 export const knownFlags = ["as", "note", "choice", "rationale"];
@@ -34,6 +48,8 @@ export default async function resolveV2({ statePath, flags, positional, pluginId
   if (!id) throwV2("MISSING_FIELD", "resolve: node id required", { field: "id" });
   const projectDir = statePath;
   const as = resolveAgent(flags, "resolve");
+
+  const policy = await loadApplicablePolicy({ projectDir });
 
   return withLock(projectDir, async () => {
     const s = await readState(projectDir);
@@ -57,6 +73,11 @@ export default async function resolveV2({ statePath, flags, positional, pluginId
     if (node.subkind === "task") {
       const note = nonEmpty(flags.note, "note", "resolve");
       const ownerBy = node.claim && node.claim.by;
+      // ADR-008 §"Tabla de resolve" item 1: the no-owner invariant is
+      // enforced BEFORE the seam. A plugin may restrict the owner but
+      // can NEVER authorize a non-owner to resolve. The pre-seam check
+      // therefore covers both the "no claim" and "claim by another
+      // actor" cases.
       if (!ownerBy) {
         throwV2(
           "NOT_OWNER",
@@ -71,6 +92,41 @@ export default async function resolveV2({ statePath, flags, positional, pluginId
           { id, owner: ownerBy },
         );
       }
+
+      // Build snapshot + target for the seam.
+      const target = {
+        id: node.id,
+        kind: node.kind,
+        subkind: node.subkind,
+        status: node.status,
+        claim: node.claim ? { ...node.claim } : null,
+        done_by: node.done_by || null,
+      };
+      const snapshot = {
+        state: s,
+        nodes: { ...s.nodes },
+        edges: s.edges.slice(),
+        initiatives: { ...s.initiatives },
+      };
+      const decision = await authorizeAction({
+        policy,
+        action: "task.resolve",
+        actor: as,
+        target,
+        snapshot,
+        projectDir,
+        projectConfig: policy ? policy.projectConfig : {},
+      });
+      if (decision.decision === "deny") {
+        throw new PolicyDenied(
+          policy && policy.pluginId ? policy.pluginId : "(unknown)",
+          "task.resolve",
+          as,
+          decision.reason || "denied by policy",
+        );
+      }
+      // allow / abstain → proceed (owner invariant already satisfied).
+
       const doneAt = new Date().toISOString();
       const updated = await updateState(projectDir, (st) => {
         const target = st.nodes[id];
@@ -95,6 +151,41 @@ export default async function resolveV2({ statePath, flags, positional, pluginId
     if (node.subkind === "gate") {
       const choice = nonEmpty(flags.choice, "choice", "resolve");
       const rationale = nonEmpty(flags.rationale, "rationale", "resolve");
+
+      // Gates have no claim lifecycle, so there is no owner invariant
+      // before the seam. The seam decides; defaults core let any actor
+      // resolve a gate, matching the historical contract.
+      const target = {
+        id: node.id,
+        kind: node.kind,
+        subkind: node.subkind,
+        status: node.status,
+      };
+      const snapshot = {
+        state: s,
+        nodes: { ...s.nodes },
+        edges: s.edges.slice(),
+        initiatives: { ...s.initiatives },
+      };
+      const decision = await authorizeAction({
+        policy,
+        action: "task.resolve",
+        actor: as,
+        target,
+        snapshot,
+        projectDir,
+        projectConfig: policy ? policy.projectConfig : {},
+      });
+      if (decision.decision === "deny") {
+        throw new PolicyDenied(
+          policy && policy.pluginId ? policy.pluginId : "(unknown)",
+          "task.resolve",
+          as,
+          decision.reason || "denied by policy",
+        );
+      }
+      // allow / abstain → proceed (default core).
+
       const updated = await updateState(projectDir, (st) => {
         const target = st.nodes[id];
         target.status = "resolved";

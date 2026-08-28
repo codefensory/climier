@@ -1,14 +1,22 @@
 // F11 — v2 lifecycle: release, resolve, reopen, cancel.
 //
 // Pins the behaviors the design doc requires of v2 lifecycle commands:
-//   - release: owner-or-orchestrator; idempotent on a node with no claim.
+//   - release: owner (or a policy that explicitly allows another actor);
+//     idempotent on a node with no claim (no seam invocation).
 //   - resolve: done for tasks (requires --note and claim owner), resolved +
 //     resolution for gates (requires --choice and --rationale); returns
 //     newly_ready computed as the diff of deriveV2().ready before/after.
-//   - reopen: only the original done_by or orchestrator; re-opens to `open`
-//     and clears the claim, which re-blocks downstream tasks.
-//   - cancel: open/in_progress + owner or orchestrator only; done/resolved
-//     tasks return INVALID_STATUS.
+//     The no-owner invariant for tasks is enforced BEFORE the policy seam
+//     (ADR-008 §"Tabla de resolve" item 1).
+//   - reopen: only the original done_by (or a policy that explicitly
+//     allows another actor); re-opens to `open` and clears the claim,
+//     which re-blocks downstream tasks.
+//   - cancel: open/in_progress + owner (or a policy that explicitly allows
+//     another actor); done/resolved tasks return INVALID_STATUS.
+//
+// T-plugin-policy-seam-lifecycle / ADR-008: the historical orchestrator /
+// recovery bypass tests have been migrated to install the policy-fixture
+// plugin and exercise the seam's allow path with a non-special actor.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -20,6 +28,8 @@ import {
   importFresh,
   runCli,
   readState,
+  installPolicyFixture,
+  uninstallPolicyFixture,
 } from "./helpers.mjs";
 
 async function v2Project() {
@@ -119,36 +129,48 @@ test("v2-release: non-owner (not orchestrator) returns NOT_OWNER", async () => {
   } finally { await rmTempProject(dir); }
 });
 
-test("v2-release: orchestrator can release any agent's claim", async () => {
+test("v2-release: any agent may release another agent's claim when policy allow applies", async () => {
+  // T-plugin-policy-seam-lifecycle / ADR-008: the historical
+  // orchestrator/recovery bypass is replaced by a policy seam allow.
   const { default: release } = await importFresh("./commands/release.mjs");
   const dir = await v2Project();
+  await installPolicyFixture(dir);
   try {
     await addTask(dir, "T-auth-1");
     await take(dir, "alice");
     const out = await release({
       statePath: dir,
-      flags: { as: "orchestrator" },
+      flags: { as: "recovery-agent" },
       positional: ["T-auth-1"],
     });
     assert.equal(out.released, true);
     assert.equal(out.node.claim, null);
     assert.equal(out.node.status, "open");
-  } finally { await rmTempProject(dir); }
+  } finally {
+    await uninstallPolicyFixture(dir);
+    await rmTempProject(dir);
+  }
 });
 
-test("v2-release: recovery agent can also release any claim", async () => {
+test("v2-release: a policy-allow actor can release any agent's claim (ex-recovery role equivalent)", async () => {
+  // T-plugin-policy-seam-lifecycle / ADR-008: the historical
+  // recovery-bypass path is replaced by a policy seam allow.
   const { default: release } = await importFresh("./commands/release.mjs");
   const dir = await v2Project();
+  await installPolicyFixture(dir);
   try {
     await addTask(dir, "T-auth-1");
     await take(dir, "alice");
     const out = await release({
       statePath: dir,
-      flags: { as: "recovery" },
+      flags: { as: "second-admin" },
       positional: ["T-auth-1"],
     });
     assert.equal(out.released, true);
-  } finally { await rmTempProject(dir); }
+  } finally {
+    await uninstallPolicyFixture(dir);
+    await rmTempProject(dir);
+  }
 });
 
 test("v2-release: idempotent — a task with no claim returns released=false without mutating", async () => {
@@ -457,10 +479,13 @@ test("v2-reopen: original done_by can reopen a done task; status -> open, claim 
   } finally { await rmTempProject(dir); }
 });
 
-test("v2-reopen: orchestrator can reopen any done task", async () => {
+test("v2-reopen: any agent may reopen a done task when policy allow applies", async () => {
+  // T-plugin-policy-seam-lifecycle / ADR-008: the historical
+  // orchestrator-reopen bypass is replaced by a policy seam allow.
   const { default: reopen } = await importFresh("./commands/reopen.mjs");
   const { default: resolve } = await importFresh("./commands/resolve.mjs");
   const dir = await v2Project();
+  await installPolicyFixture(dir);
   try {
     await addTask(dir, "T-auth-1");
     await take(dir, "alice");
@@ -468,12 +493,15 @@ test("v2-reopen: orchestrator can reopen any done task", async () => {
 
     const out = await reopen({
       statePath: dir,
-      flags: { as: "orchestrator", reason: "auditing" },
+      flags: { as: "auditor", reason: "auditing" },
       positional: ["T-auth-1"],
     });
     assert.equal(out.node.status, "open");
     assert.equal(out.node.claim, null);
-  } finally { await rmTempProject(dir); }
+  } finally {
+    await uninstallPolicyFixture(dir);
+    await rmTempProject(dir);
+  }
 });
 
 test("v2-reopen: third agent (not done_by, not orchestrator) returns NOT_OWNER", async () => {
@@ -609,19 +637,26 @@ test("v2-cancel: in_progress + claim owner => status=canceled, claim cleared, lo
   } finally { await rmTempProject(dir); }
 });
 
-test("v2-cancel: open + orchestrator => canceled (no claim required)", async () => {
+test("v2-cancel: open + policy-allow actor => canceled (no claim required)", async () => {
+  // T-plugin-policy-seam-lifecycle / ADR-008: the historical
+  // orchestrator-bypass on an unclaimed node is replaced by a policy
+  // seam allow.
   const { default: cancel } = await importFresh("./commands/cancel.mjs");
   const dir = await v2Project();
+  await installPolicyFixture(dir);
   try {
     await addTask(dir, "T-auth-1");
     const out = await cancel({
       statePath: dir,
-      flags: { as: "orchestrator", reason: "no longer needed" },
+      flags: { as: "release-manager", reason: "no longer needed" },
       positional: ["T-auth-1"],
     });
     assert.equal(out.node.status, "canceled");
     assert.equal(out.node.claim, null);
-  } finally { await rmTempProject(dir); }
+  } finally {
+    await uninstallPolicyFixture(dir);
+    await rmTempProject(dir);
+  }
 });
 
 test("v2-cancel: open + non-owner (not orchestrator) returns NOT_OWNER", async () => {

@@ -31,6 +31,8 @@ import {
   runCli,
   writeState,
   readState,
+  installPolicyFixture,
+  uninstallPolicyFixture,
 } from "./helpers.mjs";
 
 // =========================================================================
@@ -514,24 +516,26 @@ test("release preserves root plugins and per-node plugins", async () => {
 
 test("cancel preserves root plugins and per-node plugins", async () => {
   const dir = await createTempProject();
+  await installPolicyFixture(dir);
   try {
     const base = await bootstrapState(dir);
     seedPluginData(base);
     await writeState(dir, base);
-    // Use orchestrator so we can cancel an unclaimed open task; the
-    // preservation contract is independent of the authority rule and
+    // Use a policy-allow actor so we can cancel an unclaimed open task;
+    // the preservation contract is independent of the authority rule and
     // is exercised separately elsewhere.
     const { default: cancel } = await importFresh("./commands/cancel.mjs");
     await cancel({
       statePath: dir,
       projectDir: dir,
       positional: ["T1"],
-      flags: { as: "orchestrator", reason: "abandoned" },
+      flags: { as: "release-manager", reason: "abandoned" },
     });
     const after = await readState(dir);
     assertPluginDataPreserved(after);
     assert.equal(after.nodes.T1.status, "canceled");
   } finally {
+    await uninstallPolicyFixture(dir);
     await rmTempProject(dir);
   }
 });
