@@ -333,16 +333,57 @@ test("context v2: allowed_actions for task in_progress owned by --as", async () 
     for (const action of ["resolve", "release", "add-note", "update"]) {
       assert.ok(out.allowed_actions.includes(action), `expected "${action}" in ${JSON.stringify(out.allowed_actions)}`);
     }
-    // The historical `release --as orchestrator` hatch is gone (ADR-008
-    // §"Contexto, help y auditoría"): allowed_actions reflects core
-    // invariants only. The owner surfaces plain `release`.
+    // ADR-009 §"Contexto y documentación": allowed_actions must never
+    // project hatch-shaped commands or actor roles. The owner (and any
+    // other identified caller) gets plain `release`, not
+    // `"release --as orchestrator"`.
+    assert.ok(!out.allowed_actions.some((a) => a.includes("orchestrator")));
+    assert.ok(!out.allowed_actions.some((a) => a.includes("recovery")));
+    for (const action of out.allowed_actions) {
+      assert.ok(!/^release\s+--as/.test(action), `unexpected hatch in ${action}`);
+    }
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("context v2: allowed_actions for task in_progress with --as bob (non-owner) -> resolve/release/add-note/update (ADR-009: ownership is not projected)", async () => {
+  const { default: context } = await importFresh("./commands/context.mjs");
+  const dir = await createTempProject();
+  try {
+    await writeRawState(dir, {
+      ...baseState(),
+      nodes: {
+        "T-x": {
+          id: "T-x",
+          kind: "resolvable",
+          subkind: "task",
+          title: "X",
+          revision: 1,
+          status: "in_progress",
+          claimed_by: "alice",
+          claimed_at: Date.now(),
+        },
+      },
+    });
+    // ADR-009 §"Resto de operaciones" + §"Contexto y documentación":
+    // allowed_actions describes the actions the state permits. The
+    // core no longer compares the caller against the claim owner for
+    // resolve/release. Any identified caller sees resolve/release;
+    // the actual ownership check is delegated to a plugin (or to the
+    // core default of "any actor is authorised"). The role-based
+    // hatch is gone.
+    const out = await context({ statePath: dir, positional: ["T-x"], flags: { as: "bob" } });
+    for (const action of ["resolve", "release", "add-note", "update"]) {
+      assert.ok(out.allowed_actions.includes(action), `expected "${action}" in ${JSON.stringify(out.allowed_actions)}`);
+    }
     assert.ok(!out.allowed_actions.some((a) => a.includes("orchestrator")));
   } finally {
     await rmTempProject(dir);
   }
 });
 
-test("context v2: allowed_actions for task in_progress owned by other -> add-note only (no release hatch)", async () => {
+test("context v2: allowed_actions for task in_progress --as test-agent (non-owner) -> resolve/release/add-note/update (actor name has no authority)", async () => {
   const { default: context } = await importFresh("./commands/context.mjs");
   const dir = await createTempProject();
   try {
@@ -361,17 +402,21 @@ test("context v2: allowed_actions for task in_progress owned by other -> add-not
         },
       },
     });
-    const out = await context({ statePath: dir, positional: ["T-x"], flags: { as: "bob" } });
-    // ADR-008: non-owner gets add-note only. Releasing someone else's
-    // claim is a policy decision, not a core invariant, so it is not
-    // projected here.
-    assert.deepEqual(out.allowed_actions, ["add-note"]);
+    // ADR-009: the literal actor name (here `test-agent`) carries no
+    // authority. An identified caller that is not the claim owner
+    // still sees resolve/release because allowed_actions reflects the
+    // state invariant, not the ownership check. The handler's default
+    // (no plugin) is "any actor is authorised".
+    const out = await context({ statePath: dir, positional: ["T-x"], flags: { as: "test-agent" } });
+    for (const action of ["resolve", "release", "add-note", "update"]) {
+      assert.ok(out.allowed_actions.includes(action), `expected "${action}" in ${JSON.stringify(out.allowed_actions)}`);
+    }
   } finally {
     await rmTempProject(dir);
   }
 });
 
-test("context v2: allowed_actions for task in_progress --as test-agent (non-owner) -> add-note only (ADR-008: actor name has no authority)", async () => {
+test("context v2: allowed_actions for task in_progress anonymous (no --as) -> add-note only", async () => {
   const { default: context } = await importFresh("./commands/context.mjs");
   const dir = await createTempProject();
   try {
@@ -390,10 +435,11 @@ test("context v2: allowed_actions for task in_progress --as test-agent (non-owne
         },
       },
     });
-    // ADR-008 §"Invariantes core": the actor name has no authority;
-    // since the actor is not the claim owner, only add-note remains
-    // available (the owner still gets resolve/release/add-note/update).
-    const out = await context({ statePath: dir, positional: ["T-x"], flags: { as: "test-agent" } });
+    // Anonymous callers have no actor to record; actions that write to
+    // the log (claim, resolve, release, reopen, cancel) are not
+    // surfaced. add-note/update remain because they are read-shaped
+    // from the perspective of allowed_actions.
+    const out = await context({ statePath: dir, positional: ["T-x"], flags: {} });
     assert.deepEqual(out.allowed_actions, ["add-note"]);
   } finally {
     await rmTempProject(dir);
@@ -445,6 +491,36 @@ test("context v2: allowed_actions for task done with --as alice -> reopen + add-
       },
     });
     const out = await context({ statePath: dir, positional: ["T-x"], flags: { as: "alice" } });
+    assert.ok(out.allowed_actions.includes("reopen"));
+    assert.ok(out.allowed_actions.includes("add-note"));
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("context v2: allowed_actions for task done with --as bob (not done_by) -> reopen + add-note (ADR-009: done_by is not projected)", async () => {
+  const { default: context } = await importFresh("./commands/context.mjs");
+  const dir = await createTempProject();
+  try {
+    await writeRawState(dir, {
+      ...baseState(),
+      nodes: {
+        "T-x": {
+          id: "T-x",
+          kind: "resolvable",
+          subkind: "task",
+          title: "X",
+          revision: 1,
+          status: "done",
+          done_by: "alice",
+        },
+      },
+    });
+    // ADR-009 §"Resto de operaciones" + §"Contexto y documentación":
+    // the core no longer compares the caller against `done_by` for
+    // reopen. Any identified caller sees reopen because the task's
+    // state (done) and shape permit it.
+    const out = await context({ statePath: dir, positional: ["T-x"], flags: { as: "bob" } });
     assert.ok(out.allowed_actions.includes("reopen"));
     assert.ok(out.allowed_actions.includes("add-note"));
   } finally {
