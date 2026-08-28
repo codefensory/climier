@@ -1147,11 +1147,11 @@ test("api.core.run: task.cancel dispatches to cancel and sets status='canceled'"
         blocked_by: "",
       },
     });
-    // Take it first so alice owns the claim; otherwise cancel refuses
-    // with NOT_OWNER. ADR-008 §"Tabla de cancel": the policy seam
-    // (task.cancel action) authorizes the cancellation after the
-    // claim-owner check, not an actor-name hatch.
-    await api.core.run({ op: "task.take", input: { id: "T-parity-cancel" } });
+    // Take it first so alice owns the claim; under ADR-009 the core
+    // does not require the claim but cancelling a task she took still
+    // documents the parity path (any actor → cancel succeeds). The
+    // historical NOT_OWNER refusal is gone — see ADR-009 §"Resto de
+    // operaciones".
     const out = await api.core.run({
       op: "task.cancel",
       input: { id: "T-parity-cancel", reason: "out of scope" },
@@ -1325,11 +1325,11 @@ test("api.core.run: gate.resolve without --rationale throws PLUGIN_CORE_INVALID_
 });
 
 test("api.core.run: gate.reopen and gate.cancel roll back or terminate gates with --reason", async () => {
-  // Reopening a resolved gate requires either the actor who resolved
-  // it or a policy that explicitly allows another actor. Gates are not
-  // claimable so the historical orchestrator bypass is replaced by a
-  // policy seam allow. The `apiAdmin` below exercises the policy allow
-  // path.
+  // ADR-009 §"Resto de operaciones": any actor may reopen or cancel a
+  // gate. The policy-fixture below exercises the seam allow path
+  // explicitly to keep coverage of the optional policy-driven branch
+  // that ADR-007 introduced; the default core (no policy) would also
+  // succeed here under ADR-009.
   const dir = await readyProject();
   await installPolicyFixture(dir);
   try {
@@ -1357,8 +1357,9 @@ test("api.core.run: gate.reopen and gate.cancel roll back or terminate gates wit
     assert.equal(reopened.node.status, "open", "gate reopened");
     assert.equal(reopened.node.resolution, undefined, "resolution cleared by reopen");
 
-    // Cancel path on a fresh open gate: gates are not claimable so the
-    // historical orchestrator bypass is replaced by a policy seam allow.
+    // Cancel path on a fresh open gate: gates are not claimable and
+    // under ADR-009 any actor may cancel them. The policy-fixture is
+    // kept to also cover the seam allow branch.
     await apiAlice.core.run({
       op: "gate.create",
       input: {
@@ -1532,10 +1533,9 @@ test("cli parity: parity task.cancel + update chain leaves logs free of plugin_i
   // Wider CLI parity smoke covering release/reopen/cancel/deprecate-knowledge
   // through their core handlers directly. This prevents plugin-side path
   // from regressing the existing CLI behavior — the contract that the
-  // CLI bin keeps working exactly as before. Cancel requires claim
-  // ownership OR a policy that explicitly allows another actor, so this
-  // test installs the policy-fixture and exercises the no-claim path
-  // (the more interesting CLI case).
+  // CLI bin keeps working exactly as before. Cancel no longer requires
+  // claim ownership or a policy under ADR-009; the policy-fixture is kept
+  // here to also cover the seam allow branch (any actor → cancel).
   const dir = await readyProject();
   await installPolicyFixture(dir);
   try {
