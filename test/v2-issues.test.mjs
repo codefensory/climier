@@ -78,8 +78,14 @@ test("Issue 2: add-node with missing agent does NOT mutate state (no orphan log 
     // Critical assertion: state file must NOT contain the new node.
     const s = await readState(dir);
     assert.equal(s.nodes["T-orphan"], undefined, "node must not be created");
-    // And no log entry for the failed add-node.
-    assert.equal(s.log.length, 0, `log should be empty, got ${JSON.stringify(s.log)}`);
+    // The add-initiative bootstrap writes one log entry per
+    // ADR-006 §"Locks y logs" / plan §4.3 (T-plugin-policy-seam-lifecycle
+    // closes the parity-slice gap). The failed add-node MUST NOT add
+    // any further entries — so the log should contain exactly one
+    // add-initiative entry and nothing else.
+    assert.equal(s.log.length, 1, `log should contain exactly the add-initiative bootstrap entry, got ${JSON.stringify(s.log)}`);
+    assert.equal(s.log[0].action, "add-initiative");
+    assert.equal(s.log[0].node, "auth");
   } finally { restore(); await rmTempProject(dir); }
 });
 
@@ -104,8 +110,13 @@ test("Issue 2: add-edge with missing agent does NOT mutate state", async () => {
 
     const before = await readState(dir);
     const beforeEdges = before.edges.length;
-    // add-initiative does not log; only the two add-node setup calls do.
-    assert.equal(before.log.length, 2, "expected 2 setup log entries (2 add-node calls)");
+    // After init + add-initiative + 2 add-node setup calls we expect
+    // exactly 3 log entries: add-initiative (parity-slice close,
+    // ADR-006 §"Locks y logs" / plan §4.3) + 2 add-node entries.
+    assert.equal(before.log.length, 3, `expected 3 setup log entries (add-initiative + 2 add-node), got ${JSON.stringify(before.log)}`);
+    assert.equal(before.log[0].action, "add-initiative");
+    assert.equal(before.log[1].action, "add-node");
+    assert.equal(before.log[2].action, "add-node");
 
     const { default: addEdge } = await importFresh("./commands/add-edge.mjs");
     let caught;

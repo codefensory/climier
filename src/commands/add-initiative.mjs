@@ -8,7 +8,7 @@
 //     the registration; no state mutation, no log entry.
 //   - allow / abstain → default core (register the initiative; ID_CONFLICT
 //     if it already exists; log entry appended on success).
-import { updateState, isV2State } from "../state.mjs";
+import { updateState, readState, isV2State, emptyState } from "../state.mjs";
 import { withLock } from "../lock.mjs";
 import { appendWithContext } from "../log.mjs";
 import { throwV2 } from "../errors.mjs";
@@ -50,12 +50,15 @@ export default async function addInitiative({ statePath, flags, positional, plug
   const policy = await loadApplicablePolicy({ projectDir });
 
   return withLock(projectDir, async () => {
-    // Read state so the policy seam sees the current initiatives map
-    // (a plugin may deny the creation when the name conflicts with an
-    // existing initiative or violates a project convention).
-    const { readState } = await import("../state.mjs");
-    const s = await readState(projectDir);
-    if (!s) throw new Error("add-initiative: state file missing; run `climier init` first");
+    // Snapshot for the policy seam. The handler must NOT throw
+    // "state file missing" here: callers that bootstrap an initiative
+    // before `climier init` rely on `updateState`'s auto-create path.
+    // When no state exists yet we still hand the plugin a v2-shaped
+    // empty snapshot so plugins that only inspect shape see a valid
+    // input. The snapshot reflects the persisted view so a plugin
+    // can detect the name already being registered.
+    const persisted = await readState(projectDir);
+    const s = persisted || emptyState();
 
     const target = {
       id: name,
