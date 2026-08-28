@@ -493,20 +493,42 @@ describe("concurrency: two operations on the same node serialize cleanly", () =>
     } finally { await rmTempProject(dir); }
   });
 
-  test("concurrent take+resolve on the same task: claimer wins; racy non-owner gets NOT_OWNER", async () => {
+  test("concurrent take+resolve on the same task: racy non-owner resolves; the lock serializes both writes", async () => {
+    // ADR-009 §"Resto de operaciones": the core does NOT block a
+    // non-owner from resolving. Without a policy plugin, two actors
+    // racing to resolve the same claimed task both succeed; the
+    // file lock serializes the writes and the second writer wins
+    // the envelope (done_by / done_at / note). The only invariant
+    // that still holds is the take invariant: alice was the first
+    // taker, so the original claim is hers until the first resolve
+    // cleared it.
     const dir = await v2Project();
     try {
       await addTaskNode(dir, "T-a");
       await takeNode(dir, "T-a", "alice");
-      const a = runCli(["--project", dir, "resolve", "T-a", "--note", "done", "--as", "alice"]);
-      const b = runCli(["--project", dir, "resolve", "T-a", "--note", "done", "--as", "bob"]);
+      const a = runCli(["--project", dir, "resolve", "T-a", "--note", "from alice", "--as", "alice"]);
+      const b = runCli(["--project", dir, "resolve", "T-a", "--note", "from bob", "--as", "bob"]);
       const [ra, rb] = await Promise.all([a, b]);
-      // One succeeds (alice), one fails (bob — NOT_OWNER).
-      const codes = [ra.code, rb.code].sort();
-      assert.deepEqual(codes, [0, 1]);
+      // Both resolves proceed: no ownership rejection.
+      assert.equal(ra.code, 0, `alice resolve should succeed; got ${ra.code}: ${ra.stdout}`);
+      assert.equal(rb.code, 0, `bob resolve should succeed; got ${rb.code}: ${rb.stdout}`);
       const s = await readRawState(dir);
       assert.equal(s.nodes["T-a"].status, "done");
-      assert.equal(s.nodes["T-a"].done_by, "alice");
+      // The writer that acquired the lock last wins done_by. Either
+      // actor is valid — the invariant we lock down here is "both
+      // succeeded without rejection", not "alice wins".
+      assert.ok(["alice", "bob"].includes(s.nodes["T-a"].done_by),
+        `done_by must be alice or bob; got ${s.nodes["T-a"].done_by}`);
+      // Revision: 1 (init) + 1 (take) + 2 (resolves) = 4.
+      assert.equal(s.nodes["T-a"].revision, 4,
+        `expected revision 4 after two resolves; got ${s.nodes["T-a"].revision}`);
+      // Both resolve log entries present.
+      const resolveEntries = s.log.filter((e) => e.action === "resolve");
+      assert.equal(resolveEntries.length, 2,
+        `expected 2 resolve log entries; got ${resolveEntries.length}`);
+      const agents = resolveEntries.map((e) => e.agent).sort();
+      assert.deepEqual(agents, ["alice", "bob"],
+        `expected one resolve per actor; got ${JSON.stringify(agents)}`);
     } finally { await rmTempProject(dir); }
   });
 

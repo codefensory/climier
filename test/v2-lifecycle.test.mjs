@@ -1,22 +1,26 @@
 // F11 — v2 lifecycle: release, resolve, reopen, cancel.
 //
 // Pins the behaviors the design doc requires of v2 lifecycle commands:
-//   - release: owner (or a policy that explicitly allows another actor);
-//     idempotent on a node with no claim (no seam invocation).
-//   - resolve: done for tasks (requires --note and claim owner), resolved +
+//   - release: any actor (or a policy that explicitly denies); idempotent
+//     on a node with no claim (no seam invocation).
+//   - resolve: done for tasks (requires --note), resolved +
 //     resolution for gates (requires --choice and --rationale); returns
 //     newly_ready computed as the diff of deriveV2().ready before/after.
-//     The no-owner invariant for tasks is enforced BEFORE the policy seam
-//     (ADR-008 §"Tabla de resolve" item 1).
-//   - reopen: only the original done_by (or a policy that explicitly
-//     allows another actor); re-opens to `open` and clears the claim,
-//     which re-blocks downstream tasks.
-//   - cancel: open/in_progress + owner (or a policy that explicitly allows
-//     another actor); done/resolved tasks return INVALID_STATUS.
+//     The actor is not compared to the claim owner (ADR-009 §"Resto de
+//     operaciones"): any actor with --as may resolve a task whose state
+//     allows it; a policy plugin may still deny the action.
+//   - reopen: any actor; re-opens to `open` and clears the claim, which
+//     re-blocks downstream tasks.
+//   - cancel: open/in_progress + any actor (or a policy that explicitly
+//     denies); done/resolved tasks return INVALID_STATUS.
 //
-// T-plugin-policy-seam-lifecycle / ADR-008: the historical orchestrator /
-// recovery bypass tests have been migrated to install the policy-fixture
-// plugin and exercise the seam's allow path with a non-special actor.
+// T-plugin-policy-minimal-core-handlers / ADR-009: the historical
+// owner-invariant assertions (NOT_OWNER for non-owner resolve / release /
+// reopen / cancel) were inverted: with no policy, the default core lets
+// any actor mutate, and the tests verify the mutation envelope
+// (done_by / last log entry / claim cleared). The `policy allow` paths
+// still cover the seam; policy deny/abstain coverage lives in
+// plugin-policy-seam-lifecycle.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -108,24 +112,29 @@ test("v2-release: claim owner releases; returns released=true, claim=null, statu
   } finally { await rmTempProject(dir); }
 });
 
-test("v2-release: non-owner (not orchestrator) returns NOT_OWNER", async () => {
+test("v2-release: any actor may release another agent's claim with no policy (defaults core)", async () => {
+  // ADR-009 §"Resto de operaciones": the core no longer compares the
+  // actor against the claim owner. Without a policy plugin, any actor
+  // with --as may release a claimed task. A policy plugin may still
+  // deny the action.
   const { default: release } = await importFresh("./commands/release.mjs");
   const dir = await v2Project();
   try {
     await addTask(dir, "T-auth-1");
     await take(dir, "alice");
-    let caught;
-    try {
-      await release({
-        statePath: dir,
-        flags: { as: "bob" },
-        positional: ["T-auth-1"],
-      });
-    } catch (e) { caught = e; }
-    assert.ok(caught, "should have thrown");
-    assert.equal(caught.code, "NOT_OWNER");
-    assert.equal(caught.details.id, "T-auth-1");
-    assert.equal(caught.details.owner, "alice");
+    const out = await release({
+      statePath: dir,
+      flags: { as: "bob" },
+      positional: ["T-auth-1"],
+    });
+    assert.equal(out.released, true);
+    assert.equal(out.node.claim, null);
+    assert.equal(out.node.status, "open");
+    const s = await readState(dir);
+    const last = s.log.at(-1);
+    assert.equal(last.action, "release");
+    assert.equal(last.agent, "bob");
+    assert.equal(last.node, "T-auth-1");
   } finally { await rmTempProject(dir); }
 });
 
@@ -328,23 +337,30 @@ test("v2-resolve: task resolve does NOT include downstream tasks that still have
   } finally { await rmTempProject(dir); }
 });
 
-test("v2-resolve: task resolve by non-owner returns NOT_OWNER", async () => {
+test("v2-resolve: any actor may resolve a claimed task with no policy (defaults core)", async () => {
+  // ADR-009 §"Resto de operaciones": the core does not compare the
+  // actor against the claim owner. Without a policy plugin, any actor
+  // with --as may resolve a task whose state is valid for the
+  // transition. done_by records the actor that actually mutated.
   const { default: resolve } = await importFresh("./commands/resolve.mjs");
   const dir = await v2Project();
   try {
     await addTask(dir, "T-auth-1");
     await take(dir, "alice");
-    let caught;
-    try {
-      await resolve({
-        statePath: dir,
-        flags: { as: "bob", note: "not mine" },
-        positional: ["T-auth-1"],
-      });
-    } catch (e) { caught = e; }
-    assert.ok(caught);
-    assert.equal(caught.code, "NOT_OWNER");
-    assert.equal(caught.details.owner, "alice");
+    const out = await resolve({
+      statePath: dir,
+      flags: { as: "bob", note: "shipped by bob" },
+      positional: ["T-auth-1"],
+    });
+    assert.equal(out.node.status, "done");
+    assert.equal(out.node.done_by, "bob");
+    assert.equal(out.node.note, "shipped by bob");
+    assert.equal(out.node.claim, null);
+    const s = await readState(dir);
+    const last = s.log.at(-1);
+    assert.equal(last.action, "resolve");
+    assert.equal(last.agent, "bob");
+    assert.equal(last.note, "shipped by bob");
   } finally { await rmTempProject(dir); }
 });
 
@@ -504,7 +520,11 @@ test("v2-reopen: any agent may reopen a done task when policy allow applies", as
   }
 });
 
-test("v2-reopen: third agent (not done_by, not orchestrator) returns NOT_OWNER", async () => {
+test("v2-reopen: any actor may reopen a done task with no policy (defaults core)", async () => {
+  // ADR-009 §"Resto de operaciones": the core does not compare the
+  // actor against done_by. Without a policy plugin, any actor with
+  // --as may reopen a task in a terminal reopenable state. done_by /
+  // done_at / note are cleared exactly as before.
   const { default: reopen } = await importFresh("./commands/reopen.mjs");
   const { default: resolve } = await importFresh("./commands/resolve.mjs");
   const dir = await v2Project();
@@ -513,17 +533,20 @@ test("v2-reopen: third agent (not done_by, not orchestrator) returns NOT_OWNER",
     await take(dir, "alice");
     await resolve({ statePath: dir, flags: { as: "alice", note: "shipped" }, positional: ["T-auth-1"] });
 
-    let caught;
-    try {
-      await reopen({
-        statePath: dir,
-        flags: { as: "bob", reason: "I want it back" },
-        positional: ["T-auth-1"],
-      });
-    } catch (e) { caught = e; }
-    assert.ok(caught);
-    assert.equal(caught.code, "NOT_OWNER");
-    assert.equal(caught.details.owner, "alice");
+    const out = await reopen({
+      statePath: dir,
+      flags: { as: "bob", reason: "tests failed in staging" },
+      positional: ["T-auth-1"],
+    });
+    assert.equal(out.node.status, "open");
+    assert.equal(out.node.claim, null);
+    assert.equal(out.node.done_by, undefined);
+    assert.equal(out.node.done_at, undefined);
+    const s = await readState(dir);
+    const last = s.log.at(-1);
+    assert.equal(last.action, "reopen");
+    assert.equal(last.agent, "bob");
+    assert.equal(last.note, "tests failed in staging");
   } finally { await rmTempProject(dir); }
 });
 
@@ -659,40 +682,50 @@ test("v2-cancel: open + policy-allow actor => canceled (no claim required)", asy
   }
 });
 
-test("v2-cancel: open + non-owner (not orchestrator) returns NOT_OWNER", async () => {
+test("v2-cancel: any actor may cancel an open task with no policy (defaults core)", async () => {
+  // ADR-009 §"Resto de operaciones": the core does not require the actor
+  // to be the claim owner. Without a policy plugin, any actor with --as
+  // may cancel an open node.
   const { default: cancel } = await importFresh("./commands/cancel.mjs");
   const dir = await v2Project();
   try {
     await addTask(dir, "T-auth-1");
-    let caught;
-    try {
-      await cancel({
-        statePath: dir,
-        flags: { as: "alice", reason: "x" },
-        positional: ["T-auth-1"],
-      });
-    } catch (e) { caught = e; }
-    assert.ok(caught);
-    assert.equal(caught.code, "NOT_OWNER");
+    const out = await cancel({
+      statePath: dir,
+      flags: { as: "alice", reason: "no longer needed" },
+      positional: ["T-auth-1"],
+    });
+    assert.equal(out.node.status, "canceled");
+    assert.equal(out.node.claim, null);
+    const s = await readState(dir);
+    const last = s.log.at(-1);
+    assert.equal(last.action, "cancel");
+    assert.equal(last.agent, "alice");
+    assert.equal(last.note, "no longer needed");
   } finally { await rmTempProject(dir); }
 });
 
-test("v2-cancel: in_progress + third agent (not owner, not orchestrator) returns NOT_OWNER", async () => {
+test("v2-cancel: any actor may cancel an in_progress task with no policy (defaults core)", async () => {
+  // ADR-009 §"Resto de operaciones": the core does not require the actor
+  // to be the claim owner. Without a policy plugin, any actor with --as
+  // may cancel an in_progress node, including a third party that never
+  // claimed the task.
   const { default: cancel } = await importFresh("./commands/cancel.mjs");
   const dir = await v2Project();
   try {
     await addTask(dir, "T-auth-1");
     await take(dir, "alice");
-    let caught;
-    try {
-      await cancel({
-        statePath: dir,
-        flags: { as: "bob", reason: "x" },
-        positional: ["T-auth-1"],
-      });
-    } catch (e) { caught = e; }
-    assert.ok(caught);
-    assert.equal(caught.code, "NOT_OWNER");
+    const out = await cancel({
+      statePath: dir,
+      flags: { as: "bob", reason: "out of scope" },
+      positional: ["T-auth-1"],
+    });
+    assert.equal(out.node.status, "canceled");
+    assert.equal(out.node.claim, null);
+    const s = await readState(dir);
+    const last = s.log.at(-1);
+    assert.equal(last.action, "cancel");
+    assert.equal(last.agent, "bob");
   } finally { await rmTempProject(dir); }
 });
 

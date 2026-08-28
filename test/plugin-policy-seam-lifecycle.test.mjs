@@ -1,7 +1,8 @@
 // T-plugin-policy-seam-lifecycle — focal matrix for the lifecycle seam.
 //
 // Per ADR-008 §"Tabla de take/resolve/release/reopen/cancel/note/initiative"
-// and plan §4.3, every lifecycle mutator must:
+// and ADR-009 §"Única invariancia de autoridad del core", every lifecycle
+// mutator must:
 //   - read state under withLock;
 //   - invoke `authorizeAction` with the action listed in §"Acciones
 //     canónicas" (task.take / task.takeover / task.resolve /
@@ -9,14 +10,22 @@
 //     initiative.create);
 //   - deny / throw short-circuit before any state mutation or log
 //     entry; allow / abstain defer to the default core.
-// The no-owner invariant on `task.resolve` is enforced BEFORE the seam
-// (ADR-008 §"Tabla de resolve" item 1): a non-owner can never resolve
-// even when a policy returns allow.
+//
+// ADR-009 §"Resto de operaciones" removes the pre-seam ownership checks
+// from resolve / release / reopen / cancel. The seam is now the SOLE
+// authority on those actions; with no policy plugin (or abstain), the
+// default core lets any actor with `--as` mutate. The `take` and
+// `takeover` paths preserve their exclusion-mutuelle invariant
+// (ALREADY_CLAIMED without takeover authorization; `task.takeover`
+// requires policy=allow and records `previous_owner`).
 //
 // Coverage:
 //   - take: free / same-actor idempotent / takeover allow-deny-abstain
-//   - resolve: NOT_OWNER before seam + owner allow-deny-abstain
-//   - release / reopen / cancel: allow-deny-abstain-throw
+//   - resolve: no-owner with policy absent / allow / abstain
+//     (defaults core proceeds); owner allow / deny / abstain
+//   - release / reopen / cancel: allow / deny / abstain / throw
+//     (non-owner with abstain now succeeds — the default core no
+//     longer rejects on ownership)
 //   - add-note: note.add (allow/deny/abstain; deny short-circuits
 //     before updateState)
 //   - add-initiative: initiative.create (allow/abstain/deny; deny
@@ -288,37 +297,85 @@ test("seam-take: takeover with policy abstain returns ALREADY_CLAIMED (defaults 
 // resolve: NOT_OWNER before seam + owner allow / deny / abstain
 // ===========================================================================
 
-test("seam-resolve: NOT_OWNER is enforced BEFORE the seam (a non-owner never resolves, even with allow)", async () => {
+test("seam-resolve: no-owner resolves with policy allow (defaults core no longer blocks)", async () => {
+  // ADR-009 §"Resto de operaciones": the core does NOT block a
+  // non-owner from resolving. The pre-seam `NOT_OWNER` invariant
+  // (ADR-008 §"Tabla de resolve" item 1) is gone. A plugin returning
+  // `allow` still authorizes the action, but the default core also
+  // lets a non-owner resolve when the policy abstains or is absent.
+  // This test exercises the allow path with a non-special actor to
+  // pin the seam contract.
   await withFreshEnv(async ({ projectDir }) => {
     await initAndSeed({ projectDir });
     await installAndTake(projectDir, "alice");
     try {
-      // Install policy with mode=allow to maximise the chance of
-      // bypassing the no-owner check.
       await writeClimierJson(projectDir, {
         version: 1,
         project_id: "seam-lifecycle-project",
         plugins: { "policy-fixture": { mode: "allow" } },
       });
-      const before = await readState(projectDir);
-      // Bob (non-owner) tries to resolve with --note; the no-owner
-      // invariant short-circuits BEFORE authorizeAction is invoked, so
-      // policy=allow does NOT authorize the resolve.
       const result = await runCli([
         "--project", projectDir, "resolve", "T-auth-1",
-        "--note", "should not happen", "--as", "bob",
+        "--note", "shipped by auditor", "--as", "bob",
       ]);
-      assert.equal(result.code, 1, `expected exit 1, got ${result.code}: ${result.stdout}`);
+      assert.equal(result.code, 0, `expected exit 0, got ${result.code}: ${result.stdout}`);
       const data = JSON.parse(result.stdout);
-      assert.equal(data.ok, false);
-      assert.equal(data.error.code, "NOT_OWNER");
-      assert.equal(data.error.details.owner, "alice");
+      assert.equal(data.node.status, "done");
+      assert.equal(data.node.done_by, "bob");
+      assert.equal(data.node.note, "shipped by auditor");
+      assert.equal(data.node.claim, null);
+      // Resolve log entry recorded with bob as the agent.
       const after = await readState(projectDir);
-      assert.equal(after.nodes["T-auth-1"].status, "in_progress");
-      assert.equal(after.nodes["T-auth-1"].revision, before.nodes["T-auth-1"].revision);
-      // No resolve log entry.
       const resolveEntries = after.log.filter((e) => e.action === "resolve");
-      assert.equal(resolveEntries.length, 0);
+      assert.equal(resolveEntries.length, 1);
+      assert.equal(resolveEntries[0].agent, "bob");
+    } finally { await uninstallPolicyFixture(projectDir); }
+  });
+});
+
+test("seam-resolve: no-owner resolves with policy absent (defaults core proceeds)", async () => {
+  // ADR-009 §"Resto de operaciones": with no policy plugin installed,
+  // the default core lets any actor with `--as` resolve a task whose
+  // state is valid for the transition. done_by records the actor that
+  // actually mutated.
+  await withFreshEnv(async ({ projectDir }) => {
+    await initAndSeed({ projectDir });
+    await installAndTake(projectDir, "alice");
+    // No policy installed (no installPolicyFixture, no mode write).
+    const result = await runCli([
+      "--project", projectDir, "resolve", "T-auth-1",
+      "--note", "rolled by ops", "--as", "bob",
+    ]);
+    assert.equal(result.code, 0, `expected exit 0, got ${result.code}: ${result.stdout}`);
+    const data = JSON.parse(result.stdout);
+    assert.equal(data.node.status, "done");
+    assert.equal(data.node.done_by, "bob");
+    assert.equal(data.node.note, "rolled by ops");
+  });
+});
+
+test("seam-resolve: no-owner resolves with policy abstain (defaults core proceeds)", async () => {
+  // ADR-009 §"Resto de operaciones": abstain falls through to the
+  // default core, which proceeds. NOT_OWNER is no longer raised for
+  // resolve / release / reopen / cancel.
+  await withFreshEnv(async ({ projectDir }) => {
+    await initAndSeed({ projectDir });
+    await installAndTake(projectDir, "alice");
+    // installAndTake already installed the fixture with mode=allow;
+    // re-pin the mode to abstain for this resolve.
+    try {
+      await writeClimierJson(projectDir, {
+        version: 1,
+        project_id: "seam-lifecycle-project",
+        plugins: { "policy-fixture": { mode: "abstain" } },
+      });
+      const out = await cli([
+        "--project", projectDir, "resolve", "T-auth-1",
+        "--note", "shipped by bob", "--as", "bob",
+      ]);
+      assert.equal(out.node.status, "done");
+      assert.equal(out.node.done_by, "bob");
+      assert.equal(out.node.note, "shipped by bob");
     } finally { await uninstallPolicyFixture(projectDir); }
   });
 });
@@ -475,7 +532,10 @@ test("seam-release: non-owner with policy deny returns POLICY_DENIED (no state m
   });
 });
 
-test("seam-release: non-owner with policy abstain returns NOT_OWNER (defaults core)", async () => {
+test("seam-release: non-owner with policy abstain succeeds (defaults core proceeds)", async () => {
+  // ADR-009 §"Resto de operaciones": with abstain, the default core
+  // proceeds and any actor can release. NOT_OWNER no longer applies
+  // to release.
   await withFreshEnv(async ({ projectDir }) => {
     await initAndSeed({ projectDir });
     await installPolicyFixture(projectDir);
@@ -486,14 +546,16 @@ test("seam-release: non-owner with policy abstain returns NOT_OWNER (defaults co
         plugins: { "policy-fixture": { mode: "abstain" } },
       });
       await cli(["--project", projectDir, "take", "T-auth-1", "--as", "alice"]);
-      const result = await runCli([
+      const out = await cli([
         "--project", projectDir, "release", "T-auth-1", "--as", "bob",
       ]);
-      assert.equal(result.code, 1);
-      const data = JSON.parse(result.stdout);
-      assert.equal(data.ok, false);
-      assert.equal(data.error.code, "NOT_OWNER");
-      assert.equal(data.error.details.owner, "alice");
+      assert.equal(out.released, true);
+      assert.equal(out.node.status, "open");
+      assert.equal(out.node.claim, null);
+      const after = await readState(projectDir);
+      const releaseEntries = after.log.filter((e) => e.action === "release");
+      assert.equal(releaseEntries.length, 1);
+      assert.equal(releaseEntries[0].agent, "bob");
     } finally { await uninstallPolicyFixture(projectDir); }
   });
 });
@@ -610,7 +672,10 @@ test("seam-reopen: policy deny returns POLICY_DENIED (no state mutation)", async
   });
 });
 
-test("seam-reopen: not-done_by with policy abstain returns NOT_OWNER (defaults core)", async () => {
+test("seam-reopen: not-done_by with policy abstain succeeds (defaults core proceeds)", async () => {
+  // ADR-009 §"Resto de operaciones": the core no longer compares the
+  // actor against done_by. Any actor with --as can reopen; the
+  // plugin's abstain falls through to the default core, which proceeds.
   await withFreshEnv(async ({ projectDir }) => {
     await initAndSeed({ projectDir });
     await installPolicyFixture(projectDir);
@@ -625,15 +690,17 @@ test("seam-reopen: not-done_by with policy abstain returns NOT_OWNER (defaults c
         "--project", projectDir, "resolve", "T-auth-1",
         "--note", "shipped", "--as", "alice",
       ]);
-      const result = await runCli([
+      const out = await cli([
         "--project", projectDir, "reopen", "T-auth-1",
-        "--reason", "want it back", "--as", "bob",
+        "--reason", "auditing", "--as", "bob",
       ]);
-      assert.equal(result.code, 1);
-      const data = JSON.parse(result.stdout);
-      assert.equal(data.ok, false);
-      assert.equal(data.error.code, "NOT_OWNER");
-      assert.equal(data.error.details.owner, "alice");
+      assert.equal(out.node.status, "open");
+      assert.equal(out.node.claim, null);
+      assert.equal(out.node.done_by, undefined);
+      const after = await readState(projectDir);
+      const reopenEntries = after.log.filter((e) => e.action === "reopen");
+      assert.equal(reopenEntries.length, 1);
+      assert.equal(reopenEntries[0].agent, "bob");
     } finally { await uninstallPolicyFixture(projectDir); }
   });
 });
@@ -742,7 +809,11 @@ test("seam-cancel: policy deny returns POLICY_DENIED (no state mutation)", async
   });
 });
 
-test("seam-cancel: non-owner with policy abstain returns NOT_OWNER (defaults core)", async () => {
+test("seam-cancel: non-owner with policy abstain succeeds (defaults core proceeds)", async () => {
+  // ADR-009 §"Resto de operaciones": the core no longer compares the
+  // actor against the claim owner. Any actor with --as can cancel an
+  // open/in_progress node; the plugin's abstain falls through to the
+  // default core, which proceeds.
   await withFreshEnv(async ({ projectDir }) => {
     await initAndSeed({ projectDir });
     await installPolicyFixture(projectDir);
@@ -753,14 +824,16 @@ test("seam-cancel: non-owner with policy abstain returns NOT_OWNER (defaults cor
         plugins: { "policy-fixture": { mode: "abstain" } },
       });
       await cli(["--project", projectDir, "take", "T-auth-1", "--as", "alice"]);
-      const result = await runCli([
+      const out = await cli([
         "--project", projectDir, "cancel", "T-auth-1",
-        "--reason", "I want it", "--as", "bob",
+        "--reason", "scope changed", "--as", "bob",
       ]);
-      assert.equal(result.code, 1);
-      const data = JSON.parse(result.stdout);
-      assert.equal(data.ok, false);
-      assert.equal(data.error.code, "NOT_OWNER");
+      assert.equal(out.node.status, "canceled");
+      assert.equal(out.node.claim, null);
+      const after = await readState(projectDir);
+      const cancelEntries = after.log.filter((e) => e.action === "cancel");
+      assert.equal(cancelEntries.length, 1);
+      assert.equal(cancelEntries[0].agent, "bob");
     } finally { await uninstallPolicyFixture(projectDir); }
   });
 });

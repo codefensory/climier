@@ -1,6 +1,7 @@
 // F11 — resolve: close out a resolvable node.
 //
-//   - task (subkind=task): requires `--note`, agent must own the claim.
+//   - task (subkind=task): requires `--note`. Any agent with `--as`
+//     may resolve a task whose status is `open` or `in_progress`.
 //     status -> "done", done_by/at stored, note stored, claim cleared,
 //     revision++. Log entry with action="resolve" and the note.
 //   - gate (subkind=gate): requires `--choice` and `--rationale`. Any
@@ -14,16 +15,15 @@
 // Includes the case of a gate resolving: a task blocked by exactly this
 // gate and no other blockers becomes ready.
 //
-// T-plugin-policy-seam-lifecycle / ADR-008 §"Tabla de resolve":
-//   - The no-owner invariant for tasks is enforced BEFORE the seam
-//     (ADR-008 §"Tabla de resolve" item 1). A plugin can restrict the
-//     owner but can never authorize a non-owner to resolve.
-//   - Action: `task.resolve` (used for both tasks and gates; the
-//     no-claim rule differs by subkind).
-//   - allow   → proceed (resolve).
+// ADR-009 §"Resto de operaciones": the core does NOT compare the actor
+// against the claim or done_by. Any actor with `--as` may resolve a
+// task or gate whose state is valid for the transition. A policy
+// plugin may still deny the action; an allow or abstain falls through
+// to the default core (which is: proceed).
+//   - Action: `task.resolve` (used for both tasks and gates).
+//   - allow   → proceed.
 //   - deny    → POLICY_DENIED, no state mutation, no log entry.
-//   - abstain → default core (resolve for owner; for non-owner the
-//               pre-seam check already rejected).
+//   - abstain → default core (proceed; any actor is authorized).
 //   - throw / invalid response → POLICY_ERROR propagates verbatim.
 import { readState, updateState } from "../state.mjs";
 import { withLock } from "../lock.mjs";
@@ -72,26 +72,6 @@ export default async function resolveV2({ statePath, flags, positional, pluginId
 
     if (node.subkind === "task") {
       const note = nonEmpty(flags.note, "note", "resolve");
-      const ownerBy = node.claim && node.claim.by;
-      // ADR-008 §"Tabla de resolve" item 1: the no-owner invariant is
-      // enforced BEFORE the seam. A plugin may restrict the owner but
-      // can NEVER authorize a non-owner to resolve. The pre-seam check
-      // therefore covers both the "no claim" and "claim by another
-      // actor" cases.
-      if (!ownerBy) {
-        throwV2(
-          "NOT_OWNER",
-          `resolve: task ${id} has no active claim (take it before resolving)`,
-          { id },
-        );
-      }
-      if (ownerBy !== as) {
-        throwV2(
-          "NOT_OWNER",
-          `resolve: task ${id} is not yours (claimed by ${ownerBy})`,
-          { id, owner: ownerBy },
-        );
-      }
 
       // Build snapshot + target for the seam.
       const target = {
@@ -125,7 +105,7 @@ export default async function resolveV2({ statePath, flags, positional, pluginId
           decision.reason || "denied by policy",
         );
       }
-      // allow / abstain → proceed (owner invariant already satisfied).
+      // allow / abstain → proceed.
 
       const doneAt = new Date().toISOString();
       const updated = await updateState(projectDir, (st) => {
@@ -152,9 +132,8 @@ export default async function resolveV2({ statePath, flags, positional, pluginId
       const choice = nonEmpty(flags.choice, "choice", "resolve");
       const rationale = nonEmpty(flags.rationale, "rationale", "resolve");
 
-      // Gates have no claim lifecycle, so there is no owner invariant
-      // before the seam. The seam decides; defaults core let any actor
-      // resolve a gate, matching the historical contract.
+      // ADR-009 §"Resto de operaciones": gates also accept any actor
+      // with `--as`; the seam decides whether the action is denied.
       const target = {
         id: node.id,
         kind: node.kind,
