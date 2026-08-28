@@ -1,0 +1,12 @@
+{
+  "name": "policy-fixture",
+  "version": "1.0.0",
+  "description": "T-plugin-policy-fixture V2-policy fixture. Reusable policy plugin that exposes default.policy = { applies, authorize } for the seam tests. Modes (allow/deny/abstain/throw/slow) are configured entirely via the .climier.json namespace plugins['policy-fixture'] so the fixture needs no second entrypoint and no runtime dependencies.",
+  "private": true,
+  "type": "module",
+  "climier": {
+    "id": "policy-fixture",
+    "command": "policy",
+    "entry": "./climier.mjs"
+  }
+}

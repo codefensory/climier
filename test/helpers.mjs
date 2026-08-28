@@ -198,4 +198,55 @@ export async function importFresh(modulePath) {
   return import(`${url}?t=${Date.now()}-${Math.random()}`);
 }
 
-export { SRC_DIR, BIN };
+// ---- policy-fixture helpers (T-plugin-policy-fixture) ----------------
+// installPolicyFixture / uninstallPolicyFixture wrap `climier install`
+// and `climier uninstall` for the reusable V2-policy fixture at
+// test/fixtures/plugins/policy-fixture/. Downstream suites
+// (T-plugin-policy-seam-lifecycle, T-plugin-policy-seam-dag,
+// T-plugin-policy-seam-state-ops, T-plugin-policy-migration-tests)
+// use these to set up and tear down the policy fixture against an
+// isolated CLIMIER_HOME without re-implementing the spawn dance.
+//
+// CLIMIER_HOME must already point at an isolated temp dir when these
+// are called — helpers.mjs auto-creates one at load time, and
+// per-test wrappers (e.g. withFreshEnv in plugin-core-e2e.test.mjs)
+// set up their own. Helpers refuse to run against the real
+// ~/.climier (see the guard at the top of this file).
+const POLICY_FIXTURE_DIR = path.resolve(__dirname, "fixtures", "plugins", "policy-fixture");
+const POLICY_FIXTURE_DEFAULT_ID = "policy-fixture";
+
+export async function installPolicyFixture(projectDir, options = {}) {
+  const fixtureDir =
+    typeof options.fixtureDir === "string" ? options.fixtureDir : POLICY_FIXTURE_DIR;
+  const args = ["--project", projectDir, "install", fixtureDir];
+  const result = await runCli(args);
+  if (result.code !== 0) {
+    throw new Error(
+      `installPolicyFixture: climier install failed (exit ${result.code})\n` +
+        `args: ${JSON.stringify(args)}\n` +
+        `stdout: ${result.stdout}\nstderr: ${result.stderr}`,
+    );
+  }
+  if (!result.stdout.trim()) return null;
+  return JSON.parse(result.stdout);
+}
+
+export async function uninstallPolicyFixture(projectDir, options = {}) {
+  const id =
+    typeof options.id === "string" && options.id
+      ? options.id
+      : POLICY_FIXTURE_DEFAULT_ID;
+  const args = ["--project", projectDir, "uninstall", id];
+  const result = await runCli(args);
+  if (result.code !== 0) {
+    throw new Error(
+      `uninstallPolicyFixture: climier uninstall failed (exit ${result.code})\n` +
+        `args: ${JSON.stringify(args)}\n` +
+        `stdout: ${result.stdout}\nstderr: ${result.stderr}`,
+    );
+  }
+  if (!result.stdout.trim()) return null;
+  return JSON.parse(result.stdout);
+}
+
+export { SRC_DIR, BIN, POLICY_FIXTURE_DIR };
