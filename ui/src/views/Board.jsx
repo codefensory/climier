@@ -30,7 +30,6 @@
 import { createMemo, createSignal, Show, For } from "solid-js";
 import { useStore } from "../store.jsx";
 import {
-  PageHeader,
   PageLayout,
   Chip,
   StatusBadge,
@@ -224,9 +223,9 @@ function Column(props) {
 }
 
 // === Board ==================================================================
-// Top-level view. Splits into: header, filter bar, optional open-gates
-// column, four-column kanban, and a footer with a link to the Tasks view for
-// history (done / canceled / superseded).
+// Top-level view. Splits into: filter bar, optional open-gates column,
+// four-column kanban, and a footer with a link to the Tasks view for history
+// (done / canceled / superseded).
 
 export default function Board() {
   const { snapshot, select, setRoute } = useStore();
@@ -342,11 +341,7 @@ export default function Board() {
 
   return (
     <PageLayout mode="workspace">
-      <div class="ui-workspace-header">
-        <PageHeader title="Board" />
-      </div>
-
-      <div class="ui-workspace-body flex min-h-0 flex-1 flex-col gap-4">
+      <div class="ui-workspace-body ui-board-body flex min-h-0 flex-1 flex-col gap-4">
         <FilterBar
           label="Filters"
           hint={
