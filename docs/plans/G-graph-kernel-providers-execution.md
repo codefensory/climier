@@ -95,9 +95,11 @@ B8 integración core + consumidores UI + auditoría final
 B1 debe terminar antes de materializar B2/B4. B4 solo puede paralelizarse por
 provider y después de B2, con máximo tres workers. B5 puede comenzar cuando B2
 esté validado y no comparte paths con B4. B6A depende de los providers; no
-puede tocar `plugin-core-adapter.mjs` ni `bin/climier.mjs`. B3 consume el
-registry ya construido y los providers/policy validados. B6B es quien consume
-el builder desde la API de plugins.
+puede tocar `plugin-core-adapter.mjs` ni `bin/climier.mjs`. La extensión de
+utility providers depende del soporte transaccional para `initiatives`; B3 y
+B6B esperan esa extensión. B3 consume el registry ya construido y los
+providers/policy validados. B6B es quien consume el builder desde la API de
+plugins.
 
 ## 4. Slices candidatos
 
@@ -150,9 +152,27 @@ Las siguientes piezas son candidatas a tasks. Este plan no las crea.
   solo si cambia el consumidor directo `ui/server/server.mjs`.
 - No-go: `src/providers/*`, mutadores, registry y `bin/climier.mjs`.
 
+### B2.5 — transaction y utility providers core
+
+Estas slices resuelven la parte de la superficie API que no pertenece a task,
+gate o knowledge. No agregan tipos persistidos y mantienen la propiedad única
+del kernel:
+
+1. **Transaction para iniciativas** (`T-graph-kernel-core-transaction`):
+   `src/kernel/transaction.mjs` y `src/kernel/mutate.mjs` agregan el draft de
+   `initiatives`, sus primitivas tipadas, diff/idempotencia y persistencia
+   atómica sin bump de `node.revision`.
+2. **Utility providers** (`T-graph-kernel-provider-core-ops`):
+   `src/providers/core/*` y el bootstrap del registry publican `edge.add`,
+   `note.add` e `initiative.create` como entries `kind: "core"` de proceso.
+
+La segunda slice depende de la primera; B3 y B6B dependen de ambas. Cada
+worker tiene un único cambio principal y no puede importar commands ni tener
+infraestructura propia.
+
 ### B3 — adapters de mutadores, dividido en tres slices seriales
 
-Se ejecuta después de B4+B5+B6A para que cada adapter consuma providers y
+Se ejecuta después de B4+B5+B6A+B2.5 para que cada adapter consuma providers y
 registry ya validados, sin superar el presupuesto de un worker:
 
 1. **B3-1a — creación y edges** (`T-graph-kernel-adapters-wave1`):
@@ -228,7 +248,8 @@ provider/kernel necesarios. B6A espera validación PASS de los seis slices.
 
 - Paths: `src/plugin-core-registry.mjs` y su test.
 - Dependencia: B1+B2+B4; ownership serial. No inicia hasta que los tres
-  providers tengan validación PASS.
+  providers de dominio tengan validación PASS. La publicación de utility ops
+  queda en B2.5, después del soporte transaccional para iniciativas.
 - Acceptance: `buildRegistry(providers)` construye entries con `id`, `kind`,
   provider `prepare/apply`; detecta colisiones; no toca adapter ni dispatch;
   no persiste registro y no importa handlers mutantes.
@@ -237,8 +258,8 @@ provider/kernel necesarios. B6A espera validación PASS de los seis slices.
 ### B6B — adapter `api.core.run`
 
 - Paths: `src/plugin-core-adapter.mjs`, errores y tests de adapter.
-- Dependencia: B6A+B5; B3 puede ejecutarse antes o en paralelo, pero B7 espera
-  ambos.
+- Dependencia: B6A+B5+B2.5; B3 puede ejecutarse antes o en paralelo, pero B7
+  espera ambos.
 - Acceptance: resuelve operation IDs, fija actor/pluginId desde host, rechaza
   `as`/`_as`, traduce errores estructurados, ejecuta kernel y preserva
   `plugin_id` en logs; no ejecuta argv ni importa comandos mutantes.
@@ -320,7 +341,7 @@ antes de delegar las tasks derivadas.
     `src/plugin-core-registry.mjs`, `src/plugin-core-adapter.mjs` y
     `bin/climier.mjs`, sin solapamiento;
   - la sección 3 fija la dependencia dura
-    `B1 kernel → B4 providers → B6A registry → B6B/B7 adapters`;
+    `B1 kernel → B4 providers → B6A registry → B2.5 utility ops → B6B/B7 adapters`;
   - la sección 2 y los no-go de cada batch limitan a tres workers
     simultáneos como máximo;
   - cada batch B1–B8 declara `Tests mínimos` focalizados y referencia el

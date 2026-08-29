@@ -63,6 +63,8 @@ tx.createNode(nodeWithoutRevision)
 tx.updateNode(id, patch)
 tx.addEdge(edge)
 tx.removeEdge(edge)
+tx.getInitiative(name)
+tx.createInitiative(name, value)
 tx.view()
 ```
 
@@ -76,6 +78,8 @@ para detectar cambios reales:
 - una operación idempotente no aumenta revisión ni genera log de mutación;
 - modificar solo edges no aumenta revisiones de nodos;
 - el provider no puede escribir ni incrementar `revision`;
+- los cambios de `initiatives` también forman parte del draft y de la misma
+  escritura atómica, pero no incrementan revisiones de nodos;
 - cualquier intento de mutación pública anidada es rechazado.
 
 La precondición agent-facing se expresa como `if_revision` para un target y
@@ -132,6 +136,16 @@ nodo nuevo más todos sus edges `BLOCKS`. En `apply` usa `tx.createNode` y
 Un blocker faltante, inválido, self-edge o edge estructuralmente inválido deja
 el estado sin task ni edges parciales. Los blockers existentes no incrementan
 su revisión.
+
+### 6. Operaciones core sobre el estado v2
+
+La superficie agent-facing también incluye `edge.add`, `note.add` e
+`initiative.create`. No son nuevos tipos de nodo ni providers de dominio:
+usan providers internos de utilidad clasificados como `kind: "core"` solo en
+el registry de proceso. `edge.add` y `note.add` operan sobre el draft de nodos
+/edges; `initiative.create` usa primitivas tipadas de iniciativas añadidas al
+`tx`. Los tres siguen el mismo contrato `prepare/apply` y no pueden llamar
+locks, persistencia ni logs directamente.
 
 ## Consecuencias
 

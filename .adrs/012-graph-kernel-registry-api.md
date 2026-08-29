@@ -32,7 +32,10 @@ providers built-in:
 Cada entry resuelve a un provider con `prepare` y `apply`; no conserva un
 `handler` mutante que llame `withLock`, `updateState` o `appendWithContext`.
 `buildRegistry(providers)` detecta colisiones de operation IDs de forma
-determinista y devuelve un registry inmutable para los consumidores.
+determinista y devuelve un registry inmutable para los consumidores. Además
+de `task`, `gate` y `knowledge`, el registry puede clasificar como `core`
+metadata interna las operaciones de utilidad `edge.add`, `note.add` e
+`initiative.create`; ese `kind` no se persiste ni introduce un tipo de nodo.
 
 El primer slice del builder no cambia `bin/climier.mjs` ni el dispatch. El
 segundo adapta `plugin-core-adapter.mjs` y luego el dispatch para consumir el
@@ -52,7 +55,7 @@ sustituirlos mediante `as`, `_as` o campos equivalentes. El adapter resuelve
 `op`, selecciona la policy por metadata y entrega la operación al kernel.
 
 Los operation IDs nuevos son estables dentro de esta fase, incluyendo como
-mínimo:
+mínimo los 17 IDs siguientes (los tres últimos son utility providers internos):
 
 ```text
 task.create / task.update / task.take / task.resolve
@@ -78,12 +81,13 @@ implementación canónica por responsabilidad. Los destinos funcionales son:
 
 ```text
 src/kernel/mutate.mjs       lock, snapshot, tx, diff, revision, commit
-src/kernel/transaction.mjs  draft tipado y vista de lectura
+src/kernel/transaction.mjs  draft tipado, iniciativas y vista de lectura
 src/kernel/edges.mjs        EDGE_TYPES, endpoints y validación estructural
 src/kernel/graph.mjs        traversals genéricos
 src/providers/task/*        lifecycle, derive/status y blocked_by
 src/providers/gate/*        resolución y supersedencia
 src/providers/knowledge/*   scopes, búsqueda y relaciones informativas
+src/providers/core/*        edge.add, note.add e initiative.create
 src/providers/policy/*      selection/adaptación y autorización
 ```
 
@@ -148,8 +152,9 @@ el control plane vive en un checkout/commit estable separado del refactor.
 
 1. **Contrato de entries** — `src/plugin-core-registry.mjs` añade
    `buildRegistry(providers)` sin tocar dispatch.
-2. **Bootstrap built-in** — providers task/gate/knowledge/policy publican sus
-   operation IDs después de ADR-011.
+2. **Bootstrap built-in** — providers task/gate/knowledge publican sus
+   operation IDs después de ADR-011 y los utility providers core publican
+   `edge.add`, `note.add` e `initiative.create` sin persistir registro.
 3. **Adapter core** — `src/plugin-core-adapter.mjs` resuelve entries nuevas,
    fija identidad y traduce errores.
 4. **Dispatch y adapters CLI** — `bin/climier.mjs`, `src/commands/*` y
