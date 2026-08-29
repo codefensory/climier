@@ -223,48 +223,79 @@ function validateSupersedes(snapshot, input, { id, workingState }) {
 // if_revisions is the agent-facing precondition map `{ id: revision }`.
 // Every existing node this operation modifies must be covered; declaring a
 // revision for a node the operation does not touch is a contract error.
+//
+// Auto-derive behaviour (plan §B4-gate-core supersede CAS):
+//   When supersedes targets an existing gate, the operation must run
+//   under a CAS so a concurrent writer cannot sneak in between the
+//   snapshot read and the status flip. The agent rarely knows the
+//   current revision of the superseded node — historically the CLI
+//   forced the caller to pass `if_revisions` explicitly. That was a
+//   leak: the only safe value for a single-writer flow is the
+//   snapshot's current revision, so we derive it here. Callers that
+//   pass an explicit if_revisions still get the strict CAS check.
 function validatePreconditions(snapshot, input, affected) {
   const raw = input.if_revisions;
   const nodes = snapshotNodes(snapshot);
   if (raw !== undefined && raw !== null && !asPlainObject(raw)) {
     throwV2("INVALID_EXECUTION_CONTRACT", `${COMMAND}: 'if_revisions' must be an object`, { field: "if_revisions" });
   }
-  const values = asPlainObject(raw) ? raw : {};
-  for (const [nodeId, expected] of Object.entries(values)) {
-    if (!affected.includes(nodeId)) {
-      throwV2(
-        "INVALID_EXECUTION_CONTRACT",
-        `${COMMAND}: if_revisions declares '${nodeId}' but the operation does not modify it`,
-        { field: "if_revisions", id: nodeId, affected: [...affected] },
-      );
+  const hasExplicit = raw !== undefined && raw !== null;
+  if (hasExplicit) {
+    for (const [nodeId, expected] of Object.entries(raw)) {
+      if (!affected.includes(nodeId)) {
+        throwV2(
+          "INVALID_EXECUTION_CONTRACT",
+          `${COMMAND}: if_revisions declares '${nodeId}' but the operation does not modify it`,
+          { field: "if_revisions", id: nodeId, affected: [...affected] },
+        );
+      }
+      if (!Number.isInteger(expected)) {
+        throwV2("INVALID_EXECUTION_CONTRACT", `${COMMAND}: if_revisions['${nodeId}'] must be an integer`, {
+          field: "if_revisions",
+          id: nodeId,
+          value: expected,
+        });
+      }
     }
-    if (!Number.isInteger(expected)) {
-      throwV2("INVALID_EXECUTION_CONTRACT", `${COMMAND}: if_revisions['${nodeId}'] must be an integer`, {
-        field: "if_revisions",
-        id: nodeId,
-        value: expected,
-      });
+    for (const nodeId of affected) {
+      if (!Object.prototype.hasOwnProperty.call(raw, nodeId)) {
+        throwV2(
+          "MISSING_FIELD",
+          `${COMMAND}: if_revisions['${nodeId}'] is required because the operation modifies that node`,
+          { field: "if_revisions", id: nodeId },
+        );
+      }
+      const current = nodes[nodeId] && Number.isInteger(nodes[nodeId].revision) ? nodes[nodeId].revision : null;
+      if (current !== raw[nodeId]) {
+        throwV2("REVISION_CONFLICT", `${COMMAND}: node ${nodeId} changed since revision ${raw[nodeId]}`, {
+          id: nodeId,
+          expected: raw[nodeId],
+          current,
+        });
+      }
     }
-  }
-  for (const nodeId of affected) {
-    if (!Object.prototype.hasOwnProperty.call(values, nodeId)) {
-      throwV2(
-        "MISSING_FIELD",
-        `${COMMAND}: if_revisions['${nodeId}'] is required because the operation modifies that node`,
-        { field: "if_revisions", id: nodeId },
-      );
-    }
-    const current = nodes[nodeId] && Number.isInteger(nodes[nodeId].revision) ? nodes[nodeId].revision : null;
-    if (current !== values[nodeId]) {
-      throwV2("REVISION_CONFLICT", `${COMMAND}: node ${nodeId} changed since revision ${values[nodeId]}`, {
-        id: nodeId,
-        expected: values[nodeId],
-        current,
-      });
-    }
+    if (affected.length === 0) return { kind: "none" };
+    return { kind: "multi", values: { ...raw } };
   }
   if (affected.length === 0) return { kind: "none" };
-  return { kind: "multi", values: { ...values } };
+  // Auto-derive: take the current revision of every affected node from
+  // the snapshot. The kernel still enforces CAS, so a concurrent
+  // writer that bumps the revision between snapshot and apply will
+  // be detected as REVISION_CONFLICT. Callers that need to fail fast
+  // against a known revision can still pass if_revisions explicitly.
+  const derived = {};
+  for (const nodeId of affected) {
+    const current = nodes[nodeId] && Number.isInteger(nodes[nodeId].revision) ? nodes[nodeId].revision : null;
+    if (current === null) {
+      throwV2(
+        "REVISION_CONFLICT",
+        `${COMMAND}: cannot derive if_revisions for '${nodeId}' (missing or non-integer revision in snapshot)`,
+        { id: nodeId, current },
+      );
+    }
+    derived[nodeId] = current;
+  }
+  return { kind: "multi", values: derived };
 }
 
 function planEdges(snapshot, input, { id, workingState, supersedes }) {

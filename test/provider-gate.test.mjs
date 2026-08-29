@@ -229,7 +229,6 @@ test("supersede validates targets and revisions in prepare", async () => {
     [validInput({ supersedes: "T1", if_revisions: { T1: 1 } }), "INVALID_EDGE_KIND"],
     [validInput({ supersedes: "G-B", if_revisions: { "G-B": 1 } }), "SELF_EDGE"],
     [validInput({ supersedes: "" }), "MISSING_FIELD"],
-    [validInput({ supersedes: "G-A" }), "MISSING_FIELD"],
     [validInput({ supersedes: "G-A", if_revisions: { "G-A": 1 } }), "REVISION_CONFLICT"],
     [validInput({ supersedes: "G-A", if_revisions: { "G-A": 2, T1: 1 } }), "INVALID_EXECUTION_CONTRACT"],
     [validInput({ if_revisions: { T1: 1 } }), "INVALID_EXECUTION_CONTRACT"],
@@ -241,6 +240,21 @@ test("supersede validates targets and revisions in prepare", async () => {
       `expected ${code} for ${JSON.stringify(input)}`,
     );
   }
+});
+
+test("supersede auto-derives if_revisions from snapshot when omitted (F9)", async () => {
+  // F9 / plan §B4-gate-core supersede CAS: when supersedes targets an
+  // existing gate and the caller does not pass if_revisions, the
+  // provider derives the expected revision from the snapshot's
+  // affected nodes. This is the common path for CLI add-gate.
+  const snapshot = baseSnapshot();
+  const plan = await gateCreateProvider.prepare({
+    snapshot,
+    input: validInput({ supersedes: "G-A" }),
+    request: { action: "gate.create", actor: "alice" },
+  });
+  assert.equal(plan.if_revisions.kind, "multi");
+  assert.equal(plan.if_revisions.values["G-A"], 2);
 });
 
 test("the provider never writes revision and rejects seeded revisions via tx", async () => {

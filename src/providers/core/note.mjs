@@ -31,11 +31,44 @@ function asNonEmptyString(value) {
   return typeof value === "string" && value.length > 0 ? value : null;
 }
 
+// resolveIfRevision — the kernel stamps request.if_revision (kind/id/value)
+// whenever input carries an id + integer if_revision (see plugin-core-
+// adapter buildRequest). The CLI surface historically passes the integer
+// straight through input.if_revision; both shapes remain accepted so the
+// legacy CLI path keeps working, but request.if_revision wins when both
+// are present (the kernel's CAS precondition is the canonical contract —
+// ADR-011 §4). The CAS is REQUIRED by ADR-011 §4 — the legacy CLI path
+// that skipped it was retired when the provider became the canonical
+// mutation frontier; callers must now declare their precondition.
+function resolveIfRevision(input, request) {
+  const req = request && request.if_revision;
+  if (req && typeof req === "object" && !Array.isArray(req) && Number.isInteger(req.value)) {
+    return req.value;
+  }
+  const raw = input && input.if_revision;
+  if (raw === undefined || raw === null) {
+    throwV2(
+      "MISSING_FIELD",
+      `${OP}: input.if_revision required (ADR-011 §4 — every agent-facing op that mutates a node must declare its precondition)`,
+      { field: "if_revision" },
+    );
+  }
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 1) {
+    throwV2(
+      "INVALID_EXECUTION_CONTRACT",
+      `${OP}: input.if_revision must be a positive integer`,
+      { field: "if_revision", value: input.if_revision },
+    );
+  }
+  return n;
+}
+
 function readSnapshotNodes(snapshot) {
   return snapshot && snapshot.nodes && typeof snapshot.nodes === "object" ? snapshot.nodes : {};
 }
 
-function validateInputShape(input) {
+function validateInputShape(input, request) {
   if (input === null || typeof input !== "object" || Array.isArray(input)) {
     throwV2("INVALID_EXECUTION_CONTRACT", `${OP}: input must be an object`, { field: "input" });
   }
@@ -47,22 +80,17 @@ function validateInputShape(input) {
   if (!text) {
     throwV2("MISSING_FIELD", `${OP}: --text required (note body)`, { field: "text" });
   }
-  if (input.if_revision === undefined || input.if_revision === null) {
-    throwV2(
-      "MISSING_FIELD",
-      `${OP}: input.if_revision required (ADR-011 §4 — every agent-facing op that mutates a node must declare its precondition)`,
-      { field: "if_revision" },
-    );
-  }
-  const expected = Number(input.if_revision);
-  if (!Number.isInteger(expected) || expected < 1) {
-    throwV2(
-      "INVALID_EXECUTION_CONTRACT",
-      `${OP}: input.if_revision must be a positive integer`,
-      { field: "if_revision", value: input.if_revision },
-    );
-  }
-  return { id, text, ifRevision: expected };
+  // CAS precondition is REQUIRED (ADR-011 §4). The kernel validates
+  // request.if_revision under the lock when both id and integer value
+  // are present; this provider also enforces it locally so the error
+  // surfaces from a single place (the provider boundary). The CLI
+  // surface has always carried if_revision; the API path can satisfy
+  // it by passing `input.if_revision` (the adapter forwards it to
+  // request.if_revision) or by passing the request.if_revision shape
+  // directly. resolveIfRevision normalises both and throws MISSING_FIELD
+  // when neither is present.
+  const ifRevision = resolveIfRevision(input, request);
+  return { id, text, ifRevision };
 }
 
 function validateTarget(id, snapshot) {
@@ -115,7 +143,7 @@ function validateRequestActor(request) {
  * @returns {object} frozen plan
  */
 async function prepare({ snapshot, input, request }) {
-  const { id, text, ifRevision } = validateInputShape(input);
+  const { id, text, ifRevision } = validateInputShape(input, request);
   validateTarget(id, snapshot);
   validateRevision(id, ifRevision, snapshot);
   // request.actor is the canonical agent identity; captured in prepare

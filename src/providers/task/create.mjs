@@ -84,7 +84,13 @@ function validateInputShape(input) {
       { field: "input" },
     );
   }
+  // Internal capability (ADR-008 §"Capacidad interna"): with
+  // allow_unregistered_initiative=true the initiative check is
+  // optional. The CLI surface never passes the flag, so this branch
+  // is unreachable from public callers.
+  const allowUnregistered = input.allow_unregistered_initiative === true;
   for (const field of REQUIRED_STRING_FIELDS) {
+    if (allowUnregistered && field === "initiative") continue;
     const value = asNonEmptyString(input[field]);
     if (!value) {
       throwV2("MISSING_FIELD", `${OP}: --${field.replace(/_/g, "-")} required`, { field });
@@ -120,9 +126,16 @@ function validateInputShape(input) {
   }
 }
 
-function validateInitiative(initiativeId, snapshot) {
+function validateInitiative(initiativeId, snapshot, input) {
+  // Internal capability (ADR-008 §"Capacidad interna"):
+  // addNodeInternal({ allowUnregisteredInitiative: true }) sets
+  // allow_unregistered_initiative=true on the input. The CLI surface
+  // does not expose the flag (see src/v2-add-node.mjs), so this branch
+  // is unreachable from public callers.
+  const allowUnregistered = input && input.allow_unregistered_initiative === true;
   const initiatives = readSnapshotInitiatives(snapshot);
   if (!Object.prototype.hasOwnProperty.call(initiatives, initiativeId)) {
+    if (allowUnregistered) return;
     throwV2(
       "INITIATIVE_NOT_FOUND",
       `${OP}: initiative '${initiativeId}' is not registered`,
@@ -161,10 +174,13 @@ function validateBlockersAgainstSnapshot(blockers, selfId, snapshot) {
         { from: blockerId, to: selfId, type: "BLOCKS", missing: blockerId },
       );
     }
-    if (blocker.kind !== "resolvable" || blocker.subkind !== "task") {
+    // BLOCKS on a task may target a task blocked by either a resolvable
+    // task or a resolvable gate. Knowledge nodes are not BLOCKS endpoints
+    // (their `kind` is `knowledge`, not `resolvable`).
+    if (blocker.kind !== "resolvable" || !["task", "gate"].includes(blocker.subkind)) {
       throwV2(
         "INVALID_EDGE_KIND",
-        `${OP}: BLOCKS requires both ends to be resolvable tasks (got ${blocker.kind}/${blocker.subkind || "?"} -> task)`,
+        `${OP}: BLOCKS requires both ends to be resolvable (got ${blocker.kind}/${blocker.subkind || "?"} -> ${TASK_KIND}/${TASK_SUBKIND})`,
         {
           from: blockerId,
           to: selfId,
@@ -202,6 +218,85 @@ function validateBlockersAgainstSnapshot(blockers, selfId, snapshot) {
   }
 }
 
+// validateDerivedFromAgainstSnapshot — DERIVED_FROM is the only non-
+// BLOCKS edge that `task.create` accepts today (mirrors the legacy
+// add-node behaviour). Both ends must be resolvable (task or gate) so
+// the link stays inside the decision-graph; knowledge targets are
+// rejected with INVALID_EDGE_KIND.
+// Self-edges and duplicates against the existing snapshot are
+// rejected for parity with BLOCKS.
+function validateDerivedFromAgainstSnapshot(sources, selfId, snapshot) {
+  const nodes = readSnapshotNodes(snapshot);
+  const edges = readSnapshotEdges(snapshot);
+  for (const sourceId of sources) {
+    if (sourceId === selfId) {
+      throwV2(
+        "SELF_EDGE",
+        `${OP}: edge ${selfId} -> ${sourceId} is a self-edge`,
+        { from: selfId, to: sourceId, type: "DERIVED_FROM" },
+      );
+    }
+    const source = nodes[sourceId];
+    if (!source) {
+      throwV2(
+        "INVALID_EDGE_TARGET",
+        `${OP}: edge DERIVED_FROM ${selfId} -> ${sourceId} references missing node '${sourceId}'`,
+        { from: selfId, to: sourceId, type: "DERIVED_FROM", missing: sourceId },
+      );
+    }
+    if (source.kind !== "resolvable" || !["task", "gate"].includes(source.subkind)) {
+      throwV2(
+        "INVALID_EDGE_KIND",
+        `${OP}: DERIVED_FROM requires both ends to be resolvable (got ${TASK_KIND}/${TASK_SUBKIND} -> ${source.kind}/${source.subkind || "?"})`,
+        {
+          from: selfId,
+          to: sourceId,
+          type: "DERIVED_FROM",
+          fromKind: TASK_KIND,
+          toKind: source.kind,
+          fromSubkind: TASK_SUBKIND,
+          toSubkind: source.subkind || null,
+        },
+      );
+    }
+    const collision = edges.find(
+      (e) => e.from === selfId && e.to === sourceId && e.type === "DERIVED_FROM",
+    );
+    if (collision) {
+      throwV2(
+        "DUPLICATE_EDGE",
+        `${OP}: edge DERIVED_FROM ${selfId} -> ${sourceId} already exists`,
+        {
+          from: selfId,
+          to: sourceId,
+          type: "DERIVED_FROM",
+          existing: { ...collision },
+        },
+      );
+    }
+  }
+}
+
+// resolveDerivedFrom — coerces the input into a deduped, sorted array
+// of source ids. Mirrors `normalizeBlockers`.
+function resolveDerivedFrom(raw) {
+  if (raw === undefined || raw === null) return [];
+  if (typeof raw === "string") {
+    return raw
+      .split(",")
+      .map((x) => x.trim())
+      .filter(Boolean);
+  }
+  if (Array.isArray(raw)) {
+    return raw.map((x) => String(x).trim()).filter(Boolean);
+  }
+  throwV2(
+    "INVALID_EXECUTION_CONTRACT",
+    `${OP}: derived_from must be a CSV string or array of ids`,
+    { field: "derived_from" },
+  );
+}
+
 function resolveOptionalString(value, field) {
   if (value === undefined || value === null || value === "") return undefined;
   if (typeof value !== "string") {
@@ -231,6 +326,10 @@ function resolveOptionalCsv(raw, field) {
 function buildNodeSeed(input, id) {
   // The seed omits `revision` by construction (validated above). The
   // kernel assigns it once per apply.
+  // `status` is optional: the public CLI default is "open"; trusted
+  // internals (imports, migrations) may seed a task already in
+  // in_progress / done / canceled / etc. so the lifecycle
+  // operators don't have to follow up with a second mutation.
   const seed = {
     id,
     kind: TASK_KIND,
@@ -238,10 +337,23 @@ function buildNodeSeed(input, id) {
     title: input.title,
     body: input.body,
     acceptance: input.acceptance,
-    initiative: input.initiative,
-    status: "open",
+    status: typeof input.status === "string" && input.status.length > 0 ? input.status : "open",
     resolution_mode: "labor",
   };
+  if (input.initiative !== undefined && input.initiative !== null && input.initiative !== "") {
+    seed.initiative = input.initiative;
+  }
+  if (input.backlog === true) seed.backlog = true;
+  // meta is preserved as-is when provided (validateExecution has
+  // already normalized the `execution` sub-shape). Undefined inputs
+  // leave the seed without a `meta` key — matches the historical
+  // add-node contract (only present when --meta was passed).
+  if (input.meta !== undefined && input.meta !== null) {
+    if (!asPlainObject(input.meta)) {
+      throwV2("INVALID_EXECUTION_CONTRACT", `${OP}: 'meta' must be an object`, { field: "meta" });
+    }
+    seed.meta = { ...input.meta };
+  }
   const domain = resolveOptionalString(input.domain, "domain");
   if (domain) seed.domain = domain;
   const definition = resolveOptionalString(input.definition, "definition");
@@ -253,6 +365,10 @@ function buildNodeSeed(input, id) {
   const tags = resolveOptionalCsv(input.tags, "tags");
   if (tags.length > 0) seed.tags = tags;
   return seed;
+}
+
+function asPlainObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 // ===================================================================
@@ -283,9 +399,11 @@ async function prepare({ snapshot, input, request }) {
   void request;
   validateInputShape(input);
   const blockers = dedupeAndSort(normalizeBlockers(input.blocked_by));
-  validateInitiative(input.initiative, snapshot);
+  const derivedFrom = dedupeAndSort(resolveDerivedFrom(input.derived_from));
+  validateInitiative(input.initiative, snapshot, input);
   validateNoIdCollision(input.id, snapshot);
   validateBlockersAgainstSnapshot(blockers, input.id, snapshot);
+  validateDerivedFromAgainstSnapshot(derivedFrom, input.id, snapshot);
   const seed = buildNodeSeed(input, input.id);
 
   return Object.freeze({
@@ -299,6 +417,7 @@ async function prepare({ snapshot, input, request }) {
     logAction: LOG_ACTION,
     nodeSeed: Object.freeze(seed),
     blocked_by: Object.freeze(blockers.slice()),
+    derived_from: Object.freeze(derivedFrom.slice()),
   });
 }
 
@@ -339,6 +458,11 @@ async function apply({ tx, plan, input, request, snapshot }) {
   const addedEdges = [];
   for (const blockerId of plan.target.blocked_by) {
     const edge = blocksEdge(blockerId, plan.target.id);
+    const persisted = tx.addEdge(edge);
+    addedEdges.push(persisted);
+  }
+  for (const sourceId of plan.derived_from || []) {
+    const edge = { from: plan.target.id, to: sourceId, type: "DERIVED_FROM" };
     const persisted = tx.addEdge(edge);
     addedEdges.push(persisted);
   }

@@ -359,20 +359,22 @@ test("create: prepare rejects missing initiative", async () => {
   );
 });
 
-test("create: prepare rejects unknown knowledge_type", async () => {
+test("create: prepare accepts a free-form knowledge_type", async () => {
+  // T-graph-kernel-adapters-wave1 relaxed knowledge_type validation:
+  // the create provider treats knowledge_type as a free-form taxonomy
+  // string (warning / fact / instruction / custom). Empty strings are
+  // still rejected as MISSING_FIELD.
   const { createProvider } = await importProviders();
   const provider = createProvider();
-  await assert.rejects(
-    provider.prepare({
-      snapshot: emptySnapshot(),
-      input: {
-        title: "t", body: "b", initiative: "auth", knowledge_type: "bogus",
-        scope: { domains: ["x"] },
-      },
-      request: { action: "knowledge.create", actor: "alice" },
-    }),
-    (err) => err.code === "INVALID_PROVIDER_INPUT" && /knowledge_type/.test(err.message),
-  );
+  const plan = await provider.prepare({
+    snapshot: emptySnapshot(),
+    input: {
+      title: "t", body: "b", initiative: "auth", knowledge_type: "bogus",
+      scope: { domains: ["x"] },
+    },
+    request: { action: "knowledge.create", actor: "alice" },
+  });
+  assert.equal(plan.node.knowledge_type, "bogus");
 });
 
 test("create: prepare accepts a minimal valid input", async () => {

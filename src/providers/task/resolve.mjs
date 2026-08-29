@@ -28,6 +28,21 @@ function asNonEmptyString(value) {
   return typeof value === "string" && value.length > 0 ? value : null;
 }
 
+// resolveActor — host-fixed agent identity comes from request.actor
+// (the kernel stamps it from createCore's agent argument); the CLI
+// surface historically forwards --as through flags.as and ends up
+// here as input.actor. Both shapes remain accepted so the legacy CLI
+// path keeps working, but request.actor wins when both are present:
+// the adapter is the canonical source of truth for agent identity
+// in plugin-issued calls (ADR-006 §API y compatibilidad).
+function resolveActor(input, request) {
+  return (
+    asNonEmptyString(request && request.actor) ||
+    asNonEmptyString(input && input.actor) ||
+    null
+  );
+}
+
 function readSnapshotNodes(snapshot) {
   return snapshot && snapshot.nodes && typeof snapshot.nodes === "object" ? snapshot.nodes : {};
 }
@@ -36,19 +51,21 @@ function readSnapshotEdges(snapshot) {
   return Array.isArray(snapshot && snapshot.edges) ? snapshot.edges : [];
 }
 
-function validateInputShape(input) {
+function validateInputShape(input, request) {
   if (input === null || typeof input !== "object" || Array.isArray(input)) {
     throwV2("INVALID_EXECUTION_CONTRACT", `${OP}: input must be an object`, { field: "input" });
   }
   if (!asNonEmptyString(input.id)) {
     throwV2("MISSING_FIELD", `${OP}: --id required`, { field: "id" });
   }
-  if (!asNonEmptyString(input.actor)) {
+  const actor = resolveActor(input, request);
+  if (!actor) {
     throwV2("MISSING_FIELD", `${OP}: input.actor required`, { field: "actor" });
   }
   if (!asNonEmptyString(input.note)) {
     throwV2("MISSING_FIELD", `${OP}: --note required`, { field: "note" });
   }
+  return actor;
 }
 
 function validateTarget(input, snapshot) {
@@ -115,8 +132,7 @@ function collectReadyTasks(nodesView, edges) {
  * @returns {object} frozen plan
  */
 async function prepare({ snapshot, input, request }) {
-  void request;
-  validateInputShape(input);
+  const actor = validateInputShape(input, request);
   validateTarget(input, snapshot);
   const node = readSnapshotNodes(snapshot)[input.id];
   const doneAt = input.done_at === undefined ? new Date().toISOString() : input.done_at;
@@ -130,7 +146,7 @@ async function prepare({ snapshot, input, request }) {
     policyAction: Object.freeze({ action: "task.resolve", pluginId: null }),
     logAction: LOG_ACTION,
     note: input.note,
-    done_by: input.actor,
+    done_by: actor,
     done_at: doneAt,
   });
 }
