@@ -22,17 +22,25 @@
 //   - When every column is empty (no ready, no in progress, no blocked, no
 //     backlog) and there are no open gates, the board shows a single
 //     "no active work" empty state instead of four dead columns.
-//   - Status is sourced from the snapshot's pre-derived pools
-//     (s().derived.{ready,blocked,backlog,openGates}) and the persisted
-//     `status === "in_progress"` field. No local status derivation; the
-//     dashboard must not disagree with the CLI.
+//   - Status is sourced from the reactive selector surface
+//     (useStoreSelectors().tasksByStatus / openGates / nodesMap). The board
+//     keeps the public useStore() facade but does not derive status itself.
+//
+// Live store (ADR-010 / plan §3.4):
+//   - The four columns are stable identifiers (literal status) iterated
+//     through a module-level constant; their DOM elements never re-mount
+//     across polls and they keep their scroll position.
+//   - Cards inside each column iterate node IDs (the reconciliation key of
+//     entities.nodes). Unchanged entities keep the same reference across
+//     polls, so unchanged cards keep their DOM. A status change removes the
+//     card from one column and adds it to another (single expected remount).
+//   - Gates iterate openGates() IDs the same way.
 //
 // Scope: this file only. We do NOT touch Nodes.jsx, components.jsx,
-// store.jsx, or the snapshot contract. Primitives that are missing for this
-// view are flagged in a note rather than patched in.
+// store.jsx, the store internals, App, server, other views or any test.
 
 import { createMemo, Show, For } from "solid-js";
-import { useStore } from "../store.jsx";
+import { useStore, useStoreSelectors } from "../store.jsx";
 import {
   PageLayout,
   Chip,
@@ -40,6 +48,17 @@ import {
   EmptyState,
   ClaimTime,
 } from "../components.jsx";
+
+// Stable column descriptors. Defined at module scope so the array handed to
+// <For> is the same reference for the whole lifetime of the view; the four
+// <Column> elements are mounted once and never re-mounted across polls,
+// which is what keeps `scrollTop` on the column body intact.
+const COLUMN_DEFS = [
+  { key: "ready", label: "Ready", status: "ready" },
+  { key: "in_progress", label: "In progress", status: "in_progress" },
+  { key: "blocked", label: "Blocked", status: "blocked" },
+  { key: "backlog", label: "Backlog", status: "backlog" },
+];
 
 // Statuses that mean a node no longer needs to block anything downstream.
 // Used to walk the incoming BLOCKS edges of a blocked task and pick the
@@ -92,6 +111,8 @@ function liveBlockerCount(edges, nodes, id) {
 function BoardCard(props) {
   // node             (object, required — full node from snapshot)
   // status           (string, required — derived status used for the badge)
+  // edges            (array, required — for principalBlocker/liveBlockerCount)
+  // nodes            (object, required — entities.nodes map for blocker lookup)
   // principalBlocker (object | null, optional — only when status === "blocked")
   const n = () => props.node || {};
   const select = useStore().select;
@@ -157,10 +178,12 @@ function BoardCard(props) {
 
 // === Open gates column ======================================================
 // Open gates share the task columns' visual and spatial level. The column is
-// only mounted when the filtered gate pool has items.
+// only mounted when the filtered gate pool has items. Iterating by node ID
+// keeps each gate card's DOM stable across polls.
 
 function OpenGatesColumn(props) {
-  // gates  (array of node objects, required)
+  // gateIds (array of node IDs, required)
+  // nodes   (object, required — entities.nodes map for live lookup)
   const select = useStore().select;
   return (
     <div class="ui-detail-card ui-board-column ui-board-gates flex flex-col rounded-card border border-line bg-panel px-1 pb-1">
@@ -168,33 +191,36 @@ function OpenGatesColumn(props) {
         <div class="ui-board-column-header-title">
           <span>Open gates</span>
         </div>
-        <div class="ui-board-column-header-count shrink-0">{props.gates.length}</div>
+        <div class="ui-board-column-header-count shrink-0">{props.gateIds.length}</div>
       </header>
       <div class="ui-board-column-body space-y-2 p-3">
-        <For each={props.gates}>
-          {(g) => (
-            <button
-              type="button"
-              class="ui-list-row ui-board-gate-card w-full rounded-card border border-gate bg-gate-soft p-3 text-left transition-colors hover:bg-panel focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
-              onClick={() => select(g.id)}
-              aria-label={`${g.id} ${g.title}`}
-            >
-              <div>
-                <span class="mono text-[12px] text-gate">{g.id}</span>
-              </div>
-              <div class="ui-board-card-title mt-2 line-clamp-2 text-[14px] font-semibold leading-5 text-ink" title={g.title}>
-                {g.title}
-              </div>
-              <Show when={g.body}>
-                <div class="mt-1 line-clamp-2 text-[12px] leading-4 text-mute" title={g.body}>
-                  {g.body}
+        <For each={props.gateIds}>
+          {(id) => {
+            const gate = () => props.nodes[id];
+            return (
+              <button
+                type="button"
+                class="ui-list-row ui-board-gate-card w-full rounded-card border border-gate bg-gate-soft p-3 text-left transition-colors hover:bg-panel focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
+                onClick={() => select(id)}
+                aria-label={`${id} ${gate().title}`}
+              >
+                <div>
+                  <span class="mono text-[12px] text-gate">{id}</span>
                 </div>
-              </Show>
-              <div class="mt-3 flex flex-wrap items-center gap-1.5">
-                <Chip tone="gate">{g.purpose || "decision"}</Chip>
-              </div>
-            </button>
-          )}
+                <div class="ui-board-card-title mt-2 line-clamp-2 text-[14px] font-semibold leading-5 text-ink" title={gate().title}>
+                  {gate().title}
+                </div>
+                <Show when={gate().body}>
+                  <div class="mt-1 line-clamp-2 text-[12px] leading-4 text-mute" title={gate().body}>
+                    {gate().body}
+                  </div>
+                </Show>
+                <div class="mt-3 flex flex-wrap items-center gap-1.5">
+                  <Chip tone="gate">{gate().purpose || "decision"}</Chip>
+                </div>
+              </button>
+            );
+          }}
         </For>
       </div>
     </div>
@@ -203,7 +229,9 @@ function OpenGatesColumn(props) {
 
 // === Column =================================================================
 // One natural-height column on the board. The column body owns vertical
-// overflow once the column reaches the available board height.
+// overflow once the column reaches the available board height. One Column
+// element per entry in COLUMN_DEFS; the JSX body is rendered as children so
+// the parent controls keying of cards.
 
 function Column(props) {
   // label (string, required)
@@ -227,71 +255,46 @@ function Column(props) {
 
 // === Board ==================================================================
 // Top-level view. Splits into: optional open-gates column, four-column
-// kanban, and a footer with a link to the Tasks view for history (done /
-// canceled / superseded).
+// kanban, and the empty state when no column has items.
 
 export default function Board(props) {
+  const selectors = useStoreSelectors();
   const { snapshot } = useStore();
-  const s = () => snapshot();
   const initiative = () => props.boardInitiative?.() || "";
 
-  // Pulled from the snapshot — no local derivation.
-  const nodes = () => s()?.nodes || {};
-  const edges = () => s()?.edges || [];
-  const derived = () => s()?.derived || { ready: [], blocked: [], backlog: [], openGates: [] };
+  // Reactive accessors backed by the selector surface. nodesMap() returns
+  // the reactive `entities.nodes` proxy; reconciled references keep each
+  // card's identity stable when the poll didn't change its entity.
+  const nodes = createMemo(() => selectors.nodesMap());
+  // Edges still come from the raw snapshot legacy form: the selector surface
+  // does not expose edges, and principalBlocker / liveBlockerCount only need
+  // `from / to / type` plus the status of the blocker. The scan stays O(E)
+  // per card, same as before, and the view stays decoupled from store
+  // internals.
+  const edges = () => snapshot()?.edges || [];
 
-  // Open gates from the server's pool. The dashboard never builds this list
-  // by scanning + filtering the nodes map.
-  const openGates = createMemo(() =>
-    derived()
-      .openGates.map((id) => nodes()[id])
-      .filter(Boolean)
-  );
+  // IDs grouped by status from the selector surface. Each array is a list of
+  // node IDs (strings); iterating by ID keeps <For> keying stable across
+  // polls even when the underlying arrays are fresh objects.
+  const tasksByStatus = createMemo(() => selectors.tasksByStatus());
+  const openGates = createMemo(() => selectors.openGates());
 
-  // Tasks visible on the board: only resolvable tasks (subkind === "task").
-  // We use the snapshot's pre-derived pools for ready / blocked / backlog
-  // and the persisted status for in_progress. The four pools are disjoint.
-  const tasksByStatus = createMemo(() => {
-    const d = derived();
-    const map = { ready: [], in_progress: [], blocked: [], backlog: [] };
-    const seen = new Set();
-    for (const id of d.ready || []) {
-      const n = nodes()[id];
-      if (n && n.subkind === "task") { map.ready.push(n); seen.add(id); }
-    }
-    for (const id of d.blocked || []) {
-      const n = nodes()[id];
-      if (n && n.subkind === "task") { map.blocked.push(n); seen.add(id); }
-    }
-    for (const id of d.backlog || []) {
-      const n = nodes()[id];
-      if (n && n.subkind === "task") { map.backlog.push(n); seen.add(id); }
-    }
-    // In-progress tasks are not in the derived pools; persist-derived.
-    for (const n of Object.values(nodes())) {
-      if (!n || n.subkind !== "task") continue;
-      if (n.status !== "in_progress") continue;
-      if (seen.has(n.id)) continue;
-      map.in_progress.push(n);
-    }
-    return map;
-  });
-
-  // The header picker scopes every board column to one initiative. An empty
-  // selection keeps the complete active board visible.
-  const matches = (n) => !initiative() || n.initiative === initiative();
+  // Initiative-scoped view. The initiative picker scopes every column to one
+  // initiative; an empty selection keeps the complete active board visible.
+  const matches = (id) =>
+    !initiative() || nodes()[id]?.initiative === initiative();
 
   const filteredTasks = createMemo(() => {
-    const m = tasksByStatus();
+    const t = tasksByStatus();
     return {
-      ready: m.ready.filter(matches),
-      in_progress: m.in_progress.filter(matches),
-      blocked: m.blocked.filter(matches),
-      backlog: m.backlog.filter(matches),
+      ready: t.ready.filter(matches),
+      in_progress: t.in_progress.filter(matches),
+      blocked: t.blocked.filter(matches),
+      backlog: t.backlog.filter(matches),
     };
   });
 
-  const filteredGates = createMemo(() => openGates().filter(matches));
+  const filteredGateIds = createMemo(() => openGates().filter(matches));
 
   const hasAnyActiveWork = createMemo(() => {
     const t = filteredTasks();
@@ -300,7 +303,7 @@ export default function Board(props) {
       t.in_progress.length +
       t.blocked.length +
       t.backlog.length +
-      filteredGates().length >
+      filteredGateIds().length >
       0
     );
   });
@@ -311,17 +314,20 @@ export default function Board(props) {
     props.onBoardInitiativeChange?.("");
   }
 
-  // Column definitions. Keeping them as a memo keeps the counts in lock-step
-  // with the snapshot and the initiative scope.
-  const columns = createMemo(() => {
-    const t = filteredTasks();
-    return [
-      { key: "ready", label: "Ready", status: "ready", cards: t.ready },
-      { key: "in_progress", label: "In progress", status: "in_progress", cards: t.in_progress },
-      { key: "blocked", label: "Blocked", status: "blocked", cards: t.blocked },
-      { key: "backlog", label: "Backlog", status: "backlog", cards: t.backlog },
-    ];
-  });
+  // Resolve a card's principal blocker on demand. Only meaningful for
+  // status === "blocked", but cheap enough to compute uniformly inside the
+  // Column body. Recomputes when edges or the resolved node change; the
+  // returned blocker is the same object reference if the blocker node is the
+  // same entity, so the callout body does not flash on every poll.
+  function blockerFor(id) {
+    return principalBlocker(edges(), nodes(), id);
+  }
+
+  // Slot for the optional gates column. One <Show when> guards the column;
+  // when the pool goes empty the column unmounts once, when it becomes
+  // non-empty it mounts once. The four task columns stay mounted the whole
+  // time because they are driven by a module-level constant.
+  const showGates = createMemo(() => filteredGateIds().length > 0);
 
   return (
     <PageLayout mode="workspace">
@@ -360,44 +366,42 @@ export default function Board(props) {
           <div class="ui-board-scroll flex min-h-0 min-w-0 flex-1">
             <div
               class="ui-board-columns grid h-full min-h-0 gap-3"
-              style={{ "grid-template-columns": `repeat(${columns().length + (filteredGates().length > 0 ? 1 : 0)}, 280px)` }}
+              style={{ "grid-template-columns": `repeat(${COLUMN_DEFS.length + (showGates() ? 1 : 0)}, 280px)` }}
             >
-              <Show when={filteredGates().length > 0}>
-                <OpenGatesColumn gates={filteredGates()} />
+              <Show when={showGates()}>
+                <OpenGatesColumn gateIds={filteredGateIds()} nodes={nodes()} />
               </Show>
-              <For each={columns()}>
-                {(col) => (
-                  <Column
-                    label={col.label}
-                    tone={col.status}
-                    count={col.cards.length}
-                  >
-                    <Show
-                      when={col.cards.length > 0}
-                      fallback={
-                        <div class="ui-board-empty flex min-h-[104px] items-center justify-center rounded-control border border-dashed border-line text-center">
-                          <EmptyState variant="compact" title="Nothing here." />
-                        </div>
-                      }
-                    >
-                      <For each={col.cards}>
-                        {(n) => (
-                          <BoardCard
-                            node={n}
-                            status={col.status}
-                            edges={edges()}
-                            nodes={nodes()}
-                            principalBlocker={
-                              col.status === "blocked"
-                                ? principalBlocker(edges(), nodes(), n.id)
-                                : null
-                            }
-                          />
-                        )}
-                      </For>
-                    </Show>
-                  </Column>
-                )}
+              <For each={COLUMN_DEFS}>
+                {(col) => {
+                  const ids = createMemo(() => filteredTasks()[col.key] || []);
+                  const count = () => ids().length;
+                  return (
+                    <Column label={col.label} tone={col.status} count={count()}>
+                      <Show
+                        when={count() > 0}
+                        fallback={
+                          <div class="ui-board-empty flex min-h-[104px] items-center justify-center rounded-control border border-dashed border-line text-center">
+                            <EmptyState variant="compact" title="Nothing here." />
+                          </div>
+                        }
+                      >
+                        <For each={ids()}>
+                          {(id) => (
+                            <BoardCard
+                              node={nodes()[id]}
+                              status={col.status}
+                              edges={edges()}
+                              nodes={nodes()}
+                              principalBlocker={
+                                col.status === "blocked" ? blockerFor(id) : null
+                              }
+                            />
+                          )}
+                        </For>
+                      </Show>
+                    </Column>
+                  );
+                }}
               </For>
             </div>
           </div>
