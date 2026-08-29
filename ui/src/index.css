@@ -1235,9 +1235,9 @@ body {
 }
 
 .ui-sidebar {
-  background: rgba(249, 248, 245, 0.88);
+  background: var(--ui-bg);
   border-color: rgba(225, 223, 218, 0.9);
-  backdrop-filter: saturate(120%) blur(16px);
+  backdrop-filter: none;
 }
 
 .ui-sidebar > div:first-child {
