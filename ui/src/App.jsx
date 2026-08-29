@@ -40,6 +40,12 @@
 
 import { Show, For, onMount, onCleanup, createMemo, createSignal, createEffect } from "solid-js";
 import { Dynamic } from "solid-js/web";
+import Activity03Icon from "@hugeicons/core-free-icons/Activity03Icon";
+import BookOpen01Icon from "@hugeicons/core-free-icons/BookOpen01Icon";
+import CheckListIcon from "@hugeicons/core-free-icons/CheckListIcon";
+import DashboardSquare01Icon from "@hugeicons/core-free-icons/DashboardSquare01Icon";
+import Flag02Icon from "@hugeicons/core-free-icons/Flag02Icon";
+import KanbanIcon from "@hugeicons/core-free-icons/KanbanIcon";
 import { StoreProvider, useStore } from "./store.jsx";
 import Overview from "./views/Overview.jsx";
 import Board from "./views/Board.jsx";
@@ -98,21 +104,25 @@ const ROUTES = Object.freeze(
   )
 );
 
-// Small inline icons keep the shell crisp without adding an icon dependency.
-// The same outline language works in the labelled sidebar and the compact rail.
-const NAV_ICON_PATHS = {
-  overview: "M4 4h6v6H4z M14 4h6v6h-6z M4 14h6v6H4z M14 14h6v6h-6z",
-  board: "M4 4h4v16H4z M10 4h4v16h-4z M16 4h4v16h-4z",
-  tasks: "m5 12 4 4L19 6 M4 4h16v16H4z",
-  gates: "M5 4v16 M5 5h11l-2.5 4L16 13H5",
-  knowledge: "M4 5.5A2.5 2.5 0 0 1 6.5 3H20v17H6.5A2.5 2.5 0 0 0 4 22z M4 5.5v14A2.5 2.5 0 0 1 6.5 17H20",
-  activity: "M3 12h4l2-7 4 14 2-7h6",
+// Hugeicons supplies the visual language for both the labelled sidebar and
+// the compact rail. Importing the raw icon data keeps the UI Solid-native and
+// avoids adding a React-specific renderer to this application.
+const NAV_ICONS = {
+  overview: DashboardSquare01Icon,
+  board: KanbanIcon,
+  tasks: CheckListIcon,
+  gates: Flag02Icon,
+  knowledge: BookOpen01Icon,
+  activity: Activity03Icon,
 };
 
 function NavIcon(props) {
+  const icon = NAV_ICONS[props.id] || NAV_ICONS.overview;
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <path d={NAV_ICON_PATHS[props.id] || NAV_ICON_PATHS.overview} />
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      {icon.map(([element, attributes]) =>
+        element === "path" ? <path {...attributes} /> : null
+      )}
     </svg>
   );
 }
