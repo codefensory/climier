@@ -40,12 +40,12 @@
 
 import { Show, For, onMount, onCleanup, createMemo, createSignal, createEffect } from "solid-js";
 import { Dynamic } from "solid-js/web";
-import overviewIcon from "./icons/tabler/layout-dashboard.svg?raw";
-import boardIcon from "./icons/tabler/layout-kanban.svg?raw";
-import tasksIcon from "./icons/tabler/list-check.svg?raw";
-import gatesIcon from "./icons/tabler/flag.svg?raw";
-import knowledgeIcon from "./icons/tabler/book.svg?raw";
-import activityIcon from "./icons/tabler/timeline-event.svg?raw";
+import overviewIcon from "./icons/boxicons/dashboard.svg?raw";
+import boardIcon from "./icons/boxicons/board.svg?raw";
+import tasksIcon from "./icons/boxicons/tasks.svg?raw";
+import gatesIcon from "./icons/boxicons/gates.svg?raw";
+import knowledgeIcon from "./icons/boxicons/knowledge.svg?raw";
+import activityIcon from "./icons/boxicons/activity.svg?raw";
 import { StoreProvider, useStore } from "./store.jsx";
 import Overview from "./views/Overview.jsx";
 import Board from "./views/Board.jsx";
@@ -104,9 +104,9 @@ const ROUTES = Object.freeze(
   )
 );
 
-// Tabler supplies the visual language for both the labelled sidebar and the
-// compact rail. These six Tabler SVGs are vendored locally so the complete
-// icon catalogue is never downloaded or optimized on a dev reload.
+// Boxicons supplies the visual language for both the labelled sidebar and
+// the compact rail. These six SVGs are vendored locally so the complete icon
+// catalogue is never downloaded or optimized on a dev reload.
 const NAV_ICONS = {
   overview: overviewIcon,
   board: boardIcon,
@@ -117,7 +117,7 @@ const NAV_ICONS = {
 };
 
 function NavIcon(props) {
-  return <span class="ui-tabler-icon" aria-hidden="true" innerHTML={NAV_ICONS[props.id] || NAV_ICONS.overview} />;
+  return <span class="ui-boxicon" aria-hidden="true" innerHTML={NAV_ICONS[props.id] || NAV_ICONS.overview} />;
 }
 
 // === RouteSync =============================================================

@@ -1356,7 +1356,7 @@ body {
   color: var(--ui-muted);
 }
 
-.ui-tabler-icon {
+.ui-boxicon {
   display: inline-flex;
   width: 17px;
   height: 17px;
@@ -1364,10 +1364,11 @@ body {
   justify-content: center;
 }
 
-.ui-tabler-icon svg {
+.ui-boxicon svg {
   display: block;
   width: 17px;
   height: 17px;
+  fill: currentColor;
 }
 
 .ui-nav-link:hover .ui-nav-glyph,
