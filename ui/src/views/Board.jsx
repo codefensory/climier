@@ -3,9 +3,9 @@
 // Contract (ui-redesign-plan.md section 6 Fase 5A, Track A):
 //   - Four task columns: Ready / In progress / Blocked / Backlog. Open gates
 //     join the same grid as an optional first column, immediately before Ready.
-//   - Columns stay fixed at 280 px; the board scrolls horizontally instead of
-//     stretching or compressing columns. The grid grows to five columns only
-//     when gates are present.
+//   - Columns stay fixed at 280 px; the board container scrolls horizontally
+//     and vertically instead of stretching or compressing columns. The grid
+//     grows to five columns only when gates are present.
 //   - Column headers show only the label and count; the board stays scannable
 //     without explanatory subtitles under every status.
 //   - Columns grow to the height of their content. The board grid owns the

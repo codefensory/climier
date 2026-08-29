@@ -1422,10 +1422,10 @@ body {
 }
 
 .ui-board-column-header {
-  min-height: 68px;
+  min-height: 54px;
   border-color: transparent;
   background: transparent;
-  padding: 15px 16px 10px;
+  padding: 12px 16px 7px;
 }
 
 .ui-board-column-header-title {
@@ -1433,8 +1433,10 @@ body {
   align-items: center;
   gap: 8px;
   color: var(--ui-text);
-  font-size: 13px;
+  font-size: 18px;
   font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 23px;
 }
 
 .ui-board-column-header-count {
@@ -1445,7 +1447,7 @@ body {
 }
 
 .ui-board-column-body {
-  padding: 0 10px 10px;
+  padding: 2px 6px 6px;
 }
 
 .ui-board-card {
