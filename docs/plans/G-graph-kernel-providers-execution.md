@@ -101,20 +101,37 @@ builder. B4 puede paralelizarse únicamente por provider y después de B2.
 
 Las siguientes piezas son candidatas a tasks. Este plan no las crea.
 
-### B1 — contrato del kernel
+### B1 — contrato del kernel, dividido en dos tasks secuenciales
 
-- Paths: `src/kernel/mutate.mjs`, `src/kernel/transaction.mjs`,
-  `src/state.mjs`, `src/lock.mjs`, `src/log.mjs`, tests nuevos de kernel.
-- Cambiar: firma de `kernel.mutate`, draft, `tx` tipado, diff de nodos,
-  `if_revision`/`if_revisions`, incremento único de revision, persistencia y
+#### B1a — `T-graph-kernel-transaction`
+
+- Paths exclusivos: `src/kernel/transaction.mjs` y
+  `test/kernel-transaction.test.mjs`.
+- Cambiar: draft puro, `createTransaction(snapshot)`,
+  `getNode/createNode/updateNode/addEdge/removeEdge/view`, clonación y
+  rechazo de escritura de `revision`.
+- Acceptance: task + edges se pueden componer en memoria; se rechazan ids,
+  nodos, self-edges y edges duplicados inválidos; no hay filesystem, locks,
+  persistencia, logs ni `commit()` público.
+- Tests mínimos: `node --test test/kernel-transaction.test.mjs` y
+  `npm test` con el runner core acotado.
+- No-go: `kernel.mutate`, providers, registry, dispatch y UI.
+
+#### B1b — `T-graph-kernel-contract`
+
+- Dependencia dura: B1a validada y mergeada.
+- Paths exclusivos: `src/kernel/mutate.mjs`; puede ajustar
+  `src/state.mjs`, `src/lock.mjs`, `src/log.mjs` y tests de integración.
+- Cambiar: firma de `kernel.mutate`, prepare/apply, precondiciones,
+  autorización, diff de nodos, incremento único de revision, persistencia y
   log bajo un único lock.
 - Acceptance: provider fixture con `prepare/apply`; creación, update,
-  idempotencia, conflicto, multi-nodo y mutación anidada cubierta; ningún
-  provider puede modificar revision; task + edges se pueden aplicar juntos.
-- Tests mínimos: `node --test test/v2-update.test.mjs
-  test/v2-blocked-by.test.mjs test/state-snapshots.test.mjs` más tests nuevos
-  del seam.
-- No-go: providers, registry, dispatch y UI.
+  idempotencia, conflicto, multi-nodo, task + edges, efectos no persistidos y
+  mutación anidada cubierta; ningún provider puede modificar revision.
+- Tests mínimos: `node --test test/kernel-mutate.test.mjs
+  test/v2-update.test.mjs test/v2-blocked-by.test.mjs
+  test/state-snapshots.test.mjs` y `npm test`.
+- No-go: `src/kernel/transaction.mjs`, providers, registry, dispatch y UI.
 
 ### B2 — grafo y fachada
 
