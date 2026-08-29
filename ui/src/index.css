@@ -1319,6 +1319,10 @@ body {
   margin-top: 0;
 }
 
+.ui-nav-group + .ui-nav-group {
+  margin-top: 2px;
+}
+
 .ui-nav-link {
   min-height: 35px;
   border-color: transparent;

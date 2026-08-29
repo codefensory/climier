@@ -221,7 +221,7 @@ function NavGroups(props) {
   return (
     <For each={NAV_GROUPS}>
       {(group) => (
-        <div class="ui-nav-group">
+        <div class="ui-nav-group space-y-0.5">
           <For each={group.ids}>
             {(id) => (
               <NavButton
