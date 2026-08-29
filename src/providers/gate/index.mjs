@@ -19,6 +19,8 @@ import {
   GATE_SUPERSEDE_LOG_ACTION,
 } from "./create.mjs";
 
+import { gateUpdateProvider } from "./update.mjs";
+
 import {
   gateResolveProvider,
   gateReopenProvider,
@@ -40,9 +42,18 @@ import {
   GATE_CANCEL_LOG_ACTION,
   GATE_RESOLVABLE_STATUSES,
   GATE_CANCELABLE_STATUSES,
+} from "./lifecycle.mjs";
+
+import {
+  gateProjection,
+  projectGate,
+  supersededBy,
+  isCurrent,
+  isSatisfied,
   isSatisfiedByGraph,
   diffReadyByGate,
-} from "./lifecycle.mjs";
+  taskIsReadyByGraph,
+} from "./semantics.mjs";
 
 export {
   gateCreateProvider,
@@ -51,6 +62,7 @@ export {
   gateResolveProvider,
   gateReopenProvider,
   gateCancelProvider,
+  gateUpdateProvider,
   prepareGateResolve,
   prepareGateReopen,
   prepareGateCancel,
@@ -71,6 +83,12 @@ export {
   GATE_CANCEL_LOG_ACTION,
   isSatisfiedByGraph,
   diffReadyByGate,
+  gateProjection,
+  projectGate,
+  supersededBy,
+  isCurrent,
+  isSatisfied,
+  taskIsReadyByGraph,
 };
 
 export const GATE_PROVIDER_KIND = "gate";
@@ -82,6 +100,7 @@ export const GATE_PROVIDER_KIND = "gate";
 // continue to share the same `gateProviders` map.
 export const gateProviders = Object.freeze({
   "gate.create": gateCreateProvider,
+  "gate.update": gateUpdateProvider,
   [GATE_RESOLVE_OP]: gateResolveProvider,
   [GATE_REOPEN_OP]: gateReopenProvider,
   [GATE_CANCEL_OP]: gateCancelProvider,
