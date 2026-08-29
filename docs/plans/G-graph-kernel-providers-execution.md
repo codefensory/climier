@@ -231,3 +231,44 @@ Antes de integrar cualquier slice:
 El bootstrap se considera completo cuando estas piezas están publicadas como
 tasks con paths exclusivos, dependencias reales, acceptance verificable y
 ningún worker puede comenzar B3/B4 sin que B1 esté resuelta y validada.
+
+## 6. Sello de validación del bootstrap
+
+Esta sección la agrega `T-graph-kernel-providers-bootstrap` al cierre y no
+forma parte del plan operativo. Registra la verificación proporcional
+realizada por el worker para confirmar que el documento cumple la acceptance
+antes de delegar las tasks derivadas.
+
+- Acceptance cubierta:
+  - `docs/plans/G-graph-kernel-providers-execution.md` existe y fue revisado
+    contra `.decisions/G-graph-kernel-providers-rfc.md`,
+    `.adrs/011-graph-kernel-providers.md` y
+    `.adrs/012-graph-kernel-registry-api.md`;
+  - la sección 2 enumera ownership serializado para `src/state.mjs`,
+    `src/lock.mjs`, `src/log.mjs`, `src/kernel/mutate.mjs`,
+    `src/kernel/transaction.mjs`, `src/v2.mjs`,
+    `src/plugin-core-registry.mjs`, `src/plugin-core-adapter.mjs` y
+    `bin/climier.mjs`, sin solapamiento;
+  - la sección 3 fija la dependencia dura
+    `B1 kernel → B4 providers → B6A registry → B6B/B7 adapters`;
+  - la sección 2 y los no-go de cada batch limitan a tres workers
+    simultáneos como máximo;
+  - cada batch B1–B8 declara `Tests mínimos` focalizados y referencia el
+    baseline (`npm test`, `npm run test:concurrent`, `npm run test:ui` cuando
+    aplica);
+  - la sección 1 fija el smoke del binario global estable
+    `climier-control` mediante `smoke-sandbox.sh`, sin tocar
+    `CLIMIER_HOME`;
+  - el plan no crea tasks ni modifica código de producto: lo afirma en la
+    introducción, en `B1`–`B8` con sus no-go zones y en la presente
+    validación.
+- Verificación proporcional ejecutada por el worker:
+  - inspección del diff del commit que introduce el documento;
+  - comprobación de que el binario
+    `/home/yeferson/Dev/climier-control/bin/climier.mjs` existe y responde
+    a `--help` dentro de `smoke-sandbox.sh`;
+  - comprobación de que la cadena de batches respeta la dependencia dura
+    B1 → B2 → B3 → B4 → B5 → B6A → B6B → B7 → B8.
+- Resultado: la acceptance queda cubierta. El plan queda publicado y listo
+  para que el orchestrator derive tasks ejecutables siguiendo los slices
+  B1–B8 sin que este bootstrap cree ni modifique el DAG.
