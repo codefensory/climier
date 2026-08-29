@@ -1,14 +1,18 @@
 import { emptyState } from "./state.mjs";
 import { throwV2 } from "./errors.mjs";
+import { incoming, relations } from "./kernel/graph.mjs";
 
 // Re-exported so callers that already import from v2.mjs keep working.
 // ponytail: thin re-export, remove when v2 callers all switch to errors.mjs.
 export { throwV2 };
 
-// Full list of edge-type names that exist as constants in the schema. Kept
-// here so existing data with deprecated types (INFORMS, RELATES_TO,
-// CONFLICTS_WITH) can still be read; mutating commands reject them via
-// the narrower EDGE_TYPES whitelist below.
+// Kernel primitives (B2). The canonical implementation lives in
+// src/kernel/edges.mjs and src/kernel/graph.mjs; v2.mjs is a thin facade.
+// `EDGE_TYPE_CONSTANTS` is the historical alias that still includes the
+// deprecated informational/conflict types so existing data with those
+// types can be read; mutating commands reject them via EDGE_TYPES below.
+export { EDGE_TYPES, existingEdge, blocksEdge, validateEdge } from "./kernel/edges.mjs";
+
 export const EDGE_TYPE_CONSTANTS = [
   "BLOCKS",
   "INFORMS",
@@ -18,85 +22,12 @@ export const EDGE_TYPE_CONSTANTS = [
   "CONFLICTS_WITH",
 ];
 
-// Edge types the mutating commands (add-node, add-edge) accept today.
-// Deprecated types are rejected with INVALID_EDGE_TYPE; cleanup of the
-// constants list happens in a later phase.
-export const EDGE_TYPES = ["BLOCKS", "SUPERSEDES", "DERIVED_FROM"];
-
-export function existingEdge(state, from, to, type) {
-  return asArray(state.edges).some(
-    (edge) => edge.from === from && edge.to === to && edge.type === type,
-  );
-}
-
-// Canonical BLOCKS edge: from BLOCKS to means to is BLOCKED-BY from.
-// Used by CLI surfaces that phrase the relationship from the dependent's
-// point of view (e.g. `--blocked-by G-y` means "this node is blocked by G-y").
-export function blocksEdge(blockerId, blockedId) {
-  return { from: blockerId, to: blockedId, type: "BLOCKS" };
-}
-
-export function validateEdge(state, edge, commandName) {
-  const { from, to, type } = edge;
-  if (from === to) {
-    throwV2(
-      "SELF_EDGE",
-      `${commandName}: edge ${from} -> ${to} is a self-edge`,
-      { from, to, type },
-    );
-  }
-  const nodes = state && state.nodes ? state.nodes : {};
-  const fromNode = nodes[from];
-  const toNode = nodes[to];
-  if (!fromNode || !toNode) {
-    const missing = !fromNode ? from : to;
-    throwV2(
-      "INVALID_EDGE_TARGET",
-      `${commandName}: edge ${type} ${from} -> ${to} references missing node '${missing}'`,
-      { from, to, type, missing },
-    );
-  }
-  if (!EDGE_TYPES.includes(type)) {
-    throwV2(
-      "INVALID_EDGE_TYPE",
-      `${commandName}: edge type ${type} is not allowed (allowed: ${EDGE_TYPES.join(", ")})`,
-      { type, allowed: EDGE_TYPES },
-    );
-  }
-  if (type === "BLOCKS") {
-    if (fromNode.kind !== "resolvable" || toNode.kind !== "resolvable") {
-      throwV2(
-        "INVALID_EDGE_KIND",
-        `${commandName}: BLOCKS requires both ends to be resolvable (got ${fromNode.kind} -> ${toNode.kind})`,
-        { from, to, type, fromKind: fromNode.kind, toKind: toNode.kind },
-      );
-    }
-  } else if (type === "SUPERSEDES") {
-    if (fromNode.kind !== toNode.kind) {
-      throwV2(
-        "INVALID_EDGE_KIND",
-        `${commandName}: SUPERSEDES requires both ends to be the same kind (got ${fromNode.kind} -> ${toNode.kind})`,
-        { from, to, type, fromKind: fromNode.kind, toKind: toNode.kind },
-      );
-    }
-  }
-}
-
 function asArray(value) {
   return Array.isArray(value) ? value : [];
 }
 
-function blockers(state, id) {
-  return asArray(state.edges).filter((edge) => edge.to === id && edge.type === "BLOCKS");
-}
-
-function rels(state, id, type) {
-  return asArray(state.edges).filter((edge) => edge.from === id && edge.type === type);
-}
-
 export function supersededBy(state, id) {
-  const next = asArray(state.edges)
-    .filter((edge) => edge.type === "SUPERSEDES" && edge.to === id)
+  const next = incoming(state, id, "SUPERSEDES")
     .map((edge) => edge.from)
     .sort();
   return next[0] || null;
@@ -159,7 +90,7 @@ export function deriveV2(state) {
       backlog.push(id);
       continue;
     }
-    const deps = blockers(s, id);
+    const deps = incoming(s, id, "BLOCKS");
     const ok = deps.every((edge) => isSatisfiedV2(s, edge.from));
     if (ok) ready.push(id);
     else blocked.push(id);
@@ -233,7 +164,7 @@ function inlineNode(state, id) {
 }
 
 export function blockingForNode(state, id) {
-  return blockers(state, id).map((edge) => ({
+  return incoming(state, id, "BLOCKS").map((edge) => ({
     edge_type: edge.type,
     node: inlineNode(state, edge.from),
     satisfied: isSatisfiedV2(state, edge.from),
@@ -241,7 +172,7 @@ export function blockingForNode(state, id) {
 }
 
 export function informingForNode(state, id) {
-  return rels(state, id, "INFORMS").map((edge) => ({
+  return relations(state, id, "INFORMS").map((edge) => ({
     edge_type: edge.type,
     node: inlineNode(state, edge.to),
   }));
