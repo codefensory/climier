@@ -190,7 +190,7 @@ node --test --test-name-pattern="take.*same agent" test/v2-take.test.mjs
 # Watch mode
 npm run test:watch
 
-# CLI smoke
+# Local code smoke (not DAG coordination)
 node bin/climier.mjs --project /tmp/testproj init
 node bin/climier.mjs --project /tmp/testproj status
 ```
@@ -222,6 +222,25 @@ When you add a new command, pick whichever shape fits the data. **Do not** add a
 3. Read one command end-to-end (`commands/take.mjs` is the most representative).
 4. Look at `test/v2-take.test.mjs` (and `test/concurrent-takes.test.mjs` if present) — they show the multi-agent guarantee in action.
 5. Then tackle your task. TDD: write the test, watch it fail, implement, watch it pass.
+
+## Climier control plane
+
+All DAG coordination must use the globally linked stable Climier control binary:
+
+```bash
+command -v climier
+# expected target: .../climier-control/bin/climier.mjs
+climier status
+climier context <task-id>
+climier add-note <id> "..." --as <agent>
+```
+
+Never use `node bin/climier.mjs` for coordination (`status`, `context`, `take`,
+`update`, `add-note`, `resolve`, `release`, or any other DAG operation). The
+local worktree CLI may be invoked only to verify the code being developed, for
+example with a temporary project smoke; it is not the control plane. The stable
+binary and the refactor worktree must use the same `CLIMIER_HOME` and project
+metadata.
 
 ## Local AI workflow
 
