@@ -54,7 +54,6 @@ import {
   Panel,
   AlertBanner,
   Skeleton,
-  LiveStatus,
   IconButton,
   fmtTime,
 } from "./components.jsx";
@@ -282,6 +281,7 @@ function Header(props) {
           <span>Quick find</span>
           <kbd aria-hidden="true">⌘ K</kbd>
         </button>
+        <span class="ui-readonly-chip" aria-label="Read-only mode">Read-only</span>
       </div>
     </header>
   );
@@ -431,7 +431,7 @@ function DrawerPanel(props) {
 // min-h-0 + overflow-hidden; banners are shrink-0; the route area is the
 // single flex-1 min-h-0 scroll owner (RouteView). No nested scrollers.
 function Main() {
-  const { route, snapshot, initialLoading, snapshotError, lastSuccessfulAt, refreshing, reload } = useStore();
+  const { route, snapshot, initialLoading, snapshotError, lastSuccessfulAt, reload } = useStore();
   const initialized = () => snapshot()?.project?.initialized !== false;
 
   // Track route changes so the memo re-runs when the user navigates; the
@@ -519,17 +519,6 @@ function Main() {
         </Show>
       </div>
 
-      {/* Non-blocking refresh indicator: a floating chip that stays visible
-          while the user scrolls the route content. */}
-      <div class="pointer-events-none fixed bottom-3 right-4">
-        <div class="ui-live-chip pointer-events-auto rounded-control border border-line bg-panel/95 px-3 py-1.5 shadow-sm backdrop-blur-[2px]">
-          <LiveStatus
-            lastAt={lastSuccessfulAt()}
-            refreshing={refreshing()}
-            error={snapshotError()}
-          />
-        </div>
-      </div>
     </main>
   );
 }
