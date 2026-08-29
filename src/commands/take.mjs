@@ -1,36 +1,99 @@
-// `take <id>` idempotently claims exactly one v2 task.
-// Legacy selection flags remain accepted but are ignored.
-//
-// T-plugin-policy-seam-lifecycle / ADR-008 §"Tabla de take":
-//   - task free                       → action `task.take`; allow/deny/abstain
-//                                       per the matrix in §3.4.
-//   - claim by same actor             → idempotent (no seam invoked, no mutation).
-//   - claim by another actor          → action `task.takeover`; allow replaces
-//                                       claim + previous_owner; deny → POLICY_DENIED;
-//                                       abstain → ALREADY_CLAIMED.
-//
-// The action is selected INSIDE the lock, AFTER reading the state, so
-// the decision is always based on the freshest snapshot. The selection
-// logic does NOT inspect actor strings (no more `agent === "orchestrator"`).
-import { readState, updateState } from "../state.mjs";
-import { withLock } from "../lock.mjs";
-import { appendWithContext } from "../log.mjs";
-import { blockingForNode, statusOfV2 } from "../v2.mjs";
+// `take <id>` CLI adapter for the canonical task.take provider.
+// The kernel owns locking, state, revisions and logs; this module only maps
+// CLI flags to the typed provider request and projects the legacy envelope.
+import { mutate } from "../kernel/mutate.mjs";
 import { throwV2 } from "../errors.mjs";
 import { resolveAgent } from "../agent.mjs";
 import { loadApplicablePolicy, authorizeAction } from "../policy.mjs";
 import { PolicyDenied } from "../plugin-errors.mjs";
+import { taskTakeProvider } from "../providers/task/take.mjs";
+import { statusOfV2 } from "../providers/task/derivation.mjs";
 
 export const knownFlags = ["as", "initiative", "domain", "tag"];
 
-function buildContext(state, id) {
-  const node = state.nodes[id];
+const TAKEOVER_ABSTAIN = "POLICY_TAKEOVER_ABSTAIN";
+
+function takeoverAbstained(id, owner) {
+  const error = new Error(`take: node ${id} is claimed by ${owner}`);
+  error.code = TAKEOVER_ABSTAIN;
+  error.details = { id, owner };
+  return error;
+}
+
+const taskTakeAdapterProvider = Object.freeze({
+  async prepare(args) {
+    try {
+      return await taskTakeProvider.prepare(args);
+    } catch (error) {
+      // The provider reports its domain failure as soon as it sees the open
+      // node. Project the derived status expected by the CLI contract for
+      // blocked and backlog tasks without adding persistence to the adapter.
+      if (error && error.code === "NOT_READY" && args && args.snapshot && args.input) {
+        const status = statusOfV2(args.snapshot.state || args.snapshot, args.input.id);
+        if (status !== "unknown" && error.details && error.details.status !== status) {
+          throwV2("NOT_READY", `take: node ${args.input.id} is ${status}, not ready`, {
+            id: args.input.id,
+            status,
+          });
+        }
+      }
+      throw error;
+    }
+  },
+  apply: taskTakeProvider.apply,
+});
+
+function policyForTake({ policy, projectDir, agent, id, snapshotNode }) {
   return {
-    derived_status: statusOfV2(state, id),
-    revision: node.revision,
-    claim: node.claim || null,
-    blocking: blockingForNode(state, id),
-    knowledge: [],
+    action: "task.take",
+    pluginId: policy && policy.pluginId ? policy.pluginId : null,
+    async decide({ snapshot, target }) {
+      // Keep the complete snapshot node for the legacy `{ node }` projection,
+      // including when kernel.mutate detects an idempotent operation.
+      if (snapshot && snapshot.nodes && snapshot.nodes[id]) {
+        snapshotNode.value = snapshot.nodes[id];
+      }
+
+      const takeover = target && target.takeover === true;
+      // A same-actor take is idempotent and must not invoke a policy seam.
+      if (!takeover && target && target.status === "in_progress") {
+        return { decision: "abstain" };
+      }
+      // Without an applicable policy, the core still refuses a takeover:
+      // only an explicit policy allow may replace another actor's claim.
+      if (!policy) {
+        if (takeover) {
+          throw takeoverAbstained(id, target.previous_owner);
+        }
+        return { decision: "abstain" };
+      }
+
+      const action = takeover ? "task.takeover" : "task.take";
+      const decision = await authorizeAction({
+        policy,
+        action,
+        actor: agent,
+        target,
+        snapshot,
+        projectDir,
+        projectConfig: policy.projectConfig || {},
+      });
+      if (decision.decision === "deny") {
+        // Throw here rather than returning deny so takeover errors retain
+        // their dynamic policy action; kernel request.action is the legacy
+        // log action (`take`).
+        throw new PolicyDenied(
+          policy.pluginId || "(unknown)",
+          action,
+          agent,
+          decision.reason || "denied by policy",
+        );
+      }
+      if (takeover && decision.decision === "abstain") {
+        throw takeoverAbstained(id, target.previous_owner);
+      }
+      return decision;
+    },
   };
 }
 
@@ -39,129 +102,40 @@ export default async function take({ positional = [], flags = {}, projectDir, st
   if (!id) throwV2("MISSING_FIELD", "take: node id required", { field: "id" });
   const agent = resolveAgent(flags, "take");
   const dir = projectDir || statePath;
-
-  // ADR-007 §"Discovery global" item 5: re-load policy every call so
-  // install/uninstall changes are observed immediately.
   const policy = await loadApplicablePolicy({ projectDir: dir });
+  const snapshotNode = { value: null };
 
-  return withLock(dir, async () => {
-    const state = await readState(dir);
-    if (!state) {
-      throwV2("NODE_NOT_FOUND", "take: state file missing; run `climier init` first", { projectDir: dir });
-    }
-
-    const node = state.nodes[id];
-    if (!node) throwV2("NODE_NOT_FOUND", `take: node ${id} not found`, { id });
-    if (node.kind !== "resolvable" || node.subkind !== "task") {
-      throwV2("NOT_CLAIMABLE", `take: node ${id} is not a task`, {
-        id,
-        kind: node.kind,
-        subkind: node.subkind,
-      });
-    }
-
-    const status = statusOfV2(state, id);
-    const owner = node.claim && node.claim.by;
-
-    // Idempotent: same actor claims the in-progress task. No seam, no
-    // mutation — matches ADR-008 §"Tabla de take" (mismo actor → sin
-    // mutación, todas las decisiones son idempotentes).
-    if (status === "in_progress" && owner === agent) {
-      return { node, context: buildContext(state, id), freshly_claimed: false };
-    }
-
-    // Build snapshot + target for the seam. ADR-008 §"Invariantes core":
-    // a fresh task may only receive ONE claim winner under concurrency.
-    // The action classification happens inside the lock so the policy
-    // sees the snapshot and the current claim owner.
-    const target = {
-      id: node.id,
-      kind: node.kind,
-      subkind: node.subkind,
-      status: node.status,
-      claim: node.claim ? { ...node.claim } : null,
-    };
-    const snapshot = {
-      state,
-      nodes: { ...state.nodes },
-      edges: state.edges.slice(),
-      initiatives: { ...state.initiatives },
-    };
-
-    let action;
-    let takeover = false;
-    if (status === "in_progress" && owner && owner !== agent) {
-      // Another actor currently holds the claim: this is a takeover
-      // attempt. ADR-008 §"Tabla de take" classifies this as the
-      // `task.takeover` action regardless of the actor identity.
-      action = "task.takeover";
-      takeover = true;
-    } else if (status === "ready") {
-      action = "task.take";
-    } else {
-      // Status is not `ready` and we are not already the owner: NOT_READY.
-      // The seam is not invoked because there is nothing to authorize
-      // before the status check.
-      throwV2("NOT_READY", `take: node ${id} is ${status}, not ready`, { id, status });
-    }
-
-    const decision = await authorizeAction({
-      policy,
-      action,
-      actor: agent,
-      target,
-      snapshot,
+  const input = { id, actor: agent };
+  let mutation;
+  try {
+    mutation = await mutate({
       projectDir: dir,
-      projectConfig: policy ? policy.projectConfig : {},
+      request: { action: "take", actor: agent, input },
+      provider: taskTakeAdapterProvider,
+      policyAction: policyForTake({ policy, projectDir: dir, agent, id, snapshotNode }),
+      pluginId,
     });
-    if (decision.decision === "deny") {
-      throw new PolicyDenied(
-        policy && policy.pluginId ? policy.pluginId : "(unknown)",
-        action,
-        agent,
-        decision.reason || "denied by policy",
-      );
+  } catch (error) {
+    if (error && error.code === TAKEOVER_ABSTAIN) {
+      throwV2("ALREADY_CLAIMED", error.message, error.details);
     }
+    throw error;
+  }
 
-    if (action === "task.takeover") {
-      if (decision.decision === "abstain") {
-        // ADR-008 §"Tabla de take": takeover + abstain → ALREADY_CLAIMED.
-        // The default-core behaviour is to refuse the takeover because
-        // no policy chose to authorize it.
-        throwV2(
-          "ALREADY_CLAIMED",
-          `take: node ${id} is claimed by ${owner}`,
-          { id, owner },
-        );
-      }
-      // allow → fall through to mutation with takeover=true.
-    }
-    // task.take + allow/abstain → proceed (defaults core lets the
-    // claim happen; allow is identical from the host's perspective).
-
-    const at = new Date().toISOString();
-    const updated = await updateState(dir, (next) => {
-      const target = next.nodes[id];
-      target.claim = { by: agent, at };
-      target.status = "in_progress";
-      target.revision = (target.revision || 0) + 1;
-      return next;
-    });
-    await appendWithContext(
-      dir,
-      {
-        agent,
-        action: "take",
-        node: id,
-        ...(takeover ? { previous_owner: owner } : {}),
-      },
-      { pluginId },
-    );
-
-    return {
-      node: updated.nodes[id],
-      context: buildContext(updated, id),
-      freshly_claimed: true,
-    };
-  });
+  const updated = mutation.diff.updated.find((entry) => entry.id === id);
+  const node = updated ? updated.node : snapshotNode.value;
+  if (!node) {
+    throwV2("INVALID_EXECUTION_CONTRACT", `take: kernel did not return node ${id}`, { id });
+  }
+  return {
+    node,
+    context: {
+      derived_status: node.status,
+      revision: node.revision,
+      claim: node.claim || null,
+      blocking: [],
+      knowledge: [],
+    },
+    freshly_claimed: mutation.result ? mutation.result.freshly_claimed === true : false,
+  };
 }
