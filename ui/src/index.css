@@ -1528,7 +1528,7 @@ body {
 .ui-board-columns {
   align-items: start;
   overflow: auto;
-  padding: 2px 6px 6px;
+  padding: 16px 32px 24px;
 }
 
 .ui-board-column {
@@ -1651,6 +1651,10 @@ body {
 
   .ui-page-layout-standard {
     padding-top: 22px;
+  }
+
+  .ui-board-columns {
+    padding: 12px 16px 18px;
   }
 
   .ui-readonly-chip {
