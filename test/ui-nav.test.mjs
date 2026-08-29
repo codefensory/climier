@@ -133,8 +133,13 @@ async function bootApp() {
 test("sidebar click switches the view without reload (regression)", { skip }, async () => {
   const { dispose, dom } = await bootApp();
   try {
-    // Initial view is Overview.
+    // Initial view is Overview and the global header mirrors the page title.
     assert.ok(document.querySelector('main[data-route="overview"]'), "starts on overview");
+    assert.equal(
+      document.querySelector(".ui-shell-topbar h1")?.textContent.trim(),
+      "Overview",
+      "global header shows the current page title",
+    );
 
     // Click the Tasks nav item the same way a user would.
     const tasksLink = document.querySelector('[data-route="tasks"]');
@@ -147,6 +152,11 @@ test("sidebar click switches the view without reload (regression)", { skip }, as
     assert.ok(
       document.querySelector('main[data-route="tasks"]'),
       "main route flips to tasks after the click",
+    );
+    assert.equal(
+      document.querySelector(".ui-shell-topbar h1")?.textContent.trim(),
+      "Tasks",
+      "global header follows the routed page title",
     );
     const tasksView = document.querySelector('[data-view="tasks"]');
     assert.ok(tasksView, "RouteView renders the tasks view after the click");

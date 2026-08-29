@@ -1260,15 +1260,6 @@ body {
   font-size: 12px;
 }
 
-.ui-topbar-project::before {
-  width: 4px;
-  height: 4px;
-  flex: 0 0 auto;
-  border-radius: 50%;
-  background: var(--ui-line-strong);
-  content: "";
-}
-
 .ui-search-trigger {
   display: inline-flex;
   min-height: 34px;

@@ -18,7 +18,7 @@
 //     labels; MID 768–1279 collapses to a 64–72 px rail with glyphs; NARROW
 //     <768 hides the sidebar and exposes the same nav through a drawer
 //     toggled from the header.
-//   - Header with project name and root on every breakpoint.
+//   - Header with the current page title and project root on every breakpoint.
 //     LiveStatus is shown once in the floating shell indicator.
 //   - Data states per ui/DESIGN.md §5: initial load skeleton, non-blocking
 //     refresh indicator, initial error screen with Retry, subsequent error
@@ -71,7 +71,6 @@ import {
   sidebarWidthPx,
   drawerAvailable,
   railGlyph,
-  projectDisplayName,
   stateReadAlert,
 } from "./shell.mjs";
 
@@ -245,18 +244,17 @@ function NavGroups(props) {
 }
 
 // === Header ================================================================
-// Project identity, present on every breakpoint. The project
-// name derives from the snapshot's project_id (shell.mjs); the root path is
-// the CLI root. The global LiveStatus indicator is rendered once by Main as
-// a floating chip so page headers stay focused on their own content.
+// The current page title is the primary header identity on every breakpoint;
+// the project root remains as supporting context. The global LiveStatus
+// indicator is rendered once by Main as a floating chip.
 function Header(props) {
   // bp           (signal, required — current breakpoint)
   // drawerOpen   (signal, required — reflects the NARROW drawer state)
   // onOpenDrawer (function, required — opens the NARROW drawer)
-  const { snapshot } = useStore();
+  const { snapshot, route } = useStore();
   const showMenu = () => drawerAvailable(props.bp());
   const project = () => snapshot()?.project || {};
-  const name = () => projectDisplayName(snapshot());
+  const pageTitle = () => ROUTES[route()]?.label || "Overview";
   const root = () => project().root || "";
   function openFinder() {
     if (typeof window !== "undefined") {
@@ -278,8 +276,8 @@ function Header(props) {
       </Show>
       <div class="flex min-w-0 items-center gap-2">
         <span class="ui-brand-mark" aria-hidden="true">C</span>
-        <h1 class="ui-brand min-w-0 truncate text-section font-semibold text-ink" title={name()}>
-          {name()}
+        <h1 class="ui-brand min-w-0 truncate text-section font-semibold text-ink" title={pageTitle()}>
+          {pageTitle()}
         </h1>
       </div>
       <span class="ui-topbar-project mono hidden min-w-0 truncate md:flex" title={root()}>
