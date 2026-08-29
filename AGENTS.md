@@ -242,6 +242,17 @@ example with a temporary project smoke; it is not the control plane. The stable
 binary and the refactor worktree must use the same `CLIMIER_HOME` and project
 metadata.
 
+## Task sizing and agent budget
+
+Keep each task to one primary outcome, one owner and a verifiable acceptance.
+If a task is likely to exceed 100 agent turns, split it before delegation;
+prefer smaller sequential slices for central contracts, persistence and
+integration. Split by real boundaries such as contract/foundation,
+implementation and integration, with exclusive paths and explicit dependencies.
+Do not wait for an agent to hit the limit: if the scope expands during work,
+narrow it or leave a concrete handoff for a follow-up task rather than adding
+unrelated changes.
+
 ## Local AI workflow
 
 This repository carries the portable agent workflow used by the Climier-based projects:
