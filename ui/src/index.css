@@ -1098,10 +1098,10 @@ body {
 .ui-shell-topbar {
   height: 60px;
   padding-inline: 24px;
-  background: rgba(250, 249, 246, 0.82);
+  background: var(--ui-bg);
   border: 0;
   box-shadow: none;
-  backdrop-filter: saturate(125%) blur(18px);
+  backdrop-filter: none;
 }
 
 .ui-sidebar {
@@ -1395,6 +1395,12 @@ body {
   border-color: rgba(210, 207, 200, 0.9);
   background: rgba(255, 255, 252, 0.9);
   box-shadow: 0 8px 24px rgba(47, 43, 36, 0.11);
+}
+
+/* Keep the shell header and the page canvas on the same paper tone. The
+ * sidebar and cards can still use their own surfaces to preserve hierarchy. */
+.ui-main {
+  background: var(--ui-bg);
 }
 
 /* Board: columns are the grey trays; cards are the quiet white objects in
