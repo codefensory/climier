@@ -781,9 +781,9 @@ export default function App() {
   return (
     <StoreProvider>
       <RouteSync />
-      <div class="ui-shell flex h-dvh min-h-0 bg-canvas text-body">
+      <div class="ui-shell flex h-dvh min-h-0 overflow-hidden bg-canvas text-body">
         <Sidebar bp={bp} />
-        <div class="flex min-w-0 flex-1 flex-col">
+        <div class="flex min-h-0 min-w-0 flex-1 flex-col">
           <Header
             bp={bp}
             drawerOpen={drawerOpen}
