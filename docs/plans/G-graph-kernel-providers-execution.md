@@ -78,13 +78,12 @@ B1 contrato kernel/tx/revision (serial)
   ↓
 B2 extracción de primitivas y fachada v2 (serial)
   ↓
-B3 migración de adapters mutantes (serial por ola)
-  ↓
 B4 providers task + gate + knowledge (hasta 3 en paralelo)
-  ↓
-B5 policy provider y seam de autorización
+  ├──────────────→ B5 policy provider y seam de autorización
   ↓
 B6A buildRegistry(providers) (serial; no toca dispatch)
+  ↓
+B3 migración de adapters mutantes (serial por ola)
   ↓
 B6B api.core.run adapter (serial)
   ↓
@@ -93,9 +92,12 @@ B7 dispatch CLI y adapters de flags (serial)
 B8 integración, concurrencia, snapshots y UI
 ```
 
-B1 debe terminar antes de materializar B3/B4/B6A. B6A no puede tocar
-`plugin-core-adapter.mjs` ni `bin/climier.mjs`; B6B es quien consume el nuevo
-builder. B4 puede paralelizarse únicamente por provider y después de B2.
+B1 debe terminar antes de materializar B2/B4. B4 solo puede paralelizarse por
+provider y después de B2, con máximo tres workers. B5 puede comenzar cuando B2
+esté validado y no comparte paths con B4. B6A depende de los providers; no
+puede tocar `plugin-core-adapter.mjs` ni `bin/climier.mjs`. B3 consume el
+registry ya construido y los providers/policy validados. B6B es quien consume
+el builder desde la API de plugins.
 
 ## 4. Slices candidatos
 
@@ -135,20 +137,23 @@ Las siguientes piezas son candidatas a tasks. Este plan no las crea.
 
 ### B2 — grafo y fachada
 
-- Paths: `src/kernel/edges.mjs`, `src/kernel/graph.mjs`,
-  `src/v2.mjs`, `src/providers/task/*`, `src/providers/gate/*`,
-  `src/providers/knowledge/*` solo para funciones puras extraídas.
-- Acceptance: `v2.mjs` re-exporta sin segunda implementación; el mapa de
-  funciones del ADR-012 queda verificable; consumers actuales siguen
-  resolviendo sus imports.
+- Paths exclusivos: `src/kernel/edges.mjs`, `src/kernel/graph.mjs`,
+  `src/v2.mjs` y tests nuevos de kernel/fachada.
+- Cambiar: extraer primitivas genéricas de edges y traversals; `v2.mjs`
+  delega o re-exporta sin conservar una segunda implementación canónica.
+- Acceptance: `v2.mjs` mantiene los imports públicos actuales; el mapa de
+  funciones genéricas del ADR-012 queda verificable; consumers actuales siguen
+  resolviendo sus imports; el kernel no contiene semántica de lifecycle,
+  providers ni filesystem.
 - Tests mínimos: `node --test test/v2-edges.test.mjs
-  test/v2-adversarial.test.mjs`; `npm run test:ui` solo si cambia el consumidor
-  directo `ui/server/server.mjs`.
-- No-go: mutadores, registry y `bin/climier.mjs`.
+  test/v2-adversarial.test.mjs` y tests nuevos de `kernel/`; `npm run test:ui`
+  solo si cambia el consumidor directo `ui/server/server.mjs`.
+- No-go: `src/providers/*`, mutadores, registry y `bin/climier.mjs`.
 
 ### B3 — adapters de mutadores
 
-Se ejecuta en dos olas seriales para limitar el blast radius:
+Se ejecuta en dos olas seriales para limitar el blast radius y después de
+B4+B5+B6A:
 
 1. `add-task`, `add-node`, `add-edge`, `take`, `update`:
    `test/v2-blocked-by.test.mjs`, `test/v2-edges.test.mjs`,
@@ -158,15 +163,17 @@ Se ejecuta en dos olas seriales para limitar el blast radius:
    `test/v2-lifecycle.test.mjs`, `test/v2-supersede.test.mjs`,
    `test/plugin-log-seam.test.mjs`.
 
-Cada handler queda como adapter del provider/kernel. `update` mantiene sus
+Cada handler queda como adapter del provider/kernel, sin `withLock`,
+`updateState`, `appendWithContext` ni incremento manual. `update` mantiene sus
 flags CLI actuales y exige `--if-revision`; `note.add` exige revisión y bump.
-No-go: cambiar operation registry o dispatch en estas olas.
+No-go: cambiar `plugin-core-adapter.mjs` o `bin/climier.mjs` en estas olas.
 
 ### B4 — providers de dominio
 
 - Paths exclusivos: `src/providers/task/*`, `src/providers/gate/*`,
   `src/providers/knowledge/*`, con tests de cada dominio.
-- Dependencia: B1+B2+B3.
+- Dependencia: B1+B2. Los tres providers pueden paralelizarse entre sí, pero
+  cada worker toca solo su directorio y tests.
 - Acceptance común: `prepare` valida dominio, `apply` usa únicamente tx,
   lifecycle y proyecciones conservan semántica, errores estructurados y no hay
   acceso a filesystem.
@@ -180,10 +187,12 @@ No-go: cambiar operation registry o dispatch en estas olas.
 ### B5 — policy transversal
 
 - Paths: `src/providers/policy/*`, `src/policy.mjs`, tests policy.
-- Dependencia: B1+B2+B3.
+- Dependencia: B1+B2; puede ejecutarse después de B2 y en paralelo con la
+  implementación de providers B4 si no comparte paths.
 - Acceptance: `applies` selecciona descriptor por metadata fuera del lock;
   `authorize` corre dentro del lock con snapshot y plan frescos; errores
-  `POLICY_DENIED` y allow/deny/abstain se preservan; no hay doble lock.
+  `POLICY_DENIED` y allow/deny/abstain se preservan; no hay doble lock; los
+  adapters posteriores reciben solo el descriptor seleccionado.
 - Tests mínimos: `node --test test/plugin-policy-parity-cli-api.test.mjs
   test/plugin-policy-concurrency.test.mjs
   test/plugin-policy-seam-dag.test.mjs
@@ -193,16 +202,18 @@ No-go: cambiar operation registry o dispatch en estas olas.
 ### B6A — builder del registry
 
 - Paths: `src/plugin-core-registry.mjs` y su test.
-- Dependencia: B1+B2; ownership serial.
+- Dependencia: B1+B2+B4; ownership serial. No inicia hasta que los tres
+  providers tengan validación PASS.
 - Acceptance: `buildRegistry(providers)` construye entries con `id`, `kind`,
   provider `prepare/apply`; detecta colisiones; no toca adapter ni dispatch;
-  no persiste registro.
+  no persiste registro y no importa handlers mutantes.
 - Tests mínimos: `node --test test/plugin-core-registry.test.mjs`.
 
 ### B6B — adapter `api.core.run`
 
 - Paths: `src/plugin-core-adapter.mjs`, errores y tests de adapter.
-- Dependencia: B6A+B5.
+- Dependencia: B6A+B5; B3 puede ejecutarse antes o en paralelo, pero B7 espera
+  ambos.
 - Acceptance: resuelve operation IDs, fija actor/pluginId desde host, rechaza
   `as`/`_as`, traduce errores estructurados, ejecuta kernel y preserva
   `plugin_id` en logs; no ejecuta argv ni importa comandos mutantes.
