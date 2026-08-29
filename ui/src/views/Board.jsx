@@ -1,17 +1,16 @@
 // Kanban board for climier tasks.
 //
 // Contract (ui-redesign-plan.md section 6 Fase 5A, Track A):
-//   - Four columns: Ready / In progress / Blocked / Backlog.
-//   - Columns never go below 280 px; horizontal scroll kicks in before
-//     cards are squashed. We use grid-template-columns: repeat(4, minmax(280px,
-//     1fr)) and let the parent overflow-x-scroll.
-//   - Sticky column header with count and a one-line explanation of what the
-//     column means in the dashboard's vocabulary.
+//   - Four task columns: Ready / In progress / Blocked / Backlog. Open gates
+//     join the same grid as an optional first column, immediately before Ready.
+//   - Columns never go below 280 px; horizontal scroll kicks in before cards
+//     are squashed. The grid grows to five columns only when gates are present.
+//   - Column headers show only the label and count; the board stays scannable
+//     without explanatory subtitles under every status.
 //   - Cards use the visual contract (16 px padding, radius 12, hairline
 //     border, no shadow). Hierarchy: id + status, title, initiative + claim,
 //     principal blocker callout only when blocked.
-//   - Open gates rail above the columns. Collapsible; the rail is hidden
-//     entirely when there are no open gates.
+//   - The open-gates column is hidden entirely when there are no open gates.
 //   - History (done / canceled / superseded) is NOT mixed in here. The
 //     footer offers a link to the Tasks view, where the user can filter.
 //   - No drag-and-drop and no mutating actions. Clicking a card opens
@@ -33,7 +32,6 @@ import { useStore } from "../store.jsx";
 import {
   PageHeader,
   PageLayout,
-  Panel,
   Chip,
   StatusBadge,
   EmptyState,
@@ -155,67 +153,48 @@ function BoardCard(props) {
   );
 }
 
-// === Open gates rail ========================================================
-// Collapsible rail of open gates. Hidden when there are no open gates.
-// Default expanded (the user came here for a reason; open gates are the
-// reason). Clicking the header toggles the panel.
+// === Open gates column ======================================================
+// Open gates share the task columns' visual and spatial level. The column is
+// only mounted when the filtered gate pool has items.
 
-function OpenGatesRail(props) {
+function OpenGatesColumn(props) {
   // gates  (array of node objects, required)
-  const [open, setOpen] = createSignal(true);
   const select = useStore().select;
   return (
-    <Panel padding="compact" class="ui-board-gates">
-      <div class="flex items-center justify-between gap-3">
-        <button
-          type="button"
-          class="flex min-h-[36px] items-center gap-2 rounded-control px-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
-          onClick={() => setOpen(!open())}
-          aria-expanded={open()}
-          aria-controls="board-open-gates-body"
-        >
-          <span class="mono text-[12px] uppercase tracking-wider text-mute">
-            Open gates
-          </span>
-          <Chip tone="gate">{props.gates.length}</Chip>
-          <span class="text-[12px] text-mute">
-            {open() ? "hide" : "show"}
-          </span>
-        </button>
-        <span class="text-[12px] text-mute">
-          Resolve a gate to unblock downstream tasks.
-        </span>
-      </div>
-      <Show when={open()}>
-        <div id="board-open-gates-body" class="mt-3">
-          <div class="flex gap-2 overflow-x-auto pb-1">
-            <For each={props.gates}>
-              {(g) => (
-                <button
-                  type="button"
-                  class="ui-list-row w-64 shrink-0 rounded-card border border-gate bg-gate-soft p-3 text-left transition-colors hover:bg-panel focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
-                  onClick={() => select(g.id)}
-                  aria-label={`${g.id} ${g.title}`}
-                >
-                  <div class="flex items-center justify-between gap-2">
-                    <span class="mono text-[12px] text-gate">{g.id}</span>
-                    <Chip tone="gate">{g.purpose || "decision"}</Chip>
-                  </div>
-                  <div class="mt-2 line-clamp-2 text-[13px] font-medium leading-5 text-ink" title={g.title}>
-                    {g.title}
-                  </div>
-                  <Show when={g.body}>
-                    <div class="mt-1 line-clamp-2 text-[12px] leading-4 text-mute" title={g.body}>
-                      {g.body}
-                    </div>
-                  </Show>
-                </button>
-              )}
-            </For>
-          </div>
+    <div class="ui-detail-card ui-board-column ui-board-gates flex h-full min-h-0 flex-col overflow-auto rounded-card border border-line bg-panel">
+      <header class="ui-board-column-header sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-line bg-panel/95 px-4 py-3 backdrop-blur-[2px]">
+        <div class="ui-board-column-header-title">
+          <span class="ui-board-column-dot ui-board-column-dot--gate" aria-hidden="true" />
+          <span>Open gates</span>
         </div>
-      </Show>
-    </Panel>
+        <div class="ui-board-column-header-count shrink-0">{props.gates.length}</div>
+      </header>
+      <div class="ui-board-column-body flex-1 min-h-0 space-y-2 p-3">
+        <For each={props.gates}>
+          {(g) => (
+            <button
+              type="button"
+              class="ui-list-row w-full rounded-card border border-gate bg-gate-soft p-3 text-left transition-colors hover:bg-panel focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
+              onClick={() => select(g.id)}
+              aria-label={`${g.id} ${g.title}`}
+            >
+              <div class="flex items-center justify-between gap-2">
+                <span class="mono text-[12px] text-gate">{g.id}</span>
+                <Chip tone="gate">{g.purpose || "decision"}</Chip>
+              </div>
+              <div class="mt-2 line-clamp-2 text-[13px] font-medium leading-5 text-ink" title={g.title}>
+                {g.title}
+              </div>
+              <Show when={g.body}>
+                <div class="mt-1 line-clamp-2 text-[12px] leading-4 text-mute" title={g.body}>
+                  {g.body}
+                </div>
+              </Show>
+            </button>
+          )}
+        </For>
+      </div>
+    </div>
   );
 }
 
@@ -224,20 +203,16 @@ function OpenGatesRail(props) {
 // the column so a long backlog keeps the count visible.
 
 function Column(props) {
-  // label       (string, required)
-  // explanation (string, required)
-  // tone        (status key for the count color)
-  // count       (number, required)
-  // children    (node, required — list of cards or empty state)
+  // label (string, required)
+  // tone  (status key for the count color)
+  // count (number, required)
+  // children (node, required — list of cards or empty state)
   return (
     <div class="ui-detail-card ui-board-column flex h-full min-h-0 flex-col overflow-auto rounded-card border border-line bg-panel">
       <header class="ui-board-column-header sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-line bg-panel/95 px-4 py-3 backdrop-blur-[2px]">
-        <div class="min-w-0">
-          <div class="ui-board-column-header-title">
-            <span class={`ui-board-column-dot ui-board-column-dot--${props.tone || "backlog"}`} aria-hidden="true" />
-            <span>{props.label}</span>
-          </div>
-          <div class="mt-1 text-[12px] leading-4 text-mute">{props.explanation}</div>
+        <div class="ui-board-column-header-title">
+          <span class={`ui-board-column-dot ui-board-column-dot--${props.tone || "backlog"}`} aria-hidden="true" />
+          <span>{props.label}</span>
         </div>
         <div class="ui-board-column-header-count shrink-0">{props.count}</div>
       </header>
@@ -250,7 +225,7 @@ function Column(props) {
 
 // === Board ==================================================================
 // Top-level view. Splits into: header, filter bar, optional open-gates
-// rail, four-column kanban, and a footer with a link to the Tasks view for
+// column, four-column kanban, and a footer with a link to the Tasks view for
 // history (done / canceled / superseded).
 
 export default function Board() {
@@ -353,50 +328,22 @@ export default function Board() {
     setInitiative("");
   }
 
-  // Column definitions. Keeping them as a memo means the explanation /
-  // count stay in lock-step with the snapshot and the filters.
+  // Column definitions. Keeping them as a memo keeps the counts in lock-step
+  // with the snapshot and the filters.
   const columns = createMemo(() => {
     const t = filteredTasks();
     return [
-      {
-        key: "ready",
-        label: "Ready",
-        explanation: "Tasks with no live blockers; ready to claim.",
-        status: "ready",
-        cards: t.ready,
-      },
-      {
-        key: "in_progress",
-        label: "In progress",
-        explanation: "Tasks already claimed and being worked on.",
-        status: "in_progress",
-        cards: t.in_progress,
-      },
-      {
-        key: "blocked",
-        label: "Blocked",
-        explanation: "Tasks waiting on at least one live blocker.",
-        status: "blocked",
-        cards: t.blocked,
-      },
-      {
-        key: "backlog",
-        label: "Backlog",
-        explanation: "Tasks parked until promoted to active work.",
-        status: "backlog",
-        cards: t.backlog,
-      },
+      { key: "ready", label: "Ready", status: "ready", cards: t.ready },
+      { key: "in_progress", label: "In progress", status: "in_progress", cards: t.in_progress },
+      { key: "blocked", label: "Blocked", status: "blocked", cards: t.blocked },
+      { key: "backlog", label: "Backlog", status: "backlog", cards: t.backlog },
     ];
   });
 
   return (
     <PageLayout mode="workspace">
       <div class="ui-workspace-header">
-        <PageHeader
-          eyebrow="Work"
-          title="Board"
-          subtitle="What is moving, what is blocked, and what is queued — one column per status."
-        />
+        <PageHeader title="Board" />
       </div>
 
       <div class="ui-workspace-body flex min-h-0 flex-1 flex-col gap-4">
@@ -430,10 +377,6 @@ export default function Board() {
           </select>
         </FilterBar>
 
-        <Show when={filteredGates().length > 0}>
-          <OpenGatesRail gates={filteredGates()} />
-        </Show>
-
         <Show
           when={hasAnyActiveWork()}
           fallback={
@@ -465,12 +408,17 @@ export default function Board() {
             </div>
           }
         >
-          <div class="ui-board-columns grid min-h-0 flex-1 gap-3 overflow-x-auto" style={{ "grid-template-columns": "repeat(4, minmax(280px, 1fr))" }}>
+          <div
+            class="ui-board-columns grid min-h-0 flex-1 gap-3 overflow-x-auto"
+            style={{ "grid-template-columns": `repeat(${columns().length + (filteredGates().length > 0 ? 1 : 0)}, minmax(280px, 1fr))` }}
+          >
+            <Show when={filteredGates().length > 0}>
+              <OpenGatesColumn gates={filteredGates()} />
+            </Show>
             <For each={columns()}>
               {(col) => (
                 <Column
                   label={col.label}
-                  explanation={col.explanation}
                   tone={col.status}
                   count={col.cards.length}
                 >

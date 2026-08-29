@@ -1462,6 +1462,7 @@ body {
 .ui-board-column-dot--in_progress { background: var(--ui-blue); }
 .ui-board-column-dot--blocked { background: #c75143; }
 .ui-board-column-dot--backlog { background: var(--ui-muted-2); }
+.ui-board-column-dot--gate { background: var(--ui-gold); }
 
 .ui-board-card {
   border-radius: 12px;
