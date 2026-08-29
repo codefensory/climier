@@ -62,6 +62,7 @@ import {
 } from "./providers/knowledge/index.mjs";
 import { edgeAddProvider } from "./providers/core/edge.mjs";
 import { noteAddProvider } from "./providers/core/note.mjs";
+import { initiativeCreateProvider } from "./providers/core/initiative.mjs";
 
 // ADMITTED_KINDS — whitelist of supported kinds for built-in entries.
 // Knowledge scopes/ranking helpers are not part of the registry
@@ -98,12 +99,12 @@ const KNOWLEDGE_OPERATION_IDS = Object.freeze([
   "knowledge.deprecate",
 ]);
 // CORE_OPERATION_IDS — kernel-resident operations that mutate the
-// graph itself (edges, notes). They are not resolvable / gate /
-// knowledge entries because they don't target a single node kind;
-// they sit on their own kind so consumers can branch on the
+// graph itself (edges, notes, initiatives). They are not resolvable /
+// gate / knowledge entries because they don't target a single node
+// kind; they sit on their own kind so consumers can branch on the
 // operation domain. This list is the contract §B6B exposes via
-// bootstrapBuiltins: edge.add and note.add.
-const CORE_OPERATION_IDS = Object.freeze(["edge.add", "note.add"]);
+// bootstrapBuiltins: edge.add, note.add and initiative.create.
+const CORE_OPERATION_IDS = Object.freeze(["edge.add", "note.add", "initiative.create"]);
 
 // asError — shaped error factory; mirrors `throwV2` from `errors.mjs`
 // but stays self-contained so the registry is a leaf module that does
@@ -406,6 +407,7 @@ function collectBuiltins() {
   const coreProviders = {
     "edge.add": edgeAddProvider,
     "note.add": noteAddProvider,
+    "initiative.create": initiativeCreateProvider,
   };
   const coreEntries = CORE_OPERATION_IDS.map((id) => {
     const provider = coreProviders[id];
