@@ -1422,7 +1422,6 @@ body {
 }
 
 .ui-board-column-header {
-  min-height: 54px;
   border-color: transparent;
   background: transparent;
   padding: 12px 16px 7px;
