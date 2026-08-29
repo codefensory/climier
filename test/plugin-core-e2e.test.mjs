@@ -173,23 +173,28 @@ test("e2e: install + happy — full first slice leaves intact state, plugin_id o
       FIXTURE_NAMESPACE, "happy",
     ]);
     assert.equal(out.command, "happy");
-    // Envelopes returned by the handlers — asserted on every shape the
-    // first slice produces (ADR-006 plan §4.5 acceptance #1).
-    assert.ok(out.create1 && out.create1.node && out.create1.node.id === "T-core-happy-1");
-    assert.ok(out.create2 && out.create2.node && out.create2.node.id === "T-core-happy-2");
-    assert.ok(out.edge && out.edge.edge && out.edge.edge.type === "BLOCKS");
-    assert.equal(out.edge.edge.from, "T-core-happy-1");
-    assert.equal(out.edge.edge.to, "T-core-happy-2");
-    assert.ok(out.taken && out.taken.node && out.taken.node.claim && out.taken.node.claim.by === "core-agent");
-    assert.equal(out.taken.freshly_claimed, true);
-    assert.ok(out.resolved && out.resolved.node && out.resolved.node.status === "done");
-    assert.equal(out.resolved.node.done_by, "core-agent");
-    assert.equal(out.resolved.node.note, "happy: shipped via core.run");
-    assert.ok(
-      out.noted && out.noted.node &&
-        Array.isArray(out.noted.node.notes) &&
-        out.noted.node.notes.some((n) => n.text === "happy: ctx note via core.run"),
-    );
+    // Typed results returned by api.core.run — every mutation carries its
+    // projected result, canonical diff, and operation log entry.
+    assert.ok(out.create1 && out.create1.result && out.create1.diff && out.create1.log_entry);
+    assert.equal(out.create1.result.id, "T-core-happy-1");
+    assert.equal(out.create1.diff.created[0].node.id, "T-core-happy-1");
+    assert.ok(out.create2 && out.create2.result && out.create2.diff && out.create2.log_entry);
+    assert.equal(out.create2.result.id, "T-core-happy-2");
+    assert.equal(out.create2.diff.created[0].node.id, "T-core-happy-2");
+    assert.ok(out.edge && out.edge.result && out.edge.diff && out.edge.log_entry);
+    assert.equal(out.edge.result.edge.type, "BLOCKS");
+    assert.equal(out.edge.result.edge.from, "T-core-happy-1");
+    assert.equal(out.edge.result.edge.to, "T-core-happy-2");
+    assert.deepEqual(out.edge.diff.added_edges, [out.edge.result.edge]);
+    assert.ok(out.taken && out.taken.result && out.taken.diff && out.taken.log_entry);
+    assert.equal(out.taken.result.claim.by, "core-agent");
+    assert.equal(out.taken.result.freshly_claimed, true);
+    assert.ok(out.resolved && out.resolved.result && out.resolved.diff && out.resolved.log_entry);
+    assert.equal(out.resolved.result.status, "done");
+    assert.equal(out.resolved.result.done_by, "core-agent");
+    assert.equal(out.resolved.result.note, "happy: shipped via core.run");
+    assert.ok(out.noted && out.noted.result && out.noted.diff && out.noted.log_entry);
+    assert.equal(out.noted.result.notes_count, 1);
 
     // 4. State assertions: both tasks exist with the right status; the
     //    BLOCKS edge is in place; the note thread is appended.
@@ -216,7 +221,7 @@ test("e2e: install + happy — full first slice leaves intact state, plugin_id o
       `expected at least 5 plugin-tagged log entries, got ${pluginLogs.length}`,
     );
     const seenActions = new Set(pluginLogs.map((e) => e.action));
-    for (const a of ["add-node", "add-edge", "take", "resolve", "add-note"]) {
+    for (const a of ["task.create", "edge.add", "task.take", "task.resolve", "note.add"]) {
       assert.ok(seenActions.has(a), `expected an action '${a}' in plugin logs`);
     }
     for (const e of pluginLogs) {
@@ -363,7 +368,9 @@ test("e2e: partial — successful task.create is preserved; subsequent failed ed
       FIXTURE_NAMESPACE, "partial",
     ]);
     assert.equal(out.command, "partial");
-    assert.ok(out.create && out.create.node && out.create.node.id === "T-core-partial-1");
+    assert.ok(out.create && out.create.result && out.create.diff && out.create.log_entry);
+    assert.equal(out.create.result.id, "T-core-partial-1");
+    assert.equal(out.create.diff.created[0].node.id, "T-core-partial-1");
     // The plugin returns the rejection envelope captured from the
     // edge.add call; the cause is wrapped by the adapter.
     assert.ok(out.rejected, "partial subcommand must surface the rejection");
@@ -390,7 +397,7 @@ test("e2e: partial — successful task.create is preserved; subsequent failed ed
     // no orphan edge entry, no edge.add entry).
     const pluginLogs = after.log.filter((e) => e.plugin_id === FIXTURE_ID);
     assert.equal(pluginLogs.length, 1, `expected exactly 1 plugin log entry, got ${pluginLogs.length}`);
-    assert.equal(pluginLogs[0].action, "add-node");
+    assert.equal(pluginLogs[0].action, "task.create");
     assert.equal(pluginLogs[0].node, "T-core-partial-1");
   });
 });
