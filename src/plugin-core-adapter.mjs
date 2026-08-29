@@ -1,152 +1,203 @@
-// T-plugin-core-api — `api.core` surface for plugin V2 (ADR-006).
+// src/plugin-core-adapter.mjs — V2 plugin core surface (ADR-006 §API y
+// compatibilidad + ADR-012 §2 + plan §B6B).
 //
-// Creates `createCore({ projectDir, agent, pluginId })` which yields the
-// `{ version, run }` object that `createApi` exposes as `api.core`. The
-// adapter is intentionally I/O-free except for the handler call:
-//   - it never executes argv;
-//   - it never opens a lock of its own (the invoked handler keeps its
-//     withLock → updateState → append invariant);
-//   - it never reads or imports the bin's parser.
+// `createCore({ projectDir, agent, pluginId })` returns
+// `{ version: 2, run }`. `run({ op, input })` is the SINGLE mutation
+// frontier for plugin-issued core actions: it routes every call
+// through the canonical registry built by `bootstrapBuiltins()` (17
+// op ids, see ADR-012 §2) and a single `kernel.mutate` invocation
+// per op. The adapter is intentionally a thin mapper:
+//   - no argv, no `commands/*`, no `readState`, no `withLock`,
+//     no `updateState`, no `append`, no CORE_REGISTRY;
+//   - actor and pluginId are fixed by the host (`createCore` args)
+//     and cannot be overridden through `input.as` / `input._as`
+//     (rejected before any state mutation);
+//   - policy selection happens OUTSIDE the lock
+//     (`loadApplicablePolicy`); policy decide happens INSIDE the lock
+//     (`kernel.mutate`'s `policyAction.decide`);
+//   - errors propagate with their structured envelopes:
+//       * POLICY_*  (POLICY_DENIED / POLICY_ERROR / POLICY_CONFLICT)
+//         surfaced verbatim — the kernel and the seam guarantee shape;
+//       * PLUGIN_*  (PLUGIN_CORE_*, PLUGIN_HANDLER_FAILED, …) surfaced
+//         verbatim — `isPluginError` short-circuits rewrap;
+//       * anything else is wrapped via `wrapCoreError` into
+//         PLUGIN_CORE_ACTION_FAILED with the cause envelope.
 //
-// Mapping rules (per ADR-006 §"Registry y adaptación" and the bootstrap
-// plan §3.4):
-//
-//   1. Reject before any handler call when:
-//        - op is not a registered key in CORE_REGISTRY;
-//        - input is missing or not a plain object (arrays/null not allowed);
-//        - input carries `as` or `_as` (identity is fixed by the host);
-//        - a required field is undefined in input.
-//
-//   2. Translate input to (positional, flags):
-//        - positional: pass through `entry.positional` names, omit
-//          undefined slots so add-task can auto-allocate an id when
-//          input omits one;
-//        - flags: snake → kebab via `entry.snakeToFlag`;
-//        - flags.as is fixed to `agent` (api.runtime.agent) and never
-//          taken from input.
-//
-//   3. On handler error:
-//        - rethrow any PLUGIN_* error unchanged (isPluginError covers
-//          PLUGIN_CORE_* exactly as well — the contract that
-//          PLUGIN_CORE_ACTION_FAILED never becomes PLUGIN_HANDLER_FAILED);
-//        - otherwise wrap as PLUGIN_CORE_ACTION_FAILED with details.op
-//          and a normalized cause (structured envelope when available,
-//          CORE_ERROR fallback otherwise).
+// The contract test (test/plugin-core-adapter.test.mjs) pins every
+// behavior listed above and is the single source of truth for
+// acceptance. Fixture-migration parity for the legacy `{ node }` /
+// `{ edge }` envelopes lives in the daughter fixture task.
 
-import { CORE_REGISTRY, SUPPORTED_OPS } from "./plugin-core-registry.mjs";
+import { bootstrapBuiltins } from "./plugin-core-registry.mjs";
+import { mutate } from "./kernel/mutate.mjs";
+import { loadApplicablePolicy, authorizeAction, isPolicyError } from "./policy.mjs";
 import {
   PluginCoreInvalidOperation,
   isPluginError,
+  PolicyError,
   wrapCoreError,
 } from "./plugin-errors.mjs";
 
-function buildCtxArgs(pluginId, op, input, agent) {
-  const entry = CORE_REGISTRY[op];
-  if (!entry) {
+// Build the registry once at module load. The registry is
+// `Object.freeze`-d and only carries `{ id, kind, provider }`
+// entries; no filesystem, lock, state, log, policy, commands or
+// bin references leak in (ADR-012 §5).
+const REG = bootstrapBuiltins();
+
+function supportedOps() {
+  // Return a fresh slice so callers cannot mutate the registry's
+  // frozen `ops` array through the supported list.
+  return REG.ops.slice();
+}
+
+// validateOp — op must be a non-empty string registered in the
+// built-in registry. Anything else (undefined, null, number, unknown
+// string) is the same "unknown operation" branch; the rejection
+// happens before any state mutation and carries the full supported
+// list so callers can recover without scanning the source.
+function validateOp(pluginId, op) {
+  if (typeof op !== "string" || !op) {
     throw new PluginCoreInvalidOperation(
       pluginId,
-      op,
-      SUPPORTED_OPS,
+      typeof op === "string" ? op : "",
+      supportedOps(),
       "unknown operation",
     );
   }
-  // input: must be a non-null, non-array object.
-  if (
-    !input ||
-    typeof input !== "object" ||
-    Array.isArray(input)
-  ) {
+  if (!REG.has(op)) {
     throw new PluginCoreInvalidOperation(
       pluginId,
       op,
-      SUPPORTED_OPS,
+      supportedOps(),
+      "unknown operation",
+    );
+  }
+}
+
+// validateInput — input must be a non-null, non-array object;
+// `as` / `_as` are forbidden because the actor is fixed by the host
+// (api.runtime.agent) and must never be substituted through plugin
+// input.
+function validateInput(pluginId, op, input) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    throw new PluginCoreInvalidOperation(
+      pluginId,
+      op,
+      supportedOps(),
       "input must be an object",
     );
   }
-  // The adapter fixes flags.as from api.runtime.agent; the plugin must
-  // never be able to substitute it through input.as (or its alias _as).
   if ("as" in input || "_as" in input) {
     throw new PluginCoreInvalidOperation(
       pluginId,
       op,
-      SUPPORTED_OPS,
+      supportedOps(),
       "input.as is forbidden",
     );
   }
-
-  // Validate required fields. A required field is either positional
-  // (named in entry.positional) or a flag (named in entry.snakeToFlag
-  // values). Anything missing from input throws BEFORE the handler call
-  // so the state cannot be mutated by an obviously incomplete request.
-  const flagValueSet = new Set(Object.values(entry.snakeToFlag || {}));
-  const positionalSet = new Set(entry.positional);
-  for (const req of entry.required) {
-    if (positionalSet.has(req)) {
-      if (input[req] === undefined) {
-        throw new PluginCoreInvalidOperation(
-          pluginId,
-          op,
-          SUPPORTED_OPS,
-          `missing required field '${req}'`,
-        );
-      }
-    } else if (flagValueSet.has(req)) {
-      // The handler exposes this field under its kebab-case flag name;
-      // input must carry the corresponding snake_case key.
-      const snakeKey = Object.keys(entry.snakeToFlag).find(
-        (k) => entry.snakeToFlag[k] === req,
-      );
-      if (!snakeKey || input[snakeKey] === undefined) {
-        throw new PluginCoreInvalidOperation(
-          pluginId,
-          op,
-          SUPPORTED_OPS,
-          `missing required field '${snakeKey || req}'`,
-        );
-      }
-    } else {
-      // Required field neither positional nor flag — defensive: refuse
-      // rather than silently accept. This branch should not fire on
-      // the current first-slice registry.
-      throw new PluginCoreInvalidOperation(
-        pluginId,
-        op,
-        SUPPORTED_OPS,
-        `missing required field '${req}'`,
-      );
-    }
-  }
-
-  // Build positional: filter undefined so add-task can auto-allocate
-  // an id when input omits one. String() coerces numbers/etc. to keep
-  // the handler signature stable.
-  const positional = entry.positional
-    .map((name) =>
-      input[name] !== undefined ? String(input[name]) : undefined,
-    )
-    .filter((v) => v !== undefined);
-
-  // Build flags: snake → kebab mapping, plus the adapter-fixed flags.as.
-  const flags = {};
-  for (const [snake, kebab] of Object.entries(entry.snakeToFlag || {})) {
-    if (input[snake] !== undefined) flags[kebab] = input[snake];
-  }
-  if (typeof agent === "string" && agent.length > 0) {
-    flags.as = agent;
-  }
-
-  return { entry, positional, flags };
 }
 
-// createCore — exposes api.core: { version: 2, run({ op, input }) }.
-//
-// contract (ADR-006 §"API y compatibilidad"):
-//   - exactly one action per call (no argv, no callback, no batch);
-//   - returns the handler's envelope ({ node } / { edge } / ...);
-//   - throws PLUGIN_CORE_INVALID_OPERATION before any state mutation;
-//   - throws PLUGIN_CORE_ACTION_FAILED for any handler-level failure;
-//   - rethrows any PLUGIN_* errors untouched so they do not get wrapped
-//     into PLUGIN_HANDLER_FAILED at the dispatch layer.
+// buildRequest — translate the host-facing input into the kernel
+// request shape. `request.action` is the op id; `request.actor` is
+// the host-fixed agent; `request.input` is the typed input the
+// provider receives. When the input declares `if_revision` AND
+// targets a node (`input.id` is a string), the request carries the
+// single-CAS precondition so `kernel.mutate` validates it under the
+// lock; the provider's `prepare` independently rejects inputs
+// without `if_revision` (provider-level MISSING_FIELD) so the
+// kernel-level precondition is purely a safety net.
+function buildRequest(op, agent, input) {
+  const request = {
+    action: op,
+    actor: agent,
+    input,
+  };
+  if (
+    input &&
+    typeof input === "object" &&
+    !Array.isArray(input) &&
+    typeof input.id === "string" &&
+    input.id.length > 0 &&
+    Number.isInteger(input.if_revision) &&
+    input.if_revision >= 1
+  ) {
+    request.if_revision = {
+      kind: "single",
+      id: input.id,
+      value: input.if_revision,
+    };
+  }
+  return request;
+}
+
+// buildPolicyAction — turn a `loadApplicablePolicy` result into the
+// `{ decide, action, pluginId }` shape the kernel expects. With no
+// installed policy, return `undefined` so `kernel.mutate` short-
+// circuits the policy step (default abstain — see ADR-008 §"Seam por
+// handler"). The wrapper here is the only place authorizeAction is
+// invoked; the kernel never reaches into the loader directly.
+function buildPolicyAction(policy, op, projectDir) {
+  if (!policy) return undefined;
+  return {
+    action: op,
+    pluginId: policy.pluginId || null,
+    async decide({ snapshot, target, request, action }) {
+      return await authorizeAction({
+        policy,
+        action: action || op,
+        actor: request.actor,
+        target,
+        snapshot,
+        projectDir,
+        projectConfig: policy.projectConfig,
+      });
+    },
+  };
+}
+
+// selectPolicy — load the applicable policy outside the lock and
+// normalize its errors. `loadApplicablePolicy` throws
+// `PolicyError(action="applies")` when the policy's `applies()`
+// raises; the adapter re-wraps that error with the caller's op id
+// (`task.create`, `task.update`, …) so POLICY_ERROR surfaces with
+// `details.action === <op>`, matching the contract pinned by the
+// adapter tests. Any other error propagates unchanged.
+async function selectPolicy({ projectDir, op, pluginId }) {
+  let policy;
+  try {
+    policy = await loadApplicablePolicy({ projectDir });
+  } catch (err) {
+    if (
+      isPolicyError(err) &&
+      err.code === "POLICY_ERROR" &&
+      err.details &&
+      err.details.action === "applies"
+    ) {
+      throw new PolicyError(
+        err.details.plugin_id || "(unknown)",
+        op,
+        err,
+      );
+    }
+    throw err;
+  }
+  return policy;
+}
+
+/**
+ * createCore — exposes `api.core` as `{ version: 2, run }`.
+ *
+ * @param {object} args
+ * @param {string} args.projectDir - Project directory (the same
+ *   directory the bin resolves; the lock and state files live under
+ *   `$CLIMIER_HOME/projects/<project_id>/` keyed by `.climier.json`).
+ * @param {string} args.agent - Host agent identity; every mutation
+ *   is stamped with this actor and overrides any `input.as`.
+ * @param {string} args.pluginId - Host plugin id; tagged on log
+ *   entries via `plugin_id`; cannot be substituted by input.
+ *
+ * @returns {{ version: 2, run: function }}
+ */
 export function createCore({ projectDir, agent, pluginId }) {
   if (typeof projectDir !== "string" || !projectDir) {
     throw new Error("createCore: projectDir required");
@@ -158,45 +209,75 @@ export function createCore({ projectDir, agent, pluginId }) {
   return {
     version: 2,
 
+    /**
+     * run — the single mutation frontier for plugin core actions.
+     *
+     * @param {object} args
+     * @param {string} args.op - One of the 17 op ids in `bootstrapBuiltins()`.
+     * @param {object} args.input - Typed input; shape per provider.
+     *   `as` / `_as` are forbidden.
+     *
+     * @returns {Promise<{
+     *   result: any,
+     *   effects: object|null,
+     *   log_entry: object|null,
+     *   idempotent: boolean,
+     *   diff: {
+     *     created: { id, node }[],
+     *     updated: { id, node }[],
+     *     added_edges: Edge[],
+     *     removed_edges: Edge[],
+     *     removed_nodes: string[],
+     *     target_revision: number|null,
+     *     initiatives: { created: { name, initiative }[], updated: { name, initiative, previous }[] },
+     *   },
+     * }>}
+     */
     async run({ op, input } = {}) {
-      // op must be a string key in the registry. Anything else
-      // (undefined, null, a number, an unknown string) is the same
-      // "unknown operation" branch.
-      if (typeof op !== "string" || !op) {
-        throw new PluginCoreInvalidOperation(
+      // 1. Reject before any I/O. Unknown op / non-object input /
+      // `as` / `_as` produce a `PLUGIN_CORE_INVALID_OPERATION`
+      // envelope that lists the full supported set so callers can
+      // recover without parsing the message.
+      validateOp(pluginId, op);
+      validateInput(pluginId, op, input);
+
+      // 2. Policy selection — OUTSIDE the lock. The host pays the
+      // plugin import / descriptor read cost only when a plugin is
+      // installed; without any, loadApplicablePolicy returns null
+      // and the kernel skips the policy step.
+      const policy = await selectPolicy({ projectDir, op, pluginId });
+
+      // 3. Build the kernel request (typed mapping + optional CAS
+      // precondition) and the policy action (decide wrapper).
+      const request = buildRequest(op, agent, input);
+      const policyAction = buildPolicyAction(policy, op, projectDir);
+
+      // 4. ONE `kernel.mutate` call. The kernel owns the lock, the
+      // snapshot read, the precondition validation, the policy
+      // decide (under the lock), the tx, the apply, the diff, the
+      // revision assignment, the log entry, and the single atomic
+      // state+log write.
+      try {
+        return await mutate({
+          projectDir,
+          request,
+          provider: REG.lookup(op).provider,
+          policyAction,
           pluginId,
-          typeof op === "string" ? op : "",
-          SUPPORTED_OPS,
-          "unknown operation",
-        );
-      }
-
-      let parsed;
-      try {
-        parsed = buildCtxArgs(pluginId, op, input, agent);
+        });
       } catch (err) {
-        // PLUGIN_CORE_INVALID_OPERATION only — propagates untouched.
-        throw err;
-      }
-
-      const { entry, positional, flags } = parsed;
-      const ctx = {
-        statePath: projectDir,
-        projectDir,
-        flags,
-        positional,
-        pluginId,
-      };
-
-      try {
-        return await entry.handler(ctx);
-      } catch (err) {
-        // Existing PLUGIN_* envelopes (including PLUGIN_CORE_*) bubble
-        // as-is so dispatch.isPluginError short-circuits them and the
-        // CLI never rewrites them into PLUGIN_HANDLER_FAILED.
+        // POLICY_* errors are domain errors — the envelope already
+        // carries plugin_id / action / actor / reason (see
+        // kernel.mutate's runPolicy and the seam's PolicyDenied /
+        // PolicyError classes). Propagate verbatim so dispatch and
+        // the bin's catch block do not rewrite them.
+        if (isPolicyError(err)) throw err;
+        // PLUGIN_* errors (including PLUGIN_CORE_*) bubble up
+        // untouched. The dispatch.isPluginError short-circuit lives
+        // in bin/climier.mjs and must see the original envelope.
         if (isPluginError(err)) throw err;
-        // Anything else is treated as a core-handler failure and gets
-        // wrapped with details.op + cause (normalized if opaque).
+        // Anything else is a core-handler failure and gets wrapped
+        // with details.op + a normalized cause envelope.
         throw wrapCoreError(pluginId, op, err);
       }
     },
