@@ -14,12 +14,22 @@
 //   - falls back to a card list (<768px) so the view stays usable on
 //     phones without compressing the table.
 //
+// Identity contract (ADR-010 §3.4, ui-live-store-execution §3.4 / §12):
+//   - consumes `useStoreSelectors().nodesMap()` (the reconciled entity
+//     map) so task references stay stable across polls when content
+//     does not change;
+//   - iterates node IDs (strings) as the `<For>` source so Solid matches
+//     rows by stable id identity; the row body looks up the current
+//     node via `nodesMap()[id]`;
+//   - filters, tabs and sorting behavior are preserved verbatim — only
+//     the iteration target and the comparator inputs changed.
+//
 // The contract (components.jsx, store.jsx, snapshot shape) is frozen for
 // this task. If a new primitive is needed, ask via `add-note` rather than
 // touching shared files.
 
 import { createMemo, createSignal, Show, For } from "solid-js";
-import { useStore } from "../store.jsx";
+import { useStore, useStoreSelectors } from "../store.jsx";
 import {
   PageHeader,
   PageLayout,
@@ -96,10 +106,13 @@ function resolveStatus(node, derived) {
 
 // Sort comparators per column. Strings use locale-aware compare so titles
 // and ids feel native; the status column maps to STATUS_ORDER; the last-
-// activity column compares the snapshot's `last_activity` timestamp and
-// treats "no activity" as the oldest possible value. Direction is applied
-// by the caller (sorted() in the component) so this stays pure.
-function compareTasks(a, b, column, derived) {
+// activity column reads the snapshot's `last_activity` timestamp (passed
+// in by the caller so this stays pure) and treats "no activity" as the
+// oldest possible value. Direction is applied by the caller (sortedIds
+// in the component). We accept `lastActivity` as a parameter instead of
+// decorating each task so the row identity contract — `nodesMap()[id]`
+// returning the same proxy reference across polls — is preserved.
+function compareTasks(a, b, column, derived, lastActivity) {
   const valueOf = (n) => {
     switch (column) {
       case "status":        return STATUS_ORDER[resolveStatus(n, derived)] ?? 99;
@@ -108,7 +121,7 @@ function compareTasks(a, b, column, derived) {
       case "initiative":    return (n.initiative || "").toLowerCase();
       case "domain":        return (n.domain || "").toLowerCase();
       case "claimed_by":    return (n.claim?.by || "").toLowerCase();
-      case "last_activity": return n.__lastTs || "";
+      case "last_activity": return (lastActivity && lastActivity[n.id]?.ts) || "";
       default:              return "";
     }
   };
@@ -121,7 +134,9 @@ function compareTasks(a, b, column, derived) {
 
 export default function Nodes() {
   const { snapshot, select } = useStore();
+  const selectors = useStoreSelectors();
   const s = () => snapshot();
+  const nodesById = () => selectors.nodesMap();
 
   const [q, setQ] = createSignal("");
   const [status, setStatus] = createSignal("");
@@ -131,9 +146,29 @@ export default function Nodes() {
   const [sortBy, setSortBy] = createSignal("id");
   const [sortDir, setSortDir] = createSignal("asc");
 
+  // Task IDs sourced from the reconciled entity map. Filters down to
+  // `subkind === "task"` once, here, so downstream memos iterate ids
+  // instead of objects. The map reference (and therefore these ids)
+  // is stable across polls until a task is added, removed or changes
+  // subkind; inner content updates do not invalidate identity.
+  const taskIds = createMemo(() => {
+    const map = nodesById();
+    const out = [];
+    for (const id of Object.keys(map)) {
+      const n = map[id];
+      if (n && n.subkind === "task") out.push(id);
+    }
+    return out;
+  });
+
   const tasks = createMemo(() => {
-    const nodes = s()?.nodes || {};
-    return Object.values(nodes).filter((n) => n.subkind === "task");
+    const map = nodesById();
+    const out = [];
+    for (const id of taskIds()) {
+      const n = map[id];
+      if (n) out.push(n);
+    }
+    return out;
   });
 
   const derived = () => s()?.derived || { ready: [], backlog: [] };
@@ -161,8 +196,9 @@ export default function Nodes() {
   // other bucket with zero tasks) simply isn't offered.
   const statusCounts = createMemo(() => {
     const counts = {};
+    const d = derived();
     for (const n of tasks()) {
-      const ds = resolveStatus(n, derived());
+      const ds = resolveStatus(n, d);
       counts[ds] = (counts[ds] || 0) + 1;
     }
     return counts;
@@ -172,38 +208,55 @@ export default function Nodes() {
     STATUS_OPTIONS.filter((o) => (statusCounts()[o.value] || 0) > 0)
   );
 
-  const filtered = createMemo(() => {
-    let out = tasks();
+  // Filter by ID so the iteration target is a primitive (the id string)
+  // and Solid's <For> can preserve row identity when the underlying
+  // entity changes fields but stays in the filtered set. The lookup of
+  // the actual node happens inside the row body, reading from the
+  // reconciled map.
+  const filteredIds = createMemo(() => {
+    const map = nodesById();
+    const d = derived();
+    const want = status();
     const needle = q().trim().toLowerCase();
-    if (needle) {
-      out = out.filter((n) => {
+    const domainWanted = domain();
+    const agentWanted = claimedBy();
+    const iniWanted = ini();
+    const out = [];
+    for (const id of taskIds()) {
+      const n = map[id];
+      if (!n) continue;
+      if (needle) {
         const hay = `${n.id} ${n.title} ${n.domain || ""} ${(n.tags || []).join(" ")}`.toLowerCase();
-        return hay.includes(needle);
-      });
+        if (!hay.includes(needle)) continue;
+      }
+      if (want && resolveStatus(n, d) !== want) continue;
+      if (domainWanted && n.domain !== domainWanted) continue;
+      if (agentWanted && n.claim?.by !== agentWanted) continue;
+      if (iniWanted && n.initiative !== iniWanted) continue;
+      out.push(id);
     }
-    if (status()) {
-      const want = status();
-      out = out.filter((n) => resolveStatus(n, derived()) === want);
-    }
-    if (domain()) out = out.filter((n) => n.domain === domain());
-    if (claimedBy()) out = out.filter((n) => n.claim?.by === claimedBy());
-    if (ini()) out = out.filter((n) => n.initiative === ini());
     return out;
   });
 
-  const sorted = createMemo(() => {
+  // Sort the id array, not the entity objects. The comparator still
+  // needs node fields, so we resolve them through the reconciled map.
+  // The output is a new array of stable id strings; <For> preserves
+  // rows by id even when the array reference changes between polls.
+  const sortedIds = createMemo(() => {
+    const map = nodesById();
     const d = derived();
     const lastActivity = s()?.last_activity || {};
     const col = sortBy();
     const sign = sortDir() === "desc" ? -1 : 1;
-    // Decorate each task with the last-activity timestamp so the
-    // comparator stays a pure function and doesn't need to know about
-    // the snapshot shape.
-    const decorated = filtered().map((n) => ({
-      ...n,
-      __lastTs: lastActivity[n.id]?.ts || "",
-    }));
-    return decorated.sort((a, b) => sign * compareTasks(a, b, col, d));
+    const decorated = filteredIds().map((id) => {
+      const n = map[id];
+      // ResolveStatus needs the node — wrap to keep the comparator pure.
+      return { id, node: n };
+    });
+    decorated.sort((a, b) =>
+      sign * compareTasks(a.node, b.node, col, d, lastActivity),
+    );
+    return decorated.map((entry) => entry.id);
   });
 
   const hasFilters = createMemo(
@@ -368,7 +421,7 @@ export default function Nodes() {
           </div>
 
           <Show
-            when={sorted().length > 0}
+            when={sortedIds().length > 0}
             fallback={
               <div class="p-6">
                 <EmptyState
@@ -387,36 +440,37 @@ export default function Nodes() {
               </div>
             }
           >
-            <For each={sorted()}>
-              {(n) => {
-                const last = () => s()?.last_activity?.[n.id];
+            <For each={sortedIds()}>
+              {(id) => {
+                const n = () => nodesById()[id] || { id };
+                const last = () => s()?.last_activity?.[id];
                 return (
                   <button
                     type="button"
                     role="row"
                     class={rowBtnCls}
                     style={{ "grid-template-columns": GRID_TEMPLATE }}
-                    onClick={() => select(n.id)}
-                    aria-label={`Open ${n.id}: ${n.title}`}
+                    onClick={() => select(id)}
+                    aria-label={`Open ${id}: ${n().title || ""}`}
                   >
-                    <span role="gridcell"><StatusBadge status={resolveStatus(n, derived())} /></span>
-                    <span role="gridcell" class="mono truncate text-[13px] text-ink">{n.id}</span>
-                    <span role="gridcell" class="min-w-0 truncate text-[13px] text-body" title={n.title}>
-                      {n.title}
+                    <span role="gridcell"><StatusBadge status={resolveStatus(n(), derived())} /></span>
+                    <span role="gridcell" class="mono truncate text-[13px] text-ink">{id}</span>
+                    <span role="gridcell" class="min-w-0 truncate text-[13px] text-body" title={n().title}>
+                      {n().title}
                     </span>
                     <span role="gridcell">
-                      <Show when={n.initiative} fallback={<span class="text-[12px] text-mute">—</span>}>
-                        <Chip>{n.initiative}</Chip>
+                      <Show when={n().initiative} fallback={<span class="text-[12px] text-mute">—</span>}>
+                        <Chip>{n().initiative}</Chip>
                       </Show>
                     </span>
                     <span role="gridcell">
-                      <Show when={n.domain} fallback={<span class="text-[12px] text-mute">—</span>}>
-                        <Chip>{n.domain}</Chip>
+                      <Show when={n().domain} fallback={<span class="text-[12px] text-mute">—</span>}>
+                        <Chip>{n().domain}</Chip>
                       </Show>
                     </span>
                     <span role="gridcell" class="truncate text-[13px] text-body">
-                      <Show when={n.claim?.by} fallback={<span class="text-[12px] text-mute">—</span>}>
-                        <span class="truncate">{n.claim.by}</span>
+                      <Show when={n().claim?.by} fallback={<span class="text-[12px] text-mute">—</span>}>
+                        <span class="truncate">{n().claim.by}</span>
                       </Show>
                     </span>
                     <span role="gridcell">
@@ -438,7 +492,7 @@ export default function Nodes() {
       */}
       <div class="block min-h-0 flex-1 overflow-auto md:hidden">
         <Show
-          when={sorted().length > 0}
+          when={sortedIds().length > 0}
           fallback={
             <EmptyState
               variant="page"
@@ -456,18 +510,19 @@ export default function Nodes() {
           }
         >
           <div class="flex flex-col gap-3">
-            <For each={sorted()}>
-              {(n) => {
-                const last = () => s()?.last_activity?.[n.id];
-                const ds = () => resolveStatus(n, derived());
+            <For each={sortedIds()}>
+              {(id) => {
+                const n = () => nodesById()[id] || { id };
+                const last = () => s()?.last_activity?.[id];
+                const ds = () => resolveStatus(n(), derived());
                 return (
                   <NodeRow
-                    node={{ ...n, status: ds() }}
-                    onClick={() => select(n.id)}
+                    node={{ ...n(), status: ds() }}
+                    onClick={() => select(id)}
                     right={
                       <>
-                        <Show when={n.claim?.by}>
-                          <Chip tone="progress">{n.claim.by}</Chip>
+                        <Show when={n().claim?.by}>
+                          <Chip tone="progress">{n().claim.by}</Chip>
                         </Show>
                         <Time value={last()?.ts} />
                       </>

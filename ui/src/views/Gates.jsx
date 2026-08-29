@@ -11,6 +11,16 @@
 //   5. Order is by initiative first, then status (open first), with impact
 //      as the tiebreaker — never id alone.
 //
+// Identity contract (ADR-010 §3.4, ui-live-store-execution §3.4 / §12):
+//   - consumes `useStoreSelectors().nodesMap()` so the gate references
+//     iterated inside each Panel stay stable across polls when content
+//     does not change;
+//   - iterates initiative keys (strings) as the outer <For> source so
+//     Panel identity is preserved across polls; the inner <For> iterates
+//     gate refs from the reconciled map so GateRow DOM is preserved;
+//   - filters, tabs and sorting behavior are preserved verbatim — only
+//     the iteration target changed.
+//
 // Contract scope: this file owns its view and its pure helpers. components.jsx,
 // store.jsx, the snapshot shape and the NodeDetail drawer stay frozen per the
 // Fase 5B rule (primitives only grow via the shared components contract, not
@@ -20,7 +30,7 @@
 // pinned by tests without re-implementing the view (see test/ui-gates.test.mjs).
 
 import { createMemo, createSignal, Show, For } from "solid-js";
-import { useStore } from "../store.jsx";
+import { useStore, useStoreSelectors } from "../store.jsx";
 import {
   PageHeader,
   PageLayout,
@@ -54,6 +64,8 @@ const TERMINAL_TARGET_STATUSES = new Set([
 // Returns the BLOCKS edges whose source is `gateId` and whose target is
 // still actionable. The caller cares about the count; the row preview also
 // shows up to 4 target ids so the operator can see what they would free.
+// `nodes` is the reconciled entity map; consumers pass it directly so
+// identity stays stable across polls.
 export function downstreamImpact(edges, gateId, nodes) {
   if (!Array.isArray(edges)) return [];
   return edges.filter((e) => {
@@ -92,6 +104,10 @@ export function isOpenGate(g) {
 // Groups are sorted so that groups containing any open gate come first,
 // otherwise alphabetically — operators scan the "what blocks work?" set
 // before they audit the historical record.
+//
+// Returns a list of `{ initiative, gates }` records (not tuples) so callers
+// can iterate the outer list with stable object identity when grouped
+// objects are produced by a memo. `nodes` is the reconciled entity map.
 export function groupAndSortGates(gates, edges, nodes) {
   const by = new Map();
   for (const g of gates) {
@@ -100,7 +116,8 @@ export function groupAndSortGates(gates, edges, nodes) {
     if (!by.has(k)) by.set(k, []);
     by.get(k).push(g);
   }
-  for (const list of by.values()) {
+  const groups = [];
+  for (const [initiative, list] of by.entries()) {
     list.sort((a, b) => {
       const aOpen = isOpenGate(a) ? 0 : 1;
       const bOpen = isOpenGate(b) ? 0 : 1;
@@ -114,13 +131,15 @@ export function groupAndSortGates(gates, edges, nodes) {
       if (bi !== ai) return bi - ai; // desc
       return a.id.localeCompare(b.id);
     });
+    groups.push({ initiative, gates: list });
   }
-  return [...by.entries()].sort(([aName, aList], [bName, bList]) => {
-    const aHasOpen = aList.some(isOpenGate);
-    const bHasOpen = bList.some(isOpenGate);
+  groups.sort((a, b) => {
+    const aHasOpen = a.gates.some(isOpenGate);
+    const bHasOpen = b.gates.some(isOpenGate);
     if (aHasOpen !== bHasOpen) return aHasOpen ? -1 : 1;
-    return aName.localeCompare(bName);
+    return a.initiative.localeCompare(b.initiative);
   });
+  return groups;
 }
 
 function GateRow(props) {
@@ -203,18 +222,37 @@ function GateRow(props) {
 
 export default function Gates() {
   const { snapshot, select } = useStore();
+  const selectors = useStoreSelectors();
   const s = () => snapshot();
-  const nodes = () => s()?.nodes || {};
-  const edges = () => s()?.edges || [];
+  const nodesById = () => selectors.nodesMap();
 
   const [tab, setTab] = createSignal("open");
   const [q, setQ] = createSignal("");
   const [initiative, setInitiative] = createSignal("");
   const [purpose, setPurpose] = createSignal("");
 
-  const allGates = createMemo(() =>
-    Object.values(nodes()).filter((n) => n && n.subkind === "gate"),
-  );
+  // Gate IDs from the reconciled map. The map reference is stable across
+  // polls when no gate is added/removed or changes subkind, so the id
+  // list is stable too. Inner content updates don't invalidate identity.
+  const gateIds = createMemo(() => {
+    const map = nodesById();
+    const out = [];
+    for (const id of Object.keys(map)) {
+      const n = map[id];
+      if (n && n.subkind === "gate") out.push(id);
+    }
+    return out;
+  });
+
+  const allGates = createMemo(() => {
+    const map = nodesById();
+    const out = [];
+    for (const id of gateIds()) {
+      const n = map[id];
+      if (n) out.push(n);
+    }
+    return out;
+  });
 
   const initiatives = createMemo(() => {
     const set = new Set();
@@ -233,28 +271,71 @@ export default function Gates() {
     };
   });
 
-  const scoped = createMemo(() => {
-    let out = allGates();
-    if (tab() === "open") out = out.filter(isOpenGate);
-    else if (tab() === "resolved")
-      out = out.filter((g) => g.status === "resolved");
-    else out = out.filter((g) => g.status !== "archived");
-    if (initiative()) out = out.filter((g) => g.initiative === initiative());
-    if (purpose()) out = out.filter((g) => g.purpose === purpose());
-    if (q()) {
-      const needle = q().toLowerCase();
-      out = out.filter((g) =>
-        `${g.id} ${g.title} ${g.body || ""} ${(g.tags || []).join(" ")} ${g.purpose || ""}`
-          .toLowerCase()
-          .includes(needle),
-      );
+  // Filter to the ids that pass the current filters, then build full
+  // gate refs from the reconciled map. Filtering by id first keeps the
+  // iteration target primitive; downstream iteration over those ids is
+  // identity-stable even when the filter set shifts.
+  const scopedIds = createMemo(() => {
+    const map = nodesById();
+    let ids = gateIds();
+    if (tab() === "open") {
+      ids = ids.filter((id) => isOpenGate(map[id]));
+    } else if (tab() === "resolved") {
+      ids = ids.filter((id) => map[id] && map[id].status === "resolved");
+    } else {
+      ids = ids.filter((id) => {
+        const n = map[id];
+        return n && n.status !== "archived";
+      });
     }
-    return out;
+    const iniWanted = initiative();
+    if (iniWanted) ids = ids.filter((id) => map[id] && map[id].initiative === iniWanted);
+    const purposeWanted = purpose();
+    if (purposeWanted) ids = ids.filter((id) => map[id] && map[id].purpose === purposeWanted);
+    const needle = q();
+    if (needle) {
+      const lower = needle.toLowerCase();
+      ids = ids.filter((id) => {
+        const g = map[id];
+        if (!g) return false;
+        const hay = `${g.id} ${g.title} ${g.body || ""} ${(g.tags || []).join(" ")} ${g.purpose || ""}`.toLowerCase();
+        return hay.includes(lower);
+      });
+    }
+    return ids;
   });
 
-  const grouped = createMemo(() =>
-    groupAndSortGates(scoped(), edges(), nodes()),
-  );
+  // Group + sort. Edges (used for impact sort) are read from the
+  // snapshot directly; this is intentional. The memo recomputes when
+  // snapshot edges change reference, but the resulting inner arrays
+  // still contain the same stable gate refs from the reconciled map,
+  // so <For> preserves the GateRow DOM. The grouping structure uses
+  // `{ initiative, gates }` records instead of tuples so callers can
+  // iterate stable objects.
+  const grouped = createMemo(() => {
+    const map = nodesById();
+    const scoped = [];
+    for (const id of scopedIds()) {
+      const n = map[id];
+      if (n) scoped.push(n);
+    }
+    return groupAndSortGates(scoped, s()?.edges || [], map);
+  });
+
+  // Stable outer iteration: pull the initiative keys out of the
+  // grouped memo. Strings are stable across polls (even if the memo
+  // recomputes its outer array each poll because edges changed ref),
+  // so <For> matches Panels by value identity.
+  const groupKeys = createMemo(() => grouped().map((g) => g.initiative));
+
+  // Per-group gate arrays. Inner arrays contain the same stable gate
+  // refs the grouped memo produced; <For> preserves row identity
+  // because gate refs are stable.
+  const gatesByInitiative = createMemo(() => {
+    const out = {};
+    for (const g of grouped()) out[g.initiative] = g.gates;
+    return out;
+  });
 
   function clearFilters() {
     setQ("");
@@ -361,7 +442,7 @@ export default function Gates() {
 
       <div class="ui-page-results space-y-6">
         <div>
-          <Show when={grouped().length === 0}>
+          <Show when={groupKeys().length === 0}>
             <Show
               when={filterIsActive()}
               fallback={
@@ -389,43 +470,50 @@ export default function Gates() {
             </Show>
           </Show>
 
-          <For each={grouped()}>
-            {([init, list]) => (
-              <Panel
-                eyebrow={init === "—" ? "no initiative" : "initiative"}
-                title={init === "—" ? "—" : init}
-                right={
-                  <span class="text-[12px] tabular-nums text-mute">
-                    {list.length} gate{list.length === 1 ? "" : "s"}
-                    <Show when={list.some(isOpenGate)}>
-                      <span class="mx-1 text-line">·</span>
-                      <span class="text-gate">
-                        {list.filter(isOpenGate).length} open
-                      </span>
-                    </Show>
-                  </span>
-                }
-              >
-                <div class="space-y-3">
-                  <For each={list}>
-                    {(g) => {
-                      const impact = downstreamImpact(edges(), g.id, nodes());
-                      const sample = impact.slice(0, 4).map((e) => e.to);
-                      const lastActivity = s()?.last_activity?.[g.id];
-                      return (
-                        <GateRow
-                          gate={g}
-                          impactCount={impact.length}
-                          impactSample={sample}
-                          lastActivity={lastActivity}
-                          onOpen={() => select(g.id)}
-                        />
-                      );
-                    }}
-                  </For>
-                </div>
-              </Panel>
-            )}
+          <For each={groupKeys()}>
+            {(k) => {
+              const list = () => gatesByInitiative()[k] || [];
+              return (
+                <Panel
+                  eyebrow={k === "—" ? "no initiative" : "initiative"}
+                  title={k === "—" ? "—" : k}
+                  right={
+                    <span class="text-[12px] tabular-nums text-mute">
+                      {list().length} gate{list().length === 1 ? "" : "s"}
+                      <Show when={list().some(isOpenGate)}>
+                        <span class="mx-1 text-line">·</span>
+                        <span class="text-gate">
+                          {list().filter(isOpenGate).length} open
+                        </span>
+                      </Show>
+                    </span>
+                  }
+                >
+                  <div class="space-y-3">
+                    <For each={list()}>
+                      {(g) => {
+                        // Per-row impact recomputes when edges change
+                        // ref, but the GateRow DOM stays because the
+                        // outer <For> matches by stable gate ref.
+                        const impact = () =>
+                          downstreamImpact(s()?.edges || [], g.id, nodesById());
+                        const sample = () => impact().slice(0, 4).map((e) => e.to);
+                        const lastActivity = () => s()?.last_activity?.[g.id];
+                        return (
+                          <GateRow
+                            gate={g}
+                            impactCount={impact().length}
+                            impactSample={sample()}
+                            lastActivity={lastActivity()}
+                            onOpen={() => select(g.id)}
+                          />
+                        );
+                      }}
+                    </For>
+                  </div>
+                </Panel>
+              );
+            }}
           </For>
         </div>
       </div>
