@@ -13,9 +13,50 @@
 // updateState path so the withLock → updateState → append invariant is
 // preserved: a single log entry appears per handler call, even when
 // ctx.pluginId is set.
+//
+// One composable helper for B1b:
+//   - prepareLogEntry(entry, ctx): returns the canonical { ts, ... }
+//     shape WITHOUT writing it anywhere. Used by `kernel.mutate`
+//     (ADR-011 §1) so it can compose state mutation + log append into a
+//     single `writeState` call. The lock is owned by the kernel so
+//     `updateState` is intentionally not invoked here.
 import { updateState } from "./state.mjs";
 
-export async function append(projectDir, entry) {
+function tsField() {
+  return new Date().toISOString();
+}
+
+function resolvedPluginId(ctx) {
+  const pluginId = ctx && typeof ctx.pluginId === "string" ? ctx.pluginId.trim() : "";
+  return pluginId.length > 0 ? pluginId : null;
+}
+
+// prepareLogEntry — pure helper that returns the canonical log entry
+// shape (timestamp + optional plugin_id) without persisting. Used by
+// `kernel.mutate` (ADR-011 §1) so it can compose state mutation + log
+// append into a single `writeState` call. The lock is owned by the
+// kernel so `updateState` is intentionally not invoked here.
+//
+// Validation responsibility: callers (`append`, `appendWithContext`,
+// `kernel.mutate`) MUST validate the entry shape before passing it
+// in. `prepareLogEntry` assumes the entry has been validated.
+export function prepareLogEntry(entry, ctx = {}) {
+  if (!entry || typeof entry !== "object") {
+    throw new Error("prepareLogEntry: entry must be an object");
+  }
+  if (!entry.action) {
+    throw new Error("prepareLogEntry: entry.action is required");
+  }
+  if (!entry.agent) {
+    throw new Error("prepareLogEntry: entry.agent is required");
+  }
+  const pluginId = resolvedPluginId(ctx);
+  const out = { ts: tsField(), ...entry };
+  if (pluginId) out.plugin_id = pluginId;
+  return out;
+}
+
+function validateAppendEntry(entry, commandName = "append") {
   if (!entry || typeof entry !== "object") {
     throw new Error("append: entry must be an object");
   }
@@ -25,9 +66,18 @@ export async function append(projectDir, entry) {
   if (!entry.agent) {
     throw new Error("append: entry.agent is required");
   }
+  // commandName kept for future per-caller error messages; currently
+  // not surfaced because pre-existing tests assert the `append: ` prefix
+  // verbatim. The variable is unused intentionally — it documents the
+  // contract for callers that want their own envelope prefix.
+  void commandName;
+}
+
+export async function append(projectDir, entry) {
+  validateAppendEntry(entry, "append");
   return updateState(projectDir, (s) => {
     s.log = s.log || [];
-    s.log.push({ ts: new Date().toISOString(), ...entry });
+    s.log.push(prepareLogEntry(entry));
     return s;
   });
 }
@@ -38,10 +88,7 @@ export async function appendWithContext(projectDir, entry, ctx = {}) {
   // only pluginId is recognised; it is trimmed and validated as a
   // string so a falsy, blank or non-string value does NOT inject
   // plugin_id into the log entry.
-  const pluginId =
-    ctx && typeof ctx.pluginId === "string" && ctx.pluginId.trim()
-      ? ctx.pluginId.trim()
-      : null;
-  const enriched = pluginId ? { ...entry, plugin_id: pluginId } : { ...entry };
+  validateAppendEntry(entry, "appendWithContext");
+  const enriched = prepareLogEntry(entry, ctx);
   return append(projectDir, enriched);
 }
