@@ -298,7 +298,6 @@ function InitiativePicker(props) {
         aria-haspopup="listbox"
         aria-controls="board-initiative-drawer"
       >
-        <span class="ui-initiative-trigger-label">Initiative</span>
         <span class="ui-initiative-trigger-value" title={selected()}>{selected()}</span>
         <span class="ui-initiative-trigger-chevron" aria-hidden="true">⌄</span>
       </button>
