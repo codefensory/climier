@@ -282,7 +282,6 @@ function Header(props) {
           <span>Quick find</span>
           <kbd aria-hidden="true">⌘ K</kbd>
         </button>
-        <span class="ui-readonly-chip" aria-label="Read-only mode">Read-only</span>
       </div>
     </header>
   );
