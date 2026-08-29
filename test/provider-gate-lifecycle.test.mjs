@@ -183,6 +183,7 @@ test("gate.reopen prepares reopen payload and applies status=open + cleared reso
   assert.deepEqual(plan.policyAction, { action: "task.reopen" });
   assert.equal(plan.logAction, "reopen");
   assert.equal(plan.logNote, "revisit");
+  assert.deepEqual(plan.logFields, { reason: "revisit" });
   assert.equal(plan.reason, "revisit");
   assert.equal(view.nodes["G-B"].status, "open");
   // The patch carries `resolution: null` so the next persist clears it.
@@ -225,6 +226,7 @@ test("gate.cancel prepares cancel payload and applies status=canceled", async ()
   assert.deepEqual(plan.policyAction, { action: "task.cancel" });
   assert.equal(plan.logAction, "cancel");
   assert.equal(plan.logNote, "scope dropped");
+  assert.deepEqual(plan.logFields, { reason: "scope dropped" });
   assert.equal(plan.reason, "scope dropped");
   assert.equal(view.nodes["G-A"].status, "canceled");
   // G-A was already open + unsatisfied, so canceling it does not flip
