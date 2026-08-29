@@ -40,12 +40,12 @@
 
 import { Show, For, onMount, onCleanup, createMemo, createSignal, createEffect } from "solid-js";
 import { Dynamic } from "solid-js/web";
-import overviewIcon from "./icons/boxicons/dashboard.svg?raw";
-import boardIcon from "./icons/boxicons/board.svg?raw";
-import tasksIcon from "./icons/boxicons/tasks.svg?raw";
-import gatesIcon from "./icons/boxicons/gates.svg?raw";
-import knowledgeIcon from "./icons/boxicons/knowledge.svg?raw";
-import activityIcon from "./icons/boxicons/activity.svg?raw";
+import { DashboardAlt } from "@boxicons/js/icons/DashboardAlt";
+import { Grid } from "@boxicons/js/icons/Grid";
+import { Task } from "@boxicons/js/icons/Task";
+import { Flag } from "@boxicons/js/icons/Flag";
+import { BookOpen } from "@boxicons/js/icons/BookOpen";
+import { Timeline } from "@boxicons/js/icons/Timeline";
 import { StoreProvider, useStore } from "./store.jsx";
 import Overview from "./views/Overview.jsx";
 import Board from "./views/Board.jsx";
@@ -105,19 +105,28 @@ const ROUTES = Object.freeze(
 );
 
 // Boxicons supplies the visual language for both the labelled sidebar and
-// the compact rail. These six SVGs are vendored locally so the complete icon
-// catalogue is never downloaded or optimized on a dev reload.
+// the compact rail. Import only the six definitions used by this navigation;
+// the browser never receives the rest of the icon catalogue.
 const NAV_ICONS = {
-  overview: overviewIcon,
-  board: boardIcon,
-  tasks: tasksIcon,
-  gates: gatesIcon,
-  knowledge: knowledgeIcon,
-  activity: activityIcon,
+  overview: DashboardAlt,
+  board: Grid,
+  tasks: Task,
+  gates: Flag,
+  knowledge: BookOpen,
+  activity: Timeline,
 };
 
+function boxIconSvg(icon) {
+  const data = icon.packs.filled || icon.packs[icon.defaultPack];
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${data.viewBox}" width="17" height="17" fill="currentColor" aria-hidden="true">${data.content}</svg>`;
+}
+
+const NAV_ICON_SVGS = Object.fromEntries(
+  Object.entries(NAV_ICONS).map(([id, icon]) => [id, boxIconSvg(icon)])
+);
+
 function NavIcon(props) {
-  return <span class="ui-boxicon" aria-hidden="true" innerHTML={NAV_ICONS[props.id] || NAV_ICONS.overview} />;
+  return <span class="ui-boxicon" aria-hidden="true" innerHTML={NAV_ICON_SVGS[props.id] || NAV_ICON_SVGS.overview} />;
 }
 
 // === RouteSync =============================================================
