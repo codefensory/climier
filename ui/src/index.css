@@ -1410,7 +1410,8 @@ body {
 }
 
 .ui-board-columns {
-  align-items: stretch;
+  align-items: start;
+  overflow: auto;
 }
 
 .ui-board-column {

@@ -8,6 +8,8 @@
 //     when gates are present.
 //   - Column headers show only the label and count; the board stays scannable
 //     without explanatory subtitles under every status.
+//   - Columns grow to the height of their content. The board grid owns the
+//     horizontal and vertical scroll, never an individual column.
 //   - Cards use the visual contract (16 px padding, radius 12, hairline
 //     border, no shadow). Hierarchy: id + status, title, initiative + claim,
 //     principal blocker callout only when blocked.
@@ -161,14 +163,14 @@ function OpenGatesColumn(props) {
   // gates  (array of node objects, required)
   const select = useStore().select;
   return (
-    <div class="ui-detail-card ui-board-column ui-board-gates flex h-full min-h-0 flex-col overflow-auto rounded-card border border-line bg-panel">
-      <header class="ui-board-column-header sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-line bg-panel/95 px-4 py-3 backdrop-blur-[2px]">
+    <div class="ui-detail-card ui-board-column ui-board-gates flex flex-col rounded-card border border-line bg-panel">
+      <header class="ui-board-column-header flex items-start justify-between gap-3 border-b border-line bg-panel/95 px-4 py-3 backdrop-blur-[2px]">
         <div class="ui-board-column-header-title">
           <span>Open gates</span>
         </div>
         <div class="ui-board-column-header-count shrink-0">{props.gates.length}</div>
       </header>
-      <div class="ui-board-column-body flex-1 min-h-0 space-y-2 p-3">
+      <div class="ui-board-column-body space-y-2 p-3">
         <For each={props.gates}>
           {(g) => (
             <button
@@ -198,8 +200,8 @@ function OpenGatesColumn(props) {
 }
 
 // === Column =================================================================
-// One column on the board. The header sticks while the body scrolls inside
-// the column so a long backlog keeps the count visible.
+// One natural-height column on the board. The surrounding grid owns the
+// scroll so a long backlog does not become a nested scroll region.
 
 function Column(props) {
   // label (string, required)
@@ -207,14 +209,14 @@ function Column(props) {
   // count (number, required)
   // children (node, required — list of cards or empty state)
   return (
-    <div class="ui-detail-card ui-board-column flex h-full min-h-0 flex-col overflow-auto rounded-card border border-line bg-panel">
-      <header class="ui-board-column-header sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-line bg-panel/95 px-4 py-3 backdrop-blur-[2px]">
+    <div class="ui-detail-card ui-board-column flex flex-col rounded-card border border-line bg-panel">
+      <header class="ui-board-column-header flex items-start justify-between gap-3 border-b border-line bg-panel/95 px-4 py-3 backdrop-blur-[2px]">
         <div class="ui-board-column-header-title">
           <span>{props.label}</span>
         </div>
         <div class="ui-board-column-header-count shrink-0">{props.count}</div>
       </header>
-      <div class="ui-board-column-body flex-1 min-h-0 space-y-2 p-3">
+      <div class="ui-board-column-body space-y-2 p-3">
         {props.children}
       </div>
     </div>
@@ -403,7 +405,7 @@ export default function Board() {
           }
         >
           <div
-            class="ui-board-columns grid min-h-0 flex-1 gap-3 overflow-x-auto"
+            class="ui-board-columns grid min-h-0 flex-1 gap-3 overflow-auto"
             style={{ "grid-template-columns": `repeat(${columns().length + (filteredGates().length > 0 ? 1 : 0)}, 280px)` }}
           >
             <Show when={filteredGates().length > 0}>
