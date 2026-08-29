@@ -1355,7 +1355,6 @@ body {
 .ui-nav-glyph svg {
   width: 17px;
   height: 17px;
-  stroke: currentColor;
 }
 
 .ui-nav-link:hover .ui-nav-glyph,

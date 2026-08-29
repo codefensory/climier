@@ -40,12 +40,14 @@
 
 import { Show, For, onMount, onCleanup, createMemo, createSignal, createEffect } from "solid-js";
 import { Dynamic } from "solid-js/web";
-import Activity03Icon from "@hugeicons/core-free-icons/Activity03Icon";
-import BookOpen01Icon from "@hugeicons/core-free-icons/BookOpen01Icon";
-import CheckListIcon from "@hugeicons/core-free-icons/CheckListIcon";
-import DashboardSquare01Icon from "@hugeicons/core-free-icons/DashboardSquare01Icon";
-import Flag02Icon from "@hugeicons/core-free-icons/Flag02Icon";
-import KanbanIcon from "@hugeicons/core-free-icons/KanbanIcon";
+import {
+  IconBookFilled,
+  IconFlagFilled,
+  IconLayoutDashboardFilled,
+  IconLayoutKanbanFilled,
+  IconListCheckFilled,
+  IconTimelineEventFilled,
+} from "@tabler/icons-solidjs";
 import { StoreProvider, useStore } from "./store.jsx";
 import Overview from "./views/Overview.jsx";
 import Board from "./views/Board.jsx";
@@ -104,27 +106,21 @@ const ROUTES = Object.freeze(
   )
 );
 
-// Hugeicons supplies the visual language for both the labelled sidebar and
-// the compact rail. Importing the raw icon data keeps the UI Solid-native and
-// avoids adding a React-specific renderer to this application.
+// Tabler supplies the visual language for both the labelled sidebar and the
+// compact rail. The filled variants keep the navigation calm and legible
+// without adding another visual container around each icon.
 const NAV_ICONS = {
-  overview: DashboardSquare01Icon,
-  board: KanbanIcon,
-  tasks: CheckListIcon,
-  gates: Flag02Icon,
-  knowledge: BookOpen01Icon,
-  activity: Activity03Icon,
+  overview: IconLayoutDashboardFilled,
+  board: IconLayoutKanbanFilled,
+  tasks: IconListCheckFilled,
+  gates: IconFlagFilled,
+  knowledge: IconBookFilled,
+  activity: IconTimelineEventFilled,
 };
 
 function NavIcon(props) {
-  const icon = NAV_ICONS[props.id] || NAV_ICONS.overview;
-  return (
-    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      {icon.map(([element, attributes]) =>
-        element === "path" ? <path {...attributes} /> : null
-      )}
-    </svg>
-  );
+  const Icon = NAV_ICONS[props.id] || NAV_ICONS.overview;
+  return <Icon size={17} aria-hidden="true" />;
 }
 
 // === RouteSync =============================================================
