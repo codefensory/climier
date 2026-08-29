@@ -789,20 +789,20 @@ Ownership y acceptance de las nuevas tasks:
 - `T-ui-store-facade`: `ui/src/store.jsx`. Conecta transport/core y
   conserva exactamente las 14 keys públicas y la forma legacy de snapshot;
   no modifica vistas ni crea tests.
-- `T-ui-store-selector-surface`: `ui/src/store.jsx`, en una task posterior
-  y secuencial a la fachada. Expone `useStoreSelectors()` como hook nombrado
-  separado, sin agregar una key a `useStore()`, para que las vistas consuman
-  `tasksByStatus`, `openGates` y `nodesMap` sin importar internals. No crea
-  tests ni modifica otras rutas.
+- `selector surface` (resuelto directamente en `ui/src/store.jsx`, commit
+  `5828179`). Expone `useStoreSelectors()` como hook nombrado separado, sin
+  agregar una key a `useStore()`, para que las vistas consuman
+  `tasksByStatus`, `openGates` y `nodesMap` sin importar internals. No es una
+  task delegable adicional.
 - `T-ui-activity-keys`: `ui/src/views/Activity.jsx`. Usa una key estable
   como identidad real de la colección, con `event_id` preferente y fallback
   documentado; no modifica store/server ni crea tests.
-- `T-ui-board-live-v2`: `ui/src/views/Board.jsx`. Usa selectors, keys estables
+- `T-ui-board-live-v3`: `ui/src/views/Board.jsx`. Usa selectors, keys estables
   y conserva scroll; no modifica store ni crea tests.
-- `T-ui-listas-operativas-v2`: `Nodes.jsx`, `Gates.jsx`, `Knowledge.jsx`.
+- `T-ui-listas-operativas-v3`: `Nodes.jsx`, `Gates.jsx`, `Knowledge.jsx`.
   Migra iteraciones a selectors/IDs sin cambiar filtros, tabs ni sorting;
   no modifica store ni crea tests.
-- `T-ui-overview-shell-v2`: `Overview.jsx`, `App.jsx`, `NodeDetail.jsx`.
+- `T-ui-overview-shell-v3`: `Overview.jsx`, `App.jsx`, `NodeDetail.jsx`.
   Usa selectors y cache de detalle sin refactor visual mayor; no modifica
   store internals, otras vistas, server ni crea tests.
 
