@@ -1356,7 +1356,16 @@ body {
   color: var(--ui-muted);
 }
 
-.ui-nav-glyph svg {
+.ui-tabler-icon {
+  display: inline-flex;
+  width: 17px;
+  height: 17px;
+  align-items: center;
+  justify-content: center;
+}
+
+.ui-tabler-icon svg {
+  display: block;
   width: 17px;
   height: 17px;
 }
