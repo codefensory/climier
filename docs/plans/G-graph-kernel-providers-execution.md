@@ -150,18 +150,20 @@ Las siguientes piezas son candidatas a tasks. Este plan no las crea.
   solo si cambia el consumidor directo `ui/server/server.mjs`.
 - No-go: `src/providers/*`, mutadores, registry y `bin/climier.mjs`.
 
-### B3 — adapters de mutadores
+### B3 — adapters de mutadores, dividido en tres slices seriales
 
-Se ejecuta en dos olas seriales para limitar el blast radius y después de
-B4+B5+B6A:
+Se ejecuta después de B4+B5+B6A para que cada adapter consuma providers y
+registry ya validados, sin superar el presupuesto de un worker:
 
-1. `add-task`, `add-node`, `add-edge`, `take`, `update`:
-   `test/v2-blocked-by.test.mjs`, `test/v2-edges.test.mjs`,
-   `test/v2-take.test.mjs`, `test/v2-update.test.mjs`.
-2. `add-gate`, `add-knowledge`, `add-initiative`, `deprecate-knowledge`,
-   `add-note`, `resolve`, `release`, `reopen`, `cancel`:
-   `test/v2-lifecycle.test.mjs`, `test/v2-supersede.test.mjs`,
-   `test/plugin-log-seam.test.mjs`.
+1. **B3-1a — creación y edges** (`T-graph-kernel-adapters-wave1`):
+   `add-task`, `add-node`, `add-edge`, `v2-add-node`; tests de blocked-by,
+   edges, wrappers y policy.
+2. **B3-1b — take y update** (`T-graph-kernel-adapters-wave1-lifecycle`):
+   `take`, `update`; tests de take, takeover, revision, concurrencia y policy.
+3. **B3-2 — lifecycle restante** (`T-graph-kernel-adapters-wave2`):
+   `add-gate`, `add-knowledge`, `add-initiative`, `deprecate-knowledge`,
+   `add-note`, `resolve`, `release`, `reopen`, `cancel`; tests lifecycle,
+   supersede, log seam, policy y concurrencia.
 
 Cada handler queda como adapter del provider/kernel, sin `withLock`,
 `updateState`, `appendWithContext` ni incremento manual. `update` mantiene sus
