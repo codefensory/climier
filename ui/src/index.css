@@ -1341,7 +1341,7 @@ body {
 
 .ui-nav-link[aria-current="page"] {
   border-color: transparent;
-  background: transparent;
+  background: var(--ui-mid);
   color: var(--ui-text);
   box-shadow: none;
   font-weight: 650;
@@ -1373,6 +1373,8 @@ body {
 
 .ui-nav-link:hover .ui-nav-glyph,
 .ui-nav-link[aria-current="page"] .ui-nav-glyph {
+  border-color: transparent;
+  background: transparent;
   color: var(--ui-text);
 }
 
