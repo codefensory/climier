@@ -1014,6 +1014,9 @@ test("kernel.mutate: two concurrent mutate calls serialise under the project loc
     const provider1 = updateNodeProvider({ id: "T1", newTitle: "first-arrives" }).provider;
     const provider2 = updateNodeProvider({ id: "T1", newTitle: "second-arrives" }).provider;
     // Fire both at once. They DO NOT race because withLock spins.
+    // req1 carries if_revision=3 (matches the initial snapshot).
+    // req2 carries if_revision=4 — it only matches if req1 has already
+    // bumped T1 from 3 to 4 by the time req2 acquires the lock.
     const req1 = mutate({
       projectDir: dir,
       request: { action: "task.update", actor: "alice", input: {}, if_revision: { kind: "single", id: "T1", value: 3 } },
@@ -1024,17 +1027,37 @@ test("kernel.mutate: two concurrent mutate calls serialise under the project loc
       request: { action: "task.update", actor: "alice", input: {}, if_revision: { kind: "single", id: "T1", value: 4 } },
       provider: provider2,
     });
-    await Promise.allSettled([req1, req2]);
+    const settled = await Promise.allSettled([req1, req2]);
+    // T-graph-kernel-mutate-concurrency-fix: independent concurrent
+    // mutations must NOT be flagged as nested. REVISION_CONFLICT is
+    // still acceptable when req2 acquires the lock first and its
+    // if_revision=4 doesn't match the initial snapshot rev=3.
+    for (const r of settled) {
+      if (r.status === "rejected") {
+        assert.notEqual(r.reason && r.reason.code, "INVALID_EXECUTION_CONTRACT",
+          `concurrent mutate was falsely flagged as nested: ${r.reason && r.reason.message}`);
+      }
+    }
     const after = await readStateHelper(dir);
-    // At most one applies, the other hits REVISION_CONFLICT (because the
-    // if_revision it carries no longer matches after the first write).
-    assert.ok(["first-arrives", "second-arrives"].includes(after.nodes.T1.title));
-    // Title must have advanced at least once; revision bumped exactly once
-    // (4) for the winner or skipped (3) for the loser.
-    assert.ok(after.nodes.T1.revision === 4 || after.nodes.T1.revision === 3, `unexpected revision ${after.nodes.T1.revision}`);
-    // log must show 0 or 1 entry — never 2, because the loser did not
-    // reach writeState.
-    assert.ok(after.log.length <= 1, `unexpected log length ${after.log.length}`);
+    // Two possible orderings under withLock serialisation:
+    //   (A) req1 first: req1 applies 3→4 ("first-arrives"); req2
+    //       sees rev=4, applies 4→5 ("second-arrives"). Final rev=5.
+    //   (B) req2 first: req2's if_revision=4 doesn't match snapshot
+    //       rev=3, REVISION_CONFLICT, no write. req1 then applies
+    //       3→4 ("first-arrives"). Final rev=4.
+    if (after.nodes.T1.revision === 5) {
+      assert.equal(after.nodes.T1.title, "second-arrives",
+        "ordering A: req1 wrote rev 3→4, req2 wrote rev 4→5");
+      assert.equal(after.log.length, 2, "ordering A: both writes persisted");
+      assert.deepEqual(after.log.map((e) => e.revision), [4, 5],
+        "log entries carry the matching post-bump revisions in order");
+    } else {
+      assert.equal(after.nodes.T1.revision, 4, "ordering B: only req1 applied");
+      assert.equal(after.nodes.T1.title, "first-arrives",
+        "ordering B: req2 hit REVISION_CONFLICT and did not write");
+      assert.equal(after.log.length, 1, "ordering B: only req1 wrote");
+      assert.equal(after.log[0].revision, 4);
+    }
   } finally {
     await rmTempProject(dir);
   }
