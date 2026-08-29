@@ -2,8 +2,9 @@
 
 > **Enmienda de ejecución:** la task monolítica `T-store-foundation` y sus
 > cuatro dependientes directos fueron canceladas por exceso de alcance. El DAG
-> ejecutable vigente es el split de §11; las secciones históricas conservan el
-> diseño original y no deben usarse para crear nuevas tasks.
+> ejecutable vigente queda además reemplazado por la política sin tests de §12;
+> las secciones históricas conservan el diseño original y no deben usarse para
+> crear nuevas tasks.
 
 Plan derivado de la inspección real del repo contra `.adrs/010-ui-live-store.md`
 (`G-ui-live-store-adr` resuelto). Convierte el contrato del ADR en el DAG más
@@ -738,3 +739,65 @@ Batch 1: `T-store-normalization`, `T-store-transport` y
 Cada batch se detiene si su dependencia no tiene `VALIDATION PASS ...
 merged=true`; no se ejecutan workers sobre claims detenidos ni se continúa
 con worktrees sucios.
+
+## 12. Override operativo: `/ui` sin tests ni TDD
+
+Esta enmienda posterior del usuario reemplaza toda acceptance histórica que
+pidiera tests para `/ui`. En esta fase no se crean, modifican ni ejecutan
+archivos de test de UI; tampoco se aplica TDD. La verificación de cada task
+queda limitada a `npm --prefix ui run build`, `git diff --check` y revisión
+manual proporcional del diff/flujo visual. El CLI raíz conserva su suite
+existente, pero no se usa como gate de implementación UI.
+
+El DAG vigente, sin tareas de test, es:
+
+```text
+T-ui-live-store-bootstrap
+        │
+  ┌─────┴─────┬──────────────────┐
+  ▼           ▼                  ▼
+T-ui-store-  T-ui-store-     T-ui-activity-
+normalization transport       keys
+  │           │
+  ▼           │
+T-ui-store-reactive-core
+        │
+        ▼
+T-ui-store-facade
+        │
+  ┌─────┼───────────────┬──────────────┐
+  ▼     ▼               ▼              ▼
+Board  Listas       Overview       (plugins fuera)
+```
+
+Ownership y acceptance de las nuevas tasks:
+
+- `T-ui-store-normalization`: `ui/src/store/normalize.js`,
+  `reconcile.js`, `selectors.js`. Modelo plano, claves estables, plugins
+  ausentes como `{}` y selectores puros. No toca Reactividad, polling,
+  vistas ni tests.
+- `T-ui-store-transport`: `ui/src/store/transport.js`. Polling, aborts,
+  tokens de respuestas tardías, estados y cleanup. No importa JSX/Solid ni
+  escribe tests.
+- `T-ui-store-reactive-core`: `ui/src/store/createStore.js`,
+  `detail.js`, `index.js`. Slices reconciliados y cache `details[id]`
+  separada de `entities.nodes[id]`; consume la normalización y solo se
+  verifica con build/diff.
+- `T-ui-store-facade`: `ui/src/store.jsx`. Conecta transport/core y
+  conserva exactamente las 14 keys públicas y la forma legacy de snapshot;
+  no modifica vistas ni crea tests.
+- `T-ui-activity-keys`: `ui/src/views/Activity.jsx`. Usa una key estable
+  como identidad real de la colección, con `event_id` preferente y fallback
+  documentado; no modifica store/server ni crea tests.
+- `T-ui-board-live-v2`: `ui/src/views/Board.jsx`. Usa selectors, keys estables
+  y conserva scroll; no modifica store ni crea tests.
+- `T-ui-listas-operativas-v2`: `Nodes.jsx`, `Gates.jsx`, `Knowledge.jsx`.
+  Migra iteraciones a selectors/IDs sin cambiar filtros, tabs ni sorting;
+  no modifica store ni crea tests.
+- `T-ui-overview-shell-v2`: `Overview.jsx`, `App.jsx`, `NodeDetail.jsx`.
+  Usa selectors y cache de detalle sin refactor visual mayor; no modifica
+  store internals, otras vistas, server ni crea tests.
+
+Cada task debe terminar con todos sus paths limpios, commit cuyo mensaje
+termine en `[<task-id>]`, build UI exitoso y `git diff --check`. Las tareas
+canceladas con nombres anteriores quedan solo como historial.
