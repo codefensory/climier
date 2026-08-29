@@ -14,15 +14,13 @@
 //     helpers are used.
 
 import { throwV2 } from "../../errors.mjs";
+import { isTaskReady } from "./derivation.mjs";
 
 const OP = "task.take";
 const LOG_ACTION = "take";
 
 const TASK_KIND = "resolvable";
 const TASK_SUBKIND = "task";
-
-const SATISFIED_TASK = new Set(["done", "archived"]);
-const SATISFIED_GATE = new Set(["resolved"]);
 
 function asNonEmptyString(value) {
   return typeof value === "string" && value.length > 0 ? value : null;
@@ -45,10 +43,6 @@ function resolveActor(input, request) {
 
 function readSnapshotNodes(snapshot) {
   return snapshot && snapshot.nodes && typeof snapshot.nodes === "object" ? snapshot.nodes : {};
-}
-
-function readSnapshotEdges(snapshot) {
-  return Array.isArray(snapshot && snapshot.edges) ? snapshot.edges : [];
 }
 
 function validateInputShape(input, request) {
@@ -89,26 +83,6 @@ function validateTarget(input, snapshot) {
   }
 }
 
-// isBlockerSatisfied — minimal mirror of v2.mjs#isSatisfiedV2 sufficient
-// for the readiness gate in `task.take`. We intentionally do not follow
-// superseded chains: a fresh task with no in-progress sibling is gated
-// on direct status only, matching the v2 semantics used by statusOfV2.
-function isBlockerSatisfied(blocker) {
-  if (!blocker) return false;
-  const status = blocker.status || "open";
-  if (blocker.subkind === "task") return SATISFIED_TASK.has(status);
-  if (blocker.subkind === "gate") return SATISFIED_GATE.has(status);
-  return false;
-}
-
-function isTaskReady(node, snapshot) {
-  const edges = readSnapshotEdges(snapshot);
-  const blockers = edges.filter((e) => e.type === "BLOCKS" && e.to === node.id);
-  if (blockers.length === 0) return true;
-  const nodes = readSnapshotNodes(snapshot);
-  return blockers.every((e) => isBlockerSatisfied(nodes[e.from]));
-}
-
 // classifyAction — runs against the snapshot (read-only). Returns a
 // frozen descriptor consumed by prepare/apply. The semantic matrix
 // matches the v2 take command (ADR-008 §"Tabla de take"):
@@ -147,7 +121,7 @@ function classifyAction(node, actor, snapshot) {
       { id: node.id, status },
     );
   }
-  if (!isTaskReady(node, snapshot)) {
+  if (!isTaskReady(snapshot, node.id)) {
     throwV2(
       "NOT_READY",
       `${OP}: task '${node.id}' is blocked by unfinished deps`,
