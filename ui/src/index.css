@@ -1415,9 +1415,9 @@ body {
 
 .ui-board-column {
   border-color: transparent;
-  border-radius: 15px;
-  background: rgba(232, 231, 227, 0.78);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 252, 0.58);
+  border-radius: 18px;
+  background: rgba(232, 231, 227, 0.86);
+  box-shadow: none;
 }
 
 .ui-board-column-header {
@@ -1447,34 +1447,30 @@ body {
   padding: 0 10px 10px;
 }
 
-.ui-board-column-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  box-shadow: 0 0 0 3px rgba(255, 255, 252, 0.65);
-}
-
-.ui-board-column-dot--ready { background: var(--ui-green); }
-.ui-board-column-dot--in_progress { background: var(--ui-blue); }
-.ui-board-column-dot--blocked { background: #c75143; }
-.ui-board-column-dot--backlog { background: var(--ui-muted-2); }
-.ui-board-column-dot--gate { background: var(--ui-gold); }
-
 .ui-board-card {
-  border-radius: 12px;
+  border-radius: 16px;
   background: rgba(255, 255, 252, 0.96);
-  box-shadow: 0 1px 2px rgba(47, 43, 36, 0.06), 0 5px 13px rgba(47, 43, 36, 0.035);
-  transition: border-color .16s ease, background-color .16s ease, transform .16s ease, box-shadow .16s ease;
+  box-shadow: none;
+  transition: border-color .16s ease, background-color .16s ease;
 }
 
 .ui-board-card:hover {
-  box-shadow: 0 3px 4px rgba(47, 43, 36, 0.065), 0 8px 18px rgba(47, 43, 36, 0.05);
-  transform: translateY(-1px);
+  box-shadow: none;
+  transform: none;
+}
+
+.ui-board-card-title {
+  letter-spacing: -0.018em;
+}
+
+.ui-board-gate-card {
+  border-radius: 16px;
+  box-shadow: none;
 }
 
 .ui-board-gates {
-  border-radius: 14px;
-  background: rgba(255, 246, 231, 0.52);
+  border-radius: 18px;
+  background: rgba(224, 223, 220, 0.9);
 }
 
 .ui-command-bar {

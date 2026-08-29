@@ -3,8 +3,9 @@
 // Contract (ui-redesign-plan.md section 6 Fase 5A, Track A):
 //   - Four task columns: Ready / In progress / Blocked / Backlog. Open gates
 //     join the same grid as an optional first column, immediately before Ready.
-//   - Columns never go below 280 px; horizontal scroll kicks in before cards
-//     are squashed. The grid grows to five columns only when gates are present.
+//   - Columns stay fixed at 280 px; the board scrolls horizontally instead of
+//     stretching or compressing columns. The grid grows to five columns only
+//     when gates are present.
 //   - Column headers show only the label and count; the board stays scannable
 //     without explanatory subtitles under every status.
 //   - Cards use the visual contract (16 px padding, radius 12, hairline
@@ -104,11 +105,10 @@ function BoardCard(props) {
       onClick={() => select(n().id)}
       aria-label={`${n().id} ${n().title}`}
     >
-      <div class="flex items-center justify-between gap-2">
+      <div>
         <span class="mono shrink-0 text-[12px] text-mute">{n().id}</span>
-        <StatusBadge status={props.status} />
       </div>
-      <div class="mt-2 line-clamp-2 text-[14px] font-medium leading-5 text-ink" title={n().title}>
+      <div class="ui-board-card-title mt-2 line-clamp-2 text-[15px] font-semibold leading-5 text-ink" title={n().title}>
         {n().title}
       </div>
       <Show when={n().body}>
@@ -117,6 +117,7 @@ function BoardCard(props) {
         </div>
       </Show>
       <div class="mt-3 flex flex-wrap items-center gap-1.5">
+        <StatusBadge status={props.status} />
         <Show when={n().initiative}>
           <Chip>{n().initiative}</Chip>
         </Show>
@@ -163,7 +164,6 @@ function OpenGatesColumn(props) {
     <div class="ui-detail-card ui-board-column ui-board-gates flex h-full min-h-0 flex-col overflow-auto rounded-card border border-line bg-panel">
       <header class="ui-board-column-header sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-line bg-panel/95 px-4 py-3 backdrop-blur-[2px]">
         <div class="ui-board-column-header-title">
-          <span class="ui-board-column-dot ui-board-column-dot--gate" aria-hidden="true" />
           <span>Open gates</span>
         </div>
         <div class="ui-board-column-header-count shrink-0">{props.gates.length}</div>
@@ -173,7 +173,7 @@ function OpenGatesColumn(props) {
           {(g) => (
             <button
               type="button"
-              class="ui-list-row w-full rounded-card border border-gate bg-gate-soft p-3 text-left transition-colors hover:bg-panel focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
+              class="ui-list-row ui-board-gate-card w-full rounded-card border border-gate bg-gate-soft p-3 text-left transition-colors hover:bg-panel focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
               onClick={() => select(g.id)}
               aria-label={`${g.id} ${g.title}`}
             >
@@ -181,7 +181,7 @@ function OpenGatesColumn(props) {
                 <span class="mono text-[12px] text-gate">{g.id}</span>
                 <Chip tone="gate">{g.purpose || "decision"}</Chip>
               </div>
-              <div class="mt-2 line-clamp-2 text-[13px] font-medium leading-5 text-ink" title={g.title}>
+              <div class="ui-board-card-title mt-2 line-clamp-2 text-[14px] font-semibold leading-5 text-ink" title={g.title}>
                 {g.title}
               </div>
               <Show when={g.body}>
@@ -210,7 +210,6 @@ function Column(props) {
     <div class="ui-detail-card ui-board-column flex h-full min-h-0 flex-col overflow-auto rounded-card border border-line bg-panel">
       <header class="ui-board-column-header sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-line bg-panel/95 px-4 py-3 backdrop-blur-[2px]">
         <div class="ui-board-column-header-title">
-          <span class={`ui-board-column-dot ui-board-column-dot--${props.tone || "backlog"}`} aria-hidden="true" />
           <span>{props.label}</span>
         </div>
         <div class="ui-board-column-header-count shrink-0">{props.count}</div>
@@ -405,7 +404,7 @@ export default function Board() {
         >
           <div
             class="ui-board-columns grid min-h-0 flex-1 gap-3 overflow-x-auto"
-            style={{ "grid-template-columns": `repeat(${columns().length + (filteredGates().length > 0 ? 1 : 0)}, minmax(280px, 1fr))` }}
+            style={{ "grid-template-columns": `repeat(${columns().length + (filteredGates().length > 0 ? 1 : 0)}, 280px)` }}
           >
             <Show when={filteredGates().length > 0}>
               <OpenGatesColumn gates={filteredGates()} />
