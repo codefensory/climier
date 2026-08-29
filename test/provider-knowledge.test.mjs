@@ -250,6 +250,48 @@ test("search: snippet is body truncated to 200 chars", async () => {
 });
 
 // ===================================================================
+// knowledge projection — knowledgeForNode (pure)
+// ===================================================================
+
+test("knowledge projection: matches all scopes, includes deprecated entries, and ranks deterministically", async () => {
+  const { knowledgeForNode } = await importProviders();
+  const snapshot = emptySnapshot({
+    nodes: {
+      "T-a": taskNode("T-a", { initiative: "auth", domain: "identity", tags: ["backend"] }),
+      "K-z": knowledgeNode("K-z", {
+        status: "deprecated", title: "initiative match",
+        scope: { initiatives: ["auth"] },
+      }),
+      "K-domain": knowledgeNode("K-domain", {
+        title: "domain match", scope: { domains: ["identity"] },
+      }),
+      "K-a": knowledgeNode("K-a", {
+        title: "node and tag match",
+        scope: { node_ids: ["T-a"], tags: ["backend"] },
+      }),
+      "K-unrelated": knowledgeNode("K-unrelated", {
+        scope: { domains: ["billing"] },
+      }),
+    },
+  });
+
+  const out = knowledgeForNode({ snapshot, id: "T-a" });
+  assert.deepEqual(out.map(({ id }) => id), ["K-a", "K-domain", "K-z"]);
+  assert.deepEqual(out.map(({ scope_matches }) => scope_matches), [
+    ["node_id", "tag"], ["domain"], ["initiative"],
+  ]);
+  assert.equal(out[2].status, "deprecated");
+  assert.equal(Object.prototype.hasOwnProperty.call(out[0], "scope"), true);
+});
+
+test("knowledge projection: missing target or malformed snapshot returns []", async () => {
+  const { knowledgeForNode } = await importProviders();
+  assert.deepEqual(knowledgeForNode({ snapshot: emptySnapshot(), id: "ghost" }), []);
+  assert.deepEqual(knowledgeForNode({ snapshot: { nodes: null }, id: "T-a" }), []);
+  assert.deepEqual(knowledgeForNode(), []);
+});
+
+// ===================================================================
 // informing — informingForNode (pure)
 // ===================================================================
 

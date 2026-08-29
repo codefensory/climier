@@ -12,6 +12,7 @@
 export { SCOPE_ORDER, matchesScopes } from "./scopes.mjs";
 export { specificityRank, rankKnowledge } from "./ranking.mjs";
 export { searchKnowledge } from "./search.mjs";
+export { knowledgeForNode } from "./projection.mjs";
 export { informingForNode } from "./informing.mjs";
 export { createProvider } from "./create.mjs";
 export { updateProvider } from "./update.mjs";
