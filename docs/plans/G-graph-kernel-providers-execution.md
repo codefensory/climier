@@ -168,21 +168,44 @@ Cada handler queda como adapter del provider/kernel, sin `withLock`,
 flags CLI actuales y exige `--if-revision`; `note.add` exige revisión y bump.
 No-go: cambiar `plugin-core-adapter.mjs` o `bin/climier.mjs` en estas olas.
 
-### B4 — providers de dominio
+### B4 — providers de dominio, divididos por contrato y lifecycle
 
-- Paths exclusivos: `src/providers/task/*`, `src/providers/gate/*`,
-  `src/providers/knowledge/*`, con tests de cada dominio.
-- Dependencia: B1+B2. Los tres providers pueden paralelizarse entre sí, pero
-  cada worker toca solo su directorio y tests.
+- Dependencia base: B1+B2. Los slices base de task, gate y knowledge pueden
+  paralelizarse entre sí, con máximo tres workers; cada worker toca solo su
+  directorio y tests.
 - Acceptance común: `prepare` valida dominio, `apply` usa únicamente tx,
   lifecycle y proyecciones conservan semántica, errores estructurados y no hay
   acceso a filesystem.
-- Task provider: `blocked_by` prepara task + edges atómicamente y clasifica
-  `task.take`/`task.takeover`.
-- Gate provider: resolución, supersedencia y efectos multi-nodo.
-- Knowledge provider: scopes, búsqueda, deprecación e informing.
-- Tests: cada provider reusa sus tests `v2-*` existentes y añade solo contratos
-  nuevos de provider/kernel necesarios.
+
+#### B4-task-core — `T-graph-kernel-provider-task`
+
+`task.create` y `task.update`, incluyendo `blocked_by` atómico, patches y
+precondiciones. No implementa lifecycle.
+
+#### B4-task-lifecycle — `T-graph-kernel-provider-task-lifecycle`
+
+Depende de task-core. Añade `task.take`/`task.takeover`, `task.resolve`,
+`task.release`, `task.reopen` y `task.cancel`, además de `newly_ready`.
+
+#### B4-gate-core — `T-graph-kernel-provider-gate`
+
+`gate.create` y supersedencia multi-nodo con reescritura de blockers.
+
+#### B4-gate-lifecycle — `T-graph-kernel-provider-gate-lifecycle`
+
+Depende de gate-core. Añade `gate.resolve`, `gate.reopen` y `gate.cancel`.
+
+#### B4-knowledge-core — `T-graph-kernel-provider-knowledge`
+
+`knowledge.create`, `knowledge.update` y helpers puros de scopes, búsqueda,
+ranking e informing.
+
+#### B4-knowledge-lifecycle — `T-graph-kernel-provider-knowledge-lifecycle`
+
+Depende de knowledge-core. Añade `knowledge.deprecate` y sus proyecciones.
+
+Cada slice reusa sus tests `v2-*` existentes y añade solo contratos nuevos de
+provider/kernel necesarios. B6A espera validación PASS de los seis slices.
 
 ### B5 — policy transversal
 
