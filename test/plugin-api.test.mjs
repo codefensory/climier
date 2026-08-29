@@ -788,7 +788,12 @@ test("api.core.run: input._as is rejected (no alias sneaks past)", async () => {
   }
 });
 
-test("api.core.run: missing required field throws PLUGIN_CORE_INVALID_OPERATION without mutating", async () => {
+test("api.core.run: missing required field throws PLUGIN_CORE_ACTION_FAILED (provider-level MISSING_FIELD) without mutating", async () => {
+  // The kernel-driven path has no adapter-side required-field
+  // whitelist for the core ops; the provider's prepare throws
+  // MISSING_FIELD and the adapter wraps it as PLUGIN_CORE_ACTION_FAILED
+  // with a structured `cause`. State and the plugin-tagged log are
+  // untouched (no edge is added; no log entry is appended).
   const dir = await createTempProject();
   try {
     const { default: init } = await importFresh("./commands/init.mjs");
@@ -799,12 +804,18 @@ test("api.core.run: missing required field throws PLUGIN_CORE_INVALID_OPERATION 
       api.core.run({ op: "edge.add", input: { from: "T-a", to: "T-b" } }),
       (err) =>
         err &&
-        err.code === "PLUGIN_CORE_INVALID_OPERATION" &&
-        /missing required field 'type'/.test(err.details.reason || ""),
+        err.code === "PLUGIN_CORE_ACTION_FAILED" &&
+        err.details.op === "edge.add" &&
+        err.details.plugin_id === "example.audit" &&
+        err.details.cause &&
+        err.details.cause.code === "MISSING_FIELD" &&
+        /type/.test(err.details.cause.message || ""),
     );
-    // The state is untouched: no edges.
+    // The state is untouched: no edges, no plugin-tagged log entry.
     const after = await readRawState(dir);
-    assert.deepEqual(after.edges, []);
+    assert.deepEqual(after.edges, [], "no edges persisted");
+    const pluginLogs = after.log.filter((e) => e.plugin_id === "example.audit");
+    assert.equal(pluginLogs.length, 0, "no plugin-tagged log entry on rejected edge.add");
   } finally {
     await rmTempProject(dir);
   }
@@ -1669,6 +1680,12 @@ test("api.core.run: gate.reopen and gate.cancel roll back or terminate gates wit
 // ---- knowledge.create / knowledge.deprecate ------------------------
 
 test("api.core.run: knowledge.create dispatches to add-knowledge (requires --scope-*)", async () => {
+  // The kernel-driven path returns the typed result shape
+  // `{ result, effects, log_entry, idempotent, diff }`. The
+  // knowledge.create provider projects `{ id, kind }` into result;
+  // the kernel-stamped full node (with revision=1, scope, status)
+  // lives on `diff.created[0].node`. There is no `{ node }` legacy
+  // envelope at the top level.
   const dir = await readyProject();
   try {
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
@@ -1679,13 +1696,38 @@ test("api.core.run: knowledge.create dispatches to add-knowledge (requires --sco
         initiative: "plugin-platform",
         title: "appendWithContext seam",
         body: "log entries gain plugin_id",
-        scope_initiatives: "plugin-platform",
+        scope: { tags: ["api", "recovery"] },
       },
     });
-    assert.ok(out.node, "knowledge envelope present");
-    assert.equal(out.node.kind, "knowledge");
-    assert.equal(out.node.status, "active");
-    assert.deepEqual(out.node.scope.initiatives, ["plugin-platform"]);
+    assert.ok(out && typeof out === "object", "kernel returned the typed result envelope");
+    assert.equal(typeof out.result, "object", "typed envelope carries result");
+    assert.equal(typeof out.diff, "object", "typed envelope carries diff");
+    assert.equal(Array.isArray(out.diff.created), true, "diff.created is the canonical created list");
+    // Provider projection: result carries id/kind only.
+    assert.equal(out.result.id, "K-parity-create", "provider's result.id echoes the input");
+    assert.equal(out.result.kind, "knowledge", "provider's result.kind === knowledge");
+    // Kernel-stamped full node lives on diff.created[0].node.
+    const created = out.diff.created[0].node;
+    assert.equal(created.id, "K-parity-create");
+    assert.equal(created.kind, "knowledge");
+    assert.equal(created.status, "active");
+    assert.equal(created.revision, 1, "kernel stamps revision=1 on create");
+    assert.deepEqual(created.scope.tags, ["api", "recovery"], "scope.tags echoes the input");
+    // Log entry: kernel stamps action, plugin_id, agent.
+    assert.ok(out.log_entry, "typed envelope carries log_entry");
+    assert.equal(out.log_entry.action, "knowledge.create", "kernel log_entry.action equals the op");
+    assert.equal(out.log_entry.plugin_id, "example.audit");
+    assert.equal(out.log_entry.agent, "alice");
+    // Persisted state mirrors the kernel-stamped node.
+    const after = await readRawState(dir);
+    const persisted = after.nodes["K-parity-create"];
+    assert.equal(persisted.status, "active", "persisted status is active");
+    assert.deepEqual(persisted.scope.tags, ["api", "recovery"], "scope.tags persisted");
+    assert.equal(persisted.revision, 1, "persisted revision is 1");
+    const pluginLogs = after.log.filter((e) => e.plugin_id === "example.audit");
+    const lastPluginLog = pluginLogs[pluginLogs.length - 1];
+    assert.equal(lastPluginLog.action, "knowledge.create", "persisted log action is the op id");
+    assert.equal(lastPluginLog.agent, "alice");
   } finally {
     await rmTempProject(dir);
   }
@@ -1720,6 +1762,14 @@ test("api.core.run: knowledge.create without any --scope-* throws PLUGIN_CORE_AC
 });
 
 test("api.core.run: knowledge.deprecate sets status='deprecated' on an active knowledge node", async () => {
+  // The kernel-driven path returns the typed result shape
+  // `{ result, effects, log_entry, idempotent, diff }`. The
+  // knowledge.deprecate provider projects `{ id, kind, status }`
+  // into result; the kernel-stamped full node (with revision=2,
+  // deprecated_by / deprecation_reason / deprecated_at) lives on
+  // `diff.updated[0].node`. The deprecate provider derives the CAS
+  // precondition (`if_revision`) from the snapshot, so the caller
+  // does not need to supply it.
   const dir = await readyProject();
   try {
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
@@ -1730,22 +1780,57 @@ test("api.core.run: knowledge.deprecate sets status='deprecated' on an active kn
         initiative: "plugin-platform",
         title: "to deprecate",
         body: "b",
-        scope_initiatives: "plugin-platform",
+        scope: { tags: ["api", "recovery"] },
       },
     });
     const out = await api.core.run({
       op: "knowledge.deprecate",
       input: { id: "K-parity-deprecate", reason: "superseded by ADR-007" },
     });
-    assert.equal(out.node.status, "deprecated");
-    assert.equal(out.node.deprecated_by, "alice");
-    assert.equal(out.node.deprecation_reason, "superseded by ADR-007");
+    assert.ok(out && typeof out === "object", "kernel returned the typed result envelope");
+    assert.equal(typeof out.result, "object", "typed envelope carries result");
+    assert.equal(typeof out.diff, "object", "typed envelope carries diff");
+    assert.equal(Array.isArray(out.diff.updated), true, "diff.updated is the canonical updated list");
+    // Provider projection: result carries id/kind/status.
+    assert.equal(out.result.id, "K-parity-deprecate");
+    assert.equal(out.result.kind, "knowledge");
+    assert.equal(out.result.status, "deprecated", "provider's result.status === deprecated");
+    // Kernel-stamped full updated node.
+    const updated = out.diff.updated[0].node;
+    assert.equal(updated.id, "K-parity-deprecate");
+    assert.equal(updated.status, "deprecated", "kernel-stamped updated node carries status=deprecated");
+    assert.equal(updated.deprecated_by, "alice", "deprecated_by echoes api.runtime.agent");
+    assert.equal(updated.deprecation_reason, "superseded by ADR-007");
+    assert.equal(typeof updated.deprecated_at, "string", "deprecated_at is an ISO string");
+    assert.equal(updated.revision, 2, "kernel bumps revision on update");
+    // Log entry: kernel stamps action, plugin_id, agent.
+    assert.ok(out.log_entry, "typed envelope carries log_entry");
+    assert.equal(out.log_entry.action, "knowledge.deprecate");
+    assert.equal(out.log_entry.plugin_id, "example.audit");
+    assert.equal(out.log_entry.agent, "alice");
+    // Persisted state mirrors the kernel-stamped node.
+    const after = await readRawState(dir);
+    const persisted = after.nodes["K-parity-deprecate"];
+    assert.equal(persisted.status, "deprecated", "persisted status is deprecated");
+    assert.equal(persisted.deprecated_by, "alice");
+    assert.equal(persisted.deprecation_reason, "superseded by ADR-007");
+    assert.equal(persisted.revision, 2, "persisted revision is 2");
+    const deprecateLogs = after.log.filter(
+      (e) => e.plugin_id === "example.audit" && e.action === "knowledge.deprecate",
+    );
+    assert.equal(deprecateLogs.length, 1, "exactly one knowledge.deprecate log entry");
+    assert.equal(deprecateLogs[0].agent, "alice");
   } finally {
     await rmTempProject(dir);
   }
 });
 
-test("api.core.run: knowledge.deprecate without --reason is rejected by the adapter as PLUGIN_CORE_INVALID_OPERATION", async () => {
+test("api.core.run: knowledge.deprecate without --reason is rejected by the adapter as PLUGIN_CORE_ACTION_FAILED (provider-level MISSING_FIELD)", async () => {
+  // The kernel-driven path has no adapter-side required-field
+  // whitelist; the provider's prepare throws MISSING_FIELD when
+  // `reason` is missing and the adapter wraps it as
+  // PLUGIN_CORE_ACTION_FAILED with a structured `cause`. State is
+  // not mutated and no log entry is appended for the deprecate call.
   const dir = await readyProject();
   try {
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
@@ -1756,15 +1841,30 @@ test("api.core.run: knowledge.deprecate without --reason is rejected by the adap
         initiative: "plugin-platform",
         title: "x",
         body: "b",
-        scope_initiatives: "plugin-platform",
+        scope: { tags: ["api", "recovery"] },
       },
     });
+    const beforeLogCount = (await readRawState(dir)).log.length;
     await assert.rejects(
       api.core.run({ op: "knowledge.deprecate", input: { id: "K-parity-dep-noreason" } }),
       (err) =>
         err &&
-        err.code === "PLUGIN_CORE_INVALID_OPERATION" &&
-        /missing required field 'reason'/.test(err.details.reason || ""),
+        err.code === "PLUGIN_CORE_ACTION_FAILED" &&
+        err.details.op === "knowledge.deprecate" &&
+        err.details.plugin_id === "example.audit" &&
+        err.details.cause &&
+        err.details.cause.code === "MISSING_FIELD" &&
+        /reason/.test(err.details.cause.message || ""),
+    );
+    // The knowledge node is unchanged: status remains active.
+    const after = await readRawState(dir);
+    const persisted = after.nodes["K-parity-dep-noreason"];
+    assert.equal(persisted.status, "active", "node remains active after rejected deprecate");
+    assert.equal(persisted.revision, 1, "node revision unchanged after rejected deprecate");
+    assert.equal(
+      after.log.length,
+      beforeLogCount,
+      "no log entry appended for rejected knowledge.deprecate",
     );
   } finally {
     await rmTempProject(dir);
