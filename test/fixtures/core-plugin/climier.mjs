@@ -74,11 +74,25 @@ function envelopeFor(err) {
   };
 }
 
+// nodeRevision — read the canonical node revision from a typed
+// api.core.run result. Mutation inputs use this value as their CAS
+// precondition instead of relying on a legacy `{ node }` envelope or a
+// hard-coded revision.
+function nodeRevision(output, id, changeKind) {
+  const change = output?.diff?.[changeKind]?.find((entry) => entry.id === id);
+  const revision = change?.node?.revision;
+  if (!Number.isInteger(revision) || revision < 1) {
+    throw new Error(`core fixture: ${changeKind} result missing revision for '${id}'`);
+  }
+  return revision;
+}
+
 export default {
   commands: {
     // happy: full first slice (ADR-006 §"API y compatibilidad"). The
-    // returned object surfaces every envelope so test/plugin-core-e2e
-    // can assert each step without touching internals.
+    // returned object surfaces each typed api.core.run result so
+    // test/plugin-core-e2e can assert the public contract without
+    // touching internals.
     async happy(_args, api) {
       const create1 = await api.core.run({
         op: "task.create",
@@ -108,15 +122,26 @@ export default {
       });
       const taken = await api.core.run({
         op: "task.take",
-        input: { id: "T-core-happy-1" },
+        input: {
+          id: "T-core-happy-1",
+          if_revision: nodeRevision(create1, "T-core-happy-1", "created"),
+        },
       });
       const resolved = await api.core.run({
         op: "task.resolve",
-        input: { id: "T-core-happy-1", note: "happy: shipped via core.run" },
+        input: {
+          id: "T-core-happy-1",
+          note: "happy: shipped via core.run",
+          if_revision: nodeRevision(taken, "T-core-happy-1", "updated"),
+        },
       });
       const noted = await api.core.run({
         op: "note.add",
-        input: { id: "T-core-happy-2", text: "happy: ctx note via core.run" },
+        input: {
+          id: "T-core-happy-2",
+          text: "happy: ctx note via core.run",
+          if_revision: nodeRevision(create2, "T-core-happy-2", "created"),
+        },
       });
       return {
         command: "happy",
@@ -130,8 +155,8 @@ export default {
     },
 
     // partial: ADR-006 §"Secuencias parciales" — a successful step
-    // survives when a follow-up step rejects. The fixture returns both
-    // the create envelope and the rejection envelope so the test can
+    // survives when a follow-up step rejects. The fixture returns the
+    // typed create result and the rejection envelope so the test can
     // verify the survival + the cause.code without re-reading state.
     async partial(_args, api) {
       const create = await api.core.run({
@@ -223,7 +248,7 @@ export default {
         });
         const taken = await api.core.run({
           op: "task.take",
-          input: { id },
+          input: { id, if_revision: nodeRevision(created, id, "created") },
         });
         out.push({ id, created, taken });
       }
