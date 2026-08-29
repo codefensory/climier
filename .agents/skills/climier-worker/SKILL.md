@@ -53,8 +53,13 @@ indefinidamente.
 
 El límite de turns del agente no es un límite confiable de comandos. Cuenta las
 llamadas de shell y aplica este presupuesto: checkpoint después de 10 llamadas,
-implementación y primer test antes de 20, y cierre o handoff antes de 30 salvo
-que el orchestrator haya documentado una excepción. Esto es un guardrail, no un
+primer test rojo representativo e implementación acotada antes de 20, y cierre
+o handoff antes de 30 salvo que el orchestrator haya documentado una excepción.
+El límite de 40 turns es un techo, no una meta. En el checkpoint 20, si todavía
+no existe ese test rojo + una ruta concreta de implementación, o si el cambio
+cruza más de una frontera central (kernel, registry, adapter, dispatch o
+fixtures), deja un NO-GO con el corte exacto y libera: el orchestrator debe
+partir o decidir, no relanzar otro intento idéntico. Esto es un guardrail, no un
 sustituto de entender la demora. No releas el repo completo, no repitas suites
 ya verdes y no mantengas dos verificaciones activas. Si el scope no entra, deja
 el cambio mínimo commiteado o un handoff preciso y libera; no sigas explorando
@@ -169,7 +174,7 @@ bash .agents/skills/climier-worker/start-worktree.sh <id> <tu-agent>
 
 No recrees manualmente `base_branch`, `worktree_path`, `worktree_branch`, `git worktree add` ni la nota `WORKTREE` si este script aplica.
 
-Si la task de correccion dice "continue in existing worktree", no crees otro. Entra al path/rama indicado y agrega nota `WORKTREE ... status=fix-started`.
+Si la task de correccion dice "continue in existing worktree", no crees otro. Entra al path/rama indicado y agrega nota `WORKTREE ... status=fix-started`. Esta reutilización solo vale para una única corrección explícita, con un commit previo y base SHA documentados; nunca para encadenar intentos abiertos o heredar cambios sin commit. Si el mismo entregable ya tuvo una corrección o el problema cambia de frontera, deja evidencia y pide que el orchestrator lo replantee como recuperación acotada, no como `fix2`/`fix3`.
 
 ## Aislamiento de smokes
 
@@ -256,7 +261,7 @@ bash .agents/skills/climier-worker/finish-task.sh <id> <tu-agent> "<que shippeas
 
 No repitas manualmente `git rev-parse HEAD`, la nota `WORKTREE ... status=ready-for-validation` ni `climier resolve <id> --note "..."` si `finish-task.sh` corrio bien.
 
-Despues de cada worker, el siguiente paso del flujo es obligatorio: ejecutar un validador independiente con `climier-validator` sobre la task cerrada. El worker no se valida a si mismo, no corrige durante esa validacion y no mergea. Si el validador falla, entrega un reporte al orchestrator para crear una nueva task de correccion sobre el mismo worktree/rama.
+Despues de cada worker, el siguiente paso del flujo es obligatorio: ejecutar un validador independiente con `climier-validator` sobre la task cerrada. El worker no se valida a si mismo, no corrige durante esa validacion y no mergea. Si el validador falla, entrega un reporte al orchestrator para crear una única task de correccion sobre el mismo worktree/rama. Si esa corrección falla, no se encadenan más fixes: el orchestrator debe replanear el entregable desde la última base validada, con paths y acceptance reducidos.
 
 ## Si te trabas
 

@@ -43,6 +43,7 @@ Default budget:
 - stop early on structural failure: missing worktree, missing commit, dirty task changes, failed targeted check, or clear acceptance miss
 - every potentially long command uses a hard timeout with kill fallback: `timeout -k 10s 180s ...`; never leave a test or merge process running after the budget
 - trust worker checks as evidence but rerun the smallest required targeted check when acceptance or diff risk makes it necessary; do not repeat a full suite merely for ritual
+- when the acceptance explicitly requires a full suite, it must exit 0 before `PASS`; if the worker reports pre-existing failures, reproduce the same command on the recorded base and report the two counts/files. A focal green result never compensates for newly added failures.
 - if the worker has no commit or has no finishing/EVIDENCE note, return `FAIL` after the minimum worktree/status inspection; do not spend the budget reconstructing unfinished work
 - when a worker calls failures "test-side", rerun the failing case and classify fixture, contract, or implementation before accepting that explanation
 - preserve command exit codes: use `set -o pipefail` or capture the status before `tail`/`grep`; filtered output alone is not verification evidence
@@ -128,7 +129,9 @@ Use `--json` for machine-readable output. Treat exit code `1` as a flag for revi
 
 The validator must not compensate for a worker that exceeded its budget by doing
 an unbounded reimplementation. Validate the contract, report the evidence gap,
-and let the orchestrator create a correction or split task.
+and let the orchestrator create one correction or split task. If that correction
+already exists or failed, do not create a `fix2` chain: require a recovery plan
+from the last validated base with one outcome and exclusive paths.
 
 When integration-preflight reports verdict `overlap`, do not merge blindly: surface overlap paths in the validator summary and recommend a strategy (rebase vs merge) before the orchestrator decides.
 
@@ -164,7 +167,8 @@ Return `FAIL` when any of these are true:
 - The task commit message does not end with `[<task-id>]`.
 - The worktree has uncommitted task changes.
 - An acceptance criterion is not implemented or is only partially implemented.
-- Required verification was skipped and a targeted check fails or cannot support the worker's claim.
+- Required verification was skipped, or an acceptance-required full suite fails without a reproduced and non-regressing baseline.
+- A targeted check fails or cannot support the worker's claim.
 - The worker changed unrelated areas in a way that creates real integration risk.
 - The diff contradicts a gate's `--rationale`, a knowledge node's `mitigation`, an architecture rule, or a security rule.
 - A public route, exported symbol, migration, auth boundary, or package API is left broken.

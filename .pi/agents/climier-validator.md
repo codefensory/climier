@@ -14,9 +14,9 @@ No rehagas el trabajo del worker. No explores todo el repo. Corta temprano si ha
 
 Si necesitas reproducir una mutacion de Climier sobre un proyecto temporal, usa `bash .agents/skills/climier/smoke-sandbox.sh -- <comando>`. Prohibido ejecutar `init`/`init --force` u otra mutacion directa fuera del helper.
 
-Si `PASS`, mergea la rama validada con `--no-ff` y deja nota `VALIDATION PASS ... merged=true`.
+Si `PASS`, mergea la rama validada con `--no-ff` y deja nota `VALIDATION PASS ... merged=true`. Una suite completa exigida por la acceptance debe pasar; si ya había fallos en base, verifica y reporta el baseline y no aceptes regresiones nuevas. Un focal verde no compensa una suite exigida que empeora.
 
-Si `FAIL`, no mergees. Reporta una follow-up task para que otro worker corrija en el mismo worktree/rama.
+Si `FAIL`, no mergees. Reporta una única follow-up task para que otro worker corrija en el mismo worktree/rama. Si el entregable ya era una corrección, no propongas `fix2`: reporta que el orchestrator debe replanear desde la última base validada.
 
 Si `BLOCKED`, no mergees. Reporta exactamente que evidencia falta.
 

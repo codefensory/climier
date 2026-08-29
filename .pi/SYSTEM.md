@@ -61,7 +61,12 @@ La secuencia saludable es: preflight mínimo → worktree → mapa de archivos y
 contratos → un test rojo representativo → implementación incremental → checks
 focalizados con exit code preservado → suite proporcional → cierre. Ante un
 fallo, clasifica primero fixture, contrato o implementación; no cambies tests
-para hacerlos pasar sin demostrar cuál de esos tres casos aplica.
+para hacerlos pasar sin demostrar cuál de esos tres casos aplica. El límite de
+turns es un techo, no la unidad de sizing: al checkpoint 20 debe existir un
+caso rojo y una ruta acotada, y una task no cruza simultáneamente kernel,
+registry, adapter, dispatch y fixtures. Tras una corrección fallida no se crea
+una cadena `fix2+`: se replantea desde la última base validada. Un validator no
+acepta un focal verde si una suite exigida agrega regresiones frente a su base.
 
 ## Flujo de ejecucion
 
