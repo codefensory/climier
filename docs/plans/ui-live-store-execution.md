@@ -1,5 +1,10 @@
 # Plan de ejecución: store reactivo y reconciliación de snapshots (ADR-010)
 
+> **Enmienda de ejecución:** la task monolítica `T-store-foundation` y sus
+> cuatro dependientes directos fueron canceladas por exceso de alcance. El DAG
+> ejecutable vigente es el split de §11; las secciones históricas conservan el
+> diseño original y no deben usarse para crear nuevas tasks.
+
 Plan derivado de la inspección real del repo contra `.adrs/010-ui-live-store.md`
 (`G-ui-live-store-adr` resuelto). Convierte el contrato del ADR en el DAG más
 pequeño que permita paralelismo real sin solapamiento, fija la fachada
@@ -631,3 +636,105 @@ Asserts de identidad/scroll (referencia para los tests de Batch B):
 El cierre de `T-ui-live-store-bootstrap` deja: este plan commiteado en
 la rama del worktree, y una nota de cierre con los ids propuestos y el
 orden de batches. Ningún nodo nuevo en el DAG del CLI.
+
+## 11. Enmienda: split ejecutable de foundation
+
+La implementación se divide en cuatro tasks con ownership exclusivo. Las
+referencias a `T-store-foundation` en las secciones históricas quedan
+reemplazadas por este DAG:
+
+### 11.1 `T-store-normalization` — modelo plano y selectores puros
+
+- **Paths propios:** `ui/src/store/normalize.js`,
+  `ui/src/store/reconcile.js`, `ui/src/store/selectors.js` y
+  `test/ui-store-normalization.test.mjs`.
+- **Contrato:** convertir el snapshot plano actual en
+  `entities.nodes`, `entities.initiatives`, `entities.edges` y
+  `entities.plugins`; normalizar plugins ausentes a `{}`; exponer
+  selectores puros que devuelvan IDs estables por status, gates y grupos.
+  No usa polling, contexto Solid ni modifica vistas.
+- **Acceptance:** tests de snapshots vacíos, entidades desconocidas,
+  plugins presentes/ausentes, claves de nodes/initiatives/edges/plugins y
+  selectores `tasksByStatus`, `openGates`, `nodesMap`; no hay mutación del
+  input. Verificación: test focalizado, `npm test`, `git diff --check`.
+
+### 11.2 `T-store-transport` — polling y control de respuestas
+
+- **Paths propios:** `ui/src/store/transport.js` y
+  `test/ui-store-transport.test.mjs`.
+- **Dependencia:** ninguna de las cuatro tasks; puede correr en paralelo
+  con `T-store-normalization`.
+- **Contrato:** encapsular `getSnapshot`/`getNode` fetchers, polling de
+  2 segundos, AbortController, tokens para descartar respuestas tardías,
+  estado `initialLoading`/`refreshing`/error/lastSuccessfulAt y stop/cleanup.
+  No conoce JSX ni exporta `useStore()`.
+- **Acceptance:** tests con fake timers/fetchers cubren primer load, refresh,
+  error conservando último snapshot, abort y respuesta tardía; todo test
+  termina y no deja timers vivos. Verificación: test focalizado, `npm test`,
+  `git diff --check`.
+
+### 11.3 `T-store-reactive-core` — slices reactivos y cache de detalle
+
+- **Paths propios:** `ui/src/store/createStore.js`,
+  `ui/src/store/detail.js`, `ui/src/store/index.js`,
+  `test/ui-store-reactive-core.test.mjs` y el harness local que necesiten
+  esos tests.
+- **Dependencia:** `T-store-normalization`.
+- **Contrato:** montar `solid-js/store` con slices `transport`, `ui`,
+  `entities`, `views` y `details`; aplicar reconciliación por IDs sin
+  reemplazar entidades semánticamente iguales; mantener `details[id]`
+  separado de `entities.nodes[id]`; dejar una API interna pequeña para que
+  la fachada la consuma. No toca `store.jsx`, vistas ni server.
+- **Acceptance:** tests prueban identidad de entities, edges y grupos después
+  de snapshots equivalentes, actualización selectiva, plugins namespace y
+  detail extras independientes del node base. No se aceptan loaders de prueba
+  ad hoc sin documentar el motivo; usar el harness UI existente o uno local
+  mínimo y determinista. Verificación: test focalizado, build de `ui`,
+  `npm test`, `git diff --check`.
+
+### 11.4 `T-store-facade` — Provider y compatibilidad pública
+
+- **Paths propios:** `ui/src/store.jsx` y
+  `test/ui-store-facade.test.mjs`.
+- **Dependencias:** `T-store-transport` y `T-store-reactive-core`.
+- **Contrato:** conectar transport/core en `StoreProvider` y conservar
+  exactamente las 14 keys públicas actuales: `snapshot`, `error`, `loading`,
+  `initialLoading`, `refreshing`, `snapshotError`, `lastSuccessfulAt`,
+  `route`, `setRoute`, `selectedId`, `select`, `detail`, `detailError`,
+  `reload`. No cambia comportamiento visual ni importa módulos internos
+  desde las vistas.
+- **Acceptance:** test de keys y aliases, primer snapshot/refresh, errores,
+  late responses, select/detail/reload y limpieza del polling; `snapshot()`
+  mantiene la forma legacy que consumen las vistas actuales. Verificación:
+  test focalizado, `npm run test:ui`, `npm test`, `npm --prefix ui run build`,
+  `git diff --check`.
+
+### 11.5 Dependencias y batches
+
+```text
+T-ui-live-store-bootstrap
+          │
+    ┌─────┴─────────────┐
+    ▼                   ▼
+T-store-normalization  T-store-transport
+    │                   │
+    ▼                   │
+T-store-reactive-core ──┘
+          │
+          ▼
+    T-store-facade
+          │
+          ├── T-plugin-snapshot-namespace
+          ├── T-board-live
+          ├── T-listas-operativas
+          └── T-overview-shell
+
+T-activity-keys continúa independiente y puede correr con el primer batch.
+```
+
+Batch 1: `T-store-normalization`, `T-store-transport` y
+`T-activity-keys` en paralelo. Batch 2: `T-store-reactive-core`. Batch 3:
+`T-store-facade`. Batch 4: las cuatro migraciones de vistas en paralelo.
+Cada batch se detiene si su dependencia no tiene `VALIDATION PASS ...
+merged=true`; no se ejecutan workers sobre claims detenidos ni se continúa
+con worktrees sucios.
