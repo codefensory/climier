@@ -60,12 +60,17 @@ import {
   updateProvider as knowledgeUpdateProviderFactory,
   deprecateProvider as knowledgeDeprecateProviderFactory,
 } from "./providers/knowledge/index.mjs";
+import { edgeAddProvider } from "./providers/core/edge.mjs";
+import { noteAddProvider } from "./providers/core/note.mjs";
 
 // ADMITTED_KINDS — whitelist of supported kinds for built-in entries.
 // Knowledge scopes/ranking helpers are not part of the registry
 // because they are not operation IDs; the registry only stores
-// operation-shaped providers.
-const ADMITTED_KINDS = Object.freeze(["task", "gate", "knowledge"]);
+// operation-shaped providers. `core` covers the kernel-resident
+// operations that mutate the graph itself (`edge.add`,
+// `note.add`); it is a registry-internal kind and never appears as a
+// persisted node kind in v2 state.
+const ADMITTED_KINDS = Object.freeze(["task", "gate", "knowledge", "core"]);
 
 // PUBLIC_OPERATION_IDS — the operation IDs ADR-012 §2 commits to
 // publishing through the registry. The list is used by the bootstrap
@@ -92,6 +97,13 @@ const KNOWLEDGE_OPERATION_IDS = Object.freeze([
   "knowledge.update",
   "knowledge.deprecate",
 ]);
+// CORE_OPERATION_IDS — kernel-resident operations that mutate the
+// graph itself (edges, notes). They are not resolvable / gate /
+// knowledge entries because they don't target a single node kind;
+// they sit on their own kind so consumers can branch on the
+// operation domain. This list is the contract §B6B exposes via
+// bootstrapBuiltins: edge.add and note.add.
+const CORE_OPERATION_IDS = Object.freeze(["edge.add", "note.add"]);
 
 // asError — shaped error factory; mirrors `throwV2` from `errors.mjs`
 // but stays self-contained so the registry is a leaf module that does
@@ -388,7 +400,31 @@ function collectBuiltins() {
     return { id, kind: "knowledge", provider };
   });
 
-  return [...taskEntries, ...gateEntries, ...knowledgeEntries];
+  // Core providers are frozen plain objects (not factories); they are
+  // pinned by operation id so the bootstrap cannot drop an entry
+  // silently.
+  const coreProviders = {
+    "edge.add": edgeAddProvider,
+    "note.add": noteAddProvider,
+  };
+  const coreEntries = CORE_OPERATION_IDS.map((id) => {
+    const provider = coreProviders[id];
+    if (
+      !provider ||
+      typeof provider !== "object" ||
+      typeof provider.prepare !== "function" ||
+      typeof provider.apply !== "function"
+    ) {
+      throw asError(
+        "REGISTRY_BUILTIN_PROVIDER_MISSING",
+        `bootstrapBuiltins: core provider for ${id} is not { prepare, apply }`,
+        { id },
+      );
+    }
+    return { id, kind: "core", provider };
+  });
+
+  return [...taskEntries, ...gateEntries, ...knowledgeEntries, ...coreEntries];
 }
 
 // bootstrapBuiltins — explicit built-in bootstrap. Reconstructs the
@@ -408,6 +444,7 @@ export const ADMITTED_PROVIDER_KINDS = ADMITTED_KINDS;
 export const PUBLIC_TASK_OPS = TASK_OPERATION_IDS;
 export const PUBLIC_GATE_OPS = GATE_OPERATION_IDS;
 export const PUBLIC_KNOWLEDGE_OPS = KNOWLEDGE_OPERATION_IDS;
+export const PUBLIC_CORE_OPS = CORE_OPERATION_IDS;
 
 // ---------------------------------------------------------------------------
 // LEGACY EXPORTS — transitional compatibility shims for the ADR-006 V2
