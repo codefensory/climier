@@ -1,25 +1,25 @@
 // T-plugin-core-api — end-to-end integration of api.core.run.
 //
-// Exercises the first slice ADR-006 §"API y compatibilidad" against the
-// real handlers in src/commands/*: task.create → edge.add → task.take →
-// task.resolve → note.add. The flow runs over a fresh temp project with
-// helpers.mjs (auto-managed CLIMIER_HOME under os.tmpdir()) so the real
-// ~/.climier is never touched.
+// Exercises the first slice ADR-012 §"API" against the built-in providers:
+// task.create → edge.add → task.take → task.resolve → note.add. The flow
+// runs over a fresh temp project with helpers.mjs (auto-managed CLIMIER_HOME
+// under os.tmpdir()) so the real ~/.climier is never touched.
 //
 // What we verify:
 //   - api.core.version === 2;
-//   - api.core.run returns the real handler envelopes;
-//   - flags.as is forced to api.runtime.agent (alice);
+//   - api.core.run returns the typed result/effects/log_entry/diff envelope;
+//   - actor is fixed to api.runtime.agent (alice);
 //   - plugin_id is recorded on every log entry produced through core.run;
+//   - CAS uses the observed revision for node-mutating operations;
 //   - the state and the log are internally consistent;
 //   - history <id> returns entries with the plugin_id attribution;
 //   - error paths: PLUGIN_CORE_INVALID_OPERATION before mutation,
-//     PLUGIN_CORE_ACTION_FAILED with structured cause when the handler
+//     PLUGIN_CORE_ACTION_FAILED with structured cause when the provider
 //     rejects, partial sequences when one operation in a chain fails.
 //
 // Concurrency and the full fixture live in T-plugin-core-e2e; here we
-// only verify the dispatch + state-machine shape against the real
-// handlers.
+// only verify the dispatch + state-machine shape against the built-in
+// providers.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -83,15 +83,20 @@ test("plugin-core-integration: full first slice leaves intact state and logs wit
         blocked_by: "",
       },
     });
-    assert.ok(created && created.node && created.node.id);
-    assert.equal(created.node.id, "T-core-1");
-    assert.equal(created.node.kind, "resolvable");
-    assert.equal(created.node.subkind, "task");
+    assert.ok(created && created.result && created.diff && created.log_entry);
+    assert.equal(created.result.id, "T-core-1");
+    assert.equal(created.result.kind, "resolvable");
+    assert.equal(created.result.subkind, "task");
+    assert.equal(created.diff.created[0].node.id, "T-core-1");
+    assert.equal(created.diff.created[0].node.revision, 1);
+    assert.equal(created.log_entry.action, "task.create");
+    assert.equal(created.log_entry.agent, "alice");
+    assert.equal(created.log_entry.plugin_id, "example.core");
 
     // 2. edge.add between T-core-1 (blocker) and a freshly created T-core-2.
     //    Create T-core-2 standalone first (no blocked_by) so the explicit
     //    edge.add below does not duplicate an edge already in state.
-    await api.core.run({
+    const created2 = await api.core.run({
       op: "task.create",
       input: {
         id: "T-core-2",
@@ -106,39 +111,60 @@ test("plugin-core-integration: full first slice leaves intact state and logs wit
       op: "edge.add",
       input: { from: "T-core-1", to: "T-core-2", type: "BLOCKS" },
     });
-    assert.ok(edge && edge.edge && edge.edge.type === "BLOCKS");
-    assert.equal(edge.edge.from, "T-core-1");
-    assert.equal(edge.edge.to, "T-core-2");
+    assert.ok(edge && edge.result && edge.diff && edge.log_entry);
+    assert.equal(edge.result.edge.type, "BLOCKS");
+    assert.equal(edge.result.edge.from, "T-core-1");
+    assert.equal(edge.result.edge.to, "T-core-2");
+    assert.deepEqual(edge.diff.added_edges, [edge.result.edge]);
+    assert.equal(edge.log_entry.action, "edge.add");
+    assert.equal(edge.log_entry.agent, "alice");
+    assert.equal(edge.log_entry.plugin_id, "example.core");
 
     // 3. task.take on T-core-1 (owner = alice = api.runtime.agent).
     const taken = await api.core.run({
       op: "task.take",
       input: { id: "T-core-1" },
     });
-    assert.ok(taken && taken.node && taken.context);
-    assert.equal(taken.node.claim && taken.node.claim.by, "alice");
-    assert.equal(taken.freshly_claimed, true);
+    assert.ok(taken && taken.result && taken.diff && taken.log_entry);
+    assert.equal(taken.result.claim && taken.result.claim.by, "alice");
+    assert.equal(taken.result.freshly_claimed, true);
+    assert.equal(taken.diff.updated[0].node.revision, 2);
+    assert.equal(taken.log_entry.action, "task.take");
+    assert.equal(taken.log_entry.agent, "alice");
+    assert.equal(taken.log_entry.plugin_id, "example.core");
 
     // 4. task.resolve with a note (owner matches).
     const resolved = await api.core.run({
       op: "task.resolve",
       input: { id: "T-core-1", note: "shipped via core.run" },
     });
-    assert.ok(resolved && resolved.node);
-    assert.equal(resolved.node.status, "done");
-    assert.equal(resolved.node.done_by, "alice");
-    assert.equal(resolved.node.note, "shipped via core.run");
+    assert.ok(resolved && resolved.result && resolved.diff && resolved.log_entry);
+    assert.equal(resolved.result.status, "done");
+    assert.equal(resolved.result.done_by, "alice");
+    assert.equal(resolved.result.note, "shipped via core.run");
+    assert.deepEqual(resolved.effects, { newly_ready: ["T-core-2"] });
+    assert.equal(resolved.diff.updated[0].node.revision, 3);
+    assert.equal(resolved.log_entry.action, "task.resolve");
+    assert.equal(resolved.log_entry.agent, "alice");
+    assert.equal(resolved.log_entry.plugin_id, "example.core");
 
-    // 5. note.add on T-core-2.
+    // 5. note.add on T-core-2, using its observed create revision.
     const noted = await api.core.run({
       op: "note.add",
-      input: { id: "T-core-2", text: "context note via core.run" },
+      input: {
+        id: "T-core-2",
+        text: "context note via core.run",
+        if_revision: created2.diff.created[0].node.revision,
+      },
     });
-    assert.ok(noted && noted.node);
-    assert.ok(
-      Array.isArray(noted.node.notes) &&
-        noted.node.notes.some((n) => n.text === "context note via core.run"),
-    );
+    assert.ok(noted && noted.result && noted.diff && noted.log_entry);
+    assert.equal(noted.result.notes_count, 1);
+    assert.equal(noted.diff.updated[0].node.revision, 2);
+    assert.equal(noted.log_entry.action, "note.add");
+    assert.equal(noted.log_entry.agent, "alice");
+    assert.equal(noted.log_entry.plugin_id, "example.core");
+    const notedNode = (await readState(dir)).nodes["T-core-2"];
+    assert.ok(notedNode.notes.some((n) => n.text === "context note via core.run"));
 
     // ---- State assertions --------------------------------------------
     const s = await readState(dir);
@@ -157,9 +183,9 @@ test("plugin-core-integration: full first slice leaves intact state and logs wit
     for (const entry of pluginLogs) {
       assert.equal(entry.agent, "alice", `log agent must be alice: ${JSON.stringify(entry)}`);
     }
-    // Five distinct actions tagged: add-node, add-node, add-edge, take, resolve, add-note.
+    // Six handler calls produce five operation IDs (task.create is called twice).
     const seenActions = new Set(pluginLogs.map((e) => e.action));
-    for (const a of ["add-node", "add-edge", "take", "resolve", "add-node"]) {
+    for (const a of ["task.create", "edge.add", "task.take", "task.resolve", "note.add"]) {
       assert.ok(seenActions.has(a), `expected an action '${a}' in plugin logs`);
     }
     // No log carries agent other than alice for plugin-initiated writes.
@@ -190,10 +216,14 @@ test("plugin-core-integration: history for a node touched via core.run reports p
         blocked_by: "",
       },
     });
-    await api.core.run({ op: "task.take", input: { id: "T-hist" } });
+    const taken = await api.core.run({ op: "task.take", input: { id: "T-hist" } });
     await api.core.run({
       op: "note.add",
-      input: { id: "T-hist", text: "ctx" },
+      input: {
+        id: "T-hist",
+        text: "ctx",
+        if_revision: taken.diff.updated[0].node.revision,
+      },
     });
     const out = await api.query.history("T-hist");
     assert.equal(out.id, "T-hist");
@@ -247,10 +277,13 @@ test("plugin-core-integration: PLUGIN_CORE_INVALID_OPERATION does not mutate and
         err && err.code === "PLUGIN_CORE_INVALID_OPERATION" &&
         err.details.reason === "input.as is forbidden",
     );
-    // Empty input.
+    // Non-object input is rejected before the provider and lock.
     await assert.rejects(
-      api.core.run({ op: "task.create", input: {} }),
-      (err) => err && err.code === "PLUGIN_CORE_INVALID_OPERATION",
+      api.core.run({ op: "task.create", input: null }),
+      (err) =>
+        err &&
+        err.code === "PLUGIN_CORE_INVALID_OPERATION" &&
+        err.details.reason === "input must be an object",
     );
     const after = await readState(dir);
     assert.equal(after.edges.length, beforeEdges, "no edges added by rejected runs");
@@ -386,8 +419,12 @@ test("plugin-core-integration: two plugins calling core.run in parallel land bot
         },
       }),
     ]);
-    assert.equal(outA.node.id, "T-A");
-    assert.equal(outB.node.id, "T-B");
+    assert.equal(outA.result.id, "T-A");
+    assert.equal(outB.result.id, "T-B");
+    assert.equal(outA.diff.created[0].node.revision, 1);
+    assert.equal(outB.diff.created[0].node.revision, 1);
+    assert.equal(outA.log_entry.action, "task.create");
+    assert.equal(outB.log_entry.action, "task.create");
     const after = await readState(dir);
     assert.ok(after.nodes["T-A"]);
     assert.ok(after.nodes["T-B"]);
