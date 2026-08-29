@@ -1035,7 +1035,14 @@ async function readyProject() {
 
 // ---- initiative.create ---------------------------------------------
 
-test("api.core.run: initiative.create dispatches to add-initiative and returns the initiative envelope", async () => {
+test("api.core.run: initiative.create dispatches to the kernel and surfaces the typed initiative envelope", async () => {
+  // The kernel-driven path returns the typed result shape
+  // `{ result, effects, log_entry, idempotent, diff }`. initiative.create
+  // has no node (initiatives are not resolvable nodes), so the typed
+  // envelope surfaces the persisted initiative in `result`
+  // (`name/desc/created_at/persisted`) and in `diff.initiatives.created`.
+  // The log entry is stamped by the kernel with action=request.action
+  // (the op id) and plugin_id from the host.
   const dir = await readyProject();
   try {
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
@@ -1043,17 +1050,40 @@ test("api.core.run: initiative.create dispatches to add-initiative and returns t
       op: "initiative.create",
       input: { name: "fresh-initiative", desc: "parity slice" },
     });
-    assert.ok(out && out.initiative, "handler returned an initiative envelope");
-    assert.equal(out.initiative.name, "fresh-initiative");
-    assert.equal(out.initiative.desc, "parity slice");
+    assert.ok(out && typeof out === "object", "kernel returned the typed result envelope");
+    assert.equal(typeof out.result, "object", "typed envelope carries result");
+    assert.equal(typeof out.diff, "object", "typed envelope carries diff");
+    assert.equal(Array.isArray(out.diff.initiatives.created), true, "diff.initiatives.created is the canonical initiative list");
+    assert.equal(out.result.name, "fresh-initiative", "result.name reflects the new initiative");
+    assert.equal(out.result.desc, "parity slice", "result.desc reflects the new initiative");
+    assert.ok(typeof out.result.created_at === "string", "result.created_at is stamped by the provider at prepare time");
+    const created = out.diff.initiatives.created.find((c) => c.name === "fresh-initiative");
+    assert.ok(created, "diff.initiatives.created carries the new initiative");
+    assert.equal(created.name, "fresh-initiative");
+    assert.equal(created.initiative.desc, "parity slice");
+    assert.ok(typeof created.initiative.created_at === "string", "diff initiative carries created_at");
     const after = await readRawState(dir);
     assert.ok(after.initiatives["fresh-initiative"], "initiative is registered in state");
+    assert.equal(after.initiatives["fresh-initiative"].desc, "parity slice");
+    const lastPluginLog = after.log.filter((e) => e.plugin_id === "example.audit").pop();
+    assert.ok(lastPluginLog, "log entry tagged with plugin_id");
+    assert.equal(lastPluginLog.agent, "alice", "agent reflects api.runtime.agent, not plugin id");
+    assert.equal(lastPluginLog.action, "initiative.create", "log action is the op id");
+    assert.ok(out.log_entry, "typed envelope carries log_entry");
+    assert.equal(out.log_entry.action, "initiative.create", "kernel log_entry.action equals the op");
+    assert.equal(out.log_entry.plugin_id, "example.audit");
+    assert.equal(out.log_entry.agent, "alice");
   } finally {
     await rmTempProject(dir);
   }
 });
 
-test("api.core.run: initiative.create without name throws PLUGIN_CORE_INVALID_OPERATION", async () => {
+test("api.core.run: initiative.create without name is rejected with PLUGIN_CORE_ACTION_FAILED (provider-level MISSING_FIELD)", async () => {
+  // The kernel-driven path has no adapter-side required-field whitelist
+  // for initiative.create; the provider's prepare throws MISSING_FIELD
+  // when `name` is missing and the adapter wraps it as
+  // PLUGIN_CORE_ACTION_FAILED with a structured `cause`. State is not
+  // mutated and no log entry is appended.
   const dir = await readyProject();
   try {
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
@@ -1061,8 +1091,19 @@ test("api.core.run: initiative.create without name throws PLUGIN_CORE_INVALID_OP
       api.core.run({ op: "initiative.create", input: { desc: "no name" } }),
       (err) =>
         err &&
-        err.code === "PLUGIN_CORE_INVALID_OPERATION" &&
-        /missing required field 'name'/.test(err.details.reason || ""),
+        err.code === "PLUGIN_CORE_ACTION_FAILED" &&
+        err.details.op === "initiative.create" &&
+        err.details.plugin_id === "example.audit" &&
+        err.details.cause &&
+        err.details.cause.code === "MISSING_FIELD" &&
+        /name/.test(err.details.cause.message || ""),
+    );
+    const after = await readRawState(dir);
+    assert.equal(after.initiatives["fresh-initiative"], undefined, "no initiative created on failed run");
+    assert.equal(
+      after.log.filter((e) => e.action === "initiative.create").length,
+      0,
+      "no initiative log entry on failed run",
     );
   } finally {
     await rmTempProject(dir);
@@ -1303,7 +1344,13 @@ test("api.core.run: task.reopen works after a resolve (close -> roll back to ope
 
 // ---- gate.create / gate.resolve / gate.reopen / gate.cancel ----------
 
-test("api.core.run: gate.create dispatches to add-gate and stores a gate node with --purpose", async () => {
+test("api.core.run: gate.create dispatches through the kernel and surfaces the typed gate envelope", async () => {
+  // The kernel-driven path returns the typed result shape
+  // `{ result, effects, log_entry, idempotent, diff }`. The provider's
+  // apply projects `{ node, superseded, edges }` into `result`; the
+  // kernel-stamped revision lives on `diff.created[0].node`. There is
+  // no `{ node }` legacy envelope at the top level — the post-state
+  // is observed via `diff.created` and the persisted state file.
   const dir = await readyProject();
   try {
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
@@ -1317,18 +1364,46 @@ test("api.core.run: gate.create dispatches to add-gate and stores a gate node wi
         purpose: "decision",
       },
     });
-    assert.ok(out.node, "gate envelope present");
-    assert.equal(out.node.subkind, "gate");
-    assert.equal(out.node.purpose, "decision");
+    assert.ok(out && typeof out === "object", "kernel returned the typed result envelope");
+    assert.equal(typeof out.result, "object", "typed envelope carries result");
+    assert.equal(typeof out.diff, "object", "typed envelope carries diff");
+    assert.equal(Array.isArray(out.diff.created), true, "diff.created is the canonical created list");
+    // The provider projects the post-node into result.node; this is the
+    // draft view without revision (the kernel owns revision).
+    assert.equal(out.result.node.subkind, "gate", "provider's result.node.subkind === gate");
+    assert.equal(out.result.node.purpose, "decision", "provider's result.node.purpose echoes the input");
+    assert.equal(out.result.superseded, null, "no superseded gate on a non-supersede create");
+    assert.deepEqual(out.result.edges, [], "no blocker edges on a plain create");
+    // Kernel-stamped revision lives on diff.created[0].node.
+    assert.equal(out.diff.created[0].id, "G-parity-create");
+    assert.equal(out.diff.created[0].node.id, "G-parity-create");
+    assert.equal(out.diff.created[0].node.revision, 1, "kernel assigns revision=1 on create");
+    assert.equal(out.diff.created[0].node.subkind, "gate");
+    assert.equal(out.diff.created[0].node.purpose, "decision");
     const after = await readRawState(dir);
     assert.ok(after.nodes["G-parity-create"], "gate is in state");
     assert.equal(after.nodes["G-parity-create"].subkind, "gate");
+    assert.equal(after.nodes["G-parity-create"].revision, 1, "persisted revision matches the kernel diff");
+    const lastPluginLog = after.log.filter((e) => e.plugin_id === "example.audit").pop();
+    assert.ok(lastPluginLog, "log entry tagged with plugin_id");
+    assert.equal(lastPluginLog.agent, "alice", "agent reflects api.runtime.agent, not plugin id");
+    assert.equal(lastPluginLog.action, "gate.create", "log action is the op id");
+    assert.equal(lastPluginLog.node, "G-parity-create");
+    assert.ok(out.log_entry, "typed envelope carries log_entry");
+    assert.equal(out.log_entry.action, "gate.create", "kernel log_entry.action equals the op");
+    assert.equal(out.log_entry.plugin_id, "example.audit");
+    assert.equal(out.log_entry.agent, "alice");
   } finally {
     await rmTempProject(dir);
   }
 });
 
-test("api.core.run: gate.create without --purpose throws PLUGIN_CORE_INVALID_OPERATION", async () => {
+test("api.core.run: gate.create without --purpose is rejected with PLUGIN_CORE_ACTION_FAILED (provider-level MISSING_FIELD)", async () => {
+  // The kernel-driven path has no adapter-side required-field whitelist
+  // for gate.create; the provider's prepare throws MISSING_FIELD when
+  // `purpose` is missing and the adapter wraps it as
+  // PLUGIN_CORE_ACTION_FAILED with a structured `cause`. State is not
+  // mutated and no log entry is appended.
   const dir = await readyProject();
   try {
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
@@ -1344,8 +1419,19 @@ test("api.core.run: gate.create without --purpose throws PLUGIN_CORE_INVALID_OPE
       }),
       (err) =>
         err &&
-        err.code === "PLUGIN_CORE_INVALID_OPERATION" &&
-        /missing required field 'purpose'/.test(err.details.reason || ""),
+        err.code === "PLUGIN_CORE_ACTION_FAILED" &&
+        err.details.op === "gate.create" &&
+        err.details.plugin_id === "example.audit" &&
+        err.details.cause &&
+        err.details.cause.code === "MISSING_FIELD" &&
+        /purpose/.test(err.details.cause.message || ""),
+    );
+    const after = await readRawState(dir);
+    assert.equal(after.nodes["G-parity-no-purpose"], undefined, "no gate created on failed run");
+    assert.equal(
+      after.log.filter((e) => e.action === "gate.create").length,
+      0,
+      "no gate log entry on failed run",
     );
   } finally {
     await rmTempProject(dir);
