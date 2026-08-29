@@ -60,6 +60,7 @@
 
 import { throwV2 } from "../../errors.mjs";
 import { GATE_STATUSES } from "./create.mjs";
+import { diffReadyByGate, isSatisfiedByGraph } from "./semantics.mjs";
 
 const RESOLVE_OP = "gate.resolve";
 const REOPEN_OP = "gate.reopen";
@@ -191,96 +192,6 @@ function loadTargetGate(snapshot, id, command, { terminalOnly = false, allowedSt
     );
   }
   return node;
-}
-
-// Pure satisfaction check against a (nodes, edges) pair. Mirrors
-// v2.mjs#isSatisfiedV2 but does not import v2.mjs: the provider stays
-// independent of v2 facade / facade-loaded side effects.
-//
-//   - task: status === "done" || "archived"
-//   - gate: status === "resolved" => true
-//          status === "superseded" => follow incoming SUPERSEDES edge
-//                                    (edge.to === id ⇒ edge.from is the
-//                                    superseder) and recurse.
-//   - any other status: false
-function isSatisfiedByGraph(nodes, edges, id, seen) {
-  const visited = seen || new Set();
-  if (visited.has(id)) return false;
-  const node = nodes[id];
-  if (!node) return false;
-  if (node.kind === "knowledge") return false;
-  const status = node.status || "open";
-  if (node.subkind === "task") {
-    return status === "done" || status === "archived";
-  }
-  if (node.subkind === "gate") {
-    if (status === "resolved") return true;
-    if (status === "superseded") {
-      visited.add(id);
-      let nextId = null;
-      for (const edge of edges) {
-        if (edge.type === "SUPERSEDES" && edge.to === id) {
-          // v2 keeps a unique successor; tie-break by id for determinism.
-          const candidate = edge.from;
-          if (nextId === null || candidate < nextId) nextId = candidate;
-        }
-      }
-      return nextId ? isSatisfiedByGraph(nodes, edges, nextId, visited) : false;
-    }
-  }
-  return false;
-}
-
-function incomingBlockers(graph, id) {
-  // edges is iterable; blockers may appear in any order.
-  const result = [];
-  for (const edge of graph.edges) {
-    if (edge.type === "BLOCKS" && edge.to === id) result.push(edge);
-  }
-  return result;
-}
-
-// Pure, in-memory "is this task ready" matching v2.mjs#deriveV2 minus the
-// derivation bookkeeping (no ready/blocked arrays, no backlog handling).
-// Skips in-progress / done / archived / canceled tasks so dependents that
-// have left the ready pool stay out of newly_ready.
-function taskIsReadyByGraph(nodes, edges, id) {
-  const node = nodes[id];
-  if (!node) return false;
-  if (node.kind !== "resolvable" || node.subkind !== "task") return false;
-  const status = node.status || "open";
-  if (["in_progress", "done", "archived", "canceled"].includes(status)) return false;
-  if (node.backlog === true) return false;
-  const blockers = incomingBlockers({ edges }, id);
-  return blockers.every((edge) => isSatisfiedByGraph(nodes, edges, edge.from));
-}
-
-// diffReadyByGate walks every task whose BLOCKS list contains `gateId` and
-// returns the set of ids whose ready state flipped between snapshotGraph
-// and viewGraph. direction="up" returns newly ready (resolve case);
-// direction="down" returns newly blocked (reopen / cancel case).
-function diffReadyByGate(snapshotGraph, viewGraph, gateId, direction) {
-  const up = direction === "up";
-  const result = [];
-  const snapshotNodes = snapshotGraph.nodes;
-  for (const [taskId, node] of Object.entries(viewGraph.nodes)) {
-    if (node.kind !== "resolvable" || node.subkind !== "task") continue;
-    const status = node.status || "open";
-    if (["in_progress", "done", "archived", "canceled"].includes(status)) continue;
-    if (node.backlog === true) continue;
-    // Must depend on this gate in BOTH graphs; the kernel could in theory
-    // mutate edges in this apply, but lifecycle providers don't, so a
-    // mismatch would be a fixture error.
-    const hasGateInView = viewGraph.edges.some(
-      (edge) => edge.type === "BLOCKS" && edge.from === gateId && edge.to === taskId,
-    );
-    if (!hasGateInView) continue;
-    const wasReady = taskIsReadyByGraph(snapshotNodes, snapshotGraph.edges, taskId);
-    const isReady = taskIsReadyByGraph(viewGraph.nodes, viewGraph.edges, taskId);
-    if (up && !wasReady && isReady) result.push(taskId);
-    if (!up && wasReady && !isReady) result.push(taskId);
-  }
-  return result.sort();
 }
 
 function readRevisionsForApply(input, command, affected) {
