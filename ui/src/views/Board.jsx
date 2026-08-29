@@ -423,7 +423,9 @@ export default function Board() {
                   <Show
                     when={col.cards.length > 0}
                     fallback={
-                      <EmptyState variant="compact" title="Nothing here." />
+                      <div class="ui-board-empty flex min-h-[104px] items-center justify-center rounded-control border border-dashed border-line text-center">
+                        <EmptyState variant="compact" title="Nothing here." />
+                      </div>
                     }
                   >
                     <For each={col.cards}>
