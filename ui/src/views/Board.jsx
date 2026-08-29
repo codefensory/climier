@@ -357,7 +357,7 @@ export default function Board(props) {
           }
         >
           <div
-            class="ui-board-columns grid min-h-0 flex-1 gap-3 overflow-auto"
+            class="ui-board-columns grid min-h-0 min-w-0 flex-1 gap-3 overflow-auto"
             style={{ "grid-template-columns": `repeat(${columns().length + (filteredGates().length > 0 ? 1 : 0)}, 280px)` }}
           >
             <Show when={filteredGates().length > 0}>

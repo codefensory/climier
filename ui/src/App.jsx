@@ -29,8 +29,9 @@
 //     pre-Phase-3 bug).
 //   - Uninitialized projects render as the main content with the CLI init
 //     command shown as text. The UI never mutates the state file.
-//   - Layout: 100dvh, min-h-0 chain, exactly one scroll owner per view
-//     (the RouteView wrapper). No nested scrollers.
+//   - Layout: 100dvh, min-h-0 chain, with the RouteView wrapper as the
+//     default scroll owner. Board opts into a bounded internal scroller so
+//     its fixed-width columns can scroll without stretching the page.
 //
 // Out of scope here:
 //   - NodeDetail still renders as a fixed overlay on top of the shell; it
@@ -689,13 +690,15 @@ function InitialError(props) {
 }
 
 // === RouteView =============================================================
-// Mounts the route's component. Wrapped in a div that owns the scroll so
-// the route views don't need to repeat `h-full overflow-auto`. Dynamic is
-// intentional: Component is a reactive prop and capturing it in a local
-// constant would mount the initial view once without switching on navigation.
+// Mounts the route's component. Standard views use this wrapper as their
+// scroll owner; Board owns its bounded scroll region instead so its fixed
+// width columns never force the page to stretch.
+// Dynamic is intentional: Component is a reactive prop and capturing it in a
+// local constant would mount the initial view once without switching on nav.
 function RouteView(props) {
+  const board = props.route === "board";
   return (
-    <div class="h-full overflow-auto" data-view={props.route}>
+    <div class={`h-full ${board ? "overflow-hidden" : "overflow-auto"}`} data-view={props.route}>
       <Dynamic
         component={props.Component}
         boardInitiative={props.boardInitiative}
