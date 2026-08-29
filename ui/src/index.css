@@ -1324,32 +1324,32 @@ body {
 }
 
 .ui-nav-link {
-  min-height: 35px;
+  min-height: 32px;
   border-color: transparent;
-  border-radius: 9px;
+  border-radius: 8px;
   color: var(--ui-muted);
   font-size: 13px;
   font-weight: 500;
-  transition: background-color .16s ease, border-color .16s ease, color .16s ease, transform .16s ease;
+  transition: color .16s ease;
 }
 
 .ui-nav-link:hover {
   border-color: transparent;
-  background: rgba(255, 255, 252, 0.78);
+  background: transparent;
   color: var(--ui-text);
 }
 
 .ui-nav-link[aria-current="page"] {
-  border-color: #dfddd8;
-  background: #eae9e5;
+  border-color: transparent;
+  background: transparent;
   color: var(--ui-text);
-  box-shadow: 0 1px 1px rgba(47, 43, 36, 0.02);
+  box-shadow: none;
   font-weight: 650;
 }
 
 .ui-nav-glyph {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   border: 0;
   border-radius: 7px;
   background: transparent;
@@ -1358,16 +1358,16 @@ body {
 
 .ui-boxicon {
   display: inline-flex;
-  width: 17px;
-  height: 17px;
+  width: 16px;
+  height: 16px;
   align-items: center;
   justify-content: center;
 }
 
 .ui-boxicon svg {
   display: block;
-  width: 17px;
-  height: 17px;
+  width: 16px;
+  height: 16px;
   fill: currentColor;
 }
 
@@ -1585,10 +1585,10 @@ body {
   align-items: center;
   gap: 8px;
   color: var(--ui-text);
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 700;
-  letter-spacing: -0.03em;
-  line-height: 23px;
+  letter-spacing: -0.02em;
+  line-height: 21px;
 }
 
 .ui-board-column-header-count {
