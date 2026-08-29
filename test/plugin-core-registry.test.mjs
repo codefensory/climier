@@ -257,7 +257,8 @@ test("bootstrapBuiltins: includes all ADR-012 task / gate / knowledge operation 
 
   // ADR-012 §2 operation IDs that the built-in core covers, plus
   // the core-resident operations added by
-  // T-graph-kernel-provider-core-ops.
+  // T-graph-kernel-provider-core-ops (edge.add, note.add) and
+  // T-graph-kernel-provider-core-initiative (initiative.create).
   const expectedIds = [
     "task.create",
     "task.update",
@@ -275,23 +276,24 @@ test("bootstrapBuiltins: includes all ADR-012 task / gate / knowledge operation 
     "knowledge.deprecate",
     "edge.add",
     "note.add",
+    "initiative.create",
   ];
   for (const id of expectedIds) {
     assert.ok(reg.has(id), `bootstrapBuiltins registers ${id}`);
   }
   assert.ok(Object.isFrozen(reg), "bootstrap registry is frozen");
-  assert.equal(reg.ops.length, expectedIds.length, "all 16 expected ids present, no extras");
+  assert.equal(reg.ops.length, expectedIds.length, "all 17 expected ids present, no extras");
 
   // bootstrap must NOT expose plan-derived actions that are not part
   // of the public core surface (task.takeover, state.restore, etc.).
-  // edge.add and note.add ARE public surface since
-  // T-graph-kernel-provider-core-ops so they are intentionally not
-  // listed here.
+  // edge.add, note.add and initiative.create ARE public surface since
+  // T-graph-kernel-provider-core-ops /
+  // T-graph-kernel-provider-core-initiative, so they are intentionally
+  // not listed here.
   for (const forbidden of [
     "task.takeover",
     "state.restore",
     "state.init_force",
-    "initiative.create",
   ]) {
     assert.equal(reg.has(forbidden), false, `bootstrap does not expose ${forbidden}`);
   }
@@ -307,12 +309,13 @@ test("bootstrapBuiltins: includes all ADR-012 task / gate / knowledge operation 
     assert.equal(typeof entry.provider.apply, "function", `${id} provider.apply is fn`);
   }
 
-  // byKind grouping: 7 task + 4 gate + 3 knowledge + 2 core
-  // (edge.add + note.add) per the §B6A + §B6B contract.
+  // byKind grouping: 7 task + 4 gate + 3 knowledge + 3 core
+  // (edge.add + note.add + initiative.create) per the §B6A + §B6B
+  // contract.
   assert.equal(reg.byKind.get("task").length, 7, "task has 7 ops");
   assert.equal(reg.byKind.get("gate").length, 4, "gate has 4 ops");
   assert.equal(reg.byKind.get("knowledge").length, 3, "knowledge has 3 ops");
-  assert.equal(reg.byKind.get("core").length, 2, "core has 2 ops");
+  assert.equal(reg.byKind.get("core").length, 3, "core has 3 ops");
 
   // bootstrap is callable any number of times and is deterministic.
   const reg2 = mod.bootstrapBuiltins();
