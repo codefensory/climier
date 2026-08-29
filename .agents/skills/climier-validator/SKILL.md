@@ -37,9 +37,12 @@ git worktree list --porcelain
 Default budget:
 
 - use at most 10 shell commands before verdict, unless one command directly proves the task
+- checkpoint after 5 commands; if the verdict is not evident by command 10, return `BLOCKED` with the missing evidence instead of broadening the audit
 - inspect at most 5 files manually by default
 - do not read broad docs, architecture files, or full diffs unless the contract points to them
 - stop early on structural failure: missing worktree, missing commit, dirty task changes, failed targeted check, or clear acceptance miss
+- every potentially long command uses a hard timeout with kill fallback: `timeout -k 10s 180s ...`; never leave a test or merge process running after the budget
+- trust worker checks as evidence but rerun the smallest required targeted check when acceptance or diff risk makes it necessary; do not repeat a full suite merely for ritual
 
 Micro-task budget:
 
@@ -115,6 +118,10 @@ Behavior:
 - NEVER mutates git state: no checkout, merge, reset, commit, push, fetch, worktree remove, or file edits.
 
 Use `--json` for machine-readable output. Treat exit code `1` as a flag for review (rerun, inspect overlap paths, decide between rebase or merge resolution) — it does not by itself force `FAIL`. If the worker shipped a WORKTREE-only note without EVIDENCE, the script still runs in degraded mode (verdict = `clean`, `overlap_paths = []`, `degraded_reasons` populated).
+
+The validator must not compensate for a worker that exceeded its budget by doing
+an unbounded reimplementation. Validate the contract, report the evidence gap,
+and let the orchestrator create a correction or split task.
 
 When integration-preflight reports verdict `overlap`, do not merge blindly: surface overlap paths in the validator summary and recommend a strategy (rebase vs merge) before the orchestrator decides.
 

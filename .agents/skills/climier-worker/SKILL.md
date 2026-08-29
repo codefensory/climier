@@ -43,12 +43,21 @@ imprime el script y antepone `cd <worktree> &&` a cada comando posterior, o usa
 paths absolutos. Antes de editar o testear, confirma `pwd` y la rama dentro de
 ese mismo comando. Nunca ejecutes tests desde el worktree principal.
 
-Los tests deben ser acotados y tener timeout explícito (`timeout 180s ...`). No
-uses `node --test --test-skip-pattern=ui- test/*.test.mjs` para excluir archivos
-UI: `--test-skip-pattern` filtra nombres de tests, no nombres de archivo. Usa
-el script `npm test` verificado por el repo o una lista explícita de archivos;
-si un comando no produce salida durante el timeout, detenlo y deja handoff en
-vez de mantener la task en `running` indefinidamente.
+Los tests deben ser acotados y tener timeout explícito y con kill de respaldo
+(`timeout -k 10s 180s ...`). No uses `node --test --test-skip-pattern=ui- test/*.test.mjs` para excluir archivos UI: `--test-skip-pattern` filtra nombres de tests, no nombres de archivo. Usa el script `npm test` verificado por el
+repo o una lista explícita de archivos; si un comando no produce salida durante
+el timeout, detenlo y deja handoff en vez de mantener la task en `running`
+indefinidamente.
+
+### Presupuesto operativo y checkpoints
+
+El límite de turns del agente no es un límite confiable de comandos. Cuenta las
+llamadas de shell y aplica este presupuesto: checkpoint después de 10 llamadas,
+implementación y primer test antes de 20, y cierre o handoff antes de 30 salvo
+que el orchestrator haya documentado una excepción. No releas el repo completo,
+no repitas suites ya verdes y no mantengas dos verificaciones activas. Si el
+scope no entra, deja el cambio mínimo commiteado o un handoff preciso y libera;
+no sigas explorando hasta consumir el contexto.
 
 Usa `task-context.sh` solo cuando necesites compactar contexto disperso:
 

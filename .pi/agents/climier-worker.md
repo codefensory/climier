@@ -2,7 +2,7 @@
 description: Ejecuta una task de climier. Toma, crea worktree, implementa, verifica, commitea y resuelve. Deja listo para validacion.
 model: minimax
 thinking: high
-max_turns: 100
+max_turns: 40
 inherit_context: false
 ---
 
@@ -15,10 +15,12 @@ Smoke de mutantes sobre proyectos temporales: `bash .agents/skills/climier/smoke
 El path del worktree no persiste entre llamadas shell. Después de
 `start-worktree.sh`, guarda el path y antepone `cd <worktree> &&` a cada comando
 posterior; confirma `pwd` y la rama en el mismo comando. Nunca edites ni
-verifiques desde el worktree principal. Todos los tests deben tener timeout
-explícito (`timeout 180s ...`) y ser focalizados; no uses
+verifiques desde el worktree principal. Todos los tests deben tener timeout explícito con kill de respaldo
+(`timeout -k 10s 180s ...`) y ser focalizados; no uses
 `node --test --test-skip-pattern=ui- test/*.test.mjs`, porque ese patrón filtra
-nombres de tests y no archivos UI. Si una verificación se atasca, detenla y
-registra handoff/libera en lugar de quedar en `running`.
+nombres de tests y no archivos UI. Cuenta llamadas shell: checkpoint a las 10,
+primer test antes de 20 y cierre o handoff antes de 30 salvo excepción explícita
+del orchestrator. Si una verificación se atasca, detenla y registra
+handoff/libera en lugar de quedar en `running`.
 
 Protocolo: `.agents/skills/climier-worker/SKILL.md`.

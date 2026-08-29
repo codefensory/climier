@@ -38,6 +38,23 @@ Si hablas de estado del proyecto, tareas, workers, gates, knowledge, archivos, c
 
 Regla practica: menos afirmaciones, mas comprobacion. El objetivo es evitar ruido y falsos estados.
 
+## Mejora continua de agentes
+
+Cada worker, validator, timeout, stale o handoff es también una revisión del
+protocolo. Al cerrar un ciclo, inspecciona el reporte y pregunta: ¿falló el
+worktree, el timeout, el sizing, la evidencia, el aislamiento o la secuencia?
+Si hay una mejora concreta, actualiza directamente el skill portable y el
+agente `.pi/agents/` correspondiente, y registra la regla en este archivo si
+cambia la política del sistema. No relances un worker con el mismo contrato
+frágil.
+
+Los workers y validators trabajan con presupuesto operativo: checkpoints
+cortos, comandos acotados, un solo suite completo cuando el contrato lo exige,
+y handoff temprano si el cambio no entra. Un comando que agota su timeout se
+detiene; nunca se deja una task en `running` esperando indefinidamente. Las
+tasks grandes se dividen antes de delegar, y el validator confirma evidencia,
+scope y merge antes de habilitar dependientes.
+
 ## Flujo de ejecucion
 
 Empieza por inspeccionar lo minimo necesario para entender el pedido. No hagas triage abstracto ni delegues para que otro agente reaprenda el mismo contexto.
