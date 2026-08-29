@@ -11,7 +11,7 @@ idea → [RFC: gate research + .decisions/<G>.md]
      → [resolve G-rfc --choice aprobado]
      → [ADR(s): gate decision --blocked-by G-rfc + .adrs/NNN-slug.md]
      → [resolve G-adrN cuando este listo para ejecutarse]
-     → [checkpoint de planificacion: sin bootstrap | bootstrap]
+     → [onboarding breve opcional para mejorar tasks]
      → [tasks: --blocked-by G-adrN, body = puntero al ADR]
      → worker → validator → merge
 ```
@@ -64,14 +64,19 @@ climier resolve <G-adrN> --choice aprobado --rationale "<resumen de la decision>
 
 Si un ADR reemplaza a otro: `add-gate ... --supersedes <viejo>` (rewire automatico de dependencias). ADR riesgoso → tambien pasa por rfc-reviewer antes de resolverse.
 
-## 4. Checkpoint de planificacion post-ADR
+## 4. Onboarding breve para crear tasks
 
-Antes de crear tasks de implementacion, el orquestador revisa el ADR y deja una decision explicita: **sin bootstrap** o **bootstrap**. Evalua paths y ownership, contratos compartidos, dependencias reales, batches paralelos, integracion, riesgos y estrategia de verificacion. No delega implementacion hasta terminar este checkpoint.
+Antes de crear tasks de implementacion, el orquestador puede hacer una pasada corta sobre el ADR y el codigo minimo relevante. El objetivo es entender el cambio y detectar como expresarlo mejor en tasks ejecutables.
 
-- **Sin bootstrap:** si el trabajo es acotado y el ADR ya permite tasks independientes con acceptance y verificacion claras, deja una nota breve en el gate ADR con el razonamiento y pasa al paso 5.
-- **Bootstrap:** si hay varios modulos, seams inciertos, contratos compartidos, migraciones, concurrencia, paralelismo o integracion delicada, crea solo `T-<tema>-bootstrap`, bloqueada por el ADR. Su body apunta al ADR y su acceptance exige `docs/plans/<tema>-execution.md` con: mapa de codigo, boundaries/paths exclusivos, contratos y riesgos, estrategia de pruebas, batches/dependencias y propuestas de tasks con acceptance. El bootstrap no implementa producto ni materializa tasks hijas. Un validator debe hacer merge del plan; despues el orquestador lo revisa y crea el DAG de implementacion.
+El onboarding entrega solo una nota breve con:
 
-El bootstrap es condicional: no se crea por ritual para cambios locales evidentes.
+- alcance entendido y paths probablemente afectados;
+- sugerencia simple para separar o acotar tasks, si hace falta;
+- ambiguedades, riesgos o criterios de acceptance que convenga aclarar.
+
+No es un plan ni una secuencia de pasos. No crea una task de onboarding, no escribe `docs/plans/`, no arma batches, no crea tasks hijas y no implementa producto. Si el ADR ya alcanza para una task clara, se omite.
+
+Debe terminar rapido. Si aparece una decision real o falta contexto, se informa al usuario o se abre una gate; no se inventa una solucion. Luego el orquestador crea y cura las tasks directamente.
 
 ## 5. Tasks (Technical Spec)
 
@@ -86,9 +91,9 @@ Verificar: <comando>." \
   --blocked-by <G-adrN> --as orchestrator
 ```
 
-- La spec vive en el ADR y, si existio bootstrap, tambien en `docs/plans/<tema>-execution.md`; el body es puntero + archivos + acceptance. El worker lee esos artefactos, no el proyecto a ciegas.
+- La spec vive en el ADR; el body de la task es puntero + archivos + acceptance. El worker lee esos artefactos, no el proyecto a ciegas.
 - Una task = un cambio principal + acceptance verificable. "Y ademas" → otra task.
-- Materializa el DAG solo despues del checkpoint: contratos compartidos primero, implementaciones en paralelo, integracion al final. Edges `--blocked-by` solo reales.
+- Las dependencias del DAG deben ser reales y salir del alcance decidido, no de un plan generado por el onboarding.
 - Dos workers no tocan el mismo modulo a la vez.
 
 ## Knowledge

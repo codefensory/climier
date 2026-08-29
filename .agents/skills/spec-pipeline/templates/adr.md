@@ -23,12 +23,14 @@
 1. <pieza> — archivos: <paths>
 2. ...
 
-## Checkpoint de planificacion post-ADR
+## Onboarding breve para crear tasks
 
-Antes de materializar tasks, el orquestador decide y registra una opcion:
+Antes de materializar tasks, el orquestador registra una nota corta o marca que no hace falta:
 
-- [ ] Sin bootstrap — <por que el ADR ya deja paths, dependencias, batches y verificacion suficientemente claros>.
-- [ ] Bootstrap — `T-<tema>-bootstrap` entrega `docs/plans/<tema>-execution.md` antes de crear tasks de implementacion.
+- [ ] Onboarding realizado — <alcance, corte sugerido de tasks y ambiguedades detectadas>.
+- [ ] No hace falta — <por que el ADR ya permite crear una task clara>.
+
+El onboarding no es un plan, no crea documentos ni tasks y no define pasos de implementacion.
 
 ## Verificacion
 

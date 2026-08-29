@@ -109,23 +109,19 @@ No conviertas una idea vaga en task ejecutable. Primero ordenala, pregunta lo ne
 
 Una buena task permite que el worker empiece sin volver al chat.
 
-### Checkpoint de planificacion post-ADR
+### Onboarding breve para crear tasks
 
-Despues de resolver un ADR y **antes de crear cualquier task de implementacion**, el orquestador hace un checkpoint de planificacion. No materializa un DAG por reflejo: verifica que el ADR sea suficiente para partir el trabajo con seguridad y velocidad.
+Despues de resolver un ADR, el orquestador puede hacer un onboarding corto antes de crear tasks. Su unico objetivo es entender el cambio y mejorar la forma de expresarlo en tasks ejecutables.
 
-El checkpoint define o confirma:
+El onboarding solo entrega una nota breve con:
 
-- limites de cada cambio, paths que posee y contratos compartidos;
-- dependencias reales, batches paralelos seguros y punto de integracion;
-- estrategia de pruebas y evidencia por task;
-- riesgos de concurrencia, migracion, compatibilidad o ambiguedad que un worker no deba redescubrir.
+- el alcance entendido y los paths que probablemente cambien;
+- una sugerencia simple sobre como separar o acotar las tasks, si hace falta;
+- ambiguedades, riesgos o criterios de acceptance que convenga aclarar.
 
-El orquestador decide explicitamente una de estas salidas antes de mutar tasks:
+No es un plan, no define pasos de implementacion, no arma batches, no crea documentos `docs/plans/`, no crea tasks hijas y no implementa producto. Tampoco es obligatorio: si el ADR ya permite crear una task clara, se salta.
 
-1. **Sin bootstrap:** el ADR ya permite un DAG pequeño y claro. Deja una nota breve con el razonamiento y materializa las tasks.
-2. **Bootstrap:** crea una unica task de planificacion `T-<tema>-bootstrap`, bloqueada por el ADR. Su unico entregable es `docs/plans/<tema>-execution.md`: mapa de codigo, seams, ownership de paths, batches, dependencias, verificacion, riesgos y propuestas de tasks con acceptance. No implementa producto ni crea tasks hijas. Tras validarla y mergearla, el orquestador revisa ese plan y recien entonces crea el DAG de implementacion.
-
-El bootstrap es una herramienta, no un ritual: se usa cuando hay varios modulos, contratos compartidos, incertidumbre tecnica, trabajo paralelo o integracion delicada. Una mutacion local y evidente no lo necesita. Ningun worker recibe una task de implementacion hasta que este checkpoint haya terminado.
+Debe terminar rapido. Si encuentra una decision real o contexto faltante, lo señala para que el orquestador pregunte o abra una gate; no inventa una solucion. Con el onboarding cerrado —o salteado— el orquestador crea y cura las tasks directamente.
 
 Antes de crear o delegar, deja claro:
 
