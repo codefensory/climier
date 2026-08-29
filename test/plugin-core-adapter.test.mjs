@@ -44,7 +44,6 @@ import {
 
 const ADAPTER_MODULE = "../src/plugin-core-adapter.mjs";
 const REGISTRY_MODULE = "../src/plugin-core-registry.mjs";
-const ERRORS_MODULE = "../src/plugin-errors.mjs";
 
 // 17 op IDs (ADR-012 §2). The adapter must accept every one of these
 // before reaching for the kernel.
@@ -161,14 +160,20 @@ test("plugin-core-adapter: bootstrapBuiltins exposes exactly the 17 op IDs publi
 
 test("plugin-core-adapter: run rejects non-string op with PLUGIN_CORE_INVALID_OPERATION and lists supported ops", async () => {
   const { createCore } = await importFresh(ADAPTER_MODULE);
-  const { PluginCoreInvalidOperation } = await importFresh(ERRORS_MODULE);
   const core = createCore({ projectDir: "/tmp/no-state-needed", agent: "alice", pluginId: "p.test" });
+  // NOTE: assert by `code` + `details`, NOT by `instanceof
+  // PluginCoreInvalidOperation`. Each `importFresh(ERRORS_MODULE)` call
+  // returns a fresh class instance (ESM query-string cache bust), so a
+  // cross-module `err instanceof PluginCoreInvalidOperation` check
+  // always fails — the adapter's import is cached separately from the
+  // test's. The structured envelope is the contract, not the JS class.
   for (const bad of [undefined, null, 1, true, [], {}, ""]) {
     await assert.rejects(
       core.run({ op: bad, input: {} }),
       (err) =>
-        err instanceof PluginCoreInvalidOperation &&
+        err &&
         err.code === "PLUGIN_CORE_INVALID_OPERATION" &&
+        err.details &&
         Array.isArray(err.details.supported) &&
         err.details.supported.length === EXPECTED_OPS.length,
       `expected PLUGIN_CORE_INVALID_OPERATION for op=${JSON.stringify(bad)}`,
@@ -248,15 +253,39 @@ test("plugin-core-adapter: run rejects unknown op without mutating state (reject
     const dir = await createTempProject();
     try {
       const core = await freshCore(dir, { agent: "alice", pluginId: "p.test" });
+      // Baseline log AFTER setup. freshCore() runs `init` + `add-initiative`
+      // — both emit a log entry. The "no new entries after the rejected
+      // call" contract must compare against the post-setup baseline,
+      // not against an empty array. Without this, the assert would
+      // double-count the add-initiative entry as a mutation from the
+      // plugin path under test.
+      const baseline = await readState(dir);
+      const baselineLogLen = baseline.log.length;
+      const baselineUserNodes = Object.keys(baseline.nodes).filter((id) => !id.startsWith("F"));
       await assert.rejects(
         core.run({ op: "task.unknown", input: {} }),
-        (err) => err.code === "PLUGIN_CORE_INVALID_OPERATION",
+        (err) => err && err.code === "PLUGIN_CORE_INVALID_OPERATION",
       );
       const after = await readState(dir);
-      // No user-shaped nodes (init places a placeholder we ignore).
+      // No user-shaped nodes created after the rejected call (the
+      // baseline already carries whatever init/add-initiative planted).
       const userNodes = Object.keys(after.nodes).filter((id) => !id.startsWith("F"));
-      assert.equal(userNodes.length, 0);
-      assert.deepEqual(after.log, []);
+      assert.equal(
+        userNodes.length,
+        baselineUserNodes.length,
+        "no new user-shaped nodes after rejection",
+      );
+      // The log MUST be byte-for-byte the same length and content as
+      // the post-setup baseline. Any drift means the rejected call
+      // touched state (it must not).
+      assert.equal(
+        after.log.length,
+        baselineLogLen,
+        "no new log entries after rejection",
+      );
+      for (let i = 0; i < baselineLogLen; i++) {
+        assert.deepEqual(after.log[i], baseline.log[i], `log[${i}] unchanged`);
+      }
     } finally {
       await rmTempProject(dir);
     }
@@ -395,7 +424,18 @@ test("plugin-core-adapter: task.update without if_revision fails inside the prov
           op: "task.update",
           input: { id: "T-upd-no-cas", changes: { title: "after" } },
         }),
-        (err) => err && err.code === "MISSING_FIELD",
+        // Provider-level MISSING_FIELD is wrapped by the adapter via
+        // wrapCoreError → PLUGIN_CORE_ACTION_FAILED with the original
+        // code preserved under details.cause.code (see
+        // src/plugin-errors.mjs:normalizeCoreCause). The contract is
+        // the wrapped envelope, NOT the bare MISSING_FIELD.
+        (err) =>
+          err &&
+          err.code === "PLUGIN_CORE_ACTION_FAILED" &&
+          err.details &&
+          err.details.op === "task.update" &&
+          err.details.cause &&
+          err.details.cause.code === "MISSING_FIELD",
       );
       const after = await readState(dir);
       assert.equal(after.nodes["T-upd-no-cas"].title, "x", "title unchanged");
@@ -463,7 +503,15 @@ test("plugin-core-adapter: note.add without if_revision fails with MISSING_FIELD
           op: "note.add",
           input: { id: "T-note-no-cas", text: "no CAS" },
         }),
-        (err) => err && err.code === "MISSING_FIELD",
+        // Provider-level MISSING_FIELD is wrapped via PLUGIN_CORE_ACTION_FAILED;
+        // see the matching task.update assertion above for the rationale.
+        (err) =>
+          err &&
+          err.code === "PLUGIN_CORE_ACTION_FAILED" &&
+          err.details &&
+          err.details.op === "note.add" &&
+          err.details.cause &&
+          err.details.cause.code === "MISSING_FIELD",
       );
       const after = await readState(dir);
       assert.deepEqual(after.nodes["T-note-no-cas"].notes || [], []);
