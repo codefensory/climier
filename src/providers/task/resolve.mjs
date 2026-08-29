@@ -14,6 +14,7 @@
 //     helpers.
 
 import { throwV2 } from "../../errors.mjs";
+import { collectReadyTasks } from "./derivation.mjs";
 
 const OP = "task.resolve";
 const LOG_ACTION = "resolve";
@@ -21,9 +22,6 @@ const LOG_ACTION = "resolve";
 const TASK_KIND = "resolvable";
 const TASK_SUBKIND = "task";
 const ALLOWED_STATUSES = ["open", "in_progress"];
-const SATISFIED_TASK = new Set(["done", "archived"]);
-const SATISFIED_GATE = new Set(["resolved"]);
-
 function asNonEmptyString(value) {
   return typeof value === "string" && value.length > 0 ? value : null;
 }
@@ -94,37 +92,6 @@ function validateTarget(input, snapshot) {
   }
 }
 
-// isBlockerSatisfied — mirror of v2.mjs#isSatisfiedV2 for direct
-// status only. Newly-ready computation matches the v2 derivation:
-// a task is ready when status is open, not backlog, and every incoming
-// BLOCKS edge has a satisfied blocker.
-function isBlockerSatisfied(blocker) {
-  if (!blocker) return false;
-  const status = blocker.status || "open";
-  if (blocker.subkind === "task") return SATISFIED_TASK.has(status);
-  if (blocker.subkind === "gate") return SATISFIED_GATE.has(status);
-  return false;
-}
-
-function collectReadyTasks(nodesView, edges) {
-  const ready = [];
-  for (const node of Object.values(nodesView || {})) {
-    if (!node || node.kind !== "resolvable") continue;
-    if (node.subkind !== "task") continue;
-    const status = node.status || "open";
-    if (status !== "open") continue;
-    if (node.backlog === true) continue;
-    const blockers = edges.filter((e) => e.type === "BLOCKS" && e.to === node.id);
-    if (blockers.length === 0) {
-      ready.push(node.id);
-      continue;
-    }
-    const ok = blockers.every((e) => isBlockerSatisfied(nodesView[e.from]));
-    if (ok) ready.push(node.id);
-  }
-  return ready;
-}
-
 /**
  * Pure `prepare` for task.resolve.
  *
@@ -180,9 +147,12 @@ async function apply({ tx, plan, input, request, snapshot }) {
   // newly_ready: tasks whose blockers all moved to satisfied in this
   // apply, and that were not ready in the original snapshot. The
   // kernel does not persist this — the adapter projects it.
-  const beforeReady = new Set(collectReadyTasks(readSnapshotNodes(snapshot), readSnapshotEdges(snapshot)));
+  const beforeReady = new Set(collectReadyTasks({
+    nodes: readSnapshotNodes(snapshot),
+    edges: readSnapshotEdges(snapshot),
+  }));
   const view = tx.view();
-  const afterReady = collectReadyTasks(view.nodes, view.edges);
+  const afterReady = collectReadyTasks(view);
   const newlyReady = afterReady.filter((rid) => !beforeReady.has(rid)).sort();
 
   const merged = tx.getNode(plan.target.id);

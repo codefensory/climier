@@ -20,3 +20,18 @@ export { taskResolveProvider } from "./resolve.mjs";
 export { taskReleaseProvider } from "./release.mjs";
 export { taskReopenProvider } from "./reopen.mjs";
 export { taskCancelProvider } from "./cancel.mjs";
+
+// Canonical pure task graph semantics. The v2 facade can re-export these
+// helpers without retaining a second implementation of derivation.
+export {
+  supersededBy,
+  isSatisfiedV2,
+  isTaskReady,
+  isReady,
+  readiness,
+  collectReadyTasks,
+  deriveV2,
+  statusOfV2,
+  isSatisfiedByGraph,
+  taskIsReadyByGraph,
+} from "./derivation.mjs";
