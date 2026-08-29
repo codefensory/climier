@@ -11,8 +11,8 @@
 //     border, no shadow). Hierarchy: id + status, title, initiative + claim,
 //     principal blocker callout only when blocked.
 //   - The open-gates column is hidden entirely when there are no open gates.
-//   - History (done / canceled / superseded) is NOT mixed in here. The
-//     footer offers a link to the Tasks view, where the user can filter.
+//   - History (done / canceled / superseded) is NOT mixed in here; it remains
+//     available from the Tasks view.
 //   - No drag-and-drop and no mutating actions. Clicking a card opens
 //     NodeDetail via store.select(id).
 //   - When every column is empty (no ready, no in progress, no blocked, no
@@ -228,7 +228,7 @@ function Column(props) {
 // (done / canceled / superseded).
 
 export default function Board() {
-  const { snapshot, select, setRoute } = useStore();
+  const { snapshot } = useStore();
   const s = () => snapshot();
 
   // Local filter state. Filters apply across every column and gate.
@@ -445,20 +445,6 @@ export default function Board() {
           </div>
         </Show>
 
-        <Show when={hasAnyActiveWork()}>
-          <div class="ui-command-bar flex items-center justify-between gap-3 rounded-control border border-line bg-panel px-4 py-2.5 text-[12px] leading-4 text-mute">
-            <span>
-              Done, canceled and superseded tasks are not shown here. Open the Tasks view to filter them.
-            </span>
-            <button
-              type="button"
-              class="inline-flex min-h-[36px] items-center rounded-control border border-line bg-panel-2 px-3 text-[13px] text-body hover:bg-mid focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
-              onClick={() => setRoute("tasks")}
-            >
-              Open Tasks
-            </button>
-          </div>
-        </Show>
       </div>
     </PageLayout>
   );
