@@ -35,6 +35,7 @@ import { createTransport } from "./store/transport.js";
 import { createReactiveStore } from "./store/createStore.js";
 
 const StoreContext = createContext();
+const SelectorContext = createContext();
 
 export function StoreProvider(props) {
   const { store, actions } = createReactiveStore();
@@ -140,9 +141,19 @@ export function StoreProvider(props) {
     reload,
   };
 
-  return <StoreContext.Provider value={facade}>{props.children}</StoreContext.Provider>;
+  return (
+    <StoreContext.Provider value={facade}>
+      <SelectorContext.Provider value={actions.selectors}>
+        {props.children}
+      </SelectorContext.Provider>
+    </StoreContext.Provider>
+  );
 }
 
 export function useStore() {
   return useContext(StoreContext);
+}
+
+export function useStoreSelectors() {
+  return useContext(SelectorContext);
 }
