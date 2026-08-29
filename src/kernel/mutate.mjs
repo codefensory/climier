@@ -35,6 +35,7 @@
 //
 // This module deliberately does NOT import providers, the registry,
 // the plugin-core-adapter, bin/climier.mjs, or anything in src/ui/.
+import { AsyncLocalStorage } from "node:async_hooks";
 import { readState, writeState } from "../state.mjs";
 import { withLock } from "../lock.mjs";
 import { prepareLogEntry } from "../log.mjs";
@@ -42,14 +43,34 @@ import { throwV2 } from "../errors.mjs";
 import { createTransaction } from "./transaction.mjs";
 
 const EDGE_TYPE_FIELD_RE = /^[A-Z_]+$/;
-const NESTED_GUARD_INITIAL = 0;
 
-// Module-level guard for nested kernel.mutate calls. Module-scope is
-// intentional: importFresh (used by tests) re-evaluates this module so
-// the guard resets per test, and sequential tests never share state.
-// Cross-module nested calls would only happen if a provider.apply
-// implementation calls mutate() directly, which we forbid.
-let nestedDepth = NESTED_GUARD_INITIAL;
+// Module-scoped AsyncLocalStorage for the nested kernel.mutate guard.
+//
+// Why AsyncLocalStorage instead of a plain `let nestedDepth` counter:
+// a module-level counter is shared across every async chain in the
+// process, so two independent concurrent `kernel.mutate` calls on the
+// same project race on the counter — the second to enter sees
+// depth=1 and is rejected as if it were nested, even though the two
+// calls are unrelated. That was the regression in
+// T-graph-kernel-mutate-concurrency-fix.
+//
+// AsyncLocalStorage scopes the depth to the current async chain: each
+// top-level `kernel.mutate` enters its own context (depth 1), and
+// only a `provider.apply` that invokes `kernel.mutate` *within the
+// same chain* observes depth=2 and is rejected with
+// INVALID_EXECUTION_CONTRACT. Two concurrent independent calls each
+// carry their own depth and are unaffected by one another.
+//
+// Module-scope is intentional: importFresh (used by tests) re-
+// evaluates this module, so each test gets a fresh AsyncLocalStorage
+// instance and the guard resets per test. Sequential tests never
+// share re-entrancy state.
+const nestedDepthStorage = new AsyncLocalStorage();
+
+function currentNestedDepth() {
+  const store = nestedDepthStorage.getStore();
+  return typeof store === "number" ? store : 0;
+}
 
 function commandLabel(request) {
   return request && typeof request.action === "string" && request.action.length > 0
@@ -484,17 +505,25 @@ export async function mutate({ projectDir, request, provider, policyAction, plug
 
   const commandName = commandLabel(request);
 
-  if (nestedDepth > 0) {
+  // Nested-mutation guard, scoped per async chain via AsyncLocalStorage.
+  // Two independent concurrent mutate() calls each have their own
+  // context (depth 1) and are not flagged as nested; only a
+  // provider.apply that calls mutate() within the same chain sees
+  // depth ≥ 1 and is rejected.
+  const parentDepth = currentNestedDepth();
+  if (parentDepth > 0) {
     throwV2(
       "INVALID_EXECUTION_CONTRACT",
       `${commandName}: nested kernel.mutate is rejected (the kernel is single-entry; providers must not mutate)`,
-      { field: "mutate", depth: nestedDepth + 1 },
+      { field: "mutate", depth: parentDepth + 1 },
     );
   }
-  nestedDepth += 1;
 
-  try {
-    return await withLock(projectDir, async () => {
+  // als.run establishes a fresh depth for the current chain. When the
+  // returned promise settles, the previous depth (if any) is restored
+  // automatically — no manual decrement required.
+  return nestedDepthStorage.run(parentDepth + 1, () =>
+    withLock(projectDir, async () => {
       const snapshot = await readState(projectDir);
       if (!snapshot || typeof snapshot !== "object" || snapshot.version !== 2) {
         // The kernel does not bootstrap; the caller (CLI handler,
@@ -670,11 +699,8 @@ export async function mutate({ projectDir, request, provider, policyAction, plug
           initiatives: initiativeDiff,
         },
       };
-    });
-  } finally {
-    nestedDepth -= 1;
-    if (nestedDepth < 0) nestedDepth = 0;
-  }
+    }),
+  );
 }
 
 export const __kernelInternals = Object.freeze({
