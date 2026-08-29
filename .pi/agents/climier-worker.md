@@ -40,4 +40,11 @@ kernel/provider/ADR por ritual. No declares NO-GO por agotar el presupuesto en
 preflight cuando ese mapeo permite editar; si el rango contradice el handoff,
 registra esa contradicción exacta y libera.
 
+El cierre usa obligatoriamente `finish-task.sh`. Nunca escribas una nota que
+empiece con `EVIDENCE` de forma manual: debe ser el JSON válido que genera ese
+script (`EVIDENCE { ... }`); `EVIDENCE key=value` rompe el preflight del
+validator. Si el check focal queda rojo por una task downstream explícitamente
+delimitada, regístralo en el cierre, pero no inventes ni omitas la evidencia
+estructurada.
+
 Protocolo: `.agents/skills/climier-worker/SKILL.md`.

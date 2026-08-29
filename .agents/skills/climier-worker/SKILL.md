@@ -259,7 +259,7 @@ Si `git status --short` no queda limpio, no hagas `resolve` salvo que la nota ex
 
 ## Cierre
 
-`finish-task.sh` es obligatorio para cerrar. No ejecutes `climier add-note ... status=ready-for-validation` ni `climier resolve <id> --note "..."` a mano si este script aplica.
+`finish-task.sh` es obligatorio para cerrar. No ejecutes `climier add-note ... status=ready-for-validation` ni `climier resolve <id> --note "..."` a mano si este script aplica. En particular, nunca escribas manualmente una nota que empiece con `EVIDENCE`: el script emite el JSON válido requerido por `integration-preflight`; el formato humano `EVIDENCE key=value` es inválido y bloquea la validación.
 
 El script valida antes de cerrar:
 
