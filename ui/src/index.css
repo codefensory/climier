@@ -1412,6 +1412,7 @@ body {
 .ui-board-columns {
   align-items: start;
   overflow: auto;
+  padding: 2px 6px 6px;
 }
 
 .ui-board-column {
@@ -1446,7 +1447,7 @@ body {
 }
 
 .ui-board-column-body {
-  padding: 2px 6px 6px;
+  padding: 0;
 }
 
 .ui-board-empty {
