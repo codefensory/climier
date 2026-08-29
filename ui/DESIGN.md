@@ -12,9 +12,11 @@ disclosed.
 ## 1. Visual direction
 
 - Light-only, quiet and dense without becoming cramped.
-- Use the grey canvas to separate the workspace from white surfaces.
+- Use a warm paper-grey canvas to separate the workspace from soft white
+  surfaces, with grey trays reserved for board columns.
 - Prefer hairline borders and small changes in surface colour over heavy
-  shadows or saturated fills.
+  shadows or saturated fills. Elevation is reserved for cards that need to
+  float above the workspace.
 - The drawer is the strongest surface in the hierarchy: it floats above a
   blurred scrim and uses the reference specimen's inset, rounded treatment.
 - Semantic colour is an accent, never the only carrier of meaning. Always
@@ -30,13 +32,13 @@ The implementation lives in `ui/src/index.css`. Values intentionally mirror
 
 | Token | Value | Use |
 | --- | --- | --- |
-| `canvas` | `#F6F7F9` | Application background |
-| `panel` | `rgba(255,255,255,.94)` | Cards, tables, drawer surface |
-| `panel-solid` | `#FFFFFF` | Opaque controls and selected tabs |
-| `panel-muted` | `#FAFBFC` | Nested surfaces and side rails |
-| `mid` | `#F2F4F7` | Selected controls, code blocks, separators |
-| `line` | `#E7E9EE` | Hairline borders |
-| `line-strong` | `#D9DDE5` | Hovered and focused borders |
+| `canvas` | `#F5F4F1` | Warm application background |
+| `panel` | `rgba(255,255,252,.94)` | Cards, tables, drawer surface |
+| `panel-solid` | `#FFFEFA` | Opaque controls and selected tabs |
+| `panel-muted` | `#FAF9F6` | Nested surfaces and side rails |
+| `mid` | `#E9E8E4` | Board trays, selected controls, separators |
+| `line` | `#E1DFDA` | Hairline borders |
+| `line-strong` | `#CBC9C3` | Hovered and focused borders |
 
 The canvas may use the two very low-opacity radial gradients from the
 reference. Gradients must stay quiet and must not compete with content.
@@ -45,10 +47,10 @@ reference. Gradients must stay quiet and must not compete with content.
 
 | Token | Value | Use |
 | --- | --- | --- |
-| `ink` | `#181A20` | Titles and primary content |
-| `body` | `#3F4652` | Running copy and values |
-| `mute` | `#717886` | Metadata, hints and timestamps |
-| `mute-2` | `#9AA1AD` | Placeholder and tertiary metadata |
+| `ink` | `#292824` | Titles and primary content |
+| `body` | `#55534D` | Running copy and values |
+| `mute` | `#85827A` | Metadata, hints and timestamps |
+| `mute-2` | `#AAA79F` | Placeholder and tertiary metadata |
 
 Use no extra arbitrary text colours in normal HTML.
 
@@ -56,12 +58,12 @@ Use no extra arbitrary text colours in normal HTML.
 
 | Token | Foreground | Soft surface | Meaning |
 | --- | --- | --- | --- |
-| `ready` | `#188A5B` | `#EBFBF3` | Ready, healthy, pass |
-| `progress` | `#1769E0` | `#EDF5FF` | In progress, claimed, live |
-| `blocked` | `#BE123C` | `#FFF1F3` | Blocked, error, fail |
-| `gate` | `#A86509` | `#FFF7E8` | Gate, decision, pending |
-| `knowledge` | `#7157D9` | `#F2EFFF` | Knowledge, durable context |
-| `focus` | `#1769E0` | `#EDF5FF` | Keyboard focus and selection |
+| `ready` | `#147D6D` | `#E8F6F1` | Ready, healthy, pass |
+| `progress` | `#1769C2` | `#EDF4FC` | In progress, claimed, live |
+| `blocked` | `#C75143` | `#FFF0ED` | Blocked, error, fail |
+| `gate` | `#AD6D1D` | `#FFF6E7` | Gate, decision, pending |
+| `knowledge` | `#7259C8` | `#F2EFFC` | Knowledge, durable context |
+| `focus` | `#1769C2` | `#EDF4FC` | Keyboard focus and selection |
 
 Semantic colours appear in badges, dots, small callouts and relationship rows. A
 status must still be understandable from its visible text and shape.

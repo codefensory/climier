@@ -400,10 +400,15 @@ export default function Finder() {
   }
 
   onMount(() => {
+    const onOpenRequest = () => openFinder();
     window.addEventListener("keydown", onGlobalKeyDown);
+    window.addEventListener("climier:open-finder", onOpenRequest);
+    onCleanup(() => {
+      window.removeEventListener("keydown", onGlobalKeyDown);
+      window.removeEventListener("climier:open-finder", onOpenRequest);
+    });
   });
   onCleanup(() => {
-    window.removeEventListener("keydown", onGlobalKeyDown);
     clearTimeout(debounceTimer);
     abort?.abort();
   });

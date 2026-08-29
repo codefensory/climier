@@ -103,7 +103,7 @@ function BoardCard(props) {
   return (
     <button
       type="button"
-      class="ui-list-row block w-full rounded-card border border-line bg-panel p-4 text-left transition-colors hover:border-mid focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
+      class="ui-list-row ui-board-card block w-full rounded-card border border-line bg-panel p-4 text-left transition-colors hover:border-mid focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
       onClick={() => select(n().id)}
       aria-label={`${n().id} ${n().title}`}
     >
@@ -114,6 +114,11 @@ function BoardCard(props) {
       <div class="mt-2 line-clamp-2 text-[14px] font-medium leading-5 text-ink" title={n().title}>
         {n().title}
       </div>
+      <Show when={n().body}>
+        <div class="ui-board-card-preview mt-2 line-clamp-3 whitespace-pre-wrap text-[12px] leading-4 text-body" title={n().body}>
+          {n().body}
+        </div>
+      </Show>
       <div class="mt-3 flex flex-wrap items-center gap-1.5">
         <Show when={n().initiative}>
           <Chip>{n().initiative}</Chip>
@@ -160,7 +165,7 @@ function OpenGatesRail(props) {
   const [open, setOpen] = createSignal(true);
   const select = useStore().select;
   return (
-    <Panel padding="compact">
+    <Panel padding="compact" class="ui-board-gates">
       <div class="flex items-center justify-between gap-3">
         <button
           type="button"
@@ -225,15 +230,18 @@ function Column(props) {
   // count       (number, required)
   // children    (node, required — list of cards or empty state)
   return (
-    <div class="ui-detail-card flex h-full min-h-0 flex-col overflow-auto rounded-card border border-line bg-panel">
-      <header class="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-line bg-panel/95 px-4 py-3 backdrop-blur-[2px]">
+    <div class="ui-detail-card ui-board-column flex h-full min-h-0 flex-col overflow-auto rounded-card border border-line bg-panel">
+      <header class="ui-board-column-header sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-line bg-panel/95 px-4 py-3 backdrop-blur-[2px]">
         <div class="min-w-0">
-          <div class="text-section text-ink">{props.label}</div>
-          <div class="mt-0.5 text-[12px] leading-4 text-mute">{props.explanation}</div>
+          <div class="ui-board-column-header-title">
+            <span class={`ui-board-column-dot ui-board-column-dot--${props.tone || "backlog"}`} aria-hidden="true" />
+            <span>{props.label}</span>
+          </div>
+          <div class="mt-1 text-[12px] leading-4 text-mute">{props.explanation}</div>
         </div>
-        <div class="shrink-0 text-metric tabular-nums text-ink">{props.count}</div>
+        <div class="ui-board-column-header-count shrink-0">{props.count}</div>
       </header>
-      <div class="flex-1 min-h-0 space-y-2 p-3">
+      <div class="ui-board-column-body flex-1 min-h-0 space-y-2 p-3">
         {props.children}
       </div>
     </div>
@@ -457,12 +465,13 @@ export default function Board() {
             </div>
           }
         >
-          <div class="grid min-h-0 flex-1 gap-3 overflow-x-auto" style={{ "grid-template-columns": "repeat(4, minmax(280px, 1fr))" }}>
+          <div class="ui-board-columns grid min-h-0 flex-1 gap-3 overflow-x-auto" style={{ "grid-template-columns": "repeat(4, minmax(280px, 1fr))" }}>
             <For each={columns()}>
               {(col) => (
                 <Column
                   label={col.label}
                   explanation={col.explanation}
+                  tone={col.status}
                   count={col.cards.length}
                 >
                   <Show

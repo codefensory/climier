@@ -6,9 +6,9 @@
 // place view code reaches for them.
 //
 // Visual rules enforced here (see ui/DESIGN.md for the rationale):
-//   - Cards: hairline border, 12 px radius, no shadow (elevation level 3 is
+//   - Cards: hairline border, 14 px radius, no shadow (elevation level 3 is
 //     reserved for drawers/popovers; opt in via Panel `elevated`).
-//   - Controls: minimum 36 px tall, 8 px radius. Pill (rounded-full) is
+//   - Controls: minimum 36 px tall, 9 px radius. Pill (rounded-full) is
 //     reserved for badges and chips — never for buttons.
 //   - Interactives: cursor-pointer when clickable, visible focus ring via
 //     the global :focus-visible rule in index.css, accessible name on every
@@ -76,7 +76,7 @@ export function PageHeader(props) {
     ? "sticky top-0 z-10 border-line bg-canvas/95 backdrop-blur-[2px]"
     : "";
   return (
-    <header class={`ui-page-header flex items-end justify-between gap-4 border-b border-line pb-4 ${stickyCls}`}>
+    <header class={`ui-page-header flex items-end justify-between gap-4 border-b border-line pb-4 ${stickyCls} ${props.class || ""}`}>
       <div class="min-w-0">
         <Show when={props.eyebrow}>
           <div class="mono text-[12px] uppercase tracking-wider text-mute">{props.eyebrow}</div>
@@ -135,7 +135,7 @@ export function Panel(props) {
   const surface = tone ? tone.soft : "bg-panel";
   const shadow = props.elevated ? "shadow-md ui-panel-elevated" : "";
   return (
-    <section class={`ui-panel flex flex-col rounded-card border ${border} ${surface} ${shadow}`}>
+    <section class={`ui-panel flex flex-col rounded-card border ${border} ${surface} ${shadow} ${props.class || ""}`}>
       <Show when={props.title || props.eyebrow || props.right}>
         <div class="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
           <div class="min-w-0">

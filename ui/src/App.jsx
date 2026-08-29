@@ -100,6 +100,25 @@ const ROUTES = Object.freeze(
   )
 );
 
+// Small inline icons keep the shell crisp without adding an icon dependency.
+// The same outline language works in the labelled sidebar and the compact rail.
+const NAV_ICON_PATHS = {
+  overview: "M4 4h6v6H4z M14 4h6v6h-6z M4 14h6v6H4z M14 14h6v6h-6z",
+  board: "M4 4h4v16H4z M10 4h4v16h-4z M16 4h4v16h-4z",
+  tasks: "m5 12 4 4L19 6 M4 4h16v16H4z",
+  gates: "M5 4v16 M5 5h11l-2.5 4L16 13H5",
+  knowledge: "M4 5.5A2.5 2.5 0 0 1 6.5 3H20v17H6.5A2.5 2.5 0 0 0 4 22z M4 5.5v14A2.5 2.5 0 0 1 6.5 17H20",
+  activity: "M3 12h4l2-7 4 14 2-7h6",
+};
+
+function NavIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d={NAV_ICON_PATHS[props.id] || NAV_ICON_PATHS.overview} />
+    </svg>
+  );
+}
+
 // === RouteSync =============================================================
 // Bridges the URL hash and the store's route signal.
 //
@@ -140,9 +159,9 @@ function RouteSync() {
 // left-clicks to keep the single-page feel without a router.
 //
 // Two render variants:
-//   - full (showLabel=true): label text next to an optional glyph slot.
-//   - rail (showLabel=false): centered 1-2 char glyph with the label as
-//     the accessible name and tooltip.
+//   - full (showLabel=true): label text next to an inline outline icon.
+//   - rail (showLabel=false): centered icon with the label as the accessible
+//     name and tooltip.
 function NavButton(props) {
   // id          (string, required — must be a key of ROUTES)
   // label       (string, required)
@@ -179,9 +198,9 @@ function NavButton(props) {
       onClick={go}
       data-route={props.id}
     >
-      <Show when={rail}>
-        <span class="ui-nav-glyph text-[13px] font-semibold leading-none" aria-hidden="true">{props.glyph}</span>
-      </Show>
+      <span class="ui-nav-glyph" aria-hidden="true">
+        <NavIcon id={props.id} />
+      </span>
       <Show when={!rail}>{props.label}</Show>
     </a>
   );
@@ -191,6 +210,7 @@ function NavButton(props) {
 // Renders the grouped nav from routes.mjs in the order NAV_GROUPS declares.
 // variant "rail" hides labels and group headers (MID breakpoint); any other
 // variant renders the full labelled list (WIDE sidebar and NARROW drawer).
+// Icons stay visible in both variants so navigation remains scannable.
 function NavGroups(props) {
   // variant     ("full" | "rail")
   // onNavigate  (function, optional — forwarded to NavButton)
@@ -198,10 +218,10 @@ function NavGroups(props) {
   return (
     <For each={NAV_GROUPS}>
       {(group) => (
-        <div class="space-y-0.5">
+        <div class="ui-nav-group space-y-0.5">
           <Show when={!rail}>
             <div
-              class="mono px-3 py-1 text-[11px] uppercase tracking-wider text-mute"
+              class="ui-nav-group-label mono"
               id={`nav-group-${group.label.toLowerCase()}`}
             >
               {group.label}
@@ -238,6 +258,11 @@ function Header(props) {
   const project = () => snapshot()?.project || {};
   const name = () => projectDisplayName(snapshot());
   const root = () => project().root || "";
+  function openFinder() {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new window.Event("climier:open-finder"));
+    }
+  }
   return (
     <header class="ui-shell-topbar flex h-14 shrink-0 items-center gap-3 border-b border-line bg-canvas px-4 md:px-5">
       <Show when={showMenu()}>
@@ -257,9 +282,17 @@ function Header(props) {
           {name()}
         </h1>
       </div>
-      <span class="mono hidden min-w-0 truncate text-[12px] text-mute md:block" title={root()}>
-        {root() || ""}
+      <span class="ui-topbar-project mono hidden min-w-0 truncate md:flex" title={root()}>
+        {root() || "Local project"}
       </span>
+      <div class="ml-auto flex shrink-0 items-center gap-2">
+        <button type="button" class="ui-search-trigger" onClick={openFinder} aria-label="Search tasks, gates and knowledge">
+          <span class="ui-search-trigger-icon" aria-hidden="true">⌕</span>
+          <span>Quick find</span>
+          <kbd aria-hidden="true">⌘ K</kbd>
+        </button>
+        <span class="ui-readonly-chip" aria-label="Read-only mode">Read-only</span>
+      </div>
     </header>
   );
 }
@@ -267,7 +300,7 @@ function Header(props) {
 // === Sidebar ===============================================================
 // Responsive permanent navigation:
 //   - WIDE:  full 240 px sidebar with brand, group headers, labelled links.
-//   - MID:   72 px rail with 1-2 char glyphs; labels + headers hidden, the
+//   - MID:   72 px rail with outline icons; labels + headers hidden, the
 //     label moves to title/aria-label.
 //   - NARROW: hidden; the drawer (see below) carries the same nav.
 // The pixel width comes from shell.mjs (sidebarWidthPx) so the geometry
@@ -281,14 +314,18 @@ function Sidebar(props) {
   const width = () => `${sidebarWidthPx(bp())}px`;
   return (
     <aside
-      class={`ui-sidebar ${display()} shrink-0 flex-col border-r border-line bg-canvas`}
+      class={`ui-sidebar ${display()} ${rail() ? "ui-sidebar-rail" : ""} shrink-0 flex-col border-r border-line bg-canvas`}
       style={{ width: width() }}
     >
       <div class="flex h-14 shrink-0 items-center border-b border-line px-4">
-        <div class="flex min-w-0 items-center gap-2 truncate text-sm font-bold tracking-wide text-ink" title="climier ui">
+        <div class="ui-workspace-switcher w-full" title="climier ui">
           <span class="ui-brand-mark" aria-hidden="true">C</span>
           <Show when={!rail()}>
-            <span class="ui-brand">climier<span class="text-progress"> ui</span></span>
+            <span class="min-w-0">
+              <span class="ui-workspace-switcher-label">Workspace</span>
+              <span class="ui-workspace-switcher-name">climier ui</span>
+            </span>
+            <span class="ui-workspace-switcher-arrow" aria-hidden="true">⌄</span>
           </Show>
         </div>
       </div>
