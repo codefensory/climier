@@ -99,7 +99,7 @@ Normal readable HTML must not render below 12px.
 
 | Width | Shell |
 | --- | --- |
-| `>=1280px` | 240px labelled sidebar + topbar |
+| `>=1280px` | 220px labelled sidebar + topbar |
 | `768–1279px` | 72px rail with glyphs + topbar |
 | `<768px` | topbar with navigation drawer |
 

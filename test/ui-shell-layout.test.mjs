@@ -105,16 +105,16 @@ test("classifyWidth: non-numeric / undefined falls back to WIDE", () => {
 // === Sidebar geometry ======================================================
 
 test("sidebarWidthPx matches the design contract per breakpoint", () => {
-  assert.equal(sidebarWidthPx(BREAKPOINT.WIDE), 240, "Wide sidebar is 240 px");
+  assert.equal(sidebarWidthPx(BREAKPOINT.WIDE), 220, "Wide sidebar is 220 px");
   assert.equal(sidebarWidthPx(BREAKPOINT.MID), 72, "Mid rail is 72 px (upper bound of 64–72 px)");
   assert.equal(sidebarWidthPx(BREAKPOINT.NARROW), 0, "Narrow has no permanent sidebar");
-  assert.equal(SIDEBAR_WIDTH_PX.wide, 240);
+  assert.equal(SIDEBAR_WIDTH_PX.wide, 220);
   assert.equal(SIDEBAR_WIDTH_PX.mid, 72);
   assert.equal(SIDEBAR_WIDTH_PX.narrow, 0);
 });
 
 test("sidebarWidthPx: unknown breakpoints default to the wide width", () => {
-  assert.equal(sidebarWidthPx("unknown"), 240);
+  assert.equal(sidebarWidthPx("unknown"), 220);
 });
 
 test("sidebarShowsLabels is true only on WIDE", () => {

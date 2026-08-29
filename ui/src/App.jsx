@@ -400,7 +400,7 @@ function Header(props) {
 
 // === Sidebar ===============================================================
 // Responsive permanent navigation:
-//   - WIDE:  full 240 px sidebar with brand, group headers, labelled links.
+//   - WIDE:  full 220 px sidebar with brand, group headers, labelled links.
 //   - MID:   72 px rail with outline icons; labels + headers hidden, the
 //     label moves to title/aria-label.
 //   - NARROW: hidden; the drawer (see below) carries the same nav.

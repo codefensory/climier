@@ -17,7 +17,7 @@
 //     drawer and toggled by a hamburger button.
 //   - MID:    768–1279 px. Rail 64–72 px wide; nav labels hidden, icons
 //     (the first letter of each label) shown.
-//   - WIDE:   >= 1280 px. Full sidebar 240 px wide with labels.
+//   - WIDE:   >= 1280 px. Full sidebar 220 px wide with labels.
 //
 // Thresholds are exclusive at the upper bound (CSS uses max-width media
 // queries); the mid bucket runs from 768 (inclusive) to 1280 (exclusive).
@@ -46,7 +46,7 @@ export function classifyWidth(width) {
 
 // === Sidebar / rail geometry ==============================================
 // Pixel widths per breakpoint. Values mirror the design contract:
-//   - WIDE  -> 240 px (DESIGN.md §3.1 wide column)
+//   - WIDE  -> 220 px (DESIGN.md §3.1 wide column)
 //   - MID   -> 72 px (DESIGN.md §3.1 mid rail upper bound)
 //   - NARROW -> 0 px (no permanent sidebar; drawer overlay only)
 //
@@ -56,7 +56,7 @@ export function classifyWidth(width) {
 export const SIDEBAR_WIDTH_PX = Object.freeze({
   narrow: 0,
   mid:    72,
-  wide:   240,
+  wide:   220,
 });
 
 export function sidebarWidthPx(breakpoint) {
