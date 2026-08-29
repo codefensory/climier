@@ -765,9 +765,12 @@ T-ui-store-reactive-core
         ▼
 T-ui-store-facade
         │
-  ┌─────┼───────────────┬──────────────┐
-  ▼     ▼               ▼              ▼
-Board  Listas       Overview       (plugins fuera)
+        ▼
+T-ui-store-selector-surface
+        │
+  ┌─────┼───────────────┐
+  ▼     ▼               ▼
+Board  Listas       Overview
 ```
 
 Ownership y acceptance de las nuevas tasks:
@@ -786,6 +789,11 @@ Ownership y acceptance de las nuevas tasks:
 - `T-ui-store-facade`: `ui/src/store.jsx`. Conecta transport/core y
   conserva exactamente las 14 keys públicas y la forma legacy de snapshot;
   no modifica vistas ni crea tests.
+- `T-ui-store-selector-surface`: `ui/src/store.jsx`, en una task posterior
+  y secuencial a la fachada. Expone `useStoreSelectors()` como hook nombrado
+  separado, sin agregar una key a `useStore()`, para que las vistas consuman
+  `tasksByStatus`, `openGates` y `nodesMap` sin importar internals. No crea
+  tests ni modifica otras rutas.
 - `T-ui-activity-keys`: `ui/src/views/Activity.jsx`. Usa una key estable
   como identidad real de la colección, con `event_id` preferente y fallback
   documentado; no modifica store/server ni crea tests.
@@ -797,6 +805,9 @@ Ownership y acceptance de las nuevas tasks:
 - `T-ui-overview-shell-v2`: `Overview.jsx`, `App.jsx`, `NodeDetail.jsx`.
   Usa selectors y cache de detalle sin refactor visual mayor; no modifica
   store internals, otras vistas, server ni crea tests.
+
+Las tasks Board, listas y Overview quedan bloqueadas por el selector surface,
+además de la fachada. Activity sigue siendo independiente.
 
 Cada task debe terminar con todos sus paths limpios, commit cuyo mensaje
 termine en `[<task-id>]`, build UI exitoso y `git diff --check`. Las tareas
