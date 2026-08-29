@@ -416,14 +416,22 @@ async function runPolicy(policyAction, snapshot, plan, request, commandName) {
   const action = typeof policyAction.action === "string" && policyAction.action.length > 0
     ? policyAction.action
     : request.action;
+  const actor = typeof request.actor === "string" ? request.actor : "";
+  const pluginId = policyAction.pluginId || null;
   let decision;
   try {
     decision = await policyAction.decide({ snapshot, target: plan.target, request, action });
   } catch (err) {
-    // The decision function itself failed; surface as INVALID_EXECUTION_CONTRACT
-    // (the kernel does not import src/policy.mjs — B5 wires that in and
-    // upgrades malformed responses to POLICY_ERROR there). For now the
-    // kernel surfaces the raw cause as details so callers can branch.
+    // POLICY_* errors raised by decide() (typically the PolicyError /
+    // PolicyDenied / PolicyConflict classes thrown from src/policy.mjs
+    // authorizeAction) are policy-domain errors and must propagate with
+    // their original code and details — they are NOT contract
+    // violations of decide() itself. Anything else (a bare Error /
+    // TypeError, a non-POLICY_* code, a callback crash) is a real
+    // contract failure and is reported as INVALID_EXECUTION_CONTRACT.
+    if (err && typeof err.code === "string" && err.code.startsWith("POLICY_") && err.details !== undefined) {
+      throw err;
+    }
     throwV2(
       "INVALID_EXECUTION_CONTRACT",
       `${commandName}: policyAction.decide threw: ${err && err.message ? err.message : String(err)}`,
@@ -434,14 +442,35 @@ async function runPolicy(policyAction, snapshot, plan, request, commandName) {
     throwV2("INVALID_EXECUTION_CONTRACT", `${commandName}: policyAction.decide must return an object`, { field: "policyAction" });
   }
   if (decision.decision === "deny") {
+    // POLICY_DENIED is the canonical contract for a deny decision;
+    // the mutation does not run and no log entry is produced
+    // (deny throws before tx is created). The details carry the
+    // four fields the seam contract requires — `plugin_id`, `action`,
+    // `actor`, `reason` — so handlers and tests can branch without
+    // re-reading the thrown message. `policy_id` is kept as a
+    // backward-compatible alias of `plugin_id` for older callers
+    // that were written against the previous (incorrect) field name.
     throwV2(
       "POLICY_DENIED",
-      `${commandName}: action ${action} denied by policy: ${decision.reason || "(no reason)"}`,
+      `${commandName}: action ${action} denied by policy for actor '${actor}': ${typeof decision.reason === "string" ? decision.reason : "(no reason)"}`,
       {
-        policy_id: policyAction.pluginId || null,
+        plugin_id: pluginId,
+        policy_id: pluginId,
         action,
-        reason: decision.reason || null,
+        actor,
+        reason: typeof decision.reason === "string" ? decision.reason : null,
       },
+    );
+  }
+  if (decision.decision !== "allow" && decision.decision !== "abstain") {
+    // Any value other than the three allowed decisions is a contract
+    // violation of the decide callback, not a policy-domain outcome.
+    // The kernel refuses to interpret it; handlers see
+    // INVALID_EXECUTION_CONTRACT and operators can investigate.
+    throwV2(
+      "INVALID_EXECUTION_CONTRACT",
+      `${commandName}: policyAction.decide returned an unknown decision: ${JSON.stringify(decision.decision)}`,
+      { field: "policyAction.decision", value: decision.decision },
     );
   }
   // 'allow' and 'abstain' proceed with the kernel mutation.
