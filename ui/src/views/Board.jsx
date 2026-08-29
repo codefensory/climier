@@ -30,14 +30,13 @@
 // store.jsx, or the snapshot contract. Primitives that are missing for this
 // view are flagged in a note rather than patched in.
 
-import { createMemo, createSignal, Show, For } from "solid-js";
+import { createMemo, Show, For } from "solid-js";
 import { useStore } from "../store.jsx";
 import {
   PageLayout,
   Chip,
   StatusBadge,
   EmptyState,
-  FilterBar,
   ClaimTime,
 } from "../components.jsx";
 
@@ -226,17 +225,14 @@ function Column(props) {
 }
 
 // === Board ==================================================================
-// Top-level view. Splits into: filter bar, optional open-gates column,
-// four-column kanban, and a footer with a link to the Tasks view for history
-// (done / canceled / superseded).
+// Top-level view. Splits into: optional open-gates column, four-column
+// kanban, and a footer with a link to the Tasks view for history (done /
+// canceled / superseded).
 
-export default function Board() {
+export default function Board(props) {
   const { snapshot } = useStore();
   const s = () => snapshot();
-
-  // Local filter state. Filters apply across every column and gate.
-  const [q, setQ] = createSignal("");
-  const [initiative, setInitiative] = createSignal("");
+  const initiative = () => props.boardInitiative?.() || "";
 
   // Pulled from the snapshot — no local derivation.
   const nodes = () => s()?.nodes || {};
@@ -280,24 +276,9 @@ export default function Board() {
     return map;
   });
 
-  // Distinct initiatives for the filter dropdown. Sorted alphabetically.
-  const initiatives = createMemo(() => {
-    const set = new Set();
-    for (const n of Object.values(nodes())) {
-      if (n.initiative && n.subkind !== "gate") set.add(n.initiative);
-    }
-    return [...set].sort();
-  });
-
-  // The free-text search hits id, title, initiative, and tags. We do not
-  // extend it to the body to keep the index fast and predictable.
-  const matches = (n) => {
-    if (initiative() && n.initiative !== initiative()) return false;
-    const needle = q().trim().toLowerCase();
-    if (!needle) return true;
-    const hay = `${n.id} ${n.title} ${n.initiative || ""} ${(n.tags || []).join(" ")}`.toLowerCase();
-    return hay.includes(needle);
-  };
+  // The header picker scopes every board column to one initiative. An empty
+  // selection keeps the complete active board visible.
+  const matches = (n) => !initiative() || n.initiative === initiative();
 
   const filteredTasks = createMemo(() => {
     const m = tasksByStatus();
@@ -323,15 +304,14 @@ export default function Board() {
     );
   });
 
-  const filtersActive = () => Boolean(q().trim() || initiative());
+  const initiativeActive = () => Boolean(initiative());
 
-  function clearFilters() {
-    setQ("");
-    setInitiative("");
+  function clearInitiative() {
+    props.onBoardInitiativeChange?.("");
   }
 
   // Column definitions. Keeping them as a memo keeps the counts in lock-step
-  // with the snapshot and the filters.
+  // with the snapshot and the initiative scope.
   const columns = createMemo(() => {
     const t = filteredTasks();
     return [
@@ -345,36 +325,6 @@ export default function Board() {
   return (
     <PageLayout mode="workspace">
       <div class="ui-workspace-body ui-board-body flex min-h-0 flex-1 flex-col gap-4">
-        <FilterBar
-          label="Filters"
-          hint={
-            filtersActive()
-              ? `${columns().reduce((n, c) => n + c.cards.length, 0) + filteredGates().length} match(es)`
-              : undefined
-          }
-          onClear={filtersActive() ? clearFilters : undefined}
-        >
-          <input
-            type="search"
-            class="min-h-[36px] min-w-[240px] flex-1 rounded-control border border-line bg-panel-2 px-3 text-[13px] text-ink outline-none placeholder:text-mute focus:border-mid focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
-            placeholder="Search id, title, initiative, tag…"
-            value={q()}
-            onInput={(e) => setQ(e.currentTarget.value)}
-            aria-label="Search board"
-          />
-          <select
-            class="min-h-[36px] rounded-control border border-line bg-panel-2 px-3 text-[13px] text-body outline-none focus:border-mid focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
-            value={initiative()}
-            onChange={(e) => setInitiative(e.currentTarget.value)}
-            aria-label="Filter by initiative"
-          >
-            <option value="">All initiatives</option>
-            <For each={initiatives()}>
-              {(i) => <option value={i}>{i}</option>}
-            </For>
-          </select>
-        </FilterBar>
-
         <Show
           when={hasAnyActiveWork()}
           fallback={
@@ -383,18 +333,18 @@ export default function Board() {
                 variant="page"
                 title="No active work on the board"
                 hint={
-                  filtersActive()
-                    ? "Adjust or clear the filters to see more work."
+                  initiativeActive()
+                    ? "Choose another initiative or show the full board."
                     : "Everything is closed, archived, or back in backlog. Add a task to get started."
                 }
                 cta={
-                  filtersActive() ? (
+                  initiativeActive() ? (
                     <button
                       type="button"
                       class="inline-flex min-h-[36px] items-center rounded-control border border-line bg-panel-2 px-3 text-[13px] text-body hover:bg-mid focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
-                      onClick={clearFilters}
+                      onClick={clearInitiative}
                     >
-                      Clear filters
+                      Show all initiatives
                     </button>
                   ) : undefined
                 }

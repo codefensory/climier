@@ -242,14 +242,112 @@ function NavGroups(props) {
   );
 }
 
+// === InitiativePicker ======================================================
+// Board-only scope control. It lives in the shell header so the board can
+// lose its separate filter bar without hiding the current scope.
+function InitiativePicker(props) {
+  const [open, setOpen] = createSignal(false);
+  let root;
+
+  const initiatives = createMemo(() => {
+    const nodes = props.snapshot()?.nodes || {};
+    const terminal = new Set(["done", "resolved", "superseded", "archived", "canceled"]);
+    const values = new Set();
+    for (const node of Object.values(nodes)) {
+      if (!node || !node.initiative) continue;
+      if (node.subkind !== "task" && node.subkind !== "gate") continue;
+      if (terminal.has(node.status)) continue;
+      values.add(node.initiative);
+    }
+    return [...values].sort((a, b) => a.localeCompare(b));
+  });
+
+  function closeOnOutside(event) {
+    if (root && !root.contains(event.target)) setOpen(false);
+  }
+
+  function closeOnEscape(event) {
+    if (event.key === "Escape") setOpen(false);
+  }
+
+  onMount(() => {
+    document.addEventListener("pointerdown", closeOnOutside);
+    document.addEventListener("keydown", closeOnEscape);
+  });
+
+  onCleanup(() => {
+    document.removeEventListener("pointerdown", closeOnOutside);
+    document.removeEventListener("keydown", closeOnEscape);
+  });
+
+  function choose(value) {
+    props.onChange(value);
+    setOpen(false);
+  }
+
+  const selected = () => props.value() || "All initiatives";
+  return (
+    <div ref={root} class="ui-initiative-picker">
+      <button
+        type="button"
+        class="ui-initiative-trigger"
+        classList={{ "ui-initiative-trigger--open": open() }}
+        onClick={() => setOpen(!open())}
+        aria-expanded={open()}
+        aria-haspopup="listbox"
+        aria-controls="board-initiative-drawer"
+      >
+        <span class="ui-initiative-trigger-label">Initiative</span>
+        <span class="ui-initiative-trigger-value" title={selected()}>{selected()}</span>
+        <span class="ui-initiative-trigger-chevron" aria-hidden="true">⌄</span>
+      </button>
+      <Show when={open()}>
+        <div id="board-initiative-drawer" class="ui-initiative-drawer" role="listbox" aria-label="Choose board initiative">
+          <div class="ui-initiative-drawer-heading">Board scope</div>
+          <button
+            type="button"
+            class="ui-initiative-option"
+            classList={{ "ui-initiative-option--selected": !props.value() }}
+            role="option"
+            aria-selected={!props.value()}
+            onClick={() => choose("")}
+          >
+            <span>All initiatives</span>
+            <Show when={!props.value()}><span class="ui-initiative-option-mark" aria-hidden="true">✓</span></Show>
+          </button>
+          <For each={initiatives()}>
+            {(initiative) => (
+              <button
+                type="button"
+                class="ui-initiative-option"
+                classList={{ "ui-initiative-option--selected": props.value() === initiative }}
+                role="option"
+                aria-selected={props.value() === initiative}
+                onClick={() => choose(initiative)}
+              >
+                <span class="truncate">{initiative}</span>
+                <Show when={props.value() === initiative}><span class="ui-initiative-option-mark" aria-hidden="true">✓</span></Show>
+              </button>
+            )}
+          </For>
+          <Show when={initiatives().length === 0}>
+            <div class="ui-initiative-empty">No active initiatives</div>
+          </Show>
+        </div>
+      </Show>
+    </div>
+  );
+}
+
 // === Header ================================================================
-// The current page title is the only page identity in the shell header. The
-// global LiveStatus indicator is rendered once by Main as a floating chip.
+// The current page title is the page identity in the shell header. Board
+// adds its initiative scope beside the title; the global LiveStatus indicator
+// is rendered once by Main as a floating chip.
 function Header(props) {
   // bp           (signal, required — current breakpoint)
   // drawerOpen   (signal, required — reflects the NARROW drawer state)
   // onOpenDrawer (function, required — opens the NARROW drawer)
-  const { route } = useStore();
+  const { route, snapshot } = useStore();
   const showMenu = () => drawerAvailable(props.bp());
   const pageTitle = () => ROUTES[route()]?.label || "Overview";
   function openFinder() {
@@ -270,10 +368,17 @@ function Header(props) {
           <span aria-hidden="true" class="text-[16px] leading-none">☰</span>
         </button>
       </Show>
-      <div class="flex min-w-0 items-center">
+      <div class="flex min-w-0 items-center gap-3">
         <h1 class="ui-brand min-w-0 truncate text-section font-semibold text-ink" title={pageTitle()}>
           {pageTitle()}
         </h1>
+        <Show when={route() === "board"}>
+          <InitiativePicker
+            snapshot={snapshot}
+            value={props.boardInitiative}
+            onChange={props.onBoardInitiativeChange}
+          />
+        </Show>
       </div>
       <div class="ml-auto flex shrink-0 items-center gap-2">
         <button type="button" class="ui-search-trigger" onClick={openFinder} aria-label="Search tasks, gates and knowledge">
@@ -430,7 +535,7 @@ function DrawerPanel(props) {
 // Scroll contract (ui/DESIGN.md §3.1): Main is a flex column with
 // min-h-0 + overflow-hidden; banners are shrink-0; the route area is the
 // single flex-1 min-h-0 scroll owner (RouteView). No nested scrollers.
-function Main() {
+function Main(props) {
   const { route, snapshot, initialLoading, snapshotError, lastSuccessfulAt, reload } = useStore();
   const initialized = () => snapshot()?.project?.initialized !== false;
 
@@ -514,7 +619,12 @@ function Main() {
             when={initialized()}
             fallback={<UninitializedPanel />}
           >
-            <RouteView Component={RouteComponent()} route={route()} />
+            <RouteView
+              Component={RouteComponent()}
+              route={route()}
+              boardInitiative={props.boardInitiative}
+              onBoardInitiativeChange={props.onBoardInitiativeChange}
+            />
           </Show>
         </Show>
       </div>
@@ -586,7 +696,11 @@ function InitialError(props) {
 function RouteView(props) {
   return (
     <div class="h-full overflow-auto" data-view={props.route}>
-      <Dynamic component={props.Component} />
+      <Dynamic
+        component={props.Component}
+        boardInitiative={props.boardInitiative}
+        onBoardInitiativeChange={props.onBoardInitiativeChange}
+      />
     </div>
   );
 }
@@ -642,6 +756,7 @@ function UninitializedPanel() {
 export default function App() {
   const [bp, setBp] = createSignal(BREAKPOINT.WIDE);
   const [drawerOpen, setDrawerOpen] = createSignal(false);
+  const [boardInitiative, setBoardInitiative] = createSignal("");
 
   onMount(() => {
     const update = () => {
@@ -666,8 +781,13 @@ export default function App() {
             bp={bp}
             drawerOpen={drawerOpen}
             onOpenDrawer={() => setDrawerOpen(true)}
+            boardInitiative={boardInitiative}
+            onBoardInitiativeChange={setBoardInitiative}
           />
-          <Main />
+          <Main
+            boardInitiative={boardInitiative}
+            onBoardInitiativeChange={setBoardInitiative}
+          />
         </div>
         <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
         <NodeDetail />
