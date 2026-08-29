@@ -139,17 +139,20 @@ test("createTransaction: each accessor returns a cloned node", () => {
   assert.equal(tx.getNode("T1").title, "existing task");
 });
 
-test("view: returns cloned snapshot of nodes + edges only", () => {
+test("view: returns cloned snapshot of nodes + edges + initiatives", () => {
   const tx = createTransaction(baseSnapshot());
   const v1 = tx.view();
   const v2 = tx.view();
   assert.notEqual(v1.nodes, v2.nodes);
   assert.notEqual(v1.edges, v2.edges);
-  assert.deepEqual(Object.keys(v1).sort(), ["edges", "nodes"]);
-  // log and initiatives are NOT part of the draft (kernel responsibility is
-  // only the in-memory mutation envelope).
+  assert.notEqual(v1.initiatives, v2.initiatives);
+  assert.deepEqual(Object.keys(v1).sort(), ["edges", "initiatives", "nodes"]);
+  // log and version are NOT part of the draft envelope; initiatives are
+  // (kernel responsibility covers the in-memory mutation of nodes,
+  // edges, and initiatives).
   assert.equal(v1.log, undefined);
-  assert.equal(v1.initiatives, undefined);
+  assert.ok(v1.initiatives, "view must surface initiatives from the snapshot");
+  assert.equal(v1.initiatives.kernel.desc, "kernel initiative");
 });
 
 test("createNode: registers a new node without revision", () => {

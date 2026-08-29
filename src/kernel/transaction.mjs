@@ -41,6 +41,15 @@ function readSnapshotEdges(snapshot) {
   return Array.isArray(snapshot && snapshot.edges) ? snapshot.edges : [];
 }
 
+function readSnapshotInitiatives(snapshot) {
+  // initiatives: { name -> { desc, created_at? } }. The v2 schema keeps it
+  // as a plain object; defensive read in case a future plugin ships a
+  // partial snapshot.
+  return snapshot && snapshot.initiatives && typeof snapshot.initiatives === "object" && !Array.isArray(snapshot.initiatives)
+    ? snapshot.initiatives
+    : {};
+}
+
 function asNonEmptyString(value) {
   return typeof value === "string" && value.length > 0 ? value : null;
 }
@@ -78,14 +87,17 @@ function hasRevisionField(input) {
  *   updateNode: (id: string, patch: object) => object,
  *   addEdge: (edge: { from: string, to: string, type: string }) => object,
  *   removeEdge: (edge: { from: string, to: string, type: string }) => object,
- *   view: () => { nodes: object, edges: object[] }
+ *   getInitiative: (name: string) => object | undefined,
+ *   createInitiative: (input: { name: string, desc?: string, created_at?: string }) => object,
+ *   view: () => { nodes: object, edges: object[], initiatives: object }
  * }}
  */
 export function createTransaction(snapshot) {
-  // Deep-clone the snapshot pieces we care about. initiatives/log are owned
-  // by the kernel mutation path and are not part of the draft envelope.
+  // Deep-clone the snapshot pieces we care about. log/version are owned by
+  // the kernel mutation path and are not part of the draft envelope.
   const baseNodes = readSnapshotNodes(snapshot);
   const baseEdges = readSnapshotEdges(snapshot);
+  const baseInitiatives = readSnapshotInitiatives(snapshot);
   // nodes: { id -> cloned node } so subsequent createNode/updateNode can
   // detect collisions and reference updates without re-cloning the snapshot
   // repeatedly. We strip `revision` on the way in because the draft is the
@@ -101,6 +113,16 @@ export function createTransaction(snapshot) {
   }
   // edges: list of cloned edge objects. addEdge appends, removeEdge splices.
   const draftEdges = baseEdges.map((edge) => clone(edge));
+  // initiatives: { name -> cloned initiative }. Initiatives do not carry
+  // a kernel-managed revision, so the draft mirrors the snapshot 1:1 and
+  // createInitiative only adds new names. Changing an existing initiative
+  // is not supported in B1b; the add-initiative command is idempotent
+  // against registered names and the kernel rejects duplicate creates
+  // with ID_CONFLICT.
+  const draftInitiatives = {};
+  for (const [name, init] of Object.entries(baseInitiatives)) {
+    draftInitiatives[name] = clone(init);
+  }
 
   function getNode(id) {
     const node = draftNodes[id];
@@ -280,10 +302,48 @@ export function createTransaction(snapshot) {
     for (const [id, node] of Object.entries(draftNodes)) {
       nodes[id] = clone(node);
     }
+    const initiatives = {};
+    for (const [name, init] of Object.entries(draftInitiatives)) {
+      initiatives[name] = clone(init);
+    }
     return {
       nodes,
       edges: draftEdges.map((edge) => clone(edge)),
+      initiatives,
     };
+  }
+
+  function getInitiative(name) {
+    const key = asNonEmptyString(name);
+    if (!key) return undefined;
+    const init = draftInitiatives[key];
+    return init === undefined ? undefined : clone(init);
+  }
+
+  function createInitiative(input) {
+    if (input == null || typeof input !== "object" || Array.isArray(input)) {
+      throwV2("MISSING_FIELD", "createInitiative: input must be an object", { field: "input" });
+    }
+    const name = asNonEmptyString(input.name);
+    if (!name) {
+      throwV2("MISSING_FIELD", "createInitiative: requires non-empty 'name'", { field: "name" });
+    }
+    if (Object.prototype.hasOwnProperty.call(draftInitiatives, name)) {
+      throwV2(
+        "ID_CONFLICT",
+        `createInitiative: initiative '${name}' already exists in the draft or snapshot`,
+        { name },
+      );
+    }
+    // The provider is responsible for filling desc / created_at. The draft
+    // stores whatever it is given so the kernel can diff initiatives later
+    // without re-reading the snapshot. desc is normalised to a string to
+    // keep the diff stable when a provider passes desc: undefined.
+    const stored = {};
+    if (typeof input.desc === "string") stored.desc = input.desc;
+    if (typeof input.created_at === "string") stored.created_at = input.created_at;
+    draftInitiatives[name] = stored;
+    return clone(stored);
   }
 
   return {
@@ -292,6 +352,8 @@ export function createTransaction(snapshot) {
     updateNode,
     addEdge,
     removeEdge,
+    getInitiative,
+    createInitiative,
     view,
   };
 }
