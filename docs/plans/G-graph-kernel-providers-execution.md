@@ -162,13 +162,16 @@ del kernel:
    `src/kernel/transaction.mjs` y `src/kernel/mutate.mjs` agregan el draft de
    `initiatives`, sus primitivas tipadas, diff/idempotencia y persistencia
    atómica sin bump de `node.revision`.
-2. **Utility providers** (`T-graph-kernel-provider-core-ops`):
-   `src/providers/core/*` y el bootstrap del registry publican `edge.add`,
-   `note.add` e `initiative.create` como entries `kind: "core"` de proceso.
+2. **Utility providers de relación** (`T-graph-kernel-provider-core-ops`):
+   `src/providers/core/edge.mjs`, `src/providers/core/note.mjs` y el bootstrap
+   del registry publican `edge.add` y `note.add` como entries `kind: "core"`.
+3. **Utility provider de proyecto** (`T-graph-kernel-provider-core-initiative`):
+   `src/providers/core/initiative.mjs` y el registry publican
+   `initiative.create` como entry `kind: "core"`.
 
-La segunda slice depende de la primera; B3 y B6B dependen de ambas. Cada
-worker tiene un único cambio principal y no puede importar commands ni tener
-infraestructura propia.
+La segunda slice depende de la primera; la tercera depende de la segunda. B3
+y B6B esperan las dos slices de utility providers. Cada worker tiene un único
+cambio principal y no puede importar commands ni tener infraestructura propia.
 
 ### B3 — adapters de mutadores, dividido en tres slices seriales
 
