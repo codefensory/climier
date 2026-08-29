@@ -427,12 +427,12 @@ pre {
 .ui-drawer-scrim {
   background: rgba(18, 23, 32, 0.26);
   backdrop-filter: blur(2px);
-  animation: ui-drawer-scrim-in 420ms var(--ui-ease) both;
+  animation: ui-drawer-scrim-in 200ms var(--ui-ease) both;
   will-change: opacity, backdrop-filter;
 }
 
 .ui-drawer-scrim--closing {
-  animation: ui-drawer-scrim-out 260ms ease both;
+  animation: ui-drawer-scrim-out 110ms ease both;
   pointer-events: none;
 }
 
@@ -452,32 +452,32 @@ pre {
  * single block popping in. */
 .ui-drawer-detail {
   transform-origin: right center;
-  animation: ui-drawer-detail-in 520ms var(--ui-ease) both;
+  animation: ui-drawer-detail-in 340ms var(--ui-ease) both;
 }
 
 .ui-drawer-detail--closing {
-  animation: ui-drawer-detail-out 360ms cubic-bezier(.4, 0, 1, 1) both;
+  animation: ui-drawer-detail-out 160ms cubic-bezier(.4, 0, 1, 1) both;
   pointer-events: none;
 }
 
 .ui-drawer-nav {
   transform-origin: left center;
-  animation: ui-drawer-nav-in 460ms var(--ui-ease) both;
+  animation: ui-drawer-nav-in 300ms var(--ui-ease) both;
 }
 
 .ui-drawer-nav--closing {
-  animation: ui-drawer-nav-out 320ms cubic-bezier(.4, 0, 1, 1) both;
+  animation: ui-drawer-nav-out 150ms cubic-bezier(.4, 0, 1, 1) both;
   pointer-events: none;
 }
 
 .ui-drawer-detail > .ui-drawer-topbar,
 .ui-drawer-nav > .ui-drawer-topbar {
-  animation: ui-drawer-content-in 440ms var(--ui-ease) 70ms both;
+  animation: ui-drawer-content-in 200ms var(--ui-ease) 35ms both;
 }
 
 .ui-drawer-detail > .ui-drawer-body,
 .ui-drawer-nav > nav {
-  animation: ui-drawer-content-in 560ms var(--ui-ease) 110ms both;
+  animation: ui-drawer-content-in 240ms var(--ui-ease) 55ms both;
 }
 
 @keyframes ui-drawer-scrim-in {
