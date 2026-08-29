@@ -179,9 +179,8 @@ function OpenGatesColumn(props) {
               onClick={() => select(g.id)}
               aria-label={`${g.id} ${g.title}`}
             >
-              <div class="flex items-center justify-between gap-2">
+              <div>
                 <span class="mono text-[12px] text-gate">{g.id}</span>
-                <Chip tone="gate">{g.purpose || "decision"}</Chip>
               </div>
               <div class="ui-board-card-title mt-2 line-clamp-2 text-[14px] font-semibold leading-5 text-ink" title={g.title}>
                 {g.title}
@@ -191,6 +190,9 @@ function OpenGatesColumn(props) {
                   {g.body}
                 </div>
               </Show>
+              <div class="mt-3 flex flex-wrap items-center gap-1.5">
+                <Chip tone="gate">{g.purpose || "decision"}</Chip>
+              </div>
             </button>
           )}
         </For>
