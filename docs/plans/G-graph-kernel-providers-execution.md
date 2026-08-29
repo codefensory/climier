@@ -89,7 +89,7 @@ B6B api.core.run adapter (serial)
   ↓
 B7 dispatch CLI y adapters de flags (serial)
   ↓
-B8 integración, concurrencia, snapshots y UI
+B8 integración core + consumidores UI + auditoría final
 ```
 
 B1 debe terminar antes de materializar B2/B4. B4 solo puede paralelizarse por
@@ -232,17 +232,34 @@ No-go: cambiar `plugin-core-adapter.mjs` o `bin/climier.mjs` en estas olas.
 - Tests mínimos: `node --test test/cli-dispatch.test.mjs
   test/unknown-flags.test.mjs test/plugin-dispatch.test.mjs`.
 
-### B8 — integración
+### B8 — integración, dividido en core, UI y auditoría
 
-- Paths: tests de integración, snapshots y solo consumidores UI que requieran
-  cambios.
-- Dependencia: B4+B5+B6B+B7.
+#### B8-core — integración core, concurrencia y snapshots
+
+- Paths exclusivos: tests de integración, concurrencia y snapshots; solo una
+  fixture estrictamente necesaria.
+- Dependencia: B7 y, transitivamente, B4+B5+B6B.
 - Acceptance: no corrupción bajo concurrencia, snapshots v2 compatibles,
-  `newly_ready` y logs correctos, consumers de `v2.mjs` funcionando, fixture
-  CLI/API parity.
-- Tests: `npm test`, `npm run test:concurrent`,
-  `node --test test/state-snapshots.test.mjs test/snapshots-restore.test.mjs` y
-  `npm run test:ui` cuando cambia `ui/server/server.mjs` o su contrato directo.
+  `newly_ready`, revisiones, logs y paridad CLI/API correctos.
+- Tests: `npm test`, `npm run test:concurrent` y
+  `node --test test/state-snapshots.test.mjs test/snapshots-restore.test.mjs`.
+
+#### B8-ui — consumidores UI
+
+- Paths exclusivos: `ui/server/*` y tests UI solo si el contrato directo lo
+  requiere.
+- Dependencia: B7; no modifica kernel ni providers.
+- Acceptance: consumidores de `v2.mjs` funcionando, sin mutar estado ni
+  duplicar semántica.
+- Tests: `npm run test:ui` y `(cd ui && npm run build)` cuando corresponda.
+
+#### B8-final — `T-graph-kernel-integration`
+
+- Dependencia: B8-core+B8-ui.
+- Solo audita evidence, diffs, tests y contratos mergeados; no implementa
+  producto. Si encuentra una regresión, abre una corrección separada.
+- Acceptance: árbol limpio, una única ruta de mutación y compatibilidad final
+  de CLI/API/UI confirmada con una nota de cierre concreta.
 
 ## 5. Criterio de integración
 
