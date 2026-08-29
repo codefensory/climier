@@ -299,7 +299,11 @@ function InitiativePicker(props) {
         aria-controls="board-initiative-drawer"
       >
         <span class="ui-initiative-trigger-value" title={selected()}>{selected()}</span>
-        <span class="ui-initiative-trigger-chevron" aria-hidden="true">⌄</span>
+        <span class="ui-initiative-trigger-chevron" aria-hidden="true">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m4 6 4 4 4-4" />
+          </svg>
+        </span>
       </button>
       <Show when={open()}>
         <div id="board-initiative-drawer" class="ui-initiative-drawer" role="listbox" aria-label="Choose board initiative">

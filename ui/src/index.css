@@ -1157,10 +1157,24 @@ body {
 }
 
 .ui-initiative-trigger-chevron {
-  margin-left: 2px;
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
   color: var(--ui-muted-2);
-  font-size: 15px;
-  line-height: 1;
+  transition: transform .16s ease;
+}
+
+.ui-initiative-trigger--open .ui-initiative-trigger-chevron {
+  transform: rotate(180deg);
+}
+
+.ui-initiative-trigger-chevron svg {
+  width: 14px;
+  height: 14px;
 }
 
 .ui-initiative-drawer {
