@@ -1,9 +1,10 @@
-// src/providers/knowledge/index.mjs — barrel for the knowledge-core
-// provider slice (plan B4-knowledge-core).
+// src/providers/knowledge/index.mjs — barrel for the knowledge provider
+// slice (plan B4-knowledge-core + B4-knowledge-lifecycle).
 //
-// Exposes the two providers (knowledge.create, knowledge.update) plus
-// the pure helpers used by the v2 read commands and the future
-// B4-knowledge-lifecycle slice.
+// Exposes the three providers (knowledge.create, knowledge.update,
+// knowledge.deprecate) plus the pure helpers used by the v2 read
+// commands and by `knowledge.deprecate`'s downstream consumers
+// (search, status alerts).
 //
 // Pure: no fs, no lock, no state, no log, no policy, no commands, no
 // registry, no adapter, no CLI, no UI.
@@ -14,3 +15,4 @@ export { searchKnowledge } from "./search.mjs";
 export { informingForNode } from "./informing.mjs";
 export { createProvider } from "./create.mjs";
 export { updateProvider } from "./update.mjs";
+export { deprecateProvider } from "./deprecate.mjs";
