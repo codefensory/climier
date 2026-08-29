@@ -1,10 +1,10 @@
-// src/providers/task/index.mjs — public surface of the task-core provider.
+// src/providers/task/index.mjs — public surface of the task provider.
 //
-// Plan §B4-task-core + ADR-011/012: this module is the single import
-// point that the future registry (B6A) and the adapter (B6B) consume to
-// bind the task-core provider to its operation ids. Today only
-// `task.create` and `task.update` are wired (lifecycle operations
-// belong to §B4-task-lifecycle).
+// Plan §B4-task-core + §B4-task-lifecycle + ADR-011/012: this module is
+// the single import point that the future registry (B6A) and the
+// adapter (B6B) consume to bind the task provider to its operation
+// ids. Core (create/update) was wired by §B4-task-core; lifecycle
+// (take/resolve/release/reopen/cancel) by §B4-task-lifecycle.
 //
 // Constraints:
 //   - pure ESM re-exports: no filesystem, no lock, no state, no log,
@@ -15,3 +15,8 @@
 
 export { taskCreateProvider } from "./create.mjs";
 export { taskUpdateProvider } from "./update.mjs";
+export { taskTakeProvider } from "./take.mjs";
+export { taskResolveProvider } from "./resolve.mjs";
+export { taskReleaseProvider } from "./release.mjs";
+export { taskReopenProvider } from "./reopen.mjs";
+export { taskCancelProvider } from "./cancel.mjs";
