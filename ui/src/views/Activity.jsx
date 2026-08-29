@@ -55,8 +55,68 @@ function Skeleton(props) {
   );
 }
 
-function rowKey(e) {
+// Stable identity for an activity entry.
+//
+// Prefers `event_id` when the server emits it (additive; ADR-010 lets the
+// server project a durable event id onto every log entry). Falls back to
+// the existing `${ts::action::agent::node_id}` tuple so legacy shapes
+// using `node` / `task` instead of `node_id` still get a deterministic
+// key. The fallback is a pure function of the entry's fields, so two
+// semantically identical entries always collide on the same string and
+// can be reconciled to the same object reference.
+export function rowKey(e) {
+  if (!e) return "";
+  if (e.event_id != null && e.event_id !== "") return String(e.event_id);
   return `${e.ts || ""}::${e.action || ""}::${e.agent || ""}::${e.node_id || e.node || e.task || ""}`;
+}
+
+// Shallow equality of activity entry objects. We only need to detect
+// "same content, different object" so a per-key compare over the entry's
+// own fields is enough — every value is a primitive (ts, action, agent,
+// node_id, note, …) and deep equality is not required.
+function shallowEntryEqual(a, b) {
+  if (a === b) return true;
+  const ak = Object.keys(a);
+  const bk = Object.keys(b);
+  if (ak.length !== bk.length) return false;
+  for (let i = 0; i < ak.length; i++) {
+    const k = ak[i];
+    if (a[k] !== b[k]) return false;
+  }
+  return true;
+}
+
+// Per-component cache of stable activity-entry references keyed by
+// `rowKey`. Two polls producing the same key reuse the same object, so
+// `<For>` does not re-mount a row that semantically did not change.
+// Entries that disappear from the latest response are pruned so a
+// future poll can reintroduce them as fresh references.
+function makeEntryCache() {
+  const map = new Map();
+  function reconcile(fresh) {
+    const next = [];
+    const seen = new Set();
+    for (const e of fresh || []) {
+      const k = rowKey(e);
+      if (!k) continue;
+      seen.add(k);
+      const existing = map.get(k);
+      if (existing && shallowEntryEqual(existing, e)) {
+        next.push(existing);
+      } else {
+        map.set(k, e);
+        next.push(e);
+      }
+    }
+    for (const k of Array.from(map.keys())) {
+      if (!seen.has(k)) map.delete(k);
+    }
+    return next;
+  }
+  function clear() {
+    map.clear();
+  }
+  return { reconcile, clear };
 }
 
 // === ActivityRow ===========================================================
@@ -149,6 +209,8 @@ export default function Activity() {
   const [offset, setOffset] = createSignal(0);
 
   const [data, setData] = createSignal(null); // last successful payload
+  const entryCache = makeEntryCache();
+  const [stableEntries, setStableEntries] = createSignal([]); // reconciled rows; identity-stable across polls
   const [error, setError] = createSignal(null);
   const [loading, setLoading] = createSignal(false);
   const [initialLoading, setInitialLoading] = createSignal(true);
@@ -220,9 +282,20 @@ export default function Activity() {
   onCleanup(() => {
     if (debounceTimer) clearTimeout(debounceTimer);
     abortCtrl?.abort();
+    entryCache.clear();
   });
 
-  const entries = () => data()?.entries || [];
+  // Reconcile each fresh poll against the per-component cache. Solid's
+  // `<For>` iterates by reference, so preserving the object reference
+  // for entries that already existed is what keeps their row DOM (and
+  // any local row state) mounted across identical or overlapping polls.
+  // The effect tracks `data()` directly so it fires once per successful
+  // response; it never reads `stableEntries()`, so there is no loop.
+  createEffect(() => {
+    const fresh = data()?.entries || [];
+    setStableEntries(entryCache.reconcile(fresh));
+  });
+
   const facets = () => data()?.facets || { actions: [], agents: [] };
   const total = () => data()?.total || 0;
 
@@ -372,7 +445,7 @@ export default function Activity() {
             }
           >
             <Show
-              when={entries().length}
+              when={stableEntries().length}
               fallback={
                 <div class="p-6 text-[13px] text-mute">
                   No log entries match.
@@ -403,7 +476,7 @@ export default function Activity() {
                   </tr>
                 </thead>
                 <tbody>
-                  <For each={entries()}>
+                  <For each={stableEntries()}>
                     {(e) => {
                       const key = rowKey(e);
                       const isOpen = () => expanded().has(key);
