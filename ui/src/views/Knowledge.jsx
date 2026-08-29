@@ -21,6 +21,15 @@
 //      hidden) with text contrast against the muted background that
 //      meets the same floor as other secondary copy.
 //
+// Identity contract (ADR-010 §3.4, ui-live-store-execution §3.4 / §12):
+//   - consumes `useStoreSelectors().nodesMap()` so the knowledge
+//     references iterated by <For> stay stable across polls when
+//     content does not change;
+//   - iterates node IDs (strings) as the iteration source so Solid
+//     matches KnowledgeCard DOM by stable id identity;
+//   - filters, tabs and sorting behavior are preserved verbatim — only
+//     the iteration target changed.
+//
 // Contract scope: this file owns its view and its pure helpers.
 // components.jsx, store.jsx, Gates.jsx, the snapshot shape and the
 // NodeDetail drawer stay frozen per the Fase 5B rule (primitives only grow
@@ -32,7 +41,7 @@
 // test/ui-knowledge.test.mjs).
 
 import { createMemo, createSignal, Show, For } from "solid-js";
-import { useStore } from "../store.jsx";
+import { useStore, useStoreSelectors } from "../store.jsx";
 import {
   PageHeader,
   PageLayout,
@@ -292,8 +301,9 @@ function KnowledgeCard(props) {
 
 export default function Knowledge() {
   const { snapshot, select } = useStore();
+  const selectors = useStoreSelectors();
   const s = () => snapshot();
-  const nodes = () => s()?.nodes || {};
+  const nodesById = () => selectors.nodesMap();
 
   const [tab, setTab] = createSignal("active");
   const [q, setQ] = createSignal("");
@@ -302,9 +312,27 @@ export default function Knowledge() {
   const [scopeDimension, setScopeDimension] = createSignal("");
   const [scopeValue, setScopeValue] = createSignal("");
 
-  const allKnowledge = createMemo(() =>
-    Object.values(nodes()).filter((n) => n && n.kind === "knowledge"),
-  );
+  // Knowledge IDs from the reconciled map. Stable across polls when no
+  // knowledge node is added/removed or changes kind.
+  const knowledgeIds = createMemo(() => {
+    const map = nodesById();
+    const out = [];
+    for (const id of Object.keys(map)) {
+      const n = map[id];
+      if (n && n.kind === "knowledge") out.push(id);
+    }
+    return out;
+  });
+
+  const allKnowledge = createMemo(() => {
+    const map = nodesById();
+    const out = [];
+    for (const id of knowledgeIds()) {
+      const n = map[id];
+      if (n) out.push(n);
+    }
+    return out;
+  });
 
   const summary = createMemo(() => {
     const all = allKnowledge();
@@ -340,16 +368,43 @@ export default function Knowledge() {
     return [...set].sort();
   });
 
-  const filters = createMemo(() => ({
-    initiative: initiative(),
-    knowledgeType: knowledgeType(),
-    scopeDimension: scopeDimension(),
-    scopeValue: scopeValue(),
-    showDeprecated: tab() !== "active",
-    q: q(),
-  }));
-
-  const scoped = createMemo(() => filterKnowledge(allKnowledge(), filters()));
+  // Filter to ids first, so the iteration target is a primitive (the
+  // id string) and Solid's <For> preserves KnowledgeCard identity by
+  // id across polls. The card body looks up the current knowledge
+  // node from the reconciled map.
+  const filteredIds = createMemo(() => {
+    const map = nodesById();
+    const showDeprecated = tab() !== "active";
+    const iniWanted = initiative();
+    const typeWanted = knowledgeType();
+    const dimLabel = scopeDimension();
+    const dim = dimLabel ? SCOPE_DIMENSIONS.find((d) => d.label === dimLabel) : null;
+    const valueWanted = scopeValue();
+    const needle = q().trim().toLowerCase();
+    const out = [];
+    for (const id of knowledgeIds()) {
+      const n = map[id];
+      if (!n) continue;
+      if (!showDeprecated && isDeprecated(n)) continue;
+      if (iniWanted && n.initiative !== iniWanted) continue;
+      if (typeWanted && (n.knowledge_type || "") !== typeWanted) continue;
+      if (dim) {
+        const sc = (n && n.scope) || {};
+        const items = Array.isArray(sc[dim.key]) ? sc[dim.key] : [];
+        if (!valueWanted) {
+          if (items.length === 0) continue;
+        } else {
+          if (!items.includes(valueWanted)) continue;
+        }
+      }
+      if (needle) {
+        const hay = `${n.id || ""} ${n.title || ""} ${n.body || ""} ${n.knowledge_type || ""}`.toLowerCase();
+        if (!hay.includes(needle)) continue;
+      }
+      out.push(id);
+    }
+    return out;
+  });
 
   const filterIsActive = () =>
     Boolean(
@@ -508,7 +563,7 @@ export default function Knowledge() {
               />
             }
           >
-            <Show when={scoped().length === 0}>
+            <Show when={filteredIds().length === 0}>
               <EmptyState
                 variant="section"
                 title="No knowledge matches the current filters"
@@ -524,18 +579,19 @@ export default function Knowledge() {
                 }
               />
             </Show>
-            <Show when={scoped().length > 0}>
+            <Show when={filteredIds().length > 0}>
               <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                <For each={scoped()}>
-                  {(k) => {
-                    const groups = groupScope(k.scope || {});
-                    const lastActivity = s()?.last_activity?.[k.id];
+                <For each={filteredIds()}>
+                  {(id) => {
+                    const k = () => nodesById()[id] || { id };
+                    const groups = () => groupScope(k().scope || {});
+                    const lastActivity = () => s()?.last_activity?.[id];
                     return (
                       <KnowledgeCard
-                        node={k}
-                        scopeGroups={groups}
-                        lastActivity={lastActivity}
-                        onOpen={() => select(k.id)}
+                        node={k()}
+                        scopeGroups={groups()}
+                        lastActivity={lastActivity()}
+                        onOpen={() => select(id)}
                       />
                     );
                   }}
