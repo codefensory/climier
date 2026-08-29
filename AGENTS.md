@@ -146,7 +146,10 @@ Cycles in the DAG must not crash. The derivation keeps cycle members blocked. Un
 
 ## Testing
 
-- `npm test` runs all `test/*.test.mjs` files.
+- `npm test` runs the CLI/core suite and skips `ui-*` tests.
+- `npm run test:ui` runs the UI test suite in isolation.
+- For changes limited to `/ui`, do not run the full Climier CLI suite by default. Run `npm run test:ui` and, when the change affects the frontend build, `(cd ui && npm run build)`.
+- UI and CLI tests are separate by design, but `ui/server/` consumes CLI state and read-only helpers. If a change crosses that boundary or changes a shared CLI contract, run the relevant targeted CLI tests too; use `npm test` when the blast radius warrants it.
 - `npm run test:concurrent` runs the multi-agent race tests in isolation.
 - Each test uses a temp dir (see `helpers.mjs`) so tests don't interfere.
 - `importFresh()` re-imports modules fresh between tests (defeats the module cache); use it when you need clean state.
