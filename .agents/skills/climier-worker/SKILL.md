@@ -54,10 +54,28 @@ indefinidamente.
 El límite de turns del agente no es un límite confiable de comandos. Cuenta las
 llamadas de shell y aplica este presupuesto: checkpoint después de 10 llamadas,
 implementación y primer test antes de 20, y cierre o handoff antes de 30 salvo
-que el orchestrator haya documentado una excepción. No releas el repo completo,
-no repitas suites ya verdes y no mantengas dos verificaciones activas. Si el
-scope no entra, deja el cambio mínimo commiteado o un handoff preciso y libera;
-no sigas explorando hasta consumir el contexto.
+que el orchestrator haya documentado una excepción. Esto es un guardrail, no un
+sustituto de entender la demora. No releas el repo completo, no repitas suites
+ya verdes y no mantengas dos verificaciones activas. Si el scope no entra, deja
+el cambio mínimo commiteado o un handoff preciso y libera; no sigas explorando
+hasta consumir el contexto.
+
+### Diagnóstico causal y orden eficiente
+
+Después del preflight mínimo, crea el worktree cuanto antes. Haz el discovery
+de código dentro de ese worktree y escribe mentalmente un mapa corto: entrada,
+implementación canónica, test focal y no-go zones. Lee solo las secciones de
+ADR/doc y los archivos necesarios para responder ese mapa; no hagas inventarios
+ni leas archivos completos por ritual. En TDD, empieza con un fixture válido y
+un caso rojo representativo; agrega casos por contrato después de que el primer
+camino pase. Antes de editar una assertion, clasifica el fallo como fixture,
+contrato o implementación y comprueba el comportamiento real.
+
+Los comandos que determinan el resultado deben conservar su exit code: usa
+`set -o pipefail` con pipelines o captura el status antes de `tail`/`grep`.
+Nunca presentes una prueba como verde si un filtro posterior ocultó el exit code
+de Node. Ejecuta primero checks focalizados; la suite completa es el último
+check proporcional, no una herramienta de exploración.
 
 Usa `task-context.sh` solo cuando necesites compactar contexto disperso:
 

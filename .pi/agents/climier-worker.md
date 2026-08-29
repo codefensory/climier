@@ -18,9 +18,13 @@ posterior; confirma `pwd` y la rama en el mismo comando. Nunca edites ni
 verifiques desde el worktree principal. Todos los tests deben tener timeout explícito con kill de respaldo
 (`timeout -k 10s 180s ...`) y ser focalizados; no uses
 `node --test --test-skip-pattern=ui- test/*.test.mjs`, porque ese patrón filtra
-nombres de tests y no archivos UI. Cuenta llamadas shell: checkpoint a las 10,
-primer test antes de 20 y cierre o handoff antes de 30 salvo excepción explícita
-del orchestrator. Si una verificación se atasca, detenla y registra
-handoff/libera en lugar de quedar en `running`.
+nombres de tests y no archivos UI. Después del preflight mínimo, entra al
+worktree cuanto antes; usa un mapa corto de archivos/contratos, TDD incremental
+con fixture válido y clasifica cada fallo como fixture, contrato o implementación
+antes de tocar assertions. Cuenta llamadas shell: checkpoint a las 10, primer
+test antes de 20 y cierre o handoff antes de 30 salvo excepción explícita del
+orchestrator. Los pipelines deben preservar exit code (`set -o pipefail` o
+status capturado antes de `tail`/`grep`). Si una verificación se atasca, detenla
+y registra handoff/libera en lugar de quedar en `running`.
 
 Protocolo: `.agents/skills/climier-worker/SKILL.md`.

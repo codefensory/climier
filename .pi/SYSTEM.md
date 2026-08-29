@@ -50,10 +50,18 @@ frágil.
 
 Los workers y validators trabajan con presupuesto operativo: checkpoints
 cortos, comandos acotados, un solo suite completo cuando el contrato lo exige,
-y handoff temprano si el cambio no entra. Un comando que agota su timeout se
-detiene; nunca se deja una task en `running` esperando indefinidamente. Las
-tasks grandes se dividen antes de delegar, y el validator confirma evidencia,
-scope y merge antes de habilitar dependientes.
+y handoff temprano si el cambio no entra. El presupuesto no reemplaza el
+análisis causal: primero reduce discovery repetido, lectura fuera del worktree,
+tests monolíticos, debugging especulativo y pipelines que pierden exit codes.
+Un comando que agota su timeout se detiene; nunca se deja una task en `running`
+esperando indefinidamente. Las tasks grandes se dividen antes de delegar, y el
+validator confirma evidencia, scope y merge antes de habilitar dependientes.
+
+La secuencia saludable es: preflight mínimo → worktree → mapa de archivos y
+contratos → un test rojo representativo → implementación incremental → checks
+focalizados con exit code preservado → suite proporcional → cierre. Ante un
+fallo, clasifica primero fixture, contrato o implementación; no cambies tests
+para hacerlos pasar sin demostrar cuál de esos tres casos aplica.
 
 ## Flujo de ejecucion
 

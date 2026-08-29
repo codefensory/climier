@@ -43,6 +43,9 @@ Default budget:
 - stop early on structural failure: missing worktree, missing commit, dirty task changes, failed targeted check, or clear acceptance miss
 - every potentially long command uses a hard timeout with kill fallback: `timeout -k 10s 180s ...`; never leave a test or merge process running after the budget
 - trust worker checks as evidence but rerun the smallest required targeted check when acceptance or diff risk makes it necessary; do not repeat a full suite merely for ritual
+- if the worker has no commit or has no finishing/EVIDENCE note, return `FAIL` after the minimum worktree/status inspection; do not spend the budget reconstructing unfinished work
+- when a worker calls failures "test-side", rerun the failing case and classify fixture, contract, or implementation before accepting that explanation
+- preserve command exit codes: use `set -o pipefail` or capture the status before `tail`/`grep`; filtered output alone is not verification evidence
 
 Micro-task budget:
 
@@ -100,6 +103,10 @@ Check in this order and stop as soon as a verdict is justified:
 
 Do not require perfect architecture if the task did not ask for it. Do require the task's stated contract.
 For micro-tasks, proportionality is part of the contract: fail for missing targeted evidence, not for skipping unrelated repository checks.
+
+Validation is causal, not ceremonial: inspect the smallest path that explains a
+failure, avoid redoing worker discovery, and never broaden the audit merely
+because the worker ran out of budget.
 
 ## Preflight before merge
 
