@@ -105,16 +105,21 @@ export function createProvider() {
         throwV2("MISSING_FIELD", "knowledge.create: --body is required", { field: "body" });
       }
       const initiative = asString(input.initiative).trim();
-      if (!initiative) {
+      const allowUnregistered = input.allow_unregistered_initiative === true;
+      if (!initiative && !allowUnregistered) {
         throwV2("MISSING_FIELD", "knowledge.create: --initiative is required", { field: "initiative" });
       }
-      const initiatives = readInitiatives(snapshot);
-      if (!Object.prototype.hasOwnProperty.call(initiatives, initiative)) {
-        throwV2(
-          "INITIATIVE_NOT_FOUND",
-          `knowledge.create: initiative '${initiative}' is not registered`,
-          { initiative },
-        );
+      if (initiative) {
+        const initiatives = readInitiatives(snapshot);
+        if (!Object.prototype.hasOwnProperty.call(initiatives, initiative)) {
+          if (!allowUnregistered) {
+            throwV2(
+              "INITIATIVE_NOT_FOUND",
+              `knowledge.create: initiative '${initiative}' is not registered`,
+              { initiative },
+            );
+          }
+        }
       }
 
       const scope = readScope(input.scope);
@@ -138,11 +143,15 @@ export function createProvider() {
       const knowledgeType = input.knowledge_type === undefined
         ? "warning"
         : asString(input.knowledge_type);
-      if (!KNOWN_KNOWLEDGE_TYPES.includes(knowledgeType)) {
+      // knowledge_type is a free-form taxonomy string. The provider
+      // accepts any non-empty value; the built-in defaults below are
+      // kept for documentation but are not a closed set, so callers
+      // may seed custom types like `constraint` or `tip`.
+      if (knowledgeType.length === 0) {
         throwV2(
-          "INVALID_PROVIDER_INPUT",
-          `knowledge.create: knowledge_type '${knowledgeType}' is not allowed (allowed: ${KNOWN_KNOWLEDGE_TYPES.join(", ")})`,
-          { field: "knowledge_type", value: knowledgeType, allowed: KNOWN_KNOWLEDGE_TYPES },
+          "MISSING_FIELD",
+          "knowledge.create: --knowledge-type must be a non-empty string",
+          { field: "knowledge_type" },
         );
       }
 
@@ -187,6 +196,12 @@ export function createProvider() {
         knowledge_type: knowledgeType,
         scope,
       };
+      if (allowUnregistered && !initiative) {
+        // Trusted internals (recovery, bulk migration) may seed a
+        // knowledge node without registering an initiative first.
+        // The CLI surface never passes allow_unregistered_initiative.
+        delete node.initiative;
+      }
       if (input.mitigation !== undefined) {
         const mitigation = asString(input.mitigation);
         if (mitigation.length > 0) node.mitigation = mitigation;

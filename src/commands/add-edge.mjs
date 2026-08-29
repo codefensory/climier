@@ -1,78 +1,94 @@
-import { readState, updateState, assertStateVersion } from "../state.mjs";
-import { withLock } from "../lock.mjs";
-import { appendWithContext } from "../log.mjs";
-import { EDGE_TYPES, existingEdge, validateEdge } from "../v2.mjs";
+// add-edge: append a new edge to the v2 state.
+//
+// T-graph-kernel-adapters-wave1 — this handler is now a thin adapter
+// over the kernel mutation frontier (`kernel.mutate` + the `edge.add`
+// provider). The adapter parses argv, resolves the policy outside
+// the lock, and hands control to the kernel, which owns the lock,
+// the snapshot read, the precondition check, the policy authorize,
+// the draft mutation, the diff/revision computation and the single
+// atomic state + log write. The handler itself no longer imports
+// withLock, updateState, appendWithContext or edit `revision`
+// directly; the only mutating call is `kernel.mutate`.
+//
+// Errors (`SELF_EDGE`, `INVALID_EDGE_TARGET`, `INVALID_EDGE_TYPE`,
+// `MISSING_FIELD`, `POLICY_DENIED`, `REVISION_CONFLICT`,
+// `INVALID_EXECUTION_CONTRACT`, …) propagate verbatim from the
+// provider / kernel so existing consumers and tests keep their
+// structured error envelopes.
+
+import { mutate } from "../kernel/mutate.mjs";
+import { loadApplicablePolicy, authorizeAction } from "../policy.mjs";
 import { throwV2 } from "../errors.mjs";
 import { resolveAgent } from "../agent.mjs";
-import { loadApplicablePolicy, authorizeAction } from "../policy.mjs";
-import { PolicyDenied } from "../plugin-errors.mjs";
+import { edgeAddProvider } from "../providers/core/edge.mjs";
 
 export const knownFlags = ["type", "as"];
 
+const POLICY_ACTION = "edge.add";
+const LOG_ACTION = "add-edge";
+
 export default async function addEdge({ statePath, positional, flags, pluginId }) {
   const [from, to] = positional;
-  if (!from || !to) throwV2("MISSING_FIELD", "add-edge: from and to ids required", { field: "from,to" });
-  if (!flags.type) throwV2("MISSING_FIELD", "add-edge: --type required", { field: "type" });
-  const type = String(flags.type).toUpperCase();
-  if (!EDGE_TYPES.includes(type)) {
-    throwV2(
-      "INVALID_EDGE_TYPE",
-      `add-edge: --type must be one of ${EDGE_TYPES.join(", ")} (got '${flags.type}')`,
-      { type, allowed: EDGE_TYPES },
-    );
+  if (!from || !to) {
+    throwV2("MISSING_FIELD", "add-edge: from and to ids required", { field: "from,to" });
+  }
+  if (!flags.type) {
+    throwV2("MISSING_FIELD", "add-edge: --type required", { field: "type" });
   }
   const projectDir = statePath;
 
-  // T-plugin-policy-seam-dag — ADR-008 §"Seam por handler":
-  // load the applicable policy BEFORE the lock. The decision itself
-  // runs INSIDE the lock against the snapshot read under the lock.
+  // F8: resolve the agent BEFORE building the request so the seam
+  // sees the real caller. MISSING_AGENT still surfaces after data
+  // validation but before the kernel opens the lock.
+  const agent = resolveAgent(flags, "add-edge");
+
+  // T-plugin-policy-seam-dag — ADR-008 §"Seam por handler": policy
+  // selection runs OUTSIDE the lock; the authorize step runs INSIDE
+  // the lock via `policyAction.decide` against the snapshot the
+  // kernel reads under the same lock.
   const policy = await loadApplicablePolicy({ projectDir });
 
-  return withLock(projectDir, async () => {
-    const s = await readState(projectDir);
-    if (!s) throw new Error("add-edge: state file missing");
-    assertStateVersion(s, 2, "add-edge");
-    const edge = { from, to, type };
-    validateEdge(s, edge, "add-edge");
-    if (existingEdge(s, from, to, type)) {
-      throwV2(
-        "DUPLICATE_EDGE",
-        `add-edge: ${type} edge ${from} -> ${to} already exists`,
-        { from, to, type },
-      );
-    }
+  const input = {
+    from,
+    to,
+    // The provider normalizes the type to the canonical uppercase
+    // whitelist, so the adapter passes the raw flag value as-is.
+    type: flags.type,
+  };
 
-    // F8: resolveAgent runs after edge validation but BEFORE the seam,
-    // so a missing agent rejects without entering authorizeAction or
-    // updateState.
-    const agent = resolveAgent(flags, "add-edge");
+  // policyAction is the in-lock authorize step the kernel evaluates
+  // against the fresh snapshot + plan. With no applicable policy the
+  // seam is inert (defaults core: allow/abstain both proceed).
+  const policyAction = policy
+    ? {
+        action: POLICY_ACTION,
+        pluginId: policy.pluginId,
+        decide: async ({ snapshot, target, request, action }) => {
+          const decision = await authorizeAction({
+            policy,
+            action,
+            actor: agent,
+            target,
+            snapshot,
+            projectDir,
+            projectConfig: policy.projectConfig || {},
+          });
+          return decision;
+        },
+      }
+    : null;
 
-    // T-plugin-policy-seam-dag — ADR-008 §"Acciones canónicas":
-    // `edge.add` is the canonical action for any new edge. The target
-    // carries the edge payload (no node id); the snapshot exposes the
-    // full DAG so the policy can branch on from/to/type.
-    const decision = await authorizeAction({
-      policy,
-      action: "edge.add",
-      actor: agent,
-      target: { from, to, type },
-      snapshot: s,
-      projectDir,
-      projectConfig: policy && policy.projectConfig ? policy.projectConfig : {},
-    });
-    if (decision.decision === "deny") {
-      throw new PolicyDenied(policy.pluginId, "edge.add", agent, decision.reason);
-    }
-
-    await updateState(projectDir, (st) => {
-      st.edges.push(edge);
-      return st;
-    });
-    await appendWithContext(
-      projectDir,
-      { agent, action: "add-edge", node: to, note: `${from} ${type} ${to}` },
-      { pluginId },
-    );
-    return { edge };
+  const result = await mutate({
+    projectDir,
+    request: { action: LOG_ACTION, actor: agent, input },
+    provider: edgeAddProvider,
+    policyAction,
+    pluginId,
   });
+
+  // The provider's apply returns `{ result: { edge } }`. Project the
+  // legacy `{ edge }` envelope so existing callers and tests keep
+  // working without churn.
+  const edge = result.result && result.result.edge ? result.result.edge : null;
+  return { edge };
 }

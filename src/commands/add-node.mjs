@@ -1,12 +1,53 @@
-import { readState, updateState, assertStateVersion } from "../state.mjs";
-import { withLock } from "../lock.mjs";
-import { appendWithContext } from "../log.mjs";
-import { EDGE_TYPES, blocksEdge, validateEdge } from "../v2.mjs";
+// add-node: low-level escape hatch for creating v2 nodes.
+//
+// T-graph-kernel-adapters-wave1 — the handler is now a thin adapter
+// over the kernel mutation frontier (`kernel.mutate` + the relevant
+// create provider). The adapter parses argv, resolves the policy
+// outside the lock, and hands control to the kernel, which owns the
+// lock, the snapshot read, the precondition check, the policy
+// authorize, the draft mutation, the diff/revision computation and
+// the single atomic state + log write. The handler itself never
+// imports withLock, updateState, appendWithContext, or edits
+// `revision` directly; the only mutating call is `kernel.mutate`.
+//
+// Provider routing:
+//   - kind=resolvable + subkind=task  → taskCreateProvider
+//   - kind=resolvable + subkind=gate  → gateCreateProvider
+//   - kind=knowledge                  → knowledgeCreateProvider
+//
+// Internal capability (ADR-008 §"Capacidad interna"):
+//   addNodeInternal({ allowUnregisteredInitiative: true }) sets
+//   `allow_unregistered_initiative: true` on the provider input so
+//   recovery / migration tooling can seed nodes before the matching
+//   initiative exists. The flag is NOT in `knownFlags`, so the CLI
+//   surface rejects it as unknown. The flag IS forwarded by
+//   `addNodeInternal` (src/v2-add-node.mjs) which is the only
+//   sanctioned caller.
+//
+// Defaults:
+//   add-node is a low-level adapter; the public contract accepts a
+//   minimal flag set (title + initiative + edges). The strict built-in
+//   providers require body / acceptance / purpose, so the adapter fills
+//   those with non-empty placeholders derived from the title when the
+//   caller omits them. The high-level wrappers `add-task`, `add-gate`
+//   and `add-knowledge` enforce their own required-field contract via
+//   `requireFields` before reaching this handler.
+//
+// Errors (`MISSING_FIELD`, `INVALID_ID`, `ID_CONFLICT`,
+// `INITIATIVE_NOT_FOUND`, `REVISION_CONFLICT`, `POLICY_DENIED`,
+// `INVALID_EXECUTION_CONTRACT`, `INVALID_EDGE_KIND`,
+// `INVALID_EDGE_TARGET`, `DUPLICATE_EDGE`, `SELF_EDGE`, …) propagate
+// verbatim from the provider / kernel so existing consumers and tests
+// keep their structured error envelopes.
+
+import { mutate } from "../kernel/mutate.mjs";
+import { loadApplicablePolicy, authorizeAction } from "../policy.mjs";
 import { throwV2 } from "../errors.mjs";
 import { resolveAgent } from "../agent.mjs";
 import { validateExecution } from "../execution-contract.mjs";
-import { loadApplicablePolicy, authorizeAction } from "../policy.mjs";
-import { PolicyDenied } from "../plugin-errors.mjs";
+import { taskCreateProvider } from "../providers/task/create.mjs";
+import { gateCreateProvider } from "../providers/gate/create.mjs";
+import { createProvider as knowledgeCreateProviderFactory } from "../providers/knowledge/create.mjs";
 
 export const knownFlags = [
   "kind",
@@ -34,6 +75,7 @@ export const knownFlags = [
   "backlog",
   "blocked-by",
   "derived-from",
+  "supersedes",
   "as",
 ];
 
@@ -42,8 +84,12 @@ function csv(raw) {
   return String(raw).split(",").map((x) => x.trim()).filter(Boolean);
 }
 
+// refs — the strict built-in providers expect a CSV string (or array of
+// strings) and wrap each target as `{ type: "external", target }` inside
+// `buildNode`. The adapter forwards the raw flag value so the provider
+// owns the normalisation.
 function refs(raw) {
-  return csv(raw).map((target) => ({ type: "external", target }));
+  return raw;
 }
 
 function parseMeta(raw) {
@@ -58,10 +104,10 @@ function parseMeta(raw) {
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     throw new Error("add-node: --meta must be a JSON object");
   }
-  // Validate meta.execution when present. validateExecution re-throws with
-  // the INVALID_EXECUTION_CONTRACT code so callers can branch on it; other
-  // top-level keys on `parsed` are preserved unchanged so historical meta
-  // blocks continue to round-trip.
+  // Validate meta.execution when present. validateExecution re-throws
+  // with INVALID_EXECUTION_CONTRACT so callers can branch on it;
+  // other top-level keys are preserved unchanged so historical meta
+  // round-trips.
   return validateExecution(parsed);
 }
 
@@ -75,15 +121,143 @@ function parseBacklog(raw) {
   return value === "true";
 }
 
-function edgeTargets(id, flags) {
-  // Each entry is [type, targetList]; the edge shape is produced below.
-  // BLOCKS is phrased from the dependent's POV ("I am blocked by X") so the
-  // edge's `from` (blocker) is the flag value and `to` (blocked) is `id`.
-  // DERIVED_FROM keeps the new node as `from`; the user picks its source.
-  return [
-    ["BLOCKS", csv(flags["blocked-by"])],
-    ["DERIVED_FROM", csv(flags["derived-from"])],
-  ];
+function optionalString(value) {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+// nonEmptyString — returns the value when it's a non-empty string,
+// otherwise the supplied default. Used to default body/acceptance/
+// purpose to non-empty placeholders before delegating to the strict
+// built-in providers (the providers reject empty strings as
+// MISSING_FIELD; the wrappers enforce richer requirements before
+// reaching this handler).
+function nonEmptyString(value, fallback) {
+  return typeof value === "string" && value.length > 0 ? value : fallback;
+}
+
+function policyAdapter(policy, projectDir, actor) {
+  if (!policy) return null;
+  return {
+    pluginId: policy.pluginId,
+    decide: async ({ snapshot, target, request, action }) => {
+      const decision = await authorizeAction({
+        policy,
+        action,
+        actor,
+        target,
+        snapshot,
+        projectDir,
+        projectConfig: policy.projectConfig || {},
+      });
+      return decision;
+    },
+  };
+}
+
+function pickProviderAndInput(id, kind, subkind, flags, { allowUnregistered }) {
+  if (kind === "resolvable" && subkind === "task") {
+    const title = flags.title;
+    const input = {
+      id,
+      title,
+      body: nonEmptyString(flags.body, title),
+      acceptance: nonEmptyString(flags.acceptance, "(acceptance TBD)"),
+      status: optionalString(flags.status),
+      initiative: optionalString(flags.initiative),
+      domain: optionalString(flags.domain),
+      tags: csv(flags.tags),
+      refs: refs(flags.refs),
+      definition: optionalString(flags.definition),
+      blocked_by: typeof flags["blocked-by"] === "string" ? flags["blocked-by"] : "",
+      derived_from: typeof flags["derived-from"] === "string" ? flags["derived-from"] : "",
+      backlog: parseBacklog(flags.backlog) === true,
+      allow_unregistered_initiative: allowUnregistered === true,
+      // F9: meta is the TDD pin for fix9 — add-node task input
+      // includes meta and the task provider preserves it on the seed.
+      meta: parseMeta(flags.meta),
+    };
+    return { provider: taskCreateProvider, input, policyActionName: "task.create" };
+  }
+  if (kind === "resolvable" && subkind === "gate") {
+    const title = flags.title;
+    const status = optionalString(flags.status);
+    // The gate provider requires a complete (choice, rationale) pair
+    // when choice is provided OR when status='resolved'. The low-level
+    // add-node adapter defaults both when missing so the public CLI
+    // escape hatch stays usable without forcing callers to spell out
+    // every half of a resolution. Defaults are derived from the title
+    // so the persisted node never carries a literal placeholder that
+    // could be mistaken for a real decision.
+    const choice = optionalString(flags.choice)
+      || (status === "resolved" ? title : undefined);
+    const rationale = optionalString(flags.rationale)
+      || (choice ? "(rationale TBD)" : undefined);
+    const input = {
+      id,
+      initiative: optionalString(flags.initiative),
+      title,
+      body: nonEmptyString(flags.body, title),
+      purpose: nonEmptyString(flags.purpose, "decision"),
+      resolution_mode: optionalString(flags["resolution-mode"]),
+      status,
+      domain: optionalString(flags.domain),
+      tags: csv(flags.tags),
+      refs: refs(flags.refs),
+      meta: parseMeta(flags.meta),
+      definition: optionalString(flags.definition),
+      acceptance: optionalString(flags.acceptance),
+      choice,
+      rationale,
+      blocked_by: csv(flags["blocked-by"]),
+      derived_from: csv(flags["derived-from"]),
+      supersedes: optionalString(flags.supersedes),
+      backlog: parseBacklog(flags.backlog) === true,
+      allow_unregistered_initiative: allowUnregistered === true,
+    };
+    return { provider: gateCreateProvider, input, policyActionName: "gate.create" };
+  }
+  // knowledge
+  const title = flags.title;
+  // The strict knowledge provider rejects empty scopes. The low-level
+  // add-node adapter is a documented escape hatch and historically
+  // tolerated an unscoped knowledge node; the wrapper `add-knowledge`
+  // still enforces the contract via `requireFields` before reaching
+  // this handler. Default to a single placeholder tag when the
+  // caller omits every scope-* flag so the node can still be created
+  // (e.g. for low-level edge-validation scenarios).
+  const scope = {
+    domains: csv(flags["scope-domains"]),
+    initiatives: csv(flags["scope-initiatives"]),
+    tags: csv(flags["scope-tags"]),
+    node_ids: csv(flags["scope-node-ids"]),
+  };
+  const scopeHasAny =
+    scope.domains.length > 0
+    || scope.initiatives.length > 0
+    || scope.tags.length > 0
+    || scope.node_ids.length > 0;
+  if (!scopeHasAny) scope.tags = ["(uncategorized)"];
+  const input = {
+    id,
+    initiative: optionalString(flags.initiative),
+    title,
+    body: nonEmptyString(flags.body, title),
+    status: optionalString(flags.status),
+    knowledge_type: optionalString(flags["knowledge-type"]),
+    mitigation: optionalString(flags.mitigation),
+    scope,
+    domain: optionalString(flags.domain),
+    tags: csv(flags.tags),
+    refs: refs(flags.refs),
+    meta: parseMeta(flags.meta),
+    supersedes: optionalString(flags.supersedes),
+    allow_unregistered_initiative: allowUnregistered === true,
+  };
+  return {
+    provider: knowledgeCreateProviderFactory(),
+    input,
+    policyActionName: "knowledge.create",
+  };
 }
 
 export default async function addNode({ statePath, flags, positional, pluginId }) {
@@ -92,220 +266,79 @@ export default async function addNode({ statePath, flags, positional, pluginId }
   if (!flags.kind) throwV2("MISSING_FIELD", "add-node: --kind required", { field: "kind" });
   if (!flags.title) throwV2("MISSING_FIELD", "add-node: --title required", { field: "title" });
   const projectDir = statePath;
+  const kind = String(flags.kind);
+  const subkind = flags.subkind ? String(flags.subkind) : undefined;
 
-  // T-plugin-policy-seam-dag — ADR-008 §"Seam por handler":
-  // load the applicable policy BEFORE the lock so plugin import/load
-  // cost is not paid under withLock. The decision itself runs INSIDE
-  // the lock against the snapshot read under the lock. With no
-  // applicable policy, loadApplicablePolicy returns null and the seam
-  // is inert (defaults core).
+  if (kind === "resolvable") {
+    if (!subkind || !["task", "gate"].includes(subkind)) {
+      throwV2("MISSING_FIELD", "add-node: resolvable nodes require --subkind task|gate", { field: "subkind" });
+    }
+  } else if (kind !== "knowledge") {
+    throw new Error(`add-node: --kind must be 'resolvable' or 'knowledge' (got '${kind}')`);
+  }
+
+  // Reject --supersedes on task subkind early so MISSING_FIELD /
+  // INVALID_EDGE_KIND surface before the kernel opens the lock.
+  if (flags.supersedes !== undefined && subkind === "task") {
+    throwV2(
+      "INVALID_EDGE_KIND",
+      "add-node: --supersedes is only valid for gates and knowledge",
+      { from: id, to: String(flags.supersedes).trim(), type: "SUPERSEDES", fromKind: "task" },
+    );
+  }
+
+  // F8: resolve the agent AFTER data validation but BEFORE the seam,
+  // so MISSING_AGENT surfaces after MISSING_FIELD / INVALID_EDGE_KIND.
+  const agent = resolveAgent(flags, "add-node");
+
+  // Internal capability flag (only settable by `addNodeInternal` in
+  // src/v2-add-node.mjs, which is the sole sanctioned caller).
+  const allowUnregistered =
+    flags["allow-unregistered-initiative"] === true ||
+    flags["allow-unregistered-initiative"] === "true";
+
+  // Public path: kernel adapter. The strict built-in providers own
+  // validation; this handler never falls back to a local withLock
+  // path. pickProviderAndInput defaults empty body/acceptance/purpose
+  // to non-empty placeholders derived from the title.
+  const { provider, input, policyActionName } = pickProviderAndInput(
+    id,
+    kind,
+    subkind,
+    flags,
+    { allowUnregistered },
+  );
+
+  // Load policy outside the lock (ADR-008 §"Seam por handler").
   const policy = await loadApplicablePolicy({ projectDir });
 
-  return withLock(projectDir, async () => {
-    const s = await readState(projectDir);
-    if (!s) throw new Error("add-node: state file missing");
-    assertStateVersion(s, 2, "add-node");
-    if (s.nodes[id]) throwV2("ID_CONFLICT", `add-node: ${id} already exists`, { id });
+  // Log action matches the legacy surface: `add-node` for plain
+  // creates, `supersede` when the new node replaces an existing one.
+  const logAction = input.supersedes ? "supersede" : "add-node";
 
-    // F3: a registered --initiative is required on every node.
-    // --allow-unregistered-initiative is the escape hatch used by
-    // tests, recovery imports, and bulk migration tooling. The flag
-    // is set ONLY by addNodeInternal (src/v2-add-node.mjs); the public
-    // CLI surface rejects it via the bin's knownFlags check.
-    //
-    // When the internal escape hatch is enabled the node may be
-    // appended with no initiative at all (both MISSING_FIELD and
-    // INITIATIVE_NOT_FOUND are bypassed). The public surface still
-    // requires --initiative and a registered initiative.
-    const initiative = flags.initiative;
-    const allowUnregistered = flags["allow-unregistered-initiative"] === true || flags["allow-unregistered-initiative"] === "true";
-    if (!initiative && !allowUnregistered) {
-      throwV2(
-        "MISSING_FIELD",
-        "add-node: --initiative is required for v2 (run `climier add-initiative <name> --desc \"...\"` first)",
-        { field: "initiative" },
-      );
-    }
-    const registered = initiative && s.initiatives && Object.prototype.hasOwnProperty.call(s.initiatives, initiative);
-    if (!registered && !allowUnregistered) {
-      throwV2(
-        "INITIATIVE_NOT_FOUND",
-        `add-node: initiative '${initiative}' is not registered`,
-        {
-          initiative,
-          existing: Object.keys(s.initiatives || {}).sort(),
-        },
-      );
-    }
+  const policyAction = policy
+    ? { ...policyAdapter(policy, projectDir, agent), action: policyActionName }
+    : null;
 
-    const kind = String(flags.kind);
-    const subkind = flags.subkind ? String(flags.subkind) : undefined;
-    const node = {
-      id,
-      kind,
-      title: flags.title,
-      // F6: every node carries a revision counter. update bumps it; --if-revision
-      // lets callers detect concurrent edits. Initialized on creation so the
-      // first update goes 1 -> 2 without a special-case.
-      revision: 1,
-      body: flags.body || undefined,
-      refs: refs(flags.refs),
-      meta: parseMeta(flags.meta),
-      initiative: flags.initiative || undefined,
-      domain: flags.domain || undefined,
-      tags: csv(flags.tags),
-      status: flags.status || undefined,
-    };
-
-    if (kind === "resolvable") {
-      if (!subkind || !["task", "gate"].includes(subkind)) {
-        throwV2("MISSING_FIELD", "add-node: resolvable nodes require --subkind task|gate", { field: "subkind" });
-      }
-      node.subkind = subkind;
-      node.resolution_mode = flags["resolution-mode"] || (subkind === "task" ? "labor" : "choice");
-      node.status = flags.status || "open";
-      node.purpose = flags.purpose || undefined;
-      node.definition = flags.definition || undefined;
-      node.acceptance = flags.acceptance || undefined;
-      const backlog = parseBacklog(flags.backlog);
-      if (backlog === true) node.backlog = true;
-      if (flags.choice || flags.rationale) {
-        node.resolution = {
-          choice: flags.choice || undefined,
-          rationale: flags.rationale || undefined,
-        };
-      }
-    } else if (kind === "knowledge") {
-      node.status = flags.status || "active";
-      node.knowledge_type = flags["knowledge-type"] || "warning";
-      node.mitigation = flags.mitigation || undefined;
-      node.scope = {
-        domains: csv(flags["scope-domains"]),
-        initiatives: csv(flags["scope-initiatives"]),
-        tags: csv(flags["scope-tags"]),
-        node_ids: csv(flags["scope-node-ids"]),
-      };
-    } else {
-      throw new Error(`add-node: --kind must be 'resolvable' or 'knowledge' (got '${flags.kind}')`);
-    }
-
-    const edges = [];
-    const supersedes = flags.supersedes === undefined ? null : String(flags.supersedes).trim();
-    if (flags.supersedes === true || supersedes === "") {
-      throwV2("MISSING_FIELD", "add-node: --supersedes requires a node id", { field: "supersedes" });
-    }
-    if (supersedes && node.subkind === "task") {
-      throwV2(
-        "INVALID_EDGE_KIND",
-        "add-node: --supersedes is only valid for gates and knowledge",
-        { from: id, to: supersedes, type: "SUPERSEDES", fromKind: "task" },
-      );
-    }
-    // Validate edges against a working state that already includes the new
-    // node — the validator expects both `from` and `to` to exist.
-    const workingState = { ...s, nodes: { ...s.nodes, [id]: node } };
-    if (supersedes) {
-      const edge = { from: id, to: supersedes, type: "SUPERSEDES" };
-      validateEdge(workingState, edge, "add-node");
-      if (node.subkind === "gate" && workingState.nodes[supersedes].subkind !== "gate") {
-        throwV2(
-          "INVALID_EDGE_KIND",
-          `add-node: SUPERSEDES requires gate -> gate (got gate -> ${workingState.nodes[supersedes].subkind || workingState.nodes[supersedes].kind})`,
-          { from: id, to: supersedes, type: "SUPERSEDES", fromKind: "gate", toKind: workingState.nodes[supersedes].subkind || workingState.nodes[supersedes].kind },
-        );
-      }
-      edges.push(edge);
-    }
-    for (const [type, targets] of edgeTargets(id, flags)) {
-      if (targets.length === 0) continue;
-      if (!EDGE_TYPES.includes(type)) {
-        throwV2(
-          "INVALID_EDGE_TYPE",
-          `add-node: edge type ${type} is not allowed (allowed: ${EDGE_TYPES.join(", ")})`,
-          { type, allowed: EDGE_TYPES },
-        );
-      }
-      for (const target of targets) {
-        const edge = type === "BLOCKS" ? blocksEdge(target, id) : { from: id, to: target, type };
-        validateEdge(workingState, edge, "add-node");
-        edges.push(edge);
-      }
-    }
-
-    // F8: resolveAgent runs after all data validation but BEFORE the
-    // seam, so a missing agent rejects without entering authorizeAction
-    // or updateState. This keeps the error precedence identical to the
-    // pre-seam behaviour (data validation failures still surface
-    // before MISSING_AGENT).
-    const agent = resolveAgent(flags, "add-node");
-
-    // T-plugin-policy-seam-dag — ADR-008 §"Acciones canónicas":
-    // classify the action by kind/subkind before invoking authorizeAction.
-    // The public CLI/API surface retains a single add-node entry point;
-    // the policy seam sees the action the new node will commit as.
-    let action;
-    let target;
-    if (kind === "resolvable" && subkind === "task") {
-      action = "task.create";
-      target = { id, kind, subkind };
-    } else if (kind === "resolvable" && subkind === "gate") {
-      action = "gate.create";
-      target = { id, kind, subkind };
-    } else if (kind === "knowledge") {
-      action = "knowledge.create";
-      target = { id, kind };
-    } else {
-      // Unreachable: kind/subkind validation above guarantees one of
-      // the three branches.
-      throw new Error(`add-node: internal error: unknown action for kind=${kind} subkind=${subkind}`);
-    }
-
-    // Seam (plan §3.4): authorize against the snapshot read under the
-    // lock. POLICY_DENIED throws a structured envelope without
-    // mutating state; POLICY_ERROR propagates as-is. allow/abstain
-    // both proceed with the core mutation.
-    const decision = await authorizeAction({
-      policy,
-      action,
-      actor: agent,
-      target,
-      snapshot: s,
-      projectDir,
-      projectConfig: policy && policy.projectConfig ? policy.projectConfig : {},
-    });
-    if (decision.decision === "deny") {
-      throw new PolicyDenied(
-        policy.pluginId,
-        action,
-        agent,
-        decision.reason,
-      );
-    }
-
-    await updateState(projectDir, (st) => {
-      st.nodes[id] = node;
-      if (supersedes) {
-        st.nodes[supersedes].status = "superseded";
-        st.nodes[supersedes].revision = (st.nodes[supersedes].revision || 0) + 1;
-        st.edges = st.edges.map((edge) =>
-          edge.type === "BLOCKS" && edge.to === supersedes
-            ? { ...edge, to: id }
-            : edge
-        );
-      }
-      st.edges.push(...edges);
-      return st;
-    });
-    await appendWithContext(
-      projectDir,
-      {
-        agent,
-        action: supersedes ? "supersede" : "add-node",
-        node: id,
-        note: supersedes ? `${id} supersedes ${supersedes}` : id,
-      },
-      { pluginId },
-    );
-    return { node };
+  const result = await mutate({
+    projectDir,
+    request: { action: logAction, actor: agent, input },
+    provider,
+    policyAction,
+    pluginId,
   });
+
+  // Map the kernel response to the legacy `{ node }` envelope. The
+  // diff carries the persisted node (with revision assigned); if the
+  // provider also returned a `node` in `result`, prefer that for
+  // projection consistency with the gate provider's contract.
+  let node = null;
+  if (Array.isArray(result.diff.created) && result.diff.created.length > 0) {
+    node = result.diff.created[0].node;
+  } else if (result.result && result.result.node) {
+    node = result.result.node;
+  } else if (result.result && typeof result.result.id === "string") {
+    node = result.result;
+  }
+  return { node };
 }

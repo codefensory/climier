@@ -588,7 +588,12 @@ describe("idempotency contracts", () => {
       } catch (e) { caught = e; }
       assert.ok(caught, "second add-edge should throw");
       assert.equal(caught.code, "DUPLICATE_EDGE");
-      assert.deepEqual(caught.details, { from: "T-a", to: "T-b", type: "BLOCKS" });
+      // The core edge provider attaches `existing` so callers can see
+      // the conflicting edge identity; the test only cares that the
+      // canonical (from, to, type) tuple is present.
+      assert.equal(caught.details.from, "T-a");
+      assert.equal(caught.details.to, "T-b");
+      assert.equal(caught.details.type, "BLOCKS");
     } finally { await rmTempProject(dir); }
   });
 
