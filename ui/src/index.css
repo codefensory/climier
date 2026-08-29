@@ -1522,7 +1522,7 @@ body {
 /* Board: columns are the grey trays; cards are the quiet white objects in
  * them. This is the key spatial cue borrowed from the reference image. */
 .ui-board-body {
-  padding-top: 24px;
+  padding: 0;
 }
 
 .ui-board-columns {
