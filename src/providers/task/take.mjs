@@ -186,6 +186,7 @@ async function prepare({ snapshot, input, request }) {
     }),
     policyAction: Object.freeze({ action: cls.action, pluginId: null }),
     logAction: LOG_ACTION,
+    logFields: cls.takeover ? Object.freeze({ previous_owner: cls.previous_owner }) : undefined,
     idempotent: cls.idempotent,
     takeover: cls.takeover,
     previous_owner: cls.previous_owner,

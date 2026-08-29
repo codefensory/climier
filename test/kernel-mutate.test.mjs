@@ -877,6 +877,74 @@ test("kernel.mutate: non-empty pluginId projects to plugin_id on the log entry",
 });
 
 // ===================================================================
+// Plan log fields / log shape
+// ===================================================================
+
+test("kernel.mutate: copies only allow-listed plan.logFields into the log", async () => {
+  const { mutate } = await importKernel();
+  const { provider: baseProvider } = updateNodeProvider({ id: "T1", newTitle: "logged-fields" });
+  const provider = {
+    prepare: async ({ snapshot, input, request }) => ({
+      ...(await baseProvider.prepare({ snapshot, input, request })),
+      logFields: {
+        choice: "approved",
+        rationale: "matches contract",
+        reason: "audited",
+        previous_owner: "bob",
+        ignored: "must not leak",
+      },
+    }),
+    apply: baseProvider.apply,
+  };
+  const dir = await createTempProject();
+  try {
+    await bootstrapProject(dir);
+    await mutate({
+      projectDir: dir,
+      request: { action: "task.update", actor: "alice", input: {}, if_revision: { kind: "single", id: "T1", value: 3 } },
+      provider,
+    });
+    const entry = (await readStateHelper(dir)).log.at(-1);
+    assert.equal(entry.choice, "approved");
+    assert.equal(entry.rationale, "matches contract");
+    assert.equal(entry.reason, "audited");
+    assert.equal(entry.previous_owner, "bob");
+    assert.equal(entry.ignored, undefined);
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("kernel.mutate: reserved plan.logFields are rejected before apply", async () => {
+  const { mutate } = await importKernel();
+  const dir = await createTempProject();
+  let applyCalls = 0;
+  try {
+    await bootstrapProject(dir);
+    const provider = {
+      prepare: async () => ({
+        target: { id: "T1", kind: "resolvable", subkind: "task" },
+        logFields: { revision: 99 },
+      }),
+      apply: async () => {
+        applyCalls += 1;
+        return { result: null };
+      },
+    };
+    await assert.rejects(
+      mutate({ projectDir: dir, request: { action: "task.update", actor: "alice", input: {} }, provider }),
+      (err) => err.code === "INVALID_EXECUTION_CONTRACT" && err.details.field === "logFields.revision",
+    );
+    assert.equal(applyCalls, 0);
+    const after = await readStateHelper(dir);
+    assert.equal(after.log.length, 0);
+    assert.equal(after.nodes.T1.title, "Original task title");
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+// ===================================================================
 // Edges: add + remove in one mutation
 // ===================================================================
 

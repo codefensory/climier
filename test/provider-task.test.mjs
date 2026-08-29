@@ -774,6 +774,7 @@ test("task.take prepare: free task classifies action=task.take and freezes the p
   assert.equal(plan.idempotent, false);
   assert.equal(plan.takeover, false);
   assert.equal(plan.previous_owner, null);
+  assert.equal(plan.logFields, undefined, "free take must not emit previous_owner");
   assert.equal(plan.claim.by, "alice");
   assert.equal(plan.claim.at, "2026-01-01T00:00:00.000Z");
   assert.ok(Object.isFrozen(plan));
@@ -817,6 +818,7 @@ test("task.take prepare: other actor in_progress classifies action=task.takeover
   assert.equal(plan.idempotent, false);
   assert.equal(plan.takeover, true);
   assert.equal(plan.previous_owner, "bob");
+  assert.deepEqual(plan.logFields, { previous_owner: "bob" });
 });
 
 test("task.take prepare: blocked task rejects NOT_READY", async () => {

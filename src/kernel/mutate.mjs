@@ -44,6 +44,43 @@ import { createTransaction } from "./transaction.mjs";
 
 const EDGE_TYPE_FIELD_RE = /^[A-Z_]+$/;
 
+// Provider plans may add a small, explicit set of operation-specific fields
+// to the single kernel-owned log entry. Everything else is ignored so a
+// provider cannot project arbitrary payload or audit metadata into the log.
+// Kernel-owned fields are rejected (rather than ignored) because accepting
+// them would let a provider spoof the mutation's authoritative metadata.
+const LOG_FIELD_ALLOWLIST = new Set(["choice", "rationale", "reason", "previous_owner"]);
+const LOG_FIELD_RESERVED = new Set([
+  "ts",
+  "action",
+  "agent",
+  "node",
+  "revision",
+  "plugin_id",
+  "removed_nodes",
+  "edges",
+  "initiatives",
+]);
+
+function normalizeLogFields(logFields, commandName) {
+  if (logFields === undefined) return {};
+  if (!logFields || typeof logFields !== "object" || Array.isArray(logFields)) {
+    throwV2("INVALID_EXECUTION_CONTRACT", `${commandName}: plan.logFields must be an object`, { field: "logFields" });
+  }
+  const allowed = {};
+  for (const [key, value] of Object.entries(logFields)) {
+    if (LOG_FIELD_RESERVED.has(key)) {
+      throwV2(
+        "INVALID_EXECUTION_CONTRACT",
+        `${commandName}: plan.logFields.${key} is kernel-owned`,
+        { field: `logFields.${key}` },
+      );
+    }
+    if (LOG_FIELD_ALLOWLIST.has(key)) allowed[key] = value;
+  }
+  return allowed;
+}
+
 // Module-scoped AsyncLocalStorage for the nested kernel.mutate guard.
 //
 // Why AsyncLocalStorage instead of a plain `let nestedDepth` counter:
@@ -376,7 +413,9 @@ function buildLogEntry(request, plan, diffCreated, diffUpdated, edgesAdded, edge
       updated: initiativeDiff.updated.map((u) => u.name).sort(),
     };
   }
-  return prepareLogEntry(base, { pluginId });
+  // Only operation-specific fields from the explicit allow-list are added;
+  // all kernel-owned metadata remains authoritative.
+  return prepareLogEntry({ ...base, ...normalizeLogFields(plan.logFields, request.action) }, { pluginId });
 }
 
 // validateDraftStructural — last line of defence after provider.apply.
@@ -583,6 +622,9 @@ export async function mutate({ projectDir, request, provider, policyAction, plug
         frozenExtras[k] = (v && typeof v === "object") ? Object.freeze(v) : v;
       }
       const frozenPlan = Object.freeze({ ...frozenExtras, target: plan.target });
+      // Validate before policy/apply so malformed provider audit fields can
+      // never reach the draft or cause a partial mutation.
+      normalizeLogFields(frozenPlan.logFields, commandName);
 
       // 2) if_revision validation, under the lock, AFTER the snapshot.
       //    The kernel accepts the precondition either on the request
