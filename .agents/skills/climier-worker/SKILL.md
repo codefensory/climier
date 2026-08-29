@@ -65,6 +65,30 @@ ya verdes y no mantengas dos verificaciones activas. Si el scope no entra, deja
 el cambio mínimo commiteado o un handoff preciso y libera; no sigas explorando
 hasta consumir el contexto.
 
+### Modo de ejecución desde handoff
+
+Si el body o una nota reciente de worker/validator ya aporta un mapeo concreto
+(rango de test, forma exacta del resultado y errores esperados) y dice que no
+hace falta discovery, entra en **modo ejecución**, no en preflight normal. Es
+un contrato deliberadamente reducido, no una invitación a reaprenderlo:
+
+1. lee una sola vez `climier context <id>` para confirmar que sigue ready y la
+   nota aplicable; no corras `task-context.sh`, `show`, inventarios ni búsquedas
+   del repo;
+2. crea/reutiliza el worktree por la ruta indicada;
+3. dentro de las siguientes **cinco llamadas de shell**, abre solo el rango de
+   test citado y el patrón local inmediatamente vecino, edita el caso y corre su
+   test focal; no releas provider, adapter, kernel ni ADR salvo que ese test
+   contradiga el mapeo;
+4. completa el resto del rango, ejecuta el check de acceptance y commitea.
+
+No declares `NO-GO` ni consumas el presupuesto únicamente en preflight cuando
+el handoff ya convierte la task en una edición mecánica. Si el mapeo falla al
+compararlo con el rango local, registra la contradicción exacta y libera; si no,
+la siguiente acción debe ser editar o ejecutar el test focal. Un handoff sin
+cambios sigue siendo válido para este modo si el validator confirmó que no hay
+diff y el orchestrator redujo el contrato; no lo trates como una cadena `fixN`.
+
 ### Diagnóstico causal y orden eficiente
 
 Después del preflight mínimo, crea el worktree cuanto antes. Haz el discovery

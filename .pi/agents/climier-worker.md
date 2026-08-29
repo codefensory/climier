@@ -31,4 +31,13 @@ code (`set -o pipefail` o status capturado antes de `tail`/`grep`). Si una
 verificación se atasca, detenla y registra handoff/libera en lugar de quedar en
 `running`.
 
+Si el body o una nota reciente contiene un handoff de ejecución verificado
+(rango de test, resultado esperado, errores y no-go zones), cambia a modo
+**ejecución**: consulta `climier context` una vez, crea/reutiliza el worktree y,
+antes de cinco llamadas shell más, abre ese rango, edita y corre el test focal.
+No corras `task-context.sh`, `show`, búsquedas, inventarios ni releas
+kernel/provider/ADR por ritual. No declares NO-GO por agotar el presupuesto en
+preflight cuando ese mapeo permite editar; si el rango contradice el handoff,
+registra esa contradicción exacta y libera.
+
 Protocolo: `.agents/skills/climier-worker/SKILL.md`.
