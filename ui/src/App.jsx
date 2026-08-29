@@ -535,7 +535,8 @@ function DrawerPanel(props) {
 //
 // Scroll contract (ui/DESIGN.md §3.1): Main is a flex column with
 // min-h-0 + overflow-hidden; banners are shrink-0; the route area is the
-// single flex-1 min-h-0 scroll owner (RouteView). No nested scrollers.
+// single flex-1 min-h-0 scroll owner by default. Board owns its bounded
+// scroll region so fixed-width columns do not stretch the page.
 function Main(props) {
   const { route, snapshot, initialLoading, snapshotError, lastSuccessfulAt, reload } = useStore();
   const initialized = () => snapshot()?.project?.initialized !== false;
@@ -611,7 +612,7 @@ function Main(props) {
         </div>
       </Show>
 
-      <div class="min-h-0 flex-1">
+      <div class="min-h-0 min-w-0 flex-1">
         <Show
           when={!initialLoading() && snapshot()}
           fallback={<InitialState />}
@@ -698,7 +699,7 @@ function InitialError(props) {
 function RouteView(props) {
   const board = props.route === "board";
   return (
-    <div class={`h-full ${board ? "overflow-hidden" : "overflow-auto"}`} data-view={props.route}>
+    <div class={`h-full min-h-0 min-w-0 ${board ? "overflow-hidden" : "overflow-auto"}`} data-view={props.route}>
       <Dynamic
         component={props.Component}
         boardInitiative={props.boardInitiative}
