@@ -242,6 +242,14 @@ example with a temporary project smoke; it is not the control plane. The stable
 binary and the refactor worktree must use the same `CLIMIER_HOME` and project
 metadata.
 
+Each shell-tool invocation is independent: a `cd` from one invocation does not
+carry into the next. Workers and validators must prefix every worktree command
+with `cd <worktree> &&` (or use absolute paths) and verify `pwd` plus the branch
+in that same invocation. Never run worktree tests from the main checkout.
+Tests must be bounded and targeted. Use the repository core test runner or an
+explicit file list with a timeout; do not use `--test-skip-pattern` as a way to
+exclude files.
+
 ## Task sizing and agent budget
 
 Keep each task to one primary outcome, one owner and a verifiable acceptance.

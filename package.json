@@ -18,7 +18,7 @@
   },
   "main": "bin/climier.mjs",
   "scripts": {
-    "test": "node --test --test-skip-pattern=ui- test/*.test.mjs",
+    "test": "node test/run-core-tests.mjs",
     "test:ui": "node --test test/ui-*.test.mjs",
     "test:watch": "node --test --watch test/",
     "test:concurrent": "node --test test/v2-take.test.mjs test/v2-take-by-id.test.mjs test/v2-adversarial.test.mjs",

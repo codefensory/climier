@@ -12,4 +12,13 @@ Te dan un id. Crear el worktree es tuyo. Implementar, verificar y commitear es t
 
 Smoke de mutantes sobre proyectos temporales: `bash .agents/skills/climier/smoke-sandbox.sh -- <comando>`. Prohibido ejecutar `init`/`init --force` u otra mutación directa fuera del helper.
 
+El path del worktree no persiste entre llamadas shell. Después de
+`start-worktree.sh`, guarda el path y antepone `cd <worktree> &&` a cada comando
+posterior; confirma `pwd` y la rama en el mismo comando. Nunca edites ni
+verifiques desde el worktree principal. Todos los tests deben tener timeout
+explícito (`timeout 180s ...`) y ser focalizados; no uses
+`node --test --test-skip-pattern=ui- test/*.test.mjs`, porque ese patrón filtra
+nombres de tests y no archivos UI. Si una verificación se atasca, detenla y
+registra handoff/libera en lugar de quedar en `running`.
+
 Protocolo: `.agents/skills/climier-worker/SKILL.md`.

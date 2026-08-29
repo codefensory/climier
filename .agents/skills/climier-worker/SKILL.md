@@ -37,6 +37,19 @@ bash .agents/skills/climier-worker/start-worktree.sh <task-id> <tu-agent>
 
 `start-worktree.sh` es el unico punto de entrada. Corre la guardia de estado limpio, valida que no exista la rama/path, hace `take`, crea el worktree, registra la nota `WORKTREE ... status=started` (con `path`, `branch`, `base`, `base_ref`, `base_sha`) e imprime el `cd` siguiente. No vuelvas a correr esos comandos a mano ni invoques `worker-guard.sh` por separado.
 
+Cada llamada independiente a la herramienta shell puede arrancar en el root del
+proyecto: un `cd` de una llamada no persiste en la siguiente. Guarda el path que
+imprime el script y antepone `cd <worktree> &&` a cada comando posterior, o usa
+paths absolutos. Antes de editar o testear, confirma `pwd` y la rama dentro de
+ese mismo comando. Nunca ejecutes tests desde el worktree principal.
+
+Los tests deben ser acotados y tener timeout explícito (`timeout 180s ...`). No
+uses `node --test --test-skip-pattern=ui- test/*.test.mjs` para excluir archivos
+UI: `--test-skip-pattern` filtra nombres de tests, no nombres de archivo. Usa
+el script `npm test` verificado por el repo o una lista explícita de archivos;
+si un comando no produce salida durante el timeout, detenlo y deja handoff en
+vez de mantener la task en `running` indefinidamente.
+
 Usa `task-context.sh` solo cuando necesites compactar contexto disperso:
 
 - la task menciona gates o docs
