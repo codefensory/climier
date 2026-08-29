@@ -1438,11 +1438,16 @@ test("api.core.run: gate.create without --purpose is rejected with PLUGIN_CORE_A
   }
 });
 
-test("api.core.run: gate.resolve stores resolution = {choice, rationale}", async () => {
+test("api.core.run: gate.resolve dispatches through the kernel and stores resolution = {choice, rationale}", async () => {
+  // gate.resolve returns the provider's typed projection on
+  // `out.result` (`{ node, resolution }`). There is no `{ node }`
+  // envelope at the top level; the kernel-stamped post-state lives
+  // on `diff.updated[0].node` (revision=2 after the prior create),
+  // and the persisted state file is the canonical post-state.
   const dir = await readyProject();
   try {
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
-    await api.core.run({
+    const created = await api.core.run({
       op: "gate.create",
       input: {
         id: "G-parity-resolve",
@@ -1452,6 +1457,7 @@ test("api.core.run: gate.resolve stores resolution = {choice, rationale}", async
         purpose: "decision",
       },
     });
+    assert.equal(created.diff.created[0].node.revision, 1, "kernel assigned revision=1 to the seeded gate");
     const out = await api.core.run({
       op: "gate.resolve",
       input: {
@@ -1460,17 +1466,51 @@ test("api.core.run: gate.resolve stores resolution = {choice, rationale}", async
         rationale: "ADR-006 defines it; parity closes the surface",
       },
     });
-    assert.equal(out.node.status, "resolved");
-    assert.deepEqual(out.node.resolution, {
+    // Provider's typed projection on out.result (revision-stripped draft view).
+    assert.equal(out.result.node.subkind, "gate", "provider's result.node.subkind === gate");
+    assert.equal(out.result.node.status, "resolved", "provider's result.node.status === resolved");
+    assert.deepEqual(
+      out.result.resolution,
+      { choice: "approve V2", rationale: "ADR-006 defines it; parity closes the surface" },
+      "provider's result.resolution carries {choice, rationale}",
+    );
+    // Kernel-stamped post-state lives on diff.updated[0].node.
+    assert.equal(out.diff.updated[0].id, "G-parity-resolve");
+    assert.equal(out.diff.updated[0].node.revision, 2, "kernel bumps revision by exactly 1 on resolve");
+    assert.equal(out.diff.updated[0].node.status, "resolved");
+    assert.deepEqual(out.diff.updated[0].node.resolution, {
       choice: "approve V2",
       rationale: "ADR-006 defines it; parity closes the surface",
     });
+    assert.ok(out.log_entry, "typed envelope carries log_entry");
+    assert.equal(out.log_entry.action, "gate.resolve", "kernel log_entry.action equals the op");
+    assert.equal(out.log_entry.plugin_id, "example.audit", "kernel stamped plugin_id on the log");
+    assert.equal(out.log_entry.agent, "alice", "log records api.runtime.agent, not the plugin id");
+    assert.equal(out.log_entry.node, "G-parity-resolve");
+    const after = await readRawState(dir);
+    assert.equal(after.nodes["G-parity-resolve"].status, "resolved", "persisted status is resolved");
+    assert.deepEqual(after.nodes["G-parity-resolve"].resolution, {
+      choice: "approve V2",
+      rationale: "ADR-006 defines it; parity closes the surface",
+    });
+    assert.equal(after.nodes["G-parity-resolve"].revision, 2, "persisted revision matches the kernel diff");
+    const lastPluginLog = after.log
+      .filter((e) => e.plugin_id === "example.audit" && e.action === "gate.resolve")
+      .pop();
+    assert.ok(lastPluginLog, "resolve log entry tagged with plugin_id");
+    assert.equal(lastPluginLog.agent, "alice");
   } finally {
     await rmTempProject(dir);
   }
 });
 
-test("api.core.run: gate.resolve without --rationale throws PLUGIN_CORE_INVALID_OPERATION", async () => {
+test("api.core.run: gate.resolve without --rationale is rejected with PLUGIN_CORE_ACTION_FAILED (provider-level MISSING_FIELD)", async () => {
+  // The kernel-driven path has no adapter-side required-field whitelist
+  // for gate.resolve; the provider's prepare throws MISSING_FIELD when
+  // `rationale` is missing and the adapter wraps it as
+  // PLUGIN_CORE_ACTION_FAILED with a structured `cause`. State is not
+  // mutated and no resolve log entry is appended (the gate.create
+  // log entry from the seed is unrelated).
   const dir = await readyProject();
   try {
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
@@ -1491,8 +1531,23 @@ test("api.core.run: gate.resolve without --rationale throws PLUGIN_CORE_INVALID_
       }),
       (err) =>
         err &&
-        err.code === "PLUGIN_CORE_INVALID_OPERATION" &&
-        /missing required field 'rationale'/.test(err.details.reason || ""),
+        err.code === "PLUGIN_CORE_ACTION_FAILED" &&
+        err.details.op === "gate.resolve" &&
+        err.details.plugin_id === "example.audit" &&
+        err.details.cause &&
+        err.details.cause.code === "MISSING_FIELD" &&
+        /rationale/.test(err.details.cause.message || ""),
+    );
+    const after = await readRawState(dir);
+    assert.equal(
+      after.nodes["G-parity-resolve-no-rationale"].status,
+      "open",
+      "no resolve mutation on failed run",
+    );
+    assert.equal(
+      after.log.filter((e) => e.action === "gate.resolve").length,
+      0,
+      "no resolve log entry on failed run",
     );
   } finally {
     await rmTempProject(dir);
@@ -1505,6 +1560,11 @@ test("api.core.run: gate.reopen and gate.cancel roll back or terminate gates wit
   // explicitly to keep coverage of the optional policy-driven branch
   // that ADR-007 introduced; the default core (no policy) would also
   // succeed here under ADR-009.
+  //
+  // gate.reopen and gate.cancel return the provider's typed projection
+  // on `out.result.node` (revision-stripped draft view). The
+  // kernel-stamped post-state lives on `diff.updated[0].node`, and
+  // the persisted state file is the canonical post-state.
   const dir = await readyProject();
   await installPolicyFixture(dir);
   try {
@@ -1529,8 +1589,24 @@ test("api.core.run: gate.reopen and gate.cancel roll back or terminate gates wit
       op: "gate.reopen",
       input: { id: "G-parity-reopen", reason: "second thoughts" },
     });
-    assert.equal(reopened.node.status, "open", "gate reopened");
-    assert.equal(reopened.node.resolution, undefined, "resolution cleared by reopen");
+    // Provider's typed projection on out.result.node (revision-stripped).
+    assert.equal(reopened.result.node.subkind, "gate", "provider's result.node.subkind === gate");
+    assert.equal(reopened.result.node.status, "open", "gate reopened");
+    assert.equal(reopened.result.node.resolution, null, "provider clears resolution on reopen");
+    // Kernel-stamped post-state lives on diff.updated[0].node.
+    assert.equal(reopened.diff.updated[0].id, "G-parity-reopen");
+    assert.equal(
+      reopened.diff.updated[0].node.revision,
+      3,
+      "kernel bumps revision by exactly 1 on reopen (was 2 after resolve)",
+    );
+    assert.equal(reopened.diff.updated[0].node.status, "open");
+    assert.equal(reopened.diff.updated[0].node.resolution, null, "kernel-stamped post-state has resolution=null");
+    assert.ok(reopened.log_entry, "typed envelope carries log_entry");
+    assert.equal(reopened.log_entry.action, "gate.reopen", "kernel log_entry.action equals the op");
+    assert.equal(reopened.log_entry.plugin_id, "example.audit");
+    assert.equal(reopened.log_entry.agent, "release-admin", "log records api.runtime.agent, not the plugin id");
+    assert.equal(reopened.log_entry.node, "G-parity-reopen");
 
     // Cancel path on a fresh open gate: gates are not claimable and
     // under ADR-009 any actor may cancel them. The policy-fixture is
@@ -1549,7 +1625,41 @@ test("api.core.run: gate.reopen and gate.cancel roll back or terminate gates wit
       op: "gate.cancel",
       input: { id: "G-parity-cancel", reason: "irrelevant" },
     });
-    assert.equal(canceled.node.status, "canceled", "gate cancelled");
+    // Provider's typed projection on out.result.node (revision-stripped).
+    assert.equal(canceled.result.node.subkind, "gate", "provider's result.node.subkind === gate");
+    assert.equal(canceled.result.node.status, "canceled", "gate cancelled");
+    // Kernel-stamped post-state lives on diff.updated[0].node.
+    assert.equal(canceled.diff.updated[0].id, "G-parity-cancel");
+    assert.equal(
+      canceled.diff.updated[0].node.revision,
+      2,
+      "kernel bumps revision by exactly 1 on cancel (seed was revision=1)",
+    );
+    assert.equal(canceled.diff.updated[0].node.status, "canceled");
+    assert.ok(canceled.log_entry, "typed envelope carries log_entry");
+    assert.equal(canceled.log_entry.action, "gate.cancel", "kernel log_entry.action equals the op");
+    assert.equal(canceled.log_entry.plugin_id, "example.audit");
+    assert.equal(canceled.log_entry.agent, "release-admin");
+    assert.equal(canceled.log_entry.node, "G-parity-cancel");
+    // Persisted state file is the canonical post-state.
+    const after = await readRawState(dir);
+    assert.equal(after.nodes["G-parity-reopen"].status, "open", "persisted reopened status is open");
+    assert.equal(after.nodes["G-parity-reopen"].resolution, null, "persisted resolution cleared by reopen");
+    assert.equal(after.nodes["G-parity-reopen"].revision, 3);
+    assert.equal(after.nodes["G-parity-cancel"].status, "canceled", "persisted cancel status is canceled");
+    assert.equal(after.nodes["G-parity-cancel"].revision, 2);
+    const reopenLogs = after.log.filter(
+      (e) => e.action === "gate.reopen" && e.node === "G-parity-reopen",
+    );
+    assert.equal(reopenLogs.length, 1, "exactly one gate.reopen log entry");
+    assert.equal(reopenLogs[0].plugin_id, "example.audit");
+    assert.equal(reopenLogs[0].agent, "release-admin");
+    const cancelLogs = after.log.filter(
+      (e) => e.action === "gate.cancel" && e.node === "G-parity-cancel",
+    );
+    assert.equal(cancelLogs.length, 1, "exactly one gate.cancel log entry");
+    assert.equal(cancelLogs[0].plugin_id, "example.audit");
+    assert.equal(cancelLogs[0].agent, "release-admin");
   } finally {
     await uninstallPolicyFixture(dir);
     await rmTempProject(dir);
