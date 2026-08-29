@@ -46,7 +46,7 @@ import { Task } from "@boxicons/js/icons/Task";
 import { Flag } from "@boxicons/js/icons/Flag";
 import { BookOpen } from "@boxicons/js/icons/BookOpen";
 import { Timeline } from "@boxicons/js/icons/Timeline";
-import { StoreProvider, useStore } from "./store.jsx";
+import { StoreProvider, useStore, useStoreSelectors } from "./store.jsx";
 import Overview from "./views/Overview.jsx";
 import Board from "./views/Board.jsx";
 import Nodes from "./views/Nodes.jsx"; // Tasks view; the file keeps the name
@@ -250,13 +250,19 @@ function NavGroups(props) {
 // lose its separate filter bar without hiding the current scope.
 function InitiativePicker(props) {
   const [open, setOpen] = createSignal(false);
+  const selectors = useStoreSelectors();
   let root;
 
+  // Derived from the reconciled entity map, not from the raw snapshot: the
+  // store reconciles nodes in place, so an identical poll does not
+  // invalidate this memo and the drawer keeps its open state and scroll.
+  // This is a view derived from entities.nodes, not a `<For>` collection,
+  // so scanning the map here is intentional (plan §4.4).
   const initiatives = createMemo(() => {
-    const nodes = props.snapshot()?.nodes || {};
+    const nodes = selectors ? selectors.nodesMap() : {};
     const terminal = new Set(["done", "resolved", "superseded", "archived", "canceled"]);
     const values = new Set();
-    for (const node of Object.values(nodes)) {
+    for (const node of Object.values(nodes || {})) {
       if (!node || !node.initiative) continue;
       if (node.subkind !== "task" && node.subkind !== "gate") continue;
       if (terminal.has(node.status)) continue;
@@ -353,7 +359,7 @@ function Header(props) {
   // bp           (signal, required — current breakpoint)
   // drawerOpen   (signal, required — reflects the NARROW drawer state)
   // onOpenDrawer (function, required — opens the NARROW drawer)
-  const { route, snapshot } = useStore();
+  const { route } = useStore();
   const showMenu = () => drawerAvailable(props.bp());
   const pageTitle = () => ROUTES[route()]?.label || "Overview";
   function openFinder() {
@@ -380,7 +386,6 @@ function Header(props) {
         </h1>
         <Show when={route() === "board"}>
           <InitiativePicker
-            snapshot={snapshot}
             value={props.boardInitiative}
             onChange={props.onBoardInitiativeChange}
           />
@@ -561,7 +566,16 @@ function Main(props) {
   // as one high-priority banner above the route so it is visible from every
   // view (the Overview page filters the kind from its own alert groups to
   // avoid duplicating it).
-  const stateReadError = createMemo(() => stateReadAlert(snapshot()?.alerts));
+  //
+  // The alert object is rebuilt on every poll, so the memo compares it by
+  // content: an unchanged alert keeps the previous reference and the banner
+  // does not churn while the rest of the shell keeps reading transport
+  // (initialLoading / snapshotError / lastSuccessfulAt) directly.
+  const stateReadError = createMemo(() => stateReadAlert(snapshot()?.alerts), undefined, {
+    equals: (a, b) =>
+      a === b ||
+      (!!a && !!b && a.kind === b.kind && a.message === b.message && a.node_id === b.node_id),
+  });
 
   // Pick the route component. Unknown ids already fall back to DEFAULT_ROUTE
   // in the store; this is a defensive second guard.

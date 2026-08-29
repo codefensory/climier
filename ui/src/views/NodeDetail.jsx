@@ -24,7 +24,7 @@
 
 import { Show, For, createMemo, createSignal, createEffect, onCleanup } from "solid-js";
 import { Portal } from "solid-js/web";
-import { useStore } from "../store.jsx";
+import { useStore, useStoreSelectors } from "../store.jsx";
 import {
   AlertBanner,
   Chip,
@@ -111,11 +111,13 @@ function equivalentCommand(node, derived) {
 // prefer the most recent log entry that names this node; falling back to
 // any timestamp we have on the node (done_at, claim.at, claim.ts).
 function lastActivityTs(detail, lastActivityIndex) {
-  const la = lastActivityIndex && lastActivityIndex[detail.node.id];
+  const node = detail && detail.node;
+  if (!node) return null;
+  const la = lastActivityIndex && lastActivityIndex[node.id];
   if (la && la.ts) return la.ts;
-  if (detail.node.done_at) return detail.node.done_at;
-  if (detail.node.claim && (detail.node.claim.at || detail.node.claim.ts)) {
-    return detail.node.claim.at || detail.node.claim.ts;
+  if (node.done_at) return node.done_at;
+  if (node.claim && (node.claim.at || node.claim.ts)) {
+    return node.claim.at || node.claim.ts;
   }
   return null;
 }
@@ -175,9 +177,63 @@ function CopyButton(props) {
 
 // === Drawer =================================================================
 
+// Per-node cache of the detail "extras" (blocking, dependents, knowledge,
+// history, refs, derived_status). ADR-010 §3.5: the base entity lives in
+// entities.nodes[id] and is reconciled by every poll, while the extras stay
+// in their own slot keyed by node id. A poll that changes the base node's
+// status/revision must not replace or drop details[id].
+const DETAIL_CACHE_LIMIT = 50;
+
+function cacheDetail(prev, id, payload) {
+  if (prev[id] === payload) return prev;
+  const next = { ...prev, [id]: payload };
+  const keys = Object.keys(next);
+  if (keys.length > DETAIL_CACHE_LIMIT) {
+    for (const key of keys.slice(0, keys.length - DETAIL_CACHE_LIMIT)) {
+      if (key !== id) delete next[key];
+    }
+  }
+  return next;
+}
+
 export default function NodeDetail() {
   const { selectedId, select, detail, detailError, snapshot } = useStore();
-  const d = () => detail();
+  const selectors = useStoreSelectors();
+
+  // details[id] cache. The transport hands one payload at a time through
+  // `detail()`; this keeps the extras of every node visited in this session
+  // so navigating back does not blank the drawer and a poll on the base
+  // entity never invalidates them.
+  const [details, setDetails] = createSignal({});
+  createEffect(() => {
+    const payload = detail();
+    const id = payload && payload.node && payload.node.id;
+    if (!id) return;
+    // Functional setter: never reads `details()` inside the effect, so this
+    // cannot loop back on itself.
+    setDetails((prev) => cacheDetail(prev, id, payload));
+  });
+
+  // Base entity straight from the reconciled slice. Reading
+  // `nodesMap()[id]` tracks the presence of that node, not its fields, so
+  // in-place updates from a poll flow into the drawer without rebuilding
+  // the detail object or remounting the body.
+  const baseNode = () => {
+    const id = selectedId();
+    if (!id || !selectors) return null;
+    return selectors.nodesMap()[id] || null;
+  };
+
+  // The rendered detail: cached extras + the live base entity.
+  const d = createMemo(() => {
+    const id = selectedId();
+    if (!id) return null;
+    const extras = details()[id];
+    if (!extras) return null;
+    const base = baseNode();
+    if (!base || base === extras.node) return extras;
+    return { ...extras, node: base };
+  });
 
   // Pull the snapshot's last_activity map so the summary card can show a
   // recent timestamp without having to inspect history itself.
@@ -298,6 +354,7 @@ export default function NodeDetail() {
   }
 
   onCleanup(() => {
+    setDetails({});
     if (restoreFocusEl && typeof restoreFocusEl.focus === "function") {
       try { restoreFocusEl.focus(); } catch {}
     }
@@ -402,18 +459,24 @@ export default function NodeDetail() {
 // to render server-side without a DOM).
 
 function DetailBody(props) {
-  // props.detail          — full /api/node/:id payload
+  // props.detail          — cached /api/node/:id extras + live base entity
   // props.lastActivityMap — snapshot.last_activity
   // props.nodeAlerts      — alerts scoped to this node
   // props.snapshot        — store snapshot ({ nodes, edges, ... })
   // props.onSelect        — back/click handler (id -> void)
-  const { detail: d, lastActivityMap, nodeAlerts, snapshot, onSelect } = props;
-  const n = () => d.node;
-  const lastAt = () => lastActivityTs(d, lastActivityMap);
+  //
+  // Props are read through accessors instead of being destructured: the
+  // detail object is now rebuilt when the reconciled base entity changes
+  // (ADR-010 §3.5), and the drawer must reflect that without remounting.
+  const d = () => props.detail || {};
+  const n = () => d().node || {};
+  const nodeAlerts = () => props.nodeAlerts;
+  const onSelect = (id) => props.onSelect && props.onSelect(id);
+  const lastAt = () => lastActivityTs(d(), props.lastActivityMap);
 
   // Direction/type split of the relationships the server exposes (see
   // splitRelationships above). Presentation only — never re-derives the DAG.
-  const rel = createMemo(() => splitRelationships(d));
+  const rel = createMemo(() => splitRelationships(d()));
   const relationshipsCount = createMemo(() => {
     const r = rel();
     return r.outBlocks.length + r.derivedFrom.length + r.supersedes.length +
@@ -427,9 +490,9 @@ function DetailBody(props) {
   // silently showing none (Fase 6 spec: callout visible for blocked, stale,
   // superseded).
   const effectiveAlerts = createMemo(() => {
-    const list = [...(nodeAlerts || [])];
+    const list = [...(nodeAlerts() || [])];
     const kinds = new Set(list.map((a) => a && a.kind));
-    if (d.derived_status === "blocked" && !kinds.has("blocked")) {
+    if (d().derived_status === "blocked" && !kinds.has("blocked")) {
       list.push({
         kind: "blocked",
         severity: "warning",
@@ -437,13 +500,13 @@ function DetailBody(props) {
         message: "This node is blocked by at least one unsatisfied blocker.",
       });
     }
-    if (d.derived_status === "superseded" && !kinds.has("superseded")) {
+    if (d().derived_status === "superseded" && !kinds.has("superseded")) {
       list.push({
         kind: "superseded",
         severity: "warning",
         node_id: n().id,
-        message: d.superseded_by
-          ? `This node has been superseded by ${d.superseded_by}.`
+        message: d().superseded_by
+          ? `This node has been superseded by ${d().superseded_by}.`
           : "This node has been superseded.",
       });
     }
@@ -479,7 +542,7 @@ function DetailBody(props) {
       <section class="ui-detail-hero">
         <h1 class="text-page leading-tight text-ink">{n().title || n().id}</h1>
         <div class="ui-summary-line mt-3 flex flex-wrap items-center gap-2 text-[12px] text-mute">
-          <StatusBadge status={d.derived_status || n().status || "open"} />
+          <StatusBadge status={d().derived_status || n().status || "open"} />
           <span>Initiative <strong class="font-semibold text-body">{n().initiative || "—"}</strong></span>
           <span class="ui-summary-dot" aria-hidden="true" />
           <span>Revision <strong class="mono font-semibold text-body">{n().revision || 0}</strong></span>
@@ -521,7 +584,7 @@ function DetailBody(props) {
       {/* Blockers move to the right rail on desktop. Keeping this compact
           duplicate in the main flow gives narrow drawers the same dependency
           visibility once the rail collapses. */}
-      <BlockersSection blocking={d.blocking} onSelect={onSelect} />
+      <BlockersSection blocking={d().blocking} onSelect={onSelect} />
 
       {/* ── Notes: visible after blockers, styled as a quiet author thread
              rather than another disclosure card. The label remains Notes so
@@ -535,14 +598,14 @@ function DetailBody(props) {
       <div class="space-y-3">
       <DetailsSection
         title="Knowledge"
-        count={(d.knowledge || []).length}
+        count={(d().knowledge || []).length}
         hint="Scoped knowledge that informs this node."
       >
-        <Show when={(d.knowledge || []).length} fallback={
+        <Show when={(d().knowledge || []).length} fallback={
           <EmptyState variant="compact" title="No scoped knowledge applies." />
         }>
           <ul class="space-y-1.5">
-            <For each={d.knowledge}>
+            <For each={d().knowledge}>
               {(k) => (
                 <li>
                   <button
@@ -577,14 +640,14 @@ function DetailBody(props) {
 
       <DetailsSection
         title="Refs"
-        count={(d.refs || []).length}
+        count={(d().refs || []).length}
         hint="Structured references — copy target, never rendered as HTML."
       >
-        <Show when={(d.refs || []).length} fallback={
+        <Show when={(d().refs || []).length} fallback={
           <EmptyState variant="compact" title="No structured refs or detected markdown references." />
         }>
           <ul class="space-y-1">
-            <For each={d.refs}>
+            <For each={d().refs}>
               {(r) => (
                 <li class="flex items-center gap-2 rounded-control border border-line bg-panel-2 px-2 py-1.5">
                   <div class="min-w-0 flex-1">
@@ -663,7 +726,7 @@ function DetailBody(props) {
       </div>
 
       </main>
-      <DetailSidebar node={n()} detail={d} lastAt={lastAt()} onSelect={onSelect} />
+      <DetailSidebar node={n()} detail={d()} lastAt={lastAt()} onSelect={onSelect} />
     </div>
   );
 }

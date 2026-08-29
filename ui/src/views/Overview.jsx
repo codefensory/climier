@@ -42,8 +42,8 @@
 // operational status columns; wiring a deep filter param is left to the
 // F7 integration track (the snapshot/route contract is frozen there).
 
-import { Show, For, createMemo } from "solid-js";
-import { useStore } from "../store.jsx";
+import { Show, For, createMemo, onCleanup } from "solid-js";
+import { useStore, useStoreSelectors } from "../store.jsx";
 import { projectDisplayName } from "../shell.mjs";
 import {
   PageHeader,
@@ -61,6 +61,82 @@ import {
 export const WORK_LIMIT = 4;
 export const ATTENTION_LIMIT = 4;
 export const ACTIVITY_LIMIT = 8;
+
+// === Stable collection identity (ADR-010 §3.3 / plan §3.4) ================
+// Every poll rebuilds the aggregates below from a fresh snapshot, so a
+// `<For>` keyed by object reference used to remount every metric card,
+// alert group, attention block, initiative card and activity row even when
+// nothing changed. The reconciliation below is the same pattern Activity
+// already uses: a per-component cache maps a deterministic key to the last
+// object emitted for it, and an equal recomputation reuses that reference.
+//
+// The node entities themselves come from the reactive store
+// (`useStoreSelectors().nodesMap()`), which reconciles them in place, so
+// rows built directly out of nodes are already reference-stable and the
+// `a === b` fast path below short-circuits without walking a store proxy.
+
+function sameData(a, b) {
+  if (a === b) return true;
+  if (a == null || b == null) return false;
+  if (typeof a !== "object" || typeof b !== "object") return false;
+  const arrayA = Array.isArray(a);
+  if (arrayA !== Array.isArray(b)) return false;
+  if (arrayA) {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) if (!sameData(a[i], b[i])) return false;
+    return true;
+  }
+  const ak = Object.keys(a);
+  const bk = Object.keys(b);
+  if (ak.length !== bk.length) return false;
+  for (const k of ak) {
+    if (!Object.prototype.hasOwnProperty.call(b, k)) return false;
+    if (!sameData(a[k], b[k])) return false;
+  }
+  return true;
+}
+
+// Per-component identity cache. `reconcile(list, keyOf)` returns a list of
+// the same length and order where every entry whose key + content did not
+// change keeps its previous reference. Keys that fall out of the list are
+// pruned so they can come back later as a fresh mount.
+function makeKeyedCache() {
+  const map = new Map();
+  function reconcile(list, keyOf) {
+    const next = [];
+    const seen = new Set();
+    for (const item of list || []) {
+      const key = keyOf(item);
+      if (key == null || key === "") {
+        next.push(item);
+        continue;
+      }
+      seen.add(key);
+      const prev = map.get(key);
+      if (prev !== undefined && sameData(prev, item)) {
+        next.push(prev);
+      } else {
+        map.set(key, item);
+        next.push(item);
+      }
+    }
+    for (const key of Array.from(map.keys())) if (!seen.has(key)) map.delete(key);
+    return next;
+  }
+  function clear() {
+    map.clear();
+  }
+  return { reconcile, clear };
+}
+
+// Stable key for an activity preview row: the durable `event_id` when the
+// server emits it, otherwise the `ts::action::agent::node_id` tuple that
+// the Activity view already uses (plan §3.4).
+export function activityKey(entry) {
+  if (!entry) return "";
+  if (entry.event_id != null && entry.event_id !== "") return String(entry.event_id);
+  return `${entry.ts || ""}::${entry.action || ""}::${entry.agent || ""}::${entry.node_id || ""}`;
+}
 
 // Humanized titles for alert kinds the server can emit today. Unknown kinds
 // fall back to the raw kind so future alert types still render a readable
@@ -540,11 +616,32 @@ function RecordRow(props) {
 // === Overview ==============================================================
 export default function Overview() {
   const { snapshot, select, setRoute } = useStore();
+  const selectors = useStoreSelectors();
   const s = () => snapshot();
   const sum = () => s()?.summary || {};
   const derived = () => s()?.derived || { ready: [], blocked: [], backlog: [], openGates: [] };
-  const nodes = () => s()?.nodes || {};
+  // Node entities come from the reconciled store slice, so an unchanged
+  // node keeps the same reference across polls and every row built from it
+  // stays mounted. The snapshot stays the source for everything that is not
+  // an entity (summary, alerts, initiative_summary, recent_activity).
+  const nodes = () => (selectors ? selectors.nodesMap() : s()?.nodes || {});
   const lastActivity = () => s()?.last_activity || {};
+
+  // Identity caches, one per collection (see makeKeyedCache above).
+  const metricsCache = makeKeyedCache();
+  const alertGroupsCache = makeKeyedCache();
+  const attentionCache = makeKeyedCache();
+  const initiativesCache = makeKeyedCache();
+  const activityCache = makeKeyedCache();
+  const recordCache = makeKeyedCache();
+  onCleanup(() => {
+    metricsCache.clear();
+    alertGroupsCache.clear();
+    attentionCache.clear();
+    initiativesCache.clear();
+    activityCache.clear();
+    recordCache.clear();
+  });
 
   // === 1. Header context ===================================================
   const projectName = () => projectDisplayName(s());
@@ -552,11 +649,19 @@ export default function Overview() {
   const totalNodes = () => sum().total_nodes || 0;
   // === 2. Global alerts grouped by kind ====================================
   // Shell-owned kinds (state-read-error) render as the Main-level banner;
-  // this section groups only the page-level alerts.
-  const alertsByKind = createMemo(() => groupAlertsByKind(pageAlerts(s()?.alerts)));
+  // this section groups only the page-level alerts. Groups are keyed by
+  // kind so an identical poll keeps the banner (and its rows) mounted.
+  const alertsByKind = createMemo(() =>
+    alertGroupsCache.reconcile(
+      groupAlertsByKind(pageAlerts(s()?.alerts)),
+      (group) => group[0]
+    )
+  );
 
   // === 3. Operational status metrics ========================================
-  const metrics = createMemo(() => buildMetrics(sum()));
+  const metrics = createMemo(() =>
+    metricsCache.reconcile(buildMetrics(sum()), (m) => m.key)
+  );
 
   // === 4. Work now =========================================================
   const readyTasksMemo = createMemo(() => readyTasks(derived(), nodes()));
@@ -564,20 +669,30 @@ export default function Overview() {
 
   // === 5. Needs attention ==================================================
   const attentionBlocks = createMemo(() =>
-    buildAttentionBlocks({ alerts: s()?.alerts, derived: derived(), nodes: nodes() })
+    attentionCache.reconcile(
+      buildAttentionBlocks({ alerts: s()?.alerts, derived: derived(), nodes: nodes() }),
+      (block) => block.title
+    )
   );
   const hasAttentionItems = createMemo(() => attentionBlocks().length > 0);
 
   // === 6. Initiatives ======================================================
   const initiativeRowsMemo = createMemo(() =>
-    initiativeRows(s()?.initiatives, s()?.initiative_summary)
+    initiativesCache.reconcile(
+      initiativeRows(s()?.initiatives, s()?.initiative_summary),
+      (row) => row.initiative
+    )
   );
 
   // === 7. Recent activity (max 8) ==========================================
-  const activityMemo = createMemo(() => recentActivity(s()?.recent_activity, nodes()));
+  const activityMemo = createMemo(() =>
+    activityCache.reconcile(recentActivity(s()?.recent_activity, nodes()), activityKey)
+  );
 
   // === 8. Project record ===================================================
-  const recordMemo = createMemo(() => projectRecord(sum()));
+  const recordMemo = createMemo(() =>
+    recordCache.reconcile(projectRecord(sum()), (r) => r.key)
+  );
 
   return (
     <PageLayout>
