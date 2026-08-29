@@ -283,6 +283,49 @@ function computeEdgeDiff(snapshotEdges, draftEdges) {
   return { added, removed };
 }
 
+// Compare two v2 initiative entries by their JSON-serializable fields.
+// We only persist primitives (desc: string, created_at?: string), so a
+// shallow key-by-key comparison is sufficient and avoids surprises if a
+// future plugin extends the shape with non-JSON values.
+function initiativesEqual(a, b) {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  if (typeof a !== "object" || typeof b !== "object") return false;
+  const aKeys = Object.keys(a);
+  const bKeys = Object.keys(b);
+  if (aKeys.length !== bKeys.length) return false;
+  for (const k of aKeys) {
+    if (!Object.prototype.hasOwnProperty.call(b, k)) return false;
+    if (a[k] !== b[k]) return false;
+  }
+  return true;
+}
+
+// computeInitiativeDiff — the snapshot-vs-draft delta on the initiatives
+// map. Returns `{ created, updated }` mirroring the node-level diff shape
+// (created carries the new initiative; updated carries { previous, name,
+// initiative } so callers can see what changed). Note: the kernel does
+// NOT delete initiatives in B1b (registration is monotonic, matching the
+// historical add-initiative contract). Removing an existing initiative
+// has no provider seam yet.
+function computeInitiativeDiff(snapshotInitiatives, draftInitiatives) {
+  const snap = snapshotInitiatives && typeof snapshotInitiatives === "object" ? snapshotInitiatives : {};
+  const draft = draftInitiatives && typeof draftInitiatives === "object" ? draftInitiatives : {};
+  const created = [];
+  const updated = [];
+  for (const [name, draftInit] of Object.entries(draft)) {
+    const prev = snap[name];
+    if (!prev) {
+      created.push({ name, initiative: { ...draftInit } });
+      continue;
+    }
+    if (!initiativesEqual(prev, draftInit)) {
+      updated.push({ name, initiative: { ...draftInit }, previous: { ...prev } });
+    }
+  }
+  return { created, updated };
+}
+
 function nextRevisionFor(diffCreated, diffUpdated, snapshot, targetId) {
   if (!targetId) return null;
   for (const c of diffCreated) if (c.id === targetId) return c.node.revision;
@@ -292,7 +335,7 @@ function nextRevisionFor(diffCreated, diffUpdated, snapshot, targetId) {
   return null;
 }
 
-function buildLogEntry(request, plan, diffCreated, diffUpdated, edgesAdded, edgesRemoved, removedNodes, targetNextRevision, pluginId) {
+function buildLogEntry(request, plan, diffCreated, diffUpdated, edgesAdded, edgesRemoved, removedNodes, targetNextRevision, pluginId, initiativeDiff) {
   const base = {
     action: request.action,
     agent: request.actor,
@@ -304,6 +347,12 @@ function buildLogEntry(request, plan, diffCreated, diffUpdated, edgesAdded, edge
     base.edges = {
       added: edgesAdded.slice(),
       removed: edgesRemoved.slice(),
+    };
+  }
+  if (initiativeDiff && (initiativeDiff.created.length > 0 || initiativeDiff.updated.length > 0)) {
+    base.initiatives = {
+      created: initiativeDiff.created.map((c) => c.name).sort(),
+      updated: initiativeDiff.updated.map((u) => u.name).sort(),
     };
   }
   return prepareLogEntry(base, { pluginId });
@@ -417,7 +466,8 @@ function deriveTargetRevision(snapshot, plan, created, updated) {
  *     added_edges: Edge[],
  *     removed_edges: Edge[],
  *     removed_nodes: string[],
- *     target_revision: number|null
+ *     target_revision: number|null,
+ *     initiatives: { created: { name, initiative }[], updated: { name, initiative, previous }[] }
  *   }
  * }>}
  *
@@ -522,13 +572,16 @@ export async function mutate({ projectDir, request, provider, policyAction, plug
       validateDraftStructural(draftView, commandName);
       const { next: nextNodes, removed: removedNodes, created, updated } = assignRevisionsAndDiff(snapshot, draftView);
       const { added: addedEdges, removed: removedEdges } = computeEdgeDiff(snapshot.edges || [], draftView.edges || []);
+      const initiativeDiff = computeInitiativeDiff(snapshot.initiatives || {}, draftView.initiatives || {});
 
       const isIdempotent =
         created.length === 0 &&
         updated.length === 0 &&
         addedEdges.length === 0 &&
         removedEdges.length === 0 &&
-        removedNodes.length === 0;
+        removedNodes.length === 0 &&
+        initiativeDiff.created.length === 0 &&
+        initiativeDiff.updated.length === 0;
 
       let persistedState = null;
       let logEntry = null;
@@ -554,6 +607,25 @@ export async function mutate({ projectDir, request, provider, policyAction, plug
           }
         }
 
+        // Merge initiatives: the draft wins per-name. Snapshot names not
+        // in the draft are kept (registration is monotonic — the kernel
+        // does not delete initiatives in B1b, matching add-initiative).
+        const snapInits = snapshot.initiatives && typeof snapshot.initiatives === "object" ? snapshot.initiatives : {};
+        const draftInits = draftView.initiatives || {};
+        const finalInitiatives = {};
+        for (const [name, init] of Object.entries(snapInits)) {
+          if (Object.prototype.hasOwnProperty.call(draftInits, name)) {
+            finalInitiatives[name] = draftInits[name];
+          } else {
+            finalInitiatives[name] = init;
+          }
+        }
+        for (const [name, init] of Object.entries(draftInits)) {
+          if (!Object.prototype.hasOwnProperty.call(finalInitiatives, name)) {
+            finalInitiatives[name] = init;
+          }
+        }
+
         const logPayload = buildLogEntry(
           request,
           frozenPlan,
@@ -564,12 +636,14 @@ export async function mutate({ projectDir, request, provider, policyAction, plug
           removedNodes,
           targetNextRevision,
           pluginId,
+          initiativeDiff,
         );
 
         persistedState = {
           ...snapshot,
           nodes: finalNodes,
           edges: draftView.edges,
+          initiatives: finalInitiatives,
           log: [...(Array.isArray(snapshot.log) ? snapshot.log : []), logPayload],
         };
         logEntry = logPayload;
@@ -593,6 +667,7 @@ export async function mutate({ projectDir, request, provider, policyAction, plug
           removed_edges: removedEdges,
           removed_nodes: removedNodes,
           target_revision: deriveTargetRevision(snapshot, frozenPlan, created, updated),
+          initiatives: initiativeDiff,
         },
       };
     });
@@ -606,6 +681,7 @@ export const __kernelInternals = Object.freeze({
   checkPrecondition,
   assignRevisionsAndDiff,
   computeEdgeDiff,
+  computeInitiativeDiff,
   validateDraftStructural,
   validateRequest,
   validateProvider,
