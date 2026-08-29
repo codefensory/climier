@@ -11,8 +11,7 @@
 //   - Hash-based routing without a router. `location.hash` is the URL state.
 //     Back/forward and refresh both work because the hash is read on mount
 //     and on every `hashchange` / `popstate` event.
-//   - Grouped sidebar nav (Monitor / Work / Context / History) with
-//     `aria-current="page"` on the active item.
+//   - Compact sidebar nav with `aria-current="page"` on the active item.
 //   - Responsive shell (F3c): breakpoint math lives in ui/src/shell.mjs
 //     (pure, testable). WIDE ≥1280 renders the full 240 px sidebar with
 //     labels; MID 768–1279 collapses to a 64–72 px rail with glyphs; NARROW
@@ -112,7 +111,7 @@ const NAV_ICON_PATHS = {
 
 function NavIcon(props) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
       <path d={NAV_ICON_PATHS[props.id] || NAV_ICON_PATHS.overview} />
     </svg>
   );
@@ -206,10 +205,9 @@ function NavButton(props) {
 }
 
 // === NavGroups =============================================================
-// Renders the grouped nav from routes.mjs in the order NAV_GROUPS declares.
-// variant "rail" hides labels and group headers (MID breakpoint); any other
-// variant renders the full labelled list (WIDE sidebar and NARROW drawer).
-// Icons stay visible in both variants so navigation remains scannable.
+// Renders one compact navigation list. NAV_GROUPS still owns the route order,
+// but group labels are intentionally omitted so the sidebar reads as one
+// continuous surface at every breakpoint.
 function NavGroups(props) {
   // variant     ("full" | "rail")
   // onNavigate  (function, optional — forwarded to NavButton)
@@ -217,15 +215,7 @@ function NavGroups(props) {
   return (
     <For each={NAV_GROUPS}>
       {(group) => (
-        <div class="ui-nav-group space-y-0.5">
-          <Show when={!rail}>
-            <div
-              class="ui-nav-group-label mono"
-              id={`nav-group-${group.label.toLowerCase()}`}
-            >
-              {group.label}
-            </div>
-          </Show>
+        <div class="ui-nav-group">
           <For each={group.ids}>
             {(id) => (
               <NavButton
@@ -428,7 +418,7 @@ function Sidebar(props) {
           </Show>
         </div>
       </div>
-      <nav class="flex-1 space-y-4 overflow-y-auto p-2" aria-label="Primary">
+      <nav class="flex-1 overflow-y-auto p-2" aria-label="Primary">
         <NavGroups variant={rail() ? "rail" : "full"} />
       </nav>
     </aside>
@@ -522,7 +512,7 @@ function DrawerPanel(props) {
             ✕
           </IconButton>
         </div>
-        <nav class="flex-1 space-y-4 overflow-y-auto p-2" aria-label="Primary">
+        <nav class="flex-1 overflow-y-auto p-2" aria-label="Primary">
           <NavGroups variant="full" onNavigate={props.onClose} />
         </nav>
       </aside>

@@ -1316,10 +1316,6 @@ body {
 }
 
 .ui-nav-group {
-  margin-top: 16px;
-}
-
-.ui-nav-group:first-child {
   margin-top: 0;
 }
 
@@ -1343,7 +1339,7 @@ body {
   border-color: #dfddd8;
   background: #eae9e5;
   color: var(--ui-text);
-  box-shadow: inset 2px 0 0 var(--ui-green), 0 1px 1px rgba(47, 43, 36, 0.02);
+  box-shadow: 0 1px 1px rgba(47, 43, 36, 0.02);
   font-weight: 650;
 }
 
@@ -1357,24 +1353,20 @@ body {
 }
 
 .ui-nav-glyph svg {
-  width: 16px;
-  height: 16px;
+  width: 17px;
+  height: 17px;
   stroke: currentColor;
 }
 
 .ui-nav-link:hover .ui-nav-glyph,
 .ui-nav-link[aria-current="page"] .ui-nav-glyph {
-  color: var(--ui-green);
+  color: var(--ui-text);
 }
 
-.ui-sidebar-rail .ui-nav-glyph {
-  border: 1px solid var(--ui-line);
-  background: rgba(255, 255, 252, 0.72);
-}
-
+.ui-sidebar-rail .ui-nav-glyph,
 .ui-sidebar-rail .ui-nav-link[aria-current="page"] .ui-nav-glyph {
-  border-color: #b9d8cf;
-  background: var(--ui-green-soft);
+  border: 0;
+  background: transparent;
 }
 
 .ui-nav-group-label {
@@ -1538,18 +1530,28 @@ body {
 .ui-board-body {
   min-width: 0;
   min-height: 0;
+  height: 0;
   overflow: hidden;
   padding: 0;
 }
 
-.ui-board-columns {
+.ui-board-scroll {
   width: 100%;
   min-width: 0;
   min-height: 0;
+  height: 0;
+  max-width: 100%;
   box-sizing: border-box;
-  align-items: start;
   overflow: auto;
+  overscroll-behavior: contain;
   padding: 16px 32px 24px;
+}
+
+.ui-board-columns {
+  width: max-content;
+  min-width: 100%;
+  max-width: none;
+  align-items: start;
 }
 
 .ui-board-column {
@@ -1674,7 +1676,7 @@ body {
     padding-top: 22px;
   }
 
-  .ui-board-columns {
+  .ui-board-scroll {
     padding: 12px 16px 18px;
   }
 
