@@ -1,145 +1,146 @@
-import { createContext, createSignal, useContext, onMount, onCleanup } from "solid-js";
-import { getSnapshot, getNode } from "./api.js";
+// ui/src/store.jsx
+//
+// Public façade of the climier UI store. Re-exports `StoreProvider` and
+// `useStore` and preserves the legacy 14-key contract so existing views
+// keep working untouched:
+//
+//   snapshot, error, loading, initialLoading, refreshing, snapshotError,
+//   lastSuccessfulAt, route, setRoute, selectedId, select, detail,
+//   detailError, reload
+//
+// Internally the façade wires three collaborators:
+//
+//   ui/src/store/transport.js  — polling transport (createTransport)
+//   ui/src/store/createStore.js — reactive store with slices
+//                                transport / ui / entities / views / details
+//   ui/src/store/index.js      — barrel re-exporting the above
+//
+// `snapshot()` returns the raw server payload verbatim (its legacy shape:
+// { project, initiatives, nodes, edges, derived, last_activity,
+// initiative_summary, summary, alerts, recent_activity, generated_at,
+// plugins? }). The reactive store's slices keep entity identity stable
+// across polls; views keep using the raw snapshot because they read many
+// top-level fields (project, summary, alerts, last_activity, etc.) that
+// do not belong to entities. Selection, detail and reload are routed
+// through the transport; their results land in both the façade signals
+// (so consumers see them via useStore()) and the reactive store (so a
+// later migration to store.ui.* / store.details[id] finds them ready).
+//
+// See .adrs/010-ui-live-store.md §2 / §3.2 and
+// docs/plans/ui-live-store-execution.md §3.1 / §3.2 / §3.5 / §11.4.
 
-const POLL_MS = 2000;
+import { createContext, createSignal, useContext, onMount, onCleanup } from "solid-js";
+
+import { createTransport } from "./store/transport.js";
+import { createReactiveStore } from "./store/createStore.js";
 
 const StoreContext = createContext();
 
-// Monotonic token used to discard stale poll responses. Each new poll/request
-// bumps the counter; responses whose counter has been bumped past are
-// dropped silently. Combined with AbortController (which cancels the
-// in-flight fetch) this prevents old responses from clobbering newer UI
-// state when the user is clicking around faster than the network.
-function nextToken() {
-  nextToken.n = (nextToken.n || 0) + 1;
-  return nextToken.n;
-}
-
 export function StoreProvider(props) {
-  const [snapshot, setSnapshot] = createSignal(null);
-  // initialLoading = true until the first successful snapshot lands.
-  // refreshing = true for every in-flight background poll (including the
-  // first, but views should prefer initialLoading for the splash).
-  const [initialLoading, setInitialLoading] = createSignal(true);
-  const [refreshing, setRefreshing] = createSignal(false);
-  const [snapshotError, setSnapshotError] = createSignal(null);
-  const [lastSuccessfulAt, setLastSuccessfulAt] = createSignal(null);
+  const { store, actions } = createReactiveStore();
+
+  // Raw server payload. Preserved as-is so the public `snapshot()`
+  // accessor keeps returning the legacy shape: { project, initiatives,
+  // nodes, edges, derived, last_activity, initiative_summary, summary,
+  // alerts, recent_activity, generated_at, plugins? }. The reactive
+  // store splits the same data into slices for stable identity, but
+  // consumers that read multiple top-level fields rely on the raw
+  // object to keep working unchanged.
+  const [rawSnapshot, setRawSnapshot] = createSignal(null);
+
+  // UI-only signals. `route` / `setRoute`, `selectedId`, `detail` and
+  // `detailError` are local to the façade and keep their original
+  // setter / getter shape (route is a Solid signal whose setter is
+  // exposed as setRoute; selectedId is the raw getter). The transport
+  // and reactive store are kept in sync via the callback wiring below.
   const [route, setRoute] = createSignal("overview");
   const [selectedId, setSelectedId] = createSignal(null);
   const [detail, setDetail] = createSignal(null);
   const [detailError, setDetailError] = createSignal(null);
 
-  let pollToken = 0;
-  let detailToken = 0;
-  let pollAbort = null;
-  let detailAbort = null;
-  let timer = null;
-  let hasGoodSnapshot = false;
+  // Mirror of the latest `select(id)` call. The transport hands back
+  // detail payloads without an id, so the façade uses this to land the
+  // payload in `details[id]` of the reactive store.
+  let currentSelectId = null;
 
-  function isAbortError(err) {
-    return err && (err.name === "AbortError" || err.code === 20 /* ABORT_ERR */);
-  }
-
-  // Loads the snapshot. Preserves the previous snapshot on a refresh
-  // failure so the UI doesn't blank out, and bumps a token so a slow
-  // earlier poll can't overwrite a fast later one.
-  async function load() {
-    const token = nextToken();
-    pollAbort?.abort();
-    const controller = new AbortController();
-    pollAbort = controller;
-    if (!hasGoodSnapshot) setInitialLoading(true);
-    setRefreshing(true);
-    try {
-      const snap = await getSnapshot({ signal: controller.signal });
-      if (token < pollToken) return; // a newer poll already won
-      pollToken = token;
-      setSnapshot(snap);
-      setSnapshotError(null);
-      setLastSuccessfulAt(new Date().toISOString());
-      hasGoodSnapshot = true;
-    } catch (e) {
-      if (isAbortError(e)) return;
-      if (token < pollToken) return;
-      pollToken = token;
-      // Keep the previous snapshot; just surface the error so the view can
-      // render a banner.
-      setSnapshotError(e.message);
-    } finally {
-      if (token === pollToken) {
-        setRefreshing(false);
-        setInitialLoading(false);
+  const transport = createTransport({
+    onSnapshot(snap) {
+      setRawSnapshot(snap);
+      actions.ingestSnapshot(snap);
+    },
+    onSnapshotError(message) {
+      actions.setTransportSnapshotError(message);
+    },
+    onLastSuccessfulAt(iso) {
+      actions.setTransportLastSuccessfulAt(iso);
+    },
+    onInitialLoading(value) {
+      actions.setTransportInitialLoading(value);
+    },
+    onRefreshing(value) {
+      actions.setTransportRefreshing(value);
+    },
+    onDetail(node) {
+      // Resolve the id from the active selection; the detail payload
+      // also carries `node.id`, so fall back to it if the selection has
+      // been cleared mid-flight.
+      const id =
+        currentSelectId || (node && node.node && node.node.id) || null;
+      if (id) {
+        actions.ingestDetail(id, node);
       }
-    }
-  }
-
-  // Refreshes the open node detail in place (no loading flash).
-  async function refreshDetail(id) {
-    if (!id) return;
-    const token = nextToken();
-    detailAbort?.abort();
-    const controller = new AbortController();
-    detailAbort = controller;
-    try {
-      const node = await getNode(id, { signal: controller.signal });
-      if (token < detailToken) return;
-      detailToken = token;
       setDetail(node);
       setDetailError(null);
-    } catch (e) {
-      if (isAbortError(e)) return;
-      if (token < detailToken) return;
-      detailToken = token;
-      setDetailError(e.message);
-    }
-  }
+    },
+    onDetailError(message) {
+      setDetailError(message);
+    },
+    onDetailClear() {
+      setDetail(null);
+      setDetailError(null);
+    },
+  });
 
-  function poll() {
-    load();
-    refreshDetail(selectedId());
-  }
-
-  function onVisible() {
-    if (document.visibilityState === "visible") poll();
-  }
-
-  onMount(load);
   onMount(() => {
-    timer = setInterval(poll, POLL_MS);
-    document.addEventListener("visibilitychange", onVisible);
+    transport.start();
   });
   onCleanup(() => {
-    clearInterval(timer);
-    document.removeEventListener("visibilitychange", onVisible);
-    pollAbort?.abort();
-    detailAbort?.abort();
+    transport.stop();
   });
 
-  async function select(id) {
+  function select(id) {
     setSelectedId(id);
     setDetail(null);
     setDetailError(null);
-    if (!id) return;
-    refreshDetail(id);
+    currentSelectId = id || null;
+    transport.select(id);
   }
 
-  const store = {
-    snapshot,
-    error: snapshotError, // legacy alias kept for back-compat with existing views
-    loading: initialLoading, // legacy alias; views that only need the splash use this
-    initialLoading,
-    refreshing,
-    snapshotError,
-    lastSuccessfulAt,
+  function reload() {
+    transport.reload();
+  }
+
+  // Public façade. Mirrors the legacy contract exactly: same 14 keys,
+  // same getter / setter shape for the signals, same `error` and
+  // `loading` legacy aliases backed by the reactive transport slice.
+  const facade = {
+    snapshot: rawSnapshot,
+    error: () => store.transport.snapshotError,
+    loading: () => store.transport.initialLoading,
+    initialLoading: () => store.transport.initialLoading,
+    refreshing: () => store.transport.refreshing,
+    snapshotError: () => store.transport.snapshotError,
+    lastSuccessfulAt: () => store.transport.lastSuccessfulAt,
     route,
     setRoute,
     selectedId,
     select,
     detail,
     detailError,
-    reload: load,
+    reload,
   };
-  return <StoreContext.Provider value={store}>{props.children}</StoreContext.Provider>;
+
+  return <StoreContext.Provider value={facade}>{props.children}</StoreContext.Provider>;
 }
 
 export function useStore() {
