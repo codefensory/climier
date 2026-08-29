@@ -11,10 +11,10 @@ con asserts de identidad/scroll, y riesgos que invalidarían el orden.
 
 Inspección del repo en `main` (HEAD `249014b ui: speed up drawer motion`).
 
-- `ui/src/store.jsx` (146 líneas) es un provider monolítico con 12
+- `ui/src/store.jsx` (146 líneas) es un provider monolítico con 9
   `createSignal` independientes: `snapshot`, `initialLoading`, `refreshing`,
-  `snapshotError`, `lastSuccessfulAt`, `route`, `setRoute`, `selectedId`,
-  `detail`, `detailError`. Re-emplaza `snapshot()` entero en cada poll
+  `snapshotError`, `lastSuccessfulAt`, `route`, `selectedId`, `detail` y
+  `detailError`. Re-emplaza `snapshot()` entero en cada poll
   (`setSnapshot(snap)`), lo que obliga a `<For each={snapshot()?.X}>` a
   remontar filas aunque el contenido semántico sea idéntico (la identidad
   implícita de `<For>` es la referencia del array). Polling cada 2 s con
@@ -205,10 +205,11 @@ Este contrato lo crea `T-store-foundation` (archivos puros en
 - `entities.plugins` con `key: pluginId`.
 
 Vistas NO deben llamar a `reconcile` directamente; consumen selectores
-que ya devuelven arrays con identidad estable. El Board pasa de filtrar
-`nodes` por status a iterar `selectors.tasksByStatus()`, que devuelve
-`{ ready: Node[], in_progress: Node[], blocked: Node[], backlog: Node[] }`
-donde cada `Node` es la referencia estable del store reconciliado.
+que ya devuelven arrays de IDs con identidad estable. El Board pasa de
+filtrar `nodes` por status a iterar `selectors.tasksByStatus()`, que devuelve
+`{ ready: string[], in_progress: string[], blocked: string[], backlog: string[] }`.
+Cada componente resuelve el node actual por ID desde el store reconciliado;
+una entidad que no cambió conserva su referencia y su nodo DOM.
 
 ### 3.4 Claves estables para colecciones sin ID natural
 
@@ -219,14 +220,14 @@ donde cada `Node` es la referencia estable del store reconciliado.
 | Overview | métricas | literal `ready`/`in_progress`/`blocked`/`backlog` |
 | Overview | attention blocks | `${kind}::${node_id ?? ""}` |
 | Overview | initiative rows | `initiative` (string) |
-| Overview | activity preview | `${ts}::${action}::${node_id ?? ""}` (o `event_id` cuando exista) |
+| Overview | activity preview | `${ts}::${action}::${agent}::${node_id ?? ""}` (o `event_id` cuando exista) |
 | Activity | entries | `${ts}::${action}::${agent}::${node_id}` (existente en `rowKey`) o `event_id` |
 | Activity | facets | valor del facet (string) |
 | NodeDetail | relations | `edge.id` virtual = `${from}::${to}::${type}` |
 | NodeDetail | refs | `${target}::${type}::${source}` (mismo key que `normalizeRef` ya deduplica) |
 | NodeDetail | knowledge | `knowledge.id` |
 | NodeDetail | history | `${ts}::${action}::${agent}::${node_id}` |
-| NodeDetail | notes | índice estable (ya existe `revision` por nota o `at`) |
+| NodeDetail | notes | `${ts}::${agent}::${text}`; si falta `ts`, usar la posición durable del evento de log |
 | Gates | grupos | `initiative` (string) o `"—"` |
 | Knowledge | grupos | `${kind}::${scope_dimension}::${scope_value}` |
 
@@ -253,20 +254,23 @@ introducirá el `event_id` aditivo en el servidor sin romper este plan.
 4. Cancelar/abortar el detail en curso sigue usando `detailToken`.
 
 Este contrato lo implementa `T-store-foundation` y lo verifica
-`T-node-detail-live` con un test que confirma que cambiar
+`T-overview-shell` con un test que confirma que cambiar
 `entities.nodes[id].status` no reemplaza la entry `details[id]`.
 
 ### 3.6 Plugins namespace (read-only en esta entrega)
 
 `entities.plugins` y `entities.nodes[id].plugins` son slots read-only
-para esta entrega. Se acepta el namespace aunque el snapshot no lo
-traiga (`plugins` ausente → `{}`). No se ejecuta código de plugin, no
-se interpreta HTML/JS, no se renderiza nada desde ese namespace en
-esta fase. `G-plugin-ui-rfc` continúa siendo dueño del descriptor y
-slots de render.
+para esta entrega. La ingesta del cliente acepta el namespace aunque el
+snapshot no lo traiga (`plugins` ausente → `{}`). Esta fase verifica solo
+la normalización del store con snapshots de fixture; no afirma que el
+endpoint actual ya proyecte `plugins` en la raíz. La proyección server-side
+queda para `G-plugin-ui-rfc` y su ADR. No se ejecuta código de plugin, no
+se interpreta HTML/JS, no se renderiza nada desde ese namespace en esta
+fase.
 
-Este contrato lo fija `T-store-foundation` (normalización) y lo testea
-`T-plugin-snapshot-namespace` (verificación) sin render.
+Este contrato lo fija `T-store-foundation` (normalización) y lo verifica
+`T-plugin-snapshot-namespace` con un fixture de ingesta, sin render ni
+cambios al server.
 
 ## 4. Cortes de tasks con paths exclusivos
 
@@ -369,12 +373,12 @@ no-go zones explícitas y comandos de aceptación.
 
 ### 4.5 `T-activity-keys` — Activity con keys de evento estables
 
-- **Cambio principal**: `Activity.jsx` reemplaza el key actual
-  `${ts}::${action}::${agent}::${node_id}` (que ya es estable dentro
-  de la misma página) por un `rowKey()` que prefiere `event_id` si
-  el server lo emite (server aditivo) y cae a la tupla actual si no.
-  Los facets siguen keyando por valor (acción/agent). La paginación
-  no cambia.
+- **Cambio principal**: `Activity.jsx` deja de iterar entries por
+  referencia de objeto y renderiza la colección con un ID/key estable.
+  `rowKey()` prefiere `event_id` si el server lo emite (server aditivo)
+  y cae a la tupla `${ts}::${action}::${agent}::${node_id}` si no.
+  Los facets siguen keyando por valor (acción/agent). La paginación no
+  cambia.
 - **Paths propios**:
   - `ui/src/views/Activity.jsx` (`rowKey` actualizado; tests de
     identidad).
@@ -390,22 +394,24 @@ no-go zones explícitas y comandos de aceptación.
 
 ### 4.6 `T-plugin-snapshot-namespace` — Verificación aditiva de plugins
 
-- **Cambio principal**: test de verificación que confirma que un
-  snapshot con `entities.plugins = { foo: { data: {…} } }` y
-  `entities.nodes[id].plugins = { foo: { data: {…} } }` no rompe
-  ninguna vista ni el reconciliador. Esta task NO renderiza plugins;
-  solo deja sentada la frontera para `G-plugin-ui-rfc` (que sigue
-  siendo dueño del render).
+- **Cambio principal**: test de verificación del normalizador que confirma
+  que un snapshot de fixture con `plugins` raíz y `nodes[id].plugins` se
+  conserva en el store, y que la ausencia de `plugins` se normaliza a
+  `{}`. Esta task NO consulta el server actual, NO renderiza plugins y no
+  decide el descriptor; solo deja sentada la frontera para
+  `G-plugin-ui-rfc` (que sigue siendo dueño de la proyección server-side
+  y del render).
 - **Paths propios**:
-  - `test/ui-plugin-snapshot-namespace.test.mjs` (nuevo; usa el
-    server de `ui/server/server.mjs` real con un state extendido
-    aditivamente y verifica que `useStore().snapshot.plugins` se
-    expone como `{}` cuando falta y como el objeto cuando está).
+  - `test/ui-plugin-snapshot-namespace.test.mjs` (nuevo; monta la
+    fachada o usa el helper público de ingesta del store y verifica
+    ausencia/presencia del namespace sin tocar HTTP).
   - `test/fixtures/plugin-namespace-state.mjs` (nuevo; fixture
     minimal con `plugins` raíz y `nodes[id].plugins`).
-- **No-go zones**: `store/` (salvo un import nuevo desde el test,
-  ningún cambio), `App.jsx`, vistas, `components.jsx`, renderizadores
-  de plugin, descriptor de plugin, runtime de plugin.
+- **Dependencias**: `T-store-foundation`; el test consume la fachada o
+  helper público que esa task entregue, sin importar módulos internos.
+- **No-go zones**: `store/` (ningún cambio), `ui/server/server.mjs`,
+  `App.jsx`, vistas, `components.jsx`, renderizadores de plugin,
+  descriptor de plugin y runtime de plugin.
 - **Acceptance**: ver §7.
 
 ## 5. DAG y dependencias
@@ -413,17 +419,19 @@ no-go zones explícitas y comandos de aceptación.
 ```text
                           T-ui-live-store-bootstrap
                                 │
-        ┌───────────────────────┼───────────────────────┐
-        │                       │                       │
-        ▼                       ▼                       ▼
-  T-store-foundation   T-plugin-snapshot-ns     T-activity-keys (no depende del foundation)
-        │                       │                       │
-        ├──────────────┬────────┼────────┬──────────────┤
-        ▼              ▼        ▼        ▼              ▼
-  T-board-live   T-listas-ops  T-overview-shell        │
-        │              │        │                       │
-        ▼              ▼        ▼                       │
-                          (fin)                         │
+                 ┌──────────────┴──────────────┐
+                 │                             │
+                 ▼                             ▼
+        T-store-foundation              T-activity-keys
+                 │
+        ┌────────┼────────┬────────┐
+        ▼        ▼        ▼        ▼
+  T-plugin  T-board  T-listas  T-overview
+  snapshot  live     operativas shell
+                 │        │        │
+                 └────────┴────────┘
+                          ▼
+                         (fin)
 ```
 
 Tabla de dependencias:
@@ -431,17 +439,17 @@ Tabla de dependencias:
 | Task | Bloqueada por |
 |---|---|
 | `T-store-foundation` | `T-ui-live-store-bootstrap` |
-| `T-plugin-snapshot-namespace` | `T-ui-live-store-bootstrap` |
+| `T-plugin-snapshot-namespace` | `T-store-foundation` |
 | `T-activity-keys` | `T-ui-live-store-bootstrap` |
 | `T-board-live` | `T-store-foundation` |
 | `T-listas-operativas` | `T-store-foundation` |
 | `T-overview-shell` | `T-store-foundation` |
 
-`T-plugin-snapshot-namespace` y `T-activity-keys` no requieren el store
-reactivo (verifican el server y un cliente anterior respectivamente) y
-pueden correr en paralelo con `T-store-foundation`. `T-board-live`,
-`T-listas-operativas` y `T-overview-shell` requieren el store
-fundación para consumir selectores.
+`T-activity-keys` no requiere el store reactivo porque Activity sigue
+usando `getActivity()` directo y puede correr en paralelo con
+`T-store-foundation`. `T-plugin-snapshot-namespace`, `T-board-live`,
+`T-listas-operativas` y `T-overview-shell` requieren que foundation
+entregue la fachada y los selectores.
 
 Todas las tasks hijas emiten `BLOCKS` con `from: <padre>, to: <hija>`
 hacia la dependencia. La dirección canónica se respeta.
@@ -450,27 +458,24 @@ hacia la dependencia. La dirección canónica se respeta.
 
 Después de que `T-ui-live-store-bootstrap` quede resuelta:
 
-- **Batch A (3 workers en paralelo, requiere bootstrap cerrado)**:
+- **Batch A (2 workers en paralelo, requiere bootstrap cerrado)**:
   - `T-store-foundation` (única owner de `ui/src/store/` y `store.jsx`).
-  - `T-plugin-snapshot-namespace` (test-only, no toca `store/`, toca
-    `test/fixtures/` y un test nuevo).
   - `T-activity-keys` (única owner de `Activity.jsx`; key estable
     client-side, sin cambios de server).
-  - **Sin conflicto**: paths disjuntos. `T-plugin-snapshot-namespace`
-    no importa `ui/src/store/` para sus asserts (consume el snapshot
-    por HTTP). `T-activity-keys` no toca los selectores porque
-    Activity sigue usando `getActivity()` directo.
+  - **Sin conflicto**: paths disjuntos. Activity sigue usando
+    `getActivity()` directo y no toca los selectores.
 
-- **Batch B (3 workers en paralelo, requiere Batch A cerrado)**:
+- **Batch B (4 workers en paralelo, requiere `T-store-foundation` cerrado)**:
+  - `T-plugin-snapshot-namespace` (solo test + fixture; consume la
+    fachada/ingesta pública de foundation, no toca server).
   - `T-board-live` (única owner de `Board.jsx`).
   - `T-listas-operativas` (owners disjuntos: Nodes, Gates, Knowledge,
     un worker con tres archivos o tres workers separados por archivo).
   - `T-overview-shell` (owners disjuntos: Overview, App, NodeDetail).
-  - **Sin conflicto**: paths disjuntos por construcción. Las tres
-    tasks sólo importan selectores desde `ui/src/store/selectors.js`;
-    si el surface de selectores cambia durante Batch B, los tres se
-    reabren y se ajustan. La probabilidad de colisión es baja porque
-    el contrato §3.2 está congelado en este plan.
+  - **Sin conflicto**: paths disjuntos por construcción. Las tasks de
+    vistas solo importan selectores desde `ui/src/store/selectors.js`;
+    si el surface de selectores cambia durante Batch B, los workers se
+    reabren y se ajustan. El contrato §3.2 está congelado en este plan.
 
 `T-board-live` exige tests con `UI_JSX_GENERATE=dom`; los otros Batch B
 pueden usar SSR puro o dom según convenga al worker, pero no comparten
@@ -542,11 +547,11 @@ Asserts de identidad/scroll (referencia para los tests de Batch B):
 
 3. **Activity y NodeDetail comparten `ts::action::agent::node_id`.**
    Si dos eventos tienen los mismos cuatro campos (mismo timestamp
-   ISO con precisión de ms), la key colisiona y `<For>` remonta. No es
-   un riesgo del plan: el server ya emite timestamps crecientes y
-   `event_id` se introducirá cuando `T-activity-events` se cree. El
-   fallback sigue siendo determinista y los workers no asumen
-   monotonicidad.
+   ISO con precisión de ms), la key colisiona y `<For>` remonta. El
+   fallback actual es determinista pero no garantiza unicidad; los tests
+   deben cubrir el caso duplicado y no asumir monotonicidad. `event_id`
+   se introducirá en una task posterior que toque el server, fuera de
+   este plan.
 
 4. **`scrollTop` se mide en píxeles y jsdom no implementa layout.**
    Los tests de Batch B que verifiquen persistencia de scroll deben
@@ -565,13 +570,13 @@ Asserts de identidad/scroll (referencia para los tests de Batch B):
    de fundación verifican que dos snapshots consecutivos con
    contenido idéntico producen `===` en cada node.
 
-6. **`entities.plugins` se ignora en `init` o `add-node`.** El server
-   debe preservar el namespace porque `JSON.stringify` ya lo hace,
-   pero `T-plugin-snapshot-namespace` debe verificar el camino
-   completo (init, take, resolve, update, snapshot, restore) con un
-   state extendido. Si alguno lo borra, la task de verificación falla
-   antes de mergear. Mitigado: la task de verificación se ejecuta
-   contra el server real, no contra un mock.
+6. **El namespace de plugins no llega al store o se confunde con core.**
+   `T-store-foundation` debe normalizar snapshots con y sin `plugins`, y
+   `T-plugin-snapshot-namespace` debe probar la ingesta pública con un
+   fixture sin tocar el server. La proyección HTTP y la preservación por
+   comandos quedan fuera de este plan y pertenecen a `G-plugin-ui-rfc`;
+   así no se afirma cobertura sobre un endpoint que todavía no emite la
+   raíz `plugins`.
 
 7. **`server.mjs` decide emitir `event_id` durante este plan.** No
    está en el scope de las tasks hijas. `T-activity-keys` sigue
