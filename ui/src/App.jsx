@@ -18,8 +18,8 @@
 //     labels; MID 768–1279 collapses to a 64–72 px rail with glyphs; NARROW
 //     <768 hides the sidebar and exposes the same nav through a drawer
 //     toggled from the header.
-//   - Header with the current page title and project root on every breakpoint.
-//     LiveStatus is shown once in the floating shell indicator.
+//   - Header with the current page title on every breakpoint. LiveStatus is
+//     shown once in the floating shell indicator.
 //   - Data states per ui/DESIGN.md §5: initial load skeleton, non-blocking
 //     refresh indicator, initial error screen with Retry, subsequent error
 //     as a banner that keeps the last good snapshot on screen.
@@ -244,25 +244,22 @@ function NavGroups(props) {
 }
 
 // === Header ================================================================
-// The current page title is the primary header identity on every breakpoint;
-// the project root remains as supporting context. The global LiveStatus
-// indicator is rendered once by Main as a floating chip.
+// The current page title is the only page identity in the shell header. The
+// global LiveStatus indicator is rendered once by Main as a floating chip.
 function Header(props) {
   // bp           (signal, required — current breakpoint)
   // drawerOpen   (signal, required — reflects the NARROW drawer state)
   // onOpenDrawer (function, required — opens the NARROW drawer)
-  const { snapshot, route } = useStore();
+  const { route } = useStore();
   const showMenu = () => drawerAvailable(props.bp());
-  const project = () => snapshot()?.project || {};
   const pageTitle = () => ROUTES[route()]?.label || "Overview";
-  const root = () => project().root || "";
   function openFinder() {
     if (typeof window !== "undefined") {
       window.dispatchEvent(new window.Event("climier:open-finder"));
     }
   }
   return (
-    <header class="ui-shell-topbar flex h-14 shrink-0 items-center gap-3 border-b border-line bg-canvas px-4 md:px-5">
+    <header class="ui-shell-topbar flex h-14 shrink-0 items-center gap-3 bg-canvas px-4 md:px-5">
       <Show when={showMenu()}>
         <button
           type="button"
@@ -274,15 +271,11 @@ function Header(props) {
           <span aria-hidden="true" class="text-[16px] leading-none">☰</span>
         </button>
       </Show>
-      <div class="flex min-w-0 items-center gap-2">
-        <span class="ui-brand-mark" aria-hidden="true">C</span>
+      <div class="flex min-w-0 items-center">
         <h1 class="ui-brand min-w-0 truncate text-section font-semibold text-ink" title={pageTitle()}>
           {pageTitle()}
         </h1>
       </div>
-      <span class="ui-topbar-project mono hidden min-w-0 truncate md:flex" title={root()}>
-        {root() || "Local project"}
-      </span>
       <div class="ml-auto flex shrink-0 items-center gap-2">
         <button type="button" class="ui-search-trigger" onClick={openFinder} aria-label="Search tasks, gates and knowledge">
           <span class="ui-search-trigger-icon" aria-hidden="true">⌕</span>

@@ -140,6 +140,20 @@ test("sidebar click switches the view without reload (regression)", { skip }, as
       "Overview",
       "global header shows the current page title",
     );
+    assert.equal(
+      document.querySelector(".ui-shell-topbar .ui-brand-mark"),
+      null,
+      "global header title has no brand icon",
+    );
+    assert.equal(
+      document.querySelector(".ui-shell-topbar .ui-topbar-project"),
+      null,
+      "global header has no trailing project metadata",
+    );
+    assert.ok(
+      !document.querySelector(".ui-shell-topbar")?.className.includes("border-b"),
+      "global header has no bottom separator",
+    );
 
     // Click the Tasks nav item the same way a user would.
     const tasksLink = document.querySelector('[data-route="tasks"]');

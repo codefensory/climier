@@ -1099,8 +1099,8 @@ body {
   height: 60px;
   padding-inline: 24px;
   background: rgba(250, 249, 246, 0.82);
-  border-color: rgba(225, 223, 218, 0.9);
-  box-shadow: 0 1px 0 rgba(47, 43, 36, 0.02);
+  border: 0;
+  box-shadow: none;
   backdrop-filter: saturate(125%) blur(18px);
 }
 
@@ -1132,7 +1132,11 @@ body {
 }
 
 .ui-brand {
-  letter-spacing: -0.035em;
+  color: var(--ui-text);
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: -0.045em;
+  line-height: 24px;
 }
 
 .ui-workspace-switcher {
@@ -1249,15 +1253,6 @@ body {
   font-size: 10px;
   font-weight: 700;
   letter-spacing: .13em;
-}
-
-.ui-topbar-project {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  color: var(--ui-muted);
-  font-size: 12px;
 }
 
 .ui-search-trigger {
@@ -1525,7 +1520,6 @@ body {
     padding-top: 22px;
   }
 
-  .ui-topbar-project,
   .ui-readonly-chip {
     display: none;
   }
