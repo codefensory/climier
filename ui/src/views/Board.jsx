@@ -162,7 +162,7 @@ function OpenGatesColumn(props) {
   // gates  (array of node objects, required)
   const select = useStore().select;
   return (
-    <div class="ui-detail-card ui-board-column ui-board-gates flex flex-col rounded-card border border-line bg-panel">
+    <div class="ui-detail-card ui-board-column ui-board-gates flex flex-col rounded-card border border-line bg-panel px-1 pb-1">
       <header class="ui-board-column-header flex items-start justify-between gap-3 border-b border-line bg-panel/95 px-4 py-3 backdrop-blur-[2px]">
         <div class="ui-board-column-header-title">
           <span>Open gates</span>
@@ -210,14 +210,14 @@ function Column(props) {
   // count (number, required)
   // children (node, required — list of cards or empty state)
   return (
-    <div class="ui-detail-card ui-board-column flex flex-col rounded-card border border-line bg-panel">
+    <div class="ui-detail-card ui-board-column flex flex-col rounded-card border border-line bg-panel px-1 pb-1">
       <header class="ui-board-column-header flex items-start justify-between gap-3 border-b border-line bg-panel/95 px-4 py-3 backdrop-blur-[2px]">
         <div class="ui-board-column-header-title">
           <span>{props.label}</span>
         </div>
         <div class="ui-board-column-header-count shrink-0">{props.count}</div>
       </header>
-      <div class="ui-board-column-body space-y-2 p-3">
+      <div class="ui-board-column-body space-y-2">
         {props.children}
       </div>
     </div>
