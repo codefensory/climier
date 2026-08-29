@@ -3,13 +3,14 @@
 // Contract (ui-redesign-plan.md section 6 Fase 5A, Track A):
 //   - Four task columns: Ready / In progress / Blocked / Backlog. Open gates
 //     join the same grid as an optional first column, immediately before Ready.
-//   - Columns stay fixed at 280 px; the board container scrolls horizontally
-//     and vertically instead of stretching or compressing columns. The grid
-//     grows to five columns only when gates are present.
+//   - Columns stay fixed at 280 px; the board scrolls horizontally without
+//     stretching or compressing columns. The grid grows to five columns only
+//     when gates are present.
 //   - Column headers show only the label and count; the board stays scannable
 //     without explanatory subtitles under every status.
-//   - Columns grow to the height of their content. The board grid owns the
-//     horizontal and vertical scroll, never an individual column.
+//   - Columns grow to the height of their content until the available board
+//     height is reached. The board scrolls horizontally; each column body
+//     owns its vertical overflow.
 //   - Cards use the visual contract (16 px padding, radius 12, hairline
 //     border, no shadow). Hierarchy: id + status, title, initiative + claim,
 //     principal blocker callout only when blocked.
@@ -201,8 +202,8 @@ function OpenGatesColumn(props) {
 }
 
 // === Column =================================================================
-// One natural-height column on the board. The surrounding grid owns the
-// scroll so a long backlog does not become a nested scroll region.
+// One natural-height column on the board. The column body owns vertical
+// overflow once the column reaches the available board height.
 
 function Column(props) {
   // label (string, required)
@@ -356,47 +357,49 @@ export default function Board(props) {
             </div>
           }
         >
-          <div
-            class="ui-board-columns grid min-h-0 min-w-0 flex-1 gap-3 overflow-auto"
-            style={{ "grid-template-columns": `repeat(${columns().length + (filteredGates().length > 0 ? 1 : 0)}, 280px)` }}
-          >
-            <Show when={filteredGates().length > 0}>
-              <OpenGatesColumn gates={filteredGates()} />
-            </Show>
-            <For each={columns()}>
-              {(col) => (
-                <Column
-                  label={col.label}
-                  tone={col.status}
-                  count={col.cards.length}
-                >
-                  <Show
-                    when={col.cards.length > 0}
-                    fallback={
-                      <div class="ui-board-empty flex min-h-[104px] items-center justify-center rounded-control border border-dashed border-line text-center">
-                        <EmptyState variant="compact" title="Nothing here." />
-                      </div>
-                    }
+          <div class="ui-board-scroll flex min-h-0 min-w-0 flex-1">
+            <div
+              class="ui-board-columns grid h-full min-h-0 gap-3"
+              style={{ "grid-template-columns": `repeat(${columns().length + (filteredGates().length > 0 ? 1 : 0)}, 280px)` }}
+            >
+              <Show when={filteredGates().length > 0}>
+                <OpenGatesColumn gates={filteredGates()} />
+              </Show>
+              <For each={columns()}>
+                {(col) => (
+                  <Column
+                    label={col.label}
+                    tone={col.status}
+                    count={col.cards.length}
                   >
-                    <For each={col.cards}>
-                      {(n) => (
-                        <BoardCard
-                          node={n}
-                          status={col.status}
-                          edges={edges()}
-                          nodes={nodes()}
-                          principalBlocker={
-                            col.status === "blocked"
-                              ? principalBlocker(edges(), nodes(), n.id)
-                              : null
-                          }
-                        />
-                      )}
-                    </For>
-                  </Show>
-                </Column>
-              )}
-            </For>
+                    <Show
+                      when={col.cards.length > 0}
+                      fallback={
+                        <div class="ui-board-empty flex min-h-[104px] items-center justify-center rounded-control border border-dashed border-line text-center">
+                          <EmptyState variant="compact" title="Nothing here." />
+                        </div>
+                      }
+                    >
+                      <For each={col.cards}>
+                        {(n) => (
+                          <BoardCard
+                            node={n}
+                            status={col.status}
+                            edges={edges()}
+                            nodes={nodes()}
+                            principalBlocker={
+                              col.status === "blocked"
+                                ? principalBlocker(edges(), nodes(), n.id)
+                                : null
+                            }
+                          />
+                        )}
+                      </For>
+                    </Show>
+                  </Column>
+                )}
+              </For>
+            </div>
           </div>
         </Show>
 
