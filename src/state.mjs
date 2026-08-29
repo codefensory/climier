@@ -304,7 +304,9 @@ export async function writeState(projectDir, state) {
   }
   const file = stateFile(projectDir);
   await fs.mkdir(path.dirname(file), { recursive: true });
-  await fs.writeFile(file, JSON.stringify(state, null, 2) + "\n", "utf8");
+  const tmp = `${file}.tmp-${process.pid}-${Date.now()}`;
+  await fs.writeFile(tmp, JSON.stringify(state, null, 2) + "\n", "utf8");
+  await fs.rename(tmp, file);
 }
 
 // Validate that an initiative name is registered in state.initiatives.
