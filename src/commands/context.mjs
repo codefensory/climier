@@ -35,7 +35,7 @@ import { throwV2 } from "../errors.mjs";
 import {
   detectOwnershipConflicts,
   executionContractFor,
-} from "../execution-contract.mjs";
+} from "../contracts/execution-contract.mjs";
 
 export const knownFlags = ["as", "staleMs"];
 

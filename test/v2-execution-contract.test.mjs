@@ -57,23 +57,23 @@ async function addTask(dir, id, extraFlags) {
 // ---------------------------------------------------------------------------
 
 test("pathRelationship: equal", async () => {
-  const { pathRelationship } = await importFresh("./execution-contract.mjs");
+  const { pathRelationship } = await importFresh("./contracts/execution-contract.mjs");
   assert.equal(pathRelationship("src/foo.mjs", "src/foo.mjs"), "equal");
 });
 
 test("pathRelationship: self_is_ancestor_of_other", async () => {
-  const { pathRelationship } = await importFresh("./execution-contract.mjs");
+  const { pathRelationship } = await importFresh("./contracts/execution-contract.mjs");
   assert.equal(pathRelationship("src/", "src/foo.mjs"), "self_is_ancestor_of_other");
   assert.equal(pathRelationship("src", "src/foo.mjs"), "self_is_ancestor_of_other");
 });
 
 test("pathRelationship: self_is_descendant_of_other", async () => {
-  const { pathRelationship } = await importFresh("./execution-contract.mjs");
+  const { pathRelationship } = await importFresh("./contracts/execution-contract.mjs");
   assert.equal(pathRelationship("src/foo.mjs", "src/"), "self_is_descendant_of_other");
 });
 
 test("pathRelationship: unrelated paths return null", async () => {
-  const { pathRelationship } = await importFresh("./execution-contract.mjs");
+  const { pathRelationship } = await importFresh("./contracts/execution-contract.mjs");
   assert.equal(pathRelationship("src/foo.mjs", "test/foo.mjs"), null);
   // Sibling-prefix collision: only the first segment matches, second does not.
   assert.equal(pathRelationship("src-a/foo", "src/foo"), null);
@@ -84,7 +84,7 @@ test("pathRelationship: unrelated paths return null", async () => {
 // ---------------------------------------------------------------------------
 
 test("normalizeExecution: drops unknown top-level keys, keeps schema fields", async () => {
-  const { normalizeExecution } = await importFresh("./execution-contract.mjs");
+  const { normalizeExecution } = await importFresh("./contracts/execution-contract.mjs");
   const out = normalizeExecution({
     effort: "M",
     risk: "isolated",
@@ -104,7 +104,7 @@ test("normalizeExecution: drops unknown top-level keys, keeps schema fields", as
 });
 
 test("normalizeExecution: returns null when no schema fields present", async () => {
-  const { normalizeExecution } = await importFresh("./execution-contract.mjs");
+  const { normalizeExecution } = await importFresh("./contracts/execution-contract.mjs");
   assert.equal(normalizeExecution({ totally: "arbitrary" }), null);
   assert.equal(normalizeExecution({}), null);
   assert.equal(normalizeExecution(null), null);
@@ -112,7 +112,7 @@ test("normalizeExecution: returns null when no schema fields present", async () 
 });
 
 test("normalizeExecution: rejects unknown effort value", async () => {
-  const { normalizeExecution } = await importFresh("./execution-contract.mjs");
+  const { normalizeExecution } = await importFresh("./contracts/execution-contract.mjs");
   let caught;
   try {
     normalizeExecution({ effort: "XL" });
@@ -123,7 +123,7 @@ test("normalizeExecution: rejects unknown effort value", async () => {
 });
 
 test("normalizeExecution: rejects unknown risk value", async () => {
-  const { normalizeExecution } = await importFresh("./execution-contract.mjs");
+  const { normalizeExecution } = await importFresh("./contracts/execution-contract.mjs");
   let caught;
   try {
     normalizeExecution({ risk: "yolo" });
@@ -134,7 +134,7 @@ test("normalizeExecution: rejects unknown risk value", async () => {
 });
 
 test("normalizeExecution: rejects non-string array for owns", async () => {
-  const { normalizeExecution } = await importFresh("./execution-contract.mjs");
+  const { normalizeExecution } = await importFresh("./contracts/execution-contract.mjs");
   let caught;
   try {
     normalizeExecution({ owns: ["ok.mjs", 7] });
@@ -145,7 +145,7 @@ test("normalizeExecution: rejects non-string array for owns", async () => {
 });
 
 test("normalizeExecution: rejects empty owns array", async () => {
-  const { normalizeExecution } = await importFresh("./execution-contract.mjs");
+  const { normalizeExecution } = await importFresh("./contracts/execution-contract.mjs");
   let caught;
   try {
     normalizeExecution({ owns: [] });
@@ -156,7 +156,7 @@ test("normalizeExecution: rejects empty owns array", async () => {
 });
 
 test("normalizeExecution: rejects non-object execution", async () => {
-  const { normalizeExecution } = await importFresh("./execution-contract.mjs");
+  const { normalizeExecution } = await importFresh("./contracts/execution-contract.mjs");
   let caught;
   try {
     normalizeExecution("not-an-object");
@@ -166,7 +166,7 @@ test("normalizeExecution: rejects non-object execution", async () => {
 });
 
 test("normalizeExecution: rejects empty seam string", async () => {
-  const { normalizeExecution } = await importFresh("./execution-contract.mjs");
+  const { normalizeExecution } = await importFresh("./contracts/execution-contract.mjs");
   let caught;
   try {
     normalizeExecution({ seam: "   " });
@@ -181,7 +181,7 @@ test("normalizeExecution: rejects empty seam string", async () => {
 // ---------------------------------------------------------------------------
 
 test("validateExecution: returns meta unchanged when no execution key", async () => {
-  const { validateExecution } = await importFresh("./execution-contract.mjs");
+  const { validateExecution } = await importFresh("./contracts/execution-contract.mjs");
   const meta = { ticket: "ABC-1", severity: "high" };
   assert.deepEqual(validateExecution(meta), meta);
   assert.equal(validateExecution(undefined), undefined);
@@ -189,19 +189,19 @@ test("validateExecution: returns meta unchanged when no execution key", async ()
 });
 
 test("validateExecution: meta.execution=null strips the key and preserves siblings", async () => {
-  const { validateExecution } = await importFresh("./execution-contract.mjs");
+  const { validateExecution } = await importFresh("./contracts/execution-contract.mjs");
   const out = validateExecution({ execution: null, ticket: "X" });
   assert.deepEqual(out, { ticket: "X" });
 });
 
 test("validateExecution: meta.execution={} strips the key and preserves siblings", async () => {
-  const { validateExecution } = await importFresh("./execution-contract.mjs");
+  const { validateExecution } = await importFresh("./contracts/execution-contract.mjs");
   const out = validateExecution({ execution: {}, ticket: "X" });
   assert.deepEqual(out, { ticket: "X" });
 });
 
 test("validateExecution: partial contract is preserved as-is", async () => {
-  const { validateExecution } = await importFresh("./execution-contract.mjs");
+  const { validateExecution } = await importFresh("./contracts/execution-contract.mjs");
   const out = validateExecution({ execution: { effort: "S" }, ticket: "X" });
   assert.deepEqual(out.execution, { effort: "S" });
   assert.equal(out.ticket, "X");

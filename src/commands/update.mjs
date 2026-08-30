@@ -7,8 +7,8 @@
 // kernel responsibilities.
 import { mutate } from "../kernel/mutate.mjs";
 import { throwV2 } from "../errors.mjs";
-import { resolveAgent } from "../agent.mjs";
-import { validateExecution } from "../execution-contract.mjs";
+import { resolveAgent } from "../contracts/agent.mjs";
+import { validateExecution } from "../contracts/execution-contract.mjs";
 import { loadApplicablePolicy, authorizeAction } from "../plugins/policy.mjs";
 import { PolicyDenied } from "../plugins/errors.mjs";
 import { taskUpdateProvider } from "../providers/task/update.mjs";

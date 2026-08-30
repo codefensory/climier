@@ -12,7 +12,7 @@ import {
   stateFile,
   snapshotDir,
 } from "../storage/state.mjs";
-import { resolveAgent } from "../agent.mjs";
+import { resolveAgent } from "../contracts/agent.mjs";
 import { throwV2 } from "../errors.mjs";
 
 const REQUIRED_COLLECTIONS = ["nodes", "edges", "initiatives", "log"];
