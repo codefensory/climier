@@ -42,7 +42,7 @@ async function initV2Project(dir, initiatives = ["plugin-platform"]) {
 }
 
 async function makeApi(dir, { agent = "alice", pluginId = "example.core" } = {}) {
-  const { createApi } = await importFresh("./plugin-api.mjs");
+  const { createApi } = await importFresh("./plugins/api.mjs");
   return createApi({ projectDir: dir, agent, pluginId });
 }
 

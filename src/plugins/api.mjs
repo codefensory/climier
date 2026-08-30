@@ -1,4 +1,4 @@
-// plugin-api.mjs: assemble the host API surface.
+// plugins/api.mjs: assemble the host API surface.
 //
 // Per ADR-005 §"API y persistencia" + ADR-006 §"API y compatibilidad":
 //   api = {
@@ -26,9 +26,9 @@
 // the core surface so `core.run` can fix flags.as on every call
 // regardless of what the plugin passes in input.
 
-import { createQuery } from "./plugin-query.mjs";
-import { createData } from "./plugin-data.mjs";
-import { createCore } from "./plugin-core-adapter.mjs";
+import { createQuery } from "./query.mjs";
+import { createData } from "./data.mjs";
+import { createCore } from "./core-adapter.mjs";
 
 export function createApi({ projectDir, agent, pluginId }) {
   if (typeof projectDir !== "string" || !projectDir) {

@@ -1,4 +1,4 @@
-// T-graph-kernel-core-api-impl — `src/plugin-core-adapter.mjs` unit tests.
+// T-graph-kernel-core-api-impl — `src/plugins/core-adapter.mjs` unit tests.
 //
 // The adapter is the V2 plugin core surface: `createCore` returns
 // `{ version, run }`. `run` consumes the built-in registry from
@@ -42,8 +42,8 @@ import {
 
 // ---- Module paths ---------------------------------------------------
 
-const ADAPTER_MODULE = "../src/plugin-core-adapter.mjs";
-const REGISTRY_MODULE = "../src/plugin-core-registry.mjs";
+const ADAPTER_MODULE = "../src/plugins/core-adapter.mjs";
+const REGISTRY_MODULE = "../src/plugins/core-registry.mjs";
 
 // 18 op IDs (ADR-012 §2). The adapter must accept every one of these
 // before reaching for the kernel.
