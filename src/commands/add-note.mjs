@@ -1,22 +1,74 @@
-// add-note: append a timestamped comment to a task or v2 node's notes thread. Any status.
-// Notes are append-only by design — they are a record, not a state mutation.
+// add-note: append a timestamped comment to a node's notes thread.
 //
-// T-plugin-policy-seam-lifecycle / ADR-008 §"note.add":
-//   - Action: `note.add`.
-//   - The seam runs INSIDE the lock and BEFORE the mutation. A deny or
-//     error short-circuits the write; no state mutation, no log entry.
-//   - allow / abstain → default core (append the note + log entry).
-import { isV2State, readState, updateState } from "../state.mjs";
-import { withLock } from "../lock.mjs";
-import { appendWithContext } from "../log.mjs";
+// This command is a CLI adapter. The note provider validates and applies the
+// domain operation; kernel.mutate owns the lock, snapshot, CAS, revisions,
+// audit log and atomic persistence. The request action remains `add-note` so
+// the historical CLI log contract is preserved (the plugin API uses
+// `note.add`).
+import { mutate } from "../kernel/mutate.mjs";
+import { noteAddProvider } from "../providers/core/note.mjs";
 import { throwV2 } from "../errors.mjs";
 import { resolveAgent } from "../agent.mjs";
 import { loadApplicablePolicy, authorizeAction } from "../policy.mjs";
-import { PolicyDenied } from "../plugin-errors.mjs";
 
-export const knownFlags = ["as"];
+export const knownFlags = ["as", "if-revision"];
 
-export default async function addNote({ statePath, flags, positional, pluginId }) {
+function cliNoteProvider() {
+  return {
+    async prepare({ snapshot, input, request }) {
+      const node = snapshot && snapshot.nodes ? snapshot.nodes[input.id] : null;
+      const hasExplicitRevision = input.if_revision !== undefined;
+      // The public CLI historically had no revision flag. For that legacy
+      // surface, derive the CAS from the fresh kernel snapshot. This remains
+      // atomic because prepare and apply execute under the same lock. A few
+      // old v2 fixtures predate node revisions; preserve their compatibility
+      // by allowing that one case to use the trusted no-CAS path.
+      const revision = hasExplicitRevision
+        ? input.if_revision
+        : (Number.isInteger(node && node.revision) ? node.revision : 1);
+      const providerInput = { ...input, if_revision: revision };
+      // Some pre-revision v2 fixtures are still valid state files. Give the
+      // provider the compatibility revision only for its local validation;
+      // the real snapshot remains the one passed to kernel.mutate/apply.
+      const providerSnapshot = node && !Number.isInteger(node.revision)
+        ? {
+            ...snapshot,
+            nodes: { ...snapshot.nodes, [input.id]: { ...node, revision: 1 } },
+          }
+        : snapshot;
+      const plan = await noteAddProvider.prepare({
+        snapshot: providerSnapshot,
+        input: providerInput,
+        request: { ...request, input: providerInput },
+      });
+      const target = node
+        ? {
+            ...plan.target,
+            kind: node.kind,
+            subkind: node.subkind,
+            status: node.status,
+            note_length: input.text.length,
+          }
+        : plan.target;
+      return {
+        ...plan,
+        target,
+        // Legacy fixtures without a revision cannot satisfy the kernel CAS
+        // check. Their provider validation still checks the target, and the
+        // kernel assigns the first revision when the note is persisted.
+        ...(Number.isInteger(node && node.revision) || hasExplicitRevision
+          ? {}
+          : { if_revision: undefined }),
+        logFields: { note: input.text },
+      };
+    },
+    apply(args) {
+      return noteAddProvider.apply(args);
+    },
+  };
+}
+
+export default async function addNote({ statePath, flags = {}, positional, pluginId }) {
   const [id, ...rest] = positional;
   if (!id) {
     throwV2(
@@ -33,130 +85,42 @@ export default async function addNote({ statePath, flags, positional, pluginId }
       { field: "text" },
     );
   }
-  // F8: agent resolution sits at the end of the validation chain so the
-  // caller sees bad-data errors (MISSING_FIELD) before identity errors.
+  // Preserve the historical explicit --as requirement. CLIMIER_AGENT remains
+  // useful to resolve identity for other commands, but add-note's CLI surface
+  // intentionally requires the flag.
   const as = resolveAgent(flags, "add-note");
-  const projectDir = statePath;
-  // Preserve historical strict --as requirement: the previous
-  // implementation threw when --as was absent regardless of
-  // CLIMIER_AGENT. The seam relies on resolveAgent (which honors
-  // CLIMIER_AGENT) so callers that want env-based identity on other
-  // v2 commands keep working, but add-note's CLI contract still
-  // requires --as. The check is duplicated here on purpose — it is
-  // a CLI contract, not an identity contract.
-  if (!flags || typeof flags.as !== "string" || !flags.as.trim()) {
+  if (typeof flags.as !== "string" || !flags.as.trim()) {
     throw new Error("add-note: --as <agent> required");
   }
 
-  // ADR-007 §"Discovery global" item 5: re-load policy every call so
-  // install/uninstall changes are observed immediately.
+  const projectDir = statePath;
+  const input = { id, text };
+  if (flags["if-revision"] !== undefined) input.if_revision = flags["if-revision"];
   const policy = await loadApplicablePolicy({ projectDir });
-
-  return withLock(projectDir, async () => {
-    const s = await readState(projectDir);
-    if (!s) throwV2("NODE_NOT_FOUND", "add-note: state file missing; run `climier init` first", { projectDir });
-
-    const note = { ts: new Date().toISOString(), agent: as, text };
-
-    if (isV2State(s)) {
-      const node = s.nodes[id];
-      if (!node) throwV2("NODE_NOT_FOUND", `add-note: node ${id} not found`, { id });
-
-      // Build snapshot + target for the seam. The snapshot is a
-      // fresh view over the read state; plugins cannot mutate it.
-      const target = {
-        id: node.id,
-        kind: node.kind,
-        subkind: node.subkind,
-        status: node.status,
-        note_length: text.length,
-      };
-      const snapshot = {
-        state: s,
-        nodes: { ...s.nodes },
-        edges: s.edges.slice(),
-        initiatives: { ...s.initiatives },
-      };
-
-      const decision = await authorizeAction({
-        policy,
+  const policyAction = policy
+    ? {
         action: "note.add",
-        actor: as,
-        target,
-        snapshot,
-        projectDir,
-        projectConfig: policy ? policy.projectConfig : {},
-      });
-      if (decision.decision === "deny") {
-        throw new PolicyDenied(
-          policy && policy.pluginId ? policy.pluginId : "(unknown)",
-          "note.add",
-          as,
-          decision.reason || "denied by policy",
-        );
+        pluginId: policy.pluginId || null,
+        decide: async ({ snapshot, target, request, action }) => authorizeAction({
+          policy,
+          action,
+          actor: request.actor,
+          target,
+          snapshot,
+          projectDir,
+          projectConfig: policy.projectConfig || {},
+        }),
       }
-      // allow / abstain → proceed (default core: append the note).
+    : null;
 
-      const updated = await updateState(projectDir, (st) => {
-        st.nodes[id].notes = st.nodes[id].notes || [];
-        st.nodes[id].notes.push(note);
-        return st;
-      });
-      await appendWithContext(
-        projectDir,
-        { agent: as, action: "add-note", node: id, note: text },
-        { pluginId },
-      );
-      return { node: updated.nodes[id] };
-    }
-
-    const t = s.tasks[id];
-    if (!t) throwV2("NODE_NOT_FOUND", `add-note: task ${id} not found`, { id });
-
-    // Build snapshot + target for the seam (v1 shape is preserved for
-    // backwards compatibility; v1 states are rejected at readState but
-    // the path still exists in case the project is in a degraded
-    // transitional shape).
-    const target = {
-      id: t.id,
-      kind: "task",
-      status: t.status,
-      note_length: text.length,
-    };
-    const snapshot = {
-      state: s,
-      nodes: { ...(s.nodes || {}) },
-      edges: s.edges.slice(),
-      initiatives: { ...(s.initiatives || {}) },
-    };
-    const decision = await authorizeAction({
-      policy,
-      action: "note.add",
-      actor: as,
-      target,
-      snapshot,
-      projectDir,
-      projectConfig: policy ? policy.projectConfig : {},
-    });
-    if (decision.decision === "deny") {
-      throw new PolicyDenied(
-        policy && policy.pluginId ? policy.pluginId : "(unknown)",
-        "note.add",
-        as,
-        decision.reason || "denied by policy",
-      );
-    }
-
-    const updated = await updateState(projectDir, (st) => {
-      st.tasks[id].notes = st.tasks[id].notes || [];
-      st.tasks[id].notes.push(note);
-      return st;
-    });
-    await appendWithContext(
-      projectDir,
-      { agent: as, action: "add-note", task: id, note: text },
-      { pluginId },
-    );
-    return { task: updated.tasks[id] };
+  const result = await mutate({
+    projectDir,
+    request: { action: "add-note", actor: as, input },
+    provider: cliNoteProvider(),
+    policyAction,
+    pluginId,
   });
+
+  const updated = result.diff.updated.find((entry) => entry.id === id);
+  return { node: updated ? updated.node : null };
 }

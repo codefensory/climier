@@ -419,12 +419,12 @@ test("parity: add-note — CLI and api.core.run produce the same actor and canon
 
       // --- API core add-note
       const api = await freshApi(projectDir, { agent: "alice", pluginId: "example.audit" });
-      // note.add is an explicit-CAS typed operation. The CLI add-note
-      // path leaves the seeded node at revision 1, so use that revision
-      // without injecting the host-controlled actor into input.
+      // note.add is an explicit-CAS typed operation. The CLI adapter routes
+      // through kernel.mutate, so appending its note bumps the seeded node
+      // from revision 1 to revision 2.
       await api.core.run({
         op: "note.add",
-        input: { id: "T-parity-1", text: "via api", if_revision: 1 },
+        input: { id: "T-parity-1", text: "via api", if_revision: 2 },
       });
       const apiRec = await recorded(projectDir);
       assert.equal(apiRec.recorded.mode, "allow");
