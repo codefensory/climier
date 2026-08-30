@@ -370,6 +370,22 @@ test("api.data.node.set writes only the calling plugin's keyspace and preserves 
   }
 });
 
+test("api.data.node.set uses kernel revision accounting while preserving the plugin API result", async () => {
+  const dir = await createTempProject();
+  try {
+    await seedState(dir);
+    const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
+    const value = { perNode: "kernel-backed" };
+    assert.deepEqual(await api.data.node.set("T1", value), value);
+    const after = await readRawState(dir);
+    assert.equal(after.nodes.T1.revision, 2);
+    assert.equal(after.log.length, 1);
+    assert.deepEqual(after.nodes.T1.plugins["example.audit"].data, value);
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
 test("api.data.project.set writes only the root plugin keyspace and preserves nodes[id].plugins", async () => {
   const dir = await createTempProject();
   try {
