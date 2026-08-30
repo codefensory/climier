@@ -1,4 +1,4 @@
-// plugin-data.mjs: data.*.{get,set} host adapters.
+// plugins/data.mjs: data.*.{get,set} host adapters.
 //
 // Per ADR-005 §"API y persistencia" and the V1 host contract:
 //   - Each set requires an agent identity (MISSING_AGENT when empty).
@@ -11,13 +11,13 @@
 //   - Both sets delegate their complete mutation to kernel.mutate. The
 //     kernel owns locking, atomic persistence, revisions and redacted logs.
 
-import { readState } from "./state.mjs";
-import { mutate } from "./kernel/mutate.mjs";
+import { readState } from "../state.mjs";
+import { mutate } from "../kernel/mutate.mjs";
 import {
   pluginDataNodeSetProvider,
   pluginDataProjectSetProvider,
-} from "./providers/plugin-data/index.mjs";
-import { throwV2 } from "./errors.mjs";
+} from "../providers/plugin-data/index.mjs";
+import { throwV2 } from "../errors.mjs";
 
 function assertAgent(agent, commandName, scope) {
   if (typeof agent === "string" && agent.trim()) return agent.trim();

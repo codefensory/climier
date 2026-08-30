@@ -4,8 +4,8 @@
 // lock. They use the canonical read-model for graph/domain projections and do
 // not depend on CLI command adapters or the transitional v2 facade.
 
-import { readState, isV2State, assertStateVersion } from "./state.mjs";
-import { throwV2 } from "./errors.mjs";
+import { readState, isV2State, assertStateVersion } from "../state.mjs";
+import { throwV2 } from "../errors.mjs";
 import {
   derive,
   statusOf,
@@ -14,11 +14,11 @@ import {
   informingForNode,
   isCurrent,
   supersededBy,
-} from "./read-model/index.mjs";
+} from "../read-model/index.mjs";
 import {
   detectOwnershipConflicts,
   executionContractFor,
-} from "./execution-contract.mjs";
+} from "../execution-contract.mjs";
 
 const DEFAULT_STALE_MS = 2 * 60 * 60 * 1000;
 const STATUS_FLAGS = new Set([

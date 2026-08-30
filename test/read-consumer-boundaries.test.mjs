@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 
 const files = {
-  pluginQuery: new URL("../src/plugin-query.mjs", import.meta.url),
+  pluginQuery: new URL("../src/plugins/query.mjs", import.meta.url),
   uiServer: new URL("../ui/server/server.mjs", import.meta.url),
 };
 
@@ -13,7 +13,7 @@ async function source(url) {
 
 test("plugin query consumes the read model instead of command or v2 facades", async () => {
   const text = await source(files.pluginQuery);
-  assert.match(text, /from ["']\.\/read-model\/index\.mjs["']/);
+  assert.match(text, /from ["']\.\.\/read-model\/index\.mjs["']/);
   assert.doesNotMatch(text, /from ["']\.\/commands\//);
   assert.doesNotMatch(text, /from ["']\.\/v2\.mjs["']/);
 });

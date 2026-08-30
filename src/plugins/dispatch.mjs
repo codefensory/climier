@@ -14,7 +14,7 @@
 //                  bin's parser uses last-wins and would let a forwarded
 //                  duplicate alter the host's resolution).
 //   createApi    — optional factory injected by the caller. When omitted,
-//                  the dispatcher lazy-imports ../plugin-api.mjs. If that
+//                  the dispatcher lazy-imports ./api.mjs. If that
 //                  module is missing (T-plugin-api is parallel), a
 //                  placeholder factory is used that satisfies the
 //                  runtime contract but throws on every query/data call.
@@ -163,7 +163,7 @@ export function resolveEffectiveAgent(argv, namespace) {
 
 // ---- API seam -------------------------------------------------------
 
-// placeholderApiFactory — used when src/plugin-api.mjs has not been
+// placeholderApiFactory — used when src/plugins/api.mjs has not been
 // merged yet. Exposes a complete `runtime` (the only contract the
 // dispatcher must guarantee) and throws a structured
 // PLUGIN_HANDLER_FAILED for every query/data access so the failure is
@@ -195,15 +195,15 @@ function placeholderApiFactory({ projectDir, agent, pluginId }) {
   };
 }
 
-// loadApiFactory — lazy import of ./plugin-api.mjs. Caches the
-// successful module; falls back to the placeholder on any failure so
+// loadApiFactory — lazy import of ./api.mjs. Caches the successful
+// module; falls back to the placeholder on any failure so
 // the bin never crashes because the parallel task has not landed.
 let _apiFactory = null;
 let _apiFactoryResolved = false;
 async function loadApiFactory() {
   if (_apiFactoryResolved) return _apiFactory;
   try {
-    const mod = await import("../plugin-api.mjs");
+    const mod = await import("./api.mjs");
     if (mod && typeof mod.createApi === "function") {
       _apiFactory = mod.createApi;
     }
@@ -217,7 +217,7 @@ async function loadApiFactory() {
 
 // resetApiFactoryForTests — re-arms the lazy import so the next call
 // re-tries the import. Used by test suites that want to swap in a
-// different plugin-api.mjs after a test reset.
+// different api.mjs after a test reset.
 export function _resetApiFactoryForTests() {
   _apiFactory = null;
   _apiFactoryResolved = false;

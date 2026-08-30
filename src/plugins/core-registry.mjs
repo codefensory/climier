@@ -1,4 +1,4 @@
-// src/plugin-core-registry.mjs — registry builder for the graph kernel
+// src/plugins/core-registry.mjs — registry builder for the graph kernel
 // core providers (ADR-011 + ADR-012 §§1–3 + plan §B6A).
 //
 // This module is the **canonical** registry for built-in core
@@ -50,19 +50,19 @@ import {
   taskReleaseProvider,
   taskReopenProvider,
   taskCancelProvider,
-} from "./providers/task/index.mjs";
+} from "../providers/task/index.mjs";
 import {
   GATE_PROVIDER_KIND,
   gateProviders,
-} from "./providers/gate/index.mjs";
+} from "../providers/gate/index.mjs";
 import {
   createProvider as knowledgeCreateProviderFactory,
   updateProvider as knowledgeUpdateProviderFactory,
   deprecateProvider as knowledgeDeprecateProviderFactory,
-} from "./providers/knowledge/index.mjs";
-import { edgeAddProvider } from "./providers/core/edge.mjs";
-import { noteAddProvider } from "./providers/core/note.mjs";
-import { initiativeCreateProvider } from "./providers/core/initiative.mjs";
+} from "../providers/knowledge/index.mjs";
+import { edgeAddProvider } from "../providers/core/edge.mjs";
+import { noteAddProvider } from "../providers/core/note.mjs";
+import { initiativeCreateProvider } from "../providers/core/initiative.mjs";
 
 // ADMITTED_KINDS — whitelist of supported kinds for built-in entries.
 // Knowledge scopes/ranking helpers are not part of the registry

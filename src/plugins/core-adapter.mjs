@@ -1,4 +1,4 @@
-// src/plugin-core-adapter.mjs — V2 plugin core surface (ADR-006 §API y
+// src/plugins/core-adapter.mjs — V2 plugin core surface (ADR-006 §API y
 // compatibilidad + ADR-012 §2 + plan §B6B).
 //
 // `createCore({ projectDir, agent, pluginId })` returns
@@ -28,15 +28,15 @@
 // acceptance. Fixture-migration parity for the legacy `{ node }` /
 // `{ edge }` envelopes lives in the daughter fixture task.
 
-import { bootstrapBuiltins } from "./plugin-core-registry.mjs";
-import { mutate } from "./kernel/mutate.mjs";
-import { loadApplicablePolicy, authorizeAction, isPolicyError } from "./plugins/policy.mjs";
+import { bootstrapBuiltins } from "./core-registry.mjs";
+import { mutate } from "../kernel/mutate.mjs";
+import { loadApplicablePolicy, authorizeAction, isPolicyError } from "./policy.mjs";
 import {
   PluginCoreInvalidOperation,
   isPluginError,
   PolicyError,
   wrapCoreError,
-} from "./plugins/errors.mjs";
+} from "./errors.mjs";
 
 // Build the registry once at module load. The registry is
 // `Object.freeze`-d and only carries `{ id, kind, provider }`

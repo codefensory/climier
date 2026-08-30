@@ -1,6 +1,6 @@
 // test/plugin-core-registry.test.mjs — pure unit tests for the
 // `buildRegistry(providers)` builder and the explicit built-in
-// bootstrap that ships with `src/plugin-core-registry.mjs`.
+// bootstrap that ships with `src/plugins/core-registry.mjs`.
 //
 // T-graph-kernel-registry · plan §B6A + ADR-012 §§1–3: the registry
 // replaces the legacy `handler` table from ADR-006 with a typed entry
@@ -19,7 +19,7 @@ import assert from "node:assert/strict";
 
 import { importFresh } from "./helpers.mjs";
 
-const REGISTRY_MODULE = "../src/plugin-core-registry.mjs";
+const REGISTRY_MODULE = "../src/plugins/core-registry.mjs";
 
 // makeProvider — minimal `{ prepare, apply }` stub. Tests use the
 // returned references to verify the registry exposes the same
@@ -361,9 +361,9 @@ test("bootstrapBuiltins: never touches filesystem / lock / state / log / adapter
   const srcPath = fileUrl.fileURLToPath
     ? fileUrl.fileURLToPath()
     : fileUrl.pathname.replace(/^\/([A-Za-z]:)/, "$1");
-  const repoRoot = path.resolve(path.dirname(srcPath), "..");
+  const repoRoot = path.resolve(path.dirname(srcPath), "../..");
   const registrySrc = await fs.readFile(
-    path.resolve(repoRoot, "src/plugin-core-registry.mjs"),
+    path.resolve(repoRoot, "src/plugins/core-registry.mjs"),
     "utf8",
   );
 

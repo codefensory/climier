@@ -110,7 +110,7 @@ async function initAndSeed(projectDir) {
 }
 
 async function freshApi(projectDir, { agent, pluginId }) {
-  const { createApi } = await importFresh("./plugin-api.mjs");
+  const { createApi } = await importFresh("./plugins/api.mjs");
   return createApi({ projectDir, agent, pluginId });
 }
 

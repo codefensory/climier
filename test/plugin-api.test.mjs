@@ -86,7 +86,7 @@ async function seedState(dir, mutate) {
 }
 
 async function freshApi(dir, opts = {}) {
-  const { createApi } = await importFresh("./plugin-api.mjs");
+  const { createApi } = await importFresh("./plugins/api.mjs");
   return createApi({
     projectDir: dir,
     agent: opts.agent === undefined ? "tester" : opts.agent,
@@ -158,7 +158,7 @@ test("resolveRuntime: ignores unknown flags (passes them through without breakin
 // =========================================================================
 
 test("createApi: requires projectDir and pluginId", async () => {
-  const { createApi } = await importFresh("./plugin-api.mjs");
+  const { createApi } = await importFresh("./plugins/api.mjs");
   assert.throws(() => createApi({ projectDir: "", agent: "x", pluginId: "p" }), /projectDir/);
   assert.throws(() => createApi({ projectDir: "/tmp", agent: "x", pluginId: "" }), /pluginId/);
 });
@@ -644,7 +644,7 @@ test("createApi rejects calls to data.*.set without agent identity (agent must b
   const dir = await createTempProject();
   try {
     await seedState(dir);
-    const { createApi } = await importFresh("./plugin-api.mjs");
+    const { createApi } = await importFresh("./plugins/api.mjs");
     const api = createApi({ projectDir: dir, agent: "", pluginId: "example.audit" });
     await assert.rejects(
       api.data.node.set("T1", { a: 1 }),
@@ -666,7 +666,7 @@ test("createApi rejects calls to data.*.set without agent identity (agent must b
 test("createApi accepts pluginId that matches the V1 regex shape", async () => {
   const dir = await createTempProject();
   try {
-    const { createApi } = await importFresh("./plugin-api.mjs");
+    const { createApi } = await importFresh("./plugins/api.mjs");
     // We do not enforce the regex here (descriptor/install does that); the
     // surface only requires a non-empty pluginId string. Confirm both
     // canonical V1 id shapes work and empty fails.

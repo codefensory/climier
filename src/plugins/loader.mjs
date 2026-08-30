@@ -353,7 +353,7 @@ export async function readProjectConfig(projectDir) {
 
 // deepFreeze — recursively freeze an object graph so policy plugins
 // can't mutate the host's view of the project config. Mirrors the
-// pattern in `src/plugin-data.mjs`; duplicated here to avoid pulling
+// pattern in `src/plugins/data.mjs`; duplicated here to avoid pulling
 // the data module into a pure-loader concern.
 function deepFreeze(value, seen = new WeakSet()) {
   if (value === null || typeof value !== "object") return value;
