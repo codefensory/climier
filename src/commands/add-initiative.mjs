@@ -2,19 +2,33 @@
 // Duplicate names are rejected with ID_CONFLICT (F3 enforces
 // pre-registration per the v2 design doc).
 //
-// T-plugin-policy-seam-lifecycle / ADR-008 §"initiative.create":
-//   - Action: `initiative.create`.
-//   - The seam runs BEFORE `updateState`. A deny or error short-circuits
-//     the registration; no state mutation, no log entry.
-//   - allow / abstain → default core (register the initiative; ID_CONFLICT
-//     if it already exists; log entry appended on success).
-import { updateState, readState, isV2State, emptyState } from "../state.mjs";
-import { withLock } from "../lock.mjs";
-import { appendWithContext } from "../log.mjs";
+// This command is an adapter only. The initiative provider owns domain
+// validation and the kernel owns locking, revision/diff handling, logging and
+// persistence. The historical `add-initiative` action is retained in the
+// request so the persisted audit stream remains compatible.
+import { mutate } from "../kernel/mutate.mjs";
+import { initiativeCreateProvider } from "../providers/core/initiative.mjs";
 import { throwV2 } from "../errors.mjs";
 import { resolveAgent } from "../agent.mjs";
 import { loadApplicablePolicy, authorizeAction } from "../policy.mjs";
-import { PolicyDenied } from "../plugin-errors.mjs";
+
+// T-plugin-policy-seam-lifecycle / ADR-008 §"initiative.create":
+//   - policy selection happens outside the kernel lock;
+//   - authorization happens inside the kernel lock against its fresh snapshot;
+//   - deny means no state file, mutation or log entry.
+//
+// The kernel uses request.action to build its audit entry, while the built-in
+// initiative provider needs the canonical operation id to opt into bootstrap.
+// Restore the legacy CLI action after prepare so bootstrap remains explicit and
+// the persisted audit contract stays `add-initiative` without a second write.
+const cliInitiativeProvider = Object.freeze({
+  ...initiativeCreateProvider,
+  async prepare(args) {
+    const plan = await initiativeCreateProvider.prepare(args);
+    args.request.action = "add-initiative";
+    return plan;
+  },
+});
 
 export const knownFlags = ["desc", "as"];
 
@@ -37,7 +51,7 @@ function validateName(name) {
   }
 }
 
-export default async function addInitiative({ statePath, flags, positional, pluginId }) {
+export default async function addInitiative({ statePath, flags = {}, positional, pluginId }) {
   const [name] = positional;
   validateName(name);
   // F8: agent resolution sits at the end of the validation chain so the
@@ -46,91 +60,47 @@ export default async function addInitiative({ statePath, flags, positional, plug
   const as = resolveAgent(flags, "add-initiative");
   const projectDir = statePath;
   const desc = typeof flags.desc === "string" ? flags.desc : "";
-
   const policy = await loadApplicablePolicy({ projectDir });
 
-  return withLock(projectDir, async () => {
-    // Snapshot for the policy seam. The handler must NOT throw
-    // "state file missing" here: callers that bootstrap an initiative
-    // before `climier init` rely on `updateState`'s auto-create path.
-    // When no state exists yet we still hand the plugin a v2-shaped
-    // empty snapshot so plugins that only inspect shape see a valid
-    // input. The snapshot reflects the persisted view so a plugin
-    // can detect the name already being registered.
-    const persisted = await readState(projectDir);
-    const s = persisted || emptyState();
+  const policyAction = policy
+    ? {
+        action: "initiative.create",
+        pluginId: policy.pluginId || null,
+        decide: async ({ snapshot, target, request, action }) => authorizeAction({
+          policy,
+          action,
+          actor: request.actor,
+          target: {
+            ...target,
+            desc,
+            already_registered: Boolean(snapshot.initiatives && snapshot.initiatives[name]),
+          },
+          snapshot,
+          projectDir,
+          projectConfig: policy.projectConfig || {},
+        }),
+      }
+    : null;
 
-    const target = {
-      id: name,
-      kind: "initiative",
-      desc,
-      already_registered: Boolean(s.initiatives && s.initiatives[name]),
-    };
-    const snapshot = {
-      state: s,
-      nodes: { ...s.nodes },
-      edges: s.edges.slice(),
-      initiatives: { ...(s.initiatives || {}) },
-    };
-
-    const decision = await authorizeAction({
-      policy,
+  const result = await mutate({
+    projectDir,
+    request: {
       action: "initiative.create",
       actor: as,
-      target,
-      snapshot,
-      projectDir,
-      projectConfig: policy ? policy.projectConfig : {},
-    });
-    if (decision.decision === "deny") {
-      throw new PolicyDenied(
-        policy && policy.pluginId ? policy.pluginId : "(unknown)",
-        "initiative.create",
-        as,
-        decision.reason || "denied by policy",
-      );
-    }
-    // allow / abstain → proceed with default core (ID_CONFLICT may
-    // still trigger inside updateState, matching the historical path).
-
-    const result = await updateState(projectDir, (st) => {
-      st.initiatives = st.initiatives || {};
-      if (isV2State(st) && st.initiatives[name]) {
-        throwV2(
-          "ID_CONFLICT",
-          `add-initiative: '${name}' is already registered`,
-          {
-            name,
-            existing: {
-              desc: st.initiatives[name].desc || "",
-              created_at: st.initiatives[name].created_at,
-            },
-          },
-        );
-      }
-      st.initiatives[name] = { desc };
-      if (isV2State(st)) {
-        st.initiatives[name].created_at = new Date().toISOString();
-      }
-      return st;
-    });
-    // Log entry on success. ADR-006 §"Locks y logs" / plan §4.3: this
-    // closes the parity-slice gap where add-initiative omitted the log.
-    // appendWithContext injects plugin_id when ctx.pluginId is set.
-    await appendWithContext(
-      projectDir,
-      { agent: as, action: "add-initiative", node: name, desc },
-      { pluginId },
-    );
-    if (isV2State(result)) {
-      return {
-        initiative: {
-          name,
-          desc,
-          created_at: result.initiatives[name].created_at,
-        },
-      };
-    }
-    return { initiative: { name, desc } };
+      input: { name, desc },
+    },
+    provider: cliInitiativeProvider,
+    policyAction,
+    pluginId,
   });
+
+  const created = result.diff.initiatives.created.find((entry) => entry.name === name);
+  const initiative = created ? created.initiative : result.result;
+  return {
+    initiative: {
+      name,
+      desc: initiative.desc,
+      ...(initiative.created_at ? { created_at: initiative.created_at } : {}),
+    },
+  };
 }
