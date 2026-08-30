@@ -1,15 +1,19 @@
-// F6 — update: edit a v2 node's fields, incrementing its revision counter.
-// Supports --if-revision for optimistic-concurrency control: if the caller's
-// expected revision doesn't match the stored one, REVISION_CONFLICT is thrown
-// and nothing is written.
-import { readState, updateState } from "../state.mjs";
-import { withLock } from "../lock.mjs";
-import { appendWithContext } from "../log.mjs";
+// `update <id>` CLI adapter for the canonical task/gate/knowledge providers.
+//
+// The CLI keeps its historical flags and envelopes. This module only parses
+// those flags into typed provider input, selects the provider from the fresh
+// kernel snapshot, and delegates the mutation to kernel.mutate. Locking,
+// persistence, revision assignment, logging and policy execution remain
+// kernel responsibilities.
+import { mutate } from "../kernel/mutate.mjs";
 import { throwV2 } from "../errors.mjs";
 import { resolveAgent } from "../agent.mjs";
 import { validateExecution } from "../execution-contract.mjs";
 import { loadApplicablePolicy, authorizeAction } from "../policy.mjs";
 import { PolicyDenied } from "../plugin-errors.mjs";
+import { taskUpdateProvider } from "../providers/task/update.mjs";
+import { gateUpdateProvider } from "../providers/gate/update.mjs";
+import { updateProvider as knowledgeUpdateProvider } from "../providers/knowledge/update.mjs";
 
 export const knownFlags = [
   "title",
@@ -36,7 +40,7 @@ export const knownFlags = [
 
 function csv(raw) {
   if (!raw || raw === true) return [];
-  return String(raw).split(",").map((x) => x.trim()).filter(Boolean);
+  return String(raw).split(",").map((value) => value.trim()).filter(Boolean);
 }
 
 function refs(raw) {
@@ -49,16 +53,12 @@ function parseMeta(raw) {
   let parsed;
   try {
     parsed = JSON.parse(String(raw));
-  } catch (err) {
-    throw new Error(`update: --meta must be valid JSON (${err.message})`);
+  } catch (error) {
+    throw new Error(`update: --meta must be valid JSON (${error.message})`);
   }
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     throw new Error("update: --meta must be a JSON object");
   }
-  // Validate meta.execution when present. validateExecution re-throws with
-  // the INVALID_EXECUTION_CONTRACT code so callers can branch on it; other
-  // top-level keys on `parsed` are preserved unchanged so historical meta
-  // blocks continue to round-trip.
   return validateExecution(parsed);
 }
 
@@ -75,163 +75,243 @@ function parseBacklog(raw) {
 function parseIfRevision(raw) {
   if (raw === undefined) return undefined;
   if (raw === true) throw new Error("update: --if-revision requires a numeric value");
-  const n = Number(raw);
-  if (!Number.isInteger(n) || n < 1) {
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 1) {
     throw new Error(`update: --if-revision must be a positive integer (got '${raw}')`);
   }
-  return n;
+  return value;
 }
 
-// Flag name -> path to the field within the node. `meta` is special-cased
-// (replaces the object), `tags`/`refs` replace the array wholesale, `scope-*`
-// lives under node.scope.
-const SCALAR_FIELDS = ["title", "body", "initiative", "domain", "definition", "acceptance", "purpose", "resolution-mode", "knowledge-type", "mitigation"];
-const ARRAY_FIELDS = ["tags", "refs"];
+const SCALAR_FLAGS = [
+  "title",
+  "body",
+  "initiative",
+  "domain",
+  "definition",
+  "acceptance",
+  "purpose",
+  "mitigation",
+];
 
-export default async function updateV2({ statePath, flags, positional, pluginId }) {
-  const [id] = positional;
-  if (!id) throwV2("MISSING_FIELD", "update: node id required", { field: "id" });
-  const projectDir = statePath;
+function buildChanges(flags) {
+  const changes = {};
+  for (const field of SCALAR_FLAGS) {
+    if (flags[field] === undefined) continue;
+    if (flags[field] === true) throw new Error(`update: --${field} requires a value`);
+    changes[field] = flags[field];
+  }
 
-  // T-plugin-policy-seam-dag — ADR-008 §"Seam por handler":
-  // load the applicable policy BEFORE the lock. The decision itself
-  // runs INSIDE the lock against the snapshot read under the lock.
-  const policy = await loadApplicablePolicy({ projectDir });
+  if (flags["resolution-mode"] !== undefined) {
+    if (flags["resolution-mode"] === true) throw new Error("update: --resolution-mode requires a value");
+    changes.resolution_mode = flags["resolution-mode"];
+  }
+  if (flags["knowledge-type"] !== undefined) {
+    if (flags["knowledge-type"] === true) throw new Error("update: --knowledge-type requires a value");
+    changes.knowledge_type = flags["knowledge-type"];
+  }
+  if (flags.tags !== undefined) {
+    if (flags.tags === true) throw new Error("update: --tags requires a value");
+    changes.tags = csv(flags.tags);
+  }
+  if (flags.refs !== undefined) {
+    if (flags.refs === true) throw new Error("update: --refs requires a value");
+    changes.refs = refs(flags.refs);
+  }
+  if (flags.meta !== undefined) changes.meta = parseMeta(flags.meta);
 
-  return withLock(projectDir, async () => {
-    const s = await readState(projectDir);
-    if (!s) throw new Error("update: state file missing");
-    const node = s.nodes[id];
-    if (!node) throwV2("NODE_NOT_FOUND", `update: node ${id} not found`, { id });
+  const backlog = parseBacklog(flags.backlog);
+  if (backlog !== undefined) changes.backlog = backlog;
 
-    const expectedRevision = parseIfRevision(flags["if-revision"]);
-    if (expectedRevision !== undefined && node.revision !== expectedRevision) {
-      throwV2(
-        "REVISION_CONFLICT",
-        `update: node ${id} changed since revision ${expectedRevision}`,
-        { expected: expectedRevision, current: node.revision },
-      );
-    }
+  const scope = {};
+  for (const flag of ["scope-domains", "scope-initiatives", "scope-tags", "scope-node-ids"]) {
+    if (flags[flag] === undefined) continue;
+    if (flags[flag] === true) throw new Error(`update: --${flag} requires a value`);
+    const key = flag === "scope-node-ids"
+      ? "node_ids"
+      : flag.slice("scope-".length);
+    scope[key] = csv(flags[flag]);
+  }
+  if (Object.keys(scope).length > 0) changes.scope = scope;
 
-    const changes = {};
-    const patch = (path) => (value) => { changes[path] = value; };
+  if (Object.keys(changes).length === 0) {
+    throw new Error("update: at least one field required (e.g. --title X)");
+  }
+  return changes;
+}
 
-    // Scalar fields. Use `?? undefined` to allow clearing by passing an empty
-    // string — but only when the flag is explicitly provided (undefined check).
-    for (const field of SCALAR_FIELDS) {
-      if (flags[field] === undefined) continue;
-      if (flags[field] === true) throw new Error(`update: --${field} requires a value`);
-      changes[field] = flags[field];
-    }
+function providerFor(snapshot, id) {
+  const node = snapshot && snapshot.nodes ? snapshot.nodes[id] : null;
+  if (node && node.kind === "knowledge") return knowledgeUpdateProvider();
+  if (node && node.kind === "resolvable" && node.subkind === "gate") return gateUpdateProvider;
+  return taskUpdateProvider;
+}
 
-    if (flags.tags !== undefined) {
-      if (flags.tags === true) throw new Error("update: --tags requires a value");
-      changes.tags = csv(flags.tags);
-    }
-    if (flags.refs !== undefined) {
-      if (flags.refs === true) throw new Error("update: --refs requires a value");
-      changes.refs = refs(flags.refs);
-    }
+// The typed providers intentionally expose their own domain-specific patch
+// contracts. The historical CLI accepted the complete flag set for any v2
+// node, so retain that compatibility at this adapter boundary: supported
+// fields go through the canonical provider and the remaining known CLI fields
+// are applied to the same kernel transaction after the provider validates the
+// target and CAS. No direct persistence or logging is introduced here.
+const PROVIDER_PATCH_KEYS = Object.freeze({
+  task: new Set(["title", "body", "acceptance", "definition", "domain", "initiative", "tags", "refs"]),
+  gate: new Set(["title", "body", "initiative", "domain", "tags", "refs", "meta", "definition", "acceptance", "backlog", "purpose", "resolution_mode"]),
+  knowledge: new Set(["title", "body", "mitigation", "knowledge_type", "scope", "status", "domain", "tags", "refs", "meta"]),
+});
 
-    if (flags.meta !== undefined) {
-      changes.meta = parseMeta(flags.meta);
-    }
+function typedChanges(node, changes) {
+  const key = node && node.kind === "knowledge"
+    ? "knowledge"
+    : node && node.subkind === "gate"
+      ? "gate"
+      : "task";
+  const allowed = PROVIDER_PATCH_KEYS[key];
+  const typed = {};
+  const legacy = {};
+  for (const [field, value] of Object.entries(changes)) {
+    (allowed.has(field) ? typed : legacy)[field] = value;
+  }
+  return { typed, legacy };
+}
 
-    const backlog = parseBacklog(flags.backlog);
-    if (backlog !== undefined) changes.backlog = backlog;
+function actionForTarget(target) {
+  if (target && target.kind === "knowledge") return "knowledge.update";
+  if (target && target.kind === "resolvable" && target.subkind === "gate") return "gate.update";
+  return "task.update";
+}
 
-    // scope-* replace the matching sub-array on node.scope.
-    const scopePatch = {};
-    for (const f of ["scope-domains", "scope-initiatives", "scope-tags", "scope-node-ids"]) {
-      if (flags[f] === undefined) continue;
-      if (flags[f] === true) throw new Error(`update: --${f} requires a value`);
-      const key = f.replace(/^scope-/, "").replace(/-([a-z])/g, (_, c) => c.toUpperCase());
-      // scope-node-ids -> node_ids
-      const scopeKey = key === "nodeIds" ? "node_ids" : key;
-      scopePatch[scopeKey] = csv(flags[f]);
-    }
-    if (Object.keys(scopePatch).length > 0) changes.scope = scopePatch;
-
-    if (Object.keys(changes).length === 0) {
-      throw new Error("update: at least one field required (e.g. --title X)");
-    }
-
-    const as = resolveAgent(flags, "update");
-
-    // T-plugin-policy-seam-dag — ADR-008 §"Acciones canónicas" +
-    // §"update.mjs clasifica por subkind": the canonical action for
-    // `update` is split into task.update / gate.update / knowledge.update
-    // based on the resolved node's kind/subkind. The CLI/API surface
-    // still exposes a single `update <id>`; the seam sees the action
-    // matching what is about to be mutated. node.kind is `resolvable`
-    // for tasks and gates, `knowledge` for knowledge; resolvable
-    // carries the subkind discriminator.
-    let action;
-    if (node.kind === "knowledge") {
-      action = "knowledge.update";
-    } else if (node.kind === "resolvable" && node.subkind === "task") {
-      action = "task.update";
-    } else if (node.kind === "resolvable" && node.subkind === "gate") {
-      action = "gate.update";
-    } else {
-      // Should be unreachable: every node has either kind=knowledge or
-      // kind=resolvable with subkind in {task, gate}. Defensive
-      // fall-through so the seam does not silently accept unknown
-      // shapes.
-      throw new Error(
-        `update: internal error: cannot classify node ${id} (kind=${node.kind} subkind=${node.subkind})`,
-      );
-    }
-
-    // Seam (plan §3.4): authorize against the snapshot read under the
-    // lock. deny throws PolicyDenied without mutating state.
-    const decision = await authorizeAction({
-      policy,
-      action,
-      actor: as,
-      target: {
-        id,
-        kind: node.kind,
-        subkind: node.subkind,
-        status: node.status,
-      },
-      snapshot: s,
-      projectDir,
-      projectConfig: policy && policy.projectConfig ? policy.projectConfig : {},
-    });
-    if (decision.decision === "deny") {
-      throw new PolicyDenied(policy.pluginId, action, as, decision.reason);
-    }
-
-    const updated = await updateState(projectDir, (st) => {
-      const target = st.nodes[id];
-      for (const [field, value] of Object.entries(changes)) {
-        if (field === "scope") {
-          target.scope = { ...(target.scope || {}), ...value };
-        } else if (field === "backlog" && value === false) {
-          // Mirror add-node behaviour: false means "remove the flag", so the
-          // task drops back into the ready/blocked pool.
-          delete target.backlog;
-        } else {
-          target[field] = value;
-        }
+// The kernel receives this action only to label the outer request. The
+// policy seam must still see the typed action selected from the target, so
+// decide derives that action from the provider plan and throws the canonical
+// deny error itself (rather than allowing kernel.mutate to label it `update`).
+function policyAction({ policy, projectDir, agent }) {
+  return {
+    action: "update",
+    pluginId: policy && policy.pluginId ? policy.pluginId : null,
+    async decide({ snapshot, target }) {
+      const action = actionForTarget(target);
+      if (!policy) return { decision: "abstain" };
+      const decision = await authorizeAction({
+        policy,
+        action,
+        actor: agent,
+        target,
+        snapshot,
+        projectDir,
+        projectConfig: policy.projectConfig || {},
+      });
+      if (decision.decision === "deny") {
+        throw new PolicyDenied(
+          policy.pluginId || "(unknown)",
+          action,
+          agent,
+          decision.reason || "denied by policy",
+        );
       }
-      target.revision = (target.revision || 0) + 1;
-      return st;
-    });
+      return decision;
+    },
+  };
+}
 
-    await appendWithContext(
-      projectDir,
-      {
-        agent: as,
-        action: "update",
-        node: id,
-        revision: updated.nodes[id].revision,
-        changes,
-      },
-      { pluginId },
-    );
+export default async function update({
+  statePath,
+  projectDir,
+  flags = {},
+  positional = [],
+  pluginId,
+}) {
+  const id = positional[0];
+  if (!id) throwV2("MISSING_FIELD", "update: node id required", { field: "id" });
 
-    return { node: updated.nodes[id] };
+  const dir = projectDir || statePath;
+  const agent = resolveAgent(flags, "update");
+  const changes = buildChanges(flags);
+  const expectedRevision = parseIfRevision(flags["if-revision"]);
+  const policy = await loadApplicablePolicy({ projectDir: dir });
+
+  // `update` remains the historical audit action in the CLI log. The policy
+  // seam receives the typed operation (task.update/gate.update/
+  // knowledge.update) through `policyAction` below; keeping this request
+  // action stable preserves the public CLI history contract.
+  const request = {
+    action: "update",
+    actor: agent,
+    input: { id, changes, if_revision: expectedRevision },
+  };
+
+  const adapterProvider = {
+    async prepare(args) {
+      const provider = providerFor(args.snapshot, id);
+      const node = args.snapshot && args.snapshot.nodes ? args.snapshot.nodes[id] : null;
+      const current = node;
+      // Older direct callers did not pass --if-revision. Keep that CLI
+      // compatibility while still declaring a kernel CAS from the fresh
+      // snapshot; callers that provide the flag get the strict value they
+      // requested and stale edits fail with REVISION_CONFLICT.
+      const revision = expectedRevision ?? (current && Number.isInteger(current.revision) ? current.revision : 1);
+      // The task provider's historical plan uses a plain if_revisions map,
+      // while kernel.mutate accepts the structured precondition. Supplying it
+      // on the request gives every provider one canonical single-node CAS.
+      request.if_revision = { kind: "single", id, value: revision };
+      const { typed, legacy } = typedChanges(node, changes);
+      // Scope flags historically patched only the named arrays. Expand the
+      // partial CLI scope against the current node before handing it to a
+      // provider (knowledge.update replaces scope wholesale) or the legacy
+      // compatibility patch below.
+      if (typed.scope) typed.scope = { ...(current && current.scope ? current.scope : {}), ...typed.scope };
+      if (legacy.scope) legacy.scope = { ...(current && current.scope ? current.scope : {}), ...legacy.scope };
+      if (legacy.backlog === false) legacy.backlog = undefined;
+      // A CLI-only field may be the complete patch. Give the provider an
+      // idempotent typed field so it still validates target and revision;
+      // legacy is then applied in the same tx by `apply` below.
+      const providerChanges = Object.keys(typed).length > 0
+        ? typed
+        : { title: current && typeof current.title === "string" ? current.title : "" };
+      const input = {
+        ...args.input,
+        changes: providerChanges,
+        if_revision: revision,
+      };
+      const plan = await provider.prepare({ ...args, input });
+      // Keep the historical policy target projection available in addition
+      // to the typed provider target fields.
+      return {
+        ...plan,
+        target: { ...plan.target, status: current && current.status },
+        legacy_patch: legacy,
+      };
+    },
+    async apply(args) {
+      const provider = providerFor(args.snapshot, id);
+      const applied = await provider.apply(args);
+      if (args.plan.legacy_patch && Object.keys(args.plan.legacy_patch).length > 0) {
+        args.tx.updateNode(id, args.plan.legacy_patch);
+      }
+      // Providers may return a compact result (knowledge.update returns only
+      // id/kind). The CLI envelope has always returned the complete node, so
+      // project the transaction's post-patch node while still letting the
+      // provider supply operation-specific effects.
+      return { ...applied, result: args.tx.getNode(id) };
+    },
+  };
+
+  const mutation = await mutate({
+    projectDir: dir,
+    request,
+    provider: adapterProvider,
+    policyAction: policyAction({ policy, projectDir: dir, agent }),
+    pluginId,
   });
+
+  let node = mutation.diff.updated.find((entry) => entry.id === id)?.node;
+  if (!node && mutation.result && typeof mutation.result === "object") {
+    node = {
+      ...mutation.result,
+      revision: mutation.diff.target_revision,
+    };
+    delete node.added_edges;
+  }
+  if (!node) {
+    throwV2("INVALID_EXECUTION_CONTRACT", `update: kernel did not return node ${id}`, { id });
+  }
+  return { node };
 }
