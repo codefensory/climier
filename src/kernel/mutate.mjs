@@ -37,7 +37,7 @@
 // the plugin-core-adapter, bin/climier.mjs, or anything in src/ui/.
 import { AsyncLocalStorage } from "node:async_hooks";
 import fs from "node:fs/promises";
-import { readState, writeState, stateFile, createSnapshot } from "../state.mjs";
+import { readState, writeState, stateFile, createSnapshot, emptyState } from "../state.mjs";
 import { withLock } from "../lock.mjs";
 import { prepareLogEntry } from "../log.mjs";
 import { throwV2 } from "../errors.mjs";
@@ -604,7 +604,9 @@ async function runStateMutation({ projectDir, request, stateOperation, policyAct
  *   `apply`. `prepare({ snapshot, input, request }) → plan` runs once
  *   under the lock against the fresh snapshot. `apply({ tx, plan,
  *   input, request, snapshot }) → { result?, effects? }` mutates the tx
- *   only; effects is optional and not persisted.
+ *   only; effects is optional and not persisted. The built-in
+ *   `initiative.create` provider may additionally set
+ *   `bootstrapMissingState: true` to opt into an absent-state snapshot.
  * @param {object} [args.policyAction] - Optional authorization step.
  *   Shape: `{ decide({ snapshot, target, request, action }) →
  *     { decision: 'allow'|'deny'|'abstain', reason?: string } | throws,
@@ -670,12 +672,22 @@ export async function mutate({ projectDir, request, provider, policyAction, plug
       if (stateOperation !== undefined) {
         return runStateMutation({ projectDir, request, stateOperation, policyAction, pluginId });
       }
-      const snapshot = await readState(projectDir);
+      const loadedState = await readState(projectDir);
+      // Missing state is a deliberately narrow capability. Only the built-in
+      // initiative provider opts into it, and only for the matching operation;
+      // every other provider still receives the established "run init first"
+      // contract. The empty v2 state is kept in memory until the normal
+      // transaction path writes the initiative and its log atomically.
+      const mayBootstrap =
+        loadedState === null &&
+        request.action === "initiative.create" &&
+        provider.bootstrapMissingState === true;
+      const snapshot = loadedState ?? (mayBootstrap ? emptyState() : null);
       if (!snapshot || typeof snapshot !== "object" || snapshot.version !== 2) {
-        // The kernel does not bootstrap; the caller (CLI handler,
-        // plugin-core-adapter, internals) is responsible for ensuring
-        // the state has been initialised. Be loud — this is a contract
-        // violation, not a recoverable error.
+        // The kernel does not bootstrap arbitrary operations; the caller
+        // (CLI handler, plugin-core-adapter, internals) is responsible for
+        // ensuring the state has been initialised. Be loud — this is a
+        // contract violation, not a recoverable error.
         throw new Error(`${commandName}: state file missing or not v2 (run init first)`);
       }
 

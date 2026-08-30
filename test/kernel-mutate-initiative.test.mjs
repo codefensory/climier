@@ -15,7 +15,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { createTempProject, rmTempProject, importFresh, readState as readStateHelper, writeState as writeStateHelper } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, readState as readStateHelper, writeState as writeStateHelper, stateExists } from "./helpers.mjs";
 
 async function importKernel() {
   return importFresh("./kernel/mutate.mjs");
@@ -279,6 +279,75 @@ test("kernel.mutate: snapshot's initiatives map is preserved when only a new one
     const after = await readStateHelper(dir);
     assert.deepEqual(after.initiatives.kernel, { desc: "kernel initiative", created_at: "2026-01-01T00:00:00.000Z" });
     assert.deepEqual(after.initiatives["new-one"], { desc: "new" });
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+// ===================================================================
+// Acceptance: the built-in initiative provider may bootstrap once
+// ===================================================================
+
+test("kernel.mutate: initiative.create bootstraps an absent state in one write", async () => {
+  const { mutate } = await importKernel();
+  const { initiativeCreateProvider } = await importFresh("./providers/core/initiative.mjs");
+  const dir = await createTempProject();
+  try {
+    assert.equal(await stateExists(dir), false);
+    const out = await mutate({
+      projectDir: dir,
+      request: { action: "initiative.create", actor: "alice", input: { name: "bootstrap", desc: "first project" } },
+      provider: initiativeCreateProvider,
+    });
+    assert.equal(out.idempotent, false);
+    const after = await readStateHelper(dir);
+    assert.equal(after.version, 2);
+    assert.deepEqual(after.nodes, {});
+    assert.deepEqual(after.edges, []);
+    assert.deepEqual(after.initiatives.bootstrap, { desc: "first project", created_at: after.initiatives.bootstrap.created_at });
+    assert.equal(after.log.length, 1);
+    assert.equal(after.log[0].action, "initiative.create");
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("kernel.mutate: denied bootstrap leaves state absent", async () => {
+  const { mutate } = await importKernel();
+  const { initiativeCreateProvider } = await importFresh("./providers/core/initiative.mjs");
+  const dir = await createTempProject();
+  try {
+    await assert.rejects(
+      mutate({
+        projectDir: dir,
+        request: { action: "initiative.create", actor: "alice", input: { name: "denied" } },
+        provider: initiativeCreateProvider,
+        policyAction: {
+          decide: async () => ({ decision: "deny", reason: "no bootstrap" }),
+          pluginId: "policy.test",
+        },
+      }),
+      (err) => err.code === "POLICY_DENIED",
+    );
+    assert.equal(await stateExists(dir), false);
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("kernel.mutate: second initiative.create rejects without changing the bootstrapped state", async () => {
+  const { mutate } = await importKernel();
+  const { initiativeCreateProvider } = await importFresh("./providers/core/initiative.mjs");
+  const dir = await createTempProject();
+  try {
+    const request = { action: "initiative.create", actor: "alice", input: { name: "bootstrap" } };
+    await mutate({ projectDir: dir, request, provider: initiativeCreateProvider });
+    const before = await readStateHelper(dir);
+    await assert.rejects(
+      mutate({ projectDir: dir, request, provider: initiativeCreateProvider }),
+      (err) => err.code === "ID_CONFLICT",
+    );
+    assert.deepEqual(await readStateHelper(dir), before);
   } finally {
     await rmTempProject(dir);
   }
