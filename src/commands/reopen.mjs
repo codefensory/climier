@@ -4,7 +4,7 @@
 import { mutate } from "../kernel/mutate.mjs";
 import { throwV2 } from "../errors.mjs";
 import { resolveAgent } from "../agent.mjs";
-import { loadApplicablePolicy, authorizeAction } from "../policy.mjs";
+import { loadApplicablePolicy, authorizeAction } from "../plugins/policy.mjs";
 import { taskReopenProvider } from "../providers/task/reopen.mjs";
 import {
   gateReopenProvider,

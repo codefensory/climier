@@ -4,7 +4,7 @@
 // arguments and projects the established output shape.
 import { throwV2 } from "../errors.mjs";
 import { resolveAgent } from "../agent.mjs";
-import { loadApplicablePolicy, authorizeAction } from "../policy.mjs";
+import { loadApplicablePolicy, authorizeAction } from "../plugins/policy.mjs";
 import { restoreState } from "../kernel/state-operations.mjs";
 
 export const knownFlags = ["as"];

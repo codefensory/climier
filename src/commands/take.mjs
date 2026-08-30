@@ -4,7 +4,7 @@
 import { mutate } from "../kernel/mutate.mjs";
 import { throwV2 } from "../errors.mjs";
 import { resolveAgent } from "../agent.mjs";
-import { loadApplicablePolicy, authorizeAction } from "../policy.mjs";
+import { loadApplicablePolicy, authorizeAction } from "../plugins/policy.mjs";
 import { PolicyDenied } from "../plugins/errors.mjs";
 import { taskTakeProvider } from "../providers/task/take.mjs";
 import { statusOfV2 } from "../providers/task/derivation.mjs";

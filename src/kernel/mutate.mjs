@@ -486,7 +486,7 @@ async function runPolicy(policyAction, snapshot, plan, request, commandName) {
     decision = await policyAction.decide({ snapshot, target: plan.target, request, action });
   } catch (err) {
     // POLICY_* errors raised by decide() (typically the PolicyError /
-    // PolicyDenied / PolicyConflict classes thrown from src/policy.mjs
+    // PolicyDenied / PolicyConflict classes thrown from src/plugins/policy.mjs
     // authorizeAction) are policy-domain errors and must propagate with
     // their original code and details — they are NOT contract
     // violations of decide() itself. Anything else (a bare Error /

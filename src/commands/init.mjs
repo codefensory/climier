@@ -3,7 +3,7 @@
 // atomic persistence; this module only handles CLI-specific setup and output.
 import { stateFile, ensureProjectMeta } from "../state.mjs";
 import { resolveAgent } from "../agent.mjs";
-import { loadApplicablePolicy, authorizeAction } from "../policy.mjs";
+import { loadApplicablePolicy, authorizeAction } from "../plugins/policy.mjs";
 import { initState } from "../kernel/state-operations.mjs";
 
 export const knownFlags = ["force", "as"];

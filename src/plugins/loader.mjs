@@ -211,7 +211,7 @@ export async function hasInstalledPlugin(namespace) {
 // `importEntry`, and returns the subset that publishes one. Skipped
 // plugins (no policy, or invalid policy shape) are surfaced as
 // warnings to the loader caller but never abort the discovery — only
-// the `loadApplicablePolicy` selector (in `src/policy.mjs`) decides
+// the `loadApplicablePolicy` selector (in `src/plugins/policy.mjs`) decides
 // whether a missing or conflicting policy is fatal.
 //
 // The scan is NOT cached between commands (ADR-007 §"Discovery global"

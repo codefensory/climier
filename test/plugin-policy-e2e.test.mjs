@@ -5,9 +5,8 @@
 // The fixture at test/fixtures/plugins/policy-fixture/ exposes
 // default.policy = { applies, authorize } alongside default.commands.
 // Subcommands on the fixture namespace let this test verify
-// applies/authorize behavior without depending on src/policy.mjs
-// (which lands in T-plugin-policy-foundation, a parallel Batch A
-// task). When the foundation lands, the same contract is exercised
+// applies/authorize behavior without depending on src/plugins/policy.mjs
+// (which is covered by T-plugin-policy-foundation). The same contract is exercised
 // end-to-end by the seam tests in
 // T-plugin-policy-seam-lifecycle / T-plugin-policy-seam-dag /
 // T-plugin-policy-migration-tests.

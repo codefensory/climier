@@ -17,7 +17,7 @@
 // structured error envelopes.
 
 import { mutate } from "../kernel/mutate.mjs";
-import { loadApplicablePolicy, authorizeAction } from "../policy.mjs";
+import { loadApplicablePolicy, authorizeAction } from "../plugins/policy.mjs";
 import { throwV2 } from "../errors.mjs";
 import { resolveAgent } from "../agent.mjs";
 import { edgeAddProvider } from "../providers/core/edge.mjs";
