@@ -2,7 +2,7 @@
 // knowledge-core provider slice (plan B4-knowledge-core).
 //
 // Returns the INFORMS edges of a node, projected as inline node data.
-// Mirrors `informingForNode` in `v2.mjs` (F7) but operates on a snapshot
+// Provides the `informingForNode` projection over a snapshot
 // rather than reading state from the filesystem; the provider stays the
 // new canonical implementation per ADR-012 §3.
 //

@@ -50,13 +50,13 @@
 //       blocker when the gate moves to canceled (canceled gates never
 //       satisfy, matching isSatisfiedV2).
 //
-// isSatisfied truth table (mirrors v2.mjs#isSatisfiedV2):
+// isSatisfied truth table (mirrors the task provider's graph semantics):
 //   task:  done | archived => true
 //   gate:  resolved       => true
 //          superseded     => chain walk through SUPERSEDES
 //          anything else  => false
 // The provider uses a pure in-graph helper so it can evaluate isSatisfied
-// against both the snapshot and the draft view without importing v2.mjs.
+// against both the snapshot and the draft view without importing command adapters.
 
 import { throwV2 } from "../../errors.mjs";
 import { GATE_STATUSES } from "./create.mjs";

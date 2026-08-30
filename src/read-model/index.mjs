@@ -3,7 +3,7 @@
 // This layer is the only place that composes graph semantics with domain
 // providers. It has no filesystem, argv, mutation, or logging concerns. The
 // object-shaped arguments are the canonical API; the positional form is kept
-// solely so the temporary v2 facade can preserve its historical import shape.
+// solely so read consumers can use a stable object-shaped API.
 
 import { incoming } from "../kernel/graph.mjs";
 import {
@@ -79,7 +79,7 @@ export function informingForNode(input, id) {
 }
 
 // Descriptive aliases for new consumers. The V2 names are retained only as
-// compatibility aliases while the remaining consumers migrate off v2.mjs.
+// compatibility aliases for callers that use the versioned state vocabulary.
 export const deriveReadModel = derive;
 export const statusOfV2 = statusOf;
 export const projectStatus = statusOf;

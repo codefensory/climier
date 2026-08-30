@@ -2,7 +2,7 @@
 //
 // ADR-011 §§2–3 + ADR-012 §3 + plan §B2: the kernel owns the generic edge
 // constants, the canonical BLOCKS constructor and the structural validator.
-// v2.mjs, the mutating commands, and the future providers all consume these
+// mutating commands and providers all consume these
 // primitives; nothing else may redefine them.
 //
 // Contract:
@@ -23,7 +23,7 @@ import { throwV2 } from "../errors.mjs";
 
 // Whitelist of edge types accepted by mutating paths. Frozen so callers
 // cannot mutate the canonical list; transaction.mjs and the future
-// providers share this same source of truth (v2.mjs re-exports it).
+// providers share this same source of truth.
 export const EDGE_TYPES = Object.freeze(["BLOCKS", "SUPERSEDES", "DERIVED_FROM"]);
 
 // Historical read-only relation names retained for compatibility with the
@@ -66,7 +66,7 @@ export function existingEdge(state, from, to, type) {
  *
  * Direction is fixed: the first argument is the blocker (the dependency),
  * the second is the blocked (the dependent). The shape matches the on-disk
- * representation consumed by validateEdge, the v2 facade, and the kernel
+ * representation consumed by validateEdge and kernel transactions
  * transactions.
  *
  * @param {string} blockerId

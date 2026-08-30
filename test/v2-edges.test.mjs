@@ -4,6 +4,8 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { throwV2 } from "../src/errors.mjs";
+import { EDGE_TYPES, existingEdge, validateEdge } from "../src/kernel/edges.mjs";
 import { createTempProject, rmTempProject, importFresh, runCli } from "./helpers.mjs";
 
 // --- pure helpers -------------------------------------------------------
@@ -21,8 +23,7 @@ const resolvableTask = (id) => ({ id, kind: "resolvable", subkind: "task", title
 const resolvableGate = (id) => ({ id, kind: "resolvable", subkind: "gate", title: id });
 const knowledgeNode = (id) => ({ id, kind: "knowledge", title: id });
 
-test("throwV2: re-exported from v2.mjs, throws an Error with code, message, and details", async () => {
-  const { throwV2 } = await importFresh("./v2.mjs");
+test("throwV2: throws an Error with code, message, and details", async () => {
   let caught;
   try {
     throwV2("SOMETHING", "it broke", { foo: 1 });
@@ -37,12 +38,10 @@ test("throwV2: re-exported from v2.mjs, throws an Error with code, message, and 
 });
 
 test("EDGE_TYPES: lists BLOCKS, SUPERSEDES, DERIVED_FROM only", async () => {
-  const { EDGE_TYPES } = await importFresh("./v2.mjs");
   assert.deepEqual([...EDGE_TYPES].sort(), ["BLOCKS", "DERIVED_FROM", "SUPERSEDES"]);
 });
 
 test("existingEdge: matches on exact (from, to, type) triple", async () => {
-  const { existingEdge } = await importFresh("./v2.mjs");
   const state = makeState(
     { A: resolvableTask("A"), B: resolvableGate("B") },
     [{ from: "A", to: "B", type: "BLOCKS" }],
@@ -51,7 +50,6 @@ test("existingEdge: matches on exact (from, to, type) triple", async () => {
 });
 
 test("existingEdge: returns false when type differs", async () => {
-  const { existingEdge } = await importFresh("./v2.mjs");
   const state = makeState(
     { A: resolvableTask("A"), B: resolvableGate("B") },
     [{ from: "A", to: "B", type: "BLOCKS" }],
@@ -60,7 +58,6 @@ test("existingEdge: returns false when type differs", async () => {
 });
 
 test("existingEdge: returns false on empty / unrelated edges", async () => {
-  const { existingEdge } = await importFresh("./v2.mjs");
   const state = makeState({ A: resolvableTask("A"), B: resolvableGate("B") }, []);
   assert.equal(existingEdge(state, "A", "B", "BLOCKS"), false);
 });
@@ -68,7 +65,6 @@ test("existingEdge: returns false on empty / unrelated edges", async () => {
 // --- validateEdge -------------------------------------------------------
 
 test("validateEdge: self-edge is rejected with code SELF_EDGE", async () => {
-  const { validateEdge } = await importFresh("./v2.mjs");
   const state = makeState({ T1: resolvableTask("T1") });
   assert.throws(
     () => validateEdge(state, { from: "T1", to: "T1", type: "BLOCKS" }, "cmd"),
@@ -77,7 +73,6 @@ test("validateEdge: self-edge is rejected with code SELF_EDGE", async () => {
 });
 
 test("validateEdge: missing from-node is rejected with code INVALID_EDGE_TARGET", async () => {
-  const { validateEdge } = await importFresh("./v2.mjs");
   const state = makeState({ B: resolvableGate("B") });
   assert.throws(
     () => validateEdge(state, { from: "A", to: "B", type: "BLOCKS" }, "cmd"),
@@ -86,7 +81,6 @@ test("validateEdge: missing from-node is rejected with code INVALID_EDGE_TARGET"
 });
 
 test("validateEdge: missing to-node is rejected with code INVALID_EDGE_TARGET", async () => {
-  const { validateEdge } = await importFresh("./v2.mjs");
   const state = makeState({ A: resolvableTask("A") });
   assert.throws(
     () => validateEdge(state, { from: "A", to: "B", type: "BLOCKS" }, "cmd"),
@@ -95,7 +89,6 @@ test("validateEdge: missing to-node is rejected with code INVALID_EDGE_TARGET", 
 });
 
 test("validateEdge: BLOCKS requires both ends to be resolvable (to is knowledge)", async () => {
-  const { validateEdge } = await importFresh("./v2.mjs");
   const state = makeState({ T: resolvableTask("T"), K: knowledgeNode("K") });
   assert.throws(
     () => validateEdge(state, { from: "T", to: "K", type: "BLOCKS" }, "cmd"),
@@ -104,7 +97,6 @@ test("validateEdge: BLOCKS requires both ends to be resolvable (to is knowledge)
 });
 
 test("validateEdge: BLOCKS requires both ends to be resolvable (from is knowledge)", async () => {
-  const { validateEdge } = await importFresh("./v2.mjs");
   const state = makeState({ T: resolvableTask("T"), K: knowledgeNode("K") });
   assert.throws(
     () => validateEdge(state, { from: "K", to: "T", type: "BLOCKS" }, "cmd"),
@@ -113,7 +105,6 @@ test("validateEdge: BLOCKS requires both ends to be resolvable (from is knowledg
 });
 
 test("validateEdge: SUPERSEDES requires both ends to be the same kind (gate vs knowledge)", async () => {
-  const { validateEdge } = await importFresh("./v2.mjs");
   const state = makeState({ G: resolvableGate("G"), K: knowledgeNode("K") });
   assert.throws(
     () => validateEdge(state, { from: "G", to: "K", type: "SUPERSEDES" }, "cmd"),
@@ -122,7 +113,6 @@ test("validateEdge: SUPERSEDES requires both ends to be the same kind (gate vs k
 });
 
 test("validateEdge: SUPERSEDES between gates is accepted", async () => {
-  const { validateEdge } = await importFresh("./v2.mjs");
   const state = makeState({ G1: resolvableGate("G1"), G2: resolvableGate("G2") });
   assert.doesNotThrow(() =>
     validateEdge(state, { from: "G1", to: "G2", type: "SUPERSEDES" }, "cmd"),
@@ -130,7 +120,6 @@ test("validateEdge: SUPERSEDES between gates is accepted", async () => {
 });
 
 test("validateEdge: SUPERSEDES between knowledge nodes is accepted", async () => {
-  const { validateEdge } = await importFresh("./v2.mjs");
   const state = makeState({ K1: knowledgeNode("K1"), K2: knowledgeNode("K2") });
   assert.doesNotThrow(() =>
     validateEdge(state, { from: "K1", to: "K2", type: "SUPERSEDES" }, "cmd"),
@@ -138,7 +127,6 @@ test("validateEdge: SUPERSEDES between knowledge nodes is accepted", async () =>
 });
 
 test("validateEdge: DERIVED_FROM has no extra kind rule", async () => {
-  const { validateEdge } = await importFresh("./v2.mjs");
   const state = makeState({ K: knowledgeNode("K"), T: resolvableTask("T") });
   assert.doesNotThrow(() =>
     validateEdge(state, { from: "K", to: "T", type: "DERIVED_FROM" }, "cmd"),
@@ -146,7 +134,6 @@ test("validateEdge: DERIVED_FROM has no extra kind rule", async () => {
 });
 
 test("validateEdge: rejects unknown edge types with code INVALID_EDGE_TYPE", async () => {
-  const { validateEdge } = await importFresh("./v2.mjs");
   const state = makeState({ T: resolvableTask("T"), G: resolvableGate("G") });
   assert.throws(
     () => validateEdge(state, { from: "T", to: "G", type: "INFORMS" }, "cmd"),
