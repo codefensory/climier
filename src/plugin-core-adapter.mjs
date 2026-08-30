@@ -213,7 +213,7 @@ export function createCore({ projectDir, agent, pluginId }) {
      * run — the single mutation frontier for plugin core actions.
      *
      * @param {object} args
-     * @param {string} args.op - One of the 17 op ids in `bootstrapBuiltins()`.
+     * @param {string} args.op - One of the 18 op ids in `bootstrapBuiltins()`.
      * @param {object} args.input - Typed input; shape per provider.
      *   `as` / `_as` are forbidden.
      *

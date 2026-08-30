@@ -268,6 +268,7 @@ test("bootstrapBuiltins: includes all ADR-012 task / gate / knowledge operation 
     "task.reopen",
     "task.cancel",
     "gate.create",
+    "gate.update",
     "gate.resolve",
     "gate.reopen",
     "gate.cancel",
@@ -282,7 +283,7 @@ test("bootstrapBuiltins: includes all ADR-012 task / gate / knowledge operation 
     assert.ok(reg.has(id), `bootstrapBuiltins registers ${id}`);
   }
   assert.ok(Object.isFrozen(reg), "bootstrap registry is frozen");
-  assert.equal(reg.ops.length, expectedIds.length, "all 17 expected ids present, no extras");
+  assert.equal(reg.ops.length, expectedIds.length, "all 18 expected ids present, no extras");
 
   // bootstrap must NOT expose plan-derived actions that are not part
   // of the public core surface (task.takeover, state.restore, etc.).
@@ -302,18 +303,20 @@ test("bootstrapBuiltins: includes all ADR-012 task / gate / knowledge operation 
   // pointing to a real provider (no handlers/argv).
   for (const id of expectedIds) {
     const entry = reg.get(id);
+    assert.deepEqual(Object.keys(entry).sort(), ["id", "kind", "provider"], `${id} has only canonical entry fields`);
     assert.equal(entry.id, id);
     assert.ok(["task", "gate", "knowledge", "core"].includes(entry.kind), `${id} kind ∈ ADR-012 + core kinds`);
+    assert.deepEqual(Object.keys(entry.provider).sort(), ["apply", "prepare"], `${id} provider has only prepare/apply`);
     assert.equal(typeof entry.provider, "object");
     assert.equal(typeof entry.provider.prepare, "function", `${id} provider.prepare is fn`);
     assert.equal(typeof entry.provider.apply, "function", `${id} provider.apply is fn`);
   }
 
-  // byKind grouping: 7 task + 4 gate + 3 knowledge + 3 core
+  // byKind grouping: 7 task + 5 gate + 3 knowledge + 3 core
   // (edge.add + note.add + initiative.create) per the §B6A + §B6B
   // contract.
   assert.equal(reg.byKind.get("task").length, 7, "task has 7 ops");
-  assert.equal(reg.byKind.get("gate").length, 4, "gate has 4 ops");
+  assert.equal(reg.byKind.get("gate").length, 5, "gate has 5 ops");
   assert.equal(reg.byKind.get("knowledge").length, 3, "knowledge has 3 ops");
   assert.equal(reg.byKind.get("core").length, 3, "core has 3 ops");
 
@@ -344,6 +347,7 @@ test("bootstrapBuiltins: provider references are the frozen built-in objects (no
 });
 
 test("bootstrapBuiltins: never touches filesystem / lock / state / log / adapter / CLI / UI", async () => {
+  const mod = await importRegistry();
   // Static assertion: the registry module must not import any of
   // those surfaces for its buildRegistry/bootstrapBuiltins path. We
   // probe the source string after import to keep this test fast and
@@ -363,12 +367,8 @@ test("bootstrapBuiltins: never touches filesystem / lock / state / log / adapter
     "utf8",
   );
 
-  // 1. The new builder/bootstrap path must NOT import mutating
-  // surfaces. We search only BEFORE the LEGACY EXPORTS marker so
-  // that the transitional V2 compat shim stays allowed.
-  const legacyIdx = registrySrc.indexOf("LEGACY EXPORTS");
-  const builderSrc =
-    legacyIdx >= 0 ? registrySrc.slice(0, legacyIdx) : registrySrc;
+  // 1. The registry must not import legacy mutating surfaces at all.
+  // Its public entries are provider pairs, never command handlers.
   const forbiddenInBuilder = [
     "../commands/",
     "./commands/",
@@ -391,12 +391,17 @@ test("bootstrapBuiltins: never touches filesystem / lock / state / log / adapter
   ];
   for (const token of forbiddenInBuilder) {
     assert.ok(
-      !builderSrc.includes(token),
-      `buildRegistry/bootstrap path does not import ${token}`,
+      !registrySrc.includes(token),
+      `registry does not import ${token}`,
     );
   }
 
-  // 2. The module exposes the canonical builder/bootstrap.
+  // 2. The module exposes the canonical builder/bootstrap and no
+  // legacy registry symbols or handler table.
   assert.ok(registrySrc.includes("export function buildRegistry"));
   assert.ok(registrySrc.includes("export function bootstrapBuiltins"));
+  assert.equal(mod.CORE_REGISTRY, undefined);
+  assert.equal(mod.SUPPORTED_OPS, undefined);
+  assert.equal(registrySrc.includes("handler:"), false);
+  assert.equal(registrySrc.includes("LEGACY_"), false);
 });
