@@ -54,6 +54,39 @@ function asNonEmptyString(value) {
   return typeof value === "string" && value.length > 0 ? value : null;
 }
 
+function readSnapshotPlugins(snapshot) {
+  return snapshot && snapshot.plugins && typeof snapshot.plugins === "object" && !Array.isArray(snapshot.plugins)
+    ? snapshot.plugins
+    : {};
+}
+
+function requirePluginId(pluginId, operation) {
+  const id = asNonEmptyString(pluginId);
+  if (!id) {
+    throwV2("MISSING_FIELD", `${operation}: pluginId must be a non-empty string`, { field: "pluginId" });
+  }
+  return id;
+}
+
+function requireNodeId(nodeId, operation) {
+  const id = asNonEmptyString(nodeId);
+  if (!id) {
+    throwV2("MISSING_FIELD", `${operation}: nodeId must be a non-empty string`, { field: "nodeId" });
+  }
+  return id;
+}
+
+function cloneValue(value, operation, field) {
+  try {
+    return clone(value);
+  } catch (err) {
+    throwV2("INVALID_EXECUTION_CONTRACT", `${operation}: ${field} must be cloneable JSON data`, {
+      field,
+      cause: err && err.name ? err.name : "DataCloneError",
+    });
+  }
+}
+
 function findEdgeIndex(edges, predicate) {
   for (let i = 0; i < edges.length; i++) {
     if (predicate(edges[i])) return i;
@@ -122,6 +155,13 @@ export function createTransaction(snapshot) {
   const draftInitiatives = {};
   for (const [name, init] of Object.entries(baseInitiatives)) {
     draftInitiatives[name] = clone(init);
+  }
+  // Root plugin data is a separate typed keyspace from nodes and
+  // initiatives. Keep it in the draft so project-scoped updates participate
+  // in the same atomic kernel write without exposing a generic state patch.
+  const draftPlugins = {};
+  for (const [pluginId, entry] of Object.entries(readSnapshotPlugins(snapshot))) {
+    draftPlugins[pluginId] = clone(entry);
   }
 
   function getNode(id) {
@@ -294,7 +334,74 @@ export function createTransaction(snapshot) {
     return clone(removed);
   }
 
-  function view() {
+  function getNodePluginData(pluginId, nodeId) {
+    const pid = requirePluginId(pluginId, "getNodePluginData");
+    const nid = requireNodeId(nodeId, "getNodePluginData");
+    const node = draftNodes[nid];
+    if (!node) {
+      throwV2("NODE_NOT_FOUND", `getNodePluginData: node '${nid}' does not exist in the draft or snapshot`, { id: nid });
+    }
+    const entry = node.plugins && typeof node.plugins === "object" && !Array.isArray(node.plugins)
+      ? node.plugins[pid]
+      : undefined;
+    if (!entry || typeof entry !== "object" || Array.isArray(entry) || !("data" in entry)) return undefined;
+    return cloneValue(entry.data, "getNodePluginData", "data");
+  }
+
+  function setNodePluginData(pluginId, nodeId, value) {
+    const pid = requirePluginId(pluginId, "setNodePluginData");
+    const nid = requireNodeId(nodeId, "setNodePluginData");
+    const node = draftNodes[nid];
+    if (!node) {
+      throwV2("NODE_NOT_FOUND", `setNodePluginData: node '${nid}' does not exist in the draft or snapshot`, { id: nid });
+    }
+    const plugins = node.plugins && typeof node.plugins === "object" && !Array.isArray(node.plugins)
+      ? { ...node.plugins }
+      : {};
+    const existing = plugins[pid] && typeof plugins[pid] === "object" && !Array.isArray(plugins[pid])
+      ? { ...plugins[pid] }
+      : {};
+    existing.data = cloneValue(value, "setNodePluginData", "value");
+    plugins[pid] = existing;
+    draftNodes[nid] = { ...node, plugins };
+    return cloneValue(existing.data, "setNodePluginData", "value");
+  }
+
+  function getProjectPluginData(pluginId, key) {
+    const pid = requirePluginId(pluginId, "getProjectPluginData");
+    const entry = draftPlugins[pid];
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return undefined;
+    const data = entry.data;
+    if (key === undefined) return data === undefined ? undefined : cloneValue(data, "getProjectPluginData", "data");
+    const field = asNonEmptyString(key);
+    if (!field) {
+      throwV2("MISSING_FIELD", "getProjectPluginData: key must be a non-empty string", { field: "key" });
+    }
+    if (!data || typeof data !== "object" || Array.isArray(data)) return undefined;
+    return Object.prototype.hasOwnProperty.call(data, field)
+      ? cloneValue(data[field], "getProjectPluginData", "value")
+      : undefined;
+  }
+
+  function setProjectPluginData(pluginId, key, value) {
+    const pid = requirePluginId(pluginId, "setProjectPluginData");
+    const field = asNonEmptyString(key);
+    if (!field) {
+      throwV2("MISSING_FIELD", "setProjectPluginData: key must be a non-empty string", { field: "key" });
+    }
+    const current = draftPlugins[pid] && typeof draftPlugins[pid] === "object" && !Array.isArray(draftPlugins[pid])
+      ? { ...draftPlugins[pid] }
+      : {};
+    const data = current.data && typeof current.data === "object" && !Array.isArray(current.data)
+      ? { ...current.data }
+      : {};
+    data[field] = cloneValue(value, "setProjectPluginData", "value");
+    current.data = data;
+    draftPlugins[pid] = current;
+    return cloneValue(data[field], "setProjectPluginData", "value");
+  }
+
+  function view(options = {}) {
     // Deep-clone the nodes and edges so the caller cannot mutate the draft
     // through the returned view. O(n) per call is acceptable: the draft is
     // B1a pure and callers are expected to call view() once at apply time.
@@ -306,11 +413,26 @@ export function createTransaction(snapshot) {
     for (const [name, init] of Object.entries(draftInitiatives)) {
       initiatives[name] = clone(init);
     }
-    return {
+    const result = {
       nodes,
       edges: draftEdges.map((edge) => clone(edge)),
       initiatives,
     };
+    // Keep the original enumerable view shape for existing graph consumers,
+    // while allowing the kernel/plugin providers to request the root plugin
+    // keyspace explicitly. The non-enumerable compatibility property is
+    // still directly readable by callers.
+    Object.defineProperty(result, "plugins", {
+      value: clone(draftPlugins),
+      enumerable: options && options.includePlugins === true,
+      writable: false,
+      configurable: false,
+    });
+    return result;
+  }
+
+  function pluginView() {
+    return clone(draftPlugins);
   }
 
   function getInitiative(name) {
@@ -352,9 +474,14 @@ export function createTransaction(snapshot) {
     updateNode,
     addEdge,
     removeEdge,
+    getNodePluginData,
+    setNodePluginData,
+    getProjectPluginData,
+    setProjectPluginData,
     getInitiative,
     createInitiative,
     view,
+    pluginView,
   };
 }
 
