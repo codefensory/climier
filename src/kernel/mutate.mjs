@@ -536,20 +536,30 @@ async function runStateMutation({ projectDir, request, stateOperation, policyAct
   } catch (err) {
     if (err.code !== "ENOENT") throw err;
   }
+  let stateError = null;
   if (exists) {
     try {
       currentState = await readState(projectDir);
     } catch (err) {
       // State recovery is an explicitly trusted internal operation. Keep the
       // raw bytes available for a snapshot while exposing no parsed state to
-      // policy or the operation provider.
-      if (err.code !== "CLIMIER_CORRUPT_STATE") throw err;
+      // policy or the operation provider. Version errors are included here
+      // for the same narrow recovery path: state.init_force and
+      // state.restore may preserve/replace the raw bytes, while ordinary
+      // providers still go through readState below and reject them.
+      if (![
+        "CLIMIER_CORRUPT_STATE",
+        "STATE_V1_UNSUPPORTED",
+        "CLIMIER_INCOMPATIBLE_VERSION",
+      ].includes(err.code)) throw err;
+      stateError = err;
     }
   }
   const snapshot = Object.freeze({
     state: currentState,
     raw: currentRaw,
     exists,
+    stateError,
     nodes: currentState && currentState.nodes ? { ...currentState.nodes } : {},
     edges: currentState && Array.isArray(currentState.edges) ? currentState.edges.slice() : [],
     initiatives: currentState && currentState.initiatives ? { ...currentState.initiatives } : {},

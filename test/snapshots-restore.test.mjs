@@ -879,16 +879,18 @@ test("restore: same agent restores twice from same snapshot — each call create
     assert.equal(restoreEntries[0].snapshot_id, meta.id);
     // But the pre-restore snapshots preserve every state that was
     // displaced: the first restore displaced the empty state, the
-    // second displaced the first restored state.
+    // second displaced the first restored state. Snapshot ids include a
+    // random suffix, so their lexicographic order is not a chronology
+    // signal when both calls happen in the same millisecond.
     const snaps = await listSnapshots(dir);
     const preRestores = snaps.filter((s) => s.reason === "pre-restore");
     assert.equal(preRestores.length, 2, `expected 2 pre-restore snapshots; got ${preRestores.length}`);
-    // The first pre-restore is the empty state (bytes match); the second
-    // pre-restore is the first restored state (which has the first
-    // restore log entry).
-    const sorted = [...preRestores].sort((a, b) => (a.id < b.id ? -1 : 1));
-    assert.ok(sorted[0].bytes < sorted[1].bytes,
-      `first pre-restore (empty state, ${sorted[0].bytes} bytes) should be smaller than second (${sorted[1].bytes} bytes)`);
+    const displacedStates = await Promise.all(preRestores.map(async (snapshot) =>
+      JSON.parse((await rawBytes(dir, snapshot.id)).toString("utf8"))));
+    assert.equal(displacedStates.filter((state) => state.log.length === 0).length, 1,
+      "one pre-restore must preserve the empty state");
+    assert.equal(displacedStates.filter((state) => state.log.filter((entry) => entry.action === "restore").length === 1).length, 1,
+      "one pre-restore must preserve the first restored state");
   } finally {
     await rmTempProject(dir);
   }

@@ -45,8 +45,16 @@ function parseSnapshot(raw, id) {
 const initOperation = Object.freeze({
   async prepare({ projectDir, snapshot, input }) {
     const force = input && input.force === true;
-    if (!force && snapshot.exists && snapshot.state) {
-      throw new Error(`state.init: state file already exists at ${stateFile(projectDir)} (use --force to overwrite)`);
+    if (!force && snapshot.exists) {
+      // A corrupt JSON file is the one non-force recovery supported by the
+      // existing init contract. Unsupported versions must remain visible to
+      // the caller instead of being silently reset.
+      if (snapshot.stateError && snapshot.stateError.code !== "CLIMIER_CORRUPT_STATE") {
+        throw snapshot.stateError;
+      }
+      if (!snapshot.stateError) {
+        throw new Error(`state.init: state file already exists at ${stateFile(projectDir)} (use --force to overwrite)`);
+      }
     }
     return Object.freeze({
       target: Object.freeze({ id: "state", kind: "state", state_file: stateFile(projectDir), exists: snapshot.exists }),
