@@ -29,7 +29,7 @@
 // The expected state of a v2 project is a few dozen nodes; O(n) scans are fine.
 
 import { readState } from "../state.mjs";
-import { deriveV2, statusOfV2, blockingForNode } from "../v2.mjs";
+import { derive, statusOf, blockingForNode } from "../read-model/index.mjs";
 
 export const knownFlags = [
   "initiative",
@@ -145,7 +145,7 @@ export default async function statusV2({ statePath, flags }) {
   const s = await readState(statePath);
   if (!s) return emptyResult();
   const nodes = s.nodes || {};
-  const derived = deriveV2(s);
+  const derived = derive({ snapshot: s });
   const all = flags.all === true;
   const initiativeFilter = flags.initiative || null;
   const domainFilter = flags.domain || null;
@@ -165,7 +165,7 @@ export default async function statusV2({ statePath, flags }) {
     if (initiativeFilter && node.initiative !== initiativeFilter) return false;
     if (domainFilter && node.domain !== domainFilter) return false;
     if (kindFilter && node.kind !== kindFilter) return false;
-    if (statusFilter && (node.status || "open") !== statusFilter && statusOfV2(s, id) !== statusFilter) return false;
+    if (statusFilter && (node.status || "open") !== statusFilter && statusOf({ snapshot: s, id }) !== statusFilter) return false;
     return true;
   };
 
