@@ -684,6 +684,19 @@ test("seam-dag: deprecate-knowledge with policy=deny returns POLICY_DENIED witho
   });
 });
 
+test("seam-dag: deprecate-knowledge adapter uses the kernel knowledge provider frontier", async () => {
+  const source = await fs.readFile(
+    path.resolve(path.dirname(new URL(import.meta.url).pathname), "..", "src", "commands", "deprecate-knowledge.mjs"),
+    "utf8",
+  );
+  assert.match(source, /from [\"']\.\.\/kernel\/mutate\.mjs[\"']/);
+  assert.match(source, /from [\"']\.\.\/providers\/knowledge\/deprecate\.mjs[\"']/);
+  assert.match(source, /\bmutate\(/);
+  for (const forbidden of ["../state.mjs", "../lock.mjs", "../log.mjs"]) {
+    assert.doesNotMatch(source, new RegExp(`from [\\\"']${forbidden.replaceAll("/", "\\\\/")}[\\\"']`));
+  }
+});
+
 // ---- addNodeInternal (capacity, plan §3.7) -------------------------
 
 test("seam-dag: addNodeInternal({ allowUnregisteredInitiative: true }) bypasses INITIATIVE_NOT_FOUND", async () => {
