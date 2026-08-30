@@ -40,6 +40,13 @@ kernel/provider/ADR por ritual. No declares NO-GO por agotar el presupuesto en
 preflight cuando ese mapeo permite editar; si el rango contradice el handoff,
 registra esa contradicción exacta y libera.
 
+Reserva cinco llamadas shell para el cierre. En cuanto el cambio esté
+commiteado, el worktree esté limpio y los checks requeridos hayan terminado,
+`finish-task.sh` es la siguiente llamada: no hagas inventario, relecturas,
+comentarios ni una segunda suite antes de cerrarlo. No cruces 30 llamadas con
+un commit verificable sin intentar el cierre; el validator no debe reconstruir
+la evidencia que el worker puede emitir.
+
 El cierre usa obligatoriamente `finish-task.sh`. Nunca escribas una nota que
 empiece con `EVIDENCE` de forma manual: debe ser el JSON válido que genera ese
 script (`EVIDENCE { ... }`); `EVIDENCE key=value` rompe el preflight del

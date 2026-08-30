@@ -55,6 +55,11 @@ El límite de turns del agente no es un límite confiable de comandos. Cuenta la
 llamadas de shell y aplica este presupuesto: checkpoint después de 10 llamadas,
 primer test rojo representativo e implementación acotada antes de 20, y cierre
 o handoff antes de 30 salvo que el orchestrator haya documentado una excepción.
+Reserva cinco llamadas para `git status` final, commit y `finish-task.sh`: si el
+cambio y sus checks ya están listos, el cierre tiene prioridad sobre discovery,
+comentarios, relecturas o verificaciones redundantes. No cruces 30 llamadas con
+un commit verificable sin ejecutar `finish-task.sh`; el validator no debe tener
+que reconstruir un cierre que el worker podía emitir.
 El límite de 40 turns es un techo, no una meta. En el checkpoint 20, si todavía
 no existe ese test rojo + una ruta concreta de implementación, o si el cambio
 cruza más de una frontera central (kernel, registry, adapter, dispatch o
@@ -268,6 +273,11 @@ El script valida antes de cerrar:
 - el mensaje del ultimo commit debe terminar con `[<task-id>]`
 
 Si hay cambios pendientes, staged, unstaged o untracked, `finish-task.sh` falla y el worker debe volver a hacer commit antes de finalizar. No hace `git add`, no hace `git commit` y no corrige mensajes por su cuenta.
+
+En cuanto el commit esté limpio y los checks requeridos terminen, ejecuta
+`finish-task.sh` como la siguiente llamada shell. No hagas inventario, `grep`,
+lectura de documentación ni una segunda suite después de ese punto, salvo que
+el primer cierre falle y necesites corregir la causa concreta.
 
 Solo cierra cuando:
 
