@@ -60,8 +60,15 @@ async function compileDetail(t, { storeStub } = {}) {
     // a tiny harness.
     source = source
       .replace(
-        /import\s*\{\s*useStore\s*\}\s*from\s*"\.\.\/store\.jsx";?/,
-        "const useStore = () => globalThis.__NODE_DETAIL_STORE__;"
+        /import\s*\{\s*useStore,\s*useStoreSelectors\s*\}\s*from\s*"\.\.\/store\.jsx";?/,
+        "const useStore = () => globalThis.__NODE_DETAIL_STORE__; const useStoreSelectors = () => globalThis.__NODE_DETAIL_STORE__.selectors;"
+      )
+      // SSR does not run the cache-populating effect before the first render.
+      // Seed that cache from the mocked detail when NodeDetail is invoked so
+      // render-level assertions exercise the current reconciled-store path.
+      .replace(
+        "const [details, setDetails] = createSignal({});",
+        "const initialDetail = globalThis.__NODE_DETAIL_STORE__?.detail?.(); const [details, setDetails] = createSignal(initialDetail?.node?.id ? { [initialDetail.node.id]: initialDetail } : {});"
       );
   }
   const out = await babel.transformAsync(source, {
@@ -107,6 +114,9 @@ function makeStore(detail, opts = {}) {
       last_activity: opts.lastActivity || {},
       alerts: opts.alerts || [],
     }),
+    selectors: {
+      nodesMap: () => ({ [detail.node.id]: detail.node }),
+    },
   };
 }
 

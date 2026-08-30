@@ -285,7 +285,7 @@ test("Board card and gate-card truncated text carries a title tooltip", () => {
   // Open-gates rail card title.
   assert.match(
     src,
-    /line-clamp-2[^>]*font-medium[\s\S]*?title=\{g\.title\}/,
+    /line-clamp-2[^>]*font-semibold[\s\S]*?title=\{gate\(\)\.title\}/,
     "Open gates rail card title must expose the full title",
   );
 });
