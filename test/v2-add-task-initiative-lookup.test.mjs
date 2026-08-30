@@ -93,7 +93,7 @@ test("CLI v2 add-task rejects --allow-unregistered-initiative as unknown flag (T
   // public CLI surface. The bin's knownFlags check rejects it before
   // the handler runs. The internal capability lives in
   // `addNodeInternal({ allowUnregisteredInitiative: true })` in
-  // src/v2-add-node.mjs; see test/plugin-policy-seam-dag.test.mjs for
+  // src/commands/internal/create-node.mjs; see test/plugin-policy-seam-dag.test.mjs for
   // the corresponding positive test.
   await withProject(async (dir) => {
     let result = await runCli(["init"], { cwd: dir });

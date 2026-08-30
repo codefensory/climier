@@ -1,4 +1,4 @@
-import { addV2Node, hasCsvValue, requireFields } from "../v2-add-node.mjs";
+import { addV2Node, hasCsvValue, requireFields } from "./internal/create-node.mjs";
 import { throwV2 } from "../errors.mjs";
 import { resolveAgent } from "../agent.mjs";
 

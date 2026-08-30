@@ -1,4 +1,4 @@
-import { addV2Node, requireFields } from "../v2-add-node.mjs";
+import { addV2Node, requireFields } from "./internal/create-node.mjs";
 import { resolveAgent } from "../agent.mjs";
 
 export const knownFlags = [

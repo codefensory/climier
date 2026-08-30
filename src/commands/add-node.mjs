@@ -21,7 +21,7 @@
 //   recovery / migration tooling can seed nodes before the matching
 //   initiative exists. The flag is NOT in `knownFlags`, so the CLI
 //   surface rejects it as unknown. The flag IS forwarded by
-//   `addNodeInternal` (src/v2-add-node.mjs) which is the only
+//   `addNodeInternal` (src/commands/internal/create-node.mjs) which is the only
 //   sanctioned caller.
 //
 // Defaults:
@@ -292,7 +292,7 @@ export default async function addNode({ statePath, flags, positional, pluginId }
   const agent = resolveAgent(flags, "add-node");
 
   // Internal capability flag (only settable by `addNodeInternal` in
-  // src/v2-add-node.mjs, which is the sole sanctioned caller).
+  // src/commands/internal/create-node.mjs, which is the sole sanctioned caller).
   const allowUnregistered =
     flags["allow-unregistered-initiative"] === true ||
     flags["allow-unregistered-initiative"] === "true";

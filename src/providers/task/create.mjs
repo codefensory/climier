@@ -130,7 +130,7 @@ function validateInitiative(initiativeId, snapshot, input) {
   // Internal capability (ADR-008 §"Capacidad interna"):
   // addNodeInternal({ allowUnregisteredInitiative: true }) sets
   // allow_unregistered_initiative=true on the input. The CLI surface
-  // does not expose the flag (see src/v2-add-node.mjs), so this branch
+  // does not expose the flag (see src/commands/internal/create-node.mjs), so this branch
   // is unreachable from public callers.
   const allowUnregistered = input && input.allow_unregistered_initiative === true;
   const initiatives = readSnapshotInitiatives(snapshot);
