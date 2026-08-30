@@ -104,3 +104,74 @@ test("kernel state.restore rejects malformed target without writing or snapshott
     assert.deepEqual(await fs.readdir(dirPath), ["bad.json", "bad.meta.json"]);
   } finally { await rmTempProject(dir); }
 });
+
+test("kernel state.init_force recovers v1 and future state by snapshotting raw bytes", async () => {
+  for (const version of [1, 3]) {
+    const dir = await createTempProject();
+    try {
+      const { initState } = await importFresh("./kernel/state-operations.mjs");
+      const raw = JSON.stringify({ version, legacy: true });
+      await fs.mkdir(path.dirname(stateFilePath(dir)), { recursive: true });
+      await fs.writeFile(stateFilePath(dir), raw, "utf8");
+      const out = await initState({ projectDir: dir, force: true, actor: "alice" });
+      assert.equal((await readState(dir)).version, 2);
+      assert.equal(out.result.snapshot.reason, "force-init");
+      const files = await fs.readdir(await snapshotDir(dir));
+      const snapshotId = files.find((name) => name.endsWith(".json") && !name.endsWith(".meta.json"));
+      assert.ok(snapshotId);
+      assert.equal(await fs.readFile(path.join(await snapshotDir(dir), snapshotId), "utf8"), raw);
+    } finally { await rmTempProject(dir); }
+  }
+});
+
+test("kernel state.restore recovers over v1 and future current state, preserving raw pre-restore snapshot", async () => {
+  for (const version of [1, 3]) {
+    const dir = await createTempProject();
+    try {
+      const { initState, restoreState } = await importFresh("./kernel/state-operations.mjs");
+      const { createSnapshot, listSnapshots } = await importFresh("./state.mjs");
+      await initState({ projectDir: dir });
+      const target = await createSnapshot(dir, "force-init");
+      const raw = JSON.stringify({ version, legacy: true });
+      await fs.writeFile(stateFilePath(dir), raw, "utf8");
+      const out = await restoreState({ projectDir: dir, snapshotId: target.id, actor: "recovery" });
+      assert.equal(out.result.snapshot.id, target.id);
+      assert.equal((await readState(dir)).version, 2);
+      assert.equal((await readState(dir)).log.at(-1).snapshot_id, target.id);
+      const preRestore = (await listSnapshots(dir)).find((item) => item.reason === "pre-restore");
+      assert.ok(preRestore);
+      assert.equal(await fs.readFile(path.join(await snapshotDir(dir), `${preRestore.id}.json`), "utf8"), raw);
+    } finally { await rmTempProject(dir); }
+  }
+});
+
+test("kernel ordinary providers reject v1/future state while trusted init keeps version errors recoverable", async () => {
+  for (const version of [1, 3]) {
+    const dir = await createTempProject();
+    try {
+      const { mutate } = await importFresh("./kernel/mutate.mjs");
+      const { initState } = await importFresh("./kernel/state-operations.mjs");
+      const raw = JSON.stringify({ version, legacy: true });
+      await fs.mkdir(path.dirname(stateFilePath(dir)), { recursive: true });
+      await fs.writeFile(stateFilePath(dir), raw, "utf8");
+      let prepareCalls = 0;
+      await assert.rejects(
+        () => mutate({
+          projectDir: dir,
+          request: { action: "task.create", actor: "alice", input: {} },
+          provider: {
+            prepare: async () => { prepareCalls += 1; return { target: { id: "T1" } }; },
+            apply: async () => ({}),
+          },
+        }),
+        (err) => err.code === (version === 1 ? "STATE_V1_UNSUPPORTED" : "CLIMIER_INCOMPATIBLE_VERSION"),
+      );
+      assert.equal(prepareCalls, 0);
+      assert.equal(await fs.readFile(stateFilePath(dir), "utf8"), raw);
+      await assert.rejects(
+        () => initState({ projectDir: dir, actor: "alice" }),
+        (err) => err.code === (version === 1 ? "STATE_V1_UNSUPPORTED" : "CLIMIER_INCOMPATIBLE_VERSION"),
+      );
+    } finally { await rmTempProject(dir); }
+  }
+});
