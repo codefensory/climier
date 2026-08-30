@@ -99,7 +99,7 @@ async function freshApi(dir, opts = {}) {
 // =========================================================================
 
 test("resolveRuntime: parses --project and --as from argv and returns { project_dir, agent }", async () => {
-  const { resolveRuntime } = await importFresh("./plugin-runtime.mjs");
+  const { resolveRuntime } = await importFresh("./plugins/runtime.mjs");
   const out = resolveRuntime(["--project", "/tmp/example", "--as", "alice"]);
   assert.equal(out.project_dir, "/tmp/example");
   assert.equal(out.agent, "alice");
@@ -109,7 +109,7 @@ test("resolveRuntime: --as falls back to CLIMIER_AGENT when missing", async () =
   const prev = process.env.CLIMIER_AGENT;
   process.env.CLIMIER_AGENT = "env-agent";
   try {
-    const { resolveRuntime } = await importFresh("./plugin-runtime.mjs");
+    const { resolveRuntime } = await importFresh("./plugins/runtime.mjs");
     const out = resolveRuntime(["--project", "/tmp/example"]);
     assert.equal(out.project_dir, "/tmp/example");
     assert.equal(out.agent, "env-agent");
@@ -123,7 +123,7 @@ test("resolveRuntime: --as flag takes precedence over CLIMIER_AGENT", async () =
   const prev = process.env.CLIMIER_AGENT;
   process.env.CLIMIER_AGENT = "env-agent";
   try {
-    const { resolveRuntime } = await importFresh("./plugin-runtime.mjs");
+    const { resolveRuntime } = await importFresh("./plugins/runtime.mjs");
     const out = resolveRuntime(["--project", "/tmp/x", "--as", "alice"]);
     assert.equal(out.agent, "alice");
   } finally {
@@ -133,21 +133,21 @@ test("resolveRuntime: --as flag takes precedence over CLIMIER_AGENT", async () =
 });
 
 test("resolveRuntime: --project defaults to CWD when missing", async () => {
-  const { resolveRuntime } = await importFresh("./plugin-runtime.mjs");
+  const { resolveRuntime } = await importFresh("./plugins/runtime.mjs");
   const out = resolveRuntime(["--as", "alice"]);
   assert.equal(out.project_dir, process.cwd());
   assert.equal(out.agent, "alice");
 });
 
 test("resolveRuntime: supports --as=<value> and --project=<value> (equals form)", async () => {
-  const { resolveRuntime } = await importFresh("./plugin-runtime.mjs");
+  const { resolveRuntime } = await importFresh("./plugins/runtime.mjs");
   const out = resolveRuntime(["--project=/tmp/x", "--as=alice"]);
   assert.equal(out.project_dir, "/tmp/x");
   assert.equal(out.agent, "alice");
 });
 
 test("resolveRuntime: ignores unknown flags (passes them through without breaking project_dir/agent)", async () => {
-  const { resolveRuntime } = await importFresh("./plugin-runtime.mjs");
+  const { resolveRuntime } = await importFresh("./plugins/runtime.mjs");
   const out = resolveRuntime(["--my-flag", "value", "--project", "/tmp/x", "--as", "alice"]);
   assert.equal(out.project_dir, "/tmp/x");
   assert.equal(out.agent, "alice");
@@ -903,7 +903,7 @@ test("api.core.run: PLUGIN_CORE_* errors thrown by the handler are NOT rewrapped
   // must honor so dispatch.PluginCoreActionFailed never gets wrapped
   // into PLUGIN_HANDLER_FAILED. Verify the path through isPluginError:
   // if the adapter catches a PLUGIN_CORE_*, it lets it bubble as-is.
-  const { isPluginError, PluginCoreActionFailed } = await importFresh("./plugin-errors.mjs");
+  const { isPluginError, PluginCoreActionFailed } = await importFresh("./plugins/errors.mjs");
   const err = new PluginCoreActionFailed("example.audit", "task.take", {
     code: "CORE_ERROR",
     message: "x",

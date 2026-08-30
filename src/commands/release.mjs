@@ -5,7 +5,7 @@ import { mutate } from "../kernel/mutate.mjs";
 import { throwV2 } from "../errors.mjs";
 import { resolveAgent } from "../agent.mjs";
 import { loadApplicablePolicy, authorizeAction } from "../policy.mjs";
-import { PolicyDenied } from "../plugin-errors.mjs";
+import { PolicyDenied } from "../plugins/errors.mjs";
 import { taskReleaseProvider } from "../providers/task/release.mjs";
 
 export const knownFlags = ["as"];

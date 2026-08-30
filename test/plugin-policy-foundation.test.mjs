@@ -27,7 +27,7 @@ import { createTempProject, importFresh } from "./helpers.mjs";
 const DESCRIPTOR_MODULE = "../src/plugins/descriptor.mjs";
 const LOADER_MODULE = "../src/plugins/loader.mjs";
 const POLICY_MODULE = "../src/policy.mjs";
-const ERRORS_MODULE = "../src/plugin-errors.mjs";
+const ERRORS_MODULE = "../src/plugins/errors.mjs";
 
 // ---- shared helpers --------------------------------------------------
 

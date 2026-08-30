@@ -111,7 +111,7 @@ export async function readDescriptor(pkgJsonPath) {
 // that guards `default.commands` — so the descriptor module emits one
 // envelope for "shape is broken at load time". Runtime policy errors
 // (`applies`/`authorize` throw or return invalid responses) live in
-// `src/plugin-errors.mjs` under the `POLICY_*` namespace.
+// `src/plugins/errors.mjs` under the `POLICY_*` namespace.
 export async function importEntry(entryAbsPath) {
   let mod;
   try {

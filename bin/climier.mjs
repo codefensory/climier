@@ -4,7 +4,7 @@
 //
 // T-plugin-dispatch: after argv parsing, if the first non-flag token is
 // not a reserved core command and an installed plugin exists at that
-// namespace, route through src/plugin-dispatch.mjs. Plugin errors keep
+// namespace, route through src/plugins/dispatch.mjs. Plugin errors keep
 // the same { ok: false, error: { code, message, details } } envelope as
 // core v2 errors, so the existing catch can serialize them without
 // changes.
@@ -200,7 +200,7 @@ try {
   let pluginDispatched = false;
   if (command !== null && !RESERVED_NAMESPACES.includes(command)) {
     const { hasInstalledPlugin } = await import("../src/plugins/loader.mjs");
-    const { dispatchPlugin } = await import("../src/plugin-dispatch.mjs");
+    const { dispatchPlugin } = await import("../src/plugins/dispatch.mjs");
     if (await hasInstalledPlugin(command)) {
       const pluginResult = await dispatchPlugin({
         originalArgv,

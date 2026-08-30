@@ -18,7 +18,7 @@
 // Handlers should consume this module through `src/policy.mjs` (which is
 // the canonical home for the selection/decision helpers) and the runtime
 // error envelopes (`PolicyDenied`, `PolicyError`, `PolicyConflict`) from
-// `src/plugin-errors.mjs`. This directory only exists to satisfy the
+// `src/plugins/errors.mjs`. This directory only exists to satisfy the
 // provider-seam layout for the kernel registry (B6A) and to make the
 // `applies` selector discoverable as a first-class kernel provider.
 //
