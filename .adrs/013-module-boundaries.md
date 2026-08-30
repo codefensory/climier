@@ -23,9 +23,9 @@ Adoptar estos límites internos:
 src/
   commands/       argv adapters y helpers internos de comandos
   kernel/         mecanismo genérico de mutation/draft/grafo/state operations
-  providers/      semántica de dominio pura y policy
+  providers/      semántica de dominio pura; incluye el adaptador puro de policy
   read-model/     proyecciones read-only que combinan kernel y providers
-  plugins/        host, runtime, loader, API y adapters de plugins
+  plugins/        host, runtime, loader, API, data y selección de policy
   storage/        paths, state, lock y log
   contracts/      errors, identidad y contratos transversales
 ```
@@ -37,18 +37,23 @@ Reglas:
 2. `kernel/` sigue siendo la única frontera de persistencia. No importa
    `commands/`, `read-model/`, UI ni adapters de plugins.
 3. `providers/` implementa semántica `prepare/apply` o helpers read-only por
-   dominio. No importa storage, CLI, UI ni host de plugins.
+   dominio. No importa storage, CLI, UI ni host de plugins. El código puro de
+   adaptación de decisiones de policy puede vivir en `providers/policy/`, pero
+   nunca carga plugins ni lee configuración.
 4. `read-model/` es la única capa que compone providers de distintos dominios
    para `status`, `context` y consumers UI. No muta ni conoce argv.
 5. `plugins/` es el único hogar de módulos del host de plugins. Puede consumir
-   kernel/providers/read-model, pero no `commands/`.
+   kernel/providers/read-model, pero no `commands/`. La selección de policy,
+   que carga descriptores y configuración, vive en `plugins/policy.mjs`; sólo
+   delega adaptación pura a `providers/policy/` cuando exista.
 6. `storage/` contiene sólo acceso base a filesystem y serialización de estado.
    No conoce providers, commands o plugins.
-7. `contracts/` contiene errores e identidad compartidos sin I/O.
+7. `contracts/` contiene `errors`, `agent` y `execution-contract`, sin I/O.
 8. Se eliminan `src/v2.mjs` y `src/v2-add-node.mjs`; no se dejan shims de
    compatibilidad internos. Los consumers migran antes de borrar cada archivo.
-9. Se migra `src/policy.mjs` a `src/providers/policy/` y se elimina el
-   re-export ambiguo.
+9. `plugins/query.mjs` se mantiene como adapter del host, pero debe consumir
+   `read-model/` y no reconstruir proyecciones ni acceder a semántica de
+   dominio fuera de esa capa.
 10. No se crea `kernel/node.mjs`: el draft genérico vive en
     `kernel/transaction.mjs`; la semántica de cada node vive en su provider.
 
@@ -66,14 +71,19 @@ introducen dependencias runtime ni cambios deliberados de comportamiento.
 
 ## Plan de implementacion
 
-1. Crear `read-model/`, migrar los consumers de `v2.mjs` y borrar `v2.mjs`.
-2. Mover policy a `providers/policy/` y actualizar consumers sin re-export.
-3. Mover el helper interno de creación a `commands/internal/` y borrar
+1. Crear `read-model/`, migrar `status`, `context`, UI server y plugin query;
+   borrar `v2.mjs` sólo cuando ningún consumer lo importe.
+2. Mover el helper interno de creación a `commands/internal/` y borrar
    `v2-add-node.mjs`.
-4. Reubicar host de plugins bajo `plugins/` y actualizar imports/tests.
-5. Reubicar filesystem/state bajo `storage/` y contratos compartidos bajo
-   `contracts/`, en dos migraciones seriales por sus imports transversales.
-6. Auditar import graph, rutas antiguas, contratos CLI/API y la suite completa.
+3. Reubicar host de plugins bajo `plugins/`, incluido `plugins/policy.mjs`, y
+   actualizar imports/tests. La adaptación pura de policy, si se extrae, vive
+   debajo de `providers/policy/` sin imports del host.
+4. Reubicar storage (`state`, `lock`, `log`, `paths`) bajo `storage/`; es una
+   migración serial por su gran radio de imports.
+5. Reubicar `errors`, `agent` y `execution-contract` bajo `contracts/`; es una
+   migración serial posterior a storage para no mezclar renombres globales.
+6. Auditar import graph, rutas antiguas, contratos CLI/API y la suite completa,
+   mediante un test/script versionado con reglas reproducibles.
 
 ## Verificacion
 
@@ -83,5 +93,6 @@ introducen dependencias runtime ni cambios deliberados de comportamiento.
 - `git diff --check`.
 - Búsqueda estructural: no quedan `v2.mjs`, `v2-add-node.mjs`, `policy.mjs`,
   `plugin-*.mjs` ni módulos state/lock/log/paths en la raíz de `src/`.
-- El grafo de imports no contiene dependencias prohibidas de providers hacia
-  commands/storage/plugins ni de kernel hacia adapters/UI.
+- Un test o script versionado verifica imports: providers no importan
+  commands/storage/plugins/UI; kernel no importa adapters/read-model/UI; y
+  plugins no importan commands. El comando exacto forma parte de su task.
