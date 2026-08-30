@@ -24,7 +24,7 @@
 // `claim` is `{ by, at, stale }` when the node is currently claimed (either
 // via F9 take.mjs's structured claim or via legacy claimed_by/claimed_at),
 // else `null`.
-import { readState, assertStateVersion } from "../state.mjs";
+import { readState, assertStateVersion } from "../storage/state.mjs";
 import {
   blockingForNode,
   informingForNode,

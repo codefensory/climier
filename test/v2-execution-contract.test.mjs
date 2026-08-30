@@ -89,7 +89,7 @@ test("normalizeExecution: drops unknown top-level keys, keeps schema fields", as
     effort: "M",
     risk: "isolated",
     owns: ["src/foo.mjs", " src/foo.mjs ", "src/bar.mjs"],
-    reads: ["src/state.mjs"],
+    reads: ["src/storage/state.mjs"],
     seam: "context.api",
     checks: ["npm test"],
     extra_field_we_do_not_know_about: "should be ignored? no, preserved at meta level",
@@ -97,7 +97,7 @@ test("normalizeExecution: drops unknown top-level keys, keeps schema fields", as
   assert.equal(out.effort, "M");
   assert.equal(out.risk, "isolated");
   assert.deepEqual(out.owns, ["src/foo.mjs", "src/bar.mjs"]);
-  assert.deepEqual(out.reads, ["src/state.mjs"]);
+  assert.deepEqual(out.reads, ["src/storage/state.mjs"]);
   assert.equal(out.seam, "context.api");
   // String arrays dedupe / trim but keep distinct strings.
   assert.deepEqual(out.checks, ["npm test"]);
@@ -236,7 +236,7 @@ test("add-node: accepts a fully-valid meta.execution and persists normalized for
           effort: "M",
           risk: "isolated",
           owns: ["src/commands/foo.mjs", "src/commands/foo.mjs"],
-          reads: ["src/state.mjs"],
+          reads: ["src/storage/state.mjs"],
           seam: "commands.foo",
           checks: ["node --test test/foo.test.mjs"],
         },
@@ -250,7 +250,7 @@ test("add-node: accepts a fully-valid meta.execution and persists normalized for
     assert.equal(node.meta.execution.risk, "isolated");
     // Dedup happened.
     assert.deepEqual(node.meta.execution.owns, ["src/commands/foo.mjs"]);
-    assert.deepEqual(node.meta.execution.reads, ["src/state.mjs"]);
+    assert.deepEqual(node.meta.execution.reads, ["src/storage/state.mjs"]);
     assert.equal(node.meta.execution.seam, "commands.foo");
     assert.deepEqual(node.meta.execution.checks, ["node --test test/foo.test.mjs"]);
   } finally { await rmTempProject(dir); }
@@ -408,7 +408,7 @@ test("context: execution_contract surfaces the normalized contract", async () =>
               effort: "M",
               risk: "isolated",
               owns: ["src/commands/x.mjs"],
-              reads: ["src/state.mjs"],
+              reads: ["src/storage/state.mjs"],
               seam: "commands.x",
               checks: ["npm test"],
             },
@@ -421,7 +421,7 @@ test("context: execution_contract surfaces the normalized contract", async () =>
       effort: "M",
       risk: "isolated",
       owns: ["src/commands/x.mjs"],
-      reads: ["src/state.mjs"],
+      reads: ["src/storage/state.mjs"],
       seam: "commands.x",
       checks: ["npm test"],
     });

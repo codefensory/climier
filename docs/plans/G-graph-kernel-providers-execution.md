@@ -44,7 +44,7 @@ El código del refactor se verifica desde cada worktree con su propio
 Ownership serializado, nunca en paralelo:
 
 ```text
-src/state.mjs
+src/storage/state.mjs
 src/lock.mjs
 src/log.mjs
 src/kernel/mutate.mjs
@@ -125,7 +125,7 @@ Las siguientes piezas son candidatas a tasks. Este plan no las crea.
 
 - Dependencia dura: B1a validada y mergeada.
 - Paths exclusivos: `src/kernel/mutate.mjs`; puede ajustar
-  `src/state.mjs`, `src/lock.mjs`, `src/log.mjs` y tests de integración.
+  `src/storage/state.mjs`, `src/lock.mjs`, `src/log.mjs` y tests de integración.
 - Cambiar: firma de `kernel.mutate`, prepare/apply, precondiciones,
   autorización, diff de nodos, incremento único de revision, persistencia y
   log bajo un único lock.
@@ -338,7 +338,7 @@ antes de delegar las tasks derivadas.
     contra `.decisions/G-graph-kernel-providers-rfc.md`,
     `.adrs/011-graph-kernel-providers.md` y
     `.adrs/012-graph-kernel-registry-api.md`;
-  - la sección 2 enumera ownership serializado para `src/state.mjs`,
+  - la sección 2 enumera ownership serializado para `src/storage/state.mjs`,
     `src/lock.mjs`, `src/log.mjs`, `src/kernel/mutate.mjs`,
     `src/kernel/transaction.mjs`, `src/v2.mjs`,
     `src/plugin-core-registry.mjs`, `src/plugin-core-adapter.mjs` y

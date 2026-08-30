@@ -147,7 +147,7 @@ src/log.mjs                                  sin cambios (appendWithContext
                                               sigue agregando plugin_id cuando
                                               ctx.pluginId está presente)
 
-src/state.mjs                                sin cambios; preserva plugins / nodes[*].plugins
+src/storage/state.mjs                                sin cambios; preserva plugins / nodes[*].plugins
 src/lock.mjs                                 sin cambios
 src/agent.mjs                                sin cambios (resolveAgent no
                                               inspecciona orchestrator/recovery;
@@ -1151,7 +1151,7 @@ Smoke manual del ADR (cubierto por los tests de seam):
   `src/plugin-descriptor.mjs`, `src/plugin-errors.mjs`,
   `src/plugin-core-registry.mjs`, `src/plugin-core-adapter.mjs`,
   `src/plugin-api.mjs`, `src/plugin-dispatch.mjs`, `src/log.mjs`,
-  `src/state.mjs`, `src/lock.mjs`, `src/agent.mjs`,
+  `src/storage/state.mjs`, `src/lock.mjs`, `src/agent.mjs`,
   `src/errors.mjs`, `src/v2.mjs`, `src/v2-add-node.mjs` (excepto
   la firma interna `addNodeInternal`, que es de la task
   `T-plugin-policy-seam-dag`).

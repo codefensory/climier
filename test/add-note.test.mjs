@@ -5,7 +5,7 @@ import { createTempProject, rmTempProject, importFresh, readState } from "./help
 
 function seedTask(extra = {}) {
   return async (dir, id = "T1") => {
-    const { updateState } = await importFresh("./state.mjs");
+    const { updateState } = await importFresh("./storage/state.mjs");
     await updateState(dir, (s) => {
       s.nodes[id] = {
         id,

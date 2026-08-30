@@ -426,7 +426,7 @@ test("resolve (task): CLI call writes resolve log entry without plugin_id", asyn
   try {
     await initV2Project(dir);
     await seedOpenTask(dir, "T-resolve-1", { status: "in_progress" });
-    const { updateState } = await importFresh("./state.mjs");
+    const { updateState } = await importFresh("./storage/state.mjs");
     await updateState(dir, (st) => {
       st.nodes["T-resolve-1"].claim = { by: "alice", at: new Date().toISOString() };
       return st;
@@ -454,7 +454,7 @@ test("resolve (task): ctx.pluginId propagates to the log entry as plugin_id", as
   try {
     await initV2Project(dir);
     await seedOpenTask(dir, "T-resolve-2", { status: "in_progress" });
-    const { updateState } = await importFresh("./state.mjs");
+    const { updateState } = await importFresh("./storage/state.mjs");
     await updateState(dir, (st) => {
       st.nodes["T-resolve-2"].claim = { by: "alice", at: new Date().toISOString() };
       return st;

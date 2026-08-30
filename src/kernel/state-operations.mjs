@@ -11,7 +11,7 @@ import {
   emptyState,
   stateFile,
   snapshotDir,
-} from "../state.mjs";
+} from "../storage/state.mjs";
 import { resolveAgent } from "../agent.mjs";
 import { throwV2 } from "../errors.mjs";
 

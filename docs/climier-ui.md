@@ -598,7 +598,7 @@ Estas métricas deben validarse con usuarios antes de fijarlas como contrato:
 - `src/commands/show.mjs`: node raw.
 - `src/commands/history.mjs`: historial por node.
 - `src/commands/add-note.mjs`: thread de notes append-only.
-- `src/state.mjs`: lectura, escritura atómica y schema validation.
+- `src/storage/state.mjs`: lectura, escritura atómica y schema validation.
 - `src/lock.mjs`: coordinación de mutaciones concurrentes.
 - `~/Dev/vegsport/AGENTS.md`: uso de Climier en el monorepo.
 - `~/Dev/vegsport/CLIMIER-CHEATSHEET.md`: workflow y vocabulario usado por agents.
@@ -608,4 +608,4 @@ Estas métricas deben validarse con usuarios antes de fijarlas como contrato:
 - `ui/server/server.mjs`: server Express local, API `/api/snapshot|node|activity|search`, static de `ui/dist`.
 - `ui/src/`: frontend Solid + Tailwind (vistas Overview, Board, Nodes, Gates, Knowledge, Activity, NodeDetail).
 - `src/commands/ui.mjs`: comando `climier ui` (deps check, build on demand, arranque y open browser).
-- `src/v2.mjs` / `src/state.mjs`: funciones puras reutilizadas por el server (`deriveV2`, `knowledgeForNode`, `blockingForNode`, `readState`).
+- `src/v2.mjs` / `src/storage/state.mjs`: funciones puras reutilizadas por el server (`deriveV2`, `knowledgeForNode`, `blockingForNode`, `readState`).

@@ -2,7 +2,7 @@
 // Live projection of a climier project's state. The browser never touches
 // the state file: this server (running on the user's machine) is the only
 // reader, and it uses the canonical read-model plus storage helpers
-// (../../src/read-model/index.mjs, ../../src/state.mjs) so the projection can't drift.
+// (../../src/read-model/index.mjs, ../../src/storage/state.mjs) so the projection can't drift.
 // Every request re-reads the state file, so CLI mutations show up in real
 // time (the frontend polls /api/snapshot); no restart or reload needed.
 //
@@ -12,7 +12,7 @@ import path from "node:path";
 import fs from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import express from "express";
-import { readState, stateFile } from "../../src/state.mjs";
+import { readState, stateFile } from "../../src/storage/state.mjs";
 import { projectMetaFile } from "../../src/storage/paths.mjs";
 import {
   derive,

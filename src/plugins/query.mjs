@@ -4,7 +4,7 @@
 // lock. They use the canonical read-model for graph/domain projections and do
 // not depend on CLI command adapters or the transitional v2 facade.
 
-import { readState, isV2State, assertStateVersion } from "../state.mjs";
+import { readState, isV2State, assertStateVersion } from "../storage/state.mjs";
 import { throwV2 } from "../errors.mjs";
 import {
   derive,

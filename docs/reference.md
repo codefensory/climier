@@ -685,7 +685,7 @@ Output shape:
 
 ### `snapshots`
 
-Read-only listing of recoverable snapshots captured under `<state-dir>/snapshots/`. Mirrors the `listSnapshots` primitive from `src/state.mjs`: only complete pairs (raw + metadata) appear, metadata id mismatches with the filename are excluded, and the result is sorted descending by id (timestamp-prefixed, so lexicographic order matches creation order — newest first).
+Read-only listing of recoverable snapshots captured under `<state-dir>/snapshots/`. Mirrors the `listSnapshots` primitive from `src/storage/state.mjs`: only complete pairs (raw + metadata) appear, metadata id mismatches with the filename are excluded, and the result is sorted descending by id (timestamp-prefixed, so lexicographic order matches creation order — newest first).
 
 Output shape:
 

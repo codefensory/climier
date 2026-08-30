@@ -28,7 +28,7 @@ function assertV2Error(data, code) {
 // --- emptyState / writeState schema -------------------------------------
 
 test("emptyState(2) seeds initiatives: {} on a fresh v2 state", async () => {
-  const { emptyState } = await importFresh("./state.mjs");
+  const { emptyState } = await importFresh("./storage/state.mjs");
   const s = emptyState(2);
   assert.equal(s.version, 2);
   assert.ok("initiatives" in s, "v2 state must declare initiatives");
@@ -39,7 +39,7 @@ test("emptyState(2) seeds initiatives: {} on a fresh v2 state", async () => {
 });
 
 test("writeState: rejects v2 state missing initiatives", async () => {
-  const { writeState } = await importFresh("./state.mjs");
+  const { writeState } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     await assert.rejects(
@@ -52,7 +52,7 @@ test("writeState: rejects v2 state missing initiatives", async () => {
 });
 
 test("writeState: accepts v2 state with empty initiatives", async () => {
-  const { writeState, readState } = await importFresh("./state.mjs");
+  const { writeState, readState } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     await writeState(dir, { version: 2, nodes: {}, edges: [], log: [], initiatives: {} });
@@ -68,7 +68,7 @@ test("writeState: accepts v2 state with empty initiatives", async () => {
 test("add-initiative (v2): registers a new initiative with desc and created_at", async () => {
   const { default: init } = await importFresh("./commands/init.mjs");
   const { default: addInit } = await importFresh("./commands/add-initiative.mjs");
-  const { readState } = await importFresh("./state.mjs");
+  const { readState } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });

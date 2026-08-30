@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, importFresh, stateFilePath } from "./helpers.mjs";
 
 test("readState returns null if file missing", async () => {
-  const { readState } = await importFresh("./state.mjs");
+  const { readState } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     const s = await readState(dir);
@@ -15,8 +15,8 @@ test("readState returns null if file missing", async () => {
 });
 
 test("writeState then readState round-trips", async () => {
-  const { writeState: ws } = await importFresh("./state.mjs");
-  const { readState: rs } = await importFresh("./state.mjs");
+  const { writeState: ws } = await importFresh("./storage/state.mjs");
+  const { readState: rs } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     const sample = { version: 2, nodes: { T1: { id: "T1", title: "x" } }, edges: [], initiatives: {}, log: [] };
@@ -29,7 +29,7 @@ test("writeState then readState round-trips", async () => {
 });
 
 test("updateState applies a mutator function and persists atomically", async () => {
-  const { updateState, readState } = await importFresh("./state.mjs");
+  const { updateState, readState } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     await updateState(dir, (s) => {
@@ -49,7 +49,7 @@ test("updateState applies a mutator function and persists atomically", async () 
 });
 
 test("updateState creates file if missing", async () => {
-  const { updateState, readState } = await importFresh("./state.mjs");
+  const { updateState, readState } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     await updateState(dir, (s) => {
@@ -64,7 +64,7 @@ test("updateState creates file if missing", async () => {
 });
 
 test("updateState does not corrupt file on mutator error (atomic write)", async () => {
-  const { updateState, readState } = await importFresh("./state.mjs");
+  const { updateState, readState } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     await updateState(dir, (s) => {
@@ -84,7 +84,7 @@ test("updateState does not corrupt file on mutator error (atomic write)", async 
 });
 
 test("emptyState returns a valid empty v2 schema", async () => {
-  const { emptyState } = await importFresh("./state.mjs");
+  const { emptyState } = await importFresh("./storage/state.mjs");
   const s = emptyState();
   assert.equal(s.version, 2);
   assert.deepEqual(s.nodes, {});
@@ -100,7 +100,7 @@ test("emptyState returns a valid empty v2 schema", async () => {
 // === v1-unsupported behavior =================================================
 
 test("readState throws STATE_V1_UNSUPPORTED with migration steps on a v1 file", async () => {
-  const { readState } = await importFresh("./state.mjs");
+  const { readState } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     // Bootstrap a v1 state file directly (bypassing writeState, which
@@ -130,7 +130,7 @@ test("readState throws STATE_V1_UNSUPPORTED with migration steps on a v1 file", 
 });
 
 test("readState throws CLIMIER_INCOMPATIBLE_VERSION on a v3+ file", async () => {
-  const { readState } = await importFresh("./state.mjs");
+  const { readState } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     const fs = await import("node:fs/promises");
@@ -145,7 +145,7 @@ test("readState throws CLIMIER_INCOMPATIBLE_VERSION on a v3+ file", async () => 
 });
 
 test("writeState rejects a v1-shaped object with a clear error", async () => {
-  const { writeState } = await importFresh("./state.mjs");
+  const { writeState } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     const v1 = { version: 1, tasks: {}, decisions: {}, gotchas: {}, initiatives: {}, log: [] };
@@ -157,7 +157,7 @@ test("writeState rejects a v1-shaped object with a clear error", async () => {
 });
 
 test("writeState rejects a v2 object missing the v2 collections", async () => {
-  const { writeState } = await importFresh("./state.mjs");
+  const { writeState } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     const bad = { version: 2, nodes: {}, edges: [] };
@@ -169,7 +169,7 @@ test("writeState rejects a v2 object missing the v2 collections", async () => {
 });
 
 test("updateState throws STATE_V1_UNSUPPORTED on a v1 file", async () => {
-  const { updateState } = await importFresh("./state.mjs");
+  const { updateState } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     const fs = await import("node:fs/promises");

@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { updateState } from "../src/state.mjs";
+import { updateState } from "../src/storage/state.mjs";
 import {
   createTempProject,
   rmTempProject,

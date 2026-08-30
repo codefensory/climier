@@ -12,7 +12,7 @@ import {
 } from "./helpers.mjs";
 
 async function snapshotDir(projectDir) {
-  const { snapshotDir } = await importFresh("./state.mjs");
+  const { snapshotDir } = await importFresh("./storage/state.mjs");
   return snapshotDir(projectDir);
 }
 
@@ -75,7 +75,7 @@ test("kernel state.restore validates before pre-snapshot and restores with one l
     const original = baseState();
     original.nodes.keep = { id: "keep", kind: "resolvable", subkind: "task", status: "open" };
     await writeState(dir, original);
-    const { createSnapshot } = await importFresh("./state.mjs");
+    const { createSnapshot } = await importFresh("./storage/state.mjs");
     const target = await createSnapshot(dir, "force-init");
     await initState({ projectDir: dir, force: true, actor: "alice" });
     const out = await restoreState({ projectDir: dir, snapshotId: target.id, actor: "recovery" });
@@ -129,7 +129,7 @@ test("kernel state.restore recovers over v1 and future current state, preserving
     const dir = await createTempProject();
     try {
       const { initState, restoreState } = await importFresh("./kernel/state-operations.mjs");
-      const { createSnapshot, listSnapshots } = await importFresh("./state.mjs");
+      const { createSnapshot, listSnapshots } = await importFresh("./storage/state.mjs");
       await initState({ projectDir: dir });
       const target = await createSnapshot(dir, "force-init");
       const raw = JSON.stringify({ version, legacy: true });

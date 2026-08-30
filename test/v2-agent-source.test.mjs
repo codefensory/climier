@@ -234,7 +234,7 @@ test("add-node: CLIMIER_AGENT is recorded in the log when --as is absent", async
       positional: ["T-x"],
       flags: { kind: "resolvable", subkind: "task", title: "t", initiative: "auth" },
     });
-    const { readState } = await importFresh("./state.mjs");
+    const { readState } = await importFresh("./storage/state.mjs");
     const s = await readState(dir);
     const last = s.log[s.log.length - 1];
     assert.equal(last.agent, "env-only-agent");
