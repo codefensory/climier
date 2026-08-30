@@ -10,7 +10,7 @@ import { createTempProject, rmTempProject, importFresh, runCli, readState, state
 
 // BUG #3: withLock used to assume a pre-existing state directory.
 test("bug: withLock creates the state directory if missing", async () => {
-  const { withLock } = await importFresh("./lock.mjs");
+  const { withLock } = await importFresh("./storage/lock.mjs");
   const os = await import("node:os");
   const base = await fs.mkdtemp(path.join(os.tmpdir(), "climier-bug3-"));
   try {

@@ -6,7 +6,7 @@ import path from "node:path";
 import { createTempProject, rmTempProject, importFresh, lockFilePath } from "./helpers.mjs";
 
 test("withLock acquires and releases on success", async () => {
-  const { withLock } = await importFresh("./lock.mjs");
+  const { withLock } = await importFresh("./storage/lock.mjs");
   const dir = await createTempProject();
   try {
     let ran = false;
@@ -22,7 +22,7 @@ test("withLock acquires and releases on success", async () => {
 });
 
 test("withLock blocks concurrent acquires; second waits then succeeds", async () => {
-  const { withLock } = await importFresh("./lock.mjs");
+  const { withLock } = await importFresh("./storage/lock.mjs");
   const dir = await createTempProject();
   try {
     const order = [];
@@ -44,7 +44,7 @@ test("withLock blocks concurrent acquires; second waits then succeeds", async ()
 });
 
 test("withLock releases on mutator error (no deadlock)", async () => {
-  const { withLock } = await importFresh("./lock.mjs");
+  const { withLock } = await importFresh("./storage/lock.mjs");
   const dir = await createTempProject();
   try {
     await assert.rejects(
@@ -63,7 +63,7 @@ test("withLock releases on mutator error (no deadlock)", async () => {
 });
 
 test("withLock does not auto-clear an old lock file", async () => {
-  const { withLock } = await importFresh("./lock.mjs");
+  const { withLock } = await importFresh("./storage/lock.mjs");
   const dir = await createTempProject();
   try {
     const lockPath = lockFilePath(dir);
@@ -79,7 +79,7 @@ test("withLock does not auto-clear an old lock file", async () => {
 });
 
 test("withLock times out if holder never releases", async () => {
-  const { withLock } = await importFresh("./lock.mjs");
+  const { withLock } = await importFresh("./storage/lock.mjs");
   const dir = await createTempProject();
   try {
     const lockPath = lockFilePath(dir);

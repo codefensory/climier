@@ -599,7 +599,7 @@ Estas métricas deben validarse con usuarios antes de fijarlas como contrato:
 - `src/commands/history.mjs`: historial por node.
 - `src/commands/add-note.mjs`: thread de notes append-only.
 - `src/storage/state.mjs`: lectura, escritura atómica y schema validation.
-- `src/lock.mjs`: coordinación de mutaciones concurrentes.
+- `src/storage/lock.mjs`: coordinación de mutaciones concurrentes.
 - `~/Dev/vegsport/AGENTS.md`: uso de Climier en el monorepo.
 - `~/Dev/vegsport/CLIMIER-CHEATSHEET.md`: workflow y vocabulario usado por agents.
 

@@ -692,7 +692,7 @@ test("seam-dag: deprecate-knowledge adapter uses the kernel knowledge provider f
   assert.match(source, /from [\"']\.\.\/kernel\/mutate\.mjs[\"']/);
   assert.match(source, /from [\"']\.\.\/providers\/knowledge\/deprecate\.mjs[\"']/);
   assert.match(source, /\bmutate\(/);
-  for (const forbidden of ["../state.mjs", "../lock.mjs", "../log.mjs"]) {
+  for (const forbidden of ["../state.mjs", "../storage/lock.mjs", "../storage/log.mjs"]) {
     assert.doesNotMatch(source, new RegExp(`from [\\\"']${forbidden.replaceAll("/", "\\\\/")}[\\\"']`));
   }
 });
