@@ -880,7 +880,7 @@ test("kernel.mutate: non-empty pluginId projects to plugin_id on the log entry",
 // Plan log fields / log shape
 // ===================================================================
 
-test("kernel.mutate: copies only allow-listed plan.logFields into the log", async () => {
+test("kernel.mutate: copies only allow-listed plan.logFields, including historical note, into the log", async () => {
   const { mutate } = await importKernel();
   const { provider: baseProvider } = updateNodeProvider({ id: "T1", newTitle: "logged-fields" });
   const provider = {
@@ -891,6 +891,7 @@ test("kernel.mutate: copies only allow-listed plan.logFields into the log", asyn
         rationale: "matches contract",
         reason: "audited",
         previous_owner: "bob",
+        note: "historical audit note",
         ignored: "must not leak",
       },
     }),
@@ -909,6 +910,7 @@ test("kernel.mutate: copies only allow-listed plan.logFields into the log", asyn
     assert.equal(entry.rationale, "matches contract");
     assert.equal(entry.reason, "audited");
     assert.equal(entry.previous_owner, "bob");
+    assert.equal(entry.note, "historical audit note");
     assert.equal(entry.ignored, undefined);
   } finally {
     await rmTempProject(dir);
