@@ -53,7 +53,18 @@ const EDGE_TYPE_FIELD_RE = /^[A-Z_]+$/;
 // `note` is a historical, operation-specific field used by note.add and
 // lifecycle adapters. It is safe to project because the kernel still owns
 // every audit identity/timestamp and rejects the reserved fields below.
-const LOG_FIELD_ALLOWLIST = new Set(["choice", "rationale", "reason", "previous_owner", "note"]);
+const LOG_FIELD_ALLOWLIST = new Set([
+  "choice",
+  "rationale",
+  "reason",
+  "previous_owner",
+  "note",
+  // Plugin-data providers project only redacted addressing metadata. The
+  // value itself is deliberately not an allowed audit field.
+  "scope",
+  "node_id",
+  "key",
+]);
 const LOG_FIELD_RESERVED = new Set([
   "ts",
   "action",
@@ -399,7 +410,11 @@ function nextRevisionFor(diffCreated, diffUpdated, snapshot, targetId) {
 
 function buildLogEntry(request, plan, diffCreated, diffUpdated, edgesAdded, edgesRemoved, removedNodes, targetNextRevision, pluginId, initiativeDiff) {
   const base = {
-    action: request.action,
+    // Legacy/core adapters choose the request action explicitly. Plugin-data
+    // plans additionally carry their stable redacted audit action, so a
+    // canonical `plugin-data.*` request still records `plugin-data-set`
+    // without changing existing CLI/API log names.
+    action: plan.pluginId && typeof plan.logAction === "string" ? plan.logAction : request.action,
     agent: request.actor,
     node: plan.target.id,
   };
@@ -419,7 +434,12 @@ function buildLogEntry(request, plan, diffCreated, diffUpdated, edgesAdded, edge
   }
   // Only operation-specific fields from the explicit allow-list are added;
   // all kernel-owned metadata remains authoritative.
-  return prepareLogEntry({ ...base, ...normalizeLogFields(plan.logFields, request.action) }, { pluginId });
+  // Plugin providers carry their host identity in the typed plan. Prefer the
+  // explicit kernel argument when present, but retain the plan identity for
+  // direct provider use (the plan never contains the data value in its log
+  // fields).
+  const auditPluginId = pluginId || (typeof plan.pluginId === "string" ? plan.pluginId : null);
+  return prepareLogEntry({ ...base, ...normalizeLogFields(plan.logFields, request.action) }, { pluginId: auditPluginId });
 }
 
 // validateDraftStructural — last line of defence after provider.apply.
@@ -566,6 +586,11 @@ async function runStateMutation({ projectDir, request, stateOperation, policyAct
     nodes: currentState && currentState.nodes ? { ...currentState.nodes } : {},
     edges: currentState && Array.isArray(currentState.edges) ? currentState.edges.slice() : [],
     initiatives: currentState && currentState.initiatives ? { ...currentState.initiatives } : {},
+    // Root plugin data is an optional v2 keyspace. Preserve its absence for
+    // older states while exposing it to the transaction when present.
+    ...(currentState && Object.prototype.hasOwnProperty.call(currentState, "plugins")
+      ? { plugins: currentState.plugins }
+      : {}),
   });
   const prepared = await stateOperation.prepare({ projectDir, snapshot, input: request.input, request });
   if (!prepared || typeof prepared !== "object" || Array.isArray(prepared) || !prepared.target || typeof prepared.target.id !== "string") {
@@ -707,7 +732,7 @@ export async function mutate({ projectDir, request, provider, policyAction, plug
       // 1) prepare — exactly once, inside the lock, against the snapshot
       //    we are about to mutate. The plan is frozen below so neither
       //    provider nor apply can mutate it.
-      const prepareResult = await provider.prepare({ snapshot, input: request.input, request });
+      const prepareResult = await provider.prepare({ snapshot, input: request.input, request, pluginId });
       validatePlan(prepareResult, commandName);
       const plan = Object.freeze({
         target: Object.freeze({ ...prepareResult.target }),
@@ -771,11 +796,21 @@ export async function mutate({ projectDir, request, provider, policyAction, plug
       }
 
       // 5) final draft validation + diff + revisions + idempotency.
-      const draftView = tx.view();
+      const draftView = tx.view({ includePlugins: true });
       validateDraftStructural(draftView, commandName);
       const { next: nextNodes, removed: removedNodes, created, updated } = assignRevisionsAndDiff(snapshot, draftView);
       const { added: addedEdges, removed: removedEdges } = computeEdgeDiff(snapshot.edges || [], draftView.edges || []);
       const initiativeDiff = computeInitiativeDiff(snapshot.initiatives || {}, draftView.initiatives || {});
+      // Node-scoped plugin data is already covered by the node diff above;
+      // project-scoped data lives outside nodes and must participate directly
+      // in idempotency so it is not silently dropped or treated as a no-op.
+      const pluginsBefore = snapshot.plugins && typeof snapshot.plugins === "object" && !Array.isArray(snapshot.plugins)
+        ? snapshot.plugins
+        : {};
+      const pluginsAfter = draftView.plugins && typeof draftView.plugins === "object" && !Array.isArray(draftView.plugins)
+        ? draftView.plugins
+        : {};
+      const pluginsChanged = !deepEqualNodes(pluginsBefore, pluginsAfter);
 
       const isIdempotent =
         created.length === 0 &&
@@ -784,7 +819,8 @@ export async function mutate({ projectDir, request, provider, policyAction, plug
         removedEdges.length === 0 &&
         removedNodes.length === 0 &&
         initiativeDiff.created.length === 0 &&
-        initiativeDiff.updated.length === 0;
+        initiativeDiff.updated.length === 0 &&
+        !pluginsChanged;
 
       let persistedState = null;
       let logEntry = null;
@@ -849,6 +885,15 @@ export async function mutate({ projectDir, request, provider, policyAction, plug
           initiatives: finalInitiatives,
           log: [...(Array.isArray(snapshot.log) ? snapshot.log : []), logPayload],
         };
+        // Keep the optional collection absent for legacy states until a
+        // provider actually creates root plugin data. Existing plugin data is
+        // always replaced with the complete isolated draft to preserve every
+        // plugin namespace and its metadata in the same atomic write.
+        if (Object.prototype.hasOwnProperty.call(snapshot, "plugins") || Object.keys(pluginsAfter).length > 0) {
+          persistedState.plugins = pluginsAfter;
+        } else {
+          delete persistedState.plugins;
+        }
         logEntry = logPayload;
 
         await writeState(projectDir, persistedState);
