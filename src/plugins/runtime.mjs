@@ -19,7 +19,7 @@
 // `climier plugin ns sub --as` (no value) does not silently resolve agent
 // from the env var.
 
-import { resolveProject } from "../paths.mjs";
+import { resolveProject } from "../storage/paths.mjs";
 
 // V1 flags whose values we want to extract. Other flags are ignored by
 // this module (the dispatch forwards them unchanged to the handler).

@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { climierHome, projectMetaFile } from "./paths.mjs";
+import { climierHome, projectMetaFile } from "./storage/paths.mjs";
 
 function readProjectMetaSync(projectDir) {
   const file = projectMetaFile(projectDir);

@@ -9,7 +9,7 @@
 // core v2 errors, so the existing catch can serialize them without
 // changes.
 import fsSync from "node:fs";
-import { resolveProject } from "../src/paths.mjs";
+import { resolveProject } from "../src/storage/paths.mjs";
 import { RESERVED_NAMESPACES } from "../src/commands/reserved-namespaces.mjs";
 
 const args = process.argv.slice(2);

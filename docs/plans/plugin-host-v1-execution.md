@@ -22,7 +22,7 @@ Inspección del repo en `main` (HEAD `15cdd8c docs: approve plugin host v1 ADR`)
   `<state-dir>/.lock` (default 10s, `fs.openSync('wx')` + spinlock).
   No hay un lock de scope global; cualquier nuevo lock debe vivir en su
   propio archivo y no contaminar este.
-- `src/paths.mjs` resuelve `<CLIMIER_HOME>/projects/<id>/tasks.json` y
+- `src/storage/paths.mjs` resuelve `<CLIMIER_HOME>/projects/<id>/tasks.json` y
   `<project>/.climier.json`. No existe aún `<CLIMIER_HOME>/plugins/`.
 - `src/agent.mjs` resuelve identidad con precedencia `--as` > `CLIMIER_AGENT`
   > `MISSING_AGENT`. Lo reutilizaremos para el runtime del plugin.
