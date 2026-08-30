@@ -50,7 +50,10 @@ const EDGE_TYPE_FIELD_RE = /^[A-Z_]+$/;
 // provider cannot project arbitrary payload or audit metadata into the log.
 // Kernel-owned fields are rejected (rather than ignored) because accepting
 // them would let a provider spoof the mutation's authoritative metadata.
-const LOG_FIELD_ALLOWLIST = new Set(["choice", "rationale", "reason", "previous_owner"]);
+// `note` is a historical, operation-specific field used by note.add and
+// lifecycle adapters. It is safe to project because the kernel still owns
+// every audit identity/timestamp and rejects the reserved fields below.
+const LOG_FIELD_ALLOWLIST = new Set(["choice", "rationale", "reason", "previous_owner", "note"]);
 const LOG_FIELD_RESERVED = new Set([
   "ts",
   "action",
