@@ -228,7 +228,7 @@ export function isPluginCoreError(err) {
 
 // ---- ADR-007 §"Errores" — policy plugin namespace -------------------
 //
-// Errors emitted by `src/policy.mjs` for runtime decisions on
+// Errors emitted by `src/plugins/policy.mjs` for runtime decisions on
 // `applies`/`authorize`. Shape contract:
 //
 //   POLICY_DENIED   decision === "deny"   → handler aborts mutation

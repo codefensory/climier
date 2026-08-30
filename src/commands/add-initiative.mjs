@@ -10,7 +10,7 @@ import { mutate } from "../kernel/mutate.mjs";
 import { initiativeCreateProvider } from "../providers/core/initiative.mjs";
 import { throwV2 } from "../errors.mjs";
 import { resolveAgent } from "../agent.mjs";
-import { loadApplicablePolicy, authorizeAction } from "../policy.mjs";
+import { loadApplicablePolicy, authorizeAction } from "../plugins/policy.mjs";
 
 // T-plugin-policy-seam-lifecycle / ADR-008 §"initiative.create":
 //   - policy selection happens outside the kernel lock;

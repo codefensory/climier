@@ -30,7 +30,7 @@
 
 import { bootstrapBuiltins } from "./plugin-core-registry.mjs";
 import { mutate } from "./kernel/mutate.mjs";
-import { loadApplicablePolicy, authorizeAction, isPolicyError } from "./policy.mjs";
+import { loadApplicablePolicy, authorizeAction, isPolicyError } from "./plugins/policy.mjs";
 import {
   PluginCoreInvalidOperation,
   isPluginError,
