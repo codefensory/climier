@@ -26,6 +26,17 @@ import { throwV2 } from "../errors.mjs";
 // providers share this same source of truth (v2.mjs re-exports it).
 export const EDGE_TYPES = Object.freeze(["BLOCKS", "SUPERSEDES", "DERIVED_FROM"]);
 
+// Historical read-only relation names retained for compatibility with the
+// v2 facade. They are not accepted by validateEdge.
+export const EDGE_TYPE_CONSTANTS = Object.freeze([
+  "BLOCKS",
+  "INFORMS",
+  "SUPERSEDES",
+  "DERIVED_FROM",
+  "RELATES_TO",
+  "CONFLICTS_WITH",
+]);
+
 function asEdges(state) {
   return Array.isArray(state && state.edges) ? state.edges : [];
 }
