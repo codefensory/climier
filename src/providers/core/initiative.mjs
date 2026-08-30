@@ -206,4 +206,11 @@ async function apply({ tx, plan, input, request, snapshot }) {
   };
 }
 
-export const initiativeCreateProvider = Object.freeze({ prepare, apply });
+// This is the only built-in provider allowed to initialize a missing v2
+// state. kernel.mutate checks this explicit capability together with the
+// operation id; other providers retain the run-init-first failure.
+export const initiativeCreateProvider = Object.freeze({
+  prepare,
+  apply,
+  bootstrapMissingState: true,
+});
