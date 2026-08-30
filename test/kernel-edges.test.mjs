@@ -8,7 +8,7 @@
 // Conventions:
 //   - pure-function tests; import the module fresh per case for isolation;
 //   - one focused assertion per test (code + details where relevant);
-//   - errors come from src/errors.mjs (throwV2); message and code must be
+//   - errors come from src/contracts/errors.mjs (throwV2); message and code must be
 //     preserved so existing v2 consumers keep working.
 
 import { test } from "node:test";

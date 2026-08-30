@@ -19,7 +19,7 @@
 //     lock, state, log, policy, commands, registry, adapter, CLI or
 //     UI.
 
-import { throwV2 } from "../../errors.mjs";
+import { throwV2 } from "../../contracts/errors.mjs";
 
 // EDGE_TYPES — local mirror of the kernel whitelist (BLOCKS,
 // SUPERSEDES, DERIVED_FROM). Duplicated here intentionally: this

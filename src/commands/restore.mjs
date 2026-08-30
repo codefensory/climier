@@ -2,7 +2,7 @@
 // The kernel owns snapshot validation, locking, pre-restore snapshots, the
 // atomic state replacement and the restore log entry. This module maps CLI
 // arguments and projects the established output shape.
-import { throwV2 } from "../errors.mjs";
+import { throwV2 } from "../contracts/errors.mjs";
 import { resolveAgent } from "../contracts/agent.mjs";
 import { loadApplicablePolicy, authorizeAction } from "../plugins/policy.mjs";
 import { restoreState } from "../kernel/state-operations.mjs";

@@ -8,7 +8,7 @@
 // request so the persisted audit stream remains compatible.
 import { mutate } from "../kernel/mutate.mjs";
 import { initiativeCreateProvider } from "../providers/core/initiative.mjs";
-import { throwV2 } from "../errors.mjs";
+import { throwV2 } from "../contracts/errors.mjs";
 import { resolveAgent } from "../contracts/agent.mjs";
 import { loadApplicablePolicy, authorizeAction } from "../plugins/policy.mjs";
 

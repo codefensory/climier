@@ -2,7 +2,7 @@
 // The kernel owns locking, state, revisions and logs; this module only maps
 // CLI flags to the typed provider request and projects the legacy envelope.
 import { mutate } from "../kernel/mutate.mjs";
-import { throwV2 } from "../errors.mjs";
+import { throwV2 } from "../contracts/errors.mjs";
 import { resolveAgent } from "../contracts/agent.mjs";
 import { loadApplicablePolicy, authorizeAction } from "../plugins/policy.mjs";
 import { taskResolveProvider } from "../providers/task/resolve.mjs";

@@ -32,7 +32,7 @@
 //   - a rewrite whose destination edge already exists collapses into the
 //     existing edge instead of producing a duplicate.
 
-import { throwV2 } from "../../errors.mjs";
+import { throwV2 } from "../../contracts/errors.mjs";
 import { blocksEdge, validateEdge } from "../../kernel/edges.mjs";
 
 const COMMAND = "gate.create";

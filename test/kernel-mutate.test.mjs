@@ -1158,7 +1158,7 @@ test("kernel.mutate: source file does not import providers/registry/adapter/bin/
   // Allowed relative imports — see the task body / ADR-011 §1: the
   // kernel must compose the existing allowed seams.
   const allowedRelative = new Set([
-    "../errors.mjs",        // throwV2 for structured errors
+    "../contracts/errors.mjs", // throwV2 for structured errors
     "../storage/state.mjs", // readState + writeState (atomic)
     "../storage/lock.mjs",          // withLock (single-mutation frontier)
     "../storage/log.mjs",           // prepareLogEntry (canonical log shape)

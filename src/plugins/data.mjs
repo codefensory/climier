@@ -17,7 +17,7 @@ import {
   pluginDataNodeSetProvider,
   pluginDataProjectSetProvider,
 } from "../providers/plugin-data/index.mjs";
-import { throwV2 } from "../errors.mjs";
+import { throwV2 } from "../contracts/errors.mjs";
 
 function assertAgent(agent, commandName, scope) {
   if (typeof agent === "string" && agent.trim()) return agent.trim();

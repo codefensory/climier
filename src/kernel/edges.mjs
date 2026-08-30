@@ -19,7 +19,7 @@
 //     existing consumers (add-node, add-edge, providers, UI) keep working.
 //   - No filesystem, no locks, no providers, no command-specific state.
 
-import { throwV2 } from "../errors.mjs";
+import { throwV2 } from "../contracts/errors.mjs";
 
 // Whitelist of edge types accepted by mutating paths. Frozen so callers
 // cannot mutate the canonical list; transaction.mjs and the future

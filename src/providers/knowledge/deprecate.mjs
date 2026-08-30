@@ -26,7 +26,7 @@
 // registry, no adapter, no CLI, no UI. The only side effect is on the
 // caller-supplied `tx` draft.
 
-import { throwV2 } from "../../errors.mjs";
+import { throwV2 } from "../../contracts/errors.mjs";
 
 const POLICY_ACTION = "knowledge.deprecate";
 const COMMAND_OP = "knowledge.deprecate";

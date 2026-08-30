@@ -1,4 +1,4 @@
-import { throwV2 } from "../../errors.mjs";
+import { throwV2 } from "../../contracts/errors.mjs";
 
 export function nonEmpty(value) {
   return typeof value === "string" && value.length > 0 ? value : null;

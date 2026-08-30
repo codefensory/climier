@@ -1,6 +1,6 @@
 // Pure provider for project-scoped plugin data writes.
 // It never owns a lock, persistence or logging path.
-import { throwV2 } from "../../errors.mjs";
+import { throwV2 } from "../../contracts/errors.mjs";
 import { cloneValue, nonEmpty, pluginIdFrom, planPolicyAction, validateValue } from "./common.mjs";
 
 const OP = "plugin-data.project.set";

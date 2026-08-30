@@ -68,7 +68,7 @@ function baseSnapshot() {
 async function assertNoForbiddenImports() {
   const src = await readFile(path.join(SRC_DIR, "kernel", "transaction.mjs"), "utf8");
   // Whitelist: structuredClone is a Node global (no import needed), so the
-  // only allowed import surface is "../errors.mjs" for throwV2. Everything
+  // only allowed import surface is "../contracts/errors.mjs" for throwV2. Everything
   // else must be forbidden.
   const forbidden = [
     /\bfs\b\s*from\s+["']node:fs/,
@@ -85,15 +85,15 @@ async function assertNoForbiddenImports() {
       `kernel/transaction.mjs must not import forbidden module (pattern: ${pattern})`,
     );
   }
-  // Positive assertion: the only relative import allowed is "../errors.mjs".
+  // Positive assertion: the only relative import allowed is "../contracts/errors.mjs".
   // If this assertion ever breaks, revisit the whitelist — the kernel draft
   // must stay decoupled from v2/commands/state/lock/log/plugins/UI.
-  assert.match(src, /from\s+["']\.\.\/errors\.mjs["']/, "kernel/transaction.mjs must import throwV2 from ../errors.mjs");
+  assert.match(src, /from\s+["']\.\.\/contracts\/errors\.mjs["']/, "kernel/transaction.mjs must import throwV2 from ../contracts/errors.mjs");
   const relativeImports = [...src.matchAll(/from\s+["'](\.\.?\/[^"']+)["']/g)].map((m) => m[1]);
   for (const imp of relativeImports) {
     assert.ok(
-      imp === "../errors.mjs",
-      `kernel/transaction.mjs must only import "../errors.mjs"; got ${imp}`,
+      imp === "../contracts/errors.mjs",
+      `kernel/transaction.mjs must only import "../contracts/errors.mjs"; got ${imp}`,
     );
   }
 }

@@ -40,7 +40,7 @@ import fs from "node:fs/promises";
 import { readState, writeState, stateFile, createSnapshot, emptyState } from "../storage/state.mjs";
 import { withLock } from "../storage/lock.mjs";
 import { prepareLogEntry } from "../storage/log.mjs";
-import { throwV2 } from "../errors.mjs";
+import { throwV2 } from "../contracts/errors.mjs";
 import { createTransaction } from "./transaction.mjs";
 
 const EDGE_TYPE_FIELD_RE = /^[A-Z_]+$/;

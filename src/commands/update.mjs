@@ -6,7 +6,7 @@
 // persistence, revision assignment, logging and policy execution remain
 // kernel responsibilities.
 import { mutate } from "../kernel/mutate.mjs";
-import { throwV2 } from "../errors.mjs";
+import { throwV2 } from "../contracts/errors.mjs";
 import { resolveAgent } from "../contracts/agent.mjs";
 import { validateExecution } from "../contracts/execution-contract.mjs";
 import { loadApplicablePolicy, authorizeAction } from "../plugins/policy.mjs";

@@ -22,7 +22,7 @@
 //     lock, state, log, policy, commands, registry, adapter, CLI or
 //     UI.
 
-import { throwV2 } from "../../errors.mjs";
+import { throwV2 } from "../../contracts/errors.mjs";
 
 const OP = "note.add";
 const LOG_ACTION = "add-note";

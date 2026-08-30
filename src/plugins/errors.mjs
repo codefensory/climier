@@ -9,14 +9,14 @@
 // The CLI bin already serializes any thrown error with `.code` and
 // `.details` into the structured envelope. This module is a small
 // factory for the PLUGIN_* errors so dispatch/load can throw with the
-// right shape without polluting `V2_ERROR_CODES` in src/errors.mjs.
+// right shape without polluting `V2_ERROR_CODES` in src/contracts/errors.mjs.
 //
-// The pattern mirrors `throwV2` (see src/errors.mjs) but is intentionally
+// The pattern mirrors `throwV2` (see src/contracts/errors.mjs) but is intentionally
 // separate: plugin codes are only meaningful to the plugin host and the
 // lifecycle pair (install/uninstall) — keeping them out of V2_ERROR_CODES
 // preserves the contract of the core v2 schema.
 
-import { makeError } from "../errors.mjs";
+import { makeError } from "../contracts/errors.mjs";
 
 // pluginErrorEnvelope — pure helper, used by toJSON on each plugin error.
 export function pluginErrorEnvelope(code, message, details) {
@@ -120,7 +120,7 @@ export function isPluginError(err) {
 // or after invoking a core handler on behalf of a plugin. They share
 // the same envelope shape used by the rest of the PLUGIN_* family
 // (`{ code, message, details }`) and stay out of `V2_ERROR_CODES` in
-// src/errors.mjs for the same reason the rest of the family does:
+// src/contracts/errors.mjs for the same reason the rest of the family does:
 // core v2 codes are an open set consumed by the core; PLUGIN_ codes
 // belong to the plugin host, which is a strict subset. The narrow
 // `PLUGIN_CORE_*` namespace identifies "the core adapter rejected

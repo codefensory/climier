@@ -13,7 +13,7 @@
 //     commands, registry, adapters, CLI or UI. Only the v2 error
 //     helpers are used.
 
-import { throwV2 } from "../../errors.mjs";
+import { throwV2 } from "../../contracts/errors.mjs";
 import { isTaskReady } from "./derivation.mjs";
 
 const OP = "task.take";
