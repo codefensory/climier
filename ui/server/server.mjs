@@ -13,7 +13,7 @@ import fs from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import express from "express";
 import { readState, stateFile } from "../../src/state.mjs";
-import { projectMetaFile } from "../../src/paths.mjs";
+import { projectMetaFile } from "../../src/storage/paths.mjs";
 import {
   derive,
   statusOf,
