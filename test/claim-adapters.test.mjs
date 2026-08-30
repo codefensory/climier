@@ -17,3 +17,16 @@ for (const command of ["take", "release"]) {
     assert.doesNotMatch(source, /updateState|withLock|appendWithContext|readState/);
   });
 }
+
+for (const command of ["resolve", "reopen", "cancel"]) {
+  test(`${command} CLI command is a kernel adapter, not a persistence owner`, async () => {
+    const source = await fs.readFile(path.join(ROOT, "src", "commands", `${command}.mjs`), "utf8");
+    assert.match(source, /from \"\.\.\/kernel\/mutate\.mjs\"/);
+    assert.match(source, /providers\/(task|gate)\//);
+    assert.doesNotMatch(source, /from \"\.\.\/state\.mjs\"/);
+    assert.doesNotMatch(source, /from \"\.\.\/lock\.mjs\"/);
+    assert.doesNotMatch(source, /from \"\.\.\/log\.mjs\"/);
+    assert.doesNotMatch(source, /\.revision\s*=/);
+    assert.doesNotMatch(source, /updateState|withLock|appendWithContext|readState/);
+  });
+}
