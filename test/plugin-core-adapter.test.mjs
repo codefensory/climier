@@ -45,7 +45,7 @@ import {
 const ADAPTER_MODULE = "../src/plugin-core-adapter.mjs";
 const REGISTRY_MODULE = "../src/plugin-core-registry.mjs";
 
-// 17 op IDs (ADR-012 §2). The adapter must accept every one of these
+// 18 op IDs (ADR-012 §2). The adapter must accept every one of these
 // before reaching for the kernel.
 const EXPECTED_OPS = [
   // task lifecycle (7)
@@ -56,8 +56,9 @@ const EXPECTED_OPS = [
   "task.release",
   "task.reopen",
   "task.cancel",
-  // gate lifecycle (4)
+  // gate lifecycle (5)
   "gate.create",
+  "gate.update",
   "gate.resolve",
   "gate.reopen",
   "gate.cancel",
@@ -138,10 +139,10 @@ test("plugin-core-adapter: createCore throws when pluginId is missing or empty",
 });
 
 // =====================================================================
-// 2. registry — bootstrapBuiltins exposes the 17-op contract
+// 2. registry — bootstrapBuiltins exposes the 18-op contract
 // =====================================================================
 
-test("plugin-core-adapter: bootstrapBuiltins exposes exactly the 17 op IDs published by ADR-012 §2", async () => {
+test("plugin-core-adapter: bootstrapBuiltins exposes exactly the 18 op IDs published by ADR-012 §2", async () => {
   const { bootstrapBuiltins } = await importFresh(REGISTRY_MODULE);
   const reg = bootstrapBuiltins();
   assert.equal(reg.ops.length, EXPECTED_OPS.length, `expected ${EXPECTED_OPS.length} ops, got ${reg.ops.length}`);
@@ -245,7 +246,7 @@ test("plugin-core-adapter: run rejects input._as with the same reason (no alias 
 });
 
 // =====================================================================
-// 4. run — accepts any of the 17 ops without rejection; rejects unknown
+// 4. run — accepts any of the 18 ops without rejection; rejects unknown
 // =====================================================================
 
 test("plugin-core-adapter: run rejects unknown op without mutating state (rejection happens before any lock)", async () => {
