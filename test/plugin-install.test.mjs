@@ -30,9 +30,9 @@ import {
   writeState,
 } from "./helpers.mjs";
 
-const PLUGIN_MODULE = "../src/plugin-paths.mjs";
-const LOCK_MODULE = "../src/plugin-lock.mjs";
-const DESCRIPTOR_MODULE = "../src/plugin-descriptor.mjs";
+const PLUGIN_MODULE = "../src/plugins/paths.mjs";
+const LOCK_MODULE = "../src/plugins/lock.mjs";
+const DESCRIPTOR_MODULE = "../src/plugins/descriptor.mjs";
 const RESERVED_MODULE = "../src/commands/reserved-namespaces.mjs";
 const INSTALL_MODULE = "../src/commands/install.mjs";
 const UNINSTALL_MODULE = "../src/commands/uninstall.mjs";

@@ -17,7 +17,7 @@
 // "nonce" is a per-install random hex string.
 
 import path from "node:path";
-import { climierHome } from "./paths.mjs";
+import { climierHome } from "../paths.mjs";
 
 export function pluginsHome() {
   return path.join(climierHome(), "plugins");
