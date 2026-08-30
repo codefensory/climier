@@ -3,7 +3,7 @@
 // Scope (paths propios del plan §4.4):
 //   - add-task.mjs, add-edge.mjs, add-node.mjs, add-gate.mjs,
 //     add-knowledge.mjs, update.mjs, deprecate-knowledge.mjs,
-//     v2-add-node.mjs.
+//     commands/internal/create-node.mjs.
 //   - addNodeInternal({ statePath, flags, positional, pluginId,
 //     allowUnregisteredInitiative = false }).
 //
@@ -702,7 +702,7 @@ test("seam-dag: deprecate-knowledge adapter uses the kernel knowledge provider f
 test("seam-dag: addNodeInternal({ allowUnregisteredInitiative: true }) bypasses INITIATIVE_NOT_FOUND", async () => {
   await withFreshEnv(async ({ projectDir }) => {
     await initProject(projectDir);
-    const { addNodeInternal } = await importFresh("../src/v2-add-node.mjs");
+    const { addNodeInternal } = await importFresh("../src/commands/internal/create-node.mjs");
     const out = await addNodeInternal({
       statePath: projectDir,
       projectDir,
@@ -727,7 +727,7 @@ test("seam-dag: addNodeInternal({ allowUnregisteredInitiative: true }) bypasses 
 test("seam-dag: addNodeInternal without the flag still enforces INITIATIVE_NOT_FOUND", async () => {
   await withFreshEnv(async ({ projectDir }) => {
     await initProject(projectDir);
-    const { addNodeInternal } = await importFresh("../src/v2-add-node.mjs");
+    const { addNodeInternal } = await importFresh("../src/commands/internal/create-node.mjs");
     await assert.rejects(
       () => addNodeInternal({
         statePath: projectDir,

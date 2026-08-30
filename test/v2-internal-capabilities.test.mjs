@@ -1,6 +1,6 @@
 // T-plugin-policy-migration-tests — ADR-008 §"Capacidad interna":
 // the internal capability `addNodeInternal({ allowUnregisteredInitiative: true })`
-// in src/v2-add-node.mjs is the ONLY sanctioned caller of the
+// in src/commands/internal/create-node.mjs is the ONLY sanctioned caller of the
 // `--allow-unregistered-initiative` flag. The flag is not in the
 // public CLI knownFlags set for add-task / add-node / add-gate /
 // add-knowledge / add-edge, so the bin rejects it before reaching
@@ -83,7 +83,7 @@ async function registerInitiative(projectDir, name) {
 test("internal-caps: addNodeInternal with allowUnregisteredInitiative=true accepts an unregistered initiative", async () => {
   await withFreshHome(async ({ projectDir }) => {
     await initProject(projectDir);
-    const { addNodeInternal } = await importFresh("../src/v2-add-node.mjs");
+    const { addNodeInternal } = await importFresh("../src/commands/internal/create-node.mjs");
     const out = await addNodeInternal({
       statePath: projectDir,
       projectDir,
@@ -115,7 +115,7 @@ test("internal-caps: addNodeInternal with allowUnregisteredInitiative=true accep
 test("internal-caps: addNodeInternal with allowUnregisteredInitiative=true also accepts NO initiative at all", async () => {
   await withFreshHome(async ({ projectDir }) => {
     await initProject(projectDir);
-    const { addNodeInternal } = await importFresh("../src/v2-add-node.mjs");
+    const { addNodeInternal } = await importFresh("../src/commands/internal/create-node.mjs");
     const out = await addNodeInternal({
       statePath: projectDir,
       projectDir,
@@ -142,7 +142,7 @@ test("internal-caps: addNodeInternal with allowUnregisteredInitiative=true also 
 test("internal-caps: addNodeInternal without the flag still enforces INITIATIVE_NOT_FOUND", async () => {
   await withFreshHome(async ({ projectDir }) => {
     await initProject(projectDir);
-    const { addNodeInternal } = await importFresh("../src/v2-add-node.mjs");
+    const { addNodeInternal } = await importFresh("../src/commands/internal/create-node.mjs");
     await assert.rejects(
       () => addNodeInternal({
         statePath: projectDir,

@@ -3,7 +3,7 @@
 // The id is either explicit (positional) or auto-allocated as
 // `T-xxxxxxxx` (8-char random suffix). Required fields:
 // --initiative, --title, --body, --acceptance, --blocked-by.
-import { addV2Node, requireFields } from "../v2-add-node.mjs";
+import { addV2Node, requireFields } from "./internal/create-node.mjs";
 import { throwV2 } from "../errors.mjs";
 import { resolveAgent } from "../agent.mjs";
 
