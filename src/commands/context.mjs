@@ -29,8 +29,8 @@ import {
   blockingForNode,
   informingForNode,
   knowledgeForNode,
-  statusOfV2,
-} from "../v2.mjs";
+  statusOf,
+} from "../read-model/index.mjs";
 import { throwV2 } from "../errors.mjs";
 import {
   detectOwnershipConflicts,
@@ -212,7 +212,7 @@ export default async function context({ statePath, positional, flags }) {
     ? detectOwnershipConflicts(s, id)
     : [];
   const alerts = buildAlerts(id, blocking, knowledge, claim, ownership_conflicts);
-  const derived_status = statusOfV2(s, id);
+  const derived_status = statusOf({ snapshot: s, id });
   const agent = flags.as && flags.as !== true ? String(flags.as) : null;
   const allowed_actions = allowedActions(node, derived_status, claim, agent);
 
