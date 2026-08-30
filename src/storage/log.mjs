@@ -20,7 +20,7 @@
 //     (ADR-011 §1) so it can compose state mutation + log append into a
 //     single `writeState` call. The lock is owned by the kernel so
 //     `updateState` is intentionally not invoked here.
-import { updateState } from "./storage/state.mjs";
+import { updateState } from "./state.mjs";
 
 function tsField() {
   return new Date().toISOString();

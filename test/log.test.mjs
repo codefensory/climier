@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, importFresh } from "./helpers.mjs";
 
 test("append adds an entry with ts, agent, action", async () => {
-  const { append, readState } = await importFresh("./log.mjs");
+  const { append, readState } = await importFresh("./storage/log.mjs");
   const { readState: rs } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
@@ -21,7 +21,7 @@ test("append adds an entry with ts, agent, action", async () => {
 });
 
 test("append adds multiple entries in order", async () => {
-  const { append } = await importFresh("./log.mjs");
+  const { append } = await importFresh("./storage/log.mjs");
   const { readState } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
@@ -37,7 +37,7 @@ test("append adds multiple entries in order", async () => {
 });
 
 test("append accepts a note field", async () => {
-  const { append } = await importFresh("./log.mjs");
+  const { append } = await importFresh("./storage/log.mjs");
   const { readState } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {

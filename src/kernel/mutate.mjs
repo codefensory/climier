@@ -38,8 +38,8 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import fs from "node:fs/promises";
 import { readState, writeState, stateFile, createSnapshot, emptyState } from "../storage/state.mjs";
-import { withLock } from "../lock.mjs";
-import { prepareLogEntry } from "../log.mjs";
+import { withLock } from "../storage/lock.mjs";
+import { prepareLogEntry } from "../storage/log.mjs";
 import { throwV2 } from "../errors.mjs";
 import { createTransaction } from "./transaction.mjs";
 

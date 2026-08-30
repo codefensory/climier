@@ -574,7 +574,7 @@ test("kernel.mutate: provider.prepare throws ⇒ no state mutation, no log entry
     assert.deepEqual(after.nodes, base.nodes);
     assert.equal(after.log.length, 0);
     // Lock released: a fresh withLock should succeed immediately.
-    const { withLock } = await importFresh("./lock.mjs");
+    const { withLock } = await importFresh("./storage/lock.mjs");
     await withLock(dir, async () => { lockObserved = true; });
     assert.equal(lockObserved, true, "withLock must be released after the failing call");
   } finally {
@@ -1160,8 +1160,8 @@ test("kernel.mutate: source file does not import providers/registry/adapter/bin/
   const allowedRelative = new Set([
     "../errors.mjs",        // throwV2 for structured errors
     "../storage/state.mjs", // readState + writeState (atomic)
-    "../lock.mjs",          // withLock (single-mutation frontier)
-    "../log.mjs",           // prepareLogEntry (canonical log shape)
+    "../storage/lock.mjs",          // withLock (single-mutation frontier)
+    "../storage/log.mjs",           // prepareLogEntry (canonical log shape)
     "./transaction.mjs",    // createTransaction (the existing draft)
   ]);
   const allRelative = [...src.matchAll(/from\s+["'](\.\.?\/[^"']+)["']/g)].map((m) => m[1]);

@@ -1,7 +1,7 @@
 // lock.mjs: file lock for atomic mutating operations.
 import fs from "node:fs/promises";
 import path from "node:path";
-import { stateFile } from "./storage/state.mjs";
+import { stateFile } from "./state.mjs";
 
 const RETRY_BASE_MS = 25;
 const DEFAULT_TIMEOUT_MS = 10_000;

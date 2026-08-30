@@ -20,11 +20,11 @@ This file tells you how the code is organized, the rules you must follow, and th
 bin/climier.mjs             # CLI entry: argv parsing, dispatch, printer wiring
 src/
   storage/paths.mjs         # resolveProject({ project }), CLIMIER_HOME helpers, repo metadata paths
-  state.mjs                 # emptyState, readState, writeState, updateState
+  storage/state.mjs        # emptyState, readState, writeState, updateState
                             # live state file is ~/.climier/projects/<project-id>/tasks.json
                             # repo keeps only .climier.json
-  lock.mjs                  # withLock(projectDir, fn) — file lock for atomicity
-  log.mjs                   # append log entries (delegates to updateState)
+  storage/lock.mjs         # withLock(projectDir, fn) — file lock for atomicity
+  storage/log.mjs          # append log entries (delegates to updateState)
 
   commands/                 # One file per command. Each exports default async fn({ positional, flags, statePath, projectDir })
                             # Commands use withLock for any mutating op
@@ -141,7 +141,7 @@ Cycles in the DAG must not crash. The derivation keeps cycle members blocked. Un
 - **Positional args for things, flags for options.** `climier take T1 --as alice` not `--id T1 --agent alice`.
 - **CSV in flag values.** `--tags "ts,sql"` not `--tag ts --tag sql`. Trim and filter empty strings.
 - **Pure functions live next to their read command.** No I/O, no side effects. Test them with literal state objects, no temp dirs.
-- **Imperative wrappers in `state.mjs` and `lock.mjs`.** These touch the filesystem. They are tested via `helpers.mjs` (temp dirs).
+- **Imperative wrappers in `storage/state.mjs` and `storage/lock.mjs`.** These touch the filesystem. They are tested via `helpers.mjs` (temp dirs).
 - **Commands return data, not console.log.** `bin/climier.mjs` is the only place that prints (except for errors).
 
 ## Testing
