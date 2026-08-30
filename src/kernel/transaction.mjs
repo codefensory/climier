@@ -21,8 +21,8 @@
 
 import { throwV2 } from "../errors.mjs";
 
-// Edge types accepted by mutating commands (matches v2.mjs EDGE_TYPES; inlined
-// here so the kernel module has no dependency on v2.mjs / commands).
+// Edge types accepted by mutating commands. Kept local so the kernel module
+// has no dependency on command adapters.
 const EDGE_TYPES = Object.freeze(["BLOCKS", "SUPERSEDES", "DERIVED_FROM"]);
 
 function clone(value) {
@@ -281,7 +281,7 @@ export function createTransaction(snapshot) {
         { from, to, type, missing },
       );
     }
-    // Structural kind checks (same shape as v2.mjs#validateEdge; the kernel
+    // Structural kind checks (same shape as the kernel edge validator; the kernel
     // owns these so providers cannot slip past validation by going through
     // tx.addEdge).
     if (type === "BLOCKS") {
@@ -486,5 +486,5 @@ export function createTransaction(snapshot) {
 }
 
 // Export the local edge-types whitelist so future kernel slices (B1b) can
-// reuse the same source of truth without going through v2.mjs.
+// reuse the same source of truth without going through command adapters.
 export { EDGE_TYPES };

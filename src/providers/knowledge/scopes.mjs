@@ -26,8 +26,8 @@ function asArray(value) {
  * Returns the scope keys from `knowledge.scope` that match `node`,
  * ordered by `SCOPE_ORDER`. Returns `[]` when nothing matches.
  *
- * Match rules (mirror the v2 helper, codified so the provider does not
- * depend on `v2.mjs`):
+ * Match rules (codified here so the provider does not depend on command
+ * adapters):
  *   - `node_id` matches when `scope.node_ids` contains `node.id`.
  *   - `domain` matches when `node.domain` is non-empty AND
  *     `scope.domains` contains it.

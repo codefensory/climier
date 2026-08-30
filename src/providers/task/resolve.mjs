@@ -8,7 +8,7 @@
 //     install the resolved status (done, done_by, done_at, note) and
 //     clear the claim. The provider computes `newly_ready` effects by
 //     comparing ready-derivation across the snapshot and tx.view(),
-//     matching v2.mjs#deriveV2 semantics (no fs, no log).
+//     matching the task provider's derivation semantics (no fs, no log).
 //   - Imports nothing from filesystem, lock, state, log, policy,
 //     commands, registry, adapters, CLI or UI. Only the v2 error
 //     helpers.

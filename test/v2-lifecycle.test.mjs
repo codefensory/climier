@@ -23,6 +23,7 @@
 // plugin-policy-seam-lifecycle.
 
 import { test } from "node:test";
+import { deriveV2 } from "../src/providers/task/derivation.mjs";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -553,7 +554,6 @@ test("v2-reopen: any actor may reopen a done task with no policy (defaults core)
 test("v2-reopen: re-blocks downstream tasks (DAG consequence)", async () => {
   const { default: reopen } = await importFresh("./commands/reopen.mjs");
   const { default: resolve } = await importFresh("./commands/resolve.mjs");
-  const { deriveV2 } = await importFresh("../src/v2.mjs");
   const dir = await v2Project();
   try {
     await addTask(dir, "T-blocker");

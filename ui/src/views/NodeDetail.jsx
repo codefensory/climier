@@ -41,7 +41,7 @@ import {
 // The drawer splits the server's `dependents` array (outgoing edges of every
 // type) plus `blocking`/`superseded_by` into direction-aware groups so each
 // relationship kind gets its own zone. This is presentation logic only: the
-// derivation itself stays in src/v2.mjs / the server.
+// derivation itself stays in the canonical read-model / the server.
 //
 // Informational edge types (INFORMS, RELATES_TO, CONFLICTS_WITH) are
 // retained for reading older state; they are grouped together as informing

@@ -1,5 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { blockingForNode } from "../src/read-model/index.mjs";
+import { deriveV2 } from "../src/providers/task/derivation.mjs";
 import { createTempProject, rmTempProject, runCli, readState as readRawState } from "./helpers.mjs";
 
 // Canonical edge direction contract:
@@ -53,7 +55,6 @@ test("storage: add-task --blocked-by G-y stores edge {from:G-y, to:T-x, BLOCKS}"
 });
 
 test("blockingForNode: T-x sees G-y as blocker (incoming edge, to === id)", async () => {
-  const { blockingForNode } = await importFresh("../src/v2.mjs");
   const dir = await createTempProject();
   try {
     const { writeState } = await import("../test/helpers.mjs");
@@ -88,7 +89,6 @@ test("blockingForNode: T-x sees G-y as blocker (incoming edge, to === id)", asyn
 });
 
 test("derivation: T-x with satisfied blocker G-y is ready", async () => {
-  const { deriveV2 } = await importFresh("../src/v2.mjs");
   const state = {
     version: 2,
     initiatives: {},

@@ -79,8 +79,8 @@ const COLUMNS = [
 const GRID_TEMPLATE = COLUMNS.map((c) => c.gridCol).join(" ");
 
 // Resolve the displayed status for a task using the snapshot's derived
-// pools. Mirrors `statusOfV2` in src/v2.mjs so the UI can't disagree
-// with the CLI about whether a task is ready, blocked or backlog.
+// pools. Mirrors the canonical read-model status projection so the UI can't
+// disagree with the CLI about whether a task is ready, blocked or backlog.
 function resolveStatus(node, derived) {
   if (!node) return "open";
   const status = node.status || "open";

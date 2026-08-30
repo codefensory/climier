@@ -21,6 +21,8 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { deriveV2, isSatisfiedV2 } from "../src/providers/task/derivation.mjs";
+import { statusOf as statusOfV2 } from "../src/read-model/index.mjs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import {
@@ -661,7 +663,6 @@ test("end-to-end: snapshot with plugin data survives restore, then take/resolve 
 // =========================================================================
 
 test("deriveV2 does not consume `plugins` or `nodes[id].plugins` (ready/blocked unchanged)", async () => {
-  const { deriveV2 } = await importFresh("./v2.mjs");
   const withoutPlugins = {
     version: 2,
     nodes: {
@@ -691,7 +692,6 @@ test("deriveV2 does not consume `plugins` or `nodes[id].plugins` (ready/blocked 
 });
 
 test("statusOfV2 does not consume `plugins` or `nodes[id].plugins`", async () => {
-  const { statusOfV2 } = await importFresh("./v2.mjs");
   const node = {
     id: "T1",
     kind: "resolvable",
@@ -713,7 +713,6 @@ test("statusOfV2 does not consume `plugins` or `nodes[id].plugins`", async () =>
 });
 
 test("isSatisfiedV2 does not consume `nodes[id].plugins`", async () => {
-  const { isSatisfiedV2 } = await importFresh("./v2.mjs");
   const done = {
     id: "T1",
     kind: "resolvable",
