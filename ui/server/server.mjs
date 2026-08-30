@@ -1,8 +1,8 @@
 // climier UI local server.
 // Live projection of a climier project's state. The browser never touches
 // the state file: this server (running on the user's machine) is the only
-// reader, and it uses the CLI's own pure derivation functions
-// (../../src/v2.mjs, ../../src/state.mjs) so the projection can't drift.
+// reader, and it uses the canonical read-model plus storage helpers
+// (../../src/read-model/index.mjs, ../../src/state.mjs) so the projection can't drift.
 // Every request re-reads the state file, so CLI mutations show up in real
 // time (the frontend polls /api/snapshot); no restart or reload needed.
 //
@@ -15,14 +15,14 @@ import express from "express";
 import { readState, stateFile } from "../../src/state.mjs";
 import { projectMetaFile } from "../../src/paths.mjs";
 import {
-  deriveV2,
-  statusOfV2,
+  derive,
+  statusOf,
   knowledgeForNode,
   blockingForNode,
   informingForNode,
   isCurrent,
   supersededBy,
-} from "../../src/v2.mjs";
+} from "../../src/read-model/index.mjs";
 
 const SERVER_DIR = path.dirname(fileURLToPath(import.meta.url));
 const UI_DIR = path.dirname(SERVER_DIR);
@@ -187,9 +187,9 @@ function initiativeSummary(state) {
       else if (status === "canceled") t.canceled += 1;
       else if (node.backlog === true) t.backlog += 1;
       else if (status === "open") {
-        // The server's derived pools are ready/blocked; statusOfV2 keeps
+        // The server's derived pools are ready/blocked; statusOf keeps
         // a single source of truth.
-        const derivedStatus = statusOfV2(state, node.id);
+        const derivedStatus = statusOf({ snapshot: state, id: node.id });
         if (derivedStatus === "ready") t.ready += 1;
         else if (derivedStatus === "blocked") t.blocked += 1;
       }
@@ -437,7 +437,7 @@ export async function start({ projectDir, port = DEFAULT_PORT, log = console.err
         recent_activity: [],
       });
     }
-    const derived = deriveV2(state);
+    const derived = derive({ snapshot: state });
     const stale = detectStaleClaims(state);
     const lastActivity = {};
     for (const e of state.log || []) {
@@ -486,7 +486,7 @@ export async function start({ projectDir, port = DEFAULT_PORT, log = console.err
       refs: refsOf(node),
       // Drive the derivation off the same function the CLI uses so the UI
       // can't disagree about what an open gate / blocked task looks like.
-      derived_status: statusOfV2(state, id),
+      derived_status: statusOf({ snapshot: state, id }),
       is_current: isCurrent(state, id),
       superseded_by: supersededBy(state, id),
     });
