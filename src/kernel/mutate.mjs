@@ -36,7 +36,8 @@
 // This module deliberately does NOT import providers, the registry,
 // the plugin-core-adapter, bin/climier.mjs, or anything in src/ui/.
 import { AsyncLocalStorage } from "node:async_hooks";
-import { readState, writeState } from "../state.mjs";
+import fs from "node:fs/promises";
+import { readState, writeState, stateFile, createSnapshot } from "../state.mjs";
 import { withLock } from "../lock.mjs";
 import { prepareLogEntry } from "../log.mjs";
 import { throwV2 } from "../errors.mjs";
@@ -523,6 +524,73 @@ function deriveTargetRevision(snapshot, plan, created, updated) {
   return prev && Number.isInteger(prev.revision) ? prev.revision : null;
 }
 
+async function runStateMutation({ projectDir, request, stateOperation, policyAction, pluginId }) {
+  const commandName = commandLabel(request);
+  const statePath = stateFile(projectDir);
+  let currentRaw = null;
+  let currentState = null;
+  let exists = false;
+  try {
+    currentRaw = await fs.readFile(statePath);
+    exists = true;
+  } catch (err) {
+    if (err.code !== "ENOENT") throw err;
+  }
+  if (exists) {
+    try {
+      currentState = await readState(projectDir);
+    } catch (err) {
+      // State recovery is an explicitly trusted internal operation. Keep the
+      // raw bytes available for a snapshot while exposing no parsed state to
+      // policy or the operation provider.
+      if (err.code !== "CLIMIER_CORRUPT_STATE") throw err;
+    }
+  }
+  const snapshot = Object.freeze({
+    state: currentState,
+    raw: currentRaw,
+    exists,
+    nodes: currentState && currentState.nodes ? { ...currentState.nodes } : {},
+    edges: currentState && Array.isArray(currentState.edges) ? currentState.edges.slice() : [],
+    initiatives: currentState && currentState.initiatives ? { ...currentState.initiatives } : {},
+  });
+  const prepared = await stateOperation.prepare({ projectDir, snapshot, input: request.input, request });
+  if (!prepared || typeof prepared !== "object" || Array.isArray(prepared) || !prepared.target || typeof prepared.target.id !== "string") {
+    throwV2("INVALID_EXECUTION_CONTRACT", `${commandName}: state operation prepare must return a plan with target`, { field: "plan" });
+  }
+  const plan = Object.freeze({ ...prepared, target: Object.freeze({ ...prepared.target }) });
+  await runPolicy(policyAction, snapshot, plan, request, commandName);
+  const applied = await stateOperation.apply({ snapshot, plan, input: request.input, request });
+  if (!applied || typeof applied !== "object" || !applied.state || typeof applied.state !== "object" || Array.isArray(applied.state)) {
+    throwV2("INVALID_EXECUTION_CONTRACT", `${commandName}: state operation apply must return a state object`, { field: "state" });
+  }
+  let snapshotMeta = null;
+  if (plan.snapshotReason) {
+    if (!exists) {
+      throwV2("INVALID_STATUS", `${commandName}: cannot snapshot a missing current state`, { state_file: statePath });
+    }
+    snapshotMeta = await createSnapshot(projectDir, plan.snapshotReason);
+  }
+  const nextState = { ...applied.state };
+  let logEntry = null;
+  if (plan.log) {
+    logEntry = prepareLogEntry({ action: plan.logAction || request.action, agent: request.actor, ...plan.log }, { pluginId });
+    nextState.log = [...(Array.isArray(nextState.log) ? nextState.log : []), logEntry];
+  }
+  await writeState(projectDir, nextState);
+  let result = applied.result === undefined ? null : applied.result;
+  if (snapshotMeta && result && typeof result === "object" && !Array.isArray(result) && result.snapshot === undefined) {
+    result = { ...result, snapshot: snapshotMeta };
+  }
+  return {
+    result,
+    effects: applied.effects === undefined ? null : applied.effects,
+    log_entry: logEntry,
+    idempotent: false,
+    diff: { created: [], updated: [], added_edges: [], removed_edges: [], removed_nodes: [], target_revision: null, initiatives: { created: [], updated: [] } },
+  };
+}
+
 /**
  * kernel.mutate — single mutation frontier.
  *
@@ -567,9 +635,16 @@ function deriveTargetRevision(snapshot, plan, created, updated) {
  * denies the operation. Errors from provider.prepare and
  * provider.apply propagate verbatim.
  */
-export async function mutate({ projectDir, request, provider, policyAction, pluginId }) {
+export async function mutate({ projectDir, request, provider, policyAction, pluginId, stateOperation }) {
   validateRequest(request);
-  validateProvider(provider);
+  if (stateOperation !== undefined) {
+    if (!stateOperation || typeof stateOperation !== "object" ||
+        typeof stateOperation.prepare !== "function" || typeof stateOperation.apply !== "function") {
+      throwV2("INVALID_EXECUTION_CONTRACT", "kernel.mutate: stateOperation must provide prepare and apply", { field: "stateOperation" });
+    }
+  } else {
+    validateProvider(provider);
+  }
 
   const commandName = commandLabel(request);
 
@@ -592,6 +667,9 @@ export async function mutate({ projectDir, request, provider, policyAction, plug
   // automatically — no manual decrement required.
   return nestedDepthStorage.run(parentDepth + 1, () =>
     withLock(projectDir, async () => {
+      if (stateOperation !== undefined) {
+        return runStateMutation({ projectDir, request, stateOperation, policyAction, pluginId });
+      }
       const snapshot = await readState(projectDir);
       if (!snapshot || typeof snapshot !== "object" || snapshot.version !== 2) {
         // The kernel does not bootstrap; the caller (CLI handler,
