@@ -11,7 +11,7 @@
 //   - Both sets delegate their complete mutation to kernel.mutate. The
 //     kernel owns locking, atomic persistence, revisions and redacted logs.
 
-import { readState } from "../state.mjs";
+import { readState } from "../storage/state.mjs";
 import { mutate } from "../kernel/mutate.mjs";
 import {
   pluginDataNodeSetProvider,

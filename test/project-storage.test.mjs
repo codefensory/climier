@@ -17,7 +17,7 @@ test("storage: init uses the global state path", async () => {
 
 test("storage: project metadata makes sibling worktrees share the same state and lock path", async () => {
   const { default: init } = await importFresh("./commands/init.mjs");
-  const { updateState, readState } = await importFresh("./state.mjs");
+  const { updateState, readState } = await importFresh("./storage/state.mjs");
   const a = await createTempProject();
   const b = await createTempProject();
   try {
@@ -40,7 +40,7 @@ test("storage: project metadata makes sibling worktrees share the same state and
 });
 
 test("storage: state path is deterministic even before metadata exists", async () => {
-  const { readState, writeState } = await importFresh("./state.mjs");
+  const { readState, writeState } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     const file = stateFilePath(dir);

@@ -37,7 +37,7 @@
 // the plugin-core-adapter, bin/climier.mjs, or anything in src/ui/.
 import { AsyncLocalStorage } from "node:async_hooks";
 import fs from "node:fs/promises";
-import { readState, writeState, stateFile, createSnapshot, emptyState } from "../state.mjs";
+import { readState, writeState, stateFile, createSnapshot, emptyState } from "../storage/state.mjs";
 import { withLock } from "../lock.mjs";
 import { prepareLogEntry } from "../log.mjs";
 import { throwV2 } from "../errors.mjs";

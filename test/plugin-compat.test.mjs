@@ -156,7 +156,7 @@ test("updateState preserves `plugins` (root) and `nodes[id].plugins` when a muta
     const base = await bootstrapState(dir);
     seedPluginData(base);
     await writeState(dir, base);
-    const { updateState } = await importFresh("./state.mjs");
+    const { updateState } = await importFresh("./storage/state.mjs");
     await updateState(dir, (st) => {
       st.nodes["T1"].title = "T1 (mutated)";
       return st;
@@ -175,7 +175,7 @@ test("updateState preserves `plugins` (root) when a mutator touches an unrelated
     const base = await bootstrapState(dir);
     seedPluginData(base);
     await writeState(dir, base);
-    const { updateState } = await importFresh("./state.mjs");
+    const { updateState } = await importFresh("./storage/state.mjs");
     await updateState(dir, (st) => {
       st.edges.push({ from: "T1", to: "T2", type: "BLOCKS" });
       return st;
@@ -554,7 +554,7 @@ test("createSnapshot preserves `plugins` and `nodes[id].plugins` in raw bytes", 
     const base = await bootstrapState(dir);
     seedPluginData(base);
     await writeState(dir, base);
-    const { createSnapshot } = await importFresh("./state.mjs");
+    const { createSnapshot } = await importFresh("./storage/state.mjs");
     const meta = await createSnapshot(dir, "force-init");
     const rawBytes = await fs.readFile(
       path.join(snapshotDir(dir), `${meta.id}.json`),
@@ -573,7 +573,7 @@ test("listSnapshots is unaffected by plugin data (metadata contract unchanged)",
     const base = await bootstrapState(dir);
     seedPluginData(base);
     await writeState(dir, base);
-    const { createSnapshot, listSnapshots } = await importFresh("./state.mjs");
+    const { createSnapshot, listSnapshots } = await importFresh("./storage/state.mjs");
     const meta = await createSnapshot(dir, "force-init");
     const snaps = await listSnapshots(dir);
     assert.equal(snaps.length, 1);
@@ -594,7 +594,7 @@ test("restore preserves `plugins` and `nodes[id].plugins` from the snapshot raw 
     const base = await bootstrapState(dir);
     seedPluginData(base);
     await writeState(dir, base);
-    const { createSnapshot } = await importFresh("./state.mjs");
+    const { createSnapshot } = await importFresh("./storage/state.mjs");
     const { default: restore } = await importFresh("./commands/restore.mjs");
     const meta = await createSnapshot(dir, "force-init");
     // Wipe the state to a different shape (no plugins).
@@ -625,7 +625,7 @@ test("end-to-end: snapshot with plugin data survives restore, then take/resolve 
     const base = await bootstrapState(dir);
     seedPluginData(base);
     await writeState(dir, base);
-    const { createSnapshot } = await importFresh("./state.mjs");
+    const { createSnapshot } = await importFresh("./storage/state.mjs");
     const { default: restore } = await importFresh("./commands/restore.mjs");
     const { default: take } = await importFresh("./commands/take.mjs");
     const { default: resolve } = await importFresh("./commands/resolve.mjs");

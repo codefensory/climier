@@ -12,7 +12,7 @@ Inspección del repo en `main` (HEAD `15cdd8c docs: approve plugin host v1 ADR`)
 - `bin/climier.mjs` (200 líneas) resuelve argv, hace dispatch dinámico a
   `src/commands/<command>.mjs` y emite `{ok:false, error}` en stderr/stdout.
   No hay rama de namespaces instalados.
-- `src/state.mjs` define `version: 2` con `nodes/edges/initiatives/log`.
+- `src/storage/state.mjs` define `version: 2` con `nodes/edges/initiatives/log`.
   `emptyState()`, `writeState`, `updateState`, `createSnapshot`,
   `listSnapshots` y `restore` preservan cualquier clave top-level/por-nodo
   porque serializan con `JSON.stringify` y los mutadores usan spreads
@@ -68,7 +68,7 @@ src/plugin-runtime.mjs               resolveRuntime(argv) (V1)
 src/plugin-query.mjs                 api.query.* (V1)
 src/plugin-data.mjs                  api.data.* con withLock + log redactado (V1)
 
-src/state.mjs                        version: 2; plugins preservado (cambios mínimos)
+src/storage/state.mjs                        version: 2; plugins preservado (cambios mínimos)
 src/lock.mjs                         withLock(projectDir) — sin cambios
 src/agent.mjs                        resolveAgent — sin cambios
 src/errors.mjs                       V2_ERROR_CODES — sin cambios (PLUGIN_* se emite literal)
@@ -162,7 +162,7 @@ verificables, no-go zones explícitas y comandos de aceptación.
   rompedores para que `plugins` y `nodes[id].plugins` sobrevivan a
   todos los mutadores y a `snapshots`/`restore`.
 - **Paths propios**:
-  - `src/state.mjs` (comentarios de contrato; ningún cambio de schema).
+  - `src/storage/state.mjs` (comentarios de contrato; ningún cambio de schema).
   - `src/commands/init.mjs`, `add-node.mjs`, `update.mjs`, `take.mjs`,
     `resolve.mjs`, `reopen.mjs`, `release.mjs`, `cancel.mjs`,
     `snapshots.mjs`, `restore.mjs` (verificación; ajustar si hace
@@ -282,7 +282,7 @@ Después de que `T-plugin-v1-bootstrap` quede resuelta:
   - **Sin conflicto**: paths disjuntos por construcción. `T-plugin-state`
     sólo lee `src/plugin-*` para confirmar que aún no existen y que
     la API surface futura no está duplicada; `T-plugin-install` no
-    abre `src/state.mjs`.
+    abre `src/storage/state.mjs`.
 
 - **Batch B (2 workers en paralelo, requiere Batch A cerrado)**:
   - `T-plugin-dispatch` (toca `bin/climier.mjs`, `src/plugin-dispatch.mjs`,

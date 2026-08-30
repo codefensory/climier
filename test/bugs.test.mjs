@@ -29,7 +29,7 @@ test("bug: withLock creates the state directory if missing", async () => {
 
 // BUG #4: readState throws on corrupted JSON; should return a sentinel or clear error.
 test("bug: corrupted state file produces a clear error, not a SyntaxError stack", async () => {
-  const { readState } = await importFresh("./state.mjs");
+  const { readState } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     const { stateFilePath } = await import("./helpers.mjs");

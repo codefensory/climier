@@ -23,7 +23,7 @@ function rawReadback(dir, id) {
 }
 
 async function bootstrapState(dir, mutate) {
-  const { writeState } = await importFresh("./state.mjs");
+  const { writeState } = await importFresh("./storage/state.mjs");
   const base = { version: 2, nodes: {}, edges: [], initiatives: {}, log: [] };
   if (typeof mutate === "function") mutate(base);
   await writeState(dir, base);
@@ -35,7 +35,7 @@ async function bootstrapState(dir, mutate) {
 // =====================================================================
 
 test("createSnapshot: writes raw + metadata files under <state-dir>/snapshots", async () => {
-  const { createSnapshot } = await importFresh("./state.mjs");
+  const { createSnapshot } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     const base = await bootstrapState(dir, (s) => {
@@ -57,7 +57,7 @@ test("createSnapshot: writes raw + metadata files under <state-dir>/snapshots", 
 });
 
 test("createSnapshot: metadata has id, created_at, reason, bytes, sha256 with correct values", async () => {
-  const { createSnapshot } = await importFresh("./state.mjs");
+  const { createSnapshot } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     const base = await bootstrapState(dir, (s) => {
@@ -86,7 +86,7 @@ test("createSnapshot: metadata has id, created_at, reason, bytes, sha256 with co
 });
 
 test("createSnapshot: id matches the ADR format <UTC YYYYMMDDTHHmmssSSS Z>-<reason>-<8 hex>", async () => {
-  const { createSnapshot } = await importFresh("./state.mjs");
+  const { createSnapshot } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     await bootstrapState(dir);
@@ -103,7 +103,7 @@ test("createSnapshot: id matches the ADR format <UTC YYYYMMDDTHHmmssSSS Z>-<reas
 });
 
 test("createSnapshot: rejects unknown reason", async () => {
-  const { createSnapshot } = await importFresh("./state.mjs");
+  const { createSnapshot } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     await bootstrapState(dir);
@@ -117,7 +117,7 @@ test("createSnapshot: rejects unknown reason", async () => {
 });
 
 test("createSnapshot: accepts all three valid reasons", async () => {
-  const { createSnapshot } = await importFresh("./state.mjs");
+  const { createSnapshot } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     await bootstrapState(dir);
@@ -133,7 +133,7 @@ test("createSnapshot: accepts all three valid reasons", async () => {
 });
 
 test("createSnapshot: uses temp+rename; no .tmp-* leftovers after success", async () => {
-  const { createSnapshot } = await importFresh("./state.mjs");
+  const { createSnapshot } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     await bootstrapState(dir);
@@ -147,7 +147,7 @@ test("createSnapshot: uses temp+rename; no .tmp-* leftovers after success", asyn
 });
 
 test("createSnapshot: snapshot dir perms 0700 on Unix (best-effort)", { skip: process.platform === "win32" }, async () => {
-  const { createSnapshot } = await importFresh("./state.mjs");
+  const { createSnapshot } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     await bootstrapState(dir);
@@ -164,7 +164,7 @@ test("createSnapshot: snapshot dir perms 0700 on Unix (best-effort)", { skip: pr
 });
 
 test("createSnapshot: perms are best-effort on Windows (does not throw)", { skip: process.platform !== "win32" }, async () => {
-  const { createSnapshot } = await importFresh("./state.mjs");
+  const { createSnapshot } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     await bootstrapState(dir);
@@ -178,7 +178,7 @@ test("createSnapshot: perms are best-effort on Windows (does not throw)", { skip
 });
 
 test("createSnapshot: throws when the source state file is missing", async () => {
-  const { createSnapshot } = await importFresh("./state.mjs");
+  const { createSnapshot } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     await assert.rejects(() => createSnapshot(dir, "force-init"));
@@ -188,7 +188,7 @@ test("createSnapshot: throws when the source state file is missing", async () =>
 });
 
 test("createSnapshot: preserves raw bytes verbatim for non-JSON content", async () => {
-  const { createSnapshot } = await importFresh("./state.mjs");
+  const { createSnapshot } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     // Bootstrap a v2 metadata first (so stateFile() resolves), then overwrite
@@ -207,7 +207,7 @@ test("createSnapshot: preserves raw bytes verbatim for non-JSON content", async 
 });
 
 test("two snapshots taken back-to-back have different ids (random suffix)", async () => {
-  const { createSnapshot } = await importFresh("./state.mjs");
+  const { createSnapshot } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     await bootstrapState(dir);
@@ -224,7 +224,7 @@ test("two snapshots taken back-to-back have different ids (random suffix)", asyn
 // =====================================================================
 
 test("listSnapshots: returns [] when no snapshot dir exists", async () => {
-  const { listSnapshots } = await importFresh("./state.mjs");
+  const { listSnapshots } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     const out = await listSnapshots(dir);
@@ -235,7 +235,7 @@ test("listSnapshots: returns [] when no snapshot dir exists", async () => {
 });
 
 test("listSnapshots: returns [] for an empty snapshot dir", async () => {
-  const { listSnapshots } = await importFresh("./state.mjs");
+  const { listSnapshots } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     await fs.mkdir(snapshotDir(dir), { recursive: true });
@@ -247,7 +247,7 @@ test("listSnapshots: returns [] for an empty snapshot dir", async () => {
 });
 
 test("listSnapshots: orphan .json without .meta.json is excluded", async () => {
-  const { createSnapshot, listSnapshots } = await importFresh("./state.mjs");
+  const { createSnapshot, listSnapshots } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     await bootstrapState(dir);
@@ -262,7 +262,7 @@ test("listSnapshots: orphan .json without .meta.json is excluded", async () => {
 });
 
 test("listSnapshots: orphan .meta.json without .json is excluded", async () => {
-  const { listSnapshots } = await importFresh("./state.mjs");
+  const { listSnapshots } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     await fs.mkdir(snapshotDir(dir), { recursive: true });
@@ -276,7 +276,7 @@ test("listSnapshots: orphan .meta.json without .json is excluded", async () => {
 });
 
 test("listSnapshots: sorted descending by id (newest first)", async () => {
-  const { createSnapshot, listSnapshots } = await importFresh("./state.mjs");
+  const { createSnapshot, listSnapshots } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     await bootstrapState(dir);
@@ -296,7 +296,7 @@ test("listSnapshots: sorted descending by id (newest first)", async () => {
 });
 
 test("listSnapshots: excludes snapshots with corrupt metadata (unparseable JSON)", async () => {
-  const { createSnapshot, listSnapshots } = await importFresh("./state.mjs");
+  const { createSnapshot, listSnapshots } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     await bootstrapState(dir);
@@ -312,7 +312,7 @@ test("listSnapshots: excludes snapshots with corrupt metadata (unparseable JSON)
 });
 
 test("listSnapshots: excludes snapshots where meta.id does not match filename", async () => {
-  const { createSnapshot, listSnapshots } = await importFresh("./state.mjs");
+  const { createSnapshot, listSnapshots } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     await bootstrapState(dir);
@@ -331,7 +331,7 @@ test("listSnapshots: excludes snapshots where meta.id does not match filename", 
 });
 
 test("listSnapshots: lists multiple snapshots with mixed reasons", async () => {
-  const { createSnapshot, listSnapshots } = await importFresh("./state.mjs");
+  const { createSnapshot, listSnapshots } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     await bootstrapState(dir);
@@ -358,7 +358,7 @@ test("listSnapshots: lists multiple snapshots with mixed reasons", async () => {
 
 test("init --force on existing v2 state: snapshot reason=force-init, raw preserves the pre-reset state", async () => {
   const { default: init } = await importFresh("./commands/init.mjs");
-  const { readState, listSnapshots } = await importFresh("./state.mjs");
+  const { readState, listSnapshots } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     // Pre-existing v2 state with a sentinel.
@@ -382,7 +382,7 @@ test("init --force on existing v2 state: snapshot reason=force-init, raw preserv
 
 test("init --force on existing v1 state: snapshot reason=force-init, raw preserves the v1 bytes verbatim", async () => {
   const { default: init } = await importFresh("./commands/init.mjs");
-  const { readState, listSnapshots } = await importFresh("./state.mjs");
+  const { readState, listSnapshots } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     // Bootstrap a v2 metadata first so stateFile() resolves.
@@ -411,7 +411,7 @@ test("init --force on existing v1 state: snapshot reason=force-init, raw preserv
 
 test("init recovery on corrupt JSON (no --force): snapshot reason=corrupt-recovery, raw preserves garbage", async () => {
   const { default: init } = await importFresh("./commands/init.mjs");
-  const { readState, listSnapshots } = await importFresh("./state.mjs");
+  const { readState, listSnapshots } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
@@ -434,7 +434,7 @@ test("init recovery on corrupt JSON (no --force): snapshot reason=corrupt-recove
 
 test("init on missing state (no file): no snapshot is created", async () => {
   const { default: init } = await importFresh("./commands/init.mjs");
-  const { listSnapshots } = await importFresh("./state.mjs");
+  const { listSnapshots } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
@@ -447,7 +447,7 @@ test("init on missing state (no file): no snapshot is created", async () => {
 
 test("init on valid existing state without --force: refuses and does NOT create a snapshot", async () => {
   const { default: init } = await importFresh("./commands/init.mjs");
-  const { listSnapshots } = await importFresh("./state.mjs");
+  const { listSnapshots } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     await bootstrapState(dir, (s) => {
@@ -463,7 +463,7 @@ test("init on valid existing state without --force: refuses and does NOT create 
 
 test("init --force twice creates two snapshots, newest first; original pre-reset data is recoverable from the first", async () => {
   const { default: init } = await importFresh("./commands/init.mjs");
-  const { readState, listSnapshots } = await importFresh("./state.mjs");
+  const { readState, listSnapshots } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     // First pre-existing state: "alpha".
@@ -472,7 +472,7 @@ test("init --force twice creates two snapshots, newest first; original pre-reset
     });
     await init({ statePath: dir, flags: { force: true }, positional: [], projectDir: dir });
     // After the first force-init, the state is empty. Populate "beta" and force-init again.
-    const { writeState } = await importFresh("./state.mjs");
+    const { writeState } = await importFresh("./storage/state.mjs");
     await writeState(dir, { version: 2, nodes: { Beta: { id: "Beta", title: "second" } }, edges: [], initiatives: {}, log: [] });
     await new Promise((r) => setTimeout(r, 5));
     await init({ statePath: dir, flags: { force: true }, positional: [], projectDir: dir });

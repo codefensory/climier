@@ -4,7 +4,7 @@ import { createTempProject, rmTempProject, importFresh, readState as readRawStat
 
 test("init: creates an empty v2 state by default", async () => {
   const { default: init } = await importFresh("./commands/init.mjs");
-  const { readState } = await importFresh("./state.mjs");
+  const { readState } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });

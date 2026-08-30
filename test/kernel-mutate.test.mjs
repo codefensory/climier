@@ -1057,7 +1057,7 @@ test("kernel.mutate: throws when state file is missing (v2 kernel does not boots
   const dir = await createTempProject();
   try {
     // Bootstrap metadata only — no tasks.json yet.
-    const { ensureProjectMeta } = await importFresh("./state.mjs");
+    const { ensureProjectMeta } = await importFresh("./storage/state.mjs");
     await ensureProjectMeta(dir);
     let caught;
     try {
@@ -1145,7 +1145,7 @@ test("kernel.mutate: source file does not import providers/registry/adapter/bin/
   const src = await fsp.readFile(fpath.resolve(__dirname, "..", "src", "kernel", "mutate.mjs"), "utf8");
   // Forbidden patterns: anything that would couple the kernel to
   // providers, registry, adapter, bin, UI, or std modules that are not
-  // allowed. The plan's B1b explicitly grants `src/state.mjs`,
+  // allowed. The plan's B1b explicitly grants `src/storage/state.mjs`,
   // `src/lock.mjs`, and `src/log.mjs` (atomicity primitives + log
   // shaping) and `src/kernel/transaction.mjs` (the existing draft) is
   // the whole point of B1b; those imports are required.
@@ -1159,7 +1159,7 @@ test("kernel.mutate: source file does not import providers/registry/adapter/bin/
   // kernel must compose the existing allowed seams.
   const allowedRelative = new Set([
     "../errors.mjs",        // throwV2 for structured errors
-    "../state.mjs",         // readState + writeState (atomic)
+    "../storage/state.mjs", // readState + writeState (atomic)
     "../lock.mjs",          // withLock (single-mutation frontier)
     "../log.mjs",           // prepareLogEntry (canonical log shape)
     "./transaction.mjs",    // createTransaction (the existing draft)

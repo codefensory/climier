@@ -5,7 +5,7 @@ import { createTempProject, rmTempProject, importFresh } from "./helpers.mjs";
 
 test("append adds an entry with ts, agent, action", async () => {
   const { append, readState } = await importFresh("./log.mjs");
-  const { readState: rs } = await importFresh("./state.mjs");
+  const { readState: rs } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     await append(dir, { agent: "agent-1", action: "claim", task: "T1" });
@@ -22,7 +22,7 @@ test("append adds an entry with ts, agent, action", async () => {
 
 test("append adds multiple entries in order", async () => {
   const { append } = await importFresh("./log.mjs");
-  const { readState } = await importFresh("./state.mjs");
+  const { readState } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     await append(dir, { agent: "a", action: "claim", task: "T1" });
@@ -38,7 +38,7 @@ test("append adds multiple entries in order", async () => {
 
 test("append accepts a note field", async () => {
   const { append } = await importFresh("./log.mjs");
-  const { readState } = await importFresh("./state.mjs");
+  const { readState } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     await append(dir, { agent: "a", action: "done", task: "T1", note: "all good" });

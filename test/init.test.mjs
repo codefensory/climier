@@ -15,7 +15,7 @@ test("init: creates empty v2 state file when none exists", async () => {
     const meta = JSON.parse(await fs.readFile(path.join(dir, ".climier.json"), "utf8"));
     assert.match(meta.project_id, /\S/);
     assert.equal(stateFilePath(dir).startsWith(path.join(process.env.CLIMIER_HOME, "projects")), true);
-    const { readState } = await importFresh("./state.mjs");
+    const { readState } = await importFresh("./storage/state.mjs");
     const s = await readState(dir);
     assert.equal(s.version, 2);
     assert.deepEqual(s.nodes, {});
@@ -40,7 +40,7 @@ test("init: fails if state already exists (no overwrite)", async () => {
 
 test("init: ignores unknown flags and still creates an empty v2 state", async () => {
   const { default: init } = await importFresh("./commands/init.mjs");
-  const { readState } = await importFresh("./state.mjs");
+  const { readState } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, flags: { seed: "migration" }, positional: [], projectDir: dir });
@@ -84,7 +84,7 @@ test("init: refuses on an existing v1 state without --force and mentions --force
 
 test("init: --force on an existing v1 state overwrites to empty v2", async () => {
   const { default: init } = await importFresh("./commands/init.mjs");
-  const { readState } = await importFresh("./state.mjs");
+  const { readState } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });

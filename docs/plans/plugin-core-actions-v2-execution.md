@@ -67,7 +67,7 @@ src/plugin-loader.mjs                      sin cambios
 src/plugin-runtime.mjs                     sin cambios
 src/plugin-query.mjs                       sin cambios
 src/plugin-data.mjs                        sin cambios (ya usa plugin_id vía append)
-src/state.mjs                              sin cambios; preserva plugins / nodes[*].plugins
+src/storage/state.mjs                              sin cambios; preserva plugins / nodes[*].plugins
 src/lock.mjs                               sin cambios
 src/agent.mjs                              sin cambios
 src/errors.mjs                             sin cambios (PLUGIN_CORE_* se emite literal)
@@ -723,7 +723,7 @@ Concurrencia (`test/plugin-core-concurrency.test.mjs`):
 - No implementa `api.core.run` (lo delegará a `T-plugin-core-api`).
 - No implementa `appendWithContext` (lo delegará a
   `T-plugin-core-log-seam`).
-- No modifica `bin/climier.mjs`, `src/state.mjs`, `src/lock.mjs`,
+- No modifica `bin/climier.mjs`, `src/storage/state.mjs`, `src/lock.mjs`,
   `src/agent.mjs`, `src/errors.mjs`, `src/v2.mjs`,
   `src/v2-add-node.mjs` ni `src/v2.mjs`.
 - No modifica `test/fixtures/sample-plugin/` ni

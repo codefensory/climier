@@ -121,7 +121,7 @@ Cycles in the DAG must not crash. The derivation keeps cycle members blocked. Un
 
 ## How to add a new field to the state
 
-1. **Update `emptyState()` in `src/state.mjs`** if the field is required for new states.
+1. **Update `emptyState()` in `src/storage/state.mjs`** if the field is required for new states.
 2. **Update `writeState` validation** if the field is required for all writes (most fields are optional, so this is rare).
 3. **Add tests for the new field's behavior.** If it's a derived field, test it via `derive` or `statusOf`. If it's persisted, test via the command that sets it.
 
@@ -218,7 +218,7 @@ When you add a new command, pick whichever shape fits the data. **Do not** add a
 ## What to do if you don't know where to start
 
 1. Run `npm test`. If anything is red, fix it first (a new agent should never commit on top of red).
-2. Read `src/state.mjs` — it explains the storage shape and version handling.
+2. Read `src/storage/state.mjs` — it explains the storage shape and version handling.
 3. Read one command end-to-end (`commands/take.mjs` is the most representative).
 4. Look at `test/v2-take.test.mjs` (and `test/concurrent-takes.test.mjs` if present) — they show the multi-agent guarantee in action.
 5. Then tackle your task. TDD: write the test, watch it fail, implement, watch it pass.

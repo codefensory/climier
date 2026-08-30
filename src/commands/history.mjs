@@ -8,7 +8,7 @@
 //
 // Returns { id, entries }; entries is [] when nothing matches.
 
-import { readState } from "../state.mjs";
+import { readState } from "../storage/state.mjs";
 
 export const knownFlags = ["limit"];
 

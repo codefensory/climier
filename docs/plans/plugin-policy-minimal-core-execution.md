@@ -147,7 +147,7 @@ No-go zones explícitas:
   `src/plugin-core-adapter.mjs`, `src/plugin-api.mjs`,
   `src/plugin-dispatch.mjs`, `src/plugin-runtime.mjs`,
   `src/plugin-query.mjs`, `src/plugin-data.mjs`, `src/log.mjs`,
-  `src/state.mjs`, `src/lock.mjs`, `src/agent.mjs`, `src/v2.mjs`,
+  `src/storage/state.mjs`, `src/lock.mjs`, `src/agent.mjs`, `src/v2.mjs`,
   `src/v2-add-node.mjs`.
 - `bin/climier.mjs` (HELP_TEXT ya está limpio).
 - `src/commands/restore.mjs`, `src/commands/init.mjs`,

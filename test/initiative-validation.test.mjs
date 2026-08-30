@@ -6,13 +6,13 @@ import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, importFresh } from "./helpers.mjs";
 
 test("assertInitiativeRegistered: passes for a registered initiative", async () => {
-  const { assertInitiativeRegistered } = await importFresh("./state.mjs");
+  const { assertInitiativeRegistered } = await importFresh("./storage/state.mjs");
   const s = { initiatives: { migration: { desc: "x" } } };
   assert.doesNotThrow(() => assertInitiativeRegistered(s, "migration", "add-task"));
 });
 
 test("assertInitiativeRegistered: throws with sorted list of valid names", async () => {
-  const { assertInitiativeRegistered } = await importFresh("./state.mjs");
+  const { assertInitiativeRegistered } = await importFresh("./storage/state.mjs");
   const s = { initiatives: { migration: { desc: "x" }, maintenance: { desc: "y" } } };
   try {
     assertInitiativeRegistered(s, "qa", "add-task");
@@ -24,7 +24,7 @@ test("assertInitiativeRegistered: throws with sorted list of valid names", async
 });
 
 test("assertInitiativeRegistered: empty state hints at add-initiative", async () => {
-  const { assertInitiativeRegistered } = await importFresh("./state.mjs");
+  const { assertInitiativeRegistered } = await importFresh("./storage/state.mjs");
   try {
     assertInitiativeRegistered(null, "qa", "add-task");
     assert.fail("should have thrown");
