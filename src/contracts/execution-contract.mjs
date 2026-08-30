@@ -31,7 +31,7 @@
 //   - executionContractFor(state, id) -> contract | null
 //     Helper that pulls and normalizes the contract from a node's meta.
 
-import { throwV2 } from "./errors.mjs";
+import { throwV2 } from "../errors.mjs";
 
 export const EFFORT_VALUES = Object.freeze(["S", "M", "L"]);
 export const RISK_VALUES = Object.freeze(["isolated", "integration", "public-surface"]);

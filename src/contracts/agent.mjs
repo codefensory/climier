@@ -4,7 +4,7 @@
 // (non-empty string) > MISSING_AGENT. The boolean edge case (--as parsed as
 // `true` because the next argv was missing) is rejected explicitly so it
 // does not silently fall through to the env var.
-import { throwV2 } from "./errors.mjs";
+import { throwV2 } from "../errors.mjs";
 
 export function resolveAgent(flags, commandName) {
   const fromFlag = flags && typeof flags.as === "string" ? flags.as.trim() : "";

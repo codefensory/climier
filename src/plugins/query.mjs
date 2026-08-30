@@ -18,7 +18,7 @@ import {
 import {
   detectOwnershipConflicts,
   executionContractFor,
-} from "../execution-contract.mjs";
+} from "../contracts/execution-contract.mjs";
 
 const DEFAULT_STALE_MS = 2 * 60 * 60 * 1000;
 const STATUS_FLAGS = new Set([
