@@ -44,7 +44,7 @@ import {
   PluginSubcommandNotFound,
   isPluginError,
 } from "./plugin-errors.mjs";
-import { loadInstalledPlugin } from "./plugin-loader.mjs";
+import { loadInstalledPlugin } from "./plugins/loader.mjs";
 
 // ---- Token stripping ------------------------------------------------
 

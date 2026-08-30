@@ -24,7 +24,7 @@
 // plugin can check `target` and the current DAG without observing a
 // post-decision race.
 
-import { loadInstalledPolicyPlugins, readProjectConfig } from "./plugin-loader.mjs";
+import { loadInstalledPolicyPlugins, readProjectConfig } from "./plugins/loader.mjs";
 import { PolicyDenied, PolicyError, PolicyConflict } from "./plugin-errors.mjs";
 
 // loadApplicablePolicy — return the unique applicable policy plugin

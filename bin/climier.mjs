@@ -199,7 +199,7 @@ try {
   // a non-installed first token slips through.
   let pluginDispatched = false;
   if (command !== null && !RESERVED_NAMESPACES.includes(command)) {
-    const { hasInstalledPlugin } = await import("../src/plugin-loader.mjs");
+    const { hasInstalledPlugin } = await import("../src/plugins/loader.mjs");
     const { dispatchPlugin } = await import("../src/plugin-dispatch.mjs");
     if (await hasInstalledPlugin(command)) {
       const pluginResult = await dispatchPlugin({

@@ -24,13 +24,13 @@
 import path from "node:path";
 import fs from "node:fs/promises";
 
-import { pluginsHome } from "./plugin-paths.mjs";
+import { pluginsHome } from "./paths.mjs";
 import {
   PluginInvalidDescriptor,
   PluginLoadFailed,
   readDescriptor,
   importEntry,
-} from "./plugin-descriptor.mjs";
+} from "./descriptor.mjs";
 
 // PLUGIN_LOAD_FAILED: no installed plugin has descriptor.command ===
 // `namespace`. Surfaced at dispatch time when the user typed a

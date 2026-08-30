@@ -9,7 +9,7 @@
 // the documented ceiling of this strategy.
 
 import fs from "node:fs/promises";
-import { pluginsHome, globalPluginLockPath } from "./plugin-paths.mjs";
+import { pluginsHome, globalPluginLockPath } from "./paths.mjs";
 
 const RETRY_BASE_MS = 25;
 const DEFAULT_TIMEOUT_MS = 10_000;
