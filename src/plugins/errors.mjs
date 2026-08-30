@@ -16,7 +16,7 @@
 // lifecycle pair (install/uninstall) — keeping them out of V2_ERROR_CODES
 // preserves the contract of the core v2 schema.
 
-import { makeError } from "./errors.mjs";
+import { makeError } from "../errors.mjs";
 
 // pluginErrorEnvelope — pure helper, used by toJSON on each plugin error.
 export function pluginErrorEnvelope(code, message, details) {

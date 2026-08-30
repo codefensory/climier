@@ -14,7 +14,7 @@
 //                  bin's parser uses last-wins and would let a forwarded
 //                  duplicate alter the host's resolution).
 //   createApi    — optional factory injected by the caller. When omitted,
-//                  the dispatcher lazy-imports ./plugin-api.mjs. If that
+//                  the dispatcher lazy-imports ../plugin-api.mjs. If that
 //                  module is missing (T-plugin-api is parallel), a
 //                  placeholder factory is used that satisfies the
 //                  runtime contract but throws on every query/data call.
@@ -43,8 +43,8 @@ import {
   PluginHandlerFailed,
   PluginSubcommandNotFound,
   isPluginError,
-} from "./plugin-errors.mjs";
-import { loadInstalledPlugin } from "./plugins/loader.mjs";
+} from "./errors.mjs";
+import { loadInstalledPlugin } from "./loader.mjs";
 
 // ---- Token stripping ------------------------------------------------
 
@@ -203,7 +203,7 @@ let _apiFactoryResolved = false;
 async function loadApiFactory() {
   if (_apiFactoryResolved) return _apiFactory;
   try {
-    const mod = await import("./plugin-api.mjs");
+    const mod = await import("../plugin-api.mjs");
     if (mod && typeof mod.createApi === "function") {
       _apiFactory = mod.createApi;
     }

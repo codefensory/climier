@@ -25,7 +25,7 @@
 // post-decision race.
 
 import { loadInstalledPolicyPlugins, readProjectConfig } from "./plugins/loader.mjs";
-import { PolicyDenied, PolicyError, PolicyConflict } from "./plugin-errors.mjs";
+import { PolicyDenied, PolicyError, PolicyConflict } from "./plugins/errors.mjs";
 
 // loadApplicablePolicy — return the unique applicable policy plugin
 // for `projectDir`, or `null` when none applies.
@@ -204,7 +204,7 @@ export async function authorizeAction({
 
 // isPolicyError — predicate for code paths that must distinguish
 // POLICY_* from the PLUGIN_* and PLUGIN_CORE_* families. Mirrors
-// `isPluginCoreError` (src/plugin-errors.mjs) and `isPluginError`
+// `isPluginCoreError` (src/plugins/errors.mjs) and `isPluginError`
 // for the policy namespace. Not consulted by the bin's catch (the
 // envelope is uniform); useful for handler-side guards and tests.
 export function isPolicyError(err) {

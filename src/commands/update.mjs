@@ -10,7 +10,7 @@ import { throwV2 } from "../errors.mjs";
 import { resolveAgent } from "../agent.mjs";
 import { validateExecution } from "../execution-contract.mjs";
 import { loadApplicablePolicy, authorizeAction } from "../policy.mjs";
-import { PolicyDenied } from "../plugin-errors.mjs";
+import { PolicyDenied } from "../plugins/errors.mjs";
 import { taskUpdateProvider } from "../providers/task/update.mjs";
 import { gateUpdateProvider } from "../providers/gate/update.mjs";
 import { updateProvider as knowledgeUpdateProvider } from "../providers/knowledge/update.mjs";

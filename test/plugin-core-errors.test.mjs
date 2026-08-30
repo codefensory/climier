@@ -12,7 +12,7 @@ import assert from "node:assert/strict";
 
 import { importFresh } from "./helpers.mjs";
 
-const ERRORS_MODULE = "../src/plugin-errors.mjs";
+const ERRORS_MODULE = "../src/plugins/errors.mjs";
 
 // ---- PluginCoreInvalidOperation -------------------------------------
 

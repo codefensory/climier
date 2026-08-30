@@ -25,9 +25,9 @@ import {
   importFresh,
 } from "./helpers.mjs";
 
-const ERRORS_MODULE = "../src/plugin-errors.mjs";
+const ERRORS_MODULE = "../src/plugins/errors.mjs";
 const LOADER_MODULE = "../src/plugins/loader.mjs";
-const DISPATCH_MODULE = "../src/plugin-dispatch.mjs";
+const DISPATCH_MODULE = "../src/plugins/dispatch.mjs";
 const RESERVED_MODULE = "../src/commands/reserved-namespaces.mjs";
 
 // ---- Shared helpers -------------------------------------------------

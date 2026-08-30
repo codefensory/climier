@@ -36,7 +36,7 @@ import {
   isPluginError,
   PolicyError,
   wrapCoreError,
-} from "./plugin-errors.mjs";
+} from "./plugins/errors.mjs";
 
 // Build the registry once at module load. The registry is
 // `Object.freeze`-d and only carries `{ id, kind, provider }`
