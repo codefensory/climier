@@ -31,7 +31,7 @@ import {
   knowledgeForNode,
   statusOf,
 } from "../read-model/index.mjs";
-import { throwV2 } from "../errors.mjs";
+import { throwV2 } from "../contracts/errors.mjs";
 import {
   detectOwnershipConflicts,
   executionContractFor,

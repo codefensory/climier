@@ -13,7 +13,7 @@ import {
   snapshotDir,
 } from "../storage/state.mjs";
 import { resolveAgent } from "../contracts/agent.mjs";
-import { throwV2 } from "../errors.mjs";
+import { throwV2 } from "../contracts/errors.mjs";
 
 const REQUIRED_COLLECTIONS = ["nodes", "edges", "initiatives", "log"];
 const SNAPSHOT_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;

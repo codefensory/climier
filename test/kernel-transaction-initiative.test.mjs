@@ -8,7 +8,7 @@
 //     never leak.
 //   - view() includes the merged (snapshot + draft) initiatives map.
 //   - createInitiative refuses duplicates against snapshot + draft.
-//   - The forbidden-import surface stays narrow (../errors.mjs only).
+//   - The forbidden-import surface stays narrow (../contracts/errors.mjs only).
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -171,11 +171,11 @@ test("isolation: createTransaction tolerates missing initiatives in the snapshot
   assert.deepEqual(view.initiatives, {});
 });
 
-test("forbidden imports: transaction.mjs still only imports ../errors.mjs", async () => {
+test("forbidden imports: transaction.mjs still only imports ../contracts/errors.mjs", async () => {
   const src = await readFile(SRC_FILE, "utf8");
-  // Whitelist must remain narrow: only ../errors.mjs is allowed.
+  // Whitelist must remain narrow: only ../contracts/errors.mjs is allowed.
   const relativeImports = [...src.matchAll(/from\s+["'](\.\.?\/[^"']+)["']/g)].map((m) => m[1]);
   for (const imp of relativeImports) {
-    assert.equal(imp, "../errors.mjs", `transaction.mjs must only import "../errors.mjs"; got ${imp}`);
+    assert.equal(imp, "../contracts/errors.mjs", `transaction.mjs must only import "../contracts/errors.mjs"; got ${imp}`);
   }
 });

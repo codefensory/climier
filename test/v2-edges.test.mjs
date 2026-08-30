@@ -4,7 +4,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { throwV2 } from "../src/errors.mjs";
+import { throwV2 } from "../src/contracts/errors.mjs";
 import { EDGE_TYPES, existingEdge, validateEdge } from "../src/kernel/edges.mjs";
 import { createTempProject, rmTempProject, importFresh, runCli } from "./helpers.mjs";
 

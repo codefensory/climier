@@ -16,7 +16,7 @@
 // Pure: no fs, no lock, no state, no log, no policy, no commands, no
 // registry, no adapter, no CLI, no UI.
 
-import { throwV2 } from "../../errors.mjs";
+import { throwV2 } from "../../contracts/errors.mjs";
 
 const KNOWN_KNOWLEDGE_TYPES = Object.freeze(["warning", "fact", "instruction"]);
 const KNOWN_STATUSES = Object.freeze(["active", "deprecated", "superseded"]);

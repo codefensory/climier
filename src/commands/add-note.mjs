@@ -7,7 +7,7 @@
 // `note.add`).
 import { mutate } from "../kernel/mutate.mjs";
 import { noteAddProvider } from "../providers/core/note.mjs";
-import { throwV2 } from "../errors.mjs";
+import { throwV2 } from "../contracts/errors.mjs";
 import { resolveAgent } from "../contracts/agent.mjs";
 import { loadApplicablePolicy, authorizeAction } from "../plugins/policy.mjs";
 

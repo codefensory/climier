@@ -58,7 +58,7 @@
 // The provider uses a pure in-graph helper so it can evaluate isSatisfied
 // against both the snapshot and the draft view without importing command adapters.
 
-import { throwV2 } from "../../errors.mjs";
+import { throwV2 } from "../../contracts/errors.mjs";
 import { GATE_STATUSES } from "./create.mjs";
 import { diffReadyByGate, isSatisfiedByGraph } from "./semantics.mjs";
 

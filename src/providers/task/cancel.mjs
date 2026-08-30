@@ -8,7 +8,7 @@
 //   - Imports nothing from filesystem, lock, state, log, policy,
 //     commands, registry, adapters, CLI or UI.
 
-import { throwV2 } from "../../errors.mjs";
+import { throwV2 } from "../../contracts/errors.mjs";
 
 const OP = "task.cancel";
 const LOG_ACTION = "cancel";

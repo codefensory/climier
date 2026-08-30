@@ -18,7 +18,7 @@
 
 import { mutate } from "../kernel/mutate.mjs";
 import { loadApplicablePolicy, authorizeAction } from "../plugins/policy.mjs";
-import { throwV2 } from "../errors.mjs";
+import { throwV2 } from "../contracts/errors.mjs";
 import { resolveAgent } from "../contracts/agent.mjs";
 import { edgeAddProvider } from "../providers/core/edge.mjs";
 

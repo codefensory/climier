@@ -12,7 +12,7 @@
 //   - This module imports nothing from filesystem, lock, state, log,
 //     policy, commands, registry, adapters, CLI or UI.
 
-import { throwV2 } from "../../errors.mjs";
+import { throwV2 } from "../../contracts/errors.mjs";
 import { blocksEdge } from "../../kernel/edges.mjs";
 
 const OP = "task.update";

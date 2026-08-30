@@ -2,7 +2,7 @@
 // The kernel owns locking, persistence, revisions and audit timestamps;
 // this provider only validates the typed request and mutates its draft
 // keyspace through setNodePluginData.
-import { throwV2 } from "../../errors.mjs";
+import { throwV2 } from "../../contracts/errors.mjs";
 import { cloneValue, nonEmpty, pluginIdFrom, planPolicyAction, validateValue } from "./common.mjs";
 
 const OP = "plugin-data.node.set";

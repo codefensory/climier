@@ -28,10 +28,10 @@ async function v2Project(dir) {
   assert.equal(i.code, 0, i.stderr);
 }
 
-// --- unit tests: src/errors.mjs -----------------------------------------
+// --- unit tests: src/contracts/errors.mjs -------------------------------
 
 test("errors.mjs: V2_ERROR_CODES is a frozen object listing every supported code", async () => {
-  const { V2_ERROR_CODES } = await importFresh("./errors.mjs");
+  const { V2_ERROR_CODES } = await importFresh("./contracts/errors.mjs");
   assert.ok(Object.isFrozen(V2_ERROR_CODES), "V2_ERROR_CODES must be frozen");
   for (const code of [
     "NODE_NOT_FOUND",
@@ -55,7 +55,7 @@ test("errors.mjs: V2_ERROR_CODES is a frozen object listing every supported code
 });
 
 test("errors.mjs: makeError returns { ok: false, error: { code, message, details } }", async () => {
-  const { makeError } = await importFresh("./errors.mjs");
+  const { makeError } = await importFresh("./contracts/errors.mjs");
   const env = makeError("SOMETHING", "it broke", { foo: 1 });
   assert.deepEqual(env, {
     ok: false,
@@ -64,7 +64,7 @@ test("errors.mjs: makeError returns { ok: false, error: { code, message, details
 });
 
 test("errors.mjs: throwV2 throws an Error with .code, .details, .toJSON", async () => {
-  const { throwV2, makeError } = await importFresh("./errors.mjs");
+  const { throwV2, makeError } = await importFresh("./contracts/errors.mjs");
   let caught;
   try {
     throwV2("NODE_NOT_FOUND", "context: X not found", { id: "X" });
@@ -79,7 +79,7 @@ test("errors.mjs: throwV2 throws an Error with .code, .details, .toJSON", async 
 });
 
 test("errors.mjs: toJSON output is JSON-serialisable", async () => {
-  const { throwV2 } = await importFresh("./errors.mjs");
+  const { throwV2 } = await importFresh("./contracts/errors.mjs");
   let caught;
   try { throwV2("X", "y", { a: 1 }); } catch (e) { caught = e; }
   const round = JSON.parse(JSON.stringify(caught.toJSON()));

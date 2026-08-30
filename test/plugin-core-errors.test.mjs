@@ -174,7 +174,7 @@ test("plugin-core-errors: isPluginCoreError does NOT reject PLUGIN_CORE_* errors
 // ---- PLUGIN_CORE_* codes are isolated from the core v2 error list ---
 
 test("plugin-core-errors: PLUGIN_CORE_* codes are not exported via V2_ERROR_CODES", async () => {
-  const errorsMod = await importFresh("../src/errors.mjs");
+  const errorsMod = await importFresh("../src/contracts/errors.mjs");
   const set = new Set(Object.values(errorsMod.V2_ERROR_CODES));
   assert.equal(set.has("PLUGIN_CORE_INVALID_OPERATION"), false);
   assert.equal(set.has("PLUGIN_CORE_ACTION_FAILED"), false);

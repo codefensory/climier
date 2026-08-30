@@ -5,7 +5,7 @@
 // by that CLI surface and owns only domain/input planning plus draft patching.
 // It never touches locks, persistence, logs, policy, commands, or revision.
 
-import { throwV2 } from "../../errors.mjs";
+import { throwV2 } from "../../contracts/errors.mjs";
 
 const OP = "gate.update";
 const LOG_ACTION = "update";

@@ -110,7 +110,7 @@ test("take by id: repeated take by the owner is idempotent", async () => {
 test("take by id: rejects a task claimed by another agent with ALREADY_CLAIMED", async () => {
   const dir = await v2Project();
   try {
-    const { V2_ERROR_CODES } = await importFresh("./errors.mjs");
+    const { V2_ERROR_CODES } = await importFresh("./contracts/errors.mjs");
     assert.equal(V2_ERROR_CODES.ALREADY_CLAIMED, "ALREADY_CLAIMED");
     await addTask(dir, "T-auth-1");
     await patchNode(dir, "T-auth-1", {
@@ -138,7 +138,7 @@ test("take by id: rejects an unknown id with NODE_NOT_FOUND", async () => {
 test("take by id: rejects a knowledge node with NOT_CLAIMABLE", async () => {
   const dir = await v2Project();
   try {
-    const { V2_ERROR_CODES } = await importFresh("./errors.mjs");
+    const { V2_ERROR_CODES } = await importFresh("./contracts/errors.mjs");
     assert.equal(V2_ERROR_CODES.NOT_CLAIMABLE, "NOT_CLAIMABLE");
     await addKnowledge(dir, "K-auth-ttl");
 

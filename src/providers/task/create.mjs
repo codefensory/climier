@@ -15,7 +15,7 @@
 //     error helpers and the kernel graph primitive (for the BLOCKS
 //     canonical edge shape) are used.
 
-import { throwV2 } from "../../errors.mjs";
+import { throwV2 } from "../../contracts/errors.mjs";
 import { blocksEdge } from "../../kernel/edges.mjs";
 
 const OP = "task.create";

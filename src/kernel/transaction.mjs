@@ -17,9 +17,9 @@
 //     (snapshot + draft are the only authoritative view during apply).
 //   - No filesystem, no locks, no updateState, no log writes, no providers,
 //     no registry, no adapters, no commands, no UI. Only structured errors
-//     via ../errors.mjs.
+//     via ../contracts/errors.mjs.
 
-import { throwV2 } from "../errors.mjs";
+import { throwV2 } from "../contracts/errors.mjs";
 
 // Edge types accepted by mutating commands. Kept local so the kernel module
 // has no dependency on command adapters.
