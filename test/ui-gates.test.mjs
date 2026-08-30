@@ -252,7 +252,7 @@ test("groupAndSortGates groups by initiative; open gates come first within a gro
   const gates = [gA1, gA2, gB1, gNone];
   const groups = mod.groupAndSortGates(gates, edges, nodes);
   // Map back to [{initiative, ids}] for stable comparison.
-  const summary = groups.map(([name, list]) => ({
+  const summary = groups.map(({ initiative: name, gates: list }) => ({
     name,
     ids: list.map((g) => g.id),
   }));
@@ -280,7 +280,7 @@ test("groupAndSortGates puts open-bearing groups before closed-only groups", { s
     { id: "G-Z1", status: "open", initiative: "zzz-open" },
   ];
   const groups = mod.groupAndSortGates(gates, edges, nodes);
-  const names = groups.map(([n]) => n);
+  const names = groups.map(({ initiative }) => initiative);
   assert.equal(names[0], "zzz-open", `open-bearing 'zzz-open' must lead, got order ${JSON.stringify(names)}`);
   assert.equal(names[1], "aaa-closed");
 });
@@ -315,7 +315,7 @@ test("groupAndSortGates sorts open gates by downstream impact (desc), id asc as 
     { id: "G-TIE-B", status: "open", initiative: "x" },
   ];
   const groups = mod.groupAndSortGates(gates, edges, nodes);
-  const ids = groups[0][1].map((g) => g.id);
+  const ids = groups[0].gates.map((g) => g.id);
   // impact desc: HIGH(3), MID(2), then impact=1 sorted by id asc:
   // LOW, TIE-A, TIE-B.
   assert.deepEqual(
