@@ -343,10 +343,9 @@ function buildNodeSeed(input, id) {
     seed.initiative = input.initiative;
   }
   if (input.backlog === true) seed.backlog = true;
-  // meta is preserved as-is when provided (validateExecution has
-  // already normalized the `execution` sub-shape). Undefined inputs
-  // leave the seed without a `meta` key — matches the add-node
-  // contract (only present when --meta was passed).
+  // meta is generic JSON preserved as-is when provided. Undefined inputs
+  // leave the seed without a `meta` key — matches the add-node contract
+  // (only present when --meta was passed).
   if (input.meta !== undefined && input.meta !== null) {
     if (!asPlainObject(input.meta)) {
       throwV2("INVALID_EXECUTION_CONTRACT", `${OP}: 'meta' must be an object`, { field: "meta" });

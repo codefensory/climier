@@ -19,11 +19,6 @@ const BOUNDARIES = [
     forbiddenRoots: ["cli", "plugins", "storage"],
   },
   {
-    name: "execution",
-    directory: "src/execution",
-    forbiddenRoots: ["cli", "plugins", "storage"],
-  },
-  {
     name: "read-model",
     directory: "src/read-model",
     forbiddenRoots: ["cli", "plugins", "storage"],

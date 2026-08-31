@@ -32,10 +32,6 @@ import {
   statusOf,
 } from "../../read-model/index.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
-import {
-  detectOwnershipConflicts,
-  executionContractFor,
-} from "../../contracts/execution-contract.mjs";
 
 export const knownFlags = ["as", "staleMs"];
 
@@ -84,7 +80,7 @@ function buildClaim(node, staleMs) {
   return null;
 }
 
-function buildAlerts(id, blocking, knowledge, claim, ownershipConflicts) {
+function buildAlerts(id, blocking, knowledge, claim) {
   const alerts = [];
   if (claim && claim.stale) {
     alerts.push({
@@ -115,17 +111,6 @@ function buildAlerts(id, blocking, knowledge, claim, ownershipConflicts) {
         message: `matching knowledge ${k.id} is deprecated`,
       });
     }
-  }
-  // Surface a single combined alert for ownership conflicts. The structured
-  // list is still returned via ownership_conflicts so callers can act on
-  // each entry without re-parsing the alert message.
-  if (ownershipConflicts && ownershipConflicts.length > 0) {
-    alerts.push({
-      kind: "OWNERSHIP_CONFLICT",
-      node_id: id,
-      count: ownershipConflicts.length,
-      message: `${id} has ${ownershipConflicts.length} ownership conflict(s) with other open tasks`,
-    });
   }
   return alerts;
 }
@@ -212,11 +197,7 @@ export default async function context({ statePath, positional, flags }) {
   const blocking = blockingForNode(s, id);
   const informing = informingForNode(s, id);
   const knowledge = knowledgeForNode(s, id);
-  const execution_contract = executionContractFor(s, id);
-  const ownership_conflicts = node.kind === "resolvable" && node.subkind === "task"
-    ? detectOwnershipConflicts(s, id)
-    : [];
-  const alerts = buildAlerts(id, blocking, knowledge, claim, ownership_conflicts);
+  const alerts = buildAlerts(id, blocking, knowledge, claim);
   const derived_status = statusOf({ snapshot: s, id });
   const agent = flags.as && flags.as !== true ? String(flags.as) : null;
   const allowed_actions = allowedActions(node, derived_status, claim, agent);
@@ -230,8 +211,6 @@ export default async function context({ statePath, positional, flags }) {
     blocking,
     knowledge,
     informing, // retained for callers that still expect it (existing tests).
-    execution_contract,
-    ownership_conflicts,
     alerts,
     allowed_actions,
   };
