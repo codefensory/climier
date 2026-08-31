@@ -16,6 +16,7 @@ const LOG_ACTION = "release";
 
 const TASK_KIND = "resolvable";
 const TASK_SUBKIND = "task";
+const ALLOWED_STATUSES = ["open", "in_progress"];
 
 function asNonEmptyString(value) {
   return typeof value === "string" && value.length > 0 ? value : null;
@@ -68,6 +69,14 @@ function validateTarget(input, snapshot) {
         kind: node.kind,
         subkind: node.subkind || null,
       },
+    );
+  }
+  const status = node.status || "open";
+  if (!ALLOWED_STATUSES.includes(status)) {
+    throwV2(
+      "INVALID_STATUS",
+      `${OP}: task '${input.id}' cannot be released from status '${status}'`,
+      { id: input.id, current: status, allowed: ALLOWED_STATUSES },
     );
   }
 }
