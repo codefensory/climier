@@ -8,7 +8,7 @@ const README = path.resolve(import.meta.dirname, "..", "README.md");
 
 const REQUIRED_SNIPPETS = [
   "# climier reference",
-  "version: 2",
+  "version: 3",
   "nodes",
   "edges",
   "initiatives",
