@@ -8,7 +8,7 @@
 //     core:    { version: 2, run({ op, input }) },
 //   }
 //
-// T-plugin-dispatch invokes createApi({ projectDir, agent, pluginId })
+// The dispatch layer invokes createApi({ projectDir, agent, pluginId })
 // once per plugin invocation. The handler receives `api` and uses it.
 //
 // V1 constraints enforced here:
@@ -19,11 +19,10 @@
 //     mutation, no I/O. It exists so handlers can read project_dir and
 //     agent without touching argv or env vars themselves.
 //
-// V2 addition (T-plugin-core-api): api.core is the host surface for
-// individual core actions. It is created unconditionally — V1 hosts are
-// documented to call `api.core?.version`, but the host that ships
-// ADR-006 always imports this adapter. runtime.agent is captured into
-// the core surface so `core.run` can fix flags.as on every call
+// api.core is the host surface for individual core actions. It is created
+// unconditionally — V1 hosts may call `api.core?.version`, while the host
+// defined by ADR-006 always imports this adapter. runtime.agent is captured
+// into the core surface so `core.run` can fix flags.as on every call
 // regardless of what the plugin passes in input.
 
 import { createQuery } from "./query.mjs";

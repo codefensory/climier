@@ -2,8 +2,8 @@
 //
 // The V1 host (see ADR-005 §"API y persistencia" + §"Dispatch y contrato de
 // errores") resolves --project and --as for itself before invoking the
-// plugin handler. The dispatch lives in T-plugin-dispatch; this module is
-// the parser the dispatch uses to materialise { project_dir, agent }.
+// plugin handler. The dispatch layer uses this parser to materialise
+// { project_dir, agent }.
 //
 //   resolveRuntime(argv) -> { project_dir, agent }
 //

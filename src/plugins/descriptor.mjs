@@ -1,4 +1,4 @@
-// T-plugin-install — plugin descriptor contract (ADR-005 §"Instalación e identidad").
+// Plugin descriptor contract (ADR-005 §"Instalación e identidad").
 //
 // The descriptor lives in package.json under `climier`:
 //   { "climier": { "id": "...", "command": "...", "entry": "./climier.mjs" } }

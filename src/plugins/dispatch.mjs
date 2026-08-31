@@ -1,5 +1,5 @@
-// T-plugin-dispatch — plugin dispatch orchestration (ADR-005 §"Dispatch
-// y contrato de errores" + §"Discovery, namespaces y dispatch").
+// Plugin dispatch orchestration (ADR-005 §"Dispatch y contrato de errores"
+// + §"Discovery, namespaces y dispatch").
 //
 // Inputs:
 //   originalArgv — full argv (process.argv.slice(2)) so we can preserve
@@ -15,9 +15,8 @@
 //                  duplicate alter the host's resolution).
 //   createApi    — optional factory injected by the caller. When omitted,
 //                  the dispatcher lazy-imports ./api.mjs. If that
-//                  module is missing (T-plugin-api is parallel), a
-//                  placeholder factory is used that satisfies the
-//                  runtime contract but throws on every query/data call.
+//                  import is unavailable, a placeholder factory satisfies
+//                  the runtime contract but throws on every query/data call.
 //
 // Algorithm:
 //   1. loadInstalledPlugin(namespace)
@@ -196,8 +195,8 @@ function placeholderApiFactory({ projectDir, agent, pluginId }) {
 }
 
 // loadApiFactory — lazy import of ./api.mjs. Caches the successful
-// module; falls back to the placeholder on any failure so
-// the bin never crashes because the parallel task has not landed.
+// module; falls back to the placeholder on any import failure so
+// the bin can report a structured handler error.
 let _apiFactory = null;
 let _apiFactoryResolved = false;
 async function loadApiFactory() {
