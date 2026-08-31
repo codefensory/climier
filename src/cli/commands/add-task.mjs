@@ -5,7 +5,7 @@
 // --initiative, --title, --body, --acceptance, --blocked-by.
 import { addV2Node, requireFields } from "./internal/create-node.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
-import { resolveAgent } from "../../contracts/agent.mjs";
+import { resolveAgent } from "../actor.mjs";
 
 export const knownFlags = [
   "initiative",
