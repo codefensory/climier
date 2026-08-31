@@ -18,6 +18,9 @@ export { taskResolveProvider } from "./resolve.mjs";
 export { taskReleaseProvider } from "./release.mjs";
 export { taskReopenProvider } from "./reopen.mjs";
 export { taskCancelProvider } from "./cancel.mjs";
+export { taskSubmitProvider } from "./submit.mjs";
+export { taskAcceptProvider } from "./accept.mjs";
+export { taskRejectProvider } from "./reject.mjs";
 
 // Canonical pure task graph semantics. The v2 facade can re-export these
 // helpers without retaining a second implementation of derivation.

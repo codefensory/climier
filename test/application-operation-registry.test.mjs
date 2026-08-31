@@ -5,6 +5,7 @@ import { importFresh } from "./helpers.mjs";
 
 const REGISTRY_MODULE = "../src/application/operations/registry.mjs";
 const INDEX_MODULE = "../src/application/operations/index.mjs";
+const TASK_PROVIDER_MODULE = "../src/providers/task/index.mjs";
 
 function provider() {
   return Object.freeze({
@@ -26,11 +27,33 @@ test("application operation registry is exported from the boundary and is adapte
   assert.equal(typeof boundary.createBuiltinOperationRegistry, "function");
   assert.equal(typeof boundary.bootstrapBuiltins, "function");
   assert.equal(typeof boundary.executeOperation, "function");
+  const taskProviders = await importFresh(TASK_PROVIDER_MODULE);
+  for (const provider of [
+    taskProviders.taskSubmitProvider,
+    taskProviders.taskAcceptProvider,
+    taskProviders.taskRejectProvider,
+  ]) {
+    assert.equal(typeof provider.prepare, "function");
+    assert.equal(typeof provider.apply, "function");
+  }
   const source = await import("node:fs/promises");
   const url = await import("node:url");
   const file = url.fileURLToPath(new URL(REGISTRY_MODULE, import.meta.url));
   const contents = await source.readFile(file, "utf8");
   assert.doesNotMatch(contents, /(?:plugins|commands|filesystem|node:fs|fs\/promises|kernel\/mutate)/);
+});
+
+test("built-in registry publishes task submission lifecycle operations and their providers", async () => {
+  const { createBuiltinOperationRegistry, PUBLIC_TASK_OPS } = await importFresh("../src/application/operations/builtins.mjs");
+  const reg = createBuiltinOperationRegistry();
+  for (const id of ["task.submit", "task.accept", "task.reject"]) {
+    assert.ok(PUBLIC_TASK_OPS.includes(id), `${id} is a public task operation`);
+    const entry = reg.lookup(id);
+    assert.ok(entry, `${id} is registered`);
+    assert.equal(entry.kind, "task");
+    assert.equal(typeof entry.provider.prepare, "function");
+    assert.equal(typeof entry.provider.apply, "function");
+  }
 });
 
 test("buildRegistry exposes immutable get/has/list lookup over validated entries", async () => {

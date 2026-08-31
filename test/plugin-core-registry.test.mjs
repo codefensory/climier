@@ -268,6 +268,9 @@ test("bootstrapBuiltins: includes all ADR-012 task / gate / knowledge operation 
     "task.release",
     "task.reopen",
     "task.cancel",
+    "task.submit",
+    "task.accept",
+    "task.reject",
     "gate.create",
     "gate.update",
     "gate.resolve",
@@ -284,7 +287,7 @@ test("bootstrapBuiltins: includes all ADR-012 task / gate / knowledge operation 
     assert.ok(reg.has(id), `bootstrapBuiltins registers ${id}`);
   }
   assert.ok(Object.isFrozen(reg), "bootstrap registry is frozen");
-  assert.equal(reg.ops.length, expectedIds.length, "all 18 expected ids present, no extras");
+  assert.equal(reg.ops.length, expectedIds.length, "all 21 expected ids present, no extras");
 
   // bootstrap must NOT expose plan-derived actions that are not part
   // of the public core surface (task.takeover, state.restore, etc.).
@@ -313,10 +316,10 @@ test("bootstrapBuiltins: includes all ADR-012 task / gate / knowledge operation 
     assert.equal(typeof entry.provider.apply, "function", `${id} provider.apply is fn`);
   }
 
-  // byKind grouping: 7 task + 5 gate + 3 knowledge + 3 core
+  // byKind grouping: 10 task + 5 gate + 3 knowledge + 3 core
   // (edge.add + note.add + initiative.create) per the §B6A + §B6B
   // contract.
-  assert.equal(reg.byKind.get("task").length, 7, "task has 7 ops");
+  assert.equal(reg.byKind.get("task").length, 10, "task has 10 ops");
   assert.equal(reg.byKind.get("gate").length, 5, "gate has 5 ops");
   assert.equal(reg.byKind.get("knowledge").length, 3, "knowledge has 3 ops");
   assert.equal(reg.byKind.get("core").length, 3, "core has 3 ops");
