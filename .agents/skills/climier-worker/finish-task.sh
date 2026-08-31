@@ -16,7 +16,7 @@
 #     `base_ref`, and `base_sha` are passed through unless obviously wrong.
 #   - Caller-supplied `files` and `checks` arrays are preserved as-is; otherwise
 #     the script auto-fills `files` from `git diff --name-status base_ref HEAD`
-#     and `checks` from the task's `meta.execution.checks` (running each).
+#     and leaves `checks` empty. Task metadata is opaque and is never executed.
 #
 # The EVIDENCE note text is `EVIDENCE <compact JSON>` — single-line, JSON-
 # parseable, and structured for `integration-preflight.sh`.
@@ -96,7 +96,6 @@ printf '%s\n' "$worktree_note"
 # 2. EVIDENCE note. Single-line JSON, prefixed with EVIDENCE so the validator
 # script can pick it up via simple prefix matching. We build it in node so
 # quoting stays safe.
-task_meta_json="$(climier --project "$project_root" show "$task_id" 2>/dev/null || echo '{"node":{}}')"
 files_status_json="$(git -C "$current_root" diff --name-status "$base_branch...HEAD" 2>/dev/null | awk -F'\t' '
   NF >= 2 { status=$1; path=$2; printf("{\"path\":\"%s\",\"status\":\"%s\"}\n", path, status) }
   NF == 1 { printf("{\"path\":\"%s\",\"status\":\"?\"}\n", $1) }
@@ -109,34 +108,9 @@ process.stdin.on("end", () => {
 });
 ')"
 
-# Run the checks declared in meta.execution.checks. Output: [{name, ok}].
-# Each check is run via bash -c to honor simple commands and short flags.
-# We never echo the stdout; only the name and pass/fail are recorded.
-checks_json="$(printf '%s' "$task_meta_json" | node -e '
-const { spawnSync } = require("node:child_process");
-let s = "";
-process.stdin.on("data", (d) => s += d);
-process.stdin.on("end", () => {
-  let declared = [];
-  try {
-    const o = JSON.parse(s);
-    const checks = (o && o.node && o.node.meta && Array.isArray(o.node.meta.execution && o.node.meta.execution.checks))
-      ? o.node.meta.execution.checks : [];
-    for (const c of checks) if (typeof c === "string") declared.push(c);
-  } catch {}
-
-  const results = [];
-  for (const cmd of declared) {
-    let code = -1;
-    try {
-      const r = spawnSync("bash", ["-c", cmd], { stdio: "ignore" });
-      code = r.status === null ? -1 : r.status;
-    } catch {}
-    results.push({ name: cmd, ok: code === 0, exit_code: code });
-  }
-  process.stdout.write(JSON.stringify(results));
-});
-' 2>/dev/null)"
+# Checks are explicit evidence only. Task metadata remains opaque to this helper;
+# callers must provide any checks through --evidence-file.
+checks_json='[]'
 
 # Build and emit the EVIDENCE note text. If the caller supplied --evidence-file,
 # its object is merged in via node (caller fields win on conflict).

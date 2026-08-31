@@ -5,7 +5,7 @@ description: Use this skill when a climier task, gate, knowledge node, task grap
 
 # climier — graph harness for multi-agent workflows
 
-Climier is the coordination layer for tracked work in this repository. State lives at `~/.climier/projects/<project_id>/tasks.json` (global, machine-local, NOT in the repo and NOT under git's purview). The repo only commits `.climier.json`, which pins the `<project_id>` that resolves to that state file. Storage is a graph of `nodes` (tasks, gates, knowledge) and typed `edges` (`BLOCKS`, `SUPERSEDES`, `DERIVED_FROM`). Workers claim one task at a time with an atomic file lock; the orchestrator reads `status` and delegates via `context` + `take` + `resolve`.
+Climier is the coordination layer for tracked work in this repository. State lives at `~/.climier/projects/<project_id>/tasks.json` (global, machine-local, NOT in the repo and NOT under git's purview). The repo only commits `.climier.json`, which pins the `<project_id>` that resolves to that state file. Storage is a graph of `nodes` (tasks, gates, knowledge) and typed `edges` (`BLOCKS`, `SUPERSEDES`, `DERIVED_FROM`). Workers claim one task at a time with an atomic file lock; the orchestrator reads `status` and delegates via `context` + `take`. Workers submit completed work for independent validator review; only the validator accepts or rejects it.
 
 ## When to use this skill
 
@@ -19,8 +19,8 @@ Climier is the coordination layer for tracked work in this repository. State liv
 ## The 7 rules (read first, never violate)
 
 1. **Never edit `~/.climier/projects/<project_id>/tasks.json` by hand.** Use climier commands. The state is owned by the script.
-2. **Take ONE task at a time.** `take` is exclusive. If you need two, take one, resolve, then take the other.
-3. **Never `resolve` without verifying the work.** The acceptance criteria from `context <id>` are the contract.
+2. **Take ONE task at a time.** `take` is exclusive. If you need two, submit the first for validation, then take the other.
+3. **Never use `resolve` to close a task.** Tasks follow `take → work → submit → validator accept/reject`; `resolve` is for gates and requires its choice and rationale.
 4. **If you can't finish, `release` and leave a note — never just abandon.** Abandoned claims go stale and block others. There is no `block` command; an escalation is `add-note "blocked: ..."` plus either `release` or a handoff to the orchestrator.
 5. **Identify yourself with `--as <agent-id>` on every mutating command.** Use a stable id (e.g. `claude-auth`, `pi-frontend`).
 6. **Read the scoped knowledge and gate resolutions that `context` shows you.** They are domain traps the team has already paid for; ignore them at your own risk.
@@ -43,12 +43,13 @@ climier take <id> --as <your-agent-id>
 # 4. Re-read the spec now that you own it (shows the same context with claim + revision)
 climier context <id>
 
-# 5. Close it (REQUIRED: a note describing what you did)
-climier resolve <id> --note "what you shipped, in one line" --as <your-agent-id>
+# 5. Submit it for independent validation (REQUIRED: a note describing what you did)
+climier submit <id> --note "what you shipped, in one line" --as <your-agent-id>
 
 # 5b. Required post-worker audit
-#     After every resolve, run an independent validator using the climier-validator skill.
-#     The validator returns PASS/FAIL/BLOCKED and reports follow-up work to the orchestrator.
+#     After every submission, run an independent validator using the
+#     climier-validator skill. The validator accepts or rejects the task and
+#     reports follow-up work to the orchestrator.
 
 # 6a. If you can't finish and want another agent to take it
 climier release <id> --as <your-agent-id>
@@ -87,17 +88,17 @@ climier context <id>
 # What decisions (gates) are open and blocking tasks
 climier status                       # summary.open_gates
 
-# Resolve a gate to unblock dependents
+# Resolve a gate to unblock dependents (tasks never use resolve)
 climier resolve <G> --choice "<chosen path>" --rationale "<why>" --as orchestrator
 
-# Roll back a wrong "resolve" (orchestrator escape hatch)
+# Reopen an accepted task when a validator or orchestrator finds a defect
 climier reopen <id> --reason "<what's wrong>" --as orchestrator
 ```
 
 When you delegate, tell the worker the **task id** and their **agent id**:
 > "agent-claude-auth: `climier take T-auth-validate --as claude-auth`. Then `climier context T-auth-validate` to read the spec."
 
-After a worker resolves a task, stalls, gets cancelled, or leaves an ambiguous state, run an independent `climier-validator` pass before treating the task as safe for downstream work. The validator must find the task worktree from `WORKTREE` notes or from `git worktree list` entries containing the task id. If it returns `PASS`, it merges the branch with `--no-ff` and leaves a `VALIDATION PASS ... merged=true` note. If it returns `FAIL`, create a new climier task from its follow-up report and assign a worker to the same worktree/branch. If it returns `BLOCKED`, resolve the missing evidence before continuing.
+After a worker submits a task, stalls, gets cancelled, or leaves an ambiguous state, run an independent `climier-validator` pass before treating the task as safe for downstream work. The validator must find the task worktree from `WORKTREE` notes or from `git worktree list` entries containing the task id. If it returns `PASS`, it merges the branch with `--no-ff`, accepts the task, and leaves a `VALIDATION PASS ... merged=true` note. If it returns `FAIL`, it rejects the submitted task or creates a follow-up task from its report and assigns a worker to the same worktree/branch. If it returns `BLOCKED`, resolve the missing evidence before continuing.
 
 ## Storage
 
@@ -106,7 +107,7 @@ After a worker resolves a task, stalls, gets cancelled, or leaves an ambiguous s
 - `.climier.json` is the only file climier-related in the repo. The state file is machine-local; backups are the operator's responsibility.
 - Multiple machines with the same repo checkout share the `.climier.json` but each have their own state file (this is by design — agents are local processes, state is the shared truth on the host that runs them).
 
-State shape: `{ version: 2, initiatives, nodes, edges, log }`.
+State shape: `{ version: 3, initiatives, nodes, edges, log }`.
 
 - `nodes`: tasks (resolvable labor), gates (resolvable decisions/approvals/external deps/research), knowledge (durable facts).
 - `edges`: typed (`BLOCKS`, `SUPERSEDES`, `DERIVED_FROM`). Only `BLOCKS` affects readiness — `to` is blocked by `from`. The CLI surfaces `BLOCKS` from the dependent's POV as `--blocked-by`: `--blocked-by G-y` means "this node is blocked by G-y", and stores the canonical edge `{from: "G-y", to: <this node>, type: "BLOCKS"}`.
@@ -153,8 +154,8 @@ The codes an agent will see:
 - `ID_CONFLICT` — `add-task`/`add-gate`/etc. tried to use an existing id.
 - `MISSING_FIELD` / `MISSING_AGENT` — required flag absent.
 - `NOT_READY` / `NOT_CLAIMABLE` / `ALREADY_CLAIMED` — `take` rejected for that reason.
-- `NOT_OWNER` — `release`, `resolve`, `cancel`, or `reopen` rejected because the caller isn't the claim/done owner (and isn't orchestrator/recovery).
-- `INVALID_STATUS` — node isn't in a status that allows this transition (e.g. `resolve` on an `open` task, `reopen` on a `resolved` gate without the right authority).
+- `POLICY_DENIED` — an installed policy plugin rejected an otherwise state-valid mutation.
+- `INVALID_STATUS` — node isn't in a status that allows this transition (e.g. `accept` on an `open` task, `resolve` on a resolved gate).
 - `REVISION_CONFLICT` — `update --if-revision N` failed because the stored revision differs.
 - `INVALID_EDGE_TYPE` / `INVALID_EDGE_KIND` / `SELF_EDGE` / `CYCLE_DETECTED` / `DUPLICATE_EDGE` / `INVALID_EDGE_TARGET` — edge problems.
 
@@ -170,7 +171,7 @@ The CLI phrases edges from the dependent's point of view: `--blocked-by G-y` mea
 status  → see who has what, what's blocked, what's stale, what gates are open
 context <id> → read a candidate task before delegating
 delegate  → "agent-X, take T-Y, then context T-Y"
-[wait for resolve]
+[wait for submit; validator accepts or rejects]
 reopen or release → only on rollback / stuck-claim recovery
 resolve <G> --choice --rationale → unblock downstream via gates
 ```
@@ -178,30 +179,30 @@ resolve <G> --choice --rationale → unblock downstream via gates
 ## Common pitfalls
 
 - **Taking a task whose deps aren't resolved.** Symptom: `take: node T is open, not ready` (NOT_READY) or, more commonly, the node just doesn't appear in `status` `ready` bucket. Run `climier context <id>` to see `blocking[]` — every unsatisfied blocker is listed there with kind/status.
-- **`resolve` without `--note`.** Climier requires `--note` on every task resolve; the note is the audit trail. Write what you shipped, not "ok" or "done". Gates use `--choice` + `--rationale` instead.
-- **`resolve` from a different agent than `take`.** The agent that took must also resolve. If the original agent is gone, see "Recovery" below.
+- **`submit` without `--note`.** Climier requires a submission note; write what you shipped and verified, not "ok" or "done". The validator then accepts or rejects the submitted task.
+- **`resolve` on a task.** Tasks do not use `resolve`; submit them and let the validator accept or reject. `resolve` is exclusively for gates with `--choice` + `--rationale`.
 - **Two agents trying to `take` the same task.** One wins, the other gets `ALREADY_CLAIMED`. This is the lock working. Pick another task from `status` `ready` bucket.
-- **Stale claims in `status`.** A claim older than 2h is stale (configurable via `--stale-ms`). The orchestrator should `release` it and let another worker take it. `context <id>` shows `claim.stale: true` for any task you inspect.
-- **Forgot `--as`.** All mutating commands (`take`, `resolve`, `release`, `reopen`, `cancel`, `update`, `add-note`, `add-task`, `add-gate`, `add-knowledge`, `deprecate-knowledge`) require `--as`. The CLI throws `MISSING_AGENT` with a structured details object.
+- **Stale claims in `status`.** A claim older than 2h is stale (configurable via `--stale-ms`). Release it and let another worker take it. `context <id>` shows `claim.stale: true` for any task you inspect.
+- **Forgot `--as`.** All mutating commands (`take`, `submit`, `accept`, `reject`, `resolve` for gates, `release`, `reopen`, `cancel`, `update`, `add-note`, `add-task`, `add-gate`, `add-knowledge`, `deprecate-knowledge`) require `--as`. The CLI throws `MISSING_AGENT` with a structured details object.
 - **`update` while a task is `in_progress`.** It's allowed, but the revision bumps under the worker. If you need to coordinate, use `--if-revision N` or leave a note and ask the worker to `release` first.
 - **Boolean flags before the command.** `climier --force init` is interpreted as `--force=init` (the parser consumes the next non-flag as the flag's value). Use `climier --force=true init` or put the flag after the command. The same applies to any boolean flag: if a flag is meant as a switch, use `--flag=true` when the command comes right after.
 
 ## Recovery (when a worker dies or a claim is stuck)
 
-The default rule: only the claimer can `release` their own task. Escape hatches:
+A claim can be released when work is handed off or recovered:
 
-- **`release` by `orchestrator` or `recovery`**: anyone with `--as orchestrator` (or `--as recovery`) can release any `in_progress` task — even if claimed by another agent. Use this when:
+- **Releasing a stuck claim**: use `release` when work cannot continue or must be handed off. Use this when:
   - The original agent is gone and the claim is stuck.
   - You need to reassign work mid-flight.
-  - The task is orphaned (in_progress with no `claim.by`).
+  - The task is orphaned (`in_progress` with no `claim.by`).
 
   ```bash
-  climier release <id> --as orchestrator
+  climier release <id> --as <agent>
   ```
 
-  The task returns to `open` (the bucket is `ready` when nothing else blocks it) and any other agent can `take` it. `release` is idempotent: running it on an unclaimed task returns `{ released: false, node }` with no state mutation.
+  The task returns to `open` (the bucket is `ready` when nothing else blocks it) and another agent can `take` it. `release` is idempotent: running it on an unclaimed task returns `{ released: false, node }` with no state mutation.
 
-- **`reopen` is the analogous escape hatch for `resolve`.** See "Correcting a wrong resolve" below.
+- **`reopen` corrects an accepted task or resolved gate.** See "Correcting an accepted task" below.
 
 - **`init --force`**: overwrites a corrupt or stale state file. Use only when you're sure; it deletes the current state and re-creates an empty one.
 
@@ -211,9 +212,9 @@ The default rule: only the claimer can `release` their own task. Escape hatches:
 
 - **There is no `block` command.** Escalation is `add-note "blocked: ..."` plus either `release` or a handoff to the orchestrator. The orchestrator can `release` the claim (which clears it); if the claim owner needs to record *why* they are blocked, they leave a note and release.
 
-## Correcting a wrong resolve (`reopen`)
+## Correcting an accepted task (`reopen`)
 
-When a worker marks a task `done` but the work isn't actually finished (missing edge case, broken integration, missed acceptance criterion), the orchestrator rolls it back. The DAG self-corrects — anything that depended on the resolved task re-derives as blocked.
+When a validator accepts a task as `done` but the work isn't actually finished (missing edge case, broken integration, missed acceptance criterion), the orchestrator rolls it back. The DAG self-corrects — anything that depended on the accepted task re-derives as blocked.
 
 ```bash
 # Worker shipped T-auth-7 but the integration test is flaky.
@@ -225,10 +226,7 @@ $ climier reopen T-auth-7 --reason "le falta validar el caso de timeout" --as or
 $ climier history T-api-12
 ```
 
-Authority (mirrors `release`):
-- **`orchestrator` (or `recovery`)** — can reopen any `done` task. The escape hatch.
-- **The original `done_by` agent** — can self-reopen if they realize their own work was incomplete.
-- **Anyone else** — rejected with `NOT_OWNER` (structured error).
+`reopen` is an administrative correction after acceptance. The actor is recorded in the audit log; any additional authority rule comes from the configured policy.
 
 Same rules apply to gates: reopen rolls a `resolved` gate back to `open` and clears `resolution`.
 
@@ -282,10 +280,13 @@ Every command prints a single JSON value to stdout. There is no `--json` flag an
 | `initiatives [--all]` | List registered initiatives with usage counts. `--all` includes zero-node initiatives. | no |
 | `log [--limit N] [--action X] [--agent X] [--task X] [--decision X]` | Show the audit log, filterable. Logs use `node:` (not `task:`/`decision:`). | no |
 | `take <id> --as <agent>` | Idempotently claim exactly one task. Sets `claim.by`, increments `revision`. | yes |
-| `resolve <id> --note "<text>" --as <agent>` | Close a task as done. `--choice` + `--rationale` close a gate. | yes |
-| `release <id> --as <agent>` | Free a task's claim without resolving. `orchestrator`/`recovery` can release any agent's claim. Idempotent. | yes |
-| `reopen <id> --reason "<text>" --as <agent>` | Roll a `done` task back to `open`; downstream tasks re-block. `orchestrator`/`recovery` can reopen any task; the original `done_by` can self-reopen. Same rules for resolved gates. | yes |
-| `cancel <id> --reason "<text>" --as <agent>` | Terminate a node without resolving (open/in_progress only). Claim owner or `orchestrator`/`recovery`. | yes |
+| `submit <id> --note "<text>" --as <agent>` | Submit an `in_progress` task for validation; clears the implementation claim. | yes |
+| `accept <id> --as <agent>` | Accept a `submitted` task as `done`; the validator owns this review step. | yes |
+| `reject <id> --reason "<text>" --as <agent>` | Return a `submitted` task to `open` with an audit reason. | yes |
+| `resolve <G> --choice "<text>" --rationale "<text>" --as <agent>` | Resolve a gate; tasks never use this command. | yes |
+| `release <id> --as <agent>` | Free a task's claim without resolving. Idempotent. | yes |
+| `reopen <id> --reason "<text>" --as <agent>` | Roll a `done` task back to `open`; downstream tasks re-block. Also reopens a resolved gate. | yes |
+| `cancel <id> --reason "<text>" --as <agent>` | Terminate a node without resolving (open/in_progress only). | yes |
 | `update <id> [--title X] [--body "..."] [--definition "..."] [--acceptance "..."] [--domain Y] [--backlog true\|false] [--scope-* ...] [--meta '{...}'] [--if-revision N] --as <agent>` | Edit a node. Bumps `revision`. `--if-revision N` for optimistic concurrency. | yes |
 | `add-note <id> "<text>" --as <agent>` | Append a timestamped note to the node's `notes[]` thread. Any status. Append-only. | yes |
 | `add-task [id] --initiative X --title "..." --body "..." --acceptance "..." --blocked-by A,B [--definition ...] [--domain ...] [--backlog true] --as <agent>` | Add a task. Requires `--body`, `--acceptance` and `--blocked-by` (pass `--blocked-by ""` for none). Omit `id` to auto-allocate (`T-xxxxxxxx`). | yes |
@@ -320,7 +321,7 @@ The convention for return shapes is principled (stable across versions):
 | Command type | Shape | Examples |
 |---|---|---|
 | Read commands | Raw data (object/array) | `status` → `{ summary, tasks, gates, knowledge_count, alerts }`, `context` → `{ node, derived_status, claim, blocking, knowledge, alerts, allowed_actions }`, `show` → `{ type, node }` |
-| Write commands | `{ entity }` envelope | `take` → `{ node, context, freshly_claimed }`, `resolve` → `{ node, newly_ready }`, `add-task` → `{ task }`, `add-gate` → `{ node }`, `add-knowledge` → `{ node }`, `update` → `{ node }` |
+| Write commands | `{ entity }` envelope | `take` → `{ node, context, freshly_claimed }`, `submit` → `{ task }`, `accept` → `{ task }`, `reject` → `{ task }`, `resolve` (gate) → `{ node, newly_ready }`, `add-task` → `{ task }`, `add-gate` → `{ node }`, `add-knowledge` → `{ node }`, `update` → `{ node }` |
 | `init` | `{ ok, seeded, file }` | (not entity-creating) |
 
 Agent pattern:
@@ -353,7 +354,7 @@ cp ~/.climier/projects/<project_id>/tasks.json ~/.climier/projects/<project_id>/
 
 # Reset (only if you're sure; this loses log entries)
 climier init --force
-# Then re-take / re-resolve the in-progress tasks you need
+# Then re-take / re-submit the in-progress tasks you need
 ```
 
 The CLI also auto-recovers a corrupt JSON on `init --force` (or even without `--force` if the existing state is unreadable). Always backup first.
@@ -362,6 +363,6 @@ The CLI also auto-recovers a corrupt JSON on `init --force` (or even without `--
 
 See `examples/` in this skill:
 
-- `examples/worker-flow.md` — end-to-end worker session: status → context → take → resolve.
+- `examples/worker-flow.md` — end-to-end worker session: status → context → take → submit → validator accept/reject.
 - `examples/orchestrator-delegation.md` — orchestrator reading `status`, delegating to 2 workers, resolving a gate.
 - `examples/concurrent-claims.md` — what happens when 2 agents race for the same task (the file lock).

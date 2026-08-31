@@ -279,7 +279,7 @@ const nextAction = isClaimable
     ? "Claimable, but the spec has gaps. Update the node before take if they are objective."
     : "Claimable. Take the node if the spec matches reality."
   : isClaimed
-    ? "Already claimed. Resume work and resolve when done."
+    ? "Already claimed. Resume work and submit when done."
     : "Do not claim. Fix blockers (or ask the orchestrator to cure the node).";
 
 printSection("Verdict", `${verdict}: ${nextAction}`);
