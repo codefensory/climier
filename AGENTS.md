@@ -53,7 +53,7 @@ src/
     plugin-data/                       # Typed plugin-scoped state providers
   read-model/                          # Pure status, blocking, knowledge, and informing projections
   storage/                             # Project metadata, state, lock, snapshots, and log primitives
-    paths.mjs, state.mjs                # Project resolution and v2 state read/write
+    paths.mjs, state.mjs                # Project resolution and v3 state migration/read/write
     lock.mjs, log.mjs                   # Locking and log primitives
   plugins/                             # Plugin host, discovery, policy, and compatibility adapters
   cli/
@@ -102,7 +102,7 @@ The repository uses a single state schema:
 
 ```js
 {
-  version: 2,
+  version: 3,
   initiatives: { "auth-migration": { desc, created_at } },
   nodes: { "T-auth-1": { id, kind, subkind, title, status, ... } },
   edges: [{ from, to, type }],
@@ -110,11 +110,11 @@ The repository uses a single state schema:
 }
 ```
 
-`status: "ready"` and `"blocked"` are **derived** from the DAG. They are NOT persisted. Persisted statuses on tasks are `open` (default), `in_progress`, `done`, `canceled`. Gates additionally use `resolved` / `superseded`. Knowledge uses `active` / `deprecated`.
+`status: "ready"` and `"blocked"` are **derived** from the DAG. They are NOT persisted. Persisted statuses on tasks are `open` (default), `in_progress`, `submitted`, `done`, `canceled`. `submitted` is waiting for validation and never satisfies `BLOCKS`; only `done` and `archived` do. `done` means implementation accepted. Gates additionally use `resolved` / `superseded`. Knowledge uses `active` / `deprecated`.
 
 The CLI surface is a single set of commands. `init` always creates the schema above.
 
-`take <id>` requires an explicit task id. `--as orchestrator` may atomically replace another agent's claim; the `take` log entry records that agent as `previous_owner`.
+`take <id>` requires an explicit task id. `--as orchestrator` may atomically replace another agent's claim; the `take` log entry records that agent as `previous_owner`. `submit` releases implementation ownership and records submission metadata; `accept` moves a submitted task to accepted `done`, while `reject` reopens it.
 
 Canonical `BLOCKS` direction is `{ from: blocker, to: blocked, type: "BLOCKS" }`; blockers are incoming edges to the blocked node.
 
@@ -131,7 +131,7 @@ helpers in `src/providers/` compute lifecycle/readiness rules; the CLI
 `status` and `context` adapters only load a snapshot and shape their output.
 Pure functions with no I/O let unit tests pass literal snapshots.
 
-`status` surfaces `{ summary: { ready, in_progress, blocked, backlog, placeholders, stale, open_decisions, done, archived } }`. Backlog tasks are kept out of the ready/blocked pools until `--backlog false` is set on the node (or they were created without `--backlog true`).
+`status` surfaces `{ summary: { ready, in_progress, submitted, blocked, backlog, placeholders, stale, open_decisions, done, archived } }`. Backlog tasks are kept out of the ready/blocked pools until `--backlog false` is set on the node (or they were created without `--backlog true`).
 
 Cycles in the DAG must not crash. The derivation keeps cycle members blocked. Unknown dep ids also keep tasks blocked (defensive).
 
@@ -148,6 +148,9 @@ Cycles in the DAG must not crash. The derivation keeps cycle members blocked. Un
 | `initiatives [--all]` | `cli/commands/initiatives.mjs` | no | no |
 | `log [--limit N] [--action X] [--agent X] [--task X] [--decision X]` | `cli/commands/log.mjs` | no | no |
 | `take <id>` | `cli/commands/take.mjs` | yes | yes |
+| `submit <id> --note "..."` | `cli/commands/submit.mjs` | yes | yes |
+| `accept <id>` | `cli/commands/accept.mjs` | yes | yes |
+| `reject <id> --reason "..."` | `cli/commands/reject.mjs` | yes | yes |
 | `release <id>` | `cli/commands/release.mjs` | yes | yes |
 | `resolve <id> --note "<text>"` (task) / `--choice "<x>" --rationale "<y>"` (gate) | `cli/commands/resolve.mjs` | yes | yes |
 | `reopen <id> --reason "<text>"` | `cli/commands/reopen.mjs` | yes | yes (orchestrator/recovery, or original done_by for self-correction) |
@@ -162,7 +165,7 @@ Cycles in the DAG must not crash. The derivation keeps cycle members blocked. Un
 | `add-node <id> --kind resolvable\|knowledge --title "..." [--subkind task\|gate] [--blocked-by A,B] [--derived-from A,B] [--refs a,b] [--meta '{...}']` | `cli/commands/add-node.mjs` | yes | required |
 | `add-edge <from> <to> --type BLOCKS\|SUPERSEDES\|DERIVED_FROM` | `cli/commands/add-edge.mjs` | yes | required |
 | `snapshots` | `cli/commands/snapshots.mjs` | no (read-only) | no |
-| `restore <id> --as orchestrator\|recovery` | `cli/commands/restore.mjs` | yes (locked; validates target v2/shape; pre-snapshot) | yes (orchestrator\|recovery only) |
+| `restore <id> --as orchestrator\|recovery` | `cli/commands/restore.mjs` | yes (locked; accepts v2/v3 snapshots, normalizes v2 to v3; pre-snapshot) | yes (orchestrator\|recovery only) |
 | `ui [--port N] [--open=true\|false]` | `cli/commands/ui.mjs` (starts `ui/server/server.mjs`) | no (read-only) | no |
 
 ## Hard rules for contributing
@@ -171,7 +174,7 @@ Cycles in the DAG must not crash. The derivation keeps cycle members blocked. Un
 2. **TDD strict.** Write the failing test first, then make it pass. The test suite is the spec. Exception: the `ui/` subproject does not require TDD nor changes to `test/`; it does require verification proportional to the blast radius, explicit (named command, observed output, or manual check), and documented in the commit body, the PR description, or a `climier add-note`. The TDD rule still applies to everything outside `ui/`.
 3. **No silent failures.** Every error path either throws with a clear message or has a tested behavior. If you find yourself "handling" an error by logging and continuing, write a test that documents the behavior, or change the code to fail loud.
 4. **Schema validation on write.** `writeState` rejects states missing `nodes`/`edges`/`initiatives`/`log`. Don't relax this without a test that says why.
-5. **Versioning.** The state has `version: 2`. Additive optional fields that an older compatible CLI can safely preserve and ignore do not require a version bump. Bump the version and add a migration in `readState` when a change removes or reinterprets existing data, makes a field required for correct behavior, changes core semantics, or otherwise means an older CLI cannot safely read and write the state. Document the compatibility decision and never silently accept unknown future versions.
+5. **Versioning.** The state has `version: 3`; `readState` migrates compatible v2 snapshots to v3. Additive optional fields that an older compatible CLI can safely preserve and ignore do not require a version bump. Bump the version and add a migration in `readState` when a change removes or reinterprets existing data, makes a field required for correct behavior, changes core semantics, or otherwise means an older CLI cannot safely read and write the state. Document the compatibility decision and never silently accept unknown future versions.
 6. **Multi-agent safety.** Any new state mutation must enter through the kernel mutation frontier (or an explicitly documented setup/recovery path) and be serialized by `withLock`. Any new "log" must be committed with the state change it describes. If you split them, a concurrent op can interleave and the log will lie.
 7. **The orchestrator/recovery escape hatch.** `release` and `reopen` honor `--as orchestrator` (or `--as recovery`) and can act on any agent's claim / `done` record. This is a feature, not a bug. Don't remove it. `resolve` and `cancel` follow the same pattern for the claim/done owner.
 8. **No boolean flags before the command.** The CLI parser treats `--force init` as `--force=init`. New boolean flags must be used as `--flag=true` or after the command. Document any new boolean flag with this caveat.
@@ -315,8 +318,8 @@ The CLI is **JSON-only**. There is no `--json` flag (it's the default), no text 
 
 The convention for command return shapes is principled:
 - **Read commands** (`status`, `context`, `history`, `show`, `search`, `initiatives`, `log`) return raw data — the object/array the consumer cares about.
-  - `status` and `context` are deliberately richer than the other reads: the agent is the primary consumer, so the output is shaped to remove ambiguity. `status` adds `summary.{ready,in_progress,blocked,backlog,open_gates,active_knowledge}` (totals) and `alerts[]` (kinds: `stale-claim`). `context` adds `derived_status`, `revision`, `claim`, `blocking[]`, `knowledge[]` (scoped), `informing[]`, `alerts[]`, and `allowed_actions[]`.
-- **Write commands** (`take`, `resolve`, `release`, `reopen`, `cancel`, `update`, `add-note`, `add-*`, `deprecate-knowledge`) return `{ entity }` envelopes (`{ node }`, `{ task }`, `{ initiative }`, etc.).
+  - `status` and `context` are deliberately richer than the other reads: the agent is the primary consumer, so the output is shaped to remove ambiguity. `status` adds `summary.{ready,in_progress,submitted,blocked,backlog,open_gates,active_knowledge}` (totals) and `alerts[]` (kinds: `stale-claim`). `context` adds `derived_status`, `revision`, `claim`, `blocking[]`, `knowledge[]` (scoped), `informing[]`, `alerts[]`, and `allowed_actions[]`.
+- **Write commands** (`take`, `submit`, `accept`, `reject`, `resolve`, `release`, `reopen`, `cancel`, `update`, `add-note`, `add-*`, `deprecate-knowledge`) return `{ entity }` envelopes (`{ node }`, `{ task }`, `{ initiative }`, etc.).
 - `init` returns `{ ok, seeded, file }` (different shape because it is not creating an entity, it is setting up a state).
 - `show` returns `{ type, node }` because it can return any of three node types.
 

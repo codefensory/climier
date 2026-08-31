@@ -2,7 +2,7 @@
 
 JSON-first task DAG CLI for coordinating work across agents, sessions, or humans.
 
-`climier` keeps one shared source of truth for what is **ready**, **blocked**, **in_progress**, **backlog**, **done**, **canceled**, **resolved**, or **deprecated**. It works just as well for one person across multiple AI sessions as it does for a full orchestrator-and-workers setup.
+`climier` keeps one shared source of truth for what is **ready**, **blocked**, **in_progress**, **submitted**, **backlog**, **done**, **canceled**, **resolved**, or **deprecated**. It works just as well for one person across multiple AI sessions as it does for a full orchestrator-and-workers setup.
 
 If your work has dependencies, decision gates, recovery needs, or parallel actors touching the same repo, `climier` gives that state a home.
 
@@ -32,7 +32,7 @@ At heart, `climier` is a small state machine around a project DAG:
 - create tasks, gates, knowledge, and initiatives
 - derive what is ready or blocked from dependencies
 - take one task at a time, atomically
-- resolve tasks and gates that unblock dependents
+- submit task implementations and accept them after validation, so only accepted work unblocks dependents
 - keep backlog separate from claimable work
 - recover from stale or wrong state with `release`, `reopen`, and `cancel`
 
@@ -46,11 +46,11 @@ You are working solo, but not from one continuous thread. Maybe you bounce betwe
 
 ### 2. One human + one or more AI agents
 
-Use `climier` as the contract between you and coding agents. You decide what enters the DAG; agents take tasks, add notes, resolve them, or escalate when they are stuck.
+Use `climier` as the contract between you and coding agents. Workers take tasks, add evidence and submit them; validators accept or reject them; agents escalate when stuck.
 
 ### 3. Orchestrator + workers
 
-This is the classic multi-agent case: one coordinator delegates from `ready`, workers `take -> work -> resolve`, and the coordinator closes gates or performs recovery.
+This is the classic multi-agent case: one coordinator delegates from `ready`, workers `take -> work -> submit`, and independent validators `accept` or `reject` before dependents proceed.
 
 ### 4. Migrations and long-running refactors
 
@@ -108,21 +108,22 @@ climier status
 climier context T-mvp-1
 climier take T-mvp-1 --as session-api
 
-# 6. Finish the work
-climier resolve T-mvp-1 --note "Scaffolded service and added /health" --as session-api
+# 6. Submit implementation evidence; a validator accepts it after review
+climier submit T-mvp-1 --note "Scaffolded service and added /health" --as session-api
+climier accept T-mvp-1 --as validator-api
 ```
 
 > Full reference: `docs/reference.md`.
 
 ## Core concepts
 
-- **Task** — a unit of work (`subkind: "task"`). Persisted statuses: `in_progress`, `done`, `canceled`. Derived statuses: `ready`, `blocked`, `backlog`.
+- **Task** — a unit of work (`subkind: "task"`). Persisted statuses: `open`, `in_progress`, `submitted`, `done`, `canceled`. `submitted` waits for validation; `done` means accepted. Derived statuses: `ready`, `blocked`, `backlog`.
 - **Gate** — a resolvable node (`subkind: "gate"`, purpose `decision|approval|external-dependency|research`) that can block tasks via a `BLOCKS` edge until it is resolved.
 - **Knowledge** — a durable fact attached to a domain, initiative, tag, or specific node id (`kind: "knowledge"`).
 - **Backlog task** — a real task intentionally kept out of the ready pool until it is edited back into the DAG via `update --backlog false`.
 - **Initiative** — a tag grouping work streams such as `migration`, `auth`, or `research`.
 
-Important invariant: `ready` and `blocked` are derived from dependencies. They are not written into the state file.
+Important invariants: `ready` and `blocked` are derived from dependencies and are not written into the state file. Only task blockers in `done` or `archived` are satisfied; `submitted` never unblocks work.
 
 ## Common workflow patterns
 
@@ -133,7 +134,9 @@ climier status
 climier context T-auth-7
 climier take T-auth-7 --as chatgpt-session-3
 # do the work
-climier resolve T-auth-7 --note "Implemented endpoint and added smoke test" --as chatgpt-session-3
+climier submit T-auth-7 --note "Implemented endpoint and added smoke test" --as chatgpt-session-3
+# independent validator review
+climier accept T-auth-7 --as validator-auth
 ```
 
 ### Human + AI flow
@@ -162,7 +165,9 @@ climier status
 climier context T-auth-7
 climier take T-auth-7 --as worker-api
 # ...worker ships...
-climier resolve T-auth-7 --note "Implemented endpoint and verified staging smoke" --as worker-api
+climier submit T-auth-7 --note "Implemented endpoint and verified staging smoke" --as worker-api
+# validator merges/reviews, then accepts or rejects the same task
+climier accept T-auth-7 --as validator-api
 climier resolve G-auth-2 --choice "Keep Supabase JWT for now" --rationale "Fastest migration path; revisit later" --as orchestrator
 climier release T-auth-9 --as orchestrator
 climier reopen T-auth-7 --reason "Acceptance missed the timeout case" --as orchestrator
@@ -194,7 +199,7 @@ There is no `--json` flag. JSON is the default.
 
 ## Command reference
 
-`init` creates a `version: 2` state with `{ initiatives, nodes, edges, log }`. The creation flow uses `add-task`, `add-gate`, and `add-knowledge`; `add-node` and `add-edge` are low-level escape hatches.
+`init` creates a `version: 3` state with `{ initiatives, nodes, edges, log }`. Compatible v2 states are normalized to v3 on read/write. The creation flow uses `add-task`, `add-gate`, and `add-knowledge`; `add-node` and `add-edge` are low-level escape hatches.
 
 Projects coming from a v1 (`version: 1`) state fail with `STATE_V1_UNSUPPORTED` on first read; the error's `details.migration_steps` walks through backing up, exporting, and recreating the project. The hint suggests `climier init --force` after backup.
 
@@ -222,11 +227,14 @@ Canonical `BLOCKS` direction is `{ from: blocker, to: blocked, type: "BLOCKS" }`
 |---|---|
 | `init [--force]` | Create `.climier.json` and the project's live state. |
 | `take <id> --as <agent>` | Idempotently claim the explicit ready task; the id is required. |
-| `release <id> --as <agent>` | Free a claim. `orchestrator` and `recovery` can release any claim. |
-| `resolve <id> --note "<text>" --as <agent>` | Close a task as done. For gates, use `--choice "<text>" --rationale "<text>"` instead of `--note`. |
+| `submit <id> --note "..." --as <agent>` | Submit an owned `in_progress` task for validation; clears its implementation claim and never unblocks dependents. |
+| `accept <id> --as <agent>` | Accept a `submitted` task as `done`; this transition can unblock dependents. |
+| `reject <id> --reason "..." --as <agent>` | Return a `submitted` task to `open` with an audit reason. |
+| `release <id> --as <agent>` | Free an `in_progress` implementation claim. `orchestrator` and `recovery` can release any claim. |
+| `resolve <id> --note "<text>" --as <agent>` | Compatibility/manual bypass that closes an `open` or `in_progress` task as done. Workers use `submit`; for gates, use `--choice "<text>" --rationale "<text>"` instead of `--note`. |
 | `reopen <id> --reason "<text>" --as <agent>` | Roll a `done` task back to `open`. `orchestrator` / `recovery` can reopen any done task; the original `done_by` can self-reopen. |
-| `restore <snapshot-id> --as orchestrator\|recovery` | Replace the live state with the snapshot's raw bytes. Validates target v2 + required collections before any state change; takes a `pre-restore` snapshot of the current state under the same lock; restores via `tmp+rename`; appends `{ action: "restore", agent, snapshot_id }` to the restored log. Returns `{ snapshot }`. Authority is restricted to `orchestrator` or `recovery` — no per-agent restore. Targets that are absent, incomplete, corrupt, v1, future versions, or missing required collections fail with structured errors and do not mutate state. |
-| `cancel <id> --reason "<text>" --as <agent>` | Terminate a node without resolving (open/in_progress only). |
+| `restore <snapshot-id> --as orchestrator\|recovery` | Replace the live state with a validated v2/v3 snapshot, normalizing v2 to v3, under the same lock and with a `pre-restore` snapshot. Authority is restricted to `orchestrator` or `recovery`. Invalid, v1, future-version or incomplete snapshots fail without mutating state. |
+| `cancel <id> --reason "<text>" --as <agent>` | Terminate a task without resolving from `open`, `in_progress` or `submitted`. |
 | `deprecate-knowledge <id> --reason "<text>" --as <agent>` | Soft-delete a knowledge node (`status="deprecated"`). |
 | `update <id> ... --as <agent>` | Edit node fields such as title, body, definition, acceptance, domain, backlog, tags, or refs. |
 | `add-note <id> "<text>" --as <agent>` | Append a note thread entry to any node. |
@@ -291,9 +299,9 @@ climier add-task T-cutover-1 --initiative migration --title "Cut over traffic" -
 climier take T-cutover-1 --as orchestrator
 ```
 
-### `update` fails on `in_progress` or `done`
+### `update` fails on `in_progress`, `submitted`, or `done`
 
-That is by design. The spec is frozen while a task is actively owned or after it becomes the audit-of-record. Use `add-note`, `release`, or `reopen` instead.
+That is by design. The spec is frozen while a task is actively owned, awaiting validation, or after it becomes the audit-of-record. Use `add-note`, `release`, or `reopen` instead.
 
 ### Stale lock file
 

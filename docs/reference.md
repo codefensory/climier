@@ -6,11 +6,11 @@ If you only need the quickstart, use `README.md`. If you need the actual contrac
 
 ## State shape
 
-`init` creates a `version: 2` state with this shape:
+`init` creates a `version: 3` state with this shape. Compatible v2 states are normalized to v3 on read/write:
 
 ```js
 {
-  version: 2,
+  version: 3,
   initiatives: {
     "auth": { desc: "Auth migration", created_at: "2026-01-01T00:00:00.000Z" }
   },
@@ -28,7 +28,7 @@ If you only need the quickstart, use `README.md`. If you need the actual contrac
 
 The required top-level collections are:
 
-- `version: 2`
+- `version: 3`
 - `nodes`
 - `edges`
 - `initiatives`
@@ -64,7 +64,9 @@ Task-specific fields:
 - `acceptance`
 - `backlog: true` when intentionally kept out of the ready pool
 - `claim: { by, at }` while claimed
-- `done_by`, `done_at`, `note` after resolve
+- `submitted_by`, `submitted_at` after submit
+- `done_by`, `done_at`, `accepted_by`, `accepted_at` after accept
+- `note` as delivery evidence
 
 Gate-specific fields:
 
@@ -123,7 +125,8 @@ Tasks are not manually marked `ready` or `blocked`. Those states are derived.
 - `blocked`
 - `backlog`
 - `in_progress`
-- `done`
+- `submitted` (awaiting validation; not claimable and not satisfied)
+- `done` (accepted work)
 - `archived`
 - `canceled`
 
@@ -143,7 +146,7 @@ Tasks are not manually marked `ready` or `blocked`. Those states are derived.
 
 A `BLOCKS` edge is satisfied only when the blocker is satisfied:
 
-- task blocker: satisfied when `done` or `archived`
+- task blocker: satisfied when `done` or `archived`; `submitted` never satisfies `BLOCKS`
 - gate blocker: satisfied when `resolved`
 - superseded gate blocker: satisfied only if the successor chain ends in a `resolved` gate
 - knowledge never directly satisfies `BLOCKS` because `BLOCKS` requires resolvable endpoints
@@ -343,7 +346,7 @@ Rules:
 - same agent taking again is idempotent
 - another agent gets `ALREADY_CLAIMED`
 - `orchestrator` may take over another claim
-- blocked, backlog, done, canceled, resolved, superseded tasks fail with `NOT_READY`
+- blocked, backlog, submitted, done, canceled, resolved, superseded tasks fail with `NOT_READY`
 
 Output shape:
 
@@ -355,7 +358,7 @@ That is the literal return contract: `{ node, context, freshly_claimed }`.
 
 ### `release <id>`
 
-Frees a task claim without resolving it.
+Frees an `in_progress` implementation claim without resolving it.
 
 Rules:
 
@@ -371,14 +374,54 @@ Output:
 { released, node }
 ```
 
+### `submit <id>`
+
+Submits an owned implementation for independent validation.
+
+Required:
+
+- `--as <agent>`
+- `--note "..."`
+
+Rules:
+
+- task only, exclusively `in_progress -> submitted`
+- only the current `claim.by` may submit
+- clears `claim` and stores `submitted_by`, `submitted_at`
+- returns `{ node, newly_ready: [] }`; submission never unblocks work
+
+### `accept <id>`
+
+Accepts a submitted task.
+
+Required: `--as <agent>`.
+
+Rules:
+
+- task only, exclusively `submitted -> done`
+- preserves submission metadata; sets `done_by = submitted_by`, `done_at`, `accepted_by`, `accepted_at`
+- computes `{ node, newly_ready }` after the task becomes satisfied
+
+### `reject <id>`
+
+Returns a submitted task to actionable work.
+
+Required: `--as <agent>` and `--reason "..."`.
+
+Rules:
+
+- task only, exclusively `submitted -> open`
+- clears claim and current submission/acceptance metadata
+- records the rejection reason in the atomic mutation log; it does not create a new task
+
 ### `resolve <id>`
 
-Closes a resolvable node.
+Closes a resolvable node as a compatibility/manual bypass.
 
 For tasks:
 
 - required: `--note`
-- only the claim owner may resolve
+- remains available for `open` / `in_progress -> done`; workers and automated flows use `submit` instead
 - sets `status = "done"`
 - stores `done_by`, `done_at`, `note`
 - clears claim
@@ -413,7 +456,7 @@ Rules:
 - task must currently be `done`
 - gate must currently be `resolved`
 - only original `done_by` or `orchestrator` / `recovery`
-- clears terminal fields
+- task reopen clears claim, submission metadata, acceptance metadata and done metadata
 - clears `resolution` when reopening a gate
 - sets `status = "open"`
 
@@ -430,7 +473,7 @@ Required:
 
 Rules:
 
-- allowed only from `open` or `in_progress`
+- task allowed from `open`, `in_progress` or `submitted`
 - owner may cancel claimed work
 - `orchestrator` and `recovery` may cancel
 - unclaimed `open` nodes are effectively orchestrator/recovery only
@@ -703,7 +746,7 @@ No flags.
 
 ### `restore <snapshot-id>`
 
-Replace the live state with a snapshot's raw bytes. Authority is restricted to `orchestrator` / `recovery` — no per-agent restore.
+Replace the live state with a validated snapshot. v2 snapshots are normalized to v3 before persistence. Authority is restricted to `orchestrator` / `recovery` — no per-agent restore.
 
 Requires:
 
@@ -712,12 +755,12 @@ Requires:
 Behavior:
 
 - Validates the snapshot exists as a complete pair (`<id>.json` + `<id>.meta.json`); metadata id matches the filename; metadata parses.
-- Validates the raw bytes parse as JSON v2 and carry every required collection (`nodes`, `edges`, `initiatives`, `log`). v1, future versions, missing fields, or unparseable raw → fail with `INVALID_STATUS` without mutating state.
+- Validates the raw bytes parse as a v2 or v3 JSON state and carry every required collection (`nodes`, `edges`, `initiatives`, `log`). v2 is normalized to v3; v1, future versions, missing fields, or unparseable raw → fail with `INVALID_STATUS` without mutating state.
 - All target validation runs BEFORE the pre-restore snapshot, so a bad target leaves no trace in `<state-dir>/snapshots/`.
 - Under `withLock`:
   - asserts the current state file exists (no current state to displace → fail)
   - calls `createSnapshot(projectDir, "pre-restore")` (raw + metadata, same `tmp+rename` discipline as `init --force`)
-  - writes the snapshot raw bytes to the state path via `tmp+rename`
+  - writes the validated, normalized v3 state to the state path via `tmp+rename`
   - appends `{ ts, agent, action: "restore", snapshot_id }` to the restored log (the entry lands in the state we just wrote, not the displaced one)
 - Returns `{ snapshot: <metadata> }`.
 
@@ -781,7 +824,8 @@ climier add-task T-auth --initiative auth --title "Implement sessions" --body "B
 climier context T-auth
 climier resolve G-auth --choice "Opaque sessions" --rationale "Safer default" --as orchestrator
 climier take T-auth --as alice
-climier resolve T-auth --note "Implemented and tested" --as alice
+climier submit T-auth --note "Implemented and tested" --as alice
+climier accept T-auth --as validator-auth
 climier history T-auth
 climier status --all --as alice
 ```
