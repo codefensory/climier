@@ -1,6 +1,6 @@
 ---
 name: climier-worker
-description: Ejecutar una task de climier end-to-end. Hace preflight deterministico, cura la task si el contrato esta flojo, toma, implementa, verifica y resuelve.
+description: Ejecutar una task de climier end-to-end. Hace preflight deterministico, cura la task si el contrato esta flojo, toma, implementa, verifica y entrega para validacion.
 ---
 
 # Worker protocol
@@ -13,7 +13,7 @@ El worker no pide contexto largo por prompt. Lo saca de la task.
 
 La ruta de inicio es **una sola**: `bash .agents/skills/climier-worker/start-worktree.sh <task-id> <tu-agent>`. Ese script corre la guardia de estado limpio **exactamente una vez** (`worker-guard.sh`) y luego hace `take` + `git worktree add` + nota `WORKTREE`. No invoques `worker-guard.sh` a mano antes ni despues: lo harias correr dos veces sobre el mismo estado. Si la guardia falla, el script aborta con un mensaje claro y el orchestrator debe commitear los cambios pendientes antes de reintentar.
 
-Ruta rapida obligatoria: usa los scripts empaquetados para procesos repetitivos. No repitas manualmente sus pasos internos (`git status`, resolver `project_root`, `take`, `context`, `git worktree add`, `add-note WORKTREE`, `resolve`) salvo que sea estrictamente necesario por un fallo concreto del script o una task de recuperacion que lo pida explicitamente. Si haces una excepcion, deja un handoff corto explicando por que el script no aplicaba.
+Ruta rapida obligatoria: usa los scripts empaquetados para procesos repetitivos. No repitas manualmente sus pasos internos (`git status`, resolver `project_root`, `take`, `context`, `git worktree add`, `add-note WORKTREE`, `submit`) salvo que sea estrictamente necesario por un fallo concreto del script o una task de recuperacion que lo pida explicitamente. Si haces una excepcion, deja un handoff corto explicando por que el script no aplicaba.
 
 Orden de autoridad:
 
@@ -238,7 +238,7 @@ Si tu verificación es read-only contra un proyecto temporal sin metadata, podé
 
 ## Verificacion
 
-Antes de `done`, verifica la acceptance real de la task. Elige el menor check que pruebe el contrato:
+Antes de `submit`, verifica la acceptance real de la task. Elige el menor check que pruebe el contrato:
 
 | Tipo de cambio | Verificacion default |
 |---|---|
@@ -254,11 +254,11 @@ Checks de raiz solo cuando aplican al blast radius:
 - `npm run lint` en la raiz si el cambio afecta codigo lintable en varios paquetes o la task lo pide
 - cualquier test o comando pedido explicitamente en `acceptance` o `definition`
 
-Si la verificacion falla, no hagas `done`.
+Si la verificacion falla, no hagas `submit`.
 
 ## Commit obligatorio
 
-Antes de `done`, commitea todos los cambios de la task dentro del worktree. Esto es obligatorio: el validador solo revisa branches con commits, no diffs sueltos.
+Antes de `submit`, commitea todos los cambios de la task dentro del worktree. Esto es obligatorio: el validador solo revisa branches con commits, no diffs sueltos.
 
 Reglas:
 
@@ -277,11 +277,11 @@ git commit -m "<summary> [<task-id>]"
 git status --short
 ```
 
-Si `git status --short` no queda limpio, no hagas `resolve` salvo que la nota explique exactamente por que esos archivos quedan fuera del commit.
+Si `git status --short` no queda limpio, no hagas `submit` salvo que la nota explique exactamente por que esos archivos quedan fuera del commit.
 
 ## Cierre
 
-`finish-task.sh` es obligatorio para cerrar. No ejecutes `climier add-note ... status=ready-for-validation` ni `climier resolve <id> --note "..."` a mano si este script aplica. En particular, nunca escribas manualmente una nota que empiece con `EVIDENCE`: el script emite el JSON válido requerido por `integration-preflight`; el formato humano `EVIDENCE key=value` es inválido y bloquea la validación.
+`finish-task.sh` es obligatorio para entregar. No ejecutes `climier add-note ... status=ready-for-validation` ni `climier submit <id> --note "..."` a mano si este script aplica. En particular, nunca escribas manualmente una nota que empiece con `EVIDENCE`: el script emite el JSON válido requerido por `integration-preflight`; el formato humano `EVIDENCE key=value` es inválido y bloquea la validación.
 
 El script valida antes de cerrar:
 
@@ -296,23 +296,24 @@ En cuanto el commit esté limpio y los checks requeridos terminen, ejecuta
 lectura de documentación ni una segunda suite después de ese punto, salvo que
 el primer cierre falle y necesites corregir la causa concreta.
 
-Solo cierra cuando:
+Solo entrega cuando:
 
 - el trabajo pedido esta hecho
 - la acceptance quedo cubierta
-- el `resolve --note` explica que se shippeo y que se verifico
+- la nota de `submit` explica que se shippeo y que se verifico
 - todos los cambios de la task estan commiteados en la rama del worktree
 - el commit message termina con `[<task-id>]`
-- dejaste nota `WORKTREE ... status=ready-for-validation`
+- dejaste notas `WORKTREE ... status=ready-for-validation` y `EVIDENCE {...}`
+- la task quedo en estado `submitted`, no `done`
 - no mergeaste la rama al worktree principal ni modificaste `main`
 
 ```bash
 bash .agents/skills/climier-worker/finish-task.sh <id> <tu-agent> "<que shippeaste; que verificaste>"
 ```
 
-No repitas manualmente `git rev-parse HEAD`, la nota `WORKTREE ... status=ready-for-validation` ni `climier resolve <id> --note "..."` si `finish-task.sh` corrio bien.
+No repitas manualmente `git rev-parse HEAD`, las notas `WORKTREE`/`EVIDENCE` ni `climier submit <id> --note "..."` si `finish-task.sh` corrio bien.
 
-Despues de cada worker, el siguiente paso del flujo es obligatorio: ejecutar un validador independiente con `climier-validator` sobre la task cerrada. El worker no se valida a si mismo, no corrige durante esa validacion y no mergea. Si el validador falla, entrega un reporte al orchestrator para crear una única task de correccion sobre el mismo worktree/rama. Si esa corrección falla, no se encadenan más fixes: el orchestrator debe replanear el entregable desde la última base validada, con paths y acceptance reducidos.
+Despues de cada worker, el siguiente paso del flujo es obligatorio: ejecutar un validador independiente con `climier-validator` sobre la task `submitted`. El worker no se valida a si mismo, no acepta ni mergea. Si el validador devuelve PASS, mergea y acepta la misma task; si devuelve FAIL, la rechaza con una razon y vuelve a dejarla abierta; si devuelve BLOCKED, no cambia el lifecycle y reporta la evidencia faltante. Si una correccion es necesaria, el orchestrator la planifica desde ese reporte, sin encadenar fixes automaticos.
 
 ## Si te trabas
 
@@ -339,7 +340,6 @@ Si vas a usar un comando mutante poco frecuente porque la spec lo pide, primero 
 
 Casos que se olvidan facil:
 
-- `climier resolve <id> --note "<text>" --as <agent>` (task) — `--note` es flag obligatorio
 - `climier resolve <G> --choice "<x>" --rationale "<y>" --as <agent>` (gate) — `--choice` y `--rationale` son flags obligatorios
 - `climier reopen <id> --reason "<text>" --as <agent>` — `--reason` es flag obligatorio
 - `climier cancel <id> --reason "<text>" --as <agent>` — `--reason` es flag obligatorio

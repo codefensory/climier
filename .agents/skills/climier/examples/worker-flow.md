@@ -1,6 +1,6 @@
 # Worker flow — end-to-end
 
-A worker agent starts a session, takes a task, does the work, and resolves it.
+A worker agent starts a session, takes a task, does the work, and submits it for validation.
 
 ## Setup
 
@@ -57,19 +57,25 @@ Now T-auth-7 is `in_progress` and claimed by `claude-shared`. No other agent can
 
 The worker creates `packages/shared/src/schemas/auth.ts`, defines `Session` and `SessionToken` Zod schemas, exports them. Runs `npm run typecheck` from the root to verify.
 
-## 5. Close with a note
+## 5. Submit with evidence
+
+After the implementation is committed and the required checks pass, run the
+portable finish helper. It writes the WORKTREE and structured EVIDENCE notes and
+then performs the worker-owned lifecycle transition:
 
 ```bash
-$ climier resolve T-auth-7 --note "Zod schemas Session/SessionToken added in packages/shared/src/schemas/auth.ts, tsc pasa" --as claude-shared | jq '.node | {id, status, done_by, done_at}'
-{
-  "id": "T-auth-7",
-  "status": "done",
-  "done_by": "claude-shared",
-  "done_at": "2026-07-19T21:14:54.868Z"
-}
+$ bash .agents/skills/climier-worker/finish-task.sh T-auth-7 claude-shared "Zod schemas Session/SessionToken added; tsc passes"
+...
+SUBMITTED task=T-auth-7
+COMMIT <commit-sha>
+WORKTREE <worktree-path>
+BRANCH work/T-auth-7-claude-shared
 ```
 
-`resolve` returns `{ node, newly_ready }` where `newly_ready` is the set of task ids that just transitioned from blocked to ready because of this resolution. The note is the audit trail. Future agents reading `history T-auth-7` will know what shipped.
+The task is now `submitted`, not `done`. The worker never runs `accept` or uses
+`resolve` to close a task. The validator independently checks the evidence and
+accepts only after merging the branch; if checks fail, it rejects the same task
+with a reason and it returns to `open`.
 
 ## 6. Re-orient
 

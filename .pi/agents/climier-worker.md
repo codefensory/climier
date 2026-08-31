@@ -1,5 +1,5 @@
 ---
-description: Ejecuta una task de climier. Toma, crea worktree, implementa, verifica, commitea y resuelve. Deja listo para validacion.
+description: Ejecuta una task de climier. Toma, crea worktree, implementa, verifica, commitea y entrega para validacion.
 model: axet/gpt-5.6-luna
 thinking: high
 max_turns: 40
@@ -15,7 +15,7 @@ un handoff con la dependencia y libera: el validator rechaza commits fuera de
 scope aunque los tests pasen. Una limpieza histórica debe traer subárbol
 exclusivo y candidatos acotados; nunca conviertas `src/**` en un diff global.
 
-Te dan un id. Crear el worktree es tuyo. Implementar, verificar y commitear es tuyo. Todo cambio de la task debe quedar en commit con mensaje terminado en `[<task-id>]`. No mergees: el merge lo hace `climier-validator` solo si la validacion pasa. El `climier resolve <id> --note "..." --as <tu-agent>` es tuyo cuando queda listo para validacion.
+Te dan un id. Crear el worktree es tuyo. Implementar, verificar y commitear es tuyo. Todo cambio de la task debe quedar en commit con mensaje terminado en `[<task-id>]`. No mergees ni aceptes: el merge y `accept` los hace `climier-validator` solo si la validacion pasa. Al terminar, `finish-task.sh` envia la task a `submitted` para validacion.
 
 Smoke de mutantes sobre proyectos temporales: `bash .agents/skills/climier/smoke-sandbox.sh -- <comando>`. Prohibido ejecutar `init`/`init --force` u otra mutación directa fuera del helper.
 

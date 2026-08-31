@@ -6,7 +6,7 @@
 #   - a backward-compatible WORKTREE note (key=value) for legacy validators,
 #   - a structured EVIDENCE JSON note appended via `climier add-note` so the
 #     the validator protocol can run `integration-preflight.sh` against it,
-#   - and finally `climier resolve <id> --note "..."` to close the task.
+#   - and finally `climier submit <id> --note "..."` to send the task to validation.
 #
 # Optional caller-supplied evidence:
 #   - Pass --evidence-file <path> (4th positional or flag) to use a JSON file
@@ -25,9 +25,9 @@ set -euo pipefail
 
 usage() {
   cat >&2 <<'EOF'
-Usage: bash .agents/skills/climier-worker/finish-task.sh <task-id> <agent-id> "<done-note>" [--evidence-file <path>]
+Usage: bash .agents/skills/climier-worker/finish-task.sh <task-id> <agent-id> "<submission-note>" [--evidence-file <path>]
 
-Emits a back-compat WORKTREE note, an EVIDENCE JSON note, and resolves the task.
+Emits a back-compat WORKTREE note, an EVIDENCE JSON note, and submits the task.
 EOF
 }
 
@@ -39,7 +39,7 @@ fi
 
 task_id="$1"
 agent_id="$2"
-done_note="$3"
+submission_note="$3"
 shift 3
 evidence_file=""
 
@@ -217,31 +217,15 @@ climier --project "$project_root" add-note "$task_id" "$evidence_note_text" --as
 # without re-reading climier state. Matches the WORKTREE note visibility.
 printf '%s\n' "$evidence_note_text"
 
-# 3. Resolve. add-note unchanged. resolve replaces done and accepts --note
-# (instead of a positional arg). Resolve returns {node, newly_ready}; we
-# echo the JSON so callers can inspect it, then surface newly_ready as a
-# single line for the orchestrator.
-resolve_output="$(climier --project "$project_root" resolve "$task_id" --note "$done_note; commit $commit_sha" --as "$agent_id")"
-printf '%s\n' "$resolve_output"
+# 3. Submit. Evidence is complete before the lifecycle transition so the
+# validator can audit the submitted task independently. Submission returns the
+# updated node; acceptance is deliberately owned by the validator after merge.
+submit_output="$(climier --project "$project_root" submit "$task_id" --note "$submission_note; commit $commit_sha" --as "$agent_id")"
+printf '%s\n' "$submit_output"
 
 cat <<EOF
-DONE task=$task_id
+SUBMITTED task=$task_id
 COMMIT $commit_sha
 WORKTREE $current_root
 BRANCH $branch
 EOF
-
-# Surface newly_ready if non-empty — orchestrator signal.
-newly_ready="$(printf '%s' "$resolve_output" | node -e '
-let s = "";
-process.stdin.on("data", d => s += d);
-process.stdin.on("end", () => {
-  try {
-    const o = JSON.parse(s);
-    process.stdout.write(Array.isArray(o.newly_ready) ? o.newly_ready.join(" ") : "");
-  } catch {}
-});
-')"
-if [[ -n "$newly_ready" ]]; then
-  printf 'NEWLY_READY %s\n' "$newly_ready"
-fi
