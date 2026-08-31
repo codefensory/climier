@@ -172,7 +172,7 @@ function placeholderApiFactory({ projectDir, agent, pluginId }) {
     throw new PluginHandlerFailed(
       pluginId,
       "(dispatch)",
-      new Error(`api.${key} not implemented yet (T-plugin-api pending)`),
+      new Error(`api.${key} not implemented yet (plugin API unavailable)`),
     );
   };
   return {
