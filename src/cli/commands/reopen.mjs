@@ -3,7 +3,7 @@
 // CLI flags to the typed provider request and projects the legacy envelope.
 import { mutate } from "../../kernel/mutate.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
-import { resolveAgent } from "../../contracts/agent.mjs";
+import { resolveAgent } from "../actor.mjs";
 import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
 import { taskReopenProvider } from "../../providers/task/reopen.mjs";
 import {

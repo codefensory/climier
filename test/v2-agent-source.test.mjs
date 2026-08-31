@@ -39,7 +39,7 @@ async function freshV2(dir) {
 // --- pure helper: resolveAgent precedence --------------------------------
 
 test("resolveAgent: --as takes precedence over CLIMIER_AGENT", async () => {
-  const { resolveAgent } = await importFresh("./contracts/agent.mjs");
+  const { resolveAgent } = await importFresh("./cli/actor.mjs");
   const prev = process.env.CLIMIER_AGENT;
   process.env.CLIMIER_AGENT = "env-agent";
   try {
@@ -51,7 +51,7 @@ test("resolveAgent: --as takes precedence over CLIMIER_AGENT", async () => {
 });
 
 test("resolveAgent: CLIMIER_AGENT used when --as is absent", async () => {
-  const { resolveAgent } = await importFresh("./contracts/agent.mjs");
+  const { resolveAgent } = await importFresh("./cli/actor.mjs");
   const prev = process.env.CLIMIER_AGENT;
   process.env.CLIMIER_AGENT = "env-agent";
   try {
@@ -63,7 +63,7 @@ test("resolveAgent: CLIMIER_AGENT used when --as is absent", async () => {
 });
 
 test("resolveAgent: empty --as falls through to CLIMIER_AGENT", async () => {
-  const { resolveAgent } = await importFresh("./contracts/agent.mjs");
+  const { resolveAgent } = await importFresh("./cli/actor.mjs");
   const prev = process.env.CLIMIER_AGENT;
   process.env.CLIMIER_AGENT = "env-agent";
   try {
@@ -75,7 +75,7 @@ test("resolveAgent: empty --as falls through to CLIMIER_AGENT", async () => {
 });
 
 test("resolveAgent: both sources empty throws MISSING_AGENT with structured details", async () => {
-  const { resolveAgent } = await importFresh("./contracts/agent.mjs");
+  const { resolveAgent } = await importFresh("./cli/actor.mjs");
   const restore = clearAgentEnv();
   try {
     let caught;
@@ -94,7 +94,7 @@ test("resolveAgent: both sources empty throws MISSING_AGENT with structured deta
 });
 
 test("resolveAgent: --as boolean true throws MISSING_AGENT (not coerced to 'true')", async () => {
-  const { resolveAgent } = await importFresh("./contracts/agent.mjs");
+  const { resolveAgent } = await importFresh("./cli/actor.mjs");
   const restore = clearAgentEnv();
   try {
     let caught;
@@ -105,7 +105,7 @@ test("resolveAgent: --as boolean true throws MISSING_AGENT (not coerced to 'true
 });
 
 test("resolveAgent: missing flags object falls through to env", async () => {
-  const { resolveAgent } = await importFresh("./contracts/agent.mjs");
+  const { resolveAgent } = await importFresh("./cli/actor.mjs");
   const prev = process.env.CLIMIER_AGENT;
   process.env.CLIMIER_AGENT = "env-agent";
   try {
@@ -114,6 +114,23 @@ test("resolveAgent: missing flags object falls through to env", async () => {
   } finally {
     if (prev === undefined) delete process.env.CLIMIER_AGENT;
     else process.env.CLIMIER_AGENT = prev;
+  }
+});
+
+test("contracts/agent: validates a supplied actor without CLI source resolution", async () => {
+  const { requireAgent } = await importFresh("./contracts/agent.mjs");
+  assert.equal(requireAgent("  core-agent  ", "state.restore"), "core-agent");
+
+  const restore = clearAgentEnv();
+  try {
+    assert.throws(
+      () => requireAgent(undefined, "state.restore"),
+      (err) => err.code === "MISSING_AGENT"
+        && err.details.command === "state.restore"
+        && err.details.field === "actor",
+    );
+  } finally {
+    restore();
   }
 });
 

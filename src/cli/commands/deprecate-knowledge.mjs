@@ -3,7 +3,7 @@
 // audit persistence; this module only maps the legacy CLI surface.
 import { mutate } from "../../kernel/mutate.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
-import { resolveAgent } from "../../contracts/agent.mjs";
+import { resolveAgent } from "../actor.mjs";
 import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
 import { deprecateProvider } from "../../providers/knowledge/deprecate.mjs";
 

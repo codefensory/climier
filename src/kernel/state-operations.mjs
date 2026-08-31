@@ -12,7 +12,7 @@ import {
   stateFile,
   snapshotDir,
 } from "../storage/state.mjs";
-import { resolveAgent } from "../contracts/agent.mjs";
+import { requireAgent } from "../contracts/agent.mjs";
 import { throwV2 } from "../contracts/errors.mjs";
 
 const REQUIRED_COLLECTIONS = ["nodes", "edges", "initiatives", "log"];
@@ -122,7 +122,7 @@ function operationRequest(action, actor, input) {
 /** Execute normal bootstrap or force-init through kernel.mutate. */
 export async function initState({ projectDir, force = false, actor, policyAction, pluginId } = {}) {
   const isForce = force === true;
-  const resolvedActor = isForce ? resolveAgent({ as: actor }, "state.init_force") : (actor || "system");
+  const resolvedActor = isForce ? requireAgent(actor, "state.init_force") : (actor || "system");
   return mutate({
     projectDir,
     request: operationRequest(isForce ? "state.init_force" : "state.init", resolvedActor, { force: isForce }),
@@ -134,7 +134,7 @@ export async function initState({ projectDir, force = false, actor, policyAction
 
 /** Execute recovery restore through kernel.mutate. */
 export async function restoreState({ projectDir, snapshotId, actor, policyAction, pluginId } = {}) {
-  const resolvedActor = resolveAgent({ as: actor }, "state.restore");
+  const resolvedActor = requireAgent(actor, "state.restore");
   return mutate({
     projectDir,
     request: operationRequest("state.restore", resolvedActor, { snapshot_id: snapshotId }),

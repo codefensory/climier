@@ -19,7 +19,7 @@
 import { mutate } from "../../kernel/mutate.mjs";
 import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
-import { resolveAgent } from "../../contracts/agent.mjs";
+import { resolveAgent } from "../actor.mjs";
 import { edgeAddProvider } from "../../providers/core/edge.mjs";
 
 export const knownFlags = ["type", "as"];

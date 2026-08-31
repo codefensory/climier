@@ -8,7 +8,7 @@
 import { mutate } from "../../kernel/mutate.mjs";
 import { noteAddProvider } from "../../providers/core/note.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
-import { resolveAgent } from "../../contracts/agent.mjs";
+import { resolveAgent } from "../actor.mjs";
 import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
 
 export const knownFlags = ["as", "if-revision"];

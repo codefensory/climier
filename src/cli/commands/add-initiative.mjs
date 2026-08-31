@@ -9,7 +9,7 @@
 import { mutate } from "../../kernel/mutate.mjs";
 import { initiativeCreateProvider } from "../../providers/core/initiative.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
-import { resolveAgent } from "../../contracts/agent.mjs";
+import { resolveAgent } from "../actor.mjs";
 import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
 
 // T-plugin-policy-seam-lifecycle / ADR-008 §"initiative.create":
