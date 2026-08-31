@@ -1,13 +1,13 @@
 // test/plugin-core-registry.test.mjs — pure unit tests for the
-// `buildRegistry(providers)` builder and the explicit built-in
-// bootstrap that ships with `src/plugins/core-registry.mjs`.
+// `buildRegistry(providers)` compatibility facade and the built-in
+// bootstrap owned by `src/application/operations/builtins.mjs`.
 //
 // T-graph-kernel-registry · plan §B6A + ADR-012 §§1–3: the registry
 // replaces the legacy `handler` table from ADR-006 with a typed entry
 // shape `{ id, kind, provider: { prepare, apply } }`. The builder
 // detects operation-id collisions deterministically and returns an
-// immutable registry object; the bootstrap re-exports the built-in
-// providers task / gate / knowledge that §B4 already validated.
+// immutable registry object; Application Operations bootstraps the
+// built-in providers task / gate / knowledge that §B4 already validated.
 //
 // Pure: no filesystem, no lock, no state, no log, no policy, no
 // command, no adapter, no CLI, no UI. The tests build literal
@@ -20,6 +20,7 @@ import assert from "node:assert/strict";
 import { importFresh } from "./helpers.mjs";
 
 const REGISTRY_MODULE = "../src/plugins/core-registry.mjs";
+const BUILTINS_MODULE = "../src/application/operations/builtins.mjs";
 
 // makeProvider — minimal `{ prepare, apply }` stub. Tests use the
 // returned references to verify the registry exposes the same
@@ -346,9 +347,33 @@ test("bootstrapBuiltins: provider references are the frozen built-in objects (no
   }
 });
 
+test("application built-ins own the catalog while plugin registry remains a compatibility facade", async () => {
+  const builtins = await importFresh(BUILTINS_MODULE);
+  const facade = await importRegistry();
+  assert.equal(typeof builtins.createBuiltinOperationRegistry, "function");
+  assert.equal(typeof builtins.bootstrapBuiltins, "function");
+  assert.deepEqual(
+    builtins.createBuiltinOperationRegistry().ops,
+    builtins.bootstrapBuiltins().ops,
+  );
+  assert.deepEqual(
+    facade.bootstrapBuiltins().ops,
+    builtins.bootstrapBuiltins().ops,
+  );
+
+  const fs = await import("node:fs/promises");
+  const url = await import("node:url");
+  const fileUrl = new url.URL(REGISTRY_MODULE, import.meta.url);
+  const srcPath = url.fileURLToPath(fileUrl);
+  const registrySrc = await fs.readFile(srcPath, "utf8");
+  assert.doesNotMatch(registrySrc, /providers\//);
+  assert.doesNotMatch(registrySrc, /TASK_OPERATION_IDS|collectBuiltins/);
+  assert.match(registrySrc, /application\/operations\/builtins\.mjs/);
+});
+
 test("bootstrapBuiltins: never touches filesystem / lock / state / log / adapter / CLI / UI", async () => {
   const mod = await importRegistry();
-  // Static assertion: the registry module must not import any of
+  // Static assertion: the compatibility facade must not import any of
   // those surfaces for its buildRegistry/bootstrapBuiltins path. We
   // probe the source string after import to keep this test fast and
   // pure. (Legacy ADR-006 compat shims still depend on commands/*
@@ -367,7 +392,7 @@ test("bootstrapBuiltins: never touches filesystem / lock / state / log / adapter
     "utf8",
   );
 
-  // 1. The registry must not import legacy mutating surfaces at all.
+  // 1. The compatibility facade must not import legacy mutating surfaces.
   // Its public entries are provider pairs, never command handlers.
   const forbiddenInBuilder = [
     "../commands/",
@@ -396,10 +421,12 @@ test("bootstrapBuiltins: never touches filesystem / lock / state / log / adapter
     );
   }
 
-  // 2. The module exposes the canonical builder/bootstrap and no
-  // legacy registry symbols or handler table.
-  assert.ok(registrySrc.includes("export function buildRegistry"));
-  assert.ok(registrySrc.includes("export function bootstrapBuiltins"));
+  // 2. The module only re-exports the canonical APIs; the catalog and
+  // generic implementation live under Application Operations.
+  assert.equal(registrySrc.includes("export function buildRegistry"), false);
+  assert.equal(registrySrc.includes("export function bootstrapBuiltins"), false);
+  assert.ok(registrySrc.includes("application/operations/registry.mjs"));
+  assert.ok(registrySrc.includes("application/operations/builtins.mjs"));
   assert.equal(mod.CORE_REGISTRY, undefined);
   assert.equal(mod.SUPPORTED_OPS, undefined);
   assert.equal(registrySrc.includes("handler:"), false);

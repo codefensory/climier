@@ -23,6 +23,8 @@ test("application operation registry is exported from the boundary and is adapte
 
   assert.equal(typeof registry.buildRegistry, "function");
   assert.equal(typeof boundary.buildRegistry, "function");
+  assert.equal(typeof boundary.createBuiltinOperationRegistry, "function");
+  assert.equal(typeof boundary.bootstrapBuiltins, "function");
   assert.equal(typeof boundary.executeOperation, "function");
   const source = await import("node:fs/promises");
   const url = await import("node:url");
