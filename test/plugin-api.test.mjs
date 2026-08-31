@@ -291,6 +291,34 @@ test("api.query.status reads the same payload as the status command (without loc
   }
 });
 
+test("api.query exposes submitted tasks in status and validation actions in context", async () => {
+  const dir = await createTempProject();
+  try {
+    await seedState(dir, (state) => {
+      state.nodes.T1.status = "submitted";
+      state.nodes.T1.claim = null;
+      state.nodes.T1.submitted_by = "worker";
+      state.nodes.T1.submitted_at = "2026-01-01T00:00:00.000Z";
+    });
+    const api = await freshApi(dir, { agent: "validator" });
+    const status = await api.query.status({ status: "submitted", limit: 1 });
+    assert.equal(status.summary.submitted, 1);
+    assert.equal(status.tasks.submitted.length, 1);
+    assert.equal(status.tasks.submitted[0].id, "T1");
+    assert.deepEqual(status.tasks.ready, []);
+    assert.deepEqual(status.tasks.blocked, []);
+
+    const context = await api.query.context("T1");
+    assert.equal(context.derived_status, "submitted");
+    assert.ok(context.allowed_actions.includes("accept"));
+    assert.ok(context.allowed_actions.includes("reject"));
+    assert.ok(!context.allowed_actions.includes("take"));
+    assert.ok(!context.allowed_actions.includes("release"));
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
 test("api.query.history returns the log entries that reference an id", async () => {
   const dir = await createTempProject();
   try {

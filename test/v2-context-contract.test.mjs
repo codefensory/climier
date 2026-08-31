@@ -347,6 +347,39 @@ test("context v2: allowed_actions for task in_progress owned by --as", async () 
   }
 });
 
+test("context v2: submitted task reports validation actions without claim or release actions", async () => {
+  const { default: context } = await importFresh("./cli/commands/context.mjs");
+  const dir = await createTempProject();
+  try {
+    await writeRawState(dir, {
+      ...baseState(),
+      nodes: {
+        "T-submitted": {
+          id: "T-submitted",
+          kind: "resolvable",
+          subkind: "task",
+          title: "Submitted",
+          revision: 2,
+          status: "submitted",
+          submitted_by: "worker",
+          submitted_at: "2026-01-01T00:00:00.000Z",
+          claim: null,
+        },
+      },
+    });
+    const out = await context({ statePath: dir, positional: ["T-submitted"], flags: { as: "validator" } });
+    assert.equal(out.derived_status, "submitted");
+    assert.equal(out.claim, null);
+    assert.ok(out.allowed_actions.includes("accept"));
+    assert.ok(out.allowed_actions.includes("reject"));
+    assert.ok(out.allowed_actions.includes("add-note"));
+    assert.ok(!out.allowed_actions.includes("take"));
+    assert.ok(!out.allowed_actions.includes("release"));
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
 test("context v2: allowed_actions for task in_progress with --as bob (non-owner) -> resolve/release/add-note/update (ADR-009: ownership is not projected)", async () => {
   const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();

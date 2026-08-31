@@ -106,8 +106,8 @@ function staleClaims(snapshot, staleMs, initiative) {
 
 function emptyStatus() {
   return {
-    summary: { ready: 0, in_progress: 0, blocked: 0, backlog: 0, open_gates: 0, active_knowledge: 0 },
-    tasks: { ready: [], in_progress: [], blocked: [], backlog: [] },
+    summary: { ready: 0, in_progress: 0, submitted: 0, blocked: 0, backlog: 0, open_gates: 0, active_knowledge: 0 },
+    tasks: { ready: [], in_progress: [], submitted: [], blocked: [], backlog: [] },
     gates: { open: [] },
     knowledge_count: 0,
     alerts: [],
@@ -137,6 +137,15 @@ function statusView(snapshot, flags) {
   const ready = derived.ready.filter(matches);
   const blocked = derived.blocked.filter(matches);
   const backlog = derived.backlog.filter(matches);
+  const submitted = Object.values(nodes)
+    .filter((node) => node.kind === "resolvable" && node.subkind === "task" && (node.status || "open") === "submitted")
+    .filter((node) => !initiative || node.initiative === initiative)
+    .filter((node) => !domain || node.domain === domain)
+    .filter((node) => !kind || node.kind === kind)
+    .map((node) => node.id);
+  const scopedSubmitted = status
+    ? (status === "submitted" ? submitted : [])
+    : submitted;
   const inProgress = Object.values(nodes)
     .filter((node) => node.kind === "resolvable" && node.subkind === "task" && (node.status || "open") === "in_progress")
     .filter((node) => !initiative || node.initiative === initiative)
@@ -161,6 +170,7 @@ function statusView(snapshot, flags) {
     summary: {
       ready: ready.length,
       in_progress: scopedInProgress.length,
+      submitted: scopedSubmitted.length,
       blocked: blocked.length,
       backlog: backlog.length,
       open_gates: openGates.length,
@@ -169,6 +179,7 @@ function statusView(snapshot, flags) {
     tasks: {
       ready: cap(ready).map((id) => nodeSummary(nodes[id])),
       in_progress: cap(scopedInProgress).map((id) => nodeSummary(nodes[id])),
+      submitted: cap(scopedSubmitted).map((id) => nodeSummary(nodes[id])),
       blocked: cap(blocked).map((id) => ({
         ...nodeSummary(nodes[id]),
         unsatisfied_blockers: blockingForNode({ snapshot, id })
@@ -248,6 +259,7 @@ function allowedActions(node, derivedStatus, agent) {
   if (node.kind === "resolvable" && node.subkind === "task") {
     if (derivedStatus === "ready") return [...(anonymous ? [] : ["claim"]), "update", "add-note", "cancel"];
     if (derivedStatus === "in_progress") return anonymous ? ["add-note"] : ["resolve", "release", "add-note", "update"];
+    if (derivedStatus === "submitted") return anonymous ? ["add-note"] : ["accept", "reject", "add-note"];
     if (derivedStatus === "done") return ["add-note", ...(anonymous ? [] : ["reopen"] )];
     if (derivedStatus === "canceled") return ["add-note", "update"];
   }

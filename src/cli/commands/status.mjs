@@ -2,8 +2,8 @@
 //
 // Output shape (per design doc):
 //   {
-//     summary: { ready, in_progress, blocked, backlog, open_gates, active_knowledge },
-//     tasks: { ready: [...], in_progress: [...], blocked: [...], backlog: [...] },
+//     summary: { ready, in_progress, submitted, blocked, backlog, open_gates, active_knowledge },
+//     tasks: { ready: [...], in_progress: [...], submitted: [...], blocked: [...], backlog: [...] },
 //     gates: { open: [...] },
 //     knowledge_count: number,            // default
 //     knowledge: [...]   (only when --kind knowledge + --all, or just --all)
@@ -129,12 +129,13 @@ function emptyResult() {
     summary: {
       ready: 0,
       in_progress: 0,
+      submitted: 0,
       blocked: 0,
       backlog: 0,
       open_gates: 0,
       active_knowledge: 0,
     },
-    tasks: { ready: [], in_progress: [], blocked: [], backlog: [] },
+    tasks: { ready: [], in_progress: [], submitted: [], blocked: [], backlog: [] },
     gates: { open: [] },
     knowledge_count: 0,
     alerts: [],
@@ -172,6 +173,18 @@ export default async function statusV2({ statePath, flags }) {
   const readyAll = derived.ready.filter(filterByFlags);
   const blockedAll = derived.blocked.filter(filterByFlags);
   const backlogAll = derived.backlog.filter(filterByFlags);
+
+  // submitted is an explicit lifecycle state, not a derived ready/blocked pool.
+  // Keep it visible regardless of --all, just like in_progress.
+  const submittedAll = Object.values(nodes)
+    .filter((node) => node.kind === "resolvable" && node.subkind === "task" && (node.status || "open") === "submitted")
+    .filter((node) => !initiativeFilter || node.initiative === initiativeFilter)
+    .filter((node) => !domainFilter || node.domain === domainFilter)
+    .filter((node) => !kindFilter || node.kind === kindFilter)
+    .map((node) => node.id);
+  const submittedScoped = statusFilter
+    ? (statusFilter === "submitted" ? submittedAll : [])
+    : submittedAll;
 
   // in_progress comes from the persistent status, not the derived pool.
   const inProgressAll = Object.values(nodes)
@@ -222,6 +235,7 @@ export default async function statusV2({ statePath, flags }) {
     summary: {
       ready: readyAll.length,
       in_progress: inProgressScoped.length,
+      submitted: submittedScoped.length,
       blocked: blockedAll.length,
       backlog: backlogAll.length,
       open_gates: openGates.length,
@@ -230,6 +244,7 @@ export default async function statusV2({ statePath, flags }) {
     tasks: {
       ready: cap(readyAll).map((id) => nodeSummary(nodes[id])),
       in_progress: cap(inProgressScoped).map((id) => nodeSummary(nodes[id])),
+      submitted: cap(submittedScoped).map((id) => nodeSummary(nodes[id])),
       blocked: cap(blockedAll).map((id) => {
         const node = nodes[id];
         const blocking = blockingForNode(s, id)

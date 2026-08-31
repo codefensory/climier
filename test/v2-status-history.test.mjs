@@ -11,7 +11,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createTempProject, rmTempProject, importFresh, readState as readRawState, runCli } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, readState as readRawState, writeState as writeRawState, runCli } from "./helpers.mjs";
 
 async function bootstrapV2(dir, initName) {
   if (initName === undefined) initName = "work";
@@ -112,15 +112,40 @@ test("status: v2 returns summary-shape with empty defaults", async () => {
     assert.deepEqual(out.summary, {
       ready: 0,
       in_progress: 0,
+      submitted: 0,
       blocked: 0,
       backlog: 0,
       open_gates: 0,
       active_knowledge: 0,
     });
-    assert.deepEqual(out.tasks, { ready: [], in_progress: [], blocked: [], backlog: [] });
+    assert.deepEqual(out.tasks, { ready: [], in_progress: [], submitted: [], blocked: [], backlog: [] });
     assert.deepEqual(out.gates, { open: [] });
     assert.equal(out.knowledge_count, 0);
     assert.deepEqual(out.alerts, []);
+  } finally { await rmTempProject(dir); }
+});
+
+test("status: submitted tasks have an explicit bucket and respect filters and limits", async () => {
+  const dir = await createTempProject();
+  try {
+    await bootstrapV2(dir);
+    await addTask(dir, "T-submitted", { title: "submitted", domain: "validation" });
+    await addTask(dir, "T-other", { title: "other", domain: "other" });
+    const state = await readRawState(dir);
+    state.nodes["T-submitted"].status = "submitted";
+    state.nodes["T-other"].status = "submitted";
+    await writeRawState(dir, state);
+
+    const out = await v2Status(dir, { domain: "validation", status: "submitted", limit: 1 });
+    assert.equal(out.summary.submitted, 1);
+    assert.equal(out.tasks.submitted.length, 1);
+    assert.equal(out.tasks.submitted[0].id, "T-submitted");
+    assert.deepEqual(out.tasks.ready, []);
+    assert.deepEqual(out.tasks.blocked, []);
+
+    const all = await v2Status(dir, { all: true });
+    assert.equal(all.summary.submitted, 2);
+    assert.deepEqual(all.tasks.submitted.map((task) => task.id), ["T-submitted", "T-other"]);
   } finally { await rmTempProject(dir); }
 });
 
@@ -351,6 +376,7 @@ test("status: blocked reports unsatisfied BLOCKS", async () => {
     assert.deepEqual(out.summary, {
       ready: 0,
       in_progress: 0,
+      submitted: 0,
       blocked: 1,
       backlog: 0,
       open_gates: 1,

@@ -158,6 +158,11 @@ function allowedActions(node, derivedStatus, claim, agent) {
       } else {
         actions.push("add-note");
       }
+    } else if (derivedStatus === "submitted") {
+      // Submission transfers the task to the validation queue. Accept and
+      // reject record an actor, so anonymous contexts only expose notes.
+      if (!isAnonymous) actions.push("accept", "reject");
+      actions.push("add-note");
     } else if (derivedStatus === "done") {
       // reopen records the actor; ADR-009 makes `done_by` irrelevant,
       // so any identified caller can reopen.
