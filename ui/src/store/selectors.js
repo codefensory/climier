@@ -9,9 +9,10 @@
 //     board column. `ready` / `blocked` / `backlog` come from the
 //     snapshot's derived pools, filtered to tasks actually present in
 //     `entities.nodes`. `in_progress` is scanned from `entities.nodes`
-//     because the snapshot doesn't expose that pool; it is deduped against
-//     the other three columns. The returned arrays preserve the derived
-//     order; in_progress is sorted by id for determinism.
+//     because the snapshot doesn't expose that pool; `submitted` comes from
+//     the explicit lifecycle pool and stays separate from readiness buckets.
+//     All lifecycle pools are deduped against the others. The returned arrays
+//     preserve the derived order; in_progress is sorted by id for determinism.
 //   - `openGates(entities, derived)` returns IDs of gates currently open.
 //     Backed by `derived.openGates`; filtered to gates actually present.
 //   - `nodesMap(entities)` returns the entity map by id. Trivial accessor
@@ -54,11 +55,17 @@ export function tasksByStatus(entities, derived) {
   const nodes = entitiesNodes(entities);
   const d = derived && typeof derived === "object" ? derived : {};
   const ready = stableFromDerived(d.ready, nodes, isTaskNode);
+  const submitted = Array.isArray(d.submitted)
+    ? stableFromDerived(d.submitted, nodes, isTaskNode)
+    : Object.keys(nodes)
+      .sort()
+      .filter((id) => isTaskNode(nodes[id]) && (nodes[id].status || "open") === "submitted");
   const blocked = stableFromDerived(d.blocked, nodes, isTaskNode);
   const backlog = stableFromDerived(d.backlog, nodes, isTaskNode);
 
   const seen = new Set();
   for (const id of ready) seen.add(id);
+  for (const id of submitted) seen.add(id);
   for (const id of blocked) seen.add(id);
   for (const id of backlog) seen.add(id);
 
@@ -75,7 +82,7 @@ export function tasksByStatus(entities, derived) {
     inProgress.push(id);
   }
 
-  return { ready, in_progress: inProgress, blocked, backlog };
+  return { ready, in_progress: inProgress, submitted, blocked, backlog };
 }
 
 export function openGates(entities, derived) {

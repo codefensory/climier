@@ -84,6 +84,7 @@ const EXPLAIN = {
   blocked: "Derived: at least one BLOCKS edge from an unsatisfied blocker keeps this from being ready.",
   backlog: "Persisted: deliberately kept out of the ready pool until promoted.",
   in_progress: "Persisted: claimed and being worked on.",
+  submitted: "Persisted: submitted by a worker and waiting for independent validation.",
   open: "Persisted: a gate (decision/approval/research) that is not resolved yet. It can block tasks via BLOCKS.",
   done: "Persisted: resolved with a verification note.",
   resolved: "Persisted: the gate was closed with a choice and rationale.",
@@ -101,6 +102,7 @@ function equivalentCommand(node, derived) {
   if (node.kind === "knowledge") return null;
   if (node.subkind === "gate") return `climier context ${id}   # read blockers, knowledge, allowed actions`;
   if (node.status === "in_progress") return `climier add-note ${id} "..." --as <agent>`;
+  if (derived === "submitted") return `climier context ${id}   # waiting for validator accept/reject`;
   if (derived === "ready") return `climier take ${id} --as <agent>`;
   if (derived === "blocked") return `climier context ${id}   # see which blocker gates it`;
   if (node.status === "done") return `climier reopen ${id} --reason "..." --as <agent>`;

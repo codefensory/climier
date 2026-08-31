@@ -7,8 +7,8 @@
 //     initiative, domain, claimed-by agent, last activity) with rows 48-56 px tall;
 //   - exposes real filters (status / domain / claimed-by agent / initiative), column
 //     sorting, and a "Clear filters" action;
-//   - lists `archived` as a status option only when at least one task is
-//     archived (per spec: "visualizar si existe, no crear");
+//   - lists `submitted` and `archived` as status options only when at least
+//     one task is in that bucket (per spec: "visualizar si existe, no crear");
 //   - uses real <button> rows instead of a clickable <tr> so keyboard
 //     activation and focus visibility work out of the box;
 //   - falls back to a card list (<768px) so the view stays usable on
@@ -48,6 +48,7 @@ import {
 const STATUS_OPTIONS = [
   { value: "ready", label: "Ready" },
   { value: "in_progress", label: "In progress" },
+  { value: "submitted", label: "Submitted" },
   { value: "blocked", label: "Blocked" },
   { value: "backlog", label: "Backlog" },
   { value: "done", label: "Done" },
@@ -56,14 +57,15 @@ const STATUS_OPTIONS = [
 
 // Order used when sorting by status. Bucket meaning wins over alphabet:
 // a worker scanning the table sees work flow from "ready → in progress →
-// blocked → backlog → done → archived" without further interpretation.
+// submitted → blocked → backlog → done → archived" without further interpretation.
 const STATUS_ORDER = {
   ready: 0,
   in_progress: 1,
-  blocked: 2,
-  backlog: 3,
-  done: 4,
-  archived: 5,
+  submitted: 2,
+  blocked: 3,
+  backlog: 4,
+  done: 5,
+  archived: 6,
 };
 
 const COLUMNS = [
@@ -88,6 +90,7 @@ function resolveStatus(node, derived) {
   // doesn't put them in the derived pools.
   if (
     status === "in_progress" ||
+    status === "submitted" ||
     status === "done" ||
     status === "archived" ||
     status === "canceled" ||
