@@ -43,8 +43,8 @@ test("assertInitiativeRegistered: empty state hints at add-initiative", async ()
 // --- add-task ---
 
 test("add-task: fails when --initiative is not registered", async () => {
-  const { default: init } = await importFresh("./commands/init.mjs");
-  const { default: addTask } = await importFresh("./commands/add-task.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.mjs");
+  const { default: addTask } = await importFresh("./cli/commands/add-task.mjs");
   const dir = await createTempProject();
   try {
     await init({ projectDir: dir, positional: [], flags: {} });
@@ -68,8 +68,8 @@ test("add-task: fails when --initiative is not registered", async () => {
 });
 
 test("add-task: fails on empty state with no initiatives registered", async () => {
-  const { default: init } = await importFresh("./commands/init.mjs");
-  const { default: addTask } = await importFresh("./commands/add-task.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.mjs");
+  const { default: addTask } = await importFresh("./cli/commands/add-task.mjs");
   const dir = await createTempProject();
   try {
     await init({ projectDir: dir, positional: [], flags: {} });
@@ -93,9 +93,9 @@ test("add-task: fails on empty state with no initiatives registered", async () =
 });
 
 test("add-task: succeeds when --initiative is registered", async () => {
-  const { default: init } = await importFresh("./commands/init.mjs");
-  const { default: addInit } = await importFresh("./commands/add-initiative.mjs");
-  const { default: addTask } = await importFresh("./commands/add-task.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.mjs");
+  const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
+  const { default: addTask } = await importFresh("./cli/commands/add-task.mjs");
   const dir = await createTempProject();
   try {
     await init({ projectDir: dir, positional: [], flags: {} });
@@ -120,8 +120,8 @@ test("add-task: succeeds when --initiative is registered", async () => {
 // --- add-gate (replaces v1 add-decision) ---
 
 test("add-gate: fails when --initiative is not registered", async () => {
-  const { default: init } = await importFresh("./commands/init.mjs");
-  const { default: addGate } = await importFresh("./commands/add-gate.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.mjs");
+  const { default: addGate } = await importFresh("./cli/commands/add-gate.mjs");
   const dir = await createTempProject();
   try {
     await init({ projectDir: dir, positional: [], flags: {} });
@@ -139,9 +139,9 @@ test("add-gate: fails when --initiative is not registered", async () => {
 });
 
 test("add-gate: succeeds when --initiative is registered", async () => {
-  const { default: init } = await importFresh("./commands/init.mjs");
-  const { default: addInit } = await importFresh("./commands/add-initiative.mjs");
-  const { default: addGate } = await importFresh("./commands/add-gate.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.mjs");
+  const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
+  const { default: addGate } = await importFresh("./cli/commands/add-gate.mjs");
   const dir = await createTempProject();
   try {
     await init({ projectDir: dir, positional: [], flags: {} });
@@ -160,8 +160,8 @@ test("add-gate: succeeds when --initiative is registered", async () => {
 // --- add-knowledge (replaces v1 add-gotcha) ---
 
 test("add-knowledge: fails when --initiative is not registered", async () => {
-  const { default: init } = await importFresh("./commands/init.mjs");
-  const { default: addKnowledge } = await importFresh("./commands/add-knowledge.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.mjs");
+  const { default: addKnowledge } = await importFresh("./cli/commands/add-knowledge.mjs");
   const dir = await createTempProject();
   try {
     await init({ projectDir: dir, positional: [], flags: {} });
@@ -179,9 +179,9 @@ test("add-knowledge: fails when --initiative is not registered", async () => {
 });
 
 test("add-knowledge: succeeds when --initiative is registered", async () => {
-  const { default: init } = await importFresh("./commands/init.mjs");
-  const { default: addInit } = await importFresh("./commands/add-initiative.mjs");
-  const { default: addKnowledge } = await importFresh("./commands/add-knowledge.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.mjs");
+  const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
+  const { default: addKnowledge } = await importFresh("./cli/commands/add-knowledge.mjs");
   const dir = await createTempProject();
   try {
     await init({ projectDir: dir, positional: [], flags: {} });

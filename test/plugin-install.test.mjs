@@ -33,9 +33,9 @@ import {
 const PLUGIN_MODULE = "../src/plugins/paths.mjs";
 const LOCK_MODULE = "../src/plugins/lock.mjs";
 const DESCRIPTOR_MODULE = "../src/plugins/descriptor.mjs";
-const RESERVED_MODULE = "../src/commands/reserved-namespaces.mjs";
-const INSTALL_MODULE = "../src/commands/install.mjs";
-const UNINSTALL_MODULE = "../src/commands/uninstall.mjs";
+const RESERVED_MODULE = "../src/cli/commands/reserved-namespaces.mjs";
+const INSTALL_MODULE = "../src/cli/commands/install.mjs";
+const UNINSTALL_MODULE = "../src/cli/commands/uninstall.mjs";
 
 // ---- Test helpers ----------------------------------------------------
 

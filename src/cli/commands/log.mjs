@@ -1,5 +1,5 @@
 // log: read and filter the append-only log.
-import { readState } from "../storage/state.mjs";
+import { readState } from "../../storage/state.mjs";
 
 export const knownFlags = ["limit", "action", "agent", "task", "decision"];
 

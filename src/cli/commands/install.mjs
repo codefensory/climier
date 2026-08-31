@@ -47,13 +47,13 @@ import {
   pluginsHome,
   pluginInstalledDir,
   pluginStagingDir,
-} from "../plugins/paths.mjs";
-import { withGlobalPluginLock } from "../plugins/lock.mjs";
+} from "../../plugins/paths.mjs";
+import { withGlobalPluginLock } from "../../plugins/lock.mjs";
 import {
   PluginInvalidDescriptor,
   importEntry,
   readDescriptor,
-} from "../plugins/descriptor.mjs";
+} from "../../plugins/descriptor.mjs";
 import { assertNoReservedCollision } from "./reserved-namespaces.mjs";
 
 // We accept --as as identity (not enforced); it is harmless to allow it

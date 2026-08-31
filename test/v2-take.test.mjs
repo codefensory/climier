@@ -8,8 +8,8 @@ import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, importFresh, runCli, readState } from "./helpers.mjs";
 
 async function v2Project() {
-  const { default: init } = await importFresh("./commands/init.mjs");
-  const { default: addInit } = await importFresh("./commands/add-initiative.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.mjs");
+  const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
   const dir = await createTempProject();
   await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
   await addInit({ statePath: dir, flags: { desc: "auth" }, positional: ["auth"] });
@@ -17,12 +17,12 @@ async function v2Project() {
 }
 
 async function addInitiative(dir, name, desc = name) {
-  const { default: addInit } = await importFresh("./commands/add-initiative.mjs");
+  const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
   await addInit({ statePath: dir, flags: { desc }, positional: [name] });
 }
 
 async function addTask(dir, id, extra = {}) {
-  const { default: addNode } = await importFresh("./commands/add-node.mjs");
+  const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
   return addNode({
     statePath: dir,
     positional: [id],
@@ -39,7 +39,7 @@ async function addTask(dir, id, extra = {}) {
 }
 
 async function take(dir, id, flags) {
-  const { default: takeCmd } = await importFresh("./commands/take.mjs");
+  const { default: takeCmd } = await importFresh("./cli/commands/take.mjs");
   return takeCmd({ statePath: dir, flags, positional: [id], projectDir: dir });
 }
 

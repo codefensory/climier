@@ -38,7 +38,7 @@ function clearAgentEnv() {
 }
 
 async function freshV2(dir) {
-  const { default: init } = await importFresh("./commands/init.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.mjs");
   await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
 }
 
@@ -59,10 +59,10 @@ test("Issue 2: add-node with missing agent does NOT mutate state (no orphan log 
   const restore = clearAgentEnv();
   try {
     await freshV2(dir);
-    const { default: addInit } = await importFresh("./commands/add-initiative.mjs");
+    const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
     await addInit({ statePath: dir, flags: { desc: "auth", as: "setup" }, positional: ["auth"] });
 
-    const { default: addNode } = await importFresh("./commands/add-node.mjs");
+    const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
     let caught;
     try {
       await addNode({
@@ -94,9 +94,9 @@ test("Issue 2: add-edge with missing agent does NOT mutate state", async () => {
   const restore = clearAgentEnv();
   try {
     await freshV2(dir);
-    const { default: addInit } = await importFresh("./commands/add-initiative.mjs");
+    const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
     await addInit({ statePath: dir, flags: { desc: "auth", as: "setup" }, positional: ["auth"] });
-    const { default: addNode } = await importFresh("./commands/add-node.mjs");
+    const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
     await addNode({
       statePath: dir,
       positional: ["T-a"],
@@ -118,7 +118,7 @@ test("Issue 2: add-edge with missing agent does NOT mutate state", async () => {
     assert.equal(before.log[1].action, "add-node");
     assert.equal(before.log[2].action, "add-node");
 
-    const { default: addEdge } = await importFresh("./commands/add-edge.mjs");
+    const { default: addEdge } = await importFresh("./cli/commands/add-edge.mjs");
     let caught;
     try {
       await addEdge({

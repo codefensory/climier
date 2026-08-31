@@ -1,5 +1,5 @@
 import { addV2Node, requireFields } from "./internal/create-node.mjs";
-import { resolveAgent } from "../contracts/agent.mjs";
+import { resolveAgent } from "../../contracts/agent.mjs";
 
 export const knownFlags = [
   "initiative",

@@ -10,7 +10,7 @@
 // changes.
 import fsSync from "node:fs";
 import { resolveProject } from "../src/storage/paths.mjs";
-import { RESERVED_NAMESPACES } from "../src/commands/reserved-namespaces.mjs";
+import { RESERVED_NAMESPACES } from "../src/cli/commands/reserved-namespaces.mjs";
 
 const args = process.argv.slice(2);
 const PACKAGE_VERSION = JSON.parse(
@@ -218,7 +218,7 @@ try {
   if (pluginDispatched) {
     // Skip the core dispatch entirely.
   } else {
-    const mod = await import(`../src/commands/${command}.mjs`);
+    const mod = await import(`../src/cli/commands/${command}.mjs`);
   // Reject unknown flags. Global flag (--project) is always allowed.
   // --help / -h are handled before this point and never reach here.
   if (Array.isArray(mod.knownFlags)) {

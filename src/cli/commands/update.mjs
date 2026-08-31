@@ -5,15 +5,15 @@
 // kernel snapshot, and delegates the mutation to kernel.mutate. Locking,
 // persistence, revision assignment, logging and policy execution remain
 // kernel responsibilities.
-import { mutate } from "../kernel/mutate.mjs";
-import { throwV2 } from "../contracts/errors.mjs";
-import { resolveAgent } from "../contracts/agent.mjs";
-import { validateExecution } from "../contracts/execution-contract.mjs";
-import { loadApplicablePolicy, authorizeAction } from "../plugins/policy.mjs";
-import { PolicyDenied } from "../plugins/errors.mjs";
-import { taskUpdateProvider } from "../providers/task/update.mjs";
-import { gateUpdateProvider } from "../providers/gate/update.mjs";
-import { updateProvider as knowledgeUpdateProvider } from "../providers/knowledge/update.mjs";
+import { mutate } from "../../kernel/mutate.mjs";
+import { throwV2 } from "../../contracts/errors.mjs";
+import { resolveAgent } from "../../contracts/agent.mjs";
+import { validateExecution } from "../../contracts/execution-contract.mjs";
+import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
+import { PolicyDenied } from "../../plugins/errors.mjs";
+import { taskUpdateProvider } from "../../providers/task/update.mjs";
+import { gateUpdateProvider } from "../../providers/gate/update.mjs";
+import { updateProvider as knowledgeUpdateProvider } from "../../providers/knowledge/update.mjs";
 
 export const knownFlags = [
   "title",

@@ -10,7 +10,7 @@ import fsSync from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { stateFile } from "../storage/state.mjs";
+import { stateFile } from "../../storage/state.mjs";
 
 export const knownFlags = ["port", "open"];
 

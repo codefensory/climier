@@ -23,8 +23,8 @@ import {
 } from "./helpers.mjs";
 
 async function v2Project() {
-  const { default: init } = await importFresh("./commands/init.mjs");
-  const { default: addInitiative } = await importFresh("./commands/add-initiative.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.mjs");
+  const { default: addInitiative } = await importFresh("./cli/commands/add-initiative.mjs");
   const dir = await createTempProject();
   await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
   await addInitiative({ statePath: dir, flags: { desc: "Auth" }, positional: ["auth"] });
@@ -32,7 +32,7 @@ async function v2Project() {
 }
 
 async function addTask(dir, id, extra = {}) {
-  const { default: addNode } = await importFresh("./commands/add-node.mjs");
+  const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
   return addNode({
     statePath: dir,
     positional: [id],
@@ -48,7 +48,7 @@ async function addTask(dir, id, extra = {}) {
 }
 
 async function addKnowledge(dir, id) {
-  const { default: addNode } = await importFresh("./commands/add-node.mjs");
+  const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
   return addNode({
     statePath: dir,
     positional: [id],
@@ -62,7 +62,7 @@ async function addKnowledge(dir, id) {
 }
 
 async function take(dir, id, flags = { as: "agent-a" }, extraPositional = []) {
-  const { default: takeCommand } = await importFresh("./commands/take.mjs");
+  const { default: takeCommand } = await importFresh("./cli/commands/take.mjs");
   return takeCommand({
     statePath: dir,
     projectDir: dir,

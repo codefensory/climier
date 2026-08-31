@@ -8,14 +8,14 @@ import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, importFresh, runCli, readState as readRawState } from "./helpers.mjs";
 
 async function bootstrapV2(dir, initiative = "auth") {
-  const { default: init } = await importFresh("./commands/init.mjs");
-  const { default: addInit } = await importFresh("./commands/add-initiative.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.mjs");
+  const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
   await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
   await addInit({ statePath: dir, flags: { desc: "test" }, positional: [initiative] });
 }
 
 async function addGate(dir, id, title = id, initiative = "auth", status = "resolved") {
-  const { default: addNode } = await importFresh("./commands/add-node.mjs");
+  const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
   return addNode({
     statePath: dir,
     positional: [id],
@@ -37,7 +37,7 @@ test("add-node: --blocked-by produces a single BLOCKS edge with the blocker as `
     await bootstrapV2(dir);
     await addGate(dir, "G-y");
 
-    const { default: addNode } = await importFresh("./commands/add-node.mjs");
+    const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
     await addNode({
       statePath: dir,
       positional: ["T-x"],
@@ -66,7 +66,7 @@ test("add-node: --blocked-by with multiple targets produces one BLOCKS edge per 
     await addGate(dir, "G-a");
     await addGate(dir, "G-b");
 
-    const { default: addNode } = await importFresh("./commands/add-node.mjs");
+    const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
     await addNode({
       statePath: dir,
       positional: ["T-x"],
@@ -95,7 +95,7 @@ test("add-node: --blocked-by with empty string produces zero BLOCKS edges", asyn
   const dir = await createTempProject();
   try {
     await bootstrapV2(dir);
-    const { default: addNode } = await importFresh("./commands/add-node.mjs");
+    const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
     await addNode({
       statePath: dir,
       positional: ["T-x"],
@@ -121,7 +121,7 @@ test("add-node: --blocked-by with missing target emits INVALID_EDGE_TARGET", asy
   const dir = await createTempProject();
   try {
     await bootstrapV2(dir);
-    const { default: addNode } = await importFresh("./commands/add-node.mjs");
+    const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
     await assert.rejects(
       addNode({
         statePath: dir,

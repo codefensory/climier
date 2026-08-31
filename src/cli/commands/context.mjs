@@ -24,18 +24,18 @@
 // `claim` is `{ by, at, stale }` when the node is currently claimed (either
 // via F9 take.mjs's structured claim or via legacy claimed_by/claimed_at),
 // else `null`.
-import { readState, assertStateVersion } from "../storage/state.mjs";
+import { readState, assertStateVersion } from "../../storage/state.mjs";
 import {
   blockingForNode,
   informingForNode,
   knowledgeForNode,
   statusOf,
-} from "../read-model/index.mjs";
-import { throwV2 } from "../contracts/errors.mjs";
+} from "../../read-model/index.mjs";
+import { throwV2 } from "../../contracts/errors.mjs";
 import {
   detectOwnershipConflicts,
   executionContractFor,
-} from "../contracts/execution-contract.mjs";
+} from "../../contracts/execution-contract.mjs";
 
 export const knownFlags = ["as", "staleMs"];
 

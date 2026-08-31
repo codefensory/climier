@@ -38,8 +38,8 @@ import {
 } from "./helpers.mjs";
 
 async function v2Project() {
-  const { default: init } = await importFresh("./commands/init.mjs");
-  const { default: addInit } = await importFresh("./commands/add-initiative.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.mjs");
+  const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
   const dir = await createTempProject();
   await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
   await addInit({ statePath: dir, flags: { desc: "auth" }, positional: ["auth"] });
@@ -47,7 +47,7 @@ async function v2Project() {
 }
 
 async function addTask(dir, id, extra = {}) {
-  const { default: addNode } = await importFresh("./commands/add-node.mjs");
+  const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
   return addNode({
     statePath: dir,
     positional: [id],
@@ -64,7 +64,7 @@ async function addTask(dir, id, extra = {}) {
 }
 
 async function addGate(dir, id, extra = {}) {
-  const { default: addNode } = await importFresh("./commands/add-node.mjs");
+  const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
   return addNode({
     statePath: dir,
     positional: [id],
@@ -80,14 +80,14 @@ async function addGate(dir, id, extra = {}) {
 }
 
 async function take(dir, as, id = "T-auth-1") {
-  const { default: takeCmd } = await importFresh("./commands/take.mjs");
+  const { default: takeCmd } = await importFresh("./cli/commands/take.mjs");
   return takeCmd({ statePath: dir, flags: { as }, positional: [id], projectDir: dir });
 }
 
 // === release ============================================================
 
 test("v2-release: claim owner releases; returns released=true, claim=null, status=open, revision bumped", async () => {
-  const { default: release } = await importFresh("./commands/release.mjs");
+  const { default: release } = await importFresh("./cli/commands/release.mjs");
   const dir = await v2Project();
   try {
     await addTask(dir, "T-auth-1");
@@ -118,7 +118,7 @@ test("v2-release: any actor may release another agent's claim with no policy (de
   // actor against the claim owner. Without a policy plugin, any actor
   // with --as may release a claimed task. A policy plugin may still
   // deny the action.
-  const { default: release } = await importFresh("./commands/release.mjs");
+  const { default: release } = await importFresh("./cli/commands/release.mjs");
   const dir = await v2Project();
   try {
     await addTask(dir, "T-auth-1");
@@ -142,7 +142,7 @@ test("v2-release: any actor may release another agent's claim with no policy (de
 test("v2-release: any agent may release another agent's claim when policy allow applies", async () => {
   // T-plugin-policy-seam-lifecycle / ADR-008: the historical
   // orchestrator/recovery bypass is replaced by a policy seam allow.
-  const { default: release } = await importFresh("./commands/release.mjs");
+  const { default: release } = await importFresh("./cli/commands/release.mjs");
   const dir = await v2Project();
   await installPolicyFixture(dir);
   try {
@@ -165,7 +165,7 @@ test("v2-release: any agent may release another agent's claim when policy allow 
 test("v2-release: a policy-allow actor can release any agent's claim (ex-recovery role equivalent)", async () => {
   // T-plugin-policy-seam-lifecycle / ADR-008: the historical
   // recovery-bypass path is replaced by a policy seam allow.
-  const { default: release } = await importFresh("./commands/release.mjs");
+  const { default: release } = await importFresh("./cli/commands/release.mjs");
   const dir = await v2Project();
   await installPolicyFixture(dir);
   try {
@@ -184,7 +184,7 @@ test("v2-release: a policy-allow actor can release any agent's claim (ex-recover
 });
 
 test("v2-release: idempotent — a task with no claim returns released=false without mutating", async () => {
-  const { default: release } = await importFresh("./commands/release.mjs");
+  const { default: release } = await importFresh("./cli/commands/release.mjs");
   const dir = await v2Project();
   try {
     await addTask(dir, "T-auth-1");
@@ -204,7 +204,7 @@ test("v2-release: idempotent — a task with no claim returns released=false wit
 });
 
 test("v2-release: idempotent — re-releasing a previously-released task is still released=false", async () => {
-  const { default: release } = await importFresh("./commands/release.mjs");
+  const { default: release } = await importFresh("./cli/commands/release.mjs");
   const dir = await v2Project();
   try {
     await addTask(dir, "T-auth-1");
@@ -222,7 +222,7 @@ test("v2-release: idempotent — re-releasing a previously-released task is stil
 });
 
 test("v2-release: missing node returns NODE_NOT_FOUND", async () => {
-  const { default: release } = await importFresh("./commands/release.mjs");
+  const { default: release } = await importFresh("./cli/commands/release.mjs");
   const dir = await v2Project();
   try {
     let caught;
@@ -240,7 +240,7 @@ test("v2-release: missing node returns NODE_NOT_FOUND", async () => {
 });
 
 test("v2-release: missing --as returns MISSING_AGENT", async () => {
-  const { default: release } = await importFresh("./commands/release.mjs");
+  const { default: release } = await importFresh("./cli/commands/release.mjs");
   const dir = await v2Project();
   const prev = process.env.CLIMIER_AGENT;
   delete process.env.CLIMIER_AGENT;
@@ -264,7 +264,7 @@ test("v2-release: missing --as returns MISSING_AGENT", async () => {
 // === resolve ============================================================
 
 test("v2-resolve: task resolve — claim owner passes --note; status=done, claim cleared, done_by/at stored", async () => {
-  const { default: resolve } = await importFresh("./commands/resolve.mjs");
+  const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
   const dir = await v2Project();
   try {
     await addTask(dir, "T-auth-1");
@@ -292,7 +292,7 @@ test("v2-resolve: task resolve — claim owner passes --note; status=done, claim
 });
 
 test("v2-resolve: task resolve returns newly_ready for tasks whose only blocker was the resolved one", async () => {
-  const { default: resolve } = await importFresh("./commands/resolve.mjs");
+  const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
   const dir = await v2Project();
   try {
     await addGate(dir, "G-auth-v2");
@@ -321,7 +321,7 @@ test("v2-resolve: task resolve returns newly_ready for tasks whose only blocker 
 });
 
 test("v2-resolve: task resolve does NOT include downstream tasks that still have other blockers", async () => {
-  const { default: resolve } = await importFresh("./commands/resolve.mjs");
+  const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
   const dir = await v2Project();
   try {
     // Two gates; T-down depends on both. Resolving only one keeps T-down blocked.
@@ -343,7 +343,7 @@ test("v2-resolve: any actor may resolve a claimed task with no policy (defaults 
   // actor against the claim owner. Without a policy plugin, any actor
   // with --as may resolve a task whose state is valid for the
   // transition. done_by records the actor that actually mutated.
-  const { default: resolve } = await importFresh("./commands/resolve.mjs");
+  const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
   const dir = await v2Project();
   try {
     await addTask(dir, "T-auth-1");
@@ -366,7 +366,7 @@ test("v2-resolve: any actor may resolve a claimed task with no policy (defaults 
 });
 
 test("v2-resolve: gate resolve — --choice and --rationale required, status=resolved, resolution set", async () => {
-  const { default: resolve } = await importFresh("./commands/resolve.mjs");
+  const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
   const dir = await v2Project();
   try {
     await addGate(dir, "G-auth-v2");
@@ -391,7 +391,7 @@ test("v2-resolve: gate resolve — --choice and --rationale required, status=res
 });
 
 test("v2-resolve: gate resolve missing --choice returns MISSING_FIELD", async () => {
-  const { default: resolve } = await importFresh("./commands/resolve.mjs");
+  const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
   const dir = await v2Project();
   try {
     await addGate(dir, "G-auth-v2");
@@ -410,7 +410,7 @@ test("v2-resolve: gate resolve missing --choice returns MISSING_FIELD", async ()
 });
 
 test("v2-resolve: gate resolve missing --rationale returns MISSING_FIELD", async () => {
-  const { default: resolve } = await importFresh("./commands/resolve.mjs");
+  const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
   const dir = await v2Project();
   try {
     await addGate(dir, "G-auth-v2");
@@ -429,7 +429,7 @@ test("v2-resolve: gate resolve missing --rationale returns MISSING_FIELD", async
 });
 
 test("v2-resolve: task resolve missing --note returns MISSING_FIELD", async () => {
-  const { default: resolve } = await importFresh("./commands/resolve.mjs");
+  const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
   const dir = await v2Project();
   try {
     await addTask(dir, "T-auth-1");
@@ -449,7 +449,7 @@ test("v2-resolve: task resolve missing --note returns MISSING_FIELD", async () =
 });
 
 test("v2-resolve: missing node returns NODE_NOT_FOUND", async () => {
-  const { default: resolve } = await importFresh("./commands/resolve.mjs");
+  const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
   const dir = await v2Project();
   try {
     let caught;
@@ -469,8 +469,8 @@ test("v2-resolve: missing node returns NODE_NOT_FOUND", async () => {
 // === reopen =============================================================
 
 test("v2-reopen: original done_by can reopen a done task; status -> open, claim cleared, done_* removed", async () => {
-  const { default: reopen } = await importFresh("./commands/reopen.mjs");
-  const { default: resolve } = await importFresh("./commands/resolve.mjs");
+  const { default: reopen } = await importFresh("./cli/commands/reopen.mjs");
+  const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
   const dir = await v2Project();
   try {
     await addTask(dir, "T-auth-1");
@@ -499,8 +499,8 @@ test("v2-reopen: original done_by can reopen a done task; status -> open, claim 
 test("v2-reopen: any agent may reopen a done task when policy allow applies", async () => {
   // T-plugin-policy-seam-lifecycle / ADR-008: the historical
   // orchestrator-reopen bypass is replaced by a policy seam allow.
-  const { default: reopen } = await importFresh("./commands/reopen.mjs");
-  const { default: resolve } = await importFresh("./commands/resolve.mjs");
+  const { default: reopen } = await importFresh("./cli/commands/reopen.mjs");
+  const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
   const dir = await v2Project();
   await installPolicyFixture(dir);
   try {
@@ -526,8 +526,8 @@ test("v2-reopen: any actor may reopen a done task with no policy (defaults core)
   // actor against done_by. Without a policy plugin, any actor with
   // --as may reopen a task in a terminal reopenable state. done_by /
   // done_at / note are cleared exactly as before.
-  const { default: reopen } = await importFresh("./commands/reopen.mjs");
-  const { default: resolve } = await importFresh("./commands/resolve.mjs");
+  const { default: reopen } = await importFresh("./cli/commands/reopen.mjs");
+  const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
   const dir = await v2Project();
   try {
     await addTask(dir, "T-auth-1");
@@ -552,8 +552,8 @@ test("v2-reopen: any actor may reopen a done task with no policy (defaults core)
 });
 
 test("v2-reopen: re-blocks downstream tasks (DAG consequence)", async () => {
-  const { default: reopen } = await importFresh("./commands/reopen.mjs");
-  const { default: resolve } = await importFresh("./commands/resolve.mjs");
+  const { default: reopen } = await importFresh("./cli/commands/reopen.mjs");
+  const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
   const dir = await v2Project();
   try {
     await addTask(dir, "T-blocker");
@@ -577,8 +577,8 @@ test("v2-reopen: re-blocks downstream tasks (DAG consequence)", async () => {
 });
 
 test("v2-reopen: missing --reason returns MISSING_FIELD", async () => {
-  const { default: reopen } = await importFresh("./commands/reopen.mjs");
-  const { default: resolve } = await importFresh("./commands/resolve.mjs");
+  const { default: reopen } = await importFresh("./cli/commands/reopen.mjs");
+  const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
   const dir = await v2Project();
   try {
     await addTask(dir, "T-auth-1");
@@ -600,7 +600,7 @@ test("v2-reopen: missing --reason returns MISSING_FIELD", async () => {
 });
 
 test("v2-reopen: not-done node returns INVALID_STATUS", async () => {
-  const { default: reopen } = await importFresh("./commands/reopen.mjs");
+  const { default: reopen } = await importFresh("./cli/commands/reopen.mjs");
   const dir = await v2Project();
   try {
     await addTask(dir, "T-auth-1");
@@ -619,7 +619,7 @@ test("v2-reopen: not-done node returns INVALID_STATUS", async () => {
 });
 
 test("v2-reopen: missing node returns NODE_NOT_FOUND", async () => {
-  const { default: reopen } = await importFresh("./commands/reopen.mjs");
+  const { default: reopen } = await importFresh("./cli/commands/reopen.mjs");
   const dir = await v2Project();
   try {
     let caught;
@@ -638,7 +638,7 @@ test("v2-reopen: missing node returns NODE_NOT_FOUND", async () => {
 // === cancel =============================================================
 
 test("v2-cancel: in_progress + claim owner => status=canceled, claim cleared, log appended", async () => {
-  const { default: cancel } = await importFresh("./commands/cancel.mjs");
+  const { default: cancel } = await importFresh("./cli/commands/cancel.mjs");
   const dir = await v2Project();
   try {
     await addTask(dir, "T-auth-1");
@@ -664,7 +664,7 @@ test("v2-cancel: open + policy-allow actor => canceled (no claim required)", asy
   // T-plugin-policy-seam-lifecycle / ADR-008: the historical
   // orchestrator-bypass on an unclaimed node is replaced by a policy
   // seam allow.
-  const { default: cancel } = await importFresh("./commands/cancel.mjs");
+  const { default: cancel } = await importFresh("./cli/commands/cancel.mjs");
   const dir = await v2Project();
   await installPolicyFixture(dir);
   try {
@@ -686,7 +686,7 @@ test("v2-cancel: any actor may cancel an open task with no policy (defaults core
   // ADR-009 §"Resto de operaciones": the core does not require the actor
   // to be the claim owner. Without a policy plugin, any actor with --as
   // may cancel an open node.
-  const { default: cancel } = await importFresh("./commands/cancel.mjs");
+  const { default: cancel } = await importFresh("./cli/commands/cancel.mjs");
   const dir = await v2Project();
   try {
     await addTask(dir, "T-auth-1");
@@ -710,7 +710,7 @@ test("v2-cancel: any actor may cancel an in_progress task with no policy (defaul
   // to be the claim owner. Without a policy plugin, any actor with --as
   // may cancel an in_progress node, including a third party that never
   // claimed the task.
-  const { default: cancel } = await importFresh("./commands/cancel.mjs");
+  const { default: cancel } = await importFresh("./cli/commands/cancel.mjs");
   const dir = await v2Project();
   try {
     await addTask(dir, "T-auth-1");
@@ -730,8 +730,8 @@ test("v2-cancel: any actor may cancel an in_progress task with no policy (defaul
 });
 
 test("v2-cancel: done task returns INVALID_STATUS (cannot cancel terminal)", async () => {
-  const { default: cancel } = await importFresh("./commands/cancel.mjs");
-  const { default: resolve } = await importFresh("./commands/resolve.mjs");
+  const { default: cancel } = await importFresh("./cli/commands/cancel.mjs");
+  const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
   const dir = await v2Project();
   try {
     await addTask(dir, "T-auth-1");
@@ -752,7 +752,7 @@ test("v2-cancel: done task returns INVALID_STATUS (cannot cancel terminal)", asy
 });
 
 test("v2-cancel: missing --reason returns MISSING_FIELD", async () => {
-  const { default: cancel } = await importFresh("./commands/cancel.mjs");
+  const { default: cancel } = await importFresh("./cli/commands/cancel.mjs");
   const dir = await v2Project();
   try {
     await addTask(dir, "T-auth-1");
@@ -767,7 +767,7 @@ test("v2-cancel: missing --reason returns MISSING_FIELD", async () => {
 });
 
 test("v2-cancel: missing node returns NODE_NOT_FOUND", async () => {
-  const { default: cancel } = await importFresh("./commands/cancel.mjs");
+  const { default: cancel } = await importFresh("./cli/commands/cancel.mjs");
   const dir = await v2Project();
   try {
     let caught;
@@ -796,7 +796,7 @@ async function seedV1State(dir, state) {
     projectId = undefined;
   }
   if (!projectId) {
-    const { default: init } = await importFresh("./commands/init.mjs");
+    const { default: init } = await importFresh("./cli/commands/init.mjs");
     await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
     projectId = JSON.parse(await fs.readFile(metaPath, "utf8")).project_id;
   }

@@ -48,7 +48,7 @@ test("search: matches active knowledge by case-insensitive substring", async () 
 });
 
 test("search: searches every supported field and reports matched_fields", async () => {
-  const { default: search } = await importFresh("./commands/search.mjs");
+  const { default: search } = await importFresh("./cli/commands/search.mjs");
   const dir = await createTempProject();
   try {
     await writeState(dir, state({
@@ -73,7 +73,7 @@ test("search: searches every supported field and reports matched_fields", async 
 });
 
 test("search: --all includes deprecated knowledge", async () => {
-  const { default: search } = await importFresh("./commands/search.mjs");
+  const { default: search } = await importFresh("./cli/commands/search.mjs");
   const dir = await createTempProject();
   try {
     await writeState(dir, state({
@@ -91,7 +91,7 @@ test("search: --all includes deprecated knowledge", async () => {
 });
 
 test("search: empty query returns no matches", async () => {
-  const { default: search } = await importFresh("./commands/search.mjs");
+  const { default: search } = await importFresh("./cli/commands/search.mjs");
   const dir = await createTempProject();
   try {
     await writeState(dir, state({ "K-a": knowledge("K-a", { title: "Anything" }) }));
@@ -105,7 +105,7 @@ test("search: empty query returns no matches", async () => {
 });
 
 test("search: returns matches in deterministic id order", async () => {
-  const { default: search } = await importFresh("./commands/search.mjs");
+  const { default: search } = await importFresh("./cli/commands/search.mjs");
   const dir = await createTempProject();
   try {
     await writeState(dir, state({

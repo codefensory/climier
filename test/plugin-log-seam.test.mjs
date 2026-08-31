@@ -192,8 +192,8 @@ test("appendWithContext: never mutates the entry passed in by the caller", async
 // ---------------------------------------------------------------------------
 
 async function initV2Project(dir, initiatives = ["plugin-platform"]) {
-  const { default: init } = await importFresh("./commands/init.mjs");
-  const { default: addInit } = await importFresh("./commands/add-initiative.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.mjs");
+  const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
   await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
   for (const name of initiatives) {
     await addInit({ statePath: dir, flags: { desc: name }, positional: [name] });
@@ -201,7 +201,7 @@ async function initV2Project(dir, initiatives = ["plugin-platform"]) {
 }
 
 async function seedOpenTask(dir, id, { initiative = "plugin-platform", status = "open" } = {}) {
-  const { default: addNode } = await importFresh("./commands/add-node.mjs");
+  const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
   await addNode({
     statePath: dir,
     positional: [id],
@@ -225,7 +225,7 @@ test("add-task: CLI call writes add-node log entry without plugin_id", async () 
   const dir = await createTempProject();
   try {
     await initV2Project(dir);
-    const { default: addTask } = await importFresh("./commands/add-task.mjs");
+    const { default: addTask } = await importFresh("./cli/commands/add-task.mjs");
     await addTask({
       statePath: dir,
       flags: {
@@ -254,7 +254,7 @@ test("add-task: ctx.pluginId is propagated to the log entry as plugin_id", async
   const dir = await createTempProject();
   try {
     await initV2Project(dir);
-    const { default: addTask } = await importFresh("./commands/add-task.mjs");
+    const { default: addTask } = await importFresh("./cli/commands/add-task.mjs");
     await addTask({
       statePath: dir,
       flags: {
@@ -285,7 +285,7 @@ test("add-task: two consecutive calls (one CLI, one plugin) produce two distinct
   const dir = await createTempProject();
   try {
     await initV2Project(dir);
-    const { default: addTask } = await importFresh("./commands/add-task.mjs");
+    const { default: addTask } = await importFresh("./cli/commands/add-task.mjs");
     await addTask({
       statePath: dir,
       flags: {
@@ -340,7 +340,7 @@ test("add-edge: CLI call writes add-edge log entry without plugin_id", async () 
     await initV2Project(dir);
     await seedOpenTask(dir, "T-a");
     await seedOpenTask(dir, "T-b");
-    const { default: addEdge } = await importFresh("./commands/add-edge.mjs");
+    const { default: addEdge } = await importFresh("./cli/commands/add-edge.mjs");
     await addEdge({ statePath: dir, flags: { as: "alice", type: "BLOCKS" }, positional: ["T-a", "T-b"] });
     const s = await readState(dir);
     const entry = lastLog(s);
@@ -359,7 +359,7 @@ test("add-edge: ctx.pluginId propagates to the log entry as plugin_id", async ()
     await initV2Project(dir);
     await seedOpenTask(dir, "T-a");
     await seedOpenTask(dir, "T-b");
-    const { default: addEdge } = await importFresh("./commands/add-edge.mjs");
+    const { default: addEdge } = await importFresh("./cli/commands/add-edge.mjs");
     await addEdge({
       statePath: dir,
       flags: { as: "alice", type: "BLOCKS" },
@@ -383,7 +383,7 @@ test("take: CLI call writes take log entry without plugin_id", async () => {
   try {
     await initV2Project(dir);
     await seedOpenTask(dir, "T-take-1");
-    const { default: take } = await importFresh("./commands/take.mjs");
+    const { default: take } = await importFresh("./cli/commands/take.mjs");
     await take({ statePath: dir, flags: { as: "alice" }, positional: ["T-take-1"], projectDir: dir });
     const s = await readState(dir);
     const entry = lastLog(s);
@@ -401,7 +401,7 @@ test("take: ctx.pluginId propagates to the log entry as plugin_id", async () => 
   try {
     await initV2Project(dir);
     await seedOpenTask(dir, "T-take-2");
-    const { default: take } = await importFresh("./commands/take.mjs");
+    const { default: take } = await importFresh("./cli/commands/take.mjs");
     await take({
       statePath: dir,
       flags: { as: "alice" },
@@ -431,7 +431,7 @@ test("resolve (task): CLI call writes resolve log entry without plugin_id", asyn
       st.nodes["T-resolve-1"].claim = { by: "alice", at: new Date().toISOString() };
       return st;
     });
-    const { default: resolve } = await importFresh("./commands/resolve.mjs");
+    const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
     await resolve({
       statePath: dir,
       flags: { as: "alice", note: "done" },
@@ -459,7 +459,7 @@ test("resolve (task): ctx.pluginId propagates to the log entry as plugin_id", as
       st.nodes["T-resolve-2"].claim = { by: "alice", at: new Date().toISOString() };
       return st;
     });
-    const { default: resolve } = await importFresh("./commands/resolve.mjs");
+    const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
     await resolve({
       statePath: dir,
       flags: { as: "alice", note: "done" },
@@ -484,7 +484,7 @@ test("add-note: CLI call writes add-note log entry without plugin_id", async () 
   try {
     await initV2Project(dir);
     await seedOpenTask(dir, "T-note-1");
-    const { default: addNote } = await importFresh("./commands/add-note.mjs");
+    const { default: addNote } = await importFresh("./cli/commands/add-note.mjs");
     await addNote({
       statePath: dir,
       flags: { as: "alice" },
@@ -507,7 +507,7 @@ test("add-note: ctx.pluginId propagates to the log entry as plugin_id", async ()
   try {
     await initV2Project(dir);
     await seedOpenTask(dir, "T-note-2");
-    const { default: addNote } = await importFresh("./commands/add-note.mjs");
+    const { default: addNote } = await importFresh("./cli/commands/add-note.mjs");
     await addNote({
       statePath: dir,
       flags: { as: "alice" },
@@ -532,9 +532,9 @@ test("plugin-log-seam: handlers still observe withLock → updateState → appen
     await initV2Project(dir);
     await seedOpenTask(dir, "T-flow");
     await seedOpenTask(dir, "T-flow-2");
-    const { default: addEdge } = await importFresh("./commands/add-edge.mjs");
-    const { default: take } = await importFresh("./commands/take.mjs");
-    const { default: addNote } = await importFresh("./commands/add-note.mjs");
+    const { default: addEdge } = await importFresh("./cli/commands/add-edge.mjs");
+    const { default: take } = await importFresh("./cli/commands/take.mjs");
+    const { default: addNote } = await importFresh("./cli/commands/add-note.mjs");
     await addEdge({
       statePath: dir,
       flags: { as: "alice", type: "BLOCKS" },

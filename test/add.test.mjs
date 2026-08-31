@@ -4,8 +4,8 @@ import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, importFresh, readState } from "./helpers.mjs";
 
 test("add-task: appends a new task to state via the v2 wrapper", async () => {
-  const { default: addInit } = await importFresh("./commands/add-initiative.mjs");
-  const { default: addTask } = await importFresh("./commands/add-task.mjs");
+  const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
+  const { default: addTask } = await importFresh("./cli/commands/add-task.mjs");
   const dir = await createTempProject();
   try {
     await addInit({ statePath: dir, flags: { desc: "" }, positional: ["migration"] });
@@ -27,8 +27,8 @@ test("add-task: appends a new task to state via the v2 wrapper", async () => {
 });
 
 test("add-task: --blocked-by attaches BLOCKS edges", async () => {
-  const { default: addInit } = await importFresh("./commands/add-initiative.mjs");
-  const { default: addTask } = await importFresh("./commands/add-task.mjs");
+  const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
+  const { default: addTask } = await importFresh("./cli/commands/add-task.mjs");
   const dir = await createTempProject();
   try {
     await addInit({ statePath: dir, flags: { desc: "" }, positional: ["mig"] });
@@ -44,8 +44,8 @@ test("add-task: --blocked-by attaches BLOCKS edges", async () => {
 });
 
 test("add-task: rejects duplicate id", async () => {
-  const { default: addInit } = await importFresh("./commands/add-initiative.mjs");
-  const { default: addTask } = await importFresh("./commands/add-task.mjs");
+  const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
+  const { default: addTask } = await importFresh("./cli/commands/add-task.mjs");
   const dir = await createTempProject();
   try {
     await addInit({ statePath: dir, flags: { desc: "" }, positional: ["mig"] });
@@ -60,7 +60,7 @@ test("add-task: rejects duplicate id", async () => {
 });
 
 test("add-initiative: registers an initiative with description", async () => {
-  const { default: addInit } = await importFresh("./commands/add-initiative.mjs");
+  const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
   const dir = await createTempProject();
   try {
     await addInit({ statePath: dir, flags: { desc: "the big migration" }, positional: ["migration"] });
@@ -73,8 +73,8 @@ test("add-initiative: registers an initiative with description", async () => {
 });
 
 test("add-gate: appends a gate node", async () => {
-  const { default: addInit } = await importFresh("./commands/add-initiative.mjs");
-  const { default: addGate } = await importFresh("./commands/add-gate.mjs");
+  const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
+  const { default: addGate } = await importFresh("./cli/commands/add-gate.mjs");
   const dir = await createTempProject();
   try {
     await addInit({ statePath: dir, flags: { desc: "" }, positional: ["mig"] });
@@ -94,8 +94,8 @@ test("add-gate: appends a gate node", async () => {
 });
 
 test("add-knowledge: appends a scoped knowledge node", async () => {
-  const { default: addInit } = await importFresh("./commands/add-initiative.mjs");
-  const { default: addKnowledge } = await importFresh("./commands/add-knowledge.mjs");
+  const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
+  const { default: addKnowledge } = await importFresh("./cli/commands/add-knowledge.mjs");
   const dir = await createTempProject();
   try {
     await addInit({ statePath: dir, flags: { desc: "" }, positional: ["mig"] });

@@ -1,16 +1,16 @@
 // `cancel <id>` CLI adapter for task.cancel / gate.cancel.
 // The kernel owns locking, state, revisions and logs; this module only maps
 // CLI flags to the typed provider request and projects the legacy envelope.
-import { mutate } from "../kernel/mutate.mjs";
-import { throwV2 } from "../contracts/errors.mjs";
-import { resolveAgent } from "../contracts/agent.mjs";
-import { loadApplicablePolicy, authorizeAction } from "../plugins/policy.mjs";
-import { taskCancelProvider } from "../providers/task/cancel.mjs";
+import { mutate } from "../../kernel/mutate.mjs";
+import { throwV2 } from "../../contracts/errors.mjs";
+import { resolveAgent } from "../../contracts/agent.mjs";
+import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
+import { taskCancelProvider } from "../../providers/task/cancel.mjs";
 import {
   gateCancelProvider,
   prepareGateCancel,
   applyGateCancel,
-} from "../providers/gate/lifecycle.mjs";
+} from "../../providers/gate/lifecycle.mjs";
 
 export const knownFlags = ["as", "reason"];
 

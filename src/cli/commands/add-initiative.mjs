@@ -6,11 +6,11 @@
 // validation and the kernel owns locking, revision/diff handling, logging and
 // persistence. The historical `add-initiative` action is retained in the
 // request so the persisted audit stream remains compatible.
-import { mutate } from "../kernel/mutate.mjs";
-import { initiativeCreateProvider } from "../providers/core/initiative.mjs";
-import { throwV2 } from "../contracts/errors.mjs";
-import { resolveAgent } from "../contracts/agent.mjs";
-import { loadApplicablePolicy, authorizeAction } from "../plugins/policy.mjs";
+import { mutate } from "../../kernel/mutate.mjs";
+import { initiativeCreateProvider } from "../../providers/core/initiative.mjs";
+import { throwV2 } from "../../contracts/errors.mjs";
+import { resolveAgent } from "../../contracts/agent.mjs";
+import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
 
 // T-plugin-policy-seam-lifecycle / ADR-008 §"initiative.create":
 //   - policy selection happens outside the kernel lock;

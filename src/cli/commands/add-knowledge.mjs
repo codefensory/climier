@@ -1,6 +1,6 @@
 import { addV2Node, hasCsvValue, requireFields } from "./internal/create-node.mjs";
-import { throwV2 } from "../contracts/errors.mjs";
-import { resolveAgent } from "../contracts/agent.mjs";
+import { throwV2 } from "../../contracts/errors.mjs";
+import { resolveAgent } from "../../contracts/agent.mjs";
 
 export const knownFlags = [
   "initiative",

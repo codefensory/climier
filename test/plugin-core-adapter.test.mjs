@@ -91,8 +91,8 @@ async function withIsolatedEnv(body) {
 // project with v2 init + the canonical "plugin-platform" initiative so
 // task.create / gate.create / knowledge.create have something to bind to.
 async function freshCore(projectDir, { agent = "alice", pluginId = "example.audit" } = {}) {
-  const { default: init } = await importFresh("./commands/init.mjs");
-  const { default: addInit } = await importFresh("./commands/add-initiative.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.mjs");
+  const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
   await init({ statePath: projectDir, flags: { v2: true }, positional: [], projectDir });
   await addInit({
     statePath: projectDir,

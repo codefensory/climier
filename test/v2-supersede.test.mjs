@@ -8,8 +8,8 @@ import {
 } from "./helpers.mjs";
 
 async function setup(dir) {
-  const { default: init } = await importFresh("./commands/init.mjs");
-  const { default: addInitiative } = await importFresh("./commands/add-initiative.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.mjs");
+  const { default: addInitiative } = await importFresh("./cli/commands/add-initiative.mjs");
   await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
   await addInitiative({ statePath: dir, flags: { desc: "test" }, positional: ["work"] });
 }
@@ -18,9 +18,9 @@ test("add-gate --supersedes atomically replaces the gate and rewrites incoming B
   const dir = await createTempProject();
   try {
     await setup(dir);
-    const { default: addTask } = await importFresh("./commands/add-task.mjs");
-    const { default: addGate } = await importFresh("./commands/add-gate.mjs");
-    const { default: addEdge } = await importFresh("./commands/add-edge.mjs");
+    const { default: addTask } = await importFresh("./cli/commands/add-task.mjs");
+    const { default: addGate } = await importFresh("./cli/commands/add-gate.mjs");
+    const { default: addEdge } = await importFresh("./cli/commands/add-edge.mjs");
 
     await addTask({
       statePath: dir,
@@ -67,8 +67,8 @@ test("add-task rejects --supersedes with INVALID_EDGE_KIND", async () => {
   const dir = await createTempProject();
   try {
     await setup(dir);
-    const { default: addTask } = await importFresh("./commands/add-task.mjs");
-    const { default: addGate } = await importFresh("./commands/add-gate.mjs");
+    const { default: addTask } = await importFresh("./cli/commands/add-task.mjs");
+    const { default: addGate } = await importFresh("./cli/commands/add-gate.mjs");
     await addGate({
       statePath: dir,
       positional: ["G-A"],
@@ -94,7 +94,7 @@ test("add-gate --supersedes rejects a missing target atomically", async () => {
   const dir = await createTempProject();
   try {
     await setup(dir);
-    const { default: addGate } = await importFresh("./commands/add-gate.mjs");
+    const { default: addGate } = await importFresh("./cli/commands/add-gate.mjs");
 
     await assert.rejects(
       addGate({
@@ -116,8 +116,8 @@ test("add-gate --supersedes rejects a knowledge target atomically", async () => 
   const dir = await createTempProject();
   try {
     await setup(dir);
-    const { default: addGate } = await importFresh("./commands/add-gate.mjs");
-    const { default: addKnowledge } = await importFresh("./commands/add-knowledge.mjs");
+    const { default: addGate } = await importFresh("./cli/commands/add-gate.mjs");
+    const { default: addKnowledge } = await importFresh("./cli/commands/add-knowledge.mjs");
     await addKnowledge({
       statePath: dir,
       positional: ["K-A"],

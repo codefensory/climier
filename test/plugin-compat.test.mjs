@@ -195,7 +195,7 @@ test("updateState preserves `plugins` (root) when a mutator touches an unrelated
 test("init on a fresh project writes emptyState() without `plugins` (plugins is optional)", async () => {
   const dir = await createTempProject();
   try {
-    const { default: init } = await importFresh("./commands/init.mjs");
+    const { default: init } = await importFresh("./cli/commands/init.mjs");
     const out = await init({ statePath: dir, flags: {}, projectDir: dir });
     assert.equal(out.ok, true);
     const after = await readState(dir);
@@ -212,7 +212,7 @@ test("init --force preserves root `plugins` (nodes are wiped, root plugins survi
     const base = await bootstrapState(dir);
     seedPluginData(base);
     await writeState(dir, base);
-    const { default: init } = await importFresh("./commands/init.mjs");
+    const { default: init } = await importFresh("./cli/commands/init.mjs");
     const out = await init({ statePath: dir, flags: { force: true }, projectDir: dir });
     assert.equal(out.ok, true);
     const after = await readState(dir);
@@ -230,7 +230,7 @@ test("init --force on a state WITHOUT plugins writes emptyState() unchanged", as
   const dir = await createTempProject();
   try {
     await bootstrapState(dir);
-    const { default: init } = await importFresh("./commands/init.mjs");
+    const { default: init } = await importFresh("./cli/commands/init.mjs");
     await init({ statePath: dir, flags: { force: true }, projectDir: dir });
     const after = await readState(dir);
     assert.equal(after.plugins, undefined);
@@ -246,7 +246,7 @@ test("init --force on a state with corrupt JSON (cannot read) does not crash and
     await bootstrapState(dir);
     // Corrupt the state file directly.
     await fsp_writeFile(stateFilePath(dir), "{ not valid json");
-    const { default: init } = await importFresh("./commands/init.mjs");
+    const { default: init } = await importFresh("./cli/commands/init.mjs");
     // Should not throw; init --force is allowed on a corrupt state file.
     const out = await init({ statePath: dir, flags: { force: true }, projectDir: dir });
     assert.equal(out.ok, true);
@@ -268,7 +268,7 @@ test("add-task preserves root plugins and existing per-node plugins", async () =
     const base = await bootstrapState(dir);
     seedPluginData(base);
     await writeState(dir, base);
-    const { default: addTask } = await importFresh("./commands/add-task.mjs");
+    const { default: addTask } = await importFresh("./cli/commands/add-task.mjs");
     await addTask({
       statePath: dir,
       projectDir: dir,
@@ -297,7 +297,7 @@ test("add-gate preserves root plugins", async () => {
     const base = await bootstrapState(dir);
     seedPluginData(base);
     await writeState(dir, base);
-    const { default: addGate } = await importFresh("./commands/add-gate.mjs");
+    const { default: addGate } = await importFresh("./cli/commands/add-gate.mjs");
     await addGate({
       statePath: dir,
       projectDir: dir,
@@ -323,7 +323,7 @@ test("add-knowledge preserves root plugins", async () => {
     const base = await bootstrapState(dir);
     seedPluginData(base);
     await writeState(dir, base);
-    const { default: addKnowledge } = await importFresh("./commands/add-knowledge.mjs");
+    const { default: addKnowledge } = await importFresh("./cli/commands/add-knowledge.mjs");
     await addKnowledge({
       statePath: dir,
       projectDir: dir,
@@ -349,7 +349,7 @@ test("update preserves root plugins and per-node plugins", async () => {
     const base = await bootstrapState(dir);
     seedPluginData(base);
     await writeState(dir, base);
-    const { default: update } = await importFresh("./commands/update.mjs");
+    const { default: update } = await importFresh("./cli/commands/update.mjs");
     await update({
       statePath: dir,
       projectDir: dir,
@@ -373,7 +373,7 @@ test("take preserves root plugins and per-node plugins", async () => {
     const base = await bootstrapState(dir);
     seedPluginData(base);
     await writeState(dir, base);
-    const { default: take } = await importFresh("./commands/take.mjs");
+    const { default: take } = await importFresh("./cli/commands/take.mjs");
     await take({
       positional: ["T1"],
       flags: { as: "tester" },
@@ -395,14 +395,14 @@ test("resolve (task) preserves root plugins and per-node plugins", async () => {
     const base = await bootstrapState(dir);
     seedPluginData(base);
     await writeState(dir, base);
-    const { default: take } = await importFresh("./commands/take.mjs");
+    const { default: take } = await importFresh("./cli/commands/take.mjs");
     await take({
       positional: ["T1"],
       flags: { as: "tester" },
       projectDir: dir,
       statePath: dir,
     });
-    const { default: resolve } = await importFresh("./commands/resolve.mjs");
+    const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
     await resolve({
       statePath: dir,
       projectDir: dir,
@@ -437,7 +437,7 @@ test("resolve (gate) preserves root plugins", async () => {
     });
     seedPluginData(base);
     await writeState(dir, base);
-    const { default: resolve } = await importFresh("./commands/resolve.mjs");
+    const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
     await resolve({
       statePath: dir,
       projectDir: dir,
@@ -458,21 +458,21 @@ test("reopen preserves root plugins and per-node plugins", async () => {
     const base = await bootstrapState(dir);
     seedPluginData(base);
     await writeState(dir, base);
-    const { default: take } = await importFresh("./commands/take.mjs");
+    const { default: take } = await importFresh("./cli/commands/take.mjs");
     await take({
       positional: ["T1"],
       flags: { as: "tester" },
       projectDir: dir,
       statePath: dir,
     });
-    const { default: resolve } = await importFresh("./commands/resolve.mjs");
+    const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
     await resolve({
       statePath: dir,
       projectDir: dir,
       positional: ["T1"],
       flags: { as: "tester", note: "done" },
     });
-    const { default: reopen } = await importFresh("./commands/reopen.mjs");
+    const { default: reopen } = await importFresh("./cli/commands/reopen.mjs");
     await reopen({
       statePath: dir,
       projectDir: dir,
@@ -493,14 +493,14 @@ test("release preserves root plugins and per-node plugins", async () => {
     const base = await bootstrapState(dir);
     seedPluginData(base);
     await writeState(dir, base);
-    const { default: take } = await importFresh("./commands/take.mjs");
+    const { default: take } = await importFresh("./cli/commands/take.mjs");
     await take({
       positional: ["T1"],
       flags: { as: "tester" },
       projectDir: dir,
       statePath: dir,
     });
-    const { default: release } = await importFresh("./commands/release.mjs");
+    const { default: release } = await importFresh("./cli/commands/release.mjs");
     await release({
       statePath: dir,
       projectDir: dir,
@@ -528,7 +528,7 @@ test("cancel preserves root plugins and per-node plugins", async () => {
     // covers the seam allow branch alongside the default core path.
     // The preservation contract is independent of the authority rule
     // and is exercised separately elsewhere.
-    const { default: cancel } = await importFresh("./commands/cancel.mjs");
+    const { default: cancel } = await importFresh("./cli/commands/cancel.mjs");
     await cancel({
       statePath: dir,
       projectDir: dir,
@@ -595,7 +595,7 @@ test("restore preserves `plugins` and `nodes[id].plugins` from the snapshot raw 
     seedPluginData(base);
     await writeState(dir, base);
     const { createSnapshot } = await importFresh("./storage/state.mjs");
-    const { default: restore } = await importFresh("./commands/restore.mjs");
+    const { default: restore } = await importFresh("./cli/commands/restore.mjs");
     const meta = await createSnapshot(dir, "force-init");
     // Wipe the state to a different shape (no plugins).
     await writeState(dir, {
@@ -626,9 +626,9 @@ test("end-to-end: snapshot with plugin data survives restore, then take/resolve 
     seedPluginData(base);
     await writeState(dir, base);
     const { createSnapshot } = await importFresh("./storage/state.mjs");
-    const { default: restore } = await importFresh("./commands/restore.mjs");
-    const { default: take } = await importFresh("./commands/take.mjs");
-    const { default: resolve } = await importFresh("./commands/resolve.mjs");
+    const { default: restore } = await importFresh("./cli/commands/restore.mjs");
+    const { default: take } = await importFresh("./cli/commands/take.mjs");
+    const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
     const meta = await createSnapshot(dir, "force-init");
     await writeState(dir, { version: 2, nodes: {}, edges: [], initiatives: {}, log: [] });
     await restore({
@@ -747,7 +747,7 @@ test("`meta` and `nodes[id].plugins` survive take together (disjoint keyspaces)"
       s.nodes.T1.plugins = { "example.audit": { data: { x: 1 } } };
     });
     await writeState(dir, base);
-    const { default: take } = await importFresh("./commands/take.mjs");
+    const { default: take } = await importFresh("./cli/commands/take.mjs");
     await take({
       positional: ["T1"],
       flags: { as: "tester" },
@@ -772,14 +772,14 @@ test("`meta` and `nodes[id].plugins` survive resolve (task) together", async () 
       s.nodes.T1.plugins = { "example.audit": { data: { x: 2 } } };
     });
     await writeState(dir, base);
-    const { default: take } = await importFresh("./commands/take.mjs");
+    const { default: take } = await importFresh("./cli/commands/take.mjs");
     await take({
       positional: ["T1"],
       flags: { as: "tester" },
       projectDir: dir,
       statePath: dir,
     });
-    const { default: resolve } = await importFresh("./commands/resolve.mjs");
+    const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
     await resolve({
       statePath: dir,
       projectDir: dir,
