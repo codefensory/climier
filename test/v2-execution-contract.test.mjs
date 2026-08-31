@@ -56,16 +56,22 @@ async function addTask(dir, id, extraFlags) {
 // Canonical execution module and compatibility facade
 // ---------------------------------------------------------------------------
 
-test("execution modules expose the contract through the canonical entrypoint and facade", async () => {
+test("execution modules separate contract and conflict reasoning while preserving facades", async () => {
   const canonical = await importFresh("./execution/index.mjs");
   const contract = await importFresh("./execution/contract.mjs");
+  const conflicts = await importFresh("./execution/conflicts.mjs");
   const facade = await importFresh("./contracts/execution-contract.mjs");
 
-  assert.deepEqual(Object.keys(canonical).sort(), Object.keys(contract).sort());
   assert.deepEqual(Object.keys(facade).sort(), Object.keys(canonical).sort());
+  assert.equal(typeof contract.validateExecution, "function");
+  assert.equal(typeof contract.executionContractFor, "function");
+  assert.equal("pathRelationship" in contract, false);
+  assert.equal("detectOwnershipConflicts" in contract, false);
+  assert.deepEqual(Object.keys(conflicts).sort(), ["detectOwnershipConflicts", "pathRelationship"]);
   assert.deepEqual(canonical.normalizeExecution({ effort: "M" }), { effort: "M" });
   assert.deepEqual(facade.normalizeExecution({ effort: "M" }), canonical.normalizeExecution({ effort: "M" }));
   assert.equal(typeof canonical.validateExecution, "function");
+  assert.equal(typeof canonical.pathRelationship, "function");
   assert.equal(typeof facade.detectOwnershipConflicts, "function");
 });
 
