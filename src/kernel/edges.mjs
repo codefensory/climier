@@ -1,7 +1,7 @@
 // src/kernel/edges.mjs — pure structural primitives for graph edges.
 //
-// ADR-011 §§2–3 + ADR-012 §3 + plan §B2: the kernel owns the generic edge
-// constants, the canonical BLOCKS constructor and the structural validator.
+// ADR-011 §§2–3 + ADR-012 §3: the kernel owns the generic edge constants,
+// the canonical BLOCKS constructor and the structural validator.
 // mutating commands and providers all consume these
 // primitives; nothing else may redefine them.
 //
@@ -22,12 +22,12 @@
 import { throwV2 } from "../contracts/errors.mjs";
 
 // Whitelist of edge types accepted by mutating paths. Frozen so callers
-// cannot mutate the canonical list; transaction.mjs and the future
-// providers share this same source of truth.
+// cannot mutate the canonical list; transaction.mjs and providers share
+// this same source of truth.
 export const EDGE_TYPES = Object.freeze(["BLOCKS", "SUPERSEDES", "DERIVED_FROM"]);
 
-// Historical read-only relation names retained for compatibility with the
-// v2 facade. They are not accepted by validateEdge.
+// Read-only relation names retained for compatibility with the v2 facade.
+// They are not accepted by validateEdge.
 export const EDGE_TYPE_CONSTANTS = Object.freeze([
   "BLOCKS",
   "INFORMS",

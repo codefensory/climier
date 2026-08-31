@@ -14,7 +14,7 @@
 // preserved: a single log entry appears per handler call, even when
 // ctx.pluginId is set.
 //
-// One composable helper for B1b:
+// One composable helper for the mutation pipeline:
 //   - prepareLogEntry(entry, ctx): returns the canonical { ts, ... }
 //     shape WITHOUT writing it anywhere. Used by `kernel.mutate`
 //     (ADR-011 §1) so it can compose state mutation + log append into a
@@ -66,10 +66,8 @@ function validateAppendEntry(entry, commandName = "append") {
   if (!entry.agent) {
     throw new Error("append: entry.agent is required");
   }
-  // commandName kept for future per-caller error messages; currently
-  // not surfaced because pre-existing tests assert the `append: ` prefix
-  // verbatim. The variable is unused intentionally — it documents the
-  // contract for callers that want their own envelope prefix.
+  // Keep the argument in the helper signature for callers that provide a
+  // command label, while append errors retain their stable prefix.
   void commandName;
 }
 
@@ -83,10 +81,8 @@ export async function append(projectDir, entry) {
 }
 
 export async function appendWithContext(projectDir, entry, ctx = {}) {
-  // ctx is intentionally opaque here so future extensions (e.g. extra
-  // audit metadata) do not require a breaking signature change. Today
-  // only pluginId is recognised; it is trimmed and validated as a
-  // string so a falsy, blank or non-string value does NOT inject
+  // ctx is intentionally opaque; only pluginId is recognised. It is trimmed
+  // and validated as a string so a falsy, blank or non-string value does NOT inject
   // plugin_id into the log entry.
   validateAppendEntry(entry, "appendWithContext");
   const enriched = prepareLogEntry(entry, ctx);

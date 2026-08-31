@@ -46,8 +46,7 @@ export function computeEdgeDiff(snapshotEdges, draftEdges) {
 
 // Compare two v2 initiative entries by their JSON-serializable fields.
 // We only persist primitives (desc: string, created_at?: string), so a
-// shallow key-by-key comparison is sufficient and preserves the historical
-// behavior if a future plugin extends the shape with non-JSON values.
+// shallow key-by-key comparison is sufficient for the initiative shape.
 function initiativesEqual(a, b) {
   if (a === b) return true;
   if (!a || !b) return false;

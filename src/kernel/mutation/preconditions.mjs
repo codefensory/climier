@@ -26,8 +26,8 @@ export function selectPrecondition(request, plan) {
 
 /**
  * Validate a single-node, multi-node, or explicitly absent CAS declaration
- * against the fresh snapshot. Returns the historical normalized shape used by
- * kernel internals, or null when no declaration was provided.
+ * against the fresh snapshot. Returns the normalized shape used by kernel
+ * internals, or null when no declaration was provided.
  */
 export function checkPrecondition(precondition, snapshot, commandName) {
   if (precondition === undefined || precondition === null) return null;
