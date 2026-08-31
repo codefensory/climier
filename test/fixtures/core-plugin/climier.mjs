@@ -5,8 +5,8 @@
 // slice of the api.core surface end-to-end against the real core
 // handlers in src/commands/*:
 //
-//   happy        task.create → edge.add → task.take → task.resolve →
-//                note.add (full first slice).
+//   happy        task.create → edge.add → task.take → task.submit →
+//                task.accept → note.add (full first slice).
 //   partial      task.create (succeeds) → edge.add with a non-existent
 //                target (fails). Demonstrates that the host does not
 //                roll back the successful step.
@@ -127,12 +127,19 @@ export default {
           if_revision: nodeRevision(create1, "T-core-happy-1", "created"),
         },
       });
-      const resolved = await api.core.run({
-        op: "task.resolve",
+      const submitted = await api.core.run({
+        op: "task.submit",
         input: {
           id: "T-core-happy-1",
           note: "happy: shipped via core.run",
           if_revision: nodeRevision(taken, "T-core-happy-1", "updated"),
+        },
+      });
+      const accepted = await api.core.run({
+        op: "task.accept",
+        input: {
+          id: "T-core-happy-1",
+          if_revision: nodeRevision(submitted, "T-core-happy-1", "updated"),
         },
       });
       const noted = await api.core.run({
@@ -149,7 +156,8 @@ export default {
         create2,
         edge,
         taken,
-        resolved,
+        submitted,
+        accepted,
         noted,
       };
     },

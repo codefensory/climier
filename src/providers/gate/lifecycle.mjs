@@ -26,7 +26,7 @@
 //       INVALID_EXECUTION_CONTRACT.
 //     - resolution stored as node.resolution = { choice, rationale }.
 //     - log action: "resolve", note: <id>.
-//     - policy action: "task.resolve" (consistent with the seam).
+//     - policy action: "gate.resolve".
 //     - effect: newly_ready = tasks that were blocked only by this gate
 //       and become ready once it resolves.
 //
@@ -69,7 +69,7 @@ const RESOLVE_LOG = "resolve";
 const REOPEN_LOG = "reopen";
 const CANCEL_LOG = "cancel";
 
-const RESOLVE_POLICY = "task.resolve";
+const RESOLVE_POLICY = "gate.resolve";
 const REOPEN_POLICY = "task.reopen";
 const CANCEL_POLICY = "task.cancel";
 

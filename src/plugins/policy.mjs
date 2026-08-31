@@ -124,9 +124,7 @@ export async function loadApplicablePolicy({ projectDir }) {
 //     the contract).
 //
 // The function does NOT translate decisions into errors here:
-// handlers do that, because the mapping is action-specific (e.g.
-// `task.resolve` evaluates the no-owner invariant BEFORE invoking
-// the seam; ADR-008 §"Tabla de resolve" item 1). authorizeAction
+// handlers do that, because the mapping is action-specific. authorizeAction
 // only validates the response shape and propagates exceptions.
 export async function authorizeAction({
   policy,

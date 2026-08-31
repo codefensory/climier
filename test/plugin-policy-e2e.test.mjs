@@ -297,10 +297,10 @@ test("e2e: authorize — deny mode returns {decision:'deny', reason}", async () 
     const out = await cli([
       "--project", projectDir,
       "--as", "fixture-agent",
-      FIXTURE_COMMAND, "authorize-check", "task.resolve",
+      FIXTURE_COMMAND, "authorize-check", "gate.resolve",
     ]);
     assert.deepEqual(out.decision, { decision: "deny", reason: "explicit deny from fixture" });
-    assert.equal(out.received.action, "task.resolve");
+    assert.equal(out.received.action, "gate.resolve");
   });
 });
 
@@ -420,9 +420,9 @@ test("e2e: authorize — actor/action passed through unchanged", async () => {
     const out = await cli([
       "--project", projectDir,
       "--as", "alice",
-      FIXTURE_COMMAND, "authorize-check", "task.resolve",
+      FIXTURE_COMMAND, "authorize-check", "gate.resolve",
     ]);
-    assert.equal(out.received.action, "task.resolve");
+    assert.equal(out.received.action, "gate.resolve");
     assert.equal(out.received.actor, "alice");
     assert.equal(out.received.target_id, "T-fixture-target");
     assert.equal(out.received.target_kind, "resolvable");

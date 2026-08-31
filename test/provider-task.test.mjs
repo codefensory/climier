@@ -50,7 +50,6 @@ async function importTaskProvider() {
     taskCreateProvider: mod.taskCreateProvider,
     taskUpdateProvider: mod.taskUpdateProvider,
     taskTakeProvider: mod.taskTakeProvider,
-    taskResolveProvider: mod.taskResolveProvider,
     taskReleaseProvider: mod.taskReleaseProvider,
     taskReopenProvider: mod.taskReopenProvider,
     taskCancelProvider: mod.taskCancelProvider,
@@ -711,8 +710,6 @@ test("providers do not import filesystem, lock, state, log, policy, commands, re
   assert.equal(typeof providers.taskUpdateProvider.apply, "function");
   assert.equal(typeof providers.taskTakeProvider.prepare, "function");
   assert.equal(typeof providers.taskTakeProvider.apply, "function");
-  assert.equal(typeof providers.taskResolveProvider.prepare, "function");
-  assert.equal(typeof providers.taskResolveProvider.apply, "function");
   assert.equal(typeof providers.taskReleaseProvider.prepare, "function");
   assert.equal(typeof providers.taskReleaseProvider.apply, "function");
   assert.equal(typeof providers.taskReopenProvider.prepare, "function");
@@ -724,7 +721,6 @@ test("providers do not import filesystem, lock, state, log, policy, commands, re
     providers.taskCreateProvider,
     providers.taskUpdateProvider,
     providers.taskTakeProvider,
-    providers.taskResolveProvider,
     providers.taskReleaseProvider,
     providers.taskReopenProvider,
     providers.taskCancelProvider,
@@ -740,10 +736,6 @@ test("providers do not import filesystem, lock, state, log, policy, commands, re
 
 function makeInputTake(overrides = {}) {
   return { id: "T-x", actor: "alice", at: "2026-01-01T00:00:00.000Z", ...overrides };
-}
-
-function makeInputResolve(overrides = {}) {
-  return { id: "T-x", actor: "alice", note: "all done", done_at: "2026-01-01T00:00:00.000Z", ...overrides };
 }
 
 function makeInputRelease(overrides = {}) {
@@ -892,92 +884,6 @@ test("task.take apply: idempotent same actor returns no fresh claim and mutates 
   assert.equal(out.result.freshly_claimed, false);
   assert.equal(out.result.status, "in_progress");
   assert.equal(out.effects, null);
-});
-
-// ===================================================================
-// task.resolve — B4-task-lifecycle
-// ===================================================================
-
-test("task.resolve prepare: open task returns frozen plan with note + done_by + done_at", async () => {
-  const { taskResolveProvider } = await importTaskProvider();
-  const snapshot = makeSnapshot({
-    nodes: { "T-x": { id: "T-x", kind: "resolvable", subkind: "task", title: "x", status: "open", initiative: "foo", revision: 1 } },
-  });
-  const input = makeInputResolve();
-  const plan = await taskResolveProvider.prepare({ snapshot, input, request: {} });
-
-  assert.equal(plan.target.id, "T-x");
-  assert.equal(plan.policyAction.action, "task.resolve");
-  assert.equal(plan.logAction, "resolve");
-  assert.equal(plan.note, "all done");
-  assert.equal(plan.done_by, "alice");
-  assert.equal(plan.done_at, "2026-01-01T00:00:00.000Z");
-  assert.ok(Object.isFrozen(plan));
-  assert.ok(Object.isFrozen(plan.target));
-});
-
-test("task.resolve prepare: rejects done tasks with INVALID_STATUS", async () => {
-  const { taskResolveProvider } = await importTaskProvider();
-  const snapshot = makeSnapshot({
-    nodes: { "T-x": { id: "T-x", kind: "resolvable", subkind: "task", title: "x", status: "done", initiative: "foo", revision: 1 } },
-  });
-  const input = makeInputResolve();
-
-  await expectThrows(
-    () => taskResolveProvider.prepare({ snapshot, input, request: {} }),
-    "INVALID_STATUS",
-  );
-});
-
-test("task.resolve prepare: rejects missing note with MISSING_FIELD", async () => {
-  const { taskResolveProvider } = await importTaskProvider();
-  const snapshot = makeSnapshot({
-    nodes: { "T-x": { id: "T-x", kind: "resolvable", subkind: "task", title: "x", status: "open", initiative: "foo", revision: 1 } },
-  });
-  const input = makeInputResolve({ note: "" });
-
-  await expectThrows(
-    () => taskResolveProvider.prepare({ snapshot, input, request: {} }),
-    "MISSING_FIELD",
-  );
-});
-
-test("task.resolve apply: writes done+done_by+done_at+note+claim=null via tx.updateNode and emits newly_ready", async () => {
-  const { taskResolveProvider } = await importTaskProvider();
-  // Snapshot has T-x (open, blocked by T-dep) and T-dep (open). When
-  // T-dep is resolved first the apply should report T-x as newly_ready.
-  const depNode = { id: "T-dep", kind: "resolvable", subkind: "task", title: "dep", status: "open", initiative: "foo", revision: 1 };
-  const targetNode = { id: "T-x", kind: "resolvable", subkind: "task", title: "x", status: "open", initiative: "foo", revision: 1 };
-  const snapshot = makeSnapshot({
-    nodes: { "T-dep": depNode, "T-x": targetNode },
-    edges: [{ from: "T-dep", to: "T-x", type: "BLOCKS" }],
-  });
-  const input = makeInputResolve({ id: "T-dep" });
-  const plan = await taskResolveProvider.prepare({ snapshot, input, request: {} });
-
-  const tx = makeTxStub({ initialNodes: snapshot.nodes });
-  // Seed the snapshot's existing BLOCKS edge into the tx stub so
-  // tx.view() reflects the pre-apply graph.
-  tx.state.addedEdges.push({ from: "T-dep", to: "T-x", type: "BLOCKS" });
-  const out = await taskResolveProvider.apply({ tx, plan, input, request: {}, snapshot });
-
-  assert.equal(tx.calls.updateNode.length, 1);
-  const upd = tx.calls.updateNode[0];
-  assert.equal(upd.id, "T-dep");
-  assert.equal(upd.patch.status, "done");
-  assert.equal(upd.patch.done_by, "alice");
-  assert.equal(upd.patch.note, "all done");
-  assert.equal(upd.patch.claim, null);
-  assert.equal("revision" in upd.patch, false, "apply must not carry revision");
-
-  // Effects: T-x should be in newly_ready (was blocked, now its only
-  // blocker T-dep is done).
-  assert.ok(out.effects, "resolve must emit effects");
-  assert.deepEqual(out.effects.newly_ready, ["T-x"]);
-  // No new edges
-  assert.equal(tx.calls.addEdge.length, 0);
-  assert.equal(tx.calls.removeEdge.length, 0);
-  assert.equal(tx.calls.createNode.length, 0);
 });
 
 // ===================================================================

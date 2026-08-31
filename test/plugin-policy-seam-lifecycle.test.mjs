@@ -159,15 +159,17 @@ async function installAndTake(projectDir, as = "alice") {
   return await cli(["--project", projectDir, "take", "T-auth-1", "--as", as]);
 }
 
-// installResolveAndReady — install fixture, take with allow, then
-// resolve with allow. After this helper runs, the node is in
-// status=done with done_by=alice, ready for a reopen test that needs
-// to switch the mode to deny/throw for the reopen call.
+// installResolveAndReady — install fixture, take with allow, submit, and
+// accept. After this helper runs, the node is in status=done with
+// done_by=alice, ready for a reopen test that needs to switch the mode.
 async function installResolveAndReady(projectDir, as = "alice") {
   await installAndTake(projectDir, as);
   await cli([
-    "--project", projectDir, "resolve", "T-auth-1",
+    "--project", projectDir, "submit", "T-auth-1",
     "--note", "shipped", "--as", as,
+  ]);
+  await cli([
+    "--project", projectDir, "accept", "T-auth-1", "--as", as,
   ]);
 }
 
@@ -294,9 +296,10 @@ test("seam-take: takeover with policy abstain returns ALREADY_CLAIMED (defaults 
 });
 
 // ===========================================================================
-// resolve: NOT_OWNER before seam + owner allow / deny / abstain
+// task.resolve was removed; task acceptance is covered by the
+// submission lifecycle tests.
 // ===========================================================================
-
+/*
 test("seam-resolve: no-owner resolves with policy allow (defaults core no longer blocks)", async () => {
   // ADR-009 §"Resto de operaciones": the core does NOT block a
   // non-owner from resolving. The pre-seam `NOT_OWNER` invariant
@@ -467,6 +470,7 @@ test("seam-resolve: owner resolves with policy abstain (defaults core resolves f
     } finally { await uninstallPolicyFixture(projectDir); }
   });
 });
+*/
 
 // ===========================================================================
 // release: allow / deny / abstain / throw
@@ -595,9 +599,10 @@ test("seam-reopen: done_by reopens with no policy (defaults core)", async () => 
     await initAndSeed({ projectDir });
     await cli(["--project", projectDir, "take", "T-auth-1", "--as", "alice"]);
     await cli([
-      "--project", projectDir, "resolve", "T-auth-1",
+      "--project", projectDir, "submit", "T-auth-1",
       "--note", "shipped", "--as", "alice",
     ]);
+    await cli(["--project", projectDir, "accept", "T-auth-1", "--as", "alice"]);
     const out = await cli([
       "--project", projectDir, "reopen", "T-auth-1",
       "--reason", "rollback", "--as", "alice",
@@ -619,9 +624,10 @@ test("seam-reopen: any actor reopens with policy allow", async () => {
       });
       await cli(["--project", projectDir, "take", "T-auth-1", "--as", "alice"]);
       await cli([
-        "--project", projectDir, "resolve", "T-auth-1",
+        "--project", projectDir, "submit", "T-auth-1",
         "--note", "shipped", "--as", "alice",
       ]);
+      await cli(["--project", projectDir, "accept", "T-auth-1", "--as", "alice"]);
       const out = await cli([
         "--project", projectDir, "reopen", "T-auth-1",
         "--reason", "auditing", "--as", "auditor",
@@ -637,7 +643,7 @@ test("seam-reopen: policy deny returns POLICY_DENIED (no state mutation)", async
     await initAndSeed({ projectDir });
     await installPolicyFixture(projectDir);
     try {
-      // Take + resolve with allow, then switch to deny for the reopen call.
+      // Take + submit + accept with allow, then switch to deny for the reopen call.
       await writeClimierJson(projectDir, {
         version: 1,
         project_id: "seam-lifecycle-project",
@@ -645,9 +651,10 @@ test("seam-reopen: policy deny returns POLICY_DENIED (no state mutation)", async
       });
       await cli(["--project", projectDir, "take", "T-auth-1", "--as", "alice"]);
       await cli([
-        "--project", projectDir, "resolve", "T-auth-1",
+        "--project", projectDir, "submit", "T-auth-1",
         "--note", "shipped", "--as", "alice",
       ]);
+      await cli(["--project", projectDir, "accept", "T-auth-1", "--as", "alice"]);
       await writeClimierJson(projectDir, {
         version: 1,
         project_id: "seam-lifecycle-project",
@@ -687,9 +694,10 @@ test("seam-reopen: not-done_by with policy abstain succeeds (defaults core proce
       });
       await cli(["--project", projectDir, "take", "T-auth-1", "--as", "alice"]);
       await cli([
-        "--project", projectDir, "resolve", "T-auth-1",
+        "--project", projectDir, "submit", "T-auth-1",
         "--note", "shipped", "--as", "alice",
       ]);
+      await cli(["--project", projectDir, "accept", "T-auth-1", "--as", "alice"]);
       const out = await cli([
         "--project", projectDir, "reopen", "T-auth-1",
         "--reason", "auditing", "--as", "bob",
@@ -710,7 +718,7 @@ test("seam-reopen: policy throw returns POLICY_ERROR (no state mutation)", async
     await initAndSeed({ projectDir });
     await installPolicyFixture(projectDir);
     try {
-      // Take + resolve with allow, then switch to throw for the reopen call.
+      // Take + submit + accept with allow, then switch to throw for the reopen call.
       await writeClimierJson(projectDir, {
         version: 1,
         project_id: "seam-lifecycle-project",
@@ -718,9 +726,10 @@ test("seam-reopen: policy throw returns POLICY_ERROR (no state mutation)", async
       });
       await cli(["--project", projectDir, "take", "T-auth-1", "--as", "alice"]);
       await cli([
-        "--project", projectDir, "resolve", "T-auth-1",
+        "--project", projectDir, "submit", "T-auth-1",
         "--note", "shipped", "--as", "alice",
       ]);
+      await cli(["--project", projectDir, "accept", "T-auth-1", "--as", "alice"]);
       await writeClimierJson(projectDir, {
         version: 1,
         project_id: "seam-lifecycle-project",

@@ -264,7 +264,6 @@ test("bootstrapBuiltins: includes all ADR-012 task / gate / knowledge operation 
     "task.create",
     "task.update",
     "task.take",
-    "task.resolve",
     "task.release",
     "task.reopen",
     "task.cancel",
@@ -316,10 +315,10 @@ test("bootstrapBuiltins: includes all ADR-012 task / gate / knowledge operation 
     assert.equal(typeof entry.provider.apply, "function", `${id} provider.apply is fn`);
   }
 
-  // byKind grouping: 10 task + 5 gate + 3 knowledge + 3 core
+  // byKind grouping: 9 task + 5 gate + 3 knowledge + 3 core
   // (edge.add + note.add + initiative.create) per the §B6A + §B6B
   // contract.
-  assert.equal(reg.byKind.get("task").length, 10, "task has 10 ops");
+  assert.equal(reg.byKind.get("task").length, 9, "task has 9 ops");
   assert.equal(reg.byKind.get("gate").length, 5, "gate has 5 ops");
   assert.equal(reg.byKind.get("knowledge").length, 3, "knowledge has 3 ops");
   assert.equal(reg.byKind.get("core").length, 3, "core has 3 ops");

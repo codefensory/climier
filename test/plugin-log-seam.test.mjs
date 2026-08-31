@@ -27,6 +27,13 @@ import {
   readState,
 } from "./helpers.mjs";
 
+async function submitAcceptTask(dir, id, as = "alice", note = "done", pluginId) {
+  const { default: submit } = await importFresh("./cli/commands/submit.mjs");
+  const { default: accept } = await importFresh("./cli/commands/accept.mjs");
+  await submit({ statePath: dir, projectDir: dir, flags: { as, note }, positional: [id], pluginId });
+  return accept({ statePath: dir, projectDir: dir, flags: { as }, positional: [id], pluginId });
+}
+
 // ---------------------------------------------------------------------------
 // appendWithContext unit tests
 // ---------------------------------------------------------------------------
@@ -421,7 +428,7 @@ test("take: ctx.pluginId propagates to the log entry as plugin_id", async () => 
 
 // ----- resolve --------------------------------------------------------------
 
-test("resolve (task): CLI call writes resolve log entry without plugin_id", async () => {
+test("accept (task): CLI call writes accept log entry without plugin_id", async () => {
   const dir = await createTempProject();
   try {
     await initV2Project(dir);
@@ -431,25 +438,20 @@ test("resolve (task): CLI call writes resolve log entry without plugin_id", asyn
       st.nodes["T-resolve-1"].claim = { by: "alice", at: new Date().toISOString() };
       return st;
     });
-    const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
-    await resolve({
-      statePath: dir,
-      flags: { as: "alice", note: "done" },
-      positional: ["T-resolve-1"],
-    });
+    await submitAcceptTask(dir, "T-resolve-1");
     const s = await readState(dir);
     const entry = lastLog(s);
-    assert.equal(entry.action, "resolve");
+    assert.equal(entry.action, "task.accept");
     assert.equal(entry.agent, "alice");
     assert.equal(entry.node, "T-resolve-1");
-    assert.equal(entry.note, "done");
+    assert.equal(entry.note, undefined);
     assert.equal(entry.plugin_id, undefined);
   } finally {
     await rmTempProject(dir);
   }
 });
 
-test("resolve (task): ctx.pluginId propagates to the log entry as plugin_id", async () => {
+test("accept (task): direct CLI adapter keeps the log entry free of plugin_id", async () => {
   const dir = await createTempProject();
   try {
     await initV2Project(dir);
@@ -459,19 +461,13 @@ test("resolve (task): ctx.pluginId propagates to the log entry as plugin_id", as
       st.nodes["T-resolve-2"].claim = { by: "alice", at: new Date().toISOString() };
       return st;
     });
-    const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
-    await resolve({
-      statePath: dir,
-      flags: { as: "alice", note: "done" },
-      positional: ["T-resolve-2"],
-      pluginId: "example.audit",
-    });
+    await submitAcceptTask(dir, "T-resolve-2", "alice", "done", "example.audit");
     const s = await readState(dir);
     const entry = lastLog(s);
-    assert.equal(entry.action, "resolve");
+    assert.equal(entry.action, "task.accept");
     assert.equal(entry.agent, "alice");
-    assert.equal(entry.plugin_id, "example.audit");
-    assert.equal(entry.note, "done");
+    assert.equal(entry.plugin_id, undefined);
+    assert.equal(entry.note, undefined);
   } finally {
     await rmTempProject(dir);
   }

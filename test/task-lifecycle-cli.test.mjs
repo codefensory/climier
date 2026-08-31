@@ -81,11 +81,20 @@ test("CLI accept and reject validate required fields and preserve JSON errors", 
   }
 });
 
-test("CLI resolve remains compatible for the manual task path", async () => {
+test("CLI resolve rejects tasks without mutating them; accept is the done transition", async () => {
   const dir = await createTempProject();
   try {
     await seedTask(dir, "T-resolve");
-    let out = await jsonCommand(dir, "resolve", "T-resolve", "--note", "done", "--as", "worker");
+    let out = await jsonCommand(dir, "take", "T-resolve", "--as", "worker");
+    assert.equal(out.result.code, 0, out.result.stderr);
+    out = await jsonCommand(dir, "resolve", "T-resolve", "--note", "done", "--as", "worker");
+    assert.equal(out.result.code, 1);
+    assert.equal(out.data.ok, false);
+    assert.equal(out.data.error.code, "INVALID_EXECUTION_CONTRACT");
+
+    out = await jsonCommand(dir, "submit", "T-resolve", "--note", "ready for validation", "--as", "worker");
+    assert.equal(out.result.code, 0, out.result.stderr);
+    out = await jsonCommand(dir, "accept", "T-resolve", "--as", "validator");
     assert.equal(out.result.code, 0, out.result.stderr);
     assert.equal(out.data.node.status, "done");
   } finally {

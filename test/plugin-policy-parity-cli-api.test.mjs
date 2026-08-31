@@ -219,7 +219,7 @@ test("parity: takeover — CLI preserves takeover policy action while api.core.r
 // resolve
 // ===========================================================================
 
-test("parity: resolve — CLI and api.core.run produce the same actor and canonical action", async () => {
+test("parity: accept — CLI and api.core.run produce the same actor and canonical action", async () => {
   await withFreshEnv(async ({ projectDir }) => {
     await initAndSeed(projectDir);
     await installFixture(projectDir);
@@ -240,22 +240,26 @@ test("parity: resolve — CLI and api.core.run produce the same actor and canoni
       await cli(["--project", projectDir, "take", "T-res-1", "--as", "alice"]);
       await cli(["--project", projectDir, "take", "T-res-2", "--as", "alice"]);
 
-      // --- CLI resolve
+      // --- CLI accept
       await cli([
-        "--project", projectDir, "resolve", "T-res-1",
+        "--project", projectDir, "submit", "T-res-1",
         "--note", "done via CLI", "--as", "alice",
+      ]);
+      await cli([
+        "--project", projectDir, "accept", "T-res-1", "--as", "alice",
       ]);
       const cliRec = await recorded(projectDir);
       assert.equal(cliRec.recorded.mode, "allow");
-      assert.equal(cliRec.recorded.received.action, "task.resolve");
+      assert.equal(cliRec.recorded.received.action, "task.accept");
       assert.equal(cliRec.recorded.received.actor, "alice");
 
-      // --- API core resolve
+      // --- API core accept
       const api = await freshApi(projectDir, { agent: "alice", pluginId: "example.audit" });
-      await api.core.run({ op: "task.resolve", input: { id: "T-res-2", note: "done via api" } });
+      await api.core.run({ op: "task.submit", input: { id: "T-res-2", note: "done via api" } });
+      await api.core.run({ op: "task.accept", input: { id: "T-res-2" } });
       const apiRec = await recorded(projectDir);
       assert.equal(apiRec.recorded.mode, "allow");
-      assert.equal(apiRec.recorded.received.action, "task.resolve");
+      assert.equal(apiRec.recorded.received.action, "task.accept");
       assert.equal(apiRec.recorded.received.actor, "alice");
 
       assert.equal(apiRec.recorded.received.action, cliRec.recorded.received.action);
@@ -332,8 +336,10 @@ test("parity: reopen — CLI and api.core.run produce the same actor and canonic
       ]);
       await cli(["--project", projectDir, "take", "T-reo-1", "--as", "alice"]);
       await cli(["--project", projectDir, "take", "T-reo-2", "--as", "alice"]);
-      await cli(["--project", projectDir, "resolve", "T-reo-1", "--note", "shipped", "--as", "alice"]);
-      await cli(["--project", projectDir, "resolve", "T-reo-2", "--note", "shipped", "--as", "alice"]);
+      await cli(["--project", projectDir, "submit", "T-reo-1", "--note", "shipped", "--as", "alice"]);
+      await cli(["--project", projectDir, "accept", "T-reo-1", "--as", "alice"]);
+      await cli(["--project", projectDir, "submit", "T-reo-2", "--note", "shipped", "--as", "alice"]);
+      await cli(["--project", projectDir, "accept", "T-reo-2", "--as", "alice"]);
 
       // --- CLI reopen
       await cli(["--project", projectDir, "reopen", "T-reo-1", "--reason", "wrong acceptance", "--as", "alice"]);

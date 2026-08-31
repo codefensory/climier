@@ -23,7 +23,7 @@ const LOG_ACTION = "add-task";
 
 // ALLOWED_KINDS — the only (kind, subkind) pair this provider accepts.
 // Lifecycle operations use the same provider shape and classify under
-// their respective operation ids (`task.take`, `task.resolve`, etc.).
+// their respective operation ids (`task.take`, `task.submit`, etc.).
 const TASK_KIND = "resolvable";
 const TASK_SUBKIND = "task";
 
