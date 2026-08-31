@@ -105,6 +105,16 @@ un caso rojo representativo; agrega casos por contrato después de que el primer
 camino pase. Antes de editar una assertion, clasifica el fallo como fixture,
 contrato o implementación y comprueba el comportamiento real.
 
+### Congelación de scope
+
+Antes de hacer el commit, compara sus paths contra los paths propios y no-go
+zones de la task. No adelantes un cambio de import, refactor o limpieza en un
+path asignado a una task dependiente aunque parezca necesario o trivial: deja
+ese ajuste para su owner. Si el cambio propio no puede pasar sin tocar un
+no-go, detente, deja una nota con la dependencia concreta y libera; el
+orchestrator debe curar o dividir el contrato. El validator rechaza commits que
+cruzan este límite aunque los tests estén verdes.
+
 Los comandos que determinan el resultado deben conservar su exit code: usa
 `set -o pipefail` con pipelines o captura el status antes de `tail`/`grep`.
 Nunca presentes una prueba como verde si un filtro posterior ocultó el exit code

@@ -64,9 +64,13 @@ fallo, clasifica primero fixture, contrato o implementación; no cambies tests
 para hacerlos pasar sin demostrar cuál de esos tres casos aplica. El límite de
 turns es un techo, no la unidad de sizing: al checkpoint 20 debe existir un
 caso rojo y una ruta acotada, y una task no cruza simultáneamente kernel,
-registry, adapter, dispatch y fixtures. Tras una corrección fallida no se crea
-una cadena `fix2+`: se replantea desde la última base validada. Un validator no
-acepta un focal verde si una suite exigida agrega regresiones frente a su base.
+registry, adapter, dispatch y fixtures. El scope declarado es una frontera de
+integración: un worker no adelanta cambios, incluidos imports mecánicos, en
+paths asignados a tareas dependientes; si el cambio exige un no-go zone, deja
+handoff y libera para que el orquestador cure el contrato. Tras una corrección
+fallida no se crea una cadena `fix2+`: se replantea desde la última base
+validada. Un validator no acepta un focal verde si una suite exigida agrega
+regresiones frente a su base.
 
 ## Flujo de ejecucion
 
