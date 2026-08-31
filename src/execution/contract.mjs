@@ -15,7 +15,7 @@
 // Each property is OPTIONAL inside meta.execution: a partial contract is
 // allowed. But when a property is present, its type / contents MUST validate.
 // Other top-level keys on `meta` (not in this schema) are passed through
-// unchanged so historical tasks with arbitrary meta keep working.
+// unchanged so unrelated metadata remains intact.
 //
 // Public surface:
 //   - validateExecution(meta) -> { ok: true, contract } | { ok: false, error }

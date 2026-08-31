@@ -276,7 +276,7 @@ export async function listSnapshots(projectDir) {
   }
   // Sort descending: ids are timestamp-prefixed, so lexicographic order
   // matches creation order. Newest first matches the ADR §Snapshots
-  // listing contract for the future `snapshots` command.
+  // listing contract.
   result.sort((a, b) => (a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
   return result;
 }

@@ -1,7 +1,7 @@
 // src/kernel/transaction.mjs — pure draft transaction for the graph kernel.
 //
-// ADR-011 §2 + plan B1a: the in-memory draft that providers and the future
-// `kernel.mutate` use to compose a logical mutation (nodes + edges) without
+// ADR-011 §2: the in-memory draft that providers and `kernel.mutate` use
+// to compose a logical mutation (nodes + edges) without
 // touching the filesystem, locks, the persisted state, or the log.
 //
 // Contract:
@@ -43,8 +43,7 @@ function readSnapshotEdges(snapshot) {
 
 function readSnapshotInitiatives(snapshot) {
   // initiatives: { name -> { desc, created_at? } }. The v2 schema keeps it
-  // as a plain object; defensive read in case a future plugin ships a
-  // partial snapshot.
+  // as a plain object; use an empty map for a partial snapshot.
   return snapshot && snapshot.initiatives && typeof snapshot.initiatives === "object" && !Array.isArray(snapshot.initiatives)
     ? snapshot.initiatives
     : {};
@@ -100,7 +99,7 @@ function edgeKey(edge) {
 
 function hasRevisionField(input) {
   // The provider must never seed or carry revision; the kernel computes it
-  // once per node per apply (B1b). We detect any property named `revision`,
+  // once per node per apply. We detect any property named `revision`,
   // including inherited ones via plain `in` checks on the seed object.
   return input != null && typeof input === "object" && "revision" in input;
 }
@@ -110,8 +109,8 @@ function hasRevisionField(input) {
  *
  * The snapshot is cloned once on entry; subsequent mutations through the
  * returned accessors operate on the draft only. The returned object
- * intentionally exposes no commit/abort surface — that lives in B1b
- * (`kernel.mutate`).
+ * intentionally exposes no commit/abort surface; commit/abort belongs to
+ * `kernel.mutate`.
  *
  * @param {object} snapshot - v2 state snapshot with { nodes, edges, ... }.
  * @returns {{
@@ -135,7 +134,7 @@ export function createTransaction(snapshot) {
   // detect collisions and reference updates without re-cloning the snapshot
   // repeatedly. We strip `revision` on the way in because the draft is the
   // "post-apply shape" the kernel will persist: revisions are assigned once
-  // per node per apply (B1b), so the draft carries no revision. This keeps
+  // per node per apply, so the draft carries no revision. This keeps
   // the snapshot vs. draft diff unambiguous and prevents any caller from
   // reaching into the draft to read stale revisions.
   const draftNodes = {};
@@ -149,8 +148,8 @@ export function createTransaction(snapshot) {
   // initiatives: { name -> cloned initiative }. Initiatives do not carry
   // a kernel-managed revision, so the draft mirrors the snapshot 1:1 and
   // createInitiative only adds new names. Changing an existing initiative
-  // is not supported in B1b; the add-initiative command is idempotent
-  // against registered names and the kernel rejects duplicate creates
+  // is not supported by the mutation path; the add-initiative command is
+  // idempotent against registered names and the kernel rejects duplicate creates
   // with ID_CONFLICT.
   const draftInitiatives = {};
   for (const [name, init] of Object.entries(baseInitiatives)) {
@@ -226,8 +225,8 @@ export function createTransaction(snapshot) {
     }
     // Merge without mutating the existing reference; rebuild as a fresh object
     // so callers cannot observe draft state through the patch they passed in.
-    // `revision` is intentionally NOT propagated: the kernel diff (B1b)
-    // compares snapshot vs. draft ignoring revision to detect real changes,
+    // `revision` is intentionally NOT propagated: the kernel diff compares
+    // snapshot vs. draft ignoring revision to detect real changes,
     // and revision is assigned once per apply. Draft nodes therefore carry no
     // revision field; getNode/createNode/updateNode/view all reflect this.
     const merged = { ...clone(existing), ...clone(patch) };
@@ -404,7 +403,7 @@ export function createTransaction(snapshot) {
   function view(options = {}) {
     // Deep-clone the nodes and edges so the caller cannot mutate the draft
     // through the returned view. O(n) per call is acceptable: the draft is
-    // B1a pure and callers are expected to call view() once at apply time.
+    // pure and callers are expected to call view() once at apply time.
     const nodes = {};
     for (const [id, node] of Object.entries(draftNodes)) {
       nodes[id] = clone(node);
@@ -485,6 +484,6 @@ export function createTransaction(snapshot) {
   };
 }
 
-// Export the local edge-types whitelist so future kernel slices (B1b) can
+// Export the local edge-types whitelist so the kernel mutation path can
 // reuse the same source of truth without going through command adapters.
 export { EDGE_TYPES };

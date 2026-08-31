@@ -1,7 +1,7 @@
 // src/kernel/graph.mjs — pure generic traversals over the v2 graph.
 //
-// ADR-011 §§2–3 + ADR-012 §3 + plan §B2: the kernel owns the generic
-// traversals (incoming / outgoing / relations). status/context, providers and
+// ADR-011 §§2–3 + ADR-012 §3: the kernel owns the generic traversals
+// (incoming / outgoing / relations). status/context, providers and
 // the UI server all consume these helpers; nothing else
 // may redefine them.
 //

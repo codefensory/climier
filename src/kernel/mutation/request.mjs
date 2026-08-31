@@ -13,7 +13,7 @@ export function operationLabel(request) {
     : "kernel.mutate";
 }
 
-// Historical internal name retained for callers that use the old helper.
+// Compatibility alias for callers using the earlier helper name.
 export const commandLabel = operationLabel;
 
 export function validateRequest(request) {
