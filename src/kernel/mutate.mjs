@@ -49,6 +49,7 @@ import {
   validateProvider,
   validateRequest,
 } from "./mutation/request.mjs";
+import { checkPrecondition, selectPrecondition } from "./mutation/preconditions.mjs";
 import { freezePlan, validateMutationArguments } from "./mutation/execute.mjs";
 
 const EDGE_TYPE_FIELD_RE = /^[A-Z_]+$/;
@@ -194,74 +195,6 @@ function deepEqualNodes(a, b) {
     }
   }
   return true;
-}
-
-// checkPrecondition — validates `if_revision` (single) or
-// `if_revisions` (multi) under the lock. The request carries the
-// agent-facing expectation; the plan may also declare the expected
-// revisions for the nodes it touches via plan.if_revisions
-// (kernel-owned trust for the plan, complement of the request). The
-// request takes precedence when both are present.
-function checkPrecondition(precondition, snapshot, commandName) {
-  if (precondition === undefined || precondition === null) return null;
-  if (typeof precondition !== "object" || Array.isArray(precondition)) {
-    throwV2("INVALID_EXECUTION_CONTRACT", `${commandName}: if_revision must be an object`, { field: "if_revision" });
-  }
-  const kind = precondition.kind;
-  if (kind === "single") {
-    const id = typeof precondition.id === "string" ? precondition.id : null;
-    const expected = Number(precondition.value);
-    if (!id || !Number.isInteger(expected)) {
-      throwV2("INVALID_EXECUTION_CONTRACT", `${commandName}: if_revision{ single } requires id+integer value`, { field: "if_revision" });
-    }
-    const node = snapshot && snapshot.nodes ? snapshot.nodes[id] : null;
-    const current = node && Number.isInteger(node.revision) ? node.revision : null;
-    if (!node || current === null || current !== expected) {
-      throwV2(
-        "REVISION_CONFLICT",
-        `${commandName}: node ${id} changed since revision ${expected}`,
-        { id, expected, current },
-      );
-    }
-    return { kind: "single", id, value: expected };
-  }
-  if (kind === "multi") {
-    const values = precondition.values && typeof precondition.values === "object" && !Array.isArray(precondition.values)
-      ? precondition.values
-      : null;
-    if (!values) {
-      throwV2("INVALID_EXECUTION_CONTRACT", `${commandName}: if_revisions{ multi } requires a values object`, { field: "if_revisions" });
-    }
-    const checked = [];
-    for (const [id, raw] of Object.entries(values)) {
-      const expected = Number(raw);
-      if (!Number.isInteger(expected)) {
-        throwV2("INVALID_EXECUTION_CONTRACT", `${commandName}: if_revisions[${id}] must be an integer`, { field: "if_revisions" });
-      }
-      const node = snapshot && snapshot.nodes ? snapshot.nodes[id] : null;
-      const current = node && Number.isInteger(node.revision) ? node.revision : null;
-      if (!node || current === null || current !== expected) {
-        throwV2(
-          "REVISION_CONFLICT",
-          `${commandName}: node ${id} changed since revision ${expected}`,
-          { id, expected, current },
-        );
-      }
-      checked.push(id);
-    }
-    return { kind: "multi", values, ids: checked };
-  }
-  if (kind === "none") {
-    // Explicit "no precondition" — reserved for trusted internals
-    // (migrations, restore). The caller is responsible for documenting
-    // why the agent-facing CAS is intentionally absent.
-    return { kind: "none" };
-  }
-  throwV2(
-    "INVALID_EXECUTION_CONTRACT",
-    `${commandName}: if_revision.kind must be one of single|multi|none`,
-    { field: "if_revision.kind", value: kind },
-  );
 }
 
 // Assign the next revision per node: new → 1; modified → prev + 1;
@@ -689,13 +622,7 @@ export async function mutate({ projectDir, request, provider, policyAction, plug
       //    The kernel accepts the precondition either on the request
       //    (agent-facing CAS) or on the plan (provider-declared CAS);
       //    the request takes precedence.
-      const requestedIf = request.if_revision !== undefined
-        ? request.if_revision
-        : (request.if_revisions !== undefined ? request.if_revisions : undefined);
-      const planIf = frozenPlan.if_revision !== undefined
-        ? frozenPlan.if_revision
-        : (frozenPlan.if_revisions !== undefined ? frozenPlan.if_revisions : undefined);
-      const precondition = requestedIf !== undefined ? requestedIf : planIf;
+      const precondition = selectPrecondition(request, frozenPlan);
       checkPrecondition(precondition, snapshot, commandName);
 
       // 3) policy authorize — fresh snapshot + plan, no double lock.
@@ -857,6 +784,7 @@ export const __kernelInternals = Object.freeze({
   commandLabel,
   operationLabel,
   checkPrecondition,
+  selectPrecondition,
   assignRevisionsAndDiff,
   computeEdgeDiff,
   computeInitiativeDiff,
