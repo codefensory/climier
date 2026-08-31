@@ -53,6 +53,23 @@ async function addTask(dir, id, extraFlags) {
 }
 
 // ---------------------------------------------------------------------------
+// Canonical execution module and compatibility facade
+// ---------------------------------------------------------------------------
+
+test("execution modules expose the contract through the canonical entrypoint and facade", async () => {
+  const canonical = await importFresh("./execution/index.mjs");
+  const contract = await importFresh("./execution/contract.mjs");
+  const facade = await importFresh("./contracts/execution-contract.mjs");
+
+  assert.deepEqual(Object.keys(canonical).sort(), Object.keys(contract).sort());
+  assert.deepEqual(Object.keys(facade).sort(), Object.keys(canonical).sort());
+  assert.deepEqual(canonical.normalizeExecution({ effort: "M" }), { effort: "M" });
+  assert.deepEqual(facade.normalizeExecution({ effort: "M" }), canonical.normalizeExecution({ effort: "M" }));
+  assert.equal(typeof canonical.validateExecution, "function");
+  assert.equal(typeof facade.detectOwnershipConflicts, "function");
+});
+
+// ---------------------------------------------------------------------------
 // Pure helpers (path ancestry)
 // ---------------------------------------------------------------------------
 
