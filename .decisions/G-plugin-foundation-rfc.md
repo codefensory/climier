@@ -38,6 +38,15 @@ Preparar el core y su superficie pública con estas garantías acotadas:
 La revisión global es semántica requerida para CAS, así que el schema sube de v3 a
 v4. La migración v3→v4 inicializa `revision: 0`; cada commit efectivo posterior
 la incrementa exactamente una vez. Estados v2 siguen migrando a través de v3.
+La revisión por node se conserva como CAS fino para ediciones puntuales: la global
+representa la lectura completa que un replanner pretende modificar y no la
+sustituye.
+
+La validación de state es una función pura única. `readState` y restore rechazan
+un estado v4 inválido, incluidos ciclos `BLOCKS`, con el código específico; el
+batch valida sólo su draft final para poder expresar reparaciones completas sin
+persistir estados intermedios. Los estados v3 históricos se validan al migrar:
+un ciclo existente se reporta y no se reescribe silenciosamente como v4.
 
 El CLI ya es JSON-only. No se agregará un flag redundante `--json`; se normalizan
 las respuestas y errores de las operaciones nuevas y de las rutas que usará un
@@ -67,7 +76,18 @@ replanner, con códigos de error estables y una política de salida documentada.
   introduce v4 y una migración pura v2→v3→v4; versiones futuras se rechazan.
 - **Batch y policies:** un batch no ejecuta código arbitrario de plugin bajo el
   lock. Reutiliza providers built-in y la selección/autorización existente por
-  operación dentro de una única transacción.
+  operación dentro de una única transacción. Cada entrada se prepara y autoriza
+  contra la vista actual del draft, pero el batch genera un solo commit y un
+  único log `core.batch` con resúmenes redacted por operación.
+- **Lecturas coherentes:** snapshot/state son lecturas lock-free de un único
+  archivo serializado mediante rename atómico; no prometen congelar writers
+  posteriores, sino devolver una revisión completa que el caller puede usar en
+  CAS.
+- **Plugin data:** el contrato es JSON estricto. `data.node.delete(id)` y
+  `data.project.delete(key)` devuelven `{ removed: boolean }`; un valor no JSON
+  falla `PLUGIN_DATA_INVALID` antes de log/write.
+- **Runtime:** `dataDir` deriva de `dirname(stateFile(projectDir))/plugins/<id>`
+  tras validar el mismo id del descriptor; el host crea sólo ese directorio.
 - **Compatibilidad API:** plugins sin `climier.api` o que exijan una versión no
   soportada fallan antes de importar su entrypoint. El corte v3 no promete
   compatibilidad silenciosa con el antiguo `api.core.version: 2`.
@@ -76,6 +96,14 @@ replanner, con códigos de error estables y una política de salida documentada.
   convierte los errores públicos relevantes al envelope estructurado.
 - **Data pesada:** `api.data` sólo guarda JSON pequeño. El host documenta la
   intención; `api.runtime.dataDir` es el destino para SQLite, logs y artifacts.
+
+## Ejecución y acceptance
+
+El DAG materializado deja una task con aceptación verificable por corte; no se
+implementa una lista monolítica. La suite final prueba: snapshot coherente,
+aislamiento A/B, CAS de revisión global, reparación y rollback batch, ciclo
+bloqueado por CLI/API/batch, flujo shell `state → batch → state`, persistencia
+de data/runtime tras restart y ausencia de imports `src/**` en el fixture.
 
 ## ADRs derivados
 

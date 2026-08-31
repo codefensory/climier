@@ -26,9 +26,12 @@ scheduler ni un runtime de plugin.
    host/CLI exterior.
 3. Bajo un solo lock: se carga snapshot, se comprueba CAS global, se crea un
    draft, y se ejecutan `prepare`/policy/apply de cada operación en orden contra
-   la vista vigente del draft. Al final se validan las invariantes de ADR-019,
-   se calcula un único diff, se incrementa una vez `state.revision`, se escribe
-   una vez y se agrega un único log de batch con resultados/redacción segura.
+   un snapshot inmutable construido desde la vista vigente del draft. Al final
+   se validan las invariantes de ADR-019, se calcula un único diff, se
+   incrementa una vez `state.revision`, se escribe una vez y se agrega un único
+   log `core.batch` con resúmenes por operación y redacción segura. El executor
+   vive dentro de la frontera kernel/Application Operations; no llama
+   `mutate()` ni `api.core.run()` de forma anidada.
 4. Si una operación falla, se descarta el draft completo. El error conserva el
    código de dominio y añade `details.operation_index`, `details.op` y, cuando
    exista, el resultado de validación seguro; no hay write, log ni incremento.

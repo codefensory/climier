@@ -17,12 +17,14 @@ adapters internos.
 
 ## Decision
 
-1. `api.query.snapshot()` lee una sola vez y devuelve una proyección JSON
-   determinista `{ revision, nodes, edges, derived, plugins }`. `derived` se
-   limita a lifecycle del core (`open`, `ready`, `blocked`, `in_progress`,
-   `submitted`, `done`, terminales existentes) y no incluye planner,
-   ownership ni semántica de execution. El plugin recibe únicamente
-   `plugins[pluginId]`; nunca los namespaces de otros plugins.
+1. `api.query.snapshot()` lee una sola vez el archivo de estado ya
+   serializado (sin bloquear writers) y devuelve una proyección JSON
+   determinista `{ revision, nodes, edges, derived, plugins }`. No promete
+   congelar mutaciones posteriores: el caller usa `revision` en CAS. `derived`
+   se limita a lifecycle del core (`open`, `ready`, `blocked`, `in_progress`,
+   `submitted`, `done`, terminales existentes) y no incluye planner, ownership
+   ni semántica de execution. El plugin recibe únicamente `plugins[pluginId]`;
+   nunca los namespaces de otros plugins.
 2. El CLI expone la misma lectura mediante `climier state`. No se añade
    `--json`: toda la CLI es JSON-only. Nodes, arrays de edges y proyecciones
    usan orden estable por id/triple; el mismo estado produce el mismo output.
@@ -36,18 +38,22 @@ adapters internos.
    explícita.
 4. Plugin data acepta sólo valores JSON: `null`, boolean, string, número
    finito, array y plain object acíclico. Rechaza `undefined`, `NaN`, infinito,
-   BigInt, Map, Set, funciones, symbols, instancias y ciclos con código
-   estable, antes de mutar. Se agregan `data.node.delete(id)` y
-   `data.project.delete(key)`, idempotentes y namespaced. `api.data` es
-   metadata estructurada pequeña, no artifact store.
+   BigInt, Map, Set, funciones, symbols, instancias y ciclos con
+   `PLUGIN_DATA_INVALID`, antes de mutar o loguear. Se agregan
+   `data.node.delete(id)` y `data.project.delete(key)`, idempotentes y
+   namespaced; ambos devuelven `{ removed: boolean }`. `api.data` es metadata
+   estructurada pequeña, no artifact store.
 5. `api.runtime.dataDir` se resuelve como
+   `dirname(stateFile(projectDir))/plugins/<plugin-id>/`, equivalente a
    `~/.climier/projects/<project-id>/plugins/<plugin-id>/`, se crea antes de
-   devolver la API, valida el id y nunca interpreta su contenido. El plugin es
+   devolver la API, valida el mismo id seguro del descriptor y nunca interpreta
+   su contenido. El plugin es
    dueño de SQLite, artifacts, logs, sessions y cache allí; no hay migración ni
    sincronización del host.
 6. La Plugin API se fija en versión 3. `api.version === 3` y el descriptor
-   exige `climier.api: 3`. Descriptor ausente, malformado o una versión no
-   ofrecida falla `PLUGIN_API_INCOMPATIBLE` antes de importar entrypoint.
+   exige el major exacto `climier.api: 3`; el host actual sólo ofrece esa
+   versión. Descriptor ausente, malformado o una versión no ofrecida (por
+   ejemplo 4) falla `PLUGIN_API_INCOMPATIBLE` antes de importar entrypoint.
    La superficie pública estable es sólo `api.query.*`, `api.core.*`,
    `api.data.*` y `api.runtime.*`; `src/**` es internal. `api.core` incluye
    las operaciones registradas después de ADR-018/019 y `batch` después de
@@ -77,7 +83,8 @@ adapters internos.
    fixtures, `docs/PLUGINS.md`, AGENTS/reference.
 4. Normalizar la superficie y clasificación CLI necesaria para el flujo de
    agents, después de state/batch; crear la suite fake-plugin que usa sólo
-   `api.*` y los comandos públicos.
+   `api.*` y los comandos públicos. El test falla si el fixture incorpora un
+   import relativo hacia `src/**`.
 
 ## Onboarding breve para crear tasks
 

@@ -16,13 +16,17 @@ contra una versión del estado, no contra un subconjunto accidental de nodos.
 1. El estado pasa a schema v4 y exige `revision`, entero no negativo. La
    migración pura v2→v3→v4 conserva datos y inicializa `revision: 0`. Nuevos
    estados empiezan en 0; versiones futuras se rechazan. `writeState`, init,
-   read y restore comparten esta regla.
+   read y restore comparten esta regla. La revisión por node existente se
+   conserva para CAS fino, mientras `state.revision` representa una lectura del
+   grafo completo.
 2. Se define una única validación pura de estado/draft: colecciones requeridas,
    endpoints y tipos de edge, reglas de kind, no self-edge, no duplicados y
    aciclicidad de las aristas `BLOCKS`. `wouldCreateBlocksCycle` es un helper
    puro usado por `tx.addEdge`; la misma validación final cubre estados cargados
    y restaurados. Una infracción de ciclo falla con `CYCLE_DETECTED` y detalles
-   deterministas de la arista/ciclo.
+   deterministas de la arista/ciclo. Un estado v3 que al migrar contenga un
+   ciclo se rechaza y no se reescribe silenciosamente como v4; un batch podrá
+   validar su draft final, pero nunca persistir un estado inválido.
 3. `edge.remove` es una operación pública en provider core, catálogo
    Application Operations, `api.core` y CLI. Requiere el triple exacto
    `{from,to,type}`; retirar una arista ausente es un no-op idempotente que no
@@ -41,6 +45,9 @@ contra una versión del estado, no contra un subconjunto accidental de nodos.
 
 - A favor: los tres caminos (CLI, `api.core` y batch) comparten las mismas
   invariantes y un writer tardío no puede sobrescribir una decisión obsoleta.
+- Coste operativo: un proyecto histórico con ciclo debe restaurarse desde un
+  snapshot válido o corregirse mediante un procedimiento de recuperación; no se
+  oculta un DAG inválido durante la migración.
 - A favor: la migración hace explícito que CAS global es semántica persistida.
 - En contra: v4 es incompatible con un binario v3 antiguo y exige adaptar
   snapshots/restore y fixtures.
