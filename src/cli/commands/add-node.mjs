@@ -44,7 +44,6 @@ import { mutate } from "../../kernel/mutate.mjs";
 import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
 import { resolveAgent } from "../actor.mjs";
-import { validateExecution } from "../../contracts/execution-contract.mjs";
 import { taskCreateProvider } from "../../providers/task/create.mjs";
 import { gateCreateProvider } from "../../providers/gate/create.mjs";
 import { createProvider as knowledgeCreateProviderFactory } from "../../providers/knowledge/create.mjs";
@@ -104,11 +103,9 @@ function parseMeta(raw) {
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     throw new Error("add-node: --meta must be a JSON object");
   }
-  // Validate meta.execution when present. validateExecution re-throws
-  // with INVALID_EXECUTION_CONTRACT so callers can branch on it;
-  // other top-level keys are preserved unchanged so historical meta
-  // round-trips.
-  return validateExecution(parsed);
+  // Metadata is generic JSON. In particular, historical meta.execution
+  // values are opaque and must survive create/update without core semantics.
+  return parsed;
 }
 
 function parseBacklog(raw) {

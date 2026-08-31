@@ -15,10 +15,6 @@ import {
   isCurrent,
   supersededBy,
 } from "../read-model/index.mjs";
-import {
-  detectOwnershipConflicts,
-  executionContractFor,
-} from "../contracts/execution-contract.mjs";
 
 const DEFAULT_STALE_MS = 2 * 60 * 60 * 1000;
 const STATUS_FLAGS = new Set([
@@ -283,7 +279,6 @@ function contextView(snapshot, id, agent) {
   const blocking = blockingForNode({ snapshot, id });
   const knowledge = knowledgeForNode({ snapshot, id });
   const derivedStatus = statusOf({ snapshot, id });
-  const conflicts = node.kind === "resolvable" && node.subkind === "task" ? detectOwnershipConflicts(snapshot, id) : [];
   const alerts = [];
   if (claim && claim.stale) alerts.push({ kind: "STALE_CLAIM", node_id: id, claimed_by: claim.by, message: `${id} claimed by ${claim.by} is stale` });
   for (const blocker of blocking) {
@@ -295,7 +290,6 @@ function contextView(snapshot, id, agent) {
   for (const item of knowledge) {
     if (item.status === "deprecated") alerts.push({ kind: "KNOWLEDGE_DEPRECATED_SOON", node_id: id, knowledge_id: item.id, message: `matching knowledge ${item.id} is deprecated` });
   }
-  if (conflicts.length) alerts.push({ kind: "OWNERSHIP_CONFLICT", node_id: id, count: conflicts.length, message: `${id} has ${conflicts.length} ownership conflict(s) with other open tasks` });
   return {
     node,
     derived_status: derivedStatus,
@@ -305,8 +299,6 @@ function contextView(snapshot, id, agent) {
     blocking,
     knowledge,
     informing: informingForNode({ snapshot, id }),
-    execution_contract: executionContractFor(snapshot, id),
-    ownership_conflicts: conflicts,
     alerts,
     allowed_actions: allowedActions(node, derivedStatus, agent),
   };

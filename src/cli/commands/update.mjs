@@ -8,7 +8,6 @@
 import { mutate } from "../../kernel/mutate.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
 import { resolveAgent } from "../actor.mjs";
-import { validateExecution } from "../../contracts/execution-contract.mjs";
 import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
 import { PolicyDenied } from "../../plugins/errors.mjs";
 import { taskUpdateProvider } from "../../providers/task/update.mjs";
@@ -59,7 +58,9 @@ function parseMeta(raw) {
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     throw new Error("update: --meta must be a JSON object");
   }
-  return validateExecution(parsed);
+  // Metadata is generic JSON. Historical meta.execution values remain opaque
+  // and are preserved without validation or normalization by the core.
+  return parsed;
 }
 
 function parseBacklog(raw) {
