@@ -1,4 +1,4 @@
-// T-plugin-policy-foundation — ADR-007 (contract) + ADR-008 (seam).
+// Policy selection and authorization seam (ADR-007 + ADR-008).
 //
 // This module is the SINGLE source of truth for:
 //   - loadApplicablePolicy({ projectDir }) — pick zero or one installed
@@ -12,9 +12,9 @@
 //
 // The module is intentionally I/O-light: it imports plugins
 // (cache-bypassed via the `loadInstalledPolicyPlugins` scan) but does
-// NOT touch state. Handlers in `src/commands/*.mjs` own the lock, the
-// state mutation, and the log entry; this module only decides whether
-// a policy wants to allow/deny/abstain on a given action.
+// NOT touch state. CLI command adapters own the lock, the state mutation,
+// and the log entry; this module only decides whether a policy wants to
+// allow/deny/abstain on a given action.
 //
 // Discovery + selector (loadApplicablePolicy) runs BEFORE the lock —
 // importing an entrypoint is allowed outside the lock because plugins
@@ -41,14 +41,14 @@ import { PolicyDenied, PolicyError, PolicyConflict } from "./errors.mjs";
 //          result means applicable, falsy means excluded. The host
 //          does NOT inspect the return value beyond truthiness.
 //   4. More than one applicable → POLICY_CONFLICT (with plugin_ids
-//      and namespaces; ADR-007 §"Errores" + plan §3.2).
+//      and namespaces; ADR-007 §"Errores").
 //   5. Zero applicable → return null (defaults core).
 //   6. An `applies()` exception is treated as a contract violation
 //      from the plugin → POLICY_ERROR with `op` (and `action`) set to
 //      `"applies"` and the original cause preserved under
 //      `cause_message` so operators can attribute the failure
-//      (ADR-007 §"Errores" + plan §3.2: POLICY_ERROR covers any
-//      exception or invalid response in `applies`/`authorize`;
+//      (ADR-007 §"Errores": POLICY_ERROR covers any exception or
+//      invalid response in `applies`/`authorize`;
 //      POLICY_CONFLICT is reserved exclusively for more than one
 //      applicable policy).
 //
@@ -73,9 +73,9 @@ export async function loadApplicablePolicy({ projectDir }) {
     try {
       result = await policy.applies(projectConfig);
     } catch (err) {
-      // The plugin's `applies` raised. Per ADR-007 §"Errores" +
-      // plan §3.2, an exception or invalid response from `applies`
-      // (or `authorize`) maps to POLICY_ERROR, NOT POLICY_CONFLICT
+      // The plugin's `applies` raised. Per ADR-007 §"Errores", an
+      // exception or invalid response from `applies` (or `authorize`)
+      // maps to POLICY_ERROR, NOT POLICY_CONFLICT
       // (which is reserved for >1 applicable policy). The structured
       // envelope records the candidate plugin id under `plugin_id`,
       // the operation name as `"applies"` in both `op` and `action`,

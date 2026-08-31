@@ -1,4 +1,4 @@
-// T-plugin-dispatch — plugin error envelope helper.
+// Plugin error envelope helper.
 //
 // ADR-005 §"Dispatch y contrato de errores":
 //   Errores de descriptor, instalación, carga, datos y handler usan el
@@ -228,7 +228,7 @@ export function isPluginCoreError(err) {
 
 // ---- ADR-007 §"Errores" — policy plugin namespace -------------------
 //
-// Errors emitted by `src/plugins/policy.mjs` for runtime decisions on
+// Errors emitted by the policy adapter for runtime decisions on
 // `applies`/`authorize`. Shape contract:
 //
 //   POLICY_DENIED   decision === "deny"   → handler aborts mutation
@@ -236,11 +236,11 @@ export function isPluginCoreError(err) {
 //   POLICY_CONFLICT selection failed or >1 applicable → handler aborts mutation
 //
 // Shape validation failures of `default.policy` at load time use the
-// existing `PLUGIN_LOAD_FAILED` (see `src/plugin-descriptor.mjs`),
-// matching the same re-use pattern as other descriptor shapes
-// (ADR-007 §"Errores" reserves POLICY_LOAD_FAILED only for runtime
-// policy failures; the load-time shape check is shared with
-// descriptor). The three classes below cover the remaining codes.
+// existing `PLUGIN_LOAD_FAILED` from the descriptor adapter, matching
+// the same reuse pattern as other descriptor shapes. ADR-007 reserves
+// POLICY_LOAD_FAILED for runtime policy failures; the load-time shape
+// check is shared with descriptor. The three classes below cover the
+// remaining codes.
 
 function normalizePolicyCause(cause) {
   if (!cause) return { code: null, message: null };

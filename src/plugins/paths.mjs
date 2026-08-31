@@ -1,9 +1,9 @@
-// T-plugin-install — global plugin layout under CLIMIER_HOME/plugins/.
+// Global plugin layout under CLIMIER_HOME/plugins.
 //
-// T-plugin-command-layout-fix / ADR-005 §"Instalación e identidad":
-// the installed directory name IS descriptor.id. descriptor.command is
-// the CLI namespace (the first non-flag token); the dispatcher scans
-// installed/*/package.json to discover it (no persistent registry).
+// ADR-005 §"Instalación e identidad": the installed directory name IS
+// descriptor.id. descriptor.command is the CLI namespace (the first
+// non-flag token); the dispatcher scans installed/*/package.json to
+// discover it (no persistent registry).
 //
 // Layout:
 //   <CLIMIER_HOME>/plugins/

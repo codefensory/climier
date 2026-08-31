@@ -1,4 +1,4 @@
-// T-plugin-install — global plugin lock.
+// Global plugin lock.
 //
 // Mirrors the spinlock pattern in lock.mjs but is scoped to the global
 // <CLIMIER_HOME>/plugins/ tree, so install/uninstall operations started

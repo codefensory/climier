@@ -1,5 +1,4 @@
-// src/plugins/core-adapter.mjs — V2 plugin core surface (ADR-006 §API y
-// compatibilidad + ADR-012 §2 + plan §B6B).
+// V2 plugin core surface (ADR-006 §API y compatibilidad + ADR-012 §2).
 //
 // `createCore({ projectDir, agent, pluginId })` returns
 // `{ version: 2, run }`. `run({ op, input })` is the SINGLE mutation
@@ -8,7 +7,7 @@
 // the canonical built-in registry and invokes the kernel once per op.
 // The adapter is intentionally a thin mapper:
 //   - no argv, no `commands/*`, no `readState`, no `withLock`,
-//     no `updateState`, no `append`, no legacy CORE_REGISTRY;
+//     no `updateState`, no `append`, and no registry ownership;
 //   - actor and pluginId are fixed by the host (`createCore` args)
 //     and cannot be overridden through `input.as` / `input._as`
 //     (rejected before any state mutation);
@@ -24,9 +23,8 @@
 //         PLUGIN_CORE_ACTION_FAILED with the cause envelope.
 //
 // The contract test (test/plugin-core-adapter.test.mjs) pins every
-// behavior listed above and is the single source of truth for
-// acceptance. Fixture-migration parity for the legacy `{ node }` /
-// `{ edge }` envelopes lives in the daughter fixture task.
+// behavior listed above and is the single source of truth for acceptance.
+// The adapter preserves the established `{ node }` / `{ edge }` envelopes.
 
 import {
   bootstrapBuiltins,

@@ -1,11 +1,10 @@
-// T-plugin-dispatch — load an installed plugin at dispatch time.
+// Load an installed plugin at dispatch time.
 //
-// Wraps `readDescriptor` and `importEntry` from src/plugin-descriptor.mjs
-// (owned by T-plugin-install) so the descriptor module stays focused on
-// shape validation, while this module owns the dispatch-time loading
-// path.
+// Wraps `readDescriptor` and `importEntry` from descriptor.mjs so the
+// descriptor module stays focused on shape validation, while this module
+// owns the dispatch-time loading path.
 //
-// T-plugin-command-layout-fix / ADR-005 §"Instalación e identidad":
+// ADR-005 §"Instalación e identidad":
 //   - installed directory name == descriptor.id
 //   - descriptor.command == first non-flag CLI token (the namespace)
 //   - discovery scans installed/*/package.json to match descriptor.command
@@ -53,12 +52,11 @@ class PluginNotInstalled extends PluginLoadFailed {
 // the only source of truth the host has for "is this namespace
 // installed?".
 //
-// T-plugin-command-layout-fix: ADR-005 forbids a persistent registry;
-// discovery is a single readdir over installed/ + a small JSON parse
-// per entry. Skips hidden entries and unreadable package.json files
-// without throwing (a tampered entry cannot silently mask another
-// plugin because the function returns the first valid match, not a
-// fallback).
+// ADR-005 forbids a persistent registry; discovery is a single readdir
+// over installed/ plus a small JSON parse per entry. Skips hidden entries
+// and unreadable package.json files without throwing (a tampered entry
+// cannot silently mask another plugin because the function returns the
+// first valid match, not a fallback).
 async function findInstalledDirByCommand(command) {
   const installedRoot = path.join(pluginsHome(), "installed");
   let entries = [];
@@ -153,8 +151,8 @@ export async function loadInstalledPlugin(namespace) {
     );
   }
 
-  // 4. descriptor.id matches the directory name (T-plugin-command-layout-fix:
-  // ADR-005 §"Instalación e identidad" — installed dir IS descriptor.id).
+  // 4. descriptor.id matches the directory name (ADR-005
+  // §"Instalación e identidad" — installed dir IS descriptor.id).
   const dirName = path.basename(installedDir);
   if (descriptor.id !== dirName) {
     throw new PluginInvalidDescriptor(
@@ -193,10 +191,10 @@ export async function loadInstalledPlugin(namespace) {
 // plugin dispatch without paying the import cost when the namespace
 // is not installed. Returns boolean; never throws.
 //
-// T-plugin-command-layout-fix: scans installed/*/package.json for
-// descriptor.command === namespace. The bin treats every non-reserved,
-// non-core first token as a plugin namespace and lets the loader
-// raise PLUGIN_LOAD_FAILED if no plugin claims it.
+// Scans installed/*/package.json for descriptor.command === namespace.
+// The bin treats every non-reserved, non-core first token as a plugin
+// namespace and lets the loader raise PLUGIN_LOAD_FAILED if no plugin
+// claims it.
 export async function hasInstalledPlugin(namespace) {
   const dir = await findInstalledDirByCommand(namespace);
   return dir !== null;
@@ -223,10 +221,10 @@ export async function hasInstalledPlugin(namespace) {
 // array of absolute paths in stable order (sorted by basename).
 // Skips hidden entries and unreadable directories silently; the
 // loader raises structured errors for the entries it tries to load.
-// T-plugin-policy-foundation: this is the global scan that powers
-// `loadInstalledPolicyPlugins`; it intentionally does NOT depend on
-// `findInstalledDirByCommand` because policy plugins may live under
-// their descriptor.id without claiming any CLI namespace.
+// This is the global scan that powers `loadInstalledPolicyPlugins`; it
+// intentionally does NOT depend on `findInstalledDirByCommand` because
+// policy plugins may live under their descriptor.id without claiming any
+// CLI namespace.
 export async function findInstalledPolicyDirs() {
   const installedRoot = path.join(pluginsHome(), "installed");
   let entries = [];
