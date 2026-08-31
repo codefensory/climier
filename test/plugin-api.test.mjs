@@ -615,7 +615,7 @@ test("data.set takes the project lock (concurrent set + take both succeed withou
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
     // Two concurrent operations: plugin data.set and a take on the open task.
     const [{ default: takeCmd }] = await Promise.all([
-      importFresh("./commands/take.mjs"),
+      importFresh("./cli/commands/take.mjs"),
       Promise.resolve(),
     ]);
     const [, setResult] = await Promise.all([
@@ -719,7 +719,7 @@ test("createApi: api.runtime shape stays { project_dir, agent } (no core leakage
 test("api.core.run: non-object input throws PLUGIN_CORE_INVALID_OPERATION", async () => {
   const dir = await createTempProject();
   try {
-    const { default: init } = await importFresh("./commands/init.mjs");
+    const { default: init } = await importFresh("./cli/commands/init.mjs");
     await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
     for (const bad of [null, undefined, "string", 1, true, []]) {
@@ -737,7 +737,7 @@ test("api.core.run: non-object input throws PLUGIN_CORE_INVALID_OPERATION", asyn
 test("api.core.run: unknown op throws PLUGIN_CORE_INVALID_OPERATION with supported list", async () => {
   const dir = await createTempProject();
   try {
-    const { default: init } = await importFresh("./commands/init.mjs");
+    const { default: init } = await importFresh("./cli/commands/init.mjs");
     await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
     await assert.rejects(
@@ -758,7 +758,7 @@ test("api.core.run: unknown op throws PLUGIN_CORE_INVALID_OPERATION with support
 test("api.core.run: input.as is rejected with PLUGIN_CORE_INVALID_OPERATION and reason 'input.as is forbidden'", async () => {
   const dir = await createTempProject();
   try {
-    const { default: init } = await importFresh("./commands/init.mjs");
+    const { default: init } = await importFresh("./cli/commands/init.mjs");
     await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
     await assert.rejects(
@@ -786,7 +786,7 @@ test("api.core.run: input.as is rejected with PLUGIN_CORE_INVALID_OPERATION and 
 test("api.core.run: input._as is rejected (no alias sneaks past)", async () => {
   const dir = await createTempProject();
   try {
-    const { default: init } = await importFresh("./commands/init.mjs");
+    const { default: init } = await importFresh("./cli/commands/init.mjs");
     await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
     await assert.rejects(
@@ -812,7 +812,7 @@ test("api.core.run: missing required field throws PLUGIN_CORE_ACTION_FAILED (pro
   // untouched (no edge is added; no log entry is appended).
   const dir = await createTempProject();
   try {
-    const { default: init } = await importFresh("./commands/init.mjs");
+    const { default: init } = await importFresh("./cli/commands/init.mjs");
     await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
     // Missing --type is required by edge.add.
@@ -846,7 +846,7 @@ test("api.core.run: known op with empty input does not mutate state (provider-le
   // before any state write or log append.
   const dir = await createTempProject();
   try {
-    const { default: init } = await importFresh("./commands/init.mjs");
+    const { default: init } = await importFresh("./cli/commands/init.mjs");
     await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
     await assert.rejects(
@@ -879,7 +879,7 @@ test("api.core.run: known op with empty input does not mutate state (provider-le
 test("api.core.run: NODE_NOT_FOUND in the handler is wrapped as PLUGIN_CORE_ACTION_FAILED with details.op and cause", async () => {
   const dir = await createTempProject();
   try {
-    const { default: init } = await importFresh("./commands/init.mjs");
+    const { default: init } = await importFresh("./cli/commands/init.mjs");
     await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
     await assert.rejects(
@@ -929,8 +929,8 @@ test("api.core.run: task.create dispatches through the kernel with actor fixed f
   // anymore and `input.as` cannot substitute the actor.
   const dir = await createTempProject();
   try {
-    const { default: init } = await importFresh("./commands/init.mjs");
-    const { default: addInit } = await importFresh("./commands/add-initiative.mjs");
+    const { default: init } = await importFresh("./cli/commands/init.mjs");
+    const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
     await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
     await addInit({ statePath: dir, flags: { desc: "plugin-platform" }, positional: ["plugin-platform"] });
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
@@ -980,8 +980,8 @@ test("api.core.run: input.as is dropped even though the handler call is made on 
   // ownership of an alice-owned task.
   const dir = await createTempProject();
   try {
-    const { default: init } = await importFresh("./commands/init.mjs");
-    const { default: addInit } = await importFresh("./commands/add-initiative.mjs");
+    const { default: init } = await importFresh("./cli/commands/init.mjs");
+    const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
     await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
     await addInit({ statePath: dir, flags: { desc: "plugin-platform" }, positional: ["plugin-platform"] });
     // input.as is rejected outright (covered by previous test); the path we
@@ -1008,7 +1008,7 @@ test("api.core.run: input.as is dropped even though the handler call is made on 
 test("api.core.run: an opaque core error (no code/details) is normalized to CORE_ERROR in details.cause", async () => {
   const dir = await createTempProject();
   try {
-    const { default: init } = await importFresh("./commands/init.mjs");
+    const { default: init } = await importFresh("./cli/commands/init.mjs");
     await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
     // task.take against a non-existent task throws NODE_NOT_FOUND through the
@@ -1049,8 +1049,8 @@ test("api.core.run: an opaque core error (no code/details) is normalized to CORE
 // so this helper insulates each test from the boilerplate.
 async function readyProject() {
   const dir = await createTempProject();
-  const { default: init } = await importFresh("./commands/init.mjs");
-  const { default: addInit } = await importFresh("./commands/add-initiative.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.mjs");
+  const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
   await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
   await addInit({
     statePath: dir,
@@ -1909,7 +1909,7 @@ test("cli parity: a parity handler called without ctx.pluginId does NOT tag its 
       s.initiatives["plugin-platform"] = { desc: "plugin platform" };
       s.log = [];
     });
-    const { default: updateV2 } = await importFresh("./commands/update.mjs");
+    const { default: updateV2 } = await importFresh("./cli/commands/update.mjs");
     await updateV2({
       statePath: dir,
       positional: ["T-cli-parity"],
@@ -1953,7 +1953,7 @@ test("cli parity: parity task.cancel + update chain leaves logs free of plugin_i
       s.initiatives["plugin-platform"] = { desc: "plugin platform" };
       s.log = [];
     });
-    const { default: cancelV2 } = await importFresh("./commands/cancel.mjs");
+    const { default: cancelV2 } = await importFresh("./cli/commands/cancel.mjs");
     await cancelV2({
       statePath: dir,
       positional: ["T-cli-parity-2"],

@@ -1,13 +1,13 @@
 // `take <id>` CLI adapter for the canonical task.take provider.
 // The kernel owns locking, state, revisions and logs; this module only maps
 // CLI flags to the typed provider request and projects the legacy envelope.
-import { mutate } from "../kernel/mutate.mjs";
-import { throwV2 } from "../contracts/errors.mjs";
-import { resolveAgent } from "../contracts/agent.mjs";
-import { loadApplicablePolicy, authorizeAction } from "../plugins/policy.mjs";
-import { PolicyDenied } from "../plugins/errors.mjs";
-import { taskTakeProvider } from "../providers/task/take.mjs";
-import { statusOfV2 } from "../providers/task/derivation.mjs";
+import { mutate } from "../../kernel/mutate.mjs";
+import { throwV2 } from "../../contracts/errors.mjs";
+import { resolveAgent } from "../../contracts/agent.mjs";
+import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
+import { PolicyDenied } from "../../plugins/errors.mjs";
+import { taskTakeProvider } from "../../providers/task/take.mjs";
+import { statusOfV2 } from "../../providers/task/derivation.mjs";
 
 export const knownFlags = ["as", "initiative", "domain", "tag"];
 

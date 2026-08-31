@@ -9,7 +9,7 @@
 // Uniqueness invariant: every entry appears exactly once. The
 // plugin-install.test.mjs suite asserts it.
 
-import { PluginInvalidDescriptor } from "../plugins/descriptor.mjs";
+import { PluginInvalidDescriptor } from "../../plugins/descriptor.mjs";
 
 export const RESERVED_NAMESPACES = Object.freeze([
   // Read-only commands.

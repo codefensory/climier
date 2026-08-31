@@ -1,11 +1,11 @@
 // `deprecate-knowledge` CLI adapter for the canonical knowledge.deprecate
 // provider. The kernel owns locking, state, revisions, policy execution and
 // audit persistence; this module only maps the legacy CLI surface.
-import { mutate } from "../kernel/mutate.mjs";
-import { throwV2 } from "../contracts/errors.mjs";
-import { resolveAgent } from "../contracts/agent.mjs";
-import { loadApplicablePolicy, authorizeAction } from "../plugins/policy.mjs";
-import { deprecateProvider } from "../providers/knowledge/deprecate.mjs";
+import { mutate } from "../../kernel/mutate.mjs";
+import { throwV2 } from "../../contracts/errors.mjs";
+import { resolveAgent } from "../../contracts/agent.mjs";
+import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
+import { deprecateProvider } from "../../providers/knowledge/deprecate.mjs";
 
 export const knownFlags = ["reason", "as"];
 

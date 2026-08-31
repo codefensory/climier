@@ -14,11 +14,11 @@ test("transitional v2 facade is removed", async () => {
 
 for (const command of ["status", "context"]) {
   test(`${command} command consumes the canonical read-model instead of v2`, async () => {
-    const source = await readFile(path.join(ROOT, "src", "commands", `${command}.mjs`), "utf8");
+    const source = await readFile(path.join(ROOT, "src", "cli", "commands", `${command}.mjs`), "utf8");
 
-    assert.match(source, /from ["']\.\.\/read-model\/index\.mjs["']/,
+    assert.match(source, /from ["']\.\.\/\.\.\/read-model\/index\.mjs["']/,
       `${command} must import projections from read-model`);
-    assert.doesNotMatch(source, /from ["']\.\.\/v2\.mjs["']/,
+    assert.doesNotMatch(source, /from ["']\.\.\/\.\.\/v2\.mjs["']/,
       `${command} must not import the transitional v2 facade`);
   });
 }

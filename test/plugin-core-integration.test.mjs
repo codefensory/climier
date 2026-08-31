@@ -33,8 +33,8 @@ import {
 // initV2Project — runs a v2 init + a single initiative so task.create
 // can register against an existing initiative.
 async function initV2Project(dir, initiatives = ["plugin-platform"]) {
-  const { default: init } = await importFresh("./commands/init.mjs");
-  const { default: addInit } = await importFresh("./commands/add-initiative.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.mjs");
+  const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
   await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
   for (const name of initiatives) {
     await addInit({ statePath: dir, flags: { desc: name }, positional: [name] });

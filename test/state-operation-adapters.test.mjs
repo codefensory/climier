@@ -7,7 +7,7 @@ const root = path.resolve(new URL("..", import.meta.url).pathname);
 
 for (const command of ["init", "restore"]) {
   test(`${command} command is a kernel state-operation adapter`, async () => {
-    const source = await fs.readFile(path.join(root, "src", "commands", `${command}.mjs`), "utf8");
+    const source = await fs.readFile(path.join(root, "src", "cli", "commands", `${command}.mjs`), "utf8");
     assert.match(source, /kernel\/state-operations\.mjs/);
     assert.doesNotMatch(source, /from "\.\.\/lock\.mjs"/);
     assert.doesNotMatch(source, /from "\.\.\/log\.mjs"/);

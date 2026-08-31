@@ -686,11 +686,11 @@ test("seam-dag: deprecate-knowledge with policy=deny returns POLICY_DENIED witho
 
 test("seam-dag: deprecate-knowledge adapter uses the kernel knowledge provider frontier", async () => {
   const source = await fs.readFile(
-    path.resolve(path.dirname(new URL(import.meta.url).pathname), "..", "src", "commands", "deprecate-knowledge.mjs"),
+    path.resolve(path.dirname(new URL(import.meta.url).pathname), "..", "src", "cli", "commands", "deprecate-knowledge.mjs"),
     "utf8",
   );
-  assert.match(source, /from [\"']\.\.\/kernel\/mutate\.mjs[\"']/);
-  assert.match(source, /from [\"']\.\.\/providers\/knowledge\/deprecate\.mjs[\"']/);
+  assert.match(source, /from [\"']\.\.\/\.\.\/kernel\/mutate\.mjs[\"']/);
+  assert.match(source, /from [\"']\.\.\/\.\.\/providers\/knowledge\/deprecate\.mjs[\"']/);
   assert.match(source, /\bmutate\(/);
   for (const forbidden of ["../state.mjs", "../storage/lock.mjs", "../storage/log.mjs"]) {
     assert.doesNotMatch(source, new RegExp(`from [\\\"']${forbidden.replaceAll("/", "\\\\/")}[\\\"']`));
@@ -702,7 +702,7 @@ test("seam-dag: deprecate-knowledge adapter uses the kernel knowledge provider f
 test("seam-dag: addNodeInternal({ allowUnregisteredInitiative: true }) bypasses INITIATIVE_NOT_FOUND", async () => {
   await withFreshEnv(async ({ projectDir }) => {
     await initProject(projectDir);
-    const { addNodeInternal } = await importFresh("../src/commands/internal/create-node.mjs");
+    const { addNodeInternal } = await importFresh("../src/cli/commands/internal/create-node.mjs");
     const out = await addNodeInternal({
       statePath: projectDir,
       projectDir,
@@ -727,7 +727,7 @@ test("seam-dag: addNodeInternal({ allowUnregisteredInitiative: true }) bypasses 
 test("seam-dag: addNodeInternal without the flag still enforces INITIATIVE_NOT_FOUND", async () => {
   await withFreshEnv(async ({ projectDir }) => {
     await initProject(projectDir);
-    const { addNodeInternal } = await importFresh("../src/commands/internal/create-node.mjs");
+    const { addNodeInternal } = await importFresh("../src/cli/commands/internal/create-node.mjs");
     await assert.rejects(
       () => addNodeInternal({
         statePath: projectDir,

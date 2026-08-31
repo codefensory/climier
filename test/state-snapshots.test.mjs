@@ -193,7 +193,7 @@ test("createSnapshot: preserves raw bytes verbatim for non-JSON content", async 
   try {
     // Bootstrap a v2 metadata first (so stateFile() resolves), then overwrite
     // the state file with raw non-JSON bytes.
-    const { default: init } = await importFresh("./commands/init.mjs");
+    const { default: init } = await importFresh("./cli/commands/init.mjs");
     await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
     const file = stateFilePath(dir);
     const garbage = "{ this is not JSON but it's raw and we keep it verbatim\n";
@@ -357,7 +357,7 @@ test("listSnapshots: lists multiple snapshots with mixed reasons", async () => {
 // =====================================================================
 
 test("init --force on existing v2 state: snapshot reason=force-init, raw preserves the pre-reset state", async () => {
-  const { default: init } = await importFresh("./commands/init.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.mjs");
   const { readState, listSnapshots } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
@@ -381,7 +381,7 @@ test("init --force on existing v2 state: snapshot reason=force-init, raw preserv
 });
 
 test("init --force on existing v1 state: snapshot reason=force-init, raw preserves the v1 bytes verbatim", async () => {
-  const { default: init } = await importFresh("./commands/init.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.mjs");
   const { readState, listSnapshots } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
@@ -410,7 +410,7 @@ test("init --force on existing v1 state: snapshot reason=force-init, raw preserv
 });
 
 test("init recovery on corrupt JSON (no --force): snapshot reason=corrupt-recovery, raw preserves garbage", async () => {
-  const { default: init } = await importFresh("./commands/init.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.mjs");
   const { readState, listSnapshots } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
@@ -433,7 +433,7 @@ test("init recovery on corrupt JSON (no --force): snapshot reason=corrupt-recove
 });
 
 test("init on missing state (no file): no snapshot is created", async () => {
-  const { default: init } = await importFresh("./commands/init.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.mjs");
   const { listSnapshots } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
@@ -446,7 +446,7 @@ test("init on missing state (no file): no snapshot is created", async () => {
 });
 
 test("init on valid existing state without --force: refuses and does NOT create a snapshot", async () => {
-  const { default: init } = await importFresh("./commands/init.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.mjs");
   const { listSnapshots } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
@@ -462,7 +462,7 @@ test("init on valid existing state without --force: refuses and does NOT create 
 });
 
 test("init --force twice creates two snapshots, newest first; original pre-reset data is recoverable from the first", async () => {
-  const { default: init } = await importFresh("./commands/init.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.mjs");
   const { readState, listSnapshots } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {

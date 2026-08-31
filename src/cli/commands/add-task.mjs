@@ -4,8 +4,8 @@
 // `T-xxxxxxxx` (8-char random suffix). Required fields:
 // --initiative, --title, --body, --acceptance, --blocked-by.
 import { addV2Node, requireFields } from "./internal/create-node.mjs";
-import { throwV2 } from "../contracts/errors.mjs";
-import { resolveAgent } from "../contracts/agent.mjs";
+import { throwV2 } from "../../contracts/errors.mjs";
+import { resolveAgent } from "../../contracts/agent.mjs";
 
 export const knownFlags = [
   "initiative",

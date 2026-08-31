@@ -4,8 +4,8 @@ import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, importFresh, readState as readRawState, runCli } from "./helpers.mjs";
 
 async function v2Project() {
-  const { default: init } = await importFresh("./commands/init.mjs");
-  const { default: addInit } = await importFresh("./commands/add-initiative.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.mjs");
+  const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
   const dir = await createTempProject();
   await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
   await addInit({ statePath: dir, flags: { desc: "auth" }, positional: ["auth"] });
@@ -13,7 +13,7 @@ async function v2Project() {
 }
 
 async function seedTask(dir, id = "T-auth-1", extra = {}) {
-  const { default: addNode } = await importFresh("./commands/add-node.mjs");
+  const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
   return addNode({
     statePath: dir,
     positional: [id],
@@ -43,7 +43,7 @@ test("add-node: initializes revision = 1 on a new v2 node", async () => {
 // --- happy path: field edits bump the revision --------------------------
 
 test("update: changes title and bumps revision to 2", async () => {
-  const { default: update } = await importFresh("./commands/update.mjs");
+  const { default: update } = await importFresh("./cli/commands/update.mjs");
   const dir = await v2Project();
   try {
     await seedTask(dir);
@@ -62,7 +62,7 @@ test("update: changes title and bumps revision to 2", async () => {
 });
 
 test("update: parses --meta JSON and persists it", async () => {
-  const { default: update } = await importFresh("./commands/update.mjs");
+  const { default: update } = await importFresh("./cli/commands/update.mjs");
   const dir = await v2Project();
   try {
     await seedTask(dir);
@@ -77,7 +77,7 @@ test("update: parses --meta JSON and persists it", async () => {
 });
 
 test("update: parses --tags CSV and replaces the tag set", async () => {
-  const { default: update } = await importFresh("./commands/update.mjs");
+  const { default: update } = await importFresh("./cli/commands/update.mjs");
   const dir = await v2Project();
   try {
     await seedTask(dir);
@@ -91,7 +91,7 @@ test("update: parses --tags CSV and replaces the tag set", async () => {
 });
 
 test("update: bumps revision on every successful mutation", async () => {
-  const { default: update } = await importFresh("./commands/update.mjs");
+  const { default: update } = await importFresh("./cli/commands/update.mjs");
   const dir = await v2Project();
   try {
     await seedTask(dir);
@@ -107,7 +107,7 @@ test("update: bumps revision on every successful mutation", async () => {
 // --- --if-revision optimistic concurrency --------------------------------
 
 test("update: --if-revision matching current revision applies and increments", async () => {
-  const { default: update } = await importFresh("./commands/update.mjs");
+  const { default: update } = await importFresh("./cli/commands/update.mjs");
   const dir = await v2Project();
   try {
     await seedTask(dir);
@@ -122,7 +122,7 @@ test("update: --if-revision matching current revision applies and increments", a
 });
 
 test("update: --if-revision mismatch returns REVISION_CONFLICT with expected/current", async () => {
-  const { default: update } = await importFresh("./commands/update.mjs");
+  const { default: update } = await importFresh("./cli/commands/update.mjs");
   const dir = await v2Project();
   try {
     await seedTask(dir);
@@ -149,7 +149,7 @@ test("update: --if-revision mismatch returns REVISION_CONFLICT with expected/cur
 });
 
 test("update: without --if-revision a stale snapshot still mutates", async () => {
-  const { default: update } = await importFresh("./commands/update.mjs");
+  const { default: update } = await importFresh("./cli/commands/update.mjs");
   const dir = await v2Project();
   try {
     await seedTask(dir);
@@ -168,7 +168,7 @@ test("update: without --if-revision a stale snapshot still mutates", async () =>
 // --- error cases ---------------------------------------------------------
 
 test("update: missing node returns NODE_NOT_FOUND", async () => {
-  const { default: update } = await importFresh("./commands/update.mjs");
+  const { default: update } = await importFresh("./cli/commands/update.mjs");
   const dir = await v2Project();
   try {
     let caught;
@@ -182,12 +182,12 @@ test("update: missing node returns NODE_NOT_FOUND", async () => {
 });
 
 test("update: rejects update on a v1 state", async () => {
-  const { default: update } = await importFresh("./commands/update.mjs");
+  const { default: update } = await importFresh("./cli/commands/update.mjs");
   const dir = await createTempProject();
   try {
     // Bootstrap .climier.json + an empty v2 state, then overwrite the
     // state file directly with a v1 shape (writeState now rejects v1).
-    const { default: init } = await importFresh("./commands/init.mjs");
+    const { default: init } = await importFresh("./cli/commands/init.mjs");
     await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
     const fs = await import("node:fs/promises");
     const path = await import("node:path");

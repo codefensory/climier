@@ -12,8 +12,8 @@
 // race on the same installed/<id>.
 
 import fs from "node:fs/promises";
-import { withGlobalPluginLock } from "../plugins/lock.mjs";
-import { pluginInstalledDir } from "../plugins/paths.mjs";
+import { withGlobalPluginLock } from "../../plugins/lock.mjs";
+import { pluginInstalledDir } from "../../plugins/paths.mjs";
 
 export const knownFlags = ["as"];
 

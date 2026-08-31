@@ -26,9 +26,9 @@ import {
 const baseState = () => ({ version: 2, nodes: {}, edges: [], log: [] });
 
 async function bootstrapV2(dir) {
-  const { default: init } = await importFresh("./commands/init.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.mjs");
   await init({ statePath: dir, projectDir: dir, positional: [], flags: { v2: true } });
-  const { default: addInitiative } = await importFresh("./commands/add-initiative.mjs");
+  const { default: addInitiative } = await importFresh("./cli/commands/add-initiative.mjs");
   await addInitiative({
     statePath: dir,
     projectDir: dir,
@@ -38,7 +38,7 @@ async function bootstrapV2(dir) {
 }
 
 async function addTask(dir, id, extraFlags) {
-  const { default: addNode } = await importFresh("./commands/add-node.mjs");
+  const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
   return addNode({
     statePath: dir,
     positional: [id],
@@ -316,7 +316,7 @@ test("add-node: meta with execution:null strips it and keeps the rest", async ()
 // ---------------------------------------------------------------------------
 
 test("update: rejects meta.execution with INVALID_EXECUTION_CONTRACT", async () => {
-  const { default: update } = await importFresh("./commands/update.mjs");
+  const { default: update } = await importFresh("./cli/commands/update.mjs");
   const dir = await createTempProject();
   try {
     await bootstrapV2(dir);
@@ -336,7 +336,7 @@ test("update: rejects meta.execution with INVALID_EXECUTION_CONTRACT", async () 
 });
 
 test("update: valid meta.execution persists the normalized contract", async () => {
-  const { default: update } = await importFresh("./commands/update.mjs");
+  const { default: update } = await importFresh("./cli/commands/update.mjs");
   const dir = await createTempProject();
   try {
     await bootstrapV2(dir);
@@ -362,7 +362,7 @@ test("update: valid meta.execution persists the normalized contract", async () =
 });
 
 test("update: meta.execution={} clears the existing contract while keeping siblings", async () => {
-  const { default: update } = await importFresh("./commands/update.mjs");
+  const { default: update } = await importFresh("./cli/commands/update.mjs");
   const dir = await createTempProject();
   try {
     await bootstrapV2(dir);
@@ -389,7 +389,7 @@ test("update: meta.execution={} clears the existing contract while keeping sibli
 // ---------------------------------------------------------------------------
 
 test("context: execution_contract is null when node has no contract", async () => {
-  const { default: context } = await importFresh("./commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
     await writeRawState(dir, {
@@ -413,7 +413,7 @@ test("context: execution_contract is null when node has no contract", async () =
 });
 
 test("context: execution_contract surfaces the normalized contract", async () => {
-  const { default: context } = await importFresh("./commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
     await writeRawState(dir, {
@@ -453,7 +453,7 @@ test("context: execution_contract surfaces the normalized contract", async () =>
 });
 
 test("context: ownership_conflicts detects equal paths between two open tasks", async () => {
-  const { default: context } = await importFresh("./commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
     await writeRawState(dir, {
@@ -501,7 +501,7 @@ test("context: ownership_conflicts detects equal paths between two open tasks", 
 });
 
 test("context: ownership_conflicts detects ancestor / descendant relationships", async () => {
-  const { default: context } = await importFresh("./commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
     await writeRawState(dir, {
@@ -593,7 +593,7 @@ test("context: ownership_conflicts detects ancestor / descendant relationships",
 });
 
 test("context: ownership_conflicts skip done/canceled/archived/superseded tasks", async () => {
-  const { default: context } = await importFresh("./commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
     await writeRawState(dir, {
@@ -655,7 +655,7 @@ test("context: ownership_conflicts skip done/canceled/archived/superseded tasks"
 });
 
 test("context: knowledge / gate nodes do not produce ownership_conflicts", async () => {
-  const { default: context } = await importFresh("./commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
     await writeRawState(dir, {
@@ -697,7 +697,7 @@ test("context: knowledge / gate nodes do not produce ownership_conflicts", async
 });
 
 test("context: deterministic ordering by (other_node_id, self_path, other_path)", async () => {
-  const { default: context } = await importFresh("./commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
     await writeRawState(dir, {

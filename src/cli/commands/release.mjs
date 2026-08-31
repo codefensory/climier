@@ -1,12 +1,12 @@
 // `release <id>` CLI adapter for the canonical task.release provider.
 // The kernel owns locking, state, revisions and logs; this module only maps
 // CLI flags to the typed provider request and projects the legacy envelope.
-import { mutate } from "../kernel/mutate.mjs";
-import { throwV2 } from "../contracts/errors.mjs";
-import { resolveAgent } from "../contracts/agent.mjs";
-import { loadApplicablePolicy, authorizeAction } from "../plugins/policy.mjs";
-import { PolicyDenied } from "../plugins/errors.mjs";
-import { taskReleaseProvider } from "../providers/task/release.mjs";
+import { mutate } from "../../kernel/mutate.mjs";
+import { throwV2 } from "../../contracts/errors.mjs";
+import { resolveAgent } from "../../contracts/agent.mjs";
+import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
+import { PolicyDenied } from "../../plugins/errors.mjs";
+import { taskReleaseProvider } from "../../providers/task/release.mjs";
 
 export const knownFlags = ["as"];
 

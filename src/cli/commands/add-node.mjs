@@ -21,7 +21,7 @@
 //   recovery / migration tooling can seed nodes before the matching
 //   initiative exists. The flag is NOT in `knownFlags`, so the CLI
 //   surface rejects it as unknown. The flag IS forwarded by
-//   `addNodeInternal` (src/commands/internal/create-node.mjs) which is the only
+//   `addNodeInternal` (src/cli/commands/internal/create-node.mjs) which is the only
 //   sanctioned caller.
 //
 // Defaults:
@@ -40,14 +40,14 @@
 // verbatim from the provider / kernel so existing consumers and tests
 // keep their structured error envelopes.
 
-import { mutate } from "../kernel/mutate.mjs";
-import { loadApplicablePolicy, authorizeAction } from "../plugins/policy.mjs";
-import { throwV2 } from "../contracts/errors.mjs";
-import { resolveAgent } from "../contracts/agent.mjs";
-import { validateExecution } from "../contracts/execution-contract.mjs";
-import { taskCreateProvider } from "../providers/task/create.mjs";
-import { gateCreateProvider } from "../providers/gate/create.mjs";
-import { createProvider as knowledgeCreateProviderFactory } from "../providers/knowledge/create.mjs";
+import { mutate } from "../../kernel/mutate.mjs";
+import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
+import { throwV2 } from "../../contracts/errors.mjs";
+import { resolveAgent } from "../../contracts/agent.mjs";
+import { validateExecution } from "../../contracts/execution-contract.mjs";
+import { taskCreateProvider } from "../../providers/task/create.mjs";
+import { gateCreateProvider } from "../../providers/gate/create.mjs";
+import { createProvider as knowledgeCreateProviderFactory } from "../../providers/knowledge/create.mjs";
 
 export const knownFlags = [
   "kind",
@@ -292,7 +292,7 @@ export default async function addNode({ statePath, flags, positional, pluginId }
   const agent = resolveAgent(flags, "add-node");
 
   // Internal capability flag (only settable by `addNodeInternal` in
-  // src/commands/internal/create-node.mjs, which is the sole sanctioned caller).
+  // src/cli/commands/internal/create-node.mjs, which is the sole sanctioned caller).
   const allowUnregistered =
     flags["allow-unregistered-initiative"] === true ||
     flags["allow-unregistered-initiative"] === "true";

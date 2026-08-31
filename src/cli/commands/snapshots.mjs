@@ -9,7 +9,7 @@
 //
 // No flags today. `knownFlags = []` makes the bin's unknown-flag gate
 // catch accidental `snapshots --something`.
-import { listSnapshots } from "../storage/state.mjs";
+import { listSnapshots } from "../../storage/state.mjs";
 
 export const knownFlags = [];
 

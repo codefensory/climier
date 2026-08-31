@@ -5,7 +5,7 @@ import path from "node:path";
 import { createTempProject, rmTempProject, importFresh, stateFilePath, lockFilePath } from "./helpers.mjs";
 
 test("storage: init uses the global state path", async () => {
-  const { default: init } = await importFresh("./commands/init.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.mjs");
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
@@ -16,7 +16,7 @@ test("storage: init uses the global state path", async () => {
 });
 
 test("storage: project metadata makes sibling worktrees share the same state and lock path", async () => {
-  const { default: init } = await importFresh("./commands/init.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.mjs");
   const { updateState, readState } = await importFresh("./storage/state.mjs");
   const a = await createTempProject();
   const b = await createTempProject();

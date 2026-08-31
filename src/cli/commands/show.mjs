@@ -1,6 +1,6 @@
 // show: return the raw node by id.
-import { readState, isV2State } from "../storage/state.mjs";
-import { throwV2 } from "../contracts/errors.mjs";
+import { readState, isV2State } from "../../storage/state.mjs";
+import { throwV2 } from "../../contracts/errors.mjs";
 
 export const knownFlags = [];
 

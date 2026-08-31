@@ -32,7 +32,7 @@ function clearAgentEnv(restore) {
 }
 
 async function freshV2(dir) {
-  const { default: init } = await importFresh("./commands/init.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.mjs");
   await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
 }
 
@@ -133,13 +133,13 @@ for (const [name, buildFlags, positional, register] of [
     try {
       await freshV2(dir);
       if (register) {
-        const { default: addInit } = await importFresh("./commands/add-initiative.mjs");
+        const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
         // Setup passes --as so add-initiative itself doesn't trip the new
         // MISSING_AGENT gate before we get to the command under test.
         await addInit({ statePath: dir, flags: { desc: "auth", as: "setup" }, positional: ["auth"] });
         // Pre-create the edge endpoints if needed (add-edge needs both T-a and T-b).
         if (name === "add-edge") {
-          const { default: addNode } = await importFresh("./commands/add-node.mjs");
+          const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
           await addNode({
             statePath: dir,
             positional: ["T-a"],
@@ -152,7 +152,7 @@ for (const [name, buildFlags, positional, register] of [
           });
         }
       }
-      const { default: cmd } = await importFresh(`./commands/${name}.mjs`);
+      const { default: cmd } = await importFresh(`./cli/commands/${name}.mjs`);
       let caught;
       try {
         await cmd({
@@ -175,15 +175,15 @@ test("v2-update: missing agent emits MISSING_AGENT", async () => {
   const restore = clearAgentEnv();
   try {
     await freshV2(dir);
-    const { default: addInit } = await importFresh("./commands/add-initiative.mjs");
+    const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
     await addInit({ statePath: dir, flags: { desc: "auth", as: "setup" }, positional: ["auth"] });
-    const { default: addNode } = await importFresh("./commands/add-node.mjs");
+    const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
     await addNode({
       statePath: dir,
       positional: ["T-a"],
       flags: { kind: "resolvable", subkind: "task", title: "a", initiative: "auth", as: "setup" },
     });
-    const { default: update } = await importFresh("./commands/update.mjs");
+    const { default: update } = await importFresh("./cli/commands/update.mjs");
     let caught;
     try {
       await update({
@@ -206,7 +206,7 @@ test("add-initiative: CLIMIER_AGENT is accepted when --as is absent", async () =
   process.env.CLIMIER_AGENT = "env-only-agent";
   try {
     await freshV2(dir);
-    const { default: addInit } = await importFresh("./commands/add-initiative.mjs");
+    const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
     const out = await addInit({
       statePath: dir,
       flags: { desc: "x" },
@@ -226,9 +226,9 @@ test("add-node: CLIMIER_AGENT is recorded in the log when --as is absent", async
   process.env.CLIMIER_AGENT = "env-only-agent";
   try {
     await freshV2(dir);
-    const { default: addInit } = await importFresh("./commands/add-initiative.mjs");
+    const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
     await addInit({ statePath: dir, flags: { desc: "auth" }, positional: ["auth"] });
-    const { default: addNode } = await importFresh("./commands/add-node.mjs");
+    const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
     await addNode({
       statePath: dir,
       positional: ["T-x"],

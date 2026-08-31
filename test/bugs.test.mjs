@@ -46,9 +46,9 @@ test("bug: corrupted state file produces a clear error, not a SyntaxError stack"
 // should warn or fail, not silently create a task stuck forever.
 // v2 equivalent: add-task --blocked-by=NONEXISTENT must fail edge validation.
 test("bug: add-task rejects --blocked-by pointing to non-existent id", async () => {
-  const { default: addInit } = await importFresh("./commands/add-initiative.mjs");
-  const { default: addTask } = await importFresh("./commands/add-task.mjs");
-  const { default: init } = await importFresh("./commands/init.mjs");
+  const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
+  const { default: addTask } = await importFresh("./cli/commands/add-task.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.mjs");
   const dir = await createTempProject();
   try {
     // init first so the state file exists and the validator can run.

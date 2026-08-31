@@ -27,10 +27,10 @@ const knowledgeFlags = () => ({
 async function withV2(fn, { register = true } = {}) {
   const dir = await createTempProject();
   try {
-    const { default: init } = await importFresh("./commands/init.mjs");
+    const { default: init } = await importFresh("./cli/commands/init.mjs");
     await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
     if (register) {
-      const { default: addInitiative } = await importFresh("./commands/add-initiative.mjs");
+      const { default: addInitiative } = await importFresh("./cli/commands/add-initiative.mjs");
       await addInitiative({ statePath: dir, flags: { desc: "Auth migration" }, positional: ["auth"] });
     }
     await fn(dir);
@@ -40,7 +40,7 @@ async function withV2(fn, { register = true } = {}) {
 }
 
 async function command(name) {
-  return (await importFresh(`./commands/${name}.mjs`)).default;
+  return (await importFresh(`./cli/commands/${name}.mjs`)).default;
 }
 
 function assertMissing(commandName, field) {

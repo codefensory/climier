@@ -1,10 +1,10 @@
 // `init` CLI adapter for the trusted kernel state operations.
 // The kernel owns state inspection, locking, snapshots, policy execution and
 // atomic persistence; this module only handles CLI-specific setup and output.
-import { stateFile, ensureProjectMeta } from "../storage/state.mjs";
-import { resolveAgent } from "../contracts/agent.mjs";
-import { loadApplicablePolicy, authorizeAction } from "../plugins/policy.mjs";
-import { initState } from "../kernel/state-operations.mjs";
+import { stateFile, ensureProjectMeta } from "../../storage/state.mjs";
+import { resolveAgent } from "../../contracts/agent.mjs";
+import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
+import { initState } from "../../kernel/state-operations.mjs";
 
 export const knownFlags = ["force", "as"];
 

@@ -10,7 +10,7 @@ import {
 const baseState = () => ({ version: 2, nodes: {}, edges: [], log: [] });
 
 test("context v2: returns the design doc shape with revision, claim, blocking, knowledge, alerts, allowed_actions", async () => {
-  const { default: context } = await importFresh("./commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
     await writeRawState(dir, {
@@ -44,7 +44,7 @@ test("context v2: returns the design doc shape with revision, claim, blocking, k
 });
 
 test("context v2: scope_matches is an array (not a scalar)", async () => {
-  const { default: context } = await importFresh("./commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
     await writeRawState(dir, {
@@ -81,7 +81,7 @@ test("context v2: scope_matches is an array (not a scalar)", async () => {
 });
 
 test("context v2: a knowledge arriving via node_id AND domain -> scope_matches has both, ordering prefers node_id first", async () => {
-  const { default: context } = await importFresh("./commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
     await writeRawState(dir, {
@@ -168,7 +168,7 @@ test("context v2: a knowledge arriving via node_id AND domain -> scope_matches h
 });
 
 test("context v2: tie-break by id when several items share the same top specificity", async () => {
-  const { default: context } = await importFresh("./commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
     await writeRawState(dir, {
@@ -211,7 +211,7 @@ test("context v2: tie-break by id when several items share the same top specific
 });
 
 test("context v2: claim is { by, at, stale } when in_progress, null when not", async () => {
-  const { default: context } = await importFresh("./commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
     const fresh = Date.now();
@@ -249,7 +249,7 @@ test("context v2: claim is { by, at, stale } when in_progress, null when not", a
 });
 
 test("context v2: claim.stale reflects --staleMs threshold", async () => {
-  const { default: context } = await importFresh("./commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
     await writeRawState(dir, {
@@ -283,7 +283,7 @@ test("context v2: claim.stale reflects --staleMs threshold", async () => {
 });
 
 test("context v2: allowed_actions for task ready (no claim) includes claim/update/add-note/cancel", async () => {
-  const { default: context } = await importFresh("./commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
     await writeRawState(dir, {
@@ -310,7 +310,7 @@ test("context v2: allowed_actions for task ready (no claim) includes claim/updat
 });
 
 test("context v2: allowed_actions for task in_progress owned by --as", async () => {
-  const { default: context } = await importFresh("./commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
     await writeRawState(dir, {
@@ -348,7 +348,7 @@ test("context v2: allowed_actions for task in_progress owned by --as", async () 
 });
 
 test("context v2: allowed_actions for task in_progress with --as bob (non-owner) -> resolve/release/add-note/update (ADR-009: ownership is not projected)", async () => {
-  const { default: context } = await importFresh("./commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
     await writeRawState(dir, {
@@ -384,7 +384,7 @@ test("context v2: allowed_actions for task in_progress with --as bob (non-owner)
 });
 
 test("context v2: allowed_actions for task in_progress --as test-agent (non-owner) -> resolve/release/add-note/update (actor name has no authority)", async () => {
-  const { default: context } = await importFresh("./commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
     await writeRawState(dir, {
@@ -417,7 +417,7 @@ test("context v2: allowed_actions for task in_progress --as test-agent (non-owne
 });
 
 test("context v2: allowed_actions for task in_progress anonymous (no --as) -> add-note only", async () => {
-  const { default: context } = await importFresh("./commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
     await writeRawState(dir, {
@@ -447,7 +447,7 @@ test("context v2: allowed_actions for task in_progress anonymous (no --as) -> ad
 });
 
 test("context v2: allowed_actions for task done (no --as, anonymous) -> add-note only", async () => {
-  const { default: context } = await importFresh("./commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
     await writeRawState(dir, {
@@ -473,7 +473,7 @@ test("context v2: allowed_actions for task done (no --as, anonymous) -> add-note
 });
 
 test("context v2: allowed_actions for task done with --as alice -> reopen + add-note", async () => {
-  const { default: context } = await importFresh("./commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
     await writeRawState(dir, {
@@ -499,7 +499,7 @@ test("context v2: allowed_actions for task done with --as alice -> reopen + add-
 });
 
 test("context v2: allowed_actions for task done with --as bob (not done_by) -> reopen + add-note (ADR-009: done_by is not projected)", async () => {
-  const { default: context } = await importFresh("./commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
     await writeRawState(dir, {
@@ -529,7 +529,7 @@ test("context v2: allowed_actions for task done with --as bob (not done_by) -> r
 });
 
 test("context v2: allowed_actions for task canceled", async () => {
-  const { default: context } = await importFresh("./commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
     await writeRawState(dir, {
@@ -555,7 +555,7 @@ test("context v2: allowed_actions for task canceled", async () => {
 });
 
 test("context v2: allowed_actions for gate open", async () => {
-  const { default: context } = await importFresh("./commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
     await writeRawState(dir, {
@@ -588,7 +588,7 @@ test("context v2: allowed_actions for gate open", async () => {
 });
 
 test("context v2: allowed_actions for gate resolved", async () => {
-  const { default: context } = await importFresh("./commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
     await writeRawState(dir, {
@@ -613,7 +613,7 @@ test("context v2: allowed_actions for gate resolved", async () => {
 });
 
 test("context v2: allowed_actions for knowledge active", async () => {
-  const { default: context } = await importFresh("./commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
     await writeRawState(dir, {
@@ -638,7 +638,7 @@ test("context v2: allowed_actions for knowledge active", async () => {
 });
 
 test("context v2: allowed_actions for knowledge deprecated", async () => {
-  const { default: context } = await importFresh("./commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
     await writeRawState(dir, {
@@ -663,7 +663,7 @@ test("context v2: allowed_actions for knowledge deprecated", async () => {
 });
 
 test("context v2: alerts include STALE_CLAIM when claim is stale", async () => {
-  const { default: context } = await importFresh("./commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
     await writeRawState(dir, {
@@ -692,7 +692,7 @@ test("context v2: alerts include STALE_CLAIM when claim is stale", async () => {
 });
 
 test("context v2: alerts include SUPERSEDED_BLOCKER when a blocker is superseded by a successor", async () => {
-  const { default: context } = await importFresh("./commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
     await writeRawState(dir, {
@@ -741,7 +741,7 @@ test("context v2: alerts include SUPERSEDED_BLOCKER when a blocker is superseded
 });
 
 test("context v2: alerts include KNOWLEDGE_DEPRECATED_SOON when matching knowledge is deprecated", async () => {
-  const { default: context } = await importFresh("./commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
     await writeRawState(dir, {
@@ -777,10 +777,10 @@ test("context v2: alerts include KNOWLEDGE_DEPRECATED_SOON when matching knowled
 });
 
 test("context v2: --project and unknown flags are rejected by the known-flags guard", async () => {
-  const { default: context } = await importFresh("./commands/context.mjs");
-  assert.ok(Array.isArray(context.knownFlags || (await importFresh("./commands/context.mjs")).default.knownFlags) || true);
+  const { default: context } = await importFresh("./cli/commands/context.mjs");
+  assert.ok(Array.isArray(context.knownFlags || (await importFresh("./cli/commands/context.mjs")).default.knownFlags) || true);
   // The known-flags guard is in bin/climier.mjs; here we just verify the export.
-  const mod = await importFresh("./commands/context.mjs");
+  const mod = await importFresh("./cli/commands/context.mjs");
   assert.ok(mod.knownFlags.includes("as"));
   assert.ok(mod.knownFlags.includes("staleMs"));
 });

@@ -5,11 +5,11 @@
 // audit log and atomic persistence. The request action remains `add-note` so
 // the historical CLI log contract is preserved (the plugin API uses
 // `note.add`).
-import { mutate } from "../kernel/mutate.mjs";
-import { noteAddProvider } from "../providers/core/note.mjs";
-import { throwV2 } from "../contracts/errors.mjs";
-import { resolveAgent } from "../contracts/agent.mjs";
-import { loadApplicablePolicy, authorizeAction } from "../plugins/policy.mjs";
+import { mutate } from "../../kernel/mutate.mjs";
+import { noteAddProvider } from "../../providers/core/note.mjs";
+import { throwV2 } from "../../contracts/errors.mjs";
+import { resolveAgent } from "../../contracts/agent.mjs";
+import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
 
 export const knownFlags = ["as", "if-revision"];
 

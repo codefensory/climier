@@ -1,4 +1,4 @@
-import { assertStateVersion, readState } from "../storage/state.mjs";
+import { assertStateVersion, readState } from "../../storage/state.mjs";
 
 export const knownFlags = ["all"];
 

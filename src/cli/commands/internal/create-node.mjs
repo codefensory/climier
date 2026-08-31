@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import addNode from "../add-node.mjs";
-import { throwV2 } from "../../contracts/errors.mjs";
+import { throwV2 } from "../../../contracts/errors.mjs";
 
 const ID_RE = /^[A-Za-z0-9_.-]+$/;
 

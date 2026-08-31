@@ -28,8 +28,8 @@
 // ponytail: simplest implementation filters post-derive; no per-bucket indexes.
 // The expected state of a v2 project is a few dozen nodes; O(n) scans are fine.
 
-import { readState } from "../storage/state.mjs";
-import { derive, statusOf, blockingForNode } from "../read-model/index.mjs";
+import { readState } from "../../storage/state.mjs";
+import { derive, statusOf, blockingForNode } from "../../read-model/index.mjs";
 
 export const knownFlags = [
   "initiative",
