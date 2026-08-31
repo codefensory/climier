@@ -1,10 +1,9 @@
 // src/providers/core/edge.mjs — pure provider for `edge.add`.
 //
-// T-graph-kernel-provider-core-ops: completes the public surface of the
-// graph kernel with an edge-only operation that mirrors the public
+// Provides the graph kernel's edge-only operation, mirroring the public
 // `add-edge` CLI contract while running through `kernel.mutate`.
 //
-// Contract (ADR-011 §1 + §B6B):
+// Contract (ADR-011 §1):
 //   - `prepare` is read-only. It validates the input shape, normalizes
 //     the edge type to the canonical uppercase whitelist, validates
 //     both endpoints against the snapshot, rejects self-edges and
@@ -15,7 +14,7 @@
 //     `tx.addEdge` call with the normalized edge. No revision writes,
 //     no second persistence path, no fs/lock/state/log/handler calls.
 //   - The provider is provider-only: it does NOT reach for argv, never
-//     resolves to a legacy `handler`, and never imports filesystem,
+//     resolves to a command handler, and never imports filesystem,
 //     lock, state, log, policy, commands, registry, adapter, CLI or
 //     UI.
 
@@ -126,10 +125,10 @@ function validateNoSnapshotDuplicate(from, to, type, snapshot) {
  */
 async function prepare({ snapshot, input, request }) {
   // `request` is accepted for symmetry with the kernel contract and
-  // the future provider-level context. edge.add currently does not
-  // need it for validation; we mark it `void` so the linter does not
-  // flag the parameter and so future slices can read request
-  // metadata without re-plumbing the call site.
+  // provider-level context. edge.add currently does not need it for
+  // validation; we mark it `void` so the linter does not flag the
+  // parameter and callers can read request metadata without re-plumbing
+  // the call site.
   void request;
   const { from, to, rawType } = validateInputShape(input);
   const type = normalizeType(rawType);
@@ -142,8 +141,7 @@ async function prepare({ snapshot, input, request }) {
       // The kernel uses plan.target.id as the log entry's `node`
       // field (see src/kernel/mutate.mjs#buildLogEntry). The
       // BLOCKS-direction `to` endpoint is the canonical id for an
-      // edge-shaped operation; matches the historical add-edge
-      // log shape.
+      // edge-shaped operation; matches the canonical add-edge log shape.
       id: to,
       from,
       to,

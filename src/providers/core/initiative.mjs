@@ -1,12 +1,11 @@
 // src/providers/core/initiative.mjs — pure provider for `initiative.create`.
 //
-// T-graph-kernel-provider-core-initiative: completes the public surface of the
-// graph kernel with an initiative-only operation that mirrors the public
-// `add-initiative` CLI contract while running through `kernel.mutate`.
+// Provides the graph kernel's initiative-only operation, mirroring the
+// public `add-initiative` CLI contract while running through `kernel.mutate`.
 //
-// Contract (ADR-011 §1 + §B6B):
+// Contract (ADR-011 §1):
 //   - `prepare` is read-only. It validates the input shape, the
-//     canonical `name` (`^[A-Za-z0-9_-]+$`, matching the legacy
+//     canonical `name` (`^[A-Za-z0-9_-]+$`, matching the
 //     add-initiative whitelist), the optional `desc`, and rejects
 //     duplicates already present in the snapshot. The plan carries
 //     `{ target, policyAction, logAction, initiative }`.
@@ -15,9 +14,10 @@
 //     once at prepare time so apply never reaches for clock state.
 //     The provider never writes `revision` (the kernel diff owns
 //     that and does not bump node.revision for initiative-only
-//     changes, per B1b).
+//     changes; the kernel diff does not bump node.revision for
+//     initiative-only changes).
 //   - The provider is provider-only: it does NOT reach for argv,
-//     never resolves to a legacy `handler`, and never imports
+//     never resolves to a command handler, and never imports
 //     filesystem, lock, state, log, policy, commands, registry,
 //     adapter, CLI or UI.
 
@@ -27,12 +27,9 @@ const OP = "initiative.create";
 const LOG_ACTION = "add-initiative";
 const POLICY_ACTION = "initiative.create";
 
-// NAME_PATTERN — mirrors the legacy `add-initiative` whitelist so
-// names registered through the provider match the names the legacy
-// path accepts. The legacy handler's reject message references this
-// pattern as `[A-Za-z0-9_-]+`; we keep the same surface verbatim so
-// plugin authors and existing policies do not need to learn a new
-// name shape.
+// NAME_PATTERN — mirrors the `add-initiative` whitelist so names
+// registered through the provider use the same `[A-Za-z0-9_-]+` shape
+// as the public command and existing policies.
 const NAME_PATTERN = /^[A-Za-z0-9_-]+$/;
 
 function asNonEmptyString(value) {
@@ -41,8 +38,7 @@ function asNonEmptyString(value) {
 
 function readSnapshotInitiatives(snapshot) {
   // initiatives: { name -> { desc?, created_at? } }. The v2 schema
-  // keeps it as a plain object; defensive read in case a future
-  // plugin ships a partial snapshot.
+  // keeps it as a plain object; defensively handle a partial snapshot.
   return snapshot && snapshot.initiatives && typeof snapshot.initiatives === "object" && !Array.isArray(snapshot.initiatives)
     ? snapshot.initiatives
     : {};
@@ -67,10 +63,10 @@ function validateInputShape(input) {
       { name, pattern: NAME_PATTERN.source },
     );
   }
-  // desc is optional. When present it must be a string; the legacy
-  // add-initiative handler normalises missing desc to "" but here we
-  // keep it strictly typed so the kernel diff stays unambiguous
-  // (an absent desc and an empty desc are different states).
+  // desc is optional. When present it must be a string; missing desc is
+  // normalized to "" while the provider keeps the input strictly typed
+  // so the kernel diff stays unambiguous (an absent desc and an empty
+  // desc are different states).
   if (input.desc !== undefined && input.desc !== null && typeof input.desc !== "string") {
     throwV2(
       "INVALID_EXECUTION_CONTRACT",
@@ -120,19 +116,18 @@ function validateNoConflict(name, snapshot) {
  */
 async function prepare({ snapshot, input, request }) {
   // `request` is accepted for symmetry with the kernel contract
-  // (B6B providers receive it) but is not consumed today: validation
-  // is driven entirely by the snapshot and the input. Referenced so
-  // the linter does not flag the parameter and so future slices can
-  // read request metadata without re-plumbing the call site.
+  // but is not consumed today: validation is driven entirely by the
+  // snapshot and the input. Referenced so the linter does not flag the
+  // parameter and callers can read request metadata without re-plumbing
+  // the call site.
   void request;
   const { name } = validateInputShape(input);
   validateNoConflict(name, snapshot);
 
   // created_at is stamped at prepare time so apply never reaches for
-  // clock state. The legacy add-initiative handler stamps the same
-  // instant inside its `updateState` callback; doing it here keeps
-  // the same observable behaviour for callers while preserving the
-  // provider-only contract.
+  // clock state. The CLI command stamps the same instant inside its
+  // state update; doing it here preserves the observable behavior for
+  // callers while keeping the provider-only contract.
   const createdAt = new Date().toISOString();
   const desc = typeof input.desc === "string" ? input.desc : "";
 

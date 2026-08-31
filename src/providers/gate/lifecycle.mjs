@@ -1,5 +1,5 @@
 // src/providers/gate/lifecycle.mjs — gate.resolve / gate.reopen / gate.cancel
-// providers (ADR-011 §§1–4 + ADR-012 §3, plan §B4-gate-lifecycle).
+// providers (ADR-011 §§1–4 + ADR-012 §3).
 //
 // Pure domain semantics for the gate lifecycle operations. The provider
 // owns validation and the in-memory draft mutation; it never touches the
@@ -15,8 +15,7 @@
 //   apply({ tx, plan, snapshot })
 //     // mutates ONLY the tx draft via updateNode; returns { result, effects }.
 //
-// Behaviour parity (matched to commands/resolve.mjs, commands/reopen.mjs,
-// commands/cancel.mjs, ADR-009 §"Resto de operaciones"):
+// Behavioural contract (ADR-009 §"Resto de operaciones"):
 //
 //   gate.resolve
 //     - target: existing gate with status open|in_progress.
@@ -56,7 +55,7 @@
 //          superseded     => chain walk through SUPERSEDES
 //          anything else  => false
 // The provider uses a pure in-graph helper so it can evaluate isSatisfied
-// against both the snapshot and the draft view without importing command adapters.
+// against both the snapshot and the draft view without importing adapters.
 
 import { throwV2 } from "../../contracts/errors.mjs";
 import { GATE_STATUSES } from "./create.mjs";
@@ -74,8 +73,8 @@ const RESOLVE_POLICY = "task.resolve";
 const REOPEN_POLICY = "task.reopen";
 const CANCEL_POLICY = "task.cancel";
 
-// Statuses from which a gate can be resolved. Mirrors the v2 resolver,
-// which only resolves a task/gate when its status is open/in_progress.
+// Statuses from which a gate can be resolved. The resolver accepts
+// only open/in_progress gates.
 const RESOLVABLE_STATUSES = Object.freeze(["open", "in_progress"]);
 // Statuses from which a gate can be canceled. Matches cancel.mjs.
 const CANCELABLE_STATUSES = Object.freeze(["open", "in_progress"]);
@@ -219,24 +218,16 @@ function applyReopenPatch(tx, plan) {
   // The reopen must drop the previous resolution so isSatisfied falls back
   // to the open status (false). updateNode never carries revision.
   tx.updateNode(plan.target.id, { status: "open" });
-  // Drop resolution via a second updateNode that omits the field; tx does
-  // not expose delete, so we update with status=open and rely on the
-  // kernel's diff to compute that resolution is gone. Because
-  // updateNode merges keys (and removes nothing), we need a follow-up
-  // explicit clear. The cleanest way without adding tx API is to set
-  // resolution=undefined, which the kernel diff (B1b) treats as clearing
-  // the field. The transaction stores `resolution: undefined` literally,
-  // which is JSON-serialized away on persist. Until B1b lands, we set
-  // resolution to null which is safe to persist and lets derivations
-  // treat it as absent.
+  // updateNode merges keys and does not expose deletion, so explicitly
+  // clear the resolution with null. Derivations treat null as absent and
+  // the persisted state keeps the field's cleared value unambiguous.
   tx.updateNode(plan.target.id, { resolution: null });
 }
 
 function applyCancelPatch(tx, plan) {
   const patch = { status: "canceled" };
-  // Defensive: gates don't carry claims by design, but a future sibling
-  // (knowledge with claims, etc.) could. v2 cancel strips claim on tasks;
-  // gates never claim so we don't invent one here.
+  // Gates do not carry claims by design. Unlike task.cancel, this
+  // operation therefore has no claim field to clear.
   void patch;
   tx.updateNode(plan.target.id, { status: "canceled" });
 }
@@ -457,7 +448,7 @@ export const gateResolveProvider = Object.freeze({ prepare: prepareGateResolve, 
 export const gateReopenProvider = Object.freeze({ prepare: prepareGateReopen, apply: applyGateReopen });
 export const gateCancelProvider = Object.freeze({ prepare: prepareGateCancel, apply: applyGateCancel });
 
-// Public constants consumed by the registry and the future adapter.
+// Public constants consumed by the registry and adapter.
 export const GATE_RESOLVE_OP = RESOLVE_OP;
 export const GATE_REOPEN_OP = REOPEN_OP;
 export const GATE_CANCEL_OP = CANCEL_OP;

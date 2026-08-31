@@ -1,6 +1,6 @@
 // src/providers/task/cancel.mjs — pure provider for `task.cancel`.
 //
-// Plan §B4-task-lifecycle + ADR-011 §§1–4:
+// ADR-011 §§1–4:
 //   - `prepare` is read-only. Validates input + target + allowed
 //     statuses (open / in_progress) and the required `reason`.
 //   - `apply` uses tx.updateNode to set status=canceled and clear
@@ -23,9 +23,9 @@ function asNonEmptyString(value) {
 
 // resolveActor — host-fixed agent identity comes from request.actor
 // (the kernel stamps it from createCore's agent argument); the CLI
-// surface historically forwards --as through flags.as and ends up
-// here as input.actor. Both shapes remain accepted so the legacy CLI
-// path keeps working, but request.actor wins when both are present:
+// surface forwards --as through flags.as and may expose it as
+// input.actor. Both shapes remain accepted for compatibility, but
+// request.actor wins when both are present:
 // the adapter is the canonical source of truth for agent identity
 // in plugin-issued calls (ADR-006 §API y compatibilidad).
 function resolveActor(input, request) {

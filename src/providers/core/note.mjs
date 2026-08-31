@@ -1,10 +1,9 @@
 // src/providers/core/note.mjs — pure provider for `note.add`.
 //
-// T-graph-kernel-provider-core-ops: completes the public surface of the
-// graph kernel with a note-only operation that mirrors the public
+// Provides the graph kernel's note-only operation, mirroring the public
 // `add-note` CLI contract while running through `kernel.mutate`.
 //
-// Contract (ADR-011 §1 + §B6B):
+// Contract (ADR-011 §1):
 //   - `prepare` is read-only. It validates the target id, the text
 //     payload, and the `if_revision` precondition (ADR-011 §4 — every
 //     agent-facing op that mutates a node requires if_revision). The
@@ -14,11 +13,11 @@
 //     `tx.updateNode` call that appends a single note to the
 //     existing notes array. The note is timestamped with the current
 //     ISO instant and stamped with the agent from `request.actor`
-//     (matching the historical add-note CLI shape). The kernel owns
+//     (matching the add-note CLI shape). The kernel owns
 //     revision; the provider never writes or carries a `revision`
 //     field.
 //   - The provider is provider-only: it does NOT reach for argv, never
-//     resolves to a legacy `handler`, and never imports filesystem,
+//     resolves to a command handler, and never imports filesystem,
 //     lock, state, log, policy, commands, registry, adapter, CLI or
 //     UI.
 
@@ -33,13 +32,12 @@ function asNonEmptyString(value) {
 
 // resolveIfRevision — the kernel stamps request.if_revision (kind/id/value)
 // whenever input carries an id + integer if_revision (see plugin-core-
-// adapter buildRequest). The CLI surface historically passes the integer
-// straight through input.if_revision; both shapes remain accepted so the
-// legacy CLI path keeps working, but request.if_revision wins when both
-// are present (the kernel's CAS precondition is the canonical contract —
-// ADR-011 §4). The CAS is REQUIRED by ADR-011 §4 — the legacy CLI path
-// that skipped it was retired when the provider became the canonical
-// mutation frontier; callers must now declare their precondition.
+// adapter buildRequest). The CLI surface passes the integer straight
+// through input.if_revision; both shapes remain accepted for compatibility,
+// but request.if_revision wins when both are present (the kernel's CAS
+// precondition is the canonical contract —
+// ADR-011 §4). The CAS is REQUIRED by ADR-011 §4; callers must declare
+// their precondition.
 function resolveIfRevision(input, request) {
   const req = request && request.if_revision;
   if (req && typeof req === "object" && !Array.isArray(req) && Number.isInteger(req.value)) {

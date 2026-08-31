@@ -1,13 +1,12 @@
 // src/providers/gate/index.mjs — public surface of the gate provider.
 //
 // ADR-012 §3: `src/providers/gate/*` owns gate resolution and supersedence.
-// This slice (plan §B4-gate-core + §B4-gate-lifecycle) ships `gate.create`
-// (including multi-node supersede) and the lifecycle operations
-// `gate.resolve`, `gate.reopen`, `gate.cancel`.
+// This module exposes `gate.create` (including multi-node supersede) and
+// the lifecycle operations `gate.resolve`, `gate.reopen`, `gate.cancel`.
 //
-// The registry builder (B6A) consumes `gateProviders` to produce entries
-// shaped `{ id, provider, kind }`; nothing here imports the registry, the
-// kernel mutation frontier, adapters, commands, the CLI or the UI.
+// The registry consumes `gateProviders` to produce entries shaped
+// `{ id, provider, kind }`; nothing here imports the registry, the kernel
+// mutation frontier, adapters, commands, the CLI or the UI.
 
 import {
   gateCreateProvider,
@@ -96,8 +95,7 @@ export const GATE_PROVIDER_KIND = "gate";
 // Operation id -> provider. Frozen so consumers cannot register extra
 // operations at runtime (ADR-012 §5: the registry is process configuration
 // built from versioned code, not project state). `gate.create` was shipped
-// in §B4-gate-core; lifecycle operations land in §B4-gate-lifecycle and
-// continue to share the same `gateProviders` map.
+// Both core and lifecycle operations share the same `gateProviders` map.
 export const gateProviders = Object.freeze({
   "gate.create": gateCreateProvider,
   "gate.update": gateUpdateProvider,

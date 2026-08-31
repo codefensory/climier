@@ -1,6 +1,6 @@
 // src/providers/task/take.mjs — pure provider for `task.take` / `task.takeover`.
 //
-// Plan §B4-task-lifecycle + ADR-011 §§1–4:
+// ADR-011 §§1–4:
 //   - `prepare` is read-only. It classifies the action (task.take vs
 //     task.takeover), validates the target is a task in a claimable
 //     state, and detects the same-actor idempotent short-circuit.
@@ -28,9 +28,9 @@ function asNonEmptyString(value) {
 
 // resolveActor — host-fixed agent identity comes from request.actor
 // (the kernel stamps it from createCore's agent argument); the CLI
-// surface historically forwards --as through flags.as and ends up
-// here as input.actor. Both shapes remain accepted so the legacy CLI
-// path keeps working, but request.actor wins when both are present:
+// surface forwards --as through flags.as and may expose it as
+// input.actor. Both shapes remain accepted for compatibility, but
+// request.actor wins when both are present:
 // the adapter is the canonical source of truth for agent identity
 // in plugin-issued calls (ADR-006 §API y compatibilidad).
 function resolveActor(input, request) {
@@ -85,7 +85,7 @@ function validateTarget(input, snapshot) {
 
 // classifyAction — runs against the snapshot (read-only). Returns a
 // frozen descriptor consumed by prepare/apply. The semantic matrix
-// matches the v2 take command (ADR-008 §"Tabla de take"):
+// matches the take contract (ADR-008 §"Tabla de take"):
 //
 //   status        | claim.by    | action         | takeover | idempotent
 //   --------------|-------------|----------------|----------|------------
