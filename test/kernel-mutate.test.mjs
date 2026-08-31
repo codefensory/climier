@@ -1066,6 +1066,15 @@ test("kernel mutation request helpers are extracted and preserved through the fa
   assert.equal(kernel.__kernelInternals.operationLabel({}), request.operationLabel({}));
 });
 
+test("kernel mutation execution coordinator owns the pipeline while the façade keeps compatibility helpers", async () => {
+  const execute = await importFresh("./kernel/mutation/execute.mjs");
+  const kernel = await importKernel();
+
+  assert.equal(typeof execute.executeMutation, "function");
+  assert.equal(typeof kernel.mutate, "function");
+  assert.equal(typeof kernel.__kernelInternals.buildLogEntry, "function");
+});
+
 test("kernel mutation finalization helpers are pure boundaries preserved through the façade", async () => {
   const revisions = await importFresh("./kernel/mutation/revisions.mjs");
   const validation = await importFresh("./kernel/mutation/validation.mjs");
