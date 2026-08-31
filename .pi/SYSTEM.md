@@ -69,7 +69,9 @@ amplía para compensar discovery o un cierre tardío: tras un fallo local de la
 suite final sólo se corrige ese fallo, se repite evidencia y se cierra. El scope
 declarado es una frontera de integración: un worker no adelanta cambios, incluidos imports mecánicos, en
 paths asignados a tareas dependientes; si el cambio exige un no-go zone, deja
-handoff y libera para que el orquestador cure el contrato. Tras una corrección
+handoff y libera para que el orquestador cure el contrato. Las limpiezas
+históricas se trocean por subárbol con candidatos concretos: nunca se delega un
+pase global `src/**` para descubrir y editar arqueología a la vez. Tras una corrección
 fallida no se crea una cadena `fix2+`: se replantea desde la última base
 validada. Un validator no acepta un focal verde si una suite exigida agrega
 regresiones frente a su base.

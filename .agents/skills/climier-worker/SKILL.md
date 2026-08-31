@@ -117,7 +117,10 @@ path asignado a una task dependiente aunque parezca necesario o trivial: deja
 ese ajuste para su owner. Si el cambio propio no puede pasar sin tocar un
 no-go, detente, deja una nota con la dependencia concreta y libera; el
 orchestrator debe curar o dividir el contrato. El validator rechaza commits que
-cruzan este límite aunque los tests estén verdes.
+cruzan este límite aunque los tests estén verdes. Una limpieza de comentarios
+históricos debe nombrar un subárbol exclusivo y patrones o archivos candidatos:
+un pase global `src/**` no es una task ejecutable. Si el candidato se expande
+más allá de ese límite, detente en vez de acumular un diff no revisable.
 
 Los comandos que determinan el resultado deben conservar su exit code: usa
 `set -o pipefail` con pipelines o captura el status antes de `tail`/`grep`.

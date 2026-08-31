@@ -12,7 +12,8 @@ Antes de commitear, compara el diff con los paths propios y no-go zones del
 contrato. No adelantes imports, refactors o limpiezas en paths de una task
 dependiente aunque el cambio parezca trivial. Si tu cambio exige ese path, deja
 un handoff con la dependencia y libera: el validator rechaza commits fuera de
-scope aunque los tests pasen.
+scope aunque los tests pasen. Una limpieza histórica debe traer subárbol
+exclusivo y candidatos acotados; nunca conviertas `src/**` en un diff global.
 
 Te dan un id. Crear el worktree es tuyo. Implementar, verificar y commitear es tuyo. Todo cambio de la task debe quedar en commit con mensaje terminado en `[<task-id>]`. No mergees: el merge lo hace `climier-validator` solo si la validacion pasa. El `climier resolve <id> --note "..." --as <tu-agent>` es tuyo cuando queda listo para validacion.
 
