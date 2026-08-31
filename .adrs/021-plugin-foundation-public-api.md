@@ -31,8 +31,12 @@ adapters internos.
 3. La CLI normaliza rutas públicas relevantes (task create/update, edge
    add/remove, batch, state, context, status, gate y knowledge) a respuestas
    JSON máquina-legibles y errores `{ ok:false, error:{ code,message,details } }`.
-   Los códigos son API; la política de exit codes se documenta y prueba por
-   clases de éxito, uso/comando, conflicto de dominio y fallo storage/interno.
+   Los códigos son API: se preservan `CYCLE_DETECTED` y
+   `STATE_REVISION_CONFLICT`, y se añaden `BATCH_OPERATION_FAILED`,
+   `PLUGIN_DATA_INVALID`, `PLUGIN_API_INCOMPATIBLE` y
+   `PLUGIN_RUNTIME_UNAVAILABLE` donde correspondan. La política de exit codes
+   se documenta y prueba por clases de éxito, uso/comando, conflicto de dominio
+   y fallo storage/interno.
    No se exige migrar de golpe cada envelope histórico que no necesite un
    replanner; las operaciones nuevas exponen revisión/operación de manera
    explícita.

@@ -19,7 +19,10 @@ scheduler ni un runtime de plugin.
 1. Se agrega una operación pública `core.batch` / `api.core.batch({
    if_state_revision, operations })` y el comando `climier batch --file <json>`
    o `climier batch --stdin`. El documento de entrada contiene sólo
-   `if_state_revision` opcional y una lista no vacía de `{ op, input }`.
+   `if_state_revision` opcional y una lista no vacía de `{ op, input }`. La
+   implementación es un executor `kernel/mutation/batch` alcanzado desde la
+   única fachada `kernel/mutate`; no abre un segundo lock/frontier ni invoca
+   `mutate` de forma reentrante.
 2. El batch resuelve operaciones exclusivamente desde el catálogo Application
    Operations built-in. No acepta handlers, funciones, argv anidado, actor o
    pluginId aportados por cada entrada; identidad y policy source son los del

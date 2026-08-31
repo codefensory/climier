@@ -87,23 +87,32 @@ replanner, con códigos de error estables y una política de salida documentada.
   `data.project.delete(key)` devuelven `{ removed: boolean }`; un valor no JSON
   falla `PLUGIN_DATA_INVALID` antes de log/write.
 - **Runtime:** `dataDir` deriva de `dirname(stateFile(projectDir))/plugins/<id>`
-  tras validar el mismo id del descriptor; el host crea sólo ese directorio.
+  tras validar el mismo id del descriptor; el host crea sólo ese directorio con
+  permisos privados cuando la plataforma lo permita. El plugin es dueño de su
+  contenido; uninstall no lo purga ni el host lo migra.
 - **Compatibilidad API:** plugins sin `climier.api` o que exijan una versión no
   soportada fallan antes de importar su entrypoint. El corte v3 no promete
   compatibilidad silenciosa con el antiguo `api.core.version: 2`.
 - **Salida CLI:** los textos no son contrato. La clasificación se hace por
-  `error.code`; una tarea específica fija los códigos de salida por clase y
-  convierte los errores públicos relevantes al envelope estructurado.
+  `error.code`; `T-pf-c5-cli-agent-contract` fija y prueba los códigos de
+  salida por clase y convierte los errores públicos relevantes al envelope
+  estructurado.
 - **Data pesada:** `api.data` sólo guarda JSON pequeño. El host documenta la
   intención; `api.runtime.dataDir` es el destino para SQLite, logs y artifacts.
 
 ## Ejecución y acceptance
 
 El DAG materializado deja una task con aceptación verificable por corte; no se
-implementa una lista monolítica. La suite final prueba: snapshot coherente,
-aislamiento A/B, CAS de revisión global, reparación y rollback batch, ciclo
-bloqueado por CLI/API/batch, flujo shell `state → batch → state`, persistencia
-de data/runtime tras restart y ausencia de imports `src/**` en el fixture.
+implementa una lista monolítica. Los cortes son: C1 retiro de execution/resolve
+(`T-pf-c1-*`), C2 v4/invariantes/CAS/edge.remove (`T-pf-c2-*`), C3 executor,
+API y CLI batch (`T-pf-c3-*`), C4 snapshot/state (`T-pf-c4-*`), C6 data JSON,
+C7 dataDir, C5 contrato CLI, C8 versionado y C9 integración final. Cada task
+apunta a su ADR, paths exclusivos, no-go zone y comando de verificación.
+
+La suite final prueba: snapshot coherente, aislamiento A/B, CAS de revisión
+global, reparación y rollback batch, ciclo bloqueado por CLI/API/batch, flujo
+shell `state → batch → state`, persistencia de data/runtime tras restart y
+ausencia de imports `src/**` en el fixture.
 
 ## ADRs derivados
 
