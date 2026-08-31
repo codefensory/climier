@@ -14,7 +14,7 @@ This file tells you how the code is organized, the rules you must follow, and th
 
 ## Architecture
 
-The source tree makes the ownership boundaries explicit. Adapters translate
+The source tree makes the module boundaries explicit. Adapters translate
 external input; application operations compose registered domain operations;
 providers own domain semantics; the kernel owns the mutation transaction; and
 storage owns persistence. The canonical dependency direction is:
@@ -23,10 +23,10 @@ storage owns persistence. The canonical dependency direction is:
 CLI / Plugins -> application/operations -> providers -> kernel -> storage
 ```
 
-`execution/` and `read-model/` are pure transversal modules. `kernel/`,
-`providers/`, `execution/`, and `read-model/` must not import adapters
-(`cli/` or `plugins`). `providers/`, `execution/`, and `read-model/` must not
-import `storage/`. The kernel must not know about application or adapters.
+`read-model/` is a pure transversal module. `kernel/`, `providers/`, and
+`read-model/` must not import adapters (`cli/` or `plugins`). `providers/` and
+`read-model/` must not import `storage/`. The kernel must not know about
+application or adapters.
 
 ### Source layout
 
@@ -38,16 +38,12 @@ src/
     execute.mjs                        # Lookup, request construction, policy selection, one kernel call
     registry.mjs                       # Immutable process-local operation/provider index
     builtins.mjs                       # Canonical task/gate/knowledge/core operation catalog
-  execution/                           # Pure execution contract and ownership-conflict reasoning
-    contract.mjs                       # meta.execution validation/normalization
-    conflicts.mjs                      # Active task path-conflict detection
-    index.mjs                          # Public execution exports
   kernel/                              # Transaction, graph, mutation frontier, and state operations
     mutate.mjs                         # Stable mutate facade; owns lock/re-entrancy boundary
     transaction.mjs                    # In-memory draft transaction
     graph.mjs, edges.mjs               # DAG traversal and edge semantics
     state-operations.mjs               # Typed project/plugin state operations
-    mutation/                          # Validation, preconditions, diffs, revisions, log entry, execution
+    mutation/                          # Validation, preconditions, diffs, revisions, log entry, apply
   providers/                           # Pure task, gate, knowledge, and core domain operations
     task/, gate/, knowledge/, core/     # prepare/apply providers and read semantics
     plugin-data/                       # Typed plugin-scoped state providers
@@ -66,7 +62,7 @@ src/
   *.test.mjs                            # Tests, one per module/feature
 ```
 
-Ownership rules:
+Boundary rules:
 
 - `cli/commands/` owns argv validation, actor resolution, adapter-specific
   defaults, and the public JSON envelope. It does not own state, locks, logs,
@@ -81,8 +77,6 @@ Ownership rules:
 - `kernel/mutation/` owns the single locked mutation pipeline: fresh snapshot,
   preconditions/policy, provider plan, draft validation, diff/revisions, and
   atomic state-plus-log commit. `kernel/mutate.mjs` remains the stable facade.
-- `execution/` validates the optional worker execution contract and detects
-  active ownership conflicts without filesystem or adapter dependencies.
 - `read-model/` composes graph and provider semantics into read-only views; it
   has no argv, filesystem, mutation, or logging concerns.
 - `plugins/` is the host/adapter boundary. Plugin core actions consume the
@@ -114,7 +108,7 @@ The repository uses a single state schema:
 
 The CLI surface is a single set of commands. `init` always creates the schema above.
 
-`take <id>` requires an explicit task id. `--as orchestrator` may atomically replace another agent's claim; the `take` log entry records that agent as `previous_owner`. `submit` releases implementation ownership and records submission metadata; `accept` moves a submitted task to accepted `done`, while `reject` reopens it.
+`take <id>` requires an explicit task id and records the active claim. A takeover records the previous claimant in the log. `submit` releases the implementation claim and records submission metadata; `accept` moves a submitted task to accepted `done`, while `reject` reopens it.
 
 Canonical `BLOCKS` direction is `{ from: blocker, to: blocked, type: "BLOCKS" }`; blockers are incoming edges to the blocked node.
 
@@ -152,10 +146,10 @@ Cycles in the DAG must not crash. The derivation keeps cycle members blocked. Un
 | `accept <id>` | `cli/commands/accept.mjs` | yes | yes |
 | `reject <id> --reason "..."` | `cli/commands/reject.mjs` | yes | yes |
 | `release <id>` | `cli/commands/release.mjs` | yes | yes |
-| `resolve <id> --note "<text>"` (task) / `--choice "<x>" --rationale "<y>"` (gate) | `cli/commands/resolve.mjs` | yes | yes |
-| `reopen <id> --reason "<text>"` | `cli/commands/reopen.mjs` | yes | yes (orchestrator/recovery, or original done_by for self-correction) |
-| `cancel <id> --reason "<text>"` | `cli/commands/cancel.mjs` | yes | yes (claim owner, or orchestrator/recovery) |
-| `update <id> [--title X] [--body "..."] [--definition "..."] [--acceptance "..."] [--domain Y] [--tags ...] [--backlog true\|false] [--if-revision N]` | `cli/commands/update.mjs` | yes | required (any value; no ownership check) |
+| `resolve <id> --choice "<x>" --rationale "<y>"` (gate only) | `cli/commands/resolve.mjs` | yes | yes |
+| `reopen <id> --reason "<text>"` | `cli/commands/reopen.mjs` | yes | yes |
+| `cancel <id> --reason "<text>"` | `cli/commands/cancel.mjs` | yes | yes |
+| `update <id> [--title X] [--body "..."] [--definition "..."] [--acceptance "..."] [--domain Y] [--tags ...] [--backlog true\|false] [--if-revision N]` | `cli/commands/update.mjs` | yes | required (any value) |
 | `add-note <id> "<text>"` | `cli/commands/add-note.mjs` | yes | required (any value) |
 | `add-initiative <name> [--desc "..."]` | `cli/commands/add-initiative.mjs` | yes | required |
 | `add-task [id] --initiative X --title "..." --body "..." --acceptance "..." --blocked-by A,B [--backlog true]` | `cli/commands/add-task.mjs` | yes | required |
@@ -176,7 +170,7 @@ Cycles in the DAG must not crash. The derivation keeps cycle members blocked. Un
 4. **Schema validation on write.** `writeState` rejects states missing `nodes`/`edges`/`initiatives`/`log`. Don't relax this without a test that says why.
 5. **Versioning.** The state has `version: 3`; `readState` migrates compatible v2 snapshots to v3. Additive optional fields that an older compatible CLI can safely preserve and ignore do not require a version bump. Bump the version and add a migration in `readState` when a change removes or reinterprets existing data, makes a field required for correct behavior, changes core semantics, or otherwise means an older CLI cannot safely read and write the state. Document the compatibility decision and never silently accept unknown future versions.
 6. **Multi-agent safety.** Any new state mutation must enter through the kernel mutation frontier (or an explicitly documented setup/recovery path) and be serialized by `withLock`. Any new "log" must be committed with the state change it describes. If you split them, a concurrent op can interleave and the log will lie.
-7. **The orchestrator/recovery escape hatch.** `release` and `reopen` honor `--as orchestrator` (or `--as recovery`) and can act on any agent's claim / `done` record. This is a feature, not a bug. Don't remove it. `resolve` and `cancel` follow the same pattern for the claim/done owner.
+7. **Task validation lifecycle.** `submit` hands an implementation to validation; `accept` records the validated task as `done`, and `reject` returns it to `open` with a reason. `resolve` is reserved for gates; `release`, `reopen`, and `cancel` remain administrative lifecycle operations.
 8. **No boolean flags before the command.** The CLI parser treats `--force init` as `--force=init`. New boolean flags must be used as `--flag=true` or after the command. Document any new boolean flag with this caveat.
 9. **English only in code, but the CLI output tolerates any UTF-8.** Titles, bodies, notes, and any free-text field can be in any language. Don't filter or escape based on locale.
 
@@ -276,7 +270,7 @@ When you fix a bug, write a test that reproduces it BEFORE the fix. The test goe
 
 ## Non-obvious things that bit us
 
-- **`release` and `reopen` honor the orchestrator/recovery escape hatch.** `release --as orchestrator` (or `--as recovery`) can free any agent's claim; `reopen --as orchestrator` can roll back any `done` task. The original `done_by` can self-reopen. By design.
+- **Task corrections use the validation lifecycle.** Workers submit implementation evidence; validators accept or reject it. `reopen` is the administrative rollback from `done` to `open`, while `resolve` is reserved for gates.
 - **`status --status DONE` (uppercase) works in `tasks` style filters.** Case-insensitive.
 - **`status --staleMs 0` marks all in_progress as stale.** `staleMs: 0` is valid and means "everything in_progress is stale".
 - **`status` is global by default for in_progress.** `tasks.in_progress` and `summary.in_progress` include every in_progress task in scope, regardless of caller. `--claimed-by <agent>` is the only way to narrow claims; `--as` is an identity tag for `context` and is intentionally not a filter for `status`. Stale-claim alerts follow the same rule.
@@ -319,7 +313,7 @@ The CLI is **JSON-only**. There is no `--json` flag (it's the default), no text 
 The convention for command return shapes is principled:
 - **Read commands** (`status`, `context`, `history`, `show`, `search`, `initiatives`, `log`) return raw data — the object/array the consumer cares about.
   - `status` and `context` are deliberately richer than the other reads: the agent is the primary consumer, so the output is shaped to remove ambiguity. `status` adds `summary.{ready,in_progress,submitted,blocked,backlog,open_gates,active_knowledge}` (totals) and `alerts[]` (kinds: `stale-claim`). `context` adds `derived_status`, `revision`, `claim`, `blocking[]`, `knowledge[]` (scoped), `informing[]`, `alerts[]`, and `allowed_actions[]`.
-- **Write commands** (`take`, `submit`, `accept`, `reject`, `resolve`, `release`, `reopen`, `cancel`, `update`, `add-note`, `add-*`, `deprecate-knowledge`) return `{ entity }` envelopes (`{ node }`, `{ task }`, `{ initiative }`, etc.).
+- **Write commands** (`take`, `submit`, `accept`, `reject`, `resolve` for gates, `release`, `reopen`, `cancel`, `update`, `add-note`, `add-*`, `deprecate-knowledge`) return `{ entity }` envelopes (`{ node }`, `{ task }`, `{ initiative }`, etc.).
 - `init` returns `{ ok, seeded, file }` (different shape because it is not creating an entity, it is setting up a state).
 - `show` returns `{ type, node }` because it can return any of three node types.
 
@@ -346,7 +340,8 @@ climier add-note <id> "..." --as <agent>
 ```
 
 Never use `node bin/climier.mjs` for coordination (`status`, `context`, `take`,
-`update`, `add-note`, `resolve`, `release`, or any other DAG operation). The
+`update`, `add-note`, `resolve` for gates, `release`, or any other DAG
+operation). The
 local worktree CLI may be invoked only to verify the code being developed, for
 example with a temporary project smoke; it is not the control plane. The stable
 binary and the refactor worktree must use the same `CLIMIER_HOME` and project

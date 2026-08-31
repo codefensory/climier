@@ -227,19 +227,19 @@ Canonical `BLOCKS` direction is `{ from: blocker, to: blocked, type: "BLOCKS" }`
 |---|---|
 | `init [--force]` | Create `.climier.json` and the project's live state. |
 | `take <id> --as <agent>` | Idempotently claim the explicit ready task; the id is required. |
-| `submit <id> --note "..." --as <agent>` | Submit an owned `in_progress` task for validation; clears its implementation claim and never unblocks dependents. |
+| `submit <id> --note "..." --as <agent>` | Submit an `in_progress` task for validation; clears its implementation claim and never unblocks dependents. |
 | `accept <id> --as <agent>` | Accept a `submitted` task as `done`; this transition can unblock dependents. |
 | `reject <id> --reason "..." --as <agent>` | Return a `submitted` task to `open` with an audit reason. |
-| `release <id> --as <agent>` | Free an `in_progress` implementation claim. `orchestrator` and `recovery` can release any claim. |
-| `resolve <id> --note "<text>" --as <agent>` | Compatibility/manual bypass that closes an `open` or `in_progress` task as done. Workers use `submit`; for gates, use `--choice "<text>" --rationale "<text>"` instead of `--note`. |
-| `reopen <id> --reason "<text>" --as <agent>` | Roll a `done` task back to `open`. `orchestrator` / `recovery` can reopen any done task; the original `done_by` can self-reopen. |
+| `release <id> --as <agent>` | Free an `in_progress` implementation claim. Policy may constrain who can perform the transition. |
+| `resolve <id> --choice "<text>" --rationale "<text>" --as <agent>` | Resolve an open gate. `resolve` is not a task lifecycle command; workers submit tasks and validators accept or reject them. |
+| `reopen <id> --reason "<text>" --as <agent>` | Roll a `done` task back to `open` for correction, subject to policy. |
 | `restore <snapshot-id> --as orchestrator\|recovery` | Replace the live state with a validated v2/v3 snapshot, normalizing v2 to v3, under the same lock and with a `pre-restore` snapshot. Authority is restricted to `orchestrator` or `recovery`. Invalid, v1, future-version or incomplete snapshots fail without mutating state. |
 | `cancel <id> --reason "<text>" --as <agent>` | Terminate a task without resolving from `open`, `in_progress` or `submitted`. |
 | `deprecate-knowledge <id> --reason "<text>" --as <agent>` | Soft-delete a knowledge node (`status="deprecated"`). |
 | `update <id> ... --as <agent>` | Edit node fields such as title, body, definition, acceptance, domain, backlog, tags, or refs. |
 | `add-note <id> "<text>" --as <agent>` | Append a note thread entry to any node. |
 
-For `take`, `--as orchestrator` may take over another claim and records its `previous_owner`.
+For `take`, claims are serialized under the project lock; takeover behavior is subject to policy.
 
 ### Add to the DAG
 
