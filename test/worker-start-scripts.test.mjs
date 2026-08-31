@@ -28,6 +28,19 @@ const SCRIPTS = path.join(ROOT, ".agents/skills/climier-worker");
 const GUARD = path.join(SCRIPTS, "worker-guard.sh");
 const START = path.join(SCRIPTS, "start-worktree.sh");
 
+// The workflow scripts intentionally call the stable `climier` command in
+// production. Tests must point that command at this worktree's binary so a
+// v3 state fixture is not handed to an older globally linked control binary.
+const CLIMIER_SHIM_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "climier-test-cli-shim-"));
+const CLIMIER_SHIM = path.join(CLIMIER_SHIM_DIR, "climier");
+fs.writeFileSync(CLIMIER_SHIM, `#!/usr/bin/env bash\nexec ${process.execPath} ${JSON.stringify(BIN)} "$@"\n`);
+fs.chmodSync(CLIMIER_SHIM, 0o755);
+process.on("exit", () => { try { fs.rmSync(CLIMIER_SHIM_DIR, { recursive: true, force: true }); } catch {} });
+
+function testPath(prefix = process.env.PATH) {
+  return `${prefix ? `${prefix}:` : ""}${process.env.PATH}`;
+}
+
 function shortId(prefix = "id") {
   return `${prefix}-${crypto.randomBytes(4).toString("hex")}`;
 }
@@ -112,7 +125,12 @@ function runBash(script, args, { cwd, env, input } = {}) {
   return new Promise((resolve) => {
     const proc = spawn("bash", [script, ...args], {
       cwd,
-      env: { ...process.env, ...(env || {}), NO_COLOR: "1" },
+      env: {
+        ...process.env,
+        ...(env || {}),
+        PATH: env && Object.prototype.hasOwnProperty.call(env, "PATH") ? env.PATH : testPath(CLIMIER_SHIM_DIR),
+        NO_COLOR: "1",
+      },
     });
     let stdout = "";
     let stderr = "";
@@ -465,7 +483,7 @@ test("start-worktree.sh: releases the claim when git worktree add fails after ta
 
     const r = await runBash(START, [taskId, agentId], {
       cwd: projectRoot,
-      env: { PATH: `${fakeBin}:${process.env.PATH}` },
+      env: { PATH: `${fakeBin}:${CLIMIER_SHIM_DIR}:${process.env.PATH}` },
     });
     assert.notEqual(r.code, 0, `expected non-zero exit after worktree add failure; stderr=${r.stderr}`);
     assert.match(r.stderr, /worktree add failed/, "stderr must mention worktree add failure");

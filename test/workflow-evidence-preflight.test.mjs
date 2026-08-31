@@ -27,6 +27,15 @@ const ROOT = path.resolve(process.cwd());
 const FINISH = path.join(ROOT, ".agents/skills/climier-worker", "finish-task.sh");
 const PREFLIGHT = path.join(ROOT, ".agents/skills/climier-validator", "integration-preflight.sh");
 
+// finish-task.sh intentionally uses the stable `climier` command in
+// production. Point it at this worktree only inside these subprocess tests,
+// whose setup creates v3 state through the local binary.
+const CLIMIER_SHIM_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "climier-test-cli-shim-"));
+const CLIMIER_SHIM = path.join(CLIMIER_SHIM_DIR, "climier");
+fs.writeFileSync(CLIMIER_SHIM, `#!/usr/bin/env bash\nexec ${process.execPath} ${JSON.stringify(BIN)} "$@"\n`);
+fs.chmodSync(CLIMIER_SHIM, 0o755);
+process.on("exit", () => { try { fs.rmSync(CLIMIER_SHIM_DIR, { recursive: true, force: true }); } catch {} });
+
 function tmp(prefix = path.join(os.tmpdir(), "climier-wp-test-")) {
   return fs.mkdtempSync(prefix);
 }
@@ -45,7 +54,11 @@ function runIsolated(script, env = process.env) {
   fs.chmodSync(home, 0o700);
   return new Promise((resolve) => {
     const proc = spawn("bash", ["-c", script], {
-      env: { ...env, CLIMIER_HOME: home },
+      env: {
+        ...env,
+        PATH: `${CLIMIER_SHIM_DIR}:${env.PATH || process.env.PATH}`,
+        CLIMIER_HOME: home,
+      },
       cwd: ROOT,
     });
     let stdout = "";

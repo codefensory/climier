@@ -199,7 +199,7 @@ test("init on a fresh project writes emptyState() without `plugins` (plugins is 
     const out = await init({ statePath: dir, flags: {}, projectDir: dir });
     assert.equal(out.ok, true);
     const after = await readState(dir);
-    assert.equal(after.version, 2);
+    assert.equal(after.version, 3);
     assert.equal(after.plugins, undefined, "fresh emptyState() must not carry a `plugins` field");
   } finally {
     await rmTempProject(dir);
@@ -251,7 +251,7 @@ test("init --force on a state with corrupt JSON (cannot read) does not crash and
     const out = await init({ statePath: dir, flags: { force: true }, projectDir: dir });
     assert.equal(out.ok, true);
     const after = await readState(dir);
-    assert.equal(after.version, 2);
+    assert.equal(after.version, 3);
     assert.equal(after.plugins, undefined);
   } finally {
     await rmTempProject(dir);
