@@ -57,59 +57,9 @@ import {
   computeInitiativeDiff,
   deepEqualNodes,
 } from "./mutation/diff.mjs";
-
-const EDGE_TYPE_FIELD_RE = /^[A-Z_]+$/;
-
-// Provider plans may add a small, explicit set of operation-specific fields
-// to the single kernel-owned log entry. Everything else is ignored so a
-// provider cannot project arbitrary payload or audit metadata into the log.
-// Kernel-owned fields are rejected (rather than ignored) because accepting
-// them would let a provider spoof the mutation's authoritative metadata.
-// `note` is a historical, operation-specific field used by note.add and
-// lifecycle adapters. It is safe to project because the kernel still owns
-// every audit identity/timestamp and rejects the reserved fields below.
-const LOG_FIELD_ALLOWLIST = new Set([
-  "choice",
-  "rationale",
-  "reason",
-  "previous_owner",
-  "note",
-  // Plugin-data providers project only redacted addressing metadata. The
-  // value itself is deliberately not an allowed audit field.
-  "scope",
-  "node_id",
-  "key",
-]);
-const LOG_FIELD_RESERVED = new Set([
-  "ts",
-  "action",
-  "agent",
-  "node",
-  "revision",
-  "plugin_id",
-  "removed_nodes",
-  "edges",
-  "initiatives",
-]);
-
-function normalizeLogFields(logFields, commandName) {
-  if (logFields === undefined) return {};
-  if (!logFields || typeof logFields !== "object" || Array.isArray(logFields)) {
-    throwV2("INVALID_EXECUTION_CONTRACT", `${commandName}: plan.logFields must be an object`, { field: "logFields" });
-  }
-  const allowed = {};
-  for (const [key, value] of Object.entries(logFields)) {
-    if (LOG_FIELD_RESERVED.has(key)) {
-      throwV2(
-        "INVALID_EXECUTION_CONTRACT",
-        `${commandName}: plan.logFields.${key} is kernel-owned`,
-        { field: `logFields.${key}` },
-      );
-    }
-    if (LOG_FIELD_ALLOWLIST.has(key)) allowed[key] = value;
-  }
-  return allowed;
-}
+import { deriveTargetRevision } from "./mutation/revisions.mjs";
+import { normalizeLogFields, validateDraftStructural } from "./mutation/validation.mjs";
+import { buildLogEntry } from "./mutation/log-entry.mjs";
 
 // Module-scoped AsyncLocalStorage for the nested kernel.mutate guard.
 //
@@ -139,71 +89,6 @@ function currentNestedDepth() {
   return typeof store === "number" ? store : 0;
 }
 
-
-function buildLogEntry(request, plan, diffCreated, diffUpdated, edgesAdded, edgesRemoved, removedNodes, targetNextRevision, pluginId, initiativeDiff) {
-  const base = {
-    // Legacy/core adapters choose the request action explicitly. Plugin-data
-    // plans additionally carry their stable redacted audit action, so a
-    // canonical `plugin-data.*` request still records `plugin-data-set`
-    // without changing existing CLI/API log names.
-    action: plan.pluginId && typeof plan.logAction === "string" ? plan.logAction : request.action,
-    agent: request.actor,
-    node: plan.target.id,
-  };
-  if (targetNextRevision !== null && targetNextRevision !== undefined) base.revision = targetNextRevision;
-  if (removedNodes.length > 0) base.removed_nodes = removedNodes.slice().sort();
-  if (edgesAdded.length > 0 || edgesRemoved.length > 0) {
-    base.edges = {
-      added: edgesAdded.slice(),
-      removed: edgesRemoved.slice(),
-    };
-  }
-  if (initiativeDiff && (initiativeDiff.created.length > 0 || initiativeDiff.updated.length > 0)) {
-    base.initiatives = {
-      created: initiativeDiff.created.map((c) => c.name).sort(),
-      updated: initiativeDiff.updated.map((u) => u.name).sort(),
-    };
-  }
-  // Only operation-specific fields from the explicit allow-list are added;
-  // all kernel-owned metadata remains authoritative.
-  // Plugin providers carry their host identity in the typed plan. Prefer the
-  // explicit kernel argument when present, but retain the plan identity for
-  // direct provider use (the plan never contains the data value in its log
-  // fields).
-  const auditPluginId = pluginId || (typeof plan.pluginId === "string" ? plan.pluginId : null);
-  return prepareLogEntry({ ...base, ...normalizeLogFields(plan.logFields, request.action) }, { pluginId: auditPluginId });
-}
-
-// validateDraftStructural — last line of defence after provider.apply.
-// Today this is a sanity check on the draft (no revision field on
-// nodes; edges key shape); the transaction layer already enforces the
-// major structural errors (SELF_EDGE / INVALID_EDGE_* / DUPLICATE_EDGE).
-// Kept here so future kernels can tighten the contract without touching
-// the tx module.
-function validateDraftStructural(draftView, commandName) {
-  const nodes = draftView && draftView.nodes;
-  if (!nodes || typeof nodes !== "object") {
-    throwV2("INVALID_EXECUTION_CONTRACT", `${commandName}: draft view missing nodes`, { field: "draft" });
-  }
-  for (const [id, node] of Object.entries(nodes)) {
-    if (node && typeof node === "object" && "revision" in node && node.revision !== undefined) {
-      throwV2(
-        "INVALID_EXECUTION_CONTRACT",
-        `${commandName}: draft node ${id} unexpectedly carries 'revision'`,
-        { id },
-      );
-    }
-  }
-  const edges = Array.isArray(draftView.edges) ? draftView.edges : [];
-  for (const e of edges) {
-    if (!EDGE_TYPE_FIELD_RE.test(e.type)) {
-      throwV2("INVALID_EXECUTION_CONTRACT", `${commandName}: draft edge has invalid type`, { edge: e });
-    }
-    if (!Object.prototype.hasOwnProperty.call(nodes, e.from) || !Object.prototype.hasOwnProperty.call(nodes, e.to)) {
-      throwV2("INVALID_EXECUTION_CONTRACT", `${commandName}: draft edge references missing draft node`, { edge: e });
-    }
-  }
-}
 
 async function runPolicy(policyAction, snapshot, plan, request, commandName) {
   if (!policyAction || typeof policyAction !== "object") return;
@@ -269,14 +154,6 @@ async function runPolicy(policyAction, snapshot, plan, request, commandName) {
     );
   }
   // 'allow' and 'abstain' proceed with the kernel mutation.
-}
-
-function deriveTargetRevision(snapshot, plan, created, updated) {
-  const targetId = plan.target.id;
-  for (const c of created) if (c.id === targetId) return c.node.revision;
-  for (const u of updated) if (u.id === targetId) return u.node.revision;
-  const prev = snapshot && snapshot.nodes ? snapshot.nodes[targetId] : null;
-  return prev && Number.isInteger(prev.revision) ? prev.revision : null;
 }
 
 async function runStateMutation({ projectDir, request, stateOperation, policyAction, pluginId }) {
@@ -635,5 +512,7 @@ export const __kernelInternals = Object.freeze({
   validateProvider,
   validatePlan,
   deepEqualNodes,
+  deriveTargetRevision,
+  normalizeLogFields,
   buildLogEntry,
 });
