@@ -1,0 +1,85 @@
+# RFC: Climier Plugin Foundation
+
+- Gate: `G-plugin-foundation-rfc` · Iniciativa: `plugin-foundation` · Estado: en review
+- Autor: usuario + orchestrator · Fecha: 2026-08-31
+
+## Problema
+
+Climier ya tiene providers, una única frontera de mutación y una API de plugins,
+pero aún conserva semántica propia de ejecución (`meta.execution` y conflictos de
+ownership), un bypass `task.resolve` a `done`, revisiones por nodo sin una versión
+global, y lecturas de plugin que deben componerse desde llamadas independientes.
+Tampoco puede aplicar una reparación multioperación del DAG como una transacción.
+
+Un execution plugin futuro debe poder leer un grafo coherente, decidir fuera del
+core y aplicar una reparación condicionada a esa lectura. El core no debe adoptar
+conceptos de harnesses, scheduling, ownership de paths, workers, validators ni
+artifacts de ejecución para lograrlo.
+
+## Propuesta
+
+Preparar el core y su superficie pública con estas garantías acotadas:
+
+1. retirar toda interpretación de `meta.execution` y eliminar el bypass
+   `task.resolve`; el único camino de una task a `done` será
+   `take → submit → accept`;
+2. centralizar la invariantes del estado, incluido que `BLOCKS` sea acíclico, y
+   añadir una revisión global monotónica con CAS;
+3. exponer `edge.remove` y un `batch` declarativo que aplica operaciones del
+   catálogo sobre un único draft y persiste una vez o no persiste;
+4. exponer una lectura coherente y determinista del core más el namespace del
+   plugin llamante, tanto por Plugin API como por CLI;
+5. endurecer plugin data a valores JSON seguros, con delete explícito y
+   aislamiento de namespace;
+6. proporcionar un directorio runtime estable y aislado por proyecto/plugin;
+7. versionar explícitamente la Plugin API y probar la frontera con un fixture
+   que no importe módulos internos.
+
+La revisión global es semántica requerida para CAS, así que el schema sube de v3 a
+v4. La migración v3→v4 inicializa `revision: 0`; cada commit efectivo posterior
+la incrementa exactamente una vez. Estados v2 siguen migrando a través de v3.
+
+El CLI ya es JSON-only. No se agregará un flag redundante `--json`; se normalizan
+las respuestas y errores de las operaciones nuevas y de las rutas que usará un
+replanner, con códigos de error estables y una política de salida documentada.
+
+## Alternativas consideradas
+
+| Opción | Pros | Contras |
+|---|---|---|
+| Mantener core actual y delegar CAS/batch al plugin | Menos cambios inmediatos | El plugin reconstruye estado incoherente, no puede reparar el DAG atómicamente y duplicaría invariantes críticas. |
+| Añadir planner/scheduler/ownership/workers al core | Centraliza más comportamiento | Acopla Climier a harnesses concretos e impide una API de plugins mínima y estable. |
+| **Foundation transaccional y API pública mínima** | El plugin decide libremente y usa garantías fuertes sin importar internals | Requiere una migración v4 y una refactorización coordinada de core, CLI y fixtures. |
+
+## Alcance
+
+- Dentro: C1–C9 del plan del usuario: simplificación de core, invariantes del
+  DAG, revisión/CAS, batch atómico, lectura coherente, CLI automatizable,
+  hardening de data, runtime dataDir, versionado API y suite de aceptación.
+- Fuera: planner, replanner, scheduler, critical path, waves, ownership,
+  execution contracts, workers, validators, mailbox, run/attempt/retry,
+  adapters Pi/OpenCode/FX, worktrees, model routing, watch/event stream/daemon,
+  artifacts administrados por Climier y un execution plugin de producto.
+
+## Riesgos y preguntas resueltas
+
+- **Migración de estado:** `revision` no puede ser opcional si controla CAS. Se
+  introduce v4 y una migración pura v2→v3→v4; versiones futuras se rechazan.
+- **Batch y policies:** un batch no ejecuta código arbitrario de plugin bajo el
+  lock. Reutiliza providers built-in y la selección/autorización existente por
+  operación dentro de una única transacción.
+- **Compatibilidad API:** plugins sin `climier.api` o que exijan una versión no
+  soportada fallan antes de importar su entrypoint. El corte v3 no promete
+  compatibilidad silenciosa con el antiguo `api.core.version: 2`.
+- **Salida CLI:** los textos no son contrato. La clasificación se hace por
+  `error.code`; una tarea específica fija los códigos de salida por clase y
+  convierte los errores públicos relevantes al envelope estructurado.
+- **Data pesada:** `api.data` sólo guarda JSON pequeño. El host documenta la
+  intención; `api.runtime.dataDir` es el destino para SQLite, logs y artifacts.
+
+## ADRs derivados
+
+- [ ] ADR-018: retirar semántica de ejecución y el bypass `task.resolve` → `.adrs/018-plugin-foundation-core-simplification.md`
+- [ ] ADR-019: estado v4, invariantes centralizadas, `edge.remove` y CAS global → `.adrs/019-plugin-foundation-dag-integrity.md`
+- [ ] ADR-020: batch atómico de operaciones del core → `.adrs/020-plugin-foundation-atomic-batch.md`
+- [ ] ADR-021: superficie pública coherente para CLI y plugins → `.adrs/021-plugin-foundation-public-api.md`
