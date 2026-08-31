@@ -14,7 +14,7 @@ test("readState returns null if file missing", async () => {
   }
 });
 
-test("writeState then readState round-trips", async () => {
+test("writeState then readState round-trips as v3", async () => {
   const { writeState: ws } = await importFresh("./storage/state.mjs");
   const { readState: rs } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
@@ -22,7 +22,7 @@ test("writeState then readState round-trips", async () => {
     const sample = { version: 2, nodes: { T1: { id: "T1", title: "x" } }, edges: [], initiatives: {}, log: [] };
     await ws(dir, sample);
     const back = await rs(dir);
-    assert.deepEqual(back, sample);
+    assert.deepEqual(back, { ...sample, version: 3 });
   } finally {
     await rmTempProject(dir);
   }
@@ -83,10 +83,10 @@ test("updateState does not corrupt file on mutator error (atomic write)", async 
   }
 });
 
-test("emptyState returns a valid empty v2 schema", async () => {
+test("emptyState returns a valid empty v3 schema", async () => {
   const { emptyState } = await importFresh("./storage/state.mjs");
   const s = emptyState();
-  assert.equal(s.version, 2);
+  assert.equal(s.version, 3);
   assert.deepEqual(s.nodes, {});
   assert.deepEqual(s.edges, []);
   assert.deepEqual(s.initiatives, {});
@@ -129,7 +129,7 @@ test("readState throws STATE_V1_UNSUPPORTED with migration steps on a v1 file", 
   } finally { await rmTempProject(dir); }
 });
 
-test("readState throws CLIMIER_INCOMPATIBLE_VERSION on a v3+ file", async () => {
+test("readState throws CLIMIER_INCOMPATIBLE_VERSION on a future v4+ file", async () => {
   const { readState } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
@@ -137,7 +137,7 @@ test("readState throws CLIMIER_INCOMPATIBLE_VERSION on a v3+ file", async () => 
     const path = await import("node:path");
     const file = stateFilePath(dir);
     await fs.mkdir(path.dirname(file), { recursive: true });
-    await fs.writeFile(file, JSON.stringify({ version: 3, nodes: {}, edges: [], initiatives: {}, log: [] }), "utf8");
+    await fs.writeFile(file, JSON.stringify({ version: 4, nodes: {}, edges: [], initiatives: {}, log: [] }), "utf8");
     let caught;
     try { await readState(dir); } catch (e) { caught = e; }
     assert.equal(caught.code, "CLIMIER_INCOMPATIBLE_VERSION");
@@ -165,6 +165,60 @@ test("writeState rejects a v2 object missing the v2 collections", async () => {
     try { await writeState(dir, bad); } catch (e) { caught = e; }
     assert.ok(caught, "writeState must reject missing collections");
     assert.match(caught.message, /missing '(initiatives|log)' collection/);
+  } finally { await rmTempProject(dir); }
+});
+
+test("readState migrates a v2 snapshot to v3 without losing collections or fields", async () => {
+  const { readState } = await importFresh("./storage/state.mjs");
+  const dir = await createTempProject();
+  try {
+    const legacy = {
+      version: 2,
+      nodes: { T1: { id: "T1", status: "submitted", custom: { keep: true } } },
+      edges: [{ from: "T1", to: "T2", type: "BLOCKS" }],
+      initiatives: { work: { desc: "keep" } },
+      log: [{ action: "legacy", node: "T1" }],
+      plugins: { example: { enabled: true } },
+    };
+    const fs = await import("node:fs/promises");
+    const path = await import("node:path");
+    const file = stateFilePath(dir);
+    await fs.mkdir(path.dirname(file), { recursive: true });
+    await fs.writeFile(file, JSON.stringify(legacy), "utf8");
+
+    const migrated = await readState(dir);
+    assert.equal(migrated.version, 3);
+    assert.deepEqual(migrated, { ...legacy, version: 3 });
+  } finally { await rmTempProject(dir); }
+});
+
+test("writeState persists migrated v2 input as v3", async () => {
+  const { writeState, readState } = await importFresh("./storage/state.mjs");
+  const dir = await createTempProject();
+  try {
+    const legacy = { version: 2, nodes: {}, edges: [], initiatives: {}, log: [] };
+    await writeState(dir, legacy);
+    assert.equal((await readState(dir)).version, 3);
+    assert.equal(JSON.parse(await (await import("node:fs/promises")).readFile(stateFilePath(dir), "utf8")).version, 3);
+  } finally { await rmTempProject(dir); }
+});
+
+test("updateState migrates a v2 file before applying and persists v3", async () => {
+  const { updateState, readState } = await importFresh("./storage/state.mjs");
+  const dir = await createTempProject();
+  try {
+    const fs = await import("node:fs/promises");
+    const path = await import("node:path");
+    const file = stateFilePath(dir);
+    await fs.mkdir(path.dirname(file), { recursive: true });
+    await fs.writeFile(file, JSON.stringify({ version: 2, nodes: {}, edges: [], initiatives: {}, log: [] }), "utf8");
+    await updateState(dir, (state) => {
+      state.nodes.T1 = { id: "T1", title: "created after migration" };
+      return state;
+    });
+    const migrated = await readState(dir);
+    assert.equal(migrated.version, 3);
+    assert.equal(migrated.nodes.T1.title, "created after migration");
   } finally { await rmTempProject(dir); }
 });
 

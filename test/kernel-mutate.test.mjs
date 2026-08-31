@@ -1181,7 +1181,7 @@ test("kernel.mutate: rejects plan missing target.id", async () => {
   } finally { await rmTempProject(dir); }
 });
 
-test("kernel.mutate: throws when state file is missing (v2 kernel does not bootstrap)", async () => {
+test("kernel.mutate: throws when state file is missing (v3 kernel does not bootstrap)", async () => {
   const { mutate } = await importKernel();
   const dir = await createTempProject();
   try {
@@ -1197,7 +1197,7 @@ test("kernel.mutate: throws when state file is missing (v2 kernel does not boots
       });
     } catch (err) { caught = err; }
     assert.ok(caught);
-    assert.match(caught.message, /state file missing or not v2/);
+    assert.match(caught.message, /state file missing or not v3/);
   } finally { await rmTempProject(dir); }
 });
 
@@ -1257,6 +1257,40 @@ test("kernel.mutate: two concurrent mutate calls serialise under the project loc
       assert.equal(after.log.length, 1, "ordering B: only req1 wrote");
       assert.equal(after.log[0].revision, 4);
     }
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("kernel mutation accepts v3 state and persists v3 after a mutation", async () => {
+  const { executeMutation } = await importFresh("./kernel/mutation/execute.mjs");
+  const dir = await createTempProject();
+  try {
+    await writeStateHelper(dir, {
+      version: 3,
+      nodes: { T1: { id: "T1", kind: "resolvable", subkind: "task", title: "before", status: "open", revision: 1 } },
+      edges: [],
+      initiatives: {},
+      log: [],
+    });
+    const mutation = await executeMutation({
+      projectDir: dir,
+      request: { action: "test.update", actor: "alice", input: {} },
+      provider: {
+        prepare: async ({ snapshot }) => ({
+          target: { id: "T1", kind: snapshot.nodes.T1.kind, subkind: snapshot.nodes.T1.subkind },
+          newTitle: "after",
+        }),
+        apply: async ({ tx, plan }) => {
+          tx.updateNode(plan.target.id, { title: plan.newTitle });
+          return { result: { ok: true } };
+        },
+      },
+    });
+    assert.equal(mutation.result.ok, true);
+    const after = await readStateHelper(dir);
+    assert.equal(after.version, 3);
+    assert.equal(after.nodes.T1.title, "after");
   } finally {
     await rmTempProject(dir);
   }
