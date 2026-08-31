@@ -51,6 +51,9 @@ Read-only:
 
 Mutating (require --as <agent-id>):
   take <id> --as <agent>                 Claim a ready task (idempotent when you already hold the claim).
+  submit <id> --note "..." --as <agent>  Submit an owned in-progress task for validation.
+  accept <id> --as <agent>               Accept a submitted task as done.
+  reject <id> --reason "..." --as <agent> Return a submitted task to open with a reason.
                                           A policy plugin may authorise taking over another actor's claim.
   release <id> --as <agent>              Free a claim (idempotent when the task is unclaimed). A policy
                                           plugin may authorise releasing any claim.
@@ -96,7 +99,7 @@ Global flags:
 Docs: see README.md for quickstart, workflow, storage model, and command reference.
 
 Available commands:
-  status, context, take, resolve, release, cancel, reopen, search, history,
+  status, context, take, submit, accept, reject, resolve, release, cancel, reopen, search, history,
   show, update, add-note, add-initiative, add-task, add-gate, add-knowledge,
   deprecate-knowledge, add-node, add-edge, initiatives, log, init, snapshots,
   restore, ui, help, version.`;
@@ -235,7 +238,7 @@ export async function runCli({ argv = process.argv.slice(2), write = console.log
     if (error.code === "MODULE_NOT_FOUND" || error.code === "ERR_MODULE_NOT_FOUND") {
       if (!parsed.command) {
         write(formatError(
-          "no command given. Available: status, context, take, resolve, release, cancel, reopen, search, history, show, update, add-note, add-task, add-gate, add-knowledge, add-initiative, add-node, add-edge, deprecate-knowledge, initiatives, log, init, snapshots, restore, ui, help, version",
+          "no command given. Available: status, context, take, submit, accept, reject, resolve, release, cancel, reopen, search, history, show, update, add-note, add-task, add-gate, add-knowledge, add-initiative, add-node, add-edge, deprecate-knowledge, initiatives, log, init, snapshots, restore, ui, help, version",
         ));
       } else {
         write(formatError(`unknown command '${parsed.command}'`));
