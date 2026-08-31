@@ -1,9 +1,10 @@
 // Pure snapshot-vs-draft diff helpers for the kernel mutation pipeline.
 //
-// This module owns node revision assignment and comparison of nodes, edges,
-// and initiatives. It performs no I/O and does not depend on the transaction
-// or storage layers, so the mutation façade can keep the pipeline mechanics
-// separate from its state-delta calculation.
+// This module owns comparison of edges and initiatives. Node comparison and
+// revision assignment live in revisions.mjs. No helper performs I/O or
+// depends on storage, locks, or adapters.
+
+import { assignRevisionsAndDiff, deepEqualNodes, stripRevision } from "./revisions.mjs";
 
 function asEdge(e) {
   if (!e || typeof e !== "object" || Array.isArray(e)) return null;
@@ -27,79 +28,6 @@ function snapshotEdgeMap(edges) {
 
 function draftEdgeMap(edges) {
   return snapshotEdgeMap(edges);
-}
-
-function stripRevision(node) {
-  if (!node || typeof node !== "object") return node;
-  const out = {};
-  for (const [k, v] of Object.entries(node)) {
-    if (k === "revision") continue;
-    out[k] = v;
-  }
-  return out;
-}
-
-// Deep-equality on JSON-shaped values; sufficient for kernel diffs because
-// v2 node and plugin values are JSON-serializable by construction. Keeps the
-// result deterministic — same input → same comparison → same id list.
-export function deepEqualNodes(a, b) {
-  if (a === b) return true;
-  if (!a || !b) return false;
-  if (typeof a !== "object" || typeof b !== "object") return false;
-  const aKeys = Object.keys(a);
-  const bKeys = Object.keys(b);
-  if (aKeys.length !== bKeys.length) return false;
-  for (const k of aKeys) {
-    if (!Object.prototype.hasOwnProperty.call(b, k)) return false;
-    const av = a[k];
-    const bv = b[k];
-    if (av === bv) continue;
-    if (typeof av !== typeof bv) return false;
-    if (av && bv && typeof av === "object") {
-      try {
-        if (JSON.stringify(av) !== JSON.stringify(bv)) return false;
-      } catch {
-        return false;
-      }
-    } else if (av !== bv) {
-      return false;
-    }
-  }
-  return true;
-}
-
-// Assign the next revision per node: new → 1; modified → prev + 1;
-// unchanged → keep prev (but apply the draft to drop the revision field,
-// since draft nodes never carry it). Returns the diff shape used by the
-// kernel response plus removed nodes (snapshot ids absent from the draft).
-export function assignRevisionsAndDiff(snapshot, draftView) {
-  const snapNodes = (snapshot && snapshot.nodes) || {};
-  const next = {};
-  const created = [];
-  const updated = [];
-  for (const [id, draft] of Object.entries(draftView.nodes || {})) {
-    const prev = snapNodes[id];
-    const draftStrip = stripRevision(draft);
-    if (!prev) {
-      next[id] = { ...draftStrip, revision: 1 };
-      created.push({ id, node: next[id] });
-      continue;
-    }
-    const prevStrip = stripRevision(prev);
-    if (deepEqualNodes(prevStrip, draftStrip)) {
-      next[id] = { ...draftStrip, revision: Number.isInteger(prev.revision) ? prev.revision : 1 };
-    } else {
-      next[id] = { ...draftStrip, revision: (Number.isInteger(prev.revision) ? prev.revision : 0) + 1 };
-      updated.push({ id, node: next[id] });
-    }
-  }
-  const removed = [];
-  for (const id of Object.keys(snapNodes)) {
-    if (!Object.prototype.hasOwnProperty.call(draftView.nodes || {}, id)) {
-      removed.push(id);
-    }
-  }
-  return { next, removed, created, updated };
 }
 
 export function computeEdgeDiff(snapshotEdges, draftEdges) {
@@ -154,4 +82,15 @@ export function computeInitiativeDiff(snapshotInitiatives, draftInitiatives) {
   return { created, updated };
 }
 
-export { asEdge, edgeKey, snapshotEdgeMap, draftEdgeMap, stripRevision, initiativesEqual };
+// Compatibility exports: callers of the original diff boundary continue to
+// receive the same pure helpers while revisions have their own module.
+export {
+  asEdge,
+  edgeKey,
+  snapshotEdgeMap,
+  draftEdgeMap,
+  initiativesEqual,
+  assignRevisionsAndDiff,
+  deepEqualNodes,
+  stripRevision,
+};

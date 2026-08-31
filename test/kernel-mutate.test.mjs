@@ -1066,6 +1066,51 @@ test("kernel mutation request helpers are extracted and preserved through the fa
   assert.equal(kernel.__kernelInternals.operationLabel({}), request.operationLabel({}));
 });
 
+test("kernel mutation finalization helpers are pure boundaries preserved through the façade", async () => {
+  const revisions = await importFresh("./kernel/mutation/revisions.mjs");
+  const validation = await importFresh("./kernel/mutation/validation.mjs");
+  const logEntry = await importFresh("./kernel/mutation/log-entry.mjs");
+  const kernel = await importKernel();
+
+  for (const name of ["assignRevisionsAndDiff", "deriveTargetRevision"]) {
+    assert.equal(typeof revisions[name], "function", `${name} is exported by revisions`);
+    assert.equal(typeof kernel.__kernelInternals[name], "function", `${name} remains available through the façade`);
+  }
+  for (const name of ["normalizeLogFields", "validateDraftStructural"]) {
+    assert.equal(typeof validation[name], "function", `${name} is exported by validation`);
+    assert.equal(typeof kernel.__kernelInternals[name], "function", `${name} remains available through the façade`);
+  }
+  assert.equal(typeof logEntry.buildLogEntry, "function");
+  assert.equal(typeof kernel.__kernelInternals.buildLogEntry, "function");
+
+  const snapshot = { nodes: { T1: { id: "T1", title: "old", revision: 2 } } };
+  const draft = { nodes: { T1: { id: "T1", title: "new" } }, edges: [], initiatives: {} };
+  const revisionsResult = revisions.assignRevisionsAndDiff(snapshot, draft);
+  assert.equal(revisionsResult.updated[0].node.revision, 3);
+  assert.equal(revisions.deriveTargetRevision(snapshot, { target: { id: "T1" } }, [], revisionsResult.updated), 3);
+
+  validation.validateDraftStructural(draft, "test");
+  assert.deepEqual(validation.normalizeLogFields({ reason: "because", ignored: true }, "test"), { reason: "because" });
+  const built = logEntry.buildLogEntry(
+    { action: "task.update", actor: "alice" },
+    { target: { id: "T1" }, logFields: { reason: "because" } },
+    [],
+    revisionsResult.updated,
+    [],
+    [],
+    [],
+    3,
+    null,
+    { created: [], updated: [] },
+  );
+  assert.equal(built.action, "task.update");
+  assert.equal(built.agent, "alice");
+  assert.equal(built.node, "T1");
+  assert.equal(built.revision, 3);
+  assert.equal(built.reason, "because");
+  assert.match(built.ts, /^\d{4}-\d{2}-\d{2}T/);
+});
+
 // ===================================================================
 // Contract gates — explicit throw modes
 // ===================================================================
@@ -1241,7 +1286,10 @@ test("kernel.mutate: source file does not import providers/registry/adapter/bin/
     "./mutation/request.mjs", // extracted request/provider/plan contracts
     "./mutation/preconditions.mjs", // extracted CAS precondition contracts
     "./mutation/execute.mjs", // mutation execution coordinator
-    "./mutation/diff.mjs", // snapshot-vs-draft diff and revision calculation
+    "./mutation/diff.mjs", // snapshot-vs-draft diff
+    "./mutation/revisions.mjs", // pure revision assignment and lookup
+    "./mutation/validation.mjs", // final draft and log-field validation
+    "./mutation/log-entry.mjs", // pure mutation log construction
   ]);
   const allRelative = [...src.matchAll(/from\s+["'](\.\.?\/[^"']+)["']/g)].map((m) => m[1]);
   for (const rel of allRelative) {
