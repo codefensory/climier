@@ -1,6 +1,6 @@
 ---
 name: climier-validator
-description: Validate climier task worktrees after a worker resolves, stalls, or gets cancelled. Use when Codex must audit whether a task's worktree satisfies the contract, discover the worktree from task notes or git worktree paths containing the task id, return PASS/FAIL/BLOCKED without implementing fixes, merge only on PASS, and produce an orchestrator-ready follow-up report when correction is needed.
+description: Validate climier task worktrees after a worker submits, stalls, or gets cancelled. Use when Codex must audit whether a task's worktree satisfies the contract, discover the worktree from task notes or git worktree paths containing the task id, return PASS/FAIL/BLOCKED without implementing fixes, merge and accept only on PASS, and produce an orchestrator-ready report when correction is needed.
 ---
 
 # Climier Validator
@@ -9,7 +9,7 @@ Validate one task worktree. Be fast, strict, and evidence-based. Do not fix code
 
 ## Contract
 
-The validator can run after a worker resolves, stalls, gets cancelled, or after the orchestrator asks for the state of a task. It answers one question:
+The validator can run after a worker submits, stalls, gets cancelled, or after the orchestrator asks for the state of a task. Normal validation starts only from a task in `submitted`. It answers one question:
 
 ```text
 Does the task worktree satisfy the climier task contract well enough to merge and let downstream work rely on it?
@@ -17,8 +17,8 @@ Does the task worktree satisfy the climier task contract well enough to merge an
 
 Possible verdicts:
 
-- `PASS`: acceptance is satisfied, relevant checks ran or are reasonably justified, no clear regression/risk needs immediate correction, and the validator merged the worktree branch.
-- `FAIL`: acceptance is missed, implementation is inconsistent with the contract, verification is absent/invalid, or a likely regression should be fixed before downstream work.
+- `PASS`: acceptance is satisfied, relevant checks ran or are reasonably justified, no clear regression/risk needs immediate correction, and the validator merged the worktree branch before accepting the task.
+- `FAIL`: acceptance is missed, implementation is inconsistent with the contract, verification is absent/invalid, or a likely regression requires rejecting the submitted task.
 - `BLOCKED`: validation cannot be completed because the worktree cannot be found, required evidence is unavailable, commands cannot run, or the repo state is ambiguous.
 
 Default bias: fail closed on concrete evidence, not on taste. Do not fail for optional improvements.
@@ -66,7 +66,7 @@ Then inspect only that worktree and only the files/checks relevant to the task.
 
 ## Aislamiento de smokes
 
-Si necesitas reproducir o auditar una mutación de Climier contra un proyecto temporal — `init`, `init --force`, `take`, `resolve`, etc. — **usa siempre** el helper:
+Si necesitas reproducir o auditar una mutación de Climier contra un proyecto temporal — `init`, `init --force`, `take`, `submit`, `accept`, `reject`, etc. — **usa siempre** el helper:
 
 ```bash
 bash .agents/skills/climier/smoke-sandbox.sh -- <comando> [args...]
@@ -95,7 +95,7 @@ Check in this order and stop as soon as a verdict is justified:
 
 1. Worktree: identify exactly one task worktree and base branch/commit.
 2. Commit state: branch has at least one commit over base, the relevant commit message ends with `[<task-id>]`, and `git status --short` is clean or explicitly justified.
-3. Task state: task may be `done`, `in_progress`, blocked, canceled, or stale; validate the worktree state, not just the climier status. A `canceled` task has no merge target — return BLOCKED with the cancel reason instead of PASS/FAIL.
+3. Task state: normal validation requires `submitted`; do not treat `done` or `in_progress` as a submitted handoff. A blocked, canceled, or stale task has no validation transition — return BLOCKED with the reason instead of PASS/FAIL.
 4. Contract: implementation matches `definition`, `acceptance`, scoped knowledge (`climier context` `knowledge[]`), any referenced docs/gates, and the gate's `--rationale` if the task is downstream of one.
 5. Scope: diff is minimal and does not rewrite unrelated code, snapshots, generated files, secrets, or config without explicit task scope.
 6. Integration: imports, routes, exports, package boundaries, and runtime entrypoints still line up.
@@ -111,7 +111,7 @@ because the worker ran out of budget.
 
 ## Preflight before merge
 
-Before merging on `PASS`, run the read-only integration preflight to detect divergence early:
+Before merging on `PASS`, run the read-only integration preflight to detect divergence early. The lifecycle transition must remain ordered: merge first, then accept the same task:
 
 ```bash
 bash .agents/skills/climier-validator/integration-preflight.sh --task <id> --project-root <project>
@@ -129,16 +129,18 @@ Use `--json` for machine-readable output. Treat exit code `1` as a flag for revi
 
 The validator must not compensate for a worker that exceeded its budget by doing
 an unbounded reimplementation. Validate the contract, report the evidence gap,
-and let the orchestrator create one correction or split task. If that correction
-already exists or failed, do not create a `fix2` chain: require a recovery plan
-from the last validated base with one outcome and exclusive paths.
+and let the orchestrator decide whether the submitted task should be retried or
+replanned. A FAIL rejects the same task; it does not create a follow-up task
+automatically. If a correction already exists or failed, do not create a `fix2`
+chain: require a recovery plan from the last validated base with one outcome and
+exclusive paths.
 
 When integration-preflight reports verdict `overlap`, do not merge blindly: surface overlap paths in the validator summary and recommend a strategy (rebase vs merge) before the orchestrator decides.
 
 ## Evidence Rules
 
 - Prefer direct evidence from diffs, files, command output, and climier task metadata.
-- If the done note claims a check passed but the diff suggests risk, run a targeted check.
+- If the submission note claims a check passed but the diff suggests risk, run a targeted check.
 - If a command is expensive, run the narrowest equivalent first.
 - Do not inspect every changed line. Inspect the changed file list, then open only files needed to verify acceptance or obvious risk.
 - Do not chase style, naming, or architecture preferences unless they violate the task contract or a scoped knowledge node.
@@ -150,7 +152,10 @@ When integration-preflight reports verdict `overlap`, do not merge blindly: surf
 Allowed climier mutations:
 
 - Always append the verdict with `climier add-note <task-id> "...validation summary..." --as <validator-agent>`.
-- Do not `reopen`, `update`, `release`, `resolve`, or create follow-up tasks yourself unless the orchestrator explicitly asked you to. The validator reports; the orchestrator decides.
+- On PASS only, after a successful `git merge --no-ff`, run `climier accept <task-id> --as <validator-agent>`.
+- On FAIL, run `climier reject <task-id> --reason "<specific reason>" --as <validator-agent>` so the same task returns to `open` and is claimable again.
+- On BLOCKED, do not change the lifecycle: leave the task `submitted`, append evidence, and request the missing decision or evidence.
+- Do not `reopen`, `update`, `release`, `resolve`, or create follow-up tasks yourself. The validator reports; the orchestrator decides.
 - Use `climier context <task-id>` for a richer view (claim, revision, allowed_actions, scoped knowledge, blocking detail) when the simple `show` + `history` snapshot isn't enough.
 
 Allowed git mutation:
@@ -178,14 +183,18 @@ Return `BLOCKED` instead of `FAIL` when the problem is missing evidence rather t
 
 ## Merge On PASS
 
-When the worktree passes:
+When the worktree passes, merge before changing the task lifecycle:
 
 ```bash
 cd <main-worktree-for-base>
 git checkout <base>
 git merge --no-ff <branch>
-climier --project "$project_root" add-note <task-id> "VALIDATION PASS path=<path> branch=<branch> base=<base> merged=true" --as <validator-agent>
+climier --project "$project_root" accept <task-id> --as <validator-agent>
+climier --project "$project_root" add-note <task-id> "VALIDATION PASS path=<path> branch=<branch> base=<base> merged=true accepted=true" --as <validator-agent>
 ```
+
+If the merge succeeds but `accept` fails, report `BLOCKED`: the code is integrated
+but the lifecycle transition is incomplete. Never accept before the merge.
 
 If merge conflicts occur, return `BLOCKED` with the conflict summary. Do not resolve conflicts inside validation unless explicitly asked by the orchestrator.
 
@@ -204,6 +213,7 @@ Evidence:
 - checked: <1-3 concrete checks>
 Merge:
 - merged with --no-ff: <branch> -> <base>
+- accepted after merge: yes
 Residual risk:
 - <only meaningful risk, or "none">
 ```
@@ -215,11 +225,10 @@ FAIL <task-id>
 Reason:
 - <specific failed criterion with file/command evidence>
 
-Required follow-up task:
-Title: <imperative fix title>
-Definition: Continue in existing worktree `<path>` on branch `<branch>`. Do not create a new worktree. <what the next worker must fix, including exact files/behaviour>
-Acceptance: <concrete pass criteria and commands, including committed changes with message ending `[<task-id>]`>
-Suggested skills/domain/effort: <skills>, <domain>, <S|M|L>
+Lifecycle:
+- rejected same task with `climier reject <task-id> --reason "<reason>"`; task is open and claimable again
+Follow-up:
+- no automatic task creation; the orchestrator decides whether to retry or replan
 ```
 
 For `BLOCKED`:
@@ -234,4 +243,8 @@ Needed from orchestrator:
 
 ## Handoff Rule
 
-If verdict is `FAIL`, the orchestrator should create a new climier task from `Required follow-up task` and assign a worker to the same worktree/branch. The validator does not repair the issue in the same pass; separating validation from repair keeps the audit independent.
+If verdict is `FAIL`, reject the same task with the concrete reason and report the
+failed criterion. The orchestrator may assign it again or replan the work, but
+the validator does not create a new task or repair the implementation in the same
+pass. If verdict is `BLOCKED`, leave lifecycle unchanged and report exactly what
+evidence or decision is missing.

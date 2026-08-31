@@ -167,6 +167,30 @@ test("finish-task.sh: emits WORKTREE + EVIDENCE notes with required fields", asy
   }
 });
 
+test("finish-task.sh: submits the task after recording evidence", async () => {
+  const { repo, wt } = makeRepo();
+  try {
+    const script = setupFinishScript({ repo, wt }) + `
+      printf 'FINAL_STATE='
+      node ${BIN} --project '${repo}' show T-wp-test
+    `;
+    const r = await runIsolated(script);
+    assert.equal(r.code, 0, `finish exited ${r.code}; stderr=${r.stderr}`);
+    const marker = "FINAL_STATE=";
+    const markerIndex = r.stdout.indexOf(marker);
+    assert.notEqual(markerIndex, -1, `missing final state: ${r.stdout}`);
+    const state = JSON.parse(r.stdout.slice(markerIndex + marker.length).trim());
+    assert.equal(state.type, "task");
+    assert.equal(state.node.status, "submitted");
+    assert.equal(state.node.claim, null);
+    assert.equal(state.node.submitted_by, "codex-worker");
+    assert.match(r.stdout, /SUBMITTED task=T-wp-test/);
+    assert.doesNotMatch(r.stdout, /DONE task=T-wp-test/);
+  } finally {
+    cleanup({ repo, wt });
+  }
+});
+
 test("finish-task.sh: EVIDENCE records per-check ok and does not leak commit body", async () => {
   const { repo, wt } = makeRepo();
   try {
