@@ -23,6 +23,9 @@ export const RESERVED_NAMESPACES = Object.freeze([
   "snapshots",
   // Mutating claim/lifecycle commands.
   "take",
+  "submit",
+  "accept",
+  "reject",
   "resolve",
   "release",
   "cancel",
