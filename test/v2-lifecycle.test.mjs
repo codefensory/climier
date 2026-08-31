@@ -9,10 +9,10 @@
 //     The actor is not compared to the claim owner (ADR-009 §"Resto de
 //     operaciones"): any actor with --as may resolve a task whose state
 //     allows it; a policy plugin may still deny the action.
-//   - reopen: any actor; re-opens to `open` and clears the claim, which
-//     re-blocks downstream tasks.
-//   - cancel: open/in_progress + any actor (or a policy that explicitly
-//     denies); done/resolved tasks return INVALID_STATUS.
+//   - reopen: any actor; re-opens to `open` and clears the claim plus all
+//     submission/acceptance/completion metadata, which re-blocks downstream tasks.
+//   - cancel: open/in_progress/submitted + any actor (or a policy that
+//     explicitly denies); done/resolved tasks return INVALID_STATUS.
 //
 // T-plugin-policy-minimal-core-handlers / ADR-009: the historical
 // owner-invariant assertions (NOT_OWNER for non-owner resolve / release /
@@ -35,6 +35,7 @@ import {
   readState,
   installPolicyFixture,
   uninstallPolicyFixture,
+  writeState,
 } from "./helpers.mjs";
 
 async function v2Project() {
@@ -83,6 +84,31 @@ async function take(dir, as, id = "T-auth-1") {
   const { default: takeCmd } = await importFresh("./cli/commands/take.mjs");
   return takeCmd({ statePath: dir, flags: { as }, positional: [id], projectDir: dir });
 }
+
+async function patchNode(dir, id, patch) {
+  const state = await readState(dir);
+  state.nodes[id] = { ...state.nodes[id], ...patch };
+  await writeState(dir, state);
+}
+
+// === take ===============================================================
+
+test("v2-take: submitted task cannot be taken", async () => {
+  const { default: takeCmd } = await importFresh("./cli/commands/take.mjs");
+  const dir = await v2Project();
+  try {
+    await addTask(dir, "T-auth-1");
+    await patchNode(dir, "T-auth-1", { status: "submitted", claim: null });
+
+    let caught;
+    try {
+      await takeCmd({ statePath: dir, flags: { as: "alice" }, positional: ["T-auth-1"] });
+    } catch (e) { caught = e; }
+    assert.ok(caught);
+    assert.equal(caught.code, "NOT_READY");
+    assert.equal(caught.details.status, "submitted");
+  } finally { await rmTempProject(dir); }
+});
 
 // === release ============================================================
 
@@ -218,6 +244,24 @@ test("v2-release: idempotent — re-releasing a previously-released task is stil
     assert.equal(out.released, false);
     assert.equal(out.node.claim, null);
     assert.equal(out.node.status, "open");
+  } finally { await rmTempProject(dir); }
+});
+
+test("v2-release: submitted task cannot be released", async () => {
+  const { default: release } = await importFresh("./cli/commands/release.mjs");
+  const dir = await v2Project();
+  try {
+    await addTask(dir, "T-auth-1");
+    await patchNode(dir, "T-auth-1", { status: "submitted", claim: null });
+
+    let caught;
+    try {
+      await release({ statePath: dir, flags: { as: "alice" }, positional: ["T-auth-1"] });
+    } catch (e) { caught = e; }
+    assert.ok(caught);
+    assert.equal(caught.code, "INVALID_STATUS");
+    assert.equal(caught.details.current, "submitted");
+    assert.deepEqual(caught.details.allowed, ["open", "in_progress"]);
   } finally { await rmTempProject(dir); }
 });
 
@@ -476,6 +520,12 @@ test("v2-reopen: original done_by can reopen a done task; status -> open, claim 
     await addTask(dir, "T-auth-1");
     await take(dir, "alice");
     await resolve({ statePath: dir, flags: { as: "alice", note: "shipped" }, positional: ["T-auth-1"] });
+    await patchNode(dir, "T-auth-1", {
+      submitted_by: "alice",
+      submitted_at: "2026-08-31T07:00:00.000Z",
+      accepted_by: "auditor",
+      accepted_at: "2026-08-31T07:01:00.000Z",
+    });
 
     const out = await reopen({
       statePath: dir,
@@ -486,6 +536,10 @@ test("v2-reopen: original done_by can reopen a done task; status -> open, claim 
     assert.equal(out.node.claim, null);
     assert.equal(out.node.done_by, undefined);
     assert.equal(out.node.done_at, undefined);
+    assert.equal(out.node.submitted_by, null);
+    assert.equal(out.node.submitted_at, null);
+    assert.equal(out.node.accepted_by, null);
+    assert.equal(out.node.accepted_at, null);
     assert.equal(out.node.revision, 4);
 
     const s = await readState(dir);
@@ -729,6 +783,33 @@ test("v2-cancel: any actor may cancel an in_progress task with no policy (defaul
   } finally { await rmTempProject(dir); }
 });
 
+test("v2-cancel: submitted task becomes canceled and remains an unsatisfied blocker", async () => {
+  const { default: cancel } = await importFresh("./cli/commands/cancel.mjs");
+  const dir = await v2Project();
+  try {
+    await addTask(dir, "T-auth-1");
+    await addTask(dir, "T-down", { "blocked-by": "T-auth-1" });
+    await patchNode(dir, "T-auth-1", {
+      status: "submitted",
+      claim: null,
+      submitted_by: "alice",
+      submitted_at: "2026-08-31T07:00:00.000Z",
+    });
+
+    const out = await cancel({
+      statePath: dir,
+      flags: { as: "bob", reason: "submission abandoned" },
+      positional: ["T-auth-1"],
+    });
+    assert.equal(out.node.status, "canceled");
+    assert.equal(out.node.claim, null);
+    assert.equal(out.node.submitted_by, "alice");
+    const derived = deriveV2(await readState(dir));
+    assert.ok(derived.blocked.includes("T-down"));
+    assert.equal(derived.ready.includes("T-down"), false);
+  } finally { await rmTempProject(dir); }
+});
+
 test("v2-cancel: done task returns INVALID_STATUS (cannot cancel terminal)", async () => {
   const { default: cancel } = await importFresh("./cli/commands/cancel.mjs");
   const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
@@ -747,7 +828,7 @@ test("v2-cancel: done task returns INVALID_STATUS (cannot cancel terminal)", asy
     } catch (e) { caught = e; }
     assert.ok(caught);
     assert.equal(caught.code, "INVALID_STATUS");
-    assert.deepEqual(caught.details.allowed, ["open", "in_progress"]);
+    assert.deepEqual(caught.details.allowed, ["open", "in_progress", "submitted"]);
   } finally { await rmTempProject(dir); }
 });
 

@@ -2,7 +2,7 @@
 //
 // ADR-011 §§1–4:
 //   - `prepare` is read-only. Validates input + target + allowed
-//     statuses (open / in_progress) and the required `reason`.
+//     statuses (open / in_progress / submitted) and the required `reason`.
 //   - `apply` uses tx.updateNode to set status=canceled and clear
 //     the claim. Never writes revision.
 //   - Imports nothing from filesystem, lock, state, log, policy,
@@ -15,7 +15,7 @@ const LOG_ACTION = "cancel";
 
 const TASK_KIND = "resolvable";
 const TASK_SUBKIND = "task";
-const ALLOWED_STATUSES = ["open", "in_progress"];
+const ALLOWED_STATUSES = ["open", "in_progress", "submitted"];
 
 function asNonEmptyString(value) {
   return typeof value === "string" && value.length > 0 ? value : null;

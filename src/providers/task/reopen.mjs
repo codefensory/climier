@@ -4,8 +4,8 @@
 //   - `prepare` is read-only. Validates input + target + status=done
 //     and the required `reason`.
 //   - `apply` uses tx.updateNode to roll back the terminal task to
-//     `open`, clearing claim/done_by/done_at/note/resolution. Never
-//     writes revision.
+//     `open`, clearing claim and all submission, acceptance, and
+//     completion metadata. Never writes revision.
 //   - Imports nothing from filesystem, lock, state, log, policy,
 //     commands, registry, adapters, CLI or UI.
 
@@ -109,8 +109,9 @@ async function prepare({ snapshot, input, request }) {
 }
 
 /**
- * Pure `apply` for task.reopen. Clears all terminal-task artifacts
- * (`done`, `done_by`, `done_at`, `note`, `resolution`, `claim`).
+ * Pure `apply` for task.reopen. Clears all terminal-task lifecycle
+ * metadata (`claim`, `submitted_*`, `accepted_*`, `done_*`, `note`,
+ * `resolution`).
  *
  * @param {{ tx: object, plan: object, input: object, request: object, snapshot: object }} args
  * @returns {Promise<{ result: object, effects: null }>}
@@ -126,7 +127,18 @@ async function apply({ tx, plan, input, request, snapshot }) {
       { field: "tx" },
     );
   }
-  const patch = { status: "open", claim: null };
+  const patch = {
+    status: "open",
+    claim: null,
+    submitted_by: null,
+    submitted_at: null,
+    accepted_by: null,
+    accepted_at: null,
+    done_by: null,
+    done_at: null,
+    note: null,
+    resolution: null,
+  };
   tx.updateNode(plan.target.id, patch);
   return {
     result: Object.freeze({
