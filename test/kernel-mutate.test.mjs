@@ -992,6 +992,27 @@ test("kernel.mutate: edges added and removed in the same apply; only-changed-edg
 });
 
 // ===================================================================
+// Mutation request boundary
+// ===================================================================
+
+test("kernel mutation request helpers are extracted and preserved through the façade", async () => {
+  const request = await importFresh("./kernel/mutation/request.mjs");
+  const kernel = await importKernel();
+
+  assert.equal(request.operationLabel({ action: "task.create" }), "kernel.mutate(task.create)");
+  assert.equal(request.operationLabel({}), "kernel.mutate");
+  assert.equal(request.commandLabel, request.operationLabel);
+  for (const name of ["validateRequest", "validateProvider", "validatePlan"]) {
+    assert.equal(typeof request[name], "function", `${name} is exported by the request boundary`);
+    assert.equal(typeof kernel.__kernelInternals[name], "function", `${name} remains available through __kernelInternals`);
+  }
+  assert.equal(typeof kernel.__kernelInternals.commandLabel, "function");
+  assert.equal(typeof kernel.__kernelInternals.operationLabel, "function");
+  assert.equal(kernel.__kernelInternals.commandLabel({ action: "task.create" }), request.operationLabel({ action: "task.create" }));
+  assert.equal(kernel.__kernelInternals.operationLabel({}), request.operationLabel({}));
+});
+
+// ===================================================================
 // Contract gates — explicit throw modes
 // ===================================================================
 
@@ -1163,6 +1184,8 @@ test("kernel.mutate: source file does not import providers/registry/adapter/bin/
     "../storage/lock.mjs",          // withLock (single-mutation frontier)
     "../storage/log.mjs",           // prepareLogEntry (canonical log shape)
     "./transaction.mjs",    // createTransaction (the existing draft)
+    "./mutation/request.mjs", // extracted request/provider/plan contracts
+    "./mutation/execute.mjs", // mutation execution coordinator
   ]);
   const allRelative = [...src.matchAll(/from\s+["'](\.\.?\/[^"']+)["']/g)].map((m) => m[1]);
   for (const rel of allRelative) {
