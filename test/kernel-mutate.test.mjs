@@ -1185,6 +1185,7 @@ test("kernel.mutate: source file does not import providers/registry/adapter/bin/
     "../storage/log.mjs",           // prepareLogEntry (canonical log shape)
     "./transaction.mjs",    // createTransaction (the existing draft)
     "./mutation/request.mjs", // extracted request/provider/plan contracts
+    "./mutation/preconditions.mjs", // extracted CAS precondition contracts
     "./mutation/execute.mjs", // mutation execution coordinator
   ]);
   const allRelative = [...src.matchAll(/from\s+["'](\.\.?\/[^"']+)["']/g)].map((m) => m[1]);
