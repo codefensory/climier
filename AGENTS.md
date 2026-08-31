@@ -14,24 +14,87 @@ This file tells you how the code is organized, the rules you must follow, and th
 
 ## Architecture
 
+The source tree makes the ownership boundaries explicit. Adapters translate
+external input; application operations compose registered domain operations;
+providers own domain semantics; the kernel owns the mutation transaction; and
+storage owns persistence. The canonical dependency direction is:
+
+```text
+CLI / Plugins -> application/operations -> providers -> kernel -> storage
+```
+
+`execution/` and `read-model/` are pure transversal modules. `kernel/`,
+`providers/`, `execution/`, and `read-model/` must not import adapters
+(`cli/` or `plugins`). `providers/`, `execution/`, and `read-model/` must not
+import `storage/`. The kernel must not know about application or adapters.
+
 ### Source layout
 
 ```
-bin/climier.mjs             # CLI entry: argv parsing, dispatch, printer wiring
+bin/climier.mjs                       # Thin executable wrapper around cli/dispatch.mjs
 src/
-  storage/paths.mjs         # resolveProject({ project }), CLIMIER_HOME helpers, repo metadata paths
-  storage/state.mjs        # emptyState, readState, writeState, updateState
-                            # live state file is ~/.climier/projects/<project-id>/tasks.json
-                            # repo keeps only .climier.json
-  storage/lock.mjs         # withLock(projectDir, fn) — file lock for atomicity
-  storage/log.mjs          # append log entries (delegates to updateState)
-
-  commands/                 # One file per command. Each exports default async fn({ positional, flags, statePath, projectDir })
-                            # Commands use withLock for any mutating op
-test/
-  helpers.mjs               # createTempProject, rmTempProject, runCli, importFresh
-  *.test.mjs                # Tests, one per module/feature
+  application/operations/              # Registry, built-in catalog, and shared operation composition
+    index.mjs                          # Public Application Operations boundary
+    execute.mjs                        # Lookup, request construction, policy selection, one kernel call
+    registry.mjs                       # Immutable process-local operation/provider index
+    builtins.mjs                       # Canonical task/gate/knowledge/core operation catalog
+  execution/                           # Pure execution contract and ownership-conflict reasoning
+    contract.mjs                       # meta.execution validation/normalization
+    conflicts.mjs                      # Active task path-conflict detection
+    index.mjs                          # Public execution exports
+  kernel/                              # Transaction, graph, mutation frontier, and state operations
+    mutate.mjs                         # Stable mutate facade; owns lock/re-entrancy boundary
+    transaction.mjs                    # In-memory draft transaction
+    graph.mjs, edges.mjs               # DAG traversal and edge semantics
+    state-operations.mjs               # Typed project/plugin state operations
+    mutation/                          # Validation, preconditions, diffs, revisions, log entry, execution
+  providers/                           # Pure task, gate, knowledge, and core domain operations
+    task/, gate/, knowledge/, core/     # prepare/apply providers and read semantics
+    plugin-data/                       # Typed plugin-scoped state providers
+  read-model/                          # Pure status, blocking, knowledge, and informing projections
+  storage/                             # Project metadata, state, lock, snapshots, and log primitives
+    paths.mjs, state.mjs                # Project resolution and v2 state read/write
+    lock.mjs, log.mjs                   # Locking and log primitives
+  plugins/                             # Plugin host, discovery, policy, and compatibility adapters
+  cli/
+    actor.mjs                          # CLI actor resolution from flags/environment
+    dispatch.mjs                       # argv parsing, command/plugin routing, output/error handling
+    commands/                           # One CLI adapter per command; parses flags and maps envelopes
+  contracts/                           # Error contracts and compatibility-only public facades
+ test/
+  helpers.mjs                          # createTempProject, rmTempProject, runCli, importFresh
+  *.test.mjs                            # Tests, one per module/feature
 ```
+
+Ownership rules:
+
+- `cli/commands/` owns argv validation, actor resolution, adapter-specific
+  defaults, and the public JSON envelope. It does not own state, locks, logs,
+  revisions, or domain rules.
+- `application/operations/` owns the immutable registry and built-in operation
+  catalog. `executeOperation({ projectDir, actor, operation, input, source })`
+  performs one lookup, builds one request, and delegates once to the mutation
+  frontier. It does not persist state or implement lifecycle semantics.
+- `providers/` expose typed `{ prepare, apply }` operations. They validate and
+  apply domain behavior against a transaction draft but do not import adapters,
+  storage, locks, logs, or the registry.
+- `kernel/mutation/` owns the single locked mutation pipeline: fresh snapshot,
+  preconditions/policy, provider plan, draft validation, diff/revisions, and
+  atomic state-plus-log commit. `kernel/mutate.mjs` remains the stable facade.
+- `execution/` validates the optional worker execution contract and detects
+  active ownership conflicts without filesystem or adapter dependencies.
+- `read-model/` composes graph and provider semantics into read-only views; it
+  has no argv, filesystem, mutation, or logging concerns.
+- `plugins/` is the host/adapter boundary. Plugin core actions consume the
+  Application Operations catalog and cannot replace actor, registry, locking,
+  or persistence through input.
+- `storage/` is the only persistence layer. Mutations reach it through the
+  kernel; callers must not edit the live state file directly.
+
+When adding behavior, keep normalization in the adapter, reusable semantics in
+providers, orchestration in Application Operations, and transaction/persistence
+in the kernel. Do not recreate a second registry, lock path, or mutation
+frontier in a command or plugin.
 
 ### The state shape
 
@@ -57,12 +120,16 @@ Canonical `BLOCKS` direction is `{ from: blocker, to: blocked, type: "BLOCKS" }`
 
 ### The two non-obvious invariants
 
-1. **Atomicity: every mutating command goes through `withLock` → `updateState` (atomic tmp+rename).** Two agents in parallel can't corrupt the file. The `withLock` lock file lives next to the active state file (`~/.climier/projects/<project-id>/.lock`), is created with `fs.openSync(..., 'wx')` (fails on EEXIST), and is re-acquired in a spin loop with a 10s default timeout. Stale lock files (process died) are NOT auto-cleared — that is documented as the known ceiling of the file-lock strategy.
-2. **Logging is part of the mutation.** Every command that changes state calls `updateState` (under `withLock`) and then `append` to the log. Both happen inside the same `withLock` block. Do not split them across locks.
+1. **Atomicity: every mutating operation enters through `kernel/mutate.mjs` and its `withLock` → atomic state write pipeline.** Two agents in parallel can't corrupt the file. The `withLock` lock file lives next to the active state file (`~/.climier/projects/<project-id>/.lock`), is created with `fs.openSync(..., 'wx')` (fails on EEXIST), and is re-acquired in a spin loop with a 10s default timeout. Stale lock files (process died) are NOT auto-cleared — that is documented as the known ceiling of the file-lock strategy.
+2. **Logging is part of the mutation.** The kernel mutation coordinator builds the log entry and commits the state plus log atomically in one locked write. Do not split state and log persistence across locks or reimplement either concern in an adapter/provider.
 
 ### Derived state and the DAG
 
-Derivation lives in `src/commands/status.mjs` (read-only views) and the per-command helpers that compute `derived_status`, `can_claim`, and `blocking[]`. Pure functions with no I/O let unit tests pass literal state objects.
+Read derivation lives in `src/read-model/index.mjs`, which composes graph
+traversal with task, gate, and knowledge provider semantics. The pure provider
+helpers in `src/providers/` compute lifecycle/readiness rules; the CLI
+`status` and `context` adapters only load a snapshot and shape their output.
+Pure functions with no I/O let unit tests pass literal snapshots.
 
 `status` surfaces `{ summary: { ready, in_progress, blocked, backlog, placeholders, stale, open_decisions, done, archived } }`. Backlog tasks are kept out of the ready/blocked pools until `--backlog false` is set on the node (or they were created without `--backlog true`).
 
@@ -72,31 +139,31 @@ Cycles in the DAG must not crash. The derivation keeps cycle members blocked. Un
 
 | Command | File | Mutates? | Needs `--as`? |
 |---|---|---|---|
-| `init [--force]` | `commands/init.mjs` | yes (creates/overwrites state) | no |
-| `status [--initiative X] [--kind task\|gate\|knowledge] [--status X] [--domain X] [--claimed-by X] [--stale-ms N] [--limit N] [--all]` | `commands/status.mjs` | no | no |
-| `context <id>` | `commands/context.mjs` | no | no |
-| `search "<query>" [--all]` | `commands/search.mjs` | no | no |
-| `history <id> [--limit N]` | `commands/history.mjs` | no | no |
-| `show <id>` | `commands/show.mjs` | no | no |
-| `initiatives [--all]` | `commands/initiatives.mjs` | no | no |
-| `log [--limit N] [--action X] [--agent X] [--task X] [--decision X]` | `commands/log.mjs` | no | no |
-| `take <id>` | `commands/take.mjs` | yes | yes |
-| `release <id>` | `commands/release.mjs` | yes | yes |
-| `resolve <id> --note "<text>"` (task) / `--choice "<x>" --rationale "<y>"` (gate) | `commands/resolve.mjs` | yes | yes |
-| `reopen <id> --reason "<text>"` | `commands/reopen.mjs` | yes | yes (orchestrator/recovery, or original done_by for self-correction) |
-| `cancel <id> --reason "<text>"` | `commands/cancel.mjs` | yes | yes (claim owner, or orchestrator/recovery) |
-| `update <id> [--title X] [--body "..."] [--definition "..."] [--acceptance "..."] [--domain Y] [--tags ...] [--backlog true\|false] [--if-revision N]` | `commands/update.mjs` | yes | required (any value; no ownership check) |
-| `add-note <id> "<text>"` | `commands/add-note.mjs` | yes | required (any value) |
-| `add-initiative <name> [--desc "..."]` | `commands/add-initiative.mjs` | yes | required |
-| `add-task [id] --initiative X --title "..." --body "..." --acceptance "..." --blocked-by A,B [--backlog true]` | `commands/add-task.mjs` | yes | required |
-| `add-gate [id] --initiative X --title "..." --body "..." --purpose decision\|approval\|external-dependency\|research [--supersedes OLD]` | `commands/add-gate.mjs` | yes | required |
-| `add-knowledge [id] --initiative X --title "..." --body "..." [--scope-domains X] [--scope-initiatives X] [--scope-tags X] [--scope-node-ids X] [--supersedes OLD]` | `commands/add-knowledge.mjs` | yes | required |
-| `deprecate-knowledge <id> --reason "<text>"` | `commands/deprecate-knowledge.mjs` | yes | required |
-| `add-node <id> --kind resolvable\|knowledge --title "..." [--subkind task\|gate] [--blocked-by A,B] [--derived-from A,B] [--refs a,b] [--meta '{...}']` | `commands/add-node.mjs` | yes | required |
-| `add-edge <from> <to> --type BLOCKS\|SUPERSEDES\|DERIVED_FROM` | `commands/add-edge.mjs` | yes | required |
-| `snapshots` | `commands/snapshots.mjs` | no (read-only) | no |
-| `restore <id> --as orchestrator\|recovery` | `commands/restore.mjs` | yes (locked; validates target v2/shape; pre-snapshot) | yes (orchestrator\|recovery only) |
-| `ui [--port N] [--open=true\|false]` | `commands/ui.mjs` (starts `ui/server/server.mjs`) | no (read-only) | no |
+| `init [--force]` | `cli/commands/init.mjs` | yes (creates/overwrites state) | no |
+| `status [--initiative X] [--kind task\|gate\|knowledge] [--status X] [--domain X] [--claimed-by X] [--stale-ms N] [--limit N] [--all]` | `cli/commands/status.mjs` | no | no |
+| `context <id>` | `cli/commands/context.mjs` | no | no |
+| `search "<query>" [--all]` | `cli/commands/search.mjs` | no | no |
+| `history <id> [--limit N]` | `cli/commands/history.mjs` | no | no |
+| `show <id>` | `cli/commands/show.mjs` | no | no |
+| `initiatives [--all]` | `cli/commands/initiatives.mjs` | no | no |
+| `log [--limit N] [--action X] [--agent X] [--task X] [--decision X]` | `cli/commands/log.mjs` | no | no |
+| `take <id>` | `cli/commands/take.mjs` | yes | yes |
+| `release <id>` | `cli/commands/release.mjs` | yes | yes |
+| `resolve <id> --note "<text>"` (task) / `--choice "<x>" --rationale "<y>"` (gate) | `cli/commands/resolve.mjs` | yes | yes |
+| `reopen <id> --reason "<text>"` | `cli/commands/reopen.mjs` | yes | yes (orchestrator/recovery, or original done_by for self-correction) |
+| `cancel <id> --reason "<text>"` | `cli/commands/cancel.mjs` | yes | yes (claim owner, or orchestrator/recovery) |
+| `update <id> [--title X] [--body "..."] [--definition "..."] [--acceptance "..."] [--domain Y] [--tags ...] [--backlog true\|false] [--if-revision N]` | `cli/commands/update.mjs` | yes | required (any value; no ownership check) |
+| `add-note <id> "<text>"` | `cli/commands/add-note.mjs` | yes | required (any value) |
+| `add-initiative <name> [--desc "..."]` | `cli/commands/add-initiative.mjs` | yes | required |
+| `add-task [id] --initiative X --title "..." --body "..." --acceptance "..." --blocked-by A,B [--backlog true]` | `cli/commands/add-task.mjs` | yes | required |
+| `add-gate [id] --initiative X --title "..." --body "..." --purpose decision\|approval\|external-dependency\|research [--supersedes OLD]` | `cli/commands/add-gate.mjs` | yes | required |
+| `add-knowledge [id] --initiative X --title "..." --body "..." [--scope-domains X] [--scope-initiatives X] [--scope-tags X] [--scope-node-ids X] [--supersedes OLD]` | `cli/commands/add-knowledge.mjs` | yes | required |
+| `deprecate-knowledge <id> --reason "<text>"` | `cli/commands/deprecate-knowledge.mjs` | yes | required |
+| `add-node <id> --kind resolvable\|knowledge --title "..." [--subkind task\|gate] [--blocked-by A,B] [--derived-from A,B] [--refs a,b] [--meta '{...}']` | `cli/commands/add-node.mjs` | yes | required |
+| `add-edge <from> <to> --type BLOCKS\|SUPERSEDES\|DERIVED_FROM` | `cli/commands/add-edge.mjs` | yes | required |
+| `snapshots` | `cli/commands/snapshots.mjs` | no (read-only) | no |
+| `restore <id> --as orchestrator\|recovery` | `cli/commands/restore.mjs` | yes (locked; validates target v2/shape; pre-snapshot) | yes (orchestrator\|recovery only) |
+| `ui [--port N] [--open=true\|false]` | `cli/commands/ui.mjs` (starts `ui/server/server.mjs`) | no (read-only) | no |
 
 ## Hard rules for contributing
 
@@ -105,19 +172,59 @@ Cycles in the DAG must not crash. The derivation keeps cycle members blocked. Un
 3. **No silent failures.** Every error path either throws with a clear message or has a tested behavior. If you find yourself "handling" an error by logging and continuing, write a test that documents the behavior, or change the code to fail loud.
 4. **Schema validation on write.** `writeState` rejects states missing `nodes`/`edges`/`initiatives`/`log`. Don't relax this without a test that says why.
 5. **Versioning.** The state has `version: 2`. Additive optional fields that an older compatible CLI can safely preserve and ignore do not require a version bump. Bump the version and add a migration in `readState` when a change removes or reinterprets existing data, makes a field required for correct behavior, changes core semantics, or otherwise means an older CLI cannot safely read and write the state. Document the compatibility decision and never silently accept unknown future versions.
-6. **Multi-agent safety.** Any new mutation must go through `withLock`. Any new "log" must be inside the same `withLock` block as the state change it describes. If you split them, a concurrent op can interleave and the log will lie.
+6. **Multi-agent safety.** Any new state mutation must enter through the kernel mutation frontier (or an explicitly documented setup/recovery path) and be serialized by `withLock`. Any new "log" must be committed with the state change it describes. If you split them, a concurrent op can interleave and the log will lie.
 7. **The orchestrator/recovery escape hatch.** `release` and `reopen` honor `--as orchestrator` (or `--as recovery`) and can act on any agent's claim / `done` record. This is a feature, not a bug. Don't remove it. `resolve` and `cancel` follow the same pattern for the claim/done owner.
 8. **No boolean flags before the command.** The CLI parser treats `--force init` as `--force=init`. New boolean flags must be used as `--flag=true` or after the command. Document any new boolean flag with this caveat.
 9. **English only in code, but the CLI output tolerates any UTF-8.** Titles, bodies, notes, and any free-text field can be in any language. Don't filter or escape based on locale.
 
-## How to add a new command
+## How to add a command or operation
 
-1. **Test first.** Add `test/<name>.test.mjs`. Test happy path, ownership/permission errors, state-missing errors, and at least one edge case (empty state, missing deps, etc).
-2. **Implement in `src/commands/<name>.mjs`.** Export default async function. Wrap mutating ops in `withLock`. Use `updateState` for atomic writes; use `append` to log.
-3. **Wire it in `bin/climier.mjs`.** Add it to the unknown-command help text. (There is no `printers` map — the CLI is JSON-only. See "Output contract" below.)
-4. **Add a row to the Quick reference tables** in this `AGENTS.md` and the README in this repo.
-5. **Add it to the integration tests** if it interacts with other commands (`cli-dispatch.test.mjs` covers end-to-end via the bin).
-6. **Run the full suite.** `npm test`. Don't commit if anything is red.
+First decide which boundary owns the change. A reusable domain action is an
+Application Operation; a user-facing verb is a CLI adapter over that operation.
+Do not put domain rules or persistence in the CLI layer.
+
+### Adding a reusable operation
+
+1. **Test first.** Add focused tests for valid input, domain errors, idempotency,
+   and relevant edge cases. Use literal snapshots for pure provider tests.
+2. **Implement the provider.** Add a pure `{ prepare, apply }` provider under
+   the appropriate `src/providers/<domain>/` namespace. `prepare` validates
+   against the fresh snapshot; `apply` changes only the kernel transaction
+   draft. Providers must not import `cli/`, `plugins/`, `storage/`, locks, or
+   logging.
+3. **Register the operation.** Add its canonical `<domain>.<verb>` id and
+   provider to `src/application/operations/builtins.mjs` (and the matching
+   public operation list when applicable). The immutable registry is process
+   configuration, not project state; do not create a second registry.
+4. **Preserve the mutation frontier.** Hosts call
+   `executeOperation({ projectDir, actor, operation, input, source })`, which
+   looks up the provider and delegates once to `kernel/mutate.mjs`. The kernel
+   owns locking, policy timing, revisions, diffs, validation, and the atomic
+   state-plus-log write.
+5. **Run the proportional provider, registry, and integration tests**, then
+   `npm test` when the shared operation or kernel contract is affected.
+
+### Adding a CLI command
+
+1. **Test first.** Add `test/<name>.test.mjs` or the appropriate integration
+   test. Cover the public happy path, validation/permission errors, missing
+   state, and one edge case.
+2. **Implement `src/cli/commands/<name>.mjs`.** Export the async command
+   adapter and its `knownFlags`. Parse positional arguments and flags, resolve
+   the actor with `src/cli/actor.mjs`, normalize only CLI-specific input, and
+   invoke the canonical Application Operation or read-model projection.
+3. **Keep the adapter thin.** It may preserve a legacy CLI envelope or error
+   classification, but must not acquire locks, write state/logs, assign
+   revisions, or duplicate provider semantics. Mutations must enter through
+   the kernel mutation frontier.
+4. **Wire it through `src/cli/dispatch.mjs`** and update the help text exposed
+   by the dispatch adapter. `bin/climier.mjs` remains a thin executable
+   wrapper; there is no separate printer map because the CLI is JSON-only.
+5. **Document the command** in the Quick reference table above and README when
+   the public surface changes. Add integration coverage when it crosses
+   dispatch, operations, plugins, or storage.
+6. **Run `npm test`** (plus concurrent/UI checks when the changed boundary
+   requires them). Do not commit with a red required suite.
 
 ## How to add a new field to the state
 
@@ -130,7 +237,7 @@ Cycles in the DAG must not crash. The derivation keeps cycle members blocked. Un
 ## How to extend the DAG model
 
 - **New task status** (beyond `open`/`in_progress`/`done`/`canceled`): add to the persisted set AND update the derivation logic to handle it. Don't treat unknown statuses as `ready` without thinking — pass-through is the current policy for forward compat. If you want stricter behavior, add a test that locks down the policy.
-- **New gate kind** (e.g. a sub-class of `gate`): the current model uses `subkind` and `purpose` to discriminate. Adding a new subkind means changes in `state.mjs`, the command that creates the subkind, and the affected read commands (`status`, `context`). Document it.
+- **New gate kind** (e.g. a sub-class of `gate`): the current model uses `subkind` and `purpose` to discriminate. Adding a new subkind means changes in `src/providers/gate/`, the CLI adapter that creates the subkind, and the affected read-model projections (`status`, `context`). Document it.
 - **Cross-initiative dependencies**: already supported via `--blocked-by` ids. The `--initiative` filter is for views only, not for resolution.
 
 ## Conventions in the code
@@ -140,9 +247,9 @@ Cycles in the DAG must not crash. The derivation keeps cycle members blocked. Un
 - **Error messages start with the command name.** `"take: node T1 is not ready"` not `"Node T1 is not ready"`. This makes logs grep-able.
 - **Positional args for things, flags for options.** `climier take T1 --as alice` not `--id T1 --agent alice`.
 - **CSV in flag values.** `--tags "ts,sql"` not `--tag ts --tag sql`. Trim and filter empty strings.
-- **Pure functions live next to their read command.** No I/O, no side effects. Test them with literal state objects, no temp dirs.
+- **Pure projections live in `read-model/` and pure domain semantics live in `providers/`.** No I/O or side effects. Test them with literal snapshots, no temp dirs.
 - **Imperative wrappers in `storage/state.mjs` and `storage/lock.mjs`.** These touch the filesystem. They are tested via `helpers.mjs` (temp dirs).
-- **Commands return data, not console.log.** `bin/climier.mjs` is the only place that prints (except for errors).
+- **Adapters return data, not console.log.** `bin/climier.mjs` is the only place that prints (except for errors).
 
 ## Testing
 
@@ -219,7 +326,7 @@ When you add a new command, pick whichever shape fits the data. **Do not** add a
 
 1. Run `npm test`. If anything is red, fix it first (a new agent should never commit on top of red).
 2. Read `src/storage/state.mjs` — it explains the storage shape and version handling.
-3. Read one command end-to-end (`commands/take.mjs` is the most representative).
+3. Read one command end-to-end (`src/cli/commands/take.mjs` is the most representative).
 4. Look at `test/v2-take.test.mjs` (and `test/concurrent-takes.test.mjs` if present) — they show the multi-agent guarantee in action.
 5. Then tackle your task. TDD: write the test, watch it fail, implement, watch it pass.
 
