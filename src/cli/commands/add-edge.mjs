@@ -1,6 +1,6 @@
 // add-edge: append a new edge to the v2 state.
 //
-// T-graph-kernel-adapters-wave1 — this handler is now a thin adapter
+// This handler is a thin adapter
 // over the kernel mutation frontier (`kernel.mutate` + the `edge.add`
 // provider). The adapter parses argv, resolves the policy outside
 // the lock, and hands control to the kernel, which owns the lock,
@@ -37,12 +37,12 @@ export default async function addEdge({ statePath, positional, flags, pluginId }
   }
   const projectDir = statePath;
 
-  // F8: resolve the agent BEFORE building the request so the seam
-  // sees the real caller. MISSING_AGENT still surfaces after data
-  // validation but before the kernel opens the lock.
+  // Resolve the agent before building the request so the seam sees the real
+  // caller. MISSING_AGENT still surfaces after data validation but before the
+  // kernel opens the lock.
   const agent = resolveAgent(flags, "add-edge");
 
-  // T-plugin-policy-seam-dag — ADR-008 §"Seam por handler": policy
+  // ADR-008 §"Seam por handler": policy
   // selection runs OUTSIDE the lock; the authorize step runs INSIDE
   // the lock via `policyAction.decide` against the snapshot the
   // kernel reads under the same lock.

@@ -1,5 +1,5 @@
 // snapshots — list recoverable snapshots captured under
-// `<state-dir>/snapshots/`. ADR-004 §§Commands/Plan 3.
+// `<state-dir>/snapshots/`. ADR-004 defines the snapshot command contract.
 //
 // Read-only. Reuses `listSnapshots` from src/storage/state.mjs, which already
 // filters to complete pairs (raw + metadata), parses the metadata, and

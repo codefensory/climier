@@ -1,4 +1,4 @@
-// F10 — `context`: agent-first view of a v2 node, shaped per the design doc.
+// `context`: agent-first view of a v2 node, shaped per the design doc.
 //
 // Output shape:
 //   { node, derived_status, revision, claim, blocking, knowledge, alerts,
@@ -22,7 +22,7 @@
 // dynamically and are not projected here.
 //
 // `claim` is `{ by, at, stale }` when the node is currently claimed (either
-// via F9 take.mjs's structured claim or via legacy claimed_by/claimed_at),
+// via the take command's structured claim or via legacy claimed_by/claimed_at),
 // else `null`.
 import { readState, assertStateVersion } from "../../storage/state.mjs";
 import {
@@ -63,8 +63,8 @@ function parseAtMs(at) {
 }
 
 function buildClaim(node, staleMs) {
-  // F9 take.mjs writes a structured claim object. Tests / older code may
-  // write flat claimed_by + claimed_at (number). Handle either.
+  // The take command writes a structured claim object. Tests and older code
+  // may write flat claimed_by + claimed_at (number). Handle either.
   if (node.claim && typeof node.claim === "object" && node.claim.by) {
     const atMs = parseAtMs(node.claim.at);
     return {

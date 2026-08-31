@@ -1,7 +1,7 @@
-// T-plugin-install — `climier uninstall <id>`: remove the installed
+// `climier uninstall <id>`: remove the installed
 // plugin directory at <CLIMIER_HOME>/plugins/installed/<id>.
 //
-// T-plugin-command-layout-fix / ADR-005 §"Instalación e identidad":
+// ADR-005 §"Instalación e identidad":
 //   - installed dir name IS descriptor.id (no manifest, no scan).
 //   - `uninstall <id>` elimina ese directorio y no purga datos de
 //     proyectos.

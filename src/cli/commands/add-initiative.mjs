@@ -1,6 +1,6 @@
 // add-initiative: register an initiative with description.
-// Duplicate names are rejected with ID_CONFLICT (F3 enforces
-// pre-registration per the v2 design doc).
+// Duplicate names are rejected with ID_CONFLICT; initiatives must be
+// registered before nodes reference them.
 //
 // This command is an adapter only. The initiative provider owns domain
 // validation and the kernel owns locking, revision/diff handling, logging and
@@ -12,7 +12,7 @@ import { throwV2 } from "../../contracts/errors.mjs";
 import { resolveAgent } from "../actor.mjs";
 import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
 
-// T-plugin-policy-seam-lifecycle / ADR-008 §"initiative.create":
+// ADR-008 §"initiative.create":
 //   - policy selection happens outside the kernel lock;
 //   - authorization happens inside the kernel lock against its fresh snapshot;
 //   - deny means no state file, mutation or log entry.
@@ -54,8 +54,8 @@ function validateName(name) {
 export default async function addInitiative({ statePath, flags = {}, positional, pluginId }) {
   const [name] = positional;
   validateName(name);
-  // F8: agent resolution sits at the end of the validation chain so the
-  // caller sees bad-data errors (MISSING_FIELD / INVALID_NAME) before identity
+  // Agent resolution sits at the end of the validation chain so the caller
+  // sees bad-data errors (MISSING_FIELD / INVALID_NAME) before identity
   // errors.
   const as = resolveAgent(flags, "add-initiative");
   const projectDir = statePath;

@@ -1,4 +1,4 @@
-// F12 — `status` view: agent-first picture of the DAG.
+// `status` view: agent-first picture of the DAG.
 //
 // Output shape (per design doc):
 //   {

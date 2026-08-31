@@ -1,8 +1,8 @@
-// T-plugin-install — `climier install <source>`: install a plugin into
+// `climier install <source>`: install a plugin into
 // <CLIMIER_HOME>/plugins/installed/<descriptor.id>/ using an isolated
 // staging prefix and a global plugin lock.
 //
-// T-plugin-command-layout-fix / ADR-005 §"Instalación e identidad": the
+// ADR-005 §"Instalación e identidad": the
 // installed directory name is descriptor.id. descriptor.command is the
 // CLI namespace (the first non-flag token); the dispatcher discovers it
 // by scanning installed/<*> package.json files (no persistent manifest,
@@ -207,7 +207,7 @@ async function listInstalledDescriptors() {
 }
 
 async function checkUniqueness(descriptor) {
-  // T-plugin-command-layout-fix / ADR-005: id uniqueness is a path
+  // ADR-005: id uniqueness is a path
   // collision at installed/<descriptor.id> (the dir name IS the id);
   // command uniqueness scans every other installed descriptor because
   // no two plugins may claim the same CLI namespace.
@@ -297,10 +297,10 @@ export default async function install({ positional = [], flags = {} } = {}) {
       const entryAbsPath = path.resolve(installedPkgDir, descriptor.entry);
       await importEntry(entryAbsPath);
 
-      // T-plugin-fixture regression fix: npm install --prefix staging
+      // For local packages, npm install --prefix staging
       // <local-path> drops the package under <staging>/node_modules/<basename>/
       // and writes its own (climier-less) package.json at <staging>/package.json.
-      // T-plugin-dispatch's loader reads <installed>/<id>/package.json to
+      // The loader reads <installed>/<id>/package.json to
       // find the descriptor and resolves the entry as
       // path.resolve(<installed>/<id>, descriptor.entry) — neither lookup
       // lands on the npm layout. Mirror the package's files into the
@@ -314,7 +314,7 @@ export default async function install({ positional = [], flags = {} } = {}) {
       await mirrorPluginFilesToStagingRoot(installedPkgDir, stagingDir, descriptor.entry);
 
       // Step 8: atomic promotion by rename to installed/<descriptor.id>.
-      // T-plugin-command-layout-fix / ADR-005 §"Instalación e identidad":
+      // ADR-005 §"Instalación e identidad":
       // the dir name is descriptor.id; descriptor.command is the CLI
       // namespace the dispatcher uses for routing.
       const targetDir = pluginInstalledDir(descriptor.id);
@@ -344,7 +344,7 @@ export default async function install({ positional = [], flags = {} } = {}) {
 // Skips the package's own node_modules/ subtree so we do not collide
 // with npm's structure. Used by install() to make the dispatcher's
 // <installed>/<id>/{package.json, entry} layout work after the npm-
-// driven install path (T-plugin-fixture regression fix).
+// driven install path.
 async function mirrorPluginFilesToStagingRoot(pkgDir, stagingDir, entryRel) {
   // Normalize the entry relative path so it is rooted at pkgDir.
   const entryPath = path.resolve(pkgDir, entryRel);
