@@ -926,7 +926,7 @@ describe("init --force on existing state", () => {
       const r2 = await runCli(["--project", dir, "init", "--force"]);
       assert.equal(r2.code, 0, r2.stderr);
       const s = await readRawState(dir);
-      assert.equal(s.version, 2);
+      assert.equal(s.version, 3);
       assert.deepEqual(s.nodes, {});
       assert.deepEqual(s.edges, []);
     } finally { await rmTempProject(dir); }
@@ -944,7 +944,7 @@ describe("init --force on existing state", () => {
       r = await runCli(["--project", dir, "init", "--force"]);
       assert.equal(r.code, 0, r.stderr);
       const s = await readRawState(dir);
-      assert.equal(s.version, 2);
+      assert.equal(s.version, 3);
       assert.deepEqual(s.nodes, {}, "data must be wiped after --force reinit");
       assert.deepEqual(s.initiatives, {}, "initiatives must be wiped too");
     } finally { await rmTempProject(dir); }

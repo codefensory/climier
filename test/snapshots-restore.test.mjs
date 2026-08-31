@@ -635,7 +635,7 @@ test("restore: raw is v1 fails (v1 is no longer supported)", async () => {
   }
 });
 
-test("restore: raw is a future version (v3) fails", async () => {
+test("restore: raw is a future version (v4) fails", async () => {
   const dir = await createTempProject();
   try {
     const { createSnapshot } = await importFresh("./storage/state.mjs");
@@ -644,7 +644,7 @@ test("restore: raw is a future version (v3) fails", async () => {
     const meta = await createSnapshot(dir, "force-init");
     await fs.writeFile(
       path.join(snapshotDir(dir), `${meta.id}.json`),
-      JSON.stringify({ version: 3, nodes: {}, edges: [], initiatives: {}, log: [] }),
+      JSON.stringify({ version: 4, nodes: {}, edges: [], initiatives: {}, log: [] }),
     );
     let captured;
     try {

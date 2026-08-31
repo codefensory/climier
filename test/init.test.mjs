@@ -5,7 +5,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { createTempProject, rmTempProject, stateExists, stateFilePath, importFresh, runCli } from "./helpers.mjs";
 
-test("init: creates empty v2 state file when none exists", async () => {
+test("init: creates empty v3 state file when none exists", async () => {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
   const dir = await createTempProject();
   try {
@@ -17,7 +17,7 @@ test("init: creates empty v2 state file when none exists", async () => {
     assert.equal(stateFilePath(dir).startsWith(path.join(process.env.CLIMIER_HOME, "projects")), true);
     const { readState } = await importFresh("./storage/state.mjs");
     const s = await readState(dir);
-    assert.equal(s.version, 2);
+    assert.equal(s.version, 3);
     assert.deepEqual(s.nodes, {});
     assert.deepEqual(s.edges, []);
     assert.deepEqual(s.initiatives, {});
@@ -38,14 +38,14 @@ test("init: fails if state already exists (no overwrite)", async () => {
   }
 });
 
-test("init: ignores unknown flags and still creates an empty v2 state", async () => {
+test("init: ignores unknown flags and still creates an empty v3 state", async () => {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
   const { readState } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, flags: { seed: "migration" }, positional: [], projectDir: dir });
     const s = await readState(dir);
-    assert.equal(s.version, 2);
+    assert.equal(s.version, 3);
     assert.deepEqual(s.nodes, {});
     assert.deepEqual(s.edges, []);
   } finally {
@@ -82,7 +82,7 @@ test("init: refuses on an existing v1 state without --force and mentions --force
   } finally { await rmTempProject(dir); }
 });
 
-test("init: --force on an existing v1 state overwrites to empty v2", async () => {
+test("init: --force on an existing v1 state overwrites to empty v3", async () => {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
   const { readState } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
@@ -96,7 +96,7 @@ test("init: --force on an existing v1 state overwrites to empty v2", async () =>
 
     await init({ statePath: dir, flags: { force: true }, positional: [], projectDir: dir });
     const s = await readState(dir);
-    assert.equal(s.version, 2);
+    assert.equal(s.version, 3);
     assert.deepEqual(s.nodes, {});
     assert.deepEqual(s.edges, []);
   } finally { await rmTempProject(dir); }

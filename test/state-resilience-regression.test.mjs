@@ -110,7 +110,7 @@ const SENTINEL = {
   log: [],
 };
 
-// 1. init creates an empty v2 state in the sandbox.
+// 1. init creates an empty v3 state in the sandbox.
 cli("init");
 
 // 2. Plant sentinel directly into the sandbox tasks.json. We write the
@@ -301,7 +301,7 @@ test("NEGATIVE CONTROL: without smoke-sandbox, init --force with copied project_
         "if this assertion fails, the negative control no longer demonstrates the bug"
     );
     const after = JSON.parse(controlBytes);
-    assert.equal(after.version, 2);
+    assert.equal(after.version, 3);
     assert.deepEqual(
       after.nodes,
       {},

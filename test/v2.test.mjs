@@ -2,14 +2,14 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, importFresh, readState as readRawState, runCli, writeState as writeRawState } from "./helpers.mjs";
 
-test("init: creates an empty v2 state by default", async () => {
+test("init: creates an empty v3 state by default", async () => {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
   const { readState } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
     const s = await readState(dir);
-    assert.equal(s.version, 2);
+    assert.equal(s.version, 3);
     assert.deepEqual(s.nodes, {});
     assert.deepEqual(s.edges, []);
     assert.deepEqual(s.log, []);
@@ -476,7 +476,7 @@ test("CLI: v2 commands work end-to-end", async () => {
     assert.equal(data.knowledge[0].id, "K-auth-ttl");
 
     const state = await readRawState(dir);
-    assert.equal(state.version, 2);
+    assert.equal(state.version, 3);
   } finally {
     await rmTempProject(dir);
   }

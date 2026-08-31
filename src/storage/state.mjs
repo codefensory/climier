@@ -49,12 +49,23 @@ export async function ensureProjectMeta(projectDir) {
   return meta;
 }
 
-// v2-only: there is no v1 schema anymore. v1 states are rejected by
-// readState with STATE_V1_UNSUPPORTED; the migration path lives in that
-// error message. See ./commands/init.mjs for the bootstrap path.
+const CURRENT_STATE_VERSION = 3;
+const LEGACY_STATE_VERSION = 2;
+
+// v1 is no longer supported. v2 remains readable through this narrow
+// migration because its collections and node representation are compatible
+// with v3; only the top-level version changes. The returned object is a new
+// object so reading a legacy snapshot never mutates the parsed input.
+export function migrateState(state) {
+  if (state && state.version === LEGACY_STATE_VERSION) {
+    return { ...state, version: CURRENT_STATE_VERSION };
+  }
+  return state;
+}
+
 export function emptyState() {
   return {
-    version: 2,
+    version: CURRENT_STATE_VERSION,
     nodes: {},
     edges: [],
     initiatives: {},
@@ -62,13 +73,22 @@ export function emptyState() {
   };
 }
 
+// The node collections keep the v2 shape in v3. This compatibility predicate
+// is intentionally true for both versions so pre-v3 consumers can keep
+// reading the migrated representation while their own version checks catch
+// up. It does not make v3 writable by a v2 binary: that binary rejects the
+// top-level version before reaching this helper.
 export function isV2State(state) {
-  return !!state && state.version === 2;
+  return !!state && (state.version === LEGACY_STATE_VERSION || state.version === CURRENT_STATE_VERSION);
+}
+
+export function isV3State(state) {
+  return !!state && state.version === CURRENT_STATE_VERSION;
 }
 
 export function assertStateVersion(state, version, commandName) {
   if (!state) return;
-  if (state.version === version) return;
+  if (state.version === version || (version === LEGACY_STATE_VERSION && state.version === CURRENT_STATE_VERSION)) return;
   throw new Error(`${commandName}: state version ${state.version} is not supported by this command (expected version ${version})`);
 }
 
@@ -84,8 +104,8 @@ export async function readState(projectDir) {
       const migrationSteps = [
         "1. Backup the existing tasks.json file.",
         "2. Export any nodes you want to keep (the v1 schema uses tasks/decisions/gotchas; recreate them with add-task/add-gate/add-knowledge).",
-        "3. Run `climier init --force` to recreate the project state in v2.",
-        "4. Recreate each node with add-initiative / add-task / add-gate / add-knowledge (see `climier --help` for the v2 surface).",
+        "3. Run `climier init --force` to recreate the project state in v3.",
+        "4. Recreate each node with add-initiative / add-task / add-gate / add-knowledge (see `climier --help` for the v3 surface).",
       ];
       const wrapped = new Error(
         `state: file at ${stateFile(projectDir)} has version 1; this version of climier no longer supports the v1 schema. ` +
@@ -96,17 +116,17 @@ export async function readState(projectDir) {
         file: stateFile(projectDir),
         version: 1,
         migration_steps: migrationSteps,
-        hint: "Run `climier init --force` to overwrite the v1 state with a fresh v2 state (this will erase the v1 data).",
+        hint: "Run `climier init --force` to overwrite the v1 state with a fresh v3 state (this will erase the v1 data).",
       };
       throw wrapped;
     }
     // Forward-compatibility: surface a clear error if a future version is found.
-    if (state && typeof state === "object" && "version" in state && state.version > 2) {
-      const wrapped = new Error(`state: file at ${stateFile(projectDir)} has version ${state.version} but this climier only understands version 2`);
+    if (state && typeof state === "object" && "version" in state && state.version > CURRENT_STATE_VERSION) {
+      const wrapped = new Error(`state: file at ${stateFile(projectDir)} has version ${state.version} but this climier only understands version ${CURRENT_STATE_VERSION}`);
       wrapped.code = "CLIMIER_INCOMPATIBLE_VERSION";
       throw wrapped;
     }
-    return state;
+    return migrateState(state);
   } catch (err) {
     if (err.code === "ENOENT") return null;
     if (err instanceof SyntaxError) {
@@ -131,24 +151,24 @@ export async function updateState(projectDir, mutator) {
     if (err.code !== "ENOENT") throw err;
     state = emptyState();
   }
-  // If state.version !== 2, surface the same v1 / incompatible-version error
-  // readState would. updateState is the path most mutating commands hit on
-  // existing state files; it must reject v1 the same way so callers don't
-  // bypass the check.
+  // Keep updateState on the same version boundary as readState. This path
+  // reads directly because it is the low-level mutator used by bootstrap and
+  // older callers, so it must apply the v2→v3 normalization itself.
   if (state && typeof state === "object" && state.version === 1) {
     const wrapped = new Error(
       `state: file at ${file} has version 1; this version of climier no longer supports the v1 schema. ` +
-      `Run \`climier init --force\` to overwrite the v1 state with a fresh v2 state.`,
+      `Run \`climier init --force\` to overwrite the v1 state with a fresh v3 state.`,
     );
     wrapped.code = "STATE_V1_UNSUPPORTED";
     wrapped.details = { file, version: 1, hint: "Run `climier init --force` to overwrite the v1 state." };
     throw wrapped;
   }
-  if (state && typeof state === "object" && "version" in state && state.version > 2) {
-    const wrapped = new Error(`state: file at ${file} has version ${state.version} but this climier only understands version 2`);
+  if (state && typeof state === "object" && "version" in state && state.version > CURRENT_STATE_VERSION) {
+    const wrapped = new Error(`state: file at ${file} has version ${state.version} but this climier only understands version ${CURRENT_STATE_VERSION}`);
     wrapped.code = "CLIMIER_INCOMPATIBLE_VERSION";
     throw wrapped;
   }
+  state = migrateState(state);
   const next = mutator({ ...state });
   if (next === undefined) {
     // mutator mutated in-place; we wrote the spread so the outer state is stale.
@@ -281,20 +301,21 @@ export async function listSnapshots(projectDir) {
   return result;
 }
 
-// writeState: validate and persist a v2 state. Rejects v1 shapes and any
-// state missing the v2 collections. This is the single source of truth for
-// the on-disk schema; helpers must not bypass it for v2 writes.
+// writeState validates and persists the current v3 schema. A v2 object is
+// accepted only as an explicit compatibility input and is normalized before
+// it reaches disk; v1 and future versions are never written.
 export async function writeState(projectDir, state) {
   if (!state || typeof state !== "object") {
     throw new Error("writeState: invalid state (not an object)");
   }
   if (state.version === 1) {
     throw new Error(
-      "writeState: invalid state (version 1 is no longer supported; this build of climier only writes v2 states)",
+      "writeState: invalid state (version 1 is no longer supported; this build of climier only writes v3 states)",
     );
   }
-  if (state.version !== 2) {
-    throw new Error(`writeState: invalid state (version ${state.version} is not supported; expected version 2)`);
+  state = migrateState(state);
+  if (state.version !== CURRENT_STATE_VERSION) {
+    throw new Error(`writeState: invalid state (version ${state.version} is not supported; expected version ${CURRENT_STATE_VERSION})`);
   }
   const required = ["nodes", "edges", "initiatives", "log"];
   for (const k of required) {

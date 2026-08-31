@@ -16,7 +16,7 @@ async function snapshotDir(projectDir) {
   return snapshotDir(projectDir);
 }
 
-const baseState = () => ({ version: 2, nodes: {}, edges: [], initiatives: {}, log: [] });
+const baseState = () => ({ version: 3, nodes: {}, edges: [], initiatives: {}, log: [] });
 
 test("kernel state.init bootstraps an absent state through the kernel", async () => {
   const dir = await createTempProject();
@@ -89,6 +89,32 @@ test("kernel state.restore validates before pre-snapshot and restores with one l
   } finally { await rmTempProject(dir); }
 });
 
+test("kernel state.restore migrates a v2 snapshot to v3 before writing it", async () => {
+  const dir = await createTempProject();
+  try {
+    const { restoreState } = await importFresh("./kernel/state-operations.mjs");
+    const { createSnapshot } = await importFresh("./storage/state.mjs");
+    const legacy = {
+      version: 2,
+      nodes: { legacy: { id: "legacy", kind: "resolvable", subkind: "task", status: "open" } },
+      edges: [],
+      initiatives: {},
+      log: [{ action: "legacy" }],
+    };
+    await fs.mkdir(path.dirname(stateFilePath(dir)), { recursive: true });
+    await fs.writeFile(stateFilePath(dir), JSON.stringify(legacy), "utf8");
+    const target = await createSnapshot(dir, "force-init");
+    await writeState(dir, baseState());
+
+    const out = await restoreState({ projectDir: dir, snapshotId: target.id, actor: "recovery" });
+    const restored = await readState(dir);
+    assert.equal(out.result.snapshot.id, target.id);
+    assert.equal(restored.version, 3);
+    assert.deepEqual(restored.nodes.legacy, legacy.nodes.legacy);
+    assert.equal(restored.log.at(-1).snapshot_id, target.id);
+  } finally { await rmTempProject(dir); }
+});
+
 test("kernel state.restore rejects malformed target without writing or snapshotting", async () => {
   const dir = await createTempProject();
   try {
@@ -106,7 +132,7 @@ test("kernel state.restore rejects malformed target without writing or snapshott
 });
 
 test("kernel state.init_force recovers v1 and future state by snapshotting raw bytes", async () => {
-  for (const version of [1, 3]) {
+  for (const version of [1, 4]) {
     const dir = await createTempProject();
     try {
       const { initState } = await importFresh("./kernel/state-operations.mjs");
@@ -114,7 +140,7 @@ test("kernel state.init_force recovers v1 and future state by snapshotting raw b
       await fs.mkdir(path.dirname(stateFilePath(dir)), { recursive: true });
       await fs.writeFile(stateFilePath(dir), raw, "utf8");
       const out = await initState({ projectDir: dir, force: true, actor: "alice" });
-      assert.equal((await readState(dir)).version, 2);
+      assert.equal((await readState(dir)).version, 3);
       assert.equal(out.result.snapshot.reason, "force-init");
       const files = await fs.readdir(await snapshotDir(dir));
       const snapshotId = files.find((name) => name.endsWith(".json") && !name.endsWith(".meta.json"));
@@ -125,7 +151,7 @@ test("kernel state.init_force recovers v1 and future state by snapshotting raw b
 });
 
 test("kernel state.restore recovers over v1 and future current state, preserving raw pre-restore snapshot", async () => {
-  for (const version of [1, 3]) {
+  for (const version of [1, 4]) {
     const dir = await createTempProject();
     try {
       const { initState, restoreState } = await importFresh("./kernel/state-operations.mjs");
@@ -136,7 +162,7 @@ test("kernel state.restore recovers over v1 and future current state, preserving
       await fs.writeFile(stateFilePath(dir), raw, "utf8");
       const out = await restoreState({ projectDir: dir, snapshotId: target.id, actor: "recovery" });
       assert.equal(out.result.snapshot.id, target.id);
-      assert.equal((await readState(dir)).version, 2);
+      assert.equal((await readState(dir)).version, 3);
       assert.equal((await readState(dir)).log.at(-1).snapshot_id, target.id);
       const preRestore = (await listSnapshots(dir)).find((item) => item.reason === "pre-restore");
       assert.ok(preRestore);
@@ -146,7 +172,7 @@ test("kernel state.restore recovers over v1 and future current state, preserving
 });
 
 test("kernel ordinary providers reject v1/future state while trusted init keeps version errors recoverable", async () => {
-  for (const version of [1, 3]) {
+  for (const version of [1, 4]) {
     const dir = await createTempProject();
     try {
       const { mutate } = await importFresh("./kernel/mutate.mjs");
