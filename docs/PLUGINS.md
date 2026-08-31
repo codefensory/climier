@@ -289,8 +289,9 @@ ADR-008 §"Acciones canónicas" lists the action names the seam sends
 to `authorize`:
 
 ```text
-task.create    task.take        task.takeover*   task.resolve
-task.release   task.reopen      task.cancel      task.update
+task.create    task.take        task.takeover*   task.submit
+task.accept    task.reject      task.release     task.reopen
+task.cancel    task.update
 gate.create    gate.resolve     gate.reopen      gate.cancel
 gate.update
 knowledge.create   knowledge.deprecate   knowledge.update
@@ -369,75 +370,32 @@ the full selection + authorisation. The seam does NOT introduce a
 new lock; it runs on the handler's critical path (ADR-008
 §"Seam por handler").
 
-### 9.5 Authority (ADR-009)
+### 9.5 Lifecycle and policy
 
-ADR-009 redefines what Climier's core protects and what it leaves to
-plugins. Three concepts must be kept apart; conflating them is what
-made the historical `NOT_OWNER` contract confusing.
+The core task lifecycle is explicit: a worker takes a ready task, submits
+its implementation, and a validator accepts or rejects that submission.
+`submitted` is not terminal and never satisfies a `BLOCKS` edge; only
+`accept` moves a task to `done`. `reject` returns it to `open` with an audit
+reason. `resolve` is exclusively the gate operation and requires a gate
+choice and rationale.
 
-1. **Core invariant — `take` mutual exclusion.** The core protects
-   only the claim lifecycle. Inside the lock, `take` classifies as
-   `task.take` (claim free), `task.takeover` (claim held by another
-   actor), or idempotent (same actor). No policy can produce two
-   winning claims; a `task.takeover` `allow` replaces the claim and
-   records `previous_owner`. See §9.6 for the full matrix.
-2. **Everything else — state-shape only.** Without a policy, or with
-   a policy that abstains, `resolve`, `release`, `cancel`, `reopen`,
-   `update`, `add-note`, `add-task`, `add-gate`, `add-knowledge`,
-   `deprecate-knowledge`, `add-edge`, `add-initiative`, restore,
-   and init force are valid purely from state. The actor carrying
-   out the mutation is recorded for audit, but the core does not
-   compare that actor against `claim.by` or `done_by`. A plugin that
-   wants `task.resolve` to require the claim owner returns
-   `{ decision: "deny", reason: "..." }` for non-owners and lets the
-   core behave by default otherwise. The core itself NEVER emits
-   `NOT_OWNER`; that code remains in the catalogue only so a plugin
-   can use it as a denial reason.
-3. **Identity — opaque audit tag.** `--as <agent>` and
-   `CLIMIER_AGENT` are opaque identifiers used to record who did
-   what. They do NOT authenticate, grant roles, or act as authority.
-   The literal strings `"orchestrator"` and `"recovery"` are not
-   special; they have no authority and no escape hatch. Any actor
-   (including `test-agent`, an empty string, or any other opaque
-   tag) may execute a state-permitted transition.
+Policy plugins may allow, deny, or abstain on the canonical actions listed in
+§9.2. With no applicable policy, or when a policy abstains, the core applies
+its state transition rules. The `--as <agent>` value is an opaque audit tag;
+it does not authenticate a caller or create a role. `context.allowed_actions`
+therefore describes state-available actions rather than an authorization
+matrix. A policy can add authorization rules by returning `deny`, but the
+host does not infer them from actor names.
 
-This means:
+### 9.6 Claim coordination (task.take / task.takeover)
 
-- `context.allowed_actions` describes what the state permits, not
-  who is allowed. The only actor signal it reflects is whether the
-  caller identified themselves (so actions that record the actor
-  appear when `--as` is present, and only read-shaped actions like
-  `add-note` / `update` appear otherwise). It NEVER projects
-  `claim.by === actor`, `isOrchestrator`, or hatch-shaped commands
-  like `"release --as orchestrator"`.
-- A plugin is the only way to add ownership-style rules. Without
-  one installed, the default core lets any actor perform any
-  state-permitted transition. Adding a policy does not weaken the
-  `take` mutual exclusion: an `allow` on `task.takeover` replaces a
-  claim; an `allow` on `task.take` with a held claim is impossible
-  because the handler classifies as `task.takeover`.
-- The internal escape hatch in `addNodeInternal({ allowUnregisteredInitiative: true })`
-  is not a policy action and not public; it exists for the seeder
-  and tests, and does not grant ownership-style authority.
-
-### 9.6 Takeover table (task.take / task.takeover)
-
-ADR-009 §"Única invariancia de autoridad del core" + ADR-008
-§"Tabla de take" specify the only place actor strings influence
-the result. The classification runs inside the lock, against the
-fresh snapshot, and never on actor names alone:
-
-| State at lock | Action | `allow` | `deny` | `abstain` |
-|---|---|---|---|---|
-| task free | `task.take` | claim created | `POLICY_DENIED` | claim created (default core) |
-| same actor holds claim | (none) | idempotent | idempotent | idempotent |
-| other actor holds claim | `task.takeover` | claim replaced; `previous_owner` recorded | `POLICY_DENIED` | `ALREADY_CLAIMED` |
-
-`task.takeover` is internal to the seam; it is never a public CLI
-command. The only public surface that affects a held claim is
-`take <id>` (which the handler classifies as `task.takeover` when
-needed) and `release <id>` (which clears the claim without
-resolving).
+`take` is the one core coordination invariant: claims are serialized inside
+the project lock. A free task is classified as `task.take`; a task already
+claimed by another actor is classified internally as `task.takeover`; a
+repeat take by the same actor is idempotent. A policy may deny a takeover,
+but it cannot produce two simultaneous claims. `task.takeover` is internal
+to the seam and is never a public CLI command. `release` clears a claim
+without submitting the task.
 
 ### 9.7 Errors
 

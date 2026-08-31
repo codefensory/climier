@@ -27,13 +27,15 @@ Errors are JSON to stdout with a structured shape: `{ ok: false, error: { code, 
 - `climier log [--limit N] [--action X] [--agent X] [--task X] [--decision X]` — raw audit log.
 - `climier snapshots` — list recoverable snapshots under `<state-dir>/snapshots/`, newest first. Each entry has `id`, `created_at`, `reason` (`force-init` / `corrupt-recovery` / `pre-restore`), `bytes`, and `sha256`. Only complete pairs (raw + metadata) appear.
 
-## Worker loop (take → resolve)
+## Worker loop (take → submit → accept/reject)
 
 - `climier take <id> --as <agent>` — idempotently claim a ready task. Sets `claim.by`, increments `revision`.
-- `climier resolve <id> --note "<text>" --as <agent>` — close a task as done.
-- `climier release <id> --as <agent>` — free the claim without resolving. Idempotent. `orchestrator` / `recovery` can release any agent's claim.
-- `climier cancel <id> --reason "<text>" --as <agent>` — terminate a node (open/in_progress only). Claim owner or orchestrator/recovery.
-- `climier reopen <id> --reason "<text>" --as <agent>` — roll a `done` task back to `open`. orchestrator/recovery, or original `done_by` for self-correction.
+- `climier submit <id> --note "<text>" --as <agent>` — submit an `in_progress` task for validation. Clears the implementation claim and leaves the task blocked until acceptance.
+- `climier accept <id> --as <agent>` — accept a submitted task as `done`; accepted work can unblock dependents.
+- `climier reject <id> --reason "<text>" --as <agent>` — return a submitted task to `open` for more work.
+- `climier release <id> --as <agent>` — free the claim without submitting. Idempotent; policy may constrain the transition.
+- `climier cancel <id> --reason "<text>" --as <agent>` — terminate a node (open/in_progress only), subject to policy.
+- `climier reopen <id> --reason "<text>" --as <agent>` — roll a `done` task back to `open` for correction, subject to policy.
 - `climier restore <snapshot-id> --as orchestrator|recovery` — replace the live state with a snapshot's raw bytes. Validates target v2 + required collections before any state change; takes a `pre-restore` snapshot of the current state under the same lock; restores via `tmp+rename`; appends `{ action: "restore", agent, snapshot_id }` to the restored log; returns `{ snapshot }`. Restricted to `orchestrator` / `recovery` — no per-agent restore. Targets that are absent, incomplete, corrupt, v1, future versions, or missing required collections fail with structured errors and leave state untouched.
 - `climier add-note <id> "<text>" --as <agent>` — append a timestamped note (any status, append-only). Use for breadcrumb findings; also use `add-note "<id>" "blocked: ..."` for escalations.
 
@@ -58,29 +60,27 @@ Errors are JSON to stdout with a structured shape: `{ ok: false, error: { code, 
 
 CLI phrases edges from the dependent's POV: `--blocked-by G-y` means "this node is blocked by G-y". The canonical stored shape is `from: G-y, to: <this node>, type: BLOCKS` — **to is BLOCKED-BY from**. The CLI never asks for `--blocks`; only `--blocked-by`. `SUPERSEDES` and `DERIVED_FROM` keep the user-supplied direction.
 
-## Authority matrix
+## Lifecycle transitions
 
-| Command | Owner | orchestrator / recovery | Other |
-|---|---|---|---|
-| `take <ready>` | yes (idempotent) | yes (take over) | yes (if ready) |
-| `resolve <task>` | yes (claim owner) | no (use `reopen` + reassign) | no |
-| `release <task>` | yes | yes | no (`NOT_OWNER`) |
-| `cancel <task>` | yes | yes | no |
-| `reopen <done>` | yes (original `done_by`) | yes | no |
-| `resolve <gate>` | n/a (gates aren't claimable) | yes | yes |
-| `update` | any | any | any |
-| `add-note` | any | any | any |
-| `add-task` / `add-gate` / `add-knowledge` | n/a (creates new node) | any | any |
-| `deprecate-knowledge` | n/a | any | any |
-| `restore <snapshot>` | n/a | yes | no (`NOT_OWNER`) |
+| Command | Transition |
+|---|---|
+| `take <ready>` | Claim a ready task; repeated takes are idempotent and competing claims are serialized. |
+| `submit <in_progress>` | Submit implementation evidence for validation. |
+| `accept <submitted>` | Mark the task `done`; this can unblock dependents. |
+| `reject <submitted>` | Return the task to `open` with a reason. |
+| `release <task>` | Clear an active claim without submitting. |
+| `cancel <task>` | Cancel an `open`, `in_progress`, or `submitted` task. |
+| `reopen <done>` | Return an accepted task to `open` for correction. |
+| `resolve <gate>` | Resolve a gate with a choice and rationale. |
+| `update`, `add-note`, and `add-*` | Apply the corresponding state mutation subject to policy. |
+| `restore <snapshot>` | Restore a validated snapshot through the recovery path. |
 
 ## Common error codes
 
 - `NODE_NOT_FOUND` — id doesn't exist.
 - `NOT_READY` — `take` on a node that isn't ready.
 - `ALREADY_CLAIMED` — `take` on a node claimed by another agent.
-- `NOT_OWNER` — `release` / `resolve` / `cancel` / `reopen` from a non-owner, non-orchestrator.
-- `INVALID_STATUS` — transition not allowed from current status (e.g. `resolve` on an `open` task).
+- `INVALID_STATUS` — transition not allowed from the current status (for example, `accept` on an `open` task or `resolve` on a task).
 - `MISSING_FIELD` / `MISSING_AGENT` — required flag absent.
 - `REVISION_CONFLICT` — `update --if-revision N` failed because the stored revision differs.
 - `INITIATIVE_NOT_FOUND` — `--initiative` not registered; run `add-initiative` first.
@@ -99,8 +99,10 @@ climier context "$id"
 # claim
 climier take "$id" --as my-agent
 # ... do work ...
-# close
-climier resolve "$id" --note "what shipped, what was verified" --as my-agent
+# submit for independent validation
+climier submit "$id" --note "what shipped, what was verified" --as my-agent
+# a validator accepts or rejects the submission
+climier accept "$id" --as validator-agent
 ```
 
 ## One-liner: orchestrator
@@ -109,6 +111,6 @@ climier resolve "$id" --note "what shipped, what was verified" --as my-agent
 climier status              # orient
 climier context <id>        # read candidate
 climier resolve <G> --choice X --rationale Y --as orchestrator   # close a gate
-climier release <id> --as orchestrator                           # free stuck claim
-climier reopen <id> --reason "..." --as orchestrator              # roll back wrong resolve
+climier release <id> --as recovery                               # free a stalled task
+climier reopen <id> --reason "..." --as recovery                 # reopen an accepted task for correction
 ```

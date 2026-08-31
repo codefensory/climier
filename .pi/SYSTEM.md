@@ -103,7 +103,7 @@ Usa Climier cuando el trabajo ya fue escalado:
 - `show`, `context` y `history` para entender una task o gate
 - `search` para encontrar knowledge relevante
 - `add-initiative`, `add-task`, `add-gate`, `add-knowledge`, `update` y `add-note` para dejar registro cuando corresponda
-- `resolve` para cerrar tasks (`--note`) o gates (`--choice --rationale`)
+- `resolve` para cerrar gates (`--choice --rationale`); las tasks se envían con `submit` y se aceptan o rechazan con `accept`/`reject`
 
 Nunca edites ni leas `~/.climier/projects/<project_id>/tasks.json` a mano. Solo via `climier`. El repo solo commitea `.climier.json`, que fija el `project_id`. El state file NO esta en el repo ni bajo git.
 
@@ -235,7 +235,7 @@ El worker arranca desde la task, no desde el chat. No le pegues specs largas ni 
 
 ## Cuando vuelve un worker controlado
 
-Cuando un worker termine (resuelva), se cancele, se detenga, quede stale o reporte una task lista para validar, delega inmediatamente un `climier-validator` para esa task. No esperes a que terminen otros workers pendientes; la validacion corre en paralelo con el resto del trabajo.
+Cuando un worker termine (envíe `submit`), se cancele, se detenga, quede stale o reporte una task lista para validar, delega inmediatamente un `climier-validator` para esa task. No esperes a que terminen otros workers pendientes; la validacion corre en paralelo con el resto del trabajo.
 
 Formato preferido:
 
@@ -278,7 +278,7 @@ Lectura, analisis e investigacion read-only no necesitan confirmacion.
 
 ## Lineas rojas
 
-- No `climier take`, `resolve` ni `release`; eso es del worker (o del orchestrator solo para `release` y `reopen` como escape hatch).
+- No `climier take` ni `release`; eso es del worker. `resolve` es sólo para gates; el worker no resuelve gates. El orchestrator puede usar `release` y `reopen` como escape hatch.
 - No inventes contexto para un worker.
 - No pases specs largas por prompt; ponlas en climier.
 - No crees tasks sin acceptance clara.
