@@ -45,10 +45,10 @@ import {
 const ADAPTER_MODULE = "../src/plugins/core-adapter.mjs";
 const REGISTRY_MODULE = "../src/plugins/core-registry.mjs";
 
-// 18 op IDs (ADR-012 §2). The adapter must accept every one of these
-// before reaching for the kernel.
+// 21 op IDs (ADR-012 §2 plus task submission lifecycle). The adapter
+// must accept every one of these before reaching for the kernel.
 const EXPECTED_OPS = [
-  // task lifecycle (7)
+  // task lifecycle (10)
   "task.create",
   "task.update",
   "task.take",
@@ -56,6 +56,9 @@ const EXPECTED_OPS = [
   "task.release",
   "task.reopen",
   "task.cancel",
+  "task.submit",
+  "task.accept",
+  "task.reject",
   // gate lifecycle (5)
   "gate.create",
   "gate.update",
@@ -151,10 +154,10 @@ test("plugin-core-adapter: createCore throws when pluginId is missing or empty",
 });
 
 // =====================================================================
-// 2. registry — bootstrapBuiltins exposes the 18-op contract
+// 2. registry — bootstrapBuiltins exposes the 21-op contract
 // =====================================================================
 
-test("plugin-core-adapter: bootstrapBuiltins exposes exactly the 18 op IDs published by ADR-012 §2", async () => {
+test("plugin-core-adapter: bootstrapBuiltins exposes exactly the 21 op IDs published by ADR-012 §2", async () => {
   const { bootstrapBuiltins } = await importFresh(REGISTRY_MODULE);
   const reg = bootstrapBuiltins();
   assert.equal(reg.ops.length, EXPECTED_OPS.length, `expected ${EXPECTED_OPS.length} ops, got ${reg.ops.length}`);

@@ -16,6 +16,9 @@ import {
   taskReleaseProvider,
   taskReopenProvider,
   taskCancelProvider,
+  taskSubmitProvider,
+  taskAcceptProvider,
+  taskRejectProvider,
 } from "../../providers/task/index.mjs";
 import {
   GATE_PROVIDER_KIND,
@@ -38,6 +41,9 @@ const TASK_OPERATION_IDS = Object.freeze([
   "task.release",
   "task.reopen",
   "task.cancel",
+  "task.submit",
+  "task.accept",
+  "task.reject",
 ]);
 const GATE_OPERATION_IDS = Object.freeze([
   "gate.create",
@@ -74,6 +80,9 @@ function collectBuiltins() {
     "task.release": taskReleaseProvider,
     "task.reopen": taskReopenProvider,
     "task.cancel": taskCancelProvider,
+    "task.submit": taskSubmitProvider,
+    "task.accept": taskAcceptProvider,
+    "task.reject": taskRejectProvider,
   };
   const taskEntries = TASK_OPERATION_IDS.map((id, opIndex) => {
     const provider = taskProviders[id];
