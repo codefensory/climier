@@ -37,7 +37,7 @@ export async function addV2Node(command, prefix, shape, ctx) {
   });
 }
 
-// T-plugin-policy-seam-dag — internal capability (ADR-008 §"Capacidad interna").
+// Internal capability (ADR-008 §"Capacidad interna").
 //
 // addNodeInternal lets a privileged in-process caller (recovery imports,
 // bulk migration tooling, future bootstrap paths) bypass the
@@ -47,7 +47,7 @@ export async function addV2Node(command, prefix, shape, ctx) {
 // the flag (handlers consume `flags["allow-unregistered-initiative"]`
 // only when this wrapper sets it).
 //
-// Contract (plan §3.7):
+// Contract:
 //   - allowUnregisteredInitiative: false (default) → equivalent to
 //     addNode (no internal escape hatch).
 //   - allowUnregisteredInitiative: true            → INITIATIVE_NOT_FOUND

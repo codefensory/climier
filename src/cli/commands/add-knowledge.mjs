@@ -31,7 +31,7 @@ export default async function addKnowledge(ctx) {
       command: "add-knowledge",
     });
   }
-  // F8: resolve here so MISSING_AGENT surfaces as `add-knowledge:`.
+  // Resolve the agent here so MISSING_AGENT surfaces as `add-knowledge:`.
   resolveAgent(ctx.flags, "add-knowledge");
   return addV2Node("add-knowledge", "K", { kind: "knowledge" }, ctx);
 }

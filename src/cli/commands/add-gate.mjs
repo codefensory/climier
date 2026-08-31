@@ -19,7 +19,7 @@ export const knownFlags = [
 
 export default async function addGate(ctx) {
   requireFields("add-gate", ctx.flags, ["initiative", "title", "body", "purpose"]);
-  // F8: resolve here so MISSING_AGENT surfaces as `add-gate:`.
+  // Resolve the agent here so MISSING_AGENT surfaces as `add-gate:`.
   resolveAgent(ctx.flags, "add-gate");
   return addV2Node("add-gate", "G", { kind: "resolvable", subkind: "gate" }, ctx);
 }

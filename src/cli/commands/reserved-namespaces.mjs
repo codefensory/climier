@@ -1,9 +1,9 @@
-// T-plugin-install — reserved core CLI namespaces.
+// Reserved core CLI namespaces.
 //
 // Mirrors the command list in bin/climier.mjs HELP_TEXT plus the meta
 // commands (`help`, `version`) and the lifecycle pair (`install`,
 // `uninstall`). Plugin `command` values must not collide with these; the
-// dispatch layer (T-plugin-dispatch) re-uses the same list to decide
+// dispatch layer reuses the same list to decide
 // between core and plugin namespaces.
 //
 // Uniqueness invariant: every entry appears exactly once. The

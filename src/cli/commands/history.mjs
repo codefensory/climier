@@ -1,4 +1,4 @@
-// F12 — `history <id>`: log entries that reference a node id.
+// `history <id>`: log entries that reference a node id.
 //
 // Be generous — an entry counts if `node === id` OR `task === id` OR
 // `decision === id` OR `gotcha === id` OR the string `id` appears in `note`

@@ -1,6 +1,6 @@
 // add-node: low-level escape hatch for creating v2 nodes.
 //
-// T-graph-kernel-adapters-wave1 — the handler is now a thin adapter
+// The handler is a thin adapter
 // over the kernel mutation frontier (`kernel.mutate` + the relevant
 // create provider). The adapter parses argv, resolves the policy
 // outside the lock, and hands control to the kernel, which owns the
@@ -172,8 +172,8 @@ function pickProviderAndInput(id, kind, subkind, flags, { allowUnregistered }) {
       derived_from: typeof flags["derived-from"] === "string" ? flags["derived-from"] : "",
       backlog: parseBacklog(flags.backlog) === true,
       allow_unregistered_initiative: allowUnregistered === true,
-      // F9: meta is the TDD pin for fix9 — add-node task input
-      // includes meta and the task provider preserves it on the seed.
+      // The task input includes meta, which the task provider preserves on
+      // the created node.
       meta: parseMeta(flags.meta),
     };
     return { provider: taskCreateProvider, input, policyActionName: "task.create" };
@@ -287,8 +287,8 @@ export default async function addNode({ statePath, flags, positional, pluginId }
     );
   }
 
-  // F8: resolve the agent AFTER data validation but BEFORE the seam,
-  // so MISSING_AGENT surfaces after MISSING_FIELD / INVALID_EDGE_KIND.
+  // Resolve the agent after data validation but before the seam, so
+  // MISSING_AGENT surfaces after MISSING_FIELD / INVALID_EDGE_KIND.
   const agent = resolveAgent(flags, "add-node");
 
   // Internal capability flag (only settable by `addNodeInternal` in
