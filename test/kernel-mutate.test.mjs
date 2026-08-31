@@ -992,6 +992,60 @@ test("kernel.mutate: edges added and removed in the same apply; only-changed-edg
 });
 
 // ===================================================================
+// Mutation diff boundary
+// ===================================================================
+
+test("kernel mutation diff helpers are extracted and preserve deterministic diff shapes", async () => {
+  const diff = await importFresh("./kernel/mutation/diff.mjs");
+  const snapshot = {
+    nodes: {
+      T1: { id: "T1", title: "same", revision: 3 },
+      T2: { id: "T2", title: "old", revision: 1 },
+    },
+    edges: [{ from: "T1", to: "T2", type: "BLOCKS" }],
+    initiatives: { kernel: { desc: "kernel" } },
+  };
+  const draft = {
+    nodes: {
+      T1: { id: "T1", title: "same" },
+      T2: { id: "T2", title: "new" },
+      T3: { id: "T3", title: "created" },
+    },
+    edges: [
+      { from: "T1", to: "T2", type: "BLOCKS" },
+      { from: "T2", to: "T3", type: "BLOCKS" },
+    ],
+    initiatives: {
+      kernel: { desc: "kernel" },
+      auth: { desc: "auth" },
+    },
+  };
+
+  assert.equal(typeof diff.assignRevisionsAndDiff, "function");
+  assert.equal(typeof diff.computeEdgeDiff, "function");
+  assert.equal(typeof diff.computeInitiativeDiff, "function");
+  assert.equal(typeof diff.deepEqualNodes, "function");
+  assert.deepEqual(diff.assignRevisionsAndDiff(snapshot, draft), {
+    next: {
+      T1: { id: "T1", title: "same", revision: 3 },
+      T2: { id: "T2", title: "new", revision: 2 },
+      T3: { id: "T3", title: "created", revision: 1 },
+    },
+    removed: [],
+    created: [{ id: "T3", node: { id: "T3", title: "created", revision: 1 } }],
+    updated: [{ id: "T2", node: { id: "T2", title: "new", revision: 2 } }],
+  });
+  assert.deepEqual(diff.computeEdgeDiff(snapshot.edges, draft.edges), {
+    added: [{ from: "T2", to: "T3", type: "BLOCKS" }],
+    removed: [],
+  });
+  assert.deepEqual(diff.computeInitiativeDiff(snapshot.initiatives, draft.initiatives), {
+    created: [{ name: "auth", initiative: { desc: "auth" } }],
+    updated: [],
+  });
+});
+
+// ===================================================================
 // Mutation request boundary
 // ===================================================================
 
@@ -1187,6 +1241,7 @@ test("kernel.mutate: source file does not import providers/registry/adapter/bin/
     "./mutation/request.mjs", // extracted request/provider/plan contracts
     "./mutation/preconditions.mjs", // extracted CAS precondition contracts
     "./mutation/execute.mjs", // mutation execution coordinator
+    "./mutation/diff.mjs", // snapshot-vs-draft diff and revision calculation
   ]);
   const allRelative = [...src.matchAll(/from\s+["'](\.\.?\/[^"']+)["']/g)].map((m) => m[1]);
   for (const rel of allRelative) {
