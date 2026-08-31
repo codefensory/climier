@@ -64,10 +64,13 @@ test("contract: every write command outputs valid JSON to stdout", async () => {
     r = await runCli(["--project", dir, "take", "T-second", "--as", "alice"]);
     assert.equal(r.code, 0, r.stderr);
     assert.doesNotThrow(() => JSON.parse(r.stdout), `take stdout not JSON: ${r.stdout.slice(0, 100)}`);
-    // resolve (done-like)
-    r = await runCli(["--project", dir, "resolve", "T-second", "--note", "shipped", "--as", "alice"]);
+    // submit + accept (done-like)
+    r = await runCli(["--project", dir, "submit", "T-second", "--note", "shipped", "--as", "alice"]);
     assert.equal(r.code, 0, r.stderr);
-    assert.doesNotThrow(() => JSON.parse(r.stdout), `resolve stdout not JSON: ${r.stdout.slice(0, 100)}`);
+    assert.doesNotThrow(() => JSON.parse(r.stdout), `submit stdout not JSON: ${r.stdout.slice(0, 100)}`);
+    r = await runCli(["--project", dir, "accept", "T-second", "--as", "alice"]);
+    assert.equal(r.code, 0, r.stderr);
+    assert.doesNotThrow(() => JSON.parse(r.stdout), `accept stdout not JSON: ${r.stdout.slice(0, 100)}`);
     // reopen
     r = await runCli(["--project", dir, "reopen", "T-second", "--reason", "recheck", "--as", "alice"]);
     assert.equal(r.code, 0, r.stderr);

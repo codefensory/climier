@@ -37,6 +37,13 @@ import {
   uninstallPolicyFixture,
 } from "./helpers.mjs";
 
+async function submitAcceptTask(dir, id = "T1", as = "tester", note = "done") {
+  const { default: submit } = await importFresh("./cli/commands/submit.mjs");
+  const { default: accept } = await importFresh("./cli/commands/accept.mjs");
+  await submit({ statePath: dir, projectDir: dir, positional: [id], flags: { as, note } });
+  return accept({ statePath: dir, projectDir: dir, positional: [id], flags: { as } });
+}
+
 // =========================================================================
 // Fixtures
 // =========================================================================
@@ -402,13 +409,7 @@ test("resolve (task) preserves root plugins and per-node plugins", async () => {
       projectDir: dir,
       statePath: dir,
     });
-    const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
-    await resolve({
-      statePath: dir,
-      projectDir: dir,
-      positional: ["T1"],
-      flags: { as: "tester", note: "done" },
-    });
+    await submitAcceptTask(dir);
     const after = await readState(dir);
     assertPluginDataPreserved(after);
     assert.equal(after.nodes.T1.status, "done");
@@ -465,13 +466,7 @@ test("reopen preserves root plugins and per-node plugins", async () => {
       projectDir: dir,
       statePath: dir,
     });
-    const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
-    await resolve({
-      statePath: dir,
-      projectDir: dir,
-      positional: ["T1"],
-      flags: { as: "tester", note: "done" },
-    });
+    await submitAcceptTask(dir);
     const { default: reopen } = await importFresh("./cli/commands/reopen.mjs");
     await reopen({
       statePath: dir,
@@ -628,7 +623,6 @@ test("end-to-end: snapshot with plugin data survives restore, then take/resolve 
     const { createSnapshot } = await importFresh("./storage/state.mjs");
     const { default: restore } = await importFresh("./cli/commands/restore.mjs");
     const { default: take } = await importFresh("./cli/commands/take.mjs");
-    const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
     const meta = await createSnapshot(dir, "force-init");
     await writeState(dir, { version: 2, nodes: {}, edges: [], initiatives: {}, log: [] });
     await restore({
@@ -644,12 +638,7 @@ test("end-to-end: snapshot with plugin data survives restore, then take/resolve 
       projectDir: dir,
       statePath: dir,
     });
-    await resolve({
-      statePath: dir,
-      projectDir: dir,
-      positional: ["T1"],
-      flags: { as: "tester", note: "done" },
-    });
+    await submitAcceptTask(dir);
     const after = await readState(dir);
     assertPluginDataPreserved(after);
     assert.equal(after.nodes.T1.status, "done");
@@ -779,13 +768,7 @@ test("`meta` and `nodes[id].plugins` survive resolve (task) together", async () 
       projectDir: dir,
       statePath: dir,
     });
-    const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
-    await resolve({
-      statePath: dir,
-      projectDir: dir,
-      positional: ["T1"],
-      flags: { as: "tester", note: "done" },
-    });
+    await submitAcceptTask(dir);
     const after = await readState(dir);
     assert.deepEqual(after.nodes.T1.meta, {
       execution: { effort: "M", risk: "integration", checks: ["npm test"] },

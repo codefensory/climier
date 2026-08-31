@@ -85,6 +85,13 @@ async function take(dir, as, id = "T-auth-1") {
   return takeCmd({ statePath: dir, flags: { as }, positional: [id], projectDir: dir });
 }
 
+async function submitAccept(dir, id = "T-auth-1", as = "alice", note = "shipped") {
+  const { default: submit } = await importFresh("./cli/commands/submit.mjs");
+  const { default: accept } = await importFresh("./cli/commands/accept.mjs");
+  await submit({ statePath: dir, flags: { as, note }, positional: [id], projectDir: dir });
+  return accept({ statePath: dir, flags: { as }, positional: [id], projectDir: dir });
+}
+
 async function patchNode(dir, id, patch) {
   const state = await readState(dir);
   state.nodes[id] = { ...state.nodes[id], ...patch };
@@ -307,105 +314,16 @@ test("v2-release: missing --as returns MISSING_AGENT", async () => {
 
 // === resolve ============================================================
 
-test("v2-resolve: task resolve — claim owner passes --note; status=done, claim cleared, done_by/at stored", async () => {
+test("v2-resolve: task targets are rejected; accept is the done transition", async () => {
   const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
   const dir = await v2Project();
   try {
     await addTask(dir, "T-auth-1");
     await take(dir, "alice");
-    const out = await resolve({
-      statePath: dir,
-      flags: { as: "alice", note: "shipped and verified" },
-      positional: ["T-auth-1"],
-    });
-    assert.equal(out.node.status, "done");
-    assert.equal(out.node.done_by, "alice");
-    assert.ok(typeof out.node.done_at === "string" && out.node.done_at.length > 0);
-    assert.equal(out.node.note, "shipped and verified");
-    assert.equal(out.node.claim, null);
-    assert.equal(out.node.revision, 3);
-    assert.deepEqual(out.newly_ready, []);
-
-    const s = await readState(dir);
-    const last = s.log.at(-1);
-    assert.equal(last.action, "resolve");
-    assert.equal(last.agent, "alice");
-    assert.equal(last.node, "T-auth-1");
-    assert.equal(last.note, "shipped and verified");
-  } finally { await rmTempProject(dir); }
-});
-
-test("v2-resolve: task resolve returns newly_ready for tasks whose only blocker was the resolved one", async () => {
-  const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
-  const dir = await v2Project();
-  try {
-    await addGate(dir, "G-auth-v2");
-    await addTask(dir, "T-auth-1", { "blocked-by": "G-auth-v2" });
-    await addTask(dir, "T-auth-2", { "blocked-by": "T-auth-1" });
-
-    // Resolving the gate should unblock T-auth-1 only.
-    const gate = await resolve({
-      statePath: dir,
-      flags: { as: "test-agent", choice: "opaque", rationale: "revocation" },
-      positional: ["G-auth-v2"],
-    });
-    assert.deepEqual(gate.newly_ready, ["T-auth-1"]);
-
-    // Claim and resolve T-auth-1 to unblock T-auth-2.
-    const take1 = await take(dir, "alice");
-    assert.equal(take1.node.id, "T-auth-1");
-    const task = await resolve({
-      statePath: dir,
-      flags: { as: "alice", note: "done" },
-      positional: ["T-auth-1"],
-    });
-    assert.deepEqual(task.newly_ready, ["T-auth-2"]);
-    assert.equal(task.node.status, "done");
-  } finally { await rmTempProject(dir); }
-});
-
-test("v2-resolve: task resolve does NOT include downstream tasks that still have other blockers", async () => {
-  const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
-  const dir = await v2Project();
-  try {
-    // Two gates; T-down depends on both. Resolving only one keeps T-down blocked.
-    await addGate(dir, "G-a");
-    await addGate(dir, "G-b");
-    await addTask(dir, "T-down", { "blocked-by": "G-a,G-b" });
-
-    const out = await resolve({
-      statePath: dir,
-      flags: { as: "test-agent", choice: "x", rationale: "y" },
-      positional: ["G-a"],
-    });
-    assert.deepEqual(out.newly_ready, []);
-  } finally { await rmTempProject(dir); }
-});
-
-test("v2-resolve: any actor may resolve a claimed task with no policy (defaults core)", async () => {
-  // ADR-009 §"Resto de operaciones": the core does not compare the
-  // actor against the claim owner. Without a policy plugin, any actor
-  // with --as may resolve a task whose state is valid for the
-  // transition. done_by records the actor that actually mutated.
-  const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
-  const dir = await v2Project();
-  try {
-    await addTask(dir, "T-auth-1");
-    await take(dir, "alice");
-    const out = await resolve({
-      statePath: dir,
-      flags: { as: "bob", note: "shipped by bob" },
-      positional: ["T-auth-1"],
-    });
-    assert.equal(out.node.status, "done");
-    assert.equal(out.node.done_by, "bob");
-    assert.equal(out.node.note, "shipped by bob");
-    assert.equal(out.node.claim, null);
-    const s = await readState(dir);
-    const last = s.log.at(-1);
-    assert.equal(last.action, "resolve");
-    assert.equal(last.agent, "bob");
-    assert.equal(last.note, "shipped by bob");
+    let caught;
+    try { await resolve({ statePath: dir, flags: { as: "alice", note: "done" }, positional: ["T-auth-1"] }); } catch (e) { caught = e; }
+    assert.equal(caught.code, "INVALID_EXECUTION_CONTRACT");
+    assert.equal((await readState(dir)).nodes["T-auth-1"].status, "in_progress");
   } finally { await rmTempProject(dir); }
 });
 
@@ -472,26 +390,6 @@ test("v2-resolve: gate resolve missing --rationale returns MISSING_FIELD", async
   } finally { await rmTempProject(dir); }
 });
 
-test("v2-resolve: task resolve missing --note returns MISSING_FIELD", async () => {
-  const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
-  const dir = await v2Project();
-  try {
-    await addTask(dir, "T-auth-1");
-    await take(dir, "alice");
-    let caught;
-    try {
-      await resolve({
-        statePath: dir,
-        flags: { as: "alice" },
-        positional: ["T-auth-1"],
-      });
-    } catch (e) { caught = e; }
-    assert.ok(caught);
-    assert.equal(caught.code, "MISSING_FIELD");
-    assert.equal(caught.details.field, "note");
-  } finally { await rmTempProject(dir); }
-});
-
 test("v2-resolve: missing node returns NODE_NOT_FOUND", async () => {
   const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
   const dir = await v2Project();
@@ -500,7 +398,7 @@ test("v2-resolve: missing node returns NODE_NOT_FOUND", async () => {
     try {
       await resolve({
         statePath: dir,
-        flags: { as: "alice", note: "x" },
+        flags: { as: "alice", choice: "x", rationale: "missing" },
         positional: ["ghost"],
       });
     } catch (e) { caught = e; }
@@ -519,7 +417,7 @@ test("v2-reopen: original done_by can reopen a done task; status -> open, claim 
   try {
     await addTask(dir, "T-auth-1");
     await take(dir, "alice");
-    await resolve({ statePath: dir, flags: { as: "alice", note: "shipped" }, positional: ["T-auth-1"] });
+    await submitAccept(dir, "T-auth-1", "alice", "shipped");
     await patchNode(dir, "T-auth-1", {
       submitted_by: "alice",
       submitted_at: "2026-08-31T07:00:00.000Z",
@@ -540,7 +438,7 @@ test("v2-reopen: original done_by can reopen a done task; status -> open, claim 
     assert.equal(out.node.submitted_at, null);
     assert.equal(out.node.accepted_by, null);
     assert.equal(out.node.accepted_at, null);
-    assert.equal(out.node.revision, 4);
+    assert.equal(out.node.revision, 5);
 
     const s = await readState(dir);
     const last = s.log.at(-1);
@@ -560,7 +458,7 @@ test("v2-reopen: any agent may reopen a done task when policy allow applies", as
   try {
     await addTask(dir, "T-auth-1");
     await take(dir, "alice");
-    await resolve({ statePath: dir, flags: { as: "alice", note: "shipped" }, positional: ["T-auth-1"] });
+    await submitAccept(dir, "T-auth-1", "alice", "shipped");
 
     const out = await reopen({
       statePath: dir,
@@ -586,7 +484,7 @@ test("v2-reopen: any actor may reopen a done task with no policy (defaults core)
   try {
     await addTask(dir, "T-auth-1");
     await take(dir, "alice");
-    await resolve({ statePath: dir, flags: { as: "alice", note: "shipped" }, positional: ["T-auth-1"] });
+    await submitAccept(dir, "T-auth-1", "alice", "shipped");
 
     const out = await reopen({
       statePath: dir,
@@ -613,7 +511,7 @@ test("v2-reopen: re-blocks downstream tasks (DAG consequence)", async () => {
     await addTask(dir, "T-blocker");
     await addTask(dir, "T-down", { "blocked-by": "T-blocker" });
     await take(dir, "alice", "T-blocker");
-    await resolve({ statePath: dir, flags: { as: "alice", note: "done" }, positional: ["T-blocker"] });
+    await submitAccept(dir, "T-blocker", "alice", "done");
 
     let d = deriveV2(await readState(dir));
     assert.ok(d.ready.includes("T-down"), "T-down should be ready before reopen");
@@ -637,7 +535,7 @@ test("v2-reopen: missing --reason returns MISSING_FIELD", async () => {
   try {
     await addTask(dir, "T-auth-1");
     await take(dir, "alice");
-    await resolve({ statePath: dir, flags: { as: "alice", note: "shipped" }, positional: ["T-auth-1"] });
+    await submitAccept(dir, "T-auth-1", "alice", "shipped");
 
     let caught;
     try {
@@ -817,7 +715,7 @@ test("v2-cancel: done task returns INVALID_STATUS (cannot cancel terminal)", asy
   try {
     await addTask(dir, "T-auth-1");
     await take(dir, "alice");
-    await resolve({ statePath: dir, flags: { as: "alice", note: "shipped" }, positional: ["T-auth-1"] });
+    await submitAccept(dir, "T-auth-1", "alice", "shipped");
     let caught;
     try {
       await cancel({
@@ -958,9 +856,11 @@ test("CLI: v2 reopen is routed to v2-reopen (status=open, claim cleared)", async
     r = await runCli(["--project", dir, "take", "T-auth-1", "--as", "alice"]);
     assert.equal(r.code, 0, r.stderr);
     r = await runCli([
-      "--project", dir, "resolve", "T-auth-1",
+      "--project", dir, "submit", "T-auth-1",
       "--note", "shipped", "--as", "alice",
     ]);
+    assert.equal(r.code, 0, r.stderr);
+    r = await runCli(["--project", dir, "accept", "T-auth-1", "--as", "alice"]);
     assert.equal(r.code, 0, r.stderr);
 
     r = await runCli(["--project", dir, "reopen", "T-auth-1", "--reason", "rollback", "--as", "alice"]);

@@ -59,7 +59,7 @@ test("CLI: take fails without --as", async () => {
   }
 });
 
-test("CLI: take --as works, then resolve --as note works", async () => {
+test("CLI: take, submit and accept --as work", async () => {
   const dir = await createTempProject();
   try {
     await initExampleProject(dir);
@@ -68,7 +68,9 @@ test("CLI: take --as works, then resolve --as note works", async () => {
     assert.equal(c.code, 0, c.stderr);
     const cdata = JSON.parse(c.stdout);
     assert.equal(cdata.node.id, "F0.T1");
-    const d = await runCli(["--project", dir, "resolve", "F0.T1", "--note", "shipped", "--as", "agent-1"]);
+    let d = await runCli(["--project", dir, "submit", "F0.T1", "--note", "shipped", "--as", "agent-1"]);
+    assert.equal(d.code, 0, d.stderr);
+    d = await runCli(["--project", dir, "accept", "F0.T1", "--as", "validator"]);
     assert.equal(d.code, 0, d.stderr);
     const ddata = JSON.parse(d.stdout);
     assert.equal(ddata.node.status, "done");
@@ -87,7 +89,8 @@ test("CLI: reopen --as policy-allow actor rolls back a done task end-to-end", as
   try {
     await initExampleProject(dir);
     await runCli(["--project", dir, "take", "F0.T1", "--as", "agent-1"]);
-    await runCli(["--project", dir, "resolve", "F0.T1", "--note", "shipped", "--as", "agent-1"]);
+    await runCli(["--project", dir, "submit", "F0.T1", "--note", "shipped", "--as", "agent-1"]);
+    await runCli(["--project", dir, "accept", "F0.T1", "--as", "validator"]);
 
     const r = await runCli([
       "--project", dir, "reopen", "F0.T1", "--reason", "le falta validacion", "--as", "auditor",
@@ -118,7 +121,8 @@ test("CLI: reopen by a stranger succeeds under ADR-009 (no ownership compare on 
   try {
     await initExampleProject(dir);
     await runCli(["--project", dir, "take", "F0.T1", "--as", "agent-1"]);
-    await runCli(["--project", dir, "resolve", "F0.T1", "--note", "shipped", "--as", "agent-1"]);
+    await runCli(["--project", dir, "submit", "F0.T1", "--note", "shipped", "--as", "agent-1"]);
+    await runCli(["--project", dir, "accept", "F0.T1", "--as", "validator"]);
 
     const r = await runCli([
       "--project", dir, "reopen", "F0.T1", "--reason", "I want to", "--as", "agent-2",
@@ -150,7 +154,8 @@ test("CLI: reopen without --reason still fails with MISSING_FIELD (required fiel
   try {
     await initExampleProject(dir);
     await runCli(["--project", dir, "take", "F0.T1", "--as", "agent-1"]);
-    await runCli(["--project", dir, "resolve", "F0.T1", "--note", "shipped", "--as", "agent-1"]);
+    await runCli(["--project", dir, "submit", "F0.T1", "--note", "shipped", "--as", "agent-1"]);
+    await runCli(["--project", dir, "accept", "F0.T1", "--as", "validator"]);
 
     const r = await runCli([
       "--project", dir, "reopen", "F0.T1", "--as", "agent-2",
@@ -366,10 +371,8 @@ test("CLI: update on an in_progress task is allowed (v2 contract: no claim lock)
   }
 });
 
-test("CLI: resolve on a ready task succeeds without prior take (ADR-009: no claim required)", async () => {
-  // ADR-009 §"Resto de operaciones": the core no longer requires a
-  // claim to resolve a task. Required fields (--note) and state
-  // validation still apply — see the following two tests.
+test("CLI: resolve on a ready task is rejected without mutation", async () => {
+  // Tasks must use take → submit → accept; resolve is reserved for gates.
   const dir = await createTempProject();
   try {
     let r = await runCli(["--project", dir, "init"]);
@@ -381,20 +384,19 @@ test("CLI: resolve on a ready task succeeds without prior take (ADR-009: no clai
     const seedId = JSON.parse(seed.stdout).node.id;
 
     r = await runCli(["--project", dir, "resolve", seedId, "--note", "resolved from ready", "--as", "alice"]);
-    assert.equal(r.code, 0, r.stderr);
+    assert.equal(r.code, 1);
     const data = JSON.parse(r.stdout);
-    assert.equal(data.node.id, seedId);
-    assert.equal(data.node.status, "done");
-    assert.equal(data.node.done_by, "alice", "done_by reflects the actual actor, not the original claim");
-    assert.equal(data.node.claim, null, "claim cleared on resolve");
+    assert.equal(data.ok, false);
+    assert.equal(data.error.code, "INVALID_EXECUTION_CONTRACT");
+    const state = JSON.parse((await runCli(["--project", dir, "show", seedId])).stdout);
+    assert.equal(state.node.status, "open");
   } finally {
     await rmTempProject(dir);
   }
 });
 
-test("CLI: resolve without --note still fails with MISSING_FIELD (required field is enforced)", async () => {
-  // ADR-009: only the ownership check was removed; --note is still
-  // required to resolve a task.
+test("CLI: resolve without --note still rejects a task as an unsupported target", async () => {
+  // The task resolve bypass was removed; --note is not a task lifecycle input.
   const dir = await createTempProject();
   try {
     let r = await runCli(["--project", dir, "init"]);
@@ -409,7 +411,7 @@ test("CLI: resolve without --note still fails with MISSING_FIELD (required field
     assert.notEqual(r.code, 0);
     const data = JSON.parse(r.stdout);
     assert.equal(data.ok, false);
-    assert.match(data.error.message || data.error, /--note/);
+    assert.equal(data.error.code, "INVALID_EXECUTION_CONTRACT");
   } finally {
     await rmTempProject(dir);
   }

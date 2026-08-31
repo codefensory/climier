@@ -18,8 +18,8 @@ Use it when one or many actors need a shared source of truth for what is
 ready, claimed, blocked, decided, backlog, done, or archived.
 
 Common patterns:
-  solo / multi-session: status -> context -> take -> work -> resolve
-  human + AI:           add-task -> context -> take -> add-note -> resolve
+  solo / multi-session: status -> context -> take -> work -> submit -> accept
+  human + AI:           add-task -> context -> take -> add-note -> submit -> accept
   with a policy plugin: see docs/PLUGINS.md (ADR-007/008); the core
                         no longer recognises actor names like
                         "orchestrator"/"recovery" as authority.
@@ -59,8 +59,8 @@ Mutating (require --as <agent-id>):
                                           plugin may authorise releasing any claim.
   cancel <id> --reason "<text>" --as <agent>
                                           Terminate a node without resolving (open/in_progress only).
-  resolve <id> --note "<text>" --as <agent>
-                                          Close a task as done; --choice/--rationale close a gate.
+  resolve <id> --choice "<text>" --rationale "<text>" --as <agent>
+                                          Resolve a choice gate; tasks close only through submit then accept.
   reopen <id> --reason "<text>" --as <agent>
                                           Re-open a done task or resolved gate; downstream tasks re-block.
   restore <snapshot-id> --as <agent>      Replace the live state with the snapshot's raw bytes (validates target

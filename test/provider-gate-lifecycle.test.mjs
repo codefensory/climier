@@ -139,7 +139,7 @@ test("gate.resolve prepares target/policy/log/affected and applies status=resolv
     if_revisions: { "G-A": 2 },
   });
   assert.deepEqual(plan.target, { id: "G-A", kind: "resolvable", subkind: "gate" });
-  assert.deepEqual(plan.policyAction, { action: "task.resolve" });
+  assert.deepEqual(plan.policyAction, { action: "gate.resolve" });
   assert.equal(plan.logAction, "resolve");
   assert.equal(plan.logNote, "G-A");
   assert.deepEqual(plan.logFields, { choice: "yes", rationale: "approved" });

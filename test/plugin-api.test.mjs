@@ -1357,7 +1357,7 @@ test("api.core.run: task.cancel without --reason is rejected with PLUGIN_CORE_AC
   }
 });
 
-test("api.core.run: task.reopen works after a resolve (close -> roll back to open)", async () => {
+test("api.core.run: task.reopen works after acceptance (close -> roll back to open)", async () => {
   // task.reopen returns the provider's typed projection
   // (id/status/previous_done_by); the post-state lives in the
   // persisted state file. The kernel strips `done_by`/`done_at`/
@@ -1377,7 +1377,8 @@ test("api.core.run: task.reopen works after a resolve (close -> roll back to ope
       },
     });
     await api.core.run({ op: "task.take", input: { id: "T-parity-reopen" } });
-    await api.core.run({ op: "task.resolve", input: { id: "T-parity-reopen", note: "shipped" } });
+    await api.core.run({ op: "task.submit", input: { id: "T-parity-reopen", note: "shipped" } });
+    await api.core.run({ op: "task.accept", input: { id: "T-parity-reopen" } });
     const reopened = await api.core.run({
       op: "task.reopen",
       input: { id: "T-parity-reopen", reason: "wrong acceptance" },

@@ -189,10 +189,12 @@ test("e2e: install + happy — full first slice leaves intact state, plugin_id o
     assert.ok(out.taken && out.taken.result && out.taken.diff && out.taken.log_entry);
     assert.equal(out.taken.result.claim.by, "core-agent");
     assert.equal(out.taken.result.freshly_claimed, true);
-    assert.ok(out.resolved && out.resolved.result && out.resolved.diff && out.resolved.log_entry);
-    assert.equal(out.resolved.result.status, "done");
-    assert.equal(out.resolved.result.done_by, "core-agent");
-    assert.equal(out.resolved.result.note, "happy: shipped via core.run");
+    assert.ok(out.submitted && out.submitted.result && out.submitted.diff && out.submitted.log_entry);
+    assert.equal(out.submitted.result.status, "submitted");
+    assert.equal(out.submitted.result.note, "happy: shipped via core.run");
+    assert.ok(out.accepted && out.accepted.result && out.accepted.diff && out.accepted.log_entry);
+    assert.equal(out.accepted.result.status, "done");
+    assert.equal(out.accepted.result.done_by, "core-agent");
     assert.ok(out.noted && out.noted.result && out.noted.diff && out.noted.log_entry);
     assert.equal(out.noted.result.notes_count, 1);
 
@@ -221,7 +223,7 @@ test("e2e: install + happy — full first slice leaves intact state, plugin_id o
       `expected at least 5 plugin-tagged log entries, got ${pluginLogs.length}`,
     );
     const seenActions = new Set(pluginLogs.map((e) => e.action));
-    for (const a of ["task.create", "edge.add", "task.take", "task.resolve", "note.add"]) {
+    for (const a of ["task.create", "edge.add", "task.take", "task.submit", "task.accept", "note.add"]) {
       assert.ok(seenActions.has(a), `expected an action '${a}' in plugin logs`);
     }
     for (const e of pluginLogs) {

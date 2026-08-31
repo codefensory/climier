@@ -1,7 +1,7 @@
 // T-plugin-core-api — end-to-end integration of api.core.run.
 //
 // Exercises the first slice ADR-012 §"API" against the built-in providers:
-// task.create → edge.add → task.take → task.resolve → note.add. The flow
+// task.create → edge.add → task.take → task.submit → task.accept → note.add. The flow
 // runs over a fresh temp project with helpers.mjs (auto-managed CLIMIER_HOME
 // under os.tmpdir()) so the real ~/.climier is never touched.
 //
@@ -133,22 +133,34 @@ test("plugin-core-integration: full first slice leaves intact state and logs wit
     assert.equal(taken.log_entry.agent, "alice");
     assert.equal(taken.log_entry.plugin_id, "example.core");
 
-    // 4. task.resolve with a note (owner matches).
-    const resolved = await api.core.run({
-      op: "task.resolve",
+    // 4. task.submit hands the claimed task to validation.
+    const submitted = await api.core.run({
+      op: "task.submit",
       input: { id: "T-core-1", note: "shipped via core.run" },
     });
-    assert.ok(resolved && resolved.result && resolved.diff && resolved.log_entry);
-    assert.equal(resolved.result.status, "done");
-    assert.equal(resolved.result.done_by, "alice");
-    assert.equal(resolved.result.note, "shipped via core.run");
-    assert.deepEqual(resolved.effects, { newly_ready: ["T-core-2"] });
-    assert.equal(resolved.diff.updated[0].node.revision, 3);
-    assert.equal(resolved.log_entry.action, "task.resolve");
-    assert.equal(resolved.log_entry.agent, "alice");
-    assert.equal(resolved.log_entry.plugin_id, "example.core");
+    assert.ok(submitted && submitted.result && submitted.diff && submitted.log_entry);
+    assert.equal(submitted.result.status, "submitted");
+    assert.equal(submitted.result.note, "shipped via core.run");
+    assert.equal(submitted.diff.updated[0].node.revision, 3);
+    assert.equal(submitted.log_entry.action, "task.submit");
+    assert.equal(submitted.log_entry.agent, "alice");
+    assert.equal(submitted.log_entry.plugin_id, "example.core");
 
-    // 5. note.add on T-core-2, using its observed create revision.
+    // 5. task.accept is the only normal task transition to done.
+    const accepted = await api.core.run({
+      op: "task.accept",
+      input: { id: "T-core-1" },
+    });
+    assert.ok(accepted && accepted.result && accepted.diff && accepted.log_entry);
+    assert.equal(accepted.result.status, "done");
+    assert.equal(accepted.result.done_by, "alice");
+    assert.deepEqual(accepted.effects, { newly_ready: ["T-core-2"] });
+    assert.equal(accepted.diff.updated[0].node.revision, 4);
+    assert.equal(accepted.log_entry.action, "task.accept");
+    assert.equal(accepted.log_entry.agent, "alice");
+    assert.equal(accepted.log_entry.plugin_id, "example.core");
+
+    // 6. note.add on T-core-2, using its observed create revision.
     const noted = await api.core.run({
       op: "note.add",
       input: {
@@ -183,9 +195,9 @@ test("plugin-core-integration: full first slice leaves intact state and logs wit
     for (const entry of pluginLogs) {
       assert.equal(entry.agent, "alice", `log agent must be alice: ${JSON.stringify(entry)}`);
     }
-    // Six handler calls produce five operation IDs (task.create is called twice).
+    // Seven handler calls produce six operation IDs (task.create is called twice).
     const seenActions = new Set(pluginLogs.map((e) => e.action));
-    for (const a of ["task.create", "edge.add", "task.take", "task.resolve", "note.add"]) {
+    for (const a of ["task.create", "edge.add", "task.take", "task.submit", "task.accept", "note.add"]) {
       assert.ok(seenActions.has(a), `expected an action '${a}' in plugin logs`);
     }
     // No log carries agent other than alice for plugin-initiated writes.

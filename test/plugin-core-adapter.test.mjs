@@ -45,14 +45,14 @@ import {
 const ADAPTER_MODULE = "../src/plugins/core-adapter.mjs";
 const REGISTRY_MODULE = "../src/plugins/core-registry.mjs";
 
-// 21 op IDs (ADR-012 §2 plus task submission lifecycle). The adapter
-// must accept every one of these before reaching for the kernel.
+// 20 op IDs (ADR-012 §2 plus task submission lifecycle, without the
+// removed task.resolve bypass). The adapter must accept every one of these
+// before reaching for the kernel.
 const EXPECTED_OPS = [
-  // task lifecycle (10)
+  // task lifecycle (9)
   "task.create",
   "task.update",
   "task.take",
-  "task.resolve",
   "task.release",
   "task.reopen",
   "task.cancel",

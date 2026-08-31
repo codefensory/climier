@@ -11,8 +11,7 @@ import {
   readiness,
   statusOfV2,
 } from "../src/providers/task/derivation.mjs";
-import { taskResolveProvider, taskTakeProvider } from "../src/providers/task/index.mjs";
-import { createTransaction } from "../src/kernel/transaction.mjs";
+import { taskTakeProvider } from "../src/providers/task/index.mjs";
 
 function state(nodes, edges = []) {
   return { version: 2, initiatives: {}, nodes, edges, log: [] };
@@ -106,33 +105,6 @@ test("submitted tasks are explicit non-open lifecycle and do not satisfy blocker
   assert.equal(isSatisfiedV2(graph, "submitted"), true);
   assert.equal(isTaskReady(graph, "descendant"), true);
   assert.equal(statusOfV2(graph, "descendant"), "ready");
-});
-
-test("task.resolve consumes canonical readiness for newly-ready effects", async () => {
-  const snapshot = state(
-    {
-      old: gate("old", "superseded"),
-      newer: gate("newer", "resolved"),
-      blocker: task("blocker"),
-      target: task("target"),
-    },
-    [
-      { from: "newer", to: "old", type: "SUPERSEDES" },
-      { from: "old", to: "target", type: "BLOCKS" },
-      { from: "blocker", to: "target", type: "BLOCKS" },
-    ],
-  );
-  const input = {
-    id: "blocker",
-    actor: "alice",
-    note: "finished",
-    done_at: "2026-01-01T00:00:00.000Z",
-  };
-  const plan = await taskResolveProvider.prepare({ snapshot, input, request: {} });
-  const tx = createTransaction(snapshot);
-  const out = await taskResolveProvider.apply({ tx, plan, input, request: {}, snapshot });
-
-  assert.deepEqual(out.effects.newly_ready, ["target"]);
 });
 
 test("task.take consumes canonical readiness for superseded gates", async () => {

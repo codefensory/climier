@@ -111,7 +111,7 @@ test("CLI lifecycle integration keeps a dependent blocked until acceptance and r
   }
 });
 
-test("CLI lifecycle integration preserves release/cancel/reopen and resolve compatibility", async () => {
+test("CLI lifecycle integration preserves release/cancel/reopen and acceptance", async () => {
   const dir = await createTempProject();
   try {
     await setupProject(dir);
@@ -148,7 +148,9 @@ test("CLI lifecycle integration preserves release/cancel/reopen and resolve comp
 
     out = await command(dir, "take", "T5", "--as", "worker");
     assert.equal(out.result.code, 0, out.result.stderr);
-    out = await command(dir, "resolve", "T5", "--note", "manual compatibility bypass", "--as", "worker");
+    out = await command(dir, "submit", "T5", "--note", "manual compatibility bypass", "--as", "worker");
+    assert.equal(out.result.code, 0, out.result.stderr);
+    out = await command(dir, "accept", "T5", "--as", "validator");
     assert.equal(out.result.code, 0, out.result.stderr);
     assert.equal(out.data.node.status, "done");
     assert.equal(out.data.node.note, "manual compatibility bypass");

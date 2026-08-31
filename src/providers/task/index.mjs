@@ -14,7 +14,6 @@
 export { taskCreateProvider } from "./create.mjs";
 export { taskUpdateProvider } from "./update.mjs";
 export { taskTakeProvider } from "./take.mjs";
-export { taskResolveProvider } from "./resolve.mjs";
 export { taskReleaseProvider } from "./release.mjs";
 export { taskReopenProvider } from "./reopen.mjs";
 export { taskCancelProvider } from "./cancel.mjs";
