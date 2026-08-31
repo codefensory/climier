@@ -51,6 +51,12 @@ import {
 } from "./mutation/request.mjs";
 import { checkPrecondition, selectPrecondition } from "./mutation/preconditions.mjs";
 import { freezePlan, validateMutationArguments } from "./mutation/execute.mjs";
+import {
+  assignRevisionsAndDiff,
+  computeEdgeDiff,
+  computeInitiativeDiff,
+  deepEqualNodes,
+} from "./mutation/diff.mjs";
 
 const EDGE_TYPE_FIELD_RE = /^[A-Z_]+$/;
 
@@ -133,170 +139,6 @@ function currentNestedDepth() {
   return typeof store === "number" ? store : 0;
 }
 
-
-function asEdge(e) {
-  if (!e || typeof e !== "object" || Array.isArray(e)) return null;
-  if (typeof e.from !== "string" || typeof e.to !== "string" || typeof e.type !== "string") return null;
-  return { from: e.from, to: e.to, type: e.type };
-}
-
-function edgeKey(e) {
-  return `${e.from}|${e.to}|${e.type}`;
-}
-
-function snapshotEdgeMap(edges) {
-  const map = new Map();
-  for (const e of edges || []) {
-    const normalized = asEdge(e);
-    if (!normalized) continue;
-    map.set(edgeKey(normalized), normalized);
-  }
-  return map;
-}
-
-function draftEdgeMap(edges) {
-  return snapshotEdgeMap(edges);
-}
-
-function stripRevision(node) {
-  if (!node || typeof node !== "object") return node;
-  const out = {};
-  for (const [k, v] of Object.entries(node)) {
-    if (k === "revision") continue;
-    out[k] = v;
-  }
-  return out;
-}
-
-// Deep-equality on JSON-shaped nodes; sufficient for kernel diffs because
-// v2 node values are JSON-serializable by construction. Keeps the result
-// deterministic — same input → same comparison → same id list.
-function deepEqualNodes(a, b) {
-  if (a === b) return true;
-  if (!a || !b) return false;
-  if (typeof a !== "object" || typeof b !== "object") return false;
-  const aKeys = Object.keys(a);
-  const bKeys = Object.keys(b);
-  if (aKeys.length !== bKeys.length) return false;
-  for (const k of aKeys) {
-    if (!Object.prototype.hasOwnProperty.call(b, k)) return false;
-    const av = a[k];
-    const bv = b[k];
-    if (av === bv) continue;
-    if (typeof av !== typeof bv) return false;
-    if (av && bv && typeof av === "object") {
-      try {
-        if (JSON.stringify(av) !== JSON.stringify(bv)) return false;
-      } catch {
-        return false;
-      }
-    } else if (av !== bv) {
-      return false;
-    }
-  }
-  return true;
-}
-
-// Assign the next revision per node: new → 1; modified → prev + 1;
-// unchanged → keep prev (but apply the draft to drop the revision
-// field, since draft nodes never carry it). Returns the diff shape used
-// by tests for the acceptance (`created`/`updated`) plus the removed
-// nodes (snapshot ids not present in the draft view).
-function assignRevisionsAndDiff(snapshot, draftView) {
-  const snapNodes = (snapshot && snapshot.nodes) || {};
-  const next = {};
-  const created = [];
-  const updated = [];
-  for (const [id, draft] of Object.entries(draftView.nodes || {})) {
-    const prev = snapNodes[id];
-    const draftStrip = stripRevision(draft);
-    if (!prev) {
-      next[id] = { ...draftStrip, revision: 1 };
-      created.push({ id, node: next[id] });
-      continue;
-    }
-    const prevStrip = stripRevision(prev);
-    if (deepEqualNodes(prevStrip, draftStrip)) {
-      next[id] = { ...draftStrip, revision: Number.isInteger(prev.revision) ? prev.revision : 1 };
-    } else {
-      next[id] = { ...draftStrip, revision: (Number.isInteger(prev.revision) ? prev.revision : 0) + 1 };
-      updated.push({ id, node: next[id] });
-    }
-  }
-  const removed = [];
-  for (const id of Object.keys(snapNodes)) {
-    if (!Object.prototype.hasOwnProperty.call(draftView.nodes || {}, id)) {
-      removed.push(id);
-    }
-  }
-  return { next, removed, created, updated };
-}
-
-function computeEdgeDiff(snapshotEdges, draftEdges) {
-  const snapMap = snapshotEdgeMap(snapshotEdges);
-  const draftMap = draftEdgeMap(draftEdges);
-  const added = [];
-  const removed = [];
-  for (const [k, e] of draftMap) {
-    if (!snapMap.has(k)) added.push(e);
-  }
-  for (const [k, e] of snapMap) {
-    if (!draftMap.has(k)) removed.push(e);
-  }
-  return { added, removed };
-}
-
-// Compare two v2 initiative entries by their JSON-serializable fields.
-// We only persist primitives (desc: string, created_at?: string), so a
-// shallow key-by-key comparison is sufficient and avoids surprises if a
-// future plugin extends the shape with non-JSON values.
-function initiativesEqual(a, b) {
-  if (a === b) return true;
-  if (!a || !b) return false;
-  if (typeof a !== "object" || typeof b !== "object") return false;
-  const aKeys = Object.keys(a);
-  const bKeys = Object.keys(b);
-  if (aKeys.length !== bKeys.length) return false;
-  for (const k of aKeys) {
-    if (!Object.prototype.hasOwnProperty.call(b, k)) return false;
-    if (a[k] !== b[k]) return false;
-  }
-  return true;
-}
-
-// computeInitiativeDiff — the snapshot-vs-draft delta on the initiatives
-// map. Returns `{ created, updated }` mirroring the node-level diff shape
-// (created carries the new initiative; updated carries { previous, name,
-// initiative } so callers can see what changed). Note: the kernel does
-// NOT delete initiatives in B1b (registration is monotonic, matching the
-// historical add-initiative contract). Removing an existing initiative
-// has no provider seam yet.
-function computeInitiativeDiff(snapshotInitiatives, draftInitiatives) {
-  const snap = snapshotInitiatives && typeof snapshotInitiatives === "object" ? snapshotInitiatives : {};
-  const draft = draftInitiatives && typeof draftInitiatives === "object" ? draftInitiatives : {};
-  const created = [];
-  const updated = [];
-  for (const [name, draftInit] of Object.entries(draft)) {
-    const prev = snap[name];
-    if (!prev) {
-      created.push({ name, initiative: { ...draftInit } });
-      continue;
-    }
-    if (!initiativesEqual(prev, draftInit)) {
-      updated.push({ name, initiative: { ...draftInit }, previous: { ...prev } });
-    }
-  }
-  return { created, updated };
-}
-
-function nextRevisionFor(diffCreated, diffUpdated, snapshot, targetId) {
-  if (!targetId) return null;
-  for (const c of diffCreated) if (c.id === targetId) return c.node.revision;
-  for (const u of diffUpdated) if (u.id === targetId) return u.node.revision;
-  const prev = snapshot.nodes ? snapshot.nodes[targetId] : null;
-  if (prev && Number.isInteger(prev.revision)) return prev.revision;
-  return null;
-}
 
 function buildLogEntry(request, plan, diffCreated, diffUpdated, edgesAdded, edgesRemoved, removedNodes, targetNextRevision, pluginId, initiativeDiff) {
   const base = {
