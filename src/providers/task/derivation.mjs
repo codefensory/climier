@@ -5,7 +5,7 @@
 // transaction, lock, persistence, log, command, registry or adapter imports.
 // It accepts a v2 state-shaped graph and never mutates it.
 
-const TERMINAL_TASK_STATUSES = new Set(["in_progress", "done", "archived", "canceled"]);
+const NON_OPEN_TASK_STATUSES = new Set(["in_progress", "submitted", "done", "archived", "canceled"]);
 const SATISFIED_TASK_STATUSES = new Set(["done", "archived"]);
 const SATISFIED_GATE_STATUSES = new Set(["resolved"]);
 
@@ -65,7 +65,7 @@ export function isTaskReady(state, id) {
   if (!node || node.kind !== "resolvable" || node.subkind !== "task") return false;
 
   const status = node.status || "open";
-  if (TERMINAL_TASK_STATUSES.has(status) || node.backlog === true) return false;
+  if (NON_OPEN_TASK_STATUSES.has(status) || node.backlog === true) return false;
 
   return edgesOf(state)
     .filter((edge) => edge.type === "BLOCKS" && edge.to === id)
@@ -112,7 +112,7 @@ export function deriveV2(state) {
       if (status === "open") openGates.push(id);
       continue;
     }
-    if (TERMINAL_TASK_STATUSES.has(status)) continue;
+    if (NON_OPEN_TASK_STATUSES.has(status)) continue;
     if (node.backlog === true) {
       backlog.push(id);
       continue;
@@ -133,7 +133,7 @@ export function statusOfV2(state, id) {
   if (node.kind === "knowledge") return node.status || "active";
 
   const status = node.status || "open";
-  if (["in_progress", "done", "archived", "canceled", "resolved", "superseded"].includes(status)) {
+  if (["in_progress", "submitted", "done", "archived", "canceled", "resolved", "superseded"].includes(status)) {
     return status;
   }
   if (node.backlog === true) return "backlog";

@@ -83,6 +83,31 @@ test("task satisfaction follows superseded gate chains and remains safe on cycle
   assert.equal(readiness(graph, "target"), true);
 });
 
+test("submitted tasks are explicit non-open lifecycle and do not satisfy blockers", () => {
+  const graph = state(
+    {
+      submitted: task("submitted", "submitted"),
+      descendant: task("descendant"),
+    },
+    [{ from: "submitted", to: "descendant", type: "BLOCKS" }],
+  );
+
+  assert.equal(isSatisfiedV2(graph, "submitted"), false);
+  assert.equal(isTaskReady(graph, "submitted"), false);
+  assert.equal(statusOfV2(graph, "submitted"), "submitted");
+  assert.deepEqual(deriveV2(graph), {
+    ready: [],
+    blocked: ["descendant"],
+    backlog: [],
+    openGates: [],
+  });
+
+  graph.nodes.submitted.status = "done";
+  assert.equal(isSatisfiedV2(graph, "submitted"), true);
+  assert.equal(isTaskReady(graph, "descendant"), true);
+  assert.equal(statusOfV2(graph, "descendant"), "ready");
+});
+
 test("task.resolve consumes canonical readiness for newly-ready effects", async () => {
   const snapshot = state(
     {
