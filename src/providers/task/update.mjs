@@ -1,6 +1,6 @@
 // src/providers/task/update.mjs — pure provider for `task.update`.
 //
-// Plan §B4-task-core + ADR-011 §§1, 2, 3 + ADR-012 §3:
+// ADR-011 §§1, 2, 3 + ADR-012 §3:
 //   - `prepare` is read-only. It validates the target exists, is a
 //     task (kind=resolvable/subkind=task), that the input carries an
 //     `if_revision` precondition (ADR-011 §4: every agent-facing op
@@ -22,8 +22,8 @@ const TASK_KIND = "resolvable";
 const TASK_SUBKIND = "task";
 
 // ALLOWED_PATCH_KEYS — the canonical set of patch fields the task
-// provider accepts. Mirrors the public `update` CLI surface
-// (src/commands/update.mjs SCALAR_FIELDS + ARRAY_FIELDS) plus
+// provider accepts. Mirrors the public `update` CLI surface (its scalar
+// and array fields) plus
 // `blocked_by` (which is encoded as edges, not a node field). Any key
 // outside this set is rejected in prepare so the provider can never
 // silently widen the public contract.

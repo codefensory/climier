@@ -1,6 +1,6 @@
 // src/providers/task/create.mjs — pure provider for `task.create`.
 //
-// Plan §B4-task-core + ADR-011 §§1, 2, 3, 5 + ADR-012 §3:
+// ADR-011 §§1, 2, 3, 5 + ADR-012 §3:
 //   - `prepare` is read-only. It validates the input shape, looks up the
 //     initiative, validates every `blocked_by` against the snapshot
 //     (existence, kind, no self-edge, no duplicate edges already in the
@@ -22,16 +22,15 @@ const OP = "task.create";
 const LOG_ACTION = "add-task";
 
 // ALLOWED_KINDS — the only (kind, subkind) pair this provider accepts.
-// Future lifecycle providers reuse the same shape but classify under
-// `task.take` / `task.resolve` / etc. (plan §B4-task-lifecycle).
+// Lifecycle operations use the same provider shape and classify under
+// their respective operation ids (`task.take`, `task.resolve`, etc.).
 const TASK_KIND = "resolvable";
 const TASK_SUBKIND = "task";
 
 // REQUIRED_STRING_FIELDS — input fields that must be present, non-empty
 // strings. The provider mirrors the `add-task` public contract from the
-// CLI adapter (init.cmd) and the existing v2 commands — keeping the
-// field surface stable lets the registry/B7 wave adapt with no further
-// provider change.
+// CLI adapter and the v2 command surface. Keeping the field surface
+// stable lets callers adapt without further provider changes.
 const REQUIRED_STRING_FIELDS = ["id", "initiative", "title", "body", "acceptance"];
 
 function asNonEmptyString(value) {
@@ -51,7 +50,7 @@ function readSnapshotInitiatives(snapshot) {
 }
 
 // normalizeBlockers — coerces the input into a deduped, sorted array of
-// blocker ids. Accepts either a CSV string (legacy flag shape) or an
+// blocker ids. Accepts either a CSV string (CLI flag shape) or an
 // array. Returns `null` when the input is missing/empty so the caller can
 // distinguish "no blockers" from "invalid input".
 function normalizeBlockers(raw) {
@@ -98,8 +97,8 @@ function validateInputShape(input) {
   }
   // The provider rejects anything other than task (kind/subkind) so
   // the same code path is shared with `task.update` and so the
-  // registry cannot accidentally bind a `gate.create` or future
-  // operation to this provider. ADR-012 §2 lists distinct operation
+  // operation dispatch cannot accidentally bind a `gate.create` or
+  // another operation to this provider. ADR-012 §2 lists distinct operation
   // ids per kind/subkind — `task.create` only accepts `task`.
   if (input.kind !== undefined && input.kind !== TASK_KIND) {
     throwV2(
@@ -130,8 +129,8 @@ function validateInitiative(initiativeId, snapshot, input) {
   // Internal capability (ADR-008 §"Capacidad interna"):
   // addNodeInternal({ allowUnregisteredInitiative: true }) sets
   // allow_unregistered_initiative=true on the input. The CLI surface
-  // does not expose the flag (see src/commands/internal/create-node.mjs), so this branch
-  // is unreachable from public callers.
+  // does not expose the flag, so this branch is unreachable from
+  // public callers.
   const allowUnregistered = input && input.allow_unregistered_initiative === true;
   const initiatives = readSnapshotInitiatives(snapshot);
   if (!Object.prototype.hasOwnProperty.call(initiatives, initiativeId)) {
@@ -219,8 +218,8 @@ function validateBlockersAgainstSnapshot(blockers, selfId, snapshot) {
 }
 
 // validateDerivedFromAgainstSnapshot — DERIVED_FROM is the only non-
-// BLOCKS edge that `task.create` accepts today (mirrors the legacy
-// add-node behaviour). Both ends must be resolvable (task or gate) so
+// BLOCKS edge that `task.create` accepts today (mirrors add-node
+// behaviour). Both ends must be resolvable (task or gate) so
 // the link stays inside the decision-graph; knowledge targets are
 // rejected with INVALID_EDGE_KIND.
 // Self-edges and duplicates against the existing snapshot are
@@ -346,8 +345,8 @@ function buildNodeSeed(input, id) {
   if (input.backlog === true) seed.backlog = true;
   // meta is preserved as-is when provided (validateExecution has
   // already normalized the `execution` sub-shape). Undefined inputs
-  // leave the seed without a `meta` key — matches the historical
-  // add-node contract (only present when --meta was passed).
+  // leave the seed without a `meta` key — matches the add-node
+  // contract (only present when --meta was passed).
   if (input.meta !== undefined && input.meta !== null) {
     if (!asPlainObject(input.meta)) {
       throwV2("INVALID_EXECUTION_CONTRACT", `${OP}: 'meta' must be an object`, { field: "meta" });
@@ -391,11 +390,11 @@ function asPlainObject(value) {
  * @returns {object} frozen plan
  */
 async function prepare({ snapshot, input, request }) {
-  // `request` is accepted for symmetry with `apply` (and for future
-  // provider-level context) but is not consumed today: validation is
-  // driven entirely by the snapshot and the input. Referenced so the
-  // linter does not flag the parameter and so future slices can read
-  // request metadata without re-plumbing the call site.
+  // `request` is accepted for symmetry with `apply` (and provider-level
+  // context) but is not consumed today: validation is driven entirely by
+  // the snapshot and the input. Referenced so the linter does not flag the
+  // parameter and so callers can read request metadata without re-plumbing
+  // the call site.
   void request;
   validateInputShape(input);
   const blockers = dedupeAndSort(normalizeBlockers(input.blocked_by));
@@ -447,7 +446,7 @@ async function apply({ tx, plan, input, request, snapshot }) {
     );
   }
   // createNode carries the seed but explicitly NOT `revision`. The
-  // kernel diff (B1b) compares snapshot vs. draft ignoring revision, so
+  // kernel diff compares snapshot vs. draft ignoring revision, so
   // the seed must be revision-free. The transaction layer already
   // strips `revision` defensively; we re-assert here to document the
   // intent at the provider boundary.

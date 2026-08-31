@@ -73,8 +73,8 @@ export function isTaskReady(state, id) {
 }
 
 // Short aliases make the provider's domain vocabulary usable without tying
-// callers to the historical v2 suffix. The v2-named functions above remain
-// the compatibility surface consumed by the future v2 facade.
+// callers to the v2-compatible suffix. The v2-named functions above remain
+// the compatibility surface consumed by the v2 facade.
 export const isReady = isTaskReady;
 export const readiness = isTaskReady;
 
@@ -125,7 +125,7 @@ export function deriveV2(state) {
 }
 
 /**
- * Historical status projection used by the CLI and UI consumers.
+ * Status projection used by the CLI and UI consumers.
  */
 export function statusOfV2(state, id) {
   const node = nodesOf(state)[id];

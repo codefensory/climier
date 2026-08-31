@@ -2,7 +2,7 @@
 //
 // The CLI keeps one `update` surface, while the provider seam classifies a
 // gate update as `gate.update`. This provider accepts the gate fields exposed
-// by that CLI surface and owns only domain/input planning plus draft patching.
+// by that surface and owns only domain/input planning plus draft patching.
 // It never touches locks, persistence, logs, policy, commands, or revision.
 
 import { throwV2 } from "../../contracts/errors.mjs";
@@ -12,7 +12,7 @@ const LOG_ACTION = "update";
 const GATE_KIND = "resolvable";
 const GATE_SUBKIND = "gate";
 
-// Keep this list aligned with src/commands/update.mjs's gate-usable patch
+// Keep this list aligned with the CLI update command's gate-usable patch
 // flags. `resolution_mode` is the typed API spelling of `--resolution-mode`.
 const ALLOWED_PATCH_KEYS = new Set([
   "title",
@@ -141,7 +141,7 @@ function normalizePatch(changes) {
           value,
         });
       }
-      // The legacy CLI treats --backlog=false as removing the optional field,
+      // The CLI treats --backlog=false as removing the optional field,
       // rather than persisting a false marker. undefined is omitted by the
       // JSON state writer while still making the draft differ from true.
       patch.backlog = value ? true : undefined;

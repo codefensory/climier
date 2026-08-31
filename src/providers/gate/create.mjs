@@ -1,5 +1,5 @@
 // src/providers/gate/create.mjs — gate.create provider (ADR-011 §§1-5,
-// ADR-012 §3, plan §B4-gate-core).
+// ADR-012 §3).
 //
 // Pure domain semantics for creating a gate, including the multi-node
 // supersede path that rewrites the superseded gate's incoming BLOCKS edges.
@@ -16,18 +16,18 @@
 // prepare declares, for the kernel:
 //   - target        : { id, kind, subkind } of the node being created
 //   - policyAction  : { action: "gate.create" } (fresh-snapshot authorize)
-//   - logAction     : core log action preserved from the v2 surface
+//   - logAction     : core log action used by the CLI surface
 //                     ("add-node" for a plain create, "supersede" when the
 //                     new gate replaces an existing one)
 //   - affected      : ids of EXISTING nodes this operation modifies
 //   - if_revisions  : kernel precondition shape for `affected`
 //
-// Supersede semantics (parity with the v2 add-node path):
+// Supersede semantics:
 //   - the superseded gate moves to status "superseded";
 //   - a SUPERSEDES edge new -> old is added;
 //   - every incoming BLOCKS edge of the old gate (blocker -> old) is
 //     rewritten to point at the new gate (blocker -> new), atomically;
-//   - outgoing BLOCKS edges (old -> dependent) are left untouched: the v2
+//   - outgoing BLOCKS edges (old -> dependent) are left untouched: graph
 //     derivation resolves them through the SUPERSEDES chain;
 //   - a rewrite whose destination edge already exists collapses into the
 //     existing edge instead of producing a duplicate.
@@ -224,15 +224,13 @@ function validateSupersedes(snapshot, input, { id, workingState }) {
 // Every existing node this operation modifies must be covered; declaring a
 // revision for a node the operation does not touch is a contract error.
 //
-// Auto-derive behaviour (plan §B4-gate-core supersede CAS):
+// Auto-derive the superseded-node CAS:
 //   When supersedes targets an existing gate, the operation must run
 //   under a CAS so a concurrent writer cannot sneak in between the
-//   snapshot read and the status flip. The agent rarely knows the
-//   current revision of the superseded node — historically the CLI
-//   forced the caller to pass `if_revisions` explicitly. That was a
-//   leak: the only safe value for a single-writer flow is the
-//   snapshot's current revision, so we derive it here. Callers that
-//   pass an explicit if_revisions still get the strict CAS check.
+//   snapshot read and the status flip. The snapshot supplies the only
+//   safe revision for the single-writer flow, so we derive it here.
+//   Callers that pass an explicit if_revisions still get the strict
+//   CAS check.
 function validatePreconditions(snapshot, input, affected) {
   const raw = input.if_revisions;
   const nodes = snapshotNodes(snapshot);
