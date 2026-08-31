@@ -3,18 +3,18 @@
 //
 // `createCore({ projectDir, agent, pluginId })` returns
 // `{ version: 2, run }`. `run({ op, input })` is the SINGLE mutation
-// frontier for plugin-issued core actions: it routes every call
-// through the canonical registry built by `bootstrapBuiltins()` (17
-// op ids, see ADR-012 §2) and a single `kernel.mutate` invocation
-// per op. The adapter is intentionally a thin mapper:
+// frontier for plugin-issued core actions: it validates the public plugin
+// input and delegates execution to Application Operations, which looks up
+// the canonical built-in registry and invokes the kernel once per op.
+// The adapter is intentionally a thin mapper:
 //   - no argv, no `commands/*`, no `readState`, no `withLock`,
-//     no `updateState`, no `append`, no CORE_REGISTRY;
+//     no `updateState`, no `append`, no legacy CORE_REGISTRY;
 //   - actor and pluginId are fixed by the host (`createCore` args)
 //     and cannot be overridden through `input.as` / `input._as`
 //     (rejected before any state mutation);
 //   - policy selection happens OUTSIDE the lock
 //     (`loadApplicablePolicy`); policy decide happens INSIDE the lock
-//     (`kernel.mutate`'s `policyAction.decide`);
+//     (Application Operations' mutation frontier);
 //   - errors propagate with their structured envelopes:
 //       * POLICY_*  (POLICY_DENIED / POLICY_ERROR / POLICY_CONFLICT)
 //         surfaced verbatim — the kernel and the seam guarantee shape;
@@ -28,7 +28,10 @@
 // acceptance. Fixture-migration parity for the legacy `{ node }` /
 // `{ edge }` envelopes lives in the daughter fixture task.
 
-import { bootstrapBuiltins } from "./core-registry.mjs";
+import {
+  bootstrapBuiltins,
+  executeOperation,
+} from "../application/operations/index.mjs";
 import { mutate } from "../kernel/mutate.mjs";
 import { loadApplicablePolicy, authorizeAction, isPolicyError } from "./policy.mjs";
 import {
@@ -38,11 +41,11 @@ import {
   wrapCoreError,
 } from "./errors.mjs";
 
-// Build the registry once at module load. The registry is
-// `Object.freeze`-d and only carries `{ id, kind, provider }`
-// entries; no filesystem, lock, state, log, policy, commands or
-// bin references leak in (ADR-012 §5).
 const REG = bootstrapBuiltins();
+
+// Application Operations owns the built-in catalog. The adapter only keeps
+// this process-local view to validate the public plugin operation list before
+// any policy discovery or mutation.
 
 function supportedOps() {
   // Return a fresh slice so callers cannot mutate the registry's
@@ -95,64 +98,6 @@ function validateInput(pluginId, op, input) {
       "input.as is forbidden",
     );
   }
-}
-
-// buildRequest — translate the host-facing input into the kernel
-// request shape. `request.action` is the op id; `request.actor` is
-// the host-fixed agent; `request.input` is the typed input the
-// provider receives. When the input declares `if_revision` AND
-// targets a node (`input.id` is a string), the request carries the
-// single-CAS precondition so `kernel.mutate` validates it under the
-// lock; the provider's `prepare` independently rejects inputs
-// without `if_revision` (provider-level MISSING_FIELD) so the
-// kernel-level precondition is purely a safety net.
-function buildRequest(op, agent, input) {
-  const request = {
-    action: op,
-    actor: agent,
-    input,
-  };
-  if (
-    input &&
-    typeof input === "object" &&
-    !Array.isArray(input) &&
-    typeof input.id === "string" &&
-    input.id.length > 0 &&
-    Number.isInteger(input.if_revision) &&
-    input.if_revision >= 1
-  ) {
-    request.if_revision = {
-      kind: "single",
-      id: input.id,
-      value: input.if_revision,
-    };
-  }
-  return request;
-}
-
-// buildPolicyAction — turn a `loadApplicablePolicy` result into the
-// `{ decide, action, pluginId }` shape the kernel expects. With no
-// installed policy, return `undefined` so `kernel.mutate` short-
-// circuits the policy step (default abstain — see ADR-008 §"Seam por
-// handler"). The wrapper here is the only place authorizeAction is
-// invoked; the kernel never reaches into the loader directly.
-function buildPolicyAction(policy, op, projectDir) {
-  if (!policy) return undefined;
-  return {
-    action: op,
-    pluginId: policy.pluginId || null,
-    async decide({ snapshot, target, request, action }) {
-      return await authorizeAction({
-        policy,
-        action: action || op,
-        actor: request.actor,
-        target,
-        snapshot,
-        projectDir,
-        projectConfig: policy.projectConfig,
-      });
-    },
-  };
 }
 
 // selectPolicy — load the applicable policy outside the lock and
@@ -241,29 +186,24 @@ export function createCore({ projectDir, agent, pluginId }) {
       validateOp(pluginId, op);
       validateInput(pluginId, op, input);
 
-      // 2. Policy selection — OUTSIDE the lock. The host pays the
-      // plugin import / descriptor read cost only when a plugin is
-      // installed; without any, loadApplicablePolicy returns null
-      // and the kernel skips the policy step.
+      // 2. Keep policy discovery outside the mutation frontier. The
+      // application boundary receives the selected policy through a source
+      // callback, then builds the typed request and delegates exactly once.
       const policy = await selectPolicy({ projectDir, op, pluginId });
 
-      // 3. Build the kernel request (typed mapping + optional CAS
-      // precondition) and the policy action (decide wrapper).
-      const request = buildRequest(op, agent, input);
-      const policyAction = buildPolicyAction(policy, op, projectDir);
-
-      // 4. ONE `kernel.mutate` call. The kernel owns the lock, the
-      // snapshot read, the precondition validation, the policy
-      // decide (under the lock), the tx, the apply, the diff, the
-      // revision assignment, the log entry, and the single atomic
-      // state+log write.
       try {
-        return await mutate({
+        return await executeOperation({
           projectDir,
-          request,
-          provider: REG.lookup(op).provider,
-          policyAction,
-          pluginId,
+          actor: agent,
+          operation: op,
+          input,
+          source: {
+            registry: REG,
+            mutate,
+            selectPolicy: async () => policy,
+            authorizeAction,
+            pluginId,
+          },
         });
       } catch (err) {
         // POLICY_* errors are domain errors — the envelope already

@@ -114,6 +114,18 @@ test("plugin-core-adapter: createCore returns { version: 2, run } with run being
   assert.equal(typeof core.run, "function");
 });
 
+test("plugin-core-adapter: routes execution through Application Operations", async () => {
+  const source = await fs.readFile(
+    path.resolve(path.dirname(new URL(import.meta.url).pathname), "../src/plugins/core-adapter.mjs"),
+    "utf8",
+  );
+  assert.match(source, /from [\"']\.\.\/application\/operations\/index\.mjs[\"']/);
+  assert.match(source, /executeOperation\(/);
+  assert.doesNotMatch(source, /from [\"']\.\/core-registry\.mjs[\"']/);
+  assert.doesNotMatch(source, /mutate\(\{/);
+  assert.doesNotMatch(source, /REG\.lookup\(/);
+});
+
 test("plugin-core-adapter: createCore throws when projectDir is missing or empty", async () => {
   const { createCore } = await importFresh(ADAPTER_MODULE);
   assert.throws(
