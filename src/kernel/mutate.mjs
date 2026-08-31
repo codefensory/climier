@@ -42,6 +42,14 @@ import { withLock } from "../storage/lock.mjs";
 import { prepareLogEntry } from "../storage/log.mjs";
 import { throwV2 } from "../contracts/errors.mjs";
 import { createTransaction } from "./transaction.mjs";
+import {
+  commandLabel,
+  operationLabel,
+  validatePlan,
+  validateProvider,
+  validateRequest,
+} from "./mutation/request.mjs";
+import { freezePlan, validateMutationArguments } from "./mutation/execute.mjs";
 
 const EDGE_TYPE_FIELD_RE = /^[A-Z_]+$/;
 
@@ -124,57 +132,6 @@ function currentNestedDepth() {
   return typeof store === "number" ? store : 0;
 }
 
-function commandLabel(request) {
-  return request && typeof request.action === "string" && request.action.length > 0
-    ? `kernel.mutate(${request.action})`
-    : "kernel.mutate";
-}
-
-function validateRequest(request) {
-  if (!request || typeof request !== "object" || Array.isArray(request)) {
-    throwV2("INVALID_EXECUTION_CONTRACT", "kernel.mutate: request must be an object", { field: "request" });
-  }
-  if (typeof request.action !== "string" || request.action.length === 0) {
-    throwV2("INVALID_EXECUTION_CONTRACT", "kernel.mutate: request.action is required", { field: "action" });
-  }
-  if (typeof request.actor !== "string" || request.actor.length === 0) {
-    throwV2("INVALID_EXECUTION_CONTRACT", "kernel.mutate: request.actor is required", { field: "actor" });
-  }
-  if (request.input !== undefined && (request.input === null || typeof request.input !== "object" || Array.isArray(request.input))) {
-    throwV2("INVALID_EXECUTION_CONTRACT", "kernel.mutate: request.input must be an object when present", { field: "input" });
-  }
-}
-
-function validateProvider(provider) {
-  if (!provider || typeof provider !== "object") {
-    throwV2("INVALID_EXECUTION_CONTRACT", "kernel.mutate: provider must be an object", { field: "provider" });
-  }
-  if (typeof provider.prepare !== "function") {
-    throwV2("INVALID_EXECUTION_CONTRACT", "kernel.mutate: provider.prepare must be a function", { field: "prepare" });
-  }
-  if (typeof provider.apply !== "function") {
-    throwV2("INVALID_EXECUTION_CONTRACT", "kernel.mutate: provider.apply must be a function", { field: "apply" });
-  }
-}
-
-function validatePlan(plan, commandName) {
-  if (!plan || typeof plan !== "object" || Array.isArray(plan)) {
-    throwV2("INVALID_EXECUTION_CONTRACT", `${commandName}: prepare must return a plan object`, { field: "plan" });
-  }
-  if (!plan.target || typeof plan.target !== "object" || Array.isArray(plan.target)) {
-    throwV2("INVALID_EXECUTION_CONTRACT", `${commandName}: plan.target must be an object`, { field: "target" });
-  }
-  if (typeof plan.target.id !== "string" || plan.target.id.length === 0) {
-    throwV2("INVALID_EXECUTION_CONTRACT", `${commandName}: plan.target.id must be a non-empty string`, { field: "target.id" });
-  }
-}
-
-function planPolicyAction(plan, request) {
-  if (plan && plan.policyAction && typeof plan.policyAction === "object" && !Array.isArray(plan.policyAction)) {
-    return plan.policyAction;
-  }
-  return null;
-}
 
 function asEdge(e) {
   if (!e || typeof e !== "object" || Array.isArray(e)) return null;
@@ -676,17 +633,7 @@ async function runStateMutation({ projectDir, request, stateOperation, policyAct
  * provider.apply propagate verbatim.
  */
 export async function mutate({ projectDir, request, provider, policyAction, pluginId, stateOperation }) {
-  validateRequest(request);
-  if (stateOperation !== undefined) {
-    if (!stateOperation || typeof stateOperation !== "object" ||
-        typeof stateOperation.prepare !== "function" || typeof stateOperation.apply !== "function") {
-      throwV2("INVALID_EXECUTION_CONTRACT", "kernel.mutate: stateOperation must provide prepare and apply", { field: "stateOperation" });
-    }
-  } else {
-    validateProvider(provider);
-  }
-
-  const commandName = commandLabel(request);
+  const commandName = validateMutationArguments({ request, provider, stateOperation });
 
   // Nested-mutation guard, scoped per async chain via AsyncLocalStorage.
   // Two independent concurrent mutate() calls each have their own
@@ -733,23 +680,7 @@ export async function mutate({ projectDir, request, provider, policyAction, plug
       //    we are about to mutate. The plan is frozen below so neither
       //    provider nor apply can mutate it.
       const prepareResult = await provider.prepare({ snapshot, input: request.input, request, pluginId });
-      validatePlan(prepareResult, commandName);
-      const plan = Object.freeze({
-        target: Object.freeze({ ...prepareResult.target }),
-        policyAction: planPolicyAction(prepareResult, request),
-        // Other plan fields are pass-through for the provider's apply.
-        ...Object.fromEntries(
-          Object.entries(prepareResult).filter(([k]) => k !== "target" && k !== "policyAction"),
-        ),
-      });
-      // The spread above loses frozenness on inner objects; let apply
-      // get a frozen copy of any extra fields too.
-      const frozenExtras = {};
-      for (const [k, v] of Object.entries(plan)) {
-        if (k === "target") continue; // already frozen
-        frozenExtras[k] = (v && typeof v === "object") ? Object.freeze(v) : v;
-      }
-      const frozenPlan = Object.freeze({ ...frozenExtras, target: plan.target });
+      const frozenPlan = freezePlan(prepareResult, commandName);
       // Validate before policy/apply so malformed provider audit fields can
       // never reach the draft or cause a partial mutation.
       normalizeLogFields(frozenPlan.logFields, commandName);
@@ -923,6 +854,8 @@ export async function mutate({ projectDir, request, provider, policyAction, plug
 }
 
 export const __kernelInternals = Object.freeze({
+  commandLabel,
+  operationLabel,
   checkPrecondition,
   assignRevisionsAndDiff,
   computeEdgeDiff,
