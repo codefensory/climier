@@ -77,7 +77,7 @@ The task is now `submitted`, not `done`. The worker never runs `accept` or uses
 accepts only after merging the branch; if checks fail, it rejects the same task
 with a reason and it returns to `open`.
 
-## 6. Re-orient
+## 6. Re-orient after validation
 
 ```bash
 $ climier status | jq '.tasks.ready[] | {id, title: .title, domain}'
@@ -93,7 +93,7 @@ $ climier status | jq '.tasks.ready[] | {id, title: .title, domain}'
 }
 ```
 
-After resolving T-auth-7, the worker sees T-web-3 and **T-api-12** are now ready (T-api-12 was blocked by T-auth-7). They pick T-api-12 if they have the skills.
+After the validator accepts T-auth-7, the worker sees T-web-3 and **T-api-12** are now ready (T-api-12 was blocked by T-auth-7). They pick T-api-12 if they have the skills.
 
 ## What if the worker gets stuck?
 

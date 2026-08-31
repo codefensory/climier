@@ -191,7 +191,7 @@ test("finish-task.sh: submits the task after recording evidence", async () => {
   }
 });
 
-test("finish-task.sh: EVIDENCE records per-check ok and does not leak commit body", async () => {
+test("finish-task.sh: EVIDENCE leaves checks empty and does not leak commit body", async () => {
   const { repo, wt } = makeRepo();
   try {
     const r = await runIsolated(setupFinishScript({ repo, wt }));
@@ -199,11 +199,7 @@ test("finish-task.sh: EVIDENCE records per-check ok and does not leak commit bod
     const payload = parseEvidence(r);
     const body = "do task [T-wp-test]";
     assert.ok(!r.stdout.includes(body), "EVIDENCE leaked commit message body");
-    assert.equal(payload.checks.length, 3);
-    const byName = Object.fromEntries(payload.checks.map((c) => [c.name, c]));
-    assert.equal(byName["bash -n sub/x.sh"].ok, true);
-    assert.equal(byName["bash -n missing-file.sh"].ok, false);
-    assert.equal(byName["true"].ok, true);
+    assert.deepEqual(payload.checks, []);
   } finally {
     cleanup({ repo, wt });
   }

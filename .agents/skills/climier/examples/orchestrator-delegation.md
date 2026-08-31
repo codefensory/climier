@@ -9,6 +9,7 @@ The orchestrator does NOT execute. It reads state, decides, and tells workers wh
 2. context <id>  → read a candidate task before delegating
 3. resolve <G> --choice --rationale  → close any gate whose dependent tasks are waiting
 4. (delegate to workers) → "agent-X, take T-Y, then context T-Y"
+5. wait for submit → validator accepts or rejects the submitted task
 ```
 
 ## Example: 3 workers, 2 in parallel
@@ -43,7 +44,7 @@ $ climier resolve D1 --choice "raw-postgres" --rationale "skip Directus, fewer m
 { "node": { "id": "D1", "status": "resolved", "resolution": { "choice": "raw-postgres", "rationale": "..." } }, "newly_ready": ["T-db-1", "T-db-2"] }
 ```
 
-After both workers `resolve` their tasks, the orchestrator re-runs `status` and sees new tasks are ready.
+After both workers `submit` their tasks and validators accept them, the orchestrator re-runs `status` and sees new tasks are ready.
 
 ## When to resolve a gate
 
@@ -55,7 +56,7 @@ Don't resolve gates prematurely — once resolved, dependent tasks unblock and w
 
 ## When NOT to be the orchestrator
 
-If you're a worker agent and the user says "implement X", you are NOT the orchestrator. Run `climier status`, take one, do it, resolve it. The orchestrator role is explicit; don't mix it with execution.
+If you're a worker agent and the user says "implement X", you are NOT the orchestrator. Run `climier status`, take one, do it, and submit it. The orchestrator role is explicit; don't mix it with coordination.
 
 ## Stale claim recovery
 
