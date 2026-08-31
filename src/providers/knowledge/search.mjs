@@ -1,15 +1,15 @@
 // src/providers/knowledge/search.mjs — pure knowledge search helper for
-// the knowledge-core provider slice (plan B4-knowledge-core).
+// the knowledge provider.
 //
-// Mirrors the existing `commands/search.mjs` semantics (case-insensitive
-// substring across id/title/body/mitigation/domain/tags/refs/meta; active
-// by default; deprecated only with `all: true`; deterministic id order;
-// body snippet truncated to 200 chars) but operates on a snapshot rather
-// than reading state from the filesystem.
+// Implements case-insensitive substring matching across
+// id/title/body/mitigation/domain/tags/refs/meta; active by default;
+// deprecated only with `all: true`; deterministic id order; body snippets
+// are truncated to 200 chars. It operates on a snapshot rather than
+// reading state from the filesystem.
 //
 // Pure: no fs, no lock, no state, no log, no policy, no commands, no
-// registry, no adapter, no CLI, no UI. The provider stays the new
-// canonical implementation per ADR-012 §3.
+// registry, no adapter, no CLI, no UI. This is the canonical provider
+// implementation per ADR-012 §3.
 
 const SNIPPET_LIMIT = 200;
 

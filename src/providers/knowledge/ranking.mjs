@@ -1,5 +1,5 @@
 // src/providers/knowledge/ranking.mjs — pure deterministic ranking for
-// scoped knowledge matches (plan B4-knowledge-core).
+// scoped knowledge matches.
 //
 // Responsibility:
 //   - `specificityRank(scopeMatches)` returns the priority index of the

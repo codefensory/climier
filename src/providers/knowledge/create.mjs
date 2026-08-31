@@ -1,5 +1,5 @@
 // src/providers/knowledge/create.mjs — `knowledge.create` provider for
-// the graph kernel (plan B4-knowledge-core).
+// the graph kernel.
 //
 // Implements the kernel provider contract from ADR-011 §1:
 //   - `prepare({ snapshot, input, request }) → plan`
@@ -10,9 +10,7 @@
 //       `tx.addEdge`. The kernel owns revision assignment (see
 //       `src/kernel/mutate.mjs`); the provider never seeds `revision`.
 //
-// Scope (this slice):
-//   - `knowledge.create` with optional `supersedes`.
-//   - No deprecate, no lifecycle (B4-knowledge-lifecycle will cover them).
+// Supports `knowledge.create` with optional `supersedes`.
 //
 // Pure: no fs, no lock, no state, no log, no policy, no commands, no
 // registry, no adapter, no CLI, no UI.
@@ -252,9 +250,9 @@ export function createProvider() {
       if (typeof supersedes === "string" && supersedes.length > 0) {
         // Mark the superseded node. The kernel diff assigns the new
         // revision (prev + 1). No BLOCKS rewrite here: knowledge nodes
-        // are never BLOCKS endpoints in v2 semantics (BLOCKS requires
-        // both ends to be resolvable), so the existing edge rewrite
-        // (originally for task/gate supersede) is a no-op for knowledge.
+        // Knowledge nodes are never BLOCKS endpoints in v2 semantics
+        // (BLOCKS requires both ends to be resolvable), so supersession
+        // only updates the target status and adds a SUPERSEDES edge.
         tx.updateNode(supersedes, { status: "superseded" });
         tx.addEdge({ from: id, to: supersedes, type: "SUPERSEDES" });
       }
