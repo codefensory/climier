@@ -59,7 +59,11 @@ Reserva cinco llamadas para `git status` final, commit y `finish-task.sh`: si el
 cambio y sus checks ya están listos, el cierre tiene prioridad sobre discovery,
 comentarios, relecturas o verificaciones redundantes. No cruces 30 llamadas con
 un commit verificable sin ejecutar `finish-task.sh`; el validator no debe tener
-que reconstruir un cierre que el worker podía emitir.
+que reconstruir un cierre que el worker podía emitir. Si el primer `npm test`
+encuentra un fallo local después de que la implementación ya está lista,
+corrígelo y entra en modo de cierre: repite sólo el check afectado y la suite
+obligatoria, luego commitea y finaliza. No abras tests nuevos, no expandas la
+extracción ni vuelvas a discovery en ese punto.
 El límite de 40 turns es un techo, no una meta. En el checkpoint 20, si todavía
 no existe ese test rojo + una ruta concreta de implementación, o si el cambio
 cruza más de una frontera central (kernel, registry, adapter, dispatch o

@@ -64,8 +64,10 @@ fallo, clasifica primero fixture, contrato o implementación; no cambies tests
 para hacerlos pasar sin demostrar cuál de esos tres casos aplica. El límite de
 turns es un techo, no la unidad de sizing: al checkpoint 20 debe existir un
 caso rojo y una ruta acotada, y una task no cruza simultáneamente kernel,
-registry, adapter, dispatch y fixtures. El scope declarado es una frontera de
-integración: un worker no adelanta cambios, incluidos imports mecánicos, en
+registry, adapter, dispatch y fixtures. El límite operativo del worker no se
+amplía para compensar discovery o un cierre tardío: tras un fallo local de la
+suite final sólo se corrige ese fallo, se repite evidencia y se cierra. El scope
+declarado es una frontera de integración: un worker no adelanta cambios, incluidos imports mecánicos, en
 paths asignados a tareas dependientes; si el cambio exige un no-go zone, deja
 handoff y libera para que el orquestador cure el contrato. Tras una corrección
 fallida no se crea una cadena `fix2+`: se replantea desde la última base

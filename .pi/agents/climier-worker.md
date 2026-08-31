@@ -51,7 +51,10 @@ commiteado, el worktree esté limpio y los checks requeridos hayan terminado,
 `finish-task.sh` es la siguiente llamada: no hagas inventario, relecturas,
 comentarios ni una segunda suite antes de cerrarlo. No cruces 30 llamadas con
 un commit verificable sin intentar el cierre; el validator no debe reconstruir
-la evidencia que el worker puede emitir.
+la evidencia que el worker puede emitir. Si la suite obligatoria detecta un
+fallo local al final, corrígelo y entra en modo de cierre: sólo el check
+afectado, la suite requerida, commit y `finish-task.sh`; no abras discovery,
+tests nuevos ni scope adicional.
 
 El cierre usa obligatoriamente `finish-task.sh`. Nunca escribas una nota que
 empiece con `EVIDENCE` de forma manual: debe ser el JSON válido que genera ese
