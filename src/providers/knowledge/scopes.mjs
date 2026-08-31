@@ -1,12 +1,11 @@
 // src/providers/knowledge/scopes.mjs — pure scope-matching helper for the
-// knowledge-core provider slice (plan B4-knowledge-core).
+// knowledge provider.
 //
 // Responsibility:
 //   - `matchesScopes(node, knowledge)` returns the scope keys that match
 //     `node` against `knowledge.scope`, ordered by priority.
 //   - `SCOPE_ORDER` exposes the canonical priority (node_id > domain > tag
-//     > initiative). Same order as the v2 helper; the provider is the new
-//     canonical implementation per ADR-012 §3.
+//     > initiative). This is the canonical provider order per ADR-012 §3.
 //
 // Constraints:
 //   - Pure function over JSON-shaped values: no fs, no lock, no state, no

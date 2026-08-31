@@ -1,5 +1,5 @@
 // src/providers/knowledge/update.mjs — `knowledge.update` provider for
-// the graph kernel (plan B4-knowledge-core).
+// the graph kernel.
 //
 // Implements the kernel provider contract from ADR-011 §1:
 //   - `prepare({ snapshot, input, request }) → plan`

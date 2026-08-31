@@ -1,5 +1,4 @@
-// src/providers/knowledge/index.mjs — barrel for the knowledge provider
-// slice (plan B4-knowledge-core + B4-knowledge-lifecycle).
+// src/providers/knowledge/index.mjs — barrel for the knowledge providers.
 //
 // Exposes the three providers (knowledge.create, knowledge.update,
 // knowledge.deprecate) plus the pure helpers used by the v2 read

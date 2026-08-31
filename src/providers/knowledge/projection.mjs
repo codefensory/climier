@@ -1,5 +1,5 @@
 // src/providers/knowledge/projection.mjs — pure knowledge projection for a
-// target node (plan B4-knowledge-core).
+// target node.
 //
 // Knowledge is selected by any matching scope. A match carries every scope
 // that matched so consumers can explain why it was selected. Results are

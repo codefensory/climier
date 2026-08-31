@@ -1,10 +1,10 @@
 // src/providers/knowledge/informing.mjs — pure informing helper for the
-// knowledge-core provider slice (plan B4-knowledge-core).
+// knowledge provider.
 //
 // Returns the INFORMS edges of a node, projected as inline node data.
 // Provides the `informingForNode` projection over a snapshot
-// rather than reading state from the filesystem; the provider stays the
-// new canonical implementation per ADR-012 §3.
+// rather than reading state from the filesystem; this is the canonical
+// provider implementation per ADR-012 §3.
 //
 // Pure: no fs, no lock, no state, no log, no policy, no commands, no
 // registry, no adapter, no CLI, no UI.

@@ -1,5 +1,5 @@
 // src/providers/knowledge/deprecate.mjs — `knowledge.deprecate` provider
-// for the graph kernel (plan B4-knowledge-lifecycle).
+// for the graph kernel.
 //
 // Implements the kernel provider contract from ADR-011 §1:
 //   - `prepare({ snapshot, input, request }) → plan`
@@ -15,12 +15,9 @@
 //       revision assignment; this file never reads or writes the
 //       `revision` field (see src/kernel/mutate.mjs + transaction.mjs).
 //
-// Behaviour parity (matches src/commands/deprecate-knowledge.mjs, the
-// historical F12 handler). The provider supersedes that handler's
-// in-process mutation, but the on-disk shape it produces is identical:
-// every deprecated knowledge node carries `status: "deprecated"`,
-// `deprecation_reason`, `deprecated_at` (ISO 8601), `deprecated_by`
-// (the actor that ran the operation).
+// The persisted shape for a deprecated knowledge node is:
+// `status: "deprecated"`, `deprecation_reason`, `deprecated_at` (ISO 8601),
+// and `deprecated_by` (the actor that ran the operation).
 //
 // Pure: no fs, no lock, no state, no log, no policy, no commands, no
 // registry, no adapter, no CLI, no UI. The only side effect is on the
