@@ -26,6 +26,7 @@ import { Show, For } from "solid-js";
 const STATUS_TOKEN = {
   ready:       { text: "text-ready",        border: "border-ready",        soft: "bg-ready-soft",        dot: "bg-ready" },
   in_progress: { text: "text-progress",     border: "border-progress",     soft: "bg-progress-soft",     dot: "bg-progress" },
+  submitted:   { text: "text-gate",         border: "border-gate",         soft: "bg-gate-soft",         dot: "bg-gate" },
   blocked:     { text: "text-blocked",      border: "border-blocked",      soft: "bg-blocked-soft",      dot: "bg-blocked" },
   gate:        { text: "text-gate",         border: "border-gate",         soft: "bg-gate-soft",         dot: "bg-gate" },
   knowledge:   { text: "text-knowledge",    border: "border-knowledge",    soft: "bg-knowledge-soft",    dot: "bg-knowledge" },

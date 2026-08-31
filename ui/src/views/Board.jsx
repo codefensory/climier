@@ -1,8 +1,8 @@
 // Kanban board for climier tasks.
 //
 // Contract (ui-redesign-plan.md section 6 Fase 5A, Track A):
-//   - Four task columns: Ready / In progress / Blocked / Backlog. Open gates
-//     join the same grid as an optional first column, immediately before Ready.
+//   - Five task columns: Ready / In progress / Submitted / Blocked / Backlog.
+//     Open gates join the same grid as an optional first column, immediately before Ready.
 //   - Columns stay fixed at 280 px; the board scrolls horizontally without
 //     stretching or compressing columns. The grid grows to five columns only
 //     when gates are present.
@@ -27,7 +27,7 @@
 //     keeps the public useStore() facade but does not derive status itself.
 //
 // Live store (ADR-010 / plan §3.4):
-//   - The four columns are stable identifiers (literal status) iterated
+//   - The five columns are stable identifiers (literal status) iterated
 //     through a module-level constant; their DOM elements never re-mount
 //     across polls and they keep their scroll position.
 //   - Cards inside each column iterate node IDs (the reconciliation key of
@@ -56,6 +56,7 @@ import {
 const COLUMN_DEFS = [
   { key: "ready", label: "Ready", status: "ready" },
   { key: "in_progress", label: "In progress", status: "in_progress" },
+  { key: "submitted", label: "Submitted", status: "submitted" },
   { key: "blocked", label: "Blocked", status: "blocked" },
   { key: "backlog", label: "Backlog", status: "backlog" },
 ];
@@ -289,6 +290,7 @@ export default function Board(props) {
     return {
       ready: t.ready.filter(matches),
       in_progress: t.in_progress.filter(matches),
+      submitted: t.submitted.filter(matches),
       blocked: t.blocked.filter(matches),
       backlog: t.backlog.filter(matches),
     };
@@ -301,6 +303,7 @@ export default function Board(props) {
     return (
       t.ready.length +
       t.in_progress.length +
+      t.submitted.length +
       t.blocked.length +
       t.backlog.length +
       filteredGateIds().length >

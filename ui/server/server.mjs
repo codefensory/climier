@@ -118,6 +118,7 @@ function zeroSummary() {
   return {
     ready: 0,
     in_progress: 0,
+    submitted: 0,
     blocked: 0,
     backlog: 0,
     placeholders: 0,
@@ -143,6 +144,7 @@ function summaryOf(state, derived, staleCount) {
   return {
     ready: derived.ready.length,
     in_progress: tasks.filter((n) => (n.status || "open") === "in_progress").length,
+    submitted: tasks.filter((n) => (n.status || "open") === "submitted").length,
     blocked: derived.blocked.length,
     backlog: derived.backlog.length,
     placeholders: tasks.filter((n) => n.placeholder === true).length,
@@ -171,7 +173,7 @@ function initiativeSummary(state) {
       initiative: node.initiative,
       total: 0,
       by_kind: {
-        tasks: { total: 0, ready: 0, in_progress: 0, blocked: 0, backlog: 0, done: 0, archived: 0, canceled: 0 },
+        tasks: { total: 0, ready: 0, in_progress: 0, submitted: 0, blocked: 0, backlog: 0, done: 0, archived: 0, canceled: 0 },
         gates: { total: 0, open: 0, resolved: 0, superseded: 0 },
         knowledge: { total: 0, active: 0, deprecated: 0 },
       },
@@ -182,6 +184,7 @@ function initiativeSummary(state) {
       t.total += 1;
       const status = node.status || "open";
       if (status === "in_progress") t.in_progress += 1;
+      else if (status === "submitted") t.submitted += 1;
       else if (status === "done") t.done += 1;
       else if (status === "archived") t.archived += 1;
       else if (status === "canceled") t.canceled += 1;
@@ -438,6 +441,13 @@ export async function start({ projectDir, port = DEFAULT_PORT, log = console.err
       });
     }
     const derived = derive({ snapshot: state });
+    // Submitted is an explicit lifecycle state, not a readiness pool. Expose
+    // it alongside the canonical derived pools so the read-only UI can keep
+    // validation work visible without classifying it as ready or blocked.
+    const submitted = Object.values(state.nodes || {})
+      .filter((node) => node.kind === "resolvable" && node.subkind === "task" && (node.status || "open") === "submitted")
+      .map((node) => node.id);
+    if (submitted.length > 0) derived.submitted = submitted;
     const stale = detectStaleClaims(state);
     const lastActivity = {};
     for (const e of state.log || []) {

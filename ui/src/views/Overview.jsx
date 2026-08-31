@@ -234,6 +234,16 @@ export function readyTasks(derived, nodes, limit = WORK_LIMIT) {
     .slice(0, limit);
 }
 
+// Submitted tasks from the explicit lifecycle pool. They are intentionally
+// separate from ready/blocked work: submitted means a worker handed the task
+// to an independent validator, not that it is available to claim.
+export function submittedTasks(derived, nodes, limit = WORK_LIMIT) {
+  return (derived && derived.submitted || [])
+    .map((id) => (nodes || {})[id])
+    .filter((n) => n && n.subkind === "task")
+    .slice(0, limit);
+}
+
 // In-progress tasks by persisted status (point 4). Deterministic order: id
 // ascending so the list is stable across snapshots. Respects the max limit.
 export function inProgressTasks(nodes, limit = WORK_LIMIT) {
@@ -390,7 +400,7 @@ export function initiativeRows(initiatives, summary) {
       total: t.total || 0,
       by_kind: byKind,
       attention:
-        (t.ready || 0) + (t.in_progress || 0) + (t.blocked || 0) + (g.open || 0),
+        (t.ready || 0) + (t.in_progress || 0) + (t.submitted || 0) + (t.blocked || 0) + (g.open || 0),
     });
   }
   rows.sort(
@@ -585,8 +595,9 @@ function InitiativeCard(props) {
       <div class="mt-3">
         <ProgressBar segments={initiativeSegments(row())} />
       </div>
-      <div class="mt-2 text-[12px] leading-4 text-mute">
-        Open gates: <span class="tabular-nums">{openGates()}</span>
+      <div class="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[12px] leading-4 text-mute">
+        <span>Submitted: <span class="tabular-nums">{tasks().submitted || 0}</span></span>
+        <span>Open gates: <span class="tabular-nums">{openGates()}</span></span>
       </div>
     </div>
   );
@@ -665,6 +676,7 @@ export default function Overview() {
 
   // === 4. Work now =========================================================
   const readyTasksMemo = createMemo(() => readyTasks(derived(), nodes()));
+  const submittedTasksMemo = createMemo(() => submittedTasks(derived(), nodes()));
   const inProgressTasksMemo = createMemo(() => inProgressTasks(nodes()));
 
   // === 5. Needs attention ==================================================
@@ -808,6 +820,36 @@ export default function Overview() {
           </Show>
         </Panel>
       </div>
+
+      {/* Submitted is a validation queue, not active labor. Keep it visible
+          as a distinct read-only panel without adding it to the four primary
+          operational metrics or treating it as ready/blocked. */}
+      <Show when={(sum().submitted || 0) > 0}>
+        <Panel
+          title="Submitted"
+          eyebrow="Validation queue"
+          right={
+            <button
+              type="button"
+              class="inline-flex min-h-[36px] items-center rounded-control border border-line bg-panel-2 px-3 text-[12px] text-body hover:bg-mid focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
+              onClick={() => setRoute("board")}
+            >
+              View all {sum().submitted}
+            </button>
+          }
+        >
+          <Show
+            when={submittedTasksMemo().length > 0}
+            fallback={<EmptyState variant="compact" title="No submitted tasks." />}
+          >
+            <div class="space-y-2">
+              <For each={submittedTasksMemo()}>
+                {(n) => <WorkRow node={n} status="submitted" lastActivity={lastActivity()} />}
+              </For>
+            </div>
+          </Show>
+        </Panel>
+      </Show>
 
       {/* 5. Needs attention — only when there is something to coordinate */}
       <div>

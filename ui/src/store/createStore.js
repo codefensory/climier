@@ -84,16 +84,17 @@ const initialEntities = {
 };
 
 const initialViews = {
-  derived: { ready: [], blocked: [], backlog: [], openGates: [] },
+  derived: { ready: [], submitted: [], blocked: [], backlog: [], openGates: [] },
 };
 
 function readDerived(snapshot) {
   const d = snapshot && snapshot.derived;
   if (!d || typeof d !== "object") {
-    return { ready: [], blocked: [], backlog: [], openGates: [] };
+    return { ready: [], submitted: [], blocked: [], backlog: [], openGates: [] };
   }
   return {
     ready: Array.isArray(d.ready) ? d.ready.slice() : [],
+    submitted: Array.isArray(d.submitted) ? d.submitted.slice() : [],
     blocked: Array.isArray(d.blocked) ? d.blocked.slice() : [],
     backlog: Array.isArray(d.backlog) ? d.backlog.slice() : [],
     openGates: Array.isArray(d.openGates) ? d.openGates.slice() : [],
@@ -110,7 +111,7 @@ export function createReactiveStore() {
     transport: { ...initialTransport },
     ui: { ...initialUi },
     entities: { initiatives: {}, nodes: {}, edges: [], plugins: {} },
-    views: { derived: { ready: [], blocked: [], backlog: [], openGates: [] } },
+    views: { derived: { ready: [], submitted: [], blocked: [], backlog: [], openGates: [] } },
     details: {},
   });
 
