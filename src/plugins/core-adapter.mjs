@@ -28,7 +28,7 @@
 // acceptance. Fixture-migration parity for the legacy `{ node }` /
 // `{ edge }` envelopes lives in the daughter fixture task.
 
-import { bootstrapBuiltins } from "./core-registry.mjs";
+import { bootstrapBuiltins } from "../application/operations/index.mjs";
 import { mutate } from "../kernel/mutate.mjs";
 import { loadApplicablePolicy, authorizeAction, isPolicyError } from "./policy.mjs";
 import {
