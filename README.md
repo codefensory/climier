@@ -191,11 +191,18 @@ Every command prints a single JSON value to stdout.
 | Outcome | stdout | exit |
 |---|---|---|
 | Success | object or array with the command result | 0 |
-| Error | `{ "ok": false, "error": "<message>" }` | 1 or 2 |
+| Domain, storage, or internal failure | `{ "ok": false, "error": { "code": "...", "message": "...", "details": {} } }` | 1 |
+| Unknown command or no command | `{ "ok": false, "error": "<message>" }` | 2 |
 | `--help` / `help` | plain text help | 0 |
 | `--version` / `version` | plain text version | 0 |
 
-There is no `--json` flag. JSON is the default.
+Errors are written to stdout, never stderr. Error codes are the stable API;
+callers must branch on `error.code`, not on message text. Domain conflicts keep
+their domain code (`ID_CONFLICT`, `CYCLE_DETECTED`, `STATE_REVISION_CONFLICT`,
+`BATCH_OPERATION_FAILED`, and so on). Storage failures are normalized to
+`STORAGE_ERROR` with the original cause in `details.cause`; opaque failures use
+`CLI_INTERNAL_ERROR`. Command routing keeps exit 2 for compatibility. There is
+no `--json` flag. JSON is the default.
 
 ## Command reference
 

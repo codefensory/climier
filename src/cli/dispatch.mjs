@@ -6,6 +6,7 @@
 import fsSync from "node:fs";
 
 import { resolveProject } from "../storage/paths.mjs";
+import { exitCodeForError, normalizeCliError } from "../contracts/errors.mjs";
 import { RESERVED_NAMESPACES } from "./commands/reserved-namespaces.mjs";
 
 export const PACKAGE_VERSION = JSON.parse(
@@ -251,13 +252,17 @@ export async function runCli({ argv = process.argv.slice(2), write = console.log
       exitWith(exit, 2);
       return 2;
     }
-    if (error.code && error.details !== undefined) {
-      write(formatError({ code: error.code, message: error.message, details: error.details }));
-    } else {
+    // Preserve the historical string envelope for unknown flags. The public
+    // operation errors, storage failures, and opaque internal failures use
+    // the stable `{ code, message, details }` shape below.
+    if (typeof error?.message === "string" && error.message.includes("unknown flag --")) {
       write(formatError(error.message));
+    } else {
+      write(formatError(normalizeCliError(error)));
     }
-    exitWith(exit, 1);
-    return 1;
+    const code = exitCodeForError(error);
+    exitWith(exit, code);
+    return code;
   }
 }
 

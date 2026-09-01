@@ -204,3 +204,23 @@ test("contract: --version prints plain text to stdout", async () => {
     await rmTempProject(dir);
   }
 });
+
+test("contract: storage errors have a stable structured code", async () => {
+  const dir = await createTempProject();
+  try {
+    await runCli(["--project", dir, "init"]);
+    const projectId = JSON.parse(await fs.promises.readFile(path.join(dir, ".climier.json"), "utf8")).project_id;
+    const stateFile = path.join(process.env.CLIMIER_HOME, "projects", projectId, "tasks.json");
+    await fs.promises.writeFile(stateFile, "{not-json}", "utf8");
+    const r = await runCli(["--project", dir, "status"]);
+    assert.equal(r.code, 1);
+    const data = JSON.parse(r.stdout);
+    assert.deepEqual(Object.keys(data), ["ok", "error"]);
+    assert.equal(data.ok, false);
+    assert.equal(data.error.code, "STORAGE_ERROR");
+    assert.equal(typeof data.error.message, "string");
+    assert.equal(data.error.details.cause, "CLIMIER_CORRUPT_STATE");
+  } finally {
+    await rmTempProject(dir);
+  }
+});

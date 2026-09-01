@@ -2,6 +2,40 @@
 
 Complete reference for the climier surface.
 
+## CLI output and exit codes
+
+The CLI emits one JSON value on stdout for every command result or operational
+failure. Operational failures use this envelope:
+
+```json
+{
+  "ok": false,
+  "error": { "code": "STABLE_CODE", "message": "...", "details": {} }
+}
+```
+
+`error.code` is the machine contract. `details` is always present for
+structured failures and may contain operation-specific data such as node IDs,
+revisions, or batch indexes. Consumers must not parse prose from `message`.
+The public routes used by replanners (`task` create/update, edge add/remove,
+`batch`, `state`, `context`, `status`, gate, and knowledge commands) preserve
+their domain codes, including `CYCLE_DETECTED`,
+`STATE_REVISION_CONFLICT`, and `BATCH_OPERATION_FAILED`. Plugin data,
+compatibility, and runtime failures use `PLUGIN_DATA_INVALID`,
+`PLUGIN_API_INCOMPATIBLE`, and `PLUGIN_RUNTIME_UNAVAILABLE` respectively when
+those boundaries report them.
+
+| Outcome | Exit | Contract |
+|---|---:|---|
+| Success | 0 | command result object or array |
+| Domain conflict, storage failure, or internal failure | 1 | structured error envelope |
+| Unknown command or no command | 2 | legacy routing error envelope |
+
+Storage failures are exposed as `STORAGE_ERROR` with the original storage code
+in `details.cause`; opaque failures are exposed as `CLI_INTERNAL_ERROR`. Help
+and version remain the only intentional plain-text outputs and exit 0. There is
+no `--json` switch because JSON is already the default.
+
 If you only need the quickstart, use `README.md`. If you need the actual contract, use this file.
 
 ## State shape
