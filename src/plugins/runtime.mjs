@@ -19,7 +19,9 @@
 // `climier plugin ns sub --as` (no value) does not silently resolve agent
 // from the env var.
 
+import fsSync from "node:fs";
 import { resolveProject } from "../storage/paths.mjs";
+import { pluginRuntimeDataDir } from "./paths.mjs";
 
 // V1 flags whose values we want to extract. Other flags are ignored by
 // this module (the dispatch forwards them unchanged to the handler).
@@ -63,4 +65,35 @@ export function resolveRuntime(argv) {
   const fromEnv = typeof process.env.CLIMIER_AGENT === "string" ? process.env.CLIMIER_AGENT.trim() : "";
   const agent = fromFlag || fromEnv;
   return { project_dir, agent };
+}
+
+// createRuntime — bind the host identity to the plugin-owned runtime
+// directory. Creation is synchronous so callers retain the established
+// synchronous createApi contract and can safely use dataDir immediately.
+export function createRuntime({ projectDir, agent, pluginId } = {}) {
+  if (typeof projectDir !== "string" || !projectDir) {
+    throw new Error("createRuntime: projectDir required");
+  }
+  if (typeof pluginId !== "string" || !pluginId) {
+    throw new Error("createRuntime: pluginId required");
+  }
+
+  const dataDir = pluginRuntimeDataDir(projectDir, pluginId);
+  try {
+    fsSync.mkdirSync(dataDir, { recursive: true, mode: 0o700 });
+  } catch (err) {
+    const wrapped = new Error(
+      `createRuntime: unable to create runtime data directory at ${dataDir}: ${err.message}`,
+      { cause: err },
+    );
+    wrapped.code = "PLUGIN_RUNTIME_UNAVAILABLE";
+    wrapped.details = { plugin_id: pluginId, data_dir: dataDir, cause: err.message };
+    throw wrapped;
+  }
+
+  return {
+    project_dir: projectDir,
+    agent: typeof agent === "string" ? agent : "",
+    dataDir,
+  };
 }
