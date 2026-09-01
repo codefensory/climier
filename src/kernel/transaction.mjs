@@ -339,6 +339,29 @@ export function createTransaction(snapshot) {
     return cloneValue(existing.data, "setNodePluginData", "value");
   }
 
+  function deleteNodePluginData(pluginId, nodeId) {
+    const pid = requirePluginId(pluginId, "deleteNodePluginData");
+    const nid = requireNodeId(nodeId, "deleteNodePluginData");
+    const node = draftNodes[nid];
+    if (!node) {
+      throwV2("NODE_NOT_FOUND", `deleteNodePluginData: node '${nid}' does not exist in the draft or snapshot`, { id: nid });
+    }
+    const plugins = node.plugins && typeof node.plugins === "object" && !Array.isArray(node.plugins)
+      ? node.plugins
+      : {};
+    const entry = plugins[pid];
+    if (!entry || typeof entry !== "object" || Array.isArray(entry) || !Object.prototype.hasOwnProperty.call(entry, "data")) {
+      return false;
+    }
+    const nextPlugins = { ...plugins };
+    const nextEntry = { ...entry };
+    delete nextEntry.data;
+    if (Object.keys(nextEntry).length === 0) delete nextPlugins[pid];
+    else nextPlugins[pid] = nextEntry;
+    draftNodes[nid] = { ...node, plugins: nextPlugins };
+    return true;
+  }
+
   function getProjectPluginData(pluginId, key) {
     const pid = requirePluginId(pluginId, "getProjectPluginData");
     const entry = draftPlugins[pid];
@@ -371,6 +394,24 @@ export function createTransaction(snapshot) {
     current.data = data;
     draftPlugins[pid] = current;
     return cloneValue(data[field], "setProjectPluginData", "value");
+  }
+
+  function deleteProjectPluginData(pluginId, key) {
+    const pid = requirePluginId(pluginId, "deleteProjectPluginData");
+    const field = asNonEmptyString(key);
+    if (!field) {
+      throwV2("MISSING_FIELD", "deleteProjectPluginData: key must be a non-empty string", { field: "key" });
+    }
+    const current = draftPlugins[pid];
+    if (!current || typeof current !== "object" || Array.isArray(current) ||
+        !current.data || typeof current.data !== "object" || Array.isArray(current.data) ||
+        !Object.prototype.hasOwnProperty.call(current.data, field)) {
+      return false;
+    }
+    const data = { ...current.data };
+    delete data[field];
+    draftPlugins[pid] = { ...current, data };
+    return true;
   }
 
   function view(options = {}) {
@@ -448,8 +489,10 @@ export function createTransaction(snapshot) {
     removeEdge,
     getNodePluginData,
     setNodePluginData,
+    deleteNodePluginData,
     getProjectPluginData,
     setProjectPluginData,
+    deleteProjectPluginData,
     getInitiative,
     createInitiative,
     view,

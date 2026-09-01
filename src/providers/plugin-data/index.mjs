@@ -5,3 +5,5 @@
 
 export { pluginDataNodeSetProvider, nodeSetProvider } from "./node.mjs";
 export { pluginDataProjectSetProvider, projectSetProvider } from "./project.mjs";
+export { pluginDataNodeDeleteProvider, nodeDeleteProvider } from "./node-delete.mjs";
+export { pluginDataProjectDeleteProvider, projectDeleteProvider } from "./project-delete.mjs";

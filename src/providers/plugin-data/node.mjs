@@ -52,7 +52,7 @@ async function prepare({ snapshot, input, request, pluginId }) {
     logFields: Object.freeze({ scope: "node", node_id: id, key: null }),
     pluginId: identity,
     nodeId: id,
-    value: Object.freeze(value),
+    value,
   };
   if (ifRevision) plan.if_revision = ifRevision;
   return Object.freeze(plan);

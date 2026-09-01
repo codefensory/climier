@@ -16,6 +16,8 @@ import { mutate } from "../kernel/mutate.mjs";
 import {
   pluginDataNodeSetProvider,
   pluginDataProjectSetProvider,
+  pluginDataNodeDeleteProvider,
+  pluginDataProjectDeleteProvider,
 } from "../providers/plugin-data/index.mjs";
 import { throwV2 } from "../contracts/errors.mjs";
 
@@ -64,6 +66,23 @@ export function createData({ projectDir, agent, pluginId }) {
         });
         return outcome.result.value;
       },
+      async delete(id) {
+        if (typeof id !== "string" || !id) {
+          throw new Error("data.node.delete: id required");
+        }
+        const opAgent = assertAgent(agent, "data.node.delete", "node");
+        const outcome = await mutate({
+          projectDir,
+          request: {
+            action: "plugin-data.node.delete",
+            actor: opAgent,
+            input: { id },
+          },
+          provider: pluginDataNodeDeleteProvider,
+          pluginId,
+        });
+        return outcome.result;
+      },
     },
     project: {
       get(key) {
@@ -94,6 +113,23 @@ export function createData({ projectDir, agent, pluginId }) {
           provider: pluginDataProjectSetProvider,
           pluginId,
         });
+      },
+      async delete(key) {
+        if (typeof key !== "string" || !key) {
+          throw new Error("data.project.delete: key required");
+        }
+        const opAgent = assertAgent(agent, "data.project.delete", "project");
+        const outcome = await mutate({
+          projectDir,
+          request: {
+            action: "plugin-data.project.delete",
+            actor: opAgent,
+            input: { key },
+          },
+          provider: pluginDataProjectDeleteProvider,
+          pluginId,
+        });
+        return outcome.result;
       },
     },
   };

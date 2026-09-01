@@ -2,7 +2,12 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { createTransaction } from "../src/kernel/transaction.mjs";
-import { pluginDataNodeSetProvider, pluginDataProjectSetProvider } from "../src/providers/plugin-data/index.mjs";
+import {
+  pluginDataNodeSetProvider,
+  pluginDataProjectSetProvider,
+  pluginDataNodeDeleteProvider,
+  pluginDataProjectDeleteProvider,
+} from "../src/providers/plugin-data/index.mjs";
 
 const PLUGIN = "example.audit";
 
@@ -107,4 +112,62 @@ test("plugin-data providers reject missing plugin identity and unknown node", as
     pluginDataNodeSetProvider.prepare({ snapshot: base, input: { id: "missing", value: 1 }, request: request({ id: "missing", value: 1 }, "plugin-data.node.set") }),
     (err) => err.code === "NODE_NOT_FOUND",
   );
+});
+
+test("plugin-data set providers accept only acyclic JSON-safe values", async () => {
+  const invalid = [
+    undefined,
+    NaN,
+    Infinity,
+    -Infinity,
+    1n,
+    new Map([["x", 1]]),
+    new Set([1]),
+    () => 1,
+    Symbol("x"),
+    new Date(),
+    Object.assign(Object.create({ inherited: true }), { own: true }),
+  ];
+  const circular = {};
+  circular.self = circular;
+  invalid.push(circular);
+
+  for (const value of invalid) {
+    await assert.rejects(
+      pluginDataNodeSetProvider.prepare({ snapshot: snapshot(), input: { id: "T1", value }, request: request({ id: "T1", value }, "plugin-data.node.set") }),
+      (err) => err.code === "PLUGIN_DATA_INVALID",
+      `node value ${String(value)} should be rejected`,
+    );
+    await assert.rejects(
+      pluginDataProjectSetProvider.prepare({ snapshot: snapshot(), input: { key: "x", value }, request: request({ key: "x", value }, "plugin-data.project.set") }),
+      (err) => err.code === "PLUGIN_DATA_INVALID",
+      `project value ${String(value)} should be rejected`,
+    );
+  }
+
+  for (const value of [null, true, "text", 0, [null, { nested: "ok" }], { nested: [1, 2] }]) {
+    await assert.doesNotReject(
+      pluginDataNodeSetProvider.prepare({ snapshot: snapshot(), input: { id: "T1", value }, request: request({ id: "T1", value }, "plugin-data.node.set") }),
+    );
+  }
+});
+
+test("plugin-data delete providers are namespaced and return removed", async () => {
+  const base = snapshot();
+  const nodeRequest = request({ id: "T1" }, "plugin-data.node.delete");
+  const nodePlan = await pluginDataNodeDeleteProvider.prepare({ snapshot: base, input: { id: "T1" }, request: nodeRequest });
+  assert.deepEqual(nodePlan.logFields, { scope: "node", node_id: "T1", key: null });
+  const nodeTx = createTransaction(base);
+  assert.deepEqual(await pluginDataNodeDeleteProvider.apply({ tx: nodeTx, plan: nodePlan }), { result: { removed: true }, effects: null });
+  assert.equal(nodeTx.getNodePluginData(PLUGIN, "T1"), undefined);
+  assert.deepEqual(nodeTx.getNode("T1").plugins["example.other"].data, { untouched: true });
+  assert.deepEqual(await pluginDataNodeDeleteProvider.apply({ tx: nodeTx, plan: nodePlan }), { result: { removed: false }, effects: null });
+
+  const projectRequest = request({ key: "old" }, "plugin-data.project.delete");
+  const projectPlan = await pluginDataProjectDeleteProvider.prepare({ snapshot: base, input: { key: "old" }, request: projectRequest });
+  const projectTx = createTransaction(base);
+  assert.deepEqual(await pluginDataProjectDeleteProvider.apply({ tx: projectTx, plan: projectPlan }), { result: { removed: true }, effects: null });
+  assert.equal(projectTx.getProjectPluginData(PLUGIN, "old"), undefined);
+  assert.deepEqual(projectTx.getProjectPluginData("example.other", "untouched"), true);
+  assert.deepEqual(await pluginDataProjectDeleteProvider.apply({ tx: projectTx, plan: projectPlan }), { result: { removed: false }, effects: null });
 });
