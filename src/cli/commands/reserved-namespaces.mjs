@@ -21,6 +21,7 @@ export const RESERVED_NAMESPACES = Object.freeze([
   "initiatives",
   "log",
   "snapshots",
+  "state",
   "batch",
   // Mutating claim/lifecycle commands.
   "take",
