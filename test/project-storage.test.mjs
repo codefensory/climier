@@ -46,7 +46,8 @@ test("storage: state path is deterministic even before metadata exists", async (
     const file = stateFilePath(dir);
     await writeState(dir, { version: 3, nodes: {}, edges: [], initiatives: {}, log: [] });
     const s = await readState(dir);
-    assert.equal(s.version, 3);
+    assert.equal(s.version, 4);
+    assert.equal(s.revision, 0);
     assert.equal(stateFilePath(dir), file);
   } finally {
     await rmTempProject(dir);

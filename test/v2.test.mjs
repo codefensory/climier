@@ -2,14 +2,15 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, importFresh, readState as readRawState, runCli, writeState as writeRawState } from "./helpers.mjs";
 
-test("init: creates an empty v3 state by default", async () => {
+test("init: creates an empty v4 state by default", async () => {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
   const { readState } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
     const s = await readState(dir);
-    assert.equal(s.version, 3);
+    assert.equal(s.version, 4);
+    assert.equal(s.revision, 0);
     assert.deepEqual(s.nodes, {});
     assert.deepEqual(s.edges, []);
     assert.deepEqual(s.log, []);
@@ -398,8 +399,8 @@ test("context: returns blockers, informing edges, and scoped knowledge for a v2 
       },
       edges: [
         { from: "G-auth-v2", to: "T-auth-1", type: "BLOCKS" },
-        { from: "T-auth-1", to: "G-auth-rollout", type: "INFORMS" },
       ],
+      initiatives: {},
       log: [],
     });
 
@@ -410,8 +411,7 @@ test("context: returns blockers, informing edges, and scoped knowledge for a v2 
     assert.equal(out.blocking[0].node.id, "G-auth-v2");
     assert.equal(out.blocking[0].satisfied, true);
     assert.equal(out.blocking[0].node.resolution.choice, "opaque sessions + redis");
-    assert.equal(out.informing.length, 1);
-    assert.equal(out.informing[0].node.id, "G-auth-rollout");
+    assert.equal(out.informing.length, 0);
     assert.equal(out.knowledge.length, 1);
     assert.equal(out.knowledge[0].id, "K-auth-ttl");
     assert.deepEqual(out.knowledge[0].scope_matches, ["domain"]);
@@ -476,7 +476,8 @@ test("CLI: v2 commands work end-to-end", async () => {
     assert.equal(data.knowledge[0].id, "K-auth-ttl");
 
     const state = await readRawState(dir);
-    assert.equal(state.version, 3);
+    assert.equal(state.version, 4);
+    assert.equal(state.revision >= 0, true);
   } finally {
     await rmTempProject(dir);
   }

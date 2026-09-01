@@ -24,7 +24,7 @@ function rawReadback(dir, id) {
 
 async function bootstrapState(dir, mutate) {
   const { writeState } = await importFresh("./storage/state.mjs");
-  const base = { version: 3, nodes: {}, edges: [], initiatives: {}, log: [] };
+  const base = { version: 4, revision: 0, nodes: {}, edges: [], initiatives: {}, log: [] };
   if (typeof mutate === "function") mutate(base);
   await writeState(dir, base);
   return base;
@@ -356,18 +356,19 @@ test("listSnapshots: lists multiple snapshots with mixed reasons", async () => {
 // init integration: force-init and corrupt-recovery paths
 // =====================================================================
 
-test("init --force on existing v3 state: snapshot reason=force-init, raw preserves the pre-reset state", async () => {
+test("init --force on existing v4 state: snapshot reason=force-init, raw preserves the pre-reset state", async () => {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
   const { readState, listSnapshots } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
-    // Pre-existing v3 state with a sentinel.
+    // Pre-existing v4 state with a sentinel.
     await bootstrapState(dir, (s) => {
       s.nodes["Sentinel-A"] = { id: "Sentinel-A", title: "alive" };
     });
     await init({ statePath: dir, flags: { force: true }, positional: [], projectDir: dir });
     const after = await readState(dir);
-    assert.equal(after.version, 3);
+    assert.equal(after.version, 4);
+    assert.equal(after.revision, 0);
     assert.deepEqual(after.nodes, {});
     const snaps = await listSnapshots(dir);
     assert.equal(snaps.length, 1);
@@ -385,7 +386,7 @@ test("init --force on existing v1 state: snapshot reason=force-init, raw preserv
   const { readState, listSnapshots } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
-    // Bootstrap v3 metadata first so stateFile() resolves.
+    // Bootstrap v4 metadata first so stateFile() resolves.
     await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
     const file = stateFilePath(dir);
     const v1Raw = JSON.stringify({
@@ -396,7 +397,8 @@ test("init --force on existing v1 state: snapshot reason=force-init, raw preserv
     await fs.writeFile(file, v1Raw);
     await init({ statePath: dir, flags: { force: true }, positional: [], projectDir: dir });
     const after = await readState(dir);
-    assert.equal(after.version, 3);
+    assert.equal(after.version, 4);
+    assert.equal(after.revision, 0);
     assert.deepEqual(after.nodes, {});
     const snaps = await listSnapshots(dir);
     assert.equal(snaps.length, 1);
@@ -420,7 +422,8 @@ test("init recovery on corrupt JSON (no --force): snapshot reason=corrupt-recove
     await fs.writeFile(file, corruptRaw);
     await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
     const after = await readState(dir);
-    assert.equal(after.version, 3);
+    assert.equal(after.version, 4);
+    assert.equal(after.revision, 0);
     assert.deepEqual(after.nodes, {});
     const snaps = await listSnapshots(dir);
     assert.equal(snaps.length, 1);
@@ -473,7 +476,7 @@ test("init --force twice creates two snapshots, newest first; original pre-reset
     await init({ statePath: dir, flags: { force: true }, positional: [], projectDir: dir });
     // After the first force-init, the state is empty. Populate "beta" and force-init again.
     const { writeState } = await importFresh("./storage/state.mjs");
-    await writeState(dir, { version: 3, nodes: { Beta: { id: "Beta", title: "second" } }, edges: [], initiatives: {}, log: [] });
+    await writeState(dir, { version: 4, revision: 0, nodes: { Beta: { id: "Beta", title: "second" } }, edges: [], initiatives: {}, log: [] });
     await new Promise((r) => setTimeout(r, 5));
     await init({ statePath: dir, flags: { force: true }, positional: [], projectDir: dir });
     const after = await readState(dir);

@@ -1181,7 +1181,7 @@ test("kernel.mutate: rejects plan missing target.id", async () => {
   } finally { await rmTempProject(dir); }
 });
 
-test("kernel.mutate: throws when state file is missing (v3 kernel does not bootstrap)", async () => {
+test("kernel.mutate: throws when state file is missing (v4 kernel does not bootstrap)", async () => {
   const { mutate } = await importKernel();
   const dir = await createTempProject();
   try {
@@ -1197,7 +1197,7 @@ test("kernel.mutate: throws when state file is missing (v3 kernel does not boots
       });
     } catch (err) { caught = err; }
     assert.ok(caught);
-    assert.match(caught.message, /state file missing or not v3/);
+    assert.match(caught.message, /state file missing or not v4/);
   } finally { await rmTempProject(dir); }
 });
 
@@ -1262,7 +1262,7 @@ test("kernel.mutate: two concurrent mutate calls serialise under the project loc
   }
 });
 
-test("kernel mutation accepts v3 state and persists v3 after a mutation", async () => {
+test("kernel mutation accepts v3 state and persists v4 after a mutation", async () => {
   const { executeMutation } = await importFresh("./kernel/mutation/execute.mjs");
   const dir = await createTempProject();
   try {
@@ -1289,7 +1289,8 @@ test("kernel mutation accepts v3 state and persists v3 after a mutation", async 
     });
     assert.equal(mutation.result.ok, true);
     const after = await readStateHelper(dir);
-    assert.equal(after.version, 3);
+    assert.equal(after.version, 4);
+    assert.equal(after.revision, 0);
     assert.equal(after.nodes.T1.title, "after");
   } finally {
     await rmTempProject(dir);

@@ -585,16 +585,17 @@ describe("idempotency contracts", () => {
     } finally { await rmTempProject(dir); }
   });
 
-  test("add-edge: BLOCKS A→B and BLOCKS B→A are distinct (no false dedupe)", async () => {
+  test("add-edge: BLOCKS A→B and BLOCKS B→A are rejected as CYCLE_DETECTED", async () => {
     const dir = await v2Project();
     try {
       await addTaskNode(dir, "T-a");
       await addTaskNode(dir, "T-b");
       const { default: addEdge } = await importFresh("./cli/commands/add-edge.mjs");
       await addEdge({ statePath: dir, positional: ["T-a", "T-b"], flags: { type: "BLOCKS", as: "alice" } });
-      await addEdge({ statePath: dir, positional: ["T-b", "T-a"], flags: { type: "BLOCKS", as: "alice" } });
-      const s = await readRawState(dir);
-      assert.equal(s.edges.length, 2);
+      await assert.rejects(
+        () => addEdge({ statePath: dir, positional: ["T-b", "T-a"], flags: { type: "BLOCKS", as: "alice" } }),
+        (err) => err.code === "CYCLE_DETECTED",
+      );
     } finally { await rmTempProject(dir); }
   });
 
@@ -914,7 +915,8 @@ describe("init --force on existing state", () => {
       const r2 = await runCli(["--project", dir, "init", "--force"]);
       assert.equal(r2.code, 0, r2.stderr);
       const s = await readRawState(dir);
-      assert.equal(s.version, 3);
+      assert.equal(s.version, 4);
+      assert.equal(s.revision, 0);
       assert.deepEqual(s.nodes, {});
       assert.deepEqual(s.edges, []);
     } finally { await rmTempProject(dir); }
@@ -932,7 +934,8 @@ describe("init --force on existing state", () => {
       r = await runCli(["--project", dir, "init", "--force"]);
       assert.equal(r.code, 0, r.stderr);
       const s = await readRawState(dir);
-      assert.equal(s.version, 3);
+      assert.equal(s.version, 4);
+      assert.equal(s.revision, 0);
       assert.deepEqual(s.nodes, {}, "data must be wiped after --force reinit");
       assert.deepEqual(s.initiatives, {}, "initiatives must be wiped too");
     } finally { await rmTempProject(dir); }
