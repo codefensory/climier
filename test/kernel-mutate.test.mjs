@@ -1290,7 +1290,7 @@ test("kernel mutation accepts v3 state and persists v4 after a mutation", async 
     assert.equal(mutation.result.ok, true);
     const after = await readStateHelper(dir);
     assert.equal(after.version, 4);
-    assert.equal(after.revision, 0);
+    assert.equal(after.revision, 1);
     assert.equal(after.nodes.T1.title, "after");
   } finally {
     await rmTempProject(dir);

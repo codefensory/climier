@@ -935,7 +935,7 @@ describe("init --force on existing state", () => {
       assert.equal(r.code, 0, r.stderr);
       const s = await readRawState(dir);
       assert.equal(s.version, 4);
-      assert.equal(s.revision, 0);
+      assert.equal(s.revision, 3);
       assert.deepEqual(s.nodes, {}, "data must be wiped after --force reinit");
       assert.deepEqual(s.initiatives, {}, "initiatives must be wiped too");
     } finally { await rmTempProject(dir); }

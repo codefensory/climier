@@ -29,6 +29,14 @@ export function validateRequest(request) {
   if (request.input !== undefined && (request.input === null || typeof request.input !== "object" || Array.isArray(request.input))) {
     throwV2("INVALID_EXECUTION_CONTRACT", "kernel.mutate: request.input must be an object when present", { field: "input" });
   }
+  if (request.if_state_revision !== undefined &&
+      (!Number.isInteger(request.if_state_revision) || request.if_state_revision < 0)) {
+    throwV2(
+      "INVALID_EXECUTION_CONTRACT",
+      "kernel.mutate: if_state_revision must be a non-negative integer",
+      { field: "if_state_revision", value: request.if_state_revision },
+    );
+  }
 }
 
 export function validateProvider(provider) {

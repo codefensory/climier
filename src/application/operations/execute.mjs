@@ -83,6 +83,9 @@ function buildRequest({ operation, actor, input }) {
   // projects the generic CAS fields onto the kernel request so the kernel can
   // check them against the fresh snapshot under its lock.
   if (input && typeof input === "object" && !Array.isArray(input)) {
+    if (Object.prototype.hasOwnProperty.call(input, "if_state_revision")) {
+      request.if_state_revision = input.if_state_revision;
+    }
     if (typeof input.id === "string" && input.id.length > 0 &&
         Number.isInteger(input.if_revision) && input.if_revision >= 1) {
       request.if_revision = {

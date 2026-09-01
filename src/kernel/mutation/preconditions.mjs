@@ -29,6 +29,26 @@ export function selectPrecondition(request, plan) {
  * against the fresh snapshot. Returns the normalized shape used by kernel
  * internals, or null when no declaration was provided.
  */
+export function checkStateRevision(expected, snapshot, commandName) {
+  if (expected === undefined || expected === null) return null;
+  if (!Number.isInteger(expected) || expected < 0) {
+    throwV2(
+      "INVALID_EXECUTION_CONTRACT",
+      `${commandName}: if_state_revision must be a non-negative integer`,
+      { field: "if_state_revision", value: expected },
+    );
+  }
+  const actual = snapshot && Number.isInteger(snapshot.revision) ? snapshot.revision : null;
+  if (actual !== expected) {
+    throwV2(
+      "STATE_REVISION_CONFLICT",
+      `${commandName}: state changed since revision ${expected}`,
+      { expected, actual },
+    );
+  }
+  return expected;
+}
+
 export function checkPrecondition(precondition, snapshot, commandName) {
   if (precondition === undefined || precondition === null) return null;
   if (typeof precondition !== "object" || Array.isArray(precondition)) {
