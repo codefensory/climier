@@ -301,7 +301,7 @@ test("NEGATIVE CONTROL: without smoke-sandbox, init --force with copied project_
         "if this assertion fails, the negative control no longer demonstrates the bug"
     );
     const after = JSON.parse(controlBytes);
-    assert.equal(after.version, 3);
+    assert.equal(after.version, 4);
     assert.deepEqual(
       after.nodes,
       {},

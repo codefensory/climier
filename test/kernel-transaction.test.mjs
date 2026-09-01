@@ -85,15 +85,15 @@ async function assertNoForbiddenImports() {
       `kernel/transaction.mjs must not import forbidden module (pattern: ${pattern})`,
     );
   }
-  // Positive assertion: the only relative import allowed is "../contracts/errors.mjs".
-  // If this assertion ever breaks, revisit the whitelist — the kernel draft
-  // must stay decoupled from v2/commands/state/lock/log/plugins/UI.
+  // The draft may import pure contracts, but must stay decoupled from
+  // storage, adapters, providers, and mutation orchestration.
   assert.match(src, /from\s+["']\.\.\/contracts\/errors\.mjs["']/, "kernel/transaction.mjs must import throwV2 from ../contracts/errors.mjs");
+  assert.match(src, /from\s+["']\.\.\/contracts\/state-invariants\.mjs["']/, "kernel/transaction.mjs must import shared state invariants");
   const relativeImports = [...src.matchAll(/from\s+["'](\.\.?\/[^"']+)["']/g)].map((m) => m[1]);
   for (const imp of relativeImports) {
     assert.ok(
-      imp === "../contracts/errors.mjs",
-      `kernel/transaction.mjs must only import "../contracts/errors.mjs"; got ${imp}`,
+      ["../contracts/errors.mjs", "../contracts/state-invariants.mjs"].includes(imp),
+      `kernel/transaction.mjs must only import pure contracts; got ${imp}`,
     );
   }
 }
@@ -294,6 +294,17 @@ test("updateNode: rejects missing target ids (snapshot + draft)", () => {
   assert.equal(updated.title, "mid-renamed");
 });
 
+test("addEdge: rejects a BLOCKS edge that closes a cycle", () => {
+  const tx = createTransaction({
+    ...baseSnapshot(),
+    edges: [{ from: "G1", to: "T1", type: "BLOCKS" }],
+  });
+  assert.throws(
+    () => tx.addEdge({ from: "T1", to: "G1", type: "BLOCKS" }),
+    (err) => err.code === "CYCLE_DETECTED",
+  );
+});
+
 test("addEdge: accepts a valid edge against snapshot + draft nodes", () => {
   const tx = createTransaction(baseSnapshot());
   tx.createNode({ id: "T-new", kind: "resolvable", subkind: "task", title: "new", status: "open" });
@@ -388,9 +399,9 @@ test("addEdge: rejects duplicates against snapshot and draft", () => {
   }
   assert.equal(caught.code, "DUPLICATE_EDGE");
   // Duplicate within the draft itself.
-  tx.addEdge({ from: "T1", to: "G1", type: "BLOCKS" });
+  tx.addEdge({ from: "T1", to: "G1", type: "DERIVED_FROM" });
   try {
-    tx.addEdge({ from: "T1", to: "G1", type: "BLOCKS" });
+    tx.addEdge({ from: "T1", to: "G1", type: "DERIVED_FROM" });
   } catch (err) {
     caught = err;
   }

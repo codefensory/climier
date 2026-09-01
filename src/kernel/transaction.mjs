@@ -20,10 +20,11 @@
 //     via ../contracts/errors.mjs.
 
 import { throwV2 } from "../contracts/errors.mjs";
-
-// Edge types accepted by mutating commands. Kept local so the kernel module
-// has no dependency on command adapters.
-const EDGE_TYPES = Object.freeze(["BLOCKS", "SUPERSEDES", "DERIVED_FROM"]);
+import {
+  EDGE_TYPES,
+  validateEdge,
+  blocksCyclePath,
+} from "../contracts/state-invariants.mjs";
 
 function clone(value) {
   // structuredClone is available in Node >= 17 and is the deep-clone primitive
@@ -260,43 +261,15 @@ export function createTransaction(snapshot) {
 
   function addEdge(rawEdge) {
     const { from, to, type } = validateEdgeShape(rawEdge, "addEdge");
-    if (from === to) {
-      throwV2("SELF_EDGE", `addEdge: edge ${from} -> ${to} is a self-edge`, { from, to, type });
-    }
-    if (!EDGE_TYPES.includes(type)) {
-      throwV2(
-        "INVALID_EDGE_TYPE",
-        `addEdge: edge type '${type}' is not allowed`,
-        { type, allowed: [...EDGE_TYPES] },
-      );
-    }
-    const fromNode = resolveEdgeNode(from);
-    const toNode = resolveEdgeNode(to);
-    if (!fromNode || !toNode) {
-      const missing = !fromNode ? from : to;
-      throwV2(
-        "INVALID_EDGE_TARGET",
-        `addEdge: edge ${type} ${from} -> ${to} references missing node '${missing}'`,
-        { from, to, type, missing },
-      );
-    }
-    // Structural kind checks (same shape as the kernel edge validator; the kernel
-    // owns these so providers cannot slip past validation by going through
-    // tx.addEdge).
+    const edge = { from, to, type };
+    validateEdge({ nodes: draftNodes }, edge, "addEdge");
     if (type === "BLOCKS") {
-      if (fromNode.kind !== "resolvable" || toNode.kind !== "resolvable") {
+      const cycle = blocksCyclePath({ edges: draftEdges }, edge);
+      if (cycle) {
         throwV2(
-          "INVALID_EDGE_KIND",
-          `addEdge: BLOCKS requires both ends to be resolvable (got ${fromNode.kind} -> ${toNode.kind})`,
-          { from, to, type, fromKind: fromNode.kind, toKind: toNode.kind },
-        );
-      }
-    } else if (type === "SUPERSEDES") {
-      if (fromNode.kind !== toNode.kind) {
-        throwV2(
-          "INVALID_EDGE_KIND",
-          `addEdge: SUPERSEDES requires both ends to be the same kind (got ${fromNode.kind} -> ${toNode.kind})`,
-          { from, to, type, fromKind: fromNode.kind, toKind: toNode.kind },
+          "CYCLE_DETECTED",
+          `addEdge: BLOCKS edge ${from} -> ${to} would create a cycle`,
+          { from, to, type, cycle },
         );
       }
     }

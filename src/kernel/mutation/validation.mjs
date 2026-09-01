@@ -5,6 +5,7 @@
 // assignment and persistence, without importing storage or adapters.
 
 import { throwV2 } from "../../contracts/errors.mjs";
+import { validateStateInvariants } from "../../contracts/state-invariants.mjs";
 
 const EDGE_TYPE_FIELD_RE = /^[A-Z_]+$/;
 
@@ -57,7 +58,7 @@ export function normalizeLogFields(logFields, commandName) {
 // and keeps future tightening isolated from transaction mechanics.
 export function validateDraftStructural(draftView, commandName) {
   const nodes = draftView && draftView.nodes;
-  if (!nodes || typeof nodes !== "object") {
+  if (!nodes || typeof nodes !== "object" || Array.isArray(nodes)) {
     throwV2("INVALID_EXECUTION_CONTRACT", `${commandName}: draft view missing nodes`, { field: "draft" });
   }
   for (const [id, node] of Object.entries(nodes)) {
@@ -69,15 +70,10 @@ export function validateDraftStructural(draftView, commandName) {
       );
     }
   }
-  const edges = Array.isArray(draftView.edges) ? draftView.edges : [];
-  for (const e of edges) {
-    if (!e || typeof e !== "object" || !EDGE_TYPE_FIELD_RE.test(e.type)) {
-      throwV2("INVALID_EXECUTION_CONTRACT", `${commandName}: draft edge has invalid type`, { edge: e });
-    }
-    if (!Object.prototype.hasOwnProperty.call(nodes, e.from) || !Object.prototype.hasOwnProperty.call(nodes, e.to)) {
-      throwV2("INVALID_EXECUTION_CONTRACT", `${commandName}: draft edge references missing draft node`, { edge: e });
-    }
-  }
+  validateStateInvariants(draftView, commandName, {
+    requireCollections: false,
+    requireRevision: false,
+  });
 }
 
 export { EDGE_TYPE_FIELD_RE, LOG_FIELD_ALLOWLIST, LOG_FIELD_RESERVED };
