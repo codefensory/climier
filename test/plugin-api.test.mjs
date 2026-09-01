@@ -15,6 +15,8 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs/promises";
+import path from "node:path";
 import {
   createTempProject,
   rmTempProject,
@@ -23,6 +25,7 @@ import {
   readState as readRawState,
   installPolicyFixture,
   uninstallPolicyFixture,
+  stateFilePath,
 } from "./helpers.mjs";
 
 const ID_REGEX = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
@@ -167,7 +170,71 @@ test("createApi: api.runtime exposes project_dir and agent exactly as passed in"
   const dir = await createTempProject();
   try {
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
-    assert.deepEqual(api.runtime, { project_dir: dir, agent: "alice" });
+    assert.deepEqual(api.runtime, {
+      project_dir: dir,
+      agent: "alice",
+      dataDir: path.join(path.dirname(stateFilePath(dir)), "plugins", "example.audit"),
+    });
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("createApi: creates a stable, isolated runtime.dataDir before returning", async () => {
+  const dir = await createTempProject();
+  try {
+    const pluginId = "example.audit";
+    const expected = path.join(path.dirname(stateFilePath(dir)), "plugins", pluginId);
+    const api = await freshApi(dir, { pluginId });
+
+    assert.equal(api.runtime.dataDir, expected);
+    const stat = await fs.stat(api.runtime.dataDir);
+    assert.equal(stat.isDirectory(), true);
+
+    // The host only provisions the directory. Plugin-owned contents survive a
+    // later API construction and are not parsed or migrated by the core.
+    await fs.writeFile(path.join(api.runtime.dataDir, "plugin.sqlite"), "plugin-owned", "utf8");
+    const restarted = await freshApi(dir, { pluginId });
+    assert.equal(restarted.runtime.dataDir, expected);
+    assert.equal(await fs.readFile(path.join(restarted.runtime.dataDir, "plugin.sqlite"), "utf8"), "plugin-owned");
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("createApi: runtime.dataDir is keyed by project id and plugin id", async () => {
+  const first = await createTempProject();
+  const second = await createTempProject();
+  try {
+    const metadata = JSON.stringify({ version: 1, project_id: "stable-runtime-project" });
+    await fs.writeFile(path.join(first, ".climier.json"), `${metadata}\n`, "utf8");
+    await fs.writeFile(path.join(second, ".climier.json"), `${metadata}\n`, "utf8");
+    const { createApi } = await importFresh("./plugins/api.mjs");
+
+    const firstPlugin = createApi({ projectDir: first, agent: "alice", pluginId: "plugin.a" });
+    const secondPlugin = createApi({ projectDir: second, agent: "bob", pluginId: "plugin.a" });
+    const otherPlugin = createApi({ projectDir: first, agent: "alice", pluginId: "plugin.b" });
+
+    assert.equal(firstPlugin.runtime.dataDir, secondPlugin.runtime.dataDir);
+    assert.notEqual(firstPlugin.runtime.dataDir, otherPlugin.runtime.dataDir);
+  } finally {
+    await rmTempProject(first);
+    await rmTempProject(second);
+  }
+});
+
+test("createApi: rejects traversal plugin ids before creating a runtime data directory", async () => {
+  const dir = await createTempProject();
+  try {
+    const { createApi } = await importFresh("./plugins/api.mjs");
+    await assert.rejects(
+      async () => createApi({ projectDir: dir, agent: "alice", pluginId: "../escape" }),
+      (err) => err && err.code === "PLUGIN_INVALID_DESCRIPTOR",
+    );
+    await assert.rejects(
+      fs.access(path.join(path.dirname(stateFilePath(dir)), "escape")),
+      (err) => err && err.code === "ENOENT",
+    );
   } finally {
     await rmTempProject(dir);
   }
@@ -754,9 +821,8 @@ test("createApi accepts pluginId that matches the V1 regex shape", async () => {
   const dir = await createTempProject();
   try {
     const { createApi } = await importFresh("./plugins/api.mjs");
-    // We do not enforce the regex here (descriptor/install does that); the
-    // surface only requires a non-empty pluginId string. Confirm both
-    // canonical V1 id shapes work and empty fails.
+    // The API applies the same safety validation as the descriptor before
+    // using pluginId as a filesystem path. Confirm canonical id shapes work.
     assert.ok(createApi({ projectDir: dir, agent: "x", pluginId: "example.audit" }));
     assert.ok(createApi({ projectDir: dir, agent: "x", pluginId: "a" }));
     assert.throws(() => createApi({ projectDir: dir, agent: "x", pluginId: "" }));
@@ -792,8 +858,13 @@ test("createApi: api.runtime shape stays { project_dir, agent } (no core leakage
   const dir = await createTempProject();
   try {
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
-    // V1 contract: runtime is exactly { project_dir, agent }.
-    assert.deepEqual(api.runtime, { project_dir: dir, agent: "alice" });
+    // Runtime exposes host identity and the plugin-owned data directory, but
+    // no internal core implementation details.
+    assert.deepEqual(api.runtime, {
+      project_dir: dir,
+      agent: "alice",
+      dataDir: path.join(path.dirname(stateFilePath(dir)), "plugins", "example.audit"),
+    });
   } finally {
     await rmTempProject(dir);
   }
