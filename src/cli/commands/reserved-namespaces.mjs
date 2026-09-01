@@ -40,6 +40,7 @@ export const RESERVED_NAMESPACES = Object.freeze([
   "deprecate-knowledge",
   "add-node",
   "add-edge",
+  "remove-edge",
   // Setup + meta commands.
   "init",
   "restore",

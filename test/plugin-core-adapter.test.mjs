@@ -71,6 +71,7 @@ const EXPECTED_OPS = [
   "knowledge.deprecate",
   // core utility (3)
   "edge.add",
+  "edge.remove",
   "note.add",
   "initiative.create",
 ];
@@ -207,6 +208,7 @@ test("plugin-core-adapter: run rejects unknown op with the full supported list",
       err.details.op === "edge.unknown" &&
       err.details.reason === "unknown operation" &&
       err.details.supported.includes("edge.add") &&
+      err.details.supported.includes("edge.remove") &&
       err.details.supported.includes("note.add") &&
       err.details.supported.includes("task.update"),
   );

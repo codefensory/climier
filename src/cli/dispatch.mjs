@@ -81,6 +81,8 @@ Adding to the DAG:
                                           Low-level node creation (prefer add-task/add-gate/add-knowledge).
   add-edge <from> <to> --type BLOCKS|SUPERSEDES|DERIVED_FROM
                                           Low-level edge creation.
+  remove-edge <from> <to> --type BLOCKS|SUPERSEDES|DERIVED_FROM
+                                          Idempotently remove one exact edge.
 
 Editing (any agent; status guard applies):
   update <id> [--title X] [--body "..."] [--initiative X] [--domain Y] [--tags ...]
@@ -101,7 +103,7 @@ Docs: see README.md for quickstart, workflow, storage model, and command referen
 Available commands:
   status, context, take, submit, accept, reject, resolve, release, cancel, reopen, search, history,
   show, update, add-note, add-initiative, add-task, add-gate, add-knowledge,
-  deprecate-knowledge, add-node, add-edge, initiatives, log, init, snapshots,
+  deprecate-knowledge, add-node, add-edge, remove-edge, initiatives, log, init, snapshots,
   restore, ui, help, version.`;
 
 // These flags must not consume the next non-flag token as their value. This
@@ -238,7 +240,7 @@ export async function runCli({ argv = process.argv.slice(2), write = console.log
     if (error.code === "MODULE_NOT_FOUND" || error.code === "ERR_MODULE_NOT_FOUND") {
       if (!parsed.command) {
         write(formatError(
-          "no command given. Available: status, context, take, submit, accept, reject, resolve, release, cancel, reopen, search, history, show, update, add-note, add-task, add-gate, add-knowledge, add-initiative, add-node, add-edge, deprecate-knowledge, initiatives, log, init, snapshots, restore, ui, help, version",
+          "no command given. Available: status, context, take, submit, accept, reject, resolve, release, cancel, reopen, search, history, show, update, add-note, add-task, add-gate, add-knowledge, add-initiative, add-node, add-edge, remove-edge, deprecate-knowledge, initiatives, log, init, snapshots, restore, ui, help, version",
         ));
       } else {
         write(formatError(`unknown command '${parsed.command}'`));
