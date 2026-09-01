@@ -14,6 +14,7 @@ import {
   informingForNode,
   isCurrent,
   supersededBy,
+  projectSnapshot,
 } from "../read-model/index.mjs";
 
 const DEFAULT_STALE_MS = 2 * 60 * 60 * 1000;
@@ -315,8 +316,12 @@ async function readSnapshot(projectDir) {
   return readState(projectDir);
 }
 
-export function createQuery({ projectDir, agent }) {
+export function createQuery({ projectDir, agent, pluginId }) {
   return {
+    async snapshot() {
+      const snapshot = await readSnapshot(projectDir);
+      return projectSnapshot({ snapshot, pluginId });
+    },
     async node(id) {
       if (typeof id !== "string" || !id) throw new Error("query.node: id required");
       const snapshot = await readSnapshot(projectDir);

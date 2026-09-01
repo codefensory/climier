@@ -40,7 +40,7 @@ export function createApi({ projectDir, agent, pluginId }) {
     project_dir: projectDir,
     agent: typeof agent === "string" ? agent : "",
   };
-  const query = createQuery({ projectDir, agent: runtime.agent });
+  const query = createQuery({ projectDir, agent: runtime.agent, pluginId });
   const data = createData({ projectDir, agent: runtime.agent, pluginId });
   const core = createCore({
     projectDir,
