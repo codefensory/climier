@@ -18,7 +18,7 @@ import {
   validateProvider,
   validateRequest,
 } from "./request.mjs";
-import { checkPrecondition, selectPrecondition } from "./preconditions.mjs";
+import { checkPrecondition, checkStateRevision, selectPrecondition } from "./preconditions.mjs";
 import {
   assignRevisionsAndDiff,
   computeEdgeDiff,
@@ -147,12 +147,14 @@ async function executeStateMutation({ projectDir, request, stateOperation, polic
     ...(currentState && Object.prototype.hasOwnProperty.call(currentState, "plugins")
       ? { plugins: currentState.plugins }
       : {}),
+    revision: currentState && Number.isInteger(currentState.revision) ? currentState.revision : 0,
   });
   const prepared = await stateOperation.prepare({ projectDir, snapshot, input: request.input, request });
   if (!prepared || typeof prepared !== "object" || Array.isArray(prepared) || !prepared.target || typeof prepared.target.id !== "string") {
     throwV2("INVALID_EXECUTION_CONTRACT", `${commandName}: state operation prepare must return a plan with target`, { field: "plan" });
   }
   const plan = Object.freeze({ ...prepared, target: Object.freeze({ ...prepared.target }) });
+  checkStateRevision(request.if_state_revision, snapshot, commandName);
   await runPolicy(policyAction, snapshot, plan, request, commandName);
   const applied = await stateOperation.apply({ snapshot, plan, input: request.input, request });
   if (!applied || typeof applied !== "object" || !applied.state || typeof applied.state !== "object" || Array.isArray(applied.state)) {
@@ -163,7 +165,10 @@ async function executeStateMutation({ projectDir, request, stateOperation, polic
     if (!exists) throwV2("INVALID_STATUS", `${commandName}: cannot snapshot a missing current state`, { state_file: statePath });
     snapshotMeta = await createSnapshot(projectDir, plan.snapshotReason);
   }
-  const nextState = { ...applied.state };
+  const nextState = {
+    ...applied.state,
+    revision: currentState ? snapshot.revision + 1 : applied.state.revision,
+  };
   let logEntry = null;
   if (plan.log) {
     logEntry = prepareLogEntry({ action: plan.logAction || request.action, agent: request.actor, ...plan.log }, { pluginId });
@@ -207,6 +212,7 @@ export async function executeMutation({ projectDir, request, provider, policyAct
   normalizeLogFields(frozenPlan.logFields, commandName);
 
   // 2) Validate caller/provider CAS before policy and apply.
+  checkStateRevision(request.if_state_revision, snapshot, commandName);
   const precondition = selectPrecondition(request, frozenPlan);
   checkPrecondition(precondition, snapshot, commandName);
 
@@ -272,6 +278,7 @@ export async function executeMutation({ projectDir, request, provider, policyAct
       edges: draftView.edges,
       initiatives: finalInitiatives,
       log: [...(Array.isArray(snapshot.log) ? snapshot.log : []), logPayload],
+      revision: snapshot.revision + 1,
     };
     if (Object.prototype.hasOwnProperty.call(snapshot, "plugins") || Object.keys(pluginsAfter).length > 0) {
       persistedState.plugins = pluginsAfter;

@@ -368,7 +368,7 @@ test("init --force on existing v4 state: snapshot reason=force-init, raw preserv
     await init({ statePath: dir, flags: { force: true }, positional: [], projectDir: dir });
     const after = await readState(dir);
     assert.equal(after.version, 4);
-    assert.equal(after.revision, 0);
+    assert.equal(after.revision, 1);
     assert.deepEqual(after.nodes, {});
     const snaps = await listSnapshots(dir);
     assert.equal(snaps.length, 1);

@@ -110,7 +110,7 @@ test("kernel state.restore migrates a v2 snapshot to v4 before writing it", asyn
     const restored = await readState(dir);
     assert.equal(out.result.snapshot.id, target.id);
     assert.equal(restored.version, 4);
-    assert.equal(restored.revision, 0);
+    assert.equal(restored.revision, 1);
     assert.deepEqual(restored.nodes.legacy, legacy.nodes.legacy);
     assert.equal(restored.log.at(-1).snapshot_id, target.id);
   } finally { await rmTempProject(dir); }

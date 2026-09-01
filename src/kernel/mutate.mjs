@@ -17,6 +17,7 @@ import {
 } from "./mutation/execute.mjs";
 import {
   checkPrecondition,
+  checkStateRevision,
   selectPrecondition,
 } from "./mutation/preconditions.mjs";
 import {
@@ -78,6 +79,7 @@ export const __kernelInternals = Object.freeze({
   freezePlan,
   validateMutationArguments,
   checkPrecondition,
+  checkStateRevision,
   selectPrecondition,
   assignRevisionsAndDiff,
   computeEdgeDiff,
