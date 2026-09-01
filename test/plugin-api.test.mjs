@@ -839,6 +839,17 @@ test("createApi accepts pluginId that matches the V1 regex shape", async () => {
 // api.core.run({op,input}) executes exactly one core action per call.
 // =========================================================================
 
+test("createApi: public api.version is 3 while api.core keeps its operation version", async () => {
+  const dir = await createTempProject();
+  try {
+    const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
+    assert.equal(api.version, 3);
+    assert.equal(api.core.version, 2);
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
 test("createApi: api.core.version is 2 and api.core.run is a function", async () => {
   const dir = await createTempProject();
   try {

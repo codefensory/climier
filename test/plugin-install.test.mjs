@@ -69,6 +69,7 @@ async function createFixturePackage(dir, overrides = {}) {
     id: overrides.id !== undefined ? overrides.id : "test.plugin",
     command: overrides.command !== undefined ? overrides.command : "test-cmd",
     entry: overrides.entry !== undefined ? overrides.entry : "./climier.mjs",
+    api: overrides.api !== undefined ? overrides.api : 3,
   };
   await fs.writeFile(
     path.join(pkgDir, "package.json"),
@@ -228,14 +229,28 @@ test("plugin-descriptor: validateDescriptor rejects missing climier fields with 
     [{}, "id"],
     [{ id: "ok.id" }, "command"],
     [{ id: "ok.id", command: "cmd" }, "entry"],
-    [{ id: "ok.id", command: "cmd", entry: "" }, "entry"],
-    [{ id: "bad id", command: "cmd", entry: "./x.mjs" }, "id regex"],
+    [{ id: "ok.id", command: "cmd", entry: "", api: 3 }, "entry"],
+    [{ id: "bad id", command: "cmd", entry: "./x.mjs", api: 3 }, "id regex"],
   ];
   for (const [descriptor, expected] of cases) {
     const err = capture(() => validateDescriptor(descriptor));
     assert.ok(err, `expected throw for ${JSON.stringify(descriptor)} (looking for: ${expected})`);
     assert.equal(err.code, "PLUGIN_INVALID_DESCRIPTOR");
   }
+});
+
+test("plugin-descriptor: requires the exact supported API major", () => {
+  const { validateDescriptor } = require(DESCRIPTOR_MODULE);
+  const base = { id: "ok.id", command: "cmd", entry: "./x.mjs" };
+  for (const api of [undefined, null, "3", 2, 4, 3.1]) {
+    const descriptor = api === undefined ? base : { ...base, api };
+    const err = capture(() => validateDescriptor(descriptor));
+    assert.ok(err, `expected incompatibility for api=${String(api)}`);
+    assert.equal(err.code, "PLUGIN_API_INCOMPATIBLE");
+    assert.equal(err.details.required, 3);
+    assert.equal(err.details.received, api ?? null);
+  }
+  assert.deepEqual(validateDescriptor({ ...base, api: 3 }), { ...base, api: 3 });
 });
 
 test("plugin-descriptor: importEntry rejects missing default.commands with PLUGIN_LOAD_FAILED", async () => {

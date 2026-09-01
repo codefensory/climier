@@ -1,6 +1,8 @@
 // plugins/api.mjs: assemble the host API surface.
 //
-// Per ADR-005 §"API y persistencia" + ADR-006 §"API y compatibilidad":
+// Per ADR-021 §Decision 6, the public host surface is Plugin API v3. The
+// nested core operation adapter retains its own version for its operation
+// contract; `api.version` is the compatibility marker for the whole API.
 //   api = {
 //     runtime: { project_dir, agent, dataDir },
 //     query:   { node, context, status, history },
@@ -47,5 +49,5 @@ export function createApi({ projectDir, agent, pluginId }) {
     agent: runtime.agent,
     pluginId,
   });
-  return { runtime, query, data, core };
+  return { version: 3, runtime, query, data, core };
 }

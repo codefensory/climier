@@ -1,7 +1,11 @@
-// Plugin descriptor contract (ADR-005 §"Instalación e identidad").
+// Plugin descriptor contract (ADR-021 §Decision 6).
 //
 // The descriptor lives in package.json under `climier`:
-//   { "climier": { "id": "...", "command": "...", "entry": "./climier.mjs" } }
+//   { "climier": { "id": "...", "command": "...", "entry": "./climier.mjs", "api": 3 } }
+//
+// API compatibility is checked while reading the descriptor, before the
+// entrypoint is imported. This keeps an unsupported plugin from executing
+// import-time code against a host that cannot provide its contract.
 //
 // This module validates the shape and id regex, and imports the entrypoint
 // as ESM to ensure it has a default.commands object. All errors are thrown
@@ -15,6 +19,7 @@ import { pathToFileURL } from "node:url";
 
 // ADR-005 §"Instalación e identidad": id must match this regex.
 export const PLUGIN_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+export const PLUGIN_API_VERSION = 3;
 
 export class PluginInvalidDescriptor extends Error {
   constructor(message, details = {}) {
@@ -30,6 +35,17 @@ export class PluginLoadFailed extends Error {
     super(message);
     this.code = "PLUGIN_LOAD_FAILED";
     this.details = details;
+    this.toJSON = () => ({ ok: false, error: { code: this.code, message: this.message, details: this.details } });
+  }
+}
+
+export class PluginApiIncompatible extends Error {
+  constructor(received) {
+    super(
+      `plugin-descriptor: API version ${String(received ?? "missing")} is incompatible; host supports API version ${PLUGIN_API_VERSION}`,
+    );
+    this.code = "PLUGIN_API_INCOMPATIBLE";
+    this.details = { required: PLUGIN_API_VERSION, received: received ?? null };
     this.toJSON = () => ({ ok: false, error: { code: this.code, message: this.message, details: this.details } });
   }
 }
@@ -51,7 +67,7 @@ export function validateDescriptor(descriptor) {
       { descriptor: descriptor ?? null },
     );
   }
-  const { id, command, entry } = descriptor;
+  const { id, command, entry, api } = descriptor;
   const validId = validatePluginId(id);
   if (typeof command !== "string" || !command.trim()) {
     throw new PluginInvalidDescriptor(
@@ -65,7 +81,10 @@ export function validateDescriptor(descriptor) {
       { entry: typeof entry === "string" ? entry : null },
     );
   }
-  return { id: validId, command, entry };
+  if (api !== PLUGIN_API_VERSION) {
+    throw new PluginApiIncompatible(api);
+  }
+  return { id: validId, command, entry, api };
 }
 
 // readDescriptor: load and validate a package.json's climier field.
