@@ -25,7 +25,7 @@ import {
   computeInitiativeDiff,
   deepEqualNodes,
 } from "./diff.mjs";
-import { deriveTargetRevision } from "./revisions.mjs";
+import { deriveTargetRevision, stripRevision } from "./revisions.mjs";
 import { normalizeLogFields, validateDraftStructural } from "./validation.mjs";
 import { buildLogEntry } from "./log-entry.mjs";
 
@@ -33,8 +33,24 @@ import { buildLogEntry } from "./log-entry.mjs";
  * Validate arguments accepted by kernel.mutate before execution begins.
  * Returns the operation label used in contract errors.
  */
-export function validateMutationArguments({ request, provider, stateOperation } = {}) {
+function validateBatch(batch) {
+  if (!batch || typeof batch !== "object" || Array.isArray(batch)) {
+    throwV2("INVALID_EXECUTION_CONTRACT", "kernel.mutate(core.batch): batch must be an object", { field: "batch" });
+  }
+  if (!batch.registry || typeof batch.registry !== "object" || typeof batch.registry.lookup !== "function") {
+    throwV2("INVALID_EXECUTION_CONTRACT", "kernel.mutate(core.batch): batch.registry.lookup must be a function", { field: "batch.registry" });
+  }
+}
+
+export function validateMutationArguments({ request, provider, stateOperation, batch } = {}) {
   validateRequest(request);
+  if (batch !== undefined) {
+    if (request.action !== "core.batch") {
+      throwV2("INVALID_EXECUTION_CONTRACT", "kernel.mutate: batch is only valid for core.batch", { field: "batch" });
+    }
+    validateBatch(batch);
+    return operationLabel(request);
+  }
   if (stateOperation !== undefined) {
     if (!stateOperation || typeof stateOperation !== "object" ||
         typeof stateOperation.prepare !== "function" || typeof stateOperation.apply !== "function") {
@@ -115,6 +131,199 @@ async function runPolicy(policyAction, snapshot, plan, request, commandName) {
   }
 }
 
+function cloneBatchValue(value) {
+  try {
+    return structuredClone(value);
+  } catch (err) {
+    throwV2("INVALID_EXECUTION_CONTRACT", "kernel.mutate(core.batch): result must be cloneable JSON data", {
+      field: "batch.result",
+      cause: err && err.name ? err.name : "DataCloneError",
+    });
+  }
+}
+
+function freezeSnapshotValue(value) {
+  if (!value || typeof value !== "object" || Object.isFrozen(value)) return value;
+  Object.freeze(value);
+  for (const child of Object.values(value)) freezeSnapshotValue(child);
+  return value;
+}
+
+function batchSnapshot(snapshot, tx) {
+  const view = tx.view({ includePlugins: true });
+  const nodes = {};
+  for (const [id, node] of Object.entries(view.nodes || {})) {
+    const previous = snapshot.nodes && snapshot.nodes[id];
+    const copy = { ...node };
+    if (!previous) {
+      copy.revision = 1;
+    } else if (deepEqualNodes(stripRevision(previous), node)) {
+      copy.revision = Number.isInteger(previous.revision) ? previous.revision : 1;
+    } else {
+      copy.revision = (Number.isInteger(previous.revision) ? previous.revision : 0) + 1;
+    }
+    nodes[id] = copy;
+  }
+  const current = {
+    ...snapshot,
+    nodes,
+    edges: view.edges,
+    initiatives: view.initiatives,
+  };
+  if (Object.prototype.hasOwnProperty.call(snapshot, "plugins") || Object.keys(view.plugins || {}).length > 0) {
+    current.plugins = view.plugins || {};
+  } else {
+    delete current.plugins;
+  }
+  return freezeSnapshotValue(current);
+}
+
+function batchOperationError(index, op, err) {
+  const cause = {
+    code: err && typeof err.code === "string" ? err.code : "BATCH_OPERATION_FAILED",
+    message: err && typeof err.message === "string" ? err.message : String(err),
+  };
+  if (err && err.details !== undefined) cause.details = cloneBatchValue(err.details);
+  const wrapped = new Error(`core.batch: operation ${index} (${op}) failed: ${cause.message}`);
+  wrapped.code = "BATCH_OPERATION_FAILED";
+  wrapped.details = { operation_index: index, op, cause };
+  return wrapped;
+}
+
+function validateBatchOperation(raw, index) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    throwV2("INVALID_EXECUTION_CONTRACT", `core.batch: operations[${index}] must be an object`, { field: `operations[${index}]` });
+  }
+  if (typeof raw.op !== "string" || raw.op.length === 0) {
+    throwV2("INVALID_EXECUTION_CONTRACT", `core.batch: operations[${index}].op is required`, { field: `operations[${index}].op` });
+  }
+  if (!raw.input || typeof raw.input !== "object" || Array.isArray(raw.input)) {
+    throwV2("INVALID_EXECUTION_CONTRACT", `core.batch: operations[${index}].input must be an object`, { field: `operations[${index}].input` });
+  }
+  for (const key of ["actor", "pluginId", "plugin_id", "handler", "argv", "as", "_as"]) {
+    if (Object.prototype.hasOwnProperty.call(raw, key)) {
+      throwV2("INVALID_EXECUTION_CONTRACT", `core.batch: operations[${index}].${key} is not allowed`, { field: `operations[${index}].${key}` });
+    }
+    if (Object.prototype.hasOwnProperty.call(raw.input, key)) {
+      throwV2("INVALID_EXECUTION_CONTRACT", `core.batch: operations[${index}].input.${key} is not allowed`, { field: `operations[${index}].input.${key}` });
+    }
+  }
+  return { op: raw.op, input: cloneBatchValue(raw.input) };
+}
+
+async function executeBatchMutation({ projectDir, request, batch, policyAction, pluginId }) {
+  const commandName = "core.batch";
+  const loadedState = await readState(projectDir);
+  const snapshot = loadedState;
+  if (!snapshot || typeof snapshot !== "object" || snapshot.version !== 4) {
+    throw new Error(`${commandName}: state file missing or not v4 (run init first)`);
+  }
+  checkStateRevision(request.if_state_revision, snapshot, commandName);
+  const rawOperations = request.input && request.input.operations;
+  if (!Array.isArray(rawOperations) || rawOperations.length === 0) {
+    throwV2("INVALID_EXECUTION_CONTRACT", `${commandName}: operations must be a non-empty array`, { field: "operations" });
+  }
+  const operations = [];
+  for (let index = 0; index < rawOperations.length; index += 1) {
+    try {
+      operations.push(validateBatchOperation(rawOperations[index], index));
+    } catch (err) {
+      throw batchOperationError(index, rawOperations[index] && rawOperations[index].op, err);
+    }
+  }
+  const tx = createTransaction(snapshot);
+  const results = [];
+  const plans = [];
+  for (let index = 0; index < operations.length; index += 1) {
+    const operation = operations[index];
+    let plan;
+    try {
+      const operationSnapshot = batchSnapshot(snapshot, tx);
+      const entry = batch.registry.lookup(operation.op);
+      if (!entry || typeof entry !== "object") {
+        const error = new Error(`core.batch: operation '${operation.op}' is not registered`);
+        error.code = "OPERATION_NOT_FOUND";
+        error.details = { operation: operation.op };
+        throw error;
+      }
+      const provider = entry.provider || entry;
+      validateProvider(provider);
+      const operationRequest = { action: operation.op, actor: request.actor, input: operation.input };
+      if (Object.prototype.hasOwnProperty.call(operation.input, "if_state_revision")) {
+        throwV2("INVALID_EXECUTION_CONTRACT", `${commandName}: operation input cannot carry if_state_revision`, { field: `operations[${index}].input.if_state_revision` });
+      }
+      if (Object.prototype.hasOwnProperty.call(operation.input, "if_revision")) {
+        operationRequest.if_revision = { kind: "single", id: operation.input.id, value: Number(operation.input.if_revision) };
+      }
+      if (operation.input.if_revisions && typeof operation.input.if_revisions === "object" && !Array.isArray(operation.input.if_revisions)) {
+        operationRequest.if_revision = { kind: "multi", values: operation.input.if_revisions };
+      }
+      const prepared = await provider.prepare({ snapshot: operationSnapshot, input: operation.input, request: operationRequest, pluginId });
+      plan = freezePlan(prepared, operationLabel(operationRequest));
+      normalizeLogFields(plan.logFields, operationLabel(operationRequest));
+      checkPrecondition(selectPrecondition(operationRequest, plan), operationSnapshot, operationLabel(operationRequest));
+      await runPolicy(policyAction, operationSnapshot, plan, operationRequest, operationLabel(operationRequest));
+      const before = operationSnapshot;
+      const applied = await provider.apply({ tx, plan, input: operation.input, request: operationRequest, snapshot: before });
+      let result = null;
+      let effects = null;
+      if (applied !== undefined && applied !== null) {
+        if (typeof applied !== "object" || Array.isArray(applied)) {
+          throwV2("INVALID_EXECUTION_CONTRACT", `${operationLabel(operationRequest)}: apply must return an object`, { field: "apply" });
+        }
+        if ("result" in applied) result = cloneBatchValue(applied.result);
+        if ("effects" in applied) effects = applied.effects == null ? null : cloneBatchValue(applied.effects);
+      }
+      const after = batchSnapshot(snapshot, tx);
+      const changed = !deepEqualNodes(
+        { nodes: before.nodes, edges: before.edges, initiatives: before.initiatives, plugins: before.plugins || {} },
+        { nodes: after.nodes, edges: after.edges, initiatives: after.initiatives, plugins: after.plugins || {} },
+      );
+      plans.push(plan);
+      results.push({ op: operation.op, result, effects, idempotent: !changed });
+    } catch (err) {
+      throw batchOperationError(index, operation.op, err);
+    }
+  }
+
+  const draftView = tx.view({ includePlugins: true });
+  validateDraftStructural(draftView, commandName);
+  const { next: nextNodes, removed: removedNodes, created, updated } = assignRevisionsAndDiff(snapshot, draftView);
+  const { added: addedEdges, removed: removedEdges } = computeEdgeDiff(snapshot.edges || [], draftView.edges || []);
+  const initiativeDiff = computeInitiativeDiff(snapshot.initiatives || {}, draftView.initiatives || {});
+  const pluginsBefore = snapshot.plugins && typeof snapshot.plugins === "object" && !Array.isArray(snapshot.plugins) ? snapshot.plugins : {};
+  const pluginsAfter = draftView.plugins && typeof draftView.plugins === "object" && !Array.isArray(draftView.plugins) ? draftView.plugins : {};
+  const pluginsChanged = !deepEqualNodes(pluginsBefore, pluginsAfter);
+  const changed = created.length > 0 || updated.length > 0 || addedEdges.length > 0 || removedEdges.length > 0 || removedNodes.length > 0 || initiativeDiff.created.length > 0 || initiativeDiff.updated.length > 0 || pluginsChanged;
+  const revisionBefore = snapshot.revision;
+  const revisionAfter = changed ? revisionBefore + 1 : revisionBefore;
+  if (changed) {
+    const finalNodes = {};
+    for (const [id, node] of Object.entries(nextNodes)) finalNodes[id] = node;
+    const finalInitiatives = {};
+    for (const [name, init] of Object.entries(draftView.initiatives || {})) finalInitiatives[name] = init;
+    const logOperations = results.map((entry, index) => ({
+      index,
+      op: entry.op,
+      target: plans[index] && plans[index].target ? plans[index].target.id : null,
+      idempotent: entry.idempotent,
+    }));
+    const logEntry = prepareLogEntry({ action: commandName, agent: request.actor, revision: revisionAfter, operations: logOperations }, { pluginId });
+    const persistedState = {
+      ...snapshot,
+      nodes: finalNodes,
+      edges: draftView.edges,
+      initiatives: finalInitiatives,
+      log: [...(Array.isArray(snapshot.log) ? snapshot.log : []), logEntry],
+      revision: revisionAfter,
+    };
+    if (Object.prototype.hasOwnProperty.call(snapshot, "plugins") || Object.keys(pluginsAfter).length > 0) persistedState.plugins = pluginsAfter;
+    else delete persistedState.plugins;
+    await writeState(projectDir, persistedState);
+  }
+  return { ok: true, revision_before: revisionBefore, revision_after: revisionAfter, results };
+}
+
 async function executeStateMutation({ projectDir, request, stateOperation, policyAction, pluginId }) {
   const commandName = commandLabel(request);
   const statePath = stateFile(projectDir);
@@ -193,8 +402,11 @@ async function executeStateMutation({ projectDir, request, stateOperation, polic
  * This function intentionally performs no lock acquisition so all reads,
  * provider callbacks and the final atomic write share the façade's lock.
  */
-export async function executeMutation({ projectDir, request, provider, policyAction, pluginId, stateOperation }) {
-  const commandName = validateMutationArguments({ request, provider, stateOperation });
+export async function executeMutation({ projectDir, request, provider, policyAction, pluginId, stateOperation, batch }) {
+  const commandName = validateMutationArguments({ request, provider, stateOperation, batch });
+  if (batch !== undefined) {
+    return executeBatchMutation({ projectDir, request, batch, policyAction, pluginId });
+  }
   if (stateOperation !== undefined) {
     return executeStateMutation({ projectDir, request, stateOperation, policyAction, pluginId });
   }
@@ -308,4 +520,4 @@ export async function executeMutation({ projectDir, request, provider, policyAct
 
 // Compatibility aliases retained for callers that imported the coordinator
 // helpers before executeMutation became the pipeline boundary.
-export { commandLabel, operationLabel };
+export { commandLabel, operationLabel, executeBatchMutation };

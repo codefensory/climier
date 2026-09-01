@@ -12,6 +12,7 @@ import {
   commandLabel,
   operationLabel,
   executeMutation,
+  executeBatchMutation,
   freezePlan,
   validateMutationArguments,
 } from "./mutation/execute.mjs";
@@ -49,8 +50,8 @@ function currentNestedDepth() {
  * Stable kernel mutation API. All reads, provider callbacks and persistence
  * run through one project lock and are delegated to the execution coordinator.
  */
-export async function mutate({ projectDir, request, provider, policyAction, pluginId, stateOperation }) {
-  const commandName = validateMutationArguments({ request, provider, stateOperation });
+export async function mutate({ projectDir, request, provider, policyAction, pluginId, stateOperation, batch }) {
+  const commandName = validateMutationArguments({ request, provider, stateOperation, batch });
   const parentDepth = currentNestedDepth();
   if (parentDepth > 0) {
     throwV2(
@@ -68,6 +69,7 @@ export async function mutate({ projectDir, request, provider, policyAction, plug
       policyAction,
       pluginId,
       stateOperation,
+      batch,
     })),
   );
 }
@@ -76,6 +78,7 @@ export const __kernelInternals = Object.freeze({
   commandLabel,
   operationLabel,
   executeMutation,
+  executeBatchMutation,
   freezePlan,
   validateMutationArguments,
   checkPrecondition,

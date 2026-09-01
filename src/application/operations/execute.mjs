@@ -148,6 +148,31 @@ async function buildPolicyAction({ source, projectDir, operation }) {
   };
 }
 
+async function buildBatchPolicyAction({ source, projectDir }) {
+  const selectPolicy = resolvePolicySelector(source);
+  if (!selectPolicy) return null;
+  const policy = await selectPolicy({ projectDir });
+  if (policy === null || policy === undefined) return null;
+  const authorizeAction = resolveAuthorizer(source);
+  if (!authorizeAction) {
+    contractError("source.authorizeAction must be a function when a policy is selected", "source.authorizeAction");
+  }
+  return {
+    pluginId: policy.pluginId || null,
+    async decide({ snapshot, target, request, action }) {
+      return await authorizeAction({
+        policy,
+        action,
+        actor: request.actor,
+        target,
+        snapshot,
+        projectDir,
+        projectConfig: policy.projectConfig,
+      });
+    },
+  };
+}
+
 /**
  * Compose one registered operation and delegate it once to the kernel.
  *
@@ -182,6 +207,42 @@ export async function executeOperation(args = {}) {
   // Keep this as the sole call to the supplied mutation frontier. In
   // particular, application code does not retry, call lifecycle handlers, or
   // persist state itself.
+  return await mutate(mutation);
+}
+
+/**
+ * Execute a declarative batch through one kernel mutation call.
+ * `operations` may be supplied directly or through `input`; the global CAS
+ * is intentionally projected onto the outer request, never each operation.
+ */
+export async function executeBatch(args = {}) {
+  if (!args || typeof args !== "object" || Array.isArray(args)) {
+    contractError("arguments must be an object", "arguments");
+  }
+  const { projectDir, actor, source } = args;
+  validateArguments({ projectDir, actor, operation: "core.batch", source });
+  const registry = resolveRegistry(source);
+  const mutate = resolveMutation(source);
+  const input = args.input && typeof args.input === "object" && !Array.isArray(args.input)
+    ? args.input
+    : { operations: args.operations };
+  const operations = args.operations === undefined ? input.operations : args.operations;
+  const batchInput = { operations };
+  const expectedRevision = args.if_state_revision === undefined
+    ? input.if_state_revision
+    : args.if_state_revision;
+  const request = { action: "core.batch", actor, input: batchInput };
+  if (expectedRevision !== undefined) request.if_state_revision = expectedRevision;
+  const policyAction = await buildBatchPolicyAction({ source, projectDir });
+  const mutation = {
+    projectDir,
+    request,
+    batch: { registry },
+  };
+  if (policyAction) mutation.policyAction = policyAction;
+  if (typeof source.pluginId === "string" && source.pluginId.length > 0) {
+    mutation.pluginId = source.pluginId;
+  }
   return await mutate(mutation);
 }
 
