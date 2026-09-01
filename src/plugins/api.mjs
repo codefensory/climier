@@ -5,7 +5,7 @@
 //     runtime: { project_dir, agent },
 //     query:   { node, context, status, history },
 //     data:    { node: { get, set }, project: { get, set } },
-//     core:    { version: 2, run({ op, input }) },
+//     core:    { version: 2, run({ op, input }), batch({ if_state_revision, operations }) },
 //   }
 //
 // The dispatch layer invokes createApi({ projectDir, agent, pluginId })

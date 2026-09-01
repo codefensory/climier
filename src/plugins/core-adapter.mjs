@@ -1,7 +1,9 @@
 // V2 plugin core surface (ADR-006 §API y compatibilidad + ADR-012 §2).
 //
 // `createCore({ projectDir, agent, pluginId })` returns
-// `{ version: 2, run }`. `run({ op, input })` is the SINGLE mutation
+// `{ version: 2, run, batch }`. `run({ op, input })` and
+// `batch({ if_state_revision, operations })` are mutation surfaces; batch is
+// the SINGLE frontier for its complete declarative operation list.
 // frontier for plugin-issued core actions: it validates the public plugin
 // input and delegates execution to Application Operations, which looks up
 // the canonical built-in registry and invokes the kernel once per op.
@@ -29,6 +31,7 @@
 import {
   bootstrapBuiltins,
   executeOperation,
+  executeBatch,
 } from "../application/operations/index.mjs";
 import { mutate } from "../kernel/mutate.mjs";
 import { loadApplicablePolicy, authorizeAction, isPolicyError } from "./policy.mjs";
@@ -98,6 +101,48 @@ function validateInput(pluginId, op, input) {
   }
 }
 
+function invalidBatch(pluginId, reason) {
+  throw new PluginCoreInvalidOperation(pluginId, "core.batch", supportedOps(), reason);
+}
+
+// validateBatchInput — keep the plugin boundary declarative. The host owns
+// actor/plugin identity and the global CAS; entries can only be `{ op, input }`
+// and cannot smuggle handlers, argv, or identity into the kernel operation.
+function validateBatchInput(pluginId, input) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    invalidBatch(pluginId, "input must be an object");
+  }
+  for (const key of Object.keys(input)) {
+    if (key !== "if_state_revision" && key !== "operations") {
+      invalidBatch(pluginId, `input.${key} is not allowed`);
+    }
+  }
+  if (!Array.isArray(input.operations) || input.operations.length === 0) {
+    invalidBatch(pluginId, "operations must be a non-empty array");
+  }
+  for (let index = 0; index < input.operations.length; index += 1) {
+    const operation = input.operations[index];
+    if (!operation || typeof operation !== "object" || Array.isArray(operation)) {
+      invalidBatch(pluginId, `operations[${index}] must be an object`);
+    }
+    const keys = Object.keys(operation);
+    if (keys.some((key) => key !== "op" && key !== "input")) {
+      invalidBatch(pluginId, `operations[${index}] accepts only op and input`);
+    }
+    if (typeof operation.op !== "string" || operation.op.length === 0) {
+      invalidBatch(pluginId, `operations[${index}].op is required`);
+    }
+    if (!operation.input || typeof operation.input !== "object" || Array.isArray(operation.input)) {
+      invalidBatch(pluginId, `operations[${index}].input must be an object`);
+    }
+    for (const key of ["actor", "pluginId", "plugin_id", "handler", "argv", "as", "_as", "if_state_revision"]) {
+      if (Object.prototype.hasOwnProperty.call(operation.input, key)) {
+        invalidBatch(pluginId, `operations[${index}].input.${key} is not allowed`);
+      }
+    }
+  }
+}
+
 // selectPolicy — load the applicable policy outside the lock and
 // normalize its errors. `loadApplicablePolicy` throws
 // `PolicyError(action="applies")` when the policy's `applies()`
@@ -128,7 +173,7 @@ async function selectPolicy({ projectDir, op, pluginId }) {
 }
 
 /**
- * createCore — exposes `api.core` as `{ version: 2, run }`.
+ * createCore — exposes `api.core` as `{ version: 2, run, batch }`.
  *
  * @param {object} args
  * @param {string} args.projectDir - Project directory (the same
@@ -139,7 +184,7 @@ async function selectPolicy({ projectDir, op, pluginId }) {
  * @param {string} args.pluginId - Host plugin id; tagged on log
  *   entries via `plugin_id`; cannot be substituted by input.
  *
- * @returns {{ version: 2, run: function }}
+ * @returns {{ version: 2, run: function, batch: function }}
  */
 export function createCore({ projectDir, agent, pluginId }) {
   if (typeof projectDir !== "string" || !projectDir) {
@@ -217,6 +262,35 @@ export function createCore({ projectDir, agent, pluginId }) {
         // Anything else is a core-handler failure and gets wrapped
         // with details.op + a normalized cause envelope.
         throw wrapCoreError(pluginId, op, err);
+      }
+    },
+
+    /**
+     * batch — execute a declarative list of built-in operations in one
+     * kernel mutation. The actor and plugin id are always taken from this
+     * host-bound adapter; neither can be supplied by a batch entry.
+     */
+    async batch(input = {}) {
+      validateBatchInput(pluginId, input);
+      const policy = await selectPolicy({ projectDir, op: "core.batch", pluginId });
+      try {
+        return await executeBatch({
+          projectDir,
+          actor: agent,
+          if_state_revision: input.if_state_revision,
+          operations: input.operations,
+          source: {
+            registry: REG,
+            mutate,
+            selectPolicy: async () => policy,
+            authorizeAction,
+            pluginId,
+          },
+        });
+      } catch (err) {
+        if (isPolicyError(err)) throw err;
+        if (isPluginError(err)) throw err;
+        throw wrapCoreError(pluginId, "core.batch", err);
       }
     },
   };

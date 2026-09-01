@@ -262,5 +262,65 @@ export default {
       }
       return { command: "multi", count, created: out.map((o) => o.id) };
     },
+
+    // batch: exercises the public declarative api.core.batch contract without
+    // importing state, the kernel, or any internal operation registry. The
+    // setup calls create two independent nodes; the batch then repairs their
+    // graph in one commit, followed by independent rollback and stale-CAS
+    // checks whose envelopes are returned to the integration test.
+    async batch(_args, api) {
+      await api.core.run({
+        op: "task.create",
+        input: {
+          id: "T-core-batch-1",
+          initiative: "core-e2e",
+          title: "batch one",
+          body: "b",
+          acceptance: "a",
+          blocked_by: "",
+        },
+      });
+      await api.core.run({
+        op: "task.create",
+        input: {
+          id: "T-core-batch-2",
+          initiative: "core-e2e",
+          title: "batch two",
+          body: "b",
+          acceptance: "a",
+          blocked_by: "",
+        },
+      });
+      const repair = await api.core.batch({
+        operations: [
+          { op: "task.create", input: { id: "T-core-batch-3", initiative: "core-e2e", title: "batch three", body: "b", acceptance: "a" } },
+          { op: "edge.add", input: { from: "T-core-batch-1", to: "T-core-batch-3", type: "BLOCKS" } },
+          { op: "edge.add", input: { from: "T-core-batch-3", to: "T-core-batch-2", type: "BLOCKS" } },
+        ],
+      });
+
+      let rollback;
+      try {
+        await api.core.batch({
+          operations: [
+            { op: "task.create", input: { id: "T-core-batch-rollback", initiative: "core-e2e", title: "must rollback", body: "b", acceptance: "a" } },
+            { op: "edge.add", input: { from: "T-core-batch-1", to: "T-core-batch-3", type: "BLOCKS" } },
+          ],
+        });
+      } catch (error) {
+        rollback = envelopeFor(error);
+      }
+
+      let cas;
+      try {
+        await api.core.batch({
+          if_state_revision: 0,
+          operations: [{ op: "task.create", input: { id: "T-core-batch-cas", initiative: "core-e2e", title: "must not create", body: "b", acceptance: "a" } }],
+        });
+      } catch (error) {
+        cas = envelopeFor(error);
+      }
+      return { command: "batch", repair, rollback, cas };
+    },
   },
 };

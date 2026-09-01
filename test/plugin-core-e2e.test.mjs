@@ -124,7 +124,7 @@ test("fixture: climier.mjs default export exposes one dedicated command per e2e 
   assert.ok(mod && typeof mod.default === "object" && mod.default !== null);
   const commands = mod.default.commands;
   assert.ok(commands && typeof commands === "object" && !Array.isArray(commands));
-  for (const name of ["happy", "partial", "invalidop", "notfound", "multi"]) {
+  for (const name of ["happy", "partial", "invalidop", "notfound", "multi", "batch"]) {
     assert.equal(typeof commands[name], "function", `missing command '${name}'`);
   }
 });
@@ -352,6 +352,51 @@ test("e2e: notfound — PLUGIN_CORE_ACTION_FAILED with cause.code=NODE_NOT_FOUND
 });
 
 // ---- E2E: partial sequence preserves the successful step -----------
+
+test("e2e: batch — fixture demonstrates repair, rollback, and stale CAS through api.core.batch", async () => {
+  await withFreshEnv(async ({ projectDir }) => {
+    await cli(["--project", projectDir, "init"]);
+    await cli([
+      "--project", projectDir,
+      "--as", "seed-agent",
+      "add-initiative", "core-e2e",
+    ]);
+    await cli(["--project", projectDir, "install", FIXTURE_DIR]);
+
+    const out = await cli([
+      "--project", projectDir,
+      "--as", "core-agent",
+      FIXTURE_NAMESPACE, "batch",
+    ]);
+    assert.equal(out.command, "batch");
+    assert.equal(out.repair.ok, true);
+    assert.equal(out.repair.results.length, 3);
+    assert.equal(out.repair.revision_after, out.repair.revision_before + 1);
+    assert.equal(out.rollback.code, "PLUGIN_CORE_ACTION_FAILED");
+    assert.equal(out.rollback.details.op, "core.batch");
+    assert.equal(out.rollback.details.cause.code, "BATCH_OPERATION_FAILED");
+    assert.equal(out.rollback.details.cause.details.operation_index, 1);
+    assert.equal(out.cas.code, "PLUGIN_CORE_ACTION_FAILED");
+    assert.equal(out.cas.details.op, "core.batch");
+    assert.equal(out.cas.details.cause.code, "STATE_REVISION_CONFLICT");
+
+    const state = JSON.parse(await fs.readFile(stateFilePath(projectDir), "utf8"));
+    assert.ok(state.nodes["T-core-batch-3"], "repair node must be persisted");
+    assert.equal(state.nodes["T-core-batch-rollback"], undefined, "failed batch must roll back its create");
+    assert.equal(state.nodes["T-core-batch-cas"], undefined, "stale CAS must not create a node");
+    assert.deepEqual(
+      state.edges.filter((edge) => edge.from.startsWith("T-core-batch-")),
+      [
+        { from: "T-core-batch-1", to: "T-core-batch-3", type: "BLOCKS" },
+        { from: "T-core-batch-3", to: "T-core-batch-2", type: "BLOCKS" },
+      ],
+    );
+    const batchLogs = state.log.filter((entry) => entry.action === "core.batch");
+    assert.equal(batchLogs.length, 1, "only the successful repair persists a batch log");
+    assert.equal(batchLogs[0].agent, "core-agent");
+    assert.equal(batchLogs[0].plugin_id, FIXTURE_ID);
+  });
+});
 
 test("e2e: partial — successful task.create is preserved; subsequent failed edge.add is reported", async () => {
   await withFreshEnv(async ({ projectDir }) => {
