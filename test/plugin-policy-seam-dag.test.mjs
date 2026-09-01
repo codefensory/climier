@@ -432,6 +432,7 @@ test("seam-dag: add-edge with policy=allow sends action=edge.add to seam", async
       "initiatives",
       "log",
       "nodes",
+      "revision",
       "version",
     ]);
   });
@@ -817,7 +818,7 @@ test("seam-dag: snapshot passed to authorize reflects the live state under the l
     // projectConfig was frozen before being passed.
     assert.equal(rec.recorded.received.projectConfig_frozen, true);
     assert.deepEqual(rec.recorded.received.snapshot_keys.sort(), [
-      "edges", "initiatives", "log", "nodes", "version",
+      "edges", "initiatives", "log", "nodes", "revision", "version",
     ]);
     // The recorded payload exposes a target fingerprint (id/kind/subkind)
     // so the policy can branch on what's being created.

@@ -197,8 +197,8 @@ export async function executeMutation({ projectDir, request, provider, policyAct
   const loadedState = await readState(projectDir);
   const mayBootstrap = loadedState === null && request.action === "initiative.create" && provider.bootstrapMissingState === true;
   const snapshot = loadedState ?? (mayBootstrap ? emptyState() : null);
-  if (!snapshot || typeof snapshot !== "object" || snapshot.version !== 3) {
-    throw new Error(`${commandName}: state file missing or not v3 (run init first)`);
+  if (!snapshot || typeof snapshot !== "object" || snapshot.version !== 4) {
+    throw new Error(`${commandName}: state file missing or not v4 (run init first)`);
   }
 
   // 1) Prepare once against the fresh snapshot, while the lock is held.

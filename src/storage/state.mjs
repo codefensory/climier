@@ -4,6 +4,7 @@ import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { climierHome, projectMetaFile } from "./paths.mjs";
+import { validateStateInvariants } from "../contracts/state-invariants.mjs";
 
 function readProjectMetaSync(projectDir) {
   const file = projectMetaFile(projectDir);
@@ -49,16 +50,16 @@ export async function ensureProjectMeta(projectDir) {
   return meta;
 }
 
-const CURRENT_STATE_VERSION = 3;
+const CURRENT_STATE_VERSION = 4;
 const LEGACY_STATE_VERSION = 2;
+const PREVIOUS_STATE_VERSION = 3;
 
-// v1 is no longer supported. v2 remains readable through this narrow
-// migration because its collections and node representation are compatible
-// with v3; only the top-level version changes. The returned object is a new
-// object so reading a legacy snapshot never mutates the parsed input.
+// v1 is no longer supported. v2 and v3 remain readable through this narrow
+// migration because their collections and node representation are compatible
+// with v4. The returned object is new, and migration never mutates its input.
 export function migrateState(state) {
-  if (state && state.version === LEGACY_STATE_VERSION) {
-    return { ...state, version: CURRENT_STATE_VERSION };
+  if (state && (state.version === LEGACY_STATE_VERSION || state.version === PREVIOUS_STATE_VERSION)) {
+    return { ...state, version: CURRENT_STATE_VERSION, revision: 0 };
   }
   return state;
 }
@@ -70,20 +71,16 @@ export function emptyState() {
     edges: [],
     initiatives: {},
     log: [],
+    revision: 0,
   };
 }
 
-// The node collections keep the v2 shape in v3. This compatibility predicate
-// is intentionally true for both versions so pre-v3 consumers can keep
-// reading the migrated representation while their own version checks catch
-// up. It does not make v3 writable by a v2 binary: that binary rejects the
-// top-level version before reaching this helper.
 export function isV2State(state) {
-  return !!state && (state.version === LEGACY_STATE_VERSION || state.version === CURRENT_STATE_VERSION);
+  return !!state && (state.version === LEGACY_STATE_VERSION || state.version === PREVIOUS_STATE_VERSION || state.version === CURRENT_STATE_VERSION);
 }
 
 export function isV3State(state) {
-  return !!state && state.version === CURRENT_STATE_VERSION;
+  return !!state && (state.version === PREVIOUS_STATE_VERSION || state.version === CURRENT_STATE_VERSION);
 }
 
 export function assertStateVersion(state, version, commandName) {
@@ -126,7 +123,9 @@ export async function readState(projectDir) {
       wrapped.code = "CLIMIER_INCOMPATIBLE_VERSION";
       throw wrapped;
     }
-    return migrateState(state);
+    const migrated = migrateState(state);
+    if (migrated && typeof migrated === "object") validateStateInvariants(migrated, "state.read");
+    return migrated;
   } catch (err) {
     if (err.code === "ENOENT") return null;
     if (err instanceof SyntaxError) {
@@ -169,6 +168,7 @@ export async function updateState(projectDir, mutator) {
     throw wrapped;
   }
   state = migrateState(state);
+  if (state && typeof state === "object") validateStateInvariants(state, "state.update");
   const next = mutator({ ...state });
   if (next === undefined) {
     // mutator mutated in-place; we wrote the spread so the outer state is stale.
@@ -301,22 +301,23 @@ export async function listSnapshots(projectDir) {
   return result;
 }
 
-// writeState validates and persists the current v3 schema. A v2 object is
-// accepted only as an explicit compatibility input and is normalized before
-// it reaches disk; v1 and future versions are never written.
+// writeState validates and persists the current v4 schema. v2/v3 objects are
+// accepted as compatibility inputs and normalized before they reach disk;
+// v1 and future versions are never written.
 export async function writeState(projectDir, state) {
   if (!state || typeof state !== "object") {
     throw new Error("writeState: invalid state (not an object)");
   }
   if (state.version === 1) {
     throw new Error(
-      "writeState: invalid state (version 1 is no longer supported; this build of climier only writes v3 states)",
+      "writeState: invalid state (version 1 is no longer supported; this build of climier only writes v4 states)",
     );
   }
   state = migrateState(state);
   if (state.version !== CURRENT_STATE_VERSION) {
     throw new Error(`writeState: invalid state (version ${state.version} is not supported; expected version ${CURRENT_STATE_VERSION})`);
   }
+  validateStateInvariants(state, "writeState");
   const required = ["nodes", "edges", "initiatives", "log"];
   for (const k of required) {
     if (!(k in state)) {

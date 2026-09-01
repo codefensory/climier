@@ -171,11 +171,11 @@ test("isolation: createTransaction tolerates missing initiatives in the snapshot
   assert.deepEqual(view.initiatives, {});
 });
 
-test("forbidden imports: transaction.mjs still only imports ../contracts/errors.mjs", async () => {
+test("forbidden imports: transaction.mjs imports only pure contracts", async () => {
   const src = await readFile(SRC_FILE, "utf8");
-  // Whitelist must remain narrow: only ../contracts/errors.mjs is allowed.
+  // Whitelist remains narrow: errors and the shared pure invariant contract.
   const relativeImports = [...src.matchAll(/from\s+["'](\.\.?\/[^"']+)["']/g)].map((m) => m[1]);
   for (const imp of relativeImports) {
-    assert.equal(imp, "../contracts/errors.mjs", `transaction.mjs must only import "../contracts/errors.mjs"; got ${imp}`);
+    assert.ok(["../contracts/errors.mjs", "../contracts/state-invariants.mjs"].includes(imp), `transaction.mjs must only import pure contracts; got ${imp}`);
   }
 });

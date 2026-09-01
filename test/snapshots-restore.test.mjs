@@ -252,7 +252,8 @@ test("restore: replaces state with snapshot raw bytes verbatim (content matches 
     const { createSnapshot } = await importFresh("./storage/state.mjs");
     const { default: restore } = await importFresh("./cli/commands/restore.mjs");
     const baseline = await bootstrapState(dir, (s) => {
-      s.nodes["X"] = { id: "X", title: "restored" };
+      s.nodes["X"] = { id: "X", kind: "resolvable", subkind: "task", title: "restored" };
+      s.nodes["Y"] = { id: "Y", kind: "resolvable", subkind: "task", title: "target" };
       s.initiatives["bench"] = { desc: "bench", created_at: "2026-01-01T00:00:00.000Z" };
       s.log.push({ ts: "2026-01-01T00:00:00.000Z", agent: "test", action: "seed", note: "preset" });
       s.edges.push({ from: "X", to: "Y", type: "BLOCKS" });
@@ -635,7 +636,7 @@ test("restore: raw is v1 fails (v1 is no longer supported)", async () => {
   }
 });
 
-test("restore: raw is a future version (v4) fails", async () => {
+test("restore: raw is a future version (v5) fails", async () => {
   const dir = await createTempProject();
   try {
     const { createSnapshot } = await importFresh("./storage/state.mjs");
@@ -644,7 +645,7 @@ test("restore: raw is a future version (v4) fails", async () => {
     const meta = await createSnapshot(dir, "force-init");
     await fs.writeFile(
       path.join(snapshotDir(dir), `${meta.id}.json`),
-      JSON.stringify({ version: 4, nodes: {}, edges: [], initiatives: {}, log: [] }),
+      JSON.stringify({ version: 5, nodes: {}, edges: [], initiatives: {}, log: [] }),
     );
     let captured;
     try {

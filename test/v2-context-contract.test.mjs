@@ -7,7 +7,7 @@ import {
   writeState as writeRawState,
 } from "./helpers.mjs";
 
-const baseState = () => ({ version: 2, nodes: {}, edges: [], log: [] });
+const baseState = () => ({ version: 2, nodes: {}, edges: [], initiatives: {}, log: [] });
 
 test("context v2: returns the design doc shape with revision, claim, blocking, knowledge, alerts, allowed_actions", async () => {
   const { default: context } = await importFresh("./cli/commands/context.mjs");

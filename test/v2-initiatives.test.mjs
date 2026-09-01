@@ -27,10 +27,11 @@ function assertV2Error(data, code) {
 
 // --- emptyState / writeState schema -------------------------------------
 
-test("emptyState() seeds initiatives: {} on a fresh v3 state", async () => {
+test("emptyState() seeds initiatives: {} on a fresh v4 state", async () => {
   const { emptyState } = await importFresh("./storage/state.mjs");
   const s = emptyState();
-  assert.equal(s.version, 3);
+  assert.equal(s.version, 4);
+  assert.equal(s.revision, 0);
   assert.ok("initiatives" in s, "v2 state must declare initiatives");
   assert.deepEqual(s.initiatives, {});
   assert.ok("nodes" in s);
