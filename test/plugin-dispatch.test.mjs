@@ -58,6 +58,7 @@ async function seedInstalledPlugin(home, namespace, opts = {}) {
     id: opts.id ?? namespace,
     command: opts.command ?? namespace,
     entry: opts.entry ?? "./climier.mjs",
+    api: opts.api ?? 3,
   };
   await fs.writeFile(
     path.join(installedRoot, "package.json"),
@@ -167,6 +168,35 @@ test("plugin-loader: loadInstalledPlugin returns descriptor + commands for a val
   });
 });
 
+test("plugin-loader: rejects an incompatible descriptor before importing its entrypoint", async () => {
+  await withEnv(async (env) => {
+    const installedRoot = path.join(env.home, "plugins", "installed", "future");
+    await fs.mkdir(installedRoot, { recursive: true });
+    const marker = path.join(env.home, "imported");
+    await fs.writeFile(
+      path.join(installedRoot, "package.json"),
+      JSON.stringify({
+        name: "future",
+        version: "1.0.0",
+        type: "module",
+        climier: { id: "future", command: "future", api: 4, entry: "./climier.mjs" },
+      }, null, 2) + "\n",
+      "utf8",
+    );
+    await fs.writeFile(
+      path.join(installedRoot, "climier.mjs"),
+      `import "node:fs";\nawait import("node:fs/promises").then((fs) => fs.writeFile(${JSON.stringify(marker)}, "imported"));\nexport default { commands: {} };\n`,
+      "utf8",
+    );
+    const { loadInstalledPlugin } = await importFresh(LOADER_MODULE);
+    await assert.rejects(
+      () => loadInstalledPlugin("future"),
+      (err) => err.code === "PLUGIN_API_INCOMPATIBLE" && err.details.received === 4,
+    );
+    await assert.rejects(fs.access(marker), (err) => err.code === "ENOENT");
+  });
+});
+
 test("plugin-loader: loadInstalledPlugin throws PLUGIN_LOAD_FAILED when installed dir is missing", async () => {
   await withEnv(async () => {
     const { loadInstalledPlugin } = await importFresh(LOADER_MODULE);
@@ -227,7 +257,7 @@ test("plugin-loader: loadInstalledPlugin throws PLUGIN_INVALID_DESCRIPTOR when d
         name: "mismatch-pkg",
         version: "1.0.0",
         type: "module",
-        climier: { id: "wrong.id", command: "mismatch", entry: "./climier.mjs" },
+        climier: { id: "wrong.id", command: "mismatch", entry: "./climier.mjs", api: 3 },
       }, null, 2) + "\n",
       "utf8",
     );
@@ -281,7 +311,7 @@ test("plugin-loader: loadInstalledPlugin throws PLUGIN_INVALID_DESCRIPTOR when d
     await fs.mkdir(installedRoot, { recursive: true });
     await fs.writeFile(
       path.join(installedRoot, "package.json"),
-      JSON.stringify({ name: "bad", type: "module", climier: { id: ".bad", command: "bad", entry: "./x.mjs" } }, null, 2) + "\n",
+      JSON.stringify({ name: "bad", type: "module", climier: { id: ".bad", command: "bad", entry: "./x.mjs", api: 3 } }, null, 2) + "\n",
       "utf8",
     );
     await fs.writeFile(path.join(installedRoot, "climier.mjs"), "export default { commands: {} };\n", "utf8");

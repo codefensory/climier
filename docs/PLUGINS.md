@@ -1,11 +1,12 @@
-# Plugins V1
+# Plugins V3
 
-How to author, install, and verify a Climier V1 plugin.
+How to author, install, and verify a Climier Plugin API v3 plugin.
 
-This guide is the public reference for plugin authors. The contract is
-fixed by ADR-005 (`G-plugin-host-v1-adr`); the implementation lives in
-`src/plugin-*.mjs`. The fastest way to see a working plugin is the
-fixture at `test/fixtures/sample-plugin/` and its smoke test
+This guide is the public reference for plugin authors. The compatibility
+contract is fixed by ADR-021 (`.adrs/021-plugin-foundation-public-api.md`);
+implementation details live under `src/plugins/` and are internal. The
+fastest way to see a working plugin is the fixture at
+`test/fixtures/sample-plugin/` and its smoke test
 `test/plugin-integration.test.mjs`.
 
 ## 1. The descriptor
@@ -18,7 +19,8 @@ Every plugin declares its identity in its `package.json` under the
   "climier": {
     "id": "example.audit",
     "command": "audit",
-    "entry": "./climier.mjs"
+    "entry": "./climier.mjs",
+    "api": 3
   }
 }
 ```
@@ -28,6 +30,7 @@ Every plugin declares its identity in its `package.json` under the
 | `id` | Plugin identity. Must match `^[A-Za-z0-9][A-Za-z0-9._-]*$`. Unique across installed plugins. Persisted as the key for plugin data and the argument of `climier uninstall <id>`. |
 | `command` | CLI namespace. Cannot collide with a reserved core namespace (see §6). |
 | `entry` | Path, relative to the package root, to the ESM entrypoint that exports `default.commands`. |
+| `api` | Required numeric Plugin API major. The current host supports exactly `3`; another value fails with `PLUGIN_API_INCOMPATIBLE` before the entrypoint is imported. |
 
 The npm package name (`package.json#name`) is only the install source;
 it does not identify data and does not drive `uninstall`.
@@ -62,16 +65,19 @@ Each handler receives:
 - `args`: an array of strings — the original CLI tokens with the
   namespace and subcommand removed, in their original order. Flags are
   still present in the array; the plugin parses them itself.
-- `api`: the V1 host API (see §3).
+- `api`: the Plugin API v3 host surface (see §3).
 
 The handler's return value is serialised to stdout as JSON. Thrown
 errors are wrapped into the structured envelope (see §6).
 
-## 3. V1 API surface
+## 3. Plugin API v3 surface
 
-ADR-005 §"API y persistencia" defines the surface. The host guarantees:
+ADR-021 §Decision 6 defines the public surface. The host guarantees
+`api.version === 3` and exposes only the following namespaces:
 
 ```js
+api.version       // 3 — compatibility marker for the complete host API
+
 api.runtime
   .project_dir   // string — --project value, or process.cwd()
   .agent         // string — --as value, or CLIMIER_AGENT env var, or ""
@@ -89,7 +95,16 @@ api.data
   .project
     .get(key)          // the calling plugin's data slot for the project key
     .set(key, value)   // under the project lock; preserves nodes[id].plugins
+
+api.core
+  .version             // core operation contract version
+  .run({ op, input })
+  .batch({ if_state_revision, operations })
 ```
+
+`api.*` is the stable public plugin contract. Modules under `src/**`, including
+`src/plugins/**`, are host internals: plugins must not import them, rely on
+their file layout, or treat their exports as public API.
 
 Identity rules:
 
@@ -107,7 +122,7 @@ Identity rules:
 
 ## 4. Persistence shape
 
-Plugin data lives in two optional, additive fields of the v2 state:
+Plugin data lives in two optional, additive fields of the persisted state:
 
 ```jsonc
 {
@@ -174,6 +189,7 @@ with exit code 1.
 | Code | When |
 |---|---|
 | `PLUGIN_INVALID_DESCRIPTOR` | descriptor shape, id regex, or reserved-namespace collision. |
+| `PLUGIN_API_INCOMPATIBLE` | `climier.api` is absent, malformed, or is not the exact supported major `3`; validation happens before entrypoint import. |
 | `PLUGIN_LOAD_FAILED` | ESM import failed or `default.commands` missing. |
 | `PLUGIN_ID_CONFLICT` | id or command already installed. |
 | `PLUGIN_NPM_UNAVAILABLE` | `npm` is not on PATH or `--version` fails. |

@@ -284,6 +284,7 @@ async function materializePolicyFixtureDir(options) {
       id: pluginId,
       command: "policy",
       entry: "./climier.mjs",
+      api: 3,
     },
   };
   await fsp.writeFile(

@@ -7,6 +7,7 @@
   "climier": {
     "id": "policy-fixture",
     "command": "policy",
-    "entry": "./climier.mjs"
+    "entry": "./climier.mjs",
+    "api": 3
   }
 }
