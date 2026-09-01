@@ -87,6 +87,71 @@ export const projectBlocking = blockingForNode;
 export const projectKnowledge = knowledgeForNode;
 export const projectInforming = informingForNode;
 
+function compareText(a, b) {
+  const left = String(a);
+  const right = String(b);
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function clone(value) {
+  return structuredClone(value);
+}
+
+/**
+ * Project one serialized state read for a public plugin query.
+ *
+ * The state is deliberately passed in by the caller so all fields in the
+ * result are derived from the same read. Core nodes are copied without other
+ * plugins' node namespaces; the selected plugin namespace is exposed in the
+ * root and on the nodes that contain it. Rebuilding records in sorted order
+ * and sorting edge triples makes JSON output repeatable for the same state.
+ */
+export function projectSnapshot({ snapshot, pluginId } = {}) {
+  const source = snapshot && typeof snapshot === "object" ? snapshot : {};
+  const sourceNodes = source.nodes && typeof source.nodes === "object" ? source.nodes : {};
+  const nodes = {};
+  const nodeIds = Object.keys(sourceNodes).sort(compareText);
+
+  for (const id of nodeIds) {
+    const sourceNode = sourceNodes[id];
+    if (!sourceNode || typeof sourceNode !== "object" || Array.isArray(sourceNode)) continue;
+    const node = clone(sourceNode);
+    const nodePlugins = node.plugins;
+    delete node.plugins;
+    if (pluginId && nodePlugins && typeof nodePlugins === "object" &&
+        Object.prototype.hasOwnProperty.call(nodePlugins, pluginId)) {
+      node.plugins = { [pluginId]: clone(nodePlugins[pluginId]) };
+    }
+    nodes[id] = node;
+  }
+
+  const edges = (Array.isArray(source.edges) ? source.edges : [])
+    .filter((edge) => edge && typeof edge === "object" && !Array.isArray(edge))
+    .map(clone)
+    .sort((a, b) => compareText(a.from, b.from) || compareText(a.to, b.to) || compareText(a.type, b.type));
+
+  const derived = {};
+  for (const id of nodeIds) {
+    if (Object.prototype.hasOwnProperty.call(nodes, id)) {
+      derived[id] = statusOf({ snapshot: source, id });
+    }
+  }
+
+  const plugins = {};
+  const sourcePlugins = source.plugins && typeof source.plugins === "object" ? source.plugins : {};
+  if (pluginId && Object.prototype.hasOwnProperty.call(sourcePlugins, pluginId)) {
+    plugins[pluginId] = clone(sourcePlugins[pluginId]);
+  }
+
+  return {
+    revision: Number.isInteger(source.revision) && source.revision >= 0 ? source.revision : 0,
+    nodes,
+    edges,
+    derived,
+    plugins,
+  };
+}
+
 export { deriveV2, isSatisfiedV2 };
 export {
   gateProjection,
