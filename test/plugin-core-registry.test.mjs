@@ -279,6 +279,7 @@ test("bootstrapBuiltins: includes all ADR-012 task / gate / knowledge operation 
     "knowledge.update",
     "knowledge.deprecate",
     "edge.add",
+    "edge.remove",
     "note.add",
     "initiative.create",
   ];
@@ -315,13 +316,12 @@ test("bootstrapBuiltins: includes all ADR-012 task / gate / knowledge operation 
     assert.equal(typeof entry.provider.apply, "function", `${id} provider.apply is fn`);
   }
 
-  // byKind grouping: 9 task + 5 gate + 3 knowledge + 3 core
-  // (edge.add + note.add + initiative.create) per the §B6A + §B6B
-  // contract.
+  // byKind grouping: 9 task + 5 gate + 3 knowledge + 4 core
+  // (edge.add + edge.remove + note.add + initiative.create).
   assert.equal(reg.byKind.get("task").length, 9, "task has 9 ops");
   assert.equal(reg.byKind.get("gate").length, 5, "gate has 5 ops");
   assert.equal(reg.byKind.get("knowledge").length, 3, "knowledge has 3 ops");
-  assert.equal(reg.byKind.get("core").length, 3, "core has 3 ops");
+  assert.equal(reg.byKind.get("core").length, 4, "core has 4 ops");
 
   // bootstrap is callable any number of times and is deterministic.
   const reg2 = mod.bootstrapBuiltins();

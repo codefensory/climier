@@ -43,6 +43,17 @@ test("application operation registry is exported from the boundary and is adapte
   assert.doesNotMatch(contents, /(?:plugins|commands|filesystem|node:fs|fs\/promises|kernel\/mutate)/);
 });
 
+test("built-in registry publishes edge.remove with its provider", async () => {
+  const { createBuiltinOperationRegistry, PUBLIC_CORE_OPS } = await importFresh("../src/application/operations/builtins.mjs");
+  const reg = createBuiltinOperationRegistry();
+  assert.ok(PUBLIC_CORE_OPS.includes("edge.remove"));
+  const entry = reg.lookup("edge.remove");
+  assert.ok(entry);
+  assert.equal(entry.kind, "core");
+  assert.equal(typeof entry.provider.prepare, "function");
+  assert.equal(typeof entry.provider.apply, "function");
+});
+
 test("built-in registry publishes task submission lifecycle operations and their providers", async () => {
   const { createBuiltinOperationRegistry, PUBLIC_TASK_OPS } = await importFresh("../src/application/operations/builtins.mjs");
   const reg = createBuiltinOperationRegistry();

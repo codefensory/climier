@@ -29,7 +29,9 @@ import { throwV2 } from "../../contracts/errors.mjs";
 const EDGE_TYPES = Object.freeze(["BLOCKS", "SUPERSEDES", "DERIVED_FROM"]);
 
 const OP = "edge.add";
+const REMOVE_OP = "edge.remove";
 const LOG_ACTION = "add-edge";
+const REMOVE_LOG_ACTION = "remove-edge";
 
 function asNonEmptyString(value) {
   return typeof value === "string" && value.length > 0 ? value : null;
@@ -185,3 +187,74 @@ async function apply({ tx, plan, input, request, snapshot }) {
 }
 
 export const edgeAddProvider = Object.freeze({ prepare, apply });
+
+function validateRemoveInputShape(input) {
+  if (input === null || typeof input !== "object" || Array.isArray(input)) {
+    throwV2("INVALID_EXECUTION_CONTRACT", `${REMOVE_OP}: input must be an object`, { field: "input" });
+  }
+  const from = asNonEmptyString(input.from);
+  if (!from) {
+    throwV2("MISSING_FIELD", `${REMOVE_OP}: --from required`, { field: "from" });
+  }
+  const to = asNonEmptyString(input.to);
+  if (!to) {
+    throwV2("MISSING_FIELD", `${REMOVE_OP}: --to required`, { field: "to" });
+  }
+  const rawType = asNonEmptyString(input.type);
+  if (!rawType) {
+    throwV2("MISSING_FIELD", `${REMOVE_OP}: --type required`, { field: "type" });
+  }
+  return { from, to, rawType };
+}
+
+function edgeExists(from, to, type, snapshot) {
+  return readSnapshotEdges(snapshot).some((edge) =>
+    edge && edge.from === from && edge.to === to && edge.type === type,
+  );
+}
+
+/**
+ * Pure `prepare` for edge.remove. An absent exact triple is intentionally
+ * represented in the plan instead of rejected so the kernel can complete an
+ * idempotent no-op without creating a log entry or changing state.revision.
+ */
+async function prepareRemove({ snapshot, input, request }) {
+  void request;
+  const { from, to, rawType } = validateRemoveInputShape(input);
+  const type = normalizeType(rawType);
+  const edge = Object.freeze({ from, to, type });
+  return Object.freeze({
+    target: Object.freeze({ id: to, from, to, type }),
+    policyAction: Object.freeze({ action: REMOVE_OP, pluginId: null }),
+    logAction: REMOVE_LOG_ACTION,
+    edge,
+    removed: edgeExists(from, to, type, snapshot),
+  });
+}
+
+/** Apply edge.remove to the draft only when the exact edge is present. */
+async function applyRemove({ tx, plan, input, request, snapshot }) {
+  void input;
+  void request;
+  void snapshot;
+  if (!tx || typeof tx.removeEdge !== "function") {
+    throwV2(
+      "INVALID_EXECUTION_CONTRACT",
+      `${REMOVE_OP}: apply requires a tx with removeEdge accessor`,
+      { field: "tx" },
+    );
+  }
+  if (plan.removed) tx.removeEdge(plan.edge);
+  return {
+    result: Object.freeze({
+      edge: Object.freeze({ from: plan.edge.from, to: plan.edge.to, type: plan.edge.type }),
+      removed: plan.removed === true,
+    }),
+    effects: null,
+  };
+}
+
+export const edgeRemoveProvider = Object.freeze({
+  prepare: prepareRemove,
+  apply: applyRemove,
+});

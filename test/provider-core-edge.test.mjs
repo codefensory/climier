@@ -233,3 +233,59 @@ test("edge.add: plan exposes policyAction and logAction for kernel.mutate", asyn
   assert.equal(plan.policyAction.pluginId, null);
   assert.equal(plan.logAction, "add-edge");
 });
+
+test("edge.remove: absent exact triple is an idempotent plan and does not touch tx", async () => {
+  const { edgeRemoveProvider } = await importEdgeProvider();
+  const nodes = { a: makeTaskNode("a"), b: makeTaskNode("b") };
+  const snapshot = makeSnapshot({ nodes });
+  const input = { from: "a", to: "b", type: "blocks" };
+  const plan = await edgeRemoveProvider.prepare({
+    snapshot,
+    input,
+    request: makeRequest({ action: "edge.remove", input }),
+  });
+  assert.equal(plan.edge.type, "BLOCKS");
+  assert.equal(plan.removed, false);
+  assert.equal(plan.policyAction.action, "edge.remove");
+  assert.equal(plan.logAction, "remove-edge");
+
+  const tx = {
+    calls: 0,
+    removeEdge() {
+      this.calls += 1;
+      throw new Error("removeEdge must not be called for an absent edge");
+    },
+  };
+  const applied = await edgeRemoveProvider.apply({ tx, plan, input, request: makeRequest({ action: "edge.remove", input }), snapshot });
+  assert.equal(tx.calls, 0);
+  assert.deepEqual(applied.result, { edge: { from: "a", to: "b", type: "BLOCKS" }, removed: false });
+  assert.equal(applied.effects, null);
+});
+
+test("edge.remove: present exact triple calls tx.removeEdge once", async () => {
+  const { edgeRemoveProvider } = await importEdgeProvider();
+  const nodes = { a: makeTaskNode("a"), b: makeTaskNode("b") };
+  const snapshot = makeSnapshot({
+    nodes,
+    edges: [{ from: "a", to: "b", type: "BLOCKS" }],
+  });
+  const input = { from: "a", to: "b", type: "BLOCKS" };
+  const plan = await edgeRemoveProvider.prepare({
+    snapshot,
+    input,
+    request: makeRequest({ action: "edge.remove", input }),
+  });
+  assert.equal(plan.removed, true);
+  const tx = {
+    calls: 0,
+    removeEdge(edge) {
+      this.calls += 1;
+      assert.deepEqual(edge, input);
+      return { ...edge };
+    },
+  };
+  const applied = await edgeRemoveProvider.apply({ tx, plan, input, request: makeRequest({ action: "edge.remove", input }), snapshot });
+  assert.equal(tx.calls, 1);
+  assert.deepEqual(applied.result, { edge: input, removed: true });
+  assert.equal(applied.effects, null);
+});

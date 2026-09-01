@@ -28,7 +28,7 @@ import {
   updateProvider as knowledgeUpdateProviderFactory,
   deprecateProvider as knowledgeDeprecateProviderFactory,
 } from "../../providers/knowledge/index.mjs";
-import { edgeAddProvider } from "../../providers/core/edge.mjs";
+import { edgeAddProvider, edgeRemoveProvider } from "../../providers/core/edge.mjs";
 import { noteAddProvider } from "../../providers/core/note.mjs";
 import { initiativeCreateProvider } from "../../providers/core/initiative.mjs";
 
@@ -57,6 +57,7 @@ const KNOWLEDGE_OPERATION_IDS = Object.freeze([
 ]);
 const CORE_OPERATION_IDS = Object.freeze([
   "edge.add",
+  "edge.remove",
   "note.add",
   "initiative.create",
 ]);
@@ -133,6 +134,7 @@ function collectBuiltins() {
 
   const coreProviders = {
     "edge.add": edgeAddProvider,
+    "edge.remove": edgeRemoveProvider,
     "note.add": noteAddProvider,
     "initiative.create": initiativeCreateProvider,
   };
