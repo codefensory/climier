@@ -1,0 +1,13 @@
+{
+  "name": "plugin-foundation",
+  "version": "1.0.0",
+  "description": "Public Plugin API v3 acceptance fixture",
+  "private": true,
+  "type": "module",
+  "climier": {
+    "id": "foundation.acceptance",
+    "command": "foundation",
+    "entry": "./climier.mjs",
+    "api": 3
+  }
+}

@@ -240,6 +240,38 @@ The smoke is automated in `test/plugin-integration.test.mjs`. Use the
 fixture at `test/fixtures/sample-plugin/` as a template for your own
 descriptor and entrypoint.
 
+### 7.1 Foundation acceptance fixture
+
+`test/fixtures/plugin-foundation/` is the end-to-end public-contract fixture.
+Its entrypoint imports only Node standard-library modules and exercises the
+surface exclusively through `api.*`; it must not import `src/**` internals.
+`test/plugin-foundation-acceptance.test.mjs` verifies the complete shell and
+plugin flow:
+
+- `foundation snapshot` checks one coherent, deterministic snapshot and
+  confirms that only the caller's plugin namespace is visible;
+- `data-set`, `data-get`, and `data-delete` cover JSON values, namespaced
+  persistence, and idempotent deletion; logs remain redacted;
+- `runtime-write` followed by `runtime-read` proves the plugin-owned
+  `api.runtime.dataDir` survives a fresh CLI process;
+- `repair`, `rollback`, and `cas` cover atomic batch repair, rollback and
+  stale revision rejection; `api-cycle` and `batch-cycle` preserve DAG cycle
+  protection through the API; a core `add-edge` call covers the CLI path;
+- the same test drives `state -> batch -> state`, using the state revision for
+  a shell CAS.
+
+`test/plugin-foundation-concurrency.test.mjs` fans out independent
+`api.data.project.set` calls through real CLI child processes and verifies
+that no project key or plugin attribution is lost. Run the focused checks
+with:
+
+```bash
+node --test test/plugin-foundation-acceptance.test.mjs \
+  test/plugin-foundation-concurrency.test.mjs
+```
+
+or use `npm test` for the full core suite.
+
 ## 8. Limitations (V1, by design)
 
 - No hooks, events, workers, UI, permissions, secrets, or DAG/lifecycle
