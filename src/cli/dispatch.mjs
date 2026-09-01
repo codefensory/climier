@@ -50,6 +50,8 @@ Read-only:
                                           Requires the ui/ subproject deps (npm install in ui/ once).
 
 Mutating (require --as <agent-id>):
+  batch --file <json> --as <agent>       Execute an atomic batch from a JSON file.
+  batch --stdin --as <agent>             Execute an atomic batch from stdin.
   take <id> --as <agent>                 Claim a ready task (idempotent when you already hold the claim).
   submit <id> --note "..." --as <agent>  Submit an owned in-progress task for validation.
   accept <id> --as <agent>               Accept a submitted task as done.
@@ -104,11 +106,11 @@ Available commands:
   status, context, take, submit, accept, reject, resolve, release, cancel, reopen, search, history,
   show, update, add-note, add-initiative, add-task, add-gate, add-knowledge,
   deprecate-knowledge, add-node, add-edge, remove-edge, initiatives, log, init, snapshots,
-  restore, ui, help, version.`;
+  restore, batch, ui, help, version.`;
 
 // These flags must not consume the next non-flag token as their value. This
 // preserves the historical `--force init` parsing behavior.
-export const BOOLEAN_FLAGS = Object.freeze(new Set(["all", "force"]));
+export const BOOLEAN_FLAGS = Object.freeze(new Set(["all", "force", "stdin"]));
 
 /** Parse the CLI argv while preserving the original token sequence. */
 export function parseArgv(argv = []) {
@@ -240,7 +242,7 @@ export async function runCli({ argv = process.argv.slice(2), write = console.log
     if (error.code === "MODULE_NOT_FOUND" || error.code === "ERR_MODULE_NOT_FOUND") {
       if (!parsed.command) {
         write(formatError(
-          "no command given. Available: status, context, take, submit, accept, reject, resolve, release, cancel, reopen, search, history, show, update, add-note, add-task, add-gate, add-knowledge, add-initiative, add-node, add-edge, remove-edge, deprecate-knowledge, initiatives, log, init, snapshots, restore, ui, help, version",
+          "no command given. Available: status, context, take, submit, accept, reject, resolve, release, cancel, reopen, search, history, show, update, add-note, add-task, add-gate, add-knowledge, add-initiative, add-node, add-edge, remove-edge, deprecate-knowledge, initiatives, log, init, snapshots, restore, batch, ui, help, version",
         ));
       } else {
         write(formatError(`unknown command '${parsed.command}'`));
