@@ -526,6 +526,65 @@ test("api.data.node.set rejects when the node does not exist (NODE_NOT_FOUND)", 
   }
 });
 
+test("api.data node/project delete is idempotent and isolated to the caller namespace", async () => {
+  const dir = await createTempProject();
+  try {
+    await seedState(dir, (s) => {
+      s.nodes.T1.plugins = {
+        "example.audit": { data: { remove: true, keep: "audit" }, metadata: { owner: "audit" } },
+        "example.other": { data: { remove: "other" } },
+      };
+      s.plugins = {
+        "example.audit": { data: { remove: true, keep: "audit" }, metadata: { owner: "audit" } },
+        "example.other": { data: { remove: "other" } },
+      };
+    });
+    const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
+
+    assert.deepEqual(await api.data.node.delete("T1"), { removed: true });
+    assert.deepEqual(await api.data.node.delete("T1"), { removed: false });
+    assert.deepEqual(await api.data.project.delete("remove"), { removed: true });
+    assert.deepEqual(await api.data.project.delete("remove"), { removed: false });
+
+    const after = await readRawState(dir);
+    assert.deepEqual(after.nodes.T1.plugins["example.audit"], {
+      metadata: { owner: "audit" },
+    });
+    assert.deepEqual(after.nodes.T1.plugins["example.other"], { data: { remove: "other" } });
+    assert.deepEqual(after.plugins["example.audit"], {
+      data: { keep: "audit" },
+      metadata: { owner: "audit" },
+    });
+    assert.deepEqual(after.plugins["example.other"], { data: { remove: "other" } });
+    assert.deepEqual(after.log.map((entry) => entry.action), ["plugin-data-delete", "plugin-data-delete"]);
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("api.data rejects non-JSON values before state or log mutation", async () => {
+  const dir = await createTempProject();
+  try {
+    await seedState(dir);
+    const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
+    const before = await readRawState(dir);
+    const invalid = [undefined, NaN, Infinity, 1n, new Map([["x", 1]]), new Date()];
+    const circular = {};
+    circular.self = circular;
+    invalid.push(circular);
+    for (const value of invalid) {
+      await assert.rejects(api.data.node.set("T1", value), (err) => err && err.code === "PLUGIN_DATA_INVALID");
+      await assert.rejects(api.data.project.set("bad", value), (err) => err && err.code === "PLUGIN_DATA_INVALID");
+    }
+    const after = await readRawState(dir);
+    assert.deepEqual(after.nodes, before.nodes);
+    assert.deepEqual(after.plugins, before.plugins);
+    assert.deepEqual(after.log, before.log);
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
 // =========================================================================
 // Log redaction — set envelopes do NOT contain the value
 // =========================================================================
