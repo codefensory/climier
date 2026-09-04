@@ -1,7 +1,7 @@
 {
   "name": "core-plugin",
   "version": "1.0.0",
-  "description": "T-plugin-core-e2e V2 plugin fixture. Exercises api.core.run end-to-end (task.create → edge.add → task.take → task.resolve → note.add) plus an invalid-op smoke and a partial-sequence smoke against the real core handlers. Self-contained ESM module: no runtime dependencies, type module, climier.id = 'example.core', command = 'core'.",
+  "description": "T-plugin-core-e2e V2 plugin fixture. Exercises api.core.run end-to-end (task.create → edge.add → task.take → task.submit → task.accept → note.add) plus an invalid-op smoke and a partial-sequence smoke against the real core handlers. Self-contained ESM module: no runtime dependencies, type module, climier.id = 'example.core', command = 'core'.",
   "private": true,
   "type": "module",
   "climier": {

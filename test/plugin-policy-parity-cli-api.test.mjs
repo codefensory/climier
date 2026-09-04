@@ -8,7 +8,7 @@
 //
 // This test file installs the policy-fixture in mode=allow and records
 // the last authorize() invocation. For each category (take, takeover,
-// resolve, release, reopen, cancel, add-note, add-initiative) it runs
+// submit/accept, release, reopen, cancel, add-note, add-initiative) it runs
 // the same intent via:
 //   - the CLI bin (`node bin/climier.mjs ...`)
 //   - the plugin API core (`api.core.run({ op, input })`)
@@ -216,7 +216,7 @@ test("parity: takeover — CLI preserves takeover policy action while api.core.r
 });
 
 // ===========================================================================
-// resolve
+// submit + accept
 // ===========================================================================
 
 test("parity: accept — CLI and api.core.run produce the same actor and canonical action", async () => {
@@ -314,7 +314,7 @@ test("parity: release — CLI and api.core.run produce the same actor and canoni
 });
 
 // ===========================================================================
-// reopen (after a resolve)
+// reopen (after accept)
 // ===========================================================================
 
 test("parity: reopen — CLI and api.core.run produce the same actor and canonical action", async () => {

@@ -241,7 +241,7 @@ test("concurrency: plugin fixture + CLI add-task run in parallel share state, no
       assert.equal(typeof e.ts, "string");
       assert.equal(typeof e.action, "string");
       assert.equal(typeof e.agent, "string");
-      // node id is present (add-node / add-note / take / resolve);
+      // node id is present (add-node / add-note / take / submit / accept);
       // a torn write would either drop it or produce a duplicate.
       assert.equal(typeof e.node, "string");
     }

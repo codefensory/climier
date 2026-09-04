@@ -1,28 +1,27 @@
 // T-plugin-policy-seam-lifecycle — focal matrix for the lifecycle seam.
 //
-// Per ADR-008 §"Tabla de take/resolve/release/reopen/cancel/note/initiative"
+// Per ADR-008 §"Tabla de take/submit/accept/release/reopen/cancel/note/initiative"
 // and ADR-009 §"Única invariancia de autoridad del core", every lifecycle
 // mutator must:
 //   - read state under withLock;
 //   - invoke `authorizeAction` with the action listed in §"Acciones
-//     canónicas" (task.take / task.takeover / task.resolve /
+//     canónicas" (task.take / task.takeover / task.submit / task.accept /
 //     task.release / task.reopen / task.cancel / note.add /
 //     initiative.create);
 //   - deny / throw short-circuit before any state mutation or log
 //     entry; allow / abstain defer to the default core.
 //
 // ADR-009 §"Resto de operaciones" removes the pre-seam ownership checks
-// from resolve / release / reopen / cancel. The seam is now the SOLE
-// authority on those actions; with no policy plugin (or abstain), the
-// default core lets any actor with `--as` mutate. The `take` and
+// from release / reopen / cancel. The seam is now the SOLE authority on
+// those actions; with no policy plugin (or abstain), the default core lets
+// any actor with `--as` mutate. Task submit/accept follows the validation
+// lifecycle and is covered by the task lifecycle tests. The `take` and
 // `takeover` paths preserve their exclusion-mutuelle invariant
 // (ALREADY_CLAIMED without takeover authorization; `task.takeover`
 // requires policy=allow and records `previous_owner`).
 //
 // Coverage:
 //   - take: free / same-actor idempotent / takeover allow-deny-abstain
-//   - resolve: no-owner with policy absent / allow / abstain
-//     (defaults core proceeds); owner allow / deny / abstain
 //   - release / reopen / cancel: allow / deny / abstain / throw
 //     (non-owner with abstain now succeeds — the default core no
 //     longer rejects on ownership)
@@ -296,181 +295,9 @@ test("seam-take: takeover with policy abstain returns ALREADY_CLAIMED (defaults 
 });
 
 // ===========================================================================
-// task.resolve was removed; task acceptance is covered by the
-// submission lifecycle tests.
-// ===========================================================================
-/*
-test("seam-resolve: no-owner resolves with policy allow (defaults core no longer blocks)", async () => {
-  // ADR-009 §"Resto de operaciones": the core does NOT block a
-  // non-owner from resolving. The pre-seam `NOT_OWNER` invariant
-  // (ADR-008 §"Tabla de resolve" item 1) is gone. A plugin returning
-  // `allow` still authorizes the action, but the default core also
-  // lets a non-owner resolve when the policy abstains or is absent.
-  // This test exercises the allow path with a non-special actor to
-  // pin the seam contract.
-  await withFreshEnv(async ({ projectDir }) => {
-    await initAndSeed({ projectDir });
-    await installAndTake(projectDir, "alice");
-    try {
-      await writeClimierJson(projectDir, {
-        version: 1,
-        project_id: "seam-lifecycle-project",
-        plugins: { "policy-fixture": { mode: "allow" } },
-      });
-      const result = await runCli([
-        "--project", projectDir, "resolve", "T-auth-1",
-        "--note", "shipped by auditor", "--as", "bob",
-      ]);
-      assert.equal(result.code, 0, `expected exit 0, got ${result.code}: ${result.stdout}`);
-      const data = JSON.parse(result.stdout);
-      assert.equal(data.node.status, "done");
-      assert.equal(data.node.done_by, "bob");
-      assert.equal(data.node.note, "shipped by auditor");
-      assert.equal(data.node.claim, null);
-      // Resolve log entry recorded with bob as the agent.
-      const after = await readState(projectDir);
-      const resolveEntries = after.log.filter((e) => e.action === "resolve");
-      assert.equal(resolveEntries.length, 1);
-      assert.equal(resolveEntries[0].agent, "bob");
-    } finally { await uninstallPolicyFixture(projectDir); }
-  });
-});
-
-test("seam-resolve: no-owner resolves with policy absent (defaults core proceeds)", async () => {
-  // ADR-009 §"Resto de operaciones": with no policy plugin installed,
-  // the default core lets any actor with `--as` resolve a task whose
-  // state is valid for the transition. done_by records the actor that
-  // actually mutated.
-  await withFreshEnv(async ({ projectDir }) => {
-    await initAndSeed({ projectDir });
-    await installAndTake(projectDir, "alice");
-    // No policy installed (no installPolicyFixture, no mode write).
-    const result = await runCli([
-      "--project", projectDir, "resolve", "T-auth-1",
-      "--note", "rolled by ops", "--as", "bob",
-    ]);
-    assert.equal(result.code, 0, `expected exit 0, got ${result.code}: ${result.stdout}`);
-    const data = JSON.parse(result.stdout);
-    assert.equal(data.node.status, "done");
-    assert.equal(data.node.done_by, "bob");
-    assert.equal(data.node.note, "rolled by ops");
-  });
-});
-
-test("seam-resolve: no-owner resolves with policy abstain (defaults core proceeds)", async () => {
-  // ADR-009 §"Resto de operaciones": abstain falls through to the
-  // default core, which proceeds. NOT_OWNER is no longer raised for
-  // resolve / release / reopen / cancel.
-  await withFreshEnv(async ({ projectDir }) => {
-    await initAndSeed({ projectDir });
-    await installAndTake(projectDir, "alice");
-    // installAndTake already installed the fixture with mode=allow;
-    // re-pin the mode to abstain for this resolve.
-    try {
-      await writeClimierJson(projectDir, {
-        version: 1,
-        project_id: "seam-lifecycle-project",
-        plugins: { "policy-fixture": { mode: "abstain" } },
-      });
-      const out = await cli([
-        "--project", projectDir, "resolve", "T-auth-1",
-        "--note", "shipped by bob", "--as", "bob",
-      ]);
-      assert.equal(out.node.status, "done");
-      assert.equal(out.node.done_by, "bob");
-      assert.equal(out.node.note, "shipped by bob");
-    } finally { await uninstallPolicyFixture(projectDir); }
-  });
-});
-
-test("seam-resolve: owner resolves with no policy installed (defaults core)", async () => {
-  await withFreshEnv(async ({ projectDir }) => {
-    await initAndSeed({ projectDir });
-    // No fixture installed → defaults core handles the resolve.
-    await cli(["--project", projectDir, "take", "T-auth-1", "--as", "alice"]);
-    const out = await cli([
-      "--project", projectDir, "resolve", "T-auth-1",
-      "--note", "done", "--as", "alice",
-    ]);
-    assert.equal(out.node.status, "done");
-    assert.equal(out.node.done_by, "alice");
-    assert.equal(out.node.note, "done");
-    assert.equal(out.node.claim, null);
-  });
-});
-
-test("seam-resolve: owner resolves with policy allow (seam runs, allow, resolve)", async () => {
-  await withFreshEnv(async ({ projectDir }) => {
-    await initAndSeed({ projectDir });
-    await installPolicyFixture(projectDir);
-    try {
-      await writeClimierJson(projectDir, {
-        version: 1,
-        project_id: "seam-lifecycle-project",
-        plugins: { "policy-fixture": { mode: "allow" } },
-      });
-      await cli(["--project", projectDir, "take", "T-auth-1", "--as", "alice"]);
-      const out = await cli([
-        "--project", projectDir, "resolve", "T-auth-1",
-        "--note", "shipped", "--as", "alice",
-      ]);
-      assert.equal(out.node.status, "done");
-      assert.equal(out.node.done_by, "alice");
-      assert.equal(out.node.note, "shipped");
-    } finally { await uninstallPolicyFixture(projectDir); }
-  });
-});
-
-test("seam-resolve: owner resolves with policy deny returns POLICY_DENIED with no state mutation", async () => {
-  await withFreshEnv(async ({ projectDir }) => {
-    await initAndSeed({ projectDir });
-    await installAndTake(projectDir, "alice");
-    try {
-      await writeClimierJson(projectDir, {
-        version: 1,
-        project_id: "seam-lifecycle-project",
-        plugins: { "policy-fixture": { mode: "deny", reason: "blocked" } },
-      });
-      const before = await readState(projectDir);
-      const result = await runCli([
-        "--project", projectDir, "resolve", "T-auth-1",
-        "--note", "should not happen", "--as", "alice",
-      ]);
-      assert.equal(result.code, 1);
-      const data = JSON.parse(result.stdout);
-      assert.equal(data.ok, false);
-      assert.equal(data.error.code, "POLICY_DENIED");
-      assert.equal(data.error.details.action, "task.resolve");
-      assert.equal(data.error.details.actor, "alice");
-      const after = await readState(projectDir);
-      assert.equal(after.nodes["T-auth-1"].status, "in_progress");
-      assert.equal(after.nodes["T-auth-1"].revision, before.nodes["T-auth-1"].revision);
-      const resolveEntries = after.log.filter((e) => e.action === "resolve");
-      assert.equal(resolveEntries.length, 0);
-    } finally { await uninstallPolicyFixture(projectDir); }
-  });
-});
-
-test("seam-resolve: owner resolves with policy abstain (defaults core resolves for owner)", async () => {
-  await withFreshEnv(async ({ projectDir }) => {
-    await initAndSeed({ projectDir });
-    await installPolicyFixture(projectDir);
-    try {
-      await writeClimierJson(projectDir, {
-        version: 1,
-        project_id: "seam-lifecycle-project",
-        plugins: { "policy-fixture": { mode: "abstain" } },
-      });
-      await cli(["--project", projectDir, "take", "T-auth-1", "--as", "alice"]);
-      const out = await cli([
-        "--project", projectDir, "resolve", "T-auth-1",
-        "--note", "ok", "--as", "alice",
-      ]);
-      assert.equal(out.node.status, "done");
-    } finally { await uninstallPolicyFixture(projectDir); }
-  });
-});
-*/
+// Task acceptance uses submit + accept; its policy coverage lives in the
+// task lifecycle and parity tests. The old task.resolve seam matrix was
+// retired with that transition.
 
 // ===========================================================================
 // release: allow / deny / abstain / throw

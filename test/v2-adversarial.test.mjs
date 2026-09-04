@@ -91,7 +91,7 @@ async function takeNode(dir, id, as) {
   return take({ statePath: dir, flags: { as }, positional: [id], projectDir: dir });
 }
 
-async function resolveTask(dir, id, as, note = "shipped") {
+async function submitAcceptTask(dir, id, as, note = "shipped") {
   const { default: submit } = await importFresh("./cli/commands/submit.mjs");
   const { default: accept } = await importFresh("./cli/commands/accept.mjs");
   await submit({ statePath: dir, projectDir: dir, flags: { as, note }, positional: [id] });
@@ -496,14 +496,9 @@ describe("concurrency: two operations on the same node serialize cleanly", () =>
   });
 
   test("concurrent resolve attempts on a task are rejected without mutation", async () => {
-    // ADR-009 §"Resto de operaciones": the core does NOT block a
-    // non-owner from resolving. Without a policy plugin, two actors
-    // racing to resolve the same claimed task both succeed; the
-    // file lock serializes the writes and the second writer wins
-    // the envelope (done_by / done_at / note). The only invariant
-    // that still holds is the take invariant: alice was the first
-    // taker, so the original claim is hers until the first resolve
-    // cleared it.
+    // `resolve` is gate-only. Concurrent attempts against a task must
+    // both reject before changing the task or appending a resolve log;
+    // the preceding take is the only mutation in this scenario.
     const dir = await v2Project();
     try {
       await addTaskNode(dir, "T-a");
@@ -1011,7 +1006,7 @@ describe("take idempotency and takeover", () => {
     try {
       await addTaskNode(dir, "T-a");
       await takeNode(dir, "T-a", "alice");
-      await resolveTask(dir, "T-a", "alice", "done");
+      await submitAcceptTask(dir, "T-a", "alice", "done");
       let caught;
       try {
         await takeNode(dir, "T-a", "alice");
@@ -1024,15 +1019,15 @@ describe("take idempotency and takeover", () => {
 });
 
 // =====================================================================
-// Class L — resolve newly_ready diff is correct
+// Class L — lifecycle completion newly_ready diff is correct
 //
 // Resolving a gate that blocks exactly one task should make that task
-// newly ready. Resolving a task that has downstream dependents should
-// unblock them. The diff should be the symmetric difference between
-// pre- and post-resolve `ready` sets.
+// newly ready. Submitting and accepting a task with downstream dependents
+// should unblock them. The diff should be the symmetric difference between
+// pre- and post-transition `ready` sets.
 // =====================================================================
 
-describe("resolve: newly_ready is the diff of pre/post derive", () => {
+describe("lifecycle completion: newly_ready is the diff of pre/post derive", () => {
   test("resolve a gate that unblocks one task: newly_ready contains exactly that task", async () => {
     const dir = await v2Project();
     try {
@@ -1060,13 +1055,13 @@ describe("resolve: newly_ready is the diff of pre/post derive", () => {
     } finally { await rmTempProject(dir); }
   });
 
-  test("resolve a task with one downstream task: newly_ready contains the downstream", async () => {
+  test("submit + accept a task with one downstream task: newly_ready contains the downstream", async () => {
     const dir = await v2Project();
     try {
       await addTaskNode(dir, "T-a");
       await addTaskNode(dir, "T-b", { "blocked-by": "T-a" });
       await takeNode(dir, "T-a", "alice");
-      const out = await resolveTask(dir, "T-a", "alice", "done");
+      const out = await submitAcceptTask(dir, "T-a", "alice", "done");
       assert.deepEqual(out.newly_ready, ["T-b"]);
     } finally { await rmTempProject(dir); }
   });

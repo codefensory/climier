@@ -1,21 +1,19 @@
-// F11 — v2 lifecycle: release, resolve, reopen, cancel.
+// F11 — v2 lifecycle: release, submit/accept, gate resolve, reopen, cancel.
 //
 // Pins the behaviors the design doc requires of v2 lifecycle commands:
 //   - release: any actor (or a policy that explicitly denies); idempotent
 //     on a node with no claim (no seam invocation).
-//   - resolve: done for tasks (requires --note), resolved +
-//     resolution for gates (requires --choice and --rationale); returns
+//   - submit + accept: tasks move from `in_progress` to `done` through the
+//     validation lifecycle; submit requires a delivery note.
+//   - resolve: gates move to `resolved` with a choice and rationale; returns
 //     newly_ready computed as the diff of deriveV2().ready before/after.
-//     The actor is not compared to the claim owner (ADR-009 §"Resto de
-//     operaciones"): any actor with --as may resolve a task whose state
-//     allows it; a policy plugin may still deny the action.
 //   - reopen: any actor; re-opens to `open` and clears the claim plus all
 //     submission/acceptance/completion metadata, which re-blocks downstream tasks.
 //   - cancel: open/in_progress/submitted + any actor (or a policy that
 //     explicitly denies); done/resolved tasks return INVALID_STATUS.
 //
 // T-plugin-policy-minimal-core-handlers / ADR-009: the historical
-// owner-invariant assertions (NOT_OWNER for non-owner resolve / release /
+// owner-invariant assertions (NOT_OWNER for non-owner release /
 // reopen / cancel) were inverted: with no policy, the default core lets
 // any actor mutate, and the tests verify the mutation envelope
 // (done_by / last log entry / claim cleared). The `policy allow` paths

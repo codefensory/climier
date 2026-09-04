@@ -10,7 +10,7 @@
 // de estado v2"):
 //   - `plugins` is additive and optional; version stays 2.
 //   - writeState, updateState, init, init --force, add-node/add-task/
-//     add-gate/add-knowledge, update, take, resolve, reopen, release,
+//     add-gate/add-knowledge, update, take, submit, accept, resolve (gate), reopen, release,
 //     cancel, snapshots, restore all preserve `plugins` and
 //     `nodes[id].plugins`.
 //   - The DAG (derive, statusOfV2, isSatisfiedV2) ignores these fields.
@@ -398,7 +398,7 @@ test("take preserves root plugins and per-node plugins", async () => {
   }
 });
 
-test("resolve (task) preserves root plugins and per-node plugins", async () => {
+test("submit + accept (task) preserves root plugins and per-node plugins", async () => {
   const dir = await createTempProject();
   try {
     const base = await bootstrapState(dir);
@@ -616,7 +616,7 @@ test("restore preserves `plugins` and `nodes[id].plugins` from the snapshot raw 
   }
 });
 
-test("end-to-end: snapshot with plugin data survives restore, then take/resolve cycles preserve it", async () => {
+test("end-to-end: snapshot with plugin data survives restore, then take/submit/accept cycles preserve it", async () => {
   const dir = await createTempProject();
   try {
     const base = await bootstrapState(dir);
@@ -755,7 +755,7 @@ test("`meta` and `nodes[id].plugins` survive take together (disjoint keyspaces)"
   }
 });
 
-test("`meta` and `nodes[id].plugins` survive resolve (task) together", async () => {
+test("`meta` and `nodes[id].plugins` survive submit + accept (task) together", async () => {
   const dir = await createTempProject();
   try {
     const base = await bootstrapState(dir, (s) => {

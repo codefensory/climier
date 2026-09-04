@@ -9,7 +9,7 @@
 //   1. appendWithContext adds plugin_id only for a valid pluginId and
 //      leaves the entry shape compatible with append().
 //   2. The five handlers of the first slice — add-task, add-edge, take,
-//      resolve, add-note — write plugin_id when ctx.pluginId is present
+//      submit/accept, add-note — write plugin_id when ctx.pluginId is present
 //      and never write it on the normal CLI path.
 //   3. The invariant withLock → updateState → append holds: a single log
 //      entry per handler call, no parallel logs.
@@ -426,7 +426,7 @@ test("take: ctx.pluginId propagates to the log entry as plugin_id", async () => 
   }
 });
 
-// ----- resolve --------------------------------------------------------------
+// ----- submit + accept -----------------------------------------------------
 
 test("accept (task): CLI call writes accept log entry without plugin_id", async () => {
   const dir = await createTempProject();
