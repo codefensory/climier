@@ -324,6 +324,21 @@ test("api.query.context uses the runtime agent to scope allowed_actions", async 
   }
 });
 
+test("api.query.context announces submit for an in_progress task", async () => {
+  const dir = await createTempProject();
+  try {
+    await seedState(dir, (state) => {
+      state.nodes.T1.status = "in_progress";
+      state.nodes.T1.claim = { by: "worker", at: new Date().toISOString() };
+    });
+    const api = await freshApi(dir, { agent: "worker" });
+    const out = await api.query.context("T1");
+    assert.deepEqual(out.allowed_actions, ["submit", "release", "add-note", "update"]);
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
 test("api.query.context reflects the runtime agent (different agents produce different allowed_actions)", async () => {
   const dir = await createTempProject();
   try {

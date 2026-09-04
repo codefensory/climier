@@ -255,7 +255,7 @@ function allowedActions(node, derivedStatus, agent) {
   const anonymous = !agent;
   if (node.kind === "resolvable" && node.subkind === "task") {
     if (derivedStatus === "ready") return [...(anonymous ? [] : ["claim"]), "update", "add-note", "cancel"];
-    if (derivedStatus === "in_progress") return anonymous ? ["add-note"] : ["resolve", "release", "add-note", "update"];
+    if (derivedStatus === "in_progress") return anonymous ? ["add-note"] : ["submit", "release", "add-note", "update"];
     if (derivedStatus === "submitted") return anonymous ? ["add-note"] : ["accept", "reject", "add-note"];
     if (derivedStatus === "done") return ["add-note", ...(anonymous ? [] : ["reopen"] )];
     if (derivedStatus === "canceled") return ["add-note", "update"];

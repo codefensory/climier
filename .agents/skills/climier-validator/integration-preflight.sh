@@ -109,6 +109,28 @@ if [[ -z "$note_text" ]]; then
     echo "integration-preflight: failed to read climier context for $task_id" >&2
     exit 2
   fi
+  # The CLI emits structured JSON errors on stdout and exits non-zero. Do not
+  # mistake that error envelope for a valid context with no evidence notes.
+  context_error="$(printf '%s' "$context_json" | node -e '
+let s = "";
+process.stdin.on("data", d => s += d);
+process.stdin.on("end", () => {
+  try {
+    const o = JSON.parse(s);
+    if (!o || o.ok !== false || o.error === undefined) return;
+    if (o.error && typeof o.error === "object") {
+      process.stdout.write(JSON.stringify(o.error));
+    } else {
+      process.stdout.write(JSON.stringify({ message: String(o.error) }));
+    }
+  } catch {}
+});
+')"
+  if [[ -n "$context_error" ]]; then
+    echo "integration-preflight: failed to read climier context for $task_id: $context_error" >&2
+    exit 2
+  fi
+
   # Extract the latest note text starting with EVIDENCE or WORKTREE.
   note_text="$(printf '%s' "$context_json" | node -e '
 let s = "";

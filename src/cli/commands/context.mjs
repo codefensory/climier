@@ -133,13 +133,11 @@ function allowedActions(node, derivedStatus, claim, agent) {
       if (!isAnonymous) actions.push("claim");
       actions.push("update", "add-note", "cancel");
     } else if (derivedStatus === "in_progress") {
-      // resolve and release record the actor; with --as, any actor may
-      // resolve/release a task whose state allows it (ADR-009 §"Resto
-      // de operaciones"). Ownership of the current claim is not
-      // projected: a policy plugin that authorises a takeover may
-      // replace the claim, and that decision is dynamic.
+      // submit and release record the actor. With --as, surface both
+      // state-valid actions; ownership is not projected here and remains a
+      // provider/policy check at execution time.
       if (!isAnonymous) {
-        actions.push("resolve", "release", "add-note", "update");
+        actions.push("submit", "release", "add-note", "update");
       } else {
         actions.push("add-note");
       }

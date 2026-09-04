@@ -375,17 +375,37 @@ test("integration-preflight.sh: refuses malformed EVIDENCE JSON (exit 2)", () =>
   }
 });
 
-test("integration-preflight.sh: missing note returns 2", () => {
-  const { repo } = makeRepo();
+test("integration-preflight.sh: reports a structured context error when state is missing", async () => {
+  const { repo, wt } = makeRepo();
   try {
-    const r = spawnSync(
-      "bash",
-      [PREFLIGHT, "--project-root", repo, "--task", "T-missing"],
-      { encoding: "utf8" },
+    const r = await runIsolated(
+      `bash '${PREFLIGHT}' --project-root '${repo}' --task T-missing`,
     );
-    assert.equal(r.status, 2);
-    assert.match(r.stderr, /no EVIDENCE or WORKTREE note/);
+    assert.equal(r.code, 2);
+    assert.match(r.stderr, /failed to read climier context for T-missing/);
+    assert.match(r.stderr, /CLI_INTERNAL_ERROR/);
+    assert.match(r.stderr, /state file missing/);
   } finally {
-    cleanup({ repo, wt: path.join(path.dirname(repo), `wt-${path.basename(repo)}`) });
+    cleanup({ repo, wt });
+  }
+});
+
+test("integration-preflight.sh: reports NODE_NOT_FOUND for a nonexistent task", async () => {
+  const { repo, wt } = makeRepo();
+  try {
+    const script = [
+      `cd '${repo}'`,
+      `node ${BIN} --project '${repo}' init >/dev/null`,
+      `bash '${PREFLIGHT}' --project-root '${repo}' --task T-missing`,
+      `echo "PREFLIGHT_EC=$?"`,
+    ].join("\n");
+    const r = await runIsolated(script);
+    assert.equal(r.code, 0, `isolated exit ${r.code}; stderr=${r.stderr}`);
+    assert.match(r.stderr, /failed to read climier context for T-missing/);
+    assert.match(r.stderr, /NODE_NOT_FOUND/);
+    assert.match(r.stderr, /context: node T-missing not found/);
+    assert.match(r.stdout, /PREFLIGHT_EC=2/);
+  } finally {
+    cleanup({ repo, wt });
   }
 });

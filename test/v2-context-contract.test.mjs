@@ -330,9 +330,10 @@ test("context v2: allowed_actions for task in_progress owned by --as", async () 
     });
     const out = await context({ statePath: dir, positional: ["T-x"], flags: { as: "alice" } });
     assert.equal(out.derived_status, "in_progress");
-    for (const action of ["resolve", "release", "add-note", "update"]) {
+    for (const action of ["submit", "release", "add-note", "update"]) {
       assert.ok(out.allowed_actions.includes(action), `expected "${action}" in ${JSON.stringify(out.allowed_actions)}`);
     }
+    assert.ok(!out.allowed_actions.includes("resolve"), "tasks must submit rather than resolve");
     // ADR-009 §"Contexto y documentación": allowed_actions must never
     // project hatch-shaped commands or actor roles. The owner (and any
     // other identified caller) gets plain `release`, not
@@ -380,7 +381,7 @@ test("context v2: submitted task reports validation actions without claim or rel
   }
 });
 
-test("context v2: allowed_actions for task in_progress with --as bob (non-owner) -> resolve/release/add-note/update (ADR-009: ownership is not projected)", async () => {
+test("context v2: allowed_actions for task in_progress with --as bob (non-owner) -> submit/release/add-note/update (ADR-009: ownership is not projected)", async () => {
   const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
@@ -402,21 +403,22 @@ test("context v2: allowed_actions for task in_progress with --as bob (non-owner)
     // ADR-009 §"Resto de operaciones" + §"Contexto y documentación":
     // allowed_actions describes the actions the state permits. The
     // core no longer compares the caller against the claim owner for
-    // resolve/release. Any identified caller sees resolve/release;
+    // submit/release. Any identified caller sees submit/release;
     // the actual ownership check is delegated to a plugin (or to the
     // core default of "any actor is authorised"). The role-based
     // hatch is gone.
     const out = await context({ statePath: dir, positional: ["T-x"], flags: { as: "bob" } });
-    for (const action of ["resolve", "release", "add-note", "update"]) {
+    for (const action of ["submit", "release", "add-note", "update"]) {
       assert.ok(out.allowed_actions.includes(action), `expected "${action}" in ${JSON.stringify(out.allowed_actions)}`);
     }
+    assert.ok(!out.allowed_actions.includes("resolve"), "tasks must submit rather than resolve");
     assert.ok(!out.allowed_actions.some((a) => a.includes("orchestrator")));
   } finally {
     await rmTempProject(dir);
   }
 });
 
-test("context v2: allowed_actions for task in_progress --as test-agent (non-owner) -> resolve/release/add-note/update (actor name has no authority)", async () => {
+test("context v2: allowed_actions for task in_progress --as test-agent (non-owner) -> submit/release/add-note/update (actor name has no authority)", async () => {
   const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
@@ -437,13 +439,14 @@ test("context v2: allowed_actions for task in_progress --as test-agent (non-owne
     });
     // ADR-009: the literal actor name (here `test-agent`) carries no
     // authority. An identified caller that is not the claim owner
-    // still sees resolve/release because allowed_actions reflects the
+    // still sees submit/release because allowed_actions reflects the
     // state invariant, not the ownership check. The handler's default
     // (no plugin) is "any actor is authorised".
     const out = await context({ statePath: dir, positional: ["T-x"], flags: { as: "test-agent" } });
-    for (const action of ["resolve", "release", "add-note", "update"]) {
+    for (const action of ["submit", "release", "add-note", "update"]) {
       assert.ok(out.allowed_actions.includes(action), `expected "${action}" in ${JSON.stringify(out.allowed_actions)}`);
     }
+    assert.ok(!out.allowed_actions.includes("resolve"), "tasks must submit rather than resolve");
   } finally {
     await rmTempProject(dir);
   }
