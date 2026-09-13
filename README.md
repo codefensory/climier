@@ -62,7 +62,7 @@ Because repo metadata is separate from live mutable state, multiple worktrees or
 
 ## Install
 
-Requires Node 20+.
+Requires Node 20+, or Bun 1.3+ as an alternative runtime.
 
 ```bash
 npm install -g climier
@@ -79,6 +79,14 @@ From this repo during development:
 
 ```bash
 node bin/climier.mjs --help
+```
+
+Or with Bun — the executable shebang is `#!/usr/bin/env bun`, so running
+`bin/climier.mjs` directly from a clone (or through a symlink to it) uses Bun;
+`node bin/climier.mjs` keeps working:
+
+```bash
+bun bin/climier.mjs --help
 ```
 
 ## Quickstart
