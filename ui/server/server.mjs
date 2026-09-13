@@ -560,11 +560,12 @@ export async function start({ projectDir, port = DEFAULT_PORT, log = console.err
     });
   }
 
+  const host = process.env.CLIMIER_UI_HOST || "127.0.0.1";
   const server = await new Promise((resolve, reject) => {
-    const srv = app.listen(port, "127.0.0.1", () => resolve(srv));
+    const srv = app.listen(port, host, () => resolve(srv));
     srv.on("error", (err) => reject(err));
   });
-  const url = `http://127.0.0.1:${port}`;
+  const url = `http://${host}:${port}`;
   log(`climier ui listening at ${url} (project: ${projectDir})`);
   return { url, server, state: lastGood };
 }
