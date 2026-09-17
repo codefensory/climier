@@ -384,6 +384,5 @@ This repository carries the portable agent workflow used by the Climier-based pr
 - `.agents/skills/climier-worker/` — worktree, context and finish helpers;
 - `.agents/skills/climier-validator/` — validation and merge contract;
 - `.agents/skills/spec-pipeline/` — RFC → review → ADR → tasks pipeline;
-- `CLIMIER-CHEATSHEET.md` — quick command reference.
 
 These files define how this project uses Climier. The project-specific source of truth remains the code, tests and `docs/`; the live Climier state remains outside the repository and is accessed only through the CLI.
