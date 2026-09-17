@@ -1,0 +1,31 @@
+import { createRootRoute, HeadContent, Outlet, Scripts } from '@tanstack/react-router';
+import appCss from '@/app.css?url';
+import { RootProvider } from 'fumadocs-ui/provider/tanstack';
+
+export const Route = createRootRoute({
+  head: () => ({
+    meta: [
+      { charSet: 'utf-8' },
+      { name: 'viewport', content: 'width=device-width, initial-scale=1' },
+      { title: 'climier docs' },
+    ],
+    links: [{ rel: 'stylesheet', href: appCss }],
+  }),
+  component: RootComponent,
+});
+
+function RootComponent() {
+  return (
+    <html suppressHydrationWarning lang="en">
+      <head>
+        <HeadContent />
+      </head>
+      <body className="flex min-h-screen flex-col">
+        <RootProvider>
+          <Outlet />
+        </RootProvider>
+        <Scripts />
+      </body>
+    </html>
+  );
+}
