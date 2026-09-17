@@ -47,6 +47,8 @@ All commands print JSON to stdout. `--as <agent>` tags identity in the audit log
 
 Canonical BLOCKS direction: `{from: blocker, to: blocked}`.
 
+`--body "..."` takes inline text; `--body-file <path>` reads it from a markdown file instead (mutually exclusive, 512 KiB cap). Prefer the file form for long specs — write to a temp file and cite its path. Available on `add-task`, `add-gate`, `add-knowledge`, `add-node` and `update`.
+
 ## Statuses
 
 - Task persisted: `open | in_progress | submitted | done | canceled`.
