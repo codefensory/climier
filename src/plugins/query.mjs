@@ -92,7 +92,7 @@ function staleClaims(snapshot, staleMs, initiative) {
     .filter((node) => !initiative || node.initiative === initiative)
     .filter((node) => (node.status || "open") === "in_progress")
     .map((node) => ({ node, at: claimAtMs(node), by: claimBy(node) }))
-    .filter(({ at, by }) => at !== null && !!by && now - at > staleMs)
+    .filter(({ at, by }) => at !== null && !!by && now - at >= staleMs)
     .map(({ node, at, by }) => ({
       id: node.id,
       claimed_by: by,
@@ -241,11 +241,11 @@ function parseAtMs(at) {
 function claimFor(node, staleMs) {
   if (node.claim && typeof node.claim === "object" && node.claim.by) {
     const atMs = parseAtMs(node.claim.at);
-    return { by: node.claim.by, at: node.claim.at ?? null, stale: atMs !== null && Date.now() - atMs > staleMs };
+    return { by: node.claim.by, at: node.claim.at ?? null, stale: atMs !== null && Date.now() - atMs >= staleMs };
   }
   if (node.claimed_by && node.claimed_at !== undefined) {
     const atMs = parseAtMs(node.claimed_at);
-    return { by: node.claimed_by, at: node.claimed_at ?? null, stale: atMs !== null && Date.now() - atMs > staleMs };
+    return { by: node.claimed_by, at: node.claimed_at ?? null, stale: atMs !== null && Date.now() - atMs >= staleMs };
   }
   return null;
 }

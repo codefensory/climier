@@ -66,7 +66,7 @@ function buildClaim(node, staleMs) {
     return {
       by: node.claim.by,
       at: node.claim.at ?? null,
-      stale: atMs !== null && Date.now() - atMs > staleMs,
+      stale: atMs !== null && Date.now() - atMs >= staleMs,
     };
   }
   if (node.claimed_by && node.claimed_at !== undefined) {
@@ -74,7 +74,7 @@ function buildClaim(node, staleMs) {
     return {
       by: node.claimed_by,
       at: node.claimed_at ?? null,
-      stale: atMs !== null && Date.now() - atMs > staleMs,
+      stale: atMs !== null && Date.now() - atMs >= staleMs,
     };
   }
   return null;
