@@ -45,14 +45,15 @@ import {
 const ADAPTER_MODULE = "../src/plugins/core-adapter.mjs";
 const REGISTRY_MODULE = "../src/plugins/core-registry.mjs";
 
-// 20 op IDs (ADR-012 §2 plus task submission lifecycle, without the
-// removed task.resolve bypass). The adapter must accept every one of these
-// before reaching for the kernel.
+// 22 op IDs (ADR-012 §2 plus task submission lifecycle and the ADR-022
+// task.touch heartbeat, without the removed task.resolve bypass). The
+// adapter must accept every one of these before reaching for the kernel.
 const EXPECTED_OPS = [
-  // task lifecycle (9)
+  // task lifecycle (10)
   "task.create",
   "task.update",
   "task.take",
+  "task.touch",
   "task.release",
   "task.reopen",
   "task.cancel",
@@ -155,10 +156,10 @@ test("plugin-core-adapter: createCore throws when pluginId is missing or empty",
 });
 
 // =====================================================================
-// 2. registry — bootstrapBuiltins exposes the 21-op contract
+// 2. registry — bootstrapBuiltins exposes the 22-op contract
 // =====================================================================
 
-test("plugin-core-adapter: bootstrapBuiltins exposes exactly the 21 op IDs published by ADR-012 §2", async () => {
+test("plugin-core-adapter: bootstrapBuiltins exposes exactly the 22 op IDs published by ADR-012 §2 plus task.touch", async () => {
   const { bootstrapBuiltins } = await importFresh(REGISTRY_MODULE);
   const reg = bootstrapBuiltins();
   assert.equal(reg.ops.length, EXPECTED_OPS.length, `expected ${EXPECTED_OPS.length} ops, got ${reg.ops.length}`);

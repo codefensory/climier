@@ -7,10 +7,13 @@ import { addV2Node, requireFields } from "./internal/create-node.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
 import { resolveAgent } from "../actor.mjs";
 
+import { withBodyFile } from "./internal/text-file.mjs";
+
 export const knownFlags = [
   "initiative",
   "title",
   "body",
+  "body-file",
   "acceptance",
   "blocked-by",
   "supersedes",
@@ -22,7 +25,8 @@ export const knownFlags = [
   "as",
 ];
 
-export default async function addTask({ statePath, flags, positional, projectDir, pluginId }) {
+export default async function addTask({ statePath, flags: rawFlags, positional, projectDir, pluginId }) {
+  const flags = await withBodyFile("add-task", rawFlags);
   if (flags.supersedes !== undefined) {
     throwV2(
       "INVALID_EDGE_KIND",

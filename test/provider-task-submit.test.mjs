@@ -160,6 +160,7 @@ test("task.submit apply: changes status, clears claim, and stores submission met
       note: submitInput.note,
       submitted_by: ACTOR,
       submitted_at: SUBMITTED_AT,
+      submitted_meta: null,
     },
   }]);
   assert.equal(output.result.id, "T-submit");

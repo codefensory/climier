@@ -41,6 +41,11 @@ export const knownFlags = [
   "limit",
   "all",
   "as",
+  "meta",
+  "meta-keys",
+  "mine",
+  "fields",
+  "slim",
 ];
 
 const DEFAULT_STALE_MS = 2 * 60 * 60 * 1000;
@@ -63,6 +68,40 @@ function parseLimit(flags) {
   return n;
 }
 
+function resolveMineActor(flags) {
+  if (flags.mine === undefined || flags.mine === false || flags.mine === null) return null;
+  if (typeof flags.mine === "string" && flags.mine.trim()) {
+    throw new Error("status: --mine takes no value (pass --as <agent> or set CLIMIER_AGENT)");
+  }
+  const fromFlag = typeof flags.as === "string" ? flags.as.trim() : "";
+  if (fromFlag) return fromFlag;
+  const fromEnv = typeof process.env.CLIMIER_AGENT === "string" ? process.env.CLIMIER_AGENT.trim() : "";
+  if (fromEnv) return fromEnv;
+  throw new Error("status: --mine requires --as <agent> or CLIMIER_AGENT");
+}
+
+const SLIM_ROW_KEYS = Object.freeze(["id", "title", "status", "claimed_by"]);
+
+function parseFieldProjection(flags) {
+  if (flags.fields !== undefined && flags.fields !== null && flags.fields !== false) {
+    if (flags.fields === true) throw new Error("status: --fields requires a value (e.g. --fields id,title,status)");
+    const keys = String(flags.fields).split(",").map((k) => k.trim()).filter(Boolean);
+    if (keys.length === 0) throw new Error("status: --fields requires a value (e.g. --fields id,title,status)");
+    return { mode: "fields", keys };
+  }
+  if (flags.slim === true || flags.slim === "true") return { mode: "slim", keys: SLIM_ROW_KEYS };
+  return null;
+}
+
+function applyFieldProjection(row, spec) {
+  if (!spec || !row || typeof row !== "object") return row;
+  const out = {};
+  for (const key of spec.keys) {
+    if (Object.prototype.hasOwnProperty.call(row, key)) out[key] = row[key];
+  }
+  return out;
+}
+
 function claimBy(node) {
   if (!node) return null;
   if (node.claim && typeof node.claim === "object" && node.claim.by) return node.claim.by;
@@ -72,7 +111,10 @@ function claimBy(node) {
 
 function claimAtMs(node) {
   if (!node) return null;
-  const at = (node.claim && node.claim.at) || node.claimed_at;
+  // ADR-022 §C: freshness comes from the heartbeat when the owner refreshes
+  // it, falling back to the claim creation instant. Without a heartbeat the
+  // previous behavior is unchanged.
+  const at = (node.claim && (node.claim.heartbeat_at || node.claim.at)) || node.claimed_at;
   if (at == null) return null;
   if (typeof at === "number") return at;
   if (typeof at === "string") {
@@ -88,8 +130,38 @@ function taskMatchesFilters(node, filters) {
   return true;
 }
 
-function nodeSummary(node) {
-  return {
+function isPlainObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function parseMetaProjection(flags) {
+  if (flags.meta !== undefined && flags.meta !== false && flags.meta !== null) {
+    return { mode: "full" };
+  }
+  const raw = flags["meta-keys"];
+  if (raw === undefined) return null;
+  if (raw === true) throw new Error("status: --meta-keys requires a value (e.g. --meta-keys pid,space)");
+  const keys = String(raw).split(",").map((k) => k.trim()).filter(Boolean);
+  if (keys.length === 0) throw new Error("status: --meta-keys requires a value (e.g. --meta-keys pid,space)");
+  return { mode: "keys", keys };
+}
+
+function projectMeta(node, spec) {
+  if (!spec) return undefined;
+  if (spec.mode === "full") {
+    return isPlainObject(node.meta) ? structuredClone(node.meta) : null;
+  }
+  const out = {};
+  if (isPlainObject(node.meta)) {
+    for (const key of spec.keys) {
+      if (Object.prototype.hasOwnProperty.call(node.meta, key)) out[key] = node.meta[key];
+    }
+  }
+  return out;
+}
+
+function nodeSummary(node, metaSpec) {
+  const row = {
     id: node.id,
     kind: node.kind,
     subkind: node.subkind,
@@ -99,10 +171,12 @@ function nodeSummary(node) {
     domain: node.domain,
     claimed_by: claimBy(node),
   };
+  if (metaSpec) row.meta = projectMeta(node, metaSpec);
+  return row;
 }
 
-function enrichTasks(nodes, ids, kind) {
-  return ids.map((id) => nodeSummary(nodes[id]));
+function enrichTasks(nodes, ids, kind, metaSpec) {
+  return ids.map((id) => nodeSummary(nodes[id], metaSpec));
 }
 
 function detectStaleClaims(state, staleMs, initiativeFilter) {
@@ -119,6 +193,37 @@ function detectStaleClaims(state, staleMs, initiativeFilter) {
     const age = now - at;
     if (age >= staleMs) {
       out.push({ id: node.id, claimed_by: by, age_ms: age, title: node.title || "" });
+    }
+  }
+  return out;
+}
+
+function detectStateInvariants(state, initiativeFilter) {
+  // ADR-022 §C: corruption signals, unlike a merely old claim. A task that
+  // is in_progress must hold a claim; a done task must record who
+  // completed it.
+  const out = [];
+  for (const node of Object.values(state.nodes || {})) {
+    if (node.kind !== "resolvable" || node.subkind !== "task") continue;
+    if (initiativeFilter && node.initiative !== initiativeFilter) continue;
+    const status = node.status || "open";
+    if (status === "in_progress" && !claimBy(node)) {
+      out.push({
+        kind: "state-invariant",
+        severity: "error",
+        task_id: node.id,
+        check: "missing-claim",
+        message: `${node.id} is in_progress without a claim`,
+      });
+    }
+    if (status === "done" && !node.done_by) {
+      out.push({
+        kind: "state-invariant",
+        severity: "error",
+        task_id: node.id,
+        check: "missing-done-by",
+        message: `${node.id} is done without done_by`,
+      });
     }
   }
   return out;
@@ -152,12 +257,15 @@ export default async function statusV2({ statePath, flags }) {
   const domainFilter = flags.domain || null;
   const kindFilter = flags.kind || null; // task | gate | knowledge
   const statusFilter = flags.status || null; // rarely used; tests pass an exact match
-  const claimedByFilter = flags["claimed-by"] || null;
+  const mineActor = resolveMineActor(flags);
+  const claimedByFilter = mineActor || flags["claimed-by"] || null;
   // `--as` is accepted (it's a known identity tag) but intentionally not a
-  // filter here. The status view is global by default; see the in_progress
-  // scoping below.
+  // filter here, unless the caller passes `--mine`. The status view is
+  // global by default; see the in_progress scoping below.
   const staleMs = parseStaleMs(flags);
   const limit = parseLimit(flags);
+  const metaSpec = parseMetaProjection(flags);
+  const fieldSpec = parseFieldProjection(flags);
 
   // Filter pre-derived pools by the filter set so summary counts match lists.
   const filterByFlags = (id) => {
@@ -228,8 +336,9 @@ export default async function statusV2({ statePath, flags }) {
     return true;
   });
   const activeKnowledge = knowledgeInScope.filter((k) => (k.status || "active") === "active").length;
-
   const cap = (arr) => (limit !== null ? arr.slice(0, limit) : arr);
+  const summarize = (id) => applyFieldProjection(nodeSummary(nodes[id], metaSpec), fieldSpec);
+  const summarizeNode = (node) => applyFieldProjection(nodeSummary(node, metaSpec), fieldSpec);
 
   const result = {
     summary: {
@@ -242,22 +351,22 @@ export default async function statusV2({ statePath, flags }) {
       active_knowledge: activeKnowledge,
     },
     tasks: {
-      ready: cap(readyAll).map((id) => nodeSummary(nodes[id])),
-      in_progress: cap(inProgressScoped).map((id) => nodeSummary(nodes[id])),
-      submitted: cap(submittedScoped).map((id) => nodeSummary(nodes[id])),
+      ready: cap(readyAll).map(summarize),
+      in_progress: cap(inProgressScoped).map(summarize),
+      submitted: cap(submittedScoped).map(summarize),
       blocked: cap(blockedAll).map((id) => {
         const node = nodes[id];
         const blocking = blockingForNode(s, id)
           .map((b) => ({ id: b.node && b.node.id, kind: b.node && b.node.kind, satisfied: b.satisfied }));
-        return {
-          ...nodeSummary(node),
+        return applyFieldProjection({
+          ...nodeSummary(node, metaSpec),
           unsatisfied_blockers: blocking.filter((b) => b.satisfied === false).map((b) => b.id).filter(Boolean),
-        };
+        }, fieldSpec);
       }),
-      backlog: cap(backlogAll).map((id) => nodeSummary(nodes[id])),
+      backlog: cap(backlogAll).map(summarize),
     },
     gates: {
-      open: cap(openGates).map((id) => nodeSummary(nodes[id])),
+      open: cap(openGates).map(summarize),
     },
     knowledge_count: knowledgeInScope.length,
     alerts: [],
@@ -296,6 +405,10 @@ export default async function statusV2({ statePath, flags }) {
     });
   }
 
+  for (const inv of detectStateInvariants(s, initiativeFilter)) {
+    result.alerts.push(inv);
+  }
+
   if (all) {
     const doneTasks = Object.values(nodes).filter((n) =>
       n.kind === "resolvable" && n.subkind === "task" && n.status === "done"
@@ -312,12 +425,12 @@ export default async function statusV2({ statePath, flags }) {
     const supersededNodes = Object.values(nodes).filter((n) => n.status === "superseded" && (!initiativeFilter || n.initiative === initiativeFilter));
     const deprecatedKnowledge = knowledgeInScope.filter((n) => n.status === "deprecated");
     result.done = {
-      tasks: doneTasks.map(nodeSummary),
+      tasks: doneTasks.map(summarizeNode),
     };
-    result.canceled = { tasks: canceledTasks.map(nodeSummary) };
-    result.resolved = { gates: resolvedGates.map(nodeSummary) };
+    result.canceled = { tasks: canceledTasks.map(summarizeNode) };
+    result.resolved = { gates: resolvedGates.map(summarizeNode) };
     result.superseded = {
-      nodes: supersededNodes.map(nodeSummary),
+      nodes: supersededNodes.map(summarizeNode),
     };
     result.deprecated = {
       knowledge: deprecatedKnowledge.map((n) => ({
