@@ -98,8 +98,7 @@ CLIMIER_HOME=/tmp/climier-home climier-dev status --project /tmp/my-proj
 ```
 
 Test both runtimes: `npm test` (Node, must stay green) and `npm run test:bun`
-(Bun, per-file runner; known gaps listed in
-`.plans/migrate-bun-dual-runtime.md`).
+(Bun, per-file runner `test/run-bun-tests.mjs`).
 
 ## Agent skill
 
