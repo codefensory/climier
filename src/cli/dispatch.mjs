@@ -33,34 +33,41 @@ Exceptions: --help/-h/help and --version/version print plain text.
 
 Read-only:
   status [--initiative X] [--kind task|gate|knowledge] [--status X] [--domain X]
-        [--claimed-by X] [--stale-ms N] [--limit N] [--all]
+        [--claimed-by X] [--mine] [--stale-ms N] [--limit N] [--all]
+        [--meta] [--meta-keys a,b] [--fields a,b] [--slim]
                                           Summary-shape: task buckets (ready/in_progress/blocked/backlog), open gates, knowledge count, alerts.
                                           in_progress is global by default: every in_progress task is listed and counted
-                                          regardless of caller. Use --claimed-by <agent> to narrow to one agent's claims.
-                                          --as is an identity tag (it scopes context's allowed_actions) and is not a filter
-                                          for status.
+                                          regardless of caller. Use --claimed-by <agent> (or --mine with --as) to narrow
+                                          to one agent's claims. --as alone is an identity tag (it scopes context's
+                                          allowed_actions) and is not a filter for status. --meta/--meta-keys opt into
+                                          node.meta row projection; --fields/--slim trim row shape. Freshness uses
+                                          claim.heartbeat_at when present, else claim.at.
   context <id>                           Agent-first view of a node: spec, blockers, informing edges, scoped knowledge, allowed actions.
   search "<query>" [--all]               Search active knowledge; --all includes deprecated knowledge.
   initiatives                            List registered initiatives with usage counts.
   log [--limit N] [--action X] [--agent X] [--task X] [--decision X]
                                           Show the audit log.
   history <id> [--limit N]               Log entries that reference a node.
-  show <id>                              Print the raw node object.
+  show <id> [--fields a,b] [--slim]      Print the raw node object, optionally projected.
   snapshots                              List recoverable snapshots captured under <state-dir>/snapshots/, newest first.
   state                                  Read the deterministic current core projection (not historical snapshots).
   ui [--port N] [--open=true|false]      Start the local read-only web UI and open it in the browser.
                                           Requires the ui/ subproject deps (npm install in ui/ once).
 
-Mutating (require --as <agent-id>):
+Mutating (require --as <agent>):
   batch --file <json> --as <agent>       Execute an atomic batch from a JSON file.
   batch --stdin --as <agent>             Execute an atomic batch from stdin.
-  take <id> --as <agent>                 Claim a ready task (idempotent when you already hold the claim).
+  take <id> --as <agent> [--meta '{...}']
+                                          Claim a ready task (idempotent when you already hold the claim).
+                                          --meta stores attempt metadata on claim.meta in the same mutation.
+  touch <id> --as <agent>                Refresh claim.heartbeat_at on an owned in_progress task (owner only).
   submit <id> --note "..." --as <agent>  Submit an owned in-progress task for validation.
   accept <id> --as <agent>               Accept a submitted task as done.
   reject <id> --reason "..." --as <agent> Return a submitted task to open with a reason.
                                           A policy plugin may authorise taking over another actor's claim.
-  release <id> --as <agent>              Free a claim (idempotent when the task is unclaimed). A policy
-                                          plugin may authorise releasing any claim.
+  release <id> --as <agent> [--reason "..."]
+                                          Free a claim (idempotent when the task is unclaimed). --reason is
+                                          recorded in the audit log. A policy plugin may authorise releasing any claim.
   cancel <id> --reason "<text>" --as <agent>
                                           Terminate a node without resolving (open/in_progress only).
   resolve <id> --choice "<text>" --rationale "<text>" --as <agent>
@@ -92,7 +99,8 @@ Editing (any agent; status guard applies):
   update <id> [--title X] [--body "..."] [--initiative X] [--domain Y] [--tags ...]
               [--backlog true|false] [--if-revision N] --as <agent>
                                           Edit a node's fields; increments revision.
-  add-note <id> "text" --as <agent>      Append a note to a node's running thread (any status).
+  add-note <id> "text" --as <agent> [--meta '{...}']
+                                          Append a note to a node's running thread (any status).
 
 Setup:
   init [--force]                          Create .climier.json and the project's live state.
@@ -103,16 +111,15 @@ Global flags:
   --version                               Show the package version and exit
 
 Docs: see README.md for quickstart, workflow, storage model, and command reference.
-
 Available commands:
-  status, context, take, submit, accept, reject, resolve, release, cancel, reopen, search, history,
+  status, context, take, touch, submit, accept, reject, resolve, release, cancel, reopen, search, history,
   show, update, add-note, add-initiative, add-task, add-gate, add-knowledge,
   deprecate-knowledge, add-node, add-edge, remove-edge, initiatives, log, init, snapshots, state,
   restore, batch, ui, help, version.`;
 
 // These flags must not consume the next non-flag token as their value. This
 // preserves the historical `--force init` parsing behavior.
-export const BOOLEAN_FLAGS = Object.freeze(new Set(["all", "force", "stdin"]));
+export const BOOLEAN_FLAGS = Object.freeze(new Set(["all", "force", "stdin", "mine", "slim"]));
 
 /** Parse the CLI argv while preserving the original token sequence. */
 export function parseArgv(argv = []) {
@@ -244,7 +251,7 @@ export async function runCli({ argv = process.argv.slice(2), write = console.log
     if (error.code === "MODULE_NOT_FOUND" || error.code === "ERR_MODULE_NOT_FOUND") {
       if (!parsed.command) {
         write(formatError(
-          "no command given. Available: status, context, take, submit, accept, reject, resolve, release, cancel, reopen, search, history, show, update, add-note, add-task, add-gate, add-knowledge, add-initiative, add-node, add-edge, remove-edge, deprecate-knowledge, initiatives, log, init, snapshots, state, restore, batch, ui, help, version",
+          "no command given. Available: status, context, take, touch, submit, accept, reject, resolve, release, cancel, reopen, search, history, show, update, add-note, add-task, add-gate, add-knowledge, add-initiative, add-node, add-edge, remove-edge, deprecate-knowledge, initiatives, log, init, snapshots, state, restore, batch, ui, help, version",
         ));
       } else {
         write(formatError(`unknown command '${parsed.command}'`));

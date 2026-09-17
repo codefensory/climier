@@ -134,23 +134,24 @@ Cycles in the DAG must not crash. The derivation keeps cycle members blocked. Un
 | Command | File | Mutates? | Needs `--as`? |
 |---|---|---|---|
 | `init [--force]` | `cli/commands/init.mjs` | yes (creates/overwrites state) | no |
-| `status [--initiative X] [--kind task\|gate\|knowledge] [--status X] [--domain X] [--claimed-by X] [--stale-ms N] [--limit N] [--all]` | `cli/commands/status.mjs` | no | no |
+| `status [--initiative X] [--kind task\|gate\|knowledge] [--status X] [--domain X] [--claimed-by X] [--mine] [--stale-ms N] [--limit N] [--all] [--meta] [--meta-keys a,b] [--fields a,b] [--slim]` | `cli/commands/status.mjs` | no | no |
 | `context <id>` | `cli/commands/context.mjs` | no | no |
 | `search "<query>" [--all]` | `cli/commands/search.mjs` | no | no |
 | `history <id> [--limit N]` | `cli/commands/history.mjs` | no | no |
-| `show <id>` | `cli/commands/show.mjs` | no | no |
+| `show <id> [--fields a,b] [--slim]` | `cli/commands/show.mjs` | no | no |
 | `initiatives [--all]` | `cli/commands/initiatives.mjs` | no | no |
 | `log [--limit N] [--action X] [--agent X] [--task X] [--decision X]` | `cli/commands/log.mjs` | no | no |
-| `take <id>` | `cli/commands/take.mjs` | yes | yes |
+| `take <id> [--meta '{...}']` | `cli/commands/take.mjs` | yes | yes |
+| `touch <id>` | `cli/commands/touch.mjs` | yes | yes |
 | `submit <id> --note "..."` | `cli/commands/submit.mjs` | yes | yes |
 | `accept <id>` | `cli/commands/accept.mjs` | yes | yes |
 | `reject <id> --reason "..."` | `cli/commands/reject.mjs` | yes | yes |
-| `release <id>` | `cli/commands/release.mjs` | yes | yes |
+| `release <id> [--reason "..."]` | `cli/commands/release.mjs` | yes | yes |
 | `resolve <id> --choice "<x>" --rationale "<y>"` (gate only) | `cli/commands/resolve.mjs` | yes | yes |
 | `reopen <id> --reason "<text>"` | `cli/commands/reopen.mjs` | yes | yes |
 | `cancel <id> --reason "<text>"` | `cli/commands/cancel.mjs` | yes | yes |
 | `update <id> [--title X] [--body "..."] [--definition "..."] [--acceptance "..."] [--domain Y] [--tags ...] [--backlog true\|false] [--if-revision N]` | `cli/commands/update.mjs` | yes | required (any value) |
-| `add-note <id> "<text>"` | `cli/commands/add-note.mjs` | yes | required (any value) |
+| `add-note <id> "<text>" [--meta '{...}']` | `cli/commands/add-note.mjs` | yes | required (any value) |
 | `add-initiative <name> [--desc "..."]` | `cli/commands/add-initiative.mjs` | yes | required |
 | `add-task [id] --initiative X --title "..." --body "..." --acceptance "..." --blocked-by A,B [--backlog true]` | `cli/commands/add-task.mjs` | yes | required |
 | `add-gate [id] --initiative X --title "..." --body "..." --purpose decision\|approval\|external-dependency\|research [--supersedes OLD]` | `cli/commands/add-gate.mjs` | yes | required |
@@ -312,8 +313,8 @@ The CLI is **JSON-only**. There is no `--json` flag (it's the default), no text 
 
 The convention for command return shapes is principled:
 - **Read commands** (`status`, `context`, `history`, `show`, `search`, `initiatives`, `log`) return raw data — the object/array the consumer cares about.
-  - `status` and `context` are deliberately richer than the other reads: the agent is the primary consumer, so the output is shaped to remove ambiguity. `status` adds `summary.{ready,in_progress,submitted,blocked,backlog,open_gates,active_knowledge}` (totals) and `alerts[]` (kinds: `stale-claim`). `context` adds `derived_status`, `revision`, `claim`, `blocking[]`, `knowledge[]` (scoped), `informing[]`, `alerts[]`, and `allowed_actions[]`.
-- **Write commands** (`take`, `submit`, `accept`, `reject`, `resolve` for gates, `release`, `reopen`, `cancel`, `update`, `add-note`, `add-*`, `deprecate-knowledge`) return `{ entity }` envelopes (`{ node }`, `{ task }`, `{ initiative }`, etc.).
+  - `status` and `context` are deliberately richer than the other reads: the agent is the primary consumer, so the output is shaped to remove ambiguity. `status` adds `summary.{ready,in_progress,submitted,blocked,backlog,open_gates,active_knowledge}` (totals) and `alerts[]` (kinds: `stale-claim`, `state-invariant`). `context` adds `derived_status`, `revision`, `claim`, `blocking[]`, `knowledge[]` (scoped), `informing[]`, `alerts[]`, and `allowed_actions[]`.
+- **Write commands** (`take`, `touch`, `submit`, `accept`, `reject`, `resolve` for gates, `release`, `reopen`, `cancel`, `update`, `add-note`, `add-*`, `deprecate-knowledge`) return `{ entity }` envelopes (`{ node }`, `{ task }`, `{ initiative }`, etc.). `take` returns `{ node, context, freshly_claimed }`; `submit` returns `{ node, newly_ready }`.
 - `init` returns `{ ok, seeded, file }` (different shape because it is not creating an entity, it is setting up a state).
 - `show` returns `{ type, node }` because it can return any of three node types.
 
