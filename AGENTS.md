@@ -339,6 +339,13 @@ climier context <task-id>
 climier add-note <id> "..." --as <agent>
 ```
 
+`climier-dev` is the worktree binary under test (dual-runtime migration): it
+points at this checkout and runs under Bun. Use it only for temporary project
+smokes with a sandbox home (`CLIMIER_HOME=/tmp/... climier-dev ...`), never
+for coordination. Verification: `npm test` (Node, must stay green) and
+`npm run test:bun` (Bun, per-file runner `test/run-bun-tests.mjs`; known gaps
+in `.plans/migrate-bun-dual-runtime.md`).
+
 Never use `node bin/climier.mjs` for coordination (`status`, `context`, `take`,
 `update`, `add-note`, `resolve` for gates, `release`, or any other DAG
 operation). The
