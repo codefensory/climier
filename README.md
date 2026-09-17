@@ -89,6 +89,18 @@ Or with Bun — the executable shebang is `#!/usr/bin/env bun`, so running
 bun bin/climier.mjs --help
 ```
 
+Stable vs dev: `climier` is the pinned stable binary (all coordination goes
+there); `climier-dev` points at this checkout and runs under Bun. Smoke the
+worktree only against temp projects with a sandbox home:
+
+```bash
+CLIMIER_HOME=/tmp/climier-home climier-dev status --project /tmp/my-proj
+```
+
+Test both runtimes: `npm test` (Node, must stay green) and `npm run test:bun`
+(Bun, per-file runner; known gaps listed in
+`.plans/migrate-bun-dual-runtime.md`).
+
 ## Agent skill
 
 An [agent skill](https://skills.sh) for operating climier lives in

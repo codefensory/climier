@@ -4,6 +4,11 @@ Quick reference for agents working in this repository. State shape: `{ version: 
 
 Errors are JSON to stdout with a structured shape: `{ ok: false, error: { code, message, details } }`. Branch on `error.code`, not `error.message`.
 
+## Binaries (stable vs dev)
+
+- `climier` — stable binary (pinned copy, Node-friendly). Use for all coordination.
+- `climier-dev` — this worktree under Bun. Only for temp-project smokes with a sandbox home: `CLIMIER_HOME=/tmp/... climier-dev status --project /tmp/...`. Never for coordination.
+
 ## Setup
 
 - `climier init` — create the empty state file for this project (one-time per machine).
