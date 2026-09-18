@@ -1,0 +1,32 @@
+{
+  "name": "climier-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "predev": "node scripts/gen-content.mjs",
+    "prebuild": "node scripts/gen-content.mjs",
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@tanstack/react-router": "^1.170.38",
+    "@tanstack/react-start": "1.168.56",
+    "fumadocs-core": "16.15.11",
+    "fumadocs-mdx": "15.4.1",
+    "fumadocs-ui": "16.15.11",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4",
+    "@types/mdx": "^2.0.14",
+    "@types/node": "^26.5.0",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "@vitejs/plugin-react": "^5.2.0",
+    "tailwindcss": "^4",
+    "typescript": "^5.9",
+    "vite": "^7.3"
+  }
+}
