@@ -40,6 +40,7 @@
 // verbatim from the provider / kernel so existing consumers and tests
 // keep their structured error envelopes.
 
+import { withBodyFile } from "./internal/text-file.mjs";
 import { mutate } from "../../kernel/mutate.mjs";
 import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
@@ -53,6 +54,7 @@ export const knownFlags = [
   "subkind",
   "title",
   "body",
+  "body-file",
   "refs",
   "meta",
   "initiative",
@@ -256,8 +258,8 @@ function pickProviderAndInput(id, kind, subkind, flags, { allowUnregistered }) {
     policyActionName: "knowledge.create",
   };
 }
-
-export default async function addNode({ statePath, flags, positional, pluginId }) {
+export default async function addNode({ statePath, flags: rawFlags, positional, pluginId }) {
+  const flags = await withBodyFile("add-node", rawFlags);
   const [id] = positional;
   if (!id) throwV2("MISSING_FIELD", "add-node: node id required", { field: "id" });
   if (!flags.kind) throwV2("MISSING_FIELD", "add-node: --kind required", { field: "kind" });

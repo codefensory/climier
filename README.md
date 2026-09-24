@@ -246,11 +246,11 @@ Canonical `BLOCKS` direction is `{ from: blocker, to: blocked, type: "BLOCKS" }`
 
 | Command | Purpose |
 |---|---|
-| `status [--initiative X] [--kind task\|gate\|knowledge] [--status X] [--domain X] [--claimed-by X] [--stale-ms N] [--limit N] [--all]` | Full project view: summary, alerts, in-progress work, ready tasks, backlog, blocked tasks, open gates, knowledge counts, stale claims. `in_progress` is global by default (every in_progress task is listed and counted regardless of caller); use `--claimed-by <agent>` to narrow to one agent's claims. `--as` is an identity tag for `context` and is intentionally not a filter for `status`. |
+| `status [--initiative X] [--kind task\|gate\|knowledge] [--status X] [--domain X] [--claimed-by X] [--mine] [--stale-ms N] [--limit N] [--all] [--meta] [--meta-keys a,b] [--fields a,b] [--slim]` | Full project view: summary, alerts, in-progress work, ready tasks, backlog, blocked tasks, open gates, knowledge counts, stale claims. `in_progress` is global by default (every in_progress task is listed and counted regardless of caller); use `--claimed-by <agent>` or `--mine` (with `--as`) to narrow to one agent's claims. `--as` alone is an identity tag for `context` and is intentionally not a filter for `status`. `--meta` / `--meta-keys` opt into `node.meta` projection on rows; `--fields` / `--slim` trim row shape. Freshness uses `claim.heartbeat_at` when present, else `claim.at`. |
 | `context <id>` | Agent-first view of a node: spec, blockers, informing edges, scoped knowledge, allowed actions. |
 | `search "<query>" [--all]` | Case-insensitive substring search over active knowledge; `--all` includes deprecated knowledge. |
 | `history <id> [--limit N]` | Log entries that reference a node. |
-| `show <id>` | Raw node JSON. |
+| `show <id> [--fields a,b] [--slim]` | Raw node JSON, optionally projected to `--fields` or the `--slim` shape. |
 | `initiatives` | List registered initiatives plus unregistered initiative values still present in nodes. |
 | `log [--limit N] [--action X] [--agent X] [--task X] [--decision X]` | Audit log. |
 | `snapshots` | List recoverable snapshots captured under `<state-dir>/snapshots/`, newest first. Each entry carries `id`, `created_at`, `reason` (`force-init`, `corrupt-recovery`, `pre-restore`), `bytes`, and `sha256`. Only complete pairs (raw + metadata) appear; orphans are excluded. |
@@ -261,18 +261,19 @@ Canonical `BLOCKS` direction is `{ from: blocker, to: blocked, type: "BLOCKS" }`
 | Command | Purpose |
 |---|---|
 | `init [--force]` | Create `.climier.json` and the project's live state. |
-| `take <id> --as <agent>` | Idempotently claim the explicit ready task; the id is required. |
-| `submit <id> --note "..." --as <agent>` | Submit an `in_progress` task for validation; clears its implementation claim and never unblocks dependents. |
-| `accept <id> --as <agent>` | Accept a `submitted` task as `done`; this transition can unblock dependents. |
-| `reject <id> --reason "..." --as <agent>` | Return a `submitted` task to `open` with an audit reason. |
-| `release <id> --as <agent>` | Free an `in_progress` implementation claim. Policy may constrain who can perform the transition. |
+| `take <id> --as <agent> [--meta '{...}']` | Idempotently claim the explicit ready task; the id is required. `--meta` stores attempt metadata on `claim.meta` in the same mutation (`node.meta` is untouched). |
+| `touch <id> --as <agent>` | Refresh `claim.heartbeat_at` on an owned `in_progress` task without changing domain status; only the claim owner may touch. |
+| `submit <id> --note "..." --as <agent>` | Submit an `in_progress` task for validation; clears its implementation claim and never unblocks dependents. Archives `claim.meta` to `submitted_meta`. |
+| `accept <id> --as <agent>` | Accept a `submitted` task as `done`; this transition can unblock dependents. Archives `submitted_meta` to `accepted_meta`. |
+| `reject <id> --reason "..." --as <agent>` | Return a `submitted` task to `open` with an audit reason; clears attempt metadata. |
+| `release <id> --as <agent> [--reason "..."]` | Free an `in_progress` implementation claim. Policy may constrain who can perform the transition. `--reason` is recorded in the audit log. |
 | `resolve <id> --choice "<text>" --rationale "<text>" --as <agent>` | Resolve an open gate. `resolve` is not a task lifecycle command; workers submit tasks and validators accept or reject them. |
-| `reopen <id> --reason "<text>" --as <agent>` | Roll a `done` task back to `open` for correction, subject to policy. |
+| `reopen <id> --reason "<text>" --as <agent>` | Roll a `done` task back to `open` for correction, subject to policy; clears attempt metadata. |
 | `restore <snapshot-id> --as orchestrator\|recovery` | Replace the live state with a validated v2/v3 snapshot, normalizing v2 to v3, under the same lock and with a `pre-restore` snapshot. Authority is restricted to `orchestrator` or `recovery`. Invalid, v1, future-version or incomplete snapshots fail without mutating state. |
 | `cancel <id> --reason "<text>" --as <agent>` | Terminate a task without resolving from `open`, `in_progress` or `submitted`. |
 | `deprecate-knowledge <id> --reason "<text>" --as <agent>` | Soft-delete a knowledge node (`status="deprecated"`). |
 | `update <id> ... --as <agent>` | Edit node fields such as title, body, definition, acceptance, domain, backlog, tags, or refs. |
-| `add-note <id> "<text>" --as <agent>` | Append a note thread entry to any node. |
+| `add-note <id> "<text>" --as <agent> [--meta '{...}']` | Append a note thread entry to any node; `--meta` stores structured metadata on the note. |
 
 For `take`, claims are serialized under the project lock; takeover behavior is subject to policy.
 
@@ -286,6 +287,12 @@ For `take`, claims are serialized under the project lock; takeover behavior is s
 | `add-knowledge [id] --initiative X --title "..." --body "..." --scope-domains X [--scope-initiatives X] [--scope-tags X] [--scope-node-ids X] [--supersedes OLD] --as <agent>` | Append scoped knowledge; any `--scope-*` flag satisfies the scope requirement. `--supersedes` atomically replaces existing knowledge. |
 | `add-node <id> --kind resolvable\|knowledge --title "..." [--subkind task\|gate] [--blocked-by A,B] [--derived-from A,B] [--refs a,b] [--meta '{...}']` | Low-level node creation (prefer `add-task` / `add-gate` / `add-knowledge`). |
 | `add-edge <from> <to> --type BLOCKS\|SUPERSEDES\|DERIVED_FROM` | Low-level edge creation. |
+
+`--body "..."` accepts inline text; `--body-file <path>` reads the body from
+a markdown file instead (mutually exclusive). Prefer the file form for long
+specs so agent calls stay small: write the spec to a temp file and cite its
+path. Available on `add-task`, `add-gate`, `add-knowledge`, `add-node` and
+`update`; files are capped at 512 KiB and unreadable paths fail loudly.
 
 ## Operational guarantees
 

@@ -78,17 +78,14 @@ function validateInputShape(input, request) {
   if (!text) {
     throwV2("MISSING_FIELD", `${OP}: --text required (note body)`, { field: "text" });
   }
-  // CAS precondition is REQUIRED (ADR-011 §4). The kernel validates
-  // request.if_revision under the lock when both id and integer value
-  // are present; this provider also enforces it locally so the error
-  // surfaces from a single place (the provider boundary). The CLI
-  // surface has always carried if_revision; the API path can satisfy
-  // it by passing `input.if_revision` (the adapter forwards it to
-  // request.if_revision) or by passing the request.if_revision shape
-  // directly. resolveIfRevision normalises both and throws MISSING_FIELD
-  // when neither is present.
+  if (input.meta !== undefined && input.meta !== null) {
+    if (typeof input.meta !== "object" || Array.isArray(input.meta)) {
+      throwV2("INVALID_EXECUTION_CONTRACT", `${OP}: 'meta' must be an object`, { field: "meta" });
+    }
+  }
   const ifRevision = resolveIfRevision(input, request);
-  return { id, text, ifRevision };
+  const meta = input.meta === undefined || input.meta === null ? undefined : Object.freeze({ ...input.meta });
+  return { id, text, ifRevision, meta };
 }
 
 function validateTarget(id, snapshot) {
@@ -136,12 +133,11 @@ function validateRequestActor(request) {
  *     `kernel.mutate` validates under the lock. `note` carries the
  *     agent from `request.actor` and the ISO timestamp captured at
  *     prepare time so apply does not need to re-read clock state.
- *
  * @param {{ snapshot: object, input: object, request: object }} args
  * @returns {object} frozen plan
  */
 async function prepare({ snapshot, input, request }) {
-  const { id, text, ifRevision } = validateInputShape(input, request);
+  const { id, text, ifRevision, meta } = validateInputShape(input, request);
   validateTarget(id, snapshot);
   validateRevision(id, ifRevision, snapshot);
   // request.actor is the canonical agent identity; captured in prepare
@@ -153,11 +149,9 @@ async function prepare({ snapshot, input, request }) {
     ? request.actor
     : null;
 
-  const note = Object.freeze({
-    ts: new Date().toISOString(),
-    agent: actor,
-    text,
-  });
+  const note = meta === undefined
+    ? Object.freeze({ ts: new Date().toISOString(), agent: actor, text })
+    : Object.freeze({ ts: new Date().toISOString(), agent: actor, text, meta });
 
   return Object.freeze({
     target: Object.freeze({
@@ -203,11 +197,9 @@ async function apply({ tx, plan, input, request, snapshot }) {
   const actor = validateRequestActor(request);
   const existing = tx.getNode(plan.target.id);
   const previousNotes = Array.isArray(existing && existing.notes) ? existing.notes : [];
-  const newNote = Object.freeze({
-    ts: plan.note.ts,
-    agent: actor,
-    text: plan.note.text,
-  });
+  const newNote = plan.note.meta === undefined
+    ? Object.freeze({ ts: plan.note.ts, agent: actor, text: plan.note.text })
+    : Object.freeze({ ts: plan.note.ts, agent: actor, text: plan.note.text, meta: { ...plan.note.meta } });
   const nextNotes = Object.freeze([...previousNotes, newNote]);
 
   // Patch carries the new notes array only. `tx.updateNode` enforces

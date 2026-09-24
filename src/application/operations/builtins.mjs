@@ -12,6 +12,7 @@ import {
   taskCreateProvider,
   taskUpdateProvider,
   taskTakeProvider,
+  taskTouchProvider,
   taskReleaseProvider,
   taskReopenProvider,
   taskCancelProvider,
@@ -33,6 +34,7 @@ import { noteAddProvider } from "../../providers/core/note.mjs";
 import { initiativeCreateProvider } from "../../providers/core/initiative.mjs";
 
 const TASK_OPERATION_IDS = Object.freeze([
+  "task.touch",
   "task.create",
   "task.update",
   "task.take",
@@ -75,6 +77,7 @@ function collectBuiltins() {
     "task.create": taskCreateProvider,
     "task.update": taskUpdateProvider,
     "task.take": taskTakeProvider,
+    "task.touch": taskTouchProvider,
     "task.release": taskReleaseProvider,
     "task.reopen": taskReopenProvider,
     "task.cancel": taskCancelProvider,
