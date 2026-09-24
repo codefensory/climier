@@ -1,40 +1,39 @@
-# ADR-023: Ubicación y versionado de artefactos de planificación
+# ADR-023: Ubicación de los planes de ejecución
 
 - Gate: `G-adr023-plan-artifact-location` · Deriva de: no aplica (decisión acotada del repositorio) · Estado: aprobado
 - Fecha: 2026-09-24
 
 ## Contexto
 
-El repositorio usa dos ubicaciones con nombres parecidos para documentos de trabajo. `.plans/` aloja propuestas de planificación previas a la ejecución, por ejemplo `.plans/docs-site-web.md`. `docs/plans/` contiene planes de ejecución detallados que acompañan decisiones aceptadas y tareas activas. La diferencia no estaba declarada, y un plan en `.plans/` describía su propia ubicación como “ruido sin seguimiento” y dejaba abierta la pregunta de si debía versionarse.
+El repositorio tenía dos ubicaciones para planes: `.plans/` y `docs/plans/`. Esa duplicación era innecesaria y causaba ambigüedad sobre dónde debían vivir los planes versionados. El documento `.plans/docs-site-web.md` contenía el plan de implementación del sitio de documentación y debía conservarse.
 
-El repositorio también conserva referencias a `docs/plans/` en ADRs, comentarios de código y documentación de agentes. El sitio `web/` publica intencionalmente `docs/plans/`, ADRs y decisiones, pero no debe exponer borradores internos de `.plans/` por accidente.
+Los ADRs son los registros de decisiones arquitectónicas, no sustitutos de los planes detallados de ejecución. En este caso, la decisión sobre la organización de los planes debe registrarse aquí y el plan existente debe residir bajo `docs/plans/`.
 
 ## Decisión
 
-1. `.plans/` es un directorio versionado para documentos de planificación que exploran o estructuran trabajo antes de una decisión/ADR o antes de materializar tareas. Sus contenidos no son autoridad para cambiar arquitectura o contratos; esas decisiones se registran en `.adrs/`.
-2. `docs/plans/` sigue siendo el directorio versionado para planes de ejecución duraderos derivados de decisiones aceptadas. Los documentos aquí pueden detallar secuenciación, ownership de archivos, batches y verificación; no sustituyen ni alteran el ADR que los gobierna.
-3. Los planes pueden enlazarse entre sí, pero cada documento debe declarar su propósito y su relación con un RFC, ADR o iniciativa para evitar duplicar la fuente de verdad.
-4. El sitio público `web/` no ingiere `.plans/`. Su inventario sigue limitado explícitamente a `docs/`, `docs/plans/`, `.adrs/`, `.decisions/` y los documentos raíz que ya estén permitidos por el manifiesto.
-5. No se añade una regla de ignore para `.plans/`; los documentos existentes y futuros se incluyen en Git intencionalmente.
+1. El repositorio mantiene un solo directorio de planes versionados: `docs/plans/`.
+2. Se elimina `.plans/`; los documentos que contenga y deban conservarse se mueven a `docs/plans/`.
+3. Los ADRs en `.adrs/` registran contexto, decisión y consecuencias. Los planes detallados y ya completados o por ejecutar permanecen en `docs/plans/` y enlazan el ADR relevante cuando corresponda.
+4. El sitio `web/` publica `docs/plans/` según su manifiesto; no publica directorios de planificación alternativos.
 
 ## Consecuencias
 
-- A favor: se resuelve la ambigüedad de ubicación sin mover los planes existentes ni romper referencias estables; la planificación puede revisarse en Git; los artefactos públicos y los internos conservan límites explícitos.
-- En contra / deuda: hay dos directorios de planes que requieren disciplina; cada nuevo documento debe escoger el directorio por propósito y declarar sus referencias.
-- El contenido de `.plans/` podría ser incluido en un checkout o distribución del código, pero no se expone por el sitio documental salvo cambio explícito de su manifiesto.
+- A favor: hay una sola ubicación descubrible para los planes versionados, se conserva el plan del sitio y la decisión que originó el cambio queda registrada en un ADR aprobado.
+- En contra / deuda: documentos o enlaces externos que aún apunten a `.plans/` deben actualizarse; no quedan consumidores internos de esa ruta.
 
 ## Plan de implementación
 
-1. Documentar esta distinción como ADR aprobado — `.adrs/023-plan-artifact-location.md`.
-2. Actualizar `.plans/docs-site-web.md` para sustituir su pregunta abierta por la decisión resuelta y enlazar ADR-023.
-3. No mover ni borrar documentos de planes existentes; no cambiar el manifiesto público del sitio.
+1. Se movió `.plans/docs-site-web.md` a `docs/plans/docs-site-web.md`.
+2. Se eliminó el directorio `.plans/`.
+3. Se reabrió y resolvió el gate de ADR-023 para que su elección y racional reflejen esta decisión.
 
 ## Onboarding breve para crear tasks
 
-- [x] No hace falta — este ADR registra una convención documental inmediata; no requiere implementación de producto ni tareas de seguimiento.
+- [x] No hace falta — traslado documental y consolidación de directorio, sin cambios de producto.
 
 ## Verificación
 
-- `.plans/docs-site-web.md` describe `.plans/` como versionado y distingue su propósito del de `docs/plans/`.
-- El manifiesto del sitio mantiene inventariados `docs/plans/` y excluye `.plans/`.
-- El ADR figura en Git y su gate `G-adr023-plan-artifact-location` está resuelto como aprobado.
+- No existe `.plans/` en el árbol de trabajo.
+- `docs/plans/docs-site-web.md` conserva el plan trasladado.
+- El sitio de documentación incluye el plan por medio del inventario existente de `docs/plans/`.
+- El gate `G-adr023-plan-artifact-location` está resuelto como aprobado para mantener un único directorio en `docs/plans/`; su elección y racional coinciden con esta decisión.

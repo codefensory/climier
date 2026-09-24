@@ -283,9 +283,8 @@ the CLI package.
   `web` to the root `package.json` `files` whitelist.
 - **Port collisions**: TanStack Start defaults to 3000, which is already bound on
   this machine — pin 4400 in the Vite config so it cannot silently drift.
-- **Plan-directory distinction**: `.plans/` contains tracked planning artifacts;
-  `docs/plans/` contains durable execution plans derived from approved decisions.
-  See ADR-023 for the repository-wide rule.
+- **Plan location**: this execution plan lives in `docs/plans/`, the repository's
+  sole versioned directory for plans. See ADR-023.
 - **Link-rewrite false positives**: a path quoted inside a code block is a sample,
   not a reference; the transform must skip fenced blocks.
 
@@ -308,9 +307,9 @@ the CLI package.
   recommendation is A unless the spike's dep count is unacceptable.
 - Should the site also render agent-facing documents (`AGENTS.md`, `.pi/`,
   `skills/`, `.agents/skills/`)? Default assumed here: no.
-- **Resolved by ADR-023:** `.plans/` is tracked as planning input; `docs/plans/`
-  remains the home for durable execution plans. The docs site does not publish
-  `.plans/` contents.
+- **Resolved by ADR-023:** all versioned plans live in `docs/plans/`; there is no
+  separate `.plans/` directory. The docs site publishes this directory through its
+  existing content manifest.
 - Does the site later become the canonical home of the docs (i.e. move
   `docs/` into `web/content/`)? Default assumed here: no — read-only view, because
   gate bodies and the spec pipeline reference the current paths.
