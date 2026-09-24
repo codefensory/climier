@@ -191,7 +191,7 @@ function detectStaleClaims(state, staleMs, initiativeFilter) {
     const by = claimBy(node);
     if (!by) continue;
     const age = now - at;
-    if (age > staleMs) {
+    if (staleMs === 0 || age > staleMs) {
       out.push({ id: node.id, claimed_by: by, age_ms: age, title: node.title || "" });
     }
   }

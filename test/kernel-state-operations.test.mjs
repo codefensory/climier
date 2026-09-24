@@ -128,7 +128,7 @@ test("kernel state.restore rejects malformed target without writing or snapshott
     const before = await fs.readFile(stateFilePath(dir), "utf8");
     await assert.rejects(() => restoreState({ projectDir: dir, snapshotId: "bad", actor: "alice" }), (err) => err.code === "INVALID_STATUS");
     assert.equal(await fs.readFile(stateFilePath(dir), "utf8"), before);
-    assert.deepEqual(await fs.readdir(dirPath), ["bad.json", "bad.meta.json"]);
+    assert.deepEqual((await fs.readdir(dirPath)).sort(), ["bad.json", "bad.meta.json"]);
   } finally { await rmTempProject(dir); }
 });
 

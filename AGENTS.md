@@ -60,6 +60,7 @@ src/
  test/
   helpers.mjs                          # createTempProject, rmTempProject, runCli, importFresh
   *.test.mjs                            # Tests, one per module/feature
+ web/                                   # documentation site (TanStack Start + fumadocs; read-only view of docs/, .adrs/, .decisions/)
 ```
 
 Boundary rules:
@@ -166,6 +167,7 @@ Cycles in the DAG must not crash. The derivation keeps cycle members blocked. Un
 ## Hard rules for contributing
 
 1. **No new runtime dependencies for the CLI.** Stdlib only. The `ui/` directory is an exception by design: it is a self-contained subproject (own `package.json`, `node_modules`, `dist/`) for the local web UI (Express server + Solid/Tailwind frontend). `climier ui` imports `ui/server/server.mjs`, which resolves its deps from `ui/node_modules`; the CLI package itself gains no runtime deps. If you think you need a package in `bin/`/`src/`, you almost certainly don't.
+   The `web/` directory is a second self-contained subproject (own `package.json`, `node_modules`, `dist/`) for the documentation site; same rules: no new CLI dependencies, verification via `npm run test:docs`, TDD not required inside `web/`.
 2. **TDD strict.** Write the failing test first, then make it pass. The test suite is the spec. Exception: the `ui/` subproject does not require TDD nor changes to `test/`; it does require verification proportional to the blast radius, explicit (named command, observed output, or manual check), and documented in the commit body, the PR description, or a `climier add-note`. The TDD rule still applies to everything outside `ui/`.
 3. **No silent failures.** Every error path either throws with a clear message or has a tested behavior. If you find yourself "handling" an error by logging and continuing, write a test that documents the behavior, or change the code to fail loud.
 4. **Schema validation on write.** `writeState` rejects states missing `nodes`/`edges`/`initiatives`/`log`. Don't relax this without a test that says why.
@@ -253,6 +255,7 @@ Do not put domain rules or persistence in the CLI layer.
 
 - `npm test` runs the CLI/core suite and skips `ui-*` tests.
 - `npm run test:ui` runs the UI test suite in isolation.
+- `npm run test:docs` builds the web/ docs site and asserts one rendered page per content-manifest slug, all served HTTP 200.
 - For changes limited to `/ui`, do not run the full Climier CLI suite by default. Run `npm run test:ui` and, when the change affects the frontend build, `(cd ui && npm run build)`.
 - UI and CLI tests are separate by design, but `ui/server/` consumes CLI state and read-only helpers. If a change crosses that boundary or changes a shared CLI contract, run the relevant targeted CLI tests too; use `npm test` when the blast radius warrants it.
 - `npm run test:concurrent` runs the multi-agent race tests in isolation.

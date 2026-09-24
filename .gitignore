@@ -3,3 +3,10 @@ node_modules/
 .agents/tasks/
 ui/node_modules/
 ui/dist/
+web/node_modules/
+web/dist/
+web/.output/
+web/.tanstack/
+web/.source/
+web/content/
+web/content.generated.json

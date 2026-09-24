@@ -103,7 +103,7 @@ Test both runtimes: `npm test` (Node, must stay green) and `npm run test:bun`
 ## Agent skill
 
 An [agent skill](https://skills.sh) for operating climier lives in
-[`skills/climier/`](./skills/climier/). Install it for your coding agent with:
+[`skills/climier/`](https://github.com/codefensory/climier/tree/main/skills/climier). Install it for your coding agent with:
 
 ```bash
 npx skills add codefensory/climier
@@ -142,6 +142,7 @@ climier accept T-mvp-1 --as validator-api
 ```
 
 > Full reference: `docs/reference.md`.
+> A browsable version of these docs ships in `web/` (Fumadocs + TanStack Start): `npm run test:docs` builds and verifies it.
 
 ## Core concepts
 
@@ -239,6 +240,7 @@ no `--json` flag. JSON is the default.
 Projects coming from a v1 (`version: 1`) state fail with `STATE_V1_UNSUPPORTED` on first read; the error's `details.migration_steps` walks through backing up, exporting, and recreating the project. The hint suggests `climier init --force` after backup.
 
 Full reference: `docs/reference.md`.
+A browsable version of these docs ships in `web/` (Fumadocs + TanStack Start): `npm run test:docs` builds and verifies it.
 
 Canonical `BLOCKS` direction is `{ from: blocker, to: blocked, type: "BLOCKS" }`; blockers are incoming edges to the blocked node.
 
