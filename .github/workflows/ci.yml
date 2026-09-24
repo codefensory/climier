@@ -5,7 +5,7 @@ on:
   pull_request:
 
 jobs:
-  test:
+  test-node:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -14,3 +14,23 @@ jobs:
           node-version: 20
       - run: npm test
       - run: npm run pack:check
+  test-bun:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.14"
+      - run: npm run test:bun
+      - run: npm run pack:check
+
+  test-ui-bun:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.14"
+      - run: bun install --cwd ui --frozen-lockfile
+      - run: bun test test/ui-*.test.mjs
+      - run: bun run --cwd ui build

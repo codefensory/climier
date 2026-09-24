@@ -339,6 +339,12 @@ climier context <task-id>
 climier add-note <id> "..." --as <agent>
 ```
 
+`climier-dev` is the worktree binary under test (dual-runtime migration): it
+points at this checkout and runs under Bun. Use it only for temporary project
+smokes with a sandbox home (`CLIMIER_HOME=/tmp/... climier-dev ...`), never
+for coordination. Verification: `npm test` (Node, must stay green) and
+`npm run test:bun` (Bun, per-file runner `test/run-bun-tests.mjs`).
+
 Never use `node bin/climier.mjs` for coordination (`status`, `context`, `take`,
 `update`, `add-note`, `resolve` for gates, `release`, or any other DAG
 operation). The
@@ -378,6 +384,5 @@ This repository carries the portable agent workflow used by the Climier-based pr
 - `.agents/skills/climier-worker/` — worktree, context and finish helpers;
 - `.agents/skills/climier-validator/` — validation and merge contract;
 - `.agents/skills/spec-pipeline/` — RFC → review → ADR → tasks pipeline;
-- `CLIMIER-CHEATSHEET.md` — quick command reference.
 
 These files define how this project uses Climier. The project-specific source of truth remains the code, tests and `docs/`; the live Climier state remains outside the repository and is accessed only through the CLI.

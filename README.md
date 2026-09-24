@@ -89,6 +89,17 @@ Or with Bun — the executable shebang is `#!/usr/bin/env bun`, so running
 bun bin/climier.mjs --help
 ```
 
+Stable vs dev: `climier` is the pinned stable binary (all coordination goes
+there); `climier-dev` points at this checkout and runs under Bun. Smoke the
+worktree only against temp projects with a sandbox home:
+
+```bash
+CLIMIER_HOME=/tmp/climier-home climier-dev status --project /tmp/my-proj
+```
+
+Test both runtimes: `npm test` (Node, must stay green) and `npm run test:bun`
+(Bun, per-file runner `test/run-bun-tests.mjs`).
+
 ## Agent skill
 
 An [agent skill](https://skills.sh) for operating climier lives in
@@ -243,7 +254,7 @@ Canonical `BLOCKS` direction is `{ from: blocker, to: blocked, type: "BLOCKS" }`
 | `initiatives` | List registered initiatives plus unregistered initiative values still present in nodes. |
 | `log [--limit N] [--action X] [--agent X] [--task X] [--decision X]` | Audit log. |
 | `snapshots` | List recoverable snapshots captured under `<state-dir>/snapshots/`, newest first. Each entry carries `id`, `created_at`, `reason` (`force-init`, `corrupt-recovery`, `pre-restore`), `bytes`, and `sha256`. Only complete pairs (raw + metadata) appear; orphans are excluded. |
-| `ui [--port N] [--open=true\|false]` | Start the local read-only web UI (board, node context, activity) and open it in the browser. Requires the `ui/` subproject deps (`npm install` in `ui/` once); the UI assets are built on demand. The server reads the live state with the CLI's own derivation functions; the browser never touches `tasks.json`. |
+| `ui [--port N] [--open=true\|false]` | Start the local read-only web UI (board, node context, activity) and open it in the browser. Requires the `ui/` subproject deps (`npm install` in `ui/` once); the UI assets are built on demand. The server reads the live state with the CLI's own derivation functions; the browser never touches `tasks.json`. `CLIMIER_UI_HOST` defaults to `127.0.0.1`; binding outside loopback exposes the unauthenticated UI to that network. |
 
 ### Mutating
 
