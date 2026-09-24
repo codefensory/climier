@@ -1,14 +1,21 @@
-// src/providers/task/submit.mjs — pure provider for `task.submit`.
+// src/providers/task/touch.mjs — pure provider for `task.touch`.
 //
-// Submission is the worker-owned transition from in_progress to submitted.
-// The provider validates against the fresh snapshot and applies only through
-// the transaction draft; locking, persistence, revisions and audit logging
-// remain kernel responsibilities.
+// ADR-022 §C (D1):
+//   - `prepare` is read-only. It validates the target is a task held in
+//     `in_progress` by the requesting actor. Only the claim owner may
+//     refresh the heartbeat.
+//   - `apply` mutates the in-memory tx draft only: tx.updateNode to set
+//     `claim.heartbeat_at`. Domain status, owner, `claim.at` and
+//     `claim.meta` are preserved. Revision is never written.
+//   - Imports nothing from filesystem, lock, state, log, policy,
+//     commands, registry, adapters, CLI or UI. Only the v2 error
+//     helpers are used.
 
 import { throwV2 } from "../../contracts/errors.mjs";
 
-const OP = "task.submit";
-const LOG_ACTION = "submit";
+const OP = "task.touch";
+const LOG_ACTION = "touch";
+
 const TASK_KIND = "resolvable";
 const TASK_SUBKIND = "task";
 const REQUIRED_STATUS = "in_progress";
@@ -40,17 +47,11 @@ function validateInputShape(input, request) {
   if (!actor) {
     throwV2("MISSING_FIELD", `${OP}: input.actor required`, { field: "actor" });
   }
-  if (!asNonEmptyString(input.note)) {
-    throwV2("MISSING_FIELD", `${OP}: --note required`, { field: "note" });
+  const touchedAt = input.touched_at === undefined ? new Date().toISOString() : input.touched_at;
+  if (typeof touchedAt !== "string" || touchedAt.length === 0) {
+    throwV2("INVALID_EXECUTION_CONTRACT", `${OP}: input.touched_at must be an ISO string when present`, { field: "touched_at" });
   }
-  if (input.submitted_at !== undefined && !asNonEmptyString(input.submitted_at)) {
-    throwV2(
-      "INVALID_EXECUTION_CONTRACT",
-      `${OP}: input.submitted_at must be a non-empty string when present`,
-      { field: "submitted_at" },
-    );
-  }
-  return actor;
+  return { actor, touchedAt };
 }
 
 function validateTarget(input, snapshot, actor) {
@@ -69,7 +70,7 @@ function validateTarget(input, snapshot, actor) {
   if (status !== REQUIRED_STATUS) {
     throwV2(
       "INVALID_STATUS",
-      `${OP}: task '${input.id}' cannot be submitted from status '${status}'`,
+      `${OP}: task '${input.id}' cannot be touched from status '${status}'`,
       { id: input.id, current: status, allowed: [REQUIRED_STATUS] },
     );
   }
@@ -85,44 +86,34 @@ function validateTarget(input, snapshot, actor) {
 }
 
 /**
- * Pure `prepare` for task.submit.
+ * Pure `prepare` for task.touch.
  *
  * @param {{ snapshot: object, input: object, request: object }} args
  * @returns {object} frozen plan
  */
 async function prepare({ snapshot, input, request }) {
-  const actor = validateInputShape(input, request);
-  const node = validateTarget(input, snapshot, actor);
-  const submittedAt = input.submitted_at === undefined
-    ? new Date().toISOString()
-    : input.submitted_at;
-  const claimMeta = node.claim && node.claim.meta !== undefined && node.claim.meta !== null
-    ? Object.freeze({ ...node.claim.meta })
-    : null;
-
+  const { actor, touchedAt } = validateInputShape(input, request);
+  validateTarget(input, snapshot, actor);
   return Object.freeze({
     target: Object.freeze({
       id: input.id,
       kind: TASK_KIND,
       subkind: TASK_SUBKIND,
-      status: node.status || "open",
+      status: REQUIRED_STATUS,
       previous_owner: actor,
     }),
     policyAction: Object.freeze({ action: OP, pluginId: null }),
     logAction: LOG_ACTION,
-    note: input.note,
-    submitted_by: actor,
-    submitted_at: submittedAt,
-    submitted_meta: claimMeta,
+    heartbeat_at: touchedAt,
   });
 }
 
 /**
- * Pure `apply` for task.submit. Submission deliberately has no readiness
- * effect: only a later acceptance can satisfy BLOCKS edges.
+ * Pure `apply` for task.touch. Preserves the claim owner, creation
+ * instant and attempt metadata; only the heartbeat advances.
  *
  * @param {{ tx: object, plan: object }} args
- * @returns {Promise<{ result: object, effects: { newly_ready: string[] } }>}
+ * @returns {Promise<{ result: object, effects: null }>}
  */
 async function apply({ tx, plan }) {
   if (!tx || typeof tx.updateNode !== "function" || typeof tx.getNode !== "function") {
@@ -132,33 +123,20 @@ async function apply({ tx, plan }) {
       { field: "tx" },
     );
   }
-
+  const existing = tx.getNode(plan.target.id);
+  const claim = (existing && existing.claim) || {};
   tx.updateNode(plan.target.id, {
-    status: "submitted",
-    claim: null,
-    note: plan.note,
-    submitted_by: plan.submitted_by,
-    submitted_at: plan.submitted_at,
-    submitted_meta: plan.submitted_meta === undefined ? null : plan.submitted_meta,
+    claim: { ...claim, heartbeat_at: plan.heartbeat_at },
   });
-
   const merged = tx.getNode(plan.target.id);
-  let projection;
-  if (merged) {
-    const { revision, ...withoutRevision } = merged;
-    void revision;
-    projection = Object.freeze({
-      ...withoutRevision,
-      added_edges: Object.freeze([]),
-    });
-  } else {
-    projection = Object.freeze({ id: plan.target.id, status: "submitted", claim: null, added_edges: Object.freeze([]) });
-  }
-
   return {
-    result: projection,
-    effects: Object.freeze({ newly_ready: Object.freeze([]) }),
+    result: Object.freeze({
+      id: plan.target.id,
+      status: merged ? merged.status : REQUIRED_STATUS,
+      claim: merged && merged.claim ? Object.freeze({ ...merged.claim }) : null,
+    }),
+    effects: null,
   };
 }
 
-export const taskSubmitProvider = Object.freeze({ prepare, apply });
+export const taskTouchProvider = Object.freeze({ prepare, apply });

@@ -52,6 +52,11 @@ function validateInputShape(input, request) {
   if (!actor) {
     throwV2("MISSING_FIELD", `${OP}: input.actor required`, { field: "actor" });
   }
+  if (input.reason !== undefined && input.reason !== null) {
+    if (typeof input.reason !== "string" || !input.reason.trim()) {
+      throwV2("INVALID_EXECUTION_CONTRACT", `${OP}: input.reason must be a non-empty string when present`, { field: "reason" });
+    }
+  }
   return actor;
 }
 
@@ -92,6 +97,7 @@ async function prepare({ snapshot, input, request }) {
   validateTarget(input, snapshot);
   const node = readSnapshotNodes(snapshot)[input.id];
   const hasClaim = !!(node.claim && node.claim.by);
+  const reason = typeof input.reason === "string" && input.reason.trim() ? input.reason.trim() : null;
   return Object.freeze({
     target: Object.freeze({
       id: input.id,
@@ -103,8 +109,10 @@ async function prepare({ snapshot, input, request }) {
     }),
     policyAction: Object.freeze({ action: "task.release", pluginId: null }),
     logAction: LOG_ACTION,
+    logFields: reason ? Object.freeze({ reason }) : undefined,
     idempotent: !hasClaim,
     previous_owner: hasClaim ? node.claim.by : null,
+    reason,
   });
 }
 

@@ -372,15 +372,21 @@ Output is `{ edge }`.
 Accepted flags:
 
 - `--as <agent>`
+- `--meta '{...}'` (optional JSON object): stored as `claim.meta` on the new
+  claim in the same mutation — one revision, one log entry. `node.meta`
+  (what the task is) is untouched; `claim.meta` (who is doing it and with
+  what process) lives with the claim and is archived on `submit`/`accept`.
 - legacy but ignored: `--initiative`, `--domain`, `--tag`
 
 Rules:
 
 - only resolvable tasks are claimable
-- same agent taking again is idempotent
+- same agent taking again is idempotent (the existing claim, including its
+  meta, is preserved with no new revision)
 - another agent gets `ALREADY_CLAIMED`
 - `orchestrator` may take over another claim
 - blocked, backlog, submitted, done, canceled, resolved, superseded tasks fail with `NOT_READY`
+- `--meta` must be a JSON object when present
 
 Output shape:
 
@@ -389,6 +395,22 @@ Output shape:
 ```
 
 That is the literal return contract: `{ node, context, freshly_claimed }`.
+
+### `touch <id>`
+
+Refreshes `claim.heartbeat_at` on an owned `in_progress` task without
+changing domain status (D1: a real revisioned, logged mutation).
+
+Required: `--as <agent>` (must be the current `claim.by`).
+
+Rules:
+
+- task only, exclusively `in_progress` with an active claim
+- another owner's claim fails with `NOT_OWNER`; any other status fails with `INVALID_STATUS`
+- preserves `claim.by`, `claim.at` and `claim.meta`; only `heartbeat_at` advances
+- `status --stale-ms` measures freshness from `heartbeat_at` when present
+
+Output is `{ node }`.
 
 ### `release <id>`
 
@@ -401,6 +423,7 @@ Rules:
 - `orchestrator` and `recovery` may release any task claim
 - no claim is idempotent and returns `released: false`
 - success sets `claim = null`, `status = "open"`, revision++
+- optional `--reason "..."` is recorded as `reason` on the atomic `release` log entry
 
 Output:
 
@@ -422,6 +445,7 @@ Rules:
 - task only, exclusively `in_progress -> submitted`
 - only the current `claim.by` may submit
 - clears `claim` and stores `submitted_by`, `submitted_at`
+- archives the attempt: `claim.meta` is copied to `submitted_meta` (`null` when the claim carried no meta)
 - returns `{ node, newly_ready: [] }`; submission never unblocks work
 
 ### `accept <id>`
@@ -434,6 +458,7 @@ Rules:
 
 - task only, exclusively `submitted -> done`
 - preserves submission metadata; sets `done_by = submitted_by`, `done_at`, `accepted_by`, `accepted_at`
+- archives the attempt: `submitted_meta` is copied to `accepted_meta` (`null` when absent)
 - computes `{ node, newly_ready }` after the task becomes satisfied
 
 ### `reject <id>`
@@ -445,7 +470,7 @@ Required: `--as <agent>` and `--reason "..."`.
 Rules:
 
 - task only, exclusively `submitted -> open`
-- clears claim and current submission/acceptance metadata
+- clears claim and current submission/acceptance metadata (`submitted_meta`, `accepted_meta` included)
 - records the rejection reason in the atomic mutation log; it does not create a new task
 
 ### `resolve <id>`
@@ -490,7 +515,7 @@ Rules:
 - task must currently be `done`
 - gate must currently be `resolved`
 - only original `done_by` or `orchestrator` / `recovery`
-- task reopen clears claim, submission metadata, acceptance metadata and done metadata
+- task reopen clears claim, submission metadata, acceptance metadata and done metadata (`submitted_meta`, `accepted_meta` included)
 - clears `resolution` when reopening a gate
 - sets `status = "open"`
 
@@ -542,6 +567,7 @@ Required:
 - `add-note <id>`
 - note text as trailing positional text
 - `--as <agent>`
+- optional `--meta '{...}'` (JSON object): stored as `meta` on the appended note alongside `ts`, `agent` and `text`
 
 Notes are append-only. Output is `{ node }`.
 
@@ -597,16 +623,20 @@ Notes:
 Main dashboard.
 
 Supported filters:
-
 - `--initiative X`
 - `--kind task|gate|knowledge`
 - `--status X`
 - `--domain X`
 - `--claimed-by X`
+- `--mine` (shortcut for `--claimed-by` using `--as` / `CLIMIER_AGENT`)
 - `--stale-ms N`
 - `--limit N`
 - `--all`
 - `--as <agent>`
+- `--meta` (include the full `node.meta` object on each row; `null` when absent)
+- `--meta-keys a,b` (project only those `node.meta` keys on each row)
+- `--fields a,b` (project rows to exactly those keys)
+- `--slim` (rows carry only `id`, `title`, `status`, `claimed_by`)
 
 Default output shape:
 
@@ -632,9 +662,12 @@ With `--all`, additional groups appear:
 Notes:
 
 - `summary` is always present
-- `in_progress` is **global by default** — every in_progress task in scope is listed and counted regardless of caller. Use `--claimed-by <agent>` to narrow to one agent's claims; `--as` is an identity tag (it scopes `context`'s `allowed_actions`) and is intentionally NOT a filter for `status`.
+- `in_progress` is **global by default** — every in_progress task in scope is listed and counted regardless of caller. Use `--claimed-by <agent>` (or `--mine` with `--as`) to narrow to one agent's claims; `--as` alone is an identity tag (it scopes `context`'s `allowed_actions`) and is intentionally NOT a filter for `status`.
 - `--status` filters all buckets, not just derived ones. The only `--status` value that surfaces the in_progress bucket is `in_progress`; any other value leaves it empty.
-- Stale-claim alerts follow the same rule: global by default, narrowed only by `--claimed-by`.
+- Stale-claim alerts follow the same rule: global by default, narrowed only by `--claimed-by` (or `--mine`).
+- Claim freshness is measured from `claim.heartbeat_at` when the owner refreshes it with `touch`, falling back to `claim.at`. Without a heartbeat the previous behavior is unchanged.
+- Without `--meta` / `--meta-keys`, rows keep the legacy shape (no `meta` key). `--meta` wins when both are given.
+- `alerts` also carries corruption signals as `state-invariant` (`severity: error`): `in_progress` without a claim (`missing-claim`) and `done` without `done_by` (`missing-done-by`).
 
 ### `context <id>`
 
@@ -710,6 +743,11 @@ Search is case-insensitive substring matching over:
 ### `show <id>`
 
 Returns the raw node.
+
+Flags:
+
+- `--fields a,b` (project the node to exactly those keys; `--fields` wins when both are given)
+- `--slim` (node carries only `id`, `kind`, `subkind`, `title`, `status`, `initiative`, `revision`)
 
 Output shape:
 

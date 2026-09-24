@@ -8,7 +8,14 @@ import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs"
 import { PolicyDenied } from "../../plugins/errors.mjs";
 import { taskReleaseProvider } from "../../providers/task/release.mjs";
 
-export const knownFlags = ["as"];
+export const knownFlags = ["as", "reason"];
+function parseReason(flags) {
+  if (flags.reason === undefined || flags.reason === null) return null;
+  if (flags.reason === true) throw new Error("release: --reason requires a value");
+  const reason = String(flags.reason).trim();
+  if (!reason) throw new Error("release: --reason requires a value");
+  return reason;
+}
 
 function policyForRelease({ policy, projectDir, agent, id, snapshotNode }) {
   return {
@@ -51,12 +58,14 @@ export default async function release({ statePath, flags = {}, positional = [], 
   if (!id) throwV2("MISSING_FIELD", "release: node id required", { field: "id" });
   const dir = projectDir || statePath;
   const agent = resolveAgent(flags, "release");
+  const reason = parseReason(flags);
   const policy = await loadApplicablePolicy({ projectDir: dir });
   const snapshotNode = { value: null };
+  const input = reason === null ? { id, actor: agent } : { id, actor: agent, reason };
 
   const mutation = await mutate({
     projectDir: dir,
-    request: { action: "release", actor: agent, input: { id, actor: agent } },
+    request: { action: "release", actor: agent, input },
     provider: taskReleaseProvider,
     policyAction: policyForRelease({ policy, projectDir: dir, agent, id, snapshotNode }),
     pluginId,

@@ -1,3 +1,5 @@
+import { withBodyFile } from "./internal/text-file.mjs";
+
 import { addV2Node, hasCsvValue, requireFields } from "./internal/create-node.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
 import { resolveAgent } from "../actor.mjs";
@@ -6,6 +8,7 @@ export const knownFlags = [
   "initiative",
   "title",
   "body",
+  "body-file",
   "scope-domains",
   "scope-initiatives",
   "scope-tags",
@@ -24,6 +27,7 @@ export const knownFlags = [
 const SCOPE_FLAGS = ["scope-domains", "scope-initiatives", "scope-tags", "scope-node-ids"];
 
 export default async function addKnowledge(ctx) {
+  ctx = { ...ctx, flags: await withBodyFile("add-knowledge", ctx.flags) };
   requireFields("add-knowledge", ctx.flags, ["initiative", "title", "body"]);
   if (!SCOPE_FLAGS.some((field) => hasCsvValue(ctx.flags[field]))) {
     throwV2("MISSING_FIELD", "add-knowledge: at least one --scope-* value is required", {
