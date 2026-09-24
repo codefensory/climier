@@ -5,6 +5,7 @@
 // kernel snapshot, and delegates the mutation to kernel.mutate. Locking,
 // persistence, revision assignment, logging and policy execution remain
 // kernel responsibilities.
+import { withBodyFile } from "./internal/text-file.mjs";
 import { mutate } from "../../kernel/mutate.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
 import { resolveAgent } from "../actor.mjs";
@@ -16,6 +17,7 @@ import { updateProvider as knowledgeUpdateProvider } from "../../providers/knowl
 
 export const knownFlags = [
   "title",
+  "body-file",
   "body",
   "initiative",
   "domain",
@@ -222,6 +224,7 @@ export default async function update({
 }) {
   const id = positional[0];
   if (!id) throwV2("MISSING_FIELD", "update: node id required", { field: "id" });
+  flags = await withBodyFile("update", flags);
 
   const dir = projectDir || statePath;
   const agent = resolveAgent(flags, "update");

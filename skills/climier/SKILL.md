@@ -111,5 +111,5 @@ stderr.
 - Secrets or large blobs — tasks hold short text (body/acceptance/notes);
   point at files instead.
 
-Full command reference: [`references/commands.md`](./references/commands.md).
+Full command reference: [`references/commands.md`](https://github.com/codefensory/climier/blob/main/skills/climier/references/commands.md).
 Upstream docs: the climier repository's `README.md` and `docs/reference.md`.

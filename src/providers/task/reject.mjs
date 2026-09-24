@@ -124,8 +124,10 @@ async function apply({ tx, plan, input, request, snapshot }) {
     claim: null,
     submitted_by: null,
     submitted_at: null,
+    submitted_meta: null,
     accepted_by: null,
     accepted_at: null,
+    accepted_meta: null,
   });
 
   const merged = tx.getNode(plan.target.id);

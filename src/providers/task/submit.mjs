@@ -96,6 +96,9 @@ async function prepare({ snapshot, input, request }) {
   const submittedAt = input.submitted_at === undefined
     ? new Date().toISOString()
     : input.submitted_at;
+  const claimMeta = node.claim && node.claim.meta !== undefined && node.claim.meta !== null
+    ? Object.freeze({ ...node.claim.meta })
+    : null;
 
   return Object.freeze({
     target: Object.freeze({
@@ -110,6 +113,7 @@ async function prepare({ snapshot, input, request }) {
     note: input.note,
     submitted_by: actor,
     submitted_at: submittedAt,
+    submitted_meta: claimMeta,
   });
 }
 
@@ -135,6 +139,7 @@ async function apply({ tx, plan }) {
     note: plan.note,
     submitted_by: plan.submitted_by,
     submitted_at: plan.submitted_at,
+    submitted_meta: plan.submitted_meta === undefined ? null : plan.submitted_meta,
   });
 
   const merged = tx.getNode(plan.target.id);

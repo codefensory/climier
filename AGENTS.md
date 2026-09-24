@@ -60,6 +60,7 @@ src/
  test/
   helpers.mjs                          # createTempProject, rmTempProject, runCli, importFresh
   *.test.mjs                            # Tests, one per module/feature
+ web/                                   # documentation site (TanStack Start + fumadocs; read-only view of docs/, .adrs/, .decisions/)
 ```
 
 Boundary rules:
@@ -134,23 +135,24 @@ Cycles in the DAG must not crash. The derivation keeps cycle members blocked. Un
 | Command | File | Mutates? | Needs `--as`? |
 |---|---|---|---|
 | `init [--force]` | `cli/commands/init.mjs` | yes (creates/overwrites state) | no |
-| `status [--initiative X] [--kind task\|gate\|knowledge] [--status X] [--domain X] [--claimed-by X] [--stale-ms N] [--limit N] [--all]` | `cli/commands/status.mjs` | no | no |
+| `status [--initiative X] [--kind task\|gate\|knowledge] [--status X] [--domain X] [--claimed-by X] [--mine] [--stale-ms N] [--limit N] [--all] [--meta] [--meta-keys a,b] [--fields a,b] [--slim]` | `cli/commands/status.mjs` | no | no |
 | `context <id>` | `cli/commands/context.mjs` | no | no |
 | `search "<query>" [--all]` | `cli/commands/search.mjs` | no | no |
 | `history <id> [--limit N]` | `cli/commands/history.mjs` | no | no |
-| `show <id>` | `cli/commands/show.mjs` | no | no |
+| `show <id> [--fields a,b] [--slim]` | `cli/commands/show.mjs` | no | no |
 | `initiatives [--all]` | `cli/commands/initiatives.mjs` | no | no |
 | `log [--limit N] [--action X] [--agent X] [--task X] [--decision X]` | `cli/commands/log.mjs` | no | no |
-| `take <id>` | `cli/commands/take.mjs` | yes | yes |
+| `take <id> [--meta '{...}']` | `cli/commands/take.mjs` | yes | yes |
+| `touch <id>` | `cli/commands/touch.mjs` | yes | yes |
 | `submit <id> --note "..."` | `cli/commands/submit.mjs` | yes | yes |
 | `accept <id>` | `cli/commands/accept.mjs` | yes | yes |
 | `reject <id> --reason "..."` | `cli/commands/reject.mjs` | yes | yes |
-| `release <id>` | `cli/commands/release.mjs` | yes | yes |
+| `release <id> [--reason "..."]` | `cli/commands/release.mjs` | yes | yes |
 | `resolve <id> --choice "<x>" --rationale "<y>"` (gate only) | `cli/commands/resolve.mjs` | yes | yes |
 | `reopen <id> --reason "<text>"` | `cli/commands/reopen.mjs` | yes | yes |
 | `cancel <id> --reason "<text>"` | `cli/commands/cancel.mjs` | yes | yes |
 | `update <id> [--title X] [--body "..."] [--definition "..."] [--acceptance "..."] [--domain Y] [--tags ...] [--backlog true\|false] [--if-revision N]` | `cli/commands/update.mjs` | yes | required (any value) |
-| `add-note <id> "<text>"` | `cli/commands/add-note.mjs` | yes | required (any value) |
+| `add-note <id> "<text>" [--meta '{...}']` | `cli/commands/add-note.mjs` | yes | required (any value) |
 | `add-initiative <name> [--desc "..."]` | `cli/commands/add-initiative.mjs` | yes | required |
 | `add-task [id] --initiative X --title "..." --body "..." --acceptance "..." --blocked-by A,B [--backlog true]` | `cli/commands/add-task.mjs` | yes | required |
 | `add-gate [id] --initiative X --title "..." --body "..." --purpose decision\|approval\|external-dependency\|research [--supersedes OLD]` | `cli/commands/add-gate.mjs` | yes | required |
@@ -165,6 +167,7 @@ Cycles in the DAG must not crash. The derivation keeps cycle members blocked. Un
 ## Hard rules for contributing
 
 1. **No new runtime dependencies for the CLI.** Stdlib only. The `ui/` directory is an exception by design: it is a self-contained subproject (own `package.json`, `node_modules`, `dist/`) for the local web UI (Express server + Solid/Tailwind frontend). `climier ui` imports `ui/server/server.mjs`, which resolves its deps from `ui/node_modules`; the CLI package itself gains no runtime deps. If you think you need a package in `bin/`/`src/`, you almost certainly don't.
+   The `web/` directory is a second self-contained subproject (own `package.json`, `node_modules`, `dist/`) for the documentation site; same rules: no new CLI dependencies, verification via `npm run test:docs`, TDD not required inside `web/`.
 2. **TDD strict.** Write the failing test first, then make it pass. The test suite is the spec. Exception: the `ui/` subproject does not require TDD nor changes to `test/`; it does require verification proportional to the blast radius, explicit (named command, observed output, or manual check), and documented in the commit body, the PR description, or a `climier add-note`. The TDD rule still applies to everything outside `ui/`.
 3. **No silent failures.** Every error path either throws with a clear message or has a tested behavior. If you find yourself "handling" an error by logging and continuing, write a test that documents the behavior, or change the code to fail loud.
 4. **Schema validation on write.** `writeState` rejects states missing `nodes`/`edges`/`initiatives`/`log`. Don't relax this without a test that says why.
@@ -252,6 +255,7 @@ Do not put domain rules or persistence in the CLI layer.
 
 - `npm test` runs the CLI/core suite and skips `ui-*` tests.
 - `npm run test:ui` runs the UI test suite in isolation.
+- `npm run test:docs` builds the web/ docs site and asserts one rendered page per content-manifest slug, all served HTTP 200.
 - For changes limited to `/ui`, do not run the full Climier CLI suite by default. Run `npm run test:ui` and, when the change affects the frontend build, `(cd ui && npm run build)`.
 - UI and CLI tests are separate by design, but `ui/server/` consumes CLI state and read-only helpers. If a change crosses that boundary or changes a shared CLI contract, run the relevant targeted CLI tests too; use `npm test` when the blast radius warrants it.
 - `npm run test:concurrent` runs the multi-agent race tests in isolation.
@@ -312,8 +316,8 @@ The CLI is **JSON-only**. There is no `--json` flag (it's the default), no text 
 
 The convention for command return shapes is principled:
 - **Read commands** (`status`, `context`, `history`, `show`, `search`, `initiatives`, `log`) return raw data — the object/array the consumer cares about.
-  - `status` and `context` are deliberately richer than the other reads: the agent is the primary consumer, so the output is shaped to remove ambiguity. `status` adds `summary.{ready,in_progress,submitted,blocked,backlog,open_gates,active_knowledge}` (totals) and `alerts[]` (kinds: `stale-claim`). `context` adds `derived_status`, `revision`, `claim`, `blocking[]`, `knowledge[]` (scoped), `informing[]`, `alerts[]`, and `allowed_actions[]`.
-- **Write commands** (`take`, `submit`, `accept`, `reject`, `resolve` for gates, `release`, `reopen`, `cancel`, `update`, `add-note`, `add-*`, `deprecate-knowledge`) return `{ entity }` envelopes (`{ node }`, `{ task }`, `{ initiative }`, etc.).
+  - `status` and `context` are deliberately richer than the other reads: the agent is the primary consumer, so the output is shaped to remove ambiguity. `status` adds `summary.{ready,in_progress,submitted,blocked,backlog,open_gates,active_knowledge}` (totals) and `alerts[]` (kinds: `stale-claim`, `state-invariant`). `context` adds `derived_status`, `revision`, `claim`, `blocking[]`, `knowledge[]` (scoped), `informing[]`, `alerts[]`, and `allowed_actions[]`.
+- **Write commands** (`take`, `touch`, `submit`, `accept`, `reject`, `resolve` for gates, `release`, `reopen`, `cancel`, `update`, `add-note`, `add-*`, `deprecate-knowledge`) return `{ entity }` envelopes (`{ node }`, `{ task }`, `{ initiative }`, etc.). `take` returns `{ node, context, freshly_claimed }`; `submit` returns `{ node, newly_ready }`.
 - `init` returns `{ ok, seeded, file }` (different shape because it is not creating an entity, it is setting up a state).
 - `show` returns `{ type, node }` because it can return any of three node types.
 
@@ -338,6 +342,12 @@ climier status
 climier context <task-id>
 climier add-note <id> "..." --as <agent>
 ```
+
+`climier-dev` is the worktree binary under test (dual-runtime migration): it
+points at this checkout and runs under Bun. Use it only for temporary project
+smokes with a sandbox home (`CLIMIER_HOME=/tmp/... climier-dev ...`), never
+for coordination. Verification: `npm test` (Node, must stay green) and
+`npm run test:bun` (Bun, per-file runner `test/run-bun-tests.mjs`).
 
 Never use `node bin/climier.mjs` for coordination (`status`, `context`, `take`,
 `update`, `add-note`, `resolve` for gates, `release`, or any other DAG
@@ -378,6 +388,5 @@ This repository carries the portable agent workflow used by the Climier-based pr
 - `.agents/skills/climier-worker/` — worktree, context and finish helpers;
 - `.agents/skills/climier-validator/` — validation and merge contract;
 - `.agents/skills/spec-pipeline/` — RFC → review → ADR → tasks pipeline;
-- `CLIMIER-CHEATSHEET.md` — quick command reference.
 
 These files define how this project uses Climier. The project-specific source of truth remains the code, tests and `docs/`; the live Climier state remains outside the repository and is accessed only through the CLI.

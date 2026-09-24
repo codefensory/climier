@@ -22,10 +22,13 @@ const LOG_ACTION = "take";
 const TASK_KIND = "resolvable";
 const TASK_SUBKIND = "task";
 
-function asNonEmptyString(value) {
-  return typeof value === "string" && value.length > 0 ? value : null;
+function asPlainObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
+ function asNonEmptyString(value) {
+   return typeof value === "string" && value.length > 0 ? value : null;
+ }
 // resolveActor — host-fixed agent identity comes from request.actor
 // (the kernel stamps it from createCore's agent argument); the CLI
 // surface forwards --as through flags.as and may expose it as
@@ -59,6 +62,9 @@ function validateInputShape(input, request) {
   const at = input.at === undefined ? new Date().toISOString() : input.at;
   if (typeof at !== "string" || at.length === 0) {
     throwV2("INVALID_EXECUTION_CONTRACT", `${OP}: input.at must be an ISO string when present`, { field: "at" });
+  }
+  if (input.meta !== undefined && input.meta !== null && !asPlainObject(input.meta)) {
+    throwV2("INVALID_EXECUTION_CONTRACT", `${OP}: 'meta' must be an object`, { field: "meta" });
   }
   return actor;
 }
@@ -148,6 +154,7 @@ async function prepare({ snapshot, input, request }) {
   const node = readSnapshotNodes(snapshot)[input.id];
   const cls = classifyAction(node, actor, snapshot);
   const at = input.at === undefined ? new Date().toISOString() : input.at;
+  const meta = input.meta === undefined || input.meta === null ? undefined : Object.freeze({ ...input.meta });
 
   return Object.freeze({
     target: Object.freeze({
@@ -164,7 +171,7 @@ async function prepare({ snapshot, input, request }) {
     idempotent: cls.idempotent,
     takeover: cls.takeover,
     previous_owner: cls.previous_owner,
-    claim: Object.freeze({ by: actor, at }),
+    claim: meta === undefined ? Object.freeze({ by: actor, at }) : Object.freeze({ by: actor, at, meta }),
   });
 }
 
@@ -201,12 +208,15 @@ async function apply({ tx, plan, input, request, snapshot }) {
     };
   }
   // apply MUST NOT carry revision; the kernel assigns it.
-  const patch = { claim: { by: plan.claim.by, at: plan.claim.at }, status: "in_progress" };
+  const claimPatch = plan.claim.meta === undefined
+    ? { by: plan.claim.by, at: plan.claim.at }
+    : { by: plan.claim.by, at: plan.claim.at, meta: { ...plan.claim.meta } };
+  const patch = { claim: claimPatch, status: "in_progress" };
   tx.updateNode(plan.target.id, patch);
   return {
     result: Object.freeze({
       id: plan.target.id,
-      claim: Object.freeze({ by: plan.claim.by, at: plan.claim.at }),
+      claim: Object.freeze({ ...claimPatch }),
       status: "in_progress",
       freshly_claimed: true,
       takeover: plan.takeover === true,

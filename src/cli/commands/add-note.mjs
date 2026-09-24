@@ -11,7 +11,22 @@ import { throwV2 } from "../../contracts/errors.mjs";
 import { resolveAgent } from "../actor.mjs";
 import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
 
-export const knownFlags = ["as", "if-revision"];
+export const knownFlags = ["as", "if-revision", "meta"];
+
+function parseMeta(raw) {
+  if (raw === undefined) return undefined;
+  if (raw === true) throw new Error("add-note: --meta requires a JSON object value");
+  let parsed;
+  try {
+    parsed = JSON.parse(String(raw));
+  } catch (error) {
+    throw new Error(`add-note: --meta must be valid JSON (${error.message})`);
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("add-note: --meta must be a JSON object");
+  }
+  return parsed;
+}
 
 function cliNoteProvider() {
   return {
@@ -94,7 +109,8 @@ export default async function addNote({ statePath, flags = {}, positional, plugi
   }
 
   const projectDir = statePath;
-  const input = { id, text };
+  const meta = parseMeta(flags.meta);
+  const input = meta === undefined ? { id, text } : { id, text, meta };
   if (flags["if-revision"] !== undefined) input.if_revision = flags["if-revision"];
   const policy = await loadApplicablePolicy({ projectDir });
   const policyAction = policy

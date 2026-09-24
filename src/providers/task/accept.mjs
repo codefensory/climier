@@ -100,6 +100,9 @@ async function prepare({ snapshot, input, request }) {
   const acceptedAt = input.accepted_at === undefined
     ? new Date().toISOString()
     : input.accepted_at;
+  const submittedMeta = node.submitted_meta !== undefined && node.submitted_meta !== null
+    ? Object.freeze({ ...node.submitted_meta })
+    : null;
 
   return Object.freeze({
     target: Object.freeze({
@@ -116,6 +119,7 @@ async function prepare({ snapshot, input, request }) {
     done_at: acceptedAt,
     accepted_by: actor,
     accepted_at: acceptedAt,
+    accepted_meta: submittedMeta,
   });
 }
 
@@ -148,6 +152,7 @@ async function apply({ tx, plan, input, request, snapshot }) {
     done_at: plan.done_at,
     accepted_by: plan.accepted_by,
     accepted_at: plan.accepted_at,
+    accepted_meta: plan.accepted_meta === undefined ? null : plan.accepted_meta,
     claim: null,
   };
   tx.updateNode(plan.target.id, patch);

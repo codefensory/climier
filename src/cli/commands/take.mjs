@@ -9,7 +9,22 @@ import { PolicyDenied } from "../../plugins/errors.mjs";
 import { taskTakeProvider } from "../../providers/task/take.mjs";
 import { statusOfV2 } from "../../providers/task/derivation.mjs";
 
-export const knownFlags = ["as", "initiative", "domain", "tag"];
+export const knownFlags = ["as", "initiative", "domain", "tag", "meta"];
+
+function parseMeta(raw) {
+  if (raw === undefined) return undefined;
+  if (raw === true) throw new Error("take: --meta requires a JSON object value");
+  let parsed;
+  try {
+    parsed = JSON.parse(String(raw));
+  } catch (error) {
+    throw new Error(`take: --meta must be valid JSON (${error.message})`);
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("take: --meta must be a JSON object");
+  }
+  return parsed;
+}
 
 const TAKEOVER_ABSTAIN = "POLICY_TAKEOVER_ABSTAIN";
 
@@ -105,7 +120,8 @@ export default async function take({ positional = [], flags = {}, projectDir, st
   const policy = await loadApplicablePolicy({ projectDir: dir });
   const snapshotNode = { value: null };
 
-  const input = { id, actor: agent };
+  const meta = parseMeta(flags.meta);
+  const input = meta === undefined ? { id, actor: agent } : { id, actor: agent, meta };
   let mutation;
   try {
     mutation = await mutate({
