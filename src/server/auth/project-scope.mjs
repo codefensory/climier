@@ -32,6 +32,7 @@ export async function withAuthorizedProject({
   credentials = [],
   catalog,
   openProject,
+  provision = false,
 } = {}) {
   const token = bearerToken(authorization);
   const credential = credentialForToken(token, credentials);
@@ -46,6 +47,10 @@ export async function withAuthorizedProject({
     throw authError("PROJECT_OPENER_REQUIRED", "project storage opener is required");
   }
 
-  const storagePath = await catalog.resolveProject(projectId);
+  const resolveProject = provision ? catalog.provisionProject : catalog.resolveProject;
+  if (typeof resolveProject !== "function") {
+    throw authError("CATALOG_UNAVAILABLE", "trusted project catalog cannot provision projects");
+  }
+  const storagePath = await resolveProject.call(catalog, projectId);
   return openProject(storagePath, { projectId });
 }

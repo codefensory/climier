@@ -43,6 +43,37 @@ async function withApi(run) {
   }
 }
 
+async function withInitApi(run) {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "climier-server-init-http-"));
+  const previousHome = process.env.CLIMIER_HOME;
+  process.env.CLIMIER_HOME = path.join(root, "home");
+  const dataRoot = path.join(root, "catalog");
+  const catalog = createProjectCatalog({ dataRoot, projectIds: ["catalogued"] });
+  let openCount = 0;
+  const server = createRemoteApiServer({
+    catalog,
+    credentials: [{ token: "test-token", projectIds: ["catalogued", "unknown"] }],
+    async openProject(projectDir) {
+      openCount += 1;
+      return { projectDir };
+    },
+  });
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  const address = server.address();
+  const baseUrl = `http://127.0.0.1:${address.port}`;
+  try {
+    await run({ baseUrl, dataRoot, openCount: () => openCount });
+  } finally {
+    await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    if (previousHome === undefined) delete process.env.CLIMIER_HOME;
+    else process.env.CLIMIER_HOME = previousHome;
+    await fs.rm(root, { recursive: true, force: true });
+  }
+}
+
 function authHeaders(extra = {}) {
   return {
     authorization: "Bearer test-token",
@@ -258,6 +289,101 @@ test("HTTP v1 returns structured errors and exposes no generic file endpoint", a
     });
     assert.equal(privileged.status, 400);
     assert.equal((await privileged.json()).error.code, "INVALID_REQUEST");
+  });
+});
+
+test("HTTP init validates protocol, bearer, scope, catalog and request fields before storage access", async () => {
+  await withInitApi(async ({ baseUrl, dataRoot, openCount }) => {
+    const route = `${baseUrl}/v1/projects/catalogued/init`;
+    const missingBearer = await fetch(route, { method: "POST", headers: { "x-climier-protocol-version": "1", "content-type": "application/json" }, body: "{}" });
+    assert.equal(missingBearer.status, 401);
+    assert.equal((await missingBearer.json()).error.code, "AUTH_REQUIRED");
+
+    const invalidBearer = await fetch(route, { method: "POST", headers: { ...authHeaders({ authorization: "Bearer wrong" }), "content-type": "application/json" }, body: "{}" });
+    assert.equal(invalidBearer.status, 401);
+    assert.equal((await invalidBearer.json()).error.code, "AUTH_INVALID");
+
+    const noScopeServer = createRemoteApiServer({
+      catalog: createProjectCatalog({ dataRoot: path.join(dataRoot, "no-scope"), projectIds: ["catalogued"] }),
+      credentials: [{ token: "no-scope-token", projectIds: [] }],
+      async openProject() { assert.fail("scope denial must precede project opening"); },
+    });
+    await new Promise((resolve, reject) => { noScopeServer.once("error", reject); noScopeServer.listen(0, "127.0.0.1", resolve); });
+    try {
+      const noScopeAddress = noScopeServer.address();
+      const noScope = await fetch(`http://127.0.0.1:${noScopeAddress.port}/v1/projects/catalogued/init`, {
+        method: "POST",
+        headers: { ...authHeaders({ authorization: "Bearer no-scope-token" }), "content-type": "application/json" },
+        body: "{}",
+      });
+      assert.equal(noScope.status, 403);
+      assert.equal((await noScope.json()).error.code, "PROJECT_SCOPE_DENIED");
+    } finally {
+      await new Promise((resolve, reject) => noScopeServer.close((error) => error ? reject(error) : resolve()));
+    }
+
+    const unknown = await fetch(`${baseUrl}/v1/projects/unknown/init`, {
+      method: "POST", headers: { ...authHeaders(), "content-type": "application/json" }, body: "{}",
+    });
+    assert.equal(unknown.status, 404);
+    assert.equal((await unknown.json()).error.code, "UNKNOWN_PROJECT");
+
+    for (const body of [{ force: true }, { reset: true }, { unexpected: true }]) {
+      const invalid = await fetch(route, {
+        method: "POST", headers: { ...authHeaders(), "content-type": "application/json" }, body: JSON.stringify(body),
+      });
+      assert.equal(invalid.status, 400);
+      assert.equal((await invalid.json()).error.code, body.force || body.reset ? "REMOTE_UNSUPPORTED_OPERATION" : "INVALID_REQUEST");
+    }
+    assert.equal(openCount(), 0);
+    await assert.rejects(fs.access(dataRoot));
+  });
+});
+
+test("HTTP init creates only absent catalogued state once and does not expose storage paths", async () => {
+  await withInitApi(async ({ baseUrl, dataRoot, openCount }) => {
+    const route = `${baseUrl}/v1/projects/catalogued/init`;
+    const initialized = await fetch(route, {
+      method: "POST", headers: { ...authHeaders(), "content-type": "application/json" }, body: "{}",
+    });
+    assert.equal(initialized.status, 200);
+    const response = await initialized.json();
+    assert.equal(response.ok, true);
+    assert.deepEqual(response.result, { seeded: null });
+    assert.equal(JSON.stringify(response).includes(dataRoot), false);
+    assert.equal(openCount(), 1);
+
+    const projectDir = await (await import("../src/server/catalog/index.mjs")).createProjectCatalog({ dataRoot, projectIds: ["catalogued"] }).resolveProject("catalogued");
+    const { readState, stateFile } = await import("../src/storage/state.mjs");
+    const state = await readState(projectDir);
+    assert.equal(state.version, 4);
+    assert.deepEqual(state.nodes, {});
+    assert.deepEqual(state.edges, []);
+    assert.deepEqual(state.initiatives, {});
+    assert.deepEqual(state.log, []);
+
+    const second = await fetch(route, {
+      method: "POST", headers: { ...authHeaders(), "content-type": "application/json" }, body: "{}",
+    });
+    assert.equal(second.status, 409);
+    const error = await second.json();
+    assert.equal(error.ok, false);
+    assert.equal(error.error.code, "STATE_ALREADY_INITIALIZED");
+    assert.match(error.error.message, /already initialized/);
+    assert.equal(JSON.stringify(error).includes(dataRoot), false);
+    assert.equal(JSON.stringify(error).includes(stateFile(projectDir)), false);
+    assert.equal(openCount(), 2);
+  });
+});
+
+test("HTTP init rejects unsupported protocol before project opening", async () => {
+  await withInitApi(async ({ baseUrl, openCount }) => {
+    const response = await fetch(`${baseUrl}/v1/projects/catalogued/init`, {
+      method: "POST", headers: { ...authHeaders({ "x-climier-protocol-version": "2" }), "content-type": "application/json" }, body: "{}",
+    });
+    assert.equal(response.status, 426);
+    assert.equal((await response.json()).error.code, "PROTOCOL_VERSION_UNSUPPORTED");
+    assert.equal(openCount(), 0);
   });
 });
 
