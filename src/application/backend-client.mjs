@@ -199,6 +199,9 @@ function createRemoteTransport({ backend, projectId, token, remoteOrigin, timeou
         body: { operation: "core.batch", actor, input },
       });
     },
+    init() {
+      return request({ method: "POST", route: "init", body: {} });
+    },
     readStatus(options = {}) {
       const method = "readStatus";
       readOptions(method, options, ["initiative", "kind", "status", "domain", "claimedBy", "staleMs", "limit", "all", "as"]);
