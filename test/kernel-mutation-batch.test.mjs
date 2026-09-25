@@ -60,13 +60,41 @@ test("core batch composes built-ins on one draft and writes one core.batch revis
       { from: "T1", to: "T3", type: "BLOCKS" },
       { from: "T3", to: "T2", type: "BLOCKS" },
     ]);
-    assert.equal(state.nodes.T3.revision, 1);
+    assert.equal(state.nodes.T3.revision, 8);
     assert.equal(state.revision, 8);
     assert.equal(state.log.length, 1);
     assert.equal(state.log[0].action, "core.batch");
     assert.equal(state.log[0].agent, "alice");
     assert.equal(state.log[0].operations.length, 4);
     assert.deepEqual(state.log[0].operations.map(({ op }) => op), repair.map(({ op }) => op));
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("core batch internal CAS uses the same state-fenced node revisions as its final write", async () => {
+  const dir = await createTempProject();
+  try {
+    await bootstrap(dir);
+    const out = await executeBatch({
+      projectDir: dir,
+      actor: "alice",
+      if_state_revision: 7,
+      operations: [
+        repair[0],
+        { op: "task.update", input: { id: "T3", if_revision: 8, changes: { title: "three revised" } } },
+        { op: "task.update", input: { id: "T1", if_revision: 3, changes: { title: "one revised" } } },
+        { op: "task.update", input: { id: "T1", if_revision: 8, changes: { title: "one revised twice" } } },
+      ],
+      source: { registry, mutate },
+    });
+
+    assert.equal(out.ok, true);
+    const state = await readStateHelper(dir);
+    assert.equal(state.nodes.T3.revision, 8);
+    assert.equal(state.nodes.T1.revision, 8);
+    assert.equal(state.revision, 8);
+    assert.ok(state.revision >= Math.max(...Object.values(state.nodes).map((node) => node.revision)));
   } finally {
     await rmTempProject(dir);
   }

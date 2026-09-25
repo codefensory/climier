@@ -25,7 +25,7 @@ import {
   computeInitiativeDiff,
   deepEqualNodes,
 } from "./diff.mjs";
-import { deriveTargetRevision, stripRevision } from "./revisions.mjs";
+import { assignNodeRevision, deriveNextStateRevision, deriveTargetRevision } from "./revisions.mjs";
 import { normalizeLogFields, validateDraftStructural } from "./validation.mjs";
 import { buildLogEntry } from "./log-entry.mjs";
 
@@ -153,16 +153,7 @@ function batchSnapshot(snapshot, tx) {
   const view = tx.view({ includePlugins: true });
   const nodes = {};
   for (const [id, node] of Object.entries(view.nodes || {})) {
-    const previous = snapshot.nodes && snapshot.nodes[id];
-    const copy = { ...node };
-    if (!previous) {
-      copy.revision = 1;
-    } else if (deepEqualNodes(stripRevision(previous), node)) {
-      copy.revision = Number.isInteger(previous.revision) ? previous.revision : 1;
-    } else {
-      copy.revision = (Number.isInteger(previous.revision) ? previous.revision : 0) + 1;
-    }
-    nodes[id] = copy;
+    nodes[id] = assignNodeRevision(snapshot && snapshot.revision, snapshot.nodes && snapshot.nodes[id], node).node;
   }
   const current = {
     ...snapshot,
@@ -296,7 +287,7 @@ async function executeBatchMutation({ projectDir, request, batch, policyAction, 
   const pluginsChanged = !deepEqualNodes(pluginsBefore, pluginsAfter);
   const changed = created.length > 0 || updated.length > 0 || addedEdges.length > 0 || removedEdges.length > 0 || removedNodes.length > 0 || initiativeDiff.created.length > 0 || initiativeDiff.updated.length > 0 || pluginsChanged;
   const revisionBefore = snapshot.revision;
-  const revisionAfter = changed ? revisionBefore + 1 : revisionBefore;
+  const revisionAfter = changed ? deriveNextStateRevision(snapshot, nextNodes) : snapshot.revision;
   if (changed) {
     const finalNodes = {};
     for (const [id, node] of Object.entries(nextNodes)) finalNodes[id] = node;
@@ -490,7 +481,7 @@ export async function executeMutation({ projectDir, request, provider, policyAct
       edges: draftView.edges,
       initiatives: finalInitiatives,
       log: [...(Array.isArray(snapshot.log) ? snapshot.log : []), logPayload],
-      revision: snapshot.revision + 1,
+      revision: deriveNextStateRevision(snapshot, nextNodes),
     };
     if (Object.prototype.hasOwnProperty.call(snapshot, "plugins") || Object.keys(pluginsAfter).length > 0) {
       persistedState.plugins = pluginsAfter;

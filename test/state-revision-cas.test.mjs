@@ -58,7 +58,9 @@ test("kernel mutation increments global state revision exactly once for an effec
       provider: updateProvider(),
     });
     assert.equal(out.idempotent, false);
-    assert.equal((await readState(dir)).revision, 1);
+    const state = await readState(dir);
+    assert.equal(state.revision, 2);
+    assert.equal(state.nodes.T1.revision, 2);
   } finally {
     await rmTempProject(dir);
   }
