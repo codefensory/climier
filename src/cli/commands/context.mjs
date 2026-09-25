@@ -24,7 +24,7 @@
 // `claim` is `{ by, at, stale }` when the node is currently claimed (either
 // via the take command's structured claim or via legacy claimed_by/claimed_at),
 // else `null`.
-import { readState, assertStateVersion } from "../../storage/state.mjs";
+import { readState, assertStateVersion, isFencedState } from "../../storage/state.mjs";
 import {
   blockingForNode,
   informingForNode,
@@ -195,7 +195,7 @@ export default async function context({ statePath, positional, flags, backendCli
   const projectDir = statePath;
   const s = await readState(projectDir);
   if (!s) throw new Error("context: state file missing");
-  assertStateVersion(s, 2, "context");
+  assertStateVersion(s, isFencedState(s) ? 5 : 2, "context");
   const node = s.nodes[id];
   if (!node) throwV2("NODE_NOT_FOUND", `context: node ${id} not found`, { id });
 
