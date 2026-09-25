@@ -5,7 +5,7 @@ import { createTempProject, rmTempProject } from "./helpers.mjs";
 import { stateFile } from "../src/storage/state.mjs";
 import { ledgerFile, bootstrapFencedState, replaceFencedStateUnderLock, readFencedState, commitFencedStateUnderLock } from "../src/storage/ledger.mjs";
 import { withLock } from "../src/storage/lock.mjs";
-import { transferState } from "../src/kernel/transfer.mjs";
+import { captureTransferSource, installTransferDestination, transferState } from "../src/kernel/transfer.mjs";
 
 function projectState(overrides = {}) {
   return {
@@ -53,6 +53,51 @@ const runTransfer = (sourceProjectDir, destinationProjectDir, options = {}) => t
   actor: "alice",
   direction: "push",
   ...options,
+});
+
+test("kernel source capture returns transferable state without adding an audit event", async () => {
+  await withProjects(async (sourceDir, destinationDir) => {
+    await initialize(sourceDir);
+    const payload = await captureTransferSource({ sourceProjectDir: sourceDir });
+    assert.deepEqual(payload.log, [{ action: "source-event", agent: "author" }]);
+    assert.equal(payload.nodes.T1.title, "source");
+    assert.equal(payload.nodes.T1.revision, undefined);
+    assert.equal((await fs.access(stateFile(destinationDir)).then(() => true, () => false)), false);
+  });
+});
+
+test("kernel destination install adds exactly one direction-specific event", async () => {
+  await withProjects(async (sourceDir, destinationDir) => {
+    await initialize(sourceDir);
+    const payload = await captureTransferSource({ sourceProjectDir: sourceDir });
+    const result = await installTransferDestination({
+      destinationProjectDir: destinationDir,
+      payload,
+      actor: "alice",
+      direction: "pull",
+    });
+    assert.deepEqual(result.log.slice(0, -1), [{ action: "source-event", agent: "author" }]);
+    assert.equal(result.log.filter((entry) => entry.action.startsWith("transfer.")).length, 1);
+    assert.equal(result.log.at(-1).action, "transfer.pull");
+    assert.equal(result.log.at(-1).agent, "alice");
+  });
+});
+
+test("kernel transfer ports validate requests before storage delegation", async (t) => {
+  await t.test("capture source path", async () => {
+    await assert.rejects(captureTransferSource({}), /transfer: sourceProjectDir is required/);
+  });
+  await t.test("install destination, actor, direction, and payload", async () => {
+    for (const request of [
+      { destinationProjectDir: " ", actor: "alice", direction: "push", payload: {} },
+      { destinationProjectDir: "/tmp/destination", actor: " ", direction: "push", payload: {} },
+      { destinationProjectDir: "/tmp/destination", actor: "alice", direction: "sync", payload: {} },
+      { destinationProjectDir: "/tmp/destination", actor: "alice", direction: "push", payload: null },
+      { destinationProjectDir: "/tmp/destination", actor: "alice", direction: "push", payload: {}, overwrite: "true" },
+    ]) {
+      await assert.rejects(installTransferDestination(request), /transfer:/);
+    }
+  });
 });
 
 test("kernel transfer bootstraps absent destination and replaces its log with source log plus one event", async () => {
