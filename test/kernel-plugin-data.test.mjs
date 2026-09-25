@@ -5,7 +5,7 @@ import {
   createTempProject,
   rmTempProject,
   importFresh,
-  writeState,
+  writeFencedState,
   readState,
 } from "./helpers.mjs";
 import {
@@ -17,7 +17,8 @@ const PLUGIN = "example.plugin";
 
 function baseState() {
   return {
-    version: 2,
+    version: 5,
+    revision: 0,
     nodes: {
       T1: {
         id: "T1",
@@ -55,18 +56,18 @@ async function runMutation(projectDir, provider, action, input) {
 test("kernel.mutate persists node plugin data as a node revisioned, redacted mutation", async () => {
   const dir = await createTempProject();
   try {
-    await writeState(dir, baseState());
+    await writeFencedState(dir, baseState());
     const secret = { token: "node-secret" };
     const out = await runMutation(dir, pluginDataNodeSetProvider, "plugin-data-set", {
       id: "T1",
       value: secret,
-      if_revision: 4,
+      if_revision: 5,
     });
 
     assert.equal(out.idempotent, false);
     assert.equal(out.diff.updated.length, 1);
     assert.equal(out.diff.updated[0].id, "T1");
-    assert.equal(out.diff.updated[0].node.revision, 5);
+    assert.equal(out.diff.updated[0].node.revision, 6);
     assert.equal(out.log_entry.action, "plugin-data-set");
     assert.equal(out.log_entry.plugin_id, PLUGIN);
     assert.deepEqual(out.log_entry, {
@@ -93,7 +94,7 @@ test("kernel.mutate persists node plugin data as a node revisioned, redacted mut
 test("kernel.mutate persists project plugin data without losing node/root metadata or logging values", async () => {
   const dir = await createTempProject();
   try {
-    await writeState(dir, baseState());
+    await writeFencedState(dir, baseState());
     const secret = "project-secret";
     const out = await runMutation(dir, pluginDataProjectSetProvider, "plugin-data-set", {
       key: "token",
@@ -114,7 +115,8 @@ test("kernel.mutate persists project plugin data without losing node/root metada
       metadata: { keep: "project" },
     });
     assert.deepEqual(state.plugins.other, baseState().plugins.other);
-    assert.deepEqual(state.nodes, baseState().nodes);
+    assert.equal(state.nodes.T1.revision, 5, "project plugin writes preserve the fenced node revision");
+    assert.deepEqual(state.nodes.T1.plugins, baseState().nodes.T1.plugins);
 
     const second = await runMutation(dir, pluginDataProjectSetProvider, "plugin-data-set", {
       key: "token",

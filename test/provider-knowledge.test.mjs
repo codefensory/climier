@@ -16,7 +16,7 @@ import {
   createTempProject,
   rmTempProject,
   importFresh,
-  writeState as writeStateHelper,
+  writeFencedState,
   readState as readStateHelper,
 } from "./helpers.mjs";
 
@@ -38,7 +38,8 @@ async function importKernel() {
 
 function emptySnapshot(extra = {}) {
   return {
-    version: 2,
+    version: 5,
+    revision: 0,
     initiatives: { auth: { desc: "auth", created_at: "2026-01-01T00:00:00.000Z" } },
     nodes: {},
     edges: [],
@@ -438,7 +439,7 @@ test("create: apply uses tx only (does not modify the snapshot)", async () => {
   const provider = createProvider();
   const dir = await createTempProject();
   try {
-    await writeStateHelper(dir, emptySnapshot());
+    await writeFencedState(dir, emptySnapshot());
     const before = await readStateHelper(dir);
     const plan = await provider.prepare({
       snapshot: before,
@@ -463,7 +464,7 @@ test("create: apply uses tx only (does not modify the snapshot)", async () => {
     assert.equal(out.idempotent, false);
     assert.equal(out.diff.created.length, 1);
     assert.equal(out.diff.created[0].id, "K-1");
-    assert.equal(out.diff.created[0].node.revision, 1);
+    assert.equal(out.diff.created[0].node.revision, 2);
     const after = await readStateHelper(dir);
     assert.equal(after.nodes["K-1"].title, "t");
     assert.equal(after.nodes["K-1"].kind, "knowledge");
@@ -478,7 +479,7 @@ test("create: apply uses tx only (does not modify the snapshot)", async () => {
     assert.equal(after.log[0].action, "knowledge.create");
     assert.equal(after.log[0].agent, "alice");
     assert.equal(after.log[0].node, "K-1");
-    assert.equal(after.log[0].revision, 1);
+    assert.equal(after.log[0].revision, 2);
   } finally {
     await rmTempProject(dir);
   }
@@ -496,7 +497,7 @@ test("create: supersedes marks the target as superseded and adds a SUPERSEDES ed
       },
       edges: [],
     });
-    await writeStateHelper(dir, base);
+    await writeFencedState(dir, base);
     const out = await mutate({
       projectDir: dir,
       request: {
@@ -514,15 +515,15 @@ test("create: supersedes marks the target as superseded and adds a SUPERSEDES ed
     assert.equal(out.diff.updated.length, 1, "superseded target is updated");
     assert.equal(out.diff.updated[0].id, "K-old");
     assert.equal(out.diff.updated[0].node.status, "superseded");
-    assert.equal(out.diff.updated[0].node.revision, 5, "kernel bumps revision by 1");
+    assert.equal(out.diff.updated[0].node.revision, 6, "kernel advances beyond the fenced fixture high-water");
     assert.deepEqual(out.diff.added_edges, [{ from: "K-new", to: "K-old", type: "SUPERSEDES" }]);
 
     const after = await readStateHelper(dir);
     assert.equal(after.nodes["K-old"].status, "superseded");
-    assert.equal(after.nodes["K-old"].revision, 5);
+    assert.equal(after.nodes["K-old"].revision, 6);
     assert.deepEqual(after.edges, [{ from: "K-new", to: "K-old", type: "SUPERSEDES" }]);
     assert.equal(after.log.length, 1);
-    assert.equal(after.log[0].revision, 1, "log carries the target revision (new node)");
+    assert.equal(after.log[0].revision, 6, "log carries the fenced transaction revision");
   } finally {
     await rmTempProject(dir);
   }
@@ -575,7 +576,7 @@ test("create: provider never writes revision (kernel assigns it)", async () => {
   };
   const dir = await createTempProject();
   try {
-    await writeStateHelper(dir, emptySnapshot());
+    await writeFencedState(dir, emptySnapshot());
     await assert.rejects(
       importKernel().then(({ mutate }) => mutate({
         projectDir: dir,
@@ -714,7 +715,7 @@ test("update: apply patches title/body/mitigation/scope via tx", async () => {
         }),
       },
     });
-    await writeStateHelper(dir, base);
+    await writeFencedState(dir, base);
     const out = await mutate({
       projectDir: dir,
       request: { action: "knowledge.update", actor: "alice", input: {
@@ -728,7 +729,7 @@ test("update: apply patches title/body/mitigation/scope via tx", async () => {
     assert.equal(out.idempotent, false);
     assert.equal(out.diff.updated.length, 1);
     assert.equal(out.diff.updated[0].id, "K-1");
-    assert.equal(out.diff.updated[0].node.revision, 3, "kernel bumps by 1");
+    assert.equal(out.diff.updated[0].node.revision, 4, "kernel advances beyond the fenced fixture high-water");
     const after = await readStateHelper(dir);
     assert.equal(after.nodes["K-1"].title, "new");
     assert.equal(after.nodes["K-1"].body, "new body");
@@ -738,7 +739,7 @@ test("update: apply patches title/body/mitigation/scope via tx", async () => {
     });
     assert.equal(after.log.length, 1);
     assert.equal(after.log[0].action, "knowledge.update");
-    assert.equal(after.log[0].revision, 3);
+    assert.equal(after.log[0].revision, 4);
   } finally {
     await rmTempProject(dir);
   }
@@ -753,7 +754,7 @@ test("update: idempotent patch (no actual change) skips write and log", async ()
     const base = emptySnapshot({
       nodes: { "K-1": knowledgeNode("K-1", { revision: 1, title: "same", body: "b" }) },
     });
-    await writeStateHelper(dir, base);
+    await writeFencedState(dir, base);
     const out = await mutate({
       projectDir: dir,
       request: { action: "knowledge.update", actor: "alice", input: {
@@ -765,7 +766,7 @@ test("update: idempotent patch (no actual change) skips write and log", async ()
     assert.equal(out.log_entry, null);
     const after = await readStateHelper(dir);
     assert.equal(after.log.length, 0);
-    assert.equal(after.nodes["K-1"].revision, 1, "no revision bump on idempotent update");
+    assert.equal(after.nodes["K-1"].revision, 2, "fenced fixture revision remains unchanged on idempotent update");
   } finally {
     await rmTempProject(dir);
   }
@@ -890,7 +891,7 @@ test("deprecate: apply preserves scope, status, reason, deprecated_at/by via ker
         }),
       },
     });
-    await writeStateHelper(dir, base);
+    await writeFencedState(dir, base);
     const out = await mutate({
       projectDir: dir,
       request: {
@@ -903,7 +904,7 @@ test("deprecate: apply preserves scope, status, reason, deprecated_at/by via ker
     assert.equal(out.idempotent, false, "deprecate is never idempotent (records a new event)");
     assert.equal(out.diff.updated.length, 1);
     assert.equal(out.diff.updated[0].id, "K-1");
-    assert.equal(out.diff.updated[0].node.revision, 5, "kernel bumps revision by 1");
+    assert.equal(out.diff.updated[0].node.revision, 6, "kernel advances beyond the fenced fixture high-water");
 
     const after = await readStateHelper(dir);
     const node = after.nodes["K-1"];
@@ -929,7 +930,7 @@ test("deprecate: apply preserves scope, status, reason, deprecated_at/by via ker
     assert.equal(after.log[0].action, "knowledge.deprecate");
     assert.equal(after.log[0].agent, "alice");
     assert.equal(after.log[0].node, "K-1");
-    assert.equal(after.log[0].revision, 5);
+    assert.equal(after.log[0].revision, 6);
     // The log entry mirrors the kernel canonical shape; the deprecation
     // reason lives on the node itself (`deprecation_reason`).
     assert.equal(after.log[0].reason, undefined);
@@ -950,7 +951,7 @@ test("deprecate: deprecated node is hidden from default search and visible with 
         "K-old": knowledgeNode("K-old", { title: "shared deprecated", body: "shared body" }),
       },
     });
-    await writeStateHelper(dir, base);
+    await writeFencedState(dir, base);
     await mutate({
       projectDir: dir,
       request: {
@@ -1000,7 +1001,7 @@ test("deprecate: apply uses tx only (does not leak the snapshot after kernel mut
     const base = emptySnapshot({
       nodes: { "K-1": knowledgeNode("K-1", { revision: 3, scope: { domains: ["auth"] } }) },
     });
-    await writeStateHelper(dir, base);
+    await writeFencedState(dir, base);
     const before = await readStateHelper(dir);
     const expectedTitle = before.nodes["K-1"].title;
     const expectedScope = JSON.parse(JSON.stringify(before.nodes["K-1"].scope));
