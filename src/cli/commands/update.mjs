@@ -6,6 +6,7 @@
 // persistence, revision assignment, logging and policy execution remain
 // kernel responsibilities.
 import { mutate } from "../../kernel/mutate.mjs";
+import { executeRemoteTask, isRemoteBackend, throwMissingRemoteNode } from "./internal/task-routing.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
 import { resolveAgent } from "../actor.mjs";
 import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
@@ -219,6 +220,7 @@ export default async function update({
   flags = {},
   positional = [],
   pluginId,
+  backendClient,
 }) {
   const id = positional[0];
   if (!id) throwV2("MISSING_FIELD", "update: node id required", { field: "id" });
@@ -227,6 +229,25 @@ export default async function update({
   const agent = resolveAgent(flags, "update");
   const changes = buildChanges(flags);
   const expectedRevision = parseIfRevision(flags["if-revision"]);
+  if (isRemoteBackend(backendClient) && !backendClient.readNode) {
+    throwV2("INVALID_OPERATION_BRIDGE", "update: remote backend client must support node reads for task routing");
+  }
+  if (isRemoteBackend(backendClient)) {
+    const remote = await executeRemoteTask({
+      backendClient,
+      projectDir: dir,
+      actor: agent,
+      operation: "task.update",
+      command: "update",
+      id,
+      input: { id, changes, if_revision: expectedRevision },
+      inspectTarget: true,
+    });
+    if (!remote.node || remote.node.kind !== "resolvable" || remote.node.subkind !== "task") {
+      throwMissingRemoteNode("update", id);
+    }
+    return { node: remote.node };
+  }
   const policy = await loadApplicablePolicy({ projectDir: dir });
 
   // `update` remains the historical audit action in the CLI log. The policy
