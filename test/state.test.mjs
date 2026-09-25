@@ -322,6 +322,33 @@ test("direct state writers reject ledger-backed and fenced projects before mutat
   }
 });
 
+test("direct legacy writers reject a durable migration_pending ledger", async () => {
+  const { writeState, updateState } = await importFresh("./storage/state.mjs");
+  const { bootstrapFencedState, ledgerFile } = await importFresh("./storage/ledger.mjs");
+  const dir = await createTempProject();
+  try {
+    const fs = await import("node:fs/promises");
+    const path = await import("node:path");
+    const file = stateFilePath(dir);
+    await fs.mkdir(path.dirname(file), { recursive: true });
+    const legacyState = { version: 4, nodes: {}, edges: [], initiatives: {}, log: [], revision: 0 };
+    await fs.writeFile(file, `${JSON.stringify(legacyState, null, 2)}\n`, "utf8");
+    await assert.rejects(bootstrapFencedState(dir, { faultAt: "after-pending" }), /injected failure/);
+
+    const ledger = JSON.parse(await fs.readFile(ledgerFile(dir), "utf8"));
+    assert.ok(ledger.migration_pending);
+    const before = await fs.readFile(file, "utf8");
+    await assert.rejects(writeState(dir, legacyState), { code: "CLIMIER_LEDGER_REQUIRED" });
+    await assert.rejects(updateState(dir, (state) => ({ ...state, log: [...state.log, { action: "legacy" }] })), {
+      code: "CLIMIER_LEDGER_REQUIRED",
+    });
+    assert.equal(await fs.readFile(file, "utf8"), before);
+    assert.ok(JSON.parse(await fs.readFile(ledgerFile(dir), "utf8")).migration_pending);
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
 test("writeState persists migrated v2 input as v4", async () => {
   const { writeState, readState } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();

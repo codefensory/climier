@@ -50,6 +50,28 @@ test("withLock reuses only the live same-project capability in nested async scop
   }
 });
 
+test("withLock preserves active project capabilities across nested A-to-B-to-A scopes", async () => {
+  const { withLock, assertActiveLockContext } = await importFresh("./storage/lock.mjs");
+  const projectA = await createTempProject();
+  const projectB = await createTempProject();
+  try {
+    await withLock(projectA, async (contextA) => {
+      await withLock(projectB, async (contextB) => {
+        assert.notEqual(contextA, contextB);
+        const returnedContextA = await withLock(projectA, async (nestedContextA) => nestedContextA, {
+          timeoutMs: 100,
+          retryEveryMs: 10,
+        });
+        assert.equal(returnedContextA, contextA);
+        assertActiveLockContext(returnedContextA, projectA);
+      });
+    });
+  } finally {
+    await rmTempProject(projectA);
+    await rmTempProject(projectB);
+  }
+});
+
 test("withLock blocks concurrent acquires; second waits then succeeds", async () => {
   const { withLock } = await importFresh("./storage/lock.mjs");
   const dir = await createTempProject();

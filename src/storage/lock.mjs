@@ -37,10 +37,11 @@ export function getActiveLockContext(lockContext) {
 /** Return the current live lock capability only when its project matches. */
 export function getCurrentLockContext(projectDir) {
   const active = activeProjectLock.getStore();
-  if (!active || active.projectDir !== path.resolve(projectDir)) return null;
+  const lockContext = active?.lockContexts?.get(path.resolve(projectDir));
+  if (!lockContext) return null;
   try {
-    assertActiveLockContext(active.lockContext, projectDir);
-    return active.lockContext;
+    assertActiveLockContext(lockContext, projectDir);
+    return lockContext;
   } catch (error) {
     if (error.code === "CLIMIER_INVALID_LOCK_CONTEXT") return null;
     throw error;
@@ -83,19 +84,10 @@ async function sleep(ms) {
 
 export async function withLock(projectDir, fn, opts = {}) {
   const resolvedProjectDir = path.resolve(projectDir);
-  const inherited = activeProjectLock.getStore();
-  if (inherited?.projectDir === resolvedProjectDir) {
-    let inheritedIsActive = true;
-    try {
-      assertActiveLockContext(inherited.lockContext, resolvedProjectDir);
-    } catch (error) {
-      if (error.code !== "CLIMIER_INVALID_LOCK_CONTEXT") throw error;
-      inheritedIsActive = false;
-    }
-    if (inheritedIsActive) return fn(inherited.lockContext);
-    // Detached async work can inherit an expired ALS store. It is not a
-    // capability and must acquire a fresh canonical lock below.
-  }
+  const inherited = getCurrentLockContext(resolvedProjectDir);
+  if (inherited) return fn(inherited);
+  // Detached async work can inherit expired capabilities in its ALS store.
+  // getCurrentLockContext rejects those, so acquire a fresh canonical lock.
 
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const retryEveryMs = opts.retryEveryMs ?? RETRY_BASE_MS;
@@ -125,9 +117,12 @@ export async function withLock(projectDir, fn, opts = {}) {
   }
 
   const lockContext = makeLockContext(resolvedProjectDir);
+  const inheritedContexts = activeProjectLock.getStore()?.lockContexts;
+  const lockContexts = new Map(inheritedContexts ?? []);
+  lockContexts.set(resolvedProjectDir, lockContext);
   try {
     return await activeProjectLock.run(
-      { projectDir: resolvedProjectDir, lockContext },
+      { lockContexts },
       () => fn(lockContext),
     );
   } finally {
