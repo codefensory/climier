@@ -100,6 +100,7 @@ La aceptación de release sigue un orden verificable: cada tarea ejecuta su suit
 - **ADR-024:** todas las mutaciones built-in y batch pasan por el bridge; plugin APIs/commands siguen no soportados remotamente.
 - **ADR-025:** su protocolo completo de transfer ID, journal, status, retry y CAS de overwrite se difiere. V1 usa el contrato básico de esta decisión.
 - **ADR-026:** E2E local y runbook son acceptance automatizable; Tailscale es un smoke manual temporal al final, no requisito de infraestructura ni artefacto versionado.
+- **ADR-028:** HTTPS sigue siendo obligatorio por defecto fuera de loopback. Como excepción interna explícita y no persistida, `CLIMIER_ALLOW_INSECURE_REMOTE_HTTP=true` permite HTTP remoto no-loopback bajo el contrato, controles y warning de bootstrap de ADR-028; no rebaja origin binding, auth ni fail-closed.
 
 ## Plan de implementación
 
