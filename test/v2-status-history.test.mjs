@@ -11,13 +11,13 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createTempProject, rmTempProject, importFresh, readState as readRawState, writeState as writeRawState, runCli } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, readState as readRawState, writeFencedState, runCli } from "./helpers.mjs";
 
-async function bootstrapV2(dir, initName) {
+async function bootstrapProject(dir, initName) {
   if (initName === undefined) initName = "work";
   const { default: init } = await importFresh("./cli/commands/init.mjs");
   const { default: addInitiative } = await importFresh("./cli/commands/add-initiative.mjs");
-  await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+  await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
   await addInitiative({ statePath: dir, flags: { desc: "test" }, positional: [initName] });
 }
 
@@ -107,7 +107,7 @@ async function v2History(dir, id, flags) {
 test("status: v2 returns summary-shape with empty defaults", async () => {
   const dir = await createTempProject();
   try {
-    await bootstrapV2(dir);
+    await bootstrapProject(dir);
     const out = await v2Status(dir);
     assert.deepEqual(out.summary, {
       ready: 0,
@@ -128,13 +128,13 @@ test("status: v2 returns summary-shape with empty defaults", async () => {
 test("status: submitted tasks have an explicit bucket and respect filters and limits", async () => {
   const dir = await createTempProject();
   try {
-    await bootstrapV2(dir);
+    await bootstrapProject(dir);
     await addTask(dir, "T-submitted", { title: "submitted", domain: "validation" });
     await addTask(dir, "T-other", { title: "other", domain: "other" });
     const state = await readRawState(dir);
     state.nodes["T-submitted"].status = "submitted";
     state.nodes["T-other"].status = "submitted";
-    await writeRawState(dir, state);
+    await writeFencedState(dir, state);
 
     const out = await v2Status(dir, { domain: "validation", status: "submitted", limit: 1 });
     assert.equal(out.summary.submitted, 1);
@@ -152,7 +152,7 @@ test("status: submitted tasks have an explicit bucket and respect filters and li
 test("status: --kind knowledge dumps knowledge items when --all is set", async () => {
   const dir = await createTempProject();
   try {
-    await bootstrapV2(dir);
+    await bootstrapProject(dir);
     await addKnowledge(dir, "K-foo", { domain: "auth", title: "Foo knowledge", "knowledge-type": "warning" });
     await addKnowledge(dir, "K-bar", { domain: "auth", title: "Bar knowledge", "knowledge-type": "tip" });
 
@@ -170,7 +170,7 @@ test("status: --kind knowledge dumps knowledge items when --all is set", async (
 test("status: --kind knowledge alone does not dump items (count only)", async () => {
   const dir = await createTempProject();
   try {
-    await bootstrapV2(dir);
+    await bootstrapProject(dir);
     await addKnowledge(dir, "K-foo", { domain: "auth" });
     const out = await v2Status(dir, { kind: "knowledge" });
     assert.equal(typeof out.knowledge, "undefined", "no knowledge array unless --all");
@@ -182,7 +182,7 @@ test("status: --kind knowledge alone does not dump items (count only)", async ()
 test("status: --initiative filters the nodes", async () => {
   const dir = await createTempProject();
   try {
-    await bootstrapV2(dir, "work");
+    await bootstrapProject(dir, "work");
     const { default: addInitiative } = await importFresh("./cli/commands/add-initiative.mjs");
     await addInitiative({ statePath: dir, flags: { desc: "other" }, positional: ["other"] });
     await addTask(dir, "T-work", { initiative: "work", title: "W" });
@@ -198,7 +198,7 @@ test("status: --initiative filters the nodes", async () => {
 test("status: in_progress visibility is global by default; --as does not restrict", async () => {
   const dir = await createTempProject();
   try {
-    await bootstrapV2(dir);
+    await bootstrapProject(dir);
     await addTask(dir, "T-a", { title: "a" });
     await addTask(dir, "T-b", { title: "b" });
     const { default: take } = await importFresh("./cli/commands/take.mjs");
@@ -224,7 +224,7 @@ test("status: in_progress visibility is global by default; --as does not restric
 test("status: --claimed-by X narrows in_progress to one agent", async () => {
   const dir = await createTempProject();
   try {
-    await bootstrapV2(dir);
+    await bootstrapProject(dir);
     await addTask(dir, "T-a", { title: "a" });
     await addTask(dir, "T-b", { title: "b" });
     const { default: take } = await importFresh("./cli/commands/take.mjs");
@@ -245,7 +245,7 @@ test("status: --claimed-by X narrows in_progress to one agent", async () => {
 test("status: in_progress honors --status (in_progress shows all; other values leave it empty)", async () => {
   const dir = await createTempProject();
   try {
-    await bootstrapV2(dir);
+    await bootstrapProject(dir);
     await addTask(dir, "T-a", { title: "a" });
     await addTask(dir, "T-b", { title: "b" });
     const { default: take } = await importFresh("./cli/commands/take.mjs");
@@ -269,7 +269,7 @@ test("status: in_progress honors --status (in_progress shows all; other values l
 test("status: in_progress list honors --limit", async () => {
   const dir = await createTempProject();
   try {
-    await bootstrapV2(dir);
+    await bootstrapProject(dir);
     for (const id of ["T-a", "T-b", "T-c"]) {
       await addTask(dir, id, { title: id });
     }
@@ -289,7 +289,7 @@ test("status: in_progress list honors --limit", async () => {
 test("status: in_progress list honors --initiative (and --as does not re-scope)", async () => {
   const dir = await createTempProject();
   try {
-    await bootstrapV2(dir);
+    await bootstrapProject(dir);
     const { default: addInitiative } = await importFresh("./cli/commands/add-initiative.mjs");
     await addInitiative({ statePath: dir, flags: { desc: "other" }, positional: ["other"] });
     await addTask(dir, "T-w", { title: "w", initiative: "work" });
@@ -313,7 +313,7 @@ test("status: in_progress list honors --initiative (and --as does not re-scope)"
 test("status: stale-claim alerts are global by default; --claimed-by X narrows them", async () => {
   const dir = await createTempProject();
   try {
-    await bootstrapV2(dir);
+    await bootstrapProject(dir);
     await addTask(dir, "T-a", { title: "a" });
     await addTask(dir, "T-b", { title: "b" });
     const { default: take } = await importFresh("./cli/commands/take.mjs");
@@ -341,7 +341,7 @@ test("status: stale-claim alerts are global by default; --claimed-by X narrows t
 test("status: --all includes done groups and alerts", async () => {
   const dir = await createTempProject();
   try {
-    await bootstrapV2(dir);
+    await bootstrapProject(dir);
     await addGate(dir, "G-done", { status: "resolved", choice: "yes", rationale: "ok" });
     await addTask(dir, "T-z", { title: "z" });
     const { default: take } = await importFresh("./cli/commands/take.mjs");
@@ -351,9 +351,7 @@ test("status: --all includes done groups and alerts", async () => {
     const state = await readRawState(dir);
     const tId = first.node.id;
     state.nodes[tId].status = "done";
-    state.nodes[tId].revision = (state.nodes[tId].revision || 1) + 1;
-    const { writeState } = await import("./helpers.mjs");
-    await writeState(dir, state);
+    await writeFencedState(dir, state);
 
     const out = await v2Status(dir, { all: true });
     assert.equal(typeof out.done, "object", "done groups present when --all");
@@ -365,7 +363,7 @@ test("status: --all includes done groups and alerts", async () => {
 test("status: blocked reports unsatisfied BLOCKS", async () => {
   const dir = await createTempProject();
   try {
-    await bootstrapV2(dir);
+    await bootstrapProject(dir);
     await addGate(dir, "G-1", { title: "g1" });
     await addTask(dir, "T-1", { title: "t1", "blocked-by": "G-1" });
 
@@ -392,8 +390,9 @@ test("status: blocked reports unsatisfied BLOCKS", async () => {
 test("deprecate-knowledge: happy path sets fields, bumps revision, logs", async () => {
   const dir = await createTempProject();
   try {
-    await bootstrapV2(dir);
+    await bootstrapProject(dir);
     await addKnowledge(dir, "K-1", { title: "Foo", domain: "auth" });
+    const revisionBeforeDeprecate = (await readRawState(dir)).nodes["K-1"].revision;
 
     const out = await v2Deprecate(dir, "K-1", { reason: "obsolete after rollout", as: "alice" });
     assert.equal(out.node.id, "K-1");
@@ -402,7 +401,7 @@ test("deprecate-knowledge: happy path sets fields, bumps revision, logs", async 
     assert.equal(out.node.deprecated_by, "alice");
     assert.equal(typeof out.node.deprecated_at, "string");
     assert.ok(out.node.deprecated_at.endsWith("Z") || out.node.deprecated_at.includes("T"), "ISO timestamp");
-    assert.equal(out.node.revision, 2);
+    assert.equal(out.node.revision, revisionBeforeDeprecate + 1);
 
     const state = await readRawState(dir);
     const lastLog = state.log[state.log.length - 1];
@@ -416,7 +415,7 @@ test("deprecate-knowledge: happy path sets fields, bumps revision, logs", async 
 test("deprecate-knowledge: missing --reason throws MISSING_FIELD", async () => {
   const dir = await createTempProject();
   try {
-    await bootstrapV2(dir);
+    await bootstrapProject(dir);
     await addKnowledge(dir, "K-1", { domain: "auth" });
     await assert.rejects(
       v2Deprecate(dir, "K-1", { as: "alice" }),
@@ -429,7 +428,7 @@ test("deprecate-knowledge: missing --as throws MISSING_AGENT", async () => {
   const dir = await createTempProject();
   let prev;
   try {
-    await bootstrapV2(dir);
+    await bootstrapProject(dir);
     await addKnowledge(dir, "K-1", { domain: "auth" });
     // drop the env-var fallback that helpers.mjs set, so MISSING_AGENT wins.
     prev = process.env.CLIMIER_AGENT;
@@ -447,7 +446,7 @@ test("deprecate-knowledge: missing --as throws MISSING_AGENT", async () => {
 test("deprecate-knowledge: rejects non-knowledge node with INVALID_EDGE_KIND", async () => {
   const dir = await createTempProject();
   try {
-    await bootstrapV2(dir);
+    await bootstrapProject(dir);
     await addTask(dir, "T-1", { title: "task" });
     await assert.rejects(
       v2Deprecate(dir, "T-1", { reason: "x", as: "alice" }),
@@ -459,7 +458,7 @@ test("deprecate-knowledge: rejects non-knowledge node with INVALID_EDGE_KIND", a
 test("deprecate-knowledge: unknown id throws NODE_NOT_FOUND", async () => {
   const dir = await createTempProject();
   try {
-    await bootstrapV2(dir);
+    await bootstrapProject(dir);
     await assert.rejects(
       v2Deprecate(dir, "K-missing", { reason: "x", as: "alice" }),
       (err) => err.code === "NODE_NOT_FOUND" && err.details.id === "K-missing",
@@ -474,7 +473,7 @@ test("deprecate-knowledge: unknown id throws NODE_NOT_FOUND", async () => {
 test("history: returns matching log entries referencing the id", async () => {
   const dir = await createTempProject();
   try {
-    await bootstrapV2(dir);
+    await bootstrapProject(dir);
     await addTask(dir, "T-1", { title: "t1" });
     const { default: addNote } = await importFresh("./cli/commands/add-note.mjs");
     await addNote({ statePath: dir, positional: ["T-1", "first thought"], flags: { as: "alice" } });
@@ -496,7 +495,7 @@ test("history: returns matching log entries referencing the id", async () => {
 test("history: empty entries for an unknown node id", async () => {
   const dir = await createTempProject();
   try {
-    await bootstrapV2(dir);
+    await bootstrapProject(dir);
     await addTask(dir, "T-1", { title: "t1" });
     const out = await v2History(dir, "K-nothing");
     assert.deepEqual(out, { id: "K-nothing", entries: [] });
@@ -506,7 +505,7 @@ test("history: empty entries for an unknown node id", async () => {
 test("history: --limit caps results but stays in chronological order", async () => {
   const dir = await createTempProject();
   try {
-    await bootstrapV2(dir);
+    await bootstrapProject(dir);
     await addTask(dir, "T-1", { title: "t1" });
     const { default: addNote } = await importFresh("./cli/commands/add-note.mjs");
     for (let i = 0; i < 5; i++) {
@@ -524,7 +523,7 @@ test("history: --limit caps results but stays in chronological order", async () 
 test("history: missing id is a clear error", async () => {
   const dir = await createTempProject();
   try {
-    await bootstrapV2(dir);
+    await bootstrapProject(dir);
     await assert.rejects(
       v2History(dir, undefined, {}),
       (err) => /history/.test(err.message) && /id/i.test(err.message),

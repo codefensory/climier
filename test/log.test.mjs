@@ -36,6 +36,19 @@ test("append adds multiple entries in order", async () => {
   }
 });
 
+test("append rejects legacy writes after fenced bootstrap without changing state", async () => {
+  const { append } = await importFresh("./storage/log.mjs");
+  const { bootstrapFencedState, readFencedState } = await importFresh("./storage/ledger.mjs");
+  const dir = await createTempProject();
+  try {
+    const before = await bootstrapFencedState(dir);
+    await assert.rejects(append(dir, { agent: "a", action: "legacy-append", task: "T1" }), { code: "CLIMIER_LEDGER_REQUIRED" });
+    assert.deepEqual(await readFencedState(dir), before);
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
 test("append accepts a note field", async () => {
   const { append } = await importFresh("./storage/log.mjs");
   const { readState } = await importFresh("./storage/state.mjs");

@@ -7,7 +7,15 @@
 // single atomic persistence step.
 
 import fs from "node:fs/promises";
+import path from "node:path";
 import { readState, writeState, stateFile, createSnapshot, emptyState } from "../../storage/state.mjs";
+import {
+  bootstrapFencedStateUnderLock,
+  commitFencedStateUnderLock,
+  recoverFencedStateUnderLock,
+  readFencedStateUnderLock,
+  replaceFencedStateUnderLock,
+} from "../../storage/ledger.mjs";
 import { prepareLogEntry } from "../../storage/log.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
 import { createTransaction } from "../transaction.mjs";
@@ -25,7 +33,7 @@ import {
   computeInitiativeDiff,
   deepEqualNodes,
 } from "./diff.mjs";
-import { deriveTargetRevision, stripRevision } from "./revisions.mjs";
+import { assignNodeRevision, deriveNextStateRevision, deriveTargetRevision } from "./revisions.mjs";
 import { normalizeLogFields, validateDraftStructural } from "./validation.mjs";
 import { buildLogEntry } from "./log-entry.mjs";
 
@@ -93,9 +101,11 @@ async function runPolicy(policyAction, snapshot, plan, request, commandName) {
     : request.action;
   const actor = typeof request.actor === "string" ? request.actor : "";
   const pluginId = policyAction.pluginId || null;
+  const policySnapshot = { ...snapshot };
+  delete policySnapshot.fence_generation;
   let decision;
   try {
-    decision = await policyAction.decide({ snapshot, target: plan.target, request, action });
+    decision = await policyAction.decide({ snapshot: policySnapshot, target: plan.target, request, action });
   } catch (err) {
     if (err && typeof err.code === "string" && err.code.startsWith("POLICY_") && err.details !== undefined) {
       throw err;
@@ -153,16 +163,7 @@ function batchSnapshot(snapshot, tx) {
   const view = tx.view({ includePlugins: true });
   const nodes = {};
   for (const [id, node] of Object.entries(view.nodes || {})) {
-    const previous = snapshot.nodes && snapshot.nodes[id];
-    const copy = { ...node };
-    if (!previous) {
-      copy.revision = 1;
-    } else if (deepEqualNodes(stripRevision(previous), node)) {
-      copy.revision = Number.isInteger(previous.revision) ? previous.revision : 1;
-    } else {
-      copy.revision = (Number.isInteger(previous.revision) ? previous.revision : 0) + 1;
-    }
-    nodes[id] = copy;
+    nodes[id] = assignNodeRevision(snapshot && snapshot.revision, snapshot.nodes && snapshot.nodes[id], node).node;
   }
   const current = {
     ...snapshot,
@@ -211,12 +212,60 @@ function validateBatchOperation(raw, index) {
   return { op: raw.op, input: cloneBatchValue(raw.input) };
 }
 
-async function executeBatchMutation({ projectDir, request, batch, policyAction, pluginId }) {
+async function readMutationStateUnderLock(lockContext, projectDir) {
+  let raw = null;
+  try { raw = await fs.readFile(stateFile(projectDir), "utf8"); } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+  const statePath = stateFile(projectDir);
+  const hasLedger = await fs.access(statePath.slice(0, statePath.lastIndexOf("/")) + "/revision-ledger.json").then(() => true, (error) => {
+    if (error.code === "ENOENT") return false;
+    throw error;
+  });
+  if (hasLedger && raw !== null) {
+    try { JSON.parse(raw); } catch {
+      const error = new Error(`state: file at ${statePath} is corrupt or not valid JSON`);
+      error.code = "CLIMIER_CORRUPT_STATE";
+      throw error;
+    }
+  }
+  if (raw !== null) {
+    let parsed;
+    try { parsed = JSON.parse(raw); } catch { parsed = null; }
+    if (parsed && typeof parsed === "object" && (parsed.version === 1 || parsed.version > 5)) {
+      try {
+        await readState(projectDir);
+      } catch (error) {
+        if (error.code === "STATE_V1_UNSUPPORTED" || error.code === "CLIMIER_INCOMPATIBLE_VERSION") throw error;
+      }
+    }
+  }
+  if (hasLedger && raw !== null) {
+    let parsed;
+    try { parsed = JSON.parse(raw); } catch { parsed = null; }
+    if (parsed === null) return null;
+  }
+  try {
+    return await readFencedStateUnderLock(lockContext, { projectDir });
+  } catch (error) {
+    if (error.code !== "CLIMIER_UNSUPPORTED_SOURCE_VERSION") throw error;
+    try {
+      await readState(projectDir);
+    } catch (stateError) {
+      if (stateError.code === "STATE_V1_UNSUPPORTED" || stateError.code === "CLIMIER_INCOMPATIBLE_VERSION") {
+        throw stateError;
+      }
+    }
+    throw error;
+  }
+}
+
+async function executeBatchMutation({ projectDir, lockContext, request, batch, policyAction, pluginId }) {
   const commandName = "core.batch";
-  const loadedState = await readState(projectDir);
+  const loadedState = await readMutationStateUnderLock(lockContext, projectDir);
   const snapshot = loadedState;
-  if (!snapshot || typeof snapshot !== "object" || snapshot.version !== 4) {
-    throw new Error(`${commandName}: state file missing or not v4 (run init first)`);
+  if (!snapshot || typeof snapshot !== "object" || snapshot.version !== 5) {
+    throw new Error(`${commandName}: state file missing or not v5 (run init first)`);
   }
   checkStateRevision(request.if_state_revision, snapshot, commandName);
   const rawOperations = request.input && request.input.operations;
@@ -296,7 +345,7 @@ async function executeBatchMutation({ projectDir, request, batch, policyAction, 
   const pluginsChanged = !deepEqualNodes(pluginsBefore, pluginsAfter);
   const changed = created.length > 0 || updated.length > 0 || addedEdges.length > 0 || removedEdges.length > 0 || removedNodes.length > 0 || initiativeDiff.created.length > 0 || initiativeDiff.updated.length > 0 || pluginsChanged;
   const revisionBefore = snapshot.revision;
-  const revisionAfter = changed ? revisionBefore + 1 : revisionBefore;
+  const revisionAfter = changed ? deriveNextStateRevision(snapshot, nextNodes) : snapshot.revision;
   if (changed) {
     const finalNodes = {};
     for (const [id, node] of Object.entries(nextNodes)) finalNodes[id] = node;
@@ -311,6 +360,8 @@ async function executeBatchMutation({ projectDir, request, batch, policyAction, 
     const logEntry = prepareLogEntry({ action: commandName, agent: request.actor, revision: revisionAfter, operations: logOperations }, { pluginId });
     const persistedState = {
       ...snapshot,
+      version: 5,
+      fence_generation: snapshot.fence_generation,
       nodes: finalNodes,
       edges: draftView.edges,
       initiatives: finalInitiatives,
@@ -319,17 +370,18 @@ async function executeBatchMutation({ projectDir, request, batch, policyAction, 
     };
     if (Object.prototype.hasOwnProperty.call(snapshot, "plugins") || Object.keys(pluginsAfter).length > 0) persistedState.plugins = pluginsAfter;
     else delete persistedState.plugins;
-    await writeState(projectDir, persistedState);
+    await commitFencedStateUnderLock(lockContext, persistedState);
   }
   return { ok: true, revision_before: revisionBefore, revision_after: revisionAfter, results };
 }
 
-async function executeStateMutation({ projectDir, request, stateOperation, policyAction, pluginId }) {
+async function executeStateMutation({ projectDir, lockContext, request, stateOperation, policyAction, pluginId }) {
   const commandName = commandLabel(request);
   const statePath = stateFile(projectDir);
   let currentRaw = null;
   let currentState = null;
   let exists = false;
+  let fencedCurrentState = null;
   try {
     currentRaw = await fs.readFile(statePath);
     exists = true;
@@ -337,15 +389,23 @@ async function executeStateMutation({ projectDir, request, stateOperation, polic
     if (err.code !== "ENOENT") throw err;
   }
   let stateError = null;
+  let hasFencedLedger = false;
+  try {
+    await fs.access(path.join(path.dirname(statePath), "revision-ledger.json"));
+    hasFencedLedger = true;
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
   if (exists) {
     try {
       currentState = await readState(projectDir);
+      if (currentState && currentState.version === 5) fencedCurrentState = currentState;
     } catch (err) {
       if (!["CLIMIER_CORRUPT_STATE", "STATE_V1_UNSUPPORTED", "CLIMIER_INCOMPATIBLE_VERSION"].includes(err.code)) throw err;
       stateError = err;
     }
   }
-  const snapshot = Object.freeze({
+  let snapshot = Object.freeze({
     state: currentState,
     raw: currentRaw,
     exists,
@@ -358,13 +418,17 @@ async function executeStateMutation({ projectDir, request, stateOperation, polic
       : {}),
     revision: currentState && Number.isInteger(currentState.revision) ? currentState.revision : 0,
   });
+  if (snapshot.stateError?.code === "CLIMIER_CORRUPT_STATE" && exists && hasFencedLedger) {
+    snapshot = Object.freeze({ ...snapshot, fencedCorrupt: true });
+  }
   const prepared = await stateOperation.prepare({ projectDir, snapshot, input: request.input, request });
   if (!prepared || typeof prepared !== "object" || Array.isArray(prepared) || !prepared.target || typeof prepared.target.id !== "string") {
     throwV2("INVALID_EXECUTION_CONTRACT", `${commandName}: state operation prepare must return a plan with target`, { field: "plan" });
   }
   const plan = Object.freeze({ ...prepared, target: Object.freeze({ ...prepared.target }) });
   checkStateRevision(request.if_state_revision, snapshot, commandName);
-  await runPolicy(policyAction, snapshot, plan, request, commandName);
+  const ledgerCorruptRecovery = plan.corruptRecovery && snapshot.fencedCorrupt;
+  if (!ledgerCorruptRecovery) await runPolicy(policyAction, snapshot, plan, request, commandName);
   const applied = await stateOperation.apply({ snapshot, plan, input: request.input, request });
   if (!applied || typeof applied !== "object" || !applied.state || typeof applied.state !== "object" || Array.isArray(applied.state)) {
     throwV2("INVALID_EXECUTION_CONTRACT", `${commandName}: state operation apply must return a state object`, { field: "state" });
@@ -373,6 +437,16 @@ async function executeStateMutation({ projectDir, request, stateOperation, polic
   if (plan.snapshotReason) {
     if (!exists) throwV2("INVALID_STATUS", `${commandName}: cannot snapshot a missing current state`, { state_file: statePath });
     snapshotMeta = await createSnapshot(projectDir, plan.snapshotReason);
+  }
+  if (plan.corruptRecovery && snapshot.fencedCorrupt) {
+    const recovered = await recoverFencedStateUnderLock(lockContext, undefined, { projectDir });
+    return {
+      result: { ...applied.result, snapshot: snapshotMeta },
+      effects: applied.effects === undefined ? null : applied.effects,
+      log_entry: null,
+      idempotent: false,
+      diff: { created: [], updated: [], added_edges: [], removed_edges: [], removed_nodes: [], target_revision: recovered.revision, initiatives: { created: [], updated: [] } },
+    };
   }
   const nextState = {
     ...applied.state,
@@ -383,7 +457,11 @@ async function executeStateMutation({ projectDir, request, stateOperation, polic
     logEntry = prepareLogEntry({ action: plan.logAction || request.action, agent: request.actor, ...plan.log }, { pluginId });
     nextState.log = [...(Array.isArray(nextState.log) ? nextState.log : []), logEntry];
   }
-  await writeState(projectDir, nextState);
+  if (fencedCurrentState) {
+    await replaceFencedStateUnderLock(lockContext, nextState, { projectDir });
+  } else {
+    await writeState(projectDir, nextState);
+  }
   let result = applied.result === undefined ? null : applied.result;
   if (snapshotMeta && result && typeof result === "object" && !Array.isArray(result) && result.snapshot === undefined) {
     result = { ...result, snapshot: snapshotMeta };
@@ -402,20 +480,20 @@ async function executeStateMutation({ projectDir, request, stateOperation, polic
  * This function intentionally performs no lock acquisition so all reads,
  * provider callbacks and the final atomic write share the façade's lock.
  */
-export async function executeMutation({ projectDir, request, provider, policyAction, pluginId, stateOperation, batch }) {
+export async function executeMutation({ projectDir, lockContext, request, provider, policyAction, pluginId, stateOperation, batch }) {
   const commandName = validateMutationArguments({ request, provider, stateOperation, batch });
   if (batch !== undefined) {
-    return executeBatchMutation({ projectDir, request, batch, policyAction, pluginId });
+    return executeBatchMutation({ projectDir, lockContext, request, batch, policyAction, pluginId });
   }
   if (stateOperation !== undefined) {
-    return executeStateMutation({ projectDir, request, stateOperation, policyAction, pluginId });
+    return executeStateMutation({ projectDir, lockContext, request, stateOperation, policyAction, pluginId });
   }
 
-  const loadedState = await readState(projectDir);
+  const loadedState = await readMutationStateUnderLock(lockContext, projectDir);
   const mayBootstrap = loadedState === null && request.action === "initiative.create" && provider.bootstrapMissingState === true;
-  const snapshot = loadedState ?? (mayBootstrap ? emptyState() : null);
-  if (!snapshot || typeof snapshot !== "object" || snapshot.version !== 4) {
-    throw new Error(`${commandName}: state file missing or not v4 (run init first)`);
+  let snapshot = loadedState ?? (mayBootstrap ? { ...emptyState(), version: 5, fence_generation: 1 } : null);
+  if ((!snapshot || typeof snapshot !== "object" || snapshot.version !== 5) && !mayBootstrap) {
+    throw new Error(`${commandName}: state file missing or not v5 (run init first)`);
   }
 
   // 1) Prepare once against the fresh snapshot, while the lock is held.
@@ -458,7 +536,7 @@ export async function executeMutation({ projectDir, request, provider, policyAct
   const pluginsBefore = snapshot.plugins && typeof snapshot.plugins === "object" && !Array.isArray(snapshot.plugins) ? snapshot.plugins : {};
   const pluginsAfter = draftView.plugins && typeof draftView.plugins === "object" && !Array.isArray(draftView.plugins) ? draftView.plugins : {};
   const pluginsChanged = !deepEqualNodes(pluginsBefore, pluginsAfter);
-  const isIdempotent = created.length === 0 && updated.length === 0 && addedEdges.length === 0 && removedEdges.length === 0 &&
+  const isIdempotent = !mayBootstrap && created.length === 0 && updated.length === 0 && addedEdges.length === 0 && removedEdges.length === 0 &&
     removedNodes.length === 0 && initiativeDiff.created.length === 0 && initiativeDiff.updated.length === 0 && !pluginsChanged;
 
   let logEntry = null;
@@ -486,11 +564,13 @@ export async function executeMutation({ projectDir, request, provider, policyAct
     );
     const persistedState = {
       ...snapshot,
+      version: 5,
+      fence_generation: snapshot.fence_generation,
       nodes: finalNodes,
       edges: draftView.edges,
       initiatives: finalInitiatives,
       log: [...(Array.isArray(snapshot.log) ? snapshot.log : []), logPayload],
-      revision: snapshot.revision + 1,
+      revision: deriveNextStateRevision(snapshot, nextNodes),
     };
     if (Object.prototype.hasOwnProperty.call(snapshot, "plugins") || Object.keys(pluginsAfter).length > 0) {
       persistedState.plugins = pluginsAfter;
@@ -498,7 +578,17 @@ export async function executeMutation({ projectDir, request, provider, policyAct
       delete persistedState.plugins;
     }
     logEntry = logPayload;
-    await writeState(projectDir, persistedState);
+    if (mayBootstrap) {
+      const bootstrapState = {
+        ...persistedState,
+        version: 4,
+        revision: Math.max(0, ...Object.values(persistedState.nodes).map((node) => Number.isInteger(node.revision) ? node.revision : 0)),
+      };
+      delete bootstrapState.fence_generation;
+      await bootstrapFencedStateUnderLock(lockContext, bootstrapState);
+    } else {
+      await commitFencedStateUnderLock(lockContext, persistedState);
+    }
   }
 
   return {

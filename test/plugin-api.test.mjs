@@ -21,7 +21,7 @@ import {
   createTempProject,
   rmTempProject,
   importFresh,
-  writeState as writeRawState,
+  writeFencedState,
   readState as readRawState,
   installPolicyFixture,
   uninstallPolicyFixture,
@@ -36,7 +36,8 @@ const ID_REGEX = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 function baseState() {
   return {
-    version: 2,
+    version: 5,
+    revision: 0,
     nodes: {
       T1: {
         id: "T1",
@@ -84,8 +85,16 @@ function baseState() {
 async function seedState(dir, mutate) {
   const base = baseState();
   if (typeof mutate === "function") mutate(base);
-  await writeRawState(dir, base);
-  return base;
+  try {
+    const current = await readRawState(dir);
+    base.revision = current.revision;
+    base.fence_generation = current.fence_generation;
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+    base.revision = 0;
+    delete base.fence_generation;
+  }
+  return writeFencedState(dir, base);
 }
 
 async function freshApi(dir, opts = {}) {
@@ -284,27 +293,17 @@ test("api.query.node reflects a state mutation (read without lock picks the late
   try {
     await seedState(dir);
     const api = await freshApi(dir);
-    // Mutate the state out-of-band (simulating another agent's update).
-    await writeRawState(dir, {
-      version: 2,
-      nodes: {
-        T1: {
-          id: "T1",
-          kind: "resolvable",
-          subkind: "task",
-          title: "T1 (mutated)",
-          initiative: "p",
-          status: "open",
-          revision: 2,
-        },
-      },
-      edges: [],
-      initiatives: { p: { desc: "p", created_at: "2026-01-01T00:00:00.000Z" } },
-      log: [],
-    });
+    // Replace through the fenced fixture helper to simulate another agent's update.
+    const replacement = baseState();
+    replacement.nodes.T1.title = "T1 (mutated)";
+    const current = await readRawState(dir);
+    replacement.revision = current.revision;
+    replacement.fence_generation = current.fence_generation;
+    await writeFencedState(dir, replacement);
+    const expected = await readRawState(dir);
     const out = await api.query.node("T1");
     assert.equal(out.node.title, "T1 (mutated)");
-    assert.equal(out.node.revision, 2);
+    assert.equal(out.node.revision, expected.nodes.T1.revision);
   } finally {
     await rmTempProject(dir);
   }
@@ -483,12 +482,12 @@ test("api.data.node.set writes only the calling plugin's keyspace and preserves 
 test("api.data.node.set uses kernel revision accounting while preserving the plugin API result", async () => {
   const dir = await createTempProject();
   try {
-    await seedState(dir);
+    const seeded = await seedState(dir);
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
     const value = { perNode: "kernel-backed" };
     assert.deepEqual(await api.data.node.set("T1", value), value);
     const after = await readRawState(dir);
-    assert.equal(after.nodes.T1.revision, 2);
+    assert.equal(after.nodes.T1.revision, seeded.revision + 1);
     assert.equal(after.log.length, 1);
     assert.deepEqual(after.nodes.T1.plugins["example.audit"].data, value);
   } finally {
@@ -904,7 +903,7 @@ test("api.core.run: non-object input throws PLUGIN_CORE_INVALID_OPERATION", asyn
   const dir = await createTempProject();
   try {
     const { default: init } = await importFresh("./cli/commands/init.mjs");
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+    await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
     for (const bad of [null, undefined, "string", 1, true, []]) {
       await assert.rejects(
@@ -922,7 +921,7 @@ test("api.core.run: unknown op throws PLUGIN_CORE_INVALID_OPERATION with support
   const dir = await createTempProject();
   try {
     const { default: init } = await importFresh("./cli/commands/init.mjs");
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+    await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
     await assert.rejects(
       api.core.run({ op: "edge.unknown", input: {} }),
@@ -943,7 +942,7 @@ test("api.core.run: input.as is rejected with PLUGIN_CORE_INVALID_OPERATION and 
   const dir = await createTempProject();
   try {
     const { default: init } = await importFresh("./cli/commands/init.mjs");
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+    await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
     await assert.rejects(
       api.core.run({
@@ -971,7 +970,7 @@ test("api.core.run: input._as is rejected (no alias sneaks past)", async () => {
   const dir = await createTempProject();
   try {
     const { default: init } = await importFresh("./cli/commands/init.mjs");
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+    await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
     await assert.rejects(
       api.core.run({
@@ -997,7 +996,7 @@ test("api.core.run: missing required field throws PLUGIN_CORE_ACTION_FAILED (pro
   const dir = await createTempProject();
   try {
     const { default: init } = await importFresh("./cli/commands/init.mjs");
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+    await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
     // Missing --type is required by edge.add.
     await assert.rejects(
@@ -1031,7 +1030,7 @@ test("api.core.run: known op with empty input does not mutate state (provider-le
   const dir = await createTempProject();
   try {
     const { default: init } = await importFresh("./cli/commands/init.mjs");
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+    await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
     await assert.rejects(
       api.core.run({ op: "task.create", input: {} }),
@@ -1064,7 +1063,7 @@ test("api.core.run: NODE_NOT_FOUND in the handler is wrapped as PLUGIN_CORE_ACTI
   const dir = await createTempProject();
   try {
     const { default: init } = await importFresh("./cli/commands/init.mjs");
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+    await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
     await assert.rejects(
       api.core.run({ op: "task.take", input: { id: "T-not-here" } }),
@@ -1115,7 +1114,7 @@ test("api.core.run: task.create dispatches through the kernel with actor fixed f
   try {
     const { default: init } = await importFresh("./cli/commands/init.mjs");
     const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+    await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
     await addInit({ statePath: dir, flags: { desc: "plugin-platform" }, positional: ["plugin-platform"] });
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
     const out = await api.core.run({
@@ -1136,7 +1135,7 @@ test("api.core.run: task.create dispatches through the kernel with actor fixed f
     assert.equal(out.result.id, "T-from-core", "explicit id is propagated to the provider");
     assert.equal(out.diff.created[0].id, "T-from-core", "diff reflects the created id");
     assert.equal(out.diff.created[0].node.id, "T-from-core");
-    assert.equal(out.diff.created[0].node.revision, 1, "kernel assigns revision=1 on create");
+    assert.equal(out.diff.created[0].node.revision, (await readRawState(dir)).revision, "create receives the global high-water revision");
     const after = await readRawState(dir);
     assert.ok(after.nodes["T-from-core"], "task.create created the node");
     // The plugin's identity is not in the log entry's agent: the kernel
@@ -1166,7 +1165,7 @@ test("api.core.run: input.as is dropped even though the handler call is made on 
   try {
     const { default: init } = await importFresh("./cli/commands/init.mjs");
     const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+    await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
     await addInit({ statePath: dir, flags: { desc: "plugin-platform" }, positional: ["plugin-platform"] });
     // input.as is rejected outright (covered by previous test); the path we
     // verify here is that even if a future flag rename makes a snake key
@@ -1193,7 +1192,7 @@ test("api.core.run: an opaque core error (no code/details) is normalized to CORE
   const dir = await createTempProject();
   try {
     const { default: init } = await importFresh("./cli/commands/init.mjs");
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+    await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
     // task.take against a non-existent task throws NODE_NOT_FOUND through the
     // handler — that is structured. To exercise the bare-Error branch of
@@ -1227,7 +1226,7 @@ test("api.core.run: an opaque core error (no code/details) is normalized to CORE
 //     handler is called without ctx.pluginId).
 // =========================================================================
 
-// Init a fresh v2 project with the `plugin-platform` initiative registered.
+// Init a fresh fenced project with the `plugin-platform` initiative registered.
 // Parity tests below need a valid registered initiative for the resolvable
 // creation ops (task.update/etc indirectly, gate.create, knowledge.create),
 // so this helper insulates each test from the boilerplate.
@@ -1235,7 +1234,7 @@ async function readyProject() {
   const dir = await createTempProject();
   const { default: init } = await importFresh("./cli/commands/init.mjs");
   const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
-  await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+  await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
   await addInit({
     statePath: dir,
     flags: { desc: "plugin platform" },
@@ -1344,7 +1343,8 @@ test("api.core.run: task.update dispatches through the kernel with explicit CAS 
         blocked_by: "",
       },
     });
-    assert.equal(created.diff.created[0].node.revision, 1, "kernel assigned revision=1 to the seed task");
+    const seedRevision = created.diff.created[0].node.revision;
+    assert.equal(seedRevision, (await readRawState(dir)).revision, "seed task carries the global high-water");
     // Now patch its title via task.update. CAS is mandatory: pass
     // `changes` and `if_revision` from the seeded revision.
     const updated = await api.core.run({
@@ -1352,15 +1352,15 @@ test("api.core.run: task.update dispatches through the kernel with explicit CAS 
       input: {
         id: "T-parity-update",
         changes: { title: "after" },
-        if_revision: 1,
+        if_revision: seedRevision,
       },
     });
     assert.equal(updated.result.title, "after", "merged node projection reflects the patch");
-    assert.equal(updated.diff.updated[0].node.revision, 2, "task.update bumps revision by exactly 1");
+    assert.equal(updated.diff.updated[0].node.revision, seedRevision + 1, "task.update advances the global revision");
     assert.equal(updated.diff.updated[0].id, "T-parity-update");
     const after = await readRawState(dir);
     assert.equal(after.nodes["T-parity-update"].title, "after");
-    assert.equal(after.nodes["T-parity-update"].revision, 2);
+    assert.equal(after.nodes["T-parity-update"].revision, seedRevision + 1);
   } finally {
     await rmTempProject(dir);
   }
@@ -1374,7 +1374,7 @@ test("api.core.run: task.update log entry carries plugin_id (kernel routes plugi
   const dir = await readyProject();
   try {
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
-    await api.core.run({
+    const created = await api.core.run({
       op: "task.create",
       input: {
         id: "T-parity-update-log",
@@ -1390,7 +1390,7 @@ test("api.core.run: task.update log entry carries plugin_id (kernel routes plugi
       input: {
         id: "T-parity-update-log",
         changes: { title: "y" },
-        if_revision: 1,
+        if_revision: created.diff.created[0].node.revision,
       },
     });
     assert.ok(updated.log_entry, "kernel surfaces the update log entry on the typed envelope");
@@ -1589,13 +1589,13 @@ test("api.core.run: gate.create dispatches through the kernel and surfaces the t
     // Kernel-stamped revision lives on diff.created[0].node.
     assert.equal(out.diff.created[0].id, "G-parity-create");
     assert.equal(out.diff.created[0].node.id, "G-parity-create");
-    assert.equal(out.diff.created[0].node.revision, 1, "kernel assigns revision=1 on create");
+    assert.equal(out.diff.created[0].node.revision, (await readRawState(dir)).revision, "create receives the global high-water revision");
     assert.equal(out.diff.created[0].node.subkind, "gate");
     assert.equal(out.diff.created[0].node.purpose, "decision");
     const after = await readRawState(dir);
     assert.ok(after.nodes["G-parity-create"], "gate is in state");
     assert.equal(after.nodes["G-parity-create"].subkind, "gate");
-    assert.equal(after.nodes["G-parity-create"].revision, 1, "persisted revision matches the kernel diff");
+    assert.equal(after.nodes["G-parity-create"].revision, out.diff.created[0].node.revision, "persisted revision matches the kernel diff");
     const lastPluginLog = after.log.filter((e) => e.plugin_id === "example.audit").pop();
     assert.ok(lastPluginLog, "log entry tagged with plugin_id");
     assert.equal(lastPluginLog.agent, "alice", "agent reflects api.runtime.agent, not plugin id");
@@ -1669,7 +1669,8 @@ test("api.core.run: gate.resolve dispatches through the kernel and stores resolu
         purpose: "decision",
       },
     });
-    assert.equal(created.diff.created[0].node.revision, 1, "kernel assigned revision=1 to the seeded gate");
+    const seedRevision = created.diff.created[0].node.revision;
+    assert.equal(seedRevision, (await readRawState(dir)).revision, "seed gate carries the global high-water");
     const out = await api.core.run({
       op: "gate.resolve",
       input: {
@@ -1688,7 +1689,7 @@ test("api.core.run: gate.resolve dispatches through the kernel and stores resolu
     );
     // Kernel-stamped post-state lives on diff.updated[0].node.
     assert.equal(out.diff.updated[0].id, "G-parity-resolve");
-    assert.equal(out.diff.updated[0].node.revision, 2, "kernel bumps revision by exactly 1 on resolve");
+    assert.equal(out.diff.updated[0].node.revision, seedRevision + 1, "resolve advances the global revision");
     assert.equal(out.diff.updated[0].node.status, "resolved");
     assert.deepEqual(out.diff.updated[0].node.resolution, {
       choice: "approve V2",
@@ -1705,7 +1706,7 @@ test("api.core.run: gate.resolve dispatches through the kernel and stores resolu
       choice: "approve V2",
       rationale: "ADR-006 defines it; parity closes the surface",
     });
-    assert.equal(after.nodes["G-parity-resolve"].revision, 2, "persisted revision matches the kernel diff");
+    assert.equal(after.nodes["G-parity-resolve"].revision, seedRevision + 1, "persisted revision matches the kernel diff");
     const lastPluginLog = after.log
       .filter((e) => e.plugin_id === "example.audit" && e.action === "gate.resolve")
       .pop();
@@ -1783,7 +1784,7 @@ test("api.core.run: gate.reopen and gate.cancel roll back or terminate gates wit
     const apiAlice = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
     const apiAdmin = await freshApi(dir, { agent: "release-admin", pluginId: "example.audit" });
     // Resolve path (reopen must follow resolve).
-    await apiAlice.core.run({
+    const reopenCreated = await apiAlice.core.run({
       op: "gate.create",
       input: {
         id: "G-parity-reopen",
@@ -1809,8 +1810,8 @@ test("api.core.run: gate.reopen and gate.cancel roll back or terminate gates wit
     assert.equal(reopened.diff.updated[0].id, "G-parity-reopen");
     assert.equal(
       reopened.diff.updated[0].node.revision,
-      3,
-      "kernel bumps revision by exactly 1 on reopen (was 2 after resolve)",
+      reopenCreated.diff.created[0].node.revision + 2,
+      "reopen advances beyond create and resolve revisions",
     );
     assert.equal(reopened.diff.updated[0].node.status, "open");
     assert.equal(reopened.diff.updated[0].node.resolution, null, "kernel-stamped post-state has resolution=null");
@@ -1823,7 +1824,7 @@ test("api.core.run: gate.reopen and gate.cancel roll back or terminate gates wit
     // Cancel path on a fresh open gate: gates are not claimable and
     // under ADR-009 any actor may cancel them. The policy-fixture is
     // kept to also cover the seam allow branch.
-    await apiAlice.core.run({
+    const cancelCreated = await apiAlice.core.run({
       op: "gate.create",
       input: {
         id: "G-parity-cancel",
@@ -1844,8 +1845,8 @@ test("api.core.run: gate.reopen and gate.cancel roll back or terminate gates wit
     assert.equal(canceled.diff.updated[0].id, "G-parity-cancel");
     assert.equal(
       canceled.diff.updated[0].node.revision,
-      2,
-      "kernel bumps revision by exactly 1 on cancel (seed was revision=1)",
+      cancelCreated.diff.created[0].node.revision + 1,
+      "cancel advances beyond the created gate revision",
     );
     assert.equal(canceled.diff.updated[0].node.status, "canceled");
     assert.ok(canceled.log_entry, "typed envelope carries log_entry");
@@ -1857,9 +1858,9 @@ test("api.core.run: gate.reopen and gate.cancel roll back or terminate gates wit
     const after = await readRawState(dir);
     assert.equal(after.nodes["G-parity-reopen"].status, "open", "persisted reopened status is open");
     assert.equal(after.nodes["G-parity-reopen"].resolution, null, "persisted resolution cleared by reopen");
-    assert.equal(after.nodes["G-parity-reopen"].revision, 3);
+    assert.equal(after.nodes["G-parity-reopen"].revision, reopened.diff.updated[0].node.revision);
     assert.equal(after.nodes["G-parity-cancel"].status, "canceled", "persisted cancel status is canceled");
-    assert.equal(after.nodes["G-parity-cancel"].revision, 2);
+    assert.equal(after.nodes["G-parity-cancel"].revision, canceled.diff.updated[0].node.revision);
     const reopenLogs = after.log.filter(
       (e) => e.action === "gate.reopen" && e.node === "G-parity-reopen",
     );
@@ -1912,7 +1913,7 @@ test("api.core.run: knowledge.create dispatches to add-knowledge (requires --sco
     assert.equal(created.id, "K-parity-create");
     assert.equal(created.kind, "knowledge");
     assert.equal(created.status, "active");
-    assert.equal(created.revision, 1, "kernel stamps revision=1 on create");
+    assert.equal(created.revision, (await readRawState(dir)).revision, "kernel assigns the global high-water on create");
     assert.deepEqual(created.scope.tags, ["api", "recovery"], "scope.tags echoes the input");
     // Log entry: kernel stamps action, plugin_id, agent.
     assert.ok(out.log_entry, "typed envelope carries log_entry");
@@ -1924,7 +1925,7 @@ test("api.core.run: knowledge.create dispatches to add-knowledge (requires --sco
     const persisted = after.nodes["K-parity-create"];
     assert.equal(persisted.status, "active", "persisted status is active");
     assert.deepEqual(persisted.scope.tags, ["api", "recovery"], "scope.tags persisted");
-    assert.equal(persisted.revision, 1, "persisted revision is 1");
+    assert.equal(persisted.revision, created.revision, "persisted revision matches the create result");
     const pluginLogs = after.log.filter((e) => e.plugin_id === "example.audit");
     const lastPluginLog = pluginLogs[pluginLogs.length - 1];
     assert.equal(lastPluginLog.action, "knowledge.create", "persisted log action is the op id");
@@ -1974,7 +1975,7 @@ test("api.core.run: knowledge.deprecate sets status='deprecated' on an active kn
   const dir = await readyProject();
   try {
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
-    await api.core.run({
+    const created = await api.core.run({
       op: "knowledge.create",
       input: {
         id: "K-parity-deprecate",
@@ -2003,7 +2004,7 @@ test("api.core.run: knowledge.deprecate sets status='deprecated' on an active kn
     assert.equal(updated.deprecated_by, "alice", "deprecated_by echoes api.runtime.agent");
     assert.equal(updated.deprecation_reason, "superseded by ADR-007");
     assert.equal(typeof updated.deprecated_at, "string", "deprecated_at is an ISO string");
-    assert.equal(updated.revision, 2, "kernel bumps revision on update");
+    assert.equal(updated.revision, created.diff.created[0].node.revision + 1, "deprecate advances the global revision");
     // Log entry: kernel stamps action, plugin_id, agent.
     assert.ok(out.log_entry, "typed envelope carries log_entry");
     assert.equal(out.log_entry.action, "knowledge.deprecate");
@@ -2015,7 +2016,7 @@ test("api.core.run: knowledge.deprecate sets status='deprecated' on an active kn
     assert.equal(persisted.status, "deprecated", "persisted status is deprecated");
     assert.equal(persisted.deprecated_by, "alice");
     assert.equal(persisted.deprecation_reason, "superseded by ADR-007");
-    assert.equal(persisted.revision, 2, "persisted revision is 2");
+    assert.equal(persisted.revision, updated.revision, "persisted revision matches the update result");
     const deprecateLogs = after.log.filter(
       (e) => e.plugin_id === "example.audit" && e.action === "knowledge.deprecate",
     );
@@ -2045,7 +2046,9 @@ test("api.core.run: knowledge.deprecate without --reason is rejected by the adap
         scope: { tags: ["api", "recovery"] },
       },
     });
-    const beforeLogCount = (await readRawState(dir)).log.length;
+    const before = await readRawState(dir);
+    const beforeLogCount = before.log.length;
+    const beforeRevision = before.nodes["K-parity-dep-noreason"].revision;
     await assert.rejects(
       api.core.run({ op: "knowledge.deprecate", input: { id: "K-parity-dep-noreason" } }),
       (err) =>
@@ -2061,7 +2064,7 @@ test("api.core.run: knowledge.deprecate without --reason is rejected by the adap
     const after = await readRawState(dir);
     const persisted = after.nodes["K-parity-dep-noreason"];
     assert.equal(persisted.status, "active", "node remains active after rejected deprecate");
-    assert.equal(persisted.revision, 1, "node revision unchanged after rejected deprecate");
+    assert.equal(persisted.revision, beforeRevision, "node revision unchanged after rejected deprecate");
     assert.equal(
       after.log.length,
       beforeLogCount,

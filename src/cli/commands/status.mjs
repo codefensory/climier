@@ -142,7 +142,23 @@ function emptyResult() {
   };
 }
 
-export default async function statusV2({ statePath, flags }) {
+export default async function statusV2({ statePath, flags, backendClient }) {
+  if (backendClient?.type === "remote") {
+    const staleMs = parseStaleMs(flags);
+    const limit = parseLimit(flags);
+    return backendClient.readStatus({
+      initiative: flags.initiative || undefined,
+      kind: flags.kind || undefined,
+      status: flags.status || undefined,
+      domain: flags.domain || undefined,
+      claimedBy: flags["claimed-by"] || undefined,
+      staleMs: flags["stale-ms"] === undefined || flags["stale-ms"] === true ? undefined : staleMs,
+      limit: limit === null ? undefined : limit,
+      all: flags.all === true || flags.all === "true",
+      as: flags.as && flags.as !== true ? String(flags.as) : undefined,
+    });
+  }
+
   const s = await readState(statePath);
   if (!s) return emptyResult();
   const nodes = s.nodes || {};

@@ -22,6 +22,7 @@
 import fsSync from "node:fs";
 import { resolveProject } from "../storage/paths.mjs";
 import { pluginRuntimeDataDir } from "./paths.mjs";
+import { assertLocalBackend } from "./remote-guard.mjs";
 
 // V1 flags whose values we want to extract. Other flags are ignored by
 // this module (the dispatch forwards them unchanged to the handler).
@@ -70,7 +71,8 @@ export function resolveRuntime(argv) {
 // createRuntime — bind the host identity to the plugin-owned runtime
 // directory. Creation is synchronous so callers retain the established
 // synchronous createApi contract and can safely use dataDir immediately.
-export function createRuntime({ projectDir, agent, pluginId } = {}) {
+export function createRuntime({ projectDir, agent, pluginId, backendClient } = {}) {
+  assertLocalBackend(backendClient, "createRuntime");
   if (typeof projectDir !== "string" || !projectDir) {
     throw new Error("createRuntime: projectDir required");
   }

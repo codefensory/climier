@@ -14,6 +14,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { createTempProject, rmTempProject, importFresh, writeState as writeStateHelper, readState as readStateHelper } from "./helpers.mjs";
+import { bootstrapFencedState } from "../src/storage/ledger.mjs";
 
 async function importKernel() {
   return importFresh("./kernel/mutate.mjs");
@@ -34,6 +35,7 @@ async function bootstrap(dir) {
     initiatives: { kernel: { desc: "kernel", created_at: "2026-01-01T00:00:00.000Z" } },
     log: [],
   });
+  return bootstrapFencedState(dir);
 }
 
 // updateProvider — a simple per-node title update. Different ids in the
@@ -64,7 +66,7 @@ test("kernel.mutate: two concurrent independent mutations on the same project bo
   const { mutate } = await importKernel();
   const dir = await createTempProject();
   try {
-    await bootstrap(dir);
+    const fenced = await bootstrap(dir);
     // Fire both at the same time. Each targets a different node with a
     // matching if_revision. With the old module-level nestedDepth guard,
     // the second mutate() would throw INVALID_EXECUTION_CONTRACT before
@@ -72,12 +74,12 @@ test("kernel.mutate: two concurrent independent mutations on the same project bo
     // its own depth=0→1 and withLock serialises the writes.
     const req1 = mutate({
       projectDir: dir,
-      request: { action: "task.update", actor: "alice", input: {}, if_revision: { kind: "single", id: "T1", value: 3 } },
+      request: { action: "task.update", actor: "alice", input: {}, if_revision: { kind: "single", id: "T1", value: fenced.nodes.T1.revision } },
       provider: updateProvider({ id: "T1", newTitle: "T1-after-1" }),
     });
     const req2 = mutate({
       projectDir: dir,
-      request: { action: "task.update", actor: "alice", input: {}, if_revision: { kind: "single", id: "T2", value: 1 } },
+      request: { action: "task.update", actor: "alice", input: {}, if_revision: { kind: "single", id: "T2", value: fenced.nodes.T2.revision } },
       provider: updateProvider({ id: "T2", newTitle: "T2-after-1" }),
     });
     const settled = await Promise.allSettled([req1, req2]);
@@ -101,9 +103,12 @@ test("kernel.mutate: two concurrent independent mutations on the same project bo
 
     const after = await readStateHelper(dir);
     assert.equal(after.nodes.T1.title, "T1-after-1", "T1 update persisted");
-    assert.equal(after.nodes.T1.revision, 4, "T1 revision bumped once");
     assert.equal(after.nodes.T2.title, "T2-after-1", "T2 update persisted");
-    assert.equal(after.nodes.T2.revision, 2, "T2 revision bumped once");
+    assert.deepEqual(
+      [after.nodes.T1.revision, after.nodes.T2.revision].sort((a, b) => a - b),
+      [5, 6],
+      "both disjoint updates receive consecutive global revisions above the seed high-water",
+    );
     assert.equal(after.log.length, 2, "both writes persisted in order (serialised by withLock)");
     // Both log entries carry the matching action / node / revision.
     const actions = after.log.map((e) => e.action).sort();
@@ -111,7 +116,7 @@ test("kernel.mutate: two concurrent independent mutations on the same project bo
     const nodes = after.log.map((e) => e.node).sort();
     assert.deepEqual(nodes, ["T1", "T2"]);
     const revisions = after.log.map((e) => e.revision).sort((a, b) => a - b);
-    assert.deepEqual(revisions, [2, 4]);
+    assert.deepEqual(revisions, [5, 6], "log revisions preserve the global high-water sequence");
   } finally {
     await rmTempProject(dir);
   }
@@ -129,13 +134,14 @@ test("kernel.mutate: many concurrent independent mutations on the same project a
       base.nodes[`Tn-${i}`] = { id: `Tn-${i}`, kind: "resolvable", subkind: "task", title: `Tn-${i}-orig`, initiative: "kernel", status: "open", revision: 1 };
     }
     await writeStateHelper(dir, base);
+    const fenced = await bootstrapFencedState(dir);
 
     const reqs = [];
     for (let i = 0; i < 6; i += 1) {
       const id = `Tn-${i}`;
       reqs.push(mutate({
         projectDir: dir,
-        request: { action: "task.update", actor: "alice", input: {}, if_revision: { kind: "single", id, value: 1 } },
+        request: { action: "task.update", actor: "alice", input: {}, if_revision: { kind: "single", id, value: fenced.nodes[id].revision } },
         provider: updateProvider({ id, newTitle: `${id}-after` }),
       }));
     }
@@ -154,8 +160,9 @@ test("kernel.mutate: many concurrent independent mutations on the same project a
     const after = await readStateHelper(dir);
     for (let i = 0; i < 6; i += 1) {
       assert.equal(after.nodes[`Tn-${i}`].title, `Tn-${i}-after`, `Tn-${i} update persisted`);
-      assert.equal(after.nodes[`Tn-${i}`].revision, 2, `Tn-${i} revision bumped once`);
     }
+    const revisions = Array.from({ length: 6 }, (_, i) => after.nodes[`Tn-${i}`].revision).sort((a, b) => a - b);
+    assert.deepEqual(revisions, [3, 4, 5, 6, 7, 8], "disjoint writes receive globally increasing revisions");
     assert.equal(after.log.length, 6, "all 6 writes persisted");
   } finally {
     await rmTempProject(dir);
@@ -171,14 +178,14 @@ test("kernel.mutate: provider.apply calling kernel.mutate on the same chain is r
   const { mutate } = await importKernel();
   const dir = await createTempProject();
   try {
-    await bootstrap(dir);
+    const fenced = await bootstrap(dir);
     let innerCaught = null;
     // Outer mutate updates T1; inside apply we attempt a nested mutate
     // on T2. The inner call must be rejected by the same-chain guard;
     // the outer apply still completes its tx so T1 is persisted.
     await mutate({
       projectDir: dir,
-      request: { action: "task.update", actor: "alice", input: {}, if_revision: { kind: "single", id: "T1", value: 3 } },
+      request: { action: "task.update", actor: "alice", input: {}, if_revision: { kind: "single", id: "T1", value: fenced.nodes.T1.revision } },
       provider: {
         prepare: async ({ snapshot }) => ({
           target: { id: "T1", kind: snapshot.nodes.T1.kind, subkind: snapshot.nodes.T1.subkind, revision: snapshot.nodes.T1.revision },
@@ -205,11 +212,11 @@ test("kernel.mutate: provider.apply calling kernel.mutate on the same chain is r
     assert.match(innerCaught.message, /nested kernel\.mutate/i);
     const after = await readStateHelper(dir);
     assert.equal(after.nodes.T1.title, "T1-outer-done", "outer apply did mutate T1");
-    assert.equal(after.nodes.T1.revision, 4, "T1 revision bumped once by the outer mutate");
+    assert.equal(after.nodes.T1.revision, fenced.revision + 1, "T1 revision bumped once by the outer mutate");
     assert.equal(after.nodes.T2.title, "T2-title", "inner was rejected, T2 untouched");
     assert.equal(after.log.length, 1, "only the outer write reached writeState");
     assert.equal(after.log[0].node, "T1");
-    assert.equal(after.log[0].revision, 4);
+    assert.equal(after.log[0].revision, fenced.revision + 1);
   } finally {
     await rmTempProject(dir);
   }
@@ -225,11 +232,11 @@ test("kernel.mutate: same-chain nested mutate via awaited microtask is still rej
   const { mutate } = await importKernel();
   const dir = await createTempProject();
   try {
-    await bootstrap(dir);
+    const fenced = await bootstrap(dir);
     let innerCaught = null;
     await mutate({
       projectDir: dir,
-      request: { action: "task.update", actor: "alice", input: {}, if_revision: { kind: "single", id: "T1", value: 3 } },
+      request: { action: "task.update", actor: "alice", input: {}, if_revision: { kind: "single", id: "T1", value: fenced.nodes.T1.revision } },
       provider: {
         prepare: async ({ snapshot }) => ({
           target: { id: "T1", kind: snapshot.nodes.T1.kind, subkind: snapshot.nodes.T1.subkind, revision: snapshot.nodes.T1.revision },

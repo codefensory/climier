@@ -43,30 +43,57 @@ export function stripRevision(node) {
   return out;
 }
 
-// Assign the next revision per node: new → 1; modified → prev + 1;
-// unchanged → keep prev (but apply the draft to drop the revision field,
-// since draft nodes never carry it). Returns the diff shape used by the
-// kernel response plus removed nodes (snapshot ids absent from the draft).
+// Assign a node revision against the persisted state fence. Every recreated
+// or modified node advances beyond both its own previous revision and the
+// state revision; unchanged nodes retain their revision.
+export function assignNodeRevision(stateRevision, previous, draft) {
+  const draftNode = stripRevision(draft);
+  const stateFloor = Number.isInteger(stateRevision) ? stateRevision : 0;
+  if (!previous) {
+    return {
+      node: { ...draftNode, revision: Math.max(1, stateFloor + 1) },
+      change: "created",
+    };
+  }
+
+  const previousNode = stripRevision(previous);
+  if (deepEqualNodes(previousNode, draftNode)) {
+    return {
+      node: { ...draftNode, revision: Number.isInteger(previous.revision) ? previous.revision : 1 },
+      change: "unchanged",
+    };
+  }
+
+  const previousRevision = Number.isInteger(previous.revision) ? previous.revision : 0;
+  return {
+    node: { ...draftNode, revision: Math.max(previousRevision + 1, stateFloor + 1) },
+    change: "updated",
+  };
+}
+
+// A committed state revision advances once per effective transaction and must
+// never lag behind a node revision carried by that state.
+export function deriveNextStateRevision(snapshot, nodes) {
+  const currentRevision = snapshot && Number.isInteger(snapshot.revision) ? snapshot.revision : 0;
+  const maximumNodeRevision = Object.values(nodes || {}).reduce(
+    (maximum, node) => Number.isInteger(node && node.revision) ? Math.max(maximum, node.revision) : maximum,
+    0,
+  );
+  return Math.max(currentRevision + 1, maximumNodeRevision);
+}
+
+// Assign node revisions and return the diff shape used by the kernel response
+// plus removed nodes (snapshot ids absent from the draft).
 export function assignRevisionsAndDiff(snapshot, draftView) {
   const snapNodes = (snapshot && snapshot.nodes) || {};
   const next = {};
   const created = [];
   const updated = [];
   for (const [id, draft] of Object.entries(draftView.nodes || {})) {
-    const prev = snapNodes[id];
-    const draftStrip = stripRevision(draft);
-    if (!prev) {
-      next[id] = { ...draftStrip, revision: 1 };
-      created.push({ id, node: next[id] });
-      continue;
-    }
-    const prevStrip = stripRevision(prev);
-    if (deepEqualNodes(prevStrip, draftStrip)) {
-      next[id] = { ...draftStrip, revision: Number.isInteger(prev.revision) ? prev.revision : 1 };
-    } else {
-      next[id] = { ...draftStrip, revision: (Number.isInteger(prev.revision) ? prev.revision : 0) + 1 };
-      updated.push({ id, node: next[id] });
-    }
+    const assigned = assignNodeRevision(snapshot && snapshot.revision, snapNodes[id], draft);
+    next[id] = assigned.node;
+    if (assigned.change === "created") created.push({ id, node: assigned.node });
+    if (assigned.change === "updated") updated.push({ id, node: assigned.node });
   }
   const removed = [];
   for (const id of Object.keys(snapNodes)) {

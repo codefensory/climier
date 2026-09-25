@@ -10,12 +10,12 @@
 //   - Changing initiatives MUST NOT bump node.revision.
 //   - A mutation that combines a node change and an initiative change
 //     persists both in a single writeState; one log entry covers both.
-//   - The on-disk state shape stays v2 (nodes, edges, initiatives, log).
+//   - The on-disk fixture is fenced v5 (nodes, edges, initiatives, log).
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { createTempProject, rmTempProject, importFresh, readState as readStateHelper, writeState as writeStateHelper, stateExists } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, readState as readStateHelper, writeFencedState, stateExists } from "./helpers.mjs";
 
 async function importKernel() {
   return importFresh("./kernel/mutate.mjs");
@@ -42,7 +42,8 @@ function createInitiativeProvider({ name, desc = "", created_at }) {
 
 function bootstrap(dir, mutate) {
   const base = {
-    version: 2,
+    version: 5,
+    revision: 0,
     nodes: {
       T1: {
         id: "T1",
@@ -59,7 +60,7 @@ function bootstrap(dir, mutate) {
     log: [],
   };
   if (typeof mutate === "function") mutate(base);
-  return writeStateHelper(dir, base);
+  return writeFencedState(dir, base);
 }
 
 // ===================================================================
@@ -97,7 +98,7 @@ test("kernel.mutate: createInitiative persists in the same writeState (no second
     assert.equal(after.log[0].action, "initiative.create");
     assert.equal(after.log[0].node, "auth", "plan.target.id surfaces as the log node");
     // T1 revision unchanged — creating an initiative does NOT bump node.revision.
-    assert.equal(after.nodes.T1.revision, 3);
+    assert.equal(after.nodes.T1.revision, 4);
   } finally {
     await rmTempProject(dir);
   }
@@ -122,8 +123,8 @@ test("kernel.mutate: creating an initiative alone does not bump any node revisio
     });
     assert.equal(out.idempotent, false);
     const after = await readStateHelper(dir);
-    assert.equal(after.nodes.T1.revision, 3, "T1 revision unchanged");
-    assert.equal(after.nodes.T2.revision, 7, "T2 revision unchanged");
+    assert.equal(after.nodes.T1.revision, 8, "T1 revision unchanged");
+    assert.equal(after.nodes.T2.revision, 8, "T2 revision unchanged");
     assert.equal(out.diff.created.length, 0);
     assert.equal(out.diff.updated.length, 0);
   } finally {
@@ -163,7 +164,7 @@ test("kernel.mutate: idempotent provider (no draft change ⇒ no write, no log, 
     // State file untouched: log has 0 entries, no extra initiative, T1 revision unchanged.
     assert.equal(after.log.length, 0);
     assert.equal(Object.keys(after.initiatives).length, 1);
-    assert.equal(after.nodes.T1.revision, 3);
+    assert.equal(after.nodes.T1.revision, 4);
   } finally {
     await rmTempProject(dir);
   }
@@ -191,7 +192,7 @@ test("kernel.mutate: combined node + initiative mutation persists both in one wr
     };
     const out = await mutate({
       projectDir: dir,
-      request: { action: "task.update+initiative.create", actor: "alice", input: {}, if_revision: { kind: "single", id: "T1", value: 3 } },
+      request: { action: "task.update+initiative.create", actor: "alice", input: {}, if_revision: { kind: "single", id: "T1", value: 4 } },
       provider,
     });
     assert.equal(out.idempotent, false);
@@ -203,7 +204,7 @@ test("kernel.mutate: combined node + initiative mutation persists both in one wr
 
     const after = await readStateHelper(dir);
     // Node bumped (T1 was updated).
-    assert.equal(after.nodes.T1.revision, 4);
+    assert.equal(after.nodes.T1.revision, 5);
     assert.equal(after.nodes.T1.title, "renamed-in-same-apply");
     // Initiative persisted.
     assert.deepEqual(after.initiatives.auth, { desc: "auth migration" });
@@ -211,7 +212,7 @@ test("kernel.mutate: combined node + initiative mutation persists both in one wr
     assert.equal(after.log.length, 1);
     assert.equal(after.log[0].action, "task.update+initiative.create");
     assert.equal(after.log[0].node, "T1");
-    assert.equal(after.log[0].revision, 4);
+    assert.equal(after.log[0].revision, 5);
     assert.ok(after.log[0].initiatives, "log entry should mention initiative changes");
     assert.deepEqual(after.log[0].initiatives.created, ["auth"]);
   } finally {
@@ -301,7 +302,7 @@ test("kernel.mutate: initiative.create bootstraps an absent state in one write",
     });
     assert.equal(out.idempotent, false);
     const after = await readStateHelper(dir);
-    assert.equal(after.version, 4);
+    assert.equal(after.version, 5);
     assert.equal(after.revision, 1);
     assert.deepEqual(after.nodes, {});
     assert.deepEqual(after.edges, []);

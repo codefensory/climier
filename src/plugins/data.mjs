@@ -20,6 +20,7 @@ import {
   pluginDataProjectDeleteProvider,
 } from "../providers/plugin-data/index.mjs";
 import { throwV2 } from "../contracts/errors.mjs";
+import { assertLocalBackend } from "./remote-guard.mjs";
 
 function assertAgent(agent, commandName, scope) {
   if (typeof agent === "string" && agent.trim()) return agent.trim();
@@ -30,7 +31,8 @@ function assertAgent(agent, commandName, scope) {
   );
 }
 
-export function createData({ projectDir, agent, pluginId }) {
+export function createData({ projectDir, agent, pluginId, backendClient }) {
+  assertLocalBackend(backendClient, "createData");
   if (typeof pluginId !== "string" || !pluginId) {
     throw new Error("createData: pluginId required");
   }

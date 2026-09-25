@@ -11,6 +11,7 @@ import { initiativeCreateProvider } from "../../providers/core/initiative.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
 import { resolveAgent } from "../actor.mjs";
 import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
+import { executeRemoteDomain } from "./internal/domain-routing.mjs";
 
 // ADR-008 §"initiative.create":
 //   - policy selection happens outside the kernel lock;
@@ -51,15 +52,20 @@ function validateName(name) {
   }
 }
 
-export default async function addInitiative({ statePath, flags = {}, positional, pluginId }) {
+export default async function addInitiative({ statePath, projectDir: suppliedProjectDir, flags = {}, positional = [], pluginId, backendClient }) {
   const [name] = positional;
   validateName(name);
   // Agent resolution sits at the end of the validation chain so the caller
   // sees bad-data errors (MISSING_FIELD / INVALID_NAME) before identity
   // errors.
   const as = resolveAgent(flags, "add-initiative");
-  const projectDir = statePath;
+  const projectDir = suppliedProjectDir || statePath;
   const desc = typeof flags.desc === "string" ? flags.desc : "";
+  if (backendClient?.type === "remote") {
+    const mutation = await executeRemoteDomain({ backendClient, actor: as, operation: "initiative.create", input: { name, desc }, command: "add-initiative" });
+    const initiative = mutation.diff?.initiatives?.created?.find((entry) => entry.name === name)?.initiative || mutation.result;
+    return { initiative: { name, desc: initiative?.desc ?? desc, ...(initiative?.created_at ? { created_at: initiative.created_at } : {}) } };
+  }
   const policy = await loadApplicablePolicy({ projectDir });
 
   const policyAction = policy

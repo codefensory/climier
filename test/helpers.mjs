@@ -6,6 +6,12 @@ import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { withLock } from "../src/storage/lock.mjs";
+import {
+  bootstrapFencedStateUnderLock,
+  readFencedStateUnderLock,
+  replaceFencedStateUnderLock,
+} from "../src/storage/ledger.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SRC_DIR = path.resolve(__dirname, "..", "src");
@@ -89,6 +95,22 @@ export async function writeState(dir, state) {
   const file = stateFilePath(dir);
   await fsp.mkdir(path.dirname(file), { recursive: true });
   await fsp.writeFile(file, JSON.stringify(state, null, 2) + "\n", "utf8");
+}
+
+// Bootstrap or replace an explicit v5 fixture using the fenced storage
+// protocol. Keep writeState available for intentional legacy migration fixtures.
+export async function writeFencedState(dir, state) {
+  if (!state || typeof state !== "object" || Array.isArray(state) || state.version !== 5) {
+    throw new TypeError("writeFencedState: expected a v5 state fixture");
+  }
+  const initialState = { ...state, version: 4 };
+  delete initialState.fence_generation;
+
+  return withLock(dir, async (lockContext) => {
+    const current = await readFencedStateUnderLock(lockContext);
+    if (current) return replaceFencedStateUnderLock(lockContext, state);
+    return bootstrapFencedStateUnderLock(lockContext, initialState);
+  });
 }
 
 export async function readState(dir) {

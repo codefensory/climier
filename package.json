@@ -14,7 +14,8 @@
   ],
   "type": "module",
   "bin": {
-    "climier": "./bin/climier.mjs"
+    "climier": "./bin/climier.mjs",
+    "climier-server": "./bin/climier-server.mjs"
   },
   "main": "bin/climier.mjs",
   "scripts": {

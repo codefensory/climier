@@ -22,7 +22,7 @@ import {
   rmTempProject,
   importFresh,
   runCli,
-  writeState as writeRawState,
+  writeFencedState,
   readState as readRawState,
   installPolicyFixture,
   uninstallPolicyFixture,
@@ -249,8 +249,9 @@ describe("search: regex metacharacters are literal (no regex engine)", () => {
   test("search '.' matches a literal dot, not 'any char'", async () => {
     const dir = await createTempProject();
     try {
-      await writeRawState(dir, {
-        version: 2,
+      await writeFencedState(dir, {
+        version: 5,
+        revision: 0,
         nodes: {
           "K-x": {
             id: "K-x", kind: "knowledge", title: "v1.2 release",
@@ -277,8 +278,9 @@ describe("search: regex metacharacters are literal (no regex engine)", () => {
   test("search '.*' matches the literal substring, not 'anything'", async () => {
     const dir = await createTempProject();
     try {
-      await writeRawState(dir, {
-        version: 2,
+      await writeFencedState(dir, {
+        version: 5,
+        revision: 0,
         nodes: {
           "K-x": {
             id: "K-x", kind: "knowledge", title: "regex literal",
@@ -306,8 +308,8 @@ describe("search: regex metacharacters are literal (no regex engine)", () => {
   test("search empty query returns empty result (does not error)", async () => {
     const dir = await createTempProject();
     try {
-      await writeRawState(dir, {
-        version: 2, nodes: {}, edges: [], initiatives: {}, log: [],
+      await writeFencedState(dir, {
+        version: 5, revision: 0, nodes: {}, edges: [], initiatives: {}, log: [],
       });
       const { default: search } = await importFresh("./cli/commands/search.mjs");
       const out = await search({ statePath: dir, positional: [""], flags: {} });
@@ -318,8 +320,9 @@ describe("search: regex metacharacters are literal (no regex engine)", () => {
   test("search unicode body: matches a unicode substring", async () => {
     const dir = await createTempProject();
     try {
-      await writeRawState(dir, {
-        version: 2,
+      await writeFencedState(dir, {
+        version: 5,
+        revision: 0,
         nodes: {
           "K-unicode": {
             id: "K-unicode", kind: "knowledge", title: "alpha",
@@ -354,8 +357,9 @@ describe("history: tokenization matches whole id only", () => {
   test("history T1 does NOT match a log note 'T10 because of T11'", async () => {
     const dir = await createTempProject();
     try {
-      await writeRawState(dir, {
-        version: 2,
+      await writeFencedState(dir, {
+        version: 5,
+        revision: 0,
         nodes: {},
         edges: [],
         initiatives: {},
@@ -373,8 +377,9 @@ describe("history: tokenization matches whole id only", () => {
   test("history T1 DOES match a log note that lists T1 as a whole token", async () => {
     const dir = await createTempProject();
     try {
-      await writeRawState(dir, {
-        version: 2,
+      await writeFencedState(dir, {
+        version: 5,
+        revision: 0,
         nodes: {},
         edges: [],
         initiatives: {},
@@ -405,8 +410,8 @@ describe("history: tokenization matches whole id only", () => {
   test("history rejects missing id", async () => {
     const dir = await createTempProject();
     try {
-      await writeRawState(dir, {
-        version: 2, nodes: {}, edges: [], initiatives: {}, log: [],
+      await writeFencedState(dir, {
+        version: 5, revision: 0, nodes: {}, edges: [], initiatives: {}, log: [],
       });
       const { default: history } = await importFresh("./cli/commands/history.mjs");
       let caught;
@@ -420,8 +425,9 @@ describe("history: tokenization matches whole id only", () => {
   test("history --limit caps the entries returned (most-recent N)", async () => {
     const dir = await createTempProject();
     try {
-      await writeRawState(dir, {
-        version: 2,
+      await writeFencedState(dir, {
+        version: 5,
+        revision: 0,
         nodes: {},
         edges: [],
         initiatives: {},
@@ -466,8 +472,8 @@ describe("concurrency: two operations on the same node serialize cleanly", () =>
       // acquired the lock first. The loser must observe the winner's claim.
       const winner = s.nodes["T-a"].claim.by;
       assert.ok(["alice", "bob"].includes(winner), `winner must be alice or bob; got ${winner}`);
-      // Revision bumped exactly once (1 → 2 on take).
-      assert.equal(s.nodes["T-a"].revision, 2);
+      // The task's revision is the global high-water after the successful take.
+      assert.equal(s.nodes["T-a"].revision, s.revision);
       // The loser's stdout must report ALREADY_CLAIMED.
       const loserOut = ra.code === 1 ? ra.stdout : rb.stdout;
       const loserErr = JSON.parse(loserOut);
@@ -484,11 +490,10 @@ describe("concurrency: two operations on the same node serialize cleanly", () =>
       const b = runCli(["--project", dir, "update", "T-a", "--title", "from bob", "--as", "bob"]);
       await Promise.all([a, b]);
       const s = await readRawState(dir);
-      // Both updates apply (last-write-wins); revision incremented exactly twice
-      // from the initial 1 → 3.
+      // Both updates apply (last-write-wins); the node tracks the global high-water.
       assert.ok(["from alice", "from bob"].includes(s.nodes["T-a"].title),
         `expected one of the two titles; got ${s.nodes["T-a"].title}`);
-      assert.equal(s.nodes["T-a"].revision, 3, `expected revision 3 after two updates; got ${s.nodes["T-a"].revision}`);
+      assert.equal(s.nodes["T-a"].revision, s.revision, "updated node carries the global high-water revision");
       // Both log entries present.
       const updates = s.log.filter((e) => e.action === "update");
       assert.equal(updates.length, 2, `expected 2 update log entries; got ${updates.length}`);
@@ -510,7 +515,7 @@ describe("concurrency: two operations on the same node serialize cleanly", () =>
       assert.equal(rb.code, 1);
       const s = await readRawState(dir);
       assert.equal(s.nodes["T-a"].status, "in_progress");
-      assert.equal(s.nodes["T-a"].revision, 2);
+      assert.equal(s.nodes["T-a"].revision, s.revision, "rejected resolves preserve the latest revision");
       assert.equal(s.log.filter((e) => e.action === "resolve").length, 0);
     } finally { await rmTempProject(dir); }
   });
@@ -627,12 +632,13 @@ describe("revision control", () => {
     const dir = await v2Project();
     try {
       await addTaskNode(dir, "T-a");
+      const currentRevision = (await readRawState(dir)).nodes["T-a"].revision;
       const { default: update } = await importFresh("./cli/commands/update.mjs");
       const out = await update({
         statePath: dir, positional: ["T-a"],
-        flags: { title: "v2", "if-revision": "1", as: "alice" },
+        flags: { title: "v2", "if-revision": String(currentRevision), as: "alice" },
       });
-      assert.equal(out.node.revision, 2);
+      assert.equal(out.node.revision, currentRevision + 1);
     } finally { await rmTempProject(dir); }
   });
 
@@ -645,21 +651,22 @@ describe("revision control", () => {
         statePath: dir, positional: ["T-a"],
         flags: { title: "first", as: "alice" },
       });
-      // Now revision is 2. Caller expected 1.
+      const currentRevision = (await readRawState(dir)).nodes["T-a"].revision;
+      // The caller's expected revision is older than the current node revision.
       let caught;
       try {
         await update({
           statePath: dir, positional: ["T-a"],
-          flags: { title: "second", "if-revision": "1", as: "bob" },
+          flags: { title: "second", "if-revision": String(currentRevision - 1), as: "bob" },
         });
       } catch (e) { caught = e; }
       assert.ok(caught, "stale CAS should throw");
       assert.equal(caught.code, "REVISION_CONFLICT");
-      assert.equal(caught.details.expected, 1);
-      assert.equal(caught.details.current, 2);
+      assert.equal(caught.details.expected, currentRevision - 1);
+      assert.equal(caught.details.current, currentRevision);
       const s = await readRawState(dir);
       assert.equal(s.nodes["T-a"].title, "first", "stale write must NOT have applied");
-      assert.equal(s.nodes["T-a"].revision, 2);
+      assert.equal(s.nodes["T-a"].revision, currentRevision, "stale CAS does not advance revision");
     } finally { await rmTempProject(dir); }
   });
 
@@ -667,20 +674,23 @@ describe("revision control", () => {
     const dir = await v2Project();
     try {
       await addTaskNode(dir, "T-a");
-      await takeNode(dir, "T-a", "alice"); // 1 → 2
+      const beforeTake = (await readRawState(dir)).nodes["T-a"].revision;
+      await takeNode(dir, "T-a", "alice");
+      const afterTake = (await readRawState(dir)).nodes["T-a"].revision;
+      assert.ok(afterTake > beforeTake, "take advances the global high-water");
       const { default: update } = await importFresh("./cli/commands/update.mjs");
       // Without --if-revision, apply.
       const out = await update({
         statePath: dir, positional: ["T-a"],
         flags: { title: "after take", as: "alice" },
       });
-      assert.equal(out.node.revision, 3);
-      // With --if-revision=1 (stale), reject.
+      assert.ok(out.node.revision > afterTake, "update advances beyond the take revision");
+      // The earlier pre-take revision is stale and must be rejected.
       let caught;
       try {
         await update({
           statePath: dir, positional: ["T-a"],
-          flags: { title: "stale", "if-revision": "1", as: "alice" },
+          flags: { title: "stale", "if-revision": String(beforeTake), as: "alice" },
         });
       } catch (e) { caught = e; }
       assert.equal(caught.code, "REVISION_CONFLICT");
@@ -929,8 +939,8 @@ describe("init --force on existing state", () => {
       r = await runCli(["--project", dir, "init", "--force"]);
       assert.equal(r.code, 0, r.stderr);
       const s = await readRawState(dir);
-      assert.equal(s.version, 4);
-      assert.equal(s.revision, 3);
+      assert.equal(s.version, 5);
+      assert.equal(s.revision, 5, "--force advances beyond the fenced state high-water");
       assert.deepEqual(s.nodes, {}, "data must be wiped after --force reinit");
       assert.deepEqual(s.initiatives, {}, "initiatives must be wiped too");
     } finally { await rmTempProject(dir); }
@@ -958,7 +968,7 @@ describe("take idempotency and takeover", () => {
       // Exactly one take log entry; revision is 2 (1 + 1 take).
       const takes = s.log.filter((e) => e.action === "take");
       assert.equal(takes.length, 1, `expected 1 take entry; got ${takes.length}`);
-      assert.equal(s.nodes["T-a"].revision, 2);
+      assert.equal(s.nodes["T-a"].revision, s.revision);
     } finally { await rmTempProject(dir); }
   });
 

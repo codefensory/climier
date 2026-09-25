@@ -6,6 +6,7 @@ import { throwV2 } from "../../contracts/errors.mjs";
 import { resolveAgent } from "../actor.mjs";
 import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
 import { deprecateProvider } from "../../providers/knowledge/deprecate.mjs";
+import { executeRemoteDomain, nodeFromMutation } from "./internal/domain-routing.mjs";
 
 export const knownFlags = ["reason", "as"];
 
@@ -77,6 +78,7 @@ export default async function deprecateKnowledge({
   flags = {},
   positional = [],
   pluginId,
+  backendClient,
 }) {
   const [id] = positional;
   if (!id) throwV2("MISSING_FIELD", "deprecate-knowledge: node id required", { field: "id" });
@@ -87,6 +89,11 @@ export default async function deprecateKnowledge({
 
   const dir = projectDir || statePath;
   const agent = resolveAgent(flags, "deprecate-knowledge");
+  const input = { id, reason: String(reason) };
+  if (backendClient?.type === "remote") {
+    const mutation = await executeRemoteDomain({ backendClient, actor: agent, operation: "knowledge.deprecate", input, command: "deprecate-knowledge" });
+    return { node: nodeFromMutation(mutation, id) || mutation.result?.node || null };
+  }
   const policy = await loadApplicablePolicy({ projectDir: dir });
   const mutation = await mutate({
     projectDir: dir,
@@ -95,7 +102,7 @@ export default async function deprecateKnowledge({
       // knowledge.deprecate action through policyAction above.
       action: "deprecate-knowledge",
       actor: agent,
-      input: { id, reason: String(reason) },
+      input,
     },
     provider: cliKnowledgeProvider,
     policyAction: policyAction({ policy, projectDir: dir }),

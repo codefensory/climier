@@ -7,6 +7,7 @@ import { resolveAgent } from "../actor.mjs";
 import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
 import { PolicyDenied } from "../../plugins/errors.mjs";
 import { taskReleaseProvider } from "../../providers/task/release.mjs";
+import { executeRemoteTask, requireRemoteTask, throwMissingRemoteNode } from "./internal/task-routing.mjs";
 
 export const knownFlags = ["as"];
 
@@ -46,11 +47,24 @@ function policyForRelease({ policy, projectDir, agent, id, snapshotNode }) {
   };
 }
 
-export default async function release({ statePath, flags = {}, positional = [], projectDir, pluginId }) {
+export default async function release({ statePath, flags = {}, positional = [], projectDir, pluginId, backendClient }) {
   const id = positional[0];
   if (!id) throwV2("MISSING_FIELD", "release: node id required", { field: "id" });
   const dir = projectDir || statePath;
   const agent = resolveAgent(flags, "release");
+  if (backendClient && backendClient.type === "remote") await requireRemoteTask(backendClient, id, "release");
+  const remote = await executeRemoteTask({
+    backendClient,
+    actor: agent,
+    operation: "task.release",
+    command: "release",
+    id,
+    input: { id },
+  });
+  if (remote) {
+    if (!remote.node) throwMissingRemoteNode("release", id);
+    return { released: remote.mutation.result?.released === true, node: remote.node };
+  }
   const policy = await loadApplicablePolicy({ projectDir: dir });
   const snapshotNode = { value: null };
 

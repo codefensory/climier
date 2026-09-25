@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createTempProject, rmTempProject, importFresh, readState as readRawState, runCli, writeState as writeRawState } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, readState as readRawState, runCli, writeFencedState } from "./helpers.mjs";
 
 test("init: creates an empty v4 state by default", async () => {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
@@ -345,8 +345,9 @@ test("context: returns blockers, informing edges, and scoped knowledge for a v2 
   const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
-    await writeRawState(dir, {
-      version: 2,
+    await writeFencedState(dir, {
+      version: 5,
+      revision: 0,
       nodes: {
         "T-auth-1": {
           id: "T-auth-1",
@@ -476,8 +477,8 @@ test("CLI: v2 commands work end-to-end", async () => {
     assert.equal(data.knowledge[0].id, "K-auth-ttl");
 
     const state = await readRawState(dir);
-    assert.equal(state.version, 4);
-    assert.equal(state.revision >= 0, true);
+    assert.equal(state.version, 5);
+    assert.equal(state.revision >= 1, true);
   } finally {
     await rmTempProject(dir);
   }

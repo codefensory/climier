@@ -24,7 +24,7 @@
 // `claim` is `{ by, at, stale }` when the node is currently claimed (either
 // via the take command's structured claim or via legacy claimed_by/claimed_at),
 // else `null`.
-import { readState, assertStateVersion } from "../../storage/state.mjs";
+import { readState, assertStateVersion, isFencedState } from "../../storage/state.mjs";
 import {
   blockingForNode,
   informingForNode,
@@ -180,17 +180,25 @@ function allowedActions(node, derivedStatus, claim, agent) {
   return actions;
 }
 
-export default async function context({ statePath, positional, flags }) {
+export default async function context({ statePath, positional, flags, backendClient }) {
   const [id] = positional;
   if (!id) throwV2("MISSING_FIELD", "context: node id required", { field: "id" });
+  if (backendClient?.type === "remote") {
+    return backendClient.readContext({
+      id,
+      as: flags.as && flags.as !== true ? String(flags.as) : undefined,
+      staleMs: parseStaleMs(flags),
+    });
+  }
+
+  const staleMs = parseStaleMs(flags);
   const projectDir = statePath;
   const s = await readState(projectDir);
   if (!s) throw new Error("context: state file missing");
-  assertStateVersion(s, 2, "context");
+  assertStateVersion(s, isFencedState(s) ? 5 : 2, "context");
   const node = s.nodes[id];
   if (!node) throwV2("NODE_NOT_FOUND", `context: node ${id} not found`, { id });
 
-  const staleMs = parseStaleMs(flags);
   const claim = buildClaim(node, staleMs);
   const blocking = blockingForNode(s, id);
   const informing = informingForNode(s, id);

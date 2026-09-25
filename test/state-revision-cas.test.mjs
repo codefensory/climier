@@ -6,12 +6,12 @@ import {
   rmTempProject,
   importFresh,
   readState,
-  writeState,
+  writeFencedState,
 } from "./helpers.mjs";
 
 function baseState() {
   return {
-    version: 4,
+    version: 5,
     revision: 0,
     initiatives: { work: { desc: "work", created_at: "2026-01-01T00:00:00.000Z" } },
     nodes: {
@@ -44,7 +44,7 @@ function updateProvider() {
 
 async function setup() {
   const dir = await createTempProject();
-  await writeState(dir, baseState());
+  await writeFencedState(dir, baseState());
   return dir;
 }
 
@@ -58,7 +58,9 @@ test("kernel mutation increments global state revision exactly once for an effec
       provider: updateProvider(),
     });
     assert.equal(out.idempotent, false);
-    assert.equal((await readState(dir)).revision, 1);
+    const state = await readState(dir);
+    assert.equal(state.revision, 3);
+    assert.equal(state.nodes.T1.revision, 3);
   } finally {
     await rmTempProject(dir);
   }
@@ -77,7 +79,7 @@ test("kernel mutation leaves global revision unchanged for a no-op", async () =>
       },
     });
     assert.equal(out.idempotent, true);
-    assert.equal((await readState(dir)).revision, 0);
+    assert.equal((await readState(dir)).revision, 2);
   } finally {
     await rmTempProject(dir);
   }
@@ -103,7 +105,7 @@ test("kernel mutation rejects stale global CAS before policy/apply and does not 
         },
       }),
       (error) => error.code === "STATE_REVISION_CONFLICT" &&
-        error.details.expected === 7 && error.details.actual === 0,
+        error.details.expected === 7 && error.details.actual === 2,
     );
     assert.equal(policyCalls, 0);
     assert.equal(applyCalls, 0);

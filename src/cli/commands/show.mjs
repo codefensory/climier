@@ -1,16 +1,17 @@
 // show: return the raw node by id.
-import { readState, isV2State } from "../../storage/state.mjs";
+import { readState, isFencedState, isV2State } from "../../storage/state.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
 
 export const knownFlags = [];
 
-export default async function show({ statePath, positional }) {
+export default async function show({ statePath, positional, backendClient }) {
   const [id] = positional;
   if (!id) throw new Error("show: id required (e.g. show T1 or show D1)");
+  if (backendClient?.type === "remote") return backendClient.readNode({ id });
   const projectDir = statePath;
   const s = await readState(projectDir);
   if (!s) throw new Error("show: state file missing");
-  if (isV2State(s)) {
+  if (isV2State(s) || isFencedState(s)) {
     const node = s.nodes[id];
     if (!node) throwV2("NODE_NOT_FOUND", `show: ${id} not found`, { id });
     return { type: node.subkind || node.kind, node };

@@ -426,7 +426,7 @@ test("seam-dag: add-edge with policy=allow sends action=edge.add to seam", async
     assert.equal(rec.recorded.received.action, "edge.add");
     assert.equal(rec.recorded.received.actor, "agent-a");
     // Snapshot under the lock must expose the live DAG so the policy
-    // can make an informed decision.
+    // can make an informed decision, without leaking internal fence metadata.
     assert.deepEqual(rec.recorded.received.snapshot_keys.sort(), [
       "edges",
       "initiatives",
@@ -607,6 +607,7 @@ test("seam-dag: update with policy=deny returns POLICY_DENIED without mutating s
        "--initiative", "alpha", "--title", "orig", "--body", "b",
        "--acceptance", "a", "--blocked-by", ""],
     );
+    const revisionBeforeDeniedUpdate = (await cli(["--project", projectDir, "show", "T-1"])).node.revision;
     await baseClimierJson(projectDir, buildEnvNamespace("deny", { reason: "no update" }));
 
     const r = await runCliRaw([
@@ -619,10 +620,11 @@ test("seam-dag: update with policy=deny returns POLICY_DENIED without mutating s
     assert.equal(body.error.code, "POLICY_DENIED");
     assert.equal(body.error.details.action, "task.update");
 
-    // State must be intact: title is still "orig" and revision is 1.
+    // State must be intact after denial, including its observed revision.
+    const before = await cli(["--project", projectDir, "show", "T-1"]);
+    assert.equal(before.node.title, "orig");
     const show = await cli(["--project", projectDir, "show", "T-1"]);
-    assert.equal(show.node.title, "orig");
-    assert.equal(show.node.revision, 1);
+    assert.equal(show.node.revision, before.node.revision);
   });
 });
 
@@ -819,7 +821,7 @@ test("seam-dag: snapshot passed to authorize reflects the live state under the l
     assert.equal(rec.recorded.received.projectConfig_frozen, true);
     assert.deepEqual(rec.recorded.received.snapshot_keys.sort(), [
       "edges", "initiatives", "log", "nodes", "revision", "version",
-    ]);
+    ], "public policy snapshots do not expose internal fence metadata");
     // The recorded payload exposes a target fingerprint (id/kind/subkind)
     // so the policy can branch on what's being created.
     assert.equal(rec.recorded.received.target.id, "T-post");

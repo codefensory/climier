@@ -44,6 +44,7 @@ import {
   isPluginError,
 } from "./errors.mjs";
 import { loadInstalledPlugin } from "./loader.mjs";
+import { assertLocalBackend } from "./remote-guard.mjs";
 
 // ---- Token stripping ------------------------------------------------
 
@@ -233,7 +234,9 @@ export async function dispatchPlugin({
   projectDir,
   flags = {}, // eslint-disable-line no-unused-vars
   createApi: createApiInjected,
+  backendClient,
 } = {}) {
+  assertLocalBackend(backendClient, "dispatchPlugin");
   // 1. Load installed plugin (lazy ESM import + descriptor validation).
   const { pluginId, commands } = await loadInstalledPlugin(namespace);
 
@@ -258,7 +261,7 @@ export async function dispatchPlugin({
 
   // 6. Build api via injected factory or the lazy/placeholder fallback.
   const createApi = createApiInjected || (await loadApiFactory());
-  const api = createApi({ projectDir: effectiveProjectDir, agent, pluginId });
+  const api = createApi({ projectDir: effectiveProjectDir, agent, pluginId, backendClient });
 
   // 7. Call the handler. Preserve any pre-existing PLUGIN_* envelope;
   // wrap everything else as PLUGIN_HANDLER_FAILED.

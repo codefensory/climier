@@ -16,7 +16,10 @@ export const knownFlags = ["port", "open"];
 
 const DEFAULT_PORT = 7373;
 
-const UI_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "ui");
+export const UI_DIR = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..", "..", "..", "ui",
+);
 const NODE_MODULES = path.join(UI_DIR, "node_modules");
 const DIST_INDEX = path.join(UI_DIR, "dist", "index.html");
 

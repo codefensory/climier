@@ -30,12 +30,12 @@ import {
   readState,
 } from "./helpers.mjs";
 
-// initV2Project — runs a v2 init + a single initiative so task.create
+// initProject — runs the fenced init + a single initiative so task.create
 // can register against an existing initiative.
-async function initV2Project(dir, initiatives = ["plugin-platform"]) {
+async function initProject(dir, initiatives = ["plugin-platform"]) {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
   const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
-  await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+  await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
   for (const name of initiatives) {
     await addInit({ statePath: dir, flags: { desc: name }, positional: [name] });
   }
@@ -68,7 +68,7 @@ test("plugin-core-integration: api.core.version is 2 and api.core.run is a funct
 test("plugin-core-integration: full first slice leaves intact state and logs with plugin_id", async () => {
   const dir = await createTempProject();
   try {
-    await initV2Project(dir);
+    await initProject(dir);
     const api = await makeApi(dir, { agent: "alice", pluginId: "example.core" });
 
     // 1. task.create with an explicit id.
@@ -88,7 +88,7 @@ test("plugin-core-integration: full first slice leaves intact state and logs wit
     assert.equal(created.result.kind, "resolvable");
     assert.equal(created.result.subkind, "task");
     assert.equal(created.diff.created[0].node.id, "T-core-1");
-    assert.equal(created.diff.created[0].node.revision, 1);
+    assert.equal(created.diff.created[0].node.revision, (await readState(dir)).revision);
     assert.equal(created.log_entry.action, "task.create");
     assert.equal(created.log_entry.agent, "alice");
     assert.equal(created.log_entry.plugin_id, "example.core");
@@ -128,7 +128,7 @@ test("plugin-core-integration: full first slice leaves intact state and logs wit
     assert.ok(taken && taken.result && taken.diff && taken.log_entry);
     assert.equal(taken.result.claim && taken.result.claim.by, "alice");
     assert.equal(taken.result.freshly_claimed, true);
-    assert.equal(taken.diff.updated[0].node.revision, 2);
+    assert.equal(taken.diff.updated[0].node.revision, (await readState(dir)).revision);
     assert.equal(taken.log_entry.action, "task.take");
     assert.equal(taken.log_entry.agent, "alice");
     assert.equal(taken.log_entry.plugin_id, "example.core");
@@ -141,7 +141,7 @@ test("plugin-core-integration: full first slice leaves intact state and logs wit
     assert.ok(submitted && submitted.result && submitted.diff && submitted.log_entry);
     assert.equal(submitted.result.status, "submitted");
     assert.equal(submitted.result.note, "shipped via core.run");
-    assert.equal(submitted.diff.updated[0].node.revision, 3);
+    assert.equal(submitted.diff.updated[0].node.revision, (await readState(dir)).revision);
     assert.equal(submitted.log_entry.action, "task.submit");
     assert.equal(submitted.log_entry.agent, "alice");
     assert.equal(submitted.log_entry.plugin_id, "example.core");
@@ -155,7 +155,7 @@ test("plugin-core-integration: full first slice leaves intact state and logs wit
     assert.equal(accepted.result.status, "done");
     assert.equal(accepted.result.done_by, "alice");
     assert.deepEqual(accepted.effects, { newly_ready: ["T-core-2"] });
-    assert.equal(accepted.diff.updated[0].node.revision, 4);
+    assert.equal(accepted.diff.updated[0].node.revision, (await readState(dir)).revision);
     assert.equal(accepted.log_entry.action, "task.accept");
     assert.equal(accepted.log_entry.agent, "alice");
     assert.equal(accepted.log_entry.plugin_id, "example.core");
@@ -171,7 +171,7 @@ test("plugin-core-integration: full first slice leaves intact state and logs wit
     });
     assert.ok(noted && noted.result && noted.diff && noted.log_entry);
     assert.equal(noted.result.notes_count, 1);
-    assert.equal(noted.diff.updated[0].node.revision, 2);
+    assert.equal(noted.diff.updated[0].node.revision, (await readState(dir)).revision);
     assert.equal(noted.log_entry.action, "note.add");
     assert.equal(noted.log_entry.agent, "alice");
     assert.equal(noted.log_entry.plugin_id, "example.core");
@@ -215,7 +215,7 @@ test("plugin-core-integration: full first slice leaves intact state and logs wit
 test("plugin-core-integration: history for a node touched via core.run reports plugin_id on the entries", async () => {
   const dir = await createTempProject();
   try {
-    await initV2Project(dir);
+    await initProject(dir);
     const api = await makeApi(dir, { agent: "alice", pluginId: "example.core" });
     await api.core.run({
       op: "task.create",
@@ -255,7 +255,7 @@ test("plugin-core-integration: history for a node touched via core.run reports p
 test("plugin-core-integration: PLUGIN_CORE_INVALID_OPERATION does not mutate and lists supported ops", async () => {
   const dir = await createTempProject();
   try {
-    await initV2Project(dir);
+    await initProject(dir);
     const api = await makeApi(dir, { agent: "alice", pluginId: "example.core" });
     const before = await readState(dir);
     const beforeEdges = before.edges.length;
@@ -317,7 +317,7 @@ test("plugin-core-integration: PLUGIN_CORE_INVALID_OPERATION does not mutate and
 test("plugin-core-integration: handler-rejected actions surface as PLUGIN_CORE_ACTION_FAILED with structured cause", async () => {
   const dir = await createTempProject();
   try {
-    await initV2Project(dir);
+    await initProject(dir);
     const api = await makeApi(dir, { agent: "alice", pluginId: "example.core" });
     // task.take against a non-existent task throws NODE_NOT_FOUND.
     await assert.rejects(
@@ -360,7 +360,7 @@ test("plugin-core-integration: handler-rejected actions surface as PLUGIN_CORE_A
 test("plugin-core-integration: a successful task.create is preserved when a subsequent edge.add fails", async () => {
   const dir = await createTempProject();
   try {
-    await initV2Project(dir);
+    await initProject(dir);
     const api = await makeApi(dir, { agent: "alice", pluginId: "example.core" });
     // Success: create the task.
     await api.core.run({
@@ -404,7 +404,8 @@ test("plugin-core-integration: a successful task.create is preserved when a subs
 test("plugin-core-integration: two plugins calling core.run in parallel land both writes intact", async () => {
   const dir = await createTempProject();
   try {
-    await initV2Project(dir);
+    await initProject(dir);
+    const revisionBefore = (await readState(dir)).revision;
     const apiA = await makeApi(dir, { agent: "alice", pluginId: "example.plugin-a" });
     const apiB = await makeApi(dir, { agent: "bob", pluginId: "example.plugin-b" });
     const [outA, outB] = await Promise.all([
@@ -433,8 +434,11 @@ test("plugin-core-integration: two plugins calling core.run in parallel land bot
     ]);
     assert.equal(outA.result.id, "T-A");
     assert.equal(outB.result.id, "T-B");
-    assert.equal(outA.diff.created[0].node.revision, 1);
-    assert.equal(outB.diff.created[0].node.revision, 1);
+    assert.deepEqual(
+      [outA.diff.created[0].node.revision, outB.diff.created[0].node.revision].sort((a, b) => a - b),
+      [revisionBefore + 1, revisionBefore + 2],
+      "parallel creates receive distinct, increasing global revisions",
+    );
     assert.equal(outA.log_entry.action, "task.create");
     assert.equal(outB.log_entry.action, "task.create");
     const after = await readState(dir);

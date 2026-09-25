@@ -33,8 +33,15 @@ function parseSnapshot(raw, id) {
   } catch (err) {
     throwV2("INVALID_STATUS", `state.restore: snapshot ${id} raw is not valid JSON`, { id, error: err.message });
   }
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed) || ![2, 3, 4].includes(parsed.version)) {
-    throwV2("INVALID_STATUS", `state.restore: snapshot ${id} is not a supported v4 state`, { id, version: parsed && parsed.version });
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed) || ![2, 3, 4, 5].includes(parsed.version)) {
+    throwV2("INVALID_STATUS", `state.restore: snapshot ${id} is not a supported state`, { id, version: parsed && parsed.version });
+  }
+  if (parsed.version === 5 && !Number.isInteger(parsed.fence_generation)) {
+    throwV2("INVALID_STATUS", `state.restore: snapshot ${id} has an invalid fence_generation`, {
+      id,
+      field: "fence_generation",
+      value: parsed.fence_generation ?? null,
+    });
   }
   for (const field of REQUIRED_COLLECTIONS) {
     if (!(field in parsed)) {
@@ -68,6 +75,7 @@ const initOperation = Object.freeze({
       target: Object.freeze({ id: "state", kind: "state", state_file: stateFile(projectDir), exists: snapshot.exists }),
       snapshotReason: snapshot.exists ? (force ? "force-init" : "corrupt-recovery") : null,
       force,
+      corruptRecovery: !force && snapshot.stateError?.code === "CLIMIER_CORRUPT_STATE",
     });
   },
   async apply({ snapshot, plan }) {

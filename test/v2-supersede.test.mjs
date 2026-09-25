@@ -37,6 +37,7 @@ test("add-gate --supersedes atomically replaces the gate and rewrites incoming B
       positional: ["T1", "G-A"],
       flags: { type: "BLOCKS" },
     });
+    const oldGateRevision = (await readRawState(dir)).nodes["G-A"].revision;
     await addGate({
       statePath: dir,
       positional: ["G-B"],
@@ -44,9 +45,9 @@ test("add-gate --supersedes atomically replaces the gate and rewrites incoming B
     });
 
     const state = await readRawState(dir);
-    assert.equal(state.nodes["G-B"].revision, 1);
+    assert.ok(state.nodes["G-B"].revision > oldGateRevision, "replacement gate uses the global high-water");
     assert.equal(state.nodes["G-A"].status, "superseded");
-    assert.equal(state.nodes["G-A"].revision, 2);
+    assert.equal(state.nodes["G-A"].revision, state.revision, "superseded gate carries the final global high-water");
     assert.ok(state.edges.some((edge) =>
       edge.from === "G-B" && edge.to === "G-A" && edge.type === "SUPERSEDES"
     ));

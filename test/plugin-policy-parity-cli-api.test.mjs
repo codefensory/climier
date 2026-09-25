@@ -430,7 +430,7 @@ test("parity: add-note — CLI and api.core.run produce the same actor and canon
       // from revision 1 to revision 2.
       await api.core.run({
         op: "note.add",
-        input: { id: "T-parity-1", text: "via api", if_revision: 2 },
+        input: { id: "T-parity-1", text: "via api", if_revision: (await cli(["--project", projectDir, "show", "T-parity-1"])).node.revision },
       });
       const apiRec = await recorded(projectDir);
       assert.equal(apiRec.recorded.mode, "allow");

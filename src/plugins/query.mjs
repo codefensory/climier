@@ -4,7 +4,8 @@
 // lock. They use the canonical read-model for graph/domain projections and do
 // not depend on CLI command adapters or the transitional v2 facade.
 
-import { readState, isV2State, assertStateVersion } from "../storage/state.mjs";
+import { readState, isFencedState, isV2State, assertStateVersion } from "../storage/state.mjs";
+import { assertLocalBackend } from "./remote-guard.mjs";
 import { throwV2 } from "../contracts/errors.mjs";
 import {
   derive,
@@ -316,7 +317,8 @@ async function readSnapshot(projectDir) {
   return readState(projectDir);
 }
 
-export function createQuery({ projectDir, agent, pluginId }) {
+export function createQuery({ projectDir, agent, pluginId, backendClient }) {
+  assertLocalBackend(backendClient, "createQuery");
   return {
     async snapshot() {
       const snapshot = await readSnapshot(projectDir);
@@ -326,7 +328,7 @@ export function createQuery({ projectDir, agent, pluginId }) {
       if (typeof id !== "string" || !id) throw new Error("query.node: id required");
       const snapshot = await readSnapshot(projectDir);
       if (!snapshot) throw new Error("show: state file missing");
-      if (isV2State(snapshot)) {
+      if (isV2State(snapshot) || isFencedState(snapshot)) {
         const node = snapshot.nodes[id];
         if (!node) throwV2("NODE_NOT_FOUND", `show: ${id} not found`, { id });
         return { type: node.subkind || node.kind, node };
@@ -340,7 +342,7 @@ export function createQuery({ projectDir, agent, pluginId }) {
       if (typeof id !== "string" || !id) throw new Error("query.context: id required");
       const snapshot = await readSnapshot(projectDir);
       if (!snapshot) throw new Error("context: state file missing");
-      assertStateVersion(snapshot, 2, "context");
+      assertStateVersion(snapshot, isFencedState(snapshot) ? 5 : 2, "context");
       return contextView(snapshot, id, typeof agent === "string" && agent ? agent : null);
     },
     async status(options) {

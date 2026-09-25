@@ -1,4 +1,4 @@
-import { assertStateVersion, readState } from "../../storage/state.mjs";
+import { assertStateVersion, isFencedState, readState } from "../../storage/state.mjs";
 
 export const knownFlags = ["all"];
 
@@ -21,13 +21,16 @@ function includes(value, query) {
   return text ? text.toLowerCase().includes(query) : false;
 }
 
-export default async function search({ statePath, positional, flags }) {
+export default async function search({ statePath, positional, flags, backendClient }) {
   const query = String(positional[0] ?? "").toLowerCase();
+  if (backendClient?.type === "remote") {
+    return backendClient.readSearch({ query, all: flags.all === true || flags.all === "true" });
+  }
   if (!query) return { matches: [], count: 0 };
 
   const state = await readState(statePath);
   if (!state) throw new Error("search: state file missing");
-  assertStateVersion(state, 2, "search");
+  assertStateVersion(state, isFencedState(state) ? 5 : 2, "search");
   const all = flags.all === true || flags.all === "true";
   const matches = Object.values(state.nodes)
     .filter((node) => node.kind === "knowledge" && (all || (node.status || "active") === "active"))
