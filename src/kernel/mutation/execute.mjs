@@ -101,9 +101,11 @@ async function runPolicy(policyAction, snapshot, plan, request, commandName) {
     : request.action;
   const actor = typeof request.actor === "string" ? request.actor : "";
   const pluginId = policyAction.pluginId || null;
+  const policySnapshot = { ...snapshot };
+  delete policySnapshot.fence_generation;
   let decision;
   try {
-    decision = await policyAction.decide({ snapshot, target: plan.target, request, action });
+    decision = await policyAction.decide({ snapshot: policySnapshot, target: plan.target, request, action });
   } catch (err) {
     if (err && typeof err.code === "string" && err.code.startsWith("POLICY_") && err.details !== undefined) {
       throw err;

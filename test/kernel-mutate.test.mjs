@@ -510,6 +510,87 @@ test("kernel.mutate: policyAction.decide runs against the FRESH snapshot under t
   }
 });
 
+test("kernel.mutate: policy receives fenced semantic snapshots without fence_generation for single and batch", async () => {
+  const { mutate } = await importKernel();
+  const { readFencedState } = await import("../src/storage/ledger.mjs");
+  const dir = await createTempProject();
+  try {
+    await bootstrapProject(dir, (state) => {
+      state.plugins = { fixture: { preserved: true } };
+    });
+    await mutate({
+      projectDir: dir,
+      request: { action: "task.update", actor: "alice", input: {} },
+      provider: updateNodeProvider({ id: "T1", newTitle: "fenced v5 baseline" }).provider,
+    });
+    const initial = await readFencedState(dir);
+    assert.equal(initial.version, 5, "test policy uses a fenced v5 fixture");
+    const expectedPolicyFields = {
+      version: initial.version,
+      revision: initial.revision,
+      nodes: initial.nodes,
+      edges: initial.edges,
+      initiatives: initial.initiatives,
+      log: initial.log,
+      plugins: initial.plugins,
+    };
+    const snapshots = [];
+    let applyCount = 0;
+    const policyAction = {
+      decide: async ({ snapshot }) => {
+        snapshots.push(snapshot);
+        return { decision: "allow" };
+      },
+    };
+    const provider = {
+      prepare: async ({ snapshot }) => ({
+        target: { id: "T1", kind: snapshot.nodes.T1.kind, subkind: snapshot.nodes.T1.subkind },
+      }),
+      apply: async ({ tx }) => {
+        applyCount += 1;
+        tx.updateNode("T1", { title: `policy snapshot fenced ${applyCount}` });
+        return { result: null };
+      },
+    };
+
+    await mutate({
+      projectDir: dir,
+      request: { action: "task.update", actor: "alice", input: {} },
+      provider,
+      policyAction,
+    });
+    const beforeBatch = await readFencedState(dir);
+    await mutate({
+      projectDir: dir,
+      request: {
+        action: "core.batch",
+        actor: "alice",
+        input: { operations: [{ op: "task.update", input: { id: "T1" } }] },
+      },
+      batch: { registry: { lookup: () => provider } },
+      policyAction,
+    });
+
+    assert.equal(snapshots.length, 2, "single and batch both reach policy");
+    for (const [index, snapshot] of snapshots.entries()) {
+      assert.equal(Object.hasOwn(snapshot, "fence_generation"), false, "policy must not see the internal fence");
+      assert.equal(snapshot.version, 5);
+      assert.equal(snapshot.revision, index === 0 ? initial.revision : beforeBatch.revision,
+        "policy sees the current semantic snapshot revision");
+      const expected = { ...(index === 0 ? expectedPolicyFields : beforeBatch) };
+      delete expected.fence_generation;
+      assert.deepEqual(snapshot, expected, "projection preserves every other semantic field");
+    }
+    const persisted = await readFencedState(dir);
+    assert.equal(persisted.version, 5);
+    assert.equal(persisted.fence_generation, initial.fence_generation, "persisted state retains its fence generation");
+    assert.equal(persisted.revision, initial.revision + 2);
+    assert.deepEqual(persisted.plugins, expectedPolicyFields.plugins);
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
 // ===================================================================
 // Idempotency (no diff ⇒ no write, no log)
 // ===================================================================
