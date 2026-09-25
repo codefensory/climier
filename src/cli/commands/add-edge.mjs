@@ -21,13 +21,14 @@ import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs"
 import { throwV2 } from "../../contracts/errors.mjs";
 import { resolveAgent } from "../actor.mjs";
 import { edgeAddProvider } from "../../providers/core/edge.mjs";
+import { executeRemoteDomain } from "./internal/domain-routing.mjs";
 
 export const knownFlags = ["type", "as"];
 
 const POLICY_ACTION = "edge.add";
 const LOG_ACTION = "add-edge";
 
-export default async function addEdge({ statePath, positional, flags, pluginId }) {
+export default async function addEdge({ statePath, projectDir: suppliedProjectDir, positional = [], flags = {}, pluginId, backendClient }) {
   const [from, to] = positional;
   if (!from || !to) {
     throwV2("MISSING_FIELD", "add-edge: from and to ids required", { field: "from,to" });
@@ -35,18 +36,12 @@ export default async function addEdge({ statePath, positional, flags, pluginId }
   if (!flags.type) {
     throwV2("MISSING_FIELD", "add-edge: --type required", { field: "type" });
   }
-  const projectDir = statePath;
+  const projectDir = suppliedProjectDir || statePath;
 
   // Resolve the agent before building the request so the seam sees the real
   // caller. MISSING_AGENT still surfaces after data validation but before the
   // kernel opens the lock.
   const agent = resolveAgent(flags, "add-edge");
-
-  // ADR-008 §"Seam por handler": policy
-  // selection runs OUTSIDE the lock; the authorize step runs INSIDE
-  // the lock via `policyAction.decide` against the snapshot the
-  // kernel reads under the same lock.
-  const policy = await loadApplicablePolicy({ projectDir });
 
   const input = {
     from,
@@ -55,6 +50,12 @@ export default async function addEdge({ statePath, positional, flags, pluginId }
     // whitelist, so the adapter passes the raw flag value as-is.
     type: flags.type,
   };
+
+  if (backendClient?.type === "remote") {
+    const mutation = await executeRemoteDomain({ backendClient, actor: agent, operation: "edge.add", input, command: "add-edge" });
+    return mutation.result;
+  }
+  const policy = await loadApplicablePolicy({ projectDir });
 
   // policyAction is the in-lock authorize step the kernel evaluates
   // against the fresh snapshot + plan. With no applicable policy the

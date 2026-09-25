@@ -6,6 +6,7 @@ import { throwV2 } from "../../contracts/errors.mjs";
 import { resolveAgent } from "../actor.mjs";
 import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
 import { prepareGateResolve, applyGateResolve } from "../../providers/gate/lifecycle.mjs";
+import { executeRemoteDomain, nodeFromMutation } from "./internal/domain-routing.mjs";
 
 export const knownFlags = ["as", "note", "choice", "rationale"];
 
@@ -73,12 +74,12 @@ export default async function resolve({
   flags = {},
   positional = [],
   pluginId,
+  backendClient,
 }) {
   const id = positional[0];
   if (!id) throwV2("MISSING_FIELD", "resolve: node id required", { field: "id" });
   const agent = resolveAgent(flags, "resolve");
   const dir = projectDir || statePath;
-  const policy = await loadApplicablePolicy({ projectDir: dir });
 
   const input = {
     id,
@@ -88,6 +89,13 @@ export default async function resolve({
     actor: agent,
   };
 
+  if (backendClient?.type === "remote") {
+    const mutation = await executeRemoteDomain({ backendClient, actor: agent, operation: "gate.resolve", input, command: "resolve" });
+    const node = nodeFromMutation(mutation, id) || mutation.result?.node || null;
+    if (!node) throwV2("INVALID_EXECUTION_CONTRACT", `resolve: remote operation did not return node ${id}`, { id });
+    return { node, newly_ready: mutation.effects?.newly_ready || [] };
+  }
+  const policy = await loadApplicablePolicy({ projectDir: dir });
   const mutation = await mutate({
     projectDir: dir,
     request: { action: "resolve", actor: agent, input },

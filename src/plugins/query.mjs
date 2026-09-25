@@ -5,6 +5,7 @@
 // not depend on CLI command adapters or the transitional v2 facade.
 
 import { readState, isFencedState, isV2State, assertStateVersion } from "../storage/state.mjs";
+import { assertLocalBackend } from "./remote-guard.mjs";
 import { throwV2 } from "../contracts/errors.mjs";
 import {
   derive,
@@ -316,7 +317,8 @@ async function readSnapshot(projectDir) {
   return readState(projectDir);
 }
 
-export function createQuery({ projectDir, agent, pluginId }) {
+export function createQuery({ projectDir, agent, pluginId, backendClient }) {
+  assertLocalBackend(backendClient, "createQuery");
   return {
     async snapshot() {
       const snapshot = await readSnapshot(projectDir);

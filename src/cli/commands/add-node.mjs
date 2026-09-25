@@ -47,6 +47,7 @@ import { resolveAgent } from "../actor.mjs";
 import { taskCreateProvider } from "../../providers/task/create.mjs";
 import { gateCreateProvider } from "../../providers/gate/create.mjs";
 import { createProvider as knowledgeCreateProviderFactory } from "../../providers/knowledge/create.mjs";
+import { executeRemoteDomain, nodeFromMutation } from "./internal/domain-routing.mjs";
 
 export const knownFlags = [
   "kind",
@@ -257,12 +258,12 @@ function pickProviderAndInput(id, kind, subkind, flags, { allowUnregistered }) {
   };
 }
 
-export default async function addNode({ statePath, flags, positional, pluginId }) {
+export default async function addNode({ statePath, projectDir: suppliedProjectDir, flags = {}, positional = [], pluginId, backendClient }) {
   const [id] = positional;
   if (!id) throwV2("MISSING_FIELD", "add-node: node id required", { field: "id" });
   if (!flags.kind) throwV2("MISSING_FIELD", "add-node: --kind required", { field: "kind" });
   if (!flags.title) throwV2("MISSING_FIELD", "add-node: --title required", { field: "title" });
-  const projectDir = statePath;
+  const projectDir = suppliedProjectDir || statePath;
   const kind = String(flags.kind);
   const subkind = flags.subkind ? String(flags.subkind) : undefined;
 
@@ -305,6 +306,39 @@ export default async function addNode({ statePath, flags, positional, pluginId }
     flags,
     { allowUnregistered },
   );
+
+  if (backendClient?.type === "remote") {
+    if (allowUnregistered) throwV2("REMOTE_UNSUPPORTED_OPERATION", "add-node: internal initiative bypass is not supported remotely");
+    const remoteInput = { ...input };
+    delete remoteInput.allow_unregistered_initiative;
+    if (kind === "knowledge") {
+      delete remoteInput.derived_from;
+      if (remoteInput.refs === undefined) remoteInput.refs = [];
+      if (remoteInput.scope && !remoteInput.scope.domains.length && !remoteInput.scope.initiatives.length && !remoteInput.scope.tags.length && !remoteInput.scope.node_ids.length) {
+        remoteInput.scope.tags = ["(uncategorized)"];
+      }
+    }
+    if (remoteInput.meta === undefined) delete remoteInput.meta;
+    const operation = kind === "knowledge" ? "knowledge.create" : subkind === "gate" ? "gate.create" : "task.create";
+    if (kind === "resolvable" && subkind === "task") {
+      if (remoteInput.tags === undefined) remoteInput.tags = [];
+      if (remoteInput.refs === undefined) remoteInput.refs = [];
+      if (remoteInput.blocked_by === undefined) remoteInput.blocked_by = [];
+      if (remoteInput.derived_from === undefined) remoteInput.derived_from = [];
+    }
+    if (kind === "resolvable" && subkind === "gate") {
+      if (flags["resolution-mode"] !== undefined) {
+        throwV2("REMOTE_UNSUPPORTED_OPERATION", "add-node: remote gate creation does not support --resolution-mode", { command: "add-node", field: "resolution-mode" });
+      }
+      if (remoteInput.tags === undefined) remoteInput.tags = [];
+      if (remoteInput.refs === undefined) remoteInput.refs = [];
+      if (remoteInput.blocked_by === undefined) remoteInput.blocked_by = [];
+      if (remoteInput.derived_from === undefined) remoteInput.derived_from = [];
+      if (remoteInput.resolution_mode === undefined) delete remoteInput.resolution_mode;
+    }
+    const mutation = await executeRemoteDomain({ backendClient, actor: agent, operation, input: remoteInput, command: "add-node" });
+    return { node: nodeFromMutation(mutation, id, "created") || mutation.result?.node || null };
+  }
 
   // Load policy outside the lock (ADR-008 §"Seam por handler").
   const policy = await loadApplicablePolicy({ projectDir });
