@@ -90,28 +90,58 @@ test("backend client exposes typed transfer export and import requests", async (
 });
 
 test("backend client maps an ambiguous timed-out push without retrying", async () => {
-  let requests = 0;
+  const requests = [];
+  let observeRequest;
+  const requestObserved = new Promise((resolve) => { observeRequest = resolve; });
+  let releaseResponse;
+  const responseHeld = new Promise((resolve) => { releaseResponse = resolve; });
+
   await withServer(async (request, response) => {
-    requests += 1;
-    for await (const _chunk of request) { /* consume request body before simulating a lost response */ }
-    await new Promise((resolve) => setTimeout(resolve, 40));
-    if (!response.destroyed) {
-      response.writeHead(200, { "content-type": "application/json", "x-climier-protocol-version": "1" });
-      response.end(JSON.stringify({ ok: true, result: {} }));
-    }
+    const chunks = [];
+    for await (const chunk of request) chunks.push(chunk);
+    requests.push({
+      method: request.method,
+      url: request.url,
+      body: JSON.parse(Buffer.concat(chunks).toString("utf8")),
+    });
+    observeRequest(requests[0]);
+
+    // Hold the response until the client times out, simulating a lost reply
+    // only after the server has consumed the complete push request.
+    await responseHeld;
+    response.destroy();
   }, async (url) => {
     const client = createBackendClient({
       projectDir: "/project",
       projectConfig: { project_id: "remote-project", backend: { type: "remote", url } },
-      timeoutMs: 10,
+      timeoutMs: 1000,
     });
-    await assert.rejects(client.importTransfer({ payload: {}, actor: "alice" }), (error) => {
-      assert.equal(error.code, "TRANSFER_OUTCOME_UNKNOWN");
-      assert.deepEqual(error.details, { applied: "unknown", timeout_ms: 10 });
-      return true;
-    });
+    const pushOutcome = client.importTransfer({ payload: {}, actor: "alice" }).then(
+      (value) => ({ kind: "fulfilled", value }),
+      (error) => ({ kind: "rejected", error }),
+    );
+
+    try {
+      const firstEvent = await Promise.race([
+        requestObserved.then((request) => ({ kind: "observed", request })),
+        pushOutcome,
+      ]);
+      assert.equal(firstEvent.kind, "observed", "push must reach and be consumed by the server before timeout");
+      assert.deepEqual(firstEvent.request, {
+        method: "POST",
+        url: "/v1/projects/remote-project/transfer/import",
+        body: { payload: {}, actor: "alice", overwrite: false },
+      });
+
+      const outcome = await pushOutcome;
+      assert.equal(outcome.kind, "rejected");
+      assert.equal(outcome.error.code, "TRANSFER_OUTCOME_UNKNOWN");
+      assert.deepEqual(outcome.error.details, { applied: "unknown", timeout_ms: 1000 });
+      assert.equal(requests.length, 1, "ambiguous push must not be retried");
+    } finally {
+      releaseResponse();
+    }
   });
-  assert.equal(requests, 1);
 });
 
 test("backend client uses remote HTTP v1 URL, protocol, bearer auth, actor, and result envelope", async () => {
