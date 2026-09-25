@@ -239,13 +239,15 @@ export async function dispatchCommand({
   projectConfig = {},
   backendClient,
   source,
+  dispatchPlugin: dispatchPluginInjected,
+  hasInstalledPlugin: hasInstalledPluginInjected,
 } = {}) {
   ensureRemoteCommandSupported({ command, flags, projectConfig, backendClient });
   if (command !== null && !RESERVED_NAMESPACES.includes(command)) {
-    const { hasInstalledPlugin } = await import("../plugins/loader.mjs");
-    const { dispatchPlugin } = await import("../plugins/dispatch.mjs");
+    const hasInstalledPlugin = hasInstalledPluginInjected || (await import("../plugins/loader.mjs")).hasInstalledPlugin;
+    const dispatchPlugin = dispatchPluginInjected || (await import("../plugins/dispatch.mjs")).dispatchPlugin;
     if (await hasInstalledPlugin(command)) {
-      return dispatchPlugin({ originalArgv, namespace: command, projectDir, flags });
+      return dispatchPlugin({ originalArgv, namespace: command, projectDir, flags, backendClient });
     }
   }
 

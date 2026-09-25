@@ -7,6 +7,7 @@
 // kernel responsibilities.
 import { mutate } from "../../kernel/mutate.mjs";
 import { executeRemoteTask, isRemoteBackend, throwMissingRemoteNode } from "./internal/task-routing.mjs";
+import { executeRemoteDomain, readRemoteNode, nodeFromMutation } from "./internal/domain-routing.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
 import { resolveAgent } from "../actor.mjs";
 import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
@@ -229,24 +230,32 @@ export default async function update({
   const agent = resolveAgent(flags, "update");
   const changes = buildChanges(flags);
   const expectedRevision = parseIfRevision(flags["if-revision"]);
-  if (isRemoteBackend(backendClient) && !backendClient.readNode) {
-    throwV2("INVALID_OPERATION_BRIDGE", "update: remote backend client must support node reads for task routing");
-  }
   if (isRemoteBackend(backendClient)) {
-    const remote = await executeRemoteTask({
-      backendClient,
-      projectDir: dir,
-      actor: agent,
-      operation: "task.update",
-      command: "update",
-      id,
-      input: { id, changes, if_revision: expectedRevision },
-      inspectTarget: true,
-    });
-    if (!remote.node || remote.node.kind !== "resolvable" || remote.node.subkind !== "task") {
-      throwMissingRemoteNode("update", id);
+    const target = await readRemoteNode(backendClient, id, "update");
+    if (target.kind === "resolvable" && target.subkind === "task") {
+      const remote = await executeRemoteTask({
+        backendClient,
+        actor: agent,
+        operation: "task.update",
+        command: "update",
+        id,
+        input: { id, changes, if_revision: expectedRevision },
+        inspectTarget: true,
+      });
+      if (!remote.node) throwMissingRemoteNode("update", id);
+      return { node: remote.node };
     }
-    return { node: remote.node };
+    const operation = target.kind === "knowledge"
+      ? "knowledge.update"
+      : target.kind === "resolvable" && target.subkind === "gate"
+        ? "gate.update"
+        : null;
+    if (!operation) throwV2("REMOTE_UNSUPPORTED_OPERATION", `update: remote target ${id} is not a task, gate, or knowledge node`, { id, kind: target.kind, subkind: target.subkind });
+    const remoteInput = { id, changes, if_revision: expectedRevision ?? (Number.isInteger(target.revision) ? target.revision : 1) };
+    const mutation = await executeRemoteDomain({ backendClient, actor: agent, operation, input: remoteInput, command: "update" });
+    const node = nodeFromMutation(mutation, id) || mutation.result?.node || null;
+    if (!node) throwMissingRemoteNode("update", id);
+    return { node };
   }
   const policy = await loadApplicablePolicy({ projectDir: dir });
 

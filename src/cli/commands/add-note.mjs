@@ -10,6 +10,7 @@ import { noteAddProvider } from "../../providers/core/note.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
 import { resolveAgent } from "../actor.mjs";
 import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
+import { executeRemoteDomain, nodeFromMutation } from "./internal/domain-routing.mjs";
 
 export const knownFlags = ["as", "if-revision"];
 
@@ -68,7 +69,7 @@ function cliNoteProvider() {
   };
 }
 
-export default async function addNote({ statePath, flags = {}, positional, pluginId }) {
+export default async function addNote({ statePath, projectDir: suppliedProjectDir, flags = {}, positional = [], pluginId, backendClient }) {
   const [id, ...rest] = positional;
   if (!id) {
     throwV2(
@@ -93,9 +94,13 @@ export default async function addNote({ statePath, flags = {}, positional, plugi
     throw new Error("add-note: --as <agent> required");
   }
 
-  const projectDir = statePath;
+  const projectDir = suppliedProjectDir || statePath;
   const input = { id, text };
   if (flags["if-revision"] !== undefined) input.if_revision = flags["if-revision"];
+  if (backendClient?.type === "remote") {
+    const mutation = await executeRemoteDomain({ backendClient, actor: as, operation: "note.add", input, command: "add-note" });
+    return { node: nodeFromMutation(mutation, id) || mutation.result?.node || null };
+  }
   const policy = await loadApplicablePolicy({ projectDir });
   const policyAction = policy
     ? {

@@ -41,6 +41,7 @@ import {
   PolicyError,
   wrapCoreError,
 } from "./errors.mjs";
+import { assertLocalBackend } from "./remote-guard.mjs";
 
 const REG = bootstrapBuiltins();
 
@@ -186,7 +187,8 @@ async function selectPolicy({ projectDir, op, pluginId }) {
  *
  * @returns {{ version: 2, run: function, batch: function }}
  */
-export function createCore({ projectDir, agent, pluginId }) {
+export function createCore({ projectDir, agent, pluginId, backendClient }) {
+  assertLocalBackend(backendClient, "createCore");
   if (typeof projectDir !== "string" || !projectDir) {
     throw new Error("createCore: projectDir required");
   }

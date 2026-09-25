@@ -11,12 +11,13 @@ import { mutate } from "../../kernel/mutate.mjs";
 import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
 import { resolveAgent } from "../actor.mjs";
+import { executeRemoteDomain } from "./internal/domain-routing.mjs";
 
 export const knownFlags = ["type", "as"];
 
 const REG = bootstrapBuiltins();
 
-export default async function removeEdge({ statePath, positional, flags = {} }) {
+export default async function removeEdge({ statePath, projectDir: suppliedProjectDir, positional = [], flags = {}, backendClient }) {
   const [from, to] = positional;
   if (!from || !to) {
     throwV2("MISSING_FIELD", "remove-edge: from and to ids required", { field: "from,to" });
@@ -26,9 +27,13 @@ export default async function removeEdge({ statePath, positional, flags = {} }) 
   }
 
   const actor = resolveAgent(flags, "remove-edge");
-  const projectDir = statePath;
-  const policy = await loadApplicablePolicy({ projectDir });
+  const projectDir = suppliedProjectDir || statePath;
   const input = { from, to, type: flags.type };
+  if (backendClient?.type === "remote") {
+    const mutation = await executeRemoteDomain({ backendClient, actor, operation: "edge.remove", input, command: "remove-edge" });
+    return mutation.result;
+  }
+  const policy = await loadApplicablePolicy({ projectDir });
   const source = {
     registry: REG,
     mutate,
