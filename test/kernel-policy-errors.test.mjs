@@ -34,6 +34,7 @@ import {
   writeState as writeStateHelper,
   readState as readStateHelper,
 } from "./helpers.mjs";
+import { bootstrapFencedState } from "../src/storage/ledger.mjs";
 
 async function importKernel() {
   return importFresh("./kernel/mutate.mjs");
@@ -61,7 +62,7 @@ async function bootstrap(dir) {
     initiatives: { kernel: { desc: "kernel", created_at: "2026-01-01T00:00:00.000Z" } },
     log: [],
   });
-  return readStateHelper(dir);
+  return bootstrapFencedState(dir);
 }
 
 // updateProvider — minimal provider that mutates T1. The kernel's
@@ -90,7 +91,7 @@ function baseRequest() {
     action: "task.update",
     actor: "alice",
     input: {},
-    if_revision: { kind: "single", id: "T1", value: 3 },
+    if_revision: { kind: "single", id: "T1", value: 4 },
   };
 }
 
@@ -448,7 +449,7 @@ test("kernel.mutate: decide() returning allow proceeds with the mutation", async
     assert.equal(out.idempotent, false);
     const after = await readStateHelper(dir);
     assert.equal(after.nodes.T1.title, "mutated");
-    assert.equal(after.nodes.T1.revision, 4, "revision bumped once after allow");
+    assert.equal(after.nodes.T1.revision, 5, "revision bumped once after allow");
     assert.equal(after.log.length, 1, "log entry written after allow");
   } finally {
     await rmTempProject(dir);
