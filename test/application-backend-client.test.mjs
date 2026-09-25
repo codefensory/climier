@@ -99,6 +99,31 @@ test("backend client uses remote HTTP v1 URL, protocol, bearer auth, actor, and 
   }, { approveOrigin: true });
 });
 
+test("backend client initializes the configured remote project through the typed init endpoint", async () => {
+  let requestBody;
+  await withServer(async (request, response) => {
+    assert.equal(request.method, "POST");
+    assert.equal(request.url, "/v1/projects/project%2Fopaque/init");
+    assert.equal(request.headers["content-type"], "application/json");
+    assert.equal(request.headers["x-climier-protocol-version"], "1");
+    const chunks = [];
+    for await (const chunk of request) chunks.push(chunk);
+    requestBody = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+    response.writeHead(200, {
+      "content-type": "application/json",
+      "x-climier-protocol-version": "1",
+    });
+    response.end(JSON.stringify({ ok: true, result: { seeded: null } }));
+  }, async (url) => {
+    const client = createBackendClient({
+      projectDir: "/project",
+      projectConfig: { project_id: "project/opaque", backend: { type: "remote", url } },
+    });
+    assert.deepEqual(await client.init(), { seeded: null });
+  });
+  assert.deepEqual(requestBody, {});
+});
+
 test("backend client refuses to send a bearer token when origin binding is absent or differs", async () => {
   let requests = 0;
   await withServer((_request, response) => {

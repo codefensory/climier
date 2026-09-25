@@ -32,9 +32,20 @@ function policyForInit({ policy, projectDir, actor }) {
   };
 }
 
-export default async function init({ statePath, flags = {}, projectDir, pluginId }) {
+export default async function init({ statePath, flags = {}, projectDir, pluginId, backendClient }) {
   const dir = projectDir || statePath;
   const force = Boolean(flags.force);
+
+  if (backendClient?.type === "remote") {
+    if (force) {
+      const error = new Error("init: --force is not supported by the remote backend");
+      error.code = "REMOTE_UNSUPPORTED_OPERATION";
+      error.details = { command: "init", option: "--force" };
+      throw error;
+    }
+    const result = await backendClient.init();
+    return { ok: true, seeded: result?.seeded ?? null, file: null };
+  }
 
   let actor;
   let policy = null;

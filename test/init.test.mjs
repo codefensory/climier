@@ -28,6 +28,72 @@ test("init: creates empty v4 state file when none exists", async () => {
   }
 });
 
+test("init: remote init preserves local sentinels and omits the server path", async () => {
+  const { default: init } = await importFresh("./cli/commands/init.mjs");
+  const dir = await createTempProject();
+  const metaPath = path.join(dir, ".climier.json");
+  const meta = JSON.stringify({ project_id: "remote-project", backend: { type: "remote", url: "https://climier.example.test" } });
+  const state = "local state sentinel";
+  try {
+    await fs.writeFile(metaPath, meta, "utf8");
+    const file = stateFilePath(dir);
+    await fs.mkdir(path.dirname(file), { recursive: true });
+    await fs.writeFile(file, state, "utf8");
+    const result = await init({
+      statePath: dir,
+      projectDir: dir,
+      projectConfig: JSON.parse(meta),
+      backendClient: { type: "remote", async init() { return { seeded: null }; } },
+    });
+    assert.deepEqual(result, { ok: true, seeded: null, file: null });
+    assert.equal(JSON.stringify(result).includes(file), false);
+    assert.equal(await fs.readFile(metaPath, "utf8"), meta);
+    assert.equal(await fs.readFile(file, "utf8"), state);
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("init: remote errors preserve local sentinels and force fails before filesystem access", async () => {
+  const { default: init } = await importFresh("./cli/commands/init.mjs");
+  const dir = await createTempProject();
+  const metaPath = path.join(dir, ".climier.json");
+  const meta = JSON.stringify({ project_id: "remote-project", backend: { type: "remote", url: "https://climier.example.test" } });
+  const state = "local state sentinel";
+  try {
+    await fs.writeFile(metaPath, meta, "utf8");
+    const file = stateFilePath(dir);
+    await fs.mkdir(path.dirname(file), { recursive: true });
+    await fs.writeFile(file, state, "utf8");
+    const failures = [
+      Object.assign(new Error("unauthorized"), { code: "AUTH_INVALID", status: 401 }),
+      Object.assign(new Error("protocol mismatch"), { code: "PROTOCOL_VERSION_UNSUPPORTED" }),
+      Object.assign(new Error("network unavailable"), { code: "REMOTE_REQUEST_FAILED" }),
+    ];
+    for (const failure of failures) {
+      await assert.rejects(init({
+        statePath: dir,
+        projectDir: dir,
+        projectConfig: JSON.parse(meta),
+        backendClient: { type: "remote", async init() { throw failure; } },
+      }), (error) => error === failure);
+      assert.equal(await fs.readFile(metaPath, "utf8"), meta);
+      assert.equal(await fs.readFile(file, "utf8"), state);
+    }
+
+    const untouched = path.join(dir, "not-created");
+    await assert.rejects(init({
+      statePath: untouched,
+      projectDir: untouched,
+      flags: { force: true },
+      backendClient: { type: "remote", async init() { assert.fail("remote force must be rejected before request"); } },
+    }), (error) => error.code === "REMOTE_UNSUPPORTED_OPERATION");
+    await assert.rejects(fs.access(untouched), { code: "ENOENT" });
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
 test("init: fails if state already exists (no overwrite)", async () => {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
   const dir = await createTempProject();
