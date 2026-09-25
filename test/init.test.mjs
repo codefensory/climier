@@ -4,13 +4,15 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { createTempProject, rmTempProject, stateExists, stateFilePath, importFresh, runCli } from "./helpers.mjs";
+import { runCli as runCliInProcess } from "../src/cli/dispatch.mjs";
 
 test("init: creates empty v4 state file when none exists", async () => {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
   const dir = await createTempProject();
   try {
     assert.equal(await stateExists(dir), false);
-    await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
+    const result = await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
+    assert.deepEqual(result, { ok: true, seeded: null, file: stateFilePath(dir) });
     assert.equal(await stateExists(dir), true);
     const meta = JSON.parse(await fs.readFile(path.join(dir, ".climier.json"), "utf8"));
     assert.match(meta.project_id, /\S/);
@@ -49,6 +51,104 @@ test("init: remote init preserves local sentinels and omits the server path", as
     assert.equal(JSON.stringify(result).includes(file), false);
     assert.equal(await fs.readFile(metaPath, "utf8"), meta);
     assert.equal(await fs.readFile(file, "utf8"), state);
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("init: successful insecure remote HTTP init returns the ADR warning", async () => {
+  const { default: init } = await importFresh("./cli/commands/init.mjs");
+  const dir = await createTempProject();
+  try {
+    const result = await init({
+      statePath: dir,
+      projectDir: dir,
+      backendClient: {
+        type: "remote",
+        insecureRemoteHttp: true,
+        async init() { return { seeded: false }; },
+      },
+    });
+    assert.deepEqual(result, {
+      ok: true,
+      seeded: false,
+      file: null,
+      warnings: [{
+        kind: "insecure-remote-http",
+        severity: "warning",
+        message: "init: remote HTTP is enabled by CLIMIER_ALLOW_INSECURE_REMOTE_HTTP=true; bearer credentials are sent without transport encryption. Internal trusted networks only.",
+      }],
+    });
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("CLI: successful insecure remote HTTP init emits one JSON warning and no stderr", async () => {
+  const dir = await createTempProject();
+  const output = [];
+  const errors = [];
+  try {
+    await fs.writeFile(path.join(dir, ".climier.json"), JSON.stringify({
+      project_id: "remote-project",
+      backend: { type: "remote", url: "http://internal.example.test" },
+    }));
+    const status = await runCliInProcess({
+      argv: ["--project", dir, "init"],
+      createBackendClient: () => ({
+        type: "remote",
+        insecureRemoteHttp: true,
+        async init() { return { seeded: true }; },
+      }),
+      write: (value) => output.push(value),
+      exit: (code) => errors.push(code),
+    });
+    assert.equal(status, 0);
+    assert.deepEqual(errors, []);
+    assert.equal(output.length, 1);
+    assert.deepEqual(JSON.parse(output[0]).warnings, [{
+      kind: "insecure-remote-http",
+      severity: "warning",
+      message: "init: remote HTTP is enabled by CLIMIER_ALLOW_INSECURE_REMOTE_HTTP=true; bearer credentials are sent without transport encryption. Internal trusted networks only.",
+    }]);
+
+    output.length = 0;
+    const failedStatus = await runCliInProcess({
+      argv: ["--project", dir, "init"],
+      createBackendClient: () => ({
+        type: "remote",
+        insecureRemoteHttp: true,
+        async init() { throw Object.assign(new Error("unauthorized"), { code: "AUTH_INVALID" }); },
+      }),
+      write: (value) => output.push(value),
+      exit: (code) => errors.push(code),
+    });
+    assert.equal(failedStatus, 1);
+    assert.equal(output.length, 1);
+    assert.deepEqual(Object.keys(JSON.parse(output[0])), ["ok", "error"]);
+    assert.equal(JSON.parse(output[0]).error.code, "AUTH_INVALID");
+    assert.equal(errors.at(-1), 1);
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("init: successful HTTPS and loopback remote init omit warnings", async () => {
+  const { default: init } = await importFresh("./cli/commands/init.mjs");
+  const dir = await createTempProject();
+  try {
+    for (const insecureRemoteHttp of [false, undefined]) {
+      const result = await init({
+        statePath: dir,
+        projectDir: dir,
+        backendClient: {
+          type: "remote",
+          insecureRemoteHttp,
+          async init() { return { seeded: null }; },
+        },
+      });
+      assert.deepEqual(result, { ok: true, seeded: null, file: null });
+    }
   } finally {
     await rmTempProject(dir);
   }
