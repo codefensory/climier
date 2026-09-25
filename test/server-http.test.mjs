@@ -262,6 +262,66 @@ test("HTTP v1 delegates core operations and read projections through server boun
   });
 });
 
+test("HTTP gate.create accepts canonical edge inputs and rejects fields before storage", async () => {
+  await withApi(async ({ baseUrl, openCount, projectDirs }) => {
+    const initiative = await operation(baseUrl, "project-a", "initiative.create", { name: "gate-http" });
+    assert.equal(initiative.status, 200, JSON.stringify(await initiative.clone().json()));
+
+    const task = await operation(baseUrl, "project-a", "task.create", {
+      id: "T-gate-http-source",
+      initiative: "gate-http",
+      title: "Gate source",
+      body: "Existing source node",
+      acceptance: "Can be referenced by a gate",
+    });
+    assert.equal(task.status, 200, JSON.stringify(await task.clone().json()));
+
+    const gate = await operation(baseUrl, "project-a", "gate.create", {
+      id: "G-http-edges",
+      initiative: "gate-http",
+      title: "Gate with edges",
+      body: "Accept canonical edge inputs",
+      purpose: "approval",
+      blocked_by: ["T-gate-http-source"],
+      derived_from: ["T-gate-http-source"],
+    });
+    assert.equal(gate.status, 200, JSON.stringify(await gate.clone().json()));
+    const { readState } = await import("../src/storage/state.mjs");
+    let state = await readState(projectDirs[0]);
+    assert.deepEqual(state.edges.filter((edge) => edge.from === "G-http-edges" || edge.to === "G-http-edges"), [
+      { from: "T-gate-http-source", to: "G-http-edges", type: "BLOCKS" },
+      { from: "G-http-edges", to: "T-gate-http-source", type: "DERIVED_FROM" },
+    ]);
+
+    const emptyBlockers = await operation(baseUrl, "project-a", "gate.create", {
+      id: "G-http-empty-blockers",
+      initiative: "gate-http",
+      title: "Gate without blockers",
+      body: "Empty blocker lists are normal input",
+      purpose: "approval",
+      blocked_by: [],
+    });
+    assert.equal(emptyBlockers.status, 200, JSON.stringify(await emptyBlockers.clone().json()));
+    state = await readState(projectDirs[0]);
+    assert.equal(state.nodes["G-http-empty-blockers"].id, "G-http-empty-blockers");
+
+    for (const extra of [{ resolution_mode: "labor" }, { unexpected: true }]) {
+      const opensBefore = openCount();
+      const invalid = await operation(baseUrl, "project-a", "gate.create", {
+        id: "G-http-invalid",
+        initiative: "gate-http",
+        title: "Invalid gate input",
+        body: "Must fail at the HTTP boundary",
+        purpose: "approval",
+        ...extra,
+      });
+      assert.equal(invalid.status, 400);
+      assert.equal((await invalid.json()).error.code, "INVALID_REQUEST");
+      assert.equal(openCount(), opensBefore, "invalid schema must be rejected before storage is opened");
+    }
+  });
+});
+
 test("HTTP v1 executes core.batch through one canonical server mutation", async () => {
   await withApi(async ({ baseUrl, projectDirs }) => {
     const { readState } = await import("../src/storage/state.mjs");

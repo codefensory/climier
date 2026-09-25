@@ -62,7 +62,7 @@ const ALLOWED_INPUT_FIELDS = Object.freeze({
   "task.submit": new Set(["id", "note", "submitted_at", "if_revision"]),
   "task.accept": new Set(["id", "accepted_at", "if_revision"]),
   "task.reject": new Set(["id", "reason", "if_revision"]),
-  "gate.create": new Set(["id", "initiative", "title", "body", "purpose", "supersedes", "backlog", "domain", "definition", "acceptance", "tags", "refs", "meta"]),
+  "gate.create": new Set(["id", "initiative", "title", "body", "purpose", "supersedes", "blocked_by", "derived_from", "backlog", "domain", "definition", "acceptance", "tags", "refs", "meta"]),
   "gate.update": new Set(["id", "changes", "if_revision"]),
   "gate.resolve": new Set(["id", "choice", "rationale", "resolved_at", "if_revision", "if_revisions"]),
   "gate.reopen": new Set(["id", "reason", "if_revisions"]),
