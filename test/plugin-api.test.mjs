@@ -21,7 +21,7 @@ import {
   createTempProject,
   rmTempProject,
   importFresh,
-  writeState as writeRawState,
+  writeFencedState,
   readState as readRawState,
   installPolicyFixture,
   uninstallPolicyFixture,
@@ -36,7 +36,8 @@ const ID_REGEX = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 function baseState() {
   return {
-    version: 2,
+    version: 5,
+    revision: 0,
     nodes: {
       T1: {
         id: "T1",
@@ -84,8 +85,16 @@ function baseState() {
 async function seedState(dir, mutate) {
   const base = baseState();
   if (typeof mutate === "function") mutate(base);
-  await writeRawState(dir, base);
-  return base;
+  try {
+    const current = await readRawState(dir);
+    base.revision = current.revision;
+    base.fence_generation = current.fence_generation;
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+    base.revision = 0;
+    delete base.fence_generation;
+  }
+  return writeFencedState(dir, base);
 }
 
 async function freshApi(dir, opts = {}) {
@@ -284,27 +293,17 @@ test("api.query.node reflects a state mutation (read without lock picks the late
   try {
     await seedState(dir);
     const api = await freshApi(dir);
-    // Mutate the state out-of-band (simulating another agent's update).
-    await writeRawState(dir, {
-      version: 2,
-      nodes: {
-        T1: {
-          id: "T1",
-          kind: "resolvable",
-          subkind: "task",
-          title: "T1 (mutated)",
-          initiative: "p",
-          status: "open",
-          revision: 2,
-        },
-      },
-      edges: [],
-      initiatives: { p: { desc: "p", created_at: "2026-01-01T00:00:00.000Z" } },
-      log: [],
-    });
+    // Replace through the fenced fixture helper to simulate another agent's update.
+    const replacement = baseState();
+    replacement.nodes.T1.title = "T1 (mutated)";
+    const current = await readRawState(dir);
+    replacement.revision = current.revision;
+    replacement.fence_generation = current.fence_generation;
+    await writeFencedState(dir, replacement);
+    const expected = await readRawState(dir);
     const out = await api.query.node("T1");
     assert.equal(out.node.title, "T1 (mutated)");
-    assert.equal(out.node.revision, 2);
+    assert.equal(out.node.revision, expected.nodes.T1.revision);
   } finally {
     await rmTempProject(dir);
   }
@@ -483,12 +482,12 @@ test("api.data.node.set writes only the calling plugin's keyspace and preserves 
 test("api.data.node.set uses kernel revision accounting while preserving the plugin API result", async () => {
   const dir = await createTempProject();
   try {
-    await seedState(dir);
+    const seeded = await seedState(dir);
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
     const value = { perNode: "kernel-backed" };
     assert.deepEqual(await api.data.node.set("T1", value), value);
     const after = await readRawState(dir);
-    assert.equal(after.nodes.T1.revision, 2);
+    assert.equal(after.nodes.T1.revision, seeded.revision + 1);
     assert.equal(after.log.length, 1);
     assert.deepEqual(after.nodes.T1.plugins["example.audit"].data, value);
   } finally {
@@ -904,7 +903,7 @@ test("api.core.run: non-object input throws PLUGIN_CORE_INVALID_OPERATION", asyn
   const dir = await createTempProject();
   try {
     const { default: init } = await importFresh("./cli/commands/init.mjs");
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+    await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
     for (const bad of [null, undefined, "string", 1, true, []]) {
       await assert.rejects(
@@ -922,7 +921,7 @@ test("api.core.run: unknown op throws PLUGIN_CORE_INVALID_OPERATION with support
   const dir = await createTempProject();
   try {
     const { default: init } = await importFresh("./cli/commands/init.mjs");
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+    await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
     await assert.rejects(
       api.core.run({ op: "edge.unknown", input: {} }),
@@ -943,7 +942,7 @@ test("api.core.run: input.as is rejected with PLUGIN_CORE_INVALID_OPERATION and 
   const dir = await createTempProject();
   try {
     const { default: init } = await importFresh("./cli/commands/init.mjs");
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+    await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
     await assert.rejects(
       api.core.run({
@@ -971,7 +970,7 @@ test("api.core.run: input._as is rejected (no alias sneaks past)", async () => {
   const dir = await createTempProject();
   try {
     const { default: init } = await importFresh("./cli/commands/init.mjs");
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+    await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
     await assert.rejects(
       api.core.run({
@@ -997,7 +996,7 @@ test("api.core.run: missing required field throws PLUGIN_CORE_ACTION_FAILED (pro
   const dir = await createTempProject();
   try {
     const { default: init } = await importFresh("./cli/commands/init.mjs");
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+    await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
     // Missing --type is required by edge.add.
     await assert.rejects(
@@ -1031,7 +1030,7 @@ test("api.core.run: known op with empty input does not mutate state (provider-le
   const dir = await createTempProject();
   try {
     const { default: init } = await importFresh("./cli/commands/init.mjs");
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+    await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
     await assert.rejects(
       api.core.run({ op: "task.create", input: {} }),
@@ -1064,7 +1063,7 @@ test("api.core.run: NODE_NOT_FOUND in the handler is wrapped as PLUGIN_CORE_ACTI
   const dir = await createTempProject();
   try {
     const { default: init } = await importFresh("./cli/commands/init.mjs");
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+    await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
     await assert.rejects(
       api.core.run({ op: "task.take", input: { id: "T-not-here" } }),
@@ -1115,7 +1114,7 @@ test("api.core.run: task.create dispatches through the kernel with actor fixed f
   try {
     const { default: init } = await importFresh("./cli/commands/init.mjs");
     const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+    await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
     await addInit({ statePath: dir, flags: { desc: "plugin-platform" }, positional: ["plugin-platform"] });
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
     const out = await api.core.run({
@@ -1166,7 +1165,7 @@ test("api.core.run: input.as is dropped even though the handler call is made on 
   try {
     const { default: init } = await importFresh("./cli/commands/init.mjs");
     const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+    await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
     await addInit({ statePath: dir, flags: { desc: "plugin-platform" }, positional: ["plugin-platform"] });
     // input.as is rejected outright (covered by previous test); the path we
     // verify here is that even if a future flag rename makes a snake key
@@ -1193,7 +1192,7 @@ test("api.core.run: an opaque core error (no code/details) is normalized to CORE
   const dir = await createTempProject();
   try {
     const { default: init } = await importFresh("./cli/commands/init.mjs");
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+    await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
     // task.take against a non-existent task throws NODE_NOT_FOUND through the
     // handler — that is structured. To exercise the bare-Error branch of
@@ -1227,7 +1226,7 @@ test("api.core.run: an opaque core error (no code/details) is normalized to CORE
 //     handler is called without ctx.pluginId).
 // =========================================================================
 
-// Init a fresh v2 project with the `plugin-platform` initiative registered.
+// Init a fresh fenced project with the `plugin-platform` initiative registered.
 // Parity tests below need a valid registered initiative for the resolvable
 // creation ops (task.update/etc indirectly, gate.create, knowledge.create),
 // so this helper insulates each test from the boilerplate.
@@ -1235,7 +1234,7 @@ async function readyProject() {
   const dir = await createTempProject();
   const { default: init } = await importFresh("./cli/commands/init.mjs");
   const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
-  await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+  await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
   await addInit({
     statePath: dir,
     flags: { desc: "plugin platform" },

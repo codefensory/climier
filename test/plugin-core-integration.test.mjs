@@ -30,12 +30,12 @@ import {
   readState,
 } from "./helpers.mjs";
 
-// initV2Project — runs a v2 init + a single initiative so task.create
+// initProject — runs the fenced init + a single initiative so task.create
 // can register against an existing initiative.
-async function initV2Project(dir, initiatives = ["plugin-platform"]) {
+async function initProject(dir, initiatives = ["plugin-platform"]) {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
   const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
-  await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+  await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
   for (const name of initiatives) {
     await addInit({ statePath: dir, flags: { desc: name }, positional: [name] });
   }
@@ -68,7 +68,7 @@ test("plugin-core-integration: api.core.version is 2 and api.core.run is a funct
 test("plugin-core-integration: full first slice leaves intact state and logs with plugin_id", async () => {
   const dir = await createTempProject();
   try {
-    await initV2Project(dir);
+    await initProject(dir);
     const api = await makeApi(dir, { agent: "alice", pluginId: "example.core" });
 
     // 1. task.create with an explicit id.
@@ -215,7 +215,7 @@ test("plugin-core-integration: full first slice leaves intact state and logs wit
 test("plugin-core-integration: history for a node touched via core.run reports plugin_id on the entries", async () => {
   const dir = await createTempProject();
   try {
-    await initV2Project(dir);
+    await initProject(dir);
     const api = await makeApi(dir, { agent: "alice", pluginId: "example.core" });
     await api.core.run({
       op: "task.create",
@@ -255,7 +255,7 @@ test("plugin-core-integration: history for a node touched via core.run reports p
 test("plugin-core-integration: PLUGIN_CORE_INVALID_OPERATION does not mutate and lists supported ops", async () => {
   const dir = await createTempProject();
   try {
-    await initV2Project(dir);
+    await initProject(dir);
     const api = await makeApi(dir, { agent: "alice", pluginId: "example.core" });
     const before = await readState(dir);
     const beforeEdges = before.edges.length;
@@ -317,7 +317,7 @@ test("plugin-core-integration: PLUGIN_CORE_INVALID_OPERATION does not mutate and
 test("plugin-core-integration: handler-rejected actions surface as PLUGIN_CORE_ACTION_FAILED with structured cause", async () => {
   const dir = await createTempProject();
   try {
-    await initV2Project(dir);
+    await initProject(dir);
     const api = await makeApi(dir, { agent: "alice", pluginId: "example.core" });
     // task.take against a non-existent task throws NODE_NOT_FOUND.
     await assert.rejects(
@@ -360,7 +360,7 @@ test("plugin-core-integration: handler-rejected actions surface as PLUGIN_CORE_A
 test("plugin-core-integration: a successful task.create is preserved when a subsequent edge.add fails", async () => {
   const dir = await createTempProject();
   try {
-    await initV2Project(dir);
+    await initProject(dir);
     const api = await makeApi(dir, { agent: "alice", pluginId: "example.core" });
     // Success: create the task.
     await api.core.run({
@@ -404,7 +404,8 @@ test("plugin-core-integration: a successful task.create is preserved when a subs
 test("plugin-core-integration: two plugins calling core.run in parallel land both writes intact", async () => {
   const dir = await createTempProject();
   try {
-    await initV2Project(dir);
+    await initProject(dir);
+    const revisionBefore = (await readState(dir)).revision;
     const apiA = await makeApi(dir, { agent: "alice", pluginId: "example.plugin-a" });
     const apiB = await makeApi(dir, { agent: "bob", pluginId: "example.plugin-b" });
     const [outA, outB] = await Promise.all([
@@ -435,7 +436,7 @@ test("plugin-core-integration: two plugins calling core.run in parallel land bot
     assert.equal(outB.result.id, "T-B");
     assert.deepEqual(
       [outA.diff.created[0].node.revision, outB.diff.created[0].node.revision].sort((a, b) => a - b),
-      [2, 3],
+      [revisionBefore + 1, revisionBefore + 2],
       "parallel creates receive distinct, increasing global revisions",
     );
     assert.equal(outA.log_entry.action, "task.create");

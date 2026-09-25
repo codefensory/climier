@@ -6,14 +6,14 @@ import {
   createTempProject,
   rmTempProject,
   readState,
-  writeState,
+  writeFencedState,
   stateFilePath,
   importFresh,
 } from "./helpers.mjs";
 
 function baseState() {
   return {
-    version: 4,
+    version: 5,
     revision: 7,
     nodes: {
       T1: { id: "T1", kind: "resolvable", subkind: "task", title: "one", body: "one", acceptance: "one", initiative: "plugin", status: "open", revision: 1 },
@@ -40,13 +40,13 @@ const repair = [
 test("api.core.batch applies a declarative repair with host identity and one log", async () => {
   const dir = await createTempProject();
   try {
-    await writeState(dir, baseState());
+    const seeded = await writeFencedState(dir, baseState());
     const api = await makeApi(dir);
-    const out = await api.core.batch({ if_state_revision: 7, operations: repair });
+    const out = await api.core.batch({ if_state_revision: seeded.revision, operations: repair });
 
     assert.equal(out.ok, true);
-    assert.equal(out.revision_before, 7);
-    assert.equal(out.revision_after, 8);
+    assert.equal(out.revision_before, seeded.revision);
+    assert.equal(out.revision_after, seeded.revision + 1);
     assert.deepEqual(out.results.map(({ op }) => op), repair.map(({ op }) => op));
     const state = await readState(dir);
     assert.deepEqual(state.edges, [
@@ -66,12 +66,12 @@ test("api.core.batch applies a declarative repair with host identity and one log
 test("api.core.batch rolls back on an operation failure and reports its index/op", async () => {
   const dir = await createTempProject();
   try {
-    await writeState(dir, baseState());
+    const seeded = await writeFencedState(dir, baseState());
     const before = await fs.readFile(stateFilePath(dir));
     const api = await makeApi(dir);
     await assert.rejects(
       api.core.batch({
-        if_state_revision: 7,
+        if_state_revision: seeded.revision,
         operations: [...repair.slice(0, 3), { op: "edge.add", input: { from: "T1", to: "T3", type: "BLOCKS" } }],
       }),
       (error) => error.code === "PLUGIN_CORE_ACTION_FAILED" &&
@@ -88,15 +88,15 @@ test("api.core.batch rolls back on an operation failure and reports its index/op
 test("api.core.batch rejects stale global CAS before any operation", async () => {
   const dir = await createTempProject();
   try {
-    await writeState(dir, baseState());
+    const seeded = await writeFencedState(dir, baseState());
     const api = await makeApi(dir);
     await assert.rejects(
-      api.core.batch({ if_state_revision: 6, operations: repair }),
+      api.core.batch({ if_state_revision: seeded.revision - 1, operations: repair }),
       (error) => error.code === "PLUGIN_CORE_ACTION_FAILED" &&
         error.details.cause.code === "STATE_REVISION_CONFLICT",
     );
     const state = await readState(dir);
-    assert.equal(state.revision, 7);
+    assert.equal(state.revision, seeded.revision);
     assert.equal(state.log.length, 0);
     assert.equal(state.nodes.T3, undefined);
   } finally {
@@ -107,7 +107,7 @@ test("api.core.batch rejects stale global CAS before any operation", async () =>
 test("api.core.batch accepts only the declarative envelope", async () => {
   const dir = await createTempProject();
   try {
-    await writeState(dir, baseState());
+    await writeFencedState(dir, baseState());
     const api = await makeApi(dir);
     for (const input of [null, [], {}, { operations: [] }]) {
       await assert.rejects(
