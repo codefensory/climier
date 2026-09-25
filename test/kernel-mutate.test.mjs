@@ -995,6 +995,44 @@ test("kernel.mutate: edges added and removed in the same apply; only-changed-edg
 // Mutation diff boundary
 // ===================================================================
 
+test("kernel provider diff fences created and modified nodes above state revision", async () => {
+  const { mutate } = await importKernel();
+  const dir = await createTempProject();
+  try {
+    await writeStateHelper(dir, {
+      version: 4,
+      revision: 12,
+      initiatives: { kernel: { desc: "kernel", created_at: "2026-01-01T00:00:00.000Z" } },
+      nodes: {
+        T1: { id: "T1", kind: "resolvable", subkind: "task", title: "before", initiative: "kernel", status: "open", revision: 4 },
+      },
+      edges: [],
+      log: [],
+    });
+
+    await mutate({
+      projectDir: dir,
+      request: { action: "task.create", actor: "alice", input: {} },
+      provider: createTaskProvider({ id: "T2", title: "new" }),
+    });
+    let state = await readStateHelper(dir);
+    assert.equal(state.nodes.T2.revision, 13);
+    assert.equal(state.revision, 13);
+
+    await mutate({
+      projectDir: dir,
+      request: { action: "task.update", actor: "alice", input: {} },
+      provider: updateNodeProvider({ id: "T1", newTitle: "after" }).provider,
+    });
+    state = await readStateHelper(dir);
+    assert.equal(state.nodes.T1.revision, 14);
+    assert.equal(state.revision, 14);
+    assert.ok(state.revision >= Math.max(...Object.values(state.nodes).map((node) => node.revision)));
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
 test("kernel mutation diff helpers are extracted and preserve deterministic diff shapes", async () => {
   const diff = await importFresh("./kernel/mutation/diff.mjs");
   const snapshot = {
@@ -1075,6 +1113,36 @@ test("kernel mutation execution coordinator owns the pipeline while the façade 
   assert.equal(typeof kernel.__kernelInternals.buildLogEntry, "function");
 });
 
+test("revision assignment fences new, recreated, and modified nodes above the state revision", async () => {
+  const revisions = await importFresh("./kernel/mutation/revisions.mjs");
+  const snapshot = {
+    revision: 12,
+    nodes: {
+      T1: { id: "T1", title: "before", revision: 4 },
+      T2: { id: "T2", title: "unchanged", revision: 12 },
+    },
+  };
+  const draft = {
+    nodes: {
+      T1: { id: "T1", title: "after" },
+      T2: { id: "T2", title: "unchanged" },
+      T3: { id: "T3", title: "new" },
+      // A deleted-and-recreated id is absent from this snapshot too; its
+      // revision must be fenced by state.revision, not reset to revision 1.
+      T4: { id: "T4", title: "recreated" },
+    },
+  };
+
+  const assigned = revisions.assignRevisionsAndDiff(snapshot, draft);
+  assert.equal(assigned.next.T1.revision, 13);
+  assert.equal(assigned.next.T2.revision, 12);
+  assert.equal(assigned.next.T3.revision, 13);
+  assert.equal(assigned.next.T4.revision, 13);
+  assert.equal(revisions.deriveNextStateRevision(snapshot, assigned.next), 13);
+  assert.ok(revisions.deriveNextStateRevision(snapshot, assigned.next) >=
+    Math.max(...Object.values(assigned.next).map((node) => node.revision)));
+});
+
 test("kernel mutation finalization helpers are pure boundaries preserved through the façade", async () => {
   const revisions = await importFresh("./kernel/mutation/revisions.mjs");
   const validation = await importFresh("./kernel/mutation/validation.mjs");
@@ -1084,6 +1152,9 @@ test("kernel mutation finalization helpers are pure boundaries preserved through
   for (const name of ["assignRevisionsAndDiff", "deriveTargetRevision"]) {
     assert.equal(typeof revisions[name], "function", `${name} is exported by revisions`);
     assert.equal(typeof kernel.__kernelInternals[name], "function", `${name} remains available through the façade`);
+  }
+  for (const name of ["assignNodeRevision", "deriveNextStateRevision"]) {
+    assert.equal(typeof revisions[name], "function", `${name} is exported by revisions`);
   }
   for (const name of ["normalizeLogFields", "validateDraftStructural"]) {
     assert.equal(typeof validation[name], "function", `${name} is exported by validation`);
@@ -1290,7 +1361,8 @@ test("kernel mutation accepts v3 state and persists v4 after a mutation", async 
     assert.equal(mutation.result.ok, true);
     const after = await readStateHelper(dir);
     assert.equal(after.version, 4);
-    assert.equal(after.revision, 1);
+    assert.equal(after.revision, 2);
+    assert.equal(after.nodes.T1.revision, 2);
     assert.equal(after.nodes.T1.title, "after");
   } finally {
     await rmTempProject(dir);
