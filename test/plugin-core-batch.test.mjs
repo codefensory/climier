@@ -53,7 +53,7 @@ test("api.core.batch applies a declarative repair with host identity and one log
       { from: "T1", to: "T3", type: "BLOCKS" },
       { from: "T3", to: "T2", type: "BLOCKS" },
     ]);
-    assert.equal(state.nodes.T3.revision, 1);
+    assert.equal(state.nodes.T3.revision, state.revision, "created node carries the global high-water");
     assert.equal(state.log.length, 1);
     assert.equal(state.log[0].action, "core.batch");
     assert.equal(state.log[0].agent, "plugin-agent");

@@ -49,6 +49,7 @@ test("take: first call claims a ready task and returns freshly_claimed=true; sec
   const dir = await v2Project();
   try {
     await addTask(dir, "T-auth-1", { title: "Add session middleware", tags: "backend,api" });
+    const revisionBeforeTake = (await readState(dir)).nodes["T-auth-1"].revision;
 
     const first = await take(dir, "T-auth-1", { as: "alice" });
     assert.equal(first.node.id, "T-auth-1");
@@ -61,14 +62,13 @@ test("take: first call claims a ready task and returns freshly_claimed=true; sec
     assert.ok(Array.isArray(first.context.blocking));
     assert.deepEqual(first.context.knowledge, []);
 
-    // revision bumped from 1 (initial) to 2 on claim.
-    assert.equal(first.context.revision, 2);
+    assert.ok(first.context.revision > revisionBeforeTake, "take advances the global high-water");
 
     const second = await take(dir, "T-auth-1", { as: "alice" });
     assert.equal(second.node.id, "T-auth-1");
     assert.equal(second.freshly_claimed, false);
     // No new state mutation: revision unchanged.
-    assert.equal(second.context.revision, 2);
+    assert.equal(second.context.revision, first.context.revision, "idempotent take does not advance the revision");
     assert.equal(second.context.claim.by, "alice");
   } finally { await rmTempProject(dir); }
 });
@@ -252,13 +252,14 @@ test("take: persists claim = { by, at }, status = 'in_progress', and bumps revis
   const dir = await v2Project();
   try {
     await addTask(dir, "T-auth-1", { title: "Auth task" });
+    const before = (await readState(dir)).nodes["T-auth-1"].revision;
     await take(dir, "T-auth-1", { as: "alice" });
     const s = await readState(dir);
     const node = s.nodes["T-auth-1"];
     assert.equal(node.status, "in_progress");
     assert.equal(node.claim.by, "alice");
     assert.ok(typeof node.claim.at === "string" && node.claim.at.length > 0);
-    assert.equal(node.revision, 2);
+    assert.ok(node.revision > before, "take advances the global high-water");
     // Audit log was appended with action=take.
     const last = s.log.at(-1);
     assert.equal(last.action, "take");

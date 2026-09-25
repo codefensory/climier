@@ -36,7 +36,7 @@ test("add-node: initializes revision = 1 on a new v2 node", async () => {
   try {
     await seedTask(dir);
     const s = await readRawState(dir);
-    assert.equal(s.nodes["T-auth-1"].revision, 1);
+    assert.equal(s.nodes["T-auth-1"].revision, s.revision);
   } finally { await rmTempProject(dir); }
 });
 
@@ -47,17 +47,19 @@ test("update: changes title and bumps revision to 2", async () => {
   const dir = await v2Project();
   try {
     await seedTask(dir);
+    const before = await readRawState(dir);
+    const currentRevision = before.nodes["T-auth-1"].revision;
     const out = await update({
       statePath: dir,
       positional: ["T-auth-1"],
       flags: { title: "Implement opaque session middleware", as: "alice" },
     });
     assert.equal(out.node.title, "Implement opaque session middleware");
-    assert.equal(out.node.revision, 2);
+    assert.equal(out.node.revision, currentRevision + 1);
 
     const s = await readRawState(dir);
     assert.equal(s.nodes["T-auth-1"].title, "Implement opaque session middleware");
-    assert.equal(s.nodes["T-auth-1"].revision, 2);
+    assert.equal(s.nodes["T-auth-1"].revision, currentRevision + 1);
   } finally { await rmTempProject(dir); }
 });
 
@@ -66,13 +68,14 @@ test("update: parses --meta JSON and persists it", async () => {
   const dir = await v2Project();
   try {
     await seedTask(dir);
+    const currentRevision = (await readRawState(dir)).nodes["T-auth-1"].revision;
     const out = await update({
       statePath: dir,
       positional: ["T-auth-1"],
       flags: { meta: '{"ticket":"AUTH-9001","severity":"high"}', as: "alice" },
     });
     assert.deepEqual(out.node.meta, { ticket: "AUTH-9001", severity: "high" });
-    assert.equal(out.node.revision, 2);
+    assert.equal(out.node.revision, currentRevision + 1);
   } finally { await rmTempProject(dir); }
 });
 
@@ -95,12 +98,14 @@ test("update: bumps revision on every successful mutation", async () => {
   const dir = await v2Project();
   try {
     await seedTask(dir);
+    const before = await readRawState(dir);
+    const initialRevision = before.nodes["T-auth-1"].revision;
     await update({ statePath: dir, positional: ["T-auth-1"], flags: { title: "v2", as: "alice" } });
     await update({ statePath: dir, positional: ["T-auth-1"], flags: { title: "v3", as: "alice" } });
     await update({ statePath: dir, positional: ["T-auth-1"], flags: { title: "v4", as: "alice" } });
     const s = await readRawState(dir);
     assert.equal(s.nodes["T-auth-1"].title, "v4");
-    assert.equal(s.nodes["T-auth-1"].revision, 4);
+    assert.equal(s.nodes["T-auth-1"].revision, initialRevision + 3);
   } finally { await rmTempProject(dir); }
 });
 
@@ -111,12 +116,13 @@ test("update: --if-revision matching current revision applies and increments", a
   const dir = await v2Project();
   try {
     await seedTask(dir);
+    const currentRevision = (await readRawState(dir)).nodes["T-auth-1"].revision;
     const out = await update({
       statePath: dir,
       positional: ["T-auth-1"],
-      flags: { title: "after CAS", "if-revision": 1, as: "alice" },
+      flags: { title: "after CAS", "if-revision": currentRevision, as: "alice" },
     });
-    assert.equal(out.node.revision, 2);
+    assert.equal(out.node.revision, currentRevision + 1);
     assert.equal(out.node.title, "after CAS");
   } finally { await rmTempProject(dir); }
 });
@@ -126,25 +132,26 @@ test("update: --if-revision mismatch returns REVISION_CONFLICT with expected/cur
   const dir = await v2Project();
   try {
     await seedTask(dir);
-    // First edit bumps revision 1 -> 2.
+    const originalRevision = (await readRawState(dir)).nodes["T-auth-1"].revision;
     await update({ statePath: dir, positional: ["T-auth-1"], flags: { title: "stale", as: "alice" } });
-    // Caller still holds revision=1 in their head; should fail.
+    const currentRevision = (await readRawState(dir)).nodes["T-auth-1"].revision;
+    // Caller still holds the seed revision; should fail.
     let caught;
     try {
       await update({
         statePath: dir,
         positional: ["T-auth-1"],
-        flags: { title: "too late", "if-revision": 1, as: "bob" },
+        flags: { title: "too late", "if-revision": originalRevision, as: "bob" },
       });
     } catch (e) { caught = e; }
     assert.ok(caught, "should have thrown");
     assert.equal(caught.code, "REVISION_CONFLICT");
-    assert.equal(caught.details.expected, 1);
-    assert.equal(caught.details.current, 2);
+    assert.equal(caught.details.expected, originalRevision);
+    assert.equal(caught.details.current, currentRevision);
 
     const s = await readRawState(dir);
     assert.equal(s.nodes["T-auth-1"].title, "stale");
-    assert.equal(s.nodes["T-auth-1"].revision, 2);
+    assert.equal(s.nodes["T-auth-1"].revision, currentRevision);
   } finally { await rmTempProject(dir); }
 });
 
@@ -153,6 +160,7 @@ test("update: without --if-revision a stale snapshot still mutates", async () =>
   const dir = await v2Project();
   try {
     await seedTask(dir);
+    const initialRevision = (await readRawState(dir)).nodes["T-auth-1"].revision;
     await update({ statePath: dir, positional: ["T-auth-1"], flags: { title: "first", as: "alice" } });
     // No --if-revision -> last-write-wins, no conflict.
     const out = await update({
@@ -161,7 +169,7 @@ test("update: without --if-revision a stale snapshot still mutates", async () =>
       flags: { title: "second", as: "bob" },
     });
     assert.equal(out.node.title, "second");
-    assert.equal(out.node.revision, 3);
+    assert.equal(out.node.revision, initialRevision + 2);
   } finally { await rmTempProject(dir); }
 });
 
@@ -223,24 +231,25 @@ test("CLI: v2 update emits REVISION_CONFLICT with structured details", async () 
       "--initiative", "auth",
     ]);
     assert.equal(r.code, 0, r.stderr);
-    // Bump revision to 2.
+    const originalRevision = JSON.parse(r.stdout).node.revision;
     r = await runCli(["--project", dir, "update", "T-auth-1", "--title", "v2", "--as", "alice"]);
     assert.equal(r.code, 0, r.stderr);
     const data = JSON.parse(r.stdout);
-    assert.equal(data.node.revision, 2);
+    const currentRevision = data.node.revision;
+    assert.ok(currentRevision > originalRevision);
 
     // Stale CAS.
     r = await runCli([
       "--project", dir, "update", "T-auth-1",
       "--title", "v3",
-      "--if-revision", "1",
+      "--if-revision", String(originalRevision),
       "--as", "bob",
     ]);
     assert.equal(r.code, 1);
     const err = JSON.parse(r.stdout);
     assert.equal(err.error.code, "REVISION_CONFLICT");
-    assert.equal(err.error.details.expected, 1);
-    assert.equal(err.error.details.current, 2);
+    assert.equal(err.error.details.expected, originalRevision);
+    assert.equal(err.error.details.current, currentRevision);
   } finally { await rmTempProject(dir); }
 });
 

@@ -123,6 +123,7 @@ test("v2-release: claim owner releases; returns released=true, claim=null, statu
   try {
     await addTask(dir, "T-auth-1");
     await take(dir, "alice");
+    const beforeRelease = (await readState(dir)).nodes["T-auth-1"].revision;
     const out = await release({
       statePath: dir,
       flags: { as: "alice" },
@@ -131,8 +132,7 @@ test("v2-release: claim owner releases; returns released=true, claim=null, statu
     assert.equal(out.released, true);
     assert.equal(out.node.claim, null);
     assert.equal(out.node.status, "open");
-    // revision: 1 (init) -> 2 (take) -> 3 (release)
-    assert.equal(out.node.revision, 3);
+    assert.ok(out.node.revision > beforeRelease, "release advances the global high-water");
 
     const s = await readState(dir);
     assert.equal(s.nodes["T-auth-1"].claim, null);
@@ -330,6 +330,7 @@ test("v2-resolve: gate resolve — --choice and --rationale required, status=res
   const dir = await v2Project();
   try {
     await addGate(dir, "G-auth-v2");
+    const beforeResolve = (await readState(dir)).nodes["G-auth-v2"].revision;
     const out = await resolve({
       statePath: dir,
       flags: { as: "test-agent", choice: "opaque sessions", rationale: "immediate revocation" },
@@ -338,7 +339,7 @@ test("v2-resolve: gate resolve — --choice and --rationale required, status=res
     assert.equal(out.node.status, "resolved");
     assert.equal(out.node.resolution.choice, "opaque sessions");
     assert.equal(out.node.resolution.rationale, "immediate revocation");
-    assert.equal(out.node.revision, 2);
+    assert.ok(out.node.revision > beforeResolve, "resolve advances the global high-water");
     assert.deepEqual(out.newly_ready, []);
 
     const s = await readState(dir);
@@ -422,6 +423,7 @@ test("v2-reopen: original done_by can reopen a done task; status -> open, claim 
       accepted_by: "auditor",
       accepted_at: "2026-08-31T07:01:00.000Z",
     });
+    const beforeReopen = (await readState(dir)).nodes["T-auth-1"].revision;
 
     const out = await reopen({
       statePath: dir,
@@ -436,7 +438,7 @@ test("v2-reopen: original done_by can reopen a done task; status -> open, claim 
     assert.equal(out.node.submitted_at, null);
     assert.equal(out.node.accepted_by, null);
     assert.equal(out.node.accepted_at, null);
-    assert.equal(out.node.revision, 5);
+    assert.ok(out.node.revision > beforeReopen, "reopen advances the global high-water");
 
     const s = await readState(dir);
     const last = s.log.at(-1);
@@ -593,6 +595,7 @@ test("v2-cancel: in_progress + claim owner => status=canceled, claim cleared, lo
   try {
     await addTask(dir, "T-auth-1");
     await take(dir, "alice");
+    const beforeCancel = (await readState(dir)).nodes["T-auth-1"].revision;
     const out = await cancel({
       statePath: dir,
       flags: { as: "alice", reason: "out of scope" },
@@ -600,7 +603,7 @@ test("v2-cancel: in_progress + claim owner => status=canceled, claim cleared, lo
     });
     assert.equal(out.node.status, "canceled");
     assert.equal(out.node.claim, null);
-    assert.equal(out.node.revision, 3);
+    assert.ok(out.node.revision > beforeCancel, "cancel advances the global high-water");
 
     const s = await readState(dir);
     const last = s.log.at(-1);

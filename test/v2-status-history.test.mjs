@@ -394,6 +394,7 @@ test("deprecate-knowledge: happy path sets fields, bumps revision, logs", async 
   try {
     await bootstrapV2(dir);
     await addKnowledge(dir, "K-1", { title: "Foo", domain: "auth" });
+    const revisionBeforeDeprecate = (await readRawState(dir)).nodes["K-1"].revision;
 
     const out = await v2Deprecate(dir, "K-1", { reason: "obsolete after rollout", as: "alice" });
     assert.equal(out.node.id, "K-1");
@@ -402,7 +403,7 @@ test("deprecate-knowledge: happy path sets fields, bumps revision, logs", async 
     assert.equal(out.node.deprecated_by, "alice");
     assert.equal(typeof out.node.deprecated_at, "string");
     assert.ok(out.node.deprecated_at.endsWith("Z") || out.node.deprecated_at.includes("T"), "ISO timestamp");
-    assert.equal(out.node.revision, 2);
+    assert.equal(out.node.revision, revisionBeforeDeprecate + 1);
 
     const state = await readRawState(dir);
     const lastLog = state.log[state.log.length - 1];

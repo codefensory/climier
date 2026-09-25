@@ -1136,7 +1136,7 @@ test("api.core.run: task.create dispatches through the kernel with actor fixed f
     assert.equal(out.result.id, "T-from-core", "explicit id is propagated to the provider");
     assert.equal(out.diff.created[0].id, "T-from-core", "diff reflects the created id");
     assert.equal(out.diff.created[0].node.id, "T-from-core");
-    assert.equal(out.diff.created[0].node.revision, 1, "kernel assigns revision=1 on create");
+    assert.equal(out.diff.created[0].node.revision, (await readRawState(dir)).revision, "create receives the global high-water revision");
     const after = await readRawState(dir);
     assert.ok(after.nodes["T-from-core"], "task.create created the node");
     // The plugin's identity is not in the log entry's agent: the kernel
@@ -1344,7 +1344,8 @@ test("api.core.run: task.update dispatches through the kernel with explicit CAS 
         blocked_by: "",
       },
     });
-    assert.equal(created.diff.created[0].node.revision, 1, "kernel assigned revision=1 to the seed task");
+    const seedRevision = created.diff.created[0].node.revision;
+    assert.equal(seedRevision, (await readRawState(dir)).revision, "seed task carries the global high-water");
     // Now patch its title via task.update. CAS is mandatory: pass
     // `changes` and `if_revision` from the seeded revision.
     const updated = await api.core.run({
@@ -1352,15 +1353,15 @@ test("api.core.run: task.update dispatches through the kernel with explicit CAS 
       input: {
         id: "T-parity-update",
         changes: { title: "after" },
-        if_revision: 1,
+        if_revision: seedRevision,
       },
     });
     assert.equal(updated.result.title, "after", "merged node projection reflects the patch");
-    assert.equal(updated.diff.updated[0].node.revision, 2, "task.update bumps revision by exactly 1");
+    assert.equal(updated.diff.updated[0].node.revision, seedRevision + 1, "task.update advances the global revision");
     assert.equal(updated.diff.updated[0].id, "T-parity-update");
     const after = await readRawState(dir);
     assert.equal(after.nodes["T-parity-update"].title, "after");
-    assert.equal(after.nodes["T-parity-update"].revision, 2);
+    assert.equal(after.nodes["T-parity-update"].revision, seedRevision + 1);
   } finally {
     await rmTempProject(dir);
   }
@@ -1374,7 +1375,7 @@ test("api.core.run: task.update log entry carries plugin_id (kernel routes plugi
   const dir = await readyProject();
   try {
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
-    await api.core.run({
+    const created = await api.core.run({
       op: "task.create",
       input: {
         id: "T-parity-update-log",
@@ -1390,7 +1391,7 @@ test("api.core.run: task.update log entry carries plugin_id (kernel routes plugi
       input: {
         id: "T-parity-update-log",
         changes: { title: "y" },
-        if_revision: 1,
+        if_revision: created.diff.created[0].node.revision,
       },
     });
     assert.ok(updated.log_entry, "kernel surfaces the update log entry on the typed envelope");
@@ -1589,13 +1590,13 @@ test("api.core.run: gate.create dispatches through the kernel and surfaces the t
     // Kernel-stamped revision lives on diff.created[0].node.
     assert.equal(out.diff.created[0].id, "G-parity-create");
     assert.equal(out.diff.created[0].node.id, "G-parity-create");
-    assert.equal(out.diff.created[0].node.revision, 1, "kernel assigns revision=1 on create");
+    assert.equal(out.diff.created[0].node.revision, (await readRawState(dir)).revision, "create receives the global high-water revision");
     assert.equal(out.diff.created[0].node.subkind, "gate");
     assert.equal(out.diff.created[0].node.purpose, "decision");
     const after = await readRawState(dir);
     assert.ok(after.nodes["G-parity-create"], "gate is in state");
     assert.equal(after.nodes["G-parity-create"].subkind, "gate");
-    assert.equal(after.nodes["G-parity-create"].revision, 1, "persisted revision matches the kernel diff");
+    assert.equal(after.nodes["G-parity-create"].revision, out.diff.created[0].node.revision, "persisted revision matches the kernel diff");
     const lastPluginLog = after.log.filter((e) => e.plugin_id === "example.audit").pop();
     assert.ok(lastPluginLog, "log entry tagged with plugin_id");
     assert.equal(lastPluginLog.agent, "alice", "agent reflects api.runtime.agent, not plugin id");
@@ -1669,7 +1670,8 @@ test("api.core.run: gate.resolve dispatches through the kernel and stores resolu
         purpose: "decision",
       },
     });
-    assert.equal(created.diff.created[0].node.revision, 1, "kernel assigned revision=1 to the seeded gate");
+    const seedRevision = created.diff.created[0].node.revision;
+    assert.equal(seedRevision, (await readRawState(dir)).revision, "seed gate carries the global high-water");
     const out = await api.core.run({
       op: "gate.resolve",
       input: {
@@ -1688,7 +1690,7 @@ test("api.core.run: gate.resolve dispatches through the kernel and stores resolu
     );
     // Kernel-stamped post-state lives on diff.updated[0].node.
     assert.equal(out.diff.updated[0].id, "G-parity-resolve");
-    assert.equal(out.diff.updated[0].node.revision, 2, "kernel bumps revision by exactly 1 on resolve");
+    assert.equal(out.diff.updated[0].node.revision, seedRevision + 1, "resolve advances the global revision");
     assert.equal(out.diff.updated[0].node.status, "resolved");
     assert.deepEqual(out.diff.updated[0].node.resolution, {
       choice: "approve V2",
@@ -1705,7 +1707,7 @@ test("api.core.run: gate.resolve dispatches through the kernel and stores resolu
       choice: "approve V2",
       rationale: "ADR-006 defines it; parity closes the surface",
     });
-    assert.equal(after.nodes["G-parity-resolve"].revision, 2, "persisted revision matches the kernel diff");
+    assert.equal(after.nodes["G-parity-resolve"].revision, seedRevision + 1, "persisted revision matches the kernel diff");
     const lastPluginLog = after.log
       .filter((e) => e.plugin_id === "example.audit" && e.action === "gate.resolve")
       .pop();
@@ -1783,7 +1785,7 @@ test("api.core.run: gate.reopen and gate.cancel roll back or terminate gates wit
     const apiAlice = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
     const apiAdmin = await freshApi(dir, { agent: "release-admin", pluginId: "example.audit" });
     // Resolve path (reopen must follow resolve).
-    await apiAlice.core.run({
+    const reopenCreated = await apiAlice.core.run({
       op: "gate.create",
       input: {
         id: "G-parity-reopen",
@@ -1809,8 +1811,8 @@ test("api.core.run: gate.reopen and gate.cancel roll back or terminate gates wit
     assert.equal(reopened.diff.updated[0].id, "G-parity-reopen");
     assert.equal(
       reopened.diff.updated[0].node.revision,
-      3,
-      "kernel bumps revision by exactly 1 on reopen (was 2 after resolve)",
+      reopenCreated.diff.created[0].node.revision + 2,
+      "reopen advances beyond create and resolve revisions",
     );
     assert.equal(reopened.diff.updated[0].node.status, "open");
     assert.equal(reopened.diff.updated[0].node.resolution, null, "kernel-stamped post-state has resolution=null");
@@ -1823,7 +1825,7 @@ test("api.core.run: gate.reopen and gate.cancel roll back or terminate gates wit
     // Cancel path on a fresh open gate: gates are not claimable and
     // under ADR-009 any actor may cancel them. The policy-fixture is
     // kept to also cover the seam allow branch.
-    await apiAlice.core.run({
+    const cancelCreated = await apiAlice.core.run({
       op: "gate.create",
       input: {
         id: "G-parity-cancel",
@@ -1844,8 +1846,8 @@ test("api.core.run: gate.reopen and gate.cancel roll back or terminate gates wit
     assert.equal(canceled.diff.updated[0].id, "G-parity-cancel");
     assert.equal(
       canceled.diff.updated[0].node.revision,
-      2,
-      "kernel bumps revision by exactly 1 on cancel (seed was revision=1)",
+      cancelCreated.diff.created[0].node.revision + 1,
+      "cancel advances beyond the created gate revision",
     );
     assert.equal(canceled.diff.updated[0].node.status, "canceled");
     assert.ok(canceled.log_entry, "typed envelope carries log_entry");
@@ -1857,9 +1859,9 @@ test("api.core.run: gate.reopen and gate.cancel roll back or terminate gates wit
     const after = await readRawState(dir);
     assert.equal(after.nodes["G-parity-reopen"].status, "open", "persisted reopened status is open");
     assert.equal(after.nodes["G-parity-reopen"].resolution, null, "persisted resolution cleared by reopen");
-    assert.equal(after.nodes["G-parity-reopen"].revision, 3);
+    assert.equal(after.nodes["G-parity-reopen"].revision, reopened.diff.updated[0].node.revision);
     assert.equal(after.nodes["G-parity-cancel"].status, "canceled", "persisted cancel status is canceled");
-    assert.equal(after.nodes["G-parity-cancel"].revision, 2);
+    assert.equal(after.nodes["G-parity-cancel"].revision, canceled.diff.updated[0].node.revision);
     const reopenLogs = after.log.filter(
       (e) => e.action === "gate.reopen" && e.node === "G-parity-reopen",
     );
@@ -1912,7 +1914,7 @@ test("api.core.run: knowledge.create dispatches to add-knowledge (requires --sco
     assert.equal(created.id, "K-parity-create");
     assert.equal(created.kind, "knowledge");
     assert.equal(created.status, "active");
-    assert.equal(created.revision, 1, "kernel stamps revision=1 on create");
+    assert.equal(created.revision, (await readRawState(dir)).revision, "kernel assigns the global high-water on create");
     assert.deepEqual(created.scope.tags, ["api", "recovery"], "scope.tags echoes the input");
     // Log entry: kernel stamps action, plugin_id, agent.
     assert.ok(out.log_entry, "typed envelope carries log_entry");
@@ -1924,7 +1926,7 @@ test("api.core.run: knowledge.create dispatches to add-knowledge (requires --sco
     const persisted = after.nodes["K-parity-create"];
     assert.equal(persisted.status, "active", "persisted status is active");
     assert.deepEqual(persisted.scope.tags, ["api", "recovery"], "scope.tags persisted");
-    assert.equal(persisted.revision, 1, "persisted revision is 1");
+    assert.equal(persisted.revision, created.revision, "persisted revision matches the create result");
     const pluginLogs = after.log.filter((e) => e.plugin_id === "example.audit");
     const lastPluginLog = pluginLogs[pluginLogs.length - 1];
     assert.equal(lastPluginLog.action, "knowledge.create", "persisted log action is the op id");
@@ -1974,7 +1976,7 @@ test("api.core.run: knowledge.deprecate sets status='deprecated' on an active kn
   const dir = await readyProject();
   try {
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
-    await api.core.run({
+    const created = await api.core.run({
       op: "knowledge.create",
       input: {
         id: "K-parity-deprecate",
@@ -2003,7 +2005,7 @@ test("api.core.run: knowledge.deprecate sets status='deprecated' on an active kn
     assert.equal(updated.deprecated_by, "alice", "deprecated_by echoes api.runtime.agent");
     assert.equal(updated.deprecation_reason, "superseded by ADR-007");
     assert.equal(typeof updated.deprecated_at, "string", "deprecated_at is an ISO string");
-    assert.equal(updated.revision, 2, "kernel bumps revision on update");
+    assert.equal(updated.revision, created.diff.created[0].node.revision + 1, "deprecate advances the global revision");
     // Log entry: kernel stamps action, plugin_id, agent.
     assert.ok(out.log_entry, "typed envelope carries log_entry");
     assert.equal(out.log_entry.action, "knowledge.deprecate");
@@ -2015,7 +2017,7 @@ test("api.core.run: knowledge.deprecate sets status='deprecated' on an active kn
     assert.equal(persisted.status, "deprecated", "persisted status is deprecated");
     assert.equal(persisted.deprecated_by, "alice");
     assert.equal(persisted.deprecation_reason, "superseded by ADR-007");
-    assert.equal(persisted.revision, 2, "persisted revision is 2");
+    assert.equal(persisted.revision, updated.revision, "persisted revision matches the update result");
     const deprecateLogs = after.log.filter(
       (e) => e.plugin_id === "example.audit" && e.action === "knowledge.deprecate",
     );
@@ -2045,7 +2047,9 @@ test("api.core.run: knowledge.deprecate without --reason is rejected by the adap
         scope: { tags: ["api", "recovery"] },
       },
     });
-    const beforeLogCount = (await readRawState(dir)).log.length;
+    const before = await readRawState(dir);
+    const beforeLogCount = before.log.length;
+    const beforeRevision = before.nodes["K-parity-dep-noreason"].revision;
     await assert.rejects(
       api.core.run({ op: "knowledge.deprecate", input: { id: "K-parity-dep-noreason" } }),
       (err) =>
@@ -2061,7 +2065,7 @@ test("api.core.run: knowledge.deprecate without --reason is rejected by the adap
     const after = await readRawState(dir);
     const persisted = after.nodes["K-parity-dep-noreason"];
     assert.equal(persisted.status, "active", "node remains active after rejected deprecate");
-    assert.equal(persisted.revision, 1, "node revision unchanged after rejected deprecate");
+    assert.equal(persisted.revision, beforeRevision, "node revision unchanged after rejected deprecate");
     assert.equal(
       after.log.length,
       beforeLogCount,

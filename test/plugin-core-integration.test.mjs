@@ -88,7 +88,7 @@ test("plugin-core-integration: full first slice leaves intact state and logs wit
     assert.equal(created.result.kind, "resolvable");
     assert.equal(created.result.subkind, "task");
     assert.equal(created.diff.created[0].node.id, "T-core-1");
-    assert.equal(created.diff.created[0].node.revision, 1);
+    assert.equal(created.diff.created[0].node.revision, (await readState(dir)).revision);
     assert.equal(created.log_entry.action, "task.create");
     assert.equal(created.log_entry.agent, "alice");
     assert.equal(created.log_entry.plugin_id, "example.core");
@@ -128,7 +128,7 @@ test("plugin-core-integration: full first slice leaves intact state and logs wit
     assert.ok(taken && taken.result && taken.diff && taken.log_entry);
     assert.equal(taken.result.claim && taken.result.claim.by, "alice");
     assert.equal(taken.result.freshly_claimed, true);
-    assert.equal(taken.diff.updated[0].node.revision, 2);
+    assert.equal(taken.diff.updated[0].node.revision, (await readState(dir)).revision);
     assert.equal(taken.log_entry.action, "task.take");
     assert.equal(taken.log_entry.agent, "alice");
     assert.equal(taken.log_entry.plugin_id, "example.core");
@@ -141,7 +141,7 @@ test("plugin-core-integration: full first slice leaves intact state and logs wit
     assert.ok(submitted && submitted.result && submitted.diff && submitted.log_entry);
     assert.equal(submitted.result.status, "submitted");
     assert.equal(submitted.result.note, "shipped via core.run");
-    assert.equal(submitted.diff.updated[0].node.revision, 3);
+    assert.equal(submitted.diff.updated[0].node.revision, (await readState(dir)).revision);
     assert.equal(submitted.log_entry.action, "task.submit");
     assert.equal(submitted.log_entry.agent, "alice");
     assert.equal(submitted.log_entry.plugin_id, "example.core");
@@ -155,7 +155,7 @@ test("plugin-core-integration: full first slice leaves intact state and logs wit
     assert.equal(accepted.result.status, "done");
     assert.equal(accepted.result.done_by, "alice");
     assert.deepEqual(accepted.effects, { newly_ready: ["T-core-2"] });
-    assert.equal(accepted.diff.updated[0].node.revision, 4);
+    assert.equal(accepted.diff.updated[0].node.revision, (await readState(dir)).revision);
     assert.equal(accepted.log_entry.action, "task.accept");
     assert.equal(accepted.log_entry.agent, "alice");
     assert.equal(accepted.log_entry.plugin_id, "example.core");
@@ -171,7 +171,7 @@ test("plugin-core-integration: full first slice leaves intact state and logs wit
     });
     assert.ok(noted && noted.result && noted.diff && noted.log_entry);
     assert.equal(noted.result.notes_count, 1);
-    assert.equal(noted.diff.updated[0].node.revision, 2);
+    assert.equal(noted.diff.updated[0].node.revision, (await readState(dir)).revision);
     assert.equal(noted.log_entry.action, "note.add");
     assert.equal(noted.log_entry.agent, "alice");
     assert.equal(noted.log_entry.plugin_id, "example.core");
@@ -433,8 +433,11 @@ test("plugin-core-integration: two plugins calling core.run in parallel land bot
     ]);
     assert.equal(outA.result.id, "T-A");
     assert.equal(outB.result.id, "T-B");
-    assert.equal(outA.diff.created[0].node.revision, 1);
-    assert.equal(outB.diff.created[0].node.revision, 1);
+    assert.deepEqual(
+      [outA.diff.created[0].node.revision, outB.diff.created[0].node.revision].sort((a, b) => a - b),
+      [2, 3],
+      "parallel creates receive distinct, increasing global revisions",
+    );
     assert.equal(outA.log_entry.action, "task.create");
     assert.equal(outB.log_entry.action, "task.create");
     const after = await readState(dir);
