@@ -227,6 +227,74 @@ test("backend client refuses to send a bearer token when origin binding is absen
   assert.equal(requests, 0);
 });
 
+test("backend client allows opt-in remote HTTP only with exact origin binding", async () => {
+  const previousOptIn = process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP;
+  const previousFetch = globalThis.fetch;
+  const requested = [];
+  process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP = "true";
+  globalThis.fetch = async (url, options) => {
+    requested.push({ url, options });
+    return {
+      ok: true,
+      status: 200,
+      headers: { get: (name) => name === "x-climier-protocol-version" ? "1" : null },
+      json: async () => ({ ok: true, result: { status: "ok" } }),
+    };
+  };
+  try {
+    const httpUrl = "http://internal.example.test:4312";
+    const client = createBackendClient({
+      projectDir: "/project",
+      projectConfig: { project_id: "remote-project", backend: { type: "remote", url: httpUrl } },
+      token: "internal-token",
+      remoteOrigin: new URL(httpUrl).origin,
+    });
+
+    assert.equal(client.type, "remote");
+    assert.equal(client.insecureRemoteHttp, true);
+    assert.deepEqual(await client.readStatus(), { status: "ok" });
+    assert.equal(requested.length, 1);
+    assert.equal(requested[0].url, "http://internal.example.test:4312/v1/projects/remote-project/read/status");
+    assert.equal(requested[0].options.headers.authorization, "Bearer internal-token");
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousOptIn === undefined) delete process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP;
+    else process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP = previousOptIn;
+  }
+});
+
+test("backend client rejects remote HTTP with missing or inexact opt-in and never requests", async () => {
+  const previousOptIn = process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP;
+  const previousFetch = globalThis.fetch;
+  let requests = 0;
+  globalThis.fetch = async () => {
+    requests += 1;
+    throw new Error("remote HTTP must be rejected before a request");
+  };
+  try {
+    for (const value of [undefined, "false", "TRUE", "true "]) {
+      if (value === undefined) delete process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP;
+      else process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP = value;
+      assert.throws(() => createBackendClient({
+        projectDir: "/project",
+        projectConfig: { project_id: "remote-project", backend: { type: "remote", url: "http://internal.example.test" } },
+      }), /backend config: remote url must use HTTPS outside localhost/);
+    }
+    process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP = "true";
+    const client = createBackendClient({
+      projectDir: "/project",
+      projectConfig: { project_id: "remote-project", backend: { type: "remote", url: "http://internal.example.test" } },
+      token: "internal-token",
+    });
+    await assert.rejects(client.readStatus(), (error) => error.code === "REMOTE_ORIGIN_NOT_APPROVED");
+    assert.equal(requests, 0);
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousOptIn === undefined) delete process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP;
+    else process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP = previousOptIn;
+  }
+});
+
 test("backend client maps all typed reads to v1 routes and preserves filter values", async () => {
   const requests = [];
   await withServer(async (request, response) => {

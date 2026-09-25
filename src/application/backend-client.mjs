@@ -364,7 +364,11 @@ export function createBackendClient({
     remoteOrigin,
     timeoutMs,
   });
-  return Object.freeze({ type: "remote", ...transport });
+  return Object.freeze({
+    type: "remote",
+    insecureRemoteHttp: backend.insecureRemoteHttp === true,
+    ...transport,
+  });
 }
 
 export default createBackendClient;

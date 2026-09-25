@@ -60,11 +60,9 @@ function parseRemoteUrl(value) {
   if (!url.hostname || url.username || url.password || url.search || url.hash) {
     fail("credentials must be provided outside .climier.json");
   }
-  if (url.protocol === "http:" && !isLoopback(url.hostname)) {
-    fail("remote url must use HTTPS outside localhost");
-  }
+  const insecureRemoteHttp = url.protocol === "http:" && !isLoopback(url.hostname);
 
-  return url.toString();
+  return { url: url.toString(), insecureRemoteHttp };
 }
 
 /** Parse backend selection from project metadata without exposing credentials. */
@@ -92,5 +90,11 @@ export function parseBackendConfig(config = {}) {
   if (backend.type !== "remote") fail("unsupported type");
   if (!Object.hasOwn(backend, "url")) fail("remote url is required");
 
-  return { type: "remote", url: parseRemoteUrl(backend.url) };
+  const parsedUrl = parseRemoteUrl(backend.url);
+  const result = { type: "remote", url: parsedUrl.url };
+  if (parsedUrl.insecureRemoteHttp && process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP !== "true") {
+    fail("remote url must use HTTPS outside localhost");
+  }
+  if (parsedUrl.insecureRemoteHttp) result.insecureRemoteHttp = true;
+  return result;
 }
