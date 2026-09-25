@@ -202,6 +202,25 @@ function createRemoteTransport({ backend, projectId, token, remoteOrigin, timeou
     init() {
       return request({ method: "POST", route: "init", body: {} });
     },
+    exportTransfer() {
+      return request({ method: "POST", route: "transfer/export", body: {} });
+    },
+    async importTransfer({ payload, actor, overwrite = false } = {}) {
+      try {
+        return await request({
+          method: "POST",
+          route: "transfer/import",
+          body: { payload, actor, overwrite },
+        });
+      } catch (error) {
+        if (error.code !== "REMOTE_TIMEOUT") throw error;
+        throw clientError(
+          "TRANSFER_OUTCOME_UNKNOWN",
+          "application.backendClient: push timed out after the server may have applied the transfer",
+          { applied: "unknown", timeout_ms: timeoutMs },
+        );
+      }
+    },
     readStatus(options = {}) {
       const method = "readStatus";
       readOptions(method, options, ["initiative", "kind", "status", "domain", "claimedBy", "staleMs", "limit", "all", "as"]);

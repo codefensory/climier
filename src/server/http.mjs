@@ -9,6 +9,7 @@ import {
   PUBLIC_TASK_OPS,
 } from "../application/operations/builtins.mjs";
 import { mutate } from "../kernel/mutate.mjs";
+import { captureTransferSource, installTransferDestination } from "../kernel/transfer.mjs";
 import {
   blockingForNode,
   derive,
@@ -78,6 +79,7 @@ const ALLOWED_INPUT_FIELDS = Object.freeze({
 const ALLOWED_TOP_LEVEL_FIELDS = new Set(["operation", "input", "actor"]);
 const BATCH_TOP_LEVEL_FIELDS = new Set(["operations", "if_state_revision"]);
 const BATCH_OPERATION_FIELDS = new Set(["op", "input"]);
+const TRANSFER_PAYLOAD_FIELDS = new Set(["version", "revision", "nodes", "edges", "initiatives", "log"]);
 
 function httpError(code, message, details, status) {
   const error = new Error(message);
@@ -96,7 +98,7 @@ function errorStatus(error) {
   if (code === "OPERATION_NOT_FOUND") return 404;
   if (code === "INVALID_PROJECT_ID") return 400;
   if (code === "NODE_NOT_FOUND" || code === "INITIATIVE_NOT_FOUND") return 404;
-  if (code === "ID_CONFLICT" || code === "REVISION_CONFLICT" || code === "STATE_REVISION_CONFLICT" || code === "STATE_ALREADY_INITIALIZED") return 409;
+  if (code === "ID_CONFLICT" || code === "REVISION_CONFLICT" || code === "STATE_REVISION_CONFLICT" || code === "STATE_ALREADY_INITIALIZED" || code === "CLIMIER_TRANSFER_DESTINATION_NOT_PRISTINE" || code === "CLIMIER_TRANSFER_PLUGIN_DATA") return 409;
   if (code === "INVALID_NAME" || code === "MISSING_FIELD" || code === "INVALID_EDGE_TARGET" || code === "INVALID_EDGE_KIND" || code === "SELF_EDGE" || code === "DUPLICATE_EDGE" || code === "NOT_READY" || code === "INVALID_STATUS") return 422;
   if (code === "CLIMIER_INCOMPATIBLE_VERSION" || code === "STATE_V1_UNSUPPORTED") return 409;
   if (typeof code === "string" && (code.startsWith("MISSING_") || code.startsWith("INVALID_") || code.startsWith("SELF_") || code.startsWith("DUPLICATE_") || code.startsWith("NOT_READY"))) return 422;
@@ -163,6 +165,48 @@ async function readJsonBody(request) {
   } catch {
     throw httpError("INVALID_JSON", "server http: request body must be valid JSON", undefined, 400);
   }
+}
+
+function validateTransferRequest(body, route) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    throw httpError("INVALID_REQUEST", "server http: transfer request must be a JSON object", { field: "body" }, 400);
+  }
+  const allowed = route === "transfer/export" ? new Set() : new Set(["payload", "actor", "overwrite"]);
+  for (const field of Object.keys(body)) {
+    if (!allowed.has(field)) {
+      throw httpError("INVALID_REQUEST", `server http: transfer field '${field}' is not allowed`, { field }, 400);
+    }
+  }
+  if (route === "transfer/export") return body;
+  if (typeof body.actor !== "string" || !body.actor.trim()) {
+    throw httpError("INVALID_REQUEST", "server http: transfer actor is required", { field: "actor" }, 400);
+  }
+  if (!Object.hasOwn(body, "payload")) {
+    throw httpError("INVALID_REQUEST", "server http: transfer payload is required", { field: "payload" }, 400);
+  }
+  if (body.overwrite !== undefined && typeof body.overwrite !== "boolean") {
+    throw httpError("INVALID_REQUEST", "server http: transfer overwrite must be boolean", { field: "overwrite" }, 400);
+  }
+  const payload = body.payload;
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    throw httpError("INVALID_REQUEST", "server http: transfer payload must be an object", { field: "payload" }, 400);
+  }
+  for (const field of Object.keys(payload)) {
+    if (!TRANSFER_PAYLOAD_FIELDS.has(field)) {
+      throw httpError("INVALID_REQUEST", `server http: transfer payload field '${field}' is not allowed`, { field: `payload.${field}` }, 400);
+    }
+  }
+  for (const field of TRANSFER_PAYLOAD_FIELDS) {
+    if (!Object.hasOwn(payload, field)) {
+      throw httpError("INVALID_REQUEST", `server http: transfer payload field '${field}' is required`, { field: `payload.${field}` }, 400);
+    }
+  }
+  if (payload.version !== 4 || !payload.nodes || typeof payload.nodes !== "object" || Array.isArray(payload.nodes)
+      || !Array.isArray(payload.edges) || !payload.initiatives || typeof payload.initiatives !== "object"
+      || Array.isArray(payload.initiatives) || !Array.isArray(payload.log)) {
+    throw httpError("INVALID_REQUEST", "server http: transfer payload has an invalid snapshot shape", { field: "payload" }, 400);
+  }
+  return body;
 }
 
 function validateOperationRequest(body) {
@@ -614,8 +658,9 @@ export function createRemoteApiServer({
       if (!route) throw httpError("ROUTE_NOT_FOUND", "server http: route was not found", undefined, 404);
       const operationRoute = route.route === "operations" && request.method === "POST";
       const initRoute = route.route === "init" && request.method === "POST";
+      const transferRoute = new Set(["transfer/export", "transfer/import"]).has(route.route) && request.method === "POST";
       const read = request.method === "GET" ? readRoute(route.route) : null;
-      if (!read && !operationRoute && !initRoute) {
+      if (!read && !operationRoute && !initRoute && !transferRoute) {
         if (route.route.startsWith("files/") || route.route === "snapshot" || route.route === "read/snapshot") {
           throw httpError("ROUTE_NOT_FOUND", "server http: generic file and snapshot routes are not available", undefined, 404);
         }
@@ -623,6 +668,7 @@ export function createRemoteApiServer({
       }
       let body = null;
       if (operationRoute) body = validateOperationRequest(await readJsonBody(request));
+      if (transferRoute) body = validateTransferRequest(await readJsonBody(request), route.route);
       if (initRoute) {
         body = await readJsonBody(request);
         if (!body || typeof body !== "object" || Array.isArray(body)) {
@@ -647,6 +693,20 @@ export function createRemoteApiServer({
       });
       if (!project || typeof project.projectDir !== "string") {
         throw httpError("PROJECT_OPEN_FAILED", "server http: project opener did not return a projectDir", undefined, 500);
+      }
+
+      if (transferRoute) {
+        const result = route.route === "transfer/export"
+          ? await captureTransferSource({ sourceProjectDir: project.projectDir })
+          : await installTransferDestination({
+            destinationProjectDir: project.projectDir,
+            payload: body.payload,
+            actor: body.actor,
+            direction: "push",
+            overwrite: body.overwrite === true,
+          });
+        send(response, 200, { ok: true, result });
+        return;
       }
 
       if (initRoute) {
