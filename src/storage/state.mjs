@@ -97,8 +97,16 @@ export function assertStateVersion(state, version, commandName) {
 }
 
 export async function readState(projectDir) {
+  const file = stateFile(projectDir);
+  let raw;
   try {
-    const raw = await fs.readFile(stateFile(projectDir), "utf8");
+    raw = await fs.readFile(file, "utf8");
+  } catch (err) {
+    if (err.code === "ENOENT") return null;
+    throw err;
+  }
+
+  try {
     const state = JSON.parse(raw);
     // v1 states are no longer supported. Surface a structured error so the
     // caller (CLI entry or init) can guide the user through manual
@@ -112,21 +120,52 @@ export async function readState(projectDir) {
         "4. Recreate each node with add-initiative / add-task / add-gate / add-knowledge (see `climier --help` for the v3 surface).",
       ];
       const wrapped = new Error(
-        `state: file at ${stateFile(projectDir)} has version 1; this version of climier no longer supports the v1 schema. ` +
+        `state: file at ${file} has version 1; this version of climier no longer supports the v1 schema. ` +
         `To migrate, follow these steps:\n${migrationSteps.join("\n")}`,
       );
       wrapped.code = "STATE_V1_UNSUPPORTED";
       wrapped.details = {
-        file: stateFile(projectDir),
+        file,
         version: 1,
         migration_steps: migrationSteps,
         hint: "Run `climier init --force` to overwrite the v1 state with a fresh v3 state (this will erase the v1 data).",
       };
       throw wrapped;
     }
+    // An object carrying only the version marker is still an unsupported shape,
+    // not a fenced state. Keep the legacy forward-compatibility error for this
+    // malformed fixture; complete v5 states are validated by the ledger reader.
+    if (state && typeof state === "object" && state.version === FENCED_STATE_VERSION
+        && !Number.isInteger(state.fence_generation)) {
+      const wrapped = new Error(`state: file at ${file} has version ${state.version} but this climier requires a fenced state`);
+      wrapped.code = "CLIMIER_INCOMPATIBLE_VERSION";
+      throw wrapped;
+    }
+    // Load the ledger reader only after this module has initialized. ledger.mjs
+    // imports stateFile/migrateState from this module, so a static reverse import
+    // would create an initialization cycle. The reader owns its single lock and
+    // validates/recoveries the v5 state against the durable project ledger.
+    if (state && typeof state === "object" && state.version === FENCED_STATE_VERSION) {
+      const { readFencedState } = await import("./ledger.mjs");
+      return await readFencedState(projectDir);
+    }
+    // A migration_pending ledger is durable before the legacy source is renamed
+    // to v5. Probe only for its existence here; readFencedState reopens and
+    // validates it under the lock before attempting exact-fingerprint recovery.
+    if (state && typeof state === "object" && [LEGACY_STATE_VERSION, PREVIOUS_STATE_VERSION, CURRENT_STATE_VERSION].includes(state.version)) {
+      const { ledgerFile, readFencedState } = await import("./ledger.mjs");
+      let hasLedger = true;
+      try {
+        await fs.access(ledgerFile(projectDir));
+      } catch (err) {
+        if (err.code === "ENOENT") hasLedger = false;
+        else throw err;
+      }
+      if (hasLedger) return await readFencedState(projectDir);
+    }
     // Forward-compatibility: surface a clear error if a future version is found.
-    if (state && typeof state === "object" && "version" in state && state.version > CURRENT_STATE_VERSION) {
-      const wrapped = new Error(`state: file at ${stateFile(projectDir)} has version ${state.version} but this climier only understands version ${CURRENT_STATE_VERSION}`);
+    if (state && typeof state === "object" && "version" in state && state.version > FENCED_STATE_VERSION) {
+      const wrapped = new Error(`state: file at ${file} has version ${state.version} but this climier only understands version ${FENCED_STATE_VERSION}`);
       wrapped.code = "CLIMIER_INCOMPATIBLE_VERSION";
       throw wrapped;
     }
@@ -134,9 +173,8 @@ export async function readState(projectDir) {
     if (migrated && typeof migrated === "object") validateStateInvariants(migrated, "state.read");
     return migrated;
   } catch (err) {
-    if (err.code === "ENOENT") return null;
     if (err instanceof SyntaxError) {
-      const wrapped = new Error(`state: file at ${stateFile(projectDir)} is corrupt or not valid JSON: ${err.message}`);
+      const wrapped = new Error(`state: file at ${file} is corrupt or not valid JSON: ${err.message}`);
       wrapped.code = "CLIMIER_CORRUPT_STATE";
       wrapped.cause = err;
       throw wrapped;
