@@ -44,7 +44,15 @@ export default async function init({ statePath, flags = {}, projectDir, pluginId
       throw error;
     }
     const result = await backendClient.init();
-    return { ok: true, seeded: result?.seeded ?? null, file: null };
+    const response = { ok: true, seeded: result?.seeded ?? null, file: null };
+    if (backendClient.insecureRemoteHttp === true) {
+      response.warnings = [{
+        kind: "insecure-remote-http",
+        severity: "warning",
+        message: "init: remote HTTP is enabled by CLIMIER_ALLOW_INSECURE_REMOTE_HTTP=true; bearer credentials are sent without transport encryption. Internal trusted networks only.",
+      }];
+    }
+    return response;
   }
 
   let actor;
