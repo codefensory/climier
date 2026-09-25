@@ -11,6 +11,7 @@ import {
   commitFencedStateUnderLock,
   ledgerFile,
   readFencedState,
+  readFencedStateUnderLock,
 } from "../src/storage/ledger.mjs";
 
 function preFenceState() {
@@ -57,6 +58,11 @@ async function commit(projectDir, candidate, options) {
     commitFencedStateUnderLock(lockContext, candidate, options));
 }
 
+async function readUnderLock(projectDir, options) {
+  return withLock(projectDir, (lockContext) =>
+    readFencedStateUnderLock(lockContext, options));
+}
+
 function sha256(raw) {
   return crypto.createHash("sha256").update(raw).digest("hex");
 }
@@ -76,6 +82,58 @@ test("lock context is opaque, active only for its project and invocation", async
   } finally {
     await rmTempProject(first);
     await rmTempProject(second);
+  }
+});
+
+test("fenced read rejects absent and forged capabilities before storage access", async () => {
+  await assert.rejects(readFencedStateUnderLock(null), { code: "CLIMIER_INVALID_LOCK_CONTEXT" });
+  await assert.rejects(readFencedStateUnderLock(new Proxy({}, {
+    get() { throw new Error("forged lock context must not be inspected"); },
+  })), { code: "CLIMIER_INVALID_LOCK_CONTEXT" });
+});
+
+test("fenced read requires an active capability and reads without reacquiring the held lock", async () => {
+  const first = await createTempProject();
+  const second = await createTempProject();
+  try {
+    await seedState(first);
+    const expected = await bootstrapFencedState(first);
+    let expiredContext;
+    await withLock(first, async (lockContext) => {
+      expiredContext = lockContext;
+      const result = await Promise.race([
+        readFencedStateUnderLock(lockContext),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("read reacquired the held lock")), 1000)),
+      ]);
+      assert.deepEqual(result, expected);
+    });
+    await assert.rejects(readFencedStateUnderLock(expiredContext), { code: "CLIMIER_INVALID_LOCK_CONTEXT" });
+    await withLock(second, async (lockContext) => {
+      await assert.rejects(readFencedStateUnderLock(lockContext), { code: "CLIMIER_LEDGER_MISSING" });
+    });
+  } finally {
+    await rmTempProject(first);
+    await rmTempProject(second);
+  }
+});
+
+test("fenced read rejects malformed, downgraded, generation, and revision-mismatched state", async (t) => {
+  const cases = [
+    ["degraded schema", (state) => ({ ...state, version: 4 })],
+    ["missing generation", (state) => {
+      const { fence_generation: _generation, ...degraded } = state;
+      return degraded;
+    }],
+    ["different generation", (state) => ({ ...state, fence_generation: state.fence_generation + 1 })],
+    ["different revision", (state) => ({ ...state, revision: state.revision + 1 })],
+  ];
+  for (const [label, alter] of cases) {
+    await t.test(label, async () => withProject(async (projectDir) => {
+      await seedState(projectDir);
+      const state = await bootstrapFencedState(projectDir);
+      await fs.writeFile(stateFile(projectDir), `${JSON.stringify(alter(state), null, 2)}\n`, "utf8");
+      await assert.rejects(readUnderLock(projectDir), { code: "CLIMIER_LEDGER_STATE_MISMATCH" });
+    }));
   }
 });
 
@@ -180,9 +238,9 @@ test("commit recovery resumes exact source or destination fingerprints idempoten
       assert.equal(pending.high_water_revision, candidate.revision);
       assert.equal(typeof pending.stage_id, "string");
 
-      const recovered = await readFencedState(projectDir);
+      const recovered = await readUnderLock(projectDir);
       assert.deepEqual(recovered, candidate);
-      assert.deepEqual(await readFencedState(projectDir), candidate);
+      assert.deepEqual(await readUnderLock(projectDir), candidate);
       const ledger = JSON.parse(await fs.readFile(ledgerFile(projectDir), "utf8"));
       const destinationRaw = await fs.readFile(stateFile(projectDir), "utf8");
       assert.equal(ledger.commit_pending, null);
@@ -201,7 +259,7 @@ test("commit recovery fails closed when state diverges from both pending fingerp
     const changed = { ...current, log: [...current.log, { action: "unrelated" }] };
     await fs.writeFile(stateFile(projectDir), `${JSON.stringify(changed, null, 2)}\n`, "utf8");
 
-    await assert.rejects(readFencedState(projectDir), { code: "CLIMIER_LEDGER_FINGERPRINT_MISMATCH" });
+    await assert.rejects(readUnderLock(projectDir), { code: "CLIMIER_LEDGER_FINGERPRINT_MISMATCH" });
     assert.ok(JSON.parse(await fs.readFile(ledgerFile(projectDir), "utf8")).commit_pending);
   });
 });
@@ -220,16 +278,19 @@ test("commit recovery fails closed when the durable ledger advances beyond the p
   });
 });
 
-test("commit pending recovery rejects a missing or altered durable stage", async () => {
-  await withProject(async (projectDir) => {
-    await seedState(projectDir);
-    const current = await bootstrapFencedState(projectDir);
-    await assert.rejects(commit(projectDir, nextCandidate(current), { faultAt: "after-pending" }), /injected failure/);
-    const ledger = JSON.parse(await fs.readFile(ledgerFile(projectDir), "utf8"));
-    const stage = path.join(path.dirname(stateFile(projectDir)), `.commit-stage-${ledger.commit_pending.stage_id}`);
-    await fs.writeFile(stage, "not the staged destination", "utf8");
+test("commit pending recovery rejects missing or altered durable stage without clearing pending", async (t) => {
+  for (const stageState of ["missing", "altered"]) {
+    await t.test(stageState, async () => withProject(async (projectDir) => {
+      await seedState(projectDir);
+      const current = await bootstrapFencedState(projectDir);
+      await assert.rejects(commit(projectDir, nextCandidate(current), { faultAt: "after-pending" }), /injected failure/);
+      const ledger = JSON.parse(await fs.readFile(ledgerFile(projectDir), "utf8"));
+      const stage = path.join(path.dirname(stateFile(projectDir)), `.commit-stage-${ledger.commit_pending.stage_id}`);
+      if (stageState === "altered") await fs.writeFile(stage, "not the staged destination", "utf8");
+      else await fs.unlink(stage);
 
-    await assert.rejects(readFencedState(projectDir), { code: "CLIMIER_LEDGER_FINGERPRINT_MISMATCH" });
-    assert.ok(JSON.parse(await fs.readFile(ledgerFile(projectDir), "utf8")).commit_pending);
-  });
+      await assert.rejects(readUnderLock(projectDir), { code: "CLIMIER_LEDGER_FINGERPRINT_MISMATCH" });
+      assert.ok(JSON.parse(await fs.readFile(ledgerFile(projectDir), "utf8")).commit_pending);
+    }));
+  }
 });
