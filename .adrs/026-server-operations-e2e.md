@@ -1,6 +1,6 @@
 # ADR-026: operación del servidor y prueba E2E remota
 
-- Gate: `G-remote-server-operations` · Deriva de: `G-remote-backend-rfc` · Estado: propuesto
+- Gate: `G-remote-server-operations` · Deriva de: `G-remote-backend-rfc` · Estado: aprobado
 - Fecha: 2026-09-25
 
 ## Contexto

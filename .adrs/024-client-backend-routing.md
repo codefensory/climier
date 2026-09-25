@@ -1,6 +1,6 @@
 # ADR-024: fachada cliente y routing estricto de backend
 
-- Gate: `G-remote-client-routing` · Deriva de: `G-remote-backend-rfc` · Estado: propuesto
+- Gate: `G-remote-client-routing` · Deriva de: `G-remote-backend-rfc` · Estado: aprobado
 - Fecha: 2026-09-25
 
 ## Contexto

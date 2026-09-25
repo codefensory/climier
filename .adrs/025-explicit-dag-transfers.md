@@ -1,6 +1,6 @@
 # ADR-025: transferencias completas explícitas push/pull
 
-- Gate: `G-remote-dag-transfers` · Deriva de: `G-remote-backend-rfc` · Estado: propuesto
+- Gate: `G-remote-dag-transfers` · Deriva de: `G-remote-backend-rfc` · Estado: aprobado
 - Fecha: 2026-09-25
 
 ## Contexto

@@ -1,6 +1,6 @@
 # ADR-022: API HTTP(S) tipada y autoridad del servidor remoto
 
-- Gate: `G-remote-api-service` · Deriva de: `G-remote-backend-rfc` · Estado: propuesto
+- Gate: `G-remote-api-service` · Deriva de: `G-remote-backend-rfc` · Estado: aprobado
 - Fecha: 2026-09-25
 
 ## Contexto
