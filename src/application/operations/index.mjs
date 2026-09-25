@@ -1,6 +1,7 @@
 // Public Application Operations boundary.
 export { default, executeOperation, executeBatch } from "./execute.mjs";
 export { default as createBackendClient, REMOTE_PROTOCOL_VERSION } from "../backend-client.mjs";
+export { default as createOperationBridge, SUPPORTED_OPERATION_IDS } from "./bridge.mjs";
 export {
   buildRegistry,
   ADMITTED_PROVIDER_KINDS,

@@ -97,8 +97,19 @@ function readQuery(options, mapping) {
   return serialized ? `?${serialized}` : "";
 }
 
-function createRemoteTransport({ backend, projectId, token, timeoutMs }) {
+function createRemoteTransport({ backend, projectId, token, remoteOrigin, timeoutMs }) {
   async function request({ method, route, body }) {
+    const url = remoteUrl({ baseUrl: backend.url, projectId, route });
+    if (token) {
+      const expectedOrigin = new URL(backend.url).origin;
+      if (remoteOrigin !== expectedOrigin || new URL(url).origin !== remoteOrigin) {
+        throw clientError(
+          "REMOTE_ORIGIN_NOT_APPROVED",
+          "application.backendClient: CLIMIER_REMOTE_ORIGIN must exactly match the configured backend origin before sending a bearer token",
+          { expected_origin: expectedOrigin },
+        );
+      }
+    }
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
     const headers = {
@@ -115,7 +126,7 @@ function createRemoteTransport({ backend, projectId, token, timeoutMs }) {
     try {
       let response;
       try {
-        response = await fetch(remoteUrl({ baseUrl: backend.url, projectId, route }), options);
+        response = await fetch(url, options);
       } catch (cause) {
         if (controller.signal.aborted) {
           throw clientError(
@@ -297,6 +308,7 @@ export function createBackendClient({
   projectConfig = {},
   source,
   token = process.env.CLIMIER_TOKEN,
+  remoteOrigin = process.env.CLIMIER_REMOTE_ORIGIN,
   timeoutMs = DEFAULT_TIMEOUT_MS,
 } = {}) {
   if (typeof projectDir !== "string" || projectDir.length === 0) {
@@ -327,6 +339,7 @@ export function createBackendClient({
     backend,
     projectId: projectConfig.project_id,
     token: token || null,
+    remoteOrigin,
     timeoutMs,
   });
   return Object.freeze({ type: "remote", ...transport });
