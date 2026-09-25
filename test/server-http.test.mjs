@@ -7,10 +7,12 @@ import path from "node:path";
 import { createRemoteApiServer } from "../src/server/http.mjs";
 import { createProjectCatalog } from "../src/server/catalog/index.mjs";
 import { initState } from "../src/kernel/state-operations.mjs";
-import "./helpers.mjs";
+import { runCli, writeState } from "./helpers.mjs";
 
 async function withApi(run) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "climier-server-http-"));
+  const previousHome = process.env.CLIMIER_HOME;
+  process.env.CLIMIER_HOME = path.join(root, "home");
   const projectIds = ["project-a", "project-b"];
   const catalog = createProjectCatalog({ dataRoot: path.join(root, "catalog"), projectIds });
   const projectDirs = await Promise.all(projectIds.map((id) => catalog.provisionProject(id)));
@@ -32,9 +34,11 @@ async function withApi(run) {
   const address = server.address();
   const baseUrl = `http://127.0.0.1:${address.port}`;
   try {
-    await run({ baseUrl, openCount: () => openCount });
+    await run({ baseUrl, openCount: () => openCount, projectDirs });
   } finally {
     await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    if (previousHome === undefined) delete process.env.CLIMIER_HOME;
+    else process.env.CLIMIER_HOME = previousHome;
     await fs.rm(root, { recursive: true, force: true });
   }
 }
@@ -54,6 +58,124 @@ async function operation(baseUrl, projectId, operation, input, actor = "alice") 
     body: JSON.stringify({ operation, input, actor }),
   });
 }
+
+function readApiState() {
+  return {
+    version: 4,
+    revision: 41,
+    initiatives: {
+      migration: { desc: "Migration initiative", created_at: "2025-01-01T00:00:00.000Z" },
+      empty: { desc: "Unused", created_at: "2025-01-02T00:00:00.000Z" },
+    },
+    nodes: {
+      "T-ready": { id: "T-ready", kind: "resolvable", subkind: "task", title: "Ready API", status: "open", initiative: "migration", domain: "api", revision: 1 },
+      "T-progress": { id: "T-progress", kind: "resolvable", subkind: "task", title: "Progress API", status: "in_progress", initiative: "migration", domain: "api", revision: 2, claim: { by: "alice", at: "2000-01-01T00:00:00.000Z" } },
+      "T-submitted": { id: "T-submitted", kind: "resolvable", subkind: "task", title: "Submitted API", status: "submitted", initiative: "migration", domain: "api", revision: 3 },
+      "T-blocked": { id: "T-blocked", kind: "resolvable", subkind: "task", title: "Blocked Worker", status: "open", initiative: "migration", domain: "worker", revision: 1 },
+      "T-backlog": { id: "T-backlog", kind: "resolvable", subkind: "task", title: "Backlog UI", status: "open", initiative: "other", domain: "ui", backlog: true, revision: 1 },
+      "T-done": { id: "T-done", kind: "resolvable", subkind: "task", title: "Done API", status: "done", initiative: "migration", domain: "api", revision: 4 },
+      "T-canceled": { id: "T-canceled", kind: "resolvable", subkind: "task", title: "Canceled API", status: "canceled", initiative: "migration", domain: "api", revision: 4 },
+      "G-open": { id: "G-open", kind: "resolvable", subkind: "gate", title: "Open approval", status: "open", initiative: "migration", revision: 1 },
+      "G-resolved": { id: "G-resolved", kind: "resolvable", subkind: "gate", title: "Resolved approval", status: "resolved", initiative: "migration", revision: 2 },
+      "K-active": { id: "K-active", kind: "knowledge", title: "API warning", body: "Use safe API retries", status: "active", initiative: "migration", domain: "api", scope: { domains: ["api"], initiatives: [], tags: [], node_ids: [] } },
+      "K-deprecated": { id: "K-deprecated", kind: "knowledge", title: "Old API warning", body: "Old API retry behavior", status: "deprecated", initiative: "migration", domain: "api", deprecation_reason: "Replaced", deprecated_at: "2025-01-03T00:00:00.000Z", deprecated_by: "alice", scope: { domains: ["api"], initiatives: [], tags: [], node_ids: [] } },
+    },
+    edges: [{ from: "T-progress", to: "T-blocked", type: "BLOCKS" }],
+    log: [
+      { ts: "2025-01-01T00:00:00.000Z", agent: "alice", action: "take", node: "T-progress", task: "T-progress" },
+      { ts: "2025-01-02T00:00:00.000Z", agent: "bob", action: "update", node: "T-ready", task: "T-ready" },
+    ],
+  };
+}
+
+async function cliCommand(projectDir, command, query = "", positional = []) {
+  const args = ["--project", projectDir, command, ...positional];
+  for (const [key, value] of new URLSearchParams(query)) {
+    if (key === "all") {
+      if (value === "true" || value === "") args.push("--all");
+      continue;
+    }
+    if (key === "query") continue;
+    args.push(`--${key}`, value);
+  }
+  const result = await runCli(args);
+  assert.equal(result.code, 0, result.stdout || result.stderr);
+  return JSON.parse(result.stdout);
+}
+
+async function cliStatus(projectDir, query = "") {
+  return cliCommand(projectDir, "status", query);
+}
+
+function normalizeStatusTimes(status) {
+  return {
+    ...status,
+    alerts: (status.alerts || []).map(({ age_ms, message, ...alert }) => ({
+      ...alert,
+      message: message.replace(/\(\d+m old\)/, "(rounded old)"),
+    })),
+  };
+}
+
+test("HTTP status read matches the complete CLI projection and all nine exact filters", async () => {
+  await withApi(async ({ baseUrl, projectDirs }) => {
+    await writeState(projectDirs[0], readApiState());
+    const queries = [
+      "",
+      "initiative=migration",
+      "kind=task",
+      "status=ready",
+      "domain=api",
+      "claimed-by=alice",
+      "stale-ms=0",
+      "limit=1",
+      "all=true",
+      "as=bob",
+      "initiative=migration&kind=task&status=in_progress&domain=api&claimed-by=alice&stale-ms=0&limit=1&all=true&as=bob",
+      "initiative=migration&domain=api&limit=1&all=true",
+      "initiative=migration&domain=api&kind=task&status=ready&limit=1",
+      "claimed-by=bob&status=in_progress&as=alice",
+    ];
+    for (const query of queries) {
+      const response = await fetch(`${baseUrl}/v1/projects/project-a/read/status${query ? `?${query}` : ""}`, { headers: authHeaders() });
+      assert.equal(response.status, 200, `${query}: ${JSON.stringify(await response.clone().json())}`);
+      const body = await response.json();
+      assert.deepEqual(normalizeStatusTimes(body.result), normalizeStatusTimes(await cliStatus(projectDirs[0], query)), query);
+      assert.deepEqual(Object.keys(body.result).slice(0, 5), ["summary", "tasks", "gates", "knowledge_count", "alerts"]);
+    }
+  });
+});
+
+test("HTTP typed read routes match the CLI output from the same state snapshot", async () => {
+  await withApi(async ({ baseUrl, projectDirs }) => {
+    await writeState(projectDirs[0], readApiState());
+    const routes = [
+      ["read/context/T-ready", "context", "as=alice&staleMs=0", ["T-ready"]],
+      ["read/show/T-ready", "show", "", ["T-ready"]],
+      ["read/history/T-progress", "history", "limit=1", ["T-progress"]],
+      ["read/search/API", "search", "all=true", ["API"]],
+      ["read/initiatives", "initiatives", "all=true", []],
+      ["read/log", "log", "limit=1&agent=alice", []],
+      ["read/state", "state", "", []],
+    ];
+    for (const [route, command, query, positional] of routes) {
+      const response = await fetch(`${baseUrl}/v1/projects/project-a/${route}${query ? `?${query}` : ""}`, { headers: authHeaders() });
+      assert.equal(response.status, 200, `${route}: ${JSON.stringify(await response.clone().json())}`);
+      assert.deepEqual((await response.json()).result, await cliCommand(projectDirs[0], command, query, positional), route);
+    }
+  });
+});
+
+test("HTTP typed read routes reject unknown, repeated, and invalid query parameters", async () => {
+  await withApi(async ({ baseUrl, projectDirs }) => {
+    await writeState(projectDirs[0], readApiState());
+    for (const query of ["claimedBy=alice", "kind=task&kind=gate", "limit=-1", "stale-ms=nope", "all=maybe", "as=alice&as=bob"]) {
+      const response = await fetch(`${baseUrl}/v1/projects/project-a/read/status?${query}`, { headers: authHeaders() });
+      assert.equal(response.status, 400, query);
+      assert.equal((await response.json()).error.code, "INVALID_QUERY", query);
+    }
+  });
+});
 
 test("HTTP v1 rejects protocol mismatches before opening a project", async () => {
   await withApi(async ({ baseUrl, openCount }) => {
@@ -96,8 +218,8 @@ test("HTTP v1 delegates core operations and read projections through server boun
     assert.equal(status.status, 200);
     const statusBody = await status.json();
     assert.equal(statusBody.ok, true);
-    assert.equal(statusBody.result.revision, 2);
-    assert.deepEqual(statusBody.result.derived.ready, ["T-remote-1"]);
+    assert.equal(statusBody.result.summary.ready, 1);
+    assert.deepEqual(statusBody.result.tasks.ready.map((task) => task.id), ["T-remote-1"]);
 
     const node = await fetch(`${baseUrl}/v1/projects/project-a/read/nodes/T-remote-1`, { headers: authHeaders() });
     assert.equal(node.status, 200);
@@ -151,7 +273,7 @@ test("HTTP v1 authenticates before storage access and isolates projects", async 
 
     const statusA = await fetch(`${baseUrl}/v1/projects/project-a/read/status`, { headers: authHeaders() });
     const statusB = await fetch(`${baseUrl}/v1/projects/project-b/read/status`, { headers: authHeaders() });
-    assert.deepEqual((await statusA.json()).result.derived.ready, []);
-    assert.deepEqual((await statusB.json()).result.derived.ready, []);
+    assert.deepEqual((await statusA.json()).result.tasks.ready, []);
+    assert.deepEqual((await statusB.json()).result.tasks.ready, []);
   });
 });
