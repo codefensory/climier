@@ -7,6 +7,7 @@ import path from "node:path";
 import { createRemoteApiServer } from "../src/server/http.mjs";
 import { createProjectCatalog } from "../src/server/catalog/index.mjs";
 import { initState } from "../src/kernel/state-operations.mjs";
+import { bootstrapFencedState } from "../src/storage/ledger.mjs";
 import { runCli, writeState } from "./helpers.mjs";
 
 async function withApi(run) {
@@ -258,6 +259,111 @@ test("HTTP v1 delegates core operations and read projections through server boun
     assert.equal(nodeBody.result.node.title, "Remote task");
     assert.equal(nodeBody.result.derived_status, "ready");
     assert.deepEqual(nodeBody.result.blocking, []);
+  });
+});
+
+test("HTTP v1 executes core.batch through one canonical server mutation", async () => {
+  await withApi(async ({ baseUrl, projectDirs }) => {
+    const { readState } = await import("../src/storage/state.mjs");
+    await bootstrapFencedState(projectDirs[0]);
+    const before = await readState(projectDirs[0]);
+    const response = await operation(baseUrl, "project-a", "core.batch", {
+      operations: [
+        { op: "initiative.create", input: { name: "batch-remote", desc: "Created in batch" } },
+        { op: "task.create", input: {
+          id: "T-batch-remote",
+          initiative: "batch-remote",
+          title: "Batch task",
+          body: "Created by server batch",
+          acceptance: "Visible after batch",
+        } },
+      ],
+      if_state_revision: before.revision,
+    });
+
+    assert.equal(response.status, 200, JSON.stringify(await response.clone().json()));
+    const body = await response.json();
+    assert.equal(body.ok, true);
+    assert.equal(body.result.results.length, 2);
+    assert.equal(body.result.revision_before, before.revision);
+    assert.equal(body.result.revision_after, before.revision + 1);
+    const after = await readState(projectDirs[0]);
+    assert.equal(after.nodes["T-batch-remote"].title, "Batch task");
+    assert.equal(after.initiatives["batch-remote"].desc, "Created in batch");
+    assert.equal(after.revision, before.revision + 1);
+    assert.equal(after.log.length, 1);
+    assert.equal(after.log[0].action, "core.batch");
+
+    const invalidDomainInput = await operation(baseUrl, "project-a", "core.batch", {
+      operations: [{ op: "initiative.create", input: { name: "bad/name" } }],
+    });
+    assert.equal(invalidDomainInput.status, 400);
+    assert.equal((await invalidDomainInput.json()).error.code, "BATCH_OPERATION_FAILED");
+    const unchanged = await readState(projectDirs[0]);
+    assert.equal(unchanged.revision, after.revision);
+    assert.deepEqual(Object.keys(unchanged.initiatives), ["batch-remote"]);
+  });
+});
+
+test("HTTP v1 validates core.batch schema and nested operation inputs before opening storage", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "climier-server-batch-schema-"));
+  try {
+    const catalog = createProjectCatalog({ dataRoot: path.join(root, "catalog"), projectIds: ["project-a"] });
+    let openCount = 0;
+    const server = createRemoteApiServer({
+      catalog,
+      credentials: [{ token: "test-token", projectIds: ["project-a"] }],
+      async openProject(projectDir) { openCount += 1; return { projectDir }; },
+    });
+    await new Promise((resolve, reject) => { server.once("error", reject); server.listen(0, "127.0.0.1", resolve); });
+    const baseUrl = `http://127.0.0.1:${server.address().port}`;
+    try {
+      const invalidInputs = [
+        { operations: [] },
+        { operations: [{ op: "initiative.create", input: [] }] },
+        { operations: [{ op: "filesystem.read", input: { path: "tasks.json" } }] },
+        { operations: [{ op: "initiative.create", input: { name: "valid" }, extra: "not allowed" }] },
+        { operations: [{ op: "initiative.create", input: { name: "valid" }, provider: { prepare: "untrusted" } }] },
+        { operations: [{ op: "initiative.create", input: { name: "valid", handler: "arbitrary" } }] },
+        { operations: [{ op: "initiative.create", input: { name: "valid", unexpected: true } }] },
+        { operations: [{ op: "initiative.create", input: { name: "valid", if_state_revision: 3 } }] },
+        { operations: [{ op: "initiative.create", input: { name: "valid" }, actor: "forged" }] },
+      ];
+      for (const input of invalidInputs) {
+        const response = await operation(baseUrl, "project-a", "core.batch", input);
+        assert.equal(response.status, 400, JSON.stringify(await response.clone().json()));
+        assert.equal((await response.json()).error.code, "INVALID_REQUEST");
+      }
+      const invalidActor = await fetch(`${baseUrl}/v1/projects/project-a/operations`, {
+        method: "POST",
+        headers: authHeaders({ "content-type": "application/json" }),
+        body: JSON.stringify({ operation: "core.batch", actor: "", input: { operations: [{ op: "initiative.create", input: { name: "valid" } }] } }),
+      });
+      assert.equal(invalidActor.status, 400);
+      assert.equal((await invalidActor.json()).error.code, "INVALID_REQUEST");
+      assert.equal(openCount, 0);
+    } finally {
+      await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    }
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
+test("HTTP v1 validates protocol and auth for core.batch before opening storage", async () => {
+  await withApi(async ({ baseUrl, openCount }) => {
+    const route = `${baseUrl}/v1/projects/project-a/operations`;
+    const body = JSON.stringify({ operation: "core.batch", actor: "alice", input: { operations: [{ op: "initiative.create", input: { name: "no-open" } }] } });
+    for (const { headers, status, code } of [
+      { headers: { "content-type": "application/json" }, status: 426, code: "PROTOCOL_VERSION_UNSUPPORTED" },
+      { headers: authHeaders({ authorization: "Bearer wrong", "content-type": "application/json" }), status: 401, code: "AUTH_INVALID" },
+    ]) {
+      const before = openCount();
+      const response = await fetch(route, { method: "POST", headers, body });
+      assert.equal(response.status, status);
+      assert.equal((await response.json()).error.code, code);
+      assert.equal(openCount(), before);
+    }
   });
 });
 

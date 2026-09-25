@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
 
-import { executeOperation } from "../application/operations/index.mjs";
+import { executeBatch, executeOperation } from "../application/operations/index.mjs";
 import {
   createBuiltinOperationRegistry,
   PUBLIC_CORE_OPS,
@@ -76,6 +76,8 @@ const ALLOWED_INPUT_FIELDS = Object.freeze({
   "initiative.create": new Set(["name", "desc"]),
 });
 const ALLOWED_TOP_LEVEL_FIELDS = new Set(["operation", "input", "actor"]);
+const BATCH_TOP_LEVEL_FIELDS = new Set(["operations", "if_state_revision"]);
+const BATCH_OPERATION_FIELDS = new Set(["op", "input"]);
 
 function httpError(code, message, details, status) {
   const error = new Error(message);
@@ -175,7 +177,7 @@ function validateOperationRequest(body) {
   if (typeof body.operation !== "string" || body.operation.length === 0) {
     throw httpError("INVALID_REQUEST", "server http: operation is required", { field: "operation" }, 400);
   }
-  if (!OPERATION_IDS.has(body.operation)) {
+  if (!OPERATION_IDS.has(body.operation) && body.operation !== "core.batch") {
     const error = new Error(`application.executeOperation: operation '${body.operation}' is not registered`);
     error.code = "OPERATION_NOT_FOUND";
     error.details = { operation: body.operation };
@@ -187,6 +189,46 @@ function validateOperationRequest(body) {
   }
   if (!body.input || typeof body.input !== "object" || Array.isArray(body.input)) {
     throw httpError("INVALID_REQUEST", "server http: input must be a JSON object", { field: "input" }, 400);
+  }
+  if (body.operation === "core.batch") {
+    for (const field of Object.keys(body.input)) {
+      if (!BATCH_TOP_LEVEL_FIELDS.has(field)) {
+        throw httpError("INVALID_REQUEST", `server http: input field '${field}' is not allowed for core.batch`, { field: `input.${field}`, operation: "core.batch" }, 400);
+      }
+    }
+    const operations = body.input.operations;
+    if (!Array.isArray(operations) || operations.length === 0) {
+      throw httpError("INVALID_REQUEST", "server http: input.operations must be a non-empty array", { field: "input.operations" }, 400);
+    }
+    for (let index = 0; index < operations.length; index += 1) {
+      const operation = operations[index];
+      const field = `input.operations[${index}]`;
+      if (!operation || typeof operation !== "object" || Array.isArray(operation)) {
+        throw httpError("INVALID_REQUEST", `server http: ${field} must be an object`, { field }, 400);
+      }
+      for (const key of Object.keys(operation)) {
+        if (!BATCH_OPERATION_FIELDS.has(key)) {
+          throw httpError("INVALID_REQUEST", `server http: ${field}.${key} is not allowed`, { field: `${field}.${key}` }, 400);
+        }
+      }
+      if (typeof operation.op !== "string" || operation.op.length === 0 || !OPERATION_IDS.has(operation.op) || operation.op === "core.batch") {
+        throw httpError("INVALID_REQUEST", `server http: ${field}.op must name an allowed built-in operation`, { field: `${field}.op` }, 400);
+      }
+      if (!operation.input || typeof operation.input !== "object" || Array.isArray(operation.input)) {
+        throw httpError("INVALID_REQUEST", `server http: ${field}.input must be an object`, { field: `${field}.input` }, 400);
+      }
+      const allowedOperationFields = ALLOWED_INPUT_FIELDS[operation.op];
+      for (const key of Object.keys(operation.input)) {
+        if (!allowedOperationFields.has(key)) {
+          throw httpError("INVALID_REQUEST", `server http: ${field}.input field '${key}' is not allowed for ${operation.op}`, { field: `${field}.input.${key}`, operation: operation.op }, 400);
+        }
+      }
+      validateInputFields(operation.input, field + ".input");
+    }
+    if (Object.hasOwn(body.input, "if_state_revision") && (!Number.isSafeInteger(body.input.if_state_revision) || body.input.if_state_revision < 0)) {
+      throw httpError("INVALID_REQUEST", "server http: input.if_state_revision must be a non-negative safe integer", { field: "input.if_state_revision" }, 400);
+    }
+    return body;
   }
   const allowedFields = ALLOWED_INPUT_FIELDS[body.operation];
   if (!allowedFields) {
@@ -623,18 +665,26 @@ export function createRemoteApiServer({
       }
 
       if (operationRoute) {
-        const result = await executeOperation({
-          projectDir: project.projectDir,
-          actor: body.actor,
-          operation: body.operation,
-          input: body.input,
-          source: {
-            registry,
-            mutate: mutateKernel,
-            selectPolicy: selectPolicy || loadApplicablePolicy,
-            authorizeAction: authorizeAction || authorizeServerAction,
-          },
-        });
+        const source = {
+          registry,
+          mutate: mutateKernel,
+          selectPolicy: selectPolicy || loadApplicablePolicy,
+          authorizeAction: authorizeAction || authorizeServerAction,
+        };
+        const result = body.operation === "core.batch"
+          ? await executeBatch({
+            projectDir: project.projectDir,
+            actor: body.actor,
+            input: body.input,
+            source,
+          })
+          : await executeOperation({
+            projectDir: project.projectDir,
+            actor: body.actor,
+            operation: body.operation,
+            input: body.input,
+            source,
+          });
         send(response, 200, { ok: true, result });
         return;
       }
