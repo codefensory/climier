@@ -18,6 +18,10 @@ El RFC requiere que push/pull, restore y el versionado nuevo no permitan reactiv
 - No robar/expirar locks stale automáticamente. Falla con timeout; runbook requiere comprobar que el dueño murió y retirar lock manualmente antes de reanudar.
 - Centralizar asignación de revisión para providers, `core.batch` preview/final y transfer: nuevo nodo ≥ state revision + 1; modificado = max(prev + 1, state + 1); state revision alcanza la máxima asignada. El marker/generación es local al ledger destino, nunca se copia desde snapshots/remotos.
 
+## Enmienda de release
+
+[ADR-027](027-minimal-remote-v1.md) conserva este ledger/fence y no añade un segundo journal de recovery para transferencias básicas. Sí hace obligatorio completar la integración fenced de `restore` e `init --force` compatibles: no pueden persistir un proyecto v5 por el writer legacy. Las transferencias v1 delegan publicación y recovery de crash al bootstrap/commit fenced de este ADR.
+
 ## Consecuencias
 
 - A favor: CAS global y por nodo monotónicos frente a borrado/recreación, transfer, restore, versiones antiguas y crashes.

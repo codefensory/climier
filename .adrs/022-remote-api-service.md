@@ -16,6 +16,10 @@ El RFC [G-remote-backend-rfc](../.decisions/G-remote-backend-rfc.md) selecciona 
 - El servicio puede usar Node.js stdlib del CLI; no añade runtime dependencies al paquete raíz. TLS se ofrece directamente o se termina en proxy confiable; fuera de host local solo se acepta HTTPS.
 - `init` remoto solo puede provisionar un `project_id` que ya figure en el catálogo confiable y para el cual el bearer token tenga tanto scope de proyecto como capacidad explícita `provisionProjectIds`; no se registran IDs arbitrarios del cliente. La ruta de init no acepta `force` en v1: resetear un DAG existente requiere una operación administrativa futura distinta. IDs desconocidos/no autorizados retornan error estructurado sin crear directorio ni state. El wire contract reporta versión/protocolo incompatible con error explícito.
 
+## Enmienda de release
+
+[ADR-027](027-minimal-remote-v1.md) fija el contrato de release v1. Mantiene HTTP(S), bearer token, catálogo confinado y la autoridad server-side de este ADR. Simplifica `init`: basta que el proyecto ya esté en el catálogo y que el token tenga scope de ese proyecto; no se requiere `provisionProjectIds` separado. También exige un launcher que ligue de manera confiable catálogo, identidad interna y `state_home` del servidor.
+
 ## Consecuencias
 
 - A favor: transporte cloud-portable, una autoridad por proyecto, aislamiento multi-tenant y reutilización del kernel.

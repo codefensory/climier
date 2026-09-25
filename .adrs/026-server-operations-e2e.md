@@ -15,6 +15,10 @@ La primera prueba usará una máquina Linux alcanzable por Tailscale del usuario
 - La aceptación E2E usa dos clientes independientes sobre tailnet: mutación en cliente A visible vía read en B; archivos DAG locales permanecen sin cambios; token inválido y caída del endpoint fallan sin fallback.
 - Mantener CLI package raíz stdlib-only; cualquier necesidad de dependencias del servicio debe tener distribución separada y no filtrarse al CLI.
 
+## Enmienda de release
+
+[ADR-027](027-minimal-remote-v1.md) separa la validación de producto de la infraestructura temporal: el cierre automatizable exige launcher, runbook y E2E local de dos clientes. La comprobación real por Tailscale permanece como smoke manual temporal y redactado, posterior a las suites verdes; no bloquea el diseño con valores de host ni secretos versionados.
+
 ## Consecuencias
 
 - A favor: experiencia inicial reproducible y ruta cloud-compatible, sin fijar la infraestructura del usuario.

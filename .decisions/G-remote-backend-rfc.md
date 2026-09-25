@@ -1,6 +1,6 @@
 # RFC: backend remoto multi-proyecto de Climier
 
-- Gate: `G-remote-backend-rfc` · Iniciativa: `remote-backend` · Estado: borrador
+- Gate: `G-remote-backend-rfc` · Iniciativa: `remote-backend` · Estado: aprobado históricamente; alcance de release enmendado por ADR-027
 - Autor: orchestrator · Fecha: 2026-09-24
 
 ## Problema
@@ -120,6 +120,20 @@ El servidor y el cliente deben definir errores estructurados compatibles con el 
 - Disponibilidad/latencia: las operaciones mutantes deben fallar de forma visible si el servidor no está disponible; no usar estado local como fallback que pueda divergir.
 - El package raíz es stdlib-only y `ui/` es un subproyecto aparte → decidir cómo distribuir/ejecutar el servicio sin añadir dependencias runtime al CLI.
 - El trabajo toca fronteras compartidas y debe dividirse en entregas con evidencia observable: (1) contrato/config/backend y compatibilidad local; (2) servicio con aislamiento multi-proyecto, auth y prueba concurrente de claims; (3) routing de cada clase de comando/init con prueba de que desconexión remota no accede al DAG local, incluyendo `state`; (4) transferencia push/pull con round-trip, validación, CAS bajo lock del destino y overwrite seguro, incluyendo tests concurrentes y CAS obsoletos; (5) empaquetado, E2E en host Tailscale por API HTTP(S), operación y docs cloud-portables. Cada entrega debe tener condición de salida observable y comandos/tests de evidencia. Las pruebas de transferencia compiten con mutaciones y otras transferencias, verifican que conflicto/fallo deja destino intacto y revisión monotónica, y prueban que CAS antiguos de state/nodes no vuelven a ser válidos. El E2E en dos clientes demuestra visibilidad cruzada, copia local intacta y ausencia de fallback. La descomposición final en tasks y su evidencia detallada se fija en el ADR.
+
+## Enmienda de release
+
+El diseño de investigación de este RFC fue aprobado, pero el contrato de release original acumuló journal/idempotencia/CAS de transferencia, provisioning con capacidad adicional y un E2E de infraestructura antes de cerrar el recorrido básico de escritura remota. [ADR-027](../.adrs/027-minimal-remote-v1.md), respaldado por el gate `G-rb-minimal-v1`, define el v1 ejecutable que prevalece cuando difiera de las secciones de alcance, transferencias, provisioning y E2E de este documento:
+
+- servidor como autoridad para lecturas, todas las mutaciones built-in y batch tipado;
+- bearer token desde `CLIMIER_TOKEN`, scope por proyecto y catálogo confiable;
+- `init` remoto scoped sin `--force` ni DAG local paralelo;
+- `push`/`pull` básicos create-only/prístino o `--overwrite=true` absoluto, sin journal, status, retry ni CAS;
+- transferencias que rechazan claims, tareas in-progress y plugin data;
+- recovery fenced local, E2E local automatizable y smoke Tailscale temporal/redactado;
+- UI, snapshots/restore remotos, plugins remotos y las garantías avanzadas aplazadas explícitamente.
+
+Las decisiones originales siguen siendo historia y fuente de diseño; el ADR de enmienda registra qué garantía queda diferida y evita contradicción silenciosa.
 
 ## ADRs derivados
 

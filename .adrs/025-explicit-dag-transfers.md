@@ -16,6 +16,10 @@
 - Journal local durable genera UUID antes del request y conserva payload snapshot para retry exacto. `transfer-status` resuelve incertidumbre; mismo fingerprint idempotente, diferente fingerprint da `TRANSFER_ID_CONFLICT`. Push guarda fingerprint server-side junto al commit; pull marker junto al state/log local.
 - Success envelope incluye direction, project_id, source/destination, source_hash/revision, destination_revision_before/after, applied_revision y overwritten. Timeout sin confirmación usa `TRANSFER_OUTCOME_UNKNOWN`/`applied:"unknown"`.
 
+## Enmienda de release
+
+[ADR-027](027-minimal-remote-v1.md) aplaza para después de v1 el journal durable, `transfer_id`, `transfer-status`, retry idempotente, payload persistido y CAS/expected revision de overwrite de esta decisión. V1 mantiene `push`/`pull` como rutas HTTP tipadas, pero usa create-only/prístino o `--overwrite=true` absoluto, rechaza claims/in-progress y plugin data, reemplaza el log destino por el origen más un evento de transferencia, y delega la publicación al ledger fenced del destino. Un timeout ambiguo de push se reporta como `TRANSFER_OUTCOME_UNKNOWN` sin retry automático.
+
 ## Consecuencias
 
 - A favor: transferencias recuperables, explícitas, auditables y protegidas contra overwrite/CAS obsoletos.

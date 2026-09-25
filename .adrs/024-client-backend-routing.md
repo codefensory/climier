@@ -16,6 +16,10 @@ El RFC exige backend local por omisión y remoto como autoridad única al config
 - `--as` sigue actor/auditoría. Auth y scopes de proyecto pertenecen al transporte/servidor.
 - Todos los adapters y APIs soportados consultan la misma selección; APIs plugin/client no mapeadas se rechazan antes de cargar handlers locales.
 
+## Enmienda de release
+
+[ADR-027](027-minimal-remote-v1.md) concreta que el routing de todas las mutaciones built-in y `core.batch` pasa por un bridge único CLI/Application, no por checks repartidos en writers. Los adapters conservan parsing/envelopes; remoto despacha antes de policy/plugins/storage locales. `push`/`pull` permanecen excepciones tipadas sin journal/status. Query, plugin-data, extensiones, UI, snapshots y restore siguen rechazados remotamente antes de I/O local.
+
 ## Consecuencias
 
 - A favor: un solo punto de decisión del backend, compatibilidad local y ausencia verificable de fallback.
