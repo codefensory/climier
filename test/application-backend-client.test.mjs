@@ -93,6 +93,72 @@ test("backend client uses remote HTTP v1 URL, protocol, bearer auth, actor, and 
   });
 });
 
+test("backend client maps all typed reads to v1 routes and preserves filter values", async () => {
+  const requests = [];
+  await withServer(async (request, response) => {
+    requests.push(`${request.method} ${request.url}`);
+    response.writeHead(200, {
+      "content-type": "application/json",
+      "x-climier-protocol-version": "1",
+    });
+    response.end(JSON.stringify({ ok: true, result: { request: request.url } }));
+  }, async (url) => {
+    const client = createBackendClient({
+      projectDir: "/project",
+      projectConfig: { project_id: "project/opaque", backend: { type: "remote", url } },
+    });
+
+    const results = [
+      await client.readStatus({
+        initiative: "migration & rollout",
+        kind: "task",
+        status: "in_progress",
+        domain: "api/v1",
+        claimedBy: "alice smith",
+        staleMs: 0,
+        limit: 0,
+        all: false,
+        as: "auditor",
+      }),
+      await client.readContext({ id: "T/context", as: "alice smith", staleMs: 0 }),
+      await client.readNode({ id: "T/show" }),
+      await client.readHistory({ id: "T/history", limit: 0 }),
+      await client.readSearch({ query: "api / v1", all: true }),
+      await client.readInitiatives({ all: false }),
+      await client.readLog({ limit: 0, action: "task update", agent: "alice", task: "T-1", decision: "D/1" }),
+      await client.readState(),
+    ];
+
+    assert.deepEqual(requests, [
+      "GET /v1/projects/project%2Fopaque/read/status?initiative=migration+%26+rollout&kind=task&status=in_progress&domain=api%2Fv1&claimed-by=alice+smith&stale-ms=0&limit=0&all=false&as=auditor",
+      "GET /v1/projects/project%2Fopaque/read/context/T%2Fcontext?as=alice+smith&staleMs=0",
+      "GET /v1/projects/project%2Fopaque/read/show/T%2Fshow",
+      "GET /v1/projects/project%2Fopaque/read/history/T%2Fhistory?limit=0",
+      "GET /v1/projects/project%2Fopaque/read/search?query=api+%2F+v1&all=true",
+      "GET /v1/projects/project%2Fopaque/read/initiatives?all=false",
+      "GET /v1/projects/project%2Fopaque/read/log?limit=0&action=task+update&agent=alice&task=T-1&decision=D%2F1",
+      "GET /v1/projects/project%2Fopaque/read/state",
+    ]);
+    assert.deepEqual(results, requests.map((request) => ({ request: request.slice(4) })));
+  });
+});
+
+test("typed read methods validate required ids and query option types before requesting", async () => {
+  await withServer(() => assert.fail("invalid read inputs must not make HTTP requests"), async (url) => {
+    const client = createBackendClient({
+      projectDir: "/project",
+      projectConfig: { project_id: "project", backend: { type: "remote", url } },
+    });
+    assert.throws(() => client.readStatus({ claimedBy: 42 }), { code: "INVALID_REQUEST" });
+    assert.throws(() => client.readContext({ id: "T-1", staleMs: -1 }), { code: "INVALID_REQUEST" });
+    assert.throws(() => client.readNode({ id: "" }), { code: "INVALID_REQUEST" });
+    assert.throws(() => client.readHistory({ id: "T-1", limit: "2" }), { code: "INVALID_REQUEST" });
+    assert.throws(() => client.readSearch({ query: 42 }), { code: "INVALID_REQUEST" });
+    assert.throws(() => client.readInitiatives({ all: "true" }), { code: "INVALID_REQUEST" });
+    assert.throws(() => client.readLog({ unexpected: "value" }), { code: "INVALID_REQUEST" });
+  });
+});
+
 test("backend client propagates structured remote errors without local fallback", async () => {
   let localCalls = 0;
   await withServer(async (_request, response) => {
@@ -118,11 +184,7 @@ test("backend client propagates structured remote errors without local fallback"
         mutate() { localCalls += 1; return {}; },
       },
     });
-    await assert.rejects(client.executeOperation({
-      actor: "alice",
-      operation: "task.create",
-      input: {},
-    }), (error) => {
+    await assert.rejects(client.readStatus({ initiative: "remote-only" }), (error) => {
       assert.equal(error.code, "AUTH_REQUIRED");
       assert.equal(error.message, "server http: bearer token is required");
       assert.deepEqual(error.details, { project_id: "remote-project" });
@@ -147,7 +209,7 @@ test("backend client rejects incompatible protocol and malformed success envelop
       projectConfig: { project_id: "remote-project", backend: { type: "remote", url } },
       source: { registry: { lookup() { localCalls += 1; } }, mutate() { localCalls += 1; } },
     });
-    await assert.rejects(client.executeOperation({ actor: "alice", operation: "task.take", input: {} }), (error) => {
+    await assert.rejects(client.readStatus(), (error) => {
       assert.equal(error.code, "PROTOCOL_VERSION_UNSUPPORTED");
       assert.deepEqual(error.details, { expected: "1", received: "2" });
       return true;
@@ -166,7 +228,7 @@ test("backend client rejects incompatible protocol and malformed success envelop
       projectConfig: { project_id: "remote-project", backend: { type: "remote", url } },
     });
     await assert.rejects(
-      client.executeOperation({ actor: "alice", operation: "task.take", input: {} }),
+      client.readStatus(),
       (error) => error.code === "REMOTE_INVALID_RESPONSE",
     );
   });
@@ -186,11 +248,7 @@ test("backend client times out remote requests and never falls back locally", as
         mutate() { localCalls += 1; return {}; },
       },
     });
-    await assert.rejects(client.executeOperation({
-      actor: "alice",
-      operation: "task.create",
-      input: {},
-    }), (error) => error.code === "REMOTE_TIMEOUT");
+    await assert.rejects(client.readStatus({ initiative: "remote-only" }), (error) => error.code === "REMOTE_TIMEOUT");
   });
   assert.equal(localCalls, 0);
 });
