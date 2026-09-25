@@ -21,6 +21,35 @@ test("withLock acquires and releases on success", async () => {
   }
 });
 
+test("withLock reuses only the live same-project capability in nested async scope", async () => {
+  const { withLock, assertActiveLockContext } = await importFresh("./storage/lock.mjs");
+  const dir = await createTempProject();
+  const other = await createTempProject();
+  try {
+    let activeContext;
+    let delayedAcquire;
+    await withLock(dir, async (context) => {
+      activeContext = context;
+      const nested = await withLock(dir, async (nestedContext) => nestedContext);
+      assert.equal(nested, context);
+      assertActiveLockContext(nested, dir);
+      await withLock(other, async (foreignContext) => {
+        assert.notEqual(foreignContext, context);
+        assertActiveLockContext(foreignContext, other);
+        assert.throws(() => assertActiveLockContext(foreignContext, dir), { code: "CLIMIER_INVALID_LOCK_CONTEXT" });
+      });
+      delayedAcquire = new Promise((resolve, reject) => {
+        setTimeout(() => withLock(dir, async () => "fresh-lock-acquired", { timeoutMs: 500 }).then(resolve, reject), 20);
+      });
+    });
+    assert.throws(() => assertActiveLockContext(activeContext, dir), { code: "CLIMIER_INVALID_LOCK_CONTEXT" });
+    assert.equal(await delayedAcquire, "fresh-lock-acquired");
+  } finally {
+    await rmTempProject(dir);
+    await rmTempProject(other);
+  }
+});
+
 test("withLock blocks concurrent acquires; second waits then succeeds", async () => {
   const { withLock } = await importFresh("./storage/lock.mjs");
   const dir = await createTempProject();

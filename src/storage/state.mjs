@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { withLock, assertActiveLockContext, getActiveLockContext } from "./lock.mjs";
 import { climierHome, projectMetaFile } from "./paths.mjs";
 import { validateStateInvariants } from "../contracts/state-invariants.mjs";
 
@@ -102,7 +103,16 @@ export async function readState(projectDir) {
   try {
     raw = await fs.readFile(file, "utf8");
   } catch (err) {
-    if (err.code === "ENOENT") return null;
+    if (err.code === "ENOENT") {
+      const { ledgerFile, readFencedState } = await import("./ledger.mjs");
+      try {
+        await fs.access(ledgerFile(projectDir));
+      } catch (ledgerError) {
+        if (ledgerError.code === "ENOENT") return null;
+        throw ledgerError;
+      }
+      return readFencedState(projectDir);
+    }
     throw err;
   }
 
@@ -183,9 +193,54 @@ export async function readState(projectDir) {
   }
 }
 
-// Atomic update: read, mutate, write to tmp, rename. Never partial.
-export async function updateState(projectDir, mutator) {
+function ledgerRequired(message) {
+  const error = new Error(message);
+  error.code = "CLIMIER_LEDGER_REQUIRED";
+  return error;
+}
+
+function hasFenceMarker(state) {
+  return !!state && (state.version === FENCED_STATE_VERSION || Number.isInteger(state.fence_generation));
+}
+
+async function assertLegacyWriteAllowed(lockContext, projectDir, targetState) {
+  assertActiveLockContext(lockContext, projectDir);
+  const { statePath } = getActiveLockContext(lockContext);
+  const ledgerPath = path.join(path.dirname(statePath), "revision-ledger.json");
+  try {
+    await fs.access(ledgerPath);
+    throw ledgerRequired("state: revision-ledger projects require the fenced ledger commit API");
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+
+  let existing;
+  try {
+    existing = JSON.parse(await fs.readFile(statePath, "utf8"));
+  } catch (error) {
+    if (error.code !== "ENOENT" && !(error instanceof SyntaxError)) throw error;
+  }
+  if (hasFenceMarker(existing) || hasFenceMarker(targetState)) {
+    throw ledgerRequired("state: v5 states require the revision ledger commit API");
+  }
+}
+
+function rejectUnsupportedWriteVersion(state, file) {
+  if (state && typeof state === "object" && state.version === 1) {
+    throw new Error(
+      "writeState: invalid state (version 1 is no longer supported; this build of climier only writes v4 states)",
+    );
+  }
+  if (state && typeof state === "object" && "version" in state && state.version > FENCED_STATE_VERSION) {
+    const wrapped = new Error(`state: file at ${file} has version ${state.version} but this climier only understands version ${FENCED_STATE_VERSION}`);
+    wrapped.code = "CLIMIER_INCOMPATIBLE_VERSION";
+    throw wrapped;
+  }
+}
+
+async function updateStateUnderLock(projectDir, lockContext, mutator) {
   const file = stateFile(projectDir);
+  await assertLegacyWriteAllowed(lockContext, projectDir);
   await fs.mkdir(path.dirname(file), { recursive: true });
   let state;
   try {
@@ -195,9 +250,6 @@ export async function updateState(projectDir, mutator) {
     if (err.code !== "ENOENT") throw err;
     state = emptyState();
   }
-  // Keep updateState on the same version boundary as readState. This path
-  // reads directly because it is the low-level mutator used by bootstrap and
-  // older callers, so it must apply the v2→v3 normalization itself.
   if (state && typeof state === "object" && state.version === 1) {
     const wrapped = new Error(
       `state: file at ${file} has version 1; this version of climier no longer supports the v1 schema. ` +
@@ -208,9 +260,7 @@ export async function updateState(projectDir, mutator) {
     throw wrapped;
   }
   if (state && typeof state === "object" && state.version === FENCED_STATE_VERSION) {
-    const wrapped = new Error("state.update: v5 states require the revision ledger commit API (not integrated)");
-    wrapped.code = "CLIMIER_LEDGER_REQUIRED";
-    throw wrapped;
+    throw ledgerRequired("state.update: v5 states require the revision ledger commit API (not integrated)");
   }
   if (state && typeof state === "object" && "version" in state && state.version > FENCED_STATE_VERSION) {
     const wrapped = new Error(`state: file at ${file} has version ${state.version} but this climier only understands version ${FENCED_STATE_VERSION}`);
@@ -220,15 +270,18 @@ export async function updateState(projectDir, mutator) {
   state = migrateState(state);
   if (state && typeof state === "object") validateStateInvariants(state, "state.update");
   const next = mutator({ ...state });
-  if (next === undefined) {
-    // mutator mutated in-place; we wrote the spread so the outer state is stale.
-    // To be safe, re-read after writing via mutator that returns the new state.
-    throw new Error("updateState mutator must return the new state object");
-  }
+  if (next === undefined) throw new Error("updateState mutator must return the new state object");
+  await assertLegacyWriteAllowed(lockContext, projectDir, next);
   const tmp = file + ".tmp-" + process.pid + "-" + Date.now();
   await fs.writeFile(tmp, JSON.stringify(next, null, 2) + "\n", "utf8");
   await fs.rename(tmp, file);
   return next;
+}
+
+// Hold one project lock over the full read/mutate/write transaction. Nested
+// calls from an existing withLock scope reuse that scope's opaque capability.
+export async function updateState(projectDir, mutator) {
+  return withLock(projectDir, (lockContext) => updateStateUnderLock(projectDir, lockContext, mutator));
 }
 
 // =====================================================================
@@ -351,23 +404,12 @@ export async function listSnapshots(projectDir) {
   return result;
 }
 
-// writeState validates and persists the current v4 schema. v2/v3 objects are
-// accepted as compatibility inputs and normalized before they reach disk;
-// v1 and future versions are never written.
-export async function writeState(projectDir, state) {
+async function writeStateUnderLock(projectDir, lockContext, state) {
   if (!state || typeof state !== "object") {
     throw new Error("writeState: invalid state (not an object)");
   }
-  if (state.version === 1) {
-    throw new Error(
-      "writeState: invalid state (version 1 is no longer supported; this build of climier only writes v4 states)",
-    );
-  }
-  if (state.version === FENCED_STATE_VERSION) {
-    const error = new Error("writeState: v5 states require the revision ledger commit API (not integrated)");
-    error.code = "CLIMIER_LEDGER_REQUIRED";
-    throw error;
-  }
+  rejectUnsupportedWriteVersion(state, stateFile(projectDir));
+  await assertLegacyWriteAllowed(lockContext, projectDir, state);
   state = migrateState(state);
   if (state.version !== CURRENT_STATE_VERSION) {
     throw new Error(`writeState: invalid state (version ${state.version} is not supported; expected version ${CURRENT_STATE_VERSION})`);
@@ -384,6 +426,12 @@ export async function writeState(projectDir, state) {
   const tmp = `${file}.tmp-${process.pid}-${Date.now()}`;
   await fs.writeFile(tmp, JSON.stringify(state, null, 2) + "\n", "utf8");
   await fs.rename(tmp, file);
+}
+
+// writeState validates and persists the current v4 schema under the canonical
+// project lock. Existing kernel callers inside withLock reuse its capability.
+export async function writeState(projectDir, state) {
+  return withLock(projectDir, (lockContext) => writeStateUnderLock(projectDir, lockContext, state));
 }
 
 // Validate that an initiative name is registered in state.initiatives.

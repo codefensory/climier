@@ -15,6 +15,44 @@ test("readState returns null if file missing", async () => {
   }
 });
 
+test("readState fails closed for ledger-only projects and recovers exact pending bootstrap", async (t) => {
+  const { readState } = await importFresh("./storage/state.mjs");
+  const { bootstrapFencedState, ledgerFile } = await importFresh("./storage/ledger.mjs");
+  const { stateFile } = await importFresh("./storage/state.mjs");
+  const fs = await import("node:fs/promises");
+  const path = await import("node:path");
+
+  await t.test("ledger without state or pending bootstrap", async () => {
+    const dir = await createTempProject();
+    try {
+      const ledgerPath = ledgerFile(dir);
+      await fs.mkdir(path.dirname(ledgerPath), { recursive: true });
+      await fs.writeFile(ledgerPath, JSON.stringify({
+        version: 1, fence_generation: 1, high_water_revision: 1, migration_pending: null,
+      }), "utf8");
+      await assert.rejects(readState(dir), { code: "CLIMIER_LEDGER_STATE_MISMATCH" });
+      await assert.rejects(fs.access(stateFile(dir)), { code: "ENOENT" });
+    } finally {
+      await rmTempProject(dir);
+    }
+  });
+
+  await t.test("exact bootstrap pending", async () => {
+    const dir = await createTempProject();
+    try {
+      const initial = { version: 4, nodes: {}, edges: [], initiatives: {}, log: [], revision: 0 };
+      await assert.rejects(bootstrapFencedState(dir, { faultAt: "after-pending" }), /injected failure/);
+      const recovered = await readState(dir);
+      assert.equal(recovered.version, 5);
+      assert.equal(recovered.fence_generation, 1);
+      assert.deepEqual(recovered.log, initial.log);
+      assert.notEqual(await fs.readFile(stateFile(dir), "utf8"), "");
+    } finally {
+      await rmTempProject(dir);
+    }
+  });
+});
+
 test("migrateState upgrades v3 to v4 with global revision zero", async () => {
   const { migrateState } = await importFresh("./storage/state.mjs");
   const legacy = { version: 3, nodes: {}, edges: [], initiatives: {}, log: [] };
@@ -51,6 +89,29 @@ test("updateState applies a mutator function and persists atomically", async () 
     });
     const back = await readState(dir);
     assert.equal(back.nodes.T1.title, "second");
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("updateState reuses the active lock and holds it through mutation and write", async () => {
+  const { updateState, readState } = await importFresh("./storage/state.mjs");
+  const { writeState } = await importFresh("./storage/state.mjs");
+  const { withLock } = await import("../src/storage/lock.mjs");
+  const dir = await createTempProject();
+  try {
+    const result = await Promise.race([
+      withLock(dir, async () => {
+        await writeState(dir, { version: 4, nodes: {}, edges: [], initiatives: {}, log: [{ action: "nested-write" }], revision: 0 });
+        return updateState(dir, (state) => ({
+          ...state,
+          log: [...state.log, { action: "nested-update" }],
+        }));
+      }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("state writer reacquired the active project lock")), 1000)),
+    ]);
+    assert.deepEqual(result.log.map((entry) => entry.action), ["nested-write", "nested-update"]);
+    assert.deepEqual((await readState(dir)).log, [{ action: "nested-write" }, { action: "nested-update" }]);
   } finally {
     await rmTempProject(dir);
   }
@@ -231,6 +292,34 @@ test("readState migrates a v2 snapshot to v4 without losing collections or field
     assert.equal(migrated.revision, 0);
     assert.deepEqual(migrated, { ...legacy, version: 4, revision: 0 });
   } finally { await rmTempProject(dir); }
+});
+
+test("direct state writers reject ledger-backed and fenced projects before mutation", async (t) => {
+  const { writeState, updateState } = await importFresh("./storage/state.mjs");
+  const { ledgerFile, bootstrapFencedState } = await importFresh("./storage/ledger.mjs");
+  const fs = await import("node:fs/promises");
+  const path = await import("node:path");
+  for (const fencedBy of ["v5-state", "ledger"]) {
+    await t.test(fencedBy, async () => {
+      const dir = await createTempProject();
+      try {
+        const file = stateFilePath(dir);
+        await fs.mkdir(path.dirname(file), { recursive: true });
+        if (fencedBy === "v5-state") {
+          await bootstrapFencedState(dir);
+        } else {
+          await fs.writeFile(file, JSON.stringify({ version: 4, nodes: {}, edges: [], initiatives: {}, log: [], revision: 0 }), "utf8");
+          await fs.writeFile(ledgerFile(dir), "{}", "utf8");
+        }
+        const before = await fs.readFile(file, "utf8");
+        await assert.rejects(writeState(dir, { version: 4, nodes: {}, edges: [], initiatives: {}, log: [] }), { code: "CLIMIER_LEDGER_REQUIRED" });
+        await assert.rejects(updateState(dir, (state) => ({ ...state, log: [...state.log, { action: "legacy" }] })), { code: "CLIMIER_LEDGER_REQUIRED" });
+        assert.equal(await fs.readFile(file, "utf8"), before);
+      } finally {
+        await rmTempProject(dir);
+      }
+    });
+  }
 });
 
 test("writeState persists migrated v2 input as v4", async () => {
