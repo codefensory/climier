@@ -3,8 +3,9 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
-import { createTempProject, rmTempProject, runCli, stateFilePath } from "./helpers.mjs";
+import { createTempProject, rmTempProject, runCli, stateFilePath, readState, writeState } from "./helpers.mjs";
 import { HELP_TEXT } from "../src/cli/dispatch.mjs";
+import batch from "../src/cli/commands/batch.mjs";
 import { RESERVED_NAMESPACES } from "../src/cli/commands/reserved-namespaces.mjs";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
@@ -110,7 +111,9 @@ test("batch CLI keeps the state unchanged when a later operation fails", async (
   const inputPath = path.join(dir, "batch-fails.json");
   try {
     await runCli(["--project", dir, "init"]);
-    const before = await fs.readFile(stateFilePath(dir), "utf8");
+    const bootstrap = await runCli(["--project", dir, "add-initiative", "fixture", "--as", "alice"]);
+    assert.equal(bootstrap.code, 0, bootstrap.stderr);
+    const before = await readState(dir);
     await fs.writeFile(inputPath, JSON.stringify({
       operations: [
         { op: "initiative.create", input: { name: "transient" } },
@@ -123,7 +126,7 @@ test("batch CLI keeps the state unchanged when a later operation fails", async (
     assert.equal(output.error.code, "BATCH_OPERATION_FAILED");
     assert.equal(output.error.details.operation_index, 1);
     assert.equal(output.error.details.op, "initiative.create");
-    assert.equal(await fs.readFile(stateFilePath(dir), "utf8"), before);
+    assert.deepEqual(await readState(dir), before);
   } finally {
     await rmTempProject(dir);
   }
@@ -138,6 +141,88 @@ test("batch CLI requires exactly one input source", async () => {
     const output = JSON.parse(result.stdout);
     assert.equal(output.ok, false);
     assert.equal(output.error.code, "MISSING_FIELD");
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+const sentinelState = {
+  version: 4,
+  revision: 9,
+  initiatives: { local: { desc: "local sentinel" } },
+  nodes: {},
+  edges: [],
+  plugins: {},
+  log: [{ id: "local-log", task: "sentinel" }],
+};
+
+async function invokeRemoteBatch(projectDir, backendClient, document) {
+  const inputPath = path.join(projectDir, "remote-batch.json");
+  await fs.writeFile(inputPath, JSON.stringify(document), "utf8");
+  return batch({
+    projectDir,
+    statePath: projectDir,
+    backendClient,
+    flags: { file: inputPath, as: "alice" },
+    positional: [],
+  });
+}
+
+test("remote batch CLI delegates its exact actor, operations, and revision once without touching local state", async () => {
+  const dir = await createTempProject();
+  const calls = [];
+  const response = { ok: true, results: [{ op: "initiative.create", result: { name: "remote" } }] };
+  const backendClient = {
+    type: "remote",
+    executeBatch(args) { calls.push(args); return response; },
+    executeOperation() { assert.fail("batch must not execute individual operations"); },
+  };
+  const document = {
+    if_state_revision: 17,
+    operations: [{ op: "initiative.create", input: { name: "remote" } }],
+  };
+  try {
+    await writeState(dir, sentinelState);
+    const before = await readState(dir);
+    const result = await invokeRemoteBatch(dir, backendClient, document);
+
+    assert.equal(result, response);
+    assert.deepEqual(calls, [{
+      actor: "alice",
+      operations: document.operations,
+      if_state_revision: 17,
+    }]);
+    assert.deepEqual(await readState(dir), before);
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("remote batch CLI propagates auth, protocol, and network failures without local fallback", async () => {
+  const dir = await createTempProject();
+  const errors = [
+    Object.assign(new Error("authentication required"), { code: "AUTH_REQUIRED" }),
+    Object.assign(new Error("protocol mismatch"), { code: "PROTOCOL_VERSION_UNSUPPORTED" }),
+    Object.assign(new Error("network unavailable"), { code: "REMOTE_TIMEOUT" }),
+  ];
+  const document = { operations: [{ op: "initiative.create", input: { name: "remote" } }] };
+  try {
+    await writeState(dir, sentinelState);
+    const before = await readState(dir);
+    for (const remoteError of errors) {
+      let calls = 0;
+      const backendClient = {
+        type: "remote",
+        executeBatch() { calls += 1; return Promise.reject(remoteError); },
+        executeOperation() { assert.fail("batch must not execute individual operations"); },
+      };
+      await assert.rejects(
+        invokeRemoteBatch(dir, backendClient, document),
+        (error) => error === remoteError,
+      );
+      assert.equal(calls, 1);
+      assert.deepEqual(await readState(dir), before);
+    }
   } finally {
     await rmTempProject(dir);
   }
