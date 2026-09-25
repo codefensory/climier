@@ -4,16 +4,22 @@ import { createServer } from "node:http";
 
 import { createBackendClient } from "../src/application/operations/index.mjs";
 
-async function withServer(handler, run) {
+async function withServer(handler, run, { approveOrigin = false } = {}) {
   const server = createServer(handler);
   await new Promise((resolve, reject) => {
     server.once("error", reject);
     server.listen(0, "127.0.0.1", resolve);
   });
   const address = server.address();
+  const url = `http://127.0.0.1:${address.port}`;
+  const previousOrigin = process.env.CLIMIER_REMOTE_ORIGIN;
+  if (approveOrigin) process.env.CLIMIER_REMOTE_ORIGIN = new URL(url).origin;
+  else delete process.env.CLIMIER_REMOTE_ORIGIN;
   try {
-    await run(`http://127.0.0.1:${address.port}`);
+    await run(url);
   } finally {
+    if (previousOrigin === undefined) delete process.env.CLIMIER_REMOTE_ORIGIN;
+    else process.env.CLIMIER_REMOTE_ORIGIN = previousOrigin;
     await new Promise((resolve, reject) => {
       server.close((error) => error ? reject(error) : resolve());
     });
@@ -90,7 +96,30 @@ test("backend client uses remote HTTP v1 URL, protocol, bearer auth, actor, and 
       operation: "task.create",
       input: { id: "T-remote" },
     }), result);
+  }, { approveOrigin: true });
+});
+
+test("backend client refuses to send a bearer token when origin binding is absent or differs", async () => {
+  let requests = 0;
+  await withServer((_request, response) => {
+    requests += 1;
+    response.writeHead(200, {
+      "content-type": "application/json",
+      "x-climier-protocol-version": "1",
+    });
+    response.end(JSON.stringify({ ok: true, result: {} }));
+  }, async (url) => {
+    for (const remoteOrigin of [undefined, "http://127.0.0.1:1"]) {
+      const client = createBackendClient({
+        projectDir: "/project",
+        projectConfig: { project_id: "remote-project", backend: { type: "remote", url } },
+        token: "sensitive-token",
+        remoteOrigin,
+      });
+      await assert.rejects(client.readStatus(), (error) => error.code === "REMOTE_ORIGIN_NOT_APPROVED");
+    }
   });
+  assert.equal(requests, 0);
 });
 
 test("backend client maps all typed reads to v1 routes and preserves filter values", async () => {
@@ -179,6 +208,7 @@ test("backend client propagates structured remote errors without local fallback"
       projectDir: "/project",
       projectConfig: { project_id: "remote-project", backend: { type: "remote", url } },
       token: "invalid-token",
+      remoteOrigin: new URL(url).origin,
       source: {
         registry: { lookup() { localCalls += 1; return { provider: { prepare() {}, apply() {} } }; } },
         mutate() { localCalls += 1; return {}; },
@@ -192,6 +222,28 @@ test("backend client propagates structured remote errors without local fallback"
       return true;
     });
   });
+  assert.equal(localCalls, 0);
+});
+
+test("backend client reports network failures without invoking local execution", async () => {
+  const server = createServer(() => {});
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  const { port } = server.address();
+  await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+
+  let localCalls = 0;
+  const client = createBackendClient({
+    projectDir: "/project",
+    projectConfig: { project_id: "remote-project", backend: { type: "remote", url: `http://127.0.0.1:${port}` } },
+    source: {
+      registry: { lookup() { localCalls += 1; return { provider: { prepare() {}, apply() {} } }; } },
+      mutate() { localCalls += 1; return {}; },
+    },
+  });
+  await assert.rejects(client.readStatus(), (error) => error.code === "REMOTE_REQUEST_FAILED");
   assert.equal(localCalls, 0);
 });
 
@@ -242,6 +294,7 @@ test("backend client times out remote requests and never falls back locally", as
       projectDir: "/project",
       projectConfig: { project_id: "remote-project", backend: { type: "remote", url } },
       token: "test-token",
+      remoteOrigin: new URL(url).origin,
       timeoutMs: 20,
       source: {
         registry: { lookup() { localCalls += 1; return { provider: { prepare() {}, apply() {} } }; } },
