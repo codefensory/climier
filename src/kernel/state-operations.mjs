@@ -75,6 +75,7 @@ const initOperation = Object.freeze({
       target: Object.freeze({ id: "state", kind: "state", state_file: stateFile(projectDir), exists: snapshot.exists }),
       snapshotReason: snapshot.exists ? (force ? "force-init" : "corrupt-recovery") : null,
       force,
+      corruptRecovery: !force && snapshot.stateError?.code === "CLIMIER_CORRUPT_STATE",
     });
   },
   async apply({ snapshot, plan }) {

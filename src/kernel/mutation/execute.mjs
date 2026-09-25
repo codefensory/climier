@@ -7,10 +7,12 @@
 // single atomic persistence step.
 
 import fs from "node:fs/promises";
+import path from "node:path";
 import { readState, writeState, stateFile, createSnapshot, emptyState } from "../../storage/state.mjs";
 import {
   bootstrapFencedStateUnderLock,
   commitFencedStateUnderLock,
+  recoverFencedStateUnderLock,
   readFencedStateUnderLock,
   replaceFencedStateUnderLock,
 } from "../../storage/ledger.mjs";
@@ -208,9 +210,57 @@ function validateBatchOperation(raw, index) {
   return { op: raw.op, input: cloneBatchValue(raw.input) };
 }
 
+async function readMutationStateUnderLock(lockContext, projectDir) {
+  let raw = null;
+  try { raw = await fs.readFile(stateFile(projectDir), "utf8"); } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+  const statePath = stateFile(projectDir);
+  const hasLedger = await fs.access(statePath.slice(0, statePath.lastIndexOf("/")) + "/revision-ledger.json").then(() => true, (error) => {
+    if (error.code === "ENOENT") return false;
+    throw error;
+  });
+  if (hasLedger && raw !== null) {
+    try { JSON.parse(raw); } catch {
+      const error = new Error(`state: file at ${statePath} is corrupt or not valid JSON`);
+      error.code = "CLIMIER_CORRUPT_STATE";
+      throw error;
+    }
+  }
+  if (raw !== null) {
+    let parsed;
+    try { parsed = JSON.parse(raw); } catch { parsed = null; }
+    if (parsed && typeof parsed === "object" && (parsed.version === 1 || parsed.version > 5)) {
+      try {
+        await readState(projectDir);
+      } catch (error) {
+        if (error.code === "STATE_V1_UNSUPPORTED" || error.code === "CLIMIER_INCOMPATIBLE_VERSION") throw error;
+      }
+    }
+  }
+  if (hasLedger && raw !== null) {
+    let parsed;
+    try { parsed = JSON.parse(raw); } catch { parsed = null; }
+    if (parsed === null) return null;
+  }
+  try {
+    return await readFencedStateUnderLock(lockContext, { projectDir });
+  } catch (error) {
+    if (error.code !== "CLIMIER_UNSUPPORTED_SOURCE_VERSION") throw error;
+    try {
+      await readState(projectDir);
+    } catch (stateError) {
+      if (stateError.code === "STATE_V1_UNSUPPORTED" || stateError.code === "CLIMIER_INCOMPATIBLE_VERSION") {
+        throw stateError;
+      }
+    }
+    throw error;
+  }
+}
+
 async function executeBatchMutation({ projectDir, lockContext, request, batch, policyAction, pluginId }) {
   const commandName = "core.batch";
-  const loadedState = await readFencedStateUnderLock(lockContext, { projectDir });
+  const loadedState = await readMutationStateUnderLock(lockContext, projectDir);
   const snapshot = loadedState;
   if (!snapshot || typeof snapshot !== "object" || snapshot.version !== 5) {
     throw new Error(`${commandName}: state file missing or not v5 (run init first)`);
@@ -337,6 +387,13 @@ async function executeStateMutation({ projectDir, lockContext, request, stateOpe
     if (err.code !== "ENOENT") throw err;
   }
   let stateError = null;
+  let hasFencedLedger = false;
+  try {
+    await fs.access(path.join(path.dirname(statePath), "revision-ledger.json"));
+    hasFencedLedger = true;
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
   if (exists) {
     try {
       currentState = await readState(projectDir);
@@ -346,7 +403,7 @@ async function executeStateMutation({ projectDir, lockContext, request, stateOpe
       stateError = err;
     }
   }
-  const snapshot = Object.freeze({
+  let snapshot = Object.freeze({
     state: currentState,
     raw: currentRaw,
     exists,
@@ -359,13 +416,17 @@ async function executeStateMutation({ projectDir, lockContext, request, stateOpe
       : {}),
     revision: currentState && Number.isInteger(currentState.revision) ? currentState.revision : 0,
   });
+  if (snapshot.stateError?.code === "CLIMIER_CORRUPT_STATE" && exists && hasFencedLedger) {
+    snapshot = Object.freeze({ ...snapshot, fencedCorrupt: true });
+  }
   const prepared = await stateOperation.prepare({ projectDir, snapshot, input: request.input, request });
   if (!prepared || typeof prepared !== "object" || Array.isArray(prepared) || !prepared.target || typeof prepared.target.id !== "string") {
     throwV2("INVALID_EXECUTION_CONTRACT", `${commandName}: state operation prepare must return a plan with target`, { field: "plan" });
   }
   const plan = Object.freeze({ ...prepared, target: Object.freeze({ ...prepared.target }) });
   checkStateRevision(request.if_state_revision, snapshot, commandName);
-  await runPolicy(policyAction, snapshot, plan, request, commandName);
+  const ledgerCorruptRecovery = plan.corruptRecovery && snapshot.fencedCorrupt;
+  if (!ledgerCorruptRecovery) await runPolicy(policyAction, snapshot, plan, request, commandName);
   const applied = await stateOperation.apply({ snapshot, plan, input: request.input, request });
   if (!applied || typeof applied !== "object" || !applied.state || typeof applied.state !== "object" || Array.isArray(applied.state)) {
     throwV2("INVALID_EXECUTION_CONTRACT", `${commandName}: state operation apply must return a state object`, { field: "state" });
@@ -374,6 +435,16 @@ async function executeStateMutation({ projectDir, lockContext, request, stateOpe
   if (plan.snapshotReason) {
     if (!exists) throwV2("INVALID_STATUS", `${commandName}: cannot snapshot a missing current state`, { state_file: statePath });
     snapshotMeta = await createSnapshot(projectDir, plan.snapshotReason);
+  }
+  if (plan.corruptRecovery && snapshot.fencedCorrupt) {
+    const recovered = await recoverFencedStateUnderLock(lockContext, undefined, { projectDir });
+    return {
+      result: { ...applied.result, snapshot: snapshotMeta },
+      effects: applied.effects === undefined ? null : applied.effects,
+      log_entry: null,
+      idempotent: false,
+      diff: { created: [], updated: [], added_edges: [], removed_edges: [], removed_nodes: [], target_revision: recovered.revision, initiatives: { created: [], updated: [] } },
+    };
   }
   const nextState = {
     ...applied.state,
@@ -416,7 +487,7 @@ export async function executeMutation({ projectDir, lockContext, request, provid
     return executeStateMutation({ projectDir, lockContext, request, stateOperation, policyAction, pluginId });
   }
 
-  const loadedState = await readFencedStateUnderLock(lockContext, { projectDir });
+  const loadedState = await readMutationStateUnderLock(lockContext, projectDir);
   const mayBootstrap = loadedState === null && request.action === "initiative.create" && provider.bootstrapMissingState === true;
   let snapshot = loadedState ?? (mayBootstrap ? { ...emptyState(), version: 5, fence_generation: 1 } : null);
   if ((!snapshot || typeof snapshot !== "object" || snapshot.version !== 5) && !mayBootstrap) {
