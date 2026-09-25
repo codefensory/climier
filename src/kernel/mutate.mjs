@@ -62,8 +62,9 @@ export async function mutate({ projectDir, request, provider, policyAction, plug
   }
 
   return nestedDepthStorage.run(parentDepth + 1, () =>
-    withLock(projectDir, () => executeMutation({
+    withLock(projectDir, (lockContext) => executeMutation({
       projectDir,
+      lockContext,
       request,
       provider,
       policyAction,

@@ -8,6 +8,11 @@
 
 import fs from "node:fs/promises";
 import { readState, writeState, stateFile, createSnapshot, emptyState } from "../../storage/state.mjs";
+import {
+  bootstrapFencedStateUnderLock,
+  commitFencedStateUnderLock,
+  readFencedStateUnderLock,
+} from "../../storage/ledger.mjs";
 import { prepareLogEntry } from "../../storage/log.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
 import { createTransaction } from "../transaction.mjs";
@@ -202,12 +207,12 @@ function validateBatchOperation(raw, index) {
   return { op: raw.op, input: cloneBatchValue(raw.input) };
 }
 
-async function executeBatchMutation({ projectDir, request, batch, policyAction, pluginId }) {
+async function executeBatchMutation({ projectDir, lockContext, request, batch, policyAction, pluginId }) {
   const commandName = "core.batch";
-  const loadedState = await readState(projectDir);
+  const loadedState = await readFencedStateUnderLock(lockContext, { projectDir });
   const snapshot = loadedState;
-  if (!snapshot || typeof snapshot !== "object" || snapshot.version !== 4) {
-    throw new Error(`${commandName}: state file missing or not v4 (run init first)`);
+  if (!snapshot || typeof snapshot !== "object" || snapshot.version !== 5) {
+    throw new Error(`${commandName}: state file missing or not v5 (run init first)`);
   }
   checkStateRevision(request.if_state_revision, snapshot, commandName);
   const rawOperations = request.input && request.input.operations;
@@ -302,6 +307,8 @@ async function executeBatchMutation({ projectDir, request, batch, policyAction, 
     const logEntry = prepareLogEntry({ action: commandName, agent: request.actor, revision: revisionAfter, operations: logOperations }, { pluginId });
     const persistedState = {
       ...snapshot,
+      version: 5,
+      fence_generation: snapshot.fence_generation,
       nodes: finalNodes,
       edges: draftView.edges,
       initiatives: finalInitiatives,
@@ -310,7 +317,7 @@ async function executeBatchMutation({ projectDir, request, batch, policyAction, 
     };
     if (Object.prototype.hasOwnProperty.call(snapshot, "plugins") || Object.keys(pluginsAfter).length > 0) persistedState.plugins = pluginsAfter;
     else delete persistedState.plugins;
-    await writeState(projectDir, persistedState);
+    await commitFencedStateUnderLock(lockContext, persistedState);
   }
   return { ok: true, revision_before: revisionBefore, revision_after: revisionAfter, results };
 }
@@ -393,20 +400,20 @@ async function executeStateMutation({ projectDir, request, stateOperation, polic
  * This function intentionally performs no lock acquisition so all reads,
  * provider callbacks and the final atomic write share the façade's lock.
  */
-export async function executeMutation({ projectDir, request, provider, policyAction, pluginId, stateOperation, batch }) {
+export async function executeMutation({ projectDir, lockContext, request, provider, policyAction, pluginId, stateOperation, batch }) {
   const commandName = validateMutationArguments({ request, provider, stateOperation, batch });
   if (batch !== undefined) {
-    return executeBatchMutation({ projectDir, request, batch, policyAction, pluginId });
+    return executeBatchMutation({ projectDir, lockContext, request, batch, policyAction, pluginId });
   }
   if (stateOperation !== undefined) {
     return executeStateMutation({ projectDir, request, stateOperation, policyAction, pluginId });
   }
 
-  const loadedState = await readState(projectDir);
+  const loadedState = await readFencedStateUnderLock(lockContext, { projectDir });
   const mayBootstrap = loadedState === null && request.action === "initiative.create" && provider.bootstrapMissingState === true;
-  const snapshot = loadedState ?? (mayBootstrap ? emptyState() : null);
-  if (!snapshot || typeof snapshot !== "object" || snapshot.version !== 4) {
-    throw new Error(`${commandName}: state file missing or not v4 (run init first)`);
+  let snapshot = loadedState ?? (mayBootstrap ? { ...emptyState(), version: 5, fence_generation: 1 } : null);
+  if ((!snapshot || typeof snapshot !== "object" || snapshot.version !== 5) && !mayBootstrap) {
+    throw new Error(`${commandName}: state file missing or not v5 (run init first)`);
   }
 
   // 1) Prepare once against the fresh snapshot, while the lock is held.
@@ -449,7 +456,7 @@ export async function executeMutation({ projectDir, request, provider, policyAct
   const pluginsBefore = snapshot.plugins && typeof snapshot.plugins === "object" && !Array.isArray(snapshot.plugins) ? snapshot.plugins : {};
   const pluginsAfter = draftView.plugins && typeof draftView.plugins === "object" && !Array.isArray(draftView.plugins) ? draftView.plugins : {};
   const pluginsChanged = !deepEqualNodes(pluginsBefore, pluginsAfter);
-  const isIdempotent = created.length === 0 && updated.length === 0 && addedEdges.length === 0 && removedEdges.length === 0 &&
+  const isIdempotent = !mayBootstrap && created.length === 0 && updated.length === 0 && addedEdges.length === 0 && removedEdges.length === 0 &&
     removedNodes.length === 0 && initiativeDiff.created.length === 0 && initiativeDiff.updated.length === 0 && !pluginsChanged;
 
   let logEntry = null;
@@ -477,6 +484,8 @@ export async function executeMutation({ projectDir, request, provider, policyAct
     );
     const persistedState = {
       ...snapshot,
+      version: 5,
+      fence_generation: snapshot.fence_generation,
       nodes: finalNodes,
       edges: draftView.edges,
       initiatives: finalInitiatives,
@@ -489,7 +498,17 @@ export async function executeMutation({ projectDir, request, provider, policyAct
       delete persistedState.plugins;
     }
     logEntry = logPayload;
-    await writeState(projectDir, persistedState);
+    if (mayBootstrap) {
+      const bootstrapState = {
+        ...persistedState,
+        version: 4,
+        revision: Math.max(0, ...Object.values(persistedState.nodes).map((node) => Number.isInteger(node.revision) ? node.revision : 0)),
+      };
+      delete bootstrapState.fence_generation;
+      await bootstrapFencedStateUnderLock(lockContext, bootstrapState);
+    } else {
+      await commitFencedStateUnderLock(lockContext, persistedState);
+    }
   }
 
   return {
