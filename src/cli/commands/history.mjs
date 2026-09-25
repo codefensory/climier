@@ -24,7 +24,7 @@ function entryReferencesId(entry, id) {
   return false;
 }
 
-export default async function history({ statePath, flags, positional }) {
+export default async function history({ statePath, flags, positional, backendClient }) {
   const [id] = positional;
   if (!id) {
     throw new Error("history: node id required (e.g. history T1)");
@@ -38,6 +38,10 @@ export default async function history({ statePath, flags, positional }) {
         return n;
       })()
     : null;
+
+  if (backendClient?.type === "remote") {
+    return backendClient.readHistory({ id, limit: limit === null ? undefined : limit });
+  }
 
   const s = await readState(statePath);
   if (!s) return { id, entries: [] };

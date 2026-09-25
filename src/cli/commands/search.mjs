@@ -21,8 +21,11 @@ function includes(value, query) {
   return text ? text.toLowerCase().includes(query) : false;
 }
 
-export default async function search({ statePath, positional, flags }) {
+export default async function search({ statePath, positional, flags, backendClient }) {
   const query = String(positional[0] ?? "").toLowerCase();
+  if (backendClient?.type === "remote") {
+    return backendClient.readSearch({ query, all: flags.all === true || flags.all === "true" });
+  }
   if (!query) return { matches: [], count: 0 };
 
   const state = await readState(statePath);

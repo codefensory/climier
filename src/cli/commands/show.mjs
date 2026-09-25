@@ -4,9 +4,10 @@ import { throwV2 } from "../../contracts/errors.mjs";
 
 export const knownFlags = [];
 
-export default async function show({ statePath, positional }) {
+export default async function show({ statePath, positional, backendClient }) {
   const [id] = positional;
   if (!id) throw new Error("show: id required (e.g. show T1 or show D1)");
+  if (backendClient?.type === "remote") return backendClient.readNode({ id });
   const projectDir = statePath;
   const s = await readState(projectDir);
   if (!s) throw new Error("show: state file missing");
