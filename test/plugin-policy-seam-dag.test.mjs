@@ -426,7 +426,7 @@ test("seam-dag: add-edge with policy=allow sends action=edge.add to seam", async
     assert.equal(rec.recorded.received.action, "edge.add");
     assert.equal(rec.recorded.received.actor, "agent-a");
     // Snapshot under the lock must expose the live DAG so the policy
-    // can make an informed decision.
+    // can make an informed decision, without leaking internal fence metadata.
     assert.deepEqual(rec.recorded.received.snapshot_keys.sort(), [
       "edges",
       "initiatives",
@@ -821,7 +821,7 @@ test("seam-dag: snapshot passed to authorize reflects the live state under the l
     assert.equal(rec.recorded.received.projectConfig_frozen, true);
     assert.deepEqual(rec.recorded.received.snapshot_keys.sort(), [
       "edges", "initiatives", "log", "nodes", "revision", "version",
-    ]);
+    ], "public policy snapshots do not expose internal fence metadata");
     // The recorded payload exposes a target fingerprint (id/kind/subkind)
     // so the policy can branch on what's being created.
     assert.equal(rec.recorded.received.target.id, "T-post");
