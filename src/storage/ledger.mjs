@@ -11,6 +11,7 @@ import { validateStateInvariants } from "../contracts/state-invariants.mjs";
 
 const LEDGER_VERSION = 1;
 const SOURCE_VERSIONS = new Set([2, 3, 4]);
+const RECOVERY_VERSIONS = new Set([2, 3, 4, FENCED_STATE_VERSION]);
 const injectedFault = "injected failure";
 
 export function ledgerFile(projectDir) {
@@ -99,6 +100,10 @@ function bootstrapStagePath(statePath, stageId) {
   return path.join(path.dirname(statePath), `.bootstrap-stage-${stageId}`);
 }
 
+function recoveryStagePath(statePath, stageId) {
+  return path.join(path.dirname(statePath), `.recovery-stage-${stageId}`);
+}
+
 async function syncDirectory(directory) {
   const handle = await fs.open(directory, "r");
   try {
@@ -117,13 +122,18 @@ function assertValidLedger(ledger) {
       || !(ledger.commit_pending === undefined || ledger.commit_pending === null
         || (ledger.commit_pending && typeof ledger.commit_pending === "object"))
       || !(ledger.bootstrap_pending === undefined || ledger.bootstrap_pending === null
-        || (ledger.bootstrap_pending && typeof ledger.bootstrap_pending === "object"))) {
+        || (ledger.bootstrap_pending && typeof ledger.bootstrap_pending === "object"))
+      || !(ledger.recovery_pending === undefined || ledger.recovery_pending === null
+        || (ledger.recovery_pending && typeof ledger.recovery_pending === "object"))
+      || !(ledger.last_recovery === undefined || ledger.last_recovery === null
+        || (ledger.last_recovery && typeof ledger.last_recovery === "object"))) {
     const error = new Error("ledger: invalid ledger schema");
     error.code = "CLIMIER_INVALID_LEDGER";
     throw error;
   }
   if ((ledger.migration_pending !== null && ledger.commit_pending != null)
-      || (ledger.bootstrap_pending != null && (ledger.migration_pending !== null || ledger.commit_pending != null))) {
+      || (ledger.bootstrap_pending != null && (ledger.migration_pending !== null || ledger.commit_pending != null || ledger.recovery_pending != null))
+      || (ledger.recovery_pending != null && (ledger.migration_pending !== null || ledger.commit_pending != null || ledger.bootstrap_pending != null))) {
     const error = new Error("ledger: bootstrap, migration, and commit recovery markers cannot coexist");
     error.code = "CLIMIER_INVALID_LEDGER";
     throw error;
@@ -162,6 +172,22 @@ function assertValidLedger(ledger) {
         || pending.high_water_revision < pending.source_high_water_revision
         || !Number.isInteger(pending.fence_generation) || pending.fence_generation !== ledger.fence_generation) {
       const error = new Error("ledger: invalid commit_pending record");
+      error.code = "CLIMIER_INVALID_LEDGER";
+      throw error;
+    }
+  }
+  if (ledger.recovery_pending != null) {
+    const pending = ledger.recovery_pending;
+    if (typeof pending.source_sha256 !== "string" || !/^[a-f0-9]{64}$/.test(pending.source_sha256)
+        || typeof pending.destination_sha256 !== "string" || !/^[a-f0-9]{64}$/.test(pending.destination_sha256)
+        || typeof pending.input_sha256 !== "string" || !/^[a-f0-9]{64}$/.test(pending.input_sha256)
+        || typeof pending.stage_id !== "string" || !/^[a-f0-9]{32}$/.test(pending.stage_id)
+        || !Number.isInteger(pending.source_high_water_revision) || pending.source_high_water_revision < 1
+        || !Number.isInteger(pending.high_water_revision) || pending.high_water_revision !== ledger.high_water_revision
+        || pending.high_water_revision <= pending.source_high_water_revision
+        || !Number.isInteger(pending.fence_generation) || pending.fence_generation !== ledger.fence_generation
+        || !SOURCE_VERSIONS.has(pending.source_version)) {
+      const error = new Error("ledger: invalid recovery_pending record");
       error.code = "CLIMIER_INVALID_LEDGER";
       throw error;
     }
@@ -459,6 +485,215 @@ async function finishPendingMigration({ statePath, ledgerPath, ledger, rawState 
   return completedState;
 }
 
+function recoveryDestination(candidate, ledger) {
+  if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)
+      || !RECOVERY_VERSIONS.has(candidate.version)) {
+    const error = new Error(`ledger.recover: unsupported recovery state version ${candidate?.version}`);
+    error.code = "CLIMIER_UNSUPPORTED_SOURCE_VERSION";
+    throw error;
+  }
+  const migrated = migrateState(candidate);
+  const compatible = {
+    ...migrated,
+    nodes: Object.fromEntries(Object.entries(migrated.nodes || {}).map(([id, node]) => [id, { ...node }])),
+  };
+  if (compatible.version === FENCED_STATE_VERSION) compatible.version = 4;
+  delete compatible.fence_generation;
+  validateStateInvariants(compatible, "ledger.recover.candidate");
+  const highWater = Math.max(
+    ledger.high_water_revision,
+    Number.isInteger(compatible.revision) && compatible.revision >= 0 ? compatible.revision : 0,
+    maxNodeRevision(compatible),
+  );
+  const fence = highWater + 1;
+  const destination = {
+    ...compatible,
+    version: FENCED_STATE_VERSION,
+    revision: fence,
+    fence_generation: ledger.fence_generation,
+    nodes: Object.fromEntries(Object.entries(compatible.nodes).map(([id, node]) => [id, { ...node, revision: fence }])),
+  };
+  validateStateInvariants(destination, "ledger.recover.destination");
+  return { destination, destinationRaw: `${JSON.stringify(destination, null, 2)}\n`, highWater: fence, fence };
+}
+
+async function cleanOrphanRecoveryStages(statePath) {
+  const directory = path.dirname(statePath);
+  let entries;
+  try {
+    entries = await fs.readdir(directory, { withFileTypes: true });
+  } catch (error) {
+    if (error.code === "ENOENT") return;
+    throw error;
+  }
+  let changed = false;
+  for (const entry of entries) {
+    if (entry.isFile() && /^\\.recovery-stage-[a-f0-9]{32}$/.test(entry.name)) {
+      await fs.unlink(path.join(directory, entry.name));
+      changed = true;
+    }
+  }
+  if (changed) await syncDirectory(directory);
+}
+
+async function finishPendingRecovery({ statePath, ledgerPath, ledger, rawState, candidate, opts = {} }) {
+  const pending = ledger.recovery_pending;
+  const stagePath = recoveryStagePath(statePath, pending.stage_id);
+  let stageRaw;
+  try {
+    stageRaw = await fs.readFile(stagePath, "utf8");
+  } catch (error) {
+    if (error.code === "ENOENT") throw fingerprintMismatch("recovery stage is missing; explicit recovery is required");
+    throw error;
+  }
+  if (sha256(stageRaw) !== pending.destination_sha256) {
+    throw fingerprintMismatch("recovery stage does not match the pending destination fingerprint");
+  }
+  const staged = readJson(stageRaw, "recovery stage");
+  if (staged.version !== FENCED_STATE_VERSION
+      || staged.fence_generation !== pending.fence_generation
+      || staged.revision !== pending.high_water_revision) {
+    throw fingerprintMismatch("recovery stage does not match the pending generation or high-water revision");
+  }
+  validateStateInvariants(staged, "ledger.recover.stage");
+
+  const currentHash = sha256(rawState);
+  if (currentHash === pending.source_sha256) {
+    const source = readJson(rawState, "recovery source state");
+    if (!SOURCE_VERSIONS.has(source.version) || Number.isInteger(source.fence_generation)) {
+      throw fingerprintMismatch("recovery source no longer matches the stale legacy state");
+    }
+    fault(opts, "before-state-rename");
+    await durableReplace(statePath, stageRaw);
+    rawState = stageRaw;
+    fault(opts, "after-state-rename");
+  } else if (currentHash !== pending.destination_sha256) {
+    throw fingerprintMismatch("state fingerprint diverged from pending recovery source and destination");
+  }
+
+  const destination = readJson(rawState, "recovered state");
+  assertFencedState(destination, ledger);
+  ledger.recovery_pending = null;
+  ledger.last_recovery = {
+    source_sha256: pending.source_sha256,
+    destination_sha256: pending.destination_sha256,
+    input_sha256: pending.input_sha256,
+    source_version: pending.source_version,
+    source_high_water_revision: pending.source_high_water_revision,
+    high_water_revision: pending.high_water_revision,
+    fence_generation: pending.fence_generation,
+  };
+  fault(opts, "before-ledger-clear");
+  await persistLedger(ledgerPath, ledger);
+  fault(opts, "after-ledger-clear");
+  await fs.unlink(stagePath);
+  await syncDirectory(path.dirname(stagePath));
+  return destination;
+}
+
+async function recoverUnderActiveLock(lockContext, candidate, opts = {}) {
+  const { projectDir, statePath } = getActiveLockContext(lockContext);
+  const ledgerPath = ledgerFile(projectDir);
+  let rawState;
+  try {
+    rawState = await fs.readFile(statePath, "utf8");
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      const missing = new Error("ledger.recover: state file is required for explicit recovery");
+      missing.code = "CLIMIER_LEDGER_STATE_MISMATCH";
+      throw missing;
+    }
+    throw error;
+  }
+  let ledger;
+  try {
+    ledger = readJson(await fs.readFile(ledgerPath, "utf8"), "revision ledger");
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      const missing = new Error("ledger.recover: revision ledger is required; refusing reconstruction");
+      missing.code = "CLIMIER_LEDGER_MISSING";
+      throw missing;
+    }
+    throw error;
+  }
+  assertValidLedger(ledger);
+  if (ledger.bootstrap_pending) {
+    return finishPendingBootstrap({ statePath, ledgerPath, ledger });
+  }
+  if (ledger.migration_pending) return finishPendingMigration({ statePath, ledgerPath, ledger, rawState });
+  if (ledger.commit_pending) return finishPendingCommit({ statePath, ledgerPath, ledger, rawState, opts });
+  if (ledger.recovery_pending) {
+    const pending = ledger.recovery_pending;
+    if (!candidate && sha256(rawState) === pending.destination_sha256) {
+      candidate = readJson(rawState, "recovered state");
+    }
+    const pendingStagePath = recoveryStagePath(statePath, pending.stage_id);
+    let pendingStageRaw;
+    try {
+      pendingStageRaw = await fs.readFile(pendingStagePath, "utf8");
+    } catch (error) {
+      if (error.code === "ENOENT") throw fingerprintMismatch("recovery stage is missing; explicit recovery is required");
+      throw error;
+    }
+    if (sha256(pendingStageRaw) !== pending.destination_sha256) {
+      throw fingerprintMismatch("recovery stage does not match the pending destination fingerprint");
+    }
+    const pendingDestination = readJson(pendingStageRaw, "recovery stage");
+    if (pendingDestination.version !== FENCED_STATE_VERSION
+        || pendingDestination.fence_generation !== pending.fence_generation
+        || pendingDestination.revision !== pending.high_water_revision) {
+      throw fingerprintMismatch("recovery stage does not match the pending generation or high-water revision");
+    }
+    validateStateInvariants(pendingDestination, "ledger.recover.stage");
+    return finishPendingRecovery({ statePath, ledgerPath, ledger, rawState, candidate, opts });
+  }
+
+  const inputRaw = `${JSON.stringify(candidate, null, 2)}\n`;
+  const inputHash = candidate === undefined ? null : sha256(inputRaw);
+  const sourceHash = sha256(rawState);
+  if (ledger.last_recovery?.destination_sha256 === sourceHash
+      && (candidate === undefined || ledger.last_recovery.input_sha256 === inputHash)) {
+    const recovered = readJson(rawState, "recovered state");
+    assertFencedState(recovered, ledger);
+    return recovered;
+  }
+  const source = readJson(rawState, "state");
+  if (!SOURCE_VERSIONS.has(source.version) || Number.isInteger(source.fence_generation)) {
+    throw fingerprintMismatch("explicit recovery accepts only an unfenced legacy source state");
+  }
+  candidate ??= source;
+  const prepared = recoveryDestination(candidate, ledger);
+  const destinationHash = sha256(prepared.destinationRaw);
+  await cleanOrphanRecoveryStages(statePath);
+  const stageId = crypto.randomBytes(16).toString("hex");
+  const stagePath = recoveryStagePath(statePath, stageId);
+  const pending = {
+    source_sha256: sourceHash,
+    destination_sha256: destinationHash,
+    input_sha256: inputHash,
+    stage_id: stageId,
+    source_version: source.version,
+    source_high_water_revision: ledger.high_water_revision,
+    high_water_revision: prepared.highWater,
+    fence_generation: ledger.fence_generation,
+  };
+  fault(opts, "before-stage");
+  await writeDurableStage(stagePath, prepared.destinationRaw);
+  fault(opts, "after-stage");
+  fault(opts, "before-pending");
+  ledger.recovery_pending = pending;
+  ledger.high_water_revision = prepared.highWater;
+  await persistLedger(ledgerPath, ledger);
+  fault(opts, "after-pending");
+  return finishPendingRecovery({ statePath, ledgerPath, ledger, rawState, candidate, opts });
+}
+
+/** Rebase an explicit legacy recovery payload under an already-active project lock. */
+export async function recoverFencedStateUnderLock(lockContext, candidate, opts = {}) {
+  assertActiveLockContext(lockContext, opts.projectDir);
+  return recoverUnderActiveLock(lockContext, candidate, opts);
+}
+
 async function cleanOrphanBootstrapStages(statePath) {
   const directory = path.dirname(statePath);
   let entries;
@@ -712,6 +947,9 @@ export async function readFencedStateUnderLock(lockContext, opts = {}) {
     return finishPendingBootstrap({ statePath, ledgerPath, ledger });
   }
   const rawState = await fs.readFile(statePath, "utf8");
+  if (ledger.recovery_pending || ledger.last_recovery) {
+    return recoverUnderActiveLock(lockContext, undefined, opts);
+  }
   if (ledger.migration_pending) {
     return finishPendingMigration({ statePath, ledgerPath, ledger, rawState });
   }
