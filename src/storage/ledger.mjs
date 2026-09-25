@@ -403,35 +403,39 @@ export async function bootstrapFencedState(projectDir, opts = {}) {
   return withLock(projectDir, (lockContext) => bootstrapLocked(projectDir, opts), opts.lockOptions);
 }
 
+/** Read and recover a v5 state while the caller holds its project lock. */
+export async function readFencedStateUnderLock(lockContext, opts = {}) {
+  assertActiveLockContext(lockContext);
+  const { projectDir, statePath } = getActiveLockContext(lockContext);
+  const ledgerPath = ledgerFile(projectDir);
+  let ledger;
+  try {
+    ledger = readJson(await fs.readFile(ledgerPath, "utf8"), "revision ledger");
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      const missing = new Error("ledger: revision ledger is missing for fenced state; refusing reconstruction");
+      missing.code = "CLIMIER_LEDGER_MISSING";
+      throw missing;
+    }
+    throw error;
+  }
+  assertValidLedger(ledger);
+  const rawState = await fs.readFile(statePath, "utf8");
+  if (ledger.migration_pending) {
+    return finishPendingMigration({ statePath, ledgerPath, ledger, rawState });
+  }
+  if (ledger.commit_pending) {
+    return finishPendingCommit({ statePath, ledgerPath, ledger, rawState, opts });
+  }
+  await cleanOrphanCommitStages(statePath);
+  const state = readJson(rawState, "fenced state");
+  assertFencedState(state, ledger);
+  return state;
+}
+
 /** Read a v5 state only when its durable project ledger agrees with it. */
 export async function readFencedState(projectDir, opts = {}) {
-  return withLock(projectDir, async () => {
-    const statePath = stateFile(projectDir);
-    const ledgerPath = ledgerFile(projectDir);
-    let ledger;
-    try {
-      ledger = readJson(await fs.readFile(ledgerPath, "utf8"), "revision ledger");
-    } catch (error) {
-      if (error.code === "ENOENT") {
-        const missing = new Error("ledger: revision ledger is missing for fenced state; refusing reconstruction");
-        missing.code = "CLIMIER_LEDGER_MISSING";
-        throw missing;
-      }
-      throw error;
-    }
-    assertValidLedger(ledger);
-    const rawState = await fs.readFile(statePath, "utf8");
-    if (ledger.migration_pending) {
-      return finishPendingMigration({ statePath, ledgerPath, ledger, rawState });
-    }
-    if (ledger.commit_pending) {
-      return finishPendingCommit({ statePath, ledgerPath, ledger, rawState, opts });
-    }
-    await cleanOrphanCommitStages(statePath);
-    const state = readJson(rawState, "fenced state");
-    assertFencedState(state, ledger);
-    return state;
-  }, opts.lockOptions);
+  return withLock(projectDir, (lockContext) => readFencedStateUnderLock(lockContext, opts), opts.lockOptions);
 }
 
 function validateCommitCandidate(candidate, current, ledger) {
