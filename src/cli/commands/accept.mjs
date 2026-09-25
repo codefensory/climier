@@ -6,16 +6,31 @@ import { mutate } from "../../kernel/mutate.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
 import { resolveAgent } from "../actor.mjs";
 import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
+import { executeRemoteTask, throwMissingRemoteNode } from "./internal/task-routing.mjs";
 
 const REGISTRY = bootstrapBuiltins();
 
 export const knownFlags = ["as"];
 
-export default async function accept({ statePath, projectDir, flags = {}, positional = [] } = {}) {
+export default async function accept({ statePath, projectDir, flags = {}, positional = [], backendClient } = {}) {
   const id = positional[0];
   if (!id) throwV2("MISSING_FIELD", "accept: node id required", { field: "id" });
   const agent = resolveAgent(flags, "accept");
   const dir = projectDir || statePath;
+  const remote = await executeRemoteTask({
+    backendClient,
+    projectDir: dir,
+    actor: agent,
+    operation: "task.accept",
+    command: "accept",
+    id,
+    input: { id, actor: agent },
+    inspectTarget: true,
+  });
+  if (remote) {
+    if (!remote.node) throwMissingRemoteNode("accept", id);
+    return { node: remote.node, newly_ready: remote.mutation.effects?.newly_ready || [] };
+  }
   const policy = await loadApplicablePolicy({ projectDir: dir });
 
   const mutation = await executeOperation({

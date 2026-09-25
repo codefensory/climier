@@ -8,6 +8,7 @@ import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs"
 import { PolicyDenied } from "../../plugins/errors.mjs";
 import { taskTakeProvider } from "../../providers/task/take.mjs";
 import { statusOfV2 } from "../../providers/task/derivation.mjs";
+import { executeRemoteTask, requireRemoteTask, throwMissingRemoteNode } from "./internal/task-routing.mjs";
 
 export const knownFlags = ["as", "initiative", "domain", "tag"];
 
@@ -97,11 +98,35 @@ function policyForTake({ policy, projectDir, agent, id, snapshotNode }) {
   };
 }
 
-export default async function take({ positional = [], flags = {}, projectDir, statePath, pluginId }) {
+export default async function take({ positional = [], flags = {}, projectDir, statePath, pluginId, backendClient }) {
   const id = positional[0];
   if (!id) throwV2("MISSING_FIELD", "take: node id required", { field: "id" });
   const agent = resolveAgent(flags, "take");
   const dir = projectDir || statePath;
+  if (backendClient && backendClient.type === "remote") await requireRemoteTask(backendClient, id, "take");
+  const remote = await executeRemoteTask({
+    backendClient,
+    actor: agent,
+    operation: "task.take",
+    command: "take",
+    id,
+    input: { id },
+  });
+  if (remote) {
+    const node = remote.node;
+    if (!node) throwMissingRemoteNode("take", id);
+    return {
+      node,
+      context: {
+        derived_status: node.status,
+        revision: node.revision,
+        claim: node.claim || null,
+        blocking: [],
+        knowledge: [],
+      },
+      freshly_claimed: remote.mutation.result ? remote.mutation.result.freshly_claimed === true : false,
+    };
+  }
   const policy = await loadApplicablePolicy({ projectDir: dir });
   const snapshotNode = { value: null };
 
