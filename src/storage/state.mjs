@@ -51,8 +51,15 @@ export async function ensureProjectMeta(projectDir) {
 }
 
 const CURRENT_STATE_VERSION = 4;
+const FENCED_STATE_VERSION = 5;
 const LEGACY_STATE_VERSION = 2;
 const PREVIOUS_STATE_VERSION = 3;
+
+export { FENCED_STATE_VERSION };
+
+export function isFencedState(state) {
+  return !!state && state.version === FENCED_STATE_VERSION;
+}
 
 // v1 is no longer supported. v2 and v3 remain readable through this narrow
 // migration because their collections and node representation are compatible
@@ -162,8 +169,13 @@ export async function updateState(projectDir, mutator) {
     wrapped.details = { file, version: 1, hint: "Run `climier init --force` to overwrite the v1 state." };
     throw wrapped;
   }
-  if (state && typeof state === "object" && "version" in state && state.version > CURRENT_STATE_VERSION) {
-    const wrapped = new Error(`state: file at ${file} has version ${state.version} but this climier only understands version ${CURRENT_STATE_VERSION}`);
+  if (state && typeof state === "object" && state.version === FENCED_STATE_VERSION) {
+    const wrapped = new Error("state.update: v5 states require the revision ledger commit API (not integrated)");
+    wrapped.code = "CLIMIER_LEDGER_REQUIRED";
+    throw wrapped;
+  }
+  if (state && typeof state === "object" && "version" in state && state.version > FENCED_STATE_VERSION) {
+    const wrapped = new Error(`state: file at ${file} has version ${state.version} but this climier only understands version ${FENCED_STATE_VERSION}`);
     wrapped.code = "CLIMIER_INCOMPATIBLE_VERSION";
     throw wrapped;
   }
@@ -312,6 +324,11 @@ export async function writeState(projectDir, state) {
     throw new Error(
       "writeState: invalid state (version 1 is no longer supported; this build of climier only writes v4 states)",
     );
+  }
+  if (state.version === FENCED_STATE_VERSION) {
+    const error = new Error("writeState: v5 states require the revision ledger commit API (not integrated)");
+    error.code = "CLIMIER_LEDGER_REQUIRED";
+    throw error;
   }
   state = migrateState(state);
   if (state.version !== CURRENT_STATE_VERSION) {
