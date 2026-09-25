@@ -14,7 +14,7 @@ El RFC [G-remote-backend-rfc](../.decisions/G-remote-backend-rfc.md) selecciona 
 - El servidor mantiene un catálogo confiable que autoriza `project_id` opacos y los resuelve a directorios generados/confinados bajo su data root. El cliente nunca elige ni concatena rutas. La autorización del token se verifica por proyecto antes de abrir storage.
 - El servidor ejecuta las operaciones core permitidas con su propio kernel, providers, policies y storage; el cliente no puede enviar plugins/código ni cambiar políticas. Las mutaciones y el log pasan por el kernel server-side bajo lock.
 - El servicio puede usar Node.js stdlib del CLI; no añade runtime dependencies al paquete raíz. TLS se ofrece directamente o se termina en proxy confiable; fuera de host local solo se acepta HTTPS.
-- Un proyecto no provisionado solo se crea por `init` autorizado; desconocido/no autorizado retorna error estructurado sin crear state. El wire contract reporta versión/protocolo incompatible con error explícito.
+- `init` remoto solo puede provisionar un `project_id` que ya figure en el catálogo confiable y para el cual el bearer token tenga tanto scope de proyecto como capacidad explícita `provisionProjectIds`; no se registran IDs arbitrarios del cliente. La ruta de init no acepta `force` en v1: resetear un DAG existente requiere una operación administrativa futura distinta. IDs desconocidos/no autorizados retornan error estructurado sin crear directorio ni state. El wire contract reporta versión/protocolo incompatible con error explícito.
 
 ## Consecuencias
 
