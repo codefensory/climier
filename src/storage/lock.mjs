@@ -5,6 +5,47 @@ import { stateFile } from "./state.mjs";
 
 const RETRY_BASE_MS = 25;
 const DEFAULT_TIMEOUT_MS = 10_000;
+const activeLockContexts = new WeakMap();
+
+function invalidLockContext() {
+  const error = new Error("lock: active project lock capability is required");
+  error.code = "CLIMIER_INVALID_LOCK_CONTEXT";
+  return error;
+}
+
+/** Assert that a capability is active for exactly the requested project. */
+export function assertActiveLockContext(lockContext, projectDir) {
+  if (!lockContext || (typeof lockContext !== "object" && typeof lockContext !== "function")) {
+    throw invalidLockContext();
+  }
+  const details = activeLockContexts.get(lockContext);
+  if (!details?.active || (projectDir !== undefined && details.projectDir !== path.resolve(projectDir))) {
+    throw invalidLockContext();
+  }
+  return true;
+}
+
+/** Resolve a live capability to its canonical storage paths for storage APIs. */
+export function getActiveLockContext(lockContext) {
+  assertActiveLockContext(lockContext);
+  const details = activeLockContexts.get(lockContext);
+  return Object.freeze({ projectDir: details.projectDir, statePath: details.statePath });
+}
+
+function makeLockContext(projectDir) {
+  const context = Object.freeze(Object.create(null));
+  activeLockContexts.set(context, {
+    projectDir: path.resolve(projectDir),
+    statePath: stateFile(projectDir),
+    active: true,
+  });
+  return context;
+}
+
+function expireLockContext(lockContext) {
+  const details = activeLockContexts.get(lockContext);
+  if (details) details.active = false;
+}
 
 function lockPath(projectDir) {
   return path.join(path.dirname(stateFile(projectDir)), ".lock");
@@ -46,9 +87,11 @@ export async function withLock(projectDir, fn, opts = {}) {
     }
   }
 
+  const lockContext = makeLockContext(projectDir);
   try {
-    return await fn();
+    return await fn(lockContext);
   } finally {
+    expireLockContext(lockContext);
     try {
       await fs.unlink(lp);
     } catch {
