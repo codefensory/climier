@@ -22,7 +22,7 @@ import {
   rmTempProject,
   importFresh,
   runCli,
-  writeState as writeRawState,
+  writeFencedState,
   readState as readRawState,
   installPolicyFixture,
   uninstallPolicyFixture,
@@ -249,8 +249,9 @@ describe("search: regex metacharacters are literal (no regex engine)", () => {
   test("search '.' matches a literal dot, not 'any char'", async () => {
     const dir = await createTempProject();
     try {
-      await writeRawState(dir, {
-        version: 2,
+      await writeFencedState(dir, {
+        version: 5,
+        revision: 0,
         nodes: {
           "K-x": {
             id: "K-x", kind: "knowledge", title: "v1.2 release",
@@ -277,8 +278,9 @@ describe("search: regex metacharacters are literal (no regex engine)", () => {
   test("search '.*' matches the literal substring, not 'anything'", async () => {
     const dir = await createTempProject();
     try {
-      await writeRawState(dir, {
-        version: 2,
+      await writeFencedState(dir, {
+        version: 5,
+        revision: 0,
         nodes: {
           "K-x": {
             id: "K-x", kind: "knowledge", title: "regex literal",
@@ -306,8 +308,8 @@ describe("search: regex metacharacters are literal (no regex engine)", () => {
   test("search empty query returns empty result (does not error)", async () => {
     const dir = await createTempProject();
     try {
-      await writeRawState(dir, {
-        version: 2, nodes: {}, edges: [], initiatives: {}, log: [],
+      await writeFencedState(dir, {
+        version: 5, revision: 0, nodes: {}, edges: [], initiatives: {}, log: [],
       });
       const { default: search } = await importFresh("./cli/commands/search.mjs");
       const out = await search({ statePath: dir, positional: [""], flags: {} });
@@ -318,8 +320,9 @@ describe("search: regex metacharacters are literal (no regex engine)", () => {
   test("search unicode body: matches a unicode substring", async () => {
     const dir = await createTempProject();
     try {
-      await writeRawState(dir, {
-        version: 2,
+      await writeFencedState(dir, {
+        version: 5,
+        revision: 0,
         nodes: {
           "K-unicode": {
             id: "K-unicode", kind: "knowledge", title: "alpha",
@@ -354,8 +357,9 @@ describe("history: tokenization matches whole id only", () => {
   test("history T1 does NOT match a log note 'T10 because of T11'", async () => {
     const dir = await createTempProject();
     try {
-      await writeRawState(dir, {
-        version: 2,
+      await writeFencedState(dir, {
+        version: 5,
+        revision: 0,
         nodes: {},
         edges: [],
         initiatives: {},
@@ -373,8 +377,9 @@ describe("history: tokenization matches whole id only", () => {
   test("history T1 DOES match a log note that lists T1 as a whole token", async () => {
     const dir = await createTempProject();
     try {
-      await writeRawState(dir, {
-        version: 2,
+      await writeFencedState(dir, {
+        version: 5,
+        revision: 0,
         nodes: {},
         edges: [],
         initiatives: {},
@@ -405,8 +410,8 @@ describe("history: tokenization matches whole id only", () => {
   test("history rejects missing id", async () => {
     const dir = await createTempProject();
     try {
-      await writeRawState(dir, {
-        version: 2, nodes: {}, edges: [], initiatives: {}, log: [],
+      await writeFencedState(dir, {
+        version: 5, revision: 0, nodes: {}, edges: [], initiatives: {}, log: [],
       });
       const { default: history } = await importFresh("./cli/commands/history.mjs");
       let caught;
@@ -420,8 +425,9 @@ describe("history: tokenization matches whole id only", () => {
   test("history --limit caps the entries returned (most-recent N)", async () => {
     const dir = await createTempProject();
     try {
-      await writeRawState(dir, {
-        version: 2,
+      await writeFencedState(dir, {
+        version: 5,
+        revision: 0,
         nodes: {},
         edges: [],
         initiatives: {},
@@ -933,8 +939,8 @@ describe("init --force on existing state", () => {
       r = await runCli(["--project", dir, "init", "--force"]);
       assert.equal(r.code, 0, r.stderr);
       const s = await readRawState(dir);
-      assert.equal(s.version, 4);
-      assert.equal(s.revision, 3);
+      assert.equal(s.version, 5);
+      assert.equal(s.revision, 5, "--force advances beyond the fenced state high-water");
       assert.deepEqual(s.nodes, {}, "data must be wiped after --force reinit");
       assert.deepEqual(s.initiatives, {}, "initiatives must be wiped too");
     } finally { await rmTempProject(dir); }
