@@ -1,14 +1,11 @@
 // `batch` CLI adapter for the canonical atomic core.batch operation.
 //
-// The adapter owns only input transport and JSON/document validation. The
-// application operation selects the built-in registry and the kernel owns the
-// single lock, draft, revision, log and persistence boundary.
+// The adapter owns input transport and JSON/document validation. The
+// application bridge selects local or remote execution behind one boundary.
 import path from "node:path";
 import { readFile } from "node:fs/promises";
 
-import { executeBatch, createBuiltinOperationRegistry } from "../../application/operations/index.mjs";
-import { mutate } from "../../kernel/mutate.mjs";
-import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
+import createOperationBridge from "../../application/operations/bridge.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
 import { resolveAgent } from "../actor.mjs";
 
@@ -80,23 +77,38 @@ function parseDocument(raw) {
   return document;
 }
 
-export default async function batch({ statePath, projectDir, flags = {}, positional = [] }) {
+async function createLocalSource() {
+  const { createBuiltinOperationRegistry } = await import("../../application/operations/index.mjs");
+  const { mutate } = await import("../../kernel/mutate.mjs");
+  const { loadApplicablePolicy, authorizeAction } = await import("../../plugins/policy.mjs");
+  return {
+    registry: createBuiltinOperationRegistry(),
+    mutate,
+    loadApplicablePolicy,
+    authorizeAction,
+  };
+}
+
+export default async function batch({ statePath, projectDir, projectConfig, backendClient, source, flags = {}, positional = [] }) {
   if (positional.length > 0) {
     invalidInput("positional arguments are not allowed", { field: "positional" });
   }
   const document = parseDocument(await readInput(flags));
   const actor = resolveAgent(flags, "batch");
-  const dir = projectDir || statePath;
 
-  return executeBatch({
-    projectDir: dir,
+  let selectedClient = backendClient;
+  if (backendClient?.type !== "remote") {
+    const { createBackendClient } = await import("../../application/operations/index.mjs");
+    selectedClient = createBackendClient({
+      projectDir: projectDir || statePath,
+      projectConfig,
+      source: source || await createLocalSource(),
+    });
+  }
+
+  return createOperationBridge({ backendClient: selectedClient }).executeBatch({
     actor,
-    input: document,
-    source: {
-      registry: createBuiltinOperationRegistry(),
-      mutate,
-      loadApplicablePolicy,
-      authorizeAction,
-    },
+    operations: document.operations,
+    if_state_revision: document.if_state_revision,
   });
 }
