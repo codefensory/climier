@@ -23,6 +23,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 
 import { createTempProject, rmTempProject, importFresh, writeState as writeStateHelper, readState as readStateHelper, stateFilePath } from "./helpers.mjs";
+import { withLock } from "../src/storage/lock.mjs";
 
 // importKernel — helper that imports the kernel module fresh and pulls
 // both `mutate` and `__kernelInternals` from the named export. Mutate is
@@ -150,7 +151,7 @@ async function bootstrapProject(dir, mutate) {
         title: "Original task title",
         initiative: "kernel",
         status: "open",
-        revision: 3,
+        revision: 2,
       },
     },
     edges: [
@@ -161,7 +162,13 @@ async function bootstrapProject(dir, mutate) {
   };
   if (typeof mutate === "function") mutate(base);
   await writeStateHelper(dir, base);
-  return base;
+  const { bootstrapFencedState } = await import("../src/storage/ledger.mjs");
+  const fenced = await bootstrapFencedState(dir);
+  base.version = fenced.version;
+  base.revision = fenced.revision;
+  base.fence_generation = fenced.fence_generation;
+  base.nodes = fenced.nodes;
+  return fenced;
 }
 
 // ===================================================================
@@ -243,12 +250,12 @@ test("kernel.mutate: creates a task node + BLOCKS edges atomically under one loc
     assert.equal(out.idempotent, false);
     assert.equal(out.diff.created.length, 1);
     assert.equal(out.diff.created[0].id, "T2");
-    assert.equal(out.diff.created[0].node.revision, 1, "new node starts at revision 1");
+    assert.equal(out.diff.created[0].node.revision, 4, "new node starts above the fenced state revision");
     assert.equal(out.diff.added_edges.length, 1);
     assert.deepEqual(out.diff.added_edges[0], { from: "T1", to: "T2", type: "BLOCKS" });
 
     const finalState = await readStateHelper(dir);
-    assert.equal(finalState.nodes.T2.revision, 1);
+    assert.equal(finalState.nodes.T2.revision, 4);
     assert.equal(finalState.nodes.T2.title, "second task");
     assert.equal(finalState.nodes.T1.revision, 3, "T1 unchanged — no revision bump");
     assert.deepEqual(finalState.edges, [
@@ -260,7 +267,7 @@ test("kernel.mutate: creates a task node + BLOCKS edges atomically under one loc
     assert.equal(finalState.log[0].action, "task.create");
     assert.equal(finalState.log[0].agent, "alice");
     assert.equal(finalState.log[0].node, "T2");
-    assert.equal(finalState.log[0].revision, 1);
+    assert.equal(finalState.log[0].revision, 4);
   } finally {
     await rmTempProject(dir);
   }
@@ -282,14 +289,14 @@ test("kernel.mutate: if_revision (single) mismatch throws REVISION_CONFLICT with
     try {
       await mutate({
         projectDir: dir,
-        request: { action: "task.update", actor: "alice", input: {}, if_revision: { kind: "single", id: "T1", value: 2 } },
+        request: { action: "task.update", actor: "alice", input: {}, if_revision: { kind: "single", id: "T1", value: 1 } },
         provider,
       });
     } catch (err) { caught = err; }
     assert.ok(caught, "should have thrown");
     assert.equal(caught.code, "REVISION_CONFLICT");
     assert.equal(caught.details.id, "T1");
-    assert.equal(caught.details.expected, 2);
+    assert.equal(caught.details.expected, 1);
     assert.equal(caught.details.current, 3);
 
     const after = await readStateHelper(dir);
@@ -349,15 +356,15 @@ test("kernel.mutate: if_revisions (multi) for multiple nodes; all must match und
         action: "task.multi_update",
         actor: "alice",
         input: {},
-        if_revision: { kind: "multi", values: { T1: 3, T2: 7 } },
+          if_revision: { kind: "multi", values: { T1: 8, T2: 8 } },
       },
       provider,
     });
     assert.equal(out.idempotent, false);
     const after = await readStateHelper(dir);
-    assert.equal(after.nodes.T1.revision, 4);
+    assert.equal(after.nodes.T1.revision, 9);
     assert.equal(after.nodes.T1.title, "T1-multi");
-    assert.equal(after.nodes.T2.revision, 8);
+    assert.equal(after.nodes.T2.revision, 9);
     assert.equal(after.nodes.T2.title, "T2-multi");
     assert.equal(after.log.length, 1, "single multi-update emit");
     assert.equal(after.log[0].action, "task.multi_update");
@@ -389,7 +396,7 @@ test("kernel.mutate: if_revisions (multi) mismatch throws on the offending node 
           action: "task.multi_update",
           actor: "alice",
           input: {},
-          if_revision: { kind: "multi", values: { T1: 3, T2: 99 } },
+          if_revision: { kind: "multi", values: { T1: 8, T2: 99 } },
         },
         provider,
       });
@@ -397,7 +404,7 @@ test("kernel.mutate: if_revisions (multi) mismatch throws on the offending node 
     assert.equal(caught.code, "REVISION_CONFLICT");
     assert.equal(caught.details.id, "T2");
     assert.equal(caught.details.expected, 99);
-    assert.equal(caught.details.current, 7);
+    assert.equal(caught.details.current, 8);
     const after = await readStateHelper(dir);
     assert.deepEqual(after.nodes.T1, base.nodes.T1, "no T1 partial mutation");
     assert.deepEqual(after.nodes.T2, base.nodes.T2, "no T2 partial mutation");
@@ -981,7 +988,7 @@ test("kernel.mutate: edges added and removed in the same apply; only-changed-edg
     // No node was changed (only edges moved) — node revisions stay put.
     const after = await readStateHelper(dir);
     assert.equal(after.nodes.T1.revision, 3);
-    assert.equal(after.nodes.G1.revision, 1);
+    assert.equal(after.nodes.G1.revision, 3);
     assert.deepEqual(after.edges, [{ from: "T1", to: "G1", type: "BLOCKS" }]);
     assert.equal(after.log.length, 1);
     assert.equal(after.log[0].edges && after.log[0].edges.added.length, 1);
@@ -1016,8 +1023,8 @@ test("kernel provider diff fences created and modified nodes above state revisio
       provider: createTaskProvider({ id: "T2", title: "new" }),
     });
     let state = await readStateHelper(dir);
-    assert.equal(state.nodes.T2.revision, 13);
-    assert.equal(state.revision, 13);
+    assert.equal(state.nodes.T2.revision, 14);
+    assert.equal(state.revision, 14);
 
     await mutate({
       projectDir: dir,
@@ -1025,8 +1032,8 @@ test("kernel provider diff fences created and modified nodes above state revisio
       provider: updateNodeProvider({ id: "T1", newTitle: "after" }).provider,
     });
     state = await readStateHelper(dir);
-    assert.equal(state.nodes.T1.revision, 14);
-    assert.equal(state.revision, 14);
+    assert.equal(state.nodes.T1.revision, 15);
+    assert.equal(state.revision, 15);
     assert.ok(state.revision >= Math.max(...Object.values(state.nodes).map((node) => node.revision)));
   } finally {
     await rmTempProject(dir);
@@ -1252,7 +1259,7 @@ test("kernel.mutate: rejects plan missing target.id", async () => {
   } finally { await rmTempProject(dir); }
 });
 
-test("kernel.mutate: throws when state file is missing (v4 kernel does not bootstrap)", async () => {
+test("kernel.mutate: throws when state file is missing (provider kernel does not bootstrap except initiative.create)", async () => {
   const { mutate } = await importKernel();
   const dir = await createTempProject();
   try {
@@ -1268,7 +1275,7 @@ test("kernel.mutate: throws when state file is missing (v4 kernel does not boots
       });
     } catch (err) { caught = err; }
     assert.ok(caught);
-    assert.match(caught.message, /state file missing or not v4/);
+    assert.match(caught.message, /state file missing or not v5/);
   } finally { await rmTempProject(dir); }
 });
 
@@ -1333,36 +1340,175 @@ test("kernel.mutate: two concurrent mutate calls serialise under the project loc
   }
 });
 
-test("kernel mutation accepts v3 state and persists v4 after a mutation", async () => {
-  const { executeMutation } = await importFresh("./kernel/mutation/execute.mjs");
+test("kernel mutation migrates legacy state and writes provider changes through the fenced commit", async () => {
+  const { mutate } = await importKernel();
+  const { readFencedState, bootstrapFencedState } = await import("../src/storage/ledger.mjs");
   const dir = await createTempProject();
   try {
     await writeStateHelper(dir, {
-      version: 3,
-      nodes: { T1: { id: "T1", kind: "resolvable", subkind: "task", title: "before", status: "open", revision: 1 } },
+      version: 4,
+      revision: 2,
+      nodes: { T1: { id: "T1", kind: "resolvable", subkind: "task", title: "before", status: "open", revision: 2 } },
       edges: [],
       initiatives: {},
       log: [],
     });
-    const mutation = await executeMutation({
+    const { provider } = updateNodeProvider({ id: "T1", newTitle: "fenced provider" });
+    await mutate({
       projectDir: dir,
-      request: { action: "test.update", actor: "alice", input: {} },
-      provider: {
-        prepare: async ({ snapshot }) => ({
-          target: { id: "T1", kind: snapshot.nodes.T1.kind, subkind: snapshot.nodes.T1.subkind },
-          newTitle: "after",
-        }),
-        apply: async ({ tx, plan }) => {
-          tx.updateNode(plan.target.id, { title: plan.newTitle });
-          return { result: { ok: true } };
-        },
-      },
+      request: { action: "task.update", actor: "alice", input: { id: "T1" }, if_state_revision: 3 },
+      provider,
     });
-    assert.equal(mutation.result.ok, true);
+    const state = await readFencedState(dir);
+    assert.equal(state.version, 5);
+    assert.equal(state.fence_generation, 1);
+    assert.equal(state.revision, 4);
+    assert.equal(state.nodes.T1.revision, 4);
+    assert.equal(state.nodes.T1.title, "fenced provider");
+
+    const secondDir = await createTempProject();
+    try {
+      await bootstrapProject(secondDir);
+      const fenced = await bootstrapFencedState(secondDir);
+      const nextProvider = updateNodeProvider({ id: "T1", newTitle: "fenced again" }).provider;
+      await mutate({
+        projectDir: secondDir,
+        request: { action: "task.update", actor: "alice", input: { id: "T1" }, if_state_revision: fenced.revision },
+        provider: nextProvider,
+      });
+      const next = await readFencedState(secondDir);
+      assert.equal(next.version, 5);
+      assert.equal(next.fence_generation, fenced.fence_generation);
+      assert.equal(next.revision, fenced.revision + 1);
+      assert.equal(next.nodes.T1.revision, next.revision);
+    } finally {
+      await rmTempProject(secondDir);
+    }
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("kernel.mutate recovers a pending fenced commit before checking caller CAS", async () => {
+  const { mutate } = await importKernel();
+  const { readFencedState, commitFencedStateUnderLock } = await import("../src/storage/ledger.mjs");
+  const dir = await createTempProject();
+  try {
+    const current = await bootstrapProject(dir);
+    const candidate = {
+      ...current,
+      nodes: { ...current.nodes, T1: { ...current.nodes.T1, title: "recovered pending", revision: current.revision + 1 } },
+      revision: current.revision + 1,
+      log: [...current.log, { action: "test.recovery", revision: current.revision + 1 }],
+    };
+    await assert.rejects(
+      withLock(dir, (lockContext) => commitFencedStateUnderLock(lockContext, candidate, { faultAt: "after-pending" })),
+      /injected failure/,
+    );
+
+    let preparedRevision = null;
+    let policyCalled = false;
+    await assert.rejects(mutate({
+      projectDir: dir,
+      request: { action: "task.update", actor: "alice", input: { id: "T1" }, if_state_revision: current.revision },
+      provider: {
+        prepare: async ({ snapshot }) => {
+          preparedRevision = snapshot.revision;
+          return { target: { id: "T1", kind: "resolvable", subkind: "task" }, newTitle: "should not apply" };
+        },
+        apply: async () => assert.fail("stale CAS must prevent apply"),
+      },
+      policyAction: { decide: async () => { policyCalled = true; return { decision: "allow" }; } },
+    }), (error) => error.code === "STATE_REVISION_CONFLICT");
+
+    assert.equal(preparedRevision, current.revision + 1, "provider sees the recovered commit candidate before CAS");
+    assert.equal(policyCalled, false, "CAS is checked before policy");
+    const recovered = await readFencedState(dir);
+    assert.equal(recovered.nodes.T1.title, "recovered pending");
+    assert.equal(recovered.revision, current.revision + 1);
+    assert.equal(recovered.log.at(-1).action, "test.recovery");
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("kernel.mutate bootstraps a missing project only after provider policy allows", async () => {
+  const { mutate } = await importKernel();
+  const { stateExists, stateFilePath } = await import("./helpers.mjs");
+  const { ledgerFile } = await import("../src/storage/ledger.mjs");
+  const dir = await createTempProject();
+  try {
+    const { initiativeCreateProvider } = await import("../src/providers/core/initiative.mjs");
+    const result = await mutate({
+      projectDir: dir,
+      request: { action: "initiative.create", actor: "alice", input: { name: "new-project" } },
+      provider: initiativeCreateProvider,
+      policyAction: { decide: async () => ({ decision: "allow" }) },
+    });
+    assert.equal(result.result.name, "new-project");
+    assert.equal(await stateExists(dir), true);
+    const { readFencedState } = await import("../src/storage/ledger.mjs");
+    const state = await readFencedState(dir);
+    assert.equal(state.version, 5);
+    assert.equal(state.fence_generation, 1);
+    assert.equal(state.initiatives["new-project"] !== undefined, true);
+    assert.equal(state.log.length, 1);
+    assert.equal(state.log[0].action, "initiative.create");
+
+    const deniedDir = await createTempProject();
+    try {
+      await assert.rejects(mutate({
+        projectDir: deniedDir,
+        request: { action: "initiative.create", actor: "alice", input: { name: "denied" } },
+        provider: initiativeCreateProvider,
+        policyAction: { decide: async () => ({ decision: "deny", reason: "no" }) },
+      }), (error) => error.code === "POLICY_DENIED");
+      assert.equal(await stateExists(deniedDir), false);
+      await assert.rejects(fs.access(ledgerFile(deniedDir)), { code: "ENOENT" });
+      await assert.rejects(fs.access(stateFilePath(deniedDir)), { code: "ENOENT" });
+    } finally {
+      await rmTempProject(deniedDir);
+    }
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("direct mutation executor requires the active lock capability supplied by mutate", async () => {
+  const { executeMutation } = await importFresh("./kernel/mutation/execute.mjs");
+  const { withLock: withActiveLock } = await import("../src/storage/lock.mjs");
+  const dir = await createTempProject();
+  try {
+    await writeStateHelper(dir, {
+      version: 4,
+      revision: 3,
+      nodes: { T1: { id: "T1", kind: "resolvable", subkind: "task", title: "before", status: "open", revision: 2 } },
+      edges: [],
+      initiatives: {},
+      log: [],
+    });
+    await withActiveLock(dir, async (lockContext) => {
+      const mutation = await executeMutation({
+        projectDir: dir,
+        lockContext,
+        request: { action: "test.update", actor: "alice", input: {} },
+        provider: {
+          prepare: async ({ snapshot }) => ({
+            target: { id: "T1", kind: snapshot.nodes.T1.kind, subkind: snapshot.nodes.T1.subkind },
+            newTitle: "after",
+          }),
+          apply: async ({ tx, plan }) => {
+            tx.updateNode(plan.target.id, { title: plan.newTitle });
+            return { result: { ok: true } };
+          },
+        },
+      });
+      assert.equal(mutation.result.ok, true);
+    });
     const after = await readStateHelper(dir);
-    assert.equal(after.version, 4);
-    assert.equal(after.revision, 2);
-    assert.equal(after.nodes.T1.revision, 2);
+    assert.equal(after.version, 5);
+    assert.equal(after.revision, 5);
+    assert.equal(after.nodes.T1.revision, 5);
     assert.equal(after.nodes.T1.title, "after");
   } finally {
     await rmTempProject(dir);
