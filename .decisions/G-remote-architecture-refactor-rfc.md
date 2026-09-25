@@ -26,19 +26,21 @@ contratos públicos existentes y no reabrir el release remoto.
 
 ## Objetivos
 
-1. Hacer que el bridge sea el único punto de entrada de todas las writes
-   built-in de CLI, tanto locales como remotas.
-2. Consolidar el routing interno de operaciones CLI para reducir selección
+1. Hacer que el bridge sea el único punto de entrada de las writes CLI
+   ordinarias respaldadas por providers, tanto locales como remotas.
+2. Definir explícitamente las excepciones de state y transferencia (`init`,
+   `restore`, `push`, `pull`) antes de decidir si alguna puede migrar al bridge.
+3. Consolidar el routing interno de operaciones CLI para reducir selección
    duplicada por dominio, target y revisión.
-3. Establecer proyecciones puras compartidas para lecturas, empezando por
-   `status` y `context`, consumibles por CLI y HTTP.
-4. Reducir fuentes manuales de verdad de la superficie remota mediante un
+4. Establecer proyecciones puras compartidas para lecturas, empezando por
+   `status` y `context`, consumibles por CLI y HTTP con un reloj inyectable.
+5. Reducir fuentes manuales de verdad de la superficie remota mediante un
    manifiesto estático de protocolo, sin relajar la validación hostil del
-   servidor.
-5. Mantener `server/http.mjs` como fachada pública estable mientras se reduce
+   servidor ni confundir capacidades remotas con el catálogo canónico.
+6. Mantener `server/http.mjs` como fachada pública estable mientras se reduce
    su tamaño por seams ya existentes.
-6. Reforzar tests de boundary/import para impedir que nuevos adapters vuelvan a
-   importar kernel, providers, policy o storage directamente.
+7. Reforzar tests de boundary/import para impedir que nuevos adapters mutantes
+   vuelvan a importar kernel, providers, policy o storage directamente.
 
 ## No objetivos
 
@@ -67,9 +69,14 @@ CLI / Server / Plugins
 ```
 
 - `kernel`, `providers` y `read-model` no importan adapters.
-- Los adapters no importan `storage`.
-- Los comandos built-in nuevos no importan providers, `kernel/mutate` ni
-  `plugins/policy`; pasan por Application Operations mediante el bridge.
+- Los adapters mutantes no importan `storage` ni persisten directamente. Los
+  adapters de lectura pueden cargar un snapshot mediante un seam de lectura
+  explícito mientras las proyecciones puras permanecen fuera de ellos.
+- Los comandos built-in ordinarios nuevos no importan providers,
+  `kernel/mutate` ni `plugins/policy`; pasan por Application Operations mediante
+  el bridge. `init`, `restore`, `push` y `pull` son excepciones declaradas hasta
+  que ADR A decida su boundary; no quedan incluidos implícitamente en “todas las
+  writes”.
 - El servidor sigue siendo un adapter: valida HTTP/auth/catálogo y ejecuta el
   mismo catálogo de operaciones canónicas.
 
@@ -101,42 +108,74 @@ paridad después de cada una. Cada decisión debe tener ADR y tasks con paths
 exclusivos; no se ejecutan dos workers sobre el mismo adapter o módulo
 compartido.
 
-### A. Universalizar Application Operations y el bridge para writes
+### A. Universalizar Application Operations y el bridge para writes ordinarias
 
-Migrar los comandos built-in que aún construyen la mutación local directamente
-al bridge local/remoto. El adapter conserva:
+Migrar los comandos built-in ordinarios que aún construyen la mutación local
+directamente al bridge local/remoto. El adapter conserva:
 
 - parsing argv;
 - normalización específica de CLI;
 - actor;
-- defaults públicos y envelope de respuesta.
+- defaults públicos y envelope de respuesta;
+- wrappers de compatibilidad ya observables, solo cuando estén explícitamente
+  modelados y cubiertos por tests.
+
+Antes de migrar el primer comando, ADR A define un **composition root local**
+único para el bridge: construye registry, `mutate`, selección de policy y
+autorización exactamente una vez para la ejecución local de `runCli`. El bridge
+nunca recibe un `source` opcional que pueda llegar incompleto a
+`executeOperation`.
+
+La metadata de operación puede declarar un override de acción de policy cuando
+la compatibilidad lo requiere. Ejemplo obligatorio: `take` debe conservar la
+distinción entre `task.take` y el takeover autorizado como `task.takeover`; no
+se acepta cambiar ese seam solo para unificar imports.
 
 El bridge conserva una sola delegación:
 
 ```text
-local  -> executeOperation / executeBatch
+local  -> executeOperation / executeBatch con source completo
 remote -> backendClient.executeOperation / executeBatch
 ```
 
-Los providers, policy, kernel, log y storage no se mueven. Para evitar un big
-bang, se migra por familias de comandos y se mantiene un allowlist temporal,
-versionado y decreciente de excepciones legacy en el test de imports.
+`init`, `restore`, `push` y `pull` no entran en esta migración por defecto:
+son operaciones state/transfer con dos extremos o lifecycle especial. ADR A
+inventaría para cada una owner, paths, contrato y prueba antes de decidir si
+sigue como excepción explícita o recibe un boundary propio.
+
+Las slices de migración se enumeran y serializan por paths compartidos:
+
+1. foundation local source + test de boundary;
+2. task lifecycle (`take`, `release`, `submit`, `accept`, `reject`, `reopen`,
+   `cancel`), con `takeover` cubierto;
+3. creación/actualización multi-kind (`add-task`, `add-gate`,
+   `add-knowledge`, `add-node`, `update`);
+4. initiative, note y edges;
+5. batch y excepciones declaradas, solo si el inventario muestra un cambio
+   seguro.
+
+Cada familia define su matriz local/remota de operation ID, input, policy
+acción, envelope, error, log y state; además prueba que la ruta local atraviesa
+el bridge. Se mantiene un allowlist temporal, versionado y decreciente de
+excepciones legacy en el test de imports.
 
 ### B. Consolidar el routing de operaciones CLI
 
 Reemplazar los helpers paralelos de `src/cli/commands/internal/` por un router
-interno declarativo. La metadata por comando debe describir, como mínimo:
+interno declarativo. Su metadata es exclusivamente de adaptación CLI:
 
-- operation ID canónico;
-- si exige pre-read de target;
-- discriminador de subkind cuando aplique (`task` frente a `gate`);
+- discriminador de target/pre-read cuando aplique;
+- selección por subkind (`task` frente a `gate`);
 - estrategia de `if_revision`;
 - input resultante sin actor;
-- localizador de entidad en la respuesta.
+- localizador de entidad en la respuesta;
+- override de acción de policy previamente declarado por ADR A.
 
-El router no contiene reglas de dominio, no interpreta argv y no ejecuta
-storage. Su objetivo es eliminar decisiones remotas repetidas y hacer que la
-matriz de operaciones CLI sea auditable.
+El router **no** es dueño del operation ID canónico, schema HTTP o capacidades
+del backend remoto; consume el catálogo canónico y la proyección remote-v1
+definida en ADR C. No contiene reglas de dominio, no interpreta argv y no
+ejecuta storage. Su objetivo es eliminar decisiones CLI repetidas y hacer que
+la matriz de operaciones sea auditable.
 
 ### C. Canonicalizar las proyecciones de lectura
 
@@ -152,26 +191,34 @@ projectInitiatives(snapshot, options)
 projectLog(snapshot, filters)
 ```
 
-CLI y HTTP conservan parsing, carga del snapshot y envelopes de transporte;
-solo dejan de armar reglas de presentación por separado. La primera slice es
-`status` y `context`, porque tienen mayor contenido derivado. Cada extracción
-se protege con fixtures compartidas y pruebas de paridad local/remota.
+CLI y HTTP conservan parsing, carga del snapshot mediante un seam explícito y
+envelopes de transporte; solo dejan de armar reglas de presentación por
+separado. La primera slice es `status` y `context`, porque tienen mayor
+contenido derivado. Las proyecciones reciben un `now` o clock inyectable para
+que edad de claim, stale y alerts se prueben exactamente en ambos adapters.
+Cada extracción se protege con fixtures compartidas, clock común y pruebas de
+paridad local/remota, incluyendo los contratos existentes de status/context y
+los handlers HTTP.
 
 ### D. Manifest y partición interna del protocolo HTTP
 
-Crear un manifiesto estático, data-only y versionado bajo
-`application/operations/` con metadata pública de operación remota:
+Mantener como única fuente de operación canónica el catálogo built-in existente.
+Crear junto a él un manifiesto estático, data-only y versionado que sea una
+**proyección exclusiva de capacidades remote-v1**, no un nuevo catálogo general:
 
-- operation ID;
-- campos superficiales permitidos;
-- elegibilidad en batch;
+- operation ID ya existente en el catálogo canónico;
+- campos superficiales permitidos por HTTP;
+- elegibilidad en batch remoto;
 - metadata de target/resultado necesaria para parity tests.
 
-El servidor deriva su allowlist y validación superficial desde este manifiesto,
-pero conserva validación profunda de JSON hostil, auth/scope/catálogo y la
-validación semántica del provider. El bridge deriva sus IDs soportados desde el
-mismo manifiesto. `cli/dispatch` conserva su allowlist de comandos porque es
-una superficie distinta, pero se prueba contra el manifiesto.
+El servidor deriva su allowlist y validación superficial desde la proyección
+remote-v1, pero conserva validación profunda de JSON hostil, auth/scope/catálogo
+y validación semántica del provider. El backend remoto deriva sus IDs soportados
+desde la misma proyección. El backend local y el bridge compartido continúan
+aceptando el catálogo canónico completo: capacidades válidas solo locales no se
+pierden por no formar parte de remote v1. `cli/dispatch` conserva su allowlist
+de comandos porque es una superficie distinta, pero se prueba contra la
+proyección de capacidades correspondiente.
 
 Una vez estable el manifiesto y las queries, dividir internamente
 `server/http.mjs` sin cambiar su export público:
@@ -220,11 +267,12 @@ flowchart TD
 Las relaciones expresan dependencia de diseño, no autorizan implementar todas
 las piezas juntas. En particular:
 
-1. ADR A puede empezar por migration/boundary tests y routing CLI.
-2. ADR B puede investigar y extraer las queries puras en paralelo mientras no
-   toque los mismos adapters que A.
+1. ADR A empieza por el composition root local, el inventario de excepciones y
+   los boundary/parity tests antes de migrar una familia de comandos.
+2. ADR B puede extraer queries puras en paralelo mientras no toque los mismos
+   adapters que A; inyecta clock desde la primera slice.
 3. ADR C espera conocer el resultado de A para no modelar excepciones legacy
-   como superficie permanente.
+   como superficie permanente y mantiene separadas capacidades local/remote.
 4. ADR D espera B y C, dado que necesita queries canónicas y handlers de
    operaciones con schema derivado.
 
@@ -242,22 +290,26 @@ las piezas juntas. En particular:
 | Riesgo | Mitigación |
 |---|---|
 | Un refactor cambia envelope, error o timing de policy | Matrices de parity local/remota y tests existentes antes/después de cada slice |
-| El bridge universal cambia un comando legacy de forma sutil | Migrar por familia, conservar adaptador como transformador pre/post y comparar respuesta pública |
-| El manifiesto rebaja validación de HTTP | Solo deriva allowlist/campos superficiales; servidor mantiene auth, schema hostil y provider validation |
-| Queries compartidas cambian vistas de UI o plugins | Funciones puras, fixtures comunes y parity tests de salida antes de eliminar ensamblado local |
+| El bridge universal cambia un comando legacy de forma sutil | Composition root local completo, override de policy declarado, migración por familia y comparación de respuesta pública |
+| State/transfer operations se incorporan accidentalmente a una migración ordinaria | Inventario explícito de `init`/`restore`/`push`/`pull`; cada excepción tiene owner, paths y test antes de cualquier cambio |
+| El manifiesto rebaja validación de HTTP o limita capacidades locales | Es una proyección remote-v1 del catálogo canónico; solo deriva allowlist/campos superficiales y el servidor mantiene auth, schema hostil y provider validation |
+| Queries compartidas cambian vistas de UI o plugins | Funciones puras, fixtures comunes, clock inyectable y parity tests de salida antes de eliminar ensamblado local |
 | `server/http.mjs` se parte con conflictos grandes | Extraer un seam por task, mantener `createRemoteApiServer` estable y no mezclar movimientos con cambios de behavior |
 | El alcance vuelve a tocar remote v1 | ADRs y tasks declaran explícitamente no-go: no auth/protocol/schema/state behavior nuevo salvo consolidación ya cubierta |
 
 ## Criterios de éxito
 
-1. Ningún comando built-in nuevo importa kernel/provider/policy directamente;
-   las excepciones legacy son explícitas, con fecha/owner de eliminación, y
-   disminuyen hasta cero.
-2. Local y remoto usan el mismo bridge para todas las writes built-in.
+1. Ningún comando built-in ordinario nuevo importa kernel/provider/policy
+   directamente; las excepciones legacy y state/transfer son explícitas, con
+   owner/path/test y plan de eliminación o boundary definitivo.
+2. Local y remoto usan el mismo bridge para todas las writes ordinarias; la
+   matriz enumera por familia operation ID, input, policy acción, envelope,
+   error, log y state en ambos modos.
 3. Existe un único owner puro de cada proyección de lectura; CLI y HTTP muestran
-   la misma vista para snapshots y filtros equivalentes.
-4. Los operation IDs, schema superficial del servidor y capacidades del bridge
-   se derivan de un manifiesto único probado contra el catálogo canónico.
+   la misma vista para snapshots, filtros y clock equivalente.
+4. Los IDs canónicos conservan un único catálogo; schema superficial del
+   servidor y capacidades del backend remoto se derivan de una proyección
+   remote-v1 probada contra él sin restringir operaciones locales válidas.
 5. `server/http.mjs` conserva API pública pero deja de concentrar codec, reads,
    operaciones y transferencias en un único archivo.
 6. `npm test`, concurrencia aplicable, matrices de routing/parity y
@@ -268,14 +320,13 @@ las piezas juntas. En particular:
 1. ¿El owner puro de vistas debe vivir en `read-model/` o en un
    `application/queries/` separado? La recomendación inicial es ampliar
    `read-model/` para no añadir otra capa sin semántica independiente.
-2. ¿La migración del bridge universal debe incluir state operations locales
-   (`init`, `restore`) o dejarlas como excepciones confiables por su lifecycle
-   especial? La recomendación es empezar por built-ins ordinarias y decidir las
-   state operations en ADR A con evidencia de sus invariantes.
-3. ¿El manifiesto cubre solamente remote v1 o también sirve como catálogo
-   general de operaciones locales? La recomendación es que sea remote-v1
-   explícito para evitar convertir metadata de transporte en requisito de todo
-   provider.
+2. ¿Qué boundary definitivo tendrán `init`, `restore`, `push` y `pull`? La
+   recomendación es inventariarlos primero y dejarlos como excepciones
+   explícitas hasta que ADR A demuestre un seam compatible con sus invariantes.
+3. ¿La proyección remote-v1 del manifiesto necesita metadata de resultado o esa
+   información debe quedar solamente en el router CLI? La recomendación es que
+   el manifiesto posea solo transporte/capacidad y el router solo adaptación,
+   sin solapamiento de owners.
 
 ## ADRs derivados
 
