@@ -71,6 +71,10 @@ Mutating (require --as <agent-id>):
   restore <snapshot-id> --as <agent>      Replace the live state with the snapshot's raw bytes (validates target
                                           v2/shape first; takes a pre-restore raw snapshot before changing state).
                                           A policy plugin may deny or further restrict this action.
+  push --as <agent> [--overwrite=true]    Copy the local DAG to the configured remote project.
+                                          Overwrite is absolute; a timeout may leave the outcome unknown. No retry.
+  pull --as <agent> [--overwrite=true]    Copy the configured remote DAG into the local project.
+                                          Overwrite is absolute; the remote source is fetched before local writes.
   deprecate-knowledge <id> --reason "..." --as <agent>
                                           Soft-delete a knowledge node (sets status=deprecated + reason).
 
@@ -109,7 +113,7 @@ Available commands:
   status, context, take, submit, accept, reject, resolve, release, cancel, reopen, search, history,
   show, update, add-note, add-initiative, add-task, add-gate, add-knowledge,
   deprecate-knowledge, add-node, add-edge, remove-edge, initiatives, log, init, snapshots, state,
-  restore, batch, ui, help, version.`;
+  restore, batch, push, pull, ui, help, version.`;
 
 // These flags must not consume the next non-flag token as their value. This
 // preserves the historical `--force init` parsing behavior.
@@ -172,7 +176,7 @@ const REMOTE_SUPPORTED_COMMANDS = new Set([
   "status", "context", "show", "history", "search", "initiatives", "log", "state",
   "take", "submit", "accept", "reject", "resolve", "release", "cancel", "reopen",
   "update", "add-note", "add-initiative", "add-task", "add-gate", "add-knowledge",
-  "deprecate-knowledge", "add-node", "add-edge", "remove-edge", "batch", "init",
+  "deprecate-knowledge", "add-node", "add-edge", "remove-edge", "batch", "init", "push", "pull",
 ]);
 
 function remoteUnsupported(command, reason = "is not supported by the remote backend") {
@@ -185,6 +189,12 @@ function remoteUnsupported(command, reason = "is not supported by the remote bac
 function ensureRemoteCommandSupported({ command, flags = {}, projectConfig = {}, backendClient }) {
   if (command === null || backendClient?.type !== "remote") return;
   if (!REMOTE_SUPPORTED_COMMANDS.has(command)) throw remoteUnsupported(command);
+  if ((command === "push" || command === "pull") && typeof projectConfig.project_id !== "string") {
+    const error = new Error(`dispatch: remote ${command} requires project_id`);
+    error.code = "REMOTE_PROJECT_ID_REQUIRED";
+    error.details = { field: "project_id" };
+    throw error;
+  }
   if (command === "init" && Boolean(flags.force)) {
     throw remoteUnsupported(command, "--force is not supported by the remote backend");
   }
@@ -301,7 +311,7 @@ export async function runCli({
     }
     if (!parsed.command) {
       write(formatError(
-        "no command given. Available: status, context, take, submit, accept, reject, resolve, release, cancel, reopen, search, history, show, update, add-note, add-task, add-gate, add-knowledge, add-initiative, add-node, add-edge, remove-edge, deprecate-knowledge, initiatives, log, init, snapshots, state, restore, batch, ui, help, version",
+        "no command given. Available: status, context, take, submit, accept, reject, resolve, release, cancel, reopen, search, history, show, update, add-note, add-task, add-gate, add-knowledge, add-initiative, add-node, add-edge, remove-edge, deprecate-knowledge, initiatives, log, init, push, pull, snapshots, state, restore, batch, ui, help, version",
       ));
       exitWith(exit, 2);
       return 2;
@@ -321,7 +331,7 @@ export async function runCli({
     if (error.code === "MODULE_NOT_FOUND" || error.code === "ERR_MODULE_NOT_FOUND") {
       if (!parsed.command) {
         write(formatError(
-          "no command given. Available: status, context, take, submit, accept, reject, resolve, release, cancel, reopen, search, history, show, update, add-note, add-task, add-gate, add-knowledge, add-initiative, add-node, add-edge, remove-edge, deprecate-knowledge, initiatives, log, init, snapshots, state, restore, batch, ui, help, version",
+          "no command given. Available: status, context, take, submit, accept, reject, resolve, release, cancel, reopen, search, history, show, update, add-note, add-task, add-gate, add-knowledge, add-initiative, add-node, add-edge, remove-edge, deprecate-knowledge, initiatives, log, init, push, pull, snapshots, state, restore, batch, ui, help, version",
         ));
       } else {
         write(formatError(`unknown command '${parsed.command}'`));

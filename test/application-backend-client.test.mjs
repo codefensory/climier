@@ -64,6 +64,56 @@ test("backend client defaults to local and preserves operation dependencies and 
   });
 });
 
+test("backend client exposes typed transfer export and import requests", async () => {
+  const requests = [];
+  const payload = { version: 4, revision: 0, nodes: {}, edges: [], initiatives: {}, log: [] };
+  await withServer(async (request, response) => {
+    const chunks = [];
+    for await (const chunk of request) chunks.push(chunk);
+    requests.push({ method: request.method, url: request.url, body: JSON.parse(Buffer.concat(chunks).toString("utf8")) });
+    response.writeHead(200, { "content-type": "application/json", "x-climier-protocol-version": "1" });
+    response.end(JSON.stringify({ ok: true, result: request.url.endsWith("export") ? payload : { installed: true } }));
+  }, async (url) => {
+    const client = createBackendClient({
+      projectDir: "/project",
+      projectConfig: { project_id: "remote-project", backend: { type: "remote", url } },
+      token: "transfer-token",
+      remoteOrigin: new URL(url).origin,
+    });
+    assert.deepEqual(await client.exportTransfer(), payload);
+    assert.deepEqual(await client.importTransfer({ payload, actor: "alice", overwrite: true }), { installed: true });
+  }, { approveOrigin: true });
+  assert.deepEqual(requests, [
+    { method: "POST", url: "/v1/projects/remote-project/transfer/export", body: {} },
+    { method: "POST", url: "/v1/projects/remote-project/transfer/import", body: { payload, actor: "alice", overwrite: true } },
+  ]);
+});
+
+test("backend client maps an ambiguous timed-out push without retrying", async () => {
+  let requests = 0;
+  await withServer(async (request, response) => {
+    requests += 1;
+    for await (const _chunk of request) { /* consume request body before simulating a lost response */ }
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    if (!response.destroyed) {
+      response.writeHead(200, { "content-type": "application/json", "x-climier-protocol-version": "1" });
+      response.end(JSON.stringify({ ok: true, result: {} }));
+    }
+  }, async (url) => {
+    const client = createBackendClient({
+      projectDir: "/project",
+      projectConfig: { project_id: "remote-project", backend: { type: "remote", url } },
+      timeoutMs: 10,
+    });
+    await assert.rejects(client.importTransfer({ payload: {}, actor: "alice" }), (error) => {
+      assert.equal(error.code, "TRANSFER_OUTCOME_UNKNOWN");
+      assert.deepEqual(error.details, { applied: "unknown", timeout_ms: 10 });
+      return true;
+    });
+  });
+  assert.equal(requests, 1);
+});
+
 test("backend client uses remote HTTP v1 URL, protocol, bearer auth, actor, and result envelope", async () => {
   const result = { diff: { created: [{ id: "T-remote" }] } };
   await withServer(async (request, response) => {

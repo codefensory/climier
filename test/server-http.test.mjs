@@ -228,6 +228,51 @@ test("HTTP v1 rejects protocol mismatches before opening a project", async () =>
   });
 });
 
+test("HTTP transfer routes capture and install typed payloads through kernel ports only", async () => {
+  await withApi(async ({ baseUrl, projectDirs }) => {
+    await operation(baseUrl, "project-a", "initiative.create", { name: "source" });
+    await operation(baseUrl, "project-a", "task.create", {
+      id: "T-transfer-source", initiative: "source", title: "Transfer source", body: "payload", acceptance: "copied",
+    });
+    const exported = await fetch(`${baseUrl}/v1/projects/project-a/transfer/export`, {
+      method: "POST", headers: authHeaders({ "content-type": "application/json" }), body: "{}",
+    });
+    assert.equal(exported.status, 200, JSON.stringify(await exported.clone().json()));
+    const payload = (await exported.json()).result;
+    assert.equal(payload.nodes["T-transfer-source"].title, "Transfer source");
+    assert.equal(payload.nodes["T-transfer-source"].revision, undefined);
+    assert.equal(payload.log.some((entry) => entry.action.startsWith("transfer.")), false);
+
+    const imported = await fetch(`${baseUrl}/v1/projects/project-b/transfer/import`, {
+      method: "POST",
+      headers: authHeaders({ "content-type": "application/json" }),
+      body: JSON.stringify({ payload, actor: "alice" }),
+    });
+    assert.equal(imported.status, 200, JSON.stringify(await imported.clone().json()));
+    const { readState } = await import("../src/storage/state.mjs");
+    const installed = await readState(projectDirs[1]);
+    assert.equal(installed.nodes["T-transfer-source"].title, "Transfer source");
+    assert.equal(installed.log.filter((entry) => entry.action === "transfer.push").length, 1);
+    assert.equal(installed.log.at(-1).agent, "alice");
+  });
+});
+
+test("HTTP transfer routes validate schema and authorization before kernel access", async () => {
+  await withApi(async ({ baseUrl, openCount }) => {
+    for (const { route, headers, body, status, code } of [
+      { route: "transfer/export", headers: authHeaders({ authorization: "Bearer wrong", "content-type": "application/json" }), body: "{}", status: 401, code: "AUTH_INVALID" },
+      { route: "transfer/import", headers: authHeaders({ "content-type": "application/json" }), body: JSON.stringify({ payload: {}, actor: "alice", sourceProjectDir: "/tmp/private" }), status: 400, code: "INVALID_REQUEST" },
+      { route: "transfer/import", headers: authHeaders({ "content-type": "application/json" }), body: JSON.stringify({ payload: {}, actor: "alice", overwrite: "yes" }), status: 400, code: "INVALID_REQUEST" },
+    ]) {
+      const before = openCount();
+      const response = await fetch(`${baseUrl}/v1/projects/project-a/${route}`, { method: "POST", headers, body });
+      assert.equal(response.status, status);
+      assert.equal((await response.json()).error.code, code);
+      if (route.endsWith("import") && status === 400) assert.equal(openCount(), before);
+    }
+  });
+});
+
 test("HTTP v1 delegates core operations and read projections through server boundaries", async () => {
   await withApi(async ({ baseUrl }) => {
     const createdInitiative = await operation(baseUrl, "project-a", "initiative.create", {
