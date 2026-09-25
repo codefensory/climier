@@ -36,6 +36,27 @@ in `details.cause`; opaque failures are exposed as `CLI_INTERNAL_ERROR`. Help
 and version remain the only intentional plain-text outputs and exit 0. There is
 no `--json` switch because JSON is already the default.
 
+Successful `init` results may include an additive `warnings` array when a documented
+condition requires operator attention. For the internal-only remote plaintext HTTP
+opt-in, successful non-loopback HTTP initialization includes:
+
+```json
+{
+  "warnings": [
+    {
+      "kind": "insecure-remote-http",
+      "severity": "warning",
+      "message": "init: remote HTTP is enabled by CLIMIER_ALLOW_INSECURE_REMOTE_HTTP=true; bearer credentials are sent without transport encryption. Internal trusted networks only."
+    }
+  ]
+}
+```
+
+This field is added to the successful `init` result; it does not describe a new
+general envelope for command results. Other successful initialization modes do
+not include this warning, and failed initialization keeps the existing error
+result without `warnings`.
+
 If you only need the quickstart, use `README.md`. If you need the actual contract, use this file.
 
 ## State shape

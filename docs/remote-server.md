@@ -48,6 +48,18 @@ For each client checkout, configure only the opaque catalog ID and HTTPS API URL
 
 Supply the token as `CLIMIER_TOKEN` from the secret manager. Separately approve the exact API origin with `CLIMIER_REMOTE_ORIGIN`; it must equal the origin parsed from `backend.url` (scheme, host, and port). This binding is not a secret and does not replace TLS. Never store the token in `.climier.json`. Use `climier init` from a configured remote client to initialize the already-cataloged project, then use ordinary supported remote commands. Remote errors, invalid authentication, and network failures are fail-closed: they do not authorize local state fallback.
 
+## Internal-only plaintext HTTP exception
+
+HTTPS remains the default and recommended transport for every remote client. Do not use plaintext HTTP as a product or general deployment mode. The only exception is internal, opt-in use on a network whose operators explicitly assume responsibility for transport confidentiality and integrity.
+
+To allow a remote non-loopback `http:` backend for that internal use, set exactly `CLIMIER_ALLOW_INSECURE_REMOTE_HTTP=true` in the client process environment. This is a temporary operator choice, not a project setting: do not put it in `.climier.json` or a committed config. Without this exact opt-in, remote HTTP remains rejected; loopback HTTP continues to work without it.
+
+Plaintext HTTP does not encrypt or integrity-protect requests. A bearer token sent this way can be observed or changed by anyone able to monitor or interfere with the network. Use only a network boundary you explicitly trust; a private network, firewall, tunnel, or origin binding is not itself TLS. The normal bearer safeguards remain mandatory: keep `CLIMIER_TOKEN` in a secret manager and set `CLIMIER_REMOTE_ORIGIN` to exactly the origin parsed from `backend.url` (including its `http` scheme, host, and port) before a bearer request. Exact origin approval limits where the client sends the token but does not protect it in transit.
+
+When `climier init` succeeds against a remote non-loopback HTTP backend enabled by this opt-in, its JSON result includes an `insecure-remote-http` warning. HTTPS, loopback, and local initialization do not include that warning, and failed initialization retains its existing error result. See [CLI output and exit codes](reference.md#cli-output-and-exit-codes) for the warning's structured shape.
+
+To reverse the exception, remove `CLIMIER_ALLOW_INSECURE_REMOTE_HTTP` from the client process environment and use HTTPS for remote access. With the variable absent, non-loopback remote HTTP is rejected again.
+
 ## Health, shutdown, restart, and recovery
 
 Check service health by observing the launcher's JSON line and probing the configured API with an authorized client command. Do not interpret a listening socket alone as proof that client credentials or project scope are correct. On planned shutdown, send `SIGTERM` through the service manager; the launcher closes its HTTP server. Restart with the same private config and storage roots. Keep the service offline while restoring a coordinated backup of catalog and state.
