@@ -6,7 +6,7 @@ import { throwV2 } from "../../contracts/errors.mjs";
 import { resolveAgent } from "../actor.mjs";
 import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
 import { taskCancelProvider } from "../../providers/task/cancel.mjs";
-import { executeRemoteTask, throwMissingRemoteNode } from "./internal/task-routing.mjs";
+import { executeRemoteResolvableLifecycle } from "./internal/resolvable-lifecycle-routing.mjs";
 import {
   gateCancelProvider,
   prepareGateCancel,
@@ -77,20 +77,15 @@ export default async function cancel({
   const reason = readReason(flags, positional);
   const agent = resolveAgent(flags, "cancel");
   const dir = projectDir || statePath;
-  const remote = await executeRemoteTask({
+  const remote = await executeRemoteResolvableLifecycle({
     backendClient,
-    projectDir: dir,
     actor: agent,
-    operation: "task.cancel",
+    verb: "cancel",
     command: "cancel",
     id,
     input: { id, reason },
-    inspectTarget: true,
   });
-  if (remote) {
-    if (!remote.node) throwMissingRemoteNode("cancel", id);
-    return { node: remote.node };
-  }
+  if (remote) return { node: remote.node };
   const policy = await loadApplicablePolicy({ projectDir: dir });
 
   const mutation = await mutate({
