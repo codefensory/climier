@@ -121,7 +121,10 @@ El servidor y el cliente deben definir errores estructurados compatibles con el 
 - El package raíz es stdlib-only y `ui/` es un subproyecto aparte → decidir cómo distribuir/ejecutar el servicio sin añadir dependencias runtime al CLI.
 - El trabajo toca fronteras compartidas y debe dividirse en entregas con evidencia observable: (1) contrato/config/backend y compatibilidad local; (2) servicio con aislamiento multi-proyecto, auth y prueba concurrente de claims; (3) routing de cada clase de comando/init con prueba de que desconexión remota no accede al DAG local, incluyendo `state`; (4) transferencia push/pull con round-trip, validación, CAS bajo lock del destino y overwrite seguro, incluyendo tests concurrentes y CAS obsoletos; (5) empaquetado, E2E en host Tailscale por API HTTP(S), operación y docs cloud-portables. Cada entrega debe tener condición de salida observable y comandos/tests de evidencia. Las pruebas de transferencia compiten con mutaciones y otras transferencias, verifican que conflicto/fallo deja destino intacto y revisión monotónica, y prueban que CAS antiguos de state/nodes no vuelven a ser válidos. El E2E en dos clientes demuestra visibilidad cruzada, copia local intacta y ausencia de fallback. La descomposición final en tasks y su evidencia detallada se fija en el ADR.
 
-## ADRs derivados (se completa al aprobar)
+## ADRs derivados
 
-- [ ] ADR-NNN: contrato del backend/protocolo remoto, auth y resolución del proyecto → `.adrs/NNN-remote-backend.md`
-- [ ] ADR-NNN: empaquetado y operación del servicio remoto multi-proyecto → `.adrs/NNN-climier-server.md` (separar solo si la decisión de despliegue puede avanzar independientemente)
+- [x] ADR-022: API HTTP(S) tipada, auth por proyecto y catálogo server-side → `.adrs/022-remote-api-service.md` (gate `G-remote-api-service`, aprobado)
+- [x] ADR-023: ledger monotónico y fence de revisiones → `.adrs/023-revision-fence-ledger.md` (gate `G-remote-revision-fence`, aprobado)
+- [x] ADR-024: fachada cliente y routing estricto de backend → `.adrs/024-client-backend-routing.md` (gate `G-remote-client-routing`, aprobado)
+- [x] ADR-025: transferencias explícitas completas `push`/`pull` → `.adrs/025-explicit-dag-transfers.md` (gate `G-remote-dag-transfers`, aprobado)
+- [x] ADR-026: operación del servicio y E2E inicial vía Tailscale → `.adrs/026-server-operations-e2e.md` (gate `G-remote-server-operations`, aprobado)
