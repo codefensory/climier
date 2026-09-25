@@ -71,7 +71,7 @@ La respuesta JSON de éxito es `{ "transfer": { "transfer_id", "direction", "pro
 
 El servidor y el cliente deben definir errores estructurados compatibles con el contrato JSON actual, versionado/compatibilidad del protocolo y límites de tiempo/red. El actor `--as` permanece identidad de auditoría, nunca credencial. Toda ruta de proyecto exige autenticación y autorización asociada al proyecto; el transporte desplegado fuera de localhost debe usar HTTPS o terminar TLS en un proxy confiable. Las respuestas remotas no deben revelar paths del filesystem del servidor.
 
-`init` en modo remoto debe crear/registrar el proyecto remoto de forma controlada y no crear accidentalmente un DAG local paralelo. El mecanismo de alta/propiedad del proyecto (provisionamiento administrativo, primer init autorizado o catálogo preconfigurado) se decide en el ADR.
+`init` en modo remoto nunca crea un DAG local paralelo. Solo puede provisionar storage/state ausente para un `project_id` previamente configurado en el catálogo confiable, cuando el bearer token tiene scope del proyecto y capacidad explícita de provisioning para ese mismo ID. El servidor no registra IDs arbitrarios del cliente. `init --force` remoto no está soportado en v1; resetear un DAG requiere una operación administrativa futura distinta. El endpoint tipado de init valida auth/scope/provisioning antes de crear o abrir storage y devuelve errores estructurados sin filtrar paths.
 
 ## Alternativas consideradas
 
