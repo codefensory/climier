@@ -133,7 +133,7 @@ test("kernel state.restore rejects malformed target without writing or snapshott
 });
 
 test("kernel state.init_force recovers v1 and future state by snapshotting raw bytes", async () => {
-  for (const version of [1, 5]) {
+  for (const version of [1, 6]) {
     const dir = await createTempProject();
     try {
       const { initState } = await importFresh("./kernel/state-operations.mjs");
@@ -154,7 +154,7 @@ test("kernel state.init_force recovers v1 and future state by snapshotting raw b
 });
 
 test("kernel state.restore recovers over v1 and future current state, preserving raw pre-restore snapshot", async () => {
-  for (const version of [1, 5]) {
+  for (const version of [1, 6]) {
     const dir = await createTempProject();
     try {
       const { initState, restoreState } = await importFresh("./kernel/state-operations.mjs");
@@ -177,7 +177,7 @@ test("kernel state.restore recovers over v1 and future current state, preserving
 });
 
 test("kernel ordinary providers reject v1/future state while trusted init keeps version errors recoverable", async () => {
-  for (const version of [1, 5]) {
+  for (const version of [1, 6]) {
     const dir = await createTempProject();
     try {
       const { mutate } = await importFresh("./kernel/mutate.mjs");

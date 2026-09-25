@@ -6,7 +6,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { stateFile, migrateState, FENCED_STATE_VERSION } from "./state.mjs";
-import { withLock, assertActiveLockContext, getActiveLockContext } from "./lock.mjs";
+import { withLock, withCurrentProjectLock, assertActiveLockContext, getActiveLockContext } from "./lock.mjs";
 import { validateStateInvariants } from "../contracts/state-invariants.mjs";
 
 const LEDGER_VERSION = 1;
@@ -662,21 +662,52 @@ export async function bootstrapFencedStateUnderLock(lockContext, initialState, o
 
 /** Read and recover a v5 state while the caller holds its project lock. */
 export async function readFencedStateUnderLock(lockContext, opts = {}) {
-  assertActiveLockContext(lockContext);
+  assertActiveLockContext(lockContext, opts.projectDir);
   const { projectDir, statePath } = getActiveLockContext(lockContext);
   const ledgerPath = ledgerFile(projectDir);
+  const [hasState, hasLedger] = await Promise.all([fileExists(statePath), fileExists(ledgerPath)]);
+
+  if (!hasState && !hasLedger) return null;
+
+  if (!hasLedger) {
+    const rawState = await fs.readFile(statePath, "utf8");
+    const state = readJson(rawState, "state");
+    if (state.version === FENCED_STATE_VERSION || Number.isInteger(state.fence_generation)) {
+      const missing = new Error("ledger: revision ledger is missing for fenced state; refusing reconstruction");
+      missing.code = "CLIMIER_LEDGER_MISSING";
+      throw missing;
+    }
+    // Reuse the durable source/destination fingerprint protocol. Existing state
+    // reaches the migration branch; absent state never reaches its legacy
+    // bootstrap behavior because it returned null above.
+    if (!SOURCE_VERSIONS.has(state.version)) {
+      const error = new Error(`ledger: cannot migrate unsupported state version ${state.version}`);
+      error.code = "CLIMIER_UNSUPPORTED_SOURCE_VERSION";
+      throw error;
+    }
+    return bootstrapLocked(projectDir, opts);
+  }
+
   let ledger;
   try {
     ledger = readJson(await fs.readFile(ledgerPath, "utf8"), "revision ledger");
   } catch (error) {
     if (error.code === "ENOENT") {
-      const missing = new Error("ledger: revision ledger is missing for fenced state; refusing reconstruction");
-      missing.code = "CLIMIER_LEDGER_MISSING";
+      const missing = new Error("ledger: revision ledger disappeared while holding project lock");
+      missing.code = "CLIMIER_LEDGER_STATE_MISMATCH";
       throw missing;
     }
     throw error;
   }
   assertValidLedger(ledger);
+  if (!hasState) {
+    if (ledger.bootstrap_pending) {
+      return finishPendingBootstrap({ statePath, ledgerPath, ledger });
+    }
+    const missing = new Error("ledger: revision ledger exists without state and no exact bootstrap is pending");
+    missing.code = "CLIMIER_LEDGER_STATE_MISMATCH";
+    throw missing;
+  }
   if (ledger.bootstrap_pending) {
     return finishPendingBootstrap({ statePath, ledgerPath, ledger });
   }
@@ -695,7 +726,7 @@ export async function readFencedStateUnderLock(lockContext, opts = {}) {
 
 /** Read a v5 state only when its durable project ledger agrees with it. */
 export async function readFencedState(projectDir, opts = {}) {
-  return withLock(projectDir, (lockContext) => readFencedStateUnderLock(lockContext, opts), opts.lockOptions);
+  return withCurrentProjectLock(projectDir, (lockContext) => readFencedStateUnderLock(lockContext, opts), opts.lockOptions);
 }
 
 function validateCommitCandidate(candidate, current, ledger) {

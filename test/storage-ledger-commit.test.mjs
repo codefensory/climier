@@ -106,10 +106,15 @@ test("fenced read requires an active capability and reads without reacquiring th
         new Promise((_, reject) => setTimeout(() => reject(new Error("read reacquired the held lock")), 1000)),
       ]);
       assert.deepEqual(result, expected);
+      const publicRead = await Promise.race([
+        readFencedState(first),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("public read reacquired the held lock")), 1000)),
+      ]);
+      assert.deepEqual(publicRead, expected);
     });
     await assert.rejects(readFencedStateUnderLock(expiredContext), { code: "CLIMIER_INVALID_LOCK_CONTEXT" });
     await withLock(second, async (lockContext) => {
-      await assert.rejects(readFencedStateUnderLock(lockContext), { code: "CLIMIER_LEDGER_MISSING" });
+      assert.equal(await readFencedStateUnderLock(lockContext), null);
     });
   } finally {
     await rmTempProject(first);
