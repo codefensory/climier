@@ -18,6 +18,7 @@ import {
   statusOf,
 } from "../read-model/index.mjs";
 import { readState } from "../storage/state.mjs";
+import { initState } from "../kernel/state-operations.mjs";
 import { authorizeAction as authorizeServerAction, loadApplicablePolicy } from "../plugins/policy.mjs";
 import { withAuthorizedProject } from "./auth/project-scope.mjs";
 
@@ -93,7 +94,7 @@ function errorStatus(error) {
   if (code === "OPERATION_NOT_FOUND") return 404;
   if (code === "INVALID_PROJECT_ID") return 400;
   if (code === "NODE_NOT_FOUND" || code === "INITIATIVE_NOT_FOUND") return 404;
-  if (code === "ID_CONFLICT" || code === "REVISION_CONFLICT" || code === "STATE_REVISION_CONFLICT") return 409;
+  if (code === "ID_CONFLICT" || code === "REVISION_CONFLICT" || code === "STATE_REVISION_CONFLICT" || code === "STATE_ALREADY_INITIALIZED") return 409;
   if (code === "INVALID_NAME" || code === "MISSING_FIELD" || code === "INVALID_EDGE_TARGET" || code === "INVALID_EDGE_KIND" || code === "SELF_EDGE" || code === "DUPLICATE_EDGE" || code === "NOT_READY" || code === "INVALID_STATUS") return 422;
   if (code === "CLIMIER_INCOMPATIBLE_VERSION" || code === "STATE_V1_UNSUPPORTED") return 409;
   if (typeof code === "string" && (code.startsWith("MISSING_") || code.startsWith("INVALID_") || code.startsWith("SELF_") || code.startsWith("DUPLICATE_") || code.startsWith("NOT_READY"))) return 422;
@@ -570,14 +571,29 @@ export function createRemoteApiServer({
       const route = parseProjectPath(url.pathname);
       if (!route) throw httpError("ROUTE_NOT_FOUND", "server http: route was not found", undefined, 404);
       const operationRoute = route.route === "operations" && request.method === "POST";
+      const initRoute = route.route === "init" && request.method === "POST";
       const read = request.method === "GET" ? readRoute(route.route) : null;
-      if (!read && !operationRoute) {
+      if (!read && !operationRoute && !initRoute) {
         if (route.route.startsWith("files/") || route.route === "snapshot" || route.route === "read/snapshot") {
           throw httpError("ROUTE_NOT_FOUND", "server http: generic file and snapshot routes are not available", undefined, 404);
         }
         throw httpError("ROUTE_NOT_FOUND", "server http: route was not found", undefined, 404);
       }
-      const body = operationRoute ? validateOperationRequest(await readJsonBody(request)) : null;
+      let body = null;
+      if (operationRoute) body = validateOperationRequest(await readJsonBody(request));
+      if (initRoute) {
+        body = await readJsonBody(request);
+        if (!body || typeof body !== "object" || Array.isArray(body)) {
+          throw httpError("INVALID_REQUEST", "server http: init request must be a JSON object", { field: "body" }, 400);
+        }
+        for (const field of Object.keys(body)) {
+          if (field === "force" || field === "reset") {
+            const error = httpError("REMOTE_UNSUPPORTED_OPERATION", `server http: init option '${field}' is not supported remotely`, { field }, 400);
+            throw error;
+          }
+          throw httpError("INVALID_REQUEST", `server http: init field '${field}' is not allowed`, { field }, 400);
+        }
+      }
       const query = read ? parseReadQuery(url, read) : null;
       const project = await withAuthorizedProject({
         authorization: request.headers.authorization,
@@ -585,9 +601,25 @@ export function createRemoteApiServer({
         credentials,
         catalog,
         openProject,
+        provision: initRoute,
       });
       if (!project || typeof project.projectDir !== "string") {
         throw httpError("PROJECT_OPEN_FAILED", "server http: project opener did not return a projectDir", undefined, 500);
+      }
+
+      if (initRoute) {
+        let result;
+        try {
+          const mutation = await initState({ projectDir: project.projectDir, actor: "system" });
+          result = mutation.result;
+        } catch (error) {
+          if (typeof error?.message === "string" && error.message.startsWith("state.init: state file already exists at ")) {
+            throw httpError("STATE_ALREADY_INITIALIZED", "server http: project state is already initialized", undefined, 409);
+          }
+          throw error;
+        }
+        send(response, 200, { ok: true, result });
+        return;
       }
 
       if (operationRoute) {
