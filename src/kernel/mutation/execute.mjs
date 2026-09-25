@@ -12,6 +12,7 @@ import {
   bootstrapFencedStateUnderLock,
   commitFencedStateUnderLock,
   readFencedStateUnderLock,
+  replaceFencedStateUnderLock,
 } from "../../storage/ledger.mjs";
 import { prepareLogEntry } from "../../storage/log.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
@@ -322,12 +323,13 @@ async function executeBatchMutation({ projectDir, lockContext, request, batch, p
   return { ok: true, revision_before: revisionBefore, revision_after: revisionAfter, results };
 }
 
-async function executeStateMutation({ projectDir, request, stateOperation, policyAction, pluginId }) {
+async function executeStateMutation({ projectDir, lockContext, request, stateOperation, policyAction, pluginId }) {
   const commandName = commandLabel(request);
   const statePath = stateFile(projectDir);
   let currentRaw = null;
   let currentState = null;
   let exists = false;
+  let fencedCurrentState = null;
   try {
     currentRaw = await fs.readFile(statePath);
     exists = true;
@@ -338,6 +340,7 @@ async function executeStateMutation({ projectDir, request, stateOperation, polic
   if (exists) {
     try {
       currentState = await readState(projectDir);
+      if (currentState && currentState.version === 5) fencedCurrentState = currentState;
     } catch (err) {
       if (!["CLIMIER_CORRUPT_STATE", "STATE_V1_UNSUPPORTED", "CLIMIER_INCOMPATIBLE_VERSION"].includes(err.code)) throw err;
       stateError = err;
@@ -381,7 +384,11 @@ async function executeStateMutation({ projectDir, request, stateOperation, polic
     logEntry = prepareLogEntry({ action: plan.logAction || request.action, agent: request.actor, ...plan.log }, { pluginId });
     nextState.log = [...(Array.isArray(nextState.log) ? nextState.log : []), logEntry];
   }
-  await writeState(projectDir, nextState);
+  if (fencedCurrentState) {
+    await replaceFencedStateUnderLock(lockContext, nextState, { projectDir });
+  } else {
+    await writeState(projectDir, nextState);
+  }
   let result = applied.result === undefined ? null : applied.result;
   if (snapshotMeta && result && typeof result === "object" && !Array.isArray(result) && result.snapshot === undefined) {
     result = { ...result, snapshot: snapshotMeta };
@@ -406,7 +413,7 @@ export async function executeMutation({ projectDir, lockContext, request, provid
     return executeBatchMutation({ projectDir, lockContext, request, batch, policyAction, pluginId });
   }
   if (stateOperation !== undefined) {
-    return executeStateMutation({ projectDir, request, stateOperation, policyAction, pluginId });
+    return executeStateMutation({ projectDir, lockContext, request, stateOperation, policyAction, pluginId });
   }
 
   const loadedState = await readFencedStateUnderLock(lockContext, { projectDir });

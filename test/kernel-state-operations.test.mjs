@@ -116,6 +116,61 @@ test("kernel state.restore migrates a v2 snapshot to v4 before writing it", asyn
   } finally { await rmTempProject(dir); }
 });
 
+test("kernel state.restore replaces a valid v5 snapshot through the fenced state path", async () => {
+  const dir = await createTempProject();
+  try {
+    const { initState, restoreState } = await importFresh("./kernel/state-operations.mjs");
+    const { createSnapshot } = await importFresh("./storage/state.mjs");
+    const { bootstrapFencedState, readFencedState } = await importFresh("./storage/ledger.mjs");
+    const original = baseState();
+    original.nodes.keep = { id: "keep", kind: "resolvable", subkind: "task", status: "open" };
+    await writeState(dir, original);
+    await bootstrapFencedState(dir);
+    const target = await createSnapshot(dir, "force-init");
+    const targetRaw = JSON.parse(await fs.readFile(path.join(await snapshotDir(dir), `${target.id}.json`), "utf8"));
+    assert.equal(targetRaw.version, 5);
+    assert.ok(Number.isInteger(targetRaw.fence_generation));
+
+    await initState({ projectDir: dir, force: true, actor: "alice" });
+    const out = await restoreState({ projectDir: dir, snapshotId: target.id, actor: "recovery" });
+    const restored = await readFencedState(dir);
+    assert.equal(out.result.snapshot.id, target.id);
+    assert.ok(restored.nodes.keep);
+    assert.equal(restored.version, 5);
+    assert.equal(restored.fence_generation, targetRaw.fence_generation);
+    assert.equal(restored.log.at(-1).action, "restore");
+  } finally { await rmTempProject(dir); }
+});
+
+test("kernel state.restore rejects malformed v5 snapshot before policy or pre-snapshot", async () => {
+  const dir = await createTempProject();
+  try {
+    const { restoreState } = await importFresh("./kernel/state-operations.mjs");
+    const { bootstrapFencedState } = await importFresh("./storage/ledger.mjs");
+    await writeState(dir, baseState());
+    await bootstrapFencedState(dir);
+    const dirPath = await snapshotDir(dir);
+    await fs.mkdir(dirPath, { recursive: true });
+    const malformed = { version: 5, fence_generation: 1.5, nodes: {}, edges: [], initiatives: {}, log: [] };
+    await fs.writeFile(path.join(dirPath, "bad-v5.json"), JSON.stringify(malformed));
+    await fs.writeFile(path.join(dirPath, "bad-v5.meta.json"), JSON.stringify({ id: "bad-v5" }));
+    let policyCalls = 0;
+    const before = await fs.readFile(stateFilePath(dir), "utf8");
+    await assert.rejects(
+      () => restoreState({
+        projectDir: dir,
+        snapshotId: "bad-v5",
+        actor: "alice",
+        policyAction: { decide: async () => { policyCalls += 1; return { decision: "allow" }; } },
+      }),
+      (err) => err.code === "INVALID_STATUS",
+    );
+    assert.equal(policyCalls, 0);
+    assert.equal(await fs.readFile(stateFilePath(dir), "utf8"), before);
+    assert.deepEqual((await fs.readdir(dirPath)).sort(), ["bad-v5.json", "bad-v5.meta.json"]);
+  } finally { await rmTempProject(dir); }
+});
+
 test("kernel state.restore rejects malformed target without writing or snapshotting", async () => {
   const dir = await createTempProject();
   try {
