@@ -44,6 +44,59 @@ function remoteProtocolError(received) {
   );
 }
 
+function invalidReadRequest(method, message, field) {
+  return clientError(
+    "INVALID_REQUEST",
+    `application.backendClient: ${method} ${message}`,
+    field ? { field } : undefined,
+  );
+}
+
+function readOptions(method, options, allowed) {
+  if (!options || typeof options !== "object" || Array.isArray(options)) {
+    throw invalidReadRequest(method, "options must be an object", "options");
+  }
+  for (const key of Object.keys(options)) {
+    if (!allowed.includes(key)) throw invalidReadRequest(method, `option '${key}' is not supported`, key);
+  }
+  return options;
+}
+
+function validateReadOptions(method, options, types) {
+  for (const [name, type] of Object.entries(types)) {
+    const value = options[name];
+    if (value === undefined || (value === null && type.nullable)) continue;
+    const valid = type.kind === "string"
+      ? typeof value === "string"
+      : type.kind === "boolean"
+        ? typeof value === "boolean"
+        : type.kind === "non-negative-integer"
+          ? Number.isSafeInteger(value) && value >= 0
+          : type.kind === "non-negative-number"
+            ? typeof value === "number" && Number.isFinite(value) && value >= 0
+            : false;
+    if (!valid) throw invalidReadRequest(method, `option '${name}' has an invalid value`, name);
+  }
+}
+
+function readId(method, options) {
+  if (typeof options.id !== "string" || options.id.length === 0) {
+    throw invalidReadRequest(method, "node id is required", "id");
+  }
+  return options.id;
+}
+
+function readQuery(options, mapping) {
+  const query = new URLSearchParams();
+  for (const [option, parameter] of mapping) {
+    const value = options[option];
+    if (value === undefined || value === null) continue;
+    query.set(parameter, String(value));
+  }
+  const serialized = query.toString();
+  return serialized ? `?${serialized}` : "";
+}
+
 function createRemoteTransport({ backend, projectId, token, timeoutMs }) {
   async function request({ method, route, body }) {
     const controller = new AbortController();
@@ -135,14 +188,105 @@ function createRemoteTransport({ backend, projectId, token, timeoutMs }) {
         body: { operation: "core.batch", actor, input },
       });
     },
-    readStatus() {
-      return request({ method: "GET", route: "read/status" });
+    readStatus(options = {}) {
+      const method = "readStatus";
+      readOptions(method, options, ["initiative", "kind", "status", "domain", "claimedBy", "staleMs", "limit", "all", "as"]);
+      validateReadOptions(method, options, {
+        initiative: { kind: "string" },
+        kind: { kind: "string" },
+        status: { kind: "string" },
+        domain: { kind: "string" },
+        claimedBy: { kind: "string" },
+        staleMs: { kind: "non-negative-integer" },
+        limit: { kind: "non-negative-integer" },
+        all: { kind: "boolean" },
+        as: { kind: "string" },
+      });
+      return request({
+        method: "GET",
+        route: `read/status${readQuery(options, [
+          ["initiative", "initiative"],
+          ["kind", "kind"],
+          ["status", "status"],
+          ["domain", "domain"],
+          ["claimedBy", "claimed-by"],
+          ["staleMs", "stale-ms"],
+          ["limit", "limit"],
+          ["all", "all"],
+          ["as", "as"],
+        ])}`,
+      });
     },
-    readNode({ id } = {}) {
-      if (typeof id !== "string" || id.length === 0) {
-        throw clientError("INVALID_REQUEST", "application.backendClient: node id is required", { field: "id" });
-      }
-      return request({ method: "GET", route: `read/nodes/${encodeURIComponent(id)}` });
+    readContext(options = {}) {
+      const method = "readContext";
+      readOptions(method, options, ["id", "as", "staleMs"]);
+      const id = readId(method, options);
+      validateReadOptions(method, options, {
+        as: { kind: "string" },
+        staleMs: { kind: "non-negative-number" },
+      });
+      return request({
+        method: "GET",
+        route: `read/context/${encodeURIComponent(id)}${readQuery(options, [["as", "as"], ["staleMs", "staleMs"]])}`,
+      });
+    },
+    readNode(options = {}) {
+      const method = "readNode";
+      readOptions(method, options, ["id"]);
+      const id = readId(method, options);
+      return request({ method: "GET", route: `read/show/${encodeURIComponent(id)}` });
+    },
+    readHistory(options = {}) {
+      const method = "readHistory";
+      readOptions(method, options, ["id", "limit"]);
+      const id = readId(method, options);
+      validateReadOptions(method, options, { limit: { kind: "non-negative-integer" } });
+      return request({
+        method: "GET",
+        route: `read/history/${encodeURIComponent(id)}${readQuery(options, [["limit", "limit"]])}`,
+      });
+    },
+    readSearch(options = {}) {
+      const method = "readSearch";
+      readOptions(method, options, ["query", "all"]);
+      validateReadOptions(method, options, {
+        query: { kind: "string" },
+        all: { kind: "boolean" },
+      });
+      return request({
+        method: "GET",
+        route: `read/search${readQuery(options, [["query", "query"], ["all", "all"]])}`,
+      });
+    },
+    readInitiatives(options = {}) {
+      const method = "readInitiatives";
+      readOptions(method, options, ["all"]);
+      validateReadOptions(method, options, { all: { kind: "boolean" } });
+      return request({ method: "GET", route: `read/initiatives${readQuery(options, [["all", "all"]])}` });
+    },
+    readLog(options = {}) {
+      const method = "readLog";
+      readOptions(method, options, ["limit", "action", "agent", "task", "decision"]);
+      validateReadOptions(method, options, {
+        limit: { kind: "non-negative-integer" },
+        action: { kind: "string" },
+        agent: { kind: "string" },
+        task: { kind: "string" },
+        decision: { kind: "string" },
+      });
+      return request({
+        method: "GET",
+        route: `read/log${readQuery(options, [
+          ["limit", "limit"],
+          ["action", "action"],
+          ["agent", "agent"],
+          ["task", "task"],
+          ["decision", "decision"],
+        ])}`,
+      });
+    },
+    readState() {
+      return request({ method: "GET", route: "read/state" });
     },
   });
 }
