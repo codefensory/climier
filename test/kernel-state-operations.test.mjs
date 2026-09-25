@@ -231,6 +231,38 @@ test("kernel state.restore recovers over v1 and future current state, preserving
   }
 });
 
+test("kernel state.init recovers corrupt bytes through an existing fenced ledger without policy or actor", async () => {
+  const dir = await createTempProject();
+  try {
+    const { initState } = await importFresh("./kernel/state-operations.mjs");
+    const { bootstrapFencedState, readFencedState, ledgerFile } = await importFresh("./storage/ledger.mjs");
+    await writeState(dir, baseState());
+    await bootstrapFencedState(dir);
+    const ledgerPath = ledgerFile(dir);
+    const beforeLedger = JSON.parse(await fs.readFile(ledgerPath, "utf8"));
+    const corruptRaw = Buffer.from("{ corrupt fenced state\n");
+    await fs.writeFile(stateFilePath(dir), corruptRaw);
+    let policyCalls = 0;
+
+    const out = await initState({
+      projectDir: dir,
+      policyAction: { decide: async () => { policyCalls += 1; return { decision: "deny" }; } },
+    });
+
+    const state = await readFencedState(dir);
+    const afterLedger = JSON.parse(await fs.readFile(ledgerPath, "utf8"));
+    assert.deepEqual(state.nodes, {});
+    assert.equal(state.version, 5);
+    assert.ok(state.revision > beforeLedger.high_water_revision);
+    assert.equal(afterLedger.high_water_revision, state.revision);
+    assert.equal(state.fence_generation, beforeLedger.fence_generation);
+    assert.equal(policyCalls, 0);
+    assert.equal(out.result.snapshot.reason, "corrupt-recovery");
+    const snapPath = path.join(await snapshotDir(dir), `${out.result.snapshot.id}.json`);
+    assert.deepEqual(await fs.readFile(snapPath), corruptRaw);
+  } finally { await rmTempProject(dir); }
+});
+
 test("kernel ordinary providers reject v1/future state while trusted init keeps version errors recoverable", async () => {
   for (const version of [1, 6]) {
     const dir = await createTempProject();
@@ -243,6 +275,7 @@ test("kernel ordinary providers reject v1/future state while trusted init keeps 
       await fs.mkdir(path.dirname(stateFilePath(dir)), { recursive: true });
       await fs.writeFile(stateFilePath(dir), raw, "utf8");
       let prepareCalls = 0;
+      let policyCalls = 0;
       await assert.rejects(
         () => mutate({
           projectDir: dir,
@@ -251,10 +284,12 @@ test("kernel ordinary providers reject v1/future state while trusted init keeps 
             prepare: async () => { prepareCalls += 1; return { target: { id: "T1" } }; },
             apply: async () => ({}),
           },
+          policyAction: { decide: async () => { policyCalls += 1; return { decision: "allow" }; } },
         }),
         (err) => err.code === (version === 1 ? "STATE_V1_UNSUPPORTED" : "CLIMIER_INCOMPATIBLE_VERSION"),
       );
       assert.equal(prepareCalls, 0);
+      assert.equal(policyCalls, 0);
       assert.equal(await fs.readFile(stateFilePath(dir), "utf8"), raw);
       await assert.rejects(
         () => initState({ projectDir: dir, actor: "alice" }),

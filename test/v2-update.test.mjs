@@ -189,6 +189,30 @@ test("update: missing node returns NODE_NOT_FOUND", async () => {
   } finally { await rmTempProject(dir); }
 });
 
+test("update: rejects update on a future state with the public incompatibility code", async () => {
+  const { default: update } = await importFresh("./cli/commands/update.mjs");
+  const dir = await createTempProject();
+  try {
+    const { default: init } = await importFresh("./cli/commands/init.mjs");
+    await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
+    const fs = await import("node:fs/promises");
+    const path = await import("node:path");
+    const meta = JSON.parse(await fs.readFile(path.join(dir, ".climier.json"), "utf8"));
+    const futureFile = path.join(process.env.CLIMIER_HOME, "projects", meta.project_id, "tasks.json");
+    await fs.writeFile(futureFile, JSON.stringify({
+      version: 6,
+      nodes: {}, edges: [], initiatives: {}, log: [],
+    }), "utf8");
+    let caught;
+    try {
+      await update({ statePath: dir, positional: ["T1"], flags: { title: "y", as: "alice" } });
+    } catch (error) { caught = error; }
+    assert.ok(caught, "should have thrown");
+    assert.equal(caught.code, "CLIMIER_INCOMPATIBLE_VERSION");
+    assert.match(caught.message, /version 6/i);
+  } finally { await rmTempProject(dir); }
+});
+
 test("update: rejects update on a v1 state", async () => {
   const { default: update } = await importFresh("./cli/commands/update.mjs");
   const dir = await createTempProject();

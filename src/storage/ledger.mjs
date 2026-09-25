@@ -191,7 +191,8 @@ function assertValidLedger(ledger) {
         || !Number.isInteger(pending.high_water_revision) || pending.high_water_revision !== ledger.high_water_revision
         || pending.high_water_revision <= pending.source_high_water_revision
         || !Number.isInteger(pending.fence_generation) || pending.fence_generation !== ledger.fence_generation
-        || !SOURCE_VERSIONS.has(pending.source_version)) {
+        || !SOURCE_VERSIONS.has(pending.source_version)
+        || !(pending.corrupt_source === undefined || pending.corrupt_source === true)) {
       const error = new Error("ledger: invalid recovery_pending record");
       error.code = "CLIMIER_INVALID_LEDGER";
       throw error;
@@ -580,9 +581,18 @@ async function finishPendingRecovery({ statePath, ledgerPath, ledger, rawState, 
 
   const currentHash = sha256(rawState);
   if (currentHash === pending.source_sha256) {
-    const source = readJson(rawState, "recovery source state");
-    if (!SOURCE_VERSIONS.has(source.version) || Number.isInteger(source.fence_generation)) {
-      throw fingerprintMismatch("recovery source no longer matches the stale legacy state");
+    if (pending.corrupt_source) {
+      try {
+        JSON.parse(rawState);
+        throw fingerprintMismatch("recovery source is no longer corrupt");
+      } catch (error) {
+        if (error.code === "CLIMIER_LEDGER_FINGERPRINT_MISMATCH") throw error;
+      }
+    } else {
+      const source = readJson(rawState, "recovery source state");
+      if (!SOURCE_VERSIONS.has(source.version) || Number.isInteger(source.fence_generation)) {
+        throw fingerprintMismatch("recovery source no longer matches the stale legacy state");
+      }
     }
     fault(opts, "before-state-rename");
     await durableReplace(statePath, stageRaw);
@@ -894,8 +904,18 @@ async function recoverUnderActiveLock(lockContext, candidate, opts = {}) {
     assertFencedState(recovered, ledger);
     return recovered;
   }
-  const source = readJson(rawState, "state");
-  if (!SOURCE_VERSIONS.has(source.version) || Number.isInteger(source.fence_generation)) {
+  let source = null;
+  let corruptSource = false;
+  try {
+    source = readJson(rawState, "state");
+  } catch (error) {
+    if (error.code !== "CLIMIER_CORRUPT_LEDGER") throw error;
+    corruptSource = true;
+  }
+  if (corruptSource) {
+    if (candidate !== undefined) throw fingerprintMismatch("corrupt-source recovery does not accept a replacement candidate");
+    candidate = { version: 4, nodes: {}, edges: [], initiatives: {}, log: [], revision: 0 };
+  } else if (!SOURCE_VERSIONS.has(source.version) || Number.isInteger(source.fence_generation)) {
     throw fingerprintMismatch("explicit recovery accepts only an unfenced legacy source state");
   }
   candidate ??= source;
@@ -909,10 +929,11 @@ async function recoverUnderActiveLock(lockContext, candidate, opts = {}) {
     destination_sha256: destinationHash,
     input_sha256: inputHash,
     stage_id: stageId,
-    source_version: source.version,
+    source_version: corruptSource ? 4 : source.version,
     source_high_water_revision: ledger.high_water_revision,
     high_water_revision: prepared.highWater,
     fence_generation: ledger.fence_generation,
+    ...(corruptSource ? { corrupt_source: true } : {}),
   };
   fault(opts, "before-stage");
   await writeDurableStage(stagePath, prepared.destinationRaw);
