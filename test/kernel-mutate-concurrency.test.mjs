@@ -101,9 +101,12 @@ test("kernel.mutate: two concurrent independent mutations on the same project bo
 
     const after = await readStateHelper(dir);
     assert.equal(after.nodes.T1.title, "T1-after-1", "T1 update persisted");
-    assert.equal(after.nodes.T1.revision, 4, "T1 revision bumped once");
     assert.equal(after.nodes.T2.title, "T2-after-1", "T2 update persisted");
-    assert.equal(after.nodes.T2.revision, 2, "T2 revision bumped once");
+    assert.deepEqual(
+      [after.nodes.T1.revision, after.nodes.T2.revision].sort((a, b) => a - b),
+      [4, 5],
+      "both disjoint updates receive consecutive global revisions above the seed high-water",
+    );
     assert.equal(after.log.length, 2, "both writes persisted in order (serialised by withLock)");
     // Both log entries carry the matching action / node / revision.
     const actions = after.log.map((e) => e.action).sort();
@@ -111,7 +114,7 @@ test("kernel.mutate: two concurrent independent mutations on the same project bo
     const nodes = after.log.map((e) => e.node).sort();
     assert.deepEqual(nodes, ["T1", "T2"]);
     const revisions = after.log.map((e) => e.revision).sort((a, b) => a - b);
-    assert.deepEqual(revisions, [2, 4]);
+    assert.deepEqual(revisions, [4, 5], "log revisions preserve the global high-water sequence");
   } finally {
     await rmTempProject(dir);
   }
@@ -154,8 +157,9 @@ test("kernel.mutate: many concurrent independent mutations on the same project a
     const after = await readStateHelper(dir);
     for (let i = 0; i < 6; i += 1) {
       assert.equal(after.nodes[`Tn-${i}`].title, `Tn-${i}-after`, `Tn-${i} update persisted`);
-      assert.equal(after.nodes[`Tn-${i}`].revision, 2, `Tn-${i} revision bumped once`);
     }
+    const revisions = Array.from({ length: 6 }, (_, i) => after.nodes[`Tn-${i}`].revision).sort((a, b) => a - b);
+    assert.deepEqual(revisions, [2, 3, 4, 5, 6, 7], "disjoint writes receive globally increasing revisions");
     assert.equal(after.log.length, 6, "all 6 writes persisted");
   } finally {
     await rmTempProject(dir);

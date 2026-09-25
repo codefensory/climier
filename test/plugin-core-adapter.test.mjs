@@ -388,7 +388,7 @@ test("plugin-core-adapter: task.update consumes { id, changes, if_revision } and
     try {
       const core = await freshCore(dir, { agent: "alice", pluginId: "example.audit" });
       // Seed
-      await core.run({
+      const created = await core.run({
         op: "task.create",
         input: {
           id: "T-upd",
@@ -405,16 +405,16 @@ test("plugin-core-adapter: task.update consumes { id, changes, if_revision } and
         op: "task.update",
         input: {
           id: "T-upd",
-          if_revision: 1,
+          if_revision: created.diff.created[0].node.revision,
           changes: { title: "after" },
         },
       });
       assert.equal(out.diff.updated.length, 1);
       assert.equal(out.diff.updated[0].node.title, "after");
-      assert.equal(out.diff.updated[0].node.revision, 2);
+      assert.equal(out.diff.updated[0].node.revision, created.diff.created[0].node.revision + 1);
       const after = await readState(dir);
       assert.equal(after.nodes["T-upd"].title, "after");
-      assert.equal(after.nodes["T-upd"].revision, 2);
+      assert.equal(after.nodes["T-upd"].revision, out.diff.updated[0].node.revision);
     } finally {
       await rmTempProject(dir);
     }
@@ -426,7 +426,7 @@ test("plugin-core-adapter: task.update without if_revision fails inside the prov
     const dir = await createTempProject();
     try {
       const core = await freshCore(dir, { agent: "alice", pluginId: "example.audit" });
-      await core.run({
+      const created = await core.run({
         op: "task.create",
         input: {
           id: "T-upd-no-cas",
@@ -457,7 +457,7 @@ test("plugin-core-adapter: task.update without if_revision fails inside the prov
       );
       const after = await readState(dir);
       assert.equal(after.nodes["T-upd-no-cas"].title, "x", "title unchanged");
-      assert.equal(after.nodes["T-upd-no-cas"].revision, 1, "revision unchanged");
+      assert.equal(after.nodes["T-upd-no-cas"].revision, created.diff.created[0].node.revision, "failed update leaves revision unchanged");
     } finally {
       await rmTempProject(dir);
     }
@@ -473,7 +473,7 @@ test("plugin-core-adapter: note.add consumes { id, text, if_revision } and appen
     const dir = await createTempProject();
     try {
       const core = await freshCore(dir, { agent: "alice", pluginId: "example.audit" });
-      await core.run({
+      const created = await core.run({
         op: "task.create",
         input: {
           id: "T-note",
@@ -486,14 +486,14 @@ test("plugin-core-adapter: note.add consumes { id, text, if_revision } and appen
       });
       const out = await core.run({
         op: "note.add",
-        input: { id: "T-note", text: "first CAS note", if_revision: 1 },
+        input: { id: "T-note", text: "first CAS note", if_revision: created.diff.created[0].node.revision },
       });
       assert.equal(out.result.notes_count, 1);
       const after = await readState(dir);
       const note = after.nodes["T-note"].notes.find((n) => n.text === "first CAS note");
       assert.ok(note, "note persisted");
       assert.equal(note.agent, "alice", "note agent is host-fixed");
-      assert.equal(after.nodes["T-note"].revision, 2, "node revision bumped");
+      assert.equal(after.nodes["T-note"].revision, created.diff.created[0].node.revision + 1, "node revision advances globally");
     } finally {
       await rmTempProject(dir);
     }

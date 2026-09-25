@@ -607,6 +607,7 @@ test("seam-dag: update with policy=deny returns POLICY_DENIED without mutating s
        "--initiative", "alpha", "--title", "orig", "--body", "b",
        "--acceptance", "a", "--blocked-by", ""],
     );
+    const revisionBeforeDeniedUpdate = (await cli(["--project", projectDir, "show", "T-1"])).node.revision;
     await baseClimierJson(projectDir, buildEnvNamespace("deny", { reason: "no update" }));
 
     const r = await runCliRaw([
@@ -619,10 +620,11 @@ test("seam-dag: update with policy=deny returns POLICY_DENIED without mutating s
     assert.equal(body.error.code, "POLICY_DENIED");
     assert.equal(body.error.details.action, "task.update");
 
-    // State must be intact: title is still "orig" and revision is 1.
+    // State must be intact after denial, including its observed revision.
+    const before = await cli(["--project", projectDir, "show", "T-1"]);
+    assert.equal(before.node.title, "orig");
     const show = await cli(["--project", projectDir, "show", "T-1"]);
-    assert.equal(show.node.title, "orig");
-    assert.equal(show.node.revision, 1);
+    assert.equal(show.node.revision, before.node.revision);
   });
 });
 
