@@ -5,7 +5,8 @@
 // thin executable wrapper around runCli().
 import fsSync from "node:fs";
 
-import { resolveProject } from "../storage/paths.mjs";
+import { resolveProject, projectMetaFile } from "../storage/paths.mjs";
+import { createBackendClient } from "../application/operations/index.mjs";
 import { exitCodeForError, normalizeCliError } from "../contracts/errors.mjs";
 import { RESERVED_NAMESPACES } from "./commands/reserved-namespaces.mjs";
 
@@ -167,6 +168,55 @@ export function formatError(error) {
 // Stable descriptive aliases for consumers of the CLI adapter boundary.
 export const parseArgs = parseArgv;
 
+const REMOTE_SUPPORTED_COMMANDS = new Set([
+  "status", "context", "show", "history", "search", "initiatives", "log", "state",
+  "take", "submit", "accept", "reject", "resolve", "release", "cancel", "reopen",
+  "update", "add-note", "add-initiative", "add-task", "add-gate", "add-knowledge",
+  "deprecate-knowledge", "add-node", "add-edge", "remove-edge", "batch", "init",
+]);
+
+function remoteUnsupported(command, reason = "is not supported by the remote backend") {
+  const error = new Error(`dispatch: ${command || "no command"} ${reason}`);
+  error.code = "REMOTE_UNSUPPORTED_OPERATION";
+  error.details = { command: command ?? null };
+  return error;
+}
+
+function ensureRemoteCommandSupported({ command, flags = {}, projectConfig = {}, backendClient }) {
+  if (command === null || backendClient?.type !== "remote") return;
+  if (!REMOTE_SUPPORTED_COMMANDS.has(command)) throw remoteUnsupported(command);
+  if (command === "init" && Boolean(flags.force)) {
+    throw remoteUnsupported(command, "--force is not supported by the remote backend");
+  }
+  if (command === "init" && !projectConfig.project_id) {
+    const error = new Error("dispatch: remote init requires project_id");
+    error.code = "REMOTE_PROJECT_ID_REQUIRED";
+    error.details = { field: "project_id" };
+    throw error;
+  }
+}
+
+function readProjectConfig(projectDir) {
+  const file = projectMetaFile(projectDir);
+  if (!fsSync.existsSync(file)) return {};
+  let config;
+  try {
+    config = JSON.parse(fsSync.readFileSync(file, "utf8"));
+  } catch (cause) {
+    const error = new Error(`state: project metadata at ${file} is corrupt or not valid JSON: ${cause.message}`);
+    error.code = "CLIMIER_CORRUPT_PROJECT_META";
+    error.cause = cause;
+    throw error;
+  }
+  if (!config || typeof config !== "object" || Array.isArray(config)
+    || typeof config.project_id !== "string" || !config.project_id.trim()) {
+    const error = new Error(`state: project metadata at ${file} is invalid (missing non-empty 'project_id')`);
+    error.code = "CLIMIER_CORRUPT_PROJECT_META";
+    throw error;
+  }
+  return config;
+}
+
 function validateKnownFlags(command, flags, knownFlags) {
   if (!Array.isArray(knownFlags)) return;
   const allowed = new Set([...knownFlags, "project"]);
@@ -186,7 +236,11 @@ export async function dispatchCommand({
   positional = [],
   projectDir,
   statePath = projectDir,
+  projectConfig = {},
+  backendClient,
+  source,
 } = {}) {
+  ensureRemoteCommandSupported({ command, flags, projectConfig, backendClient });
   if (command !== null && !RESERVED_NAMESPACES.includes(command)) {
     const { hasInstalledPlugin } = await import("../plugins/loader.mjs");
     const { dispatchPlugin } = await import("../plugins/dispatch.mjs");
@@ -197,7 +251,7 @@ export async function dispatchCommand({
 
   const mod = await import(`./commands/${command}.mjs`);
   validateKnownFlags(command, flags, mod.knownFlags);
-  return mod.default({ positional, flags, statePath, projectDir });
+  return mod.default({ positional, flags, statePath, projectDir, projectConfig, backendClient, source });
 }
 
 function exitWith(exit, code) {
@@ -207,7 +261,14 @@ function exitWith(exit, code) {
 export const dispatch = dispatchCommand;
 
 /** Run the complete CLI. The injectable writer/exit make this testable. */
-export async function runCli({ argv = process.argv.slice(2), write = console.log, exit = process.exit } = {}) {
+export async function runCli({
+  argv = process.argv.slice(2),
+  write = console.log,
+  exit = process.exit,
+  source,
+  createBackendClient: backendClientFactory = createBackendClient,
+  dispatch = dispatchCommand,
+} = {}) {
   const args = Array.isArray(argv) ? argv.slice() : [];
 
   if (args.includes("--help") || args.includes("-h")) {
@@ -236,8 +297,22 @@ export async function runCli({ argv = process.argv.slice(2), write = console.log
       exitWith(exit, 0);
       return 0;
     }
+    if (!parsed.command) {
+      write(formatError(
+        "no command given. Available: status, context, take, submit, accept, reject, resolve, release, cancel, reopen, search, history, show, update, add-note, add-task, add-gate, add-knowledge, add-initiative, add-node, add-edge, remove-edge, deprecate-knowledge, initiatives, log, init, snapshots, state, restore, batch, ui, help, version",
+      ));
+      exitWith(exit, 2);
+      return 2;
+    }
 
-    const result = await dispatchCommand(context);
+    const projectConfig = readProjectConfig(projectDir);
+    const backendClient = backendClientFactory({ projectDir, projectConfig, source });
+    context.projectConfig = projectConfig;
+    context.backendClient = backendClient;
+    context.source = source;
+    ensureRemoteCommandSupported({ ...context, backendClient });
+
+    const result = await dispatch(context);
     if (result !== undefined) write(formatOutput(result));
     return 0;
   } catch (error) {
