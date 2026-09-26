@@ -10,110 +10,200 @@ const READ_ROUTES = [
   ["node", /^read\/nodes\/([^/]+)$/, []],
 ];
 
+function requireDependencies({ httpError, routing, query, deps, clock }) {
+  const requirements = [
+    [typeof httpError === "function", "httpError is required"],
+    [typeof routing?.decodeURIComponent === "function", "routing.decodeURIComponent is required"],
+    [typeof query?.searchParams === "function", "query.searchParams is required"],
+    [typeof deps?.projectStatusView === "function", "read-model dependencies are required"],
+    [typeof clock === "function", "clock must be a function"],
+  ];
+  const missing = requirements.find(([valid]) => !valid);
+  if (missing) {
+    throw new TypeError(`server http reads: ${missing[1]}`);
+  }
+}
+
+function matchReadRoute(route, routing, httpError) {
+  for (const [kind, pattern, allowedQuery] of READ_ROUTES) {
+    const match = pattern.exec(route);
+    if (!match) {
+      continue;
+    }
+    if (match[1] === undefined) {
+      return { kind, allowedQuery };
+    }
+    let id;
+    try {
+      id = routing.decodeURIComponent(match[1]);
+    } catch {
+      throw httpError("INVALID_REQUEST", "server http: node ID path segment is not valid URL encoding", { field: "id" }, 400);
+    }
+    if (kind === "search") {
+      return { kind, id, query: id, allowedQuery };
+    }
+    return { kind, id, allowedQuery };
+  }
+  return null;
+}
+
+function invalidQuery(httpError, message, details) {
+  throw httpError("INVALID_QUERY", `server http: ${message}`, details, 400);
+}
+
+function parseAll(parsed, httpError) {
+  if (!Object.hasOwn(parsed, "all")) {
+    return;
+  }
+  if (parsed.all === "") {
+    parsed.all = true;
+    return;
+  }
+  if (parsed.all !== "true" && parsed.all !== "false") {
+    invalidQuery(httpError, "query parameter 'all' must be true or false", { parameter: "all", value: parsed.all });
+  }
+  parsed.all = parsed.all === "true";
+}
+
+function parseNonNegativeInt(parsed, name, httpError, options = {}) {
+  const { number = false } = options;
+  if (!Object.hasOwn(parsed, name)) {
+    return;
+  }
+  const value = parsed[name];
+  const valueAsNumber = number ? Number(value) : parseInt(value, 10);
+  const invalid = !Number.isFinite(valueAsNumber) || valueAsNumber < 0;
+  if (invalid) {
+    invalidQuery(httpError, `query parameter '${name}' must be a non-negative ${number ? "number" : "integer"}`, { parameter: name, value });
+  }
+  parsed[name] = valueAsNumber;
+}
+
+function parseRouteNumbers(parsed, kind, httpError) {
+  if (kind === "status") {
+    parseNonNegativeInt(parsed, "stale-ms", httpError);
+    parseNonNegativeInt(parsed, "limit", httpError);
+  } else if (kind === "context") {
+    parseNonNegativeInt(parsed, "staleMs", httpError, { number: true });
+  } else if (kind === "history" || kind === "log") {
+    parseNonNegativeInt(parsed, "limit", httpError);
+  }
+}
+
+function parseSearchQuery(parsed, route, httpError) {
+  if (route.kind !== "search") {
+    return;
+  }
+  if (route.query !== undefined && Object.hasOwn(parsed, "query")) {
+    invalidQuery(httpError, "search query must not be repeated in the path and query string", { parameter: "query" });
+  }
+  parsed.query = route.query ?? parsed.query ?? "";
+}
+
+function parseReadQuery(url, route, query, httpError) {
+  const parsed = {};
+  for (const [key, value] of query.searchParams(url)) {
+    if (!route.allowedQuery.includes(key)) {
+      invalidQuery(httpError, `query parameter '${key}' is not allowed for ${route.kind}`, { parameter: key });
+    }
+    if (Object.hasOwn(parsed, key)) {
+      invalidQuery(httpError, `query parameter '${key}' must not be repeated`, { parameter: key });
+    }
+    parsed[key] = value;
+  }
+  parseSearchQuery(parsed, route, httpError);
+  parseAll(parsed, httpError);
+  parseRouteNumbers(parsed, route.kind, httpError);
+  return parsed;
+}
+
+function entryReferencesId(entry, id) {
+  if (!entry || !id) {
+    return false;
+  }
+  const directReferences = new Set([entry.node, entry.task, entry.decision, entry.gotcha]);
+  const hasDirectReference = directReferences.has(id);
+  const hasNoteReference = typeof entry.note === "string" && entry.note.split(/\\s+/).includes(id);
+  return hasDirectReference || hasNoteReference;
+}
+
+function getNode(nodes, id, httpError) {
+  const node = nodes[id];
+  if (!node) {
+    throw httpError("NODE_NOT_FOUND", `server http: node '${id}' was not found`, { id }, 404);
+  }
+  return node;
+}
+
+function projectStatus(snapshot, filters, now, deps) {
+  return deps.projectStatusView({ snapshot, filters, now });
+}
+
+function projectContext(snapshot, id, filters, { now, deps, httpError }) {
+  const view = deps.projectContextView({ snapshot, id, agent: filters.as, staleMs: filters.staleMs, now });
+  if (!view) {
+    throw httpError("NODE_NOT_FOUND", `server http: node '${id}' was not found`, { id }, 404);
+  }
+  return view;
+}
+
+function projectHistory(snapshot, id, filters) {
+  let entries = (snapshot.log || []).filter((entry) => entryReferencesId(entry, id));
+  if (filters.limit > 0) {
+    entries = entries.slice(-filters.limit);
+  }
+  return { id, entries };
+}
+
+function projectShow(snapshot, id, httpError) {
+  const node = getNode(snapshot.nodes || {}, id, httpError);
+  return { type: node.subkind || node.kind, node: structuredClone(node) };
+}
+
+function projectNode(snapshot, id, deps, httpError) {
+  const node = getNode(snapshot.nodes || {}, id, httpError);
+  return {
+    node: structuredClone(node),
+    derived_status: deps.statusOf({ snapshot, id }),
+    blocking: deps.blockingForNode({ snapshot, id }),
+    knowledge: deps.knowledgeForNode({ snapshot, id }),
+    informing: deps.informingForNode({ snapshot, id }),
+  };
+}
+
+function projectSearch(snapshot, filters, deps) {
+  return deps.projectSearchView({ snapshot, query: filters.query, all: filters.all === true });
+}
+
+function projectInitiatives(snapshot, filters, deps) {
+  return deps.projectInitiativesView({ snapshot, all: filters.all === true });
+}
+
+function createProjectors({ deps, httpError }) {
+  return {
+    status: (snapshot, route, filters, now) => projectStatus(snapshot, filters, now, deps),
+    context: (snapshot, route, filters, now) => projectContext(snapshot, route.id, filters, { now, deps, httpError }),
+    show: (snapshot, route) => projectShow(snapshot, route.id, httpError),
+    history: (snapshot, route, filters) => projectHistory(snapshot, route.id, filters),
+    search: (snapshot, route, filters) => projectSearch(snapshot, filters, deps),
+    initiatives: (snapshot, route, filters) => projectInitiatives(snapshot, filters, deps),
+    log: (snapshot, route, filters) => deps.projectLogView({ snapshot, filters }),
+    state: (snapshot) => deps.projectSnapshot({ snapshot }),
+    node: (snapshot, route) => projectNode(snapshot, route.id, deps, httpError),
+  };
+}
+
+function projectReadResult({ snapshot, route, query: filters, now }, projectors) {
+  const project = projectors[route.kind] || projectors.node;
+  return project(snapshot, route, filters, now);
+}
+
 export function createHttpReads({ httpError, routing, query, deps, clock = Date.now } = {}) {
-  if (typeof httpError !== "function") throw new TypeError("server http reads: httpError is required");
-  if (!routing || typeof routing.decodeURIComponent !== "function") throw new TypeError("server http reads: routing.decodeURIComponent is required");
-  if (!query || typeof query.searchParams !== "function") throw new TypeError("server http reads: query.searchParams is required");
-  if (!deps || typeof deps.projectStatusView !== "function") throw new TypeError("server http reads: read-model dependencies are required");
-  if (typeof clock !== "function") throw new TypeError("server http reads: clock must be a function");
-
-  function matchReadRoute(route) {
-    for (const [kind, pattern, allowedQuery] of READ_ROUTES) {
-      const match = pattern.exec(route);
-      if (!match) continue;
-      if (match[1] === undefined) return { kind, allowedQuery };
-      let id;
-      try {
-        id = routing.decodeURIComponent(match[1]);
-      } catch {
-        throw httpError("INVALID_REQUEST", "server http: node ID path segment is not valid URL encoding", { field: "id" }, 400);
-      }
-      if (kind === "search") return { kind, id, query: id, allowedQuery };
-      return { kind, id, allowedQuery };
-    }
-    return null;
-  }
-
-  function invalidQuery(message, details) {
-    throw httpError("INVALID_QUERY", `server http: ${message}`, details, 400);
-  }
-
-  function parseReadQuery(url, route) {
-    const params = query.searchParams(url);
-    const parsed = {};
-    for (const [key, value] of params) {
-      if (!route.allowedQuery.includes(key)) invalidQuery(`query parameter '${key}' is not allowed for ${route.kind}`, { parameter: key });
-      if (Object.hasOwn(parsed, key)) invalidQuery(`query parameter '${key}' must not be repeated`, { parameter: key });
-      parsed[key] = value;
-    }
-    if (route.kind === "search") {
-      if (route.query !== undefined && Object.hasOwn(parsed, "query")) invalidQuery("search query must not be repeated in the path and query string", { parameter: "query" });
-      parsed.query = route.query ?? parsed.query ?? "";
-    }
-    if (Object.hasOwn(parsed, "all")) {
-      if (parsed.all === "") parsed.all = true;
-      else {
-        if (parsed.all !== "true" && parsed.all !== "false") invalidQuery("query parameter 'all' must be true or false", { parameter: "all", value: parsed.all });
-        parsed.all = parsed.all === "true";
-      }
-    }
-    const parseNonNegativeInt = (name, { number = false } = {}) => {
-      if (!Object.hasOwn(parsed, name)) return;
-      const value = parsed[name];
-      const valueAsNumber = number ? Number(value) : parseInt(value, 10);
-      if (!Number.isFinite(valueAsNumber) || valueAsNumber < 0 || (!number && Number.isNaN(valueAsNumber))) {
-        invalidQuery(`query parameter '${name}' must be a non-negative ${number ? "number" : "integer"}`, { parameter: name, value });
-      }
-      parsed[name] = valueAsNumber;
-    };
-    if (route.kind === "status") {
-      parseNonNegativeInt("stale-ms");
-      parseNonNegativeInt("limit");
-    } else if (route.kind === "context") {
-      parseNonNegativeInt("staleMs", { number: true });
-    } else if (route.kind === "history" || route.kind === "log") {
-      parseNonNegativeInt("limit");
-    }
-    return parsed;
-  }
-
-  function statusProjection(snapshot, filters, now) {
-    return deps.projectStatusView({ snapshot, filters, now });
-  }
-
-  function contextProjection(snapshot, id, filters, now) {
-    const view = deps.projectContextView({ snapshot, id, agent: filters.as, staleMs: filters.staleMs, now });
-    if (!view) throw httpError("NODE_NOT_FOUND", `server http: node '${id}' was not found`, { id }, 404);
-    return view;
-  }
-
-  function entryReferencesId(entry, id) {
-    return !!entry && !!id && (entry.node === id || entry.task === id || entry.decision === id || entry.gotcha === id
-      || (typeof entry.note === "string" && entry.note.split(/\\s+/).includes(id)));
-  }
-
-  function projectReadResult({ snapshot, route, query: filters, now = clock() }) {
-    const nodes = snapshot.nodes || {};
-    if (route.kind === "status") return statusProjection(snapshot, filters, now);
-    if (route.kind === "context") return contextProjection(snapshot, route.id, filters, now);
-    if (route.kind === "show") {
-      const node = nodes[route.id];
-      if (!node) throw httpError("NODE_NOT_FOUND", `server http: node '${route.id}' was not found`, { id: route.id }, 404);
-      return { type: node.subkind || node.kind, node: structuredClone(node) };
-    }
-    if (route.kind === "history") {
-      let entries = (snapshot.log || []).filter((entry) => entryReferencesId(entry, route.id));
-      if (filters.limit > 0) entries = entries.slice(-filters.limit);
-      return { id: route.id, entries };
-    }
-    if (route.kind === "search") return deps.projectSearchView({ snapshot, query: filters.query, all: filters.all === true });
-    if (route.kind === "initiatives") return deps.projectInitiativesView({ snapshot, all: filters.all === true });
-    if (route.kind === "log") return deps.projectLogView({ snapshot, filters });
-    if (route.kind === "state") return deps.projectSnapshot({ snapshot });
-    const node = nodes[route.id];
-    if (!node) throw httpError("NODE_NOT_FOUND", `server http: node '${route.id}' was not found`, { id: route.id }, 404);
-    return { node: structuredClone(node), derived_status: deps.statusOf({ snapshot, id: route.id }), blocking: deps.blockingForNode({ snapshot, id: route.id }), knowledge: deps.knowledgeForNode({ snapshot, id: route.id }), informing: deps.informingForNode({ snapshot, id: route.id }) };
-  }
-
-  return { matchReadRoute, parseReadQuery, projectReadResult };
+  requireDependencies({ httpError, routing, query, deps, clock });
+  const projectors = createProjectors({ deps, httpError });
+  return {
+    matchReadRoute: (route) => matchReadRoute(route, routing, httpError),
+    parseReadQuery: (url, route) => parseReadQuery(url, route, query, httpError),
+    projectReadResult: (input) => projectReadResult({ ...input, now: input.now ?? clock() }, projectors),
+  };
 }

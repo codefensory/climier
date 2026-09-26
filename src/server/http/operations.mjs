@@ -28,7 +28,9 @@ const FORBIDDEN_TOP_LEVEL_FIELDS = new Set([
 const ALLOWED_TOP_LEVEL_FIELDS = new Set(["operation", "input", "actor"]);
 
 function validateInputFields(value, field, httpError) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return;
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return;
+  }
   for (const [key, child] of Object.entries(value)) {
     if (FORBIDDEN_INPUT_FIELDS.has(key)) {
       throw httpError("INVALID_REQUEST", `server http: ${field}.${key} is not allowed`, { field: `${field}.${key}` }, 400);
@@ -42,82 +44,134 @@ function operationCapabilities(manifest) {
   return { operationsById, operationIds: new Set(operationsById.keys()), batch: manifest.batch };
 }
 
-export function validateOperationRequest(body, { manifest, httpError }) {
-  const { operationsById, operationIds, batch } = operationCapabilities(manifest);
-  if (!body || typeof body !== "object" || Array.isArray(body)) {
-    throw httpError("INVALID_REQUEST", "server http: operation request must be a JSON object", { field: "body" }, 400);
-  }
+function invalidRequest(httpError, message, field, details = { field }) {
+  throw httpError("INVALID_REQUEST", `server http: ${message}`, details, 400);
+}
+
+function validateTopLevelFields(body, httpError) {
   for (const field of Object.keys(body)) {
     if (FORBIDDEN_TOP_LEVEL_FIELDS.has(field) || !ALLOWED_TOP_LEVEL_FIELDS.has(field)) {
-      throw httpError("INVALID_REQUEST", `server http: request field '${field}' is not allowed`, { field }, 400);
+      invalidRequest(httpError, `request field '${field}' is not allowed`, field);
     }
   }
+}
+
+function validateBatchOperationFields(operation, field, batch, httpError) {
+  for (const key of Object.keys(operation)) {
+    if (!batch.operationFields.includes(key)) {
+      invalidRequest(httpError, `${field}.${key} is not allowed`, `${field}.${key}`);
+    }
+  }
+}
+
+function validateBatchOperationInput(operation, field, operationsById, httpError) {
+  if (!operation.input || typeof operation.input !== "object" || Array.isArray(operation.input)) {
+    invalidRequest(httpError, `${field}.input must be an object`, `${field}.input`);
+  }
+  const allowedFields = operationsById.get(operation.op)?.httpFields;
+  for (const key of Object.keys(operation.input)) {
+    if (!allowedFields?.includes(key)) {
+      invalidRequest(httpError, `${field}.input field '${key}' is not allowed for ${operation.op}`, `${field}.input.${key}`, {
+        field: `${field}.input.${key}`,
+        operation: operation.op,
+      });
+    }
+  }
+  validateInputFields(operation.input, `${field}.input`, httpError);
+}
+
+function validateBatchOperation(operation, index, { batch, operationsById, httpError }) {
+  const field = `input.operations[${index}]`;
+  if (!operation || typeof operation !== "object" || Array.isArray(operation)) {
+    invalidRequest(httpError, `${field} must be an object`, field);
+  }
+  validateBatchOperationFields(operation, field, batch, httpError);
+  const validId = typeof operation.op === "string" && operation.op.length > 0
+    && batch.eligibleOperationIds.includes(operation.op) && operation.op !== batch.id;
+  if (!validId) {
+    invalidRequest(httpError, `${field}.op must name an allowed built-in operation`, `${field}.op`);
+  }
+  validateBatchOperationInput(operation, field, operationsById, httpError);
+}
+
+function validateBatchInput(input, { batch, operationsById, httpError }) {
+  for (const field of Object.keys(input)) {
+    if (!batch.inputFields.includes(field)) {
+      invalidRequest(httpError, `input field '${field}' is not allowed for ${batch.id}`, `input.${field}`, {
+        field: `input.${field}`,
+        operation: batch.id,
+      });
+    }
+  }
+  const { operations } = input;
+  if (!Array.isArray(operations) || operations.length === 0) {
+    invalidRequest(httpError, "input.operations must be a non-empty array", "input.operations");
+  }
+  operations.forEach((operation, index) => validateBatchOperation(operation, index, {
+    batch,
+    operationsById,
+    httpError,
+  }));
+  if (Object.hasOwn(input, "if_state_revision")
+      && (!Number.isSafeInteger(input.if_state_revision) || input.if_state_revision < 0)) {
+    invalidRequest(httpError, "input.if_state_revision must be a non-negative safe integer", "input.if_state_revision");
+  }
+}
+
+function validateOperationIdentity(body, { batch, operationIds, httpError }) {
   if (typeof body.operation !== "string" || body.operation.length === 0) {
-    throw httpError("INVALID_REQUEST", "server http: operation is required", { field: "operation" }, 400);
+    invalidRequest(httpError, "operation is required", "operation");
   }
-  if (!operationIds.has(body.operation) && body.operation !== batch.id) {
-    const error = new Error(`application.executeOperation: operation '${body.operation}' is not registered`);
-    error.code = "OPERATION_NOT_FOUND";
-    error.details = { operation: body.operation };
-    error.status = 404;
-    throw error;
+  if (operationIds.has(body.operation) || body.operation === batch.id) {
+    return;
   }
+  const error = new Error(`application.executeOperation: operation '${body.operation}' is not registered`);
+  error.code = "OPERATION_NOT_FOUND";
+  error.details = { operation: body.operation };
+  error.status = 404;
+  throw error;
+}
+
+function validateRequestActorAndInput(body, httpError) {
   if (typeof body.actor !== "string" || body.actor.length === 0) {
-    throw httpError("INVALID_REQUEST", "server http: actor is required", { field: "actor" }, 400);
+    invalidRequest(httpError, "actor is required", "actor");
   }
   if (!body.input || typeof body.input !== "object" || Array.isArray(body.input)) {
-    throw httpError("INVALID_REQUEST", "server http: input must be a JSON object", { field: "input" }, 400);
+    invalidRequest(httpError, "input must be a JSON object", "input");
   }
-  if (body.operation === batch.id) {
-    for (const field of Object.keys(body.input)) {
-      if (!batch.inputFields.includes(field)) {
-        throw httpError("INVALID_REQUEST", `server http: input field '${field}' is not allowed for ${batch.id}`, { field: `input.${field}`, operation: batch.id }, 400);
-      }
-    }
-    const operations = body.input.operations;
-    if (!Array.isArray(operations) || operations.length === 0) {
-      throw httpError("INVALID_REQUEST", "server http: input.operations must be a non-empty array", { field: "input.operations" }, 400);
-    }
-    for (let index = 0; index < operations.length; index += 1) {
-      const operation = operations[index];
-      const field = `input.operations[${index}]`;
-      if (!operation || typeof operation !== "object" || Array.isArray(operation)) {
-        throw httpError("INVALID_REQUEST", `server http: ${field} must be an object`, { field }, 400);
-      }
-      for (const key of Object.keys(operation)) {
-        if (!batch.operationFields.includes(key)) {
-          throw httpError("INVALID_REQUEST", `server http: ${field}.${key} is not allowed`, { field: `${field}.${key}` }, 400);
-        }
-      }
-      if (typeof operation.op !== "string" || operation.op.length === 0 || !batch.eligibleOperationIds.includes(operation.op) || operation.op === batch.id) {
-        throw httpError("INVALID_REQUEST", `server http: ${field}.op must name an allowed built-in operation`, { field: `${field}.op` }, 400);
-      }
-      if (!operation.input || typeof operation.input !== "object" || Array.isArray(operation.input)) {
-        throw httpError("INVALID_REQUEST", `server http: ${field}.input must be an object`, { field: `${field}.input` }, 400);
-      }
-      const allowedOperationFields = operationsById.get(operation.op)?.httpFields;
-      for (const key of Object.keys(operation.input)) {
-        if (!allowedOperationFields?.includes(key)) {
-          throw httpError("INVALID_REQUEST", `server http: ${field}.input field '${key}' is not allowed for ${operation.op}`, { field: `${field}.input.${key}`, operation: operation.op }, 400);
-        }
-      }
-      validateInputFields(operation.input, field + ".input", httpError);
-    }
-    if (Object.hasOwn(body.input, "if_state_revision") && (!Number.isSafeInteger(body.input.if_state_revision) || body.input.if_state_revision < 0)) {
-      throw httpError("INVALID_REQUEST", "server http: input.if_state_revision must be a non-negative safe integer", { field: "input.if_state_revision" }, 400);
-    }
-    return body;
-  }
+}
+
+function validateSingleOperationInput(body, { operationsById, httpError }) {
   const allowedFields = operationsById.get(body.operation)?.httpFields;
   if (!allowedFields) {
-    throw httpError("OPERATION_NOT_FOUND", `application.executeOperation: operation '${body.operation}' is not available in protocol v1`, { operation: body.operation }, 404);
+    throw httpError("OPERATION_NOT_FOUND", `application.executeOperation: operation '${body.operation}' is not available in protocol v1`, {
+      operation: body.operation,
+    }, 404);
   }
   for (const field of Object.keys(body.input)) {
     if (!allowedFields.includes(field)) {
-      throw httpError("INVALID_REQUEST", `server http: input field '${field}' is not allowed for ${body.operation}`, { field: `input.${field}`, operation: body.operation }, 400);
+      invalidRequest(httpError, `input field '${field}' is not allowed for ${body.operation}`, `input.${field}`, {
+        field: `input.${field}`,
+        operation: body.operation,
+      });
     }
   }
   validateInputFields(body.input, "input", httpError);
+}
+
+export function validateOperationRequest(body, { manifest, httpError }) {
+  const capabilities = operationCapabilities(manifest);
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    invalidRequest(httpError, "operation request must be a JSON object", "body");
+  }
+  validateTopLevelFields(body, httpError);
+  validateOperationIdentity(body, { ...capabilities, httpError });
+  validateRequestActorAndInput(body, httpError);
+  if (body.operation === capabilities.batch.id) {
+    validateBatchInput(body.input, { ...capabilities, httpError });
+  } else {
+    validateSingleOperationInput(body, { operationsById: capabilities.operationsById, httpError });
+  }
   return body;
 }
 
