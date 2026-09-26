@@ -52,7 +52,9 @@ export function prepareLogEntry(entry, ctx = {}) {
   }
   const pluginId = resolvedPluginId(ctx);
   const out = { ts: tsField(), ...entry };
-  if (pluginId) out.plugin_id = pluginId;
+  if (pluginId) {
+    out.plugin_id = pluginId;
+  }
   return out;
 }
 

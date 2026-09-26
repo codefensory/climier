@@ -11,11 +11,13 @@ function transferError(code, message) {
 }
 
 function nonEmptyObject(value) {
-  return !!value && typeof value === "object" && !Array.isArray(value) && Object.keys(value).length > 0;
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value) && Object.keys(value).length > 0;
 }
 
 function hasPluginData(state) {
-  if (nonEmptyObject(state.plugins)) return true;
+  if (nonEmptyObject(state.plugins)) {
+    return true;
+  }
   return Object.values(state.nodes || {}).some((node) => nonEmptyObject(node?.plugins));
 }
 
@@ -58,7 +60,9 @@ async function exists(file) {
     await fs.access(file);
     return true;
   } catch (error) {
-    if (error.code === "ENOENT") return false;
+    if (error.code === "ENOENT") {
+      return false;
+    }
     throw error;
   }
 }
@@ -81,48 +85,58 @@ async function readLegacyDestinationWithoutMigration(lockContext, projectDir) {
 export async function captureTransferSource(projectDir) {
   return withLock(projectDir, async (lockContext) => {
     const state = await readFencedStateUnderLock(lockContext);
-    if (!state) throw transferError("CLIMIER_TRANSFER_INVALID_SOURCE", "transfer: source project has no state");
+    if (!state) {
+      throw transferError("CLIMIER_TRANSFER_INVALID_SOURCE", "transfer: source project has no state");
+    }
     assertTransferableSource(state);
     return transferPayload(state);
   });
+}
+
+function parseDestinationState(rawState) {
+  try {
+    return JSON.parse(rawState);
+  } catch (cause) {
+    throw transferError("CLIMIER_TRANSFER_INVALID_DESTINATION", `transfer: destination state is corrupt: ${cause.message}`);
+  }
+}
+
+async function assertLegacyDestinationReplaceable(lockContext, projectDir, statePath, overwrite) {
+  const rawState = await fs.readFile(statePath, "utf8");
+  const unmigrated = parseDestinationState(rawState);
+  if (unmigrated.version === 5) {
+    return;
+  }
+  const current = await readLegacyDestinationWithoutMigration(lockContext, projectDir);
+  assertDestinationReplaceable(current, overwrite);
+}
+
+function assertDestinationReplaceable(state, overwrite) {
+  if (hasPluginData(state)) {
+    throw transferError("CLIMIER_TRANSFER_PLUGIN_DATA", "transfer: destination plugin data cannot be overwritten");
+  }
+  if (!overwrite && !isPristine(state)) {
+    throw transferError("CLIMIER_TRANSFER_DESTINATION_NOT_PRISTINE", "transfer: destination is not pristine; explicit overwrite is required");
+  }
 }
 
 /** Install a snapshot with create-only or absolute-overwrite semantics under the destination lock. */
 export async function installTransferDestination(projectDir, payload, { overwrite = false } = {}) {
   return withLock(projectDir, async (lockContext) => {
     const statePath = stateFile(projectDir);
-    const revisionLedger = ledgerFile(projectDir);
     const hasState = await exists(statePath);
-    const hasLedger = await exists(revisionLedger);
-    let current = null;
-
+    const hasLedger = await exists(ledgerFile(projectDir));
     if (!hasState && !hasLedger) {
       return bootstrapFencedStateUnderLock(lockContext, payload);
     }
-
     if (hasState && !hasLedger) {
-      const rawState = await fs.readFile(statePath, "utf8");
-      let unmigrated;
-      try {
-        unmigrated = JSON.parse(rawState);
-      } catch (cause) {
-        throw transferError("CLIMIER_TRANSFER_INVALID_DESTINATION", `transfer: destination state is corrupt: ${cause.message}`);
-      }
-      if (unmigrated.version !== 5) {
-        current = await readLegacyDestinationWithoutMigration(lockContext, projectDir);
-        if (hasPluginData(current)) throw transferError("CLIMIER_TRANSFER_PLUGIN_DATA", "transfer: destination plugin data cannot be overwritten");
-        if (!overwrite && !isPristine(current)) {
-          throw transferError("CLIMIER_TRANSFER_DESTINATION_NOT_PRISTINE", "transfer: destination is not pristine; explicit overwrite is required");
-        }
-      }
+      await assertLegacyDestinationReplaceable(lockContext, projectDir, statePath, overwrite);
     }
-
-    current = await readFencedStateUnderLock(lockContext);
-    if (!current) throw transferError("CLIMIER_TRANSFER_INVALID_DESTINATION", "transfer: destination ledger exists without state");
-    if (hasPluginData(current)) throw transferError("CLIMIER_TRANSFER_PLUGIN_DATA", "transfer: destination plugin data cannot be overwritten");
-    if (!overwrite && !isPristine(current)) {
-      throw transferError("CLIMIER_TRANSFER_DESTINATION_NOT_PRISTINE", "transfer: destination is not pristine; explicit overwrite is required");
+    const current = await readFencedStateUnderLock(lockContext);
+    if (!current) {
+      throw transferError("CLIMIER_TRANSFER_INVALID_DESTINATION", "transfer: destination ledger exists without state");
     }
+    assertDestinationReplaceable(current, overwrite);
     return replaceFencedStateUnderLock(lockContext, payload);
   });
 }
