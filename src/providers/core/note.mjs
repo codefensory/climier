@@ -38,11 +38,15 @@ function asNonEmptyString(value) {
 // precondition is the canonical contract —
 // ADR-011 §4). The CAS is REQUIRED by ADR-011 §4; callers must declare
 // their precondition.
-function resolveIfRevision(input, request) {
+function requestIfRevision(request) {
   const req = request && request.if_revision;
   if (req && typeof req === "object" && !Array.isArray(req) && Number.isInteger(req.value)) {
     return req.value;
   }
+  return null;
+}
+
+function inputIfRevision(input) {
   const raw = input && input.if_revision;
   if (raw === undefined || raw === null) {
     throwV2(
@@ -60,6 +64,10 @@ function resolveIfRevision(input, request) {
     );
   }
   return n;
+}
+
+function resolveIfRevision(input, request) {
+  return requestIfRevision(request) ?? inputIfRevision(input);
 }
 
 function readSnapshotNodes(snapshot) {

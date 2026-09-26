@@ -244,7 +244,9 @@ async function applyRemove({ tx, plan, input, request, snapshot }) {
       { field: "tx" },
     );
   }
-  if (plan.removed) tx.removeEdge(plan.edge);
+  if (plan.removed) {
+    tx.removeEdge(plan.edge);
+  }
   return {
     result: Object.freeze({
       edge: Object.freeze({ from: plan.edge.from, to: plan.edge.to, type: plan.edge.type }),
