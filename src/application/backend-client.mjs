@@ -1,5 +1,31 @@
 import { parseBackendConfig } from "./backend-config.mjs";
 import { executeBatch, executeOperation } from "./operations/execute.mjs";
+import { createLocalOperationSource } from "./local-operation-source.mjs";
+
+function createLocalBackendClient({ projectDir, source }) {
+  const getSource = createLocalOperationSource(source);
+  const client = {
+    type: "local",
+    async executeOperation({ actor, operation, input } = {}) {
+      return executeOperation({ projectDir, actor, operation, input, source: await getSource() });
+    },
+    async executeBatch({ actor, operations, input, if_state_revision } = {}) {
+      return executeBatch({
+        projectDir,
+        actor,
+        operations,
+        input,
+        if_state_revision,
+        source: await getSource(),
+      });
+    },
+  };
+  Object.defineProperty(client, "operationSource", {
+    enumerable: false,
+    get: getSource,
+  });
+  return Object.freeze(client);
+}
 
 export const REMOTE_PROTOCOL_VERSION = "1";
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -341,15 +367,7 @@ export function createBackendClient({
   }
   const backend = parseBackendConfig(projectConfig);
   if (backend.type === "local") {
-    return Object.freeze({
-      type: "local",
-      executeOperation({ actor, operation, input } = {}) {
-        return executeOperation({ projectDir, actor, operation, input, source });
-      },
-      executeBatch({ actor, operations, input, if_state_revision } = {}) {
-        return executeBatch({ projectDir, actor, operations, input, if_state_revision, source });
-      },
-    });
+    return createLocalBackendClient({ projectDir, source });
   }
   if (typeof projectConfig.project_id !== "string" || projectConfig.project_id.length === 0) {
     throw clientError("REMOTE_PROJECT_ID_REQUIRED", "application.backendClient: remote backend requires project_id", { field: "project_id" });
