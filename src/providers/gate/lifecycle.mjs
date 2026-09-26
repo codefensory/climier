@@ -97,15 +97,6 @@ function readSnapshotEdges(snapshot) {
   return Array.isArray(snapshot.edges) ? snapshot.edges : [];
 }
 
-function optionalNonEmptyString(input, field, command) {
-  const value = input[field];
-  if (value === undefined || value === null) return undefined;
-  if (typeof value !== "string" || !value.trim()) {
-    throwV2("MISSING_FIELD", `${command}: '${field}' must be a non-empty string`, { field });
-  }
-  return value.trim();
-}
-
 function requireNonEmptyString(input, field, command) {
   const value = input[field];
   if (typeof value !== "string" || !value.trim()) {
@@ -125,6 +116,12 @@ function parseIfRevisions(input, command, affected) {
     });
   }
   const values = { ...raw };
+  validateAffectedRevisions(values, command, affected);
+  validateDeclaredRevisions(values, command, affected);
+  return affected.length === 0 ? { kind: "none" } : { kind: "multi", values };
+}
+
+function validateAffectedRevisions(values, command, affected) {
   for (const nodeId of affected) {
     if (!Object.prototype.hasOwnProperty.call(values, nodeId)) {
       throwV2(
@@ -134,13 +131,16 @@ function parseIfRevisions(input, command, affected) {
       );
     }
     if (!Number.isInteger(values[nodeId])) {
-      throwV2(
-        "INVALID_EXECUTION_CONTRACT",
-        `${command}: if_revisions['${nodeId}'] must be an integer`,
-        { field: "if_revisions", id: nodeId, value: values[nodeId] },
-      );
+      throwV2("INVALID_EXECUTION_CONTRACT", `${command}: if_revisions['${nodeId}'] must be an integer`, {
+        field: "if_revisions",
+        id: nodeId,
+        value: values[nodeId],
+      });
     }
   }
+}
+
+function validateDeclaredRevisions(values, command, affected) {
   for (const nodeId of Object.keys(values)) {
     if (!affected.includes(nodeId)) {
       throwV2(
@@ -150,37 +150,41 @@ function parseIfRevisions(input, command, affected) {
       );
     }
   }
-  return affected.length === 0 ? { kind: "none" } : { kind: "multi", values };
 }
 
-function checkIfRevisions(snapshot, command, affected, nodes, ifRevisions) {
-  if (affected.length === 0) return;
+function checkIfRevisions(snapshot, command, affected, ifRevisions) {
+  if (affected.length === 0) {
+    return;
+  }
+  const nodes = readSnapshotNodes(snapshot);
   const values = ifRevisions && asPlainObject(ifRevisions.values) ? ifRevisions.values : {};
   for (const nodeId of affected) {
-    const expected = values[nodeId];
-    if (expected === undefined) continue; // parseIfRevisions already rejected this.
-    const current = nodes[nodeId] && Number.isInteger(nodes[nodeId].revision) ? nodes[nodeId].revision : null;
-    if (current !== expected) {
-      throwV2(
-        "REVISION_CONFLICT",
-        `${command}: node ${nodeId} changed since revision ${expected}`,
-        { id: nodeId, expected, current },
-      );
-    }
+    checkNodeRevision(nodes, command, nodeId, values[nodeId]);
+  }
+}
+
+function checkNodeRevision(nodes, command, nodeId, expected) {
+  if (expected === undefined) {
+    return;
+  }
+  const current = nodes[nodeId] && Number.isInteger(nodes[nodeId].revision) ? nodes[nodeId].revision : null;
+  if (current !== expected) {
+    throwV2(
+      "REVISION_CONFLICT",
+      `${command}: node ${nodeId} changed since revision ${expected}`,
+      { id: nodeId, expected, current },
+    );
   }
 }
 
 function loadTargetGate(snapshot, id, command, { terminalOnly = false, allowedStatuses = null } = {}) {
   const nodes = readSnapshotNodes(snapshot);
-  const node = nodes[id];
-  if (!node) throwV2("NODE_NOT_FOUND", `${command}: node ${id} not found`, { id });
-  if (node.kind !== "resolvable" || node.subkind !== "gate") {
-    throwV2(
-      "INVALID_EXECUTION_CONTRACT",
-      `${command}: node ${id} is not a gate (kind=${node.kind}, subkind=${node.subkind || "undefined"})`,
-      { id, kind: node.kind, subkind: node.subkind || null },
-    );
-  }
+  const node = requireTargetGate(nodes[id], id, command);
+  validateGateStatus(node, id, command, { terminalOnly, allowedStatuses });
+  return node;
+}
+
+function validateGateStatus(node, id, command, { terminalOnly, allowedStatuses }) {
   const status = node.status || "open";
   const allowed = allowedStatuses || (terminalOnly ? [TERMINAL_STATUS] : null);
   if (allowed && !allowed.includes(status)) {
@@ -190,20 +194,31 @@ function loadTargetGate(snapshot, id, command, { terminalOnly = false, allowedSt
       { id, current: status, allowed: terminalOnly ? [TERMINAL_STATUS] : allowed },
     );
   }
+}
+
+function requireTargetGate(node, id, command) {
+  if (!node) {
+    throwV2("NODE_NOT_FOUND", `${command}: node ${id} not found`, { id });
+  }
+  if (node.kind !== "resolvable" || node.subkind !== "gate") {
+    throwV2(
+      "INVALID_EXECUTION_CONTRACT",
+      `${command}: node ${id} is not a gate (kind=${node.kind}, subkind=${node.subkind || "undefined"})`,
+      { id, kind: node.kind, subkind: node.subkind || null },
+    );
+  }
   return node;
 }
 
-function readRevisionsForApply(input, command, affected) {
-  const raw = input && input.if_revisions;
-  if (raw === undefined || raw === null) {
-    return affected.length === 0 ? null : {};
+
+function validateChoiceResolution(node, id, command) {
+  if (node.resolution_mode !== "choice") {
+    throwV2(
+      "INVALID_EXECUTION_CONTRACT",
+      `${command}: choice/rationale are only applicable to gates with resolution_mode 'choice' (got '${node.resolution_mode || "open"}')`,
+      { id, resolution_mode: node.resolution_mode || null, field: "choice" },
+    );
   }
-  if (!asPlainObject(raw)) return {};
-  const out = {};
-  for (const id of affected) {
-    out[id] = Number.isInteger(raw[id]) ? raw[id] : 0;
-  }
-  return out;
 }
 
 function applyResolutionPatch(tx, plan) {
@@ -225,10 +240,7 @@ function applyReopenPatch(tx, plan) {
 }
 
 function applyCancelPatch(tx, plan) {
-  const patch = { status: "canceled" };
-  // Gates do not carry claims by design. Unlike task.cancel, this
-  // operation therefore has no claim field to clear.
-  void patch;
+  // Gates do not carry claims by design, so only status changes.
   tx.updateNode(plan.target.id, { status: "canceled" });
 }
 
@@ -246,21 +258,14 @@ export async function prepareGateResolve({ snapshot, input }) {
   const nodes = readSnapshotNodes(snapshot);
   const edges = readSnapshotEdges(snapshot);
   const node = loadTargetGate(snapshot, id, command, { allowedStatuses: RESOLVABLE_STATUSES });
-
-  if (node.resolution_mode !== "choice") {
-    throwV2(
-      "INVALID_EXECUTION_CONTRACT",
-      `${command}: choice/rationale are only applicable to gates with resolution_mode 'choice' (got '${node.resolution_mode || "open"}')`,
-      { id, resolution_mode: node.resolution_mode || null, field: "choice" },
-    );
-  }
+  validateChoiceResolution(node, id, command);
 
   // Validate the gate's own revision before declaring the plan; the
   // declared affected is just [id] because lifecycle providers don't
   // touch any other node (no edges change).
   const affected = [id];
   const ifRevisions = parseIfRevisions(payload, command, affected);
-  checkIfRevisions(snapshot, command, affected, nodes, ifRevisions);
+  checkIfRevisions(snapshot, command, affected, ifRevisions);
 
   // Compute projected readiness against an in-memory "after" graph. The
   // apply phase redoes the same computation against the real draft; we
@@ -331,7 +336,7 @@ export async function prepareGateReopen({ snapshot, input }) {
 
   const affected = [id];
   const ifRevisions = parseIfRevisions(payload, command, affected);
-  checkIfRevisions(snapshot, command, affected, nodes, ifRevisions);
+  checkIfRevisions(snapshot, command, affected, ifRevisions);
 
   const node = nodes[id];
   // For reopened-from-superseded gates we still rollback to status=open
@@ -397,7 +402,7 @@ export async function prepareGateCancel({ snapshot, input }) {
 
   const affected = [id];
   const ifRevisions = parseIfRevisions(payload, command, affected);
-  checkIfRevisions(snapshot, command, affected, nodes, ifRevisions);
+  checkIfRevisions(snapshot, command, affected, ifRevisions);
 
   const node = nodes[id];
   const projectedNodes = { ...nodes };
@@ -463,7 +468,3 @@ export const GATE_CANCELABLE_STATUSES = CANCELABLE_STATUSES;
 
 // Re-export for downstream consumers that want a single import surface.
 export { isSatisfiedByGraph, diffReadyByGate, GATE_STATUSES };
-// Suppress unused-export warning for readRevisionsForApply (kept for parity
-// with create.mjs should the lifecycle ever need to read declared revisions
-// back from a plan).
-void readRevisionsForApply;
