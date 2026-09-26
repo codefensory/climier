@@ -4,7 +4,9 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { createRemoteApiServer } from "../src/server/http.mjs";
+import * as httpServer from "../src/server/http.mjs";
+
+const { createRemoteApiServer, PROTOCOL_VERSION } = httpServer;
 import { createProjectCatalog } from "../src/server/catalog/index.mjs";
 import { initState } from "../src/kernel/state-operations.mjs";
 import { bootstrapFencedState } from "../src/storage/ledger.mjs";
@@ -612,5 +614,182 @@ test("HTTP v1 authenticates before storage access and isolates projects", async 
     const statusB = await fetch(`${baseUrl}/v1/projects/project-b/read/status`, { headers: authHeaders() });
     assert.deepEqual((await statusA.json()).result.tasks.ready, []);
     assert.deepEqual((await statusB.json()).result.tasks.ready, []);
+  });
+});
+
+test("HTTP facade exports and response headers/envelopes remain stable", async () => {
+  assert.deepEqual(Object.keys(httpServer).sort(), ["PROTOCOL_VERSION", "createRemoteApiServer"]);
+  assert.equal(typeof createRemoteApiServer, "function");
+  assert.equal(PROTOCOL_VERSION, "1");
+
+  function assertHeaders(response, bodyText) {
+    assert.equal(response.headers.get("content-type"), "application/json; charset=utf-8");
+    assert.equal(response.headers.get("content-length"), String(Buffer.byteLength(bodyText)));
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.equal(response.headers.get("x-climier-protocol-version"), PROTOCOL_VERSION);
+  }
+
+  await withApi(async ({ baseUrl }) => {
+    const operationResponse = await operation(baseUrl, "project-a", "initiative.create", { name: "headers" });
+    const operationText = await operationResponse.text();
+    assert.equal(operationResponse.status, 200);
+    assertHeaders(operationResponse, operationText);
+    assert.deepEqual(Object.keys(JSON.parse(operationText)), ["ok", "result"]);
+
+    const readResponse = await fetch(`${baseUrl}/v1/projects/project-a/read/status`, { headers: authHeaders() });
+    const readText = await readResponse.text();
+    assert.equal(readResponse.status, 200);
+    assertHeaders(readResponse, readText);
+    assert.deepEqual(Object.keys(JSON.parse(readText)), ["ok", "result"]);
+
+    const transferResponse = await fetch(`${baseUrl}/v1/projects/project-a/transfer/export`, {
+      method: "POST", headers: authHeaders({ "content-type": "application/json" }), body: "{}",
+    });
+    const transferText = await transferResponse.text();
+    assert.equal(transferResponse.status, 200);
+    assertHeaders(transferResponse, transferText);
+    assert.deepEqual(Object.keys(JSON.parse(transferText)), ["ok", "result"]);
+
+    const errorResponse = await operation(baseUrl, "project-a", "not.registered", {});
+    const errorText = await errorResponse.text();
+    assert.equal(errorResponse.status, 404);
+    assertHeaders(errorResponse, errorText);
+    assert.deepEqual(JSON.parse(errorText), {
+      ok: false,
+      error: {
+        code: "OPERATION_NOT_FOUND",
+        message: "application.executeOperation: operation 'not.registered' is not registered",
+        details: { operation: "not.registered" },
+      },
+    });
+  });
+
+  await withInitApi(async ({ baseUrl }) => {
+    const route = `${baseUrl}/v1/projects/catalogued/init`;
+    const initialized = await fetch(route, {
+      method: "POST", headers: authHeaders({ "content-type": "application/json" }), body: "{}",
+    });
+    const initializedText = await initialized.text();
+    assert.equal(initialized.status, 200);
+    assertHeaders(initialized, initializedText);
+    assert.deepEqual(JSON.parse(initializedText), { ok: true, result: { seeded: null } });
+
+    const repeated = await fetch(route, {
+      method: "POST", headers: authHeaders({ "content-type": "application/json" }), body: "{}",
+    });
+    const repeatedText = await repeated.text();
+    assert.equal(repeated.status, 409);
+    assertHeaders(repeated, repeatedText);
+    assert.equal(JSON.parse(repeatedText).error.code, "STATE_ALREADY_INITIALIZED");
+  });
+});
+
+test("HTTP validates malformed requests before auth and project opening", async () => {
+  await withApi(async ({ baseUrl, openCount }) => {
+    const protocolOnly = { "x-climier-protocol-version": PROTOCOL_VERSION };
+    const requests = [
+      {
+        label: "invalid JSON operation body",
+        url: "/v1/projects/project-a/operations",
+        method: "POST",
+        headers: { ...protocolOnly, "content-type": "application/json" },
+        body: "{",
+        status: 400,
+        code: "INVALID_JSON",
+      },
+      {
+        label: "unsupported operation media type",
+        url: "/v1/projects/project-a/operations",
+        method: "POST",
+        headers: { ...protocolOnly, "content-type": "text/plain" },
+        body: "{}",
+        status: 415,
+        code: "UNSUPPORTED_MEDIA_TYPE",
+      },
+      {
+        label: "oversized operation body",
+        url: "/v1/projects/project-a/operations",
+        method: "POST",
+        headers: { ...protocolOnly, "content-type": "application/json" },
+        body: " ".repeat(1024 * 1024 + 1),
+        status: 413,
+        code: "REQUEST_TOO_LARGE",
+      },
+      {
+        label: "invalid project ID path encoding",
+        url: "/v1/projects/%E0%A4%A/read/status",
+        headers: protocolOnly,
+        status: 400,
+        code: "INVALID_PROJECT_ID",
+      },
+      {
+        label: "invalid read ID path encoding",
+        url: "/v1/projects/project-a/read/show/%E0%A4%A",
+        headers: protocolOnly,
+        status: 400,
+        code: "INVALID_REQUEST",
+      },
+      {
+        label: "invalid read query",
+        url: "/v1/projects/project-a/read/status?limit=-1",
+        headers: protocolOnly,
+        status: 400,
+        code: "INVALID_QUERY",
+      },
+      {
+        label: "invalid operation schema",
+        url: "/v1/projects/project-a/operations",
+        method: "POST",
+        headers: { ...protocolOnly, "content-type": "application/json" },
+        body: JSON.stringify({ operation: "initiative.create", actor: "alice", input: { name: "valid", unexpected: true } }),
+        status: 400,
+        code: "INVALID_REQUEST",
+      },
+      {
+        label: "invalid transfer schema",
+        url: "/v1/projects/project-a/transfer/import",
+        method: "POST",
+        headers: { ...protocolOnly, "content-type": "application/json" },
+        body: JSON.stringify({ payload: {}, actor: "alice" }),
+        status: 400,
+        code: "INVALID_REQUEST",
+      },
+      {
+        label: "invalid init schema",
+        url: "/v1/projects/project-a/init",
+        method: "POST",
+        headers: { ...protocolOnly, "content-type": "application/json" },
+        body: JSON.stringify({ reset: true }),
+        status: 400,
+        code: "REMOTE_UNSUPPORTED_OPERATION",
+      },
+    ];
+
+    for (const request of requests) {
+      const openedBefore = openCount();
+      const response = await fetch(`${baseUrl}${request.url}`, {
+        method: request.method || "GET",
+        headers: request.headers,
+        ...(request.body === undefined ? {} : { body: request.body }),
+      });
+      assert.equal(response.status, request.status, request.label);
+      const error = await response.json();
+      assert.equal(error.ok, false, request.label);
+      assert.equal(error.error.code, request.code, request.label);
+      assert.equal(openCount(), openedBefore, `${request.label} must reject before opening a project`);
+    }
+
+    const validOperation = JSON.stringify({ operation: "initiative.create", actor: "alice", input: { name: "auth" } });
+    for (const { headers, code } of [
+      { headers: { "x-climier-protocol-version": PROTOCOL_VERSION, "content-type": "application/json" }, code: "AUTH_REQUIRED" },
+      { headers: { ...authHeaders({ authorization: "Bearer wrong", "content-type": "application/json" }) }, code: "AUTH_INVALID" },
+    ]) {
+      const response = await fetch(`${baseUrl}/v1/projects/project-a/operations`, {
+        method: "POST", headers, body: validOperation,
+      });
+      assert.equal(response.status, 401);
+      assert.equal((await response.json()).error.code, code);
+      assert.equal(openCount(), 0, `${code} must reject before opening a project`);
+    }
   });
 });
