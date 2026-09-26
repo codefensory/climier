@@ -17,6 +17,26 @@ export const knownFlags = ["type", "as"];
 
 const REG = bootstrapBuiltins();
 
+async function removeEdgeRemotely({ backendClient, actor, input }) {
+  if (backendClient?.type !== "remote") {
+    return null;
+  }
+  const mutation = await executeRemoteDomain({ backendClient, actor, operation: "edge.remove", input, command: "remove-edge" });
+  return { result: mutation.result };
+}
+
+async function removeEdgeLocally({ projectDir, actor, input, suppliedSource }) {
+  const policy = suppliedSource ? null : await loadApplicablePolicy({ projectDir });
+  const source = suppliedSource || {
+    registry: REG,
+    mutate,
+    selectPolicy: async () => policy,
+    authorizeAction,
+  };
+  const outcome = await executeOperation({ projectDir, actor, operation: "edge.remove", input, source });
+  return outcome.result;
+}
+
 export default async function removeEdge({ statePath, projectDir: suppliedProjectDir, positional = [], flags = {}, backendClient, source: suppliedSource }) {
   const [from, to] = positional;
   if (!from || !to) {
@@ -29,23 +49,9 @@ export default async function removeEdge({ statePath, projectDir: suppliedProjec
   const actor = resolveAgent(flags, "remove-edge");
   const projectDir = suppliedProjectDir || statePath;
   const input = { from, to, type: flags.type };
-  if (backendClient?.type === "remote") {
-    const mutation = await executeRemoteDomain({ backendClient, actor, operation: "edge.remove", input, command: "remove-edge" });
-    return mutation.result;
+  const remote = await removeEdgeRemotely({ backendClient, actor, input });
+  if (remote !== null) {
+    return remote.result;
   }
-  const policy = suppliedSource ? null : await loadApplicablePolicy({ projectDir });
-  const source = suppliedSource || {
-    registry: REG,
-    mutate,
-    selectPolicy: async () => policy,
-    authorizeAction,
-  };
-  const outcome = await executeOperation({
-    projectDir,
-    actor,
-    operation: "edge.remove",
-    input,
-    source,
-  });
-  return outcome.result;
+  return removeEdgeLocally({ projectDir, actor, input, suppliedSource });
 }

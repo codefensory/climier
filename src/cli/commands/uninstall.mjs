@@ -17,7 +17,7 @@ import { pluginInstalledDir } from "../../plugins/paths.mjs";
 
 export const knownFlags = ["as"];
 
-export default async function uninstall({ positional = [], flags = {} } = {}) {
+export default async function uninstall({ positional = [] } = {}) {
   const id = positional[0];
   if (!id || typeof id !== "string" || !id.trim()) {
     // Match the "command name: " prefix convention from errors.mjs so
@@ -32,7 +32,9 @@ export default async function uninstall({ positional = [], flags = {} } = {}) {
     } catch (err) {
       // Removing a non-existent dir is a successful no-op; everything
       // else propagates.
-      if (err.code !== "ENOENT") throw err;
+      if (err.code !== "ENOENT") {
+        throw err;
+      }
     }
     return {
       plugin: {

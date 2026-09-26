@@ -14,28 +14,41 @@ const REGISTRY = bootstrapBuiltins();
 
 export const knownFlags = ["as", "initiative", "domain", "tag"];
 
+function hasReadinessContext(error, args) {
+  return Boolean(error && error.code === "NOT_READY" && args && args.snapshot && args.input);
+}
+
+function restoreHistoricalReadiness(error, args) {
+  if (!hasReadinessContext(error, args)) {
+    return;
+  }
+  const status = statusOfV2(args.snapshot.state || args.snapshot, args.input.id);
+  if (status !== "unknown" && error.details && error.details.status !== status) {
+    throwV2("NOT_READY", `take: node ${args.input.id} is ${status}, not ready`, {
+      id: args.input.id,
+      status,
+    });
+  }
+}
+
+async function prepareCliTake(args, snapshotNode) {
+  try {
+    const plan = await taskTakeProvider.prepare(args);
+    const node = args.snapshot?.nodes?.[args.input?.id];
+    if (node) {
+      snapshotNode.value = node;
+    }
+    return plan;
+  } catch (error) {
+    // Preserve the CLI's historical derived readiness projection.
+    restoreHistoricalReadiness(error, args);
+    throw error;
+  }
+}
+
 function withCliTakeProvider(source, snapshotNode) {
   const provider = Object.freeze({
-    async prepare(args) {
-      try {
-        const plan = await taskTakeProvider.prepare(args);
-        const node = args.snapshot?.nodes?.[args.input?.id];
-        if (node) snapshotNode.value = node;
-        return plan;
-      } catch (error) {
-        // Preserve the CLI's historical derived readiness projection.
-        if (error && error.code === "NOT_READY" && args && args.snapshot && args.input) {
-          const status = statusOfV2(args.snapshot.state || args.snapshot, args.input.id);
-          if (status !== "unknown" && error.details && error.details.status !== status) {
-            throwV2("NOT_READY", `take: node ${args.input.id} is ${status}, not ready`, {
-              id: args.input.id,
-              status,
-            });
-          }
-        }
-        throw error;
-      }
-    },
+    prepare: (args) => prepareCliTake(args, snapshotNode),
     apply: taskTakeProvider.apply,
   });
   return {
@@ -73,46 +86,33 @@ function takeSource(source, snapshotNode, pluginId) {
   };
 }
 
-export default async function take({ positional = [], flags = {}, projectDir, statePath, pluginId, backendClient, source } = {}) {
-  const id = positional[0];
-  if (!id) throwV2("MISSING_FIELD", "take: node id required", { field: "id" });
-  const agent = resolveAgent(flags, "take");
-  const dir = projectDir || statePath;
-  if (backendClient && backendClient.type === "remote") await requireRemoteTask(backendClient, id, "take");
-  const remote = await executeRemoteTask({
-    backendClient,
-    actor: agent,
-    operation: "task.take",
-    command: "take",
-    id,
-    input: { id },
-  });
-  if (remote) {
-    const node = remote.node;
-    if (!node) throwMissingRemoteNode("take", id);
-    return {
-      node,
-      context: {
-        derived_status: node.status,
-        revision: node.revision,
-        claim: node.claim || null,
-        blocking: [],
-        knowledge: [],
-      },
-      freshly_claimed: remote.mutation.result ? remote.mutation.result.freshly_claimed === true : false,
-    };
+async function takeRemotely({ backendClient, id, agent }) {
+  if (backendClient && backendClient.type === "remote") {
+    await requireRemoteTask(backendClient, id, "take");
   }
+  const remote = await executeRemoteTask({
+    backendClient, actor: agent, operation: "task.take", command: "take", id, input: { id },
+  });
+  if (!remote) {
+    return null;
+  }
+  const node = remote.node;
+  if (!node) {
+    throwMissingRemoteNode("take", id);
+  }
+  return {
+    node,
+    context: { derived_status: node.status, revision: node.revision, claim: node.claim || null, blocking: [], knowledge: [] },
+    freshly_claimed: remote.mutation.result ? remote.mutation.result.freshly_claimed === true : false,
+  };
+}
 
+async function takeLocally({ id, agent, dir, source, pluginId }) {
   const snapshotNode = { value: null };
   const mutation = await executeOperation({
-    projectDir: dir,
-    actor: agent,
-    operation: "task.take",
-    input: { id, actor: agent },
-    policyActionFromPlan: true,
-    source: takeSource(source, snapshotNode, pluginId),
+    projectDir: dir, actor: agent, operation: "task.take", input: { id, actor: agent },
+    policyActionFromPlan: true, source: takeSource(source, snapshotNode, pluginId),
   });
-
   const updated = mutation.diff.updated.find((entry) => entry.id === id);
   const node = updated ? updated.node : snapshotNode.value;
   if (!node) {
@@ -120,13 +120,21 @@ export default async function take({ positional = [], flags = {}, projectDir, st
   }
   return {
     node,
-    context: {
-      derived_status: node.status,
-      revision: node.revision,
-      claim: node.claim || null,
-      blocking: [],
-      knowledge: [],
-    },
+    context: { derived_status: node.status, revision: node.revision, claim: node.claim || null, blocking: [], knowledge: [] },
     freshly_claimed: mutation.result ? mutation.result.freshly_claimed === true : false,
   };
+}
+
+export default async function take({ positional = [], flags = {}, projectDir, statePath, pluginId, backendClient, source } = {}) {
+  const id = positional[0];
+  if (!id) {
+    throwV2("MISSING_FIELD", "take: node id required", { field: "id" });
+  }
+  const agent = resolveAgent(flags, "take");
+  const dir = projectDir || statePath;
+  const remote = await takeRemotely({ backendClient, id, agent });
+  if (remote) {
+    return remote;
+  }
+  return takeLocally({ id, agent, dir, source, pluginId });
 }
