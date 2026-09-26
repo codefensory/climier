@@ -4,20 +4,24 @@ import { readState } from "../../storage/state.mjs";
 
 export const knownFlags = ["limit", "action", "agent", "task", "decision"];
 
-export default async function log({ statePath, flags, backendClient }) {
-  if (backendClient?.type === "remote") {
-    const limit = flags.limit ? Number.parseInt(flags.limit, 10) : undefined;
-    return backendClient.readLog({
-      limit: Number.isFinite(limit) && limit > 0 ? limit : undefined,
-      action: flags.action || undefined,
-      agent: flags.agent || undefined,
-      task: flags.task || undefined,
-      decision: flags.decision || undefined,
-    });
-  }
+async function readRemoteLog(flags, backendClient) {
+  const limit = flags.limit ? Number.parseInt(flags.limit, 10) : undefined;
+  return backendClient.readLog({
+    limit: Number.isFinite(limit) && limit > 0 ? limit : undefined,
+    action: flags.action || undefined,
+    agent: flags.agent || undefined,
+    task: flags.task || undefined,
+    decision: flags.decision || undefined,
+  });
+}
 
-  const projectDir = statePath;
-  const s = await readState(projectDir);
-  if (!s) return [];
-  return projectLogView({ snapshot: s, filters: flags });
+async function readLocalLog(statePath, flags) {
+  const snapshot = await readState(statePath);
+  if (!snapshot) {return [];}
+  return projectLogView({ snapshot, filters: flags });
+}
+
+export default async function log({ statePath, flags, backendClient }) {
+  if (backendClient?.type === "remote") {return readRemoteLog(flags, backendClient);}
+  return readLocalLog(statePath, flags);
 }

@@ -12,16 +12,36 @@ import { readState } from "../../storage/state.mjs";
 
 export const knownFlags = ["limit"];
 
+const REFERENCE_FIELDS = ["node", "task", "decision", "gotcha"];
+
 function entryReferencesId(entry, id) {
-  if (!entry || !id) return false;
-  if (entry.node === id) return true;
-  if (entry.task === id) return true;
-  if (entry.decision === id) return true;
-  if (entry.gotcha === id) return true;
-  if (typeof entry.note === "string" && entry.note.split(/\s+/).includes(id)) return true;
+  if (!entry || !id) {return false;}
+  if (REFERENCE_FIELDS.some((field) => entry[field] === id)) {return true;}
   // add-edge / add-node style: the note is `${from} ${type} ${to}` (add-edge)
   // or the node id itself (add-node). The split includes the id when present.
-  return false;
+  return typeof entry.note === "string" && entry.note.split(/\s+/).includes(id);
+}
+
+function parseLimit(value) {
+  if (value === undefined || value === true) {return null;}
+  const n = parseInt(value, 10);
+  if (Number.isNaN(n) || n < 0) {
+    throw new Error(`history: --limit must be a non-negative integer (got '${value}')`);
+  }
+  return n;
+}
+
+function applyLimit(entries, limit) {
+  return limit !== null && limit > 0 ? entries.slice(-limit) : entries;
+}
+
+async function readHistory({ statePath, id, limit, backendClient }) {
+  if (backendClient?.type === "remote") {
+    return backendClient.readHistory({ id, limit: limit === null ? undefined : limit });
+  }
+  const snapshot = await readState(statePath);
+  if (!snapshot) {return { id, entries: [] };}
+  return { id, entries: applyLimit(snapshot.log.filter((entry) => entryReferencesId(entry, id)), limit) };
 }
 
 export default async function history({ statePath, flags, positional, backendClient }) {
@@ -29,23 +49,6 @@ export default async function history({ statePath, flags, positional, backendCli
   if (!id) {
     throw new Error("history: node id required (e.g. history T1)");
   }
-  const limit = flags.limit !== undefined && flags.limit !== true
-    ? (() => {
-        const n = parseInt(flags.limit, 10);
-        if (Number.isNaN(n) || n < 0) {
-          throw new Error(`history: --limit must be a non-negative integer (got '${flags.limit}')`);
-        }
-        return n;
-      })()
-    : null;
-
-  if (backendClient?.type === "remote") {
-    return backendClient.readHistory({ id, limit: limit === null ? undefined : limit });
-  }
-
-  const s = await readState(statePath);
-  if (!s) return { id, entries: [] };
-  let entries = (s.log || []).filter((e) => entryReferencesId(e, id));
-  if (limit !== null && limit > 0) entries = entries.slice(-limit);
-  return { id, entries };
+  const limit = parseLimit(flags.limit);
+  return readHistory({ statePath, id, limit, backendClient });
 }

@@ -4,20 +4,30 @@ import { throwV2 } from "../../contracts/errors.mjs";
 
 export const knownFlags = [];
 
+function findLegacyNode(snapshot, id) {
+  if (snapshot.tasks[id]) {return { type: "task", node: snapshot.tasks[id] };}
+  if (snapshot.decisions[id]) {return { type: "decision", node: { status: "open", ...snapshot.decisions[id] } };}
+  if (snapshot.gotchas[id]) {return { type: "gotcha", node: { status: "active", ...snapshot.gotchas[id] } };}
+  throw new Error(`show: ${id} not found (no task, decision, or gotcha with that id)`);
+}
+
+function findCurrentNode(snapshot, id) {
+  const node = snapshot.nodes[id];
+  if (!node) {throwV2("NODE_NOT_FOUND", `show: ${id} not found`, { id });}
+  return { type: node.subkind || node.kind, node };
+}
+
+async function readNode(statePath, id) {
+  const snapshot = await readState(statePath);
+  if (!snapshot) {throw new Error("show: state file missing");}
+  return isV2State(snapshot) || isFencedState(snapshot)
+    ? findCurrentNode(snapshot, id)
+    : findLegacyNode(snapshot, id);
+}
+
 export default async function show({ statePath, positional, backendClient }) {
   const [id] = positional;
-  if (!id) throw new Error("show: id required (e.g. show T1 or show D1)");
-  if (backendClient?.type === "remote") return backendClient.readNode({ id });
-  const projectDir = statePath;
-  const s = await readState(projectDir);
-  if (!s) throw new Error("show: state file missing");
-  if (isV2State(s) || isFencedState(s)) {
-    const node = s.nodes[id];
-    if (!node) throwV2("NODE_NOT_FOUND", `show: ${id} not found`, { id });
-    return { type: node.subkind || node.kind, node };
-  }
-  if (s.tasks[id]) return { type: "task", node: s.tasks[id] };
-  if (s.decisions[id]) return { type: "decision", node: { status: "open", ...s.decisions[id] } };
-  if (s.gotchas[id]) return { type: "gotcha", node: { status: "active", ...s.gotchas[id] } };
-  throw new Error(`show: ${id} not found (no task, decision, or gotcha with that id)`);
+  if (!id) {throw new Error("show: id required (e.g. show T1 or show D1)");}
+  if (backendClient?.type === "remote") {return backendClient.readNode({ id });}
+  return readNode(statePath, id);
 }

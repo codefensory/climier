@@ -36,7 +36,7 @@ function ensureDeps() {
 }
 
 function ensureBuild() {
-  if (fsSync.existsSync(DIST_INDEX)) return;
+  if (fsSync.existsSync(DIST_INDEX)) {return;}
   // Build output goes to stderr so stdout stays a single JSON value.
   const r = spawnSync(npmCommand(), ["run", "build"], { cwd: UI_DIR, stdio: ["ignore", 2, 2] });
   if (r.error || r.status !== 0) {
@@ -44,16 +44,17 @@ function ensureBuild() {
   }
 }
 
+function browserCommand(url) {
+  if (process.platform === "darwin") {return ["open", [url]];}
+  if (process.platform === "win32") {return ["cmd", ["/c", "start", "", url]];}
+  return ["xdg-open", [url]];
+}
+
 function openBrowser(url) {
-  const cmd =
-    process.platform === "darwin"
-      ? ["open", [url]]
-      : process.platform === "win32"
-        ? ["cmd", ["/c", "start", "", url]]
-        : ["xdg-open", [url]];
+  const [command, args] = browserCommand(url);
   try {
     const { spawn } = awaitImportChildProcess();
-    const child = spawn(cmd[0], cmd[1], { detached: true, stdio: "ignore" });
+    const child = spawn(command, args, { detached: true, stdio: "ignore" });
     child.unref();
   } catch {
     // Opening a browser is a nicety; failure must not kill the server.
@@ -79,12 +80,12 @@ export default async function uiCommand(ctx) {
     started = await server.start({ projectDir, port: finalPort });
   } catch (err) {
     if (err.code === "EADDRINUSE") {
-      throw new Error(`ui: port ${finalPort} is already in use; pick another with --port <n>`);
+      throw new Error(`ui: port ${finalPort} is already in use; pick another with --port <n>`, { cause: err });
     }
     throw err;
   }
 
-  if (open) openBrowser(started.url);
+  if (open) {void openBrowser(started.url);}
 
   return {
     ui: {

@@ -10,7 +10,7 @@ import { restoreState } from "../../kernel/state-operations.mjs";
 export const knownFlags = ["as"];
 
 function policyForRestore({ policy, projectDir, actor }) {
-  if (!policy) return null;
+  if (!policy) {return null;}
   return {
     action: "state.restore",
     pluginId: policy.pluginId,
