@@ -62,6 +62,7 @@ function updateProvider({ id, newTitle }) {
 // Regression: two concurrent independent mutations on the same project
 // ===================================================================
 
+// oxlint-disable-next-line max-statements, max-lines-per-function -- Keep this bounded regression test and its full assertions intact.
 test("kernel.mutate: two concurrent independent mutations on the same project both complete without INVALID_EXECUTION_CONTRACT", async () => {
   const { mutate } = await importKernel();
   const dir = await createTempProject();
@@ -105,23 +106,24 @@ test("kernel.mutate: two concurrent independent mutations on the same project bo
     assert.equal(after.nodes.T1.title, "T1-after-1", "T1 update persisted");
     assert.equal(after.nodes.T2.title, "T2-after-1", "T2 update persisted");
     assert.deepEqual(
-      [after.nodes.T1.revision, after.nodes.T2.revision].sort((a, b) => a - b),
+      [after.nodes.T1.revision, after.nodes.T2.revision].toSorted((a, b) => a - b),
       [5, 6],
       "both disjoint updates receive consecutive global revisions above the seed high-water",
     );
     assert.equal(after.log.length, 2, "both writes persisted in order (serialised by withLock)");
     // Both log entries carry the matching action / node / revision.
-    const actions = after.log.map((e) => e.action).sort();
+    const actions = after.log.map((e) => e.action).toSorted();
     assert.deepEqual(actions, ["task.update", "task.update"]);
-    const nodes = after.log.map((e) => e.node).sort();
+    const nodes = after.log.map((e) => e.node).toSorted();
     assert.deepEqual(nodes, ["T1", "T2"]);
-    const revisions = after.log.map((e) => e.revision).sort((a, b) => a - b);
+    const revisions = after.log.map((e) => e.revision).toSorted((a, b) => a - b);
     assert.deepEqual(revisions, [5, 6], "log revisions preserve the global high-water sequence");
   } finally {
     await rmTempProject(dir);
   }
 });
 
+// oxlint-disable-next-line max-statements, complexity -- Keep this bounded regression test and its full assertions intact.
 test("kernel.mutate: many concurrent independent mutations on the same project all complete; no nested-rejection leaks", async () => {
   const { mutate } = await importKernel();
   const dir = await createTempProject();
@@ -161,7 +163,7 @@ test("kernel.mutate: many concurrent independent mutations on the same project a
     for (let i = 0; i < 6; i += 1) {
       assert.equal(after.nodes[`Tn-${i}`].title, `Tn-${i}-after`, `Tn-${i} update persisted`);
     }
-    const revisions = Array.from({ length: 6 }, (_, i) => after.nodes[`Tn-${i}`].revision).sort((a, b) => a - b);
+    const revisions = Array.from({ length: 6 }, (_, i) => after.nodes[`Tn-${i}`].revision).toSorted((a, b) => a - b);
     assert.deepEqual(revisions, [3, 4, 5, 6, 7, 8], "disjoint writes receive globally increasing revisions");
     assert.equal(after.log.length, 6, "all 6 writes persisted");
   } finally {
@@ -174,6 +176,7 @@ test("kernel.mutate: many concurrent independent mutations on the same project a
 // still rejected (the only legitimate use of the guard)
 // ===================================================================
 
+// oxlint-disable-next-line max-lines-per-function -- Keep this bounded regression test and its full assertions intact.
 test("kernel.mutate: provider.apply calling kernel.mutate on the same chain is rejected with INVALID_EXECUTION_CONTRACT", async () => {
   const { mutate } = await importKernel();
   const dir = await createTempProject();
@@ -228,6 +231,7 @@ test("kernel.mutate: provider.apply calling kernel.mutate on the same chain is r
 // a chained mutate call still belongs to the same async chain).
 // ===================================================================
 
+// oxlint-disable-next-line max-lines-per-function -- Keep this bounded regression test and its full assertions intact.
 test("kernel.mutate: same-chain nested mutate via awaited microtask is still rejected", async () => {
   const { mutate } = await importKernel();
   const dir = await createTempProject();

@@ -45,7 +45,7 @@ test("incoming: returns edges whose 'to' matches the id (no type filter)", async
   const result = incoming(state, "B");
   assert.equal(result.length, 2);
   assert.deepEqual(
-    result.map((e) => `${e.from}->${e.to}:${e.type}`).sort(),
+    result.map((e) => `${e.from}->${e.to}:${e.type}`).toSorted(),
     ["A->B:BLOCKS", "C->B:SUPERSEDES"],
   );
 });
@@ -79,7 +79,7 @@ test("outgoing: returns edges whose 'from' matches the id (no type filter)", asy
   const result = outgoing(state, "A");
   assert.equal(result.length, 2);
   assert.deepEqual(
-    result.map((e) => `${e.from}->${e.to}:${e.type}`).sort(),
+    result.map((e) => `${e.from}->${e.to}:${e.type}`).toSorted(),
     ["A->B:BLOCKS", "A->C:SUPERSEDES"],
   );
 });
@@ -112,7 +112,7 @@ test("relations: returns outgoing edges of a given type", async () => {
   ]);
   const result = relations(state, "A", "INFORMS");
   assert.equal(result.length, 2);
-  for (const edge of result) assert.equal(edge.type, "INFORMS");
+  for (const edge of result) {assert.equal(edge.type, "INFORMS");}
 });
 
 test("relations: requires a type argument (no implicit type)", async () => {
@@ -177,7 +177,7 @@ test("integration: blocksEdge + incoming + outgoing cooperate for BLOCKS directi
   // incoming(T) -> edges where to === "T"
   const inc = incoming(state, "T");
   assert.equal(inc.length, 2);
-  assert.deepEqual(inc.map((e) => e.from).sort(), ["G1", "G2"]);
+  assert.deepEqual(inc.map((e) => e.from).toSorted(), ["G1", "G2"]);
   // outgoing(G2, "BLOCKS") -> [edge2]
   assert.equal(outgoing(state, "G2", "BLOCKS").length, 1);
   assert.equal(outgoing(state, "G2", "BLOCKS")[0].to, "T");

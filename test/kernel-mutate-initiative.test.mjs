@@ -23,7 +23,7 @@ async function importKernel() {
 
 function createInitiativeProvider({ name, desc = "", created_at }) {
   return {
-    prepare: async ({ snapshot }) => ({
+    prepare: async () => ({
       target: { id: name, kind: "initiative" },
       policyAction: null,
       initiative: { name, desc, created_at },
@@ -33,7 +33,7 @@ function createInitiativeProvider({ name, desc = "", created_at }) {
         name: plan.initiative.name,
         desc: plan.initiative.desc,
       };
-      if (plan.initiative.created_at) init.created_at = plan.initiative.created_at;
+      if (plan.initiative.created_at) {init.created_at = plan.initiative.created_at;}
       tx.createInitiative(init);
       return { result: { name: plan.initiative.name, desc: plan.initiative.desc }, effects: null };
     },
@@ -59,7 +59,7 @@ function bootstrap(dir, mutate) {
     initiatives: { kernel: { desc: "kernel initiative", created_at: "2026-01-01T00:00:00.000Z" } },
     log: [],
   };
-  if (typeof mutate === "function") mutate(base);
+  if (typeof mutate === "function") {mutate(base);}
   return writeFencedState(dir, base);
 }
 
@@ -142,7 +142,7 @@ test("kernel.mutate: idempotent provider (no draft change ⇒ no write, no log, 
   try {
     await bootstrap(dir);
     const provider = {
-      prepare: async ({ snapshot }) => ({
+      prepare: async () => ({
         target: { id: "noop", kind: "initiative" },
         policyAction: null,
       }),
@@ -174,13 +174,14 @@ test("kernel.mutate: idempotent provider (no draft change ⇒ no write, no log, 
 // Acceptance: node + initiative changes in the same apply persist together
 // ===================================================================
 
+// oxlint-disable-next-line max-statements, max-lines-per-function -- Keep this bounded regression test and its full assertions intact.
 test("kernel.mutate: combined node + initiative mutation persists both in one writeState", async () => {
   const { mutate } = await importKernel();
   const dir = await createTempProject();
   try {
     await bootstrap(dir);
     const provider = {
-      prepare: async ({ snapshot }) => ({
+      prepare: async () => ({
         target: { id: "T1", kind: "resolvable", subkind: "task" },
         policyAction: null,
       }),
@@ -231,7 +232,7 @@ test("kernel.mutate: apply throws after creating an initiative in the draft ⇒ 
     await bootstrap(dir);
     const base = await readStateHelper(dir);
     const provider = {
-      prepare: async ({ snapshot }) => ({
+      prepare: async () => ({
         target: { id: "T1", kind: "resolvable", subkind: "task" },
         policyAction: null,
       }),

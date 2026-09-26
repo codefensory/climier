@@ -15,6 +15,24 @@ import { bootstrapFencedState } from "../src/storage/ledger.mjs";
 
 const registry = createBuiltinOperationRegistry();
 
+async function verifyMigratedBatch(dir, readFencedState) {
+  const out = await executeBatch({
+    projectDir: dir,
+    actor: "alice",
+    if_state_revision: 8,
+    operations: repair,
+    source: { registry, mutate },
+  });
+  assert.equal(out.revision_before, 8);
+  assert.equal(out.revision_after, 9);
+  const state = await readFencedState(dir);
+  assert.equal(state.version, 5);
+  assert.equal(state.fence_generation, 1);
+  assert.equal(state.nodes.T3.revision, 9);
+  assert.equal(state.revision, 9);
+  assert.equal(state.log.length, 1);
+}
+
 async function bootstrap(dir) {
   await writeStateHelper(dir, {
     version: 4,
@@ -41,30 +59,16 @@ const repair = [
 ];
 
 test("core batch migrates legacy state before CAS and persists through the fenced commit", async () => {
-  const { readFencedState, bootstrapFencedState } = await import("../src/storage/ledger.mjs");
   const dir = await createTempProject();
   try {
     await bootstrap(dir);
-    const out = await executeBatch({
-      projectDir: dir,
-      actor: "alice",
-      if_state_revision: 8,
-      operations: repair,
-      source: { registry, mutate },
-    });
-    assert.equal(out.revision_before, 8);
-    assert.equal(out.revision_after, 9);
-    const state = await readFencedState(dir);
-    assert.equal(state.version, 5);
-    assert.equal(state.fence_generation, 1);
-    assert.equal(state.nodes.T3.revision, 9);
-    assert.equal(state.revision, 9);
-    assert.equal(state.log.length, 1);
+    const { readFencedState, bootstrapFencedState: bootstrapMigrationState } = await import("../src/storage/ledger.mjs");
+    await verifyMigratedBatch(dir, readFencedState);
 
     const secondDir = await createTempProject();
     try {
       await bootstrap(secondDir);
-      const fenced = await bootstrapFencedState(secondDir);
+      const fenced = await bootstrapMigrationState(secondDir);
       const second = await executeBatch({
         projectDir: secondDir,
         actor: "alice",

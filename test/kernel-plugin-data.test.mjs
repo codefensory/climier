@@ -91,6 +91,7 @@ test("kernel.mutate persists node plugin data as a node revisioned, redacted mut
   }
 });
 
+// oxlint-disable-next-line max-statements -- Keep this bounded regression test and its full assertions intact.
 test("kernel.mutate persists project plugin data without losing node/root metadata or logging values", async () => {
   const dir = await createTempProject();
   try {

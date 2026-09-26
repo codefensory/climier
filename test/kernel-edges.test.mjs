@@ -27,7 +27,7 @@ const knowledgeNode = (id) => ({ id, kind: "knowledge", title: id });
 
 test("EDGE_TYPES: lists BLOCKS, SUPERSEDES, DERIVED_FROM only", async () => {
   const { EDGE_TYPES } = await importFresh("../src/kernel/edges.mjs");
-  assert.deepEqual([...EDGE_TYPES].sort(), ["BLOCKS", "DERIVED_FROM", "SUPERSEDES"]);
+  assert.deepEqual([...EDGE_TYPES].toSorted(), ["BLOCKS", "DERIVED_FROM", "SUPERSEDES"]);
 });
 
 test("EDGE_TYPES: omits deprecated informational/conflict types (INFORMS, RELATES_TO, CONFLICTS_WITH)", async () => {
