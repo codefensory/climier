@@ -63,6 +63,68 @@ test("update: changes title and bumps revision to 2", async () => {
   } finally { await rmTempProject(dir); }
 });
 
+test("update: local bridge applies legacy fields inside the single operation mutation", async () => {
+  const { bootstrapBuiltins } = await import("../src/application/operations/builtins.mjs");
+  const { mutate: kernelMutate } = await import("../src/kernel/mutate.mjs");
+  const { default: update } = await importFresh("./cli/commands/update.mjs");
+  const dir = await v2Project();
+  const operations = [];
+  const mutations = [];
+  try {
+    await seedTask(dir);
+    const registry = bootstrapBuiltins();
+    const source = {
+      registry: {
+        lookup(operation) {
+          operations.push(operation);
+          return registry.lookup(operation);
+        },
+      },
+      mutate(args) {
+        mutations.push(args);
+        return kernelMutate(args);
+      },
+      selectPolicy: async () => null,
+    };
+
+    const out = await update({
+      statePath: dir,
+      projectDir: dir,
+      source,
+      positional: ["T-auth-1"],
+      flags: { title: "updated through bridge", meta: '{"ticket":"AUTH-bridge"}', as: "alice" },
+    });
+
+    assert.deepEqual(operations, ["task.update"], "one canonical operation is selected");
+    assert.equal(mutations.length, 1, "legacy patch and typed update share one kernel mutation");
+    assert.equal(mutations[0].policyActionFromPlan, true);
+    assert.equal(out.node.title, "updated through bridge");
+    assert.deepEqual(out.node.meta, { ticket: "AUTH-bridge" });
+    const state = await readRawState(dir);
+    assert.equal(state.nodes["T-auth-1"].revision, out.node.revision);
+    assert.equal(state.log.at(-1).action, "update");
+  } finally { await rmTempProject(dir); }
+});
+
+test("update: idempotent bridge result retains the current node revision", async () => {
+  const { default: update } = await importFresh("./cli/commands/update.mjs");
+  const dir = await v2Project();
+  try {
+    await seedTask(dir);
+    const before = await readRawState(dir);
+    const revision = before.nodes["T-auth-1"].revision;
+    const out = await update({
+      statePath: dir,
+      positional: ["T-auth-1"],
+      flags: { title: before.nodes["T-auth-1"].title, as: "alice" },
+    });
+    assert.equal(out.node.revision, revision);
+    const after = await readRawState(dir);
+    assert.equal(after.nodes["T-auth-1"].revision, revision);
+    assert.equal(after.log.length, before.log.length);
+  } finally { await rmTempProject(dir); }
+});
+
 test("update: parses --meta JSON and persists it", async () => {
   const { default: update } = await importFresh("./cli/commands/update.mjs");
   const dir = await v2Project();
