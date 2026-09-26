@@ -16,6 +16,7 @@ import {
   informingForNode,
   knowledgeForNode,
   projectSnapshot,
+  projectSearchView,
   projectStatusView,
   projectContextView,
   statusOf,
@@ -374,19 +375,6 @@ function entryReferencesId(entry, id) {
     || (typeof entry.note === "string" && entry.note.split(/\\s+/).includes(id)));
 }
 
-function readSearch(snapshot, query) {
-  const textQuery = String(query.query || "").toLowerCase();
-  if (!textQuery) return { matches: [], count: 0 };
-  const searchableFields = (node) => [["id", node.id], ["title", node.title], ["body", node.body], ["mitigation", node.mitigation], ["domain", node.domain], ["tags", node.tags], ["refs", (node.refs || []).map((ref) => ref && ref.target)], ["meta", node.meta]];
-  const matches = Object.values(snapshot.nodes || {})
-    .filter((node) => node.kind === "knowledge" && (query.all || (node.status || "active") === "active"))
-    .map((node) => ({ node, matched_fields: searchableFields(node).filter(([, value]) => value != null && String(typeof value === "string" ? value : JSON.stringify(value)).toLowerCase().includes(textQuery)).map(([field]) => field) }))
-    .filter(({ matched_fields }) => matched_fields.length)
-    .sort((left, right) => left.node.id.localeCompare(right.node.id))
-    .map(({ node, matched_fields }) => ({ id: node.id, kind: node.kind, title: node.title, initiative: node.initiative, domain: node.domain, status: node.status || "active", matched_fields, snippet: String(node.body || "").slice(0, 200) }));
-  return { matches, count: matches.length };
-}
-
 function readInitiatives(snapshot, query) {
   const usage = new Map();
   for (const node of Object.values(snapshot.nodes || {})) {
@@ -427,7 +415,7 @@ function projectReadResult(snapshot, route, query, now) {
     if (query.limit > 0) entries = entries.slice(-query.limit);
     return { id: route.id, entries };
   }
-  if (route.kind === "search") return readSearch(snapshot, query);
+  if (route.kind === "search") return projectSearchView({ snapshot, query: query.query, all: query.all === true });
   if (route.kind === "initiatives") return readInitiatives(snapshot, query);
   if (route.kind === "log") return readLog(snapshot, query);
   if (route.kind === "state") return projectSnapshot({ snapshot });
