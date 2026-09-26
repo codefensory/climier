@@ -6,8 +6,16 @@ function contractError(code, message) {
   return Object.assign(new Error(`server catalog: ${message}`), { code });
 }
 
+function hasControlCharacter(value) {
+  return [...value].some((character) => {
+    const codePoint = character.codePointAt(0);
+    return codePoint <= 0x1f || codePoint === 0x7f;
+  });
+}
+
 function validateProjectId(projectId) {
-  if (typeof projectId !== "string" || projectId.length === 0 || Buffer.byteLength(projectId, "utf8") > 256 || /[\u0000-\u001f\u007f]/u.test(projectId)) {
+  if (typeof projectId !== "string" || projectId.length === 0
+      || Buffer.byteLength(projectId, "utf8") > 256 || hasControlCharacter(projectId)) {
     throw contractError("INVALID_PROJECT_ID", "project ID must be a non-empty bounded opaque identifier");
   }
 }
@@ -16,38 +24,59 @@ function projectDirectoryName(projectId) {
   return createHash("sha256").update(projectId, "utf8").digest("hex");
 }
 
-async function ensureConfinedDirectory(dataRoot, storagePath, { create }) {
-  const root = path.resolve(dataRoot);
-  if (create) await fs.mkdir(root, { recursive: true, mode: 0o700 });
-  let rootReal;
-  try {
-    rootReal = await fs.realpath(root);
-  } catch (error) {
-    if (error.code === "ENOENT" && !create) {
-      throw contractError("UNKNOWN_PROJECT", "project is not provisioned");
-    }
-    throw error;
+function throwProjectResolutionError(error, create) {
+  if (error.code === "ENOENT" && !create) {
+    throw contractError("UNKNOWN_PROJECT", "project is not provisioned");
   }
+  throw error;
+}
 
+async function resolveRoot(dataRoot, create) {
+  const root = path.resolve(dataRoot);
+  if (create) {
+    await fs.mkdir(root, { recursive: true, mode: 0o700 });
+  }
+  try {
+    return await fs.realpath(root);
+  } catch (error) {
+    throwProjectResolutionError(error, create);
+  }
+}
+
+async function createProjectDirectory(expectedPath) {
+  try {
+    await fs.mkdir(expectedPath, { recursive: false, mode: 0o700 });
+  } catch (error) {
+    if (error.code !== "EEXIST") {
+      throw error;
+    }
+  }
+}
+
+async function inspectProjectDirectory(expectedPath, create) {
+  try {
+    const [projectReal, info] = await Promise.all([
+      fs.realpath(expectedPath),
+      fs.lstat(expectedPath),
+    ]);
+    return { projectReal, info };
+  } catch (error) {
+    throwProjectResolutionError(error, create);
+  }
+}
+
+async function ensureConfinedDirectory(dataRoot, storagePath, { create }) {
+  const rootReal = await resolveRoot(dataRoot, create);
   const expectedPath = path.join(rootReal, path.basename(storagePath));
   if (storagePath !== expectedPath) {
     throw contractError("UNSAFE_PROJECT_STORAGE", "catalog path is outside the configured data root");
   }
 
-  if (create) await fs.mkdir(expectedPath, { recursive: false, mode: 0o700 }).catch((error) => {
-    if (error.code !== "EEXIST") throw error;
-  });
-
-  let projectReal;
-  let info;
-  try {
-    [projectReal, info] = await Promise.all([fs.realpath(expectedPath), fs.lstat(expectedPath)]);
-  } catch (error) {
-    if (error.code === "ENOENT" && !create) {
-      throw contractError("UNKNOWN_PROJECT", "project is not provisioned");
-    }
-    throw error;
+  if (create) {
+    await createProjectDirectory(expectedPath);
   }
+
+  const { projectReal, info } = await inspectProjectDirectory(expectedPath, create);
   if (!info.isDirectory() || info.isSymbolicLink() || projectReal !== expectedPath) {
     throw contractError("UNSAFE_PROJECT_STORAGE", "project storage must be a real directory beneath data root");
   }
@@ -59,7 +88,9 @@ export function createProjectCatalog({ dataRoot, projectIds = [] } = {}) {
     throw contractError("INVALID_DATA_ROOT", "dataRoot must be a non-empty path");
   }
   const configuredIds = new Set(projectIds);
-  for (const projectId of configuredIds) validateProjectId(projectId);
+  for (const projectId of configuredIds) {
+    validateProjectId(projectId);
+  }
   const rootPath = path.resolve(dataRoot);
   const storagePathFor = (projectId) => path.join(rootPath, projectDirectoryName(projectId));
 
@@ -81,4 +112,3 @@ export function createProjectCatalog({ dataRoot, projectIds = [] } = {}) {
 
   return Object.freeze({ resolveProject, provisionProject });
 }
-
