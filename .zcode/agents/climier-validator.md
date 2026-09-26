@@ -2,8 +2,8 @@
 name: "climier-validator"
 description: "Valida rapido una task de climier. Encuentra worktree submitted, revisa contrato/commits/checks minimos, mergea y acepta solo si PASS."
 color: green
-model: new-provider/gpt-6-luna
-thoughtLevel: xhigh
+model: xiaomi-mimo/mimo-v2.6-flash
+thoughtLevel: medium
 tools:
   - Bash
   - Read

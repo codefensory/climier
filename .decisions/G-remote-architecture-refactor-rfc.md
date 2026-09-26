@@ -1,7 +1,7 @@
 # RFC: consolidar arquitectura post remote-v1
 
-- Gate: `G-remote-architecture-refactor-rfc` · Iniciativa: `remote-architecture-refactor` · Estado: borrador
-- Autor: orchestrator · Fecha: 2026-09-25
+- Gate: `G-remote-architecture-refactor-rfc` · Iniciativa: `remote-architecture-refactor` · Estado: aprobado
+- Autor: orchestrator · Fecha: 2026-09-26
 - Base: `feat/remote-backend-rfc` tras la aceptación de remote v1
 
 ## Problema
@@ -146,13 +146,17 @@ sigue como excepción explícita o recibe un boundary propio.
 Las slices de migración se enumeran y serializan por paths compartidos:
 
 1. foundation local source + test de boundary;
-2. task lifecycle (`take`, `release`, `submit`, `accept`, `reject`, `reopen`,
-   `cancel`), con `takeover` cubierto;
+2. task lifecycle (`take`, `release`, `submit`, `accept`, `reject`, `resolve`,
+   `reopen`, `cancel`), con `takeover` cubierto;
 3. creación/actualización multi-kind (`add-task`, `add-gate`,
    `add-knowledge`, `add-node`, `update`);
-4. initiative, note y edges;
+4. initiative, note, edges y knowledge writes (`add-initiative`, `add-note`,
+   `add-edge`, `remove-edge`, `deprecate-knowledge`);
 5. batch y excepciones declaradas, solo si el inventario muestra un cambio
    seguro.
+
+El inventario completo de comandos por slice vive en ADR-029; esta lista es la
+enumeración resumida y no reemplaza ese inventario.
 
 Cada familia define su matriz local/remota de operation ID, input, policy
 acción, envelope, error, log y state; además prueba que la ruta local atraviesa
@@ -166,16 +170,19 @@ interno declarativo. Su metadata es exclusivamente de adaptación CLI:
 
 - discriminador de target/pre-read cuando aplique;
 - selección por subkind (`task` frente a `gate`);
-- estrategia de `if_revision`;
+- estrategia de `if_revision`, es decir la regla de selección/población de la
+  revisión esperada (el manifiesto solo declara el campo wire HTTP);
 - input resultante sin actor;
 - localizador de entidad en la respuesta;
-- override de acción de policy previamente declarado por ADR A.
+- override de acción de policy previamente declarado por ADR-029.
 
 El router **no** es dueño del operation ID canónico, schema HTTP o capacidades
-del backend remoto; consume el catálogo canónico y la proyección remote-v1
-definida en ADR C. No contiene reglas de dominio, no interpreta argv y no
-ejecuta storage. Su objetivo es eliminar decisiones CLI repetidas y hacer que
-la matriz de operaciones sea auditable.
+del backend remoto. Resuelve el comando CLI contra el operation ID del catálogo
+canónico y es owner exclusivo de la metadata de adaptación CLI; el backend
+remoto consulta la proyección remote-v1 definida en ADR-031 al ejecutar. El router
+no contiene reglas de dominio ni ejecuta storage. Sus comandos siguen siendo
+interpretados por los adapters CLI antes de que el router traduzca input,
+target y resultado; así se elimina selección repetida sin mover parsing argv.
 
 ### C. Canonicalizar las proyecciones de lectura
 
@@ -184,21 +191,24 @@ sea dueño de las vistas canónicas. La recomendación inicial es mantener el
 nombre `read-model/` y añadir composiciones como:
 
 ```text
-projectStatus(snapshot, filters)
-projectContext(snapshot, id, options)
-projectSearch(snapshot, query, options)
-projectInitiatives(snapshot, options)
-projectLog(snapshot, filters)
+projectStatusView(snapshot, filters)
+projectContextView(snapshot, id, options)
+projectSearchView(snapshot, query, options)
+projectInitiativesView(snapshot, options)
+projectLogView(snapshot, filters)
 ```
 
 CLI y HTTP conservan parsing, carga del snapshot mediante un seam explícito y
 envelopes de transporte; solo dejan de armar reglas de presentación por
 separado. La primera slice es `status` y `context`, porque tienen mayor
-contenido derivado. Las proyecciones reciben un `now` o clock inyectable para
-que edad de claim, stale y alerts se prueben exactamente en ambos adapters.
-Cada extracción se protege con fixtures compartidas, clock común y pruebas de
-paridad local/remota, incluyendo los contratos existentes de status/context y
-los handlers HTTP.
+contenido derivado. Las proyecciones reciben `now` numérico (epoch ms), muestreado una sola vez por
+request en cada adapter, para que edad de claim, stale y alerts se prueben
+exactamente en CLI y HTTP sin una llamada interna a `Date.now()`. Cada extracción
+se protege con fixtures compartidas y pruebas de paridad, incluyendo los
+contratos existentes de status/context y handlers HTTP. Las vistas plugin/UI
+mantienen sus DTOs y consumidores propios salvo delegación de subprojections con
+semántica idéntica; ADR-030 define esas fronteras y evita declarar como canónica
+una vista que conserva reglas diferentes.
 
 ### D. Manifest y partición interna del protocolo HTTP
 
@@ -208,8 +218,14 @@ Crear junto a él un manifiesto estático, data-only y versionado que sea una
 
 - operation ID ya existente en el catálogo canónico;
 - campos superficiales permitidos por HTTP;
-- elegibilidad en batch remoto;
-- metadata de target/resultado necesaria para parity tests.
+- elegibilidad en batch remoto.
+
+El manifiesto no duplica metadata de adaptación CLI (target/pre-read, regla de
+selección/población de `if_revision` ni localizador de resultado), que pertenece
+al router definido en ADR A. El manifiesto solo declara `if_revision`, cuando
+aplique, como campo wire HTTP superficial; la regla que decide cómo se selecciona
+y puebla la revisión esperada es exclusivamente del router. Las pruebas de
+paridad relacionan ambos owners por operation ID.
 
 El servidor deriva su allowlist y validación superficial desde la proyección
 remote-v1, pero conserva validación profunda de JSON hostil, auth/scope/catálogo
@@ -246,6 +262,9 @@ Los módulos extraídos no crearán otro servidor ni leerán configuración glob
   errores HTTP, `jsonError`, respuesta JSON/headers, decodificación del path,
   validación de Content-Type, límite de bytes y parseo de body. Códigos, mensajes,
   status, protocol header, `cache-control` y envelopes permanecen idénticos.
+  `PROTOCOL_VERSION` se define una sola vez y sigue exportado por `http.mjs`; la
+  fachada pasa su valor explícitamente a los helpers que construyen headers. El
+  codec no importa la fachada ni duplica el literal de versión.
 - **`operations.mjs`** contiene validación superficial del request de
   operación/batch y despacho hacia `executeOperation`/`executeBatch`. Recibe el
   `source` completo desde la fachada; no carga policy ni crea un registry por su
@@ -254,7 +273,7 @@ Los módulos extraídos no crearán otro servidor ni leerán configuración glob
 - **`reads.mjs`** contiene matching/parsing de rutas de lectura y armado de
   resultados HTTP. Recibe snapshot, route, query y clock/dependencias explícitas;
   no lee storage ni crea servidor. Las reglas canónicas de `status` y `context`
-  vienen del read-model definido en ADR B; el módulo solo conserva adaptación de
+  vienen del read-model definido en ADR-030; el módulo solo conserva adaptación de
   query/DTO HTTP.
 - **`transfers.mjs`** valida el payload tipado de export/import y delega a
   `captureTransferSource` / `installTransferDestination` en
@@ -287,8 +306,13 @@ La fachada es un path compartido, así que las slices se implementan en serie:
 1. Caracterizar `createRemoteApiServer`, `PROTOCOL_VERSION`, envelopes, errores y
    que requests inválidos no llamen auth/opener.
 2. Extraer codec y mantener re-export de `PROTOCOL_VERSION`.
-3. Extraer transfer validation/dispatch y actualizar la prueba de import boundary
-   para que el kernel port siga siendo el único acceso de transferencia.
+3. Extraer transfer validation/dispatch y añadir una regla/test de imports
+   acotado a `src/server/http/`: los módulos extraídos no importan `storage/` y
+   las transferencias pasan por los puertos de `kernel/transfer.mjs`. La regla no
+   prohíbe `readState` desde `src/server/http.mjs`, que conserva el seam explícito
+   de carga de snapshots; no se añade una prohibición global `server -> storage`.
+   Mantener además tests funcionales HTTP para source activo, payload inválido y
+   resultado de instalación.
 4. Extraer operations después del manifiesto remote-v1; conservar schema estricto,
    inyección server-side y `core.batch`.
 5. Extraer reads después del read-model canónico; conservar query parsing y
@@ -299,7 +323,9 @@ La fachada es un path compartido, así que las slices se implementan en serie:
 Por cada slice se corre `test/server-http.test.mjs` y el test de boundary
 relevante. Las extracciones de reads añaden las suites de read-model,
 `v2-context-contract` y `v2-status-history`; las de transfer cubren
-`cli-transfer`, `kernel-transfer` y el E2E de server. Al cerrar, corren además
+`cli-transfer`, `kernel-transfer`, las rutas HTTP de transferencia en
+`test/server-http.test.mjs` (donde viven hoy esos tests) y el flujo
+server/remoto en `test/server-operations-e2e.test.mjs`. Al cerrar, corren además
 `npm test`, `npm run test:concurrent`, `npm run pack:check` y
 `git diff --check`. No se añaden frameworks, dependencias runtime ni tests de
 nueva semántica bajo el pretexto de mover código.
@@ -307,7 +333,26 @@ nueva semántica bajo el pretexto de mover código.
 La separación se hace por slices verificables; no se moverán rutas no cubiertas
 por tests de protocolo y paridad.
 
+### Política de adopción de Oxlint
+
+`.oxlintrc.json` y `npm run lint` se incorporan como tooling informativo, separado
+de las decisiones de arquitectura y de la aceptación de los ADRs. Con Oxlint
+1.85.0 sobre `src bin test`, el baseline observado es 2.231 errores (0
+advertencias) en 281 archivos; por eso `npm run lint` termina actualmente con
+código 1. CI ejecuta `npm test` y `npm run pack:check`, no lint. No se exige que
+lint pase limpio, no se harán autofixes y no se corregirá la deuda existente
+como parte de este RFC. Los ADRs conservan criterios de aceptación funcionales y
+sus pruebas; el exit code de lint no bloquea su implementación ni validación.
+Cualquier gate futuro o política automatizada de baseline/delta (incluido el
+criterio para retirar el baseline) requiere una decisión separada; hasta
+entonces no se implica un umbral de regresiones por archivos tocados.
+
 ## Secuencia propuesta
+
+Leyenda letra ↔ ADR: A = ADR-029 (bridge universal + routing CLI), B =
+ADR-030 (read-model canónico), C = ADR-031 (manifiesto remote-v1), D =
+ADR-032 (partición interna de HTTP). El diagrama usa las letras; los gates de
+decisión usan los números.
 
 ```mermaid
 flowchart TD
@@ -346,8 +391,10 @@ las piezas juntas. En particular:
    adapters que A; inyecta clock desde la primera slice.
 3. ADR C espera conocer el resultado de A para no modelar excepciones legacy
    como superficie permanente y mantiene separadas capacidades local/remote.
-4. ADR D espera B y C, dado que necesita queries canónicas y handlers de
-   operaciones con schema derivado.
+4. ADR-032 espera ADR-030 y ADR-031. Además, las tasks deben ordenar la integración
+   del manifiesto al server y su conformance antes de cualquier extracción sobre
+   `src/server/http.mjs`; la dependencia entre gates de diseño no serializa por sí
+   sola esas futuras ediciones compartidas.
 
 ## Alternativas consideradas
 
@@ -366,7 +413,7 @@ las piezas juntas. En particular:
 | El bridge universal cambia un comando legacy de forma sutil | Composition root local completo, override de policy declarado, migración por familia y comparación de respuesta pública |
 | State/transfer operations se incorporan accidentalmente a una migración ordinaria | Inventario explícito de `init`/`restore`/`push`/`pull`; cada excepción tiene owner, paths y test antes de cualquier cambio |
 | El manifiesto rebaja validación de HTTP o limita capacidades locales | Es una proyección remote-v1 del catálogo canónico; solo deriva allowlist/campos superficiales y el servidor mantiene auth, schema hostil y provider validation |
-| Queries compartidas cambian vistas de UI o plugins | Funciones puras, fixtures comunes, clock inyectable y parity tests de salida antes de eliminar ensamblado local |
+| Queries compartidas cambian vistas de UI o plugins | ADR-030 define owners/DTO por consumidor, `now` determinista y parity tests; solo los subprojections de semántica idéntica se delegan, antes de eliminar ensamblado duplicado |
 | `server/http.mjs` se parte con conflictos grandes | Extraer un seam por task, mantener `createRemoteApiServer` estable y no mezclar movimientos con cambios de behavior |
 | El alcance vuelve a tocar remote v1 | ADRs y tasks declaran explícitamente no-go: no auth/protocol/schema/state behavior nuevo salvo consolidación ya cubierta |
 
@@ -378,35 +425,46 @@ las piezas juntas. En particular:
 2. Local y remoto usan el mismo bridge para todas las writes ordinarias; la
    matriz enumera por familia operation ID, input, policy acción, envelope,
    error, log y state en ambos modos.
-3. Existe un único owner puro de cada proyección de lectura; CLI y HTTP muestran
-   la misma vista para snapshots, filtros y clock equivalente.
-4. Los IDs canónicos conservan un único catálogo; schema superficial del
-   servidor y capacidades del backend remoto se derivan de una proyección
-   remote-v1 probada contra él sin restringir operaciones locales válidas.
+3. Existe un owner puro compartido de status/context CLI/HTTP; ambos muestran la
+   misma vista para snapshot, filtros, identidad y `now` equivalente. Las vistas
+   UI/plugin conservan sus DTOs y semántica explícitamente fuera del alcance
+   compartido, excepto subprojections delegadas con paridad demostrada.
+4. Los operation IDs provider-backed conservan el catálogo canónico; el schema
+   superficial remoto y las capacidades del cliente se derivan de la proyección
+   remote-v1. El envelope compuesto `core.batch` se especifica aparte, no se
+   registra como provider y conserva la elegibilidad actual sin nesting.
 5. `server/http.mjs` conserva API pública pero deja de concentrar codec, reads,
    operaciones y transferencias en un único archivo.
 6. `npm test`, concurrencia aplicable, matrices de routing/parity y
    `git diff --check` siguen verdes después de cada ADR y al cierre.
 
-## Preguntas abiertas para review
+## Preguntas abiertas para ADRs derivados
 
-1. ¿El owner puro de vistas debe vivir en `read-model/` o en un
-   `application/queries/` separado? La recomendación inicial es ampliar
-   `read-model/` para no añadir otra capa sin semántica independiente.
-2. ¿Qué boundary definitivo tendrán `init`, `restore`, `push` y `pull`? La
-   recomendación es inventariarlos primero y dejarlos como excepciones
-   explícitas hasta que ADR A demuestre un seam compatible con sus invariantes.
-3. ¿La proyección remote-v1 del manifiesto necesita metadata de resultado o esa
-   información debe quedar solamente en el router CLI? La recomendación es que
-   el manifiesto posea solo transporte/capacidad y el router solo adaptación,
-   sin solapamiento de owners.
+1. ¿Qué boundary definitivo tendrán `init`, `restore`, `push` y `pull`? ADR-029
+   recomienda inventariarlos primero y dejarlos como excepciones explícitas hasta
+   que un seam compatible con sus invariantes se demuestre.
+2. ¿Qué metadata exacta posee cada router CLI tras la inspección del código?
+   ADR-029 la acota a traducción CLI y ADR-031 separa de ella schema/capacidad
+   remote-v1; su revisión puede concretar names/paths sin superponer owners.
+3. ¿Cómo representar batch si `core.batch` es un envelope compuesto y no un ID
+   provider-backed del catálogo? ADR-031 lo modela como descriptor separado cuya
+   elegibilidad deriva de sus entradas y prohíbe nesting.
+4. ¿Qué subprojections de plugin pueden compartir implementación pura sin cambiar
+   su DTO ni identidad, y qué reglas de status/claims UI siguen propias? ADR-030
+   lo resuelve view por view; UI summary/stale permanece fuera de ownership
+   compartido.
 
 ## ADRs derivados
 
-- [ ] ADR-029: bridge universal y routing declarativo de writes CLI → por crear
-- [ ] ADR-030: proyecciones de lectura canónicas compartidas → por crear
-- [ ] ADR-031: manifiesto de protocolo remote-v1 y paridad de schemas → por crear
-- [ ] ADR-032: composición modular del HTTP server → por crear
+- [x] ADR-029: bridge universal y routing declarativo de writes CLI → `.adrs/029-universal-cli-operation-bridge.md`
+- [x] ADR-030: proyecciones de lectura canónicas compartidas → `.adrs/030-canonical-read-model-projections.md`
+- [x] ADR-031: manifiesto de protocolo remote-v1 y paridad de schemas → `.adrs/031-remote-v1-capability-manifest.md`
+- [x] ADR-032: composición modular del HTTP server → `.adrs/032-modular-http-server-facade.md`
+
+Los ADRs y sus gates se crean como borradores derivados del RFC aprobado. Sus
+relaciones de precedencia se mantienen explícitas en el DAG: ADR-031 queda
+bloqueado por ADR-029; ADR-032 queda bloqueado por ADR-030 y ADR-031. No se
+aprueban ADRs ni se crean tasks de implementación en esta fase.
 
 ## Verificación para la fase de diseño
 
