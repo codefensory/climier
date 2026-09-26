@@ -17,8 +17,8 @@ async function withProject(run) {
   try {
     await run({ root, projectDir });
   } finally {
-    if (previousHome === undefined) delete process.env.CLIMIER_HOME;
-    else process.env.CLIMIER_HOME = previousHome;
+    if (previousHome === undefined) { delete process.env.CLIMIER_HOME; }
+    else { process.env.CLIMIER_HOME = previousHome; }
     await fs.rm(root, { recursive: true, force: true });
   }
 }

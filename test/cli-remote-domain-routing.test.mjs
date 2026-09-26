@@ -33,6 +33,24 @@ const initialState = {
   log: [{ id: "local-sentinel" }],
 };
 
+function remoteOperationResult(args, node) {
+  const results = {
+    "edge.add": () => ({ edge: { from: args.input.from, to: args.input.to, type: args.input.type } }),
+    "edge.remove": () => ({ removed: true }),
+    "initiative.create": () => ({ desc: args.input.desc, created_at: "2026-09-25T00:00:00.000Z" }),
+  };
+  return results[args.operation]?.() || { node };
+}
+
+function createOperationDiff(args, id, node) {
+  const createsEntity = args.operation.endsWith(".create") && args.operation !== "initiative.create";
+  const updatesEntity = !args.operation.endsWith(".create") && args.operation !== "initiative.create";
+  const created = createsEntity ? [{ id, node }] : [];
+  const updated = updatesEntity ? [{ id, node }] : [];
+  const initiative = { name: args.input.name, initiative: { desc: args.input.desc, created_at: "2026-09-25T00:00:00.000Z" } };
+  return { created, updated, initiatives: { created: args.operation === "initiative.create" ? [initiative] : [] } };
+}
+
 function fakeRemoteBackend({ failure } = {}) {
   const calls = [];
   const client = {
@@ -43,22 +61,12 @@ function fakeRemoteBackend({ failure } = {}) {
     },
     async executeOperation(args) {
       calls.push(args);
-      if (failure) throw failure;
+      if (failure) { throw failure; }
       const id = args.input?.id || "created";
-      const node = { ...(initialState.nodes[id] || {}), ...(args.input?.changes || {}), id, revision: 13 };
+      const node = { ...initialState.nodes[id], ...args.input?.changes, id, revision: 13 };
       return {
-        result: args.operation === "edge.add"
-          ? { edge: { from: args.input.from, to: args.input.to, type: args.input.type } }
-          : args.operation === "edge.remove"
-            ? { removed: true }
-            : args.operation === "initiative.create"
-              ? { desc: args.input.desc, created_at: "2026-09-25T00:00:00.000Z" }
-              : { node },
-        diff: {
-          created: args.operation.endsWith(".create") && args.operation !== "initiative.create" ? [{ id, node }] : [],
-          updated: args.operation.endsWith(".create") || args.operation === "initiative.create" ? [] : [{ id, node }],
-          initiatives: { created: args.operation === "initiative.create" ? [{ name: args.input.name, initiative: { desc: args.input.desc, created_at: "2026-09-25T00:00:00.000Z" } }] : [] },
-        },
+        result: remoteOperationResult(args, node),
+        diff: createOperationDiff(args, id, node),
         effects: { newly_ready: ["T-next"] },
       };
     },
@@ -104,6 +112,13 @@ test("local domain adapters delegate through the supplied application operation 
   }
 });
 
+async function assertRemoteScenario(projectDir, scenario) {
+  const { client, calls } = fakeRemoteBackend();
+  const result = await scenario.run({ projectDir, statePath: projectDir, backendClient: client });
+  assert.ok(Object.hasOwn(result, scenario.envelope), `${scenario.op} retains ${scenario.envelope} envelope`);
+  assert.ok(calls.some((call) => call.operation === scenario.op), `${scenario.op} selects canonical operation`);
+}
+
 test("remaining domain adapters use canonical remote operations and retain CLI envelopes", async () => {
   await withLocalSentinel(async (projectDir) => {
     const scenarios = [
@@ -121,32 +136,31 @@ test("remaining domain adapters use canonical remote operations and retain CLI e
     ];
 
     for (const scenario of scenarios) {
-      const { client, calls } = fakeRemoteBackend();
-      const result = await scenario.run({ projectDir, statePath: projectDir, backendClient: client });
-      assert.ok(Object.hasOwn(result, scenario.envelope), `${scenario.op} retains ${scenario.envelope} envelope`);
-      assert.ok(calls.some((call) => call.operation === scenario.op), `${scenario.op} selects canonical operation`);
+      await assertRemoteScenario(projectDir, scenario);
     }
   });
 });
+
+async function assertUpdateOperations(projectDir, updates) {
+  for (const [id, operation] of updates) {
+    const { client, calls } = fakeRemoteBackend();
+    await update({ projectDir, statePath: projectDir, backendClient: client, positional: [id], flags: { title: "updated", as: "alice" } });
+    assert.equal(calls.find((call) => call.operation)?.operation, operation);
+  }
+}
 
 test("remote update selects the operation matching the target node kind", async () => {
-  await withLocalSentinel(async (projectDir) => {
-    for (const [id, operation] of [["T-existing", "task.update"], ["G-existing", "gate.update"], ["K-existing", "knowledge.update"]]) {
-      const { client, calls } = fakeRemoteBackend();
-      await update({ projectDir, statePath: projectDir, backendClient: client, positional: [id], flags: { title: "updated", as: "alice" } });
-      assert.equal(calls.find((call) => call.operation)?.operation, operation);
-    }
-  });
+  await withLocalSentinel((projectDir) => assertUpdateOperations(projectDir, [["T-existing", "task.update"], ["G-existing", "gate.update"], ["K-existing", "knowledge.update"]]));
 });
 
+async function assertInitiativeRemoteFailure(projectDir, offline) {
+  const { client, calls } = fakeRemoteBackend({ failure: offline });
+  const operation = addInitiative({ projectDir, statePath: projectDir, backendClient: client, positional: ["new-initiative"], flags: { as: "alice" } });
+  await assert.rejects(operation, (error) => error === offline);
+  assert.equal(calls.length, 1);
+}
+
 test("remote operation errors propagate and never fall back to local mutation", async () => {
-  await withLocalSentinel(async (projectDir) => {
-    const offline = Object.assign(new Error("remote unavailable"), { code: "REMOTE_REQUEST_FAILED" });
-    const { client, calls } = fakeRemoteBackend({ failure: offline });
-    await assert.rejects(
-      () => addInitiative({ projectDir, statePath: projectDir, backendClient: client, positional: ["new-initiative"], flags: { as: "alice" } }),
-      (error) => error === offline,
-    );
-    assert.equal(calls.length, 1);
-  });
+  const offline = Object.assign(new Error("remote unavailable"), { code: "REMOTE_REQUEST_FAILED" });
+  await withLocalSentinel((projectDir) => assertInitiativeRemoteFailure(projectDir, offline));
 });

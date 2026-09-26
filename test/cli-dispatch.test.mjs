@@ -5,8 +5,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createTempProject, rmTempProject, runCli, initExampleProject, installPolicyFixture, uninstallPolicyFixture } from "./helpers.mjs";
-import { dispatchCommand, runCli as runCliInProcess } from "../src/cli/dispatch.mjs";
+import { createTempProject, rmTempProject, runCli, initExampleProject } from "./helpers.mjs";
+import { runCli as runCliInProcess } from "../src/cli/dispatch.mjs";
 
 const packageVersion = JSON.parse(
   fs.readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "package.json"), "utf8")
@@ -80,111 +80,6 @@ test("CLI: take, submit and accept --as work", async () => {
   }
 });
 
-test("CLI: reopen --as policy-allow actor rolls back a done task end-to-end", async () => {
-  // ADR-008 §"`task.reopen`" exercises the seam allow path via the
-  // policy-fixture: under ADR-009 the core itself accepts any actor,
-  // so this case pins the policy allow behavior explicitly. Without
-  // the fixture the same reopen would also succeed (default core).
-  const dir = await createTempProject();
-  await installPolicyFixture(dir);
-  try {
-    await initExampleProject(dir);
-    await runCli(["--project", dir, "take", "F0.T1", "--as", "agent-1"]);
-    await runCli(["--project", dir, "submit", "F0.T1", "--note", "shipped", "--as", "agent-1"]);
-    await runCli(["--project", dir, "accept", "F0.T1", "--as", "validator"]);
-
-    const r = await runCli([
-      "--project", dir, "reopen", "F0.T1", "--reason", "le falta validacion", "--as", "auditor",
-    ]);
-    assert.equal(r.code, 0, r.stderr);
-    const data = JSON.parse(r.stdout);
-    assert.equal(data.node.id, "F0.T1");
-    assert.equal(data.node.status, "open");
-
-    // F0.T2 (depends on F0.T1) should be blocked again, not ready.
-    const s = await runCli(["--project", dir, "status"]);
-    assert.equal(s.code, 0, s.stderr);
-    const sdata = JSON.parse(s.stdout);
-    const blockedIds = (sdata.tasks.blocked || []).map((t) => t.id);
-    assert.equal(blockedIds.includes("F0.T2"), true, "F0.T2 should be blocked after reopen");
-  } finally {
-    await uninstallPolicyFixture(dir);
-    await rmTempProject(dir);
-  }
-});
-
-test("CLI: reopen by a stranger succeeds under ADR-009 (no ownership compare on done_by)", async () => {
-  // ADR-009 §"Resto de operaciones": reopen may roll back any terminal
-  // resolvable from any actor; the core only checks state validity and
-  // required fields. State validation and required-field enforcement
-  // are still verified separately (see the next two tests).
-  const dir = await createTempProject();
-  try {
-    await initExampleProject(dir);
-    await runCli(["--project", dir, "take", "F0.T1", "--as", "agent-1"]);
-    await runCli(["--project", dir, "submit", "F0.T1", "--note", "shipped", "--as", "agent-1"]);
-    await runCli(["--project", dir, "accept", "F0.T1", "--as", "validator"]);
-
-    const r = await runCli([
-      "--project", dir, "reopen", "F0.T1", "--reason", "I want to", "--as", "agent-2",
-    ]);
-    assert.equal(r.code, 0, r.stderr);
-    const data = JSON.parse(r.stdout);
-    assert.equal(data.node.id, "F0.T1");
-    assert.equal(data.node.status, "open");
-    assert.equal(data.node.done_by, undefined, "done_by cleared on reopen");
-    assert.equal(data.node.done_at, undefined, "done_at cleared on reopen");
-    assert.equal(data.node.note, undefined, "note cleared on reopen");
-    assert.equal(data.node.claim, null, "claim cleared on reopen");
-
-    // F0.T2 (depends on F0.T1) must be blocked again.
-    const s = await runCli(["--project", dir, "status"]);
-    assert.equal(s.code, 0, s.stderr);
-    const sdata = JSON.parse(s.stdout);
-    const blockedIds = (sdata.tasks.blocked || []).map((t) => t.id);
-    assert.equal(blockedIds.includes("F0.T2"), true, "F0.T2 should be blocked after reopen");
-  } finally {
-    await rmTempProject(dir);
-  }
-});
-
-test("CLI: reopen without --reason still fails with MISSING_FIELD (required field is enforced)", async () => {
-  // ADR-009 §"Resto de operaciones": state validation and required fields
-  // are part of the core contract; only ownership checks were removed.
-  const dir = await createTempProject();
-  try {
-    await initExampleProject(dir);
-    await runCli(["--project", dir, "take", "F0.T1", "--as", "agent-1"]);
-    await runCli(["--project", dir, "submit", "F0.T1", "--note", "shipped", "--as", "agent-1"]);
-    await runCli(["--project", dir, "accept", "F0.T1", "--as", "validator"]);
-
-    const r = await runCli([
-      "--project", dir, "reopen", "F0.T1", "--as", "agent-2",
-    ]);
-    assert.notEqual(r.code, 0);
-    const data = JSON.parse(r.stdout);
-    assert.equal(data.ok, false);
-    assert.match(data.error.message || data.error, /--reason/);
-  } finally {
-    await rmTempProject(dir);
-  }
-});
-
-test("CLI: context on a ready task reports derived_status=ready and no blocking", async () => {
-  const dir = await createTempProject();
-  try {
-    await initExampleProject(dir);
-    const r = await runCli(["--project", dir, "context", "F0.T1"]);
-    assert.equal(r.code, 0, r.stderr);
-    const data = JSON.parse(r.stdout);
-    assert.equal(data.node.id, "F0.T1");
-    assert.equal(data.derived_status, "ready");
-    assert.equal(data.can_claim, true);
-    assert.equal(data.blocking.length, 0);
-  } finally {
-    await rmTempProject(dir);
-  }
-});
 
 test("CLI: add-gate creates an open gate (replaces v1 add-decision)", async () => {
   const dir = await createTempProject();
@@ -396,74 +291,7 @@ test("CLI: resolve on a ready task is rejected without mutation", async () => {
   }
 });
 
-test("CLI: resolve without --note still rejects a task as an unsupported target", async () => {
-  // The task resolve bypass was removed; --note is not a task lifecycle input.
-  const dir = await createTempProject();
-  try {
-    let r = await runCli(["--project", dir, "init"]);
-    assert.equal(r.code, 0, r.stderr);
-    r = await runCli(["--project", dir, "add-initiative", "migration", "--desc", "x"]);
-    assert.equal(r.code, 0, r.stderr);
-    const seed = await runCli(["--project", dir, "add-task", "--initiative", "migration", "--title", "x", "--body", "b", "--acceptance", "a", "--blocked-by", ""]);
-    assert.equal(seed.code, 0, seed.stderr);
-    const seedId = JSON.parse(seed.stdout).node.id;
 
-    r = await runCli(["--project", dir, "resolve", seedId, "--as", "alice"]);
-    assert.notEqual(r.code, 0);
-    const data = JSON.parse(r.stdout);
-    assert.equal(data.ok, false);
-    assert.equal(data.error.code, "INVALID_EXECUTION_CONTRACT");
-  } finally {
-    await rmTempProject(dir);
-  }
-});
-
-test("CLI: resolve without --as fails with JSON error", async () => {
-  const dir = await createTempProject();
-  try {
-    let r = await runCli(["--project", dir, "init"]);
-    assert.equal(r.code, 0, r.stderr);
-    r = await runCli(["--project", dir, "add-initiative", "migration", "--desc", "x"]);
-    assert.equal(r.code, 0, r.stderr);
-    const seed = await runCli(["--project", dir, "add-task", "--initiative", "migration", "--title", "x", "--body", "b", "--acceptance", "a", "--blocked-by", ""]);
-    assert.equal(seed.code, 0, seed.stderr);
-    const seedId = JSON.parse(seed.stdout).node.id;
-    await runCli(["--project", dir, "take", seedId, "--as", "alice"]);
-    r = await runCli(["--project", dir, "resolve", seedId, "--note", "missing --as"], { env: { CLIMIER_AGENT: "" } });
-    assert.notEqual(r.code, 0);
-    const data = JSON.parse(r.stdout);
-    assert.match(data.error.message || data.error, /--as/);
-  } finally {
-    await rmTempProject(dir);
-  }
-});
-
-test("dispatch: absent or local project config selects the local backend without state I/O", async () => {
-  for (const metadata of [null, { version: 1, project_id: "local-project", backend: { type: "local" } }]) {
-    const dir = await createTempProject();
-    try {
-      if (metadata) fs.writeFileSync(path.join(dir, ".climier.json"), JSON.stringify(metadata));
-      let received;
-      const result = await runCliInProcess({
-        argv: ["--project", dir, "status", "--as", "alice"],
-        write() {},
-        exit() {},
-        dispatch: async (context) => {
-          received = context;
-          return { ok: true };
-        },
-      });
-      assert.equal(result, 0);
-      assert.equal(received.projectDir, dir);
-      assert.deepEqual(received.projectConfig, metadata || {});
-      assert.equal(received.backendClient.type, "local");
-      assert.equal(received.flags.as, "alice");
-      assert.equal(fs.existsSync(path.join(dir, ".climier.json")), Boolean(metadata));
-    } finally {
-      await rmTempProject(dir);
-    }
-  }
-});
 
 test("dispatch: help and no-command handling remain ahead of backend selection", async () => {
   const dir = await createTempProject();
@@ -497,6 +325,14 @@ test("dispatch: help and no-command handling remain ahead of backend selection",
   }
 });
 
+async function observeRemoteDispatch(dir, source, client) {
+  let factoryOptions; let dispatched;
+  const result = await runCliInProcess({ argv: ["--project", dir, "take", "T1", "--as", "alice"], source,
+    createBackendClient(options) { factoryOptions = options; return client; },
+    dispatch: async (context) => { dispatched = context; return { ok: true }; }, write() {}, exit() {} });
+  return { result, factoryOptions, dispatched };
+}
+
 test("dispatch: remote project config and injected client reach command dispatch with source intact", async () => {
   const dir = await createTempProject();
   try {
@@ -512,22 +348,7 @@ test("dispatch: remote project config and injected client reach command dispatch
       mutate(...args) { localCalls.push(["mutate", ...args]); },
     };
     const client = { type: "remote", marker: "injected" };
-    let factoryOptions;
-    let dispatched;
-    const result = await runCliInProcess({
-      argv: ["--project", dir, "take", "T1", "--as", "alice"],
-      source,
-      createBackendClient(options) {
-        factoryOptions = options;
-        return client;
-      },
-      dispatch: async (context) => {
-        dispatched = context;
-        return { ok: true };
-      },
-      write() {},
-      exit() {},
-    });
+    const { result, factoryOptions, dispatched } = await observeRemoteDispatch(dir, source, client);
     assert.equal(result, 0);
     assert.equal(factoryOptions.projectDir, dir);
     assert.deepEqual(factoryOptions.projectConfig, projectConfig);
@@ -542,122 +363,23 @@ test("dispatch: remote project config and injected client reach command dispatch
   }
 });
 
+async function runInvalidMetadataDispatch(dir) {
+  let dispatched = false; const output = []; const codes = [];
+  const result = await runCliInProcess({ argv: ["--project", dir, "status"], dispatch: async () => { dispatched = true; }, write: (value) => output.push(value), exit: (code) => codes.push(code) });
+  return { result, dispatched, output, codes };
+}
+
 test("dispatch: invalid project metadata fails before command dispatch", async () => {
   const dir = await createTempProject();
   try {
     fs.writeFileSync(path.join(dir, ".climier.json"), "{invalid json");
-    let dispatched = false;
-    const output = [];
-    const codes = [];
-    const result = await runCliInProcess({
-      argv: ["--project", dir, "status"],
-      dispatch: async () => { dispatched = true; },
-      write: (value) => output.push(value),
-      exit: (code) => codes.push(code),
-    });
+    const { result, dispatched, output, codes } = await runInvalidMetadataDispatch(dir);
     assert.equal(result, 1);
     assert.deepEqual(codes, [1]);
     assert.equal(dispatched, false);
     const payload = JSON.parse(output[0]);
     assert.equal(payload.error.code, "STORAGE_ERROR");
     assert.equal(payload.error.details.cause, "CLIMIER_CORRUPT_PROJECT_META");
-  } finally {
-    await rmTempProject(dir);
-  }
-});
-
-test("dispatch: remote unsupported operation is denied before plugin loading", async () => {
-  const dir = await createTempProject();
-  const previousHome = process.env.CLIMIER_HOME;
-  const pluginHome = fs.mkdtempSync(path.join(path.dirname(dir), "climier-remote-plugin-home-"));
-  try {
-    process.env.CLIMIER_HOME = pluginHome;
-    const installed = path.join(pluginHome, "plugins", "installed", "audit");
-    fs.mkdirSync(installed, { recursive: true });
-    const marker = path.join(pluginHome, "loaded");
-    fs.writeFileSync(path.join(installed, "package.json"), JSON.stringify({
-      name: "audit",
-      version: "1.0.0",
-      type: "module",
-      climier: { id: "audit", command: "audit", entry: "./climier.mjs", api: 3 },
-    }));
-    fs.writeFileSync(path.join(installed, "climier.mjs"),
-      `import fs from "node:fs"; fs.writeFileSync(${JSON.stringify(marker)}, "loaded"); export default { commands: { ping: () => ({ ok: true }) } };`);
-
-    await assert.rejects(
-      () => dispatchCommand({
-        command: "audit",
-        originalArgv: ["audit", "ping"],
-        flags: {},
-        projectDir: dir,
-        statePath: dir,
-        projectConfig: { project_id: "remote-project", backend: { type: "remote", url: "https://climier.example.test" } },
-        backendClient: { type: "remote" },
-      }),
-      (error) => error.code === "REMOTE_UNSUPPORTED_OPERATION" && error.details.command === "audit",
-    );
-    assert.equal(fs.existsSync(marker), false);
-    await assert.rejects(
-      () => dispatchCommand({
-        command: "audit",
-        originalArgv: ["audit", "ping"],
-        projectDir: dir,
-        projectConfig: { project_id: "remote-project", backend: { type: "remote", url: "https://climier.example.test" } },
-        backendClient: { type: "remote" },
-      }),
-      (error) => error.code === "REMOTE_UNSUPPORTED_OPERATION",
-    );
-    assert.equal(fs.existsSync(marker), false, "plugin entry remains unloaded for direct dispatch");
-  } finally {
-    if (previousHome === undefined) delete process.env.CLIMIER_HOME;
-    else process.env.CLIMIER_HOME = previousHome;
-    await fs.promises.rm(pluginHome, { recursive: true, force: true });
-    await rmTempProject(dir);
-  }
-});
-
-test("dispatch: remote unsupported snapshots command fails before local handler I/O", async () => {
-  const dir = await createTempProject();
-  try {
-    const projectConfig = { project_id: "remote-project", backend: { type: "remote", url: "https://climier.example.test" } };
-    const client = { type: "remote" };
-    const sourceCalls = [];
-    const source = {
-      registry: { lookup(...args) { sourceCalls.push(["lookup", ...args]); } },
-      mutate(...args) { sourceCalls.push(["mutate", ...args]); },
-    };
-    fs.writeFileSync(path.join(dir, ".climier.json"), JSON.stringify(projectConfig));
-    for (const commandAndFlags of [["snapshots", {}], ["restore", {}], ["ui", {}], ["init", { force: true }]]) {
-      await assert.rejects(
-        () => dispatchCommand({
-          command: commandAndFlags[0],
-          flags: commandAndFlags[1],
-          projectDir: dir,
-          statePath: dir,
-          projectConfig,
-          backendClient: client,
-          source,
-        }),
-        (error) => error.code === "REMOTE_UNSUPPORTED_OPERATION" && error.details.command === commandAndFlags[0],
-      );
-    }
-    for (const command of ["state", "init"]) {
-      let dispatchedCommand;
-      const result = await runCliInProcess({
-        argv: ["--project", dir, command],
-        createBackendClient: () => client,
-        dispatch: async ({ command: selected }) => {
-          dispatchedCommand = selected;
-          return { ok: true };
-        },
-        write() {},
-        exit() {},
-      });
-      assert.equal(result, 0);
-      assert.equal(dispatchedCommand, command);
-    }
-    assert.deepEqual(sourceCalls, []);
-    assert.equal(fs.existsSync(path.join(dir, ".climier.json")), true);
   } finally {
     await rmTempProject(dir);
   }

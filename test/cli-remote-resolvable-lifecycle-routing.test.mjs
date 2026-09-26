@@ -7,7 +7,7 @@ import release from "../src/cli/commands/release.mjs";
 import submit from "../src/cli/commands/submit.mjs";
 import accept from "../src/cli/commands/accept.mjs";
 import reject from "../src/cli/commands/reject.mjs";
-import { createTempProject, readState, rmTempProject, writeState } from "./helpers.mjs";
+import { createTempProject, readState, rmTempProject, writeState, runCli, initExampleProject, installPolicyFixture, uninstallPolicyFixture } from "./helpers.mjs";
 
 const initialState = {
   version: 4,
@@ -45,7 +45,7 @@ function lifecycleRemoteClient(target, { failure } = {}) {
       },
       async executeOperation(args) {
         calls.push(args);
-        if (failure) throw failure;
+        if (failure) { throw failure; }
         const updated = { ...target, status: taskLifecycleCommands.find((command) => command.operation === args.operation).status, revision: 8 };
         return { result: { released: args.operation === "task.release" }, diff: { created: [], updated: [{ id: target.id, node: updated }] }, effects: { newly_ready: ["T-next"] } };
       },
@@ -75,8 +75,8 @@ for (const command of taskLifecycleCommands) {
       assert.deepEqual(calls.find((call) => call.operation)?.input, command.input(target.id));
       assert.equal(calls.find((call) => call.operation)?.actor, "alice");
       assert.equal(result.node.status, command.status);
-      if (command.name === "release") assert.equal(result.released, true);
-      if (command.name === "submit" || command.name === "accept") assert.deepEqual(result.newly_ready, ["T-next"]);
+      if (command.name === "release") { assert.equal(result.released, true); }
+      if (command.name === "submit" || command.name === "accept") { assert.deepEqual(result.newly_ready, ["T-next"]); }
       assert.deepEqual(await readState(projectDir), before, "remote success must not mutate local state");
     } finally {
       await rmTempProject(projectDir);
@@ -119,7 +119,7 @@ for (const command of taskLifecycleCommands) {
   });
 }
 
-function remoteClient(node, { failure, readFailure } = {}) {
+function remoteClient(targetNode, { failure, readFailure } = {}) {
   const calls = [];
   return {
     calls,
@@ -127,14 +127,14 @@ function remoteClient(node, { failure, readFailure } = {}) {
       type: "remote",
       async readNode({ id }) {
         calls.push({ method: "readNode", id });
-        if (readFailure) throw readFailure;
-        return { node: node ? { ...node, id } : null };
+        if (readFailure) { throw readFailure; }
+        return { node: targetNode ? { ...targetNode, id } : null };
       },
       async executeOperation(args) {
         calls.push(args);
-        if (failure) throw failure;
-        const updated = { ...node, status: args.operation.endsWith("reopen") ? "open" : "canceled", revision: 8 };
-        return { diff: { created: [], updated: [{ id: node.id, node: updated }] }, result: {}, effects: null };
+        if (failure) { throw failure; }
+        const updated = { ...targetNode, status: args.operation.endsWith("reopen") ? "open" : "canceled", revision: 8 };
+        return { diff: { created: [], updated: [{ id: targetNode.id, node: updated }] }, result: {}, effects: null };
       },
       async executeBatch() { throw new Error("unexpected batch"); },
     },
@@ -228,6 +228,23 @@ test("local lifecycle commands retain their existing mutation semantics and enve
   }
 });
 
+async function assertLifecycleError(projectDir, before, { error, command, subkind }) {
+  const target = node(`R-${subkind}`, subkind);
+  const { client: executeClient, calls: executeCalls } = remoteClient(target, { failure: error });
+  await assert.rejects(command.run({ projectDir, statePath: projectDir, backendClient: executeClient, positional: [target.id], flags: { as: "alice" } }), (actual) => actual === error);
+  assert.equal(executeCalls.filter((call) => call.operation === command.operation(subkind)).length, 1);
+  const { client: readClient, calls: readCalls } = remoteClient(target, { readFailure: error });
+  await assert.rejects(command.run({ projectDir, statePath: projectDir, backendClient: readClient, positional: [target.id], flags: { as: "alice" } }), (actual) => actual === error);
+  assert.deepEqual(readCalls, [{ method: "readNode", id: target.id }]);
+  assert.deepEqual(await readState(projectDir), before);
+}
+
+async function assertLifecycleFailures(projectDir, before, error, command) {
+  for (const subkind of ["task", "gate"]) {
+    await assertLifecycleError(projectDir, before, { error, command, subkind });
+  }
+}
+
 test("remote lifecycle errors propagate without fallback or local mutation", async () => {
   const errors = [
     Object.assign(new Error("unauthorized"), { code: "AUTH_REQUIRED", status: 401 }),
@@ -240,26 +257,105 @@ test("remote lifecycle errors propagate without fallback or local mutation", asy
     const before = await readState(projectDir);
     for (const error of errors) {
       for (const command of commands) {
-        for (const subkind of ["task", "gate"]) {
-          const target = node(`R-${subkind}`, subkind);
-          const { client: executeClient, calls: executeCalls } = remoteClient(target, { failure: error });
-          await assert.rejects(
-            command.run({ projectDir, statePath: projectDir, backendClient: executeClient, positional: [target.id], flags: { as: "alice" } }),
-            (actual) => actual === error,
-          );
-          assert.equal(executeCalls.filter((call) => call.operation === command.operation(subkind)).length, 1);
-
-          const { client: readClient, calls: readCalls } = remoteClient(target, { readFailure: error });
-          await assert.rejects(
-            command.run({ projectDir, statePath: projectDir, backendClient: readClient, positional: [target.id], flags: { as: "alice" } }),
-            (actual) => actual === error,
-          );
-          assert.deepEqual(readCalls, [{ method: "readNode", id: target.id }]);
-          assert.deepEqual(await readState(projectDir), before);
-        }
+        await assertLifecycleFailures(projectDir, before, error, command);
       }
     }
   } finally {
     await rmTempProject(projectDir);
+  }
+});
+
+
+test("CLI: reopen --as policy-allow actor rolls back a done task end-to-end", async () => {
+  // ADR-008 §"`task.reopen`" exercises the seam allow path via the
+  // policy-fixture: under ADR-009 the core itself accepts any actor,
+  // so this case pins the policy allow behavior explicitly. Without
+  // the fixture the same reopen would also succeed (default core).
+  const dir = await createTempProject();
+  await installPolicyFixture(dir);
+  try {
+    await initExampleProject(dir);
+    await runCli(["--project", dir, "take", "F0.T1", "--as", "agent-1"]);
+    await runCli(["--project", dir, "submit", "F0.T1", "--note", "shipped", "--as", "agent-1"]);
+    await runCli(["--project", dir, "accept", "F0.T1", "--as", "validator"]);
+
+    const r = await runCli([
+      "--project", dir, "reopen", "F0.T1", "--reason", "le falta validacion", "--as", "auditor",
+    ]);
+    assert.equal(r.code, 0, r.stderr);
+    const data = JSON.parse(r.stdout);
+    assert.equal(data.node.id, "F0.T1");
+    assert.equal(data.node.status, "open");
+
+    // F0.T2 (depends on F0.T1) should be blocked again, not ready.
+    const s = await runCli(["--project", dir, "status"]);
+    assert.equal(s.code, 0, s.stderr);
+    const sdata = JSON.parse(s.stdout);
+    const blockedIds = (sdata.tasks.blocked || []).map((t) => t.id);
+    assert.equal(blockedIds.includes("F0.T2"), true, "F0.T2 should be blocked after reopen");
+  } finally {
+    await uninstallPolicyFixture(dir);
+    await rmTempProject(dir);
+  }
+});
+
+function assertReopenedTask(data) {
+  assert.equal(data.node.id, "F0.T1");
+  assert.equal(data.node.status, "open");
+  assert.equal(data.node.done_by, undefined, "done_by cleared on reopen");
+  assert.equal(data.node.done_at, undefined, "done_at cleared on reopen");
+  assert.equal(data.node.note, undefined, "note cleared on reopen");
+  assert.equal(data.node.claim, null, "claim cleared on reopen");
+}
+
+test("CLI: reopen by a stranger succeeds under ADR-009 (no ownership compare on done_by)", async () => {
+  // ADR-009 §"Resto de operaciones": reopen may roll back any terminal
+  // resolvable from any actor; the core only checks state validity and
+  // required fields. State validation and required-field enforcement
+  // are still verified separately (see the next two tests).
+  const dir = await createTempProject();
+  try {
+    await initExampleProject(dir);
+    await runCli(["--project", dir, "take", "F0.T1", "--as", "agent-1"]);
+    await runCli(["--project", dir, "submit", "F0.T1", "--note", "shipped", "--as", "agent-1"]);
+    await runCli(["--project", dir, "accept", "F0.T1", "--as", "validator"]);
+
+    const r = await runCli([
+      "--project", dir, "reopen", "F0.T1", "--reason", "I want to", "--as", "agent-2",
+    ]);
+    assert.equal(r.code, 0, r.stderr);
+    const data = JSON.parse(r.stdout);
+    assertReopenedTask(data);
+
+    // F0.T2 (depends on F0.T1) must be blocked again.
+    const s = await runCli(["--project", dir, "status"]);
+    assert.equal(s.code, 0, s.stderr);
+    const sdata = JSON.parse(s.stdout);
+    const blockedIds = (sdata.tasks.blocked || []).map((t) => t.id);
+    assert.equal(blockedIds.includes("F0.T2"), true, "F0.T2 should be blocked after reopen");
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("CLI: reopen without --reason still fails with MISSING_FIELD (required field is enforced)", async () => {
+  // ADR-009 §"Resto de operaciones": state validation and required fields
+  // are part of the core contract; only ownership checks were removed.
+  const dir = await createTempProject();
+  try {
+    await initExampleProject(dir);
+    await runCli(["--project", dir, "take", "F0.T1", "--as", "agent-1"]);
+    await runCli(["--project", dir, "submit", "F0.T1", "--note", "shipped", "--as", "agent-1"]);
+    await runCli(["--project", dir, "accept", "F0.T1", "--as", "validator"]);
+
+    const r = await runCli([
+      "--project", dir, "reopen", "F0.T1", "--as", "agent-2",
+    ]);
+    assert.notEqual(r.code, 0);
+    const data = JSON.parse(r.stdout);
+    assert.equal(data.ok, false);
+    assert.match(data.error.message || data.error, /--reason/);
+  } finally {
+    await rmTempProject(dir);
   }
 });
