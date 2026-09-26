@@ -60,48 +60,73 @@ const BOOLEAN_FLAGS = new Set(["all", "force"]);
 // is the dispatcher's authoritative walk over `originalArgv` because
 // it must understand boolean flags to correctly identify which argv
 // positions are flag values (consumed) and which are positional tokens.
-export function findStripIndices(argv, namespace) {
-  const indices = [];
-  let namespaceSeen = false;
-  let subcommandSeen = false;
+function consumedFlagValue(argv, index, token) {
+  const eq = token.indexOf("=");
+  const key = eq === -1 ? token.slice(2) : token.slice(2, eq);
+  if (BOOLEAN_FLAGS.has(key) || eq !== -1) {
+    return false;
+  }
+  const next = argv[index + 1];
+  return next !== undefined && !String(next).startsWith("--");
+}
+
+function findSubcommandIndex(argv, startIndex) {
+  for (let i = startIndex + 1; i < argv.length; i++) {
+    const token = argv[i];
+    if (typeof token !== "string" || !token) {
+      continue;
+    }
+    if (token.startsWith("--")) {
+      if (consumedFlagValue(argv, i, token)) {
+        i++;
+      }
+      continue;
+    }
+    return i;
+  }
+  return -1;
+}
+
+function findNamespaceIndex(argv, namespace) {
   for (let i = 0; i < argv.length; i++) {
-    const tok = argv[i];
-    if (typeof tok !== "string" || !tok) continue;
-    if (tok.startsWith("--")) {
-      const eq = tok.indexOf("=");
-      const key = eq !== -1 ? tok.slice(2, eq) : tok.slice(2);
-      const isBool = BOOLEAN_FLAGS.has(key);
-      if (!isBool && eq === -1) {
-        // Value flag: consume next token unless it looks like another flag.
-        const next = argv[i + 1];
-        if (next !== undefined && !String(next).startsWith("--")) i++;
+    const token = argv[i];
+    if (typeof token !== "string" || !token) {
+      continue;
+    }
+    if (token.startsWith("--")) {
+      if (consumedFlagValue(argv, i, token)) {
+        i++;
       }
       continue;
     }
-    if (!namespaceSeen) {
-      if (tok === namespace) {
-        indices.push(i);
-        namespaceSeen = true;
-      }
-      continue;
-    }
-    if (!subcommandSeen) {
-      indices.push(i);
-      subcommandSeen = true;
-      break;
+    if (token === namespace) {
+      return i;
     }
   }
-  return indices;
+  return -1;
+}
+
+export function findStripIndices(argv, namespace) {
+  const namespaceIndex = findNamespaceIndex(argv, namespace);
+  if (namespaceIndex === -1) {
+    return [];
+  }
+  const subcommandIndex = findSubcommandIndex(argv, namespaceIndex);
+  return subcommandIndex === -1 ? [namespaceIndex] : [namespaceIndex, subcommandIndex];
 }
 
 // stripAtIndices — returns a new array with the given positions removed.
 // Preserves the original order of the remaining tokens.
 export function stripAtIndices(argv, indices) {
-  if (!indices || indices.length === 0) return argv.slice();
+  if (!indices || indices.length === 0) {
+    return argv.slice();
+  }
   const set = new Set(indices);
   const out = [];
   for (let i = 0; i < argv.length; i++) {
-    if (!set.has(i)) out.push(argv[i]);
+    if (!set.has(i)) {
+      out.push(argv[i]);
+    }
   }
   return out;
 }
@@ -121,7 +146,7 @@ export function findFirstFlagValue(argv, flagName) {
   const exact = `--${flagName}`;
   for (let i = 0; i < argv.length; i++) {
     const tok = argv[i];
-    if (typeof tok !== "string") continue;
+    if (typeof tok !== "string") {continue;}
     if (tok.startsWith(eqPrefix)) {
       return tok.slice(eqPrefix.length);
     }
@@ -129,7 +154,7 @@ export function findFirstFlagValue(argv, flagName) {
       // Value follows in the next argv slot unless it looks like another
       // flag. Boolean `--<flag>` is treated as no-value.
       const next = argv[i + 1];
-      if (next !== undefined && !String(next).startsWith("--")) return next;
+      if (next !== undefined && !String(next).startsWith("--")) {return next;}
       return null;
     }
   }
@@ -142,7 +167,9 @@ export function findFirstFlagValue(argv, flagName) {
 // behavior the bin already uses for core commands).
 export function resolveEffectiveProjectDir(argv, fallback) {
   const v = findFirstFlagValue(argv || [], "project");
-  if (v && String(v).trim()) return path.resolve(String(v).trim());
+  if (v && String(v).trim()) {
+    return path.resolve(String(v).trim());
+  }
   return fallback;
 }
 
@@ -154,10 +181,14 @@ export function resolveEffectiveProjectDir(argv, fallback) {
 export function resolveEffectiveAgent(argv, namespace) {
   const v = findFirstFlagValue(argv || [], "as");
   const fromArgv = v && String(v).trim() ? String(v).trim() : "";
-  if (fromArgv) return fromArgv;
+  if (fromArgv) {
+    return fromArgv;
+  }
   const fromEnv =
     typeof process.env.CLIMIER_AGENT === "string" ? process.env.CLIMIER_AGENT.trim() : "";
-  if (fromEnv) return fromEnv;
+  if (fromEnv) {
+    return fromEnv;
+  }
   throw new PluginAgentMissing(namespace);
 }
 
@@ -198,32 +229,55 @@ function placeholderApiFactory({ projectDir, agent, pluginId }) {
 // loadApiFactory — lazy import of ./api.mjs. Caches the successful
 // module; falls back to the placeholder on any import failure so
 // the bin can report a structured handler error.
-let _apiFactory = null;
-let _apiFactoryResolved = false;
+let apiFactory = null;
+let apiFactoryResolved = false;
 async function loadApiFactory() {
-  if (_apiFactoryResolved) return _apiFactory;
+  if (apiFactoryResolved) {
+    return apiFactory;
+  }
   try {
     const mod = await import("./api.mjs");
     if (mod && typeof mod.createApi === "function") {
-      _apiFactory = mod.createApi;
+      apiFactory = mod.createApi;
     }
   } catch {
     // Module missing or threw at import time — fall back to placeholder.
   }
-  _apiFactoryResolved = true;
-  if (!_apiFactory) _apiFactory = placeholderApiFactory;
-  return _apiFactory;
+  apiFactoryResolved = true;
+  if (!apiFactory) {
+    apiFactory = placeholderApiFactory;
+  }
+  return apiFactory;
 }
 
 // resetApiFactoryForTests — re-arms the lazy import so the next call
 // re-tries the import. Used by test suites that want to swap in a
 // different api.mjs after a test reset.
-export function _resetApiFactoryForTests() {
-  _apiFactory = null;
-  _apiFactoryResolved = false;
+function resetApiFactoryForTests() {
+  apiFactory = null;
+  apiFactoryResolved = false;
 }
 
+export { resetApiFactoryForTests as _resetApiFactoryForTests };
+
 // ---- Dispatch --------------------------------------------------------
+
+function validateSubcommand(commands, namespace, subcommand) {
+  if (!subcommand || typeof subcommand !== "string" || typeof commands[subcommand] !== "function") {
+    throw new PluginSubcommandNotFound(namespace, subcommand ?? null);
+  }
+}
+
+async function invokePluginHandler({ commands, subcommand, namespace, tokens, api }) {
+  try {
+    return await commands[subcommand](tokens, api);
+  } catch (err) {
+    if (isPluginError(err)) {
+      throw err;
+    }
+    throw new PluginHandlerFailed(namespace, subcommand, err);
+  }
+}
 
 // dispatchPlugin — orchestrates the lifecycle above. Returns the
 // handler's return value (or undefined) so the bin can serialize it
@@ -237,38 +291,15 @@ export async function dispatchPlugin({
   backendClient,
 } = {}) {
   assertLocalBackend(backendClient, "dispatchPlugin");
-  // 1. Load installed plugin (lazy ESM import + descriptor validation).
   const { pluginId, commands } = await loadInstalledPlugin(namespace);
-
-  // 2. Identify subcommand in originalArgv.
-  const indices = findStripIndices(originalArgv || [], namespace);
-  const subcommand = indices.length >= 2 ? originalArgv[indices[1]] : null;
-
-  // 3. Validate subcommand is registered.
-  if (!subcommand || typeof subcommand !== "string" || typeof commands[subcommand] !== "function") {
-    throw new PluginSubcommandNotFound(namespace, subcommand ?? null);
-  }
-
-  // 4. Strip namespace + subcommand from originalArgv.
-  const forwardedTokens = stripAtIndices(originalArgv || [], indices);
-
-  // 5. Effective project_dir / agent from originalArgv (first-wins).
-  //    The bin's `flags` object is intentionally not consulted for
-  //    these two keys because the bin's parser uses last-wins and that
-  //    would let forwarded duplicates alter the host's resolution.
+  const argv = originalArgv || [];
+  const indices = findStripIndices(argv, namespace);
+  const subcommand = indices.length >= 2 ? argv[indices[1]] : null;
+  validateSubcommand(commands, namespace, subcommand);
+  const forwardedTokens = stripAtIndices(argv, indices);
   const effectiveProjectDir = resolveEffectiveProjectDir(originalArgv, projectDir);
   const agent = resolveEffectiveAgent(originalArgv, namespace);
-
-  // 6. Build api via injected factory or the lazy/placeholder fallback.
   const createApi = createApiInjected || (await loadApiFactory());
   const api = createApi({ projectDir: effectiveProjectDir, agent, pluginId, backendClient });
-
-  // 7. Call the handler. Preserve any pre-existing PLUGIN_* envelope;
-  // wrap everything else as PLUGIN_HANDLER_FAILED.
-  try {
-    return await commands[subcommand](forwardedTokens, api);
-  } catch (err) {
-    if (isPluginError(err)) throw err;
-    throw new PluginHandlerFailed(namespace, subcommand, err);
-  }
+  return invokePluginHandler({ commands, subcommand, namespace, tokens: forwardedTokens, api });
 }

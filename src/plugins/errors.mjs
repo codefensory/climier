@@ -48,18 +48,23 @@ export class PluginSubcommandNotFound extends PluginError {
   }
 }
 
+function errorMessage(cause) {
+  if (cause && cause.message) {
+    return cause.message;
+  }
+  if (typeof cause === "string") {
+    return cause;
+  }
+  return String(cause ?? "(unknown)");
+}
+
 // PluginHandlerFailed — handler rejected (sync throw or async reject).
 // Details carry plugin_id, namespace, subcommand and the original
 // `cause` message so the orchestrator/operator can attribute the
 // failure without re-running the plugin.
 export class PluginHandlerFailed extends PluginError {
   constructor(namespace, subcommand, cause) {
-    const causeMessage =
-      cause && cause.message
-        ? cause.message
-        : typeof cause === "string"
-        ? cause
-        : String(cause ?? "(unknown)");
+    const causeMessage = errorMessage(cause);
     super(
       "PLUGIN_HANDLER_FAILED",
       `plugin-dispatch: handler '${namespace} ${subcommand}' failed: ${causeMessage}`,
@@ -183,17 +188,11 @@ function normalizeCoreCause(cause) {
     };
   }
   // Strings or other fallbacks land as CORE_ERROR with empty details.
-  const message =
-    cause && cause.message
-      ? cause.message
-      : typeof cause === "string"
-      ? cause
-      : String(cause ?? "(unknown)");
-  return { code: "CORE_ERROR", message, details: {} };
+  return { code: "CORE_ERROR", message: errorMessage(cause), details: {} };
 }
 
 function safeDetails(details) {
-  if (details === null || details === undefined) return {};
+  if (details === null || details === undefined) {return {};}
   try {
     JSON.parse(JSON.stringify(details));
     return details;
@@ -243,7 +242,7 @@ export function isPluginCoreError(err) {
 // remaining codes.
 
 function normalizePolicyCause(cause) {
-  if (!cause) return { code: null, message: null };
+  if (!cause) {return { code: null, message: null };}
   if (typeof cause === "string") {
     return { code: null, message: cause };
   }

@@ -57,37 +57,50 @@ class PluginNotInstalled extends PluginLoadFailed {
 // and unreadable package.json files without throwing (a tampered entry
 // cannot silently mask another plugin because the function returns the
 // first valid match, not a fallback).
-async function findInstalledDirByCommand(command) {
-  const installedRoot = path.join(pluginsHome(), "installed");
-  let entries = [];
+async function installedEntries(installedRoot) {
   try {
-    entries = await fs.readdir(installedRoot);
+    return await fs.readdir(installedRoot);
   } catch (err) {
-    if (err.code === "ENOENT") return null;
+    if (err.code === "ENOENT") {
+      return [];
+    }
     throw err;
   }
-  for (const entry of entries) {
-    if (entry.startsWith(".")) continue;
-    const pkgPath = path.join(installedRoot, entry, "package.json");
-    let raw;
-    try {
-      raw = await fs.readFile(pkgPath, "utf8");
-    } catch (err) {
-      if (err.code === "ENOENT") continue;
-      throw err;
+}
+
+async function readPackage(packagePath) {
+  let raw;
+  try {
+    raw = await fs.readFile(packagePath, "utf8");
+  } catch (err) {
+    if (err.code === "ENOENT") {
+      return null;
     }
-    let pkg;
-    try {
-      pkg = JSON.parse(raw);
-    } catch {
+    throw err;
+  }
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function packageClaimsCommand(pkg, command) {
+  return Boolean(
+    pkg && pkg.climier && typeof pkg.climier === "object" && pkg.climier.command === command,
+  );
+}
+
+async function findInstalledDirByCommand(command) {
+  const installedRoot = path.join(pluginsHome(), "installed");
+  const entries = await installedEntries(installedRoot);
+  for (const entry of entries) {
+    if (entry.startsWith(".")) {
       continue;
     }
-    if (
-      pkg &&
-      pkg.climier &&
-      typeof pkg.climier === "object" &&
-      pkg.climier.command === command
-    ) {
+    const packagePath = path.join(installedRoot, entry, "package.json");
+    const pkg = await readPackage(packagePath);
+    if (packageClaimsCommand(pkg, command)) {
       return path.join(installedRoot, entry);
     }
   }
@@ -111,30 +124,22 @@ async function findInstalledDirByCommand(command) {
 //      installed dir name MUST equal descriptor.id per ADR-005).
 //   5. ESM entry lazy-imports and exposes default.commands
 //      (PLUGIN_LOAD_FAILED).
-export async function loadInstalledPlugin(namespace) {
+function validateNamespace(namespace) {
   if (typeof namespace !== "string" || !namespace.trim()) {
     throw new PluginInvalidDescriptor(
       "plugin-loader: namespace must be a non-empty string",
       { namespace: namespace ?? null },
     );
   }
+}
 
-  // 1. Resolve dir by scanning installed/ for descriptor.command ===
-  //    namespace. This is the single source of truth — the bin and the
-  //    dispatch path share it via hasInstalledPlugin / loadInstalledPlugin.
-  const installedDir = await findInstalledDirByCommand(namespace);
-  if (!installedDir) {
-    throw new PluginNotInstalled(namespace);
-  }
-
-  // 2. Read descriptor.
-  let descriptor;
+async function readInstalledDescriptor(installedDir, namespace) {
   const pkgPath = path.join(installedDir, "package.json");
   try {
-    descriptor = await readDescriptor(pkgPath);
+    return await readDescriptor(pkgPath);
   } catch (err) {
     if (err && typeof err.code === "string") {
-      err.details = { ...(err.details || {}), namespace, installed_dir: installedDir };
+      err.details = { ...err.details, namespace, installed_dir: installedDir };
       throw err;
     }
     throw new PluginLoadFailed(
@@ -142,17 +147,15 @@ export async function loadInstalledPlugin(namespace) {
       { namespace, path: pkgPath, cause: err.message },
     );
   }
+}
 
-  // 3. descriptor.command matches the namespace.
+function validateInstalledIdentity(descriptor, installedDir, namespace) {
   if (descriptor.command !== namespace) {
     throw new PluginInvalidDescriptor(
       `plugin-loader: namespace '${namespace}' does not match descriptor.command '${descriptor.command}'`,
       { namespace, descriptor_command: descriptor.command, installed_dir: installedDir },
     );
   }
-
-  // 4. descriptor.id matches the directory name (ADR-005
-  // §"Instalación e identidad" — installed dir IS descriptor.id).
   const dirName = path.basename(installedDir);
   if (descriptor.id !== dirName) {
     throw new PluginInvalidDescriptor(
@@ -160,15 +163,14 @@ export async function loadInstalledPlugin(namespace) {
       { namespace, descriptor_id: descriptor.id, installed_dir: installedDir },
     );
   }
+}
 
-  // 5. Lazy import ESM entry.
-  const entryPath = path.resolve(installedDir, descriptor.entry);
-  let commands;
+async function importInstalledCommands(entryPath, installedDir, namespace) {
   try {
-    ({ commands } = await importEntry(entryPath));
+    return (await importEntry(entryPath)).commands;
   } catch (err) {
     if (err && typeof err.code === "string") {
-      err.details = { ...(err.details || {}), namespace, installed_dir: installedDir };
+      err.details = { ...err.details, namespace, installed_dir: installedDir };
       throw err;
     }
     throw new PluginLoadFailed(
@@ -176,14 +178,19 @@ export async function loadInstalledPlugin(namespace) {
       { namespace, path: entryPath, cause: err.message },
     );
   }
+}
 
-  return {
-    pluginId: descriptor.id,
-    descriptor,
-    commands,
-    entryPath,
-    installedDir,
-  };
+export async function loadInstalledPlugin(namespace) {
+  validateNamespace(namespace);
+  const installedDir = await findInstalledDirByCommand(namespace);
+  if (!installedDir) {
+    throw new PluginNotInstalled(namespace);
+  }
+  const descriptor = await readInstalledDescriptor(installedDir, namespace);
+  validateInstalledIdentity(descriptor, installedDir, namespace);
+  const entryPath = path.resolve(installedDir, descriptor.entry);
+  const commands = await importInstalledCommands(entryPath, installedDir, namespace);
+  return { pluginId: descriptor.id, descriptor, commands, entryPath, installedDir };
 }
 
 // hasInstalledPlugin — fast existence check (does not import the
@@ -231,18 +238,18 @@ export async function findInstalledPolicyDirs() {
   try {
     entries = await fs.readdir(installedRoot);
   } catch (err) {
-    if (err.code === "ENOENT") return [];
+    if (err.code === "ENOENT") {return [];}
     throw err;
   }
   const dirs = [];
   for (const entry of entries) {
-    if (entry.startsWith(".")) continue;
+    if (entry.startsWith(".")) {continue;}
     const full = path.join(installedRoot, entry);
     // Defensive: only descend into directories. The bin already keeps
     // installed/ tidy, but a stray file should not break the scan.
     try {
       const stat = await fs.stat(full);
-      if (!stat.isDirectory()) continue;
+      if (!stat.isDirectory()) {continue;}
     } catch {
       continue;
     }
@@ -290,7 +297,7 @@ export async function loadInstalledPolicyPlugins() {
       // also skip a plugin without a valid `policy` object.
       continue;
     }
-    if (!policy || typeof policy.authorize !== "function") continue;
+    if (!policy || typeof policy.authorize !== "function") {continue;}
     out.push({
       pluginId: descriptor.id,
       descriptor,
@@ -314,39 +321,37 @@ export async function loadInstalledPolicyPlugins() {
 // `project_id` and the `plugins` map. The plugin only reads its own
 // `plugins[descriptor.id]` slot; the host reserves the container but
 // does not interpret the payload.
+function isProjectConfig(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function parseProjectConfig(raw) {
+  try {
+    const parsed = JSON.parse(raw);
+    return isProjectConfig(parsed) ? parsed : {};
+  } catch {
+    // Malformed metadata is surfaced by commands that require it.
+    return {};
+  }
+}
+
 export async function readProjectConfig(projectDir) {
   if (typeof projectDir !== "string" || !projectDir.trim()) {
-    // Defensive: the helper is invoked from selector code that may
-    // not have validated projectDir. The shape contract is "always
-    // return a frozen {}"; we still raise here because a missing
-    // projectDir is a programmer error in this milestone (every
-    // handler resolves it before reaching the policy seam).
-    throw new Error(
-      `plugin-loader: readProjectConfig requires a non-empty projectDir`,
-    );
+    // A missing path is a programming error; callers resolve it before
+    // reaching policy selection.
+    throw new Error("plugin-loader: readProjectConfig requires a non-empty projectDir");
   }
   const metaPath = path.join(projectDir, ".climier.json");
   let raw;
   try {
     raw = await fs.readFile(metaPath, "utf8");
   } catch (err) {
-    if (err.code === "ENOENT") return deepFreeze({});
+    if (err.code === "ENOENT") {
+      return deepFreeze({});
+    }
     throw err;
   }
-  let parsed;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    // A malformed .climier.json is the host's problem, not the
-    // policy's. Match the rest of the host by returning {}; the
-    // operator will see the parse error when they next run a
-    // mutating command that actually reads the file.
-    return deepFreeze({});
-  }
-  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-    return deepFreeze({});
-  }
-  return deepFreeze(parsed);
+  return deepFreeze(parseProjectConfig(raw));
 }
 
 // deepFreeze — recursively freeze an object graph so policy plugins
@@ -354,8 +359,8 @@ export async function readProjectConfig(projectDir) {
 // pattern in `src/plugins/data.mjs`; duplicated here to avoid pulling
 // the data module into a pure-loader concern.
 function deepFreeze(value, seen = new WeakSet()) {
-  if (value === null || typeof value !== "object") return value;
-  if (seen.has(value)) return value;
+  if (value === null || typeof value !== "object") {return value;}
+  if (seen.has(value)) {return value;}
   seen.add(value);
   Object.freeze(value);
   for (const key of Object.keys(value)) {

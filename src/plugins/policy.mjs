@@ -25,7 +25,7 @@
 // post-decision race.
 
 import { loadInstalledPolicyPlugins, readProjectConfig } from "./loader.mjs";
-import { PolicyDenied, PolicyError, PolicyConflict } from "./errors.mjs";
+import { PolicyError, PolicyConflict } from "./errors.mjs";
 
 // loadApplicablePolicy — return the unique applicable policy plugin
 // for `projectDir`, or `null` when none applies.
@@ -62,7 +62,7 @@ export async function loadApplicablePolicy({ projectDir }) {
 
   const applicable = [];
   for (const candidate of installed) {
-    const { policy, pluginId, namespace } = candidate;
+    const { policy, pluginId } = candidate;
     if (typeof policy.applies !== "function") {
       // No `applies` → always applicable (ADR-007 §"Discovery global"
       // item 2).
@@ -83,7 +83,7 @@ export async function loadApplicablePolicy({ projectDir }) {
       // orchestrator/operator can attribute the failure.
       throw new PolicyError(pluginId, "applies", err);
     }
-    if (result) applicable.push(candidate);
+    if (result) {applicable.push(candidate);}
   }
 
   if (applicable.length > 1) {
@@ -92,7 +92,7 @@ export async function loadApplicablePolicy({ projectDir }) {
       applicable.map((c) => c.namespace),
     );
   }
-  if (applicable.length === 0) return null;
+  if (applicable.length === 0) {return null;}
   const [selected] = applicable;
   return {
     pluginId: selected.pluginId,
@@ -126,6 +126,54 @@ export async function loadApplicablePolicy({ projectDir }) {
 // The function does NOT translate decisions into errors here:
 // handlers do that, because the mapping is action-specific. authorizeAction
 // only validates the response shape and propagates exceptions.
+function policyError(policy, action, reason) {
+  const pluginId = policy?.pluginId || "(unknown)";
+  throw new PolicyError(pluginId, action, reason);
+}
+
+function validateSelectedPolicy(policy, action) {
+  if (!policy || typeof policy.policy !== "object" || policy.policy === null) {
+    policyError(policy, action, "policy selector returned a non-policy object");
+  }
+  const { authorize } = policy.policy;
+  if (typeof authorize !== "function") {
+    policyError(policy, action, "policy.authorize is not a function");
+  }
+  return authorize;
+}
+
+async function invokePolicy(authorize, policy, action, context) {
+  try {
+    return await authorize(context);
+  } catch (err) {
+    throw new PolicyError(policy.pluginId, action, err);
+  }
+}
+
+function invalidPolicyResponse(policy, action, result) {
+  policyError(policy, action, `authorize returned a non-object: ${JSON.stringify(result)}`);
+}
+
+function normalizedDecision(result) {
+  if (result.decision === "deny") {
+    const reason = typeof result.reason === "string"
+      ? result.reason
+      : result.reason ?? "(no reason provided by policy)";
+    return { decision: "deny", reason };
+  }
+  return { decision: result.decision };
+}
+
+function validatePolicyResult(policy, action, result) {
+  if (!result || typeof result !== "object" || Array.isArray(result)) {
+    invalidPolicyResponse(policy, action, result);
+  }
+  if (["allow", "deny", "abstain"].includes(result.decision)) {
+    return normalizedDecision(result);
+  }
+  policyError(policy, action, `authorize returned unknown decision: ${JSON.stringify(result.decision)}`);
+}
+
 export async function authorizeAction({
   policy,
   action,
@@ -138,66 +186,16 @@ export async function authorizeAction({
   if (policy === null || policy === undefined) {
     return { decision: "abstain" };
   }
-  if (!policy || typeof policy.policy !== "object" || policy.policy === null) {
-    throw new PolicyError(
-      (policy && policy.pluginId) || "(unknown)",
-      action,
-      "policy selector returned a non-policy object",
-    );
-  }
-  const { authorize } = policy.policy;
-  if (typeof authorize !== "function") {
-    throw new PolicyError(
-      policy.pluginId || "(unknown)",
-      action,
-      "policy.authorize is not a function",
-    );
-  }
-
-  let result;
-  try {
-    result = await authorize({
-      action,
-      actor,
-      target,
-      snapshot,
-      projectDir,
-      projectConfig,
-    });
-  } catch (err) {
-    throw new PolicyError(policy.pluginId, action, err);
-  }
-
-  if (!result || typeof result !== "object" || Array.isArray(result)) {
-    throw new PolicyError(
-      policy.pluginId,
-      action,
-      `authorize returned a non-object: ${JSON.stringify(result)}`,
-    );
-  }
-  const decision = result.decision;
-  if (decision === "allow" || decision === "deny" || decision === "abstain") {
-    if (decision === "deny" && typeof result.reason !== "string") {
-      // ADR-007 says deny must include a reason; we coerce the
-      // missing field into a stable message so the envelope is
-      // always JSON-safe. The policy contract was violated, but we
-      // surface it as POLICY_DENIED rather than POLICY_ERROR
-      // because the operator should still see the action was denied
-      // (just without a reason).
-      return {
-        decision: "deny",
-        reason: result.reason ?? "(no reason provided by policy)",
-      };
-    }
-    return decision === "deny"
-      ? { decision: "deny", reason: result.reason }
-      : { decision };
-  }
-  throw new PolicyError(
-    policy.pluginId,
+  const authorize = validateSelectedPolicy(policy, action);
+  const result = await invokePolicy(authorize, policy, action, {
     action,
-    `authorize returned unknown decision: ${JSON.stringify(decision)}`,
-  );
+    actor,
+    target,
+    snapshot,
+    projectDir,
+    projectConfig,
+  });
+  return validatePolicyResult(policy, action, result);
 }
 
 // isPolicyError — predicate for code paths that must distinguish
