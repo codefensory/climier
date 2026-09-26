@@ -40,7 +40,7 @@ function readSnapshot(snapshot) {
 }
 
 function readInput(input) {
-  if (input == null || typeof input !== "object" || Array.isArray(input)) {
+  if ((input === null || input === undefined) || typeof input !== "object" || Array.isArray(input)) {
     throwV2("MISSING_FIELD", `${COMMAND_OP}: input must be an object`, { field: "input" });
   }
   return input;
@@ -64,6 +64,86 @@ function requireNonEmptyString(value, field) {
   return value.trim();
 }
 
+function validateTarget(nodes, id) {
+  const current = nodes[id];
+  if (!current) {
+    throwV2("NODE_NOT_FOUND", `${COMMAND_OP}: node '${id}' does not exist`, { id });
+  }
+  if (current.kind !== "knowledge") {
+    throwV2(
+      "INVALID_PROVIDER_INPUT",
+      `${COMMAND_OP}: node '${id}' is not a knowledge node (kind=${current.kind})`,
+      { id, kind: current.kind },
+    );
+  }
+  if (!Number.isInteger(current.revision)) {
+    throwV2(
+      "INVALID_PROVIDER_INPUT",
+      `${COMMAND_OP}: node '${id}' has no integer revision`,
+      { id, revision: current.revision },
+    );
+  }
+  return current;
+}
+
+async function prepare({ snapshot: rawSnapshot, input: rawInput, request: rawRequest }) {
+  const snapshot = readSnapshot(rawSnapshot);
+  const input = readInput(rawInput);
+  const request = readRequest(rawRequest);
+  const id = requireNonEmptyString(input.id, "id");
+  const reason = requireNonEmptyString(input.reason, "reason");
+  const actor = requireNonEmptyString(request.actor, "actor");
+  const current = validateTarget(readSnapshotNodes(snapshot), id);
+  return {
+    target: { id, kind: "knowledge", revision: current.revision },
+    if_revision: { kind: "single", id, value: current.revision },
+    policyAction: { action: POLICY_ACTION },
+    idempotent: false,
+    reason,
+    actor,
+  };
+}
+
+function readPlanTarget(plan) {
+  if (!plan.target || typeof plan.target.id !== "string" || plan.target.id.length === 0) {
+    throwV2("INVALID_EXECUTION_CONTRACT", `${COMMAND_OP}.apply: plan.target.id missing`, { field: "plan.target.id" });
+  }
+  return plan.target.id;
+}
+
+function readPlanText(plan, field) {
+  const value = typeof plan[field] === "string" ? plan[field] : null;
+  if (value === null) {
+    throwV2("INVALID_EXECUTION_CONTRACT", `${COMMAND_OP}.apply: plan.${field} missing`, { field: `plan.${field}` });
+  }
+  return value;
+}
+
+function validateApplyPlan(plan) {
+  if (!plan || typeof plan !== "object") {
+    throwV2("INVALID_EXECUTION_CONTRACT", `${COMMAND_OP}.apply: plan missing`, { field: "plan" });
+  }
+  return {
+    id: readPlanTarget(plan),
+    reason: readPlanText(plan, "reason"),
+    actor: readPlanText(plan, "actor"),
+  };
+}
+
+async function apply({ tx, plan }) {
+  const { id, reason, actor } = validateApplyPlan(plan);
+  tx.updateNode(id, {
+    status: "deprecated",
+    deprecation_reason: reason,
+    deprecated_at: new Date().toISOString(),
+    deprecated_by: actor,
+  });
+  return {
+    result: { id, kind: "knowledge", status: "deprecated" },
+    effects: null,
+  };
+}
+
 /**
  * knowledge.deprecate provider factory.
  *
@@ -73,110 +153,5 @@ function requireNonEmptyString(value, field) {
  * }}
  */
 export function deprecateProvider() {
-  return {
-    /**
-     * Validate the deprecation request and produce the plan. Read-only.
-     *
-     * Required input: { id, reason }. The `actor` is taken from
-     * `request.actor` (consistent with the rest of the graph kernel:
-     * providers do not own agent resolution; the agent is supplied by
-     * the request envelope).
-     *
-     * The plan carries:
-     *   - target: { id, kind: 'knowledge', revision } (current snapshot).
-     *   - if_revision: { kind: 'single', id, value } so the kernel can
-     *     validate the CAS under the lock.
-     *   - policyAction: { action: 'knowledge.deprecate' } — the
-     *     canonical policy action for this operation.
-     *   - idempotent: false (a deprecation always records a fresh
-     *     event; re-deprecating bumps revision and rewrites
-     *     `deprecated_at`/`deprecated_by`).
-     *   - reason: the trimmed deprecation reason (echoed back to
-     *     apply and to the log entry).
-     *   - actor: the request actor (echoed back to apply so the
-     *     node carries `deprecated_by`).
-     */
-    async prepare({ snapshot: rawSnapshot, input: rawInput, request: rawRequest }) {
-      const snapshot = readSnapshot(rawSnapshot);
-      const input = readInput(rawInput);
-      const request = readRequest(rawRequest);
-
-      const id = requireNonEmptyString(input.id, "id");
-      const reason = requireNonEmptyString(input.reason, "reason");
-      const actor = requireNonEmptyString(request.actor, "actor");
-
-      const nodes = readSnapshotNodes(snapshot);
-      const current = nodes[id];
-      if (!current) {
-        throwV2("NODE_NOT_FOUND", `${COMMAND_OP}: node '${id}' does not exist`, { id });
-      }
-      if (current.kind !== "knowledge") {
-        throwV2(
-          "INVALID_PROVIDER_INPUT",
-          `${COMMAND_OP}: node '${id}' is not a knowledge node (kind=${current.kind})`,
-          { id, kind: current.kind },
-        );
-      }
-      if (!Number.isInteger(current.revision)) {
-        throwV2(
-          "INVALID_PROVIDER_INPUT",
-          `${COMMAND_OP}: node '${id}' has no integer revision`,
-          { id, revision: current.revision },
-        );
-      }
-
-      const plan = {
-        target: { id, kind: "knowledge", revision: current.revision },
-        if_revision: { kind: "single", id, value: current.revision },
-        policyAction: { action: POLICY_ACTION },
-        idempotent: false,
-        reason,
-        actor,
-      };
-      return plan;
-    },
-
-    /**
-     * Apply the deprecation patch via tx.updateNode. Never sets
-     * `revision`; the kernel diff bumps it once per node per apply.
-     * The patch is intentionally minimal so the caller's scope,
-     * knowledge_type, mitigation, title, body, refs, meta and any
-     * other field stay untouched.
-     */
-    async apply({ tx, plan }) {
-      if (!plan || typeof plan !== "object") {
-        throwV2("INVALID_EXECUTION_CONTRACT", `${COMMAND_OP}.apply: plan missing`, { field: "plan" });
-      }
-      if (!plan.target || typeof plan.target.id !== "string" || plan.target.id.length === 0) {
-        throwV2(
-          "INVALID_EXECUTION_CONTRACT",
-          `${COMMAND_OP}.apply: plan.target.id missing`,
-          { field: "plan.target.id" },
-        );
-      }
-      const reason = typeof plan.reason === "string" ? plan.reason : null;
-      const actor = typeof plan.actor === "string" ? plan.actor : null;
-      if (reason === null) {
-        throwV2("INVALID_EXECUTION_CONTRACT", `${COMMAND_OP}.apply: plan.reason missing`, { field: "plan.reason" });
-      }
-      if (actor === null) {
-        throwV2("INVALID_EXECUTION_CONTRACT", `${COMMAND_OP}.apply: plan.actor missing`, { field: "plan.actor" });
-      }
-
-      tx.updateNode(plan.target.id, {
-        status: "deprecated",
-        deprecation_reason: reason,
-        deprecated_at: new Date().toISOString(),
-        deprecated_by: actor,
-      });
-      return {
-        result: {
-          id: plan.target.id,
-          kind: "knowledge",
-          status: "deprecated",
-        },
-        effects: null,
-      };
-    },
-  };
+  return { prepare, apply };
 }
