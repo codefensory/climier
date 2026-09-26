@@ -8,7 +8,9 @@ import { stateFile } from "../src/storage/state.mjs";
 import { withLock } from "../src/storage/lock.mjs";
 import {
   bootstrapFencedState,
+  commitFencedStateUnderLock,
   ledgerFile,
+  readFencedState,
   recoverFencedStateUnderLock,
 } from "../src/storage/ledger.mjs";
 
@@ -38,6 +40,13 @@ async function runProjectSubtest(t, label, fn) {
 
 function allNodesAboveRevision(state, revision) {
   return Object.values(state.nodes).every((node) => node.revision > revision);
+}
+
+async function expectCommitAfterPending(projectDir, candidate) {
+  await assert.rejects(
+    withLock(projectDir, (lockContext) => commitFencedStateUnderLock(lockContext, candidate, { faultAt: "after-pending" })),
+    /injected failure/,
+  );
 }
 
 async function readRecoveryUnderLock(projectDir, state) {
@@ -159,6 +168,55 @@ test("fenced recovery rebases stale legacy state above local high-water and pres
     assert.deepEqual(recovered.log, [{ action: "restore-payload" }]);
     assert.deepEqual(await recover(projectDir, candidate), recovered);
     assert.notEqual(fenced.revision, recovered.revision);
+  });
+});
+
+test("recovery checkpoint is invalidated durably before a normal fenced commit", async () => {
+  await withProject(async (projectDir) => {
+    const { candidate, ledgerPath } = await prepareStaleRecovery(projectDir);
+    const recovered = await recover(projectDir, candidate);
+    assert.ok(JSON.parse(await fs.readFile(ledgerPath, "utf8")).last_recovery);
+    const commitCandidate = {
+      ...recovered,
+      revision: recovered.revision + 1,
+      log: [...recovered.log, { action: "commit-after-recovery" }],
+    };
+
+    await expectCommitAfterPending(projectDir, commitCandidate);
+    const pending = JSON.parse(await fs.readFile(ledgerPath, "utf8"));
+    assert.equal(pending.last_recovery, undefined);
+    assert.ok(pending.commit_pending);
+    assert.deepEqual(await readFencedState(projectDir), commitCandidate);
+    assert.deepEqual(await readFencedState(projectDir), commitCandidate);
+  });
+});
+
+test("recovery without a candidate retries durable null input fingerprints", async () => {
+  await withProject(async (projectDir) => {
+    const setup = await prepareRecoveryCrash(projectDir);
+    await assert.rejects(recover(projectDir, undefined, { faultAt: "after-pending" }), /injected failure/);
+
+    const durableLedger = JSON.parse(await fs.readFile(setup.ledgerPath, "utf8"));
+    assert.equal(durableLedger.recovery_pending.input_sha256, null);
+    await fs.writeFile(setup.ledgerPath, `${JSON.stringify(durableLedger, null, 2)}\n`, "utf8");
+
+    const recovered = await readFencedState(projectDir);
+    assert.equal(recovered.version, 5);
+    assert.equal(JSON.parse(await fs.readFile(setup.ledgerPath, "utf8")).recovery_pending, null);
+    assert.deepEqual(await readFencedState(projectDir), recovered);
+  });
+});
+
+test("recovery pending with an explicit candidate still requires its matching fingerprint", async () => {
+  await withProject(async (projectDir) => {
+    const setup = await prepareRecoveryCrash(projectDir);
+    const candidate = { ...setup.sourceState, log: [{ action: "explicit-candidate" }] };
+    await assert.rejects(recover(projectDir, candidate, { faultAt: "after-pending" }), /injected failure/);
+    const ledger = JSON.parse(await fs.readFile(setup.ledgerPath, "utf8"));
+    ledger.recovery_pending.input_sha256 = null;
+    await fs.writeFile(setup.ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`, "utf8");
+
+    await assert.rejects(recover(projectDir, setup.sourceState), { code: "CLIMIER_INVALID_LEDGER" });
   });
 });
 

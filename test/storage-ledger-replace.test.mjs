@@ -10,6 +10,7 @@ import {
   bootstrapFencedState,
   ledgerFile,
   readFencedState,
+  recoverFencedStateUnderLock,
   replaceFencedStateUnderLock,
 } from "../src/storage/ledger.mjs";
 
@@ -57,6 +58,14 @@ async function replace(projectDir, candidate, options) {
 
 async function runProjectSubtest(t, label, fn) {
   await t.test(label, () => withProject(fn));
+}
+
+async function recoverLegacyState(projectDir, statePath) {
+  const stale = legacyState(5);
+  stale.nodes.T1.revision = 2;
+  stale.nodes.T2.revision = 4;
+  await fs.writeFile(statePath, `${JSON.stringify(stale, null, 2)}\n`, "utf8");
+  return withLock(projectDir, (lockContext) => recoverFencedStateUnderLock(lockContext));
 }
 
 function replacementCandidate() {
@@ -171,6 +180,25 @@ test("fenced replace rebases a v5 candidate above local high-water and preserves
     assertRebasedReplacement(replaced, ledger);
     assert.deepEqual(JSON.parse(await fs.readFile(file, "utf8")), replaced);
     assert.deepEqual(await replace(projectDir, candidate), replaced);
+    assert.deepEqual(await readFencedState(projectDir), replaced);
+  });
+});
+
+test("replace checkpoint is invalidated durably before installing a replacement", async () => {
+  await withProject(async (projectDir) => {
+    const { file, ledgerPath } = await seedFenced(projectDir);
+    const recovered = await recoverLegacyState(projectDir, file);
+    assert.ok(JSON.parse(await fs.readFile(ledgerPath, "utf8")).last_recovery);
+    const candidate = replacementCandidate();
+
+    await assert.rejects(replace(projectDir, candidate, { faultAt: "after-pending" }), /injected failure/);
+    const pending = JSON.parse(await fs.readFile(ledgerPath, "utf8"));
+    assert.equal(pending.last_recovery, undefined);
+    assert.ok(pending.replace_pending);
+    const replaced = await readFencedState(projectDir);
+    assert.equal(replaced.nodes.T1.title, "restored payload");
+    assert.equal(JSON.parse(await fs.readFile(ledgerPath, "utf8")).replace_pending, null);
+    assert.notDeepEqual(replaced, recovered);
     assert.deepEqual(await readFencedState(projectDir), replaced);
   });
 });
