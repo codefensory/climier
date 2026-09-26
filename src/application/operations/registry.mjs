@@ -1,7 +1,5 @@
 // Generic, process-local registry for application operations.
-//
-// The registry only validates and indexes provider entries. It has no
-// knowledge of adapters, persistence, locks, or the built-in catalog.
+// It validates and indexes providers, with no adapter or persistence knowledge.
 
 const ADMITTED_KINDS = Object.freeze(["task", "gate", "knowledge", "core"]);
 
@@ -9,151 +7,84 @@ function asError(code, message, details) {
   const error = new Error(message);
   error.code = code;
   error.message = message;
-  if (details && typeof details === "object") {
-    error.details = Object.freeze({ ...details });
-  }
+  if (details && typeof details === "object") {error.details = Object.freeze({ ...details });}
   return error;
 }
 
 function requireIterable(providers) {
-  if (providers === null || providers === undefined) {
-    throw asError(
-      "REGISTRY_INVALID_INPUT",
-      "buildRegistry: providers must be an iterable of entries",
-      { type: providers === null ? "null" : typeof providers },
-    );
-  }
   const type = typeof providers;
-  if (type !== "object" && type !== "string") {
-    throw asError(
-      "REGISTRY_INVALID_INPUT",
-      "buildRegistry: providers must be an iterable of entries",
-      { type },
-    );
+  if (providers === null || providers === undefined || (type !== "object" && type !== "string")) {
+    throw asError("REGISTRY_INVALID_INPUT", "buildRegistry: providers must be an iterable of entries", {
+      type: providers === null ? "null" : type,
+    });
   }
   if (type === "string") {
-    throw asError(
-      "REGISTRY_INVALID_INPUT",
-      "buildRegistry: providers must be a non-string iterable of entries",
-      { type },
-    );
+    throw asError("REGISTRY_INVALID_INPUT", "buildRegistry: providers must be a non-string iterable of entries", { type });
   }
   if (typeof providers[Symbol.iterator] !== "function") {
-    throw asError(
-      "REGISTRY_INVALID_INPUT",
-      "buildRegistry: providers must be an iterable of entries (no Symbol.iterator)",
-      { type },
-    );
+    throw asError("REGISTRY_INVALID_INPUT", "buildRegistry: providers must be an iterable of entries (no Symbol.iterator)", { type });
   }
 }
 
-function assertValidId(id, index) {
+function validateProviderEntry(raw, index) {
+  assertEntryObject(raw, index);
+  const { id, kind, provider } = raw;
+  assertEntryId(id, index);
+  assertEntryKind(id, kind, index);
+  assertEntryProvider(id, provider, index);
+  return { id, kind, provider };
+}
+
+function assertEntryObject(raw, index) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    throw asError("REGISTRY_INVALID_ENTRY", `buildRegistry: entry at index ${index} is not an object`, { index });
+  }
+}
+
+function assertEntryId(id, index) {
   if (typeof id !== "string" || id.length === 0) {
-    throw asError(
-      "REGISTRY_INVALID_ID",
-      `buildRegistry: entry[${index}].id must be a non-empty string`,
-      { index, value: id === undefined ? undefined : typeof id },
-    );
+    throw asError("REGISTRY_INVALID_ID", `buildRegistry: entry[${index}].id must be a non-empty string`, { index, value: id === undefined ? undefined : typeof id });
   }
 }
 
-function assertValidKind(id, kind, index) {
+function assertEntryKind(id, kind, index) {
   if (typeof kind !== "string" || !ADMITTED_KINDS.includes(kind)) {
-    throw asError(
-      "REGISTRY_INVALID_KIND",
-      `buildRegistry: entry[${index}].kind is not admitted (allowed: ${ADMITTED_KINDS.join(", ")})`,
-      { index, id, kind },
-    );
+    throw asError("REGISTRY_INVALID_KIND", `buildRegistry: entry[${index}].kind is not admitted (allowed: ${ADMITTED_KINDS.join(", ")})`, { index, id, kind });
   }
 }
 
-function assertValidProvider(id, provider, index) {
+function assertEntryProvider(id, provider, index) {
   if (!provider || typeof provider !== "object") {
-    throw asError(
-      "REGISTRY_INVALID_PROVIDER",
-      `buildRegistry: entry[${index}].provider must be an object with prepare/apply functions`,
-      { index, id },
-    );
+    throw asError("REGISTRY_INVALID_PROVIDER", `buildRegistry: entry[${index}].provider must be an object with prepare/apply functions`, { index, id });
   }
   if (typeof provider.prepare !== "function" || typeof provider.apply !== "function") {
-    throw asError(
-      "REGISTRY_INVALID_PROVIDER",
-      `buildRegistry: entry[${index}].provider.prepare and provider.apply must be functions`,
-      {
-        index,
-        id,
-        has_prepare: typeof provider.prepare === "function",
-        has_apply: typeof provider.apply === "function",
-      },
-    );
+    throw asError("REGISTRY_INVALID_PROVIDER", `buildRegistry: entry[${index}].provider.prepare and provider.apply must be functions`, {
+      index, id, has_prepare: typeof provider.prepare === "function", has_apply: typeof provider.apply === "function",
+    });
   }
 }
 
-function readOnlyMap(map) {
-  return new Proxy(map, {
-    get(target, property) {
-      if (property === "set" || property === "delete" || property === "clear") {
-        return () => {
-          throw new TypeError("registry map is read only");
-        };
-      }
-      const value = Reflect.get(target, property, target);
-      return typeof value === "function" ? value.bind(target) : value;
-    },
-    set() {
-      throw new TypeError("registry map is read only");
-    },
-    deleteProperty() {
-      throw new TypeError("registry map is read only");
-    },
-  });
+function addValidatedEntry(raw, index, seen, entries) {
+  const { id, kind, provider } = validateProviderEntry(raw, index);
+  if (seen.has(id)) {
+    const firstIndex = seen.get(id);
+    throw asError("REGISTRY_DUPLICATE_ID", `buildRegistry: duplicate operation id '${id}' (first at index ${firstIndex}, second at index ${index})`, {
+      id, first_index: firstIndex, second_index: index,
+    });
+  }
+  seen.set(id, index);
+  entries.push(Object.freeze({ id, kind, provider: Object.freeze({ prepare: provider.prepare, apply: provider.apply }) }));
 }
 
-/**
- * Build an immutable index of operation providers.
- *
- * Entries are validated in iteration order. Duplicate IDs report the first
- * and second indexes, making failures deterministic for every iterable.
- */
-export function buildRegistry(providers) {
-  requireIterable(providers);
+function collectEntries(providers) {
   const entries = [];
   const seen = new Map();
   let index = 0;
+  for (const raw of providers) {addValidatedEntry(raw, index++, seen, entries);}
+  return entries;
+}
 
-  for (const raw of providers) {
-    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-      throw asError(
-        "REGISTRY_INVALID_ENTRY",
-        `buildRegistry: entry at index ${index} is not an object`,
-        { index },
-      );
-    }
-    const { id, kind, provider } = raw;
-    assertValidId(id, index);
-    assertValidKind(id, kind, index);
-    assertValidProvider(id, provider, index);
-
-    if (seen.has(id)) {
-      const firstIndex = seen.get(id);
-      throw asError(
-        "REGISTRY_DUPLICATE_ID",
-        `buildRegistry: duplicate operation id '${id}' (first at index ${firstIndex}, second at index ${index})`,
-        { id, first_index: firstIndex, second_index: index },
-      );
-    }
-    seen.set(id, index);
-    entries.push(Object.freeze({
-      id,
-      kind,
-      provider: Object.freeze({
-        prepare: provider.prepare,
-        apply: provider.apply,
-      }),
-    }));
-    index += 1;
-  }
-
+function indexEntries(entries) {
   const entriesById = new Map();
   const providersById = new Map();
   const byKind = new Map();
@@ -161,29 +92,48 @@ export function buildRegistry(providers) {
   for (const entry of entries) {
     entriesById.set(entry.id, entry);
     providersById.set(entry.id, entry.provider);
-    if (!byKind.has(entry.kind)) byKind.set(entry.kind, []);
+    if (!byKind.has(entry.kind)) {byKind.set(entry.kind, []);}
     byKind.get(entry.kind).push(entry.id);
     ops.push(entry.id);
   }
+  return { entriesById, providersById, byKind, ops };
+}
 
-  const has = (id) => entriesById.has(id);
-  const get = (id) => entriesById.get(id);
-  const lookup = (id) => entriesById.get(id) || null;
-  const list = (kind) => {
-    if (kind === undefined) return ops.slice();
-    return (byKind.get(kind) || []).slice();
-  };
+function readOnlyMap(map) {
+  return new Proxy(map, {
+    get(target, property) {
+      if (["set", "delete", "clear"].includes(property)) {
+        return () => { throw new TypeError("registry map is read only"); };
+      }
+      const value = Reflect.get(target, property, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+    set() { throw new TypeError("registry map is read only"); },
+    deleteProperty() { throw new TypeError("registry map is read only"); },
+  });
+}
 
+function registryView({ entriesById, providersById, byKind, ops }) {
+  const list = (kind) => kind === undefined ? ops.slice() : (byKind.get(kind) || []).slice();
   return Object.freeze({
     entries: readOnlyMap(entriesById),
     providers: readOnlyMap(providersById),
     byKind: readOnlyMap(byKind),
     ops: Object.freeze(ops),
-    has,
-    get,
+    has: (id) => entriesById.has(id),
+    get: (id) => entriesById.get(id),
     list,
-    lookup,
+    lookup: (id) => entriesById.get(id) || null,
   });
+}
+
+/**
+ * Build an immutable index of operation providers. Duplicate IDs report the
+ * first and second indexes for deterministic errors across iterable inputs.
+ */
+export function buildRegistry(providers) {
+  requireIterable(providers);
+  return registryView(indexEntries(collectEntries(providers)));
 }
 
 export const ADMITTED_PROVIDER_KINDS = ADMITTED_KINDS;

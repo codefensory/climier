@@ -49,7 +49,7 @@ export function createOperationBridge({ backendClient } = {}) {
         error.details = { field: "operation" };
         throw error;
       }
-      if (!SUPPORTED_OPERATIONS.has(args.operation)) throw unsupportedOperation(args.operation);
+      if (!SUPPORTED_OPERATIONS.has(args.operation)) {throw unsupportedOperation(args.operation);}
       return await backendClient.executeOperation(args);
     },
     async executeBatch(args = {}) {
