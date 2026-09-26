@@ -44,6 +44,26 @@ function readSnapshotInitiatives(snapshot) {
     : {};
 }
 
+function validateName(name) {
+  if (!NAME_PATTERN.test(name)) {
+    throwV2(
+      "INVALID_NAME",
+      `${OP}: name '${name}' is invalid (must match ${NAME_PATTERN})`,
+      { name, pattern: NAME_PATTERN.source },
+    );
+  }
+}
+
+function validateDesc(desc) {
+  if (desc !== undefined && desc !== null && typeof desc !== "string") {
+    throwV2(
+      "INVALID_EXECUTION_CONTRACT",
+      `${OP}: --desc must be a string when present`,
+      { field: "desc" },
+    );
+  }
+}
+
 function validateInputShape(input) {
   if (input === null || typeof input !== "object" || Array.isArray(input)) {
     throwV2(
@@ -56,24 +76,12 @@ function validateInputShape(input) {
   if (!name) {
     throwV2("MISSING_FIELD", `${OP}: --name required (e.g. --name auth-migration)`, { field: "name" });
   }
-  if (!NAME_PATTERN.test(name)) {
-    throwV2(
-      "INVALID_NAME",
-      `${OP}: name '${name}' is invalid (must match ${NAME_PATTERN})`,
-      { name, pattern: NAME_PATTERN.source },
-    );
-  }
+  validateName(name);
   // desc is optional. When present it must be a string; missing desc is
   // normalized to "" while the provider keeps the input strictly typed
   // so the kernel diff stays unambiguous (an absent desc and an empty
   // desc are different states).
-  if (input.desc !== undefined && input.desc !== null && typeof input.desc !== "string") {
-    throwV2(
-      "INVALID_EXECUTION_CONTRACT",
-      `${OP}: --desc must be a string when present`,
-      { field: "desc" },
-    );
-  }
+  validateDesc(input.desc);
   return { name };
 }
 
