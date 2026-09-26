@@ -2,8 +2,8 @@
 name: "climier-worker"
 description: "Ejecutar una task de climier end-to-end. Hace preflight deterministico, cura la task si el contrato esta flojo, toma, implementa, verifica y entrega para validacion."
 color: blue
-model: xiaomi-mimo/mimo-v2.6-flash
-thoughtLevel: low
+model: new-provider/gpt-6-luna
+thoughtLevel: high
 tools:
   - Bash
   - Read
