@@ -32,7 +32,7 @@ function baseState() {
 
 function updateProvider() {
   return {
-    async prepare({ snapshot }) {
+    async prepare() {
       return { target: { id: "T1", kind: "resolvable", subkind: "task" } };
     },
     async apply({ tx }) {

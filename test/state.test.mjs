@@ -1,7 +1,8 @@
+/* oxlint-disable max-lines -- migration and persistence regression inventory is intentionally kept together. */
 // state.mjs: read/write/atomic-write the tasks.json state file.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import path from "node:path";
+import pathModule from "node:path";
 import { createTempProject, rmTempProject, importFresh, stateFilePath } from "./helpers.mjs";
 
 test("readState returns null if file missing", async () => {
@@ -20,13 +21,12 @@ test("readState fails closed for ledger-only projects and recovers exact pending
   const { bootstrapFencedState, ledgerFile } = await importFresh("./storage/ledger.mjs");
   const { stateFile } = await importFresh("./storage/state.mjs");
   const fs = await import("node:fs/promises");
-  const path = await import("node:path");
 
   await t.test("ledger without state or pending bootstrap", async () => {
     const dir = await createTempProject();
     try {
       const ledgerPath = ledgerFile(dir);
-      await fs.mkdir(path.dirname(ledgerPath), { recursive: true });
+      await fs.mkdir(pathModule.dirname(ledgerPath), { recursive: true });
       await fs.writeFile(ledgerPath, JSON.stringify({
         version: 1, fence_generation: 1, high_water_revision: 1, migration_pending: null,
       }), "utf8");
@@ -94,6 +94,11 @@ test("updateState applies a mutator function and persists atomically", async () 
   }
 });
 
+const appendNestedUpdate = (state) => ({
+  ...state,
+  log: [...state.log, { action: "nested-update" }],
+});
+
 test("updateState reuses the active lock and holds it through mutation and write", async () => {
   const { updateState, readState } = await importFresh("./storage/state.mjs");
   const { writeState } = await importFresh("./storage/state.mjs");
@@ -103,10 +108,7 @@ test("updateState reuses the active lock and holds it through mutation and write
     const result = await Promise.race([
       withLock(dir, async () => {
         await writeState(dir, { version: 4, nodes: {}, edges: [], initiatives: {}, log: [{ action: "nested-write" }], revision: 0 });
-        return updateState(dir, (state) => ({
-          ...state,
-          log: [...state.log, { action: "nested-update" }],
-        }));
+        return updateState(dir, appendNestedUpdate);
       }),
       new Promise((_, reject) => setTimeout(() => reject(new Error("state writer reacquired the active project lock")), 1000)),
     ]);
@@ -140,11 +142,9 @@ test("updateState does not corrupt file on mutator error (atomic write)", async 
       s.nodes = { T1: { id: "T1", ok: true } };
       return s;
     });
-    await assert.rejects(() =>
-      updateState(dir, (s) => {
-        throw new Error("boom");
-      })
-    );
+    await assert.rejects(updateState(dir, () => {
+      throw new Error("boom");
+    }));
     const back = await readState(dir);
     assert.deepEqual(back.nodes.T1, { id: "T1", ok: true });
   } finally {
@@ -172,7 +172,7 @@ test("readState rejects a cyclic v3 state without rewriting it", async () => {
       ],
       initiatives: {}, log: [],
     };
-    await fs.mkdir(path.dirname(file), { recursive: true });
+    await fs.mkdir(pathModule.dirname(file), { recursive: true });
     const raw = JSON.stringify(cyclic);
     await fs.writeFile(file, raw, "utf8");
     await assert.rejects(() => readState(dir), (error) => error.code === "CYCLE_DETECTED");
@@ -206,8 +206,7 @@ test("readState throws STATE_V1_UNSUPPORTED with migration steps on a v1 file", 
     // project someone is trying to migrate from.
     const fs = await import("node:fs/promises");
     const file = stateFilePath(dir);
-    const path = await import("node:path");
-    await fs.mkdir(path.dirname(file), { recursive: true });
+    await fs.mkdir(pathModule.dirname(file), { recursive: true });
     await fs.writeFile(file, JSON.stringify({
       version: 1,
       tasks: { T1: { id: "T1", title: "x" } },
@@ -232,9 +231,8 @@ test("readState throws CLIMIER_INCOMPATIBLE_VERSION on a future v5+ file", async
   const dir = await createTempProject();
   try {
     const fs = await import("node:fs/promises");
-    const path = await import("node:path");
     const file = stateFilePath(dir);
-    await fs.mkdir(path.dirname(file), { recursive: true });
+    await fs.mkdir(pathModule.dirname(file), { recursive: true });
     await fs.writeFile(file, JSON.stringify({ version: 5, nodes: {}, edges: [], initiatives: {}, log: [] }), "utf8");
     let caught;
     try { await readState(dir); } catch (e) { caught = e; }
@@ -282,9 +280,8 @@ test("readState migrates a v2 snapshot to v4 without losing collections or field
       plugins: { example: { enabled: true } },
     };
     const fs = await import("node:fs/promises");
-    const path = await import("node:path");
     const file = stateFilePath(dir);
-    await fs.mkdir(path.dirname(file), { recursive: true });
+    await fs.mkdir(pathModule.dirname(file), { recursive: true });
     await fs.writeFile(file, JSON.stringify(legacy), "utf8");
 
     const migrated = await readState(dir);
@@ -294,17 +291,18 @@ test("readState migrates a v2 snapshot to v4 without losing collections or field
   } finally { await rmTempProject(dir); }
 });
 
+const appendLegacyEntry = (state) => ({ ...state, log: [...state.log, { action: "legacy" }] });
+
 test("direct state writers reject ledger-backed and fenced projects before mutation", async (t) => {
   const { writeState, updateState } = await importFresh("./storage/state.mjs");
   const { ledgerFile, bootstrapFencedState } = await importFresh("./storage/ledger.mjs");
   const fs = await import("node:fs/promises");
-  const path = await import("node:path");
   for (const fencedBy of ["v5-state", "ledger"]) {
     await t.test(fencedBy, async () => {
       const dir = await createTempProject();
       try {
         const file = stateFilePath(dir);
-        await fs.mkdir(path.dirname(file), { recursive: true });
+        await fs.mkdir(pathModule.dirname(file), { recursive: true });
         if (fencedBy === "v5-state") {
           await bootstrapFencedState(dir);
         } else {
@@ -313,7 +311,7 @@ test("direct state writers reject ledger-backed and fenced projects before mutat
         }
         const before = await fs.readFile(file, "utf8");
         await assert.rejects(writeState(dir, { version: 4, nodes: {}, edges: [], initiatives: {}, log: [] }), { code: "CLIMIER_LEDGER_REQUIRED" });
-        await assert.rejects(updateState(dir, (state) => ({ ...state, log: [...state.log, { action: "legacy" }] })), { code: "CLIMIER_LEDGER_REQUIRED" });
+        await assert.rejects(updateState(dir, appendLegacyEntry), { code: "CLIMIER_LEDGER_REQUIRED" });
         assert.equal(await fs.readFile(file, "utf8"), before);
       } finally {
         await rmTempProject(dir);
@@ -328,9 +326,8 @@ test("direct legacy writers reject a durable migration_pending ledger", async ()
   const dir = await createTempProject();
   try {
     const fs = await import("node:fs/promises");
-    const path = await import("node:path");
     const file = stateFilePath(dir);
-    await fs.mkdir(path.dirname(file), { recursive: true });
+    await fs.mkdir(pathModule.dirname(file), { recursive: true });
     const legacyState = { version: 4, nodes: {}, edges: [], initiatives: {}, log: [], revision: 0 };
     await fs.writeFile(file, `${JSON.stringify(legacyState, null, 2)}\n`, "utf8");
     await assert.rejects(bootstrapFencedState(dir, { faultAt: "after-pending" }), /injected failure/);
@@ -366,9 +363,8 @@ test("updateState migrates a v2 file before applying and persists v4", async () 
   const dir = await createTempProject();
   try {
     const fs = await import("node:fs/promises");
-    const path = await import("node:path");
     const file = stateFilePath(dir);
-    await fs.mkdir(path.dirname(file), { recursive: true });
+    await fs.mkdir(pathModule.dirname(file), { recursive: true });
     await fs.writeFile(file, JSON.stringify({ version: 2, nodes: {}, edges: [], initiatives: {}, log: [] }), "utf8");
     await updateState(dir, (state) => {
       state.nodes.T1 = { id: "T1", title: "created after migration" };
@@ -386,9 +382,8 @@ test("updateState throws STATE_V1_UNSUPPORTED on a v1 file", async () => {
   const dir = await createTempProject();
   try {
     const fs = await import("node:fs/promises");
-    const path = await import("node:path");
     const file = stateFilePath(dir);
-    await fs.mkdir(path.dirname(file), { recursive: true });
+    await fs.mkdir(pathModule.dirname(file), { recursive: true });
     await fs.writeFile(file, JSON.stringify({
       version: 1, tasks: {}, decisions: {}, gotchas: {}, initiatives: {}, log: [],
     }), "utf8");

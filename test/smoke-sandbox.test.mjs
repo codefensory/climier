@@ -150,7 +150,9 @@ test("smoke-sandbox.sh: does not touch the real ~/.climier", async () => {
     try {
       entries = fs.readdirSync(sentinelProjects);
     } catch (e) {
-      if (e.code !== "ENOENT") throw e;
+      if (e.code !== "ENOENT") {
+        throw e;
+      }
     }
     assert.equal(entries.length, 0, `sentinel home leaked: ${entries.join(",")}`);
     // The temp project got a .climier.json (proves init ran successfully).
@@ -183,7 +185,9 @@ test("smoke-sandbox.sh: cleans up sandbox on TERM", async () => {
   for (let i = 0; i < 100 && !appeared; i++) {
     await new Promise((r) => setTimeout(r, 20));
     const now = listSmokeSandboxes().filter((n) => !before.has(n));
-    if (now.length > 0) appeared = now;
+    if (now.length > 0) {
+      appeared = now;
+    }
   }
   assert.ok(appeared, "sandbox dir should appear during run");
   // Kill the whole process group so the inner sleep also terminates.

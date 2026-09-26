@@ -40,10 +40,14 @@ async function runCli(projectDir, command, query, positional) {
   const args = ["--project", projectDir, command, ...positional];
   for (const [key, value] of new URLSearchParams(query)) {
     if (key === "all") {
-      if (value === "true" || value === "") args.push("--all");
+      if (value === "true" || value === "") {
+        args.push("--all");
+      }
       continue;
     }
-    if (key === "query") continue;
+    if (key === "query") {
+      continue;
+    }
     args.push(`--${key}`, value);
   }
   const { spawn } = await import("node:child_process");
@@ -65,7 +69,7 @@ async function runCli(projectDir, command, query, positional) {
 function normalizeStatusTimes(status) {
   return {
     ...status,
-    alerts: (status.alerts || []).map(({ age_ms, message, ...alert }) => ({
+    alerts: (status.alerts || []).map(({ age_ms: _age_ms, message, ...alert }) => ({
       ...alert,
       message: message.replace(/\(\d+m old\)/, "(rounded old)"),
     })),
@@ -94,8 +98,11 @@ async function withParityEnvironment(run) {
     await run({ baseUrl, projectDir });
   } finally {
     await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
-    if (previousHome === undefined) delete process.env.CLIMIER_HOME;
-    else process.env.CLIMIER_HOME = previousHome;
+    if (previousHome === undefined) {
+      delete process.env.CLIMIER_HOME;
+    } else {
+      process.env.CLIMIER_HOME = previousHome;
+    }
     await fs.rm(root, { recursive: true, force: true });
   }
 }
@@ -158,6 +165,7 @@ test("canonical CLI and HTTP read owners match across every view fixture", async
   });
 });
 
+// oxlint-disable-next-line max-statements -- this contract inventory intentionally asserts each read adapter
 test("read consumers delegate canonical views and retain adapter-specific shapes", async () => {
   const [status, context, search, initiatives, log, http, httpReads, plugin, ui] = await Promise.all(
     Object.values(consumerSources).map(source),
