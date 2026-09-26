@@ -3,6 +3,10 @@ import assert from "node:assert/strict";
 
 import reopen from "../src/cli/commands/reopen.mjs";
 import cancel from "../src/cli/commands/cancel.mjs";
+import release from "../src/cli/commands/release.mjs";
+import submit from "../src/cli/commands/submit.mjs";
+import accept from "../src/cli/commands/accept.mjs";
+import reject from "../src/cli/commands/reject.mjs";
 import { createTempProject, readState, rmTempProject, writeState } from "./helpers.mjs";
 
 const initialState = {
@@ -21,6 +25,99 @@ const commands = [
   { name: "reopen", run: reopen, operation: (subkind) => `${subkind}.reopen`, reason: "retry" },
   { name: "cancel", run: cancel, operation: (subkind) => `${subkind}.cancel`, reason: "stop" },
 ];
+
+const taskLifecycleCommands = [
+  { name: "release", run: release, operation: "task.release", status: "open", input: (id) => ({ id }), flags: {} },
+  { name: "submit", run: submit, operation: "task.submit", status: "submitted", input: (id) => ({ id, note: "review" }), flags: { note: "review" } },
+  { name: "accept", run: accept, operation: "task.accept", status: "done", input: (id) => ({ id }), flags: {} },
+  { name: "reject", run: reject, operation: "task.reject", status: "open", input: (id) => ({ id, reason: "retry" }), flags: { reason: "retry" } },
+];
+
+function lifecycleRemoteClient(target, { failure } = {}) {
+  const calls = [];
+  return {
+    calls,
+    client: {
+      type: "remote",
+      async readNode({ id }) {
+        calls.push({ method: "readNode", id });
+        return { node: target ? { ...target, id } : null };
+      },
+      async executeOperation(args) {
+        calls.push(args);
+        if (failure) throw failure;
+        const updated = { ...target, status: taskLifecycleCommands.find((command) => command.operation === args.operation).status, revision: 8 };
+        return { result: { released: args.operation === "task.release" }, diff: { created: [], updated: [{ id: target.id, node: updated }] }, effects: { newly_ready: ["T-next"] } };
+      },
+      async executeBatch() { throw new Error("unexpected batch"); },
+    },
+  };
+}
+
+function mutationFor(id, status, operation) {
+  return {
+    result: { released: operation === "task.release" },
+    diff: { created: [], updated: [{ id, node: { id, kind: "resolvable", subkind: "task", status, revision: 8, claim: null } }] },
+    effects: { newly_ready: ["T-next"] },
+  };
+}
+
+for (const command of taskLifecycleCommands) {
+  test(`remote ${command.name} routes through its canonical task operation`, async () => {
+    const projectDir = await createTempProject();
+    try {
+      await writeState(projectDir, initialState);
+      const before = await readState(projectDir);
+      const target = node("R-task", "task", { status: command.name === "release" ? "in_progress" : "submitted", claim: { by: "alice" } });
+      const { client, calls } = lifecycleRemoteClient(target);
+      const result = await command.run({ projectDir, statePath: projectDir, backendClient: client, positional: [target.id], flags: { ...command.flags, as: "alice" } });
+      assert.equal(calls.find((call) => call.operation)?.operation, command.operation);
+      assert.deepEqual(calls.find((call) => call.operation)?.input, command.input(target.id));
+      assert.equal(calls.find((call) => call.operation)?.actor, "alice");
+      assert.equal(result.node.status, command.status);
+      if (command.name === "release") assert.equal(result.released, true);
+      if (command.name === "submit" || command.name === "accept") assert.deepEqual(result.newly_ready, ["T-next"]);
+      assert.deepEqual(await readState(projectDir), before, "remote success must not mutate local state");
+    } finally {
+      await rmTempProject(projectDir);
+    }
+  });
+
+  test(`local ${command.name} delegates once through the operation bridge`, async () => {
+    const id = "T-local-bridge";
+    const calls = [];
+    const backendClient = {
+      type: "local",
+      async executeOperation(args) {
+        calls.push(args);
+        return mutationFor(id, command.status, command.operation);
+      },
+      async executeBatch() { throw new Error("unexpected batch"); },
+    };
+    const projectDir = await createTempProject();
+    try {
+      const startingStatus = command.name === "release" || command.name === "submit" ? "in_progress" : "submitted";
+      await writeState(projectDir, {
+        ...initialState,
+        nodes: {
+          ...initialState.nodes,
+          [id]: { id, kind: "resolvable", subkind: "task", title: id, status: startingStatus, claim: startingStatus === "in_progress" ? { by: "alice" } : null, note: "review" },
+        },
+      });
+      const result = await command.run({
+      projectDir,
+      statePath: projectDir,
+      backendClient,
+      positional: [id],
+      flags: { ...command.flags, as: "alice" },
+      });
+      assert.deepEqual(calls, [{ actor: "alice", operation: command.operation, input: { ...command.input(id), ...(command.name === "release" || command.name === "submit" || command.name === "accept" ? { actor: "alice" } : {}) } }]);
+      assert.equal(result.node.status, command.status);
+    } finally {
+      await rmTempProject(projectDir);
+    }
+  });
+}
 
 function remoteClient(node, { failure, readFailure } = {}) {
   const calls = [];
