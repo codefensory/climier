@@ -1,13 +1,8 @@
 import { createServer } from "node:http";
 
 import { executeBatch, executeOperation } from "../application/operations/index.mjs";
-import {
-  createBuiltinOperationRegistry,
-  PUBLIC_CORE_OPS,
-  PUBLIC_GATE_OPS,
-  PUBLIC_KNOWLEDGE_OPS,
-  PUBLIC_TASK_OPS,
-} from "../application/operations/builtins.mjs";
+import { createBuiltinOperationRegistry } from "../application/operations/builtins.mjs";
+import { remoteV1Manifest } from "../application/operations/remote-v1-manifest.mjs";
 import { mutate } from "../kernel/mutate.mjs";
 import { captureTransferSource, installTransferDestination } from "../kernel/transfer.mjs";
 import {
@@ -30,12 +25,9 @@ import { withAuthorizedProject } from "./auth/project-scope.mjs";
 
 const PROTOCOL_VERSION = "1";
 const MAX_BODY_BYTES = 1024 * 1024;
-const OPERATION_IDS = new Set([
-  ...PUBLIC_TASK_OPS,
-  ...PUBLIC_GATE_OPS,
-  ...PUBLIC_KNOWLEDGE_OPS,
-  ...PUBLIC_CORE_OPS,
-]);
+const OPERATIONS_BY_ID = new Map(remoteV1Manifest.operations.map((operation) => [operation.id, operation]));
+const OPERATION_IDS = new Set(OPERATIONS_BY_ID.keys());
+const BATCH_CAPABILITY = remoteV1Manifest.batch;
 const FORBIDDEN_INPUT_FIELDS = new Set([
   "actor",
   "as",
@@ -58,32 +50,7 @@ const FORBIDDEN_TOP_LEVEL_FIELDS = new Set([
   "projectDir",
   "project_dir",
 ]);
-const ALLOWED_INPUT_FIELDS = Object.freeze({
-  "task.create": new Set(["id", "initiative", "title", "body", "acceptance", "blocked_by", "backlog", "domain", "definition", "refs", "tags", "meta", "derived_from"]),
-  "task.update": new Set(["id", "changes", "if_revision", "if_revisions"]),
-  "task.take": new Set(["id", "at"]),
-  "task.release": new Set(["id"]),
-  "task.reopen": new Set(["id", "reason", "if_revision"]),
-  "task.cancel": new Set(["id", "reason", "if_revision"]),
-  "task.submit": new Set(["id", "note", "submitted_at", "if_revision"]),
-  "task.accept": new Set(["id", "accepted_at", "if_revision"]),
-  "task.reject": new Set(["id", "reason", "if_revision"]),
-  "gate.create": new Set(["id", "initiative", "title", "body", "purpose", "supersedes", "blocked_by", "derived_from", "backlog", "domain", "definition", "acceptance", "tags", "refs", "meta"]),
-  "gate.update": new Set(["id", "changes", "if_revision"]),
-  "gate.resolve": new Set(["id", "choice", "rationale", "resolved_at", "if_revision", "if_revisions"]),
-  "gate.reopen": new Set(["id", "reason", "if_revisions"]),
-  "gate.cancel": new Set(["id", "reason", "if_revisions"]),
-  "knowledge.create": new Set(["id", "initiative", "title", "body", "scope", "supersedes", "knowledge_type", "mitigation", "domain", "tags", "refs", "meta"]),
-  "knowledge.update": new Set(["id", "changes", "if_revision"]),
-  "knowledge.deprecate": new Set(["id", "reason"]),
-  "edge.add": new Set(["from", "to", "type"]),
-  "edge.remove": new Set(["from", "to", "type"]),
-  "note.add": new Set(["id", "text", "if_revision"]),
-  "initiative.create": new Set(["name", "desc"]),
-});
 const ALLOWED_TOP_LEVEL_FIELDS = new Set(["operation", "input", "actor"]);
-const BATCH_TOP_LEVEL_FIELDS = new Set(["operations", "if_state_revision"]);
-const BATCH_OPERATION_FIELDS = new Set(["op", "input"]);
 const TRANSFER_PAYLOAD_FIELDS = new Set(["version", "revision", "nodes", "edges", "initiatives", "log"]);
 
 function httpError(code, message, details, status) {
@@ -239,9 +206,9 @@ function validateOperationRequest(body) {
   if (!body.input || typeof body.input !== "object" || Array.isArray(body.input)) {
     throw httpError("INVALID_REQUEST", "server http: input must be a JSON object", { field: "input" }, 400);
   }
-  if (body.operation === "core.batch") {
+  if (body.operation === BATCH_CAPABILITY.id) {
     for (const field of Object.keys(body.input)) {
-      if (!BATCH_TOP_LEVEL_FIELDS.has(field)) {
+      if (!BATCH_CAPABILITY.inputFields.includes(field)) {
         throw httpError("INVALID_REQUEST", `server http: input field '${field}' is not allowed for core.batch`, { field: `input.${field}`, operation: "core.batch" }, 400);
       }
     }
@@ -256,19 +223,19 @@ function validateOperationRequest(body) {
         throw httpError("INVALID_REQUEST", `server http: ${field} must be an object`, { field }, 400);
       }
       for (const key of Object.keys(operation)) {
-        if (!BATCH_OPERATION_FIELDS.has(key)) {
+        if (!BATCH_CAPABILITY.operationFields.includes(key)) {
           throw httpError("INVALID_REQUEST", `server http: ${field}.${key} is not allowed`, { field: `${field}.${key}` }, 400);
         }
       }
-      if (typeof operation.op !== "string" || operation.op.length === 0 || !OPERATION_IDS.has(operation.op) || operation.op === "core.batch") {
+      if (typeof operation.op !== "string" || operation.op.length === 0 || !BATCH_CAPABILITY.eligibleOperationIds.includes(operation.op) || operation.op === BATCH_CAPABILITY.id) {
         throw httpError("INVALID_REQUEST", `server http: ${field}.op must name an allowed built-in operation`, { field: `${field}.op` }, 400);
       }
       if (!operation.input || typeof operation.input !== "object" || Array.isArray(operation.input)) {
         throw httpError("INVALID_REQUEST", `server http: ${field}.input must be an object`, { field: `${field}.input` }, 400);
       }
-      const allowedOperationFields = ALLOWED_INPUT_FIELDS[operation.op];
+      const allowedOperationFields = OPERATIONS_BY_ID.get(operation.op)?.httpFields;
       for (const key of Object.keys(operation.input)) {
-        if (!allowedOperationFields.has(key)) {
+        if (!allowedOperationFields?.includes(key)) {
           throw httpError("INVALID_REQUEST", `server http: ${field}.input field '${key}' is not allowed for ${operation.op}`, { field: `${field}.input.${key}`, operation: operation.op }, 400);
         }
       }
@@ -279,12 +246,12 @@ function validateOperationRequest(body) {
     }
     return body;
   }
-  const allowedFields = ALLOWED_INPUT_FIELDS[body.operation];
+  const allowedFields = OPERATIONS_BY_ID.get(body.operation)?.httpFields;
   if (!allowedFields) {
     throw httpError("OPERATION_NOT_FOUND", `application.executeOperation: operation '${body.operation}' is not available in protocol v1`, { operation: body.operation }, 404);
   }
   for (const field of Object.keys(body.input)) {
-    if (!allowedFields.has(field)) {
+    if (!allowedFields.includes(field)) {
       throw httpError("INVALID_REQUEST", `server http: input field '${field}' is not allowed for ${body.operation}`, { field: `input.${field}`, operation: body.operation }, 400);
     }
   }
@@ -508,7 +475,7 @@ export function createRemoteApiServer({
           selectPolicy: selectPolicy || loadApplicablePolicy,
           authorizeAction: authorizeAction || authorizeServerAction,
         };
-        const result = body.operation === "core.batch"
+        const result = body.operation === BATCH_CAPABILITY.id
           ? await executeBatch({
             projectDir: project.projectDir,
             actor: body.actor,
