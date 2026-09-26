@@ -1,28 +1,24 @@
-import { createOperationBridge } from "../../../application/operations/index.mjs";
 import { throwV2 } from "../../../contracts/errors.mjs";
+import { isRemoteBackend, locateRemoteNode, readRemoteNode, routeRemoteOperation } from "./domain-routing.mjs";
 
-export function isRemoteBackend(backendClient) {
-  return backendClient && backendClient.type === "remote";
-}
+export { isRemoteBackend };
 
 export function remoteNode(result) {
   return result && result.node ? result.node : null;
 }
 
-export async function readRemoteNode(backendClient, id) {
-  return remoteNode(await backendClient.readNode({ id }));
-}
+export { readRemoteNode };
 
 export async function requireRemoteTask(backendClient, id, command) {
-  const node = await readRemoteNode(backendClient, id);
-  if (!node || node.kind !== "resolvable" || node.subkind !== "task") {
-    throwV2(
-      "REMOTE_UNSUPPORTED_OPERATION",
-      `${command}: remote ${node ? `${node.kind}/${node.subkind || "?"}` : "target"} is not a task operation owned by this adapter`,
-      { command, id, kind: node && node.kind, subkind: node && node.subkind },
-    );
-  }
-  return node;
+  return readRemoteNode(backendClient, id, command, (node) => node.kind === "resolvable" && node.subkind === "task")
+    .catch((error) => {
+      if (error?.code !== "REMOTE_UNSUPPORTED_OPERATION") throw error;
+      throwV2(
+        "REMOTE_UNSUPPORTED_OPERATION",
+        `${command}: remote ${error.details?.kind ? `${error.details.kind}/${error.details.subkind || "?"}` : "target"} is not a task operation owned by this adapter`,
+        { command, id, ...error.details },
+      );
+    });
 }
 
 export async function executeRemoteTask({
@@ -35,26 +31,28 @@ export async function executeRemoteTask({
   inspectTarget = false,
   collection = "updated",
 }) {
-  if (!isRemoteBackend(backendClient)) return null;
-  if (!backendClient || typeof backendClient.executeOperation !== "function" ||
-      typeof backendClient.executeBatch !== "function") {
-    throwV2("INVALID_OPERATION_BRIDGE", `${command}: remote backend client does not support operation execution`);
-  }
-  const target = inspectTarget ? await requireRemoteTask(backendClient, id, command) : null;
-  const normalizedInput = { ...input };
-  delete normalizedInput.actor;
-  if (operation === "task.update" && target && normalizedInput.if_revision === undefined) {
-    normalizedInput.if_revision = Number.isInteger(target.revision) ? target.revision : 1;
-  } else if (operation === "task.update" && normalizedInput.if_revision === undefined) {
-    normalizedInput.if_revision = 1;
-  }
-  const bridge = createOperationBridge({ backendClient });
-  const mutation = await bridge.executeOperation({ actor, operation, input: normalizedInput });
-  const entries = mutation && mutation.diff && Array.isArray(mutation.diff[collection])
-    ? mutation.diff[collection]
-    : [];
-  const node = entries.find((entry) => entry.id === id)?.node || target || remoteNode(mutation) || mutation.result?.node || null;
-  return { mutation, node };
+  const routed = await routeRemoteOperation({
+    backendClient,
+    actor,
+    operation,
+    input,
+    command,
+    targetId: id,
+    preReadTarget: inspectTarget,
+    acceptsTarget: (node) => node.kind === "resolvable" && node.subkind === "task",
+    rejectTarget: (error, targetId) => {
+      throwV2(
+        "REMOTE_UNSUPPORTED_OPERATION",
+        `${command}: remote ${error.details?.kind ? `${error.details.kind}/${error.details.subkind || "?"}` : "target"} is not a task operation owned by this adapter`,
+        { command, id: targetId, ...error.details },
+      );
+    },
+    revision: operation === "task.update" ? { field: "if_revision", fallback: 1 } : null,
+    collection,
+    useTargetFallback: inspectTarget || operation === "task.take" || operation === "task.release",
+    fallbackToResult: !["task.create", "task.take", "task.release"].includes(operation),
+  });
+  return routed && { mutation: routed.mutation, node: routed.node };
 }
 
 export function throwMissingRemoteNode(command, id) {
