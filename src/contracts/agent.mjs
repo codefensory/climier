@@ -7,7 +7,7 @@ import { throwV2 } from "./errors.mjs";
 
 export function requireAgent(actor, operation) {
   const value = typeof actor === "string" ? actor.trim() : "";
-  if (value) return value;
+  if (value) {return value;}
 
   throwV2(
     "MISSING_AGENT",

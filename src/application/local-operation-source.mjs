@@ -18,8 +18,8 @@ async function buildLocalOperationSource() {
 export function createLocalOperationSource(source) {
   let sourcePromise;
   return () => {
-    if (source !== undefined) return Promise.resolve(source);
-    if (!sourcePromise) sourcePromise = buildLocalOperationSource();
+    if (source !== undefined) {return Promise.resolve(source);}
+    if (!sourcePromise) {sourcePromise = buildLocalOperationSource();}
     return sourcePromise;
   };
 }
