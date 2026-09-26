@@ -19,8 +19,11 @@ test("storage paths resolve projects, metadata, and CLIMIER_HOME", () => {
     assert.equal(climierHome(), path.resolve("relative-climier-home"));
     assert.equal(projectMetaFile("/tmp/project"), "/tmp/project/.climier.json");
   } finally {
-    if (previousHome === undefined) delete process.env.CLIMIER_HOME;
-    else process.env.CLIMIER_HOME = previousHome;
+    if (previousHome === undefined) {
+      delete process.env.CLIMIER_HOME;
+    } else {
+      process.env.CLIMIER_HOME = previousHome;
+    }
   }
 });
 
@@ -31,7 +34,10 @@ test("storage path fallback uses the user's home directory", () => {
   try {
     assert.equal(climierHome(), path.join(os.homedir(), ".climier"));
   } finally {
-    if (previousHome === undefined) delete process.env.CLIMIER_HOME;
-    else process.env.CLIMIER_HOME = previousHome;
+    if (previousHome === undefined) {
+      delete process.env.CLIMIER_HOME;
+    } else {
+      process.env.CLIMIER_HOME = previousHome;
+    }
   }
 });
