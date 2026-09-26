@@ -26,9 +26,82 @@ function isPlainObject(value) {
 }
 
 function isArrayIndex(key) {
-  if (key === "") return false;
+  if (key === "") {
+    return false;
+  }
   const index = Number(key);
   return Number.isSafeInteger(index) && index >= 0 && String(index) === key;
+}
+
+function validateArrayProperty(value, key, context) {
+  const { operation, field, ancestors } = context;
+  if (typeof key !== "string") {
+    invalidJsonValue(operation, `${field}.${String(key)}`, "symbol property");
+  }
+  if (key !== "length" && !isArrayIndex(key)) {
+    invalidJsonValue(operation, `${field}.${key}`, "array has a non-index property");
+  }
+  if (key === "length") {
+    return;
+  }
+  const descriptor = Object.getOwnPropertyDescriptor(value, key);
+  if (!descriptor || !("value" in descriptor) || descriptor.enumerable !== true) {
+    invalidJsonValue(operation, `${field}[${key}]`, "array property must be an enumerable data property");
+  }
+  validateJsonValue(descriptor.value, operation, `${field}[${key}]`, ancestors);
+}
+
+function validateObjectProperty(value, key, context) {
+  const { operation, field, ancestors } = context;
+  if (typeof key !== "string") {
+    invalidJsonValue(operation, `${field}.${String(key)}`, "symbol property");
+  }
+  const descriptor = Object.getOwnPropertyDescriptor(value, key);
+  if (!descriptor || !("value" in descriptor) || descriptor.enumerable !== true) {
+    invalidJsonValue(operation, `${field}.${key}`, "object property must be an enumerable data property");
+  }
+  validateJsonValue(descriptor.value, operation, `${field}.${key}`, ancestors);
+}
+
+function validateArray(value, context) {
+  for (const key of Reflect.ownKeys(value)) {
+    validateArrayProperty(value, key, context);
+  }
+}
+
+function validateObject(value, context) {
+  const { operation, field } = context;
+  if (!isPlainObject(value)) {
+    invalidJsonValue(operation, field, "value must be a plain object");
+  }
+  for (const key of Reflect.ownKeys(value)) {
+    validateObjectProperty(value, key, context);
+  }
+}
+
+function validateJsonContainer(value, operation, field, ancestors) {
+  const context = { operation, field, ancestors };
+  if (Array.isArray(value)) {
+    validateArray(value, context);
+  } else {
+    validateObject(value, context);
+  }
+}
+
+function validateJsonPrimitive(value, operation, field, type) {
+  if (value === null || type === "string" || type === "boolean") {
+    return true;
+  }
+  if (type === "object") {
+    return false;
+  }
+  if (type !== "number") {
+    invalidJsonValue(operation, field, `unsupported type ${type}`);
+  }
+  if (!Number.isFinite(value)) {
+    invalidJsonValue(operation, field, "number must be finite");
+  }
+  return true;
 }
 
 // Validate the plugin data contract without invoking getters or relying on
@@ -36,41 +109,18 @@ function isArrayIndex(key) {
 // fields). WeakSet tracks the current path, so shared acyclic references are
 // allowed while cycles are rejected.
 export function validateJsonValue(value, operation, field = "value", ancestors = new WeakSet()) {
-  if (value === null) return value;
   const type = typeof value;
-  if (type === "string" || type === "boolean") return value;
-  if (type === "number") {
-    if (Number.isFinite(value)) return value;
-    invalidJsonValue(operation, field, "number must be finite");
+  if (validateJsonPrimitive(value, operation, field, type)) {
+    return value;
   }
-  if (type !== "object") invalidJsonValue(operation, field, `unsupported type ${type}`);
-  if (ancestors.has(value)) invalidJsonValue(operation, field, "cyclic reference");
+  if (type !== "object") {
+    invalidJsonValue(operation, field, `unsupported type ${type}`);
+  }
+  if (ancestors.has(value)) {
+    invalidJsonValue(operation, field, "cyclic reference");
+  }
   ancestors.add(value);
-
-  if (Array.isArray(value)) {
-    for (const key of Reflect.ownKeys(value)) {
-      if (typeof key !== "string") invalidJsonValue(operation, `${field}.${String(key)}`, "symbol property");
-      if (key !== "length" && !isArrayIndex(key)) {
-        invalidJsonValue(operation, `${field}.${key}`, "array has a non-index property");
-      }
-      if (key === "length") continue;
-      const descriptor = Object.getOwnPropertyDescriptor(value, key);
-      if (!descriptor || !("value" in descriptor) || descriptor.enumerable !== true) {
-        invalidJsonValue(operation, `${field}[${key}]`, "array property must be an enumerable data property");
-      }
-      validateJsonValue(descriptor.value, operation, `${field}[${key}]`, ancestors);
-    }
-  } else {
-    if (!isPlainObject(value)) invalidJsonValue(operation, field, "value must be a plain object");
-    for (const key of Reflect.ownKeys(value)) {
-      if (typeof key !== "string") invalidJsonValue(operation, `${field}.${String(key)}`, "symbol property");
-      const descriptor = Object.getOwnPropertyDescriptor(value, key);
-      if (!descriptor || !("value" in descriptor) || descriptor.enumerable !== true) {
-        invalidJsonValue(operation, `${field}.${key}`, "object property must be an enumerable data property");
-      }
-      validateJsonValue(descriptor.value, operation, `${field}.${key}`, ancestors);
-    }
-  }
+  validateJsonContainer(value, operation, field, ancestors);
   ancestors.delete(value);
   return value;
 }

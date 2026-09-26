@@ -17,12 +17,16 @@ function inputObject(input) {
 
 function nodeIdFrom(input) {
   const id = nonEmpty(input.id || input.node_id);
-  if (!id) throwV2("MISSING_FIELD", `${OP}: node id is required`, { field: "id" });
+  if (!id) {
+    throwV2("MISSING_FIELD", `${OP}: node id is required`, { field: "id" });
+  }
   return id;
 }
 
 function revisionPlan(id, input) {
-  if (input.if_revision === undefined || input.if_revision === null) return undefined;
+  if (input.if_revision === undefined || input.if_revision === null) {
+    return undefined;
+  }
   const value = Number(input.if_revision);
   if (!Number.isInteger(value) || value < 1) {
     throwV2("INVALID_EXECUTION_CONTRACT", `${OP}: if_revision must be a positive integer`, {
@@ -35,7 +39,9 @@ function revisionPlan(id, input) {
 
 function validateTarget(snapshot, id) {
   const nodes = snapshot && snapshot.nodes && typeof snapshot.nodes === "object" ? snapshot.nodes : {};
-  if (!nodes[id]) throwV2("NODE_NOT_FOUND", `${OP}: node '${id}' not found`, { id });
+  if (!nodes[id]) {
+    throwV2("NODE_NOT_FOUND", `${OP}: node '${id}' not found`, { id });
+  }
 }
 
 async function prepare({ snapshot, input, request, pluginId }) {
@@ -54,7 +60,9 @@ async function prepare({ snapshot, input, request, pluginId }) {
     nodeId: id,
     value,
   };
-  if (ifRevision) plan.if_revision = ifRevision;
+  if (ifRevision) {
+    plan.if_revision = ifRevision;
+  }
   return Object.freeze(plan);
 }
 

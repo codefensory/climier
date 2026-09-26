@@ -14,7 +14,9 @@ function inputObject(input) {
 
 function keyFrom(input) {
   const key = nonEmpty(input.key);
-  if (!key) throwV2("MISSING_FIELD", `${OP}: key is required`, { field: "key" });
+  if (!key) {
+    throwV2("MISSING_FIELD", `${OP}: key is required`, { field: "key" });
+  }
   return key;
 }
 
