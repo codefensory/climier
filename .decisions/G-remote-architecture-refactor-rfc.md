@@ -221,18 +221,91 @@ de comandos porque es una superficie distinta, pero se prueba contra la
 proyección de capacidades correspondiente.
 
 Una vez estable el manifiesto y las queries, dividir internamente
-`server/http.mjs` sin cambiar su export público:
+`src/server/http.mjs` sin cambiar su export público ni reemplazar el servidor
+stdlib `node:http`. La estructura objetivo es:
 
 ```text
-server/http.mjs              # createRemoteApiServer / composition root
-server/http/codec.mjs        # JSON, envelope, parseo y errores
-server/http/operations.mjs   # schema + dispatch de writes
-server/http/reads.mjs        # handlers que consumen read-model
-server/http/transfers.mjs    # export/import tipados
+src/server/
+  http.mjs                 # createRemoteApiServer / composition root
+  http/
+    codec.mjs              # HTTP errors, envelopes, headers, JSON y path decoding
+    operations.mjs         # validación/schema HTTP y dispatch de operaciones/batch
+    reads.mjs              # routing/query parsing y proyecciones HTTP sobre read-model
+    transfers.mjs          # validación tipada y llamadas a kernel transfer ports
 ```
 
+`http.mjs` permanece como composition root y conserva `createRemoteApiServer`
+y `PROTOCOL_VERSION` en el mismo import path público. Sigue creando el servidor,
+coordinando el ciclo común del request, conectando auth/scope/catálogo, inyectando
+registry/mutate/policy, resolviendo init y serializando errores no capturados.
+Los módulos extraídos no crearán otro servidor ni leerán configuración global.
+
+### Responsabilidad por módulo
+
+- **`codec.mjs`** contiene helpers de transporte puros: construcción/mapeo de
+  errores HTTP, `jsonError`, respuesta JSON/headers, decodificación del path,
+  validación de Content-Type, límite de bytes y parseo de body. Códigos, mensajes,
+  status, protocol header, `cache-control` y envelopes permanecen idénticos.
+- **`operations.mjs`** contiene validación superficial del request de
+  operación/batch y despacho hacia `executeOperation`/`executeBatch`. Recibe el
+  `source` completo desde la fachada; no carga policy ni crea un registry por su
+  cuenta. Cuando ADR C exista, sus allowlists/campos proceden de la proyección
+  remote-v1, nunca de un segundo catálogo general.
+- **`reads.mjs`** contiene matching/parsing de rutas de lectura y armado de
+  resultados HTTP. Recibe snapshot, route, query y clock/dependencias explícitas;
+  no lee storage ni crea servidor. Las reglas canónicas de `status` y `context`
+  vienen del read-model definido en ADR B; el módulo solo conserva adaptación de
+  query/DTO HTTP.
+- **`transfers.mjs`** valida el payload tipado de export/import y delega a
+  `captureTransferSource` / `installTransferDestination` en
+  `kernel/transfer.mjs`. No importa `storage/`, reconstruye auditoría ni maneja
+  filesystem.
+
+### Secuencia observable que no debe cambiar
+
+La fachada conserva el orden actual del request, porque evita abrir storage
+para requests malformados y autentica antes de ejecutar handlers:
+
+```text
+parsear URL, versión y ruta
+  -> parsear/validar body o query según la ruta
+  -> validar bearer, scope y proyecto en catálogo
+  -> abrir/provisionar el proyecto autorizado
+  -> ejecutar handler de init, operación, transferencia o lectura
+  -> serializar respuesta o error
+```
+
+La extracción no mueve las comprobaciones de body/query detrás de
+`withAuthorizedProject`, no abre el proyecto desde un módulo helper y no cambia
+qué actor, projectDir o hooks inyectados recibe cada handler. Auth/scope sigue
+ocurriendo antes de abrir o provisionar state, ledger y lock.
+
+### Orden de implementación y verificación
+
+La fachada es un path compartido, así que las slices se implementan en serie:
+
+1. Caracterizar `createRemoteApiServer`, `PROTOCOL_VERSION`, envelopes, errores y
+   que requests inválidos no llamen auth/opener.
+2. Extraer codec y mantener re-export de `PROTOCOL_VERSION`.
+3. Extraer transfer validation/dispatch y actualizar la prueba de import boundary
+   para que el kernel port siga siendo el único acceso de transferencia.
+4. Extraer operations después del manifiesto remote-v1; conservar schema estricto,
+   inyección server-side y `core.batch`.
+5. Extraer reads después del read-model canónico; conservar query parsing y
+   paridad CLI/HTTP con el mismo snapshot y clock determinista.
+6. Cerrar con la suite HTTP completa y una fachada sin implementaciones privadas
+   duplicadas.
+
+Por cada slice se corre `test/server-http.test.mjs` y el test de boundary
+relevante. Las extracciones de reads añaden las suites de read-model,
+`v2-context-contract` y `v2-status-history`; las de transfer cubren
+`cli-transfer`, `kernel-transfer` y el E2E de server. Al cerrar, corren además
+`npm test`, `npm run test:concurrent`, `npm run pack:check` y
+`git diff --check`. No se añaden frameworks, dependencias runtime ni tests de
+nueva semántica bajo el pretexto de mover código.
+
 La separación se hace por slices verificables; no se moverán rutas no cubiertas
-por tests de protocolo y parity.
+por tests de protocolo y paridad.
 
 ## Secuencia propuesta
 
