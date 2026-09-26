@@ -1,25 +1,4 @@
-// Contract tests for ui/src/views/NodeDetail.jsx (Fase 6, pieza F6a).
-//
-// Scope of F6a (per the task body):
-//   1. Header sticky with back, close, real kind (task/gate/knowledge, never
-//      'resolvable'), status, ID, revision.
-//   2. Title 20-24 px.
-//   3. Summary: status, initiative, claim (using claim.at), revision, last
-//      activity.
-//   4. Alert banner when the node is blocked / stale / superseded.
-//   5. Specification + open blockers open by default.
-//   6. Notes stay visible after blockers as an author thread; knowledge,
-//      refs and secondary relations remain in collapsible <details>.
-//      History is shown in the drawer's right-rail Activity tab.
-//   7. Time uses claim.at (not claim.ts).
-//
-// The structural rebuild is verified end-to-end via `cd ui && npm run build`
-// per the task acceptance. These tests pin the contract independently so a
-// future refactor cannot silently regress any of the seven points.
-//
-// We don't pull in jsdom. JSX is transformed on the fly with babel + the
-// solid preset (already a UI-local devDep) and the resulting module is
-// imported through a tmp file, mirroring test/ui-components.test.mjs.
+// Contract tests for ui/src/views/NodeDetail.jsx (Fase 6, piezas F6a/F6b).
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -28,10 +7,6 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { createRequire, register } from "node:module";
 
-// The compiled NodeDetail module imports ../components.jsx (and, without the
-// storeStub flag, ../store.jsx). Node cannot load .jsx natively, so register
-// the on-demand babel loader before any dynamic import runs. This mirrors
-// how a future view-level test would consume the same helper.
 register(new URL("./jsx-loader.mjs", import.meta.url).href, import.meta.url);
 
 const UI_DIR = path.resolve("ui");
@@ -40,8 +15,6 @@ const babel = UI_REQUIRE("@babel/core");
 const solidWeb = UI_REQUIRE("solid-js/web");
 
 const DETAIL_FILE = path.join(UI_DIR, "src", "views", "NodeDetail.jsx");
-const COMPONENTS_FILE = path.join(UI_DIR, "src", "components.jsx");
-const STORE_FILE = path.join(UI_DIR, "src", "store.jsx");
 
 const UI_DEPS_OK =
   fs.existsSync(path.join(UI_DIR, "node_modules", "solid-js")) &&
@@ -61,14 +34,14 @@ async function compileDetail(t, { storeStub } = {}) {
     source = source
       .replace(
         /import\s*\{\s*useStore,\s*useStoreSelectors\s*\}\s*from\s*"\.\.\/store\.jsx";?/,
-        "const useStore = () => globalThis.__NODE_DETAIL_STORE__; const useStoreSelectors = () => globalThis.__NODE_DETAIL_STORE__.selectors;"
+        "const useStore = () => globalThis.nodeDetailStore; const useStoreSelectors = () => globalThis.nodeDetailStore.selectors;"
       )
       // SSR does not run the cache-populating effect before the first render.
       // Seed that cache from the mocked detail when NodeDetail is invoked so
       // render-level assertions exercise the current reconciled-store path.
       .replace(
         "const [details, setDetails] = createSignal({});",
-        "const initialDetail = globalThis.__NODE_DETAIL_STORE__?.detail?.(); const [details, setDetails] = createSignal(initialDetail?.node?.id ? { [initialDetail.node.id]: initialDetail } : {});"
+        "const initialDetail = globalThis.nodeDetailStore?.detail?.(); const [details, setDetails] = createSignal(initialDetail?.node?.id ? { [initialDetail.node.id]: initialDetail } : {});"
       );
   }
   const out = await babel.transformAsync(source, {
@@ -84,7 +57,9 @@ async function compileDetail(t, { storeStub } = {}) {
     tmpFiles.delete(file);
     return fs.promises.unlink(file).catch(() => {});
   };
-  if (t && typeof t.after === "function") t.after(cleanup);
+  if (t && typeof t.after === "function") {
+    t.after(cleanup);
+  }
   const mod = await import(pathToFileURL(file).href + `?ts=${Date.now()}`);
   return { mod, cleanup };
 }
@@ -95,70 +70,50 @@ process.on("exit", () => {
   }
 });
 
-// --- fixtures ---------------------------------------------------------------
-
-//
-// The snapshot contract from Fase 1: detail() returns the full payload from
-// /api/node/:id. We hand-build representative payloads so the tests stay
-// fast (no server).
-
-// Build a store stub suitable for NodeDetail. Tests can pass extra
-// `alerts` / `lastActivity` to exercise the banner and summary paths.
 function makeStore(detail, opts = {}) {
   return {
-    selectedId: () => detail.node.id,
-    select: () => {},
-    detail: () => detail,
-    detailError: () => null,
-    snapshot: () => ({
-      last_activity: opts.lastActivity || {},
-      alerts: opts.alerts || [],
-    }),
-    selectors: {
-      nodesMap: () => ({ [detail.node.id]: detail.node }),
-    },
+    selectedId: () => detail.node.id, select: () => {}, detail: () => detail, detailError: () => null,
+    snapshot: () => ({ last_activity: opts.lastActivity || {}, alerts: opts.alerts || [] }),
+    selectors: { nodesMap: () => ({ [detail.node.id]: detail.node }) },
   };
+}
+
+function renderDetail(mod, detail, options) {
+  globalThis.nodeDetailStore = makeStore(detail, options);
+  return solidWeb.renderToString(() => mod.default());
+}
+
+async function renderDefaultDetail(t, overrides, options) {
+  const { mod } = await compileDetail(t, { storeStub: true });
+  const detail = makeDetail(overrides);
+  return { detail, html: renderDetail(mod, detail, options) };
 }
 
 function makeDetail(overrides = {}) {
-  // Pull `node` out of the spread below: the merged node (defaults + node
-  // overrides) must win, otherwise a partial node override like
-  // `{ kind, subkind }` would clobber id/title/status and the drawer would
-  // see selectedId() === undefined (open() === false).
   const { node: nodeOverrides, ...rest } = overrides || {};
   const node = {
-    id: "T-demo",
-    kind: "resolvable",
-    subkind: "task",
-    title: "Demo task",
-    body: "Body of the demo.",
-    status: "in_progress",
+    id: "T-demo", kind: "resolvable", subkind: "task", title: "Demo task",
+    body: "Body of the demo.", status: "in_progress",
     claim: { by: "alice", at: "2025-01-01T12:00:00.000Z", ts: "2020-01-01T00:00:00.000Z" },
-    initiative: "ui",
-    domain: "frontend",
-    tags: ["restyle"],
-    notes: [
-      { agent: "alice", ts: "2025-01-01T12:00:00.000Z", text: "Starting work" },
-    ],
+    initiative: "ui", domain: "frontend", tags: ["restyle"],
+    notes: [{ agent: "alice", ts: "2025-01-01T12:00:00.000Z", text: "Starting work" }],
     refs: [{ target: "docs/ui-redesign-plan.md", type: "doc", source: "body" }],
-    ...(nodeOverrides || {}),
+    ...nodeOverrides,
   };
   return {
     node,
-    derived_status: rest.derived_status || node.status || "open",
-    is_current: rest.is_current !== undefined ? rest.is_current : true,
-    superseded_by: rest.superseded_by !== undefined ? rest.superseded_by : null,
-    blocking: rest.blocking || [],
-    dependents: rest.dependents || [],
-    informing: rest.informing || [],
-    knowledge: rest.knowledge || [],
-    history: rest.history || [],
-    refs: rest.refs || node.refs || [],
+    derived_status: node.status,
+    is_current: true,
+    superseded_by: null,
+    blocking: [],
+    dependents: [],
+    informing: [],
+    knowledge: [],
+    history: [],
+    refs: node.refs,
     ...rest,
   };
 }
-
-// --- tests ------------------------------------------------------------------
 
 test("NodeDetail header uses real kind (task/gate/knowledge), never 'resolvable'", { skip }, async (t) => {
   const { mod } = await compileDetail(t, { storeStub: true });
@@ -166,42 +121,30 @@ test("NodeDetail header uses real kind (task/gate/knowledge), never 'resolvable'
     node: { kind: "resolvable", subkind: "task" },
     derived_status: "in_progress",
   });
-  globalThis.__NODE_DETAIL_STORE__ = makeStore(detail);
-  const html = solidWeb.renderToString(() => mod.default());
+  const html = renderDetail(mod, detail);
   assert.ok(html.includes("task"), `header must render the resolved kind 'task': ${html}`);
   assert.ok(!html.includes("resolvable"), `header must never render the umbrella kind 'resolvable': ${html}`);
 
-  // Same for gates: subkind=gate wins over the umbrella kind.
   const gateDetail = makeDetail({
     node: { id: "G-1", kind: "resolvable", subkind: "gate", status: "open" },
     derived_status: "open",
   });
-  globalThis.__NODE_DETAIL_STORE__ = makeStore(gateDetail);
-  const gateHtml = solidWeb.renderToString(() => mod.default());
+  const gateHtml = renderDetail(mod, gateDetail);
   assert.ok(gateHtml.includes("gate"), `header must render kind='gate': ${gateHtml}`);
   assert.ok(!gateHtml.includes("resolvable"), `gate header must never render 'resolvable': ${gateHtml}`);
 });
 
 test("NodeDetail header is sticky and carries back + close affordances", { skip }, async (t) => {
-  const { mod } = await compileDetail(t, { storeStub: true });
-  const detail = makeDetail({ derived_status: "in_progress" });
-  globalThis.__NODE_DETAIL_STORE__ = makeStore(detail);
-  const html = solidWeb.renderToString(() => mod.default());
+  const { detail, html } = await renderDefaultDetail(t, { derived_status: "in_progress" });
   // Sticky header surface
   assert.ok(html.includes("sticky"), `header must be sticky: ${html}`);
   // Back + close affordances with accessible names
   assert.match(html, /aria-label="(Back|Close)"/, `header must expose Back/Close aria-labels: ${html}`);
-  // The node id is surfaced in the header for power users
   assert.ok(html.includes(detail.node.id), `header must show the node id: ${html}`);
 });
 
 test("NodeDetail title sits in the 20-24px range", { skip }, async (t) => {
-  const { mod } = await compileDetail(t, { storeStub: true });
-  const detail = makeDetail({ derived_status: "in_progress" });
-  globalThis.__NODE_DETAIL_STORE__ = makeStore(detail);
-  const html = solidWeb.renderToString(() => mod.default());
-  // text-page is 24px (token from index.css); text-section is 16px. The title
-  // must use the page token, not sectional/body.
+  const { html } = await renderDefaultDetail(t, { derived_status: "in_progress" });
   assert.ok(
     html.match(/text-(?:page|\[2[0-4]px\])/),
     `title must use a 20-24px token class: ${html}`
@@ -210,19 +153,12 @@ test("NodeDetail title sits in the 20-24px range", { skip }, async (t) => {
 });
 
 test("NodeDetail summary surfaces status, initiative, claim, revision, last activity", { skip }, async (t) => {
-  const { mod } = await compileDetail(t, { storeStub: true });
-  const detail = makeDetail({
+  const { detail, html } = await renderDefaultDetail(t, {
     derived_status: "in_progress",
-    history: [
-      { ts: "2025-01-02T00:00:00.000Z", action: "update", agent: "bob", note: "tweaks" },
-    ],
+    history: [{ ts: "2025-01-02T00:00:00.000Z", action: "update", agent: "bob", note: "tweaks" }],
+  }, {
+    lastActivity: { ["T-demo"]: { ts: "2025-01-02T00:00:00.000Z", action: "update", agent: "bob" } },
   });
-  // last_activity is sourced from the snapshot, not from detail history.
-  const lastActivity = {
-    [detail.node.id]: { ts: "2025-01-02T00:00:00.000Z", action: "update", agent: "bob" },
-  };
-  globalThis.__NODE_DETAIL_STORE__ = makeStore(detail, { lastActivity });
-  const html = solidWeb.renderToString(() => mod.default());
   assert.ok(html.includes("Status"), `summary must include a 'Status' label: ${html}`);
   assert.ok(html.includes("Initiative") || html.includes(detail.node.initiative),
     `summary must include the initiative: ${html}`);
@@ -237,22 +173,17 @@ test("NodeDetail summary surfaces status, initiative, claim, revision, last acti
 test("NodeDetail shows a banner when the node is blocked, stale, or superseded", { skip }, async (t) => {
   const { mod } = await compileDetail(t, { storeStub: true });
 
-  // Blocked: derived_status === "blocked" → AlertBanner with role=status|alert.
   const blocked = makeDetail({ derived_status: "blocked" });
-  globalThis.__NODE_DETAIL_STORE__ = makeStore(blocked);
-  const blockedHtml = solidWeb.renderToString(() => mod.default());
+  const blockedHtml = renderDetail(mod, blocked);
   assert.match(blockedHtml, /role="(alert|status)"/, `blocked detail must surface an alert role: ${blockedHtml}`);
 
-  // Stale: the snapshot surfaces alerts with kind=stale-claim; the view
-  // consumes the snapshot's `alerts` array.
   const stale = makeDetail({ derived_status: "in_progress" });
-  globalThis.__NODE_DETAIL_STORE__ = makeStore(stale, {
+  const staleHtml = renderDetail(mod, stale, {
     alerts: [{
       kind: "stale-claim", severity: "warning", node_id: stale.node.id,
       message: `${stale.node.id} claimed by alice is stale (180m old)`,
     }],
   });
-  const staleHtml = solidWeb.renderToString(() => mod.default());
   assert.match(staleHtml, /stale/i, `stale detail must surface the stale banner: ${staleHtml}`);
 
   // Superseded
@@ -261,8 +192,7 @@ test("NodeDetail shows a banner when the node is blocked, stale, or superseded",
     is_current: false,
     superseded_by: "T-new",
   });
-  globalThis.__NODE_DETAIL_STORE__ = makeStore(superseded);
-  const supHtml = solidWeb.renderToString(() => mod.default());
+  const supHtml = renderDetail(mod, superseded);
   assert.match(supHtml, /superseded/i, `superseded detail must surface the supersede banner: ${supHtml}`);
 });
 
@@ -275,31 +205,13 @@ test("NodeDetail renders Specification and Blockers open by default", { skip }, 
       { edge_type: "BLOCKS", satisfied: true, node: { id: "T-old", title: "Done task", status: "done", subkind: "task", kind: "resolvable" } },
     ],
   });
-  globalThis.__NODE_DETAIL_STORE__ = makeStore(detail);
-  const html = solidWeb.renderToString(() => mod.default());
-  // Specification body content is rendered open by default (no <details> wrap)
+  const html = renderDetail(mod, detail);
   assert.ok(html.includes(detail.node.body), `Specification body must be visible without collapsing: ${html}`);
-  // Blocker list shows both relevant and satisfied items
   assert.ok(html.includes("G-1"), `Blocker list must surface unsatisfied blockers: ${html}`);
   assert.ok(html.includes("T-old"), `Blocker list must surface satisfied blockers for context: ${html}`);
 });
 
-test("NodeDetail keeps Notes visible as a Linear-like thread after Blockers", { skip }, async (t) => {
-  const { mod } = await compileDetail(t, { storeStub: true });
-  const detail = makeDetail({
-    derived_status: "in_progress",
-    knowledge: [
-      { id: "K-1", title: "Snapshot contract", status: "active", scope_matches: ["initiative"] },
-    ],
-    history: [
-      { ts: "2025-01-02T00:00:00.000Z", action: "update", agent: "bob", note: "tweaks" },
-    ],
-    dependents: [
-      { edge_type: "BLOCKS", node: { id: "T-child", title: "Child", status: "open", subkind: "task", kind: "resolvable" } },
-    ],
-  });
-  globalThis.__NODE_DETAIL_STORE__ = makeStore(detail);
-  const html = solidWeb.renderToString(() => mod.default());
+function assertVisibleNotes(html) {
   // Notes are part of the main reading flow, immediately after the open
   // Blockers panel, rather than hidden behind a disclosure.
   const blockersIndex = html.indexOf("Blockers");
@@ -315,7 +227,9 @@ test("NodeDetail keeps Notes visible as a Linear-like thread after Blockers", { 
   assert.ok(html.includes("Starting work"), `note text must remain visible: ${html}`);
   assert.match(html, />\s*Tags\s*</, `node tags must use the Climier vocabulary: ${html}`);
   assert.ok(!html.match(/>\s*Labels\s*</), `node tags must not be called Labels: ${html}`);
+}
 
+function assertSecondaryDetails(html) {
   // Knowledge, refs, dependents and the equivalent CLI remain progressively
   // disclosed secondary zones; history belongs to the right rail Activity tab.
   const detailsCount = (html.match(/<details[\s>]/g) || []).length;
@@ -331,34 +245,41 @@ test("NodeDetail keeps Notes visible as a Linear-like thread after Blockers", { 
   assert.ok(html.includes("T-child"), `dependent id must appear inside its <details>: ${html}`);
   assert.ok(!/<details[^>]*\bopen\b/.test(html),
     `secondary <details> must default to closed; saw <details open>: ${html}`);
+}
+
+test("NodeDetail keeps Notes visible as a Linear-like thread after Blockers", { skip }, async (t) => {
+  const { mod } = await compileDetail(t, { storeStub: true });
+  const detail = makeDetail({
+    derived_status: "in_progress",
+    knowledge: [{ id: "K-1", title: "Snapshot contract", status: "active", scope_matches: ["initiative"] }],
+    history: [{ ts: "2025-01-02T00:00:00.000Z", action: "update", agent: "bob", note: "tweaks" }],
+    dependents: [{ edge_type: "BLOCKS", node: { id: "T-child", title: "Child", status: "open", subkind: "task", kind: "resolvable" } }],
+  });
+  const html = renderDetail(mod, detail);
+  assertVisibleNotes(html);
+  assertSecondaryDetails(html);
 });
 
 test("NodeDetail renders validator notes as ordinary notes without a validation badge", { skip }, async (t) => {
-  const { mod } = await compileDetail(t, { storeStub: true });
-  const detail = makeDetail({
+  const { html } = await renderDefaultDetail(t, {
     node: {
       notes: [
         { agent: "validator", ts: "2025-01-02T00:00:00.000Z", text: "VALIDATION PASS checked" },
       ],
     },
   });
-  globalThis.__NODE_DETAIL_STORE__ = makeStore(detail);
-  const html = solidWeb.renderToString(() => mod.default());
   assert.ok(html.includes("VALIDATION PASS checked"), `the note text must remain visible: ${html}`);
   assert.ok(!html.includes("ui-note-badge"), `validator notes must not get a special badge: ${html}`);
   assert.ok(!html.includes("ui-note--validation"), `validator notes must use ordinary note styling: ${html}`);
 });
 
 test("NodeDetail renders refs as structured {target, type, source} (not raw strings)", { skip }, async (t) => {
-  const { mod } = await compileDetail(t, { storeStub: true });
-  const detail = makeDetail({
+  const { html } = await renderDefaultDetail(t, {
     derived_status: "in_progress",
     refs: [
       { target: "docs/ui-redesign-plan.md", type: "doc", source: "body" },
     ],
   });
-  globalThis.__NODE_DETAIL_STORE__ = makeStore(detail);
-  const html = solidWeb.renderToString(() => mod.default());
   // Target is visible
   assert.ok(html.includes("docs/ui-redesign-plan.md"), `ref target must be visible: ${html}`);
   // type and source are surfaced (not just the bare string)
@@ -367,36 +288,27 @@ test("NodeDetail renders refs as structured {target, type, source} (not raw stri
 });
 
 test("NodeDetail claim timestamp uses claim.at, not claim.ts", { skip }, async (t) => {
-  const { mod } = await compileDetail(t, { storeStub: true });
   // at = 2025, ts = 2020. The tooltip on the claim timestamp must reflect
   // the at field (year 2024/2025), not the ts fallback.
-  const detail = makeDetail({ derived_status: "in_progress" });
-  globalThis.__NODE_DETAIL_STORE__ = makeStore(detail);
-  const html = solidWeb.renderToString(() => mod.default());
-  const titles = Array.from(html.matchAll(/title="([^"]+)"/g)).map((m) => m[1]);
-  const atTitle = titles.find((t) => /\b(2024|2025)\b/.test(t));
-  const tsTitle = titles.find((t) => /\b(2019|2020)\b/.test(t));
+  const { html } = await renderDefaultDetail(t, { derived_status: "in_progress" });
+  const titles = Array.from(html.matchAll(/title="([^"]+)"/g)).map((match) => match[1]);
+  const atTitle = titles.find((title) => /\b(2024|2025)\b/.test(title));
+  const tsTitle = titles.find((title) => /\b(2019|2020)\b/.test(title));
   assert.ok(atTitle, "claim.at timestamp must surface a tooltip with the 2024/2025 year");
   assert.ok(!tsTitle, "claim.ts (2020) must NOT appear in any tooltip — the view must use claim.at");
 });
 
 test("NodeDetail exposes role=dialog and labelled-by-title for a11y", { skip }, async (t) => {
-  const { mod } = await compileDetail(t, { storeStub: true });
-  const detail = makeDetail({ derived_status: "in_progress" });
-  globalThis.__NODE_DETAIL_STORE__ = makeStore(detail);
-  const html = solidWeb.renderToString(() => mod.default());
+  const { html } = await renderDefaultDetail(t, { derived_status: "in_progress" });
   assert.match(html, /role="dialog"/, `drawer must expose role="dialog": ${html}`);
   assert.match(html, /aria-label(?:ledby)?="[^"]+"/, `drawer must carry an accessible name: ${html}`);
 });
 
 test("NodeDetail does not render Markdown or HTML inside ref targets", { skip }, async (t) => {
-  const { mod } = await compileDetail(t, { storeStub: true });
-  const detail = makeDetail({
+  const { html } = await renderDefaultDetail(t, {
     derived_status: "in_progress",
     refs: [{ target: "<script>alert(1)</script>", type: "doc", source: "body" }],
   });
-  globalThis.__NODE_DETAIL_STORE__ = makeStore(detail);
-  const html = solidWeb.renderToString(() => mod.default());
   // Raw <script> would mean we are dangerouslySetInnerHTML-ing refs. The
   // view must render the target as text only.
   assert.ok(!html.includes("<script>alert(1)</script>"),
@@ -405,12 +317,7 @@ test("NodeDetail does not render Markdown or HTML inside ref targets", { skip },
     `ref target must be escaped: ${html}`);
 });
 
-// --- F6b (T-ui-detail-rel): relationships + navigation + a11y --------------
-// The drawer never re-derives the DAG. It splits the server's `dependents`
-// (outgoing edges of every type) + `blocking`/`superseded_by` into
-// direction-aware groups, and keeps a back-history so blocker -> node ->
-// back works without closing the dialog. These tests pin that split and the
-// navigation helpers; the visual separation is verified via renderToString.
+// --- F6b relationships: direction-aware groups, navigation and a11y --------
 
 test("splitRelationships separates outgoing edges by type and direction", { skip }, async (t) => {
   const { mod } = await compileDetail(t, { storeStub: true });
@@ -474,8 +381,7 @@ test("NodeDetail renders direction-separated relationship sections", { skip }, a
     ],
     superseded_by: "T-new",
   });
-  globalThis.__NODE_DETAIL_STORE__ = makeStore(detail);
-  const html = solidWeb.renderToString(() => mod.default());
+  const html = renderDetail(mod, detail);
   // Each relationship kind has its own labelled zone.
   assert.match(html, />\s*Blocks\s*</, `outgoing BLOCKS zone must be labelled 'Blocks': ${html}`);
   assert.match(html, />\s*Derived from\s*</, `DERIVED_FROM zone must be labelled 'Derived from': ${html}`);
@@ -508,11 +414,8 @@ test("NodeDetail relationship rows are keyboard-reachable buttons, not links/scr
       { edge_type: "DERIVED_FROM", node: { id: "T-base", title: "Base", status: "done", subkind: "task", kind: "resolvable" } },
     ],
   });
-  globalThis.__NODE_DETAIL_STORE__ = makeStore(detail);
-  const html = solidWeb.renderToString(() => mod.default());
-  // The related node is opened with a button (navigation), never an anchor
-  // that could be a mutating request.
+  const html = renderDetail(mod, detail);
+  // Related rows must use a keyboard-reachable button, never an anchor.
   assert.match(html, /<button[^>]*aria-label="Open T-base"/, `related node must be opened via a button: ${html}`);
-  // No raw URLs or script tags leak into the drawer.
   assert.ok(!html.includes("<a "), `relationships must not render raw anchors: ${html}`);
 });
