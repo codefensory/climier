@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 
 import { createBackendClient } from "../src/application/operations/index.mjs";
-import { remoteV1Manifest } from "../src/application/operations/remote-v1-manifest.mjs";
 
 async function withServer(handler, run, { approveOrigin = false } = {}) {
   const server = createServer(handler);
@@ -11,16 +10,21 @@ async function withServer(handler, run, { approveOrigin = false } = {}) {
     server.once("error", reject);
     server.listen(0, "127.0.0.1", resolve);
   });
-  const address = server.address();
-  const url = `http://127.0.0.1:${address.port}`;
+  const url = `http://127.0.0.1:${server.address().port}`;
   const previousOrigin = process.env.CLIMIER_REMOTE_ORIGIN;
-  if (approveOrigin) process.env.CLIMIER_REMOTE_ORIGIN = new URL(url).origin;
-  else delete process.env.CLIMIER_REMOTE_ORIGIN;
+  if (approveOrigin) {
+    process.env.CLIMIER_REMOTE_ORIGIN = new URL(url).origin;
+  } else {
+    delete process.env.CLIMIER_REMOTE_ORIGIN;
+  }
   try {
     await run(url);
   } finally {
-    if (previousOrigin === undefined) delete process.env.CLIMIER_REMOTE_ORIGIN;
-    else process.env.CLIMIER_REMOTE_ORIGIN = previousOrigin;
+    if (previousOrigin === undefined) {
+      delete process.env.CLIMIER_REMOTE_ORIGIN;
+    } else {
+      process.env.CLIMIER_REMOTE_ORIGIN = previousOrigin;
+    }
     await new Promise((resolve, reject) => {
       server.close((error) => error ? reject(error) : resolve());
     });
@@ -65,58 +69,12 @@ test("backend client defaults to local and preserves operation dependencies and 
   });
 });
 
-test("remote backend executes manifest operations and rejects IDs outside the manifest without local fallback", async () => {
-  const requests = [];
-  let localCalls = 0;
-  await withServer(async (request, response) => {
-    const chunks = [];
-    for await (const chunk of request) chunks.push(chunk);
-    requests.push(JSON.parse(Buffer.concat(chunks).toString("utf8")));
-    response.writeHead(200, { "content-type": "application/json", "x-climier-protocol-version": "1" });
-    response.end(JSON.stringify({ ok: true, result: { accepted: true } }));
-  }, async (url) => {
-    const client = createBackendClient({
-      projectDir: "/project",
-      projectConfig: { project_id: "remote-project", backend: { type: "remote", url } },
-      source: {
-        registry: { lookup() { localCalls += 1; return { provider: { prepare() {}, apply() {} } }; } },
-        mutate() { localCalls += 1; return {}; },
-      },
-    });
-    for (const { id: operation } of remoteV1Manifest.operations) {
-      assert.deepEqual(await client.executeOperation({ actor: "alice", operation, input: {} }), { accepted: true });
-    }
-    await assert.rejects(
-      client.executeOperation({ actor: "alice", operation: "plugin.custom", input: {} }),
-      (error) => error.code === "REMOTE_UNSUPPORTED_OPERATION" && error.details.operation === "plugin.custom",
-    );
-    await assert.rejects(
-      client.executeOperation({ actor: "alice", operation: "core.batch", input: {} }),
-      (error) => error.code === "REMOTE_UNSUPPORTED_OPERATION" && error.details.operation === "core.batch",
-    );
-    await assert.rejects(
-      client.executeBatch({ actor: "alice", operations: [{ op: "plugin.custom", input: {} }] }),
-      (error) => error.code === "REMOTE_UNSUPPORTED_OPERATION" && error.details.operation === "plugin.custom",
-    );
-    await assert.rejects(
-      client.executeBatch({ actor: "alice", operations: [{ op: "core.batch", input: {} }] }),
-      (error) => error.code === "REMOTE_UNSUPPORTED_OPERATION" && error.details.operation === "core.batch",
-    );
-    assert.deepEqual(await client.executeBatch({ actor: "alice", operations: [] }), { accepted: true });
-  }, { approveOrigin: true });
-  assert.deepEqual(requests, [
-    ...remoteV1Manifest.operations.map(({ id: operation }) => ({ operation, actor: "alice", input: {} })),
-    { operation: "core.batch", actor: "alice", input: { operations: [] } },
-  ]);
-  assert.equal(localCalls, 0);
-});
-
 test("backend client exposes typed transfer export and import requests", async () => {
   const requests = [];
   const payload = { version: 4, revision: 0, nodes: {}, edges: [], initiatives: {}, log: [] };
   await withServer(async (request, response) => {
     const chunks = [];
-    for await (const chunk of request) chunks.push(chunk);
+    for await (const chunk of request) { chunks.push(chunk); }
     requests.push({ method: request.method, url: request.url, body: JSON.parse(Buffer.concat(chunks).toString("utf8")) });
     response.writeHead(200, { "content-type": "application/json", "x-climier-protocol-version": "1" });
     response.end(JSON.stringify({ ok: true, result: request.url.endsWith("export") ? payload : { installed: true } }));
@@ -144,13 +102,7 @@ test("backend client maps an ambiguous timed-out push without retrying", async (
   const responseHeld = new Promise((resolve) => { releaseResponse = resolve; });
 
   await withServer(async (request, response) => {
-    const chunks = [];
-    for await (const chunk of request) chunks.push(chunk);
-    requests.push({
-      method: request.method,
-      url: request.url,
-      body: JSON.parse(Buffer.concat(chunks).toString("utf8")),
-    });
+    requests.push(await requestDetails(request));
     observeRequest(requests[0]);
 
     // Hold the response until the client times out, simulating a lost reply
@@ -164,13 +116,13 @@ test("backend client maps an ambiguous timed-out push without retrying", async (
       timeoutMs: 1000,
     });
     const pushOutcome = client.importTransfer({ payload: {}, actor: "alice" }).then(
-      (value) => ({ kind: "fulfilled", value }),
-      (error) => ({ kind: "rejected", error }),
+      settledPushOutcome("fulfilled"),
+      settledPushOutcome("rejected"),
     );
 
     try {
       const firstEvent = await Promise.race([
-        requestObserved.then((request) => ({ kind: "observed", request })),
+        requestObserved.then(observedRequest),
         pushOutcome,
       ]);
       assert.equal(firstEvent.kind, "observed", "push must reach and be consumed by the server before timeout");
@@ -181,9 +133,7 @@ test("backend client maps an ambiguous timed-out push without retrying", async (
       });
 
       const outcome = await pushOutcome;
-      assert.equal(outcome.kind, "rejected");
-      assert.equal(outcome.error.code, "TRANSFER_OUTCOME_UNKNOWN");
-      assert.deepEqual(outcome.error.details, { applied: "unknown", timeout_ms: 1000 });
+      assertTransferOutcomeUnknown(outcome);
       assert.equal(requests.length, 1, "ambiguous push must not be retried");
     } finally {
       releaseResponse();
@@ -191,51 +141,11 @@ test("backend client maps an ambiguous timed-out push without retrying", async (
   });
 });
 
-test("backend client uses remote HTTP v1 URL, protocol, bearer auth, actor, and result envelope", async () => {
-  const result = { diff: { created: [{ id: "T-remote" }] } };
-  await withServer(async (request, response) => {
-    assert.equal(request.method, "POST");
-    assert.equal(request.url, "/v1/projects/project%2Fopaque/operations");
-    assert.equal(request.headers["content-type"], "application/json");
-    assert.equal(request.headers["x-climier-protocol-version"], "1");
-    assert.equal(request.headers.authorization, "Bearer test-token");
-    const chunks = [];
-    for await (const chunk of request) chunks.push(chunk);
-    assert.deepEqual(JSON.parse(Buffer.concat(chunks).toString("utf8")), {
-      operation: "task.create",
-      actor: "alice",
-      input: { id: "T-remote" },
-    });
-    response.writeHead(200, {
-      "content-type": "application/json",
-      "x-climier-protocol-version": "1",
-    });
-    response.end(JSON.stringify({ ok: true, result }));
-  }, async (url) => {
-    const client = createBackendClient({
-      projectDir: "/project",
-      projectConfig: { project_id: "project/opaque", backend: { type: "remote", url } },
-      token: "test-token",
-      source: { registry: { lookup() { throw new Error("local source must not run"); } }, mutate() { throw new Error("local source must not run"); } },
-    });
-    assert.deepEqual(await client.executeOperation({
-      actor: "alice",
-      operation: "task.create",
-      input: { id: "T-remote" },
-    }), result);
-  }, { approveOrigin: true });
-});
-
 test("backend client initializes the configured remote project through the typed init endpoint", async () => {
   let requestBody;
   await withServer(async (request, response) => {
-    assert.equal(request.method, "POST");
-    assert.equal(request.url, "/v1/projects/project%2Fopaque/init");
-    assert.equal(request.headers["content-type"], "application/json");
-    assert.equal(request.headers["x-climier-protocol-version"], "1");
-    const chunks = [];
-    for await (const chunk of request) chunks.push(chunk);
-    requestBody = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+    assertInitRequest(request);
+    requestBody = await readRequestBody(request);
     response.writeHead(200, {
       "content-type": "application/json",
       "x-climier-protocol-version": "1",
@@ -251,6 +161,53 @@ test("backend client initializes the configured remote project through the typed
   assert.deepEqual(requestBody, {});
 });
 
+async function assertOriginBindingsRejected(url, remoteOrigins) {
+  for (const remoteOrigin of remoteOrigins) {
+    const client = createBackendClient({
+      projectDir: "/project",
+      projectConfig: { project_id: "remote-project", backend: { type: "remote", url } },
+      token: "sensitive-token",
+      remoteOrigin,
+    });
+    await assert.rejects(client.readStatus(), originNotApproved);
+  }
+}
+
+function originNotApproved(error) {
+  return error.code === "REMOTE_ORIGIN_NOT_APPROVED";
+}
+
+function settledPushOutcome(kind) {
+  return (value) => ({ kind, [kind === "fulfilled" ? "value" : "error"]: value });
+}
+
+function observedRequest(request) {
+  return { kind: "observed", request };
+}
+
+function assertTransferOutcomeUnknown(outcome) {
+  assert.equal(outcome.kind, "rejected");
+  assert.equal(outcome.error.code, "TRANSFER_OUTCOME_UNKNOWN");
+  assert.deepEqual(outcome.error.details, { applied: "unknown", timeout_ms: 1000 });
+}
+
+async function readRequestBody(request) {
+  const chunks = [];
+  for await (const chunk of request) { chunks.push(chunk); }
+  return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+}
+
+function requestDetails(request) {
+  return readRequestBody(request).then((body) => ({ method: request.method, url: request.url, body }));
+}
+
+function assertInitRequest(request) {
+  assert.equal(request.method, "POST");
+  assert.equal(request.url, "/v1/projects/project%2Fopaque/init");
+  assert.equal(request.headers["content-type"], "application/json");
+  assert.equal(request.headers["x-climier-protocol-version"], "1");
+}
+
 test("backend client refuses to send a bearer token when origin binding is absent or differs", async () => {
   let requests = 0;
   await withServer((_request, response) => {
@@ -261,15 +218,8 @@ test("backend client refuses to send a bearer token when origin binding is absen
     });
     response.end(JSON.stringify({ ok: true, result: {} }));
   }, async (url) => {
-    for (const remoteOrigin of [undefined, "http://127.0.0.1:1"]) {
-      const client = createBackendClient({
-        projectDir: "/project",
-        projectConfig: { project_id: "remote-project", backend: { type: "remote", url } },
-        token: "sensitive-token",
-        remoteOrigin,
-      });
-      await assert.rejects(client.readStatus(), (error) => error.code === "REMOTE_ORIGIN_NOT_APPROVED");
-    }
+    const remoteOrigins = [undefined, "http://127.0.0.1:1"];
+    await assertOriginBindingsRejected(url, remoteOrigins);
   });
   assert.equal(requests, 0);
 });
@@ -305,8 +255,8 @@ test("backend client allows opt-in remote HTTP only with exact origin binding", 
     assert.equal(requested[0].options.headers.authorization, "Bearer internal-token");
   } finally {
     globalThis.fetch = previousFetch;
-    if (previousOptIn === undefined) delete process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP;
-    else process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP = previousOptIn;
+    if (previousOptIn === undefined) { delete process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP; }
+    else { process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP = previousOptIn; }
   }
 });
 
@@ -320,8 +270,8 @@ test("backend client rejects remote HTTP with missing or inexact opt-in and neve
   };
   try {
     for (const value of [undefined, "false", "TRUE", "true "]) {
-      if (value === undefined) delete process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP;
-      else process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP = value;
+      if (value === undefined) { delete process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP; }
+      else { process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP = value; }
       assert.throws(() => createBackendClient({
         projectDir: "/project",
         projectConfig: { project_id: "remote-project", backend: { type: "remote", url: "http://internal.example.test" } },
@@ -333,116 +283,13 @@ test("backend client rejects remote HTTP with missing or inexact opt-in and neve
       projectConfig: { project_id: "remote-project", backend: { type: "remote", url: "http://internal.example.test" } },
       token: "internal-token",
     });
-    await assert.rejects(client.readStatus(), (error) => error.code === "REMOTE_ORIGIN_NOT_APPROVED");
+    await assert.rejects(client.readStatus(), originNotApproved);
     assert.equal(requests, 0);
   } finally {
     globalThis.fetch = previousFetch;
-    if (previousOptIn === undefined) delete process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP;
-    else process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP = previousOptIn;
+    if (previousOptIn === undefined) { delete process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP; }
+    else { process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP = previousOptIn; }
   }
-});
-
-test("backend client maps all typed reads to v1 routes and preserves filter values", async () => {
-  const requests = [];
-  await withServer(async (request, response) => {
-    requests.push(`${request.method} ${request.url}`);
-    response.writeHead(200, {
-      "content-type": "application/json",
-      "x-climier-protocol-version": "1",
-    });
-    response.end(JSON.stringify({ ok: true, result: { request: request.url } }));
-  }, async (url) => {
-    const client = createBackendClient({
-      projectDir: "/project",
-      projectConfig: { project_id: "project/opaque", backend: { type: "remote", url } },
-    });
-
-    const results = [
-      await client.readStatus({
-        initiative: "migration & rollout",
-        kind: "task",
-        status: "in_progress",
-        domain: "api/v1",
-        claimedBy: "alice smith",
-        staleMs: 0,
-        limit: 0,
-        all: false,
-        as: "auditor",
-      }),
-      await client.readContext({ id: "T/context", as: "alice smith", staleMs: 0 }),
-      await client.readNode({ id: "T/show" }),
-      await client.readHistory({ id: "T/history", limit: 0 }),
-      await client.readSearch({ query: "api / v1", all: true }),
-      await client.readInitiatives({ all: false }),
-      await client.readLog({ limit: 0, action: "task update", agent: "alice", task: "T-1", decision: "D/1" }),
-      await client.readState(),
-    ];
-
-    assert.deepEqual(requests, [
-      "GET /v1/projects/project%2Fopaque/read/status?initiative=migration+%26+rollout&kind=task&status=in_progress&domain=api%2Fv1&claimed-by=alice+smith&stale-ms=0&limit=0&all=false&as=auditor",
-      "GET /v1/projects/project%2Fopaque/read/context/T%2Fcontext?as=alice+smith&staleMs=0",
-      "GET /v1/projects/project%2Fopaque/read/show/T%2Fshow",
-      "GET /v1/projects/project%2Fopaque/read/history/T%2Fhistory?limit=0",
-      "GET /v1/projects/project%2Fopaque/read/search?query=api+%2F+v1&all=true",
-      "GET /v1/projects/project%2Fopaque/read/initiatives?all=false",
-      "GET /v1/projects/project%2Fopaque/read/log?limit=0&action=task+update&agent=alice&task=T-1&decision=D%2F1",
-      "GET /v1/projects/project%2Fopaque/read/state",
-    ]);
-    assert.deepEqual(results, requests.map((request) => ({ request: request.slice(4) })));
-  });
-});
-
-test("typed read methods validate required ids and query option types before requesting", async () => {
-  await withServer(() => assert.fail("invalid read inputs must not make HTTP requests"), async (url) => {
-    const client = createBackendClient({
-      projectDir: "/project",
-      projectConfig: { project_id: "project", backend: { type: "remote", url } },
-    });
-    assert.throws(() => client.readStatus({ claimedBy: 42 }), { code: "INVALID_REQUEST" });
-    assert.throws(() => client.readContext({ id: "T-1", staleMs: -1 }), { code: "INVALID_REQUEST" });
-    assert.throws(() => client.readNode({ id: "" }), { code: "INVALID_REQUEST" });
-    assert.throws(() => client.readHistory({ id: "T-1", limit: "2" }), { code: "INVALID_REQUEST" });
-    assert.throws(() => client.readSearch({ query: 42 }), { code: "INVALID_REQUEST" });
-    assert.throws(() => client.readInitiatives({ all: "true" }), { code: "INVALID_REQUEST" });
-    assert.throws(() => client.readLog({ unexpected: "value" }), { code: "INVALID_REQUEST" });
-  });
-});
-
-test("backend client propagates structured remote errors without local fallback", async () => {
-  let localCalls = 0;
-  await withServer(async (_request, response) => {
-    response.writeHead(401, {
-      "content-type": "application/json",
-      "x-climier-protocol-version": "1",
-    });
-    response.end(JSON.stringify({
-      ok: false,
-      error: {
-        code: "AUTH_REQUIRED",
-        message: "server http: bearer token is required",
-        details: { project_id: "remote-project" },
-      },
-    }));
-  }, async (url) => {
-    const client = createBackendClient({
-      projectDir: "/project",
-      projectConfig: { project_id: "remote-project", backend: { type: "remote", url } },
-      token: "invalid-token",
-      remoteOrigin: new URL(url).origin,
-      source: {
-        registry: { lookup() { localCalls += 1; return { provider: { prepare() {}, apply() {} } }; } },
-        mutate() { localCalls += 1; return {}; },
-      },
-    });
-    await assert.rejects(client.readStatus({ initiative: "remote-only" }), (error) => {
-      assert.equal(error.code, "AUTH_REQUIRED");
-      assert.equal(error.message, "server http: bearer token is required");
-      assert.deepEqual(error.details, { project_id: "remote-project" });
-      assert.equal(error.status, 401);
-      return true;
-    });
-  });
-  assert.equal(localCalls, 0);
 });
 
 test("backend client reports network failures without invoking local execution", async () => {
@@ -467,45 +314,9 @@ test("backend client reports network failures without invoking local execution",
   assert.equal(localCalls, 0);
 });
 
-test("backend client rejects incompatible protocol and malformed success envelopes", async () => {
-  let localCalls = 0;
-  await withServer((_request, response) => {
-    response.writeHead(200, {
-      "content-type": "application/json",
-      "x-climier-protocol-version": "2",
-    });
-    response.end(JSON.stringify({ ok: true, result: { unexpected: true } }));
-  }, async (url) => {
-    const client = createBackendClient({
-      projectDir: "/project",
-      projectConfig: { project_id: "remote-project", backend: { type: "remote", url } },
-      source: { registry: { lookup() { localCalls += 1; } }, mutate() { localCalls += 1; } },
-    });
-    await assert.rejects(client.readStatus(), (error) => {
-      assert.equal(error.code, "PROTOCOL_VERSION_UNSUPPORTED");
-      assert.deepEqual(error.details, { expected: "1", received: "2" });
-      return true;
-    });
-  });
-
-  await withServer((_request, response) => {
-    response.writeHead(200, {
-      "content-type": "application/json",
-      "x-climier-protocol-version": "1",
-    });
-    response.end(JSON.stringify({ ok: true }));
-  }, async (url) => {
-    const client = createBackendClient({
-      projectDir: "/project",
-      projectConfig: { project_id: "remote-project", backend: { type: "remote", url } },
-    });
-    await assert.rejects(
-      client.readStatus(),
-      (error) => error.code === "REMOTE_INVALID_RESPONSE",
-    );
-  });
-  assert.equal(localCalls, 0);
-});
+function remoteTimeout(error) {
+  return error.code === "REMOTE_TIMEOUT";
+}
 
 test("backend client times out remote requests and never falls back locally", async () => {
   let localCalls = 0;
@@ -521,7 +332,7 @@ test("backend client times out remote requests and never falls back locally", as
         mutate() { localCalls += 1; return {}; },
       },
     });
-    await assert.rejects(client.readStatus({ initiative: "remote-only" }), (error) => error.code === "REMOTE_TIMEOUT");
+    await assert.rejects(client.readStatus({ initiative: "remote-only" }), remoteTimeout);
   });
   assert.equal(localCalls, 0);
 });

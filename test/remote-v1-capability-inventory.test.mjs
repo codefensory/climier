@@ -17,11 +17,11 @@ test("remote-v1 inventory matches the fixture, manifest, and provider catalog", 
   const expectedIds = remoteV1CapabilityInventory.operations.map(({ id }) => id);
   assert.equal(expectedIds.length, 21);
   assert.equal(new Set(expectedIds).size, 21);
-  assert.deepEqual([...registry.list()].sort(), [...catalogIds].sort());
-  assert.deepEqual([...expectedIds].sort(), [...catalogIds].sort());
-  assert.deepEqual([...remoteV1Manifest.operations].sort((left, right) => left.id.localeCompare(right.id)),
-    [...remoteV1CapabilityInventory.operations].sort((left, right) => left.id.localeCompare(right.id)));
-  assert.deepEqual([...remoteV1Manifest.operations.map(({ id }) => id)].sort(), [...catalogIds].sort());
+  assert.deepEqual(registry.list().toSorted(), catalogIds.toSorted());
+  assert.deepEqual(expectedIds.toSorted(), catalogIds.toSorted());
+  assert.deepEqual(remoteV1Manifest.operations.toSorted((left, right) => left.id.localeCompare(right.id)),
+    remoteV1CapabilityInventory.operations.toSorted((left, right) => left.id.localeCompare(right.id)));
+  assert.deepEqual(remoteV1Manifest.operations.map(({ id }) => id).toSorted(), catalogIds.toSorted());
   assert.equal(registry.has("core.batch"), false, "core.batch is a protocol envelope, not a registered provider");
 
   assert.deepEqual(remoteV1Manifest.batch, remoteV1CapabilityInventory.batch);

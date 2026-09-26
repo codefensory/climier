@@ -28,13 +28,13 @@ test("application operation registry is exported from the boundary and is adapte
   assert.equal(typeof boundary.bootstrapBuiltins, "function");
   assert.equal(typeof boundary.executeOperation, "function");
   const taskProviders = await importFresh(TASK_PROVIDER_MODULE);
-  for (const provider of [
+  for (const taskProvider of [
     taskProviders.taskSubmitProvider,
     taskProviders.taskAcceptProvider,
     taskProviders.taskRejectProvider,
   ]) {
-    assert.equal(typeof provider.prepare, "function");
-    assert.equal(typeof provider.apply, "function");
+    assert.equal(typeof taskProvider.prepare, "function");
+    assert.equal(typeof taskProvider.apply, "function");
   }
   const source = await import("node:fs/promises");
   const url = await import("node:url");
@@ -47,11 +47,11 @@ test("built-in registry publishes edge.remove with its provider", async () => {
   const { createBuiltinOperationRegistry, PUBLIC_CORE_OPS } = await importFresh("../src/application/operations/builtins.mjs");
   const reg = createBuiltinOperationRegistry();
   assert.ok(PUBLIC_CORE_OPS.includes("edge.remove"));
-  const entry = reg.lookup("edge.remove");
-  assert.ok(entry);
-  assert.equal(entry.kind, "core");
-  assert.equal(typeof entry.provider.prepare, "function");
-  assert.equal(typeof entry.provider.apply, "function");
+  const operationEntry = reg.lookup("edge.remove");
+  assert.ok(operationEntry);
+  assert.equal(operationEntry.kind, "core");
+  assert.equal(typeof operationEntry.provider.prepare, "function");
+  assert.equal(typeof operationEntry.provider.apply, "function");
 });
 
 test("built-in registry publishes task submission lifecycle operations and their providers", async () => {
@@ -59,11 +59,11 @@ test("built-in registry publishes task submission lifecycle operations and their
   const reg = createBuiltinOperationRegistry();
   for (const id of ["task.submit", "task.accept", "task.reject"]) {
     assert.ok(PUBLIC_TASK_OPS.includes(id), `${id} is a public task operation`);
-    const entry = reg.lookup(id);
-    assert.ok(entry, `${id} is registered`);
-    assert.equal(entry.kind, "task");
-    assert.equal(typeof entry.provider.prepare, "function");
-    assert.equal(typeof entry.provider.apply, "function");
+    const operationEntry = reg.lookup(id);
+    assert.ok(operationEntry, `${id} is registered`);
+    assert.equal(operationEntry.kind, "task");
+    assert.equal(typeof operationEntry.provider.prepare, "function");
+    assert.equal(typeof operationEntry.provider.apply, "function");
   }
 });
 
