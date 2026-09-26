@@ -1,5 +1,5 @@
 import { throwV2 } from "../../../contracts/errors.mjs";
-import { isRemoteBackend, locateRemoteNode, readRemoteNode, routeRemoteOperation } from "./domain-routing.mjs";
+import { isRemoteBackend, readRemoteNode, routeRemoteOperation } from "./domain-routing.mjs";
 
 export { isRemoteBackend };
 
@@ -12,7 +12,9 @@ export { readRemoteNode };
 export async function requireRemoteTask(backendClient, id, command) {
   return readRemoteNode(backendClient, id, command, (node) => node.kind === "resolvable" && node.subkind === "task")
     .catch((error) => {
-      if (error?.code !== "REMOTE_UNSUPPORTED_OPERATION") throw error;
+      if (error?.code !== "REMOTE_UNSUPPORTED_OPERATION") {
+        throw error;
+      }
       throwV2(
         "REMOTE_UNSUPPORTED_OPERATION",
         `${command}: remote ${error.details?.kind ? `${error.details.kind}/${error.details.subkind || "?"}` : "target"} is not a task operation owned by this adapter`,
