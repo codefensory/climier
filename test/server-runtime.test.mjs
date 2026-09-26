@@ -32,6 +32,36 @@ async function writeConfig(root, value) {
   return file;
 }
 
+function restoreClimierHome(previousHome) {
+  if (previousHome === undefined) {
+    delete process.env.CLIMIER_HOME;
+  } else {
+    process.env.CLIMIER_HOME = previousHome;
+  }
+}
+
+async function assertTrustedProjects(runtime, root, stateHome) {
+  const alphaPath = await runtime.catalog.provisionProject("alpha");
+  const betaPath = await runtime.catalog.provisionProject("../beta");
+
+  process.env.CLIMIER_HOME = path.join(root, "attacker-controlled-home");
+  const alpha = await runtime.openProject(alphaPath, { projectId: "alpha" });
+  assert.equal(process.env.CLIMIER_HOME, path.resolve(stateHome));
+  const beta = await runtime.openProject(betaPath, { projectId: "../beta" });
+
+  const alphaMeta = JSON.parse(await fs.readFile(path.join(alpha.projectDir, ".climier.json"), "utf8"));
+  const betaMeta = JSON.parse(await fs.readFile(path.join(beta.projectDir, ".climier.json"), "utf8"));
+  assert.match(alphaMeta.project_id, /^[a-f0-9]{64}$/u);
+  assert.match(betaMeta.project_id, /^[a-f0-9]{64}$/u);
+  assert.notEqual(alphaMeta.project_id, betaMeta.project_id);
+  assert.equal(stateFile(alpha.projectDir), path.join(stateHome, "projects", alphaMeta.project_id, "tasks.json"));
+  assert.equal(stateFile(beta.projectDir), path.join(stateHome, "projects", betaMeta.project_id, "tasks.json"));
+  assert.notEqual(stateFile(alpha.projectDir), stateFile(beta.projectDir));
+  assert.equal(path.dirname(alphaPath), path.join(root, "catalog"));
+  assert.equal(path.dirname(betaPath), path.join(root, "catalog"));
+  await assert.rejects(runtime.openProject(betaPath, { projectId: "alpha" }), { code: "UNSAFE_PROJECT_STORAGE" });
+}
+
 test("private server config fails closed for malformed or unsafe settings", async (t) => {
   const root = await makeRoot(t);
   const valid = config(root);
@@ -63,32 +93,11 @@ test("server runtime pins state home and writes trusted hash-safe project metada
   const root = await makeRoot(t);
   const stateHome = path.join(root, "fixed-state-home");
   const previousHome = process.env.CLIMIER_HOME;
-  t.after(() => {
-    if (previousHome === undefined) delete process.env.CLIMIER_HOME;
-    else process.env.CLIMIER_HOME = previousHome;
-  });
+  t.after(() => restoreClimierHome(previousHome));
 
   const runtime = createServerRuntime(config(root, { stateHome }));
   assert.equal(process.env.CLIMIER_HOME, path.resolve(stateHome));
-  const alphaPath = await runtime.catalog.provisionProject("alpha");
-  const betaPath = await runtime.catalog.provisionProject("../beta");
-
-  process.env.CLIMIER_HOME = path.join(root, "attacker-controlled-home");
-  const alpha = await runtime.openProject(alphaPath, { projectId: "alpha" });
-  assert.equal(process.env.CLIMIER_HOME, path.resolve(stateHome));
-  const beta = await runtime.openProject(betaPath, { projectId: "../beta" });
-
-  const alphaMeta = JSON.parse(await fs.readFile(path.join(alpha.projectDir, ".climier.json"), "utf8"));
-  const betaMeta = JSON.parse(await fs.readFile(path.join(beta.projectDir, ".climier.json"), "utf8"));
-  assert.match(alphaMeta.project_id, /^[a-f0-9]{64}$/u);
-  assert.match(betaMeta.project_id, /^[a-f0-9]{64}$/u);
-  assert.notEqual(alphaMeta.project_id, betaMeta.project_id);
-  assert.equal(stateFile(alpha.projectDir), path.join(stateHome, "projects", alphaMeta.project_id, "tasks.json"));
-  assert.equal(stateFile(beta.projectDir), path.join(stateHome, "projects", betaMeta.project_id, "tasks.json"));
-  assert.notEqual(stateFile(alpha.projectDir), stateFile(beta.projectDir));
-  assert.equal(path.dirname(alphaPath), path.join(root, "catalog"));
-  assert.equal(path.dirname(betaPath), path.join(root, "catalog"));
-  await assert.rejects(runtime.openProject(betaPath, { projectId: "alpha" }), { code: "UNSAFE_PROJECT_STORAGE" });
+  await assertTrustedProjects(runtime, root, stateHome);
 });
 
 test("server runtime rejects a project directory with conflicting metadata", async (t) => {
@@ -140,10 +149,7 @@ test("launcher starts the configured server and reports its listening health", a
 test("runtime startup binds state home once and listens on configured address", async (t) => {
   const root = await makeRoot(t);
   const previousHome = process.env.CLIMIER_HOME;
-  t.after(() => {
-    if (previousHome === undefined) delete process.env.CLIMIER_HOME;
-    else process.env.CLIMIER_HOME = previousHome;
-  });
+  t.after(() => restoreClimierHome(previousHome));
   const file = await writeConfig(root, config(root));
   const runtime = await startServerRuntime(file);
   t.after(() => new Promise((resolve) => runtime.server.close(resolve)));
