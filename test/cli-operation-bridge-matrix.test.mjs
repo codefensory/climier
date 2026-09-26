@@ -217,7 +217,7 @@ function assertTestFiles(files) {
 test("write matrix covers every registered operation and documents local/remote contracts", async () => {
   const catalog = [...PUBLIC_TASK_OPS, ...PUBLIC_GATE_OPS, ...PUBLIC_KNOWLEDGE_OPS, ...PUBLIC_CORE_OPS];
   const matrix = writes.map(({ operation }) => operation);
-  assert.deepEqual([...matrix].filter((operation) => operation !== "core.batch").sort(), [...catalog].sort(), "every registered operation has one matrix row");
+  assert.deepEqual([...matrix].filter((operation) => operation !== "core.batch").toSorted(), [...catalog].toSorted(), "every registered operation has one matrix row");
   assert.ok(matrix.includes("core.batch"), "batch's descriptor is also represented");
   assert.equal(new Set(matrix).size, matrix.length, "matrix operation ids are unique");
 
@@ -253,7 +253,11 @@ test("init, restore, push, and pull remain owned kernel exceptions", async () =>
       assert.ok(source.includes(marker), `${exception.command} is owned by ${exception.owner} via ${marker}`);
     }
     assertTestFiles(exception.tests);
-    for (const file of exception.tests) await fs.access(path.resolve(TEST_DIR, file));
-    if (exception.downstream) assert.equal(exception.downstream, "T-rar-032-transfers");
+    for (const file of exception.tests) {
+      await fs.access(path.resolve(TEST_DIR, file));
+    }
+    if (exception.downstream) {
+      assert.equal(exception.downstream, "T-rar-032-transfers");
+    }
   }
 });
