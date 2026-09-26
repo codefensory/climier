@@ -350,4 +350,3 @@ export async function recoverUnderActiveLock(lockContext, candidate, opts = {}, 
   fault(opts, "after-pending");
   return finishPendingRecovery({ statePath, ledgerPath, ledger, rawState, opts });
 }
-

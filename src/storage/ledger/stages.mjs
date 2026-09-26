@@ -168,4 +168,3 @@ export async function writeDurableStage(stagePath, destinationRaw) {
     await directory.close();
   }
 }
-
