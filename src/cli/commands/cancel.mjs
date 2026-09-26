@@ -1,17 +1,16 @@
 // `cancel <id>` CLI adapter for task.cancel / gate.cancel.
-// The kernel owns locking, state, revisions and logs; this module only maps
-// CLI flags to the typed provider request and projects the legacy envelope.
+// Application Operations selects the provider; the kernel remains the sole
+// mutation frontier for locking, revisions, policy and audit persistence.
+import { bootstrapBuiltins, executeOperation } from "../../application/operations/index.mjs";
 import { mutate } from "../../kernel/mutate.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
 import { resolveAgent } from "../actor.mjs";
 import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
 import { taskCancelProvider } from "../../providers/task/cancel.mjs";
 import { executeRemoteResolvableLifecycle } from "./internal/resolvable-lifecycle-routing.mjs";
-import {
-  gateCancelProvider,
-  prepareGateCancel,
-  applyGateCancel,
-} from "../../providers/gate/lifecycle.mjs";
+import { prepareGateCancel, applyGateCancel } from "../../providers/gate/lifecycle.mjs";
+
+const REGISTRY = bootstrapBuiltins();
 
 export const knownFlags = ["as", "reason"];
 
@@ -28,7 +27,12 @@ function providerFor(snapshot, id) {
 const taskCancelAdapterProvider = Object.freeze({
   async prepare(args) {
     const plan = await taskCancelProvider.prepare(args);
-    return { ...plan, logFields: { note: plan.reason } };
+    const node = args.snapshot.nodes[args.input.id];
+    return {
+      ...plan,
+      target: { ...plan.target, claim: node && node.claim ? { ...node.claim } : null },
+      logFields: { note: plan.reason },
+    };
   },
   apply: taskCancelProvider.apply,
 });
@@ -36,10 +40,39 @@ const taskCancelAdapterProvider = Object.freeze({
 const gateCancelAdapterProvider = Object.freeze({
   async prepare(args) {
     const plan = await prepareGateCancel(args);
-    return { ...plan, logFields: { note: plan.reason } };
+    const node = args.snapshot.nodes[args.input.id];
+    return {
+      ...plan,
+      target: { ...plan.target, claim: node && node.claim ? { ...node.claim } : null },
+      logFields: { note: plan.reason },
+    };
   },
   apply: applyGateCancel,
 });
+
+function sourceWithCliProvider(source, id, selectedPolicyAction) {
+  return {
+    ...source,
+    policyAction: selectedPolicyAction,
+    registry: {
+      lookup(operation) {
+        const entry = source.registry.lookup(operation);
+        if (!["task.cancel", "gate.cancel"].includes(operation) || !entry) return entry;
+        return {
+          ...entry,
+          provider: {
+            async prepare(args) { return providerFor(args.snapshot, id).prepare(args); },
+            async apply(args) {
+              return (args.plan.target.subkind === "gate"
+                ? gateCancelAdapterProvider
+                : taskCancelAdapterProvider).apply(args);
+            },
+          },
+        };
+      },
+    },
+  };
+}
 
 function policyAction({ policy, projectDir, agent, id }) {
   return {
@@ -52,10 +85,7 @@ function policyAction({ policy, projectDir, agent, id }) {
         policy,
         action: "task.cancel",
         actor: agent,
-        target: {
-          ...target,
-          claim: node && node.claim ? { ...node.claim } : null,
-        },
+        target: { ...target, claim: node && node.claim ? { ...node.claim } : null },
         snapshot,
         projectDir,
         projectConfig: policy.projectConfig || {},
@@ -71,6 +101,7 @@ export default async function cancel({
   positional = [],
   pluginId,
   backendClient,
+  source: suppliedSource,
 }) {
   const id = positional[0];
   if (!id) throwV2("MISSING_FIELD", "cancel: node id required", { field: "id" });
@@ -78,35 +109,26 @@ export default async function cancel({
   const agent = resolveAgent(flags, "cancel");
   const dir = projectDir || statePath;
   const remote = await executeRemoteResolvableLifecycle({
-    backendClient,
-    actor: agent,
-    verb: "cancel",
-    command: "cancel",
-    id,
-    input: { id, reason },
+    backendClient, actor: agent, verb: "cancel", command: "cancel", id, input: { id, reason },
   });
   if (remote) return { node: remote.node };
-  const policy = await loadApplicablePolicy({ projectDir: dir });
 
-  const mutation = await mutate({
-    projectDir: dir,
-    request: {
-      action: "cancel",
-      actor: agent,
-      input: { id, reason, actor: agent },
-    },
-    provider: {
-      async prepare(args) {
-        return providerFor(args.snapshot, id).prepare(args);
-      },
-      async apply(args) {
-        return (args.plan.target.subkind === "gate"
-          ? gateCancelAdapterProvider
-          : taskCancelAdapterProvider).apply(args);
-      },
-    },
-    policyAction: policyAction({ policy, projectDir: dir, agent, id }),
+  const policy = suppliedSource ? null : await loadApplicablePolicy({ projectDir: dir });
+  const baseSource = suppliedSource || {
+    registry: REGISTRY,
+    mutate,
+    selectPolicy: async () => policy,
+    authorizeAction,
+    policyAction: policy ? policyAction({ policy, projectDir: dir, agent, id }) : undefined,
     pluginId,
+  };
+  const mutation = await executeOperation({
+    projectDir: dir,
+    actor: agent,
+    operation: "task.cancel",
+    input: { id, reason, actor: agent },
+    source: sourceWithCliProvider(baseSource, id, policy ? policyAction({ policy, projectDir: dir, agent, id }) : null),
+    policyActionFromPlan: true,
   });
 
   const updated = mutation.diff.updated.find((entry) => entry.id === id);
