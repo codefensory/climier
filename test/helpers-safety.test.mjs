@@ -5,7 +5,6 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-const BIN = path.resolve(process.cwd(), "bin", "climier.mjs");
 const HELPERS = path.resolve(process.cwd(), "test", "helpers.mjs");
 
 // These tests guard the helpers.mjs contract: tests must NEVER write to or

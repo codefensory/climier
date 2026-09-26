@@ -84,50 +84,49 @@ test("init: successful insecure remote HTTP init returns the ADR warning", async
   }
 });
 
-test("CLI: successful insecure remote HTTP init emits one JSON warning and no stderr", async () => {
-  const dir = await createTempProject();
+async function runInsecureRemoteInit(dir, client) {
   const output = [];
   const errors = [];
+  const status = await runCliInProcess({
+    argv: ["--project", dir, "init"],
+    createBackendClient: () => client,
+    write: (value) => output.push(value),
+    exit: (code) => errors.push(code),
+  });
+  return { status, output, errors };
+}
+
+test("CLI: successful insecure remote HTTP init emits one JSON warning and no stderr", async () => {
+  const dir = await createTempProject();
   try {
     await fs.writeFile(path.join(dir, ".climier.json"), JSON.stringify({
       project_id: "remote-project",
       backend: { type: "remote", url: "http://internal.example.test" },
     }));
-    const status = await runCliInProcess({
-      argv: ["--project", dir, "init"],
-      createBackendClient: () => ({
-        type: "remote",
-        insecureRemoteHttp: true,
-        async init() { return { seeded: true }; },
-      }),
-      write: (value) => output.push(value),
-      exit: (code) => errors.push(code),
+    const success = await runInsecureRemoteInit(dir, {
+      type: "remote",
+      insecureRemoteHttp: true,
+      async init() { return { seeded: true }; },
     });
-    assert.equal(status, 0);
-    assert.deepEqual(errors, []);
-    assert.equal(output.length, 1);
-    assert.deepEqual(JSON.parse(output[0]).warnings, [{
+    assert.equal(success.status, 0);
+    assert.deepEqual(success.errors, []);
+    assert.equal(success.output.length, 1);
+    assert.deepEqual(JSON.parse(success.output[0]).warnings, [{
       kind: "insecure-remote-http",
       severity: "warning",
       message: "init: remote HTTP is enabled by CLIMIER_ALLOW_INSECURE_REMOTE_HTTP=true; bearer credentials are sent without transport encryption. Internal trusted networks only.",
     }]);
 
-    output.length = 0;
-    const failedStatus = await runCliInProcess({
-      argv: ["--project", dir, "init"],
-      createBackendClient: () => ({
-        type: "remote",
-        insecureRemoteHttp: true,
-        async init() { throw Object.assign(new Error("unauthorized"), { code: "AUTH_INVALID" }); },
-      }),
-      write: (value) => output.push(value),
-      exit: (code) => errors.push(code),
+    const failure = await runInsecureRemoteInit(dir, {
+      type: "remote",
+      insecureRemoteHttp: true,
+      async init() { throw Object.assign(new Error("unauthorized"), { code: "AUTH_INVALID" }); },
     });
-    assert.equal(failedStatus, 1);
-    assert.equal(output.length, 1);
-    assert.deepEqual(Object.keys(JSON.parse(output[0])), ["ok", "error"]);
-    assert.equal(JSON.parse(output[0]).error.code, "AUTH_INVALID");
-    assert.equal(errors.at(-1), 1);
+    assert.equal(failure.status, 1);
+    assert.equal(failure.output.length, 1);
+    assert.deepEqual(Object.keys(JSON.parse(failure.output[0])), ["ok", "error"]);
+    assert.equal(JSON.parse(failure.output[0]).error.code, "AUTH_INVALID");
+    assert.equal(failure.errors.at(-1), 1);
   } finally {
     await rmTempProject(dir);
   }
