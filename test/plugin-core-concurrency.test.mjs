@@ -195,11 +195,11 @@ test("concurrency: plugin fixture + CLI add-task run in parallel share state, no
     // cannot hard-code them. Instead we identify them by agent and by
     // the absence of plugin_id on the originating log entry.
     const cliLogEntries = finalState.log.filter(
-      (e) => e.agent === "cli-bob" && e.action === "add-node",
+      (e) => e.agent === "cli-bob" && e.action === "add-task",
     );
     assert.ok(
       cliLogEntries.length >= CLI_COUNT,
-      `expected ≥${CLI_COUNT} cli-bob add-node log entries, got ${cliLogEntries.length}`,
+      `expected ≥${CLI_COUNT} cli-bob add-task log entries, got ${cliLogEntries.length}`,
     );
     const cliNodeIdsFromLog = new Set(cliLogEntries.map((e) => e.node));
     for (const id of cliNodeIdsFromLog) {
@@ -241,7 +241,7 @@ test("concurrency: plugin fixture + CLI add-task run in parallel share state, no
       assert.equal(typeof e.ts, "string");
       assert.equal(typeof e.action, "string");
       assert.equal(typeof e.agent, "string");
-      // node id is present (add-node / add-note / take / submit / accept);
+      // node id is present (add-task / add-note / take / submit / accept);
       // a torn write would either drop it or produce a duplicate.
       assert.equal(typeof e.node, "string");
     }
@@ -253,7 +253,7 @@ test("concurrency: plugin fixture + CLI add-task run in parallel share state, no
     //    the same ts (the plugin fixture chains create + take per
     //    iteration). We verify the burst timestamps are non-
     //    decreasing and that each plugin node id appears exactly
-    //    twice (add-node + take) — a missing or duplicated entry is
+    //    twice (add-task + take) — a missing or duplicated entry is
     //    a lost-write symptom.
     const tsList = pluginLogs.map((e) => e.ts);
     for (let i = 1; i < tsList.length; i++) {

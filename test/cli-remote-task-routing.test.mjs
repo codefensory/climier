@@ -55,8 +55,8 @@ const lifecycle = [
     }),
     input: {
       id: "T-created", initiative: "remote", title: "new task", body: "body", acceptance: "acceptance",
-      blocked_by: [], backlog: false, tags: [], refs: [], definition: undefined, domain: undefined,
-      derived_from: [], meta: undefined,
+      blocked_by: "", backlog: false, tags: [], refs: [], definition: undefined, domain: undefined,
+      status: undefined, derived_from: "",
     },
     node: taskNode("T-created"),
     envelope: (node) => ({ node }),

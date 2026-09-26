@@ -229,7 +229,7 @@ function lastLog(state) {
 
 // ----- add-task -------------------------------------------------------------
 
-test("add-task: CLI call writes add-node log entry without plugin_id", async () => {
+test("add-task: CLI call writes add-task log entry without plugin_id", async () => {
   const dir = await createTempProject();
   try {
     await initProject(dir);
@@ -249,7 +249,7 @@ test("add-task: CLI call writes add-node log entry without plugin_id", async () 
     });
     const s = await readState(dir);
     const entry = lastLog(s);
-    assert.equal(entry.action, "add-node");
+    assert.equal(entry.action, "add-task");
     assert.equal(entry.agent, "alice");
     assert.equal(entry.node, "T1");
     assert.equal(entry.plugin_id, undefined);
@@ -279,7 +279,7 @@ test("add-task: ctx.pluginId is propagated to the log entry as plugin_id", async
     });
     const s = await readState(dir);
     const entry = lastLog(s);
-    assert.equal(entry.action, "add-node");
+    assert.equal(entry.action, "add-task");
     assert.equal(entry.agent, "alice");
     assert.equal(entry.plugin_id, "example.audit");
     // Verify the previous CLI add-task log entries (none in this test)

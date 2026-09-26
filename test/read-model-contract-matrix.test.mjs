@@ -185,7 +185,6 @@ test("read consumers delegate canonical views and retain adapter-specific shapes
   for (const projection of ["projectStatusView", "projectContextView", "projectSearchView", "projectInitiativesView", "projectLogView"]) {
     assert.match(httpReads, new RegExp(projection));
   }
-  assert.match(httpReads, /function contextProjection\(snapshot, id, filters, now\)/, "HTTP reads retains its adapter error boundary");
   assert.match(httpReads, /function entryReferencesId\(/, "HTTP history remains a distinct view");
   assert.doesNotMatch(http, /projectStatusView|projectContextView|projectSearchView|projectInitiativesView|projectLogView/);
 

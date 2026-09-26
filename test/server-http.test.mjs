@@ -704,6 +704,32 @@ test("HTTP reads module receives snapshot query, route, dependencies, and clock 
   assert.equal(reads.matchReadRoute("read/nope"), null);
 });
 
+test("HTTP context reads preserve NODE_NOT_FOUND adapter error details", () => {
+  const { httpError } = createHttpCodec({ protocolVersion: PROTOCOL_VERSION });
+  const calls = [];
+  const reads = createHttpReads({
+    httpError,
+    routing: { decodeURIComponent },
+    query: { searchParams: (url) => url.searchParams },
+    deps: {
+      ...readModel,
+      projectContextView(args) {
+        calls.push(args);
+        return null;
+      },
+    },
+    clock: () => 1234,
+  });
+  const route = reads.matchReadRoute("read/context/missing-node");
+  const query = reads.parseReadQuery(new URL("http://localhost/read/context/missing-node"), route);
+
+  assert.throws(
+    () => reads.projectReadResult({ snapshot: { nodes: {} }, route, query }),
+    { code: "NODE_NOT_FOUND", status: 404, details: { id: "missing-node" } },
+  );
+  assert.deepEqual(calls, [{ snapshot: { nodes: {} }, id: "missing-node", agent: undefined, staleMs: undefined, now: 1234 }]);
+});
+
 test("HTTP codec keeps path and body decoding contracts and receives the public protocol version", async () => {
   const codec = createHttpCodec({ protocolVersion: PROTOCOL_VERSION });
   assert.equal(codec.protocolVersion, PROTOCOL_VERSION);
