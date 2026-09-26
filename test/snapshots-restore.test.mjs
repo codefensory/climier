@@ -1,3 +1,4 @@
+/* oxlint-disable max-lines -- restore validation matrix and CLI integration cases remain together. */
 // snapshots-restore.test.mjs — `snapshots` listing and `restore` command.
 //
 // Cubre ADR-004 §§Commands/Plan 3 y ADR-008 §"`restore` e `init --force`":
@@ -48,9 +49,15 @@ function rawBytes(dir, id) {
 
 async function bootstrapState(dir, mutate) {
   const base = { version: 2, nodes: {}, edges: [], initiatives: {}, log: [] };
-  if (typeof mutate === "function") mutate(base);
+  if (typeof mutate === "function") {
+    mutate(base);
+  }
   await writeState(dir, base);
   return base;
+}
+
+function hasOneRestoreEntry(state) {
+  return state.log.filter((entry) => entry.action === "restore").length === 1;
 }
 
 // =========================================================================
@@ -390,8 +397,11 @@ test("restore: --as missing fails with structured error", async () => {
     assert.ok(captured, "expected restore to throw");
     assert.equal(captured.code, "MISSING_AGENT");
   } finally {
-    if (prevAgent === undefined) delete process.env.CLIMIER_AGENT;
-    else process.env.CLIMIER_AGENT = prevAgent;
+    if (prevAgent === undefined) {
+      delete process.env.CLIMIER_AGENT;
+    } else {
+      process.env.CLIMIER_AGENT = prevAgent;
+    }
     await rmTempProject(dir);
   }
 });
@@ -440,8 +450,11 @@ test("restore: --as with empty string fails with MISSING_AGENT (resolveAgent tri
     assert.ok(captured, "expected restore to throw");
     assert.equal(captured.code, "MISSING_AGENT");
   } finally {
-    if (prevAgent === undefined) delete process.env.CLIMIER_AGENT;
-    else process.env.CLIMIER_AGENT = prevAgent;
+    if (prevAgent === undefined) {
+      delete process.env.CLIMIER_AGENT;
+    } else {
+      process.env.CLIMIER_AGENT = prevAgent;
+    }
     await rmTempProject(dir);
   }
 });
@@ -858,6 +871,7 @@ test("restore: on every validation failure, no pre-restore snapshot is created a
   }
 });
 
+// oxlint-disable-next-line max-statements -- roundtrip assertions compare both displaced snapshots
 test("restore: same agent restores twice from same snapshot — each call creates its own pre-restore; the live log carries the latest restore entry (older entries live in the pre-restore snapshots)", async () => {
   const dir = await createTempProject();
   try {
@@ -890,7 +904,7 @@ test("restore: same agent restores twice from same snapshot — each call create
       JSON.parse((await rawBytes(dir, snapshot.id)).toString("utf8"))));
     assert.equal(displacedStates.filter((state) => state.log.length === 0).length, 1,
       "one pre-restore must preserve the empty state");
-    assert.equal(displacedStates.filter((state) => state.log.filter((entry) => entry.action === "restore").length === 1).length, 1,
+    assert.equal(displacedStates.filter(hasOneRestoreEntry).length, 1,
       "one pre-restore must preserve the first restored state");
   } finally {
     await rmTempProject(dir);
@@ -924,6 +938,7 @@ test("CLI: snapshots via bin returns { snapshots: [...] }", async () => {
   }
 });
 
+// oxlint-disable-next-line max-statements -- CLI lifecycle verifies init, snapshot listing, restore, and show
 test("CLI: restore --as <any-non-empty> via bin returns { snapshot } and replaces state (ADR-008)", async () => {
   const dir = await createTempProject();
   try {

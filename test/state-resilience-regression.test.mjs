@@ -1,3 +1,4 @@
+/* oxlint-disable max-lines -- end-to-end sandbox regression scenarios and orchestrator fixture stay together. */
 // state-resilience-regression.test.mjs — end-to-end regression for ADR-004.
 //
 // Reproduce the incident that motivated ADR-004: a temp project that
@@ -321,6 +322,7 @@ test("NEGATIVE CONTROL: without smoke-sandbox, init --force with copied project_
 // the sandbox.
 // =============================================================================
 
+// oxlint-disable-next-line max-lines-per-function, max-statements -- full recovery lifecycle assertions stay together
 test("REGRESSION: with smoke-sandbox, init --force with copied project_id does NOT touch the sentinel control home", async () => {
   const pid = newPid();
   const { control, tempProj } = setupIncidentFixtures(pid);
@@ -438,6 +440,7 @@ test("HELPER ISOLATION: smoke-sandbox.sh overrides the parent's CLIMIER_HOME eve
 // and the parent test asserts against the summary.
 // =============================================================================
 
+// oxlint-disable-next-line max-lines-per-function -- filesystem permission invariants stay in one scenario
 test("SANDBOX FILES: orchestrator-created state file lives under the sandbox home with private umask (0700/0600)", async () => {
   if (process.platform === "win32") {
     // chmod is best-effort on Windows; the contract is that the sandbox

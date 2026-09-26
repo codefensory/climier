@@ -44,15 +44,20 @@ async function withLogProject(run) {
     await run({ baseUrl: `http://127.0.0.1:${server.address().port}`, projectDir });
   } finally {
     await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
-    if (previousHome === undefined) delete process.env.CLIMIER_HOME;
-    else process.env.CLIMIER_HOME = previousHome;
+    if (previousHome === undefined) {
+      delete process.env.CLIMIER_HOME;
+    } else {
+      process.env.CLIMIER_HOME = previousHome;
+    }
     await fs.rm(root, { recursive: true, force: true });
   }
 }
 
 async function cliLog(projectDir, filters) {
   const args = ["--project", projectDir, "log"];
-  for (const [key, value] of Object.entries(filters)) args.push(`--${key}`, String(value));
+  for (const [key, value] of Object.entries(filters)) {
+    args.push(`--${key}`, String(value));
+  }
   const result = await runCli(args);
   assert.equal(result.code, 0, result.stdout || result.stderr);
   return JSON.parse(result.stdout);

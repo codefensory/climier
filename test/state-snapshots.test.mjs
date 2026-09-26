@@ -1,3 +1,4 @@
+/* oxlint-disable max-lines -- snapshot primitive and lifecycle inventory remains in its owned suite. */
 // state-snapshots.test.mjs — primitives de snapshot raw + metadata.
 //
 // Cubre ADR-004 §§Snapshots/Plan 1: storage primitives debajo del lock
@@ -25,7 +26,9 @@ function rawReadback(dir, id) {
 async function bootstrapState(dir, mutate) {
   const { writeState } = await importFresh("./storage/state.mjs");
   const base = { version: 4, revision: 0, nodes: {}, edges: [], initiatives: {}, log: [] };
-  if (typeof mutate === "function") mutate(base);
+  if (typeof mutate === "function") {
+    mutate(base);
+  }
   await writeState(dir, base);
   return base;
 }
@@ -337,7 +340,7 @@ test("listSnapshots: lists multiple snapshots with mixed reasons", async () => {
     await bootstrapState(dir);
     const m1 = await createSnapshot(dir, "force-init");
     await new Promise((r) => setTimeout(r, 5));
-    const m2 = await createSnapshot(dir, "corrupt-recovery");
+    await createSnapshot(dir, "corrupt-recovery");
     await new Promise((r) => setTimeout(r, 5));
     const m3 = await createSnapshot(dir, "pre-restore");
     const out = await listSnapshots(dir);
@@ -464,6 +467,7 @@ test("init on valid existing state without --force: refuses and does NOT create 
   }
 });
 
+// oxlint-disable-next-line max-statements -- the multi-snapshot recovery contract remains one scenario
 test("init --force twice creates two snapshots, newest first; original pre-reset data is recoverable from the first", async () => {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
   const { readState, listSnapshots } = await importFresh("./storage/state.mjs");
