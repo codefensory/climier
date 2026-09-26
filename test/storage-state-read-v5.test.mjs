@@ -33,6 +33,18 @@ async function withProject(fn) {
   }
 }
 
+function nextCandidate(current) {
+  const revision = current.revision + 1;
+  const nodes = Object.fromEntries(Object.entries(current.nodes).map(([id, node]) => [id, { ...node, revision }]));
+  return { ...current, revision, nodes, log: [...current.log, { action: "commit" }] };
+}
+
+async function interruptedCommit(projectDir, candidate) {
+  const { withLock } = await import("../src/storage/lock.mjs");
+  const { commitFencedStateUnderLock } = await import("../src/storage/ledger.mjs");
+  return withLock(projectDir, (lockContext) => commitFencedStateUnderLock(lockContext, candidate, { faultAt: "after-pending" }));
+}
+
 test("readState delegates v5 state validation to the fenced ledger reader", async () => {
   await withProject(async (projectDir) => {
     await seedState(projectDir);
@@ -113,20 +125,10 @@ test("readState recovers only the exact pending migration source fingerprint", a
 
 test("readState resumes an exact pending fenced commit", async () => {
   await withProject(async (projectDir) => {
-    const { withLock } = await import("../src/storage/lock.mjs");
-    const { commitFencedStateUnderLock } = await import("../src/storage/ledger.mjs");
     await seedState(projectDir);
     const current = await bootstrapFencedState(projectDir);
-    const candidate = {
-      ...current,
-      revision: current.revision + 1,
-      nodes: Object.fromEntries(Object.entries(current.nodes).map(([id, node]) => [id, { ...node, revision: current.revision + 1 }])),
-      log: [...current.log, { action: "commit" }],
-    };
-    await assert.rejects(
-      withLock(projectDir, (lockContext) => commitFencedStateUnderLock(lockContext, candidate, { faultAt: "after-pending" })),
-      /injected failure/,
-    );
+    const candidate = nextCandidate(current);
+    await assert.rejects(interruptedCommit(projectDir, candidate), /injected failure/);
 
     assert.deepEqual(await readState(projectDir), candidate);
     assert.equal(JSON.parse(await fs.readFile(ledgerFile(projectDir), "utf8")).commit_pending, null);

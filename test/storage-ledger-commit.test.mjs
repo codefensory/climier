@@ -44,6 +44,40 @@ async function withProject(fn) {
   }
 }
 
+function rejectAfterTimeout(message) {
+  return new Promise((_, reject) => setTimeout(() => reject(new Error(message)), 1000));
+}
+
+async function pathExists(filePath) {
+  return fs.stat(filePath).then(() => false, () => true);
+}
+
+function allNodesAtMostRevision(state, revision) {
+  return Object.values(state.nodes).every((node) => node.revision <= revision);
+}
+
+function commitActionCount(state) {
+  return state.log.filter((entry) => entry.action === "commit").length;
+}
+
+function assertLockContexts(context, first, second) {
+  assert.equal(assertActiveLockContext(context, first), true);
+  assert.throws(() => assertActiveLockContext(context, second), { code: "CLIMIER_INVALID_LOCK_CONTEXT" });
+  assert.throws(() => assertActiveLockContext({}), { code: "CLIMIER_INVALID_LOCK_CONTEXT" });
+}
+
+async function commitWhileLockHeld(projectDir, candidate) {
+  return withLock(projectDir, (lockContext) => commitFencedStateUnderLock(lockContext, candidate));
+}
+
+async function readCommitUnderHeldLock(projectDir) {
+  return withLock(projectDir, (lockContext) => readFencedStateUnderLock(lockContext));
+}
+
+async function runProjectSubtest(t, label, fn) {
+  await t.test(label, () => withProject(fn));
+}
+
 function nextCandidate(state, revision = state.revision + 1) {
   return {
     ...state,
@@ -74,9 +108,7 @@ test("lock context is opaque, active only for its project and invocation", async
     let expiredContext;
     await withLock(first, async (context) => {
       expiredContext = context;
-      assert.equal(assertActiveLockContext(context, first), true);
-      assert.throws(() => assertActiveLockContext(context, second), { code: "CLIMIER_INVALID_LOCK_CONTEXT" });
-      assert.throws(() => assertActiveLockContext({}), { code: "CLIMIER_INVALID_LOCK_CONTEXT" });
+      assertLockContexts(context, first, second);
     });
     assert.throws(() => assertActiveLockContext(expiredContext, first), { code: "CLIMIER_INVALID_LOCK_CONTEXT" });
   } finally {
@@ -103,12 +135,12 @@ test("fenced read requires an active capability and reads without reacquiring th
       expiredContext = lockContext;
       const result = await Promise.race([
         readFencedStateUnderLock(lockContext),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("read reacquired the held lock")), 1000)),
+        rejectAfterTimeout("read reacquired the held lock"),
       ]);
       assert.deepEqual(result, expected);
       const publicRead = await Promise.race([
         readFencedState(first),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("public read reacquired the held lock")), 1000)),
+        rejectAfterTimeout("public read reacquired the held lock"),
       ]);
       assert.deepEqual(publicRead, expected);
     });
@@ -133,12 +165,12 @@ test("fenced read rejects malformed, downgraded, generation, and revision-mismat
     ["different revision", (state) => ({ ...state, revision: state.revision + 1 })],
   ];
   for (const [label, alter] of cases) {
-    await t.test(label, async () => withProject(async (projectDir) => {
+    await runProjectSubtest(t, label, async (projectDir) => {
       await seedState(projectDir);
       const state = await bootstrapFencedState(projectDir);
       await fs.writeFile(stateFile(projectDir), `${JSON.stringify(alter(state), null, 2)}\n`, "utf8");
       await assert.rejects(readUnderLock(projectDir), { code: "CLIMIER_LEDGER_STATE_MISMATCH" });
-    }));
+    });
   }
 });
 
@@ -153,13 +185,13 @@ test("fenced commit requires an active capability and commits under the existing
     const initial = await bootstrapFencedState(projectDir);
     const candidate = nextCandidate(initial);
     const result = await Promise.race([
-      withLock(projectDir, (lockContext) => commitFencedStateUnderLock(lockContext, candidate)),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("commit reacquired the held lock")), 1000)),
+      commitWhileLockHeld(projectDir, candidate),
+      rejectAfterTimeout("commit reacquired the held lock"),
     ]);
 
     assert.equal(result.revision, candidate.revision);
     assert.deepEqual(await readFencedState(projectDir), candidate);
-    assert.equal(await fs.stat(path.join(path.dirname(stateFile(projectDir)), ".lock")).then(() => false, () => true), true);
+    assert.equal(await pathExists(path.join(path.dirname(stateFile(projectDir)), ".lock")), true);
   });
 });
 
@@ -208,14 +240,14 @@ test("fenced commit reserves at least all candidate revisions and persists exact
     assert.deepEqual(JSON.parse(raw), candidate);
     assert.equal(ledger.high_water_revision, candidate.revision);
     assert.equal(ledger.commit_pending, null);
-    assert.equal(candidate.revision >= Math.max(...Object.values(candidate.nodes).map((node) => node.revision)), true);
-    assert.equal(candidate.log.filter((entry) => entry.action === "commit").length, 1);
+    assert.equal(allNodesAtMostRevision(candidate, candidate.revision), true);
+    assert.equal(commitActionCount(candidate), 1);
   });
 });
 
 test("commit crash before durable stage or pending leaves source state and ledger unchanged", async (t) => {
   for (const faultAt of ["before-stage", "after-stage", "before-pending"]) {
-    await t.test(faultAt, async () => withProject(async (projectDir) => {
+    await runProjectSubtest(t, faultAt, async (projectDir) => {
       await seedState(projectDir);
       const current = await bootstrapFencedState(projectDir);
       const sourceRaw = await fs.readFile(stateFile(projectDir), "utf8");
@@ -224,13 +256,13 @@ test("commit crash before durable stage or pending leaves source state and ledge
       assert.equal(await fs.readFile(stateFile(projectDir), "utf8"), sourceRaw);
       assert.equal(await fs.readFile(ledgerFile(projectDir), "utf8"), ledgerRaw);
       assert.deepEqual(await readFencedState(projectDir), current);
-    }));
+    });
   }
 });
 
 test("commit recovery resumes exact source or destination fingerprints idempotently", async (t) => {
   for (const faultAt of ["after-pending", "before-state-rename", "after-state-rename", "before-ledger-clear"]) {
-    await t.test(faultAt, async () => withProject(async (projectDir) => {
+    await runProjectSubtest(t, faultAt, async (projectDir) => {
       await seedState(projectDir);
       const current = await bootstrapFencedState(projectDir);
       const candidate = nextCandidate(current);
@@ -243,7 +275,7 @@ test("commit recovery resumes exact source or destination fingerprints idempoten
       assert.equal(pending.high_water_revision, candidate.revision);
       assert.equal(typeof pending.stage_id, "string");
 
-      const recovered = await readUnderLock(projectDir);
+      const recovered = await readCommitUnderHeldLock(projectDir);
       assert.deepEqual(recovered, candidate);
       assert.deepEqual(await readUnderLock(projectDir), candidate);
       const ledger = JSON.parse(await fs.readFile(ledgerFile(projectDir), "utf8"));
@@ -251,8 +283,8 @@ test("commit recovery resumes exact source or destination fingerprints idempoten
       assert.equal(ledger.commit_pending, null);
       assert.ok(ledger.high_water_revision >= candidate.revision);
       assert.equal(pending.destination_sha256, sha256(destinationRaw));
-      assert.equal(recovered.log.filter((entry) => entry.action === "commit").length, 1);
-    }));
+      assert.equal(commitActionCount(recovered), 1);
+    });
   }
 });
 
@@ -285,17 +317,17 @@ test("commit recovery fails closed when the durable ledger advances beyond the p
 
 test("commit pending recovery rejects missing or altered durable stage without clearing pending", async (t) => {
   for (const stageState of ["missing", "altered"]) {
-    await t.test(stageState, async () => withProject(async (projectDir) => {
+    await runProjectSubtest(t, stageState, async (projectDir) => {
       await seedState(projectDir);
       const current = await bootstrapFencedState(projectDir);
       await assert.rejects(commit(projectDir, nextCandidate(current), { faultAt: "after-pending" }), /injected failure/);
       const ledger = JSON.parse(await fs.readFile(ledgerFile(projectDir), "utf8"));
       const stage = path.join(path.dirname(stateFile(projectDir)), `.commit-stage-${ledger.commit_pending.stage_id}`);
-      if (stageState === "altered") await fs.writeFile(stage, "not the staged destination", "utf8");
-      else await fs.unlink(stage);
+      if (stageState === "altered") {await fs.writeFile(stage, "not the staged destination", "utf8");}
+      else {await fs.unlink(stage);}
 
       await assert.rejects(readUnderLock(projectDir), { code: "CLIMIER_LEDGER_FINGERPRINT_MISMATCH" });
       assert.ok(JSON.parse(await fs.readFile(ledgerFile(projectDir), "utf8")).commit_pending);
-    }));
+    });
   }
 });
