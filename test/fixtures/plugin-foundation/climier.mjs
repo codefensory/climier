@@ -1,3 +1,4 @@
+/* eslint-disable complexity -- The fixture error adapter preserves nested policy error semantics. */
 import fs from "node:fs/promises";
 import path from "node:path";
 
@@ -5,9 +6,9 @@ function parseArgs(args) {
   const positional = [];
   for (let i = 0; i < args.length; i += 1) {
     const token = args[i];
-    if (typeof token !== "string") continue;
+    if (typeof token !== "string") {continue;}
     if (token.startsWith("--")) {
-      if (!token.includes("=") && args[i + 1] && !String(args[i + 1]).startsWith("--")) i += 1;
+      if (!token.includes("=") && args[i + 1] && !String(args[i + 1]).startsWith("--")) {i += 1;}
       continue;
     }
     positional.push(token);
@@ -37,6 +38,7 @@ function jsonValue(raw, name) {
   }
 }
 
+// eslint-disable-next-line complexity -- Normalize the full nested error contract at this fixture boundary.
 function failure(error) {
   const cause = error?.details?.cause || error;
   return {

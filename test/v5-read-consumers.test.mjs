@@ -1,3 +1,4 @@
+/* eslint-disable max-nested-callbacks -- Fenced-state read consumer assertions intentionally share one project fixture callback. */
 import test from "node:test";
 import assert from "node:assert/strict";
 

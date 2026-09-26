@@ -1,3 +1,4 @@
+/* eslint-disable max-statements -- This single regression test validates full actor-source precedence and persisted results. */
 // F8 — v2 agent source resolution: --as > CLIMIER_AGENT > MISSING_AGENT.
 //
 // Coverage:
@@ -25,9 +26,9 @@ function clearAgentEnv(restore) {
   const prev = process.env.CLIMIER_AGENT;
   delete process.env.CLIMIER_AGENT;
   return () => {
-    if (prev === undefined) delete process.env.CLIMIER_AGENT;
-    else process.env.CLIMIER_AGENT = prev;
-    if (restore) restore();
+    if (prev === undefined) {delete process.env.CLIMIER_AGENT;}
+    else {process.env.CLIMIER_AGENT = prev;}
+    if (restore) {restore();}
   };
 }
 
@@ -45,8 +46,8 @@ test("resolveAgent: --as takes precedence over CLIMIER_AGENT", async () => {
   try {
     assert.equal(resolveAgent({ as: "flag-agent" }, "test-cmd"), "flag-agent");
   } finally {
-    if (prev === undefined) delete process.env.CLIMIER_AGENT;
-    else process.env.CLIMIER_AGENT = prev;
+    if (prev === undefined) {delete process.env.CLIMIER_AGENT;}
+    else {process.env.CLIMIER_AGENT = prev;}
   }
 });
 
@@ -57,8 +58,8 @@ test("resolveAgent: CLIMIER_AGENT used when --as is absent", async () => {
   try {
     assert.equal(resolveAgent({}, "test-cmd"), "env-agent");
   } finally {
-    if (prev === undefined) delete process.env.CLIMIER_AGENT;
-    else process.env.CLIMIER_AGENT = prev;
+    if (prev === undefined) {delete process.env.CLIMIER_AGENT;}
+    else {process.env.CLIMIER_AGENT = prev;}
   }
 });
 
@@ -69,8 +70,8 @@ test("resolveAgent: empty --as falls through to CLIMIER_AGENT", async () => {
   try {
     assert.equal(resolveAgent({ as: "   " }, "test-cmd"), "env-agent");
   } finally {
-    if (prev === undefined) delete process.env.CLIMIER_AGENT;
-    else process.env.CLIMIER_AGENT = prev;
+    if (prev === undefined) {delete process.env.CLIMIER_AGENT;}
+    else {process.env.CLIMIER_AGENT = prev;}
   }
 });
 
@@ -112,8 +113,8 @@ test("resolveAgent: missing flags object falls through to env", async () => {
     assert.equal(resolveAgent(undefined, "test-cmd"), "env-agent");
     assert.equal(resolveAgent(null, "test-cmd"), "env-agent");
   } finally {
-    if (prev === undefined) delete process.env.CLIMIER_AGENT;
-    else process.env.CLIMIER_AGENT = prev;
+    if (prev === undefined) {delete process.env.CLIMIER_AGENT;}
+    else {process.env.CLIMIER_AGENT = prev;}
   }
 });
 
@@ -231,8 +232,8 @@ test("add-initiative: CLIMIER_AGENT is accepted when --as is absent", async () =
     });
     assert.equal(out.initiative.name, "foo");
   } finally {
-    if (prev === undefined) delete process.env.CLIMIER_AGENT;
-    else process.env.CLIMIER_AGENT = prev;
+    if (prev === undefined) {delete process.env.CLIMIER_AGENT;}
+    else {process.env.CLIMIER_AGENT = prev;}
     await rmTempProject(dir);
   }
 });
@@ -256,8 +257,8 @@ test("add-node: CLIMIER_AGENT is recorded in the log when --as is absent", async
     const last = s.log[s.log.length - 1];
     assert.equal(last.agent, "env-only-agent");
   } finally {
-    if (prev === undefined) delete process.env.CLIMIER_AGENT;
-    else process.env.CLIMIER_AGENT = prev;
+    if (prev === undefined) {delete process.env.CLIMIER_AGENT;}
+    else {process.env.CLIMIER_AGENT = prev;}
     await rmTempProject(dir);
   }
 });

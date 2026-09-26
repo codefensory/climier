@@ -9,8 +9,6 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import fs from "node:fs/promises";
-import path from "node:path";
 import {
   createTempProject,
   rmTempProject,
@@ -83,7 +81,7 @@ test("take by id: claims the requested ready task and returns the v2 envelope", 
     await addTask(dir, "T-auth-1");
     const out = await take(dir, "T-auth-1", { as: "agent-a" });
 
-    assert.deepEqual(Object.keys(out).sort(), ["context", "freshly_claimed", "node"]);
+    assert.deepEqual(Object.keys(out).toSorted(), ["context", "freshly_claimed", "node"]);
     assert.equal(out.node.id, "T-auth-1");
     assert.equal(out.node.claim.by, "agent-a");
     assert.equal(out.node.status, "in_progress");
@@ -238,7 +236,7 @@ test("CLI: take T-x --as agent-x works end to end", async () => {
     result = await runCli(["--project", dir, "take", "T-x", "--as", "agent-x"]);
     assert.equal(result.code, 0, result.stdout);
     const out = JSON.parse(result.stdout);
-    assert.deepEqual(Object.keys(out).sort(), ["context", "freshly_claimed", "node"]);
+    assert.deepEqual(Object.keys(out).toSorted(), ["context", "freshly_claimed", "node"]);
     assert.equal(out.node.id, "T-x");
     assert.equal(out.node.claim.by, "agent-x");
     assert.equal(out.freshly_claimed, true);

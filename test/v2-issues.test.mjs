@@ -25,15 +25,14 @@ import {
   importFresh,
   runCli,
   readState,
-  stateExists,
 } from "./helpers.mjs";
 
 function clearAgentEnv() {
   const prev = process.env.CLIMIER_AGENT;
   delete process.env.CLIMIER_AGENT;
   return () => {
-    if (prev === undefined) delete process.env.CLIMIER_AGENT;
-    else process.env.CLIMIER_AGENT = prev;
+    if (prev === undefined) {delete process.env.CLIMIER_AGENT;}
+    else {process.env.CLIMIER_AGENT = prev;}
   };
 }
 
@@ -89,6 +88,7 @@ test("Issue 2: add-node with missing agent does NOT mutate state (no orphan log 
   } finally { restore(); await rmTempProject(dir); }
 });
 
+// eslint-disable-next-line max-statements, max-lines-per-function -- Keep setup, rejection, and persisted-state assertions together for this atomicity contract.
 test("Issue 2: add-edge with missing agent does NOT mutate state", async () => {
   const dir = await createTempProject();
   const restore = clearAgentEnv();

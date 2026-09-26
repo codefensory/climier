@@ -1,3 +1,4 @@
+/* eslint-disable max-statements -- Fixture argument parsing retains the host’s option-forwarding contract. */
 // T-plugin-fixture — sample V1 plugin entrypoint.
 //
 // Self-contained ESM module that exposes one dedicated subcommand per
@@ -20,13 +21,18 @@
 // The module has no external runtime dependencies; it is meant to be
 // installed as a local path by `climier install <fixture-dir>`.
 
+// eslint-disable-next-line max-statements -- Keep the fixture argv parser faithful to forwarded host argument behavior.
 function parseArgs(tokens) {
   const flags = {};
   const positional = [];
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i];
-    if (typeof t !== "string") continue;
-    if (t.startsWith("--")) {
+    if (typeof t !== "string") {continue;}
+    if (!t.startsWith("--")) {
+      positional.push(t);
+      continue;
+    }
+    {
       const eq = t.indexOf("=");
       let key, val;
       if (eq !== -1) {
@@ -43,8 +49,6 @@ function parseArgs(tokens) {
         }
       }
       flags[key] = val;
-    } else {
-      positional.push(t);
     }
   }
   return { flags, positional };

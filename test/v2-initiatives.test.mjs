@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- Initiative command tests stay together as a cohesive API contract file. */
 // F3 — mandatory initiative for v2 add-node + v2 initiative commands.
 //
 // Coverage:
@@ -13,7 +14,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createTempProject, rmTempProject, importFresh, runCli, writeState as writeRawState, readState as readRawState } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, runCli, readState as readRawState } from "./helpers.mjs";
 
 // --- pure helpers -------------------------------------------------------
 
@@ -213,7 +214,7 @@ test("initiatives (v2): --all surfaces every registered initiative, even empty o
     await addInit({ statePath: dir, flags: { desc: "" }, positional: ["a"] });
     await addInit({ statePath: dir, flags: { desc: "" }, positional: ["b"] });
     const out = await initiatives({ statePath: dir, flags: { all: true } });
-    const names = out.initiatives.map((i) => i.name).sort();
+    const names = out.initiatives.map((i) => i.name).toSorted();
     assert.deepEqual(names, ["a", "b"]);
   } finally {
     await rmTempProject(dir);

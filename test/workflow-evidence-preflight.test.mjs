@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- Integration tests exercise the full worker/validator workflow in one fixture file. */
 // Tests for the EVIDENCE note emission in finish-task.sh and the read-only
 // integration-preflight.sh.
 //
@@ -17,7 +18,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { spawn, spawnSync, execFileSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -317,15 +318,15 @@ test("integration-preflight.sh: never mutates git state (read-only invariant)", 
   const { repo, wt } = makeRepo();
   try {
     const script = setupFinishScript({ repo, wt }) + `
-      BEFORE_HEAD=\$(git -C '${wt}' rev-parse HEAD)
-      BEFORE_BRANCH=\$(git -C '${wt}' rev-parse --abbrev-ref HEAD)
+      BEFORE_HEAD=$(git -C '${wt}' rev-parse HEAD)
+      BEFORE_BRANCH=$(git -C '${wt}' rev-parse --abbrev-ref HEAD)
       bash '${PREFLIGHT}' --project-root '${repo}' --task T-wp-test
-      AFTER_HEAD=\$(git -C '${wt}' rev-parse HEAD)
-      AFTER_BRANCH=\$(git -C '${wt}' rev-parse --abbrev-ref HEAD)
-      AFTER_STATUS=\$(git -C '${wt}' status --short --untracked-files=all || true)
-      echo "HEAD_MATCH=\$([ "\$BEFORE_HEAD" = "\$AFTER_HEAD" ] && echo yes || echo no)"
-      echo "BRANCH_MATCH=\$([ "\$BEFORE_BRANCH" = "\$AFTER_BRANCH" ] && echo yes || echo no)"
-      echo "STATUS_EMPTY=\$([ -z "\$AFTER_STATUS" ] && echo yes || echo no)"
+      AFTER_HEAD=$(git -C '${wt}' rev-parse HEAD)
+      AFTER_BRANCH=$(git -C '${wt}' rev-parse --abbrev-ref HEAD)
+      AFTER_STATUS=$(git -C '${wt}' status --short --untracked-files=all || true)
+      echo "HEAD_MATCH=$([ "$BEFORE_HEAD" = "$AFTER_HEAD" ] && echo yes || echo no)"
+      echo "BRANCH_MATCH=$([ "$BEFORE_BRANCH" = "$AFTER_BRANCH" ] && echo yes || echo no)"
+      echo "STATUS_EMPTY=$([ -z "$AFTER_STATUS" ] && echo yes || echo no)"
     `;
     const r = await runIsolated(script);
     assert.equal(r.code, 0, `isolated exit ${r.code}; stderr=${r.stderr}`);

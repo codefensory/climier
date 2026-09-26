@@ -1,3 +1,4 @@
+/* eslint-disable max-statements, max-lines-per-function -- The supersede lifecycle case validates complete node and edge outcomes together. */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {

@@ -1,3 +1,4 @@
+/* eslint-disable max-depth, max-lines-per-function -- Fixture handlers exercise complete API envelopes through the plugin host. */
 // T-plugin-core-e2e — V2 plugin fixture (ADR-006).
 //
 // Self-contained ESM module installed at runtime via `climier install
@@ -27,7 +28,7 @@ function parseArgs(tokens) {
   const positional = [];
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i];
-    if (typeof t !== "string" || !t) continue;
+    if (typeof t !== "string" || !t) {continue;}
     if (t.startsWith("--")) {
       const eq = t.indexOf("=");
       if (eq !== -1) {
@@ -49,20 +50,7 @@ function parseArgs(tokens) {
   return { flags, positional };
 }
 
-// requirePositional: shared helper that converts a missing positional
-// into a structured PLUGIN_HANDLER_FAILED so the bin emits a clear
 // envelope instead of an opaque throw.
-function requirePositional(positional, idx, name) {
-  const v = positional[idx];
-  if (typeof v !== "string" || !v) {
-    const e = new Error(`core: ${name} required`);
-    e.code = "PLUGIN_HANDLER_FAILED";
-    e.details = { missing: name };
-    throw e;
-  }
-  return v;
-}
-
 // envelope — turn a caught PLUGIN_CORE_* error into a JSON envelope the
 // test can assert against without re-reading the state file.
 function envelopeFor(err) {

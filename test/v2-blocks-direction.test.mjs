@@ -57,9 +57,6 @@ test("storage: add-task --blocked-by G-y stores edge {from:G-y, to:T-x, BLOCKS}"
 test("blockingForNode: T-x sees G-y as blocker (incoming edge, to === id)", async () => {
   const dir = await createTempProject();
   try {
-    const { writeState } = await import("../test/helpers.mjs");
-    const { default: write } = await import("../test/helpers.mjs");
-    // Direct write
     const state = {
       version: 2,
       initiatives: {},
@@ -113,9 +110,3 @@ test("derivation: T-x with satisfied blocker G-y is ready", async () => {
   assert.ok(d.ready.includes("T-x"), "T-x should be ready");
   assert.ok(!d.blocked.includes("T-x"));
 });
-
-// Helper
-async function importFresh(rel) {
-  const url = new URL(rel, import.meta.url).href;
-  return import(url + "?t=" + Date.now());
-}

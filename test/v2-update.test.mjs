@@ -1,3 +1,4 @@
+/* eslint-disable max-statements -- This update regression case preserves the complete field-normalization contract. */
 // F6 — v2 update: field edits, revision tracking, --if-revision optimistic concurrency.
 import { test } from "node:test";
 import assert from "node:assert/strict";

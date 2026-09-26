@@ -1,3 +1,4 @@
+/* eslint-disable max-lines, max-statements -- Lifecycle regression scenarios keep each complete transition assertion in one case. */
 // F11 — v2 lifecycle: release, submit/accept, gate resolve, reopen, cancel.
 //
 // Pins the behaviors the design doc requires of v2 lifecycle commands:
@@ -304,38 +305,37 @@ test("v2-release: missing --as returns MISSING_AGENT", async () => {
     assert.ok(caught);
     assert.equal(caught.code, "MISSING_AGENT");
   } finally {
-    if (prev === undefined) delete process.env.CLIMIER_AGENT;
-    else process.env.CLIMIER_AGENT = prev;
+    if (prev === undefined) {delete process.env.CLIMIER_AGENT;}
+    else {process.env.CLIMIER_AGENT = prev;}
     await rmTempProject(dir);
   }
 });
 
 // === resolve ============================================================
 
+async function resolve(dir, flags, positional) {
+  const { default: resolveCommand } = await importFresh("./cli/commands/resolve.mjs");
+  return resolveCommand({ statePath: dir, projectDir: dir, flags, positional });
+}
+
 test("v2-resolve: task targets are rejected; accept is the done transition", async () => {
-  const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
   const dir = await v2Project();
   try {
     await addTask(dir, "T-auth-1");
     await take(dir, "alice");
     let caught;
-    try { await resolve({ statePath: dir, flags: { as: "alice", note: "done" }, positional: ["T-auth-1"] }); } catch (e) { caught = e; }
+    try { await resolve(dir, { as: "alice", note: "done" }, ["T-auth-1"]); } catch (e) { caught = e; }
     assert.equal(caught.code, "INVALID_EXECUTION_CONTRACT");
     assert.equal((await readState(dir)).nodes["T-auth-1"].status, "in_progress");
   } finally { await rmTempProject(dir); }
 });
 
 test("v2-resolve: gate resolve — --choice and --rationale required, status=resolved, resolution set", async () => {
-  const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
   const dir = await v2Project();
   try {
     await addGate(dir, "G-auth-v2");
     const beforeResolve = (await readState(dir)).nodes["G-auth-v2"].revision;
-    const out = await resolve({
-      statePath: dir,
-      flags: { as: "test-agent", choice: "opaque sessions", rationale: "immediate revocation" },
-      positional: ["G-auth-v2"],
-    });
+    const out = await resolve(dir, { as: "test-agent", choice: "opaque sessions", rationale: "immediate revocation" }, ["G-auth-v2"]);
     assert.equal(out.node.status, "resolved");
     assert.equal(out.node.resolution.choice, "opaque sessions");
     assert.equal(out.node.resolution.rationale, "immediate revocation");
@@ -352,17 +352,12 @@ test("v2-resolve: gate resolve — --choice and --rationale required, status=res
 });
 
 test("v2-resolve: gate resolve missing --choice returns MISSING_FIELD", async () => {
-  const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
   const dir = await v2Project();
   try {
     await addGate(dir, "G-auth-v2");
     let caught;
     try {
-      await resolve({
-        statePath: dir,
-        flags: { as: "test-agent", rationale: "x" },
-        positional: ["G-auth-v2"],
-      });
+      await resolve(dir, { as: "test-agent", rationale: "x" }, ["G-auth-v2"]);
     } catch (e) { caught = e; }
     assert.ok(caught);
     assert.equal(caught.code, "MISSING_FIELD");
@@ -371,17 +366,12 @@ test("v2-resolve: gate resolve missing --choice returns MISSING_FIELD", async ()
 });
 
 test("v2-resolve: gate resolve missing --rationale returns MISSING_FIELD", async () => {
-  const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
   const dir = await v2Project();
   try {
     await addGate(dir, "G-auth-v2");
     let caught;
     try {
-      await resolve({
-        statePath: dir,
-        flags: { as: "test-agent", choice: "x" },
-        positional: ["G-auth-v2"],
-      });
+      await resolve(dir, { as: "test-agent", choice: "x" }, ["G-auth-v2"]);
     } catch (e) { caught = e; }
     assert.ok(caught);
     assert.equal(caught.code, "MISSING_FIELD");
@@ -390,16 +380,11 @@ test("v2-resolve: gate resolve missing --rationale returns MISSING_FIELD", async
 });
 
 test("v2-resolve: missing node returns NODE_NOT_FOUND", async () => {
-  const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
   const dir = await v2Project();
   try {
     let caught;
     try {
-      await resolve({
-        statePath: dir,
-        flags: { as: "alice", choice: "x", rationale: "missing" },
-        positional: ["ghost"],
-      });
+      await resolve(dir, { as: "alice", choice: "x", rationale: "missing" }, ["ghost"]);
     } catch (e) { caught = e; }
     assert.ok(caught);
     assert.equal(caught.code, "NODE_NOT_FOUND");
@@ -409,9 +394,9 @@ test("v2-resolve: missing node returns NODE_NOT_FOUND", async () => {
 
 // === reopen =============================================================
 
+// eslint-disable-next-line max-statements -- One lifecycle test pins the complete reopened entity and atomic audit log.
 test("v2-reopen: original done_by can reopen a done task; status -> open, claim cleared, done_* removed", async () => {
   const { default: reopen } = await importFresh("./cli/commands/reopen.mjs");
-  const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
   const dir = await v2Project();
   try {
     await addTask(dir, "T-auth-1");
@@ -452,7 +437,6 @@ test("v2-reopen: any agent may reopen a done task when policy allow applies", as
   // T-plugin-policy-seam-lifecycle / ADR-008: the historical
   // orchestrator-reopen bypass is replaced by a policy seam allow.
   const { default: reopen } = await importFresh("./cli/commands/reopen.mjs");
-  const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
   const dir = await v2Project();
   await installPolicyFixture(dir);
   try {
@@ -479,7 +463,6 @@ test("v2-reopen: any actor may reopen a done task with no policy (defaults core)
   // --as may reopen a task in a terminal reopenable state. done_by /
   // done_at / note are cleared exactly as before.
   const { default: reopen } = await importFresh("./cli/commands/reopen.mjs");
-  const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
   const dir = await v2Project();
   try {
     await addTask(dir, "T-auth-1");
@@ -505,7 +488,6 @@ test("v2-reopen: any actor may reopen a done task with no policy (defaults core)
 
 test("v2-reopen: re-blocks downstream tasks (DAG consequence)", async () => {
   const { default: reopen } = await importFresh("./cli/commands/reopen.mjs");
-  const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
   const dir = await v2Project();
   try {
     await addTask(dir, "T-blocker");
@@ -530,7 +512,6 @@ test("v2-reopen: re-blocks downstream tasks (DAG consequence)", async () => {
 
 test("v2-reopen: missing --reason returns MISSING_FIELD", async () => {
   const { default: reopen } = await importFresh("./cli/commands/reopen.mjs");
-  const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
   const dir = await v2Project();
   try {
     await addTask(dir, "T-auth-1");
@@ -711,7 +692,6 @@ test("v2-cancel: submitted task becomes canceled and remains an unsatisfied bloc
 
 test("v2-cancel: done task returns INVALID_STATUS (cannot cancel terminal)", async () => {
   const { default: cancel } = await importFresh("./cli/commands/cancel.mjs");
-  const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
   const dir = await v2Project();
   try {
     await addTask(dir, "T-auth-1");

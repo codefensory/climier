@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- Status and history contracts remain grouped by API surface. */
 // F12 — v2 status, history, deprecate-knowledge.
 //
 // Three concerns:
@@ -14,7 +15,7 @@ import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, importFresh, readState as readRawState, writeFencedState, runCli } from "./helpers.mjs";
 
 async function bootstrapProject(dir, initName) {
-  if (initName === undefined) initName = "work";
+  if (initName === undefined) {initName = "work";}
   const { default: init } = await importFresh("./cli/commands/init.mjs");
   const { default: addInitiative } = await importFresh("./cli/commands/add-initiative.mjs");
   await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
@@ -160,7 +161,7 @@ test("status: --kind knowledge dumps knowledge items when --all is set", async (
     assert.ok(Array.isArray(out.knowledge), "--all dumps actual knowledge items");
     assert.equal(out.knowledge.length, 2);
     assert.equal(out.knowledge_count, 2);
-    const ids = out.knowledge.map((k) => k.id).sort();
+    const ids = out.knowledge.map((k) => k.id).toSorted();
     assert.deepEqual(ids, ["K-bar", "K-foo"]);
     // The default `active_knowledge` count is 2 (no deprecations yet).
     assert.equal(out.summary.active_knowledge, 2);
@@ -210,7 +211,7 @@ test("status: in_progress visibility is global by default; --as does not restric
     assert.equal(all.summary.in_progress, 2,
       `expected summary.in_progress=2 by default; got ${all.summary.in_progress}`);
     assert.equal(all.tasks.in_progress.length, 2);
-    const owners = all.tasks.in_progress.map((t) => t.claimed_by).sort();
+    const owners = all.tasks.in_progress.map((t) => t.claimed_by).toSorted();
     assert.deepEqual(owners, ["alice", "bob"]);
 
     // --as is an identity tag, not a filter: alice still sees both claims.
@@ -438,7 +439,7 @@ test("deprecate-knowledge: missing --as throws MISSING_AGENT", async () => {
       (err) => err.code === "MISSING_AGENT",
     );
   } finally {
-    if (prev !== undefined) process.env.CLIMIER_AGENT = prev;
+    if (prev !== undefined) {process.env.CLIMIER_AGENT = prev;}
     await rmTempProject(dir);
   }
 });
