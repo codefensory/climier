@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 
 import {
   collectRelativeImports,
@@ -59,6 +60,29 @@ test("boundary matcher detects every prohibited direction", () => {
     });
     assert.equal(violations.length, 3, `${boundary.name} should detect all of its forbidden roots`);
   }
+});
+
+test("HTTP modules do not import storage", async () => {
+  const imports = await collectRelativeImports("src/server/http");
+  assert.ok(imports.length > 0, "HTTP modules should have imports to inspect");
+  assert.deepEqual(findBoundaryViolations(imports, {
+    sourceRoot: "server/http",
+    forbiddenRoots: ["storage"],
+  }), []);
+});
+
+test("HTTP transfers delegate through kernel transfer ports", async () => {
+  const imports = await collectRelativeImports("src/server/http");
+  const transferImports = imports.filter(({ sourceFile }) => sourceFile === "server/http/transfers.mjs");
+  assert.ok(transferImports.some(({ targetFile }) => targetFile === "kernel/transfer.mjs"));
+  const source = await readFile("src/server/http/transfers.mjs", "utf8");
+  assert.match(source, /captureTransferSource\(/);
+  assert.match(source, /installTransferDestination\(/);
+});
+
+test("HTTP facade remains the only HTTP module allowed to read storage", async () => {
+  const source = await readFile("src/server/http.mjs", "utf8");
+  assert.match(source, /from "\.\.\/storage\/state\.mjs"/);
 });
 
 test("scanner recognizes canonical inward dependencies", async () => {
