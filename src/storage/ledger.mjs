@@ -113,6 +113,13 @@ async function syncDirectory(directory) {
   }
 }
 
+function validRecoveryInputFingerprint(pending) {
+  if (pending.input_sha256 === null) {
+    return pending.candidate_supplied !== true;
+  }
+  return typeof pending.input_sha256 === "string" && /^[a-f0-9]{64}$/.test(pending.input_sha256);
+}
+
 function assertValidLedger(ledger) {
   if (!ledger || typeof ledger !== "object" || Array.isArray(ledger)
       || ledger.version !== LEDGER_VERSION
@@ -185,7 +192,8 @@ function assertValidLedger(ledger) {
     const pending = ledger.recovery_pending;
     if (typeof pending.source_sha256 !== "string" || !/^[a-f0-9]{64}$/.test(pending.source_sha256)
         || typeof pending.destination_sha256 !== "string" || !/^[a-f0-9]{64}$/.test(pending.destination_sha256)
-        || typeof pending.input_sha256 !== "string" || !/^[a-f0-9]{64}$/.test(pending.input_sha256)
+        || !validRecoveryInputFingerprint(pending)
+        || !(pending.candidate_supplied === undefined || typeof pending.candidate_supplied === "boolean")
         || typeof pending.stage_id !== "string" || !/^[a-f0-9]{32}$/.test(pending.stage_id)
         || !Number.isInteger(pending.source_high_water_revision) || pending.source_high_water_revision < 1
         || !Number.isInteger(pending.high_water_revision) || pending.high_water_revision !== ledger.high_water_revision
@@ -609,6 +617,7 @@ async function finishPendingRecovery({ statePath, ledgerPath, ledger, rawState, 
     source_sha256: pending.source_sha256,
     destination_sha256: pending.destination_sha256,
     input_sha256: pending.input_sha256,
+    ...(pending.candidate_supplied === undefined ? {} : { candidate_supplied: pending.candidate_supplied }),
     source_version: pending.source_version,
     source_high_water_revision: pending.source_high_water_revision,
     high_water_revision: pending.high_water_revision,
@@ -813,6 +822,7 @@ async function replaceUnderActiveLock(lockContext, candidate, opts = {}) {
   fault(opts, "after-stage");
   fault(opts, "before-pending");
   ledger.replace_pending = pending;
+  delete ledger.last_recovery;
   ledger.high_water_revision = prepared.highWater;
   await persistLedger(ledgerPath, ledger);
   fault(opts, "after-pending");
@@ -839,6 +849,7 @@ async function cleanOrphanReplaceStages(statePath) {
 }
 
 async function recoverUnderActiveLock(lockContext, candidate, opts = {}) {
+  const candidateSupplied = candidate !== undefined;
   const { projectDir, statePath } = getActiveLockContext(lockContext);
   const ledgerPath = ledgerFile(projectDir);
   let rawState;
@@ -871,6 +882,14 @@ async function recoverUnderActiveLock(lockContext, candidate, opts = {}) {
   if (ledger.commit_pending) return finishPendingCommit({ statePath, ledgerPath, ledger, rawState, opts });
   if (ledger.recovery_pending) {
     const pending = ledger.recovery_pending;
+    if (candidate !== undefined && pending.input_sha256 === null
+        && pending.candidate_supplied === true) {
+      throw fingerprintMismatch("retry candidate does not match the pending recovery input fingerprint");
+    }
+    if (pending.input_sha256 !== null && candidate !== undefined
+        && pending.input_sha256 !== sha256(`${JSON.stringify(candidate, null, 2)}\n`)) {
+      throw fingerprintMismatch("retry candidate does not match the pending recovery input fingerprint");
+    }
     if (!candidate && sha256(rawState) === pending.destination_sha256) {
       candidate = readJson(rawState, "recovered state");
     }
@@ -928,6 +947,7 @@ async function recoverUnderActiveLock(lockContext, candidate, opts = {}) {
     source_sha256: sourceHash,
     destination_sha256: destinationHash,
     input_sha256: inputHash,
+    ...(candidateSupplied ? { candidate_supplied: true } : {}),
     stage_id: stageId,
     source_version: corruptSource ? 4 : source.version,
     source_high_water_revision: ledger.high_water_revision,
@@ -1335,6 +1355,7 @@ export async function commitFencedStateUnderLock(lockContext, candidate, opts = 
   fault(opts, "after-stage");
   fault(opts, "before-pending");
   ledger.commit_pending = pending;
+  delete ledger.last_recovery;
   // Reserve before installing state so the durable fence never moves backward.
   ledger.high_water_revision = highWater;
   await persistLedger(ledgerPath, ledger);
