@@ -11,6 +11,26 @@ import { writeState } from "./helpers.mjs";
 import { projectInitiativesView, projectSearchView } from "../src/read-model/index.mjs";
 import { readModelParity } from "./fixtures/read-model-parity.mjs";
 
+const canonicalReadMatrix = [
+  ...readModelParity.matrix,
+  { name: "log filters", route: "read/log", command: "log", query: "action=take&limit=1", positional: [] },
+];
+
+const consumerSources = {
+  status: new URL("../src/cli/commands/status.mjs", import.meta.url),
+  context: new URL("../src/cli/commands/context.mjs", import.meta.url),
+  search: new URL("../src/cli/commands/search.mjs", import.meta.url),
+  initiatives: new URL("../src/cli/commands/initiatives.mjs", import.meta.url),
+  log: new URL("../src/cli/commands/log.mjs", import.meta.url),
+  http: new URL("../src/server/http.mjs", import.meta.url),
+  plugin: new URL("../src/plugins/query.mjs", import.meta.url),
+  ui: new URL("../ui/server/server.mjs", import.meta.url),
+};
+
+async function source(url) {
+  return fs.readFile(url, "utf8");
+}
+
 function authHeaders() {
   return { authorization: "Bearer test-token", "x-climier-protocol-version": "1" };
 }
@@ -120,9 +140,9 @@ test("pure search projection matches the fixture's active and historical knowled
   assert.deepEqual(projectSearchView({ snapshot: readModelParity.snapshot, query: "" }), { matches: [], count: 0 });
 });
 
-test("read-model contract matrix matches CLI and HTTP projections for the same snapshot", async () => {
+test("canonical CLI and HTTP read owners match across every view fixture", async () => {
   await withParityEnvironment(async ({ baseUrl, projectDir }) => {
-    for (const entry of readModelParity.matrix) {
+    for (const entry of canonicalReadMatrix) {
       const query = entry.query ? `?${entry.query}` : "";
       const response = await fetch(`${baseUrl}/v1/projects/matrix/${entry.route}${query}`, { headers: authHeaders() });
       assert.equal(response.status, 200, `${entry.name}: HTTP ${JSON.stringify(await response.clone().json())}`);
@@ -135,4 +155,45 @@ test("read-model contract matrix matches CLI and HTTP projections for the same s
       );
     }
   });
+});
+
+test("read consumers delegate canonical views and retain adapter-specific shapes", async () => {
+  const [status, context, search, initiatives, log, http, plugin, ui] = await Promise.all(
+    Object.values(consumerSources).map(source),
+  );
+
+  assert.match(status, /projectStatusView/);
+  assert.match(status, /function emptyResult\(/, "CLI owns only its neutral missing-state result");
+  assert.match(context, /projectContextView/);
+  assert.doesNotMatch(context, /function contextView\(/);
+  assert.match(search, /projectSearchView/);
+  assert.match(initiatives, /projectInitiativesView/);
+  assert.match(log, /projectLogView/);
+  for (const [name, text] of [["search", search], ["initiatives", initiatives], ["log", log]]) {
+    assert.doesNotMatch(text, /\.filter\(|\.sort\(/, `${name} owns no duplicate projection assembly`);
+  }
+
+  for (const projection of ["projectStatusView", "projectContextView", "projectSearchView", "projectInitiativesView", "projectLogView"]) {
+    assert.match(http, new RegExp(projection));
+  }
+  assert.match(http, /function contextProjection\(snapshot, id, query, now\)/, "HTTP retains its adapter error boundary");
+  assert.match(http, /function entryReferencesId\(/, "HTTP history remains a distinct view");
+
+  assert.match(plugin, /projectStatusView/);
+  assert.match(plugin, /blockingForNode/);
+  assert.match(plugin, /knowledgeForNode/);
+  assert.match(plugin, /informingForNode/);
+  assert.match(plugin, /statusOf/);
+  assert.match(plugin, /function contextView\(/, "plugin keeps its non-equivalent context DTO");
+  assert.match(plugin, /function claimFor\(/, "plugin stale-claim timing remains plugin-specific");
+  assert.match(plugin, /function allowedActions\(/, "plugin allowed actions remain identity-based");
+  assert.match(plugin, /function entryReferencesId\(/, "plugin history remains a distinct view");
+  assert.match(plugin, /query\.node: id required/);
+  assert.match(plugin, /show: state file missing/);
+  assert.match(plugin, /query\.context: node \$\{id\} not found/);
+
+  assert.match(ui, /derive\(\{ snapshot: state \}\)/, "UI shares canonical graph derivation");
+  assert.match(ui, /function detectStaleClaims\(/, "UI stale-claim projection keeps its DTO semantics");
+  assert.match(ui, /function summaryOf\(/, "UI summary remains UI-specific");
+  assert.match(ui, /open_decisions/);
 });
