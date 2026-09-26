@@ -23,6 +23,7 @@ const consumerSources = {
   initiatives: new URL("../src/cli/commands/initiatives.mjs", import.meta.url),
   log: new URL("../src/cli/commands/log.mjs", import.meta.url),
   http: new URL("../src/server/http.mjs", import.meta.url),
+  httpReads: new URL("../src/server/http/reads.mjs", import.meta.url),
   plugin: new URL("../src/plugins/query.mjs", import.meta.url),
   ui: new URL("../ui/server/server.mjs", import.meta.url),
 };
@@ -158,7 +159,7 @@ test("canonical CLI and HTTP read owners match across every view fixture", async
 });
 
 test("read consumers delegate canonical views and retain adapter-specific shapes", async () => {
-  const [status, context, search, initiatives, log, http, plugin, ui] = await Promise.all(
+  const [status, context, search, initiatives, log, http, httpReads, plugin, ui] = await Promise.all(
     Object.values(consumerSources).map(source),
   );
 
@@ -174,10 +175,11 @@ test("read consumers delegate canonical views and retain adapter-specific shapes
   }
 
   for (const projection of ["projectStatusView", "projectContextView", "projectSearchView", "projectInitiativesView", "projectLogView"]) {
-    assert.match(http, new RegExp(projection));
+    assert.match(httpReads, new RegExp(projection));
   }
-  assert.match(http, /function contextProjection\(snapshot, id, query, now\)/, "HTTP retains its adapter error boundary");
-  assert.match(http, /function entryReferencesId\(/, "HTTP history remains a distinct view");
+  assert.match(httpReads, /function contextProjection\(snapshot, id, filters, now\)/, "HTTP reads retains its adapter error boundary");
+  assert.match(httpReads, /function entryReferencesId\(/, "HTTP history remains a distinct view");
+  assert.doesNotMatch(http, /projectStatusView|projectContextView|projectSearchView|projectInitiativesView|projectLogView/);
 
   assert.match(plugin, /projectStatusView/);
   assert.match(plugin, /blockingForNode/);
