@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 
 import * as httpServer from "../src/server/http.mjs";
+import { createHttpCodec } from "../src/server/http/codec.mjs";
 
 const { createRemoteApiServer, PROTOCOL_VERSION } = httpServer;
 import { createProjectCatalog } from "../src/server/catalog/index.mjs";
@@ -614,6 +615,29 @@ test("HTTP v1 authenticates before storage access and isolates projects", async 
     const statusB = await fetch(`${baseUrl}/v1/projects/project-b/read/status`, { headers: authHeaders() });
     assert.deepEqual((await statusA.json()).result.tasks.ready, []);
     assert.deepEqual((await statusB.json()).result.tasks.ready, []);
+  });
+});
+
+test("HTTP codec keeps path and body decoding contracts and receives the public protocol version", async () => {
+  const codec = createHttpCodec({ protocolVersion: PROTOCOL_VERSION });
+  assert.equal(codec.protocolVersion, PROTOCOL_VERSION);
+
+  assert.deepEqual(codec.parseProjectPath("/v1/projects/project-a/read/status"), {
+    projectId: "project-a",
+    route: "read/status",
+  });
+  assert.throws(() => codec.parseProjectPath("/v1/projects/%E0%A4%A/read/status"), {
+    code: "INVALID_PROJECT_ID",
+    status: 400,
+  });
+  assert.throws(() => codec.readRoute("read/show/%E0%A4%A"), {
+    code: "INVALID_REQUEST",
+    status: 400,
+  });
+
+  await assert.rejects(codec.readJsonBody({ headers: { "content-type": "text/plain" }, async *[Symbol.asyncIterator]() {} }), {
+    code: "UNSUPPORTED_MEDIA_TYPE",
+    status: 415,
   });
 });
 
