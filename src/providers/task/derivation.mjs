@@ -7,7 +7,6 @@
 
 const NON_OPEN_TASK_STATUSES = new Set(["in_progress", "submitted", "done", "archived", "canceled"]);
 const SATISFIED_TASK_STATUSES = new Set(["done", "archived"]);
-const SATISFIED_GATE_STATUSES = new Set(["resolved"]);
 
 function nodesOf(state) {
   return state && state.nodes && typeof state.nodes === "object" ? state.nodes : {};
@@ -25,7 +24,30 @@ export function supersededBy(state, id) {
   return edgesOf(state)
     .filter((edge) => edge.type === "SUPERSEDES" && edge.to === id)
     .map((edge) => edge.from)
-    .sort()[0] || null;
+    .toSorted()[0] || null;
+}
+
+function isSatisfiedNode(node, state, id, seen) {
+  if (node.subkind === "task") {
+    return SATISFIED_TASK_STATUSES.has(node.status || "open");
+  }
+  if (node.subkind !== "gate") {
+    return false;
+  }
+  const status = node.status || "open";
+  if (status === "resolved") {
+    return true;
+  }
+  if (status !== "superseded") {
+    return false;
+  }
+  const nextId = supersededBy(state, id);
+  if (!nextId) {
+    return false;
+  }
+  const nextSeen = new Set(seen);
+  nextSeen.add(id);
+  return isSatisfiedV2(state, nextId, nextSeen);
 }
 
 /**
@@ -36,21 +58,11 @@ export function supersededBy(state, id) {
  * malformed graph remains blocked instead of overflowing the stack.
  */
 export function isSatisfiedV2(state, id, seen = new Set()) {
-  const nodes = nodesOf(state);
-  const node = nodes[id];
-  if (!node || node.kind === "knowledge" || seen.has(id)) return false;
-
-  const status = node.status || "open";
-  if (node.subkind === "task") return SATISFIED_TASK_STATUSES.has(status);
-  if (node.subkind !== "gate") return false;
-  if (status === "resolved") return true;
-  if (status !== "superseded") return false;
-
-  const nextId = supersededBy(state, id);
-  if (!nextId) return false;
-  const nextSeen = new Set(seen);
-  nextSeen.add(id);
-  return isSatisfiedV2(state, nextId, nextSeen);
+  const node = nodesOf(state)[id];
+  if (!node || node.kind === "knowledge" || seen.has(id)) {
+    return false;
+  }
+  return isSatisfiedNode(node, state, id, seen);
 }
 
 /**
@@ -60,13 +72,14 @@ export function isSatisfiedV2(state, id, seen = new Set()) {
  * remain blocked without requiring a separate topological traversal.
  */
 export function isTaskReady(state, id) {
-  const nodes = nodesOf(state);
-  const node = nodes[id];
-  if (!node || node.kind !== "resolvable" || node.subkind !== "task") return false;
-
+  const node = nodesOf(state)[id];
+  if (!node || node.kind !== "resolvable" || node.subkind !== "task") {
+    return false;
+  }
   const status = node.status || "open";
-  if (NON_OPEN_TASK_STATUSES.has(status) || node.backlog === true) return false;
-
+  if (NON_OPEN_TASK_STATUSES.has(status) || node.backlog === true) {
+    return false;
+  }
   return edgesOf(state)
     .filter((edge) => edge.type === "BLOCKS" && edge.to === id)
     .every((edge) => isSatisfiedV2(state, edge.from));
@@ -91,6 +104,28 @@ export function collectReadyTasks(state) {
   return ready;
 }
 
+function collectOpenGate(id, node, status, openGates) {
+  if (node.subkind === "gate" && status === "open") {
+    openGates.push(id);
+  }
+}
+
+function collectTaskStatus(state, task, pools) {
+  const { id, node, status } = task;
+  if (node.subkind === "gate" || NON_OPEN_TASK_STATUSES.has(status)) {
+    return;
+  }
+  if (node.backlog === true) {
+    pools.backlog.push(id);
+    return;
+  }
+  if (isTaskReady(state, id)) {
+    pools.ready.push(id);
+  } else {
+    pools.blocked.push(id);
+  }
+}
+
 /**
  * Derive the v2 task pools and open gates.
  *
@@ -99,29 +134,27 @@ export function collectReadyTasks(state) {
  * open gates are reported separately from tasks.
  */
 export function deriveV2(state) {
-  const ready = [];
-  const blocked = [];
-  const backlog = [];
-  const openGates = [];
+  const pools = { ready: [], blocked: [], backlog: [], openGates: [] };
   const nodes = nodesOf(state);
-
   for (const [id, node] of Object.entries(nodes)) {
-    if (!node || node.kind !== "resolvable") continue;
+    if (!node || node.kind !== "resolvable") {
+      continue;
+    }
     const status = node.status || "open";
-    if (node.subkind === "gate") {
-      if (status === "open") openGates.push(id);
-      continue;
-    }
-    if (NON_OPEN_TASK_STATUSES.has(status)) continue;
-    if (node.backlog === true) {
-      backlog.push(id);
-      continue;
-    }
-    if (isTaskReady(state, id)) ready.push(id);
-    else blocked.push(id);
+    collectOpenGate(id, node, status, pools.openGates);
+    collectTaskStatus(state, { id, node, status }, pools);
   }
+  return pools;
+}
 
-  return { ready, blocked, backlog, openGates };
+function lifecycleStatus(node, status) {
+  if (node.kind === "knowledge") {
+    return node.status || "active";
+  }
+  if (["in_progress", "submitted", "done", "archived", "canceled", "resolved", "superseded"].includes(status)) {
+    return status;
+  }
+  return null;
 }
 
 /**
@@ -129,16 +162,18 @@ export function deriveV2(state) {
  */
 export function statusOfV2(state, id) {
   const node = nodesOf(state)[id];
-  if (!node) return "unknown";
-  if (node.kind === "knowledge") return node.status || "active";
-
-  const status = node.status || "open";
-  if (["in_progress", "submitted", "done", "archived", "canceled", "resolved", "superseded"].includes(status)) {
-    return status;
+  if (!node) {
+    return "unknown";
   }
-  if (node.backlog === true) return "backlog";
-  if (isTaskReady(state, id)) return "ready";
-  return "blocked";
+  const status = node.status || "open";
+  const lifecycle = lifecycleStatus(node, status);
+  if (lifecycle) {
+    return lifecycle;
+  }
+  if (node.backlog === true) {
+    return "backlog";
+  }
+  return isTaskReady(state, id) ? "ready" : "blocked";
 }
 
 // Explicit provider vocabulary for lifecycle projections. The aliases avoid

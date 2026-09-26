@@ -56,11 +56,17 @@ function validateInputShape(input, request) {
   if (!actor) {
     throwV2("MISSING_FIELD", `${OP}: input.actor required`, { field: "actor" });
   }
+  validateClaimTimestamp(input);
+  return actor;
+}
+
+function validateClaimTimestamp(input) {
   const at = input.at === undefined ? new Date().toISOString() : input.at;
   if (typeof at !== "string" || at.length === 0) {
-    throwV2("INVALID_EXECUTION_CONTRACT", `${OP}: input.at must be an ISO string when present`, { field: "at" });
+    throwV2("INVALID_EXECUTION_CONTRACT", `${OP}: input.at must be an ISO string when present`, {
+      field: "at",
+    });
   }
-  return actor;
 }
 
 function validateTarget(input, snapshot) {
@@ -94,46 +100,32 @@ function validateTarget(input, snapshot) {
 //   open          | n/a         | task.take      | false    | false
 //   open + blocked deps         | NOT_READY
 //   any other status            | NOT_READY
+function actionForExistingClaim(actor, owner) {
+  if (owner === actor) {
+    return Object.freeze({ action: "task.take", takeover: false, idempotent: true, previous_owner: null });
+  }
+  if (owner) {
+    return Object.freeze({ action: "task.takeover", takeover: true, idempotent: false, previous_owner: owner });
+  }
+  return null;
+}
+
 function classifyAction(node, actor, snapshot) {
   const status = node.status || "open";
-  const owner = node.claim && node.claim.by ? node.claim.by : null;
-
-  if (status === "in_progress" && owner === actor) {
-    return Object.freeze({
-      action: "task.take",
-      takeover: false,
-      idempotent: true,
-      previous_owner: null,
-    });
-  }
-  if (status === "in_progress" && owner && owner !== actor) {
-    return Object.freeze({
-      action: "task.takeover",
-      takeover: true,
-      idempotent: false,
-      previous_owner: owner,
-    });
+  if (status === "in_progress") {
+    const owner = node.claim && node.claim.by ? node.claim.by : null;
+    const claimedAction = actionForExistingClaim(actor, owner);
+    if (claimedAction) {
+      return claimedAction;
+    }
   }
   if (status !== "open") {
-    throwV2(
-      "NOT_READY",
-      `${OP}: task '${node.id}' is '${status}', not ready`,
-      { id: node.id, status },
-    );
+    throwV2("NOT_READY", `${OP}: task '${node.id}' is '${status}', not ready`, { id: node.id, status });
   }
   if (!isTaskReady(snapshot, node.id)) {
-    throwV2(
-      "NOT_READY",
-      `${OP}: task '${node.id}' is blocked by unfinished deps`,
-      { id: node.id, status },
-    );
+    throwV2("NOT_READY", `${OP}: task '${node.id}' is blocked by unfinished deps`, { id: node.id, status });
   }
-  return Object.freeze({
-    action: "task.take",
-    takeover: false,
-    idempotent: false,
-    previous_owner: null,
-  });
+  return Object.freeze({ action: "task.take", takeover: false, idempotent: false, previous_owner: null });
 }
 
 /**
