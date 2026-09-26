@@ -32,7 +32,7 @@ export function supersededBy(state, id) {
   const next = incoming({ edges: edgesOf(state) }, id, "SUPERSEDES")
     .map((edge) => edge.from)
     .filter((candidate) => typeof candidate === "string")
-    .sort();
+    .toSorted();
   return next[0] || null;
 }
 
@@ -47,22 +47,38 @@ export function isCurrent(state, id) {
  * treated as unsatisfied rather than recursing forever.
  */
 export function isSatisfied(state, id, seen) {
-  const nodes = nodesOf(state);
-  const node = nodes[id];
-  if (!node || node.kind === "knowledge") return false;
+  return satisfyNode(state, nodesOf(state)[id], id, seen || new Set());
+}
 
-  const visited = seen || new Set();
-  if (visited.has(id)) return false;
+function satisfyNode(state, node, id, visited) {
+  if (!node || node.kind === "knowledge") {
+    return false;
+  }
+
+  if (visited.has(id)) {
+    return false;
+  }
 
   const status = node.status || "open";
-  if (node.subkind === "task") return TERMINAL_TASK_STATUSES.has(status);
-  if (node.subkind !== "gate") return false;
-  if (status === "resolved") return true;
-  if (status !== "superseded") return false;
+  if (node.subkind === "task") {
+    return TERMINAL_TASK_STATUSES.has(status);
+  }
+  if (node.subkind === "gate") {
+    return satisfyGate(state, id, status, visited);
+  }
+  return false;
+}
 
+function satisfyGate(state, id, status, visited) {
+  if (status === "resolved") {
+    return true;
+  }
+  if (status !== "superseded") {
+    return false;
+  }
   visited.add(id);
   const nextId = supersededBy(state, id);
-  return nextId ? isSatisfied(state, nextId, visited) : false;
+  return nextId ? satisfyNode(state, nodesOf(state)[nextId], nextId, visited) : false;
 }
 
 /** Same satisfaction rule when callers already hold the graph pair. */
@@ -77,9 +93,9 @@ function incomingBlockers(edges, id) {
 /** Pure readiness check matching the v2 task derivation. */
 export function taskIsReadyByGraph(nodes, edges, id) {
   const node = nodes && nodes[id];
-  if (!node || node.kind !== "resolvable" || node.subkind !== "task") return false;
-  const status = node.status || "open";
-  if (OUT_OF_READY_POOL_STATUSES.has(status) || node.backlog === true) return false;
+  if (!isReadyTaskCandidate(node) || !isInReadyPool(node, node.status || "open")) {
+    return false;
+  }
   return incomingBlockers(Array.isArray(edges) ? edges : [], id)
     .every((edge) => isSatisfiedByGraph(nodes, edges, edge.from));
 }
@@ -90,29 +106,50 @@ export function taskIsReadyByGraph(nodes, edges, id) {
  * tasks. The result is sorted for stable provider effects.
  */
 export function diffReadyByGate(snapshotGraph, viewGraph, gateId, direction) {
-  const before = snapshotGraph && typeof snapshotGraph === "object" ? snapshotGraph : {};
-  const after = viewGraph && typeof viewGraph === "object" ? viewGraph : {};
-  const snapshotNodes = before.nodes && typeof before.nodes === "object" ? before.nodes : {};
-  const snapshotEdges = Array.isArray(before.edges) ? before.edges : [];
-  const viewNodes = after.nodes && typeof after.nodes === "object" ? after.nodes : {};
-  const viewEdges = Array.isArray(after.edges) ? after.edges : [];
-  const up = direction === "up";
-  const result = [];
+  const before = normalizeGraph(snapshotGraph);
+  const after = normalizeGraph(viewGraph);
+  return Object.entries(after.nodes)
+    .filter(([taskId, node]) => isAffectedTask(node, after.edges, gateId, taskId))
+    .filter(([taskId]) => didReadinessFlip(before, after, taskId, direction === "up"))
+    .map(([taskId]) => taskId)
+    .toSorted();
+}
 
-  for (const [taskId, node] of Object.entries(viewNodes)) {
-    if (!node || node.kind !== "resolvable" || node.subkind !== "task") continue;
-    const status = node.status || "open";
-    if (OUT_OF_READY_POOL_STATUSES.has(status) || node.backlog === true) continue;
-    const dependsOnGate = viewEdges.some(
-      (edge) => edge && edge.type === "BLOCKS" && edge.from === gateId && edge.to === taskId,
-    );
-    if (!dependsOnGate) continue;
+function normalizeGraph(graph) {
+  const source = graph && typeof graph === "object" ? graph : {};
+  return {
+    nodes: source.nodes && typeof source.nodes === "object" ? source.nodes : {},
+    edges: Array.isArray(source.edges) ? source.edges : [],
+  };
+}
 
-    const wasReady = taskIsReadyByGraph(snapshotNodes, snapshotEdges, taskId);
-    const isReady = taskIsReadyByGraph(viewNodes, viewEdges, taskId);
-    if ((up && !wasReady && isReady) || (!up && wasReady && !isReady)) result.push(taskId);
+function isAffectedTask(node, edges, gateId, taskId) {
+  if (!isReadyTaskCandidate(node)) {
+    return false;
   }
-  return result.sort();
+  return isInReadyPool(node, node.status || "open") && dependsOnGate(edges, gateId, taskId);
+}
+
+function didReadinessFlip(before, after, taskId, up) {
+  const wasReady = taskIsReadyByGraph(before.nodes, before.edges, taskId);
+  const isReady = taskIsReadyByGraph(after.nodes, after.edges, taskId);
+  return readinessChanged(up, wasReady, isReady);
+}
+
+function isReadyTaskCandidate(node) {
+  return node && node.kind === "resolvable" && node.subkind === "task";
+}
+
+function isInReadyPool(node, status) {
+  return !OUT_OF_READY_POOL_STATUSES.has(status) && node.backlog !== true;
+}
+
+function dependsOnGate(edges, gateId, taskId) {
+  return edges.some((edge) => edge && edge.type === "BLOCKS" && edge.from === gateId && edge.to === taskId);
+}
+
+function readinessChanged(up, wasReady, isReady) {
+  return up ? !wasReady && isReady : wasReady && !isReady;
 }
 
 /**

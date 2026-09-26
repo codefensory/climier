@@ -38,31 +38,50 @@ function readNodes(snapshot) {
 }
 
 function validateInput(input) {
+  validateInputObject(input);
+  validateInputId(input);
+  validateInputChanges(input);
+  const expected = parseExpectedRevision(input.if_revision);
+  return { id: input.id.trim(), expected };
+}
+
+function validateInputObject(input) {
   if (!isObject(input)) {
     throwV2("INVALID_EXECUTION_CONTRACT", `${OP}: input must be an object`, { field: "input" });
   }
+}
+
+function validateInputId(input) {
   if (typeof input.id !== "string" || !input.id.trim()) {
     throwV2("MISSING_FIELD", `${OP}: id is required`, { field: "id" });
   }
+}
+
+function validateInputChanges(input) {
   if (!isObject(input.changes) || Object.keys(input.changes).length === 0) {
     throwV2("MISSING_FIELD", `${OP}: changes must be a non-empty object`, { field: "changes" });
   }
   if (input.if_revision === undefined || input.if_revision === null) {
     throwV2("MISSING_FIELD", `${OP}: if_revision is required`, { field: "if_revision" });
   }
-  const expected = Number(input.if_revision);
+}
+
+function parseExpectedRevision(value) {
+  const expected = Number(value);
   if (!Number.isInteger(expected) || expected < 1) {
     throwV2("INVALID_EXECUTION_CONTRACT", `${OP}: if_revision must be a positive integer`, {
       field: "if_revision",
-      value: input.if_revision,
+      value,
     });
   }
-  return { id: input.id.trim(), expected };
+  return expected;
 }
 
 function validateTarget(snapshot, id) {
   const node = readNodes(snapshot)[id];
-  if (!node) throwV2("NODE_NOT_FOUND", `${OP}: gate '${id}' not found`, { id });
+  if (!node) {
+    throwV2("NODE_NOT_FOUND", `${OP}: gate '${id}' not found`, { id });
+  }
   if (node.kind !== GATE_KIND || node.subkind !== GATE_SUBKIND) {
     throwV2("INVALID_EXECUTION_CONTRACT", `${OP}: target '${id}' is not a gate`, {
       id,
@@ -81,12 +100,13 @@ function validatePatchKeys(changes) {
       field: "changes.revision",
     });
   }
+  const allowed = Array.from(ALLOWED_PATCH_KEYS).toSorted();
   for (const key of Object.keys(changes)) {
     if (!ALLOWED_PATCH_KEYS.has(key)) {
       throwV2(
         "INVALID_EXECUTION_CONTRACT",
-        `${OP}: changes.${key} is not a valid gate patch key (allowed: ${Array.from(ALLOWED_PATCH_KEYS).sort().join(", ")})`,
-        { field: `changes.${key}`, allowed: Array.from(ALLOWED_PATCH_KEYS).sort() },
+        `${OP}: changes.${key} is not a valid gate patch key (allowed: ${allowed.join(", ")})`,
+        { field: `changes.${key}`, allowed },
       );
     }
   }
@@ -112,18 +132,26 @@ function csv(value, field) {
 }
 
 function refs(value) {
-  if (typeof value === "string") return csv(value, "refs").map((target) => ({ type: "external", target }));
+  if (typeof value === "string") {
+    return csv(value, "refs").map((target) => ({ type: "external", target }));
+  }
   if (!Array.isArray(value)) {
     throwV2("INVALID_EXECUTION_CONTRACT", `${OP}: changes.refs must be an array or CSV string`, {
       field: "changes.refs",
     });
   }
-  return value.map((ref, index) => {
-    if (typeof ref === "string" && ref.trim()) return { type: "external", target: ref.trim() };
-    if (isObject(ref)) return structuredClone(ref);
-    throwV2("INVALID_EXECUTION_CONTRACT", `${OP}: changes.refs[${index}] must be a reference object`, {
-      field: "changes.refs",
-    });
+  return value.map(normalizeRef);
+}
+
+function normalizeRef(ref, index) {
+  if (typeof ref === "string" && ref.trim()) {
+    return { type: "external", target: ref.trim() };
+  }
+  if (isObject(ref)) {
+    return structuredClone(ref);
+  }
+  throwV2("INVALID_EXECUTION_CONTRACT", `${OP}: changes.refs[${index}] must be a reference object`, {
+    field: "changes.refs",
   });
 }
 
@@ -135,26 +163,32 @@ function normalizePatch(changes) {
     } else if (key === "refs") {
       patch.refs = refs(value);
     } else if (key === "backlog") {
-      if (typeof value !== "boolean") {
-        throwV2("INVALID_EXECUTION_CONTRACT", `${OP}: changes.backlog must be boolean`, {
-          field: "changes.backlog",
-          value,
-        });
-      }
-      // The CLI treats --backlog=false as removing the optional field,
-      // rather than persisting a false marker. undefined is omitted by the
-      // JSON state writer while still making the draft differ from true.
-      patch.backlog = value ? true : undefined;
+      patch.backlog = normalizeBacklog(value);
     } else if (key === "meta") {
-      if (!isObject(value)) {
-        throwV2("INVALID_EXECUTION_CONTRACT", `${OP}: changes.meta must be an object`, { field: "changes.meta" });
-      }
-      patch.meta = structuredClone(value);
+      patch.meta = normalizeMeta(value);
     } else {
       patch[key] = value;
     }
   }
   return Object.freeze(patch);
+}
+
+function normalizeBacklog(value) {
+  if (typeof value !== "boolean") {
+    throwV2("INVALID_EXECUTION_CONTRACT", `${OP}: changes.backlog must be boolean`, {
+      field: "changes.backlog",
+      value,
+    });
+  }
+  // Omit false so JSON persistence clears the optional marker.
+  return value ? true : undefined;
+}
+
+function normalizeMeta(value) {
+  if (!isObject(value)) {
+    throwV2("INVALID_EXECUTION_CONTRACT", `${OP}: changes.meta must be an object`, { field: "changes.meta" });
+  }
+  return structuredClone(value);
 }
 
 function validateRevision(node, id, expected) {
@@ -194,7 +228,9 @@ export async function apply({ tx, plan, input, request, snapshot }) {
   }
   tx.updateNode(plan.target.id, plan.patch);
   const result = tx.getNode(plan.target.id);
-  if (result && Object.prototype.hasOwnProperty.call(result, "revision")) delete result.revision;
+  if (result && Object.prototype.hasOwnProperty.call(result, "revision")) {
+    delete result.revision;
+  }
   return { result, effects: null };
 }
 
