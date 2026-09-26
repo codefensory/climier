@@ -8,6 +8,7 @@ import { createRemoteApiServer } from "../src/server/http.mjs";
 import { createProjectCatalog } from "../src/server/catalog/index.mjs";
 import { initState } from "../src/kernel/state-operations.mjs";
 import { writeState } from "./helpers.mjs";
+import { projectSearchView } from "../src/read-model/index.mjs";
 import { readModelParity } from "./fixtures/read-model-parity.mjs";
 
 function authHeaders() {
@@ -77,6 +78,27 @@ async function withParityEnvironment(run) {
     await fs.rm(root, { recursive: true, force: true });
   }
 }
+
+test("pure search projection matches the fixture's active and historical knowledge contract", () => {
+  assert.deepEqual(projectSearchView({ snapshot: readModelParity.snapshot, query: "API" }), {
+    matches: [{
+      id: "K-active",
+      kind: "knowledge",
+      title: "API warning",
+      initiative: "migration",
+      domain: "api",
+      status: "active",
+      matched_fields: ["title", "body", "domain"],
+      snippet: "Use safe API retries",
+    }],
+    count: 1,
+  });
+  assert.deepEqual(projectSearchView({ snapshot: readModelParity.snapshot, query: "API", all: true }).matches.map(({ id, status }) => [id, status]), [
+    ["K-active", "active"],
+    ["K-deprecated", "deprecated"],
+  ]);
+  assert.deepEqual(projectSearchView({ snapshot: readModelParity.snapshot, query: "" }), { matches: [], count: 0 });
+});
 
 test("read-model contract matrix matches CLI and HTTP projections for the same snapshot", async () => {
   await withParityEnvironment(async ({ baseUrl, projectDir }) => {
