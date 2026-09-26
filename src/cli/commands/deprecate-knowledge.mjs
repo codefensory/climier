@@ -1,12 +1,15 @@
 // `deprecate-knowledge` CLI adapter for the canonical knowledge.deprecate
 // provider. The kernel owns locking, state, revisions, policy execution and
 // audit persistence; this module only maps the legacy CLI surface.
+import { bootstrapBuiltins, executeOperation } from "../../application/operations/index.mjs";
 import { mutate } from "../../kernel/mutate.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
 import { resolveAgent } from "../actor.mjs";
 import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
 import { deprecateProvider } from "../../providers/knowledge/deprecate.mjs";
 import { executeRemoteDomain, nodeFromMutation } from "./internal/domain-routing.mjs";
+
+const REGISTRY = bootstrapBuiltins();
 
 export const knownFlags = ["reason", "as"];
 
@@ -19,9 +22,11 @@ const cliKnowledgeProvider = Object.freeze({
   async prepare(args) {
     try {
       const plan = await knowledgeProvider.prepare(args);
+      args.request.action = "deprecate-knowledge";
       const node = args.snapshot.nodes[args.input.id];
       return {
         ...plan,
+        logAction: "deprecate-knowledge",
         // The old policy seam exposed these live-node fields. Preserve that
         // target projection while retaining the provider's CAS revision.
         target: {
@@ -53,21 +58,15 @@ const cliKnowledgeProvider = Object.freeze({
   apply: knowledgeProvider.apply,
 });
 
-function policyAction({ policy, projectDir }) {
-  if (!policy) return undefined;
+function withCliProvider(source) {
   return {
-    action: "knowledge.deprecate",
-    pluginId: policy.pluginId || null,
-    async decide({ snapshot, target, request, action }) {
-      return authorizeAction({
-        policy,
-        action: action || "knowledge.deprecate",
-        actor: request.actor,
-        target,
-        snapshot,
-        projectDir,
-        projectConfig: policy.projectConfig || {},
-      });
+    ...source,
+    registry: {
+      ...source.registry,
+      lookup(id) {
+        const found = source.registry.lookup(id);
+        return id === "knowledge.deprecate" && found ? { ...found, provider: cliKnowledgeProvider } : found;
+      },
     },
   };
 }
@@ -79,6 +78,7 @@ export default async function deprecateKnowledge({
   positional = [],
   pluginId,
   backendClient,
+  source,
 }) {
   const [id] = positional;
   if (!id) throwV2("MISSING_FIELD", "deprecate-knowledge: node id required", { field: "id" });
@@ -95,18 +95,19 @@ export default async function deprecateKnowledge({
     return { node: nodeFromMutation(mutation, id) || mutation.result?.node || null };
   }
   const policy = await loadApplicablePolicy({ projectDir: dir });
-  const mutation = await mutate({
-    projectDir: dir,
-    request: {
-      // Keep the legacy audit action; the policy seam receives the canonical
-      // knowledge.deprecate action through policyAction above.
-      action: "deprecate-knowledge",
-      actor: agent,
-      input,
-    },
-    provider: cliKnowledgeProvider,
-    policyAction: policyAction({ policy, projectDir: dir }),
+  const operationSource = source || {
+    registry: REGISTRY,
+    mutate: (args) => mutate(args),
+    selectPolicy: async () => policy,
+    authorizeAction,
     pluginId,
+  };
+  const mutation = await executeOperation({
+    projectDir: dir,
+    actor: agent,
+    operation: "knowledge.deprecate",
+    input,
+    source: withCliProvider(operationSource),
   });
 
   const updated = mutation.diff.updated.find((entry) => entry.id === id);

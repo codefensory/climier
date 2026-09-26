@@ -6,6 +6,7 @@
 // validation and the kernel owns locking, revision/diff handling, logging and
 // persistence. The historical `add-initiative` action is retained in the
 // request so the persisted audit stream remains compatible.
+import { bootstrapBuiltins, executeOperation } from "../../application/operations/index.mjs";
 import { mutate } from "../../kernel/mutate.mjs";
 import { initiativeCreateProvider } from "../../providers/core/initiative.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
@@ -13,21 +14,21 @@ import { resolveAgent } from "../actor.mjs";
 import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
 import { executeRemoteDomain } from "./internal/domain-routing.mjs";
 
-// ADR-008 §"initiative.create":
-//   - policy selection happens outside the kernel lock;
-//   - authorization happens inside the kernel lock against its fresh snapshot;
-//   - deny means no state file, mutation or log entry.
-//
-// The kernel uses request.action to build its audit entry, while the built-in
-// initiative provider needs the canonical operation id to opt into bootstrap.
-// Restore the legacy CLI action after prepare so bootstrap remains explicit and
-// the persisted audit contract stays `add-initiative` without a second write.
+// Keep legacy policy-target fields and the CLI audit action while routing the
+// operation through the canonical Application Operations registry.
 const cliInitiativeProvider = Object.freeze({
   ...initiativeCreateProvider,
   async prepare(args) {
     const plan = await initiativeCreateProvider.prepare(args);
     args.request.action = "add-initiative";
-    return plan;
+    return {
+      ...plan,
+      target: {
+        ...plan.target,
+        desc: typeof args.input.desc === "string" ? args.input.desc : "",
+        already_registered: Boolean(args.snapshot.initiatives?.[args.input.name]),
+      },
+    };
   },
 });
 
@@ -52,7 +53,7 @@ function validateName(name) {
   }
 }
 
-export default async function addInitiative({ statePath, projectDir: suppliedProjectDir, flags = {}, positional = [], pluginId, backendClient }) {
+export default async function addInitiative({ statePath, projectDir: suppliedProjectDir, flags = {}, positional = [], pluginId, backendClient, source }) {
   const [name] = positional;
   validateName(name);
   // Agent resolution sits at the end of the validation chain so the caller
@@ -68,36 +69,31 @@ export default async function addInitiative({ statePath, projectDir: suppliedPro
   }
   const policy = await loadApplicablePolicy({ projectDir });
 
-  const policyAction = policy
-    ? {
+  const result = await executeOperation({
+    projectDir,
+    actor: as,
+    operation: "initiative.create",
+    input: { name, desc },
+    source: withCliProvider(source || {
+      registry: bootstrapBuiltins(),
+      mutate,
+      selectPolicy: async () => policy,
+      policyAction: policy ? {
         action: "initiative.create",
         pluginId: policy.pluginId || null,
         decide: async ({ snapshot, target, request, action }) => authorizeAction({
           policy,
           action,
           actor: request.actor,
-          target: {
-            ...target,
-            desc,
-            already_registered: Boolean(snapshot.initiatives && snapshot.initiatives[name]),
-          },
+          target: { ...target, desc, already_registered: Boolean(snapshot.initiatives?.[name]) },
           snapshot,
           projectDir,
           projectConfig: policy.projectConfig || {},
         }),
-      }
-    : null;
-
-  const result = await mutate({
-    projectDir,
-    request: {
-      action: "initiative.create",
-      actor: as,
-      input: { name, desc },
-    },
-    provider: cliInitiativeProvider,
-    policyAction,
-    pluginId,
+      } : null,
+      authorizeAction,
+      pluginId,
+    }, "initiative.create", cliInitiativeProvider),
   });
 
   const created = result.diff.initiatives.created.find((entry) => entry.name === name);
@@ -107,6 +103,19 @@ export default async function addInitiative({ statePath, projectDir: suppliedPro
       name,
       desc: initiative.desc,
       ...(initiative.created_at ? { created_at: initiative.created_at } : {}),
+    },
+  };
+}
+
+function withCliProvider(source, operation, provider) {
+  return {
+    ...source,
+    registry: {
+      ...source.registry,
+      lookup(id) {
+        const entry = source.registry.lookup(id);
+        return id === operation && entry ? { ...entry, provider } : entry;
+      },
     },
   };
 }

@@ -16,6 +16,8 @@ import removeEdge from "../src/cli/commands/remove-edge.mjs";
 import resolve from "../src/cli/commands/resolve.mjs";
 import deprecateKnowledge from "../src/cli/commands/deprecate-knowledge.mjs";
 import update from "../src/cli/commands/update.mjs";
+import { bootstrapBuiltins, createBackendClient } from "../src/application/operations/index.mjs";
+import { mutate as kernelMutate } from "../src/kernel/mutate.mjs";
 
 const initialState = {
   version: 4,
@@ -76,6 +78,31 @@ async function withLocalSentinel(run) {
     await rmTempProject(projectDir);
   }
 }
+
+test("local domain adapters delegate through the supplied application operation source", async () => {
+  const projectDir = await createTempProject();
+  const operations = [];
+  const source = {
+    registry: bootstrapBuiltins(),
+    mutate(args) {
+      operations.push(args.request.action);
+      return kernelMutate(args);
+    },
+    selectPolicy: async () => null,
+  };
+  const backendClient = createBackendClient({ projectDir, source });
+  try {
+    await writeState(projectDir, initialState);
+    await addInitiative({ projectDir, statePath: projectDir, backendClient, source, positional: ["local-new"], flags: { as: "alice" } });
+    await addNote({ projectDir, statePath: projectDir, backendClient, source, positional: ["G-existing", "local note"], flags: { as: "alice" } });
+    await addEdge({ projectDir, statePath: projectDir, backendClient, source, positional: ["G-existing", "K-existing"], flags: { type: "DERIVED_FROM", as: "alice" } });
+    await removeEdge({ projectDir, statePath: projectDir, backendClient, source, positional: ["G-existing", "K-existing"], flags: { type: "DERIVED_FROM", as: "alice" } });
+    await deprecateKnowledge({ projectDir, statePath: projectDir, backendClient, source, positional: ["K-existing"], flags: { reason: "outdated", as: "alice" } });
+    assert.deepEqual(operations, ["initiative.create", "note.add", "edge.add", "edge.remove", "knowledge.deprecate"]);
+  } finally {
+    await rmTempProject(projectDir);
+  }
+});
 
 test("remaining domain adapters use canonical remote operations and retain CLI envelopes", async () => {
   await withLocalSentinel(async (projectDir) => {
