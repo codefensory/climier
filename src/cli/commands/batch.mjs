@@ -18,8 +18,24 @@ function invalidInput(message, details = {}) {
 
 async function readStdin() {
   let contents = "";
-  for await (const chunk of process.stdin) contents += chunk.toString();
+  for await (const chunk of process.stdin) {contents += chunk.toString();}
   return contents;
+}
+
+async function readFileInput(value) {
+  if (typeof value !== "string" || !value.trim()) {
+    invalidInput("--file requires a JSON file path", { field: "file" });
+  }
+  const file = path.resolve(value);
+  try {
+    return await readFile(file, "utf8");
+  } catch (error) {
+    invalidInput(`cannot read input file '${file}'`, {
+      field: "file",
+      path: file,
+      cause: error && error.code ? error.code : "READ_FAILED",
+    });
+  }
 }
 
 async function readInput(flags) {
@@ -31,51 +47,40 @@ async function readInput(flags) {
   if (!hasFile && !hasStdin) {
     throwV2("MISSING_FIELD", "batch: exactly one of --file or --stdin is required", { field: "file,stdin" });
   }
-
-  if (hasFile) {
-    if (typeof flags.file !== "string" || !flags.file.trim()) {
-      invalidInput("--file requires a JSON file path", { field: "file" });
-    }
-    const file = path.resolve(flags.file);
-    try {
-      return await readFile(file, "utf8");
-    } catch (error) {
-      invalidInput(`cannot read input file '${file}'`, {
-        field: "file",
-        path: file,
-        cause: error && error.code ? error.code : "READ_FAILED",
-      });
-    }
-  }
-
+  if (hasFile) {return readFileInput(flags.file);}
   if (flags.stdin !== true) {
     invalidInput("--stdin does not accept a value", { field: "stdin" });
   }
   return readStdin();
 }
 
-function parseDocument(raw) {
-  let document;
+function parseJson(raw) {
   try {
-    document = JSON.parse(raw);
+    return JSON.parse(raw);
   } catch (error) {
     invalidInput(`input must be valid JSON (${error.message})`, {
       field: "input",
       cause: "JSON_PARSE_ERROR",
     });
   }
+}
+
+function validateDocumentShape(document) {
   if (!document || typeof document !== "object" || Array.isArray(document)) {
     invalidInput("input document must be an object", { field: "input" });
   }
-  for (const key of Object.keys(document)) {
-    if (key !== "if_state_revision" && key !== "operations") {
-      invalidInput(`unknown input field '${key}'`, { field: key });
-    }
+  const unexpectedField = Object.keys(document).find((key) => key !== "if_state_revision" && key !== "operations");
+  if (unexpectedField) {
+    invalidInput(`unknown input field '${unexpectedField}'`, { field: unexpectedField });
   }
   if (!Array.isArray(document.operations) || document.operations.length === 0) {
     invalidInput("input document must contain a non-empty operations array", { field: "operations" });
   }
   return document;
+}
+
+function parseDocument(raw) {
+  return validateDocumentShape(parseJson(raw));
 }
 
 export default async function batch({ statePath, projectDir, projectConfig, backendClient, source, flags = {}, positional = [] }) {

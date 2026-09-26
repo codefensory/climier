@@ -15,12 +15,12 @@ import { throwV2 } from "../contracts/errors.mjs";
  */
 export function resolveAgent(flags, commandName) {
   const fromFlag = flags && typeof flags.as === "string" ? flags.as.trim() : "";
-  if (fromFlag) return fromFlag;
+  if (fromFlag) {return fromFlag;}
 
   const fromEnv = typeof process.env.CLIMIER_AGENT === "string"
     ? process.env.CLIMIER_AGENT.trim()
     : "";
-  if (fromEnv) return fromEnv;
+  if (fromEnv) {return fromEnv;}
 
   throwV2(
     "MISSING_AGENT",
