@@ -8,14 +8,12 @@ import { readState, isFencedState, isV2State, assertStateVersion } from "../stor
 import { assertLocalBackend } from "./remote-guard.mjs";
 import { throwV2 } from "../contracts/errors.mjs";
 import {
-  derive,
   statusOf,
   blockingForNode,
   knowledgeForNode,
   informingForNode,
-  isCurrent,
-  supersededBy,
   projectSnapshot,
+  projectStatusView,
 } from "../read-model/index.mjs";
 
 const DEFAULT_STALE_MS = 2 * 60 * 60 * 1000;
@@ -55,53 +53,6 @@ function parseLimit(value) {
   return n;
 }
 
-function claimBy(node) {
-  if (!node) return null;
-  if (node.claim && typeof node.claim === "object" && node.claim.by) return node.claim.by;
-  return node.claimed_by || null;
-}
-
-function claimAtMs(node) {
-  if (!node) return null;
-  const at = (node.claim && node.claim.at) || node.claimed_at;
-  if (at == null) return null;
-  if (typeof at === "number") return at;
-  if (typeof at === "string") {
-    const ms = Date.parse(at);
-    return Number.isFinite(ms) ? ms : null;
-  }
-  return null;
-}
-
-function nodeSummary(node) {
-  return {
-    id: node.id,
-    kind: node.kind,
-    subkind: node.subkind,
-    title: node.title || "",
-    status: node.status || "open",
-    initiative: node.initiative,
-    domain: node.domain,
-    claimed_by: claimBy(node),
-  };
-}
-
-function staleClaims(snapshot, staleMs, initiative) {
-  const now = Date.now();
-  return Object.values(snapshot.nodes || {})
-    .filter((node) => node.kind === "resolvable" && node.subkind === "task")
-    .filter((node) => !initiative || node.initiative === initiative)
-    .filter((node) => (node.status || "open") === "in_progress")
-    .map((node) => ({ node, at: claimAtMs(node), by: claimBy(node) }))
-    .filter(({ at, by }) => at !== null && !!by && now - at > staleMs)
-    .map(({ node, at, by }) => ({
-      id: node.id,
-      claimed_by: by,
-      age_ms: now - at,
-      title: node.title || "",
-    }));
-}
-
 function emptyStatus() {
   return {
     summary: { ready: 0, in_progress: 0, submitted: 0, blocked: 0, backlog: 0, open_gates: 0, active_knowledge: 0 },
@@ -113,120 +64,13 @@ function emptyStatus() {
 }
 
 function statusView(snapshot, flags) {
-  const nodes = snapshot.nodes || {};
-  const derived = derive({ snapshot });
-  const all = flags.all === true;
-  const initiative = flags.initiative || null;
-  const domain = flags.domain || null;
-  const kind = flags.kind || null;
-  const status = flags.status || null;
-  const claimedBy = flags["claimed-by"] || null;
   const staleMs = parseStaleMs(flags["stale-ms"]);
   const limit = parseLimit(flags.limit);
-  const matches = (id) => {
-    const node = nodes[id];
-    if (!node) return false;
-    if (initiative && node.initiative !== initiative) return false;
-    if (domain && node.domain !== domain) return false;
-    if (kind && node.kind !== kind) return false;
-    if (status && (node.status || "open") !== status && statusOf({ snapshot, id }) !== status) return false;
-    return true;
-  };
-  const ready = derived.ready.filter(matches);
-  const blocked = derived.blocked.filter(matches);
-  const backlog = derived.backlog.filter(matches);
-  const submitted = Object.values(nodes)
-    .filter((node) => node.kind === "resolvable" && node.subkind === "task" && (node.status || "open") === "submitted")
-    .filter((node) => !initiative || node.initiative === initiative)
-    .filter((node) => !domain || node.domain === domain)
-    .filter((node) => !kind || node.kind === kind)
-    .map((node) => node.id);
-  const scopedSubmitted = status
-    ? (status === "submitted" ? submitted : [])
-    : submitted;
-  const inProgress = Object.values(nodes)
-    .filter((node) => node.kind === "resolvable" && node.subkind === "task" && (node.status || "open") === "in_progress")
-    .filter((node) => !initiative || node.initiative === initiative)
-    .filter((node) => !domain || node.domain === domain)
-    .filter((node) => !kind || node.kind === kind)
-    .map((node) => node.id);
-  let scopedInProgress;
-  if (status) scopedInProgress = status === "in_progress" ? inProgress : [];
-  else if (claimedBy) scopedInProgress = inProgress.filter((id) => claimBy(nodes[id]) === claimedBy);
-  else scopedInProgress = inProgress;
-  const openGatesAll = (derived.openGates || []).filter((id) => {
-    const node = nodes[id];
-    return node && (!initiative || node.initiative === initiative) && (!kind || kind === "resolvable");
+  return projectStatusView({
+    snapshot,
+    filters: { ...flags, "stale-ms": staleMs, limit },
+    now: Date.now(),
   });
-  const openGates = status ? openGatesAll.filter(() => status === "open") : openGatesAll;
-  const knowledge = Object.values(nodes).filter((node) => node.kind === "knowledge")
-    .filter((node) => !initiative || node.initiative === initiative)
-    .filter((node) => !kind || kind === "knowledge");
-  const activeKnowledge = knowledge.filter((node) => (node.status || "active") === "active").length;
-  const cap = (items) => limit === null ? items : items.slice(0, limit);
-  const result = {
-    summary: {
-      ready: ready.length,
-      in_progress: scopedInProgress.length,
-      submitted: scopedSubmitted.length,
-      blocked: blocked.length,
-      backlog: backlog.length,
-      open_gates: openGates.length,
-      active_knowledge: activeKnowledge,
-    },
-    tasks: {
-      ready: cap(ready).map((id) => nodeSummary(nodes[id])),
-      in_progress: cap(scopedInProgress).map((id) => nodeSummary(nodes[id])),
-      submitted: cap(scopedSubmitted).map((id) => nodeSummary(nodes[id])),
-      blocked: cap(blocked).map((id) => ({
-        ...nodeSummary(nodes[id]),
-        unsatisfied_blockers: blockingForNode({ snapshot, id })
-          .filter((blocker) => blocker.satisfied === false)
-          .map((blocker) => blocker.node && blocker.node.id)
-          .filter(Boolean),
-      })),
-      backlog: cap(backlog).map((id) => nodeSummary(nodes[id])),
-    },
-    gates: { open: cap(openGates).map((id) => nodeSummary(nodes[id])) },
-    knowledge_count: knowledge.length,
-    alerts: [],
-  };
-  if (all) {
-    result.knowledge = knowledge.map((node) => ({
-      id: node.id,
-      title: node.title || "",
-      status: node.status || "active",
-      initiative: node.initiative,
-      scope: node.scope || {},
-      knowledge_type: node.knowledge_type,
-      deprecation_reason: node.deprecation_reason,
-      deprecated_at: node.deprecated_at,
-      deprecated_by: node.deprecated_by,
-    }));
-  }
-  for (const stale of staleClaims(snapshot, staleMs, initiative)) {
-    if (claimedBy && stale.claimed_by !== claimedBy) continue;
-    result.alerts.push({
-      kind: "stale-claim",
-      severity: "warning",
-      task_id: stale.id,
-      claimed_by: stale.claimed_by,
-      age_ms: stale.age_ms,
-      message: `${stale.id} claimed by ${stale.claimed_by} is stale (${Math.round(stale.age_ms / 60000)}m old)`,
-    });
-  }
-  if (all) {
-    const inScope = (node) => !initiative || node.initiative === initiative;
-    result.done = { tasks: Object.values(nodes).filter((n) => n.kind === "resolvable" && n.subkind === "task" && n.status === "done" && inScope(n)).map(nodeSummary) };
-    result.canceled = { tasks: Object.values(nodes).filter((n) => n.kind === "resolvable" && n.subkind === "task" && n.status === "canceled" && inScope(n)).map(nodeSummary) };
-    result.resolved = { gates: Object.values(nodes).filter((n) => n.kind === "resolvable" && n.subkind === "gate" && n.status === "resolved" && inScope(n)).map(nodeSummary) };
-    result.superseded = { nodes: Object.values(nodes).filter((n) => n.status === "superseded" && inScope(n)).map(nodeSummary) };
-    result.deprecated = { knowledge: knowledge.filter((n) => n.status === "deprecated").map((n) => ({
-      id: n.id, title: n.title || "", deprecation_reason: n.deprecation_reason,
-      deprecated_at: n.deprecated_at, deprecated_by: n.deprecated_by,
-    })) };
-  }
-  return result;
 }
 
 function parseAtMs(at) {
