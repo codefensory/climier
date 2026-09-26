@@ -83,6 +83,7 @@ export function informingForNode(input, id) {
 export const deriveReadModel = derive;
 export const statusOfV2 = statusOf;
 export const projectStatus = statusOf;
+export const projectInitiatives = projectInitiativesView;
 export const projectBlocking = blockingForNode;
 export const projectKnowledge = knowledgeForNode;
 export const projectInforming = informingForNode;
@@ -272,6 +273,33 @@ function contextAllowedActions(node, derivedStatus, identified) {
 }
 
 /** Project a node context, returning null for absence so adapters own errors. */
+export function projectInitiativesView({ snapshot, all = false } = {}) {
+  const usage = new Map();
+  for (const node of Object.values(snapshot?.nodes || {})) {
+    const name = node && node.initiative;
+    if (!name) continue;
+    const current = usage.get(name) || { tasks: 0, knowledge: 0, nodes: 0 };
+    if (node.kind === "knowledge") current.knowledge += 1;
+    else current.tasks += 1;
+    current.nodes += 1;
+    usage.set(name, current);
+  }
+  const registered = Object.keys(snapshot?.initiatives || {}).map((name) => {
+    const counts = usage.get(name) || { tasks: 0, knowledge: 0, nodes: 0 };
+    return {
+      name,
+      desc: snapshot.initiatives[name]?.desc || "",
+      created_at: snapshot.initiatives[name]?.created_at || null,
+      nodes: counts.nodes,
+      tasks: counts.tasks,
+      knowledge: counts.knowledge,
+    };
+  });
+  const visible = all ? registered : registered.filter((initiative) => initiative.nodes > 0);
+  visible.sort((left, right) => right.nodes - left.nodes || left.name.localeCompare(right.name));
+  return { initiatives: visible, unregistered: { nodes: 0, values: [] }, all: !!all };
+}
+
 export function projectSearchView({ snapshot, query = "", all = false } = {}) {
   const textQuery = String(query ?? "").toLowerCase();
   if (!textQuery) return { matches: [], count: 0 };

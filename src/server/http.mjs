@@ -19,6 +19,7 @@ import {
   projectSearchView,
   projectStatusView,
   projectContextView,
+  projectInitiativesView,
   statusOf,
 } from "../read-model/index.mjs";
 import { readState } from "../storage/state.mjs";
@@ -375,25 +376,6 @@ function entryReferencesId(entry, id) {
     || (typeof entry.note === "string" && entry.note.split(/\\s+/).includes(id)));
 }
 
-function readInitiatives(snapshot, query) {
-  const usage = new Map();
-  for (const node of Object.values(snapshot.nodes || {})) {
-    const name = node && node.initiative;
-    if (!name) continue;
-    const cur = usage.get(name) || { tasks: 0, knowledge: 0, nodes: 0 };
-    if (node.kind === "knowledge") cur.knowledge += 1; else cur.tasks += 1;
-    cur.nodes += 1;
-    usage.set(name, cur);
-  }
-  const registered = Object.keys(snapshot.initiatives || {}).map((name) => {
-    const usageForInitiative = usage.get(name) || { tasks: 0, knowledge: 0, nodes: 0 };
-    return { name, desc: snapshot.initiatives[name]?.desc || "", created_at: snapshot.initiatives[name]?.created_at || null, nodes: usageForInitiative.nodes, tasks: usageForInitiative.tasks, knowledge: usageForInitiative.knowledge };
-  });
-  const visible = query.all ? registered : registered.filter((item) => item.nodes > 0);
-  visible.sort((left, right) => right.nodes - left.nodes || left.name.localeCompare(right.name));
-  return { initiatives: visible, unregistered: { nodes: 0, values: [] }, all: !!query.all };
-}
-
 function readLog(snapshot, query) {
   let entries = snapshot.log || [];
   for (const key of ["action", "agent", "task", "decision"]) if (query[key]) entries = entries.filter((entry) => entry[key] === query[key]);
@@ -416,7 +398,7 @@ function projectReadResult(snapshot, route, query, now) {
     return { id: route.id, entries };
   }
   if (route.kind === "search") return projectSearchView({ snapshot, query: query.query, all: query.all === true });
-  if (route.kind === "initiatives") return readInitiatives(snapshot, query);
+  if (route.kind === "initiatives") return projectInitiativesView({ snapshot, all: query.all === true });
   if (route.kind === "log") return readLog(snapshot, query);
   if (route.kind === "state") return projectSnapshot({ snapshot });
   const node = nodes[route.id];
