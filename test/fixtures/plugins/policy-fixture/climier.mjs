@@ -1,3 +1,4 @@
+/* eslint-disable complexity, max-depth, max-lines-per-function, max-statements -- This dependency-free fixture intentionally mirrors a complete host policy protocol. */
 // T-plugin-policy-fixture — V2-policy fixture.
 //
 // Reusable plugin entry that exercises the policy contract from
@@ -62,10 +63,10 @@ function parseArgs(tokens) {
   const flags = {};
   const positional = [];
   const BOOLEAN_FLAGS = new Set(["all", "force", "no-color"]);
-  if (!Array.isArray(tokens)) return { flags, positional };
+  if (!Array.isArray(tokens)) {return { flags, positional };}
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i];
-    if (typeof t !== "string" || !t) continue;
+    if (typeof t !== "string" || !t) {continue;}
     if (t.startsWith("--")) {
       const eq = t.indexOf("=");
       let key, val;
@@ -100,7 +101,7 @@ async function readRawConfig(projectDir) {
     const raw = await fs.readFile(metaPath, "utf8");
     return JSON.parse(raw);
   } catch (err) {
-    if (err && err.code === "ENOENT") return {};
+    if (err && err.code === "ENOENT") {return {};}
     throw err;
   }
 }
@@ -110,11 +111,11 @@ async function readRawConfig(projectDir) {
 // configs or non-object namespaces return null rather than throwing,
 // so a malformed harness cannot take down the test.
 function applyNamespace(projectConfig) {
-  if (!projectConfig || typeof projectConfig !== "object") return null;
+  if (!projectConfig || typeof projectConfig !== "object") {return null;}
   const plugins = projectConfig.plugins;
-  if (!plugins || typeof plugins !== "object") return null;
+  if (!plugins || typeof plugins !== "object") {return null;}
   const ns = plugins[PLUGIN_ID];
-  if (!ns || typeof ns !== "object") return null;
+  if (!ns || typeof ns !== "object") {return null;}
   return ns;
 }
 
@@ -125,7 +126,7 @@ function applyNamespace(projectConfig) {
 // recording failure must not mask the actual decision.
 async function recordLast(ctx, mode) {
   const home = process.env.CLIMIER_HOME;
-  if (!home) return;
+  if (!home) {return;}
   const stateFile = path.join(home, "policy-fixture-state.json");
   const ns = applyNamespace(ctx && ctx.projectConfig);
   const recorded = {
@@ -175,9 +176,9 @@ async function recordLast(ctx, mode) {
 //   malformed namespace (non-object) -> true (defensive)
 export async function applies(projectConfig) {
   const ns = applyNamespace(projectConfig);
-  if (ns === null) return true;
-  if (ns.applies === true) return true;
-  if (ns.applies === false) return false;
+  if (ns === null) {return true;}
+  if (ns.applies === true) {return true;}
+  if (ns.applies === false) {return false;}
   return true;
 }
 
@@ -202,7 +203,7 @@ export async function authorize(ctx) {
   // Record BEFORE deciding so a throw still leaves a trace.
   await recordLast(ctx || {}, mode);
 
-  if (mode === "allow") return { decision: "allow" };
+  if (mode === "allow") {return { decision: "allow" };}
 
   if (mode === "deny") {
     const reason =
@@ -212,7 +213,7 @@ export async function authorize(ctx) {
     return { decision: "deny", reason };
   }
 
-  if (mode === "abstain") return { decision: "abstain" };
+  if (mode === "abstain") {return { decision: "abstain" };}
 
   if (mode === "slow") {
     const slowMs =
@@ -346,13 +347,13 @@ export default {
     // passed to the policy without re-reading .climier.json.
     async "recorded"(_args, _api) {
       const home = process.env.CLIMIER_HOME;
-      if (!home) return { command: "recorded", recorded: null };
+      if (!home) {return { command: "recorded", recorded: null };}
       const file = path.join(home, "policy-fixture-state.json");
       try {
         const raw = await fs.readFile(file, "utf8");
         return { command: "recorded", recorded: JSON.parse(raw) };
       } catch (err) {
-        if (err && err.code === "ENOENT") return { command: "recorded", recorded: null };
+        if (err && err.code === "ENOENT") {return { command: "recorded", recorded: null };}
         throw err;
       }
     },

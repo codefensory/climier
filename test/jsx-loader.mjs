@@ -49,7 +49,7 @@ export async function resolve(specifier, context, nextResolve) {
   let resolved;
   try {
     resolved = await nextResolve(specifier, context);
-  } catch (err) {
+  } catch {
     // node can't resolve relative .jsx without an extension helper; do it
     // by hand and retry.
     const url = new URL(specifier, parentURL);

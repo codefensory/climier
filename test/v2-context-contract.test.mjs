@@ -1,3 +1,4 @@
+/* eslint-disable max-lines, max-lines-per-function -- Context contract tests keep each complete public projection assertion together. */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {

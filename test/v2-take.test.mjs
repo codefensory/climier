@@ -1,3 +1,4 @@
+/* eslint-disable max-statements -- This test pins first-claim and idempotent-take response and revision behavior. */
 // F9 — `take <id>`: idempotent claim of an explicit ready v2 task.
 // First `take <id>` from an agent claims that task and returns
 // freshly_claimed=true. Repeating the same id as the same agent returns it
@@ -221,11 +222,11 @@ test("take: rejects --as with no value (MISSING_AGENT)", async () => {
   try {
     await assert.rejects(
       take(dir, "T-auth-1", { as: true }),
-      (err) => err.code === "MISSING_AGENT" && /^take:/.test(err.message) && /--as/.test(err.message),
+      (err) => err.code === "MISSING_AGENT" && err.message.startsWith('take:') && /--as/.test(err.message),
     );
   } finally {
-    if (prev === undefined) delete process.env.CLIMIER_AGENT;
-    else process.env.CLIMIER_AGENT = prev;
+    if (prev === undefined) {delete process.env.CLIMIER_AGENT;}
+    else {process.env.CLIMIER_AGENT = prev;}
     await rmTempProject(dir);
   }
 });
@@ -237,11 +238,11 @@ test("take: rejects missing --as (MISSING_AGENT)", async () => {
   try {
     await assert.rejects(
       take(dir, "T-auth-1", {}),
-      (err) => err.code === "MISSING_AGENT" && /^take:/.test(err.message),
+      (err) => err.code === "MISSING_AGENT" && err.message.startsWith('take:'),
     );
   } finally {
-    if (prev === undefined) delete process.env.CLIMIER_AGENT;
-    else process.env.CLIMIER_AGENT = prev;
+    if (prev === undefined) {delete process.env.CLIMIER_AGENT;}
+    else {process.env.CLIMIER_AGENT = prev;}
     await rmTempProject(dir);
   }
 });

@@ -1,3 +1,4 @@
+/* eslint-disable max-lines, max-lines-per-function -- The v2 integration contracts preserve their established end-to-end test boundaries. */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, importFresh, readState as readRawState, runCli, writeFencedState } from "./helpers.mjs";
@@ -421,6 +422,7 @@ test("context: returns blockers, informing edges, and scoped knowledge for a v2 
   }
 });
 
+// eslint-disable-next-line max-statements -- This single integration case covers the public v2 command sequence.
 test("CLI: v2 commands work end-to-end", async () => {
   const dir = await createTempProject();
   try {

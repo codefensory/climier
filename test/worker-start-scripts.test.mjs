@@ -1,3 +1,4 @@
+/* eslint-disable max-lines, max-lines-per-function, max-statements, complexity, max-depth -- Worktree note parsing validates every optional protocol field in the fixture. */
 // Tests for the worker preflight + start-worktree flow.
 //
 // Goals:
@@ -127,7 +128,7 @@ function runBash(script, args, { cwd, env, input } = {}) {
       cwd,
       env: {
         ...process.env,
-        ...(env || {}),
+        ...env,
         PATH: env && Object.prototype.hasOwnProperty.call(env, "PATH") ? env.PATH : testPath(CLIMIER_SHIM_DIR),
         NO_COLOR: "1",
       },
@@ -136,7 +137,7 @@ function runBash(script, args, { cwd, env, input } = {}) {
     let stderr = "";
     proc.stdout.on("data", (d) => (stdout += d.toString()));
     proc.stderr.on("data", (d) => (stderr += d.toString()));
-    if (input !== undefined) proc.stdin.end(input);
+    if (input !== undefined) {proc.stdin.end(input);}
     proc.on("close", (code) => resolve({ stdout, stderr, code }));
   });
 }
@@ -146,7 +147,7 @@ async function readStateSafe(projectRoot) {
     const raw = await fsp.readFile(stateFilePath(projectRoot), "utf8");
     return JSON.parse(raw);
   } catch (e) {
-    if (e.code === "ENOENT") return null;
+    if (e.code === "ENOENT") {return null;}
     throw e;
   }
 }
@@ -159,9 +160,9 @@ function parseWorktreeNote(taskLog) {
       const fields = {};
       for (const part of m[1].split(/\s+/)) {
         const eq = part.indexOf("=");
-        if (eq > 0) fields[part.slice(0, eq)] = part.slice(eq + 1);
+        if (eq > 0) {fields[part.slice(0, eq)] = part.slice(eq + 1);}
       }
-      if (fields.path) return fields;
+      if (fields.path) {return fields;}
     }
   }
   return null;
@@ -169,7 +170,7 @@ function parseWorktreeNote(taskLog) {
 
 async function readWorktreeNote(projectRoot, taskId) {
   const state = await readStateSafe(projectRoot);
-  if (!state) return null;
+  if (!state) {return null;}
   const log = (state.log || []).filter(
     (e) => e.node === taskId && typeof e.note === "string" && e.note.startsWith("WORKTREE"),
   );

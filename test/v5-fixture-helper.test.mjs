@@ -1,3 +1,4 @@
+/* eslint-disable max-nested-callbacks -- Fixture lifecycle assertions execute within the shared temporary-project boundary. */
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import test from "node:test";

@@ -1,3 +1,4 @@
+/* eslint-disable max-nested-callbacks -- Internal capability tests keep setup and rejection predicates with the exercised API call. */
 // T-plugin-policy-migration-tests — ADR-008 §"Capacidad interna":
 // the internal capability `addNodeInternal({ allowUnregisteredInitiative: true })`
 // in src/commands/internal/create-node.mjs is the ONLY sanctioned caller of the
@@ -47,10 +48,10 @@ async function withFreshHome(body) {
   try {
     return await body({ home, projectDir });
   } finally {
-    if (prev.CLIMIER_HOME === undefined) delete process.env.CLIMIER_HOME;
-    else process.env.CLIMIER_HOME = prev.CLIMIER_HOME;
-    if (prev.CLIMIER_AGENT === undefined) process.env.CLIMIER_AGENT = prev.CLIMIER_AGENT;
-    else process.env.CLIMIER_AGENT = prev.CLIMIER_AGENT;
+    if (prev.CLIMIER_HOME === undefined) {delete process.env.CLIMIER_HOME;}
+    else {process.env.CLIMIER_HOME = prev.CLIMIER_HOME;}
+    if (prev.CLIMIER_AGENT === undefined) {process.env.CLIMIER_AGENT = prev.CLIMIER_AGENT;}
+    else {process.env.CLIMIER_AGENT = prev.CLIMIER_AGENT;}
     await fs.rm(home, { recursive: true, force: true });
     await rmTempProject(projectDir);
   }

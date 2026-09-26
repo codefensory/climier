@@ -38,7 +38,7 @@ test("throwV2: throws an Error with code, message, and details", async () => {
 });
 
 test("EDGE_TYPES: lists BLOCKS, SUPERSEDES, DERIVED_FROM only", async () => {
-  assert.deepEqual([...EDGE_TYPES].sort(), ["BLOCKS", "DERIVED_FROM", "SUPERSEDES"]);
+  assert.deepEqual([...EDGE_TYPES].toSorted(), ["BLOCKS", "DERIVED_FROM", "SUPERSEDES"]);
 });
 
 test("existingEdge: matches on exact (from, to, type) triple", async () => {

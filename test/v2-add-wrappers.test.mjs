@@ -1,3 +1,4 @@
+/* eslint-disable max-nested-callbacks -- Wrapper integration tests keep setup and detailed error assertions in one case. */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, importFresh, readState, runCli } from "./helpers.mjs";
@@ -146,7 +147,7 @@ test('add-task v2: missing --blocked-by explains that --blocked-by "" is valid',
       (err) => {
         assert.equal(err.code, "MISSING_FIELD");
         assert.match(err.message, /--blocked-by/);
-        assert.match(err.message, /\"\"/);
+        assert.match(err.message, /""/);
         return true;
       },
     );

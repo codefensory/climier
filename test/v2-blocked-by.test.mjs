@@ -14,6 +14,7 @@ async function bootstrapV2(dir, initiative = "auth") {
   await addInit({ statePath: dir, flags: { desc: "test" }, positional: [initiative] });
 }
 
+// eslint-disable-next-line max-params -- These positional fields mirror the gate fixture inputs used by all cases.
 async function addGate(dir, id, title = id, initiative = "auth", status = "resolved") {
   const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
   return addNode({

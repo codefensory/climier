@@ -1,3 +1,4 @@
+/* eslint-disable max-lines, max-lines-per-function, max-nested-callbacks -- Adversarial regression matrix keeps each fixture lifecycle and rejection assertion together. */
 // F13 — v2 adversarial test pass.
 //
 // Goal: surface root-cause bugs in the v2 surface by exercising edges the
@@ -36,8 +37,8 @@ async function freshV2(dir) {
 }
 
 async function addInit(dir, name = "auth", desc = "auth") {
-  const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
-  await addInit({ statePath: dir, flags: { desc }, positional: [name] });
+  const { default: addInitiative } = await importFresh("./cli/commands/add-initiative.mjs");
+  await addInitiative({ statePath: dir, projectDir: dir, flags: { desc }, positional: [name] });
 }
 
 async function addTaskNode(dir, id, extra = {}) {
@@ -465,7 +466,7 @@ describe("concurrency: two operations on the same node serialize cleanly", () =>
       const a = runCli(["--project", dir, "take", "T-a", "--as", "alice"]);
       const b = runCli(["--project", dir, "take", "T-a", "--as", "bob"]);
       const [ra, rb] = await Promise.all([a, b]);
-      const codes = [ra.code, rb.code].sort();
+      const codes = [ra.code, rb.code].toSorted();
       assert.deepEqual(codes, [0, 1], `expected one 0 and one 1; got A=${ra.code} B=${rb.code}; A stdout=${ra.stdout} B stdout=${rb.stdout}`);
       const s = await readRawState(dir);
       // Lock order is non-deterministic; the winner is whichever process
@@ -528,7 +529,7 @@ describe("concurrency: two operations on the same node serialize cleanly", () =>
       const a = runCli(["--project", dir, "add-edge", "T-a", "T-b", "--type", "BLOCKS", "--as", "alice"]);
       const b = runCli(["--project", dir, "add-edge", "T-a", "T-b", "--type", "BLOCKS", "--as", "alice"]);
       const [ra, rb] = await Promise.all([a, b]);
-      const codes = [ra.code, rb.code].sort();
+      const codes = [ra.code, rb.code].toSorted();
       assert.deepEqual(codes, [0, 1], `expected one 0 and one 1; got A=${ra.code} B=${rb.code}; A stdout=${ra.stdout} B stdout=${rb.stdout}`);
       const s = await readRawState(dir);
       const matchingEdges = s.edges.filter(
@@ -603,11 +604,11 @@ describe("idempotency contracts", () => {
     const dir = await createTempProject();
     try {
       await freshV2(dir);
-      const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
-      await addInit({ statePath: dir, flags: { desc: "first" }, positional: ["auth"] });
+      const { default: addInitiative } = await importFresh("./cli/commands/add-initiative.mjs");
+      await addInitiative({ statePath: dir, projectDir: dir, flags: { desc: "first" }, positional: ["auth"] });
       let caught;
       try {
-        await addInit({ statePath: dir, flags: { desc: "second" }, positional: ["auth"] });
+        await addInitiative({ statePath: dir, projectDir: dir, flags: { desc: "second" }, positional: ["auth"] });
       } catch (e) { caught = e; }
       assert.ok(caught, "second add-initiative should throw");
       assert.equal(caught.code, "ID_CONFLICT");
@@ -798,8 +799,8 @@ describe("agent source precedence", () => {
         const s = await readRawState(dir);
         assert.equal(s.nodes["T-a"].claim.by, "flag-agent");
       } finally {
-        if (prev === undefined) delete process.env.CLIMIER_AGENT;
-        else process.env.CLIMIER_AGENT = prev;
+        if (prev === undefined) {delete process.env.CLIMIER_AGENT;}
+        else {process.env.CLIMIER_AGENT = prev;}
       }
     } finally { await rmTempProject(dir); }
   });
@@ -816,8 +817,8 @@ describe("agent source precedence", () => {
         const s = await readRawState(dir);
         assert.equal(s.nodes["T-a"].claim.by, "env-agent");
       } finally {
-        if (prev === undefined) delete process.env.CLIMIER_AGENT;
-        else process.env.CLIMIER_AGENT = prev;
+        if (prev === undefined) {delete process.env.CLIMIER_AGENT;}
+        else {process.env.CLIMIER_AGENT = prev;}
       }
     } finally { await rmTempProject(dir); }
   });
@@ -835,8 +836,8 @@ describe("agent source precedence", () => {
         assert.equal(err.error.code, "MISSING_AGENT");
         assert.equal(err.error.details.command, "take");
       } finally {
-        if (prev === undefined) delete process.env.CLIMIER_AGENT;
-        else process.env.CLIMIER_AGENT = prev;
+        if (prev === undefined) {delete process.env.CLIMIER_AGENT;}
+        else {process.env.CLIMIER_AGENT = prev;}
       }
     } finally { await rmTempProject(dir); }
   });
@@ -853,8 +854,8 @@ describe("agent source precedence", () => {
         const s = await readRawState(dir);
         assert.equal(s.nodes["T-a"].claim.by, "env-agent");
       } finally {
-        if (prev === undefined) delete process.env.CLIMIER_AGENT;
-        else process.env.CLIMIER_AGENT = prev;
+        if (prev === undefined) {delete process.env.CLIMIER_AGENT;}
+        else {process.env.CLIMIER_AGENT = prev;}
       }
     } finally { await rmTempProject(dir); }
   });
@@ -1173,8 +1174,7 @@ describe("envelope shape consistency", () => {
     const dir = await v2Project();
     try {
       // Add an extra initiative with no usage.
-      const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
-      await addInit({ statePath: dir, flags: { desc: "unused" }, positional: ["unused"] });
+      await addInit(dir, "unused", "unused");
       // Without --all, 'unused' is hidden (zero nodes).
       const { default: initiatives } = await importFresh("./cli/commands/initiatives.mjs");
       const def = await initiatives({ statePath: dir, flags: {} });
