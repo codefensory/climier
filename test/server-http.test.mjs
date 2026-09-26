@@ -6,6 +6,8 @@ import path from "node:path";
 
 import * as httpServer from "../src/server/http.mjs";
 import { createHttpCodec } from "../src/server/http/codec.mjs";
+import { createHttpReads } from "../src/server/http/reads.mjs";
+import * as readModel from "../src/read-model/index.mjs";
 import { dispatchOperationRequest, validateOperationRequest } from "../src/server/http/operations.mjs";
 import { remoteV1Manifest } from "../src/application/operations/remote-v1-manifest.mjs";
 
@@ -677,6 +679,29 @@ test("HTTP v1 authenticates before storage access and isolates projects", async 
     assert.deepEqual((await statusA.json()).result.tasks.ready, []);
     assert.deepEqual((await statusB.json()).result.tasks.ready, []);
   });
+});
+
+test("HTTP reads module receives snapshot query, route, dependencies, and clock explicitly", () => {
+  const { httpError } = createHttpCodec({ protocolVersion: PROTOCOL_VERSION });
+  const calls = [];
+  const reads = createHttpReads({
+    httpError,
+    routing: { decodeURIComponent },
+    query: { searchParams: (url) => url.searchParams },
+    deps: {
+      ...readModel,
+      projectStatusView(args) { calls.push(["status", args]); return { marker: "injected-status" }; },
+    },
+    clock: () => 1234,
+  });
+
+  const route = reads.matchReadRoute("read/status");
+  assert.equal(route.kind, "status");
+  const parsedQuery = reads.parseReadQuery(new URL("http://localhost/read/status?limit=2"), route);
+  assert.deepEqual(parsedQuery, { limit: 2 });
+  assert.deepEqual(reads.projectReadResult({ snapshot: { nodes: {} }, route, query: parsedQuery }), { marker: "injected-status" });
+  assert.deepEqual(calls, [["status", { snapshot: { nodes: {} }, filters: parsedQuery, now: 1234 }]]);
+  assert.equal(reads.matchReadRoute("read/nope"), null);
 });
 
 test("HTTP codec keeps path and body decoding contracts and receives the public protocol version", async () => {

@@ -4,19 +4,8 @@ import { dispatchOperationRequest, validateOperationRequest } from "./http/opera
 import { createBuiltinOperationRegistry } from "../application/operations/builtins.mjs";
 import { remoteV1Manifest } from "../application/operations/remote-v1-manifest.mjs";
 import { mutate } from "../kernel/mutate.mjs";
-import {
-  blockingForNode,
-  derive,
-  informingForNode,
-  knowledgeForNode,
-  projectSnapshot,
-  projectSearchView,
-  projectStatusView,
-  projectContextView,
-  projectInitiativesView,
-  projectLogView,
-  statusOf,
-} from "../read-model/index.mjs";
+import { createHttpReads } from "./http/reads.mjs";
+import * as readModel from "../read-model/index.mjs";
 import { readState } from "../storage/state.mjs";
 import { initState } from "../kernel/state-operations.mjs";
 import { authorizeAction as authorizeServerAction, loadApplicablePolicy } from "../plugins/policy.mjs";
@@ -25,86 +14,14 @@ import { createHttpCodec } from "./http/codec.mjs";
 import { executeTransferRequest, validateTransferRequest } from "./http/transfers.mjs";
 
 const PROTOCOL_VERSION = "1";
-const { httpError, errorStatus, jsonError, send, parseProjectPath, readJsonBody, readRoute } = createHttpCodec({ protocolVersion: PROTOCOL_VERSION });
-function invalidQuery(message, details) {
-  throw httpError("INVALID_QUERY", `server http: ${message}`, details, 400);
-}
-
-function parseReadQuery(url, route) {
-  const query = {};
-  for (const [key, value] of url.searchParams) {
-    if (!route.allowedQuery.includes(key)) invalidQuery(`query parameter '${key}' is not allowed for ${route.kind}`, { parameter: key });
-    if (Object.hasOwn(query, key)) invalidQuery(`query parameter '${key}' must not be repeated`, { parameter: key });
-    query[key] = value;
-  }
-  if (route.kind === "search") {
-    if (route.query !== undefined && Object.hasOwn(query, "query")) invalidQuery("search query must not be repeated in the path and query string", { parameter: "query" });
-    query.query = route.query ?? query.query ?? "";
-  }
-  if (Object.hasOwn(query, "all")) {
-    if (query.all === "") query.all = true;
-    else {
-      if (query.all !== "true" && query.all !== "false") invalidQuery("query parameter 'all' must be true or false", { parameter: "all", value: query.all });
-      query.all = query.all === "true";
-    }
-  }
-  const parseNonNegativeInt = (name, { number = false } = {}) => {
-    if (!Object.hasOwn(query, name)) return;
-    const value = query[name];
-    const parsed = number ? Number(value) : parseInt(value, 10);
-    if (!Number.isFinite(parsed) || parsed < 0 || (!number && Number.isNaN(parsed))) {
-      invalidQuery(`query parameter '${name}' must be a non-negative ${number ? "number" : "integer"}`, { parameter: name, value });
-    }
-    query[name] = parsed;
-  };
-  if (route.kind === "status") {
-    parseNonNegativeInt("stale-ms");
-    parseNonNegativeInt("limit");
-  } else if (route.kind === "context") {
-    parseNonNegativeInt("staleMs", { number: true });
-  } else if (route.kind === "history" || route.kind === "log") {
-    parseNonNegativeInt("limit");
-  }
-  return query;
-}
-
-function statusProjection(snapshot, filters, now) {
-  return projectStatusView({ snapshot, filters, now });
-}
-
-function contextProjection(snapshot, id, query, now) {
-  const view = projectContextView({ snapshot, id, agent: query.as, staleMs: query.staleMs, now });
-  if (!view) throw httpError("NODE_NOT_FOUND", `server http: node '${id}' was not found`, { id }, 404);
-  return view;
-}
-
-function entryReferencesId(entry, id) {
-  return !!entry && !!id && (entry.node === id || entry.task === id || entry.decision === id || entry.gotcha === id
-    || (typeof entry.note === "string" && entry.note.split(/\\s+/).includes(id)));
-}
-
-function projectReadResult(snapshot, route, query, now) {
-  const nodes = snapshot.nodes || {};
-  if (route.kind === "status") return statusProjection(snapshot, query, now);
-  if (route.kind === "context") return contextProjection(snapshot, route.id, query, now);
-  if (route.kind === "show") {
-    const node = nodes[route.id];
-    if (!node) throw httpError("NODE_NOT_FOUND", `server http: node '${route.id}' was not found`, { id: route.id }, 404);
-    return { type: node.subkind || node.kind, node: structuredClone(node) };
-  }
-  if (route.kind === "history") {
-    let entries = (snapshot.log || []).filter((entry) => entryReferencesId(entry, route.id));
-    if (query.limit > 0) entries = entries.slice(-query.limit);
-    return { id: route.id, entries };
-  }
-  if (route.kind === "search") return projectSearchView({ snapshot, query: query.query, all: query.all === true });
-  if (route.kind === "initiatives") return projectInitiativesView({ snapshot, all: query.all === true });
-  if (route.kind === "log") return projectLogView({ snapshot, filters: query });
-  if (route.kind === "state") return projectSnapshot({ snapshot });
-  const node = nodes[route.id];
-  if (!node) throw httpError("NODE_NOT_FOUND", `server http: node '${route.id}' was not found`, { id: route.id }, 404);
-  return { node: structuredClone(node), derived_status: statusOf({ snapshot, id: route.id }), blocking: blockingForNode({ snapshot, id: route.id }), knowledge: knowledgeForNode({ snapshot, id: route.id }), informing: informingForNode({ snapshot, id: route.id }) };
-}
+const { httpError, errorStatus, jsonError, send, parseProjectPath, readJsonBody } = createHttpCodec({ protocolVersion: PROTOCOL_VERSION });
+const reads = createHttpReads({
+  httpError,
+  routing: { decodeURIComponent },
+  query: { searchParams: (url) => url.searchParams },
+  deps: readModel,
+  clock: Date.now,
+});
 
 export function createRemoteApiServer({
   catalog,
@@ -142,7 +59,7 @@ export function createRemoteApiServer({
       const operationRoute = route.route === "operations" && request.method === "POST";
       const initRoute = route.route === "init" && request.method === "POST";
       const transferRoute = new Set(["transfer/export", "transfer/import"]).has(route.route) && request.method === "POST";
-      const read = request.method === "GET" ? readRoute(route.route) : null;
+      const read = request.method === "GET" ? reads.matchReadRoute(route.route) : null;
       if (!read && !operationRoute && !initRoute && !transferRoute) {
         if (route.route.startsWith("files/") || route.route === "snapshot" || route.route === "read/snapshot") {
           throw httpError("ROUTE_NOT_FOUND", "server http: generic file and snapshot routes are not available", undefined, 404);
@@ -165,7 +82,7 @@ export function createRemoteApiServer({
           throw httpError("INVALID_REQUEST", `server http: init field '${field}' is not allowed`, { field }, 400);
         }
       }
-      const query = read ? parseReadQuery(url, read) : null;
+      const query = read ? reads.parseReadQuery(url, read) : null;
       const project = await withAuthorizedProject({
         authorization: request.headers.authorization,
         projectId: route.projectId,
@@ -220,8 +137,7 @@ export function createRemoteApiServer({
       if (!snapshot) {
         throw httpError("STATE_NOT_INITIALIZED", "server http: project state is not initialized", undefined, 409);
       }
-      const now = Date.now();
-      send(response, 200, { ok: true, result: projectReadResult(snapshot, read, query, now) });
+      send(response, 200, { ok: true, result: reads.projectReadResult({ snapshot, route: read, query }) });
     } catch (error) {
       if (!response.headersSent) send(response, errorStatus(error), jsonError(error));
       else response.destroy(error);
