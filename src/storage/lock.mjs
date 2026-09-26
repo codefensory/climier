@@ -38,12 +38,16 @@ export function getActiveLockContext(lockContext) {
 export function getCurrentLockContext(projectDir) {
   const active = activeProjectLock.getStore();
   const lockContext = active?.lockContexts?.get(path.resolve(projectDir));
-  if (!lockContext) return null;
+  if (!lockContext) {
+    return null;
+  }
   try {
     assertActiveLockContext(lockContext, projectDir);
     return lockContext;
   } catch (error) {
-    if (error.code === "CLIMIER_INVALID_LOCK_CONTEXT") return null;
+    if (error.code === "CLIMIER_INVALID_LOCK_CONTEXT") {
+      return null;
+    }
     throw error;
   }
 }
@@ -51,7 +55,9 @@ export function getCurrentLockContext(projectDir) {
 /** Run a storage operation under a live project lock, reusing same-project ALS. */
 export async function withCurrentProjectLock(projectDir, fn, opts = {}) {
   const lockContext = getCurrentLockContext(projectDir);
-  if (lockContext) return fn(lockContext);
+  if (lockContext) {
+    return fn(lockContext);
+  }
   return withLock(projectDir, fn, opts);
 }
 
@@ -67,7 +73,9 @@ function makeLockContext(projectDir) {
 
 function expireLockContext(lockContext) {
   const details = activeLockContexts.get(lockContext);
-  if (details) details.active = false;
+  if (details) {
+    details.active = false;
+  }
 }
 
 function lockPath(projectDir) {
@@ -79,58 +87,64 @@ async function ensureTasksDir(projectDir) {
 }
 
 async function sleep(ms) {
-  return new Promise((r) => setTimeout(r, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function createLockFile(lockPathname) {
+  const file = await fs.open(lockPathname, "wx");
+  await file.writeFile(JSON.stringify({ pid: process.pid, at: Date.now() }));
+  await file.close();
+}
+
+async function acquireLockFile(lockPathname, { timeoutMs, retryEveryMs }) {
+  const start = Date.now();
+  let attempt = 0;
+  while (true) {
+    try {
+      await createLockFile(lockPathname);
+      return;
+    } catch (error) {
+      if (error.code !== "EEXIST") {
+        throw error;
+      }
+      if (Date.now() - start > timeoutMs) {
+        throw new Error(`lock: timeout acquiring ${lockPathname} after ${timeoutMs}ms`, { cause: error });
+      }
+      await sleep(Math.min(retryEveryMs * Math.max(1, attempt), 200));
+      attempt++;
+    }
+  }
+}
+
+async function runWithLockContext(projectDir, lockPathname, fn) {
+  const lockContext = makeLockContext(projectDir);
+  const inheritedContexts = activeProjectLock.getStore()?.lockContexts;
+  const lockContexts = new Map(inheritedContexts ?? []);
+  lockContexts.set(projectDir, lockContext);
+  try {
+    return await activeProjectLock.run({ lockContexts }, () => fn(lockContext));
+  } finally {
+    expireLockContext(lockContext);
+    try {
+      await fs.unlink(lockPathname);
+    } catch {
+      // Ignore a missing lock file while preserving the operation result.
+    }
+  }
 }
 
 export async function withLock(projectDir, fn, opts = {}) {
   const resolvedProjectDir = path.resolve(projectDir);
   const inherited = getCurrentLockContext(resolvedProjectDir);
-  if (inherited) return fn(inherited);
-  // Detached async work can inherit expired capabilities in its ALS store.
-  // getCurrentLockContext rejects those, so acquire a fresh canonical lock.
-
-  const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const retryEveryMs = opts.retryEveryMs ?? RETRY_BASE_MS;
-  const lp = lockPath(projectDir);
-  const start = Date.now();
-
-  // Make sure the target dir exists before we try to create a lock file there.
+  if (inherited) {
+    return fn(inherited);
+  }
+  const options = {
+    timeoutMs: opts.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+    retryEveryMs: opts.retryEveryMs ?? RETRY_BASE_MS,
+  };
+  const pathname = lockPath(projectDir);
   await ensureTasksDir(projectDir);
-  let attempt = 0;
-
-  // Spinlock: try to create the lock file exclusively.
-  while (true) {
-    try {
-      const fh = await fs.open(lp, "wx");
-      await fh.writeFile(JSON.stringify({ pid: process.pid, at: Date.now() }));
-      await fh.close();
-      break;
-    } catch (err) {
-      if (err.code !== "EEXIST") throw err;
-      if (Date.now() - start > timeoutMs) {
-        throw new Error(`lock: timeout acquiring ${lp} after ${timeoutMs}ms`);
-      }
-      const wait = Math.min(retryEveryMs * Math.max(1, attempt), 200);
-      await sleep(wait);
-      attempt++;
-    }
-  }
-
-  const lockContext = makeLockContext(resolvedProjectDir);
-  const inheritedContexts = activeProjectLock.getStore()?.lockContexts;
-  const lockContexts = new Map(inheritedContexts ?? []);
-  lockContexts.set(resolvedProjectDir, lockContext);
-  try {
-    return await activeProjectLock.run(
-      { lockContexts },
-      () => fn(lockContext),
-    );
-  } finally {
-    expireLockContext(lockContext);
-    try {
-      await fs.unlink(lp);
-    } catch {
-      // ignore
-    }
-  }
+  await acquireLockFile(pathname, options);
+  return runWithLockContext(resolvedProjectDir, pathname, fn);
 }
