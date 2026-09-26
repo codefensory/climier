@@ -1,19 +1,14 @@
 // add-node: low-level escape hatch for creating v2 nodes.
 //
-// The handler is a thin adapter
-// over the kernel mutation frontier (`kernel.mutate` + the relevant
-// create provider). The adapter parses argv, resolves the policy
-// outside the lock, and hands control to the kernel, which owns the
-// lock, the snapshot read, the precondition check, the policy
-// authorize, the draft mutation, the diff/revision computation and
-// the single atomic state + log write. The handler itself never
-// imports withLock, updateState, appendWithContext, or edits
-// `revision` directly; the only mutating call is `kernel.mutate`.
+// The handler is a thin adapter over the Application Operation bridge. It
+// parses flags, selects the canonical operation for the node kind, and leaves
+// provider validation, policy timing, locking, revisions and persistence to
+// the shared operation source and mutation frontier.
 //
-// Provider routing:
-//   - kind=resolvable + subkind=task  → taskCreateProvider
-//   - kind=resolvable + subkind=gate  → gateCreateProvider
-//   - kind=knowledge                  → knowledgeCreateProvider
+// Operation routing:
+//   - kind=resolvable + subkind=task  → task.create
+//   - kind=resolvable + subkind=gate  → gate.create
+//   - kind=knowledge                  → knowledge.create
 //
 // Internal capability (ADR-008 §"Capacidad interna"):
 //   addNodeInternal({ allowUnregisteredInitiative: true }) sets
@@ -40,13 +35,10 @@
 // verbatim from the provider / kernel so existing consumers and tests
 // keep their structured error envelopes.
 
-import { mutate } from "../../kernel/mutate.mjs";
-import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
+import { createBackendClient } from "../../application/backend-client.mjs";
+import { createOperationBridge, executeOperation } from "../../application/operations/index.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
 import { resolveAgent } from "../actor.mjs";
-import { taskCreateProvider } from "../../providers/task/create.mjs";
-import { gateCreateProvider } from "../../providers/gate/create.mjs";
-import { createProvider as knowledgeCreateProviderFactory } from "../../providers/knowledge/create.mjs";
 import { executeRemoteDomain, nodeFromMutation } from "./internal/domain-routing.mjs";
 
 export const knownFlags = [
@@ -133,26 +125,34 @@ function nonEmptyString(value, fallback) {
   return typeof value === "string" && value.length > 0 ? value : fallback;
 }
 
-function policyAdapter(policy, projectDir, actor) {
-  if (!policy) return null;
+function withLegacyCreateLogAction(source, command, input) {
+  const action = command === "add-task" ? "add-task" : input.supersedes ? "supersede" : "add-node";
   return {
-    pluginId: policy.pluginId,
-    decide: async ({ snapshot, target, request, action }) => {
-      const decision = await authorizeAction({
-        policy,
-        action,
-        actor,
-        target,
-        snapshot,
-        projectDir,
-        projectConfig: policy.projectConfig || {},
-      });
-      return decision;
+    ...source,
+    mutate(mutation) {
+      mutation.request.action = action;
+      return source.mutate(mutation);
     },
   };
 }
 
-function pickProviderAndInput(id, kind, subkind, flags, { allowUnregistered }) {
+async function bridgeClientForCreate(client, { projectDir, source, pluginId, command, input }) {
+  if (client.type !== "local" || typeof client.executeOperation !== "function") return client;
+  const operationSource = source ?? (client.operationSource ? await client.operationSource : null);
+  if (!operationSource) return client;
+  const selectedSource = withLegacyCreateLogAction({ ...operationSource, pluginId }, command, input);
+  return {
+    type: "local",
+    executeOperation({ actor, operation, input: operationInput }) {
+      return executeOperation({ projectDir, actor, operation, input: operationInput, source: selectedSource });
+    },
+    executeBatch(args) {
+      return client.executeBatch(args);
+    },
+  };
+}
+
+function pickOperationAndInput(id, kind, subkind, flags, { allowUnregistered }) {
   if (kind === "resolvable" && subkind === "task") {
     const title = flags.title;
     const input = {
@@ -174,7 +174,7 @@ function pickProviderAndInput(id, kind, subkind, flags, { allowUnregistered }) {
       // the created node.
       meta: parseMeta(flags.meta),
     };
-    return { provider: taskCreateProvider, input, policyActionName: "task.create" };
+    return { operation: "task.create", input };
   }
   if (kind === "resolvable" && subkind === "gate") {
     const title = flags.title;
@@ -212,7 +212,7 @@ function pickProviderAndInput(id, kind, subkind, flags, { allowUnregistered }) {
       backlog: parseBacklog(flags.backlog) === true,
       allow_unregistered_initiative: allowUnregistered === true,
     };
-    return { provider: gateCreateProvider, input, policyActionName: "gate.create" };
+    return { operation: "gate.create", input };
   }
   // knowledge
   const title = flags.title;
@@ -252,13 +252,12 @@ function pickProviderAndInput(id, kind, subkind, flags, { allowUnregistered }) {
     allow_unregistered_initiative: allowUnregistered === true,
   };
   return {
-    provider: knowledgeCreateProviderFactory(),
+    operation: "knowledge.create",
     input,
-    policyActionName: "knowledge.create",
   };
 }
 
-export default async function addNode({ statePath, projectDir: suppliedProjectDir, flags = {}, positional = [], pluginId, backendClient }) {
+export default async function addNode({ statePath, projectDir: suppliedProjectDir, flags = {}, positional = [], pluginId, backendClient, source, createCommand = "add-node" }) {
   const [id] = positional;
   if (!id) throwV2("MISSING_FIELD", "add-node: node id required", { field: "id" });
   if (!flags.kind) throwV2("MISSING_FIELD", "add-node: --kind required", { field: "kind" });
@@ -295,11 +294,10 @@ export default async function addNode({ statePath, projectDir: suppliedProjectDi
     flags["allow-unregistered-initiative"] === true ||
     flags["allow-unregistered-initiative"] === "true";
 
-  // Public path: kernel adapter. The strict built-in providers own
-  // validation; this handler never falls back to a local withLock
-  // path. pickProviderAndInput defaults empty body/acceptance/purpose
+  // Public path: operation bridge. The strict built-in providers own
+  // validation; pickOperationAndInput defaults empty body/acceptance/purpose
   // to non-empty placeholders derived from the title.
-  const { provider, input, policyActionName } = pickProviderAndInput(
+  const { operation, input } = pickOperationAndInput(
     id,
     kind,
     subkind,
@@ -340,25 +338,20 @@ export default async function addNode({ statePath, projectDir: suppliedProjectDi
     return { node: nodeFromMutation(mutation, id, "created") || mutation.result?.node || null };
   }
 
-  // Load policy outside the lock (ADR-008 §"Seam por handler").
-  const policy = await loadApplicablePolicy({ projectDir });
-
-  // Log action matches the legacy surface: `add-node` for plain
-  // creates, `supersede` when the new node replaces an existing one.
-  const logAction = input.supersedes ? "supersede" : "add-node";
-
-  const policyAction = policy
-    ? { ...policyAdapter(policy, projectDir, agent), action: policyActionName }
-    : null;
-
-  const result = await mutate({
+  const client = backendClient || createBackendClient({ projectDir, source });
+  const routedClient = await bridgeClientForCreate(client, {
     projectDir,
-    request: { action: logAction, actor: agent, input },
-    provider,
-    policyAction,
+    source,
     pluginId,
+    command: createCommand,
+    input,
   });
-
+  const result = await createOperationBridge({ backendClient: routedClient }).executeOperation({
+    projectDir,
+    actor: agent,
+    operation,
+    input,
+  });
   // Map the kernel response to the legacy `{ node }` envelope. The
   // diff carries the persisted node (with revision assigned); if the
   // provider also returned a `node` in `result`, prefer that for

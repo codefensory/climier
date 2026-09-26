@@ -267,6 +267,47 @@ for (const [name, flags] of [
   });
 }
 
+test("add wrappers route local creates through the operation bridge", async () => {
+  await withV2(async (dir) => {
+    const calls = [];
+    const backendClient = {
+      type: "local",
+      async executeOperation(args) {
+        calls.push(args);
+        const node = { id: args.input.id, kind: args.operation === "knowledge.create" ? "knowledge" : "resolvable" };
+        return { result: { id: node.id, node }, diff: { created: [{ id: node.id, node }] } };
+      },
+      async executeBatch() { throw new Error("unexpected batch request"); },
+    };
+    const context = { statePath: dir, projectDir: dir, backendClient };
+
+    await (await command("add-task"))({
+      ...context,
+      positional: ["T-bridge"],
+      flags: taskFlags(),
+    });
+    await (await command("add-gate"))({
+      ...context,
+      positional: ["G-bridge"],
+      flags: gateFlags(),
+    });
+    await (await command("add-knowledge"))({
+      ...context,
+      positional: ["K-bridge"],
+      flags: knowledgeFlags(),
+    });
+    await (await command("add-node"))({
+      ...context,
+      positional: ["T-low-bridge"],
+      flags: { kind: "resolvable", subkind: "task", initiative: "auth", title: "Low-level" },
+    });
+
+    assert.deepEqual(calls.map(({ operation }) => operation), [
+      "task.create", "gate.create", "knowledge.create", "task.create",
+    ]);
+  });
+});
+
 test("CLI: add-task, add-gate, and add-knowledge wrappers dispatch end-to-end", async () => {
   const dir = await createTempProject();
   try {
