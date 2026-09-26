@@ -5,12 +5,28 @@
 // audit log and atomic persistence. The request action remains `add-note` so
 // the historical CLI log contract is preserved (the plugin API uses
 // `note.add`).
+import { bootstrapBuiltins, executeOperation } from "../../application/operations/index.mjs";
 import { mutate } from "../../kernel/mutate.mjs";
 import { noteAddProvider } from "../../providers/core/note.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
 import { resolveAgent } from "../actor.mjs";
 import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
 import { executeRemoteDomain, nodeFromMutation } from "./internal/domain-routing.mjs";
+
+function withCliProvider(source) {
+  return {
+    ...source,
+    registry: {
+      ...source.registry,
+      lookup(id) {
+        const entry = source.registry.lookup(id);
+        return id === "note.add" && entry ? { ...entry, provider: cliNoteProvider() } : entry;
+      },
+    },
+  };
+}
+
+const REGISTRY = bootstrapBuiltins();
 
 export const knownFlags = ["as", "if-revision"];
 
@@ -51,9 +67,11 @@ function cliNoteProvider() {
             note_length: input.text.length,
           }
         : plan.target;
+      request.action = "add-note";
       return {
         ...plan,
         target,
+        logAction: "add-note",
         // Legacy fixtures without a revision cannot satisfy the kernel CAS
         // check. Their provider validation still checks the target, and the
         // kernel assigns the first revision when the note is persisted.
@@ -69,7 +87,7 @@ function cliNoteProvider() {
   };
 }
 
-export default async function addNote({ statePath, projectDir: suppliedProjectDir, flags = {}, positional = [], pluginId, backendClient }) {
+export default async function addNote({ statePath, projectDir: suppliedProjectDir, flags = {}, positional = [], pluginId, backendClient, source }) {
   const [id, ...rest] = positional;
   if (!id) {
     throwV2(
@@ -101,9 +119,18 @@ export default async function addNote({ statePath, projectDir: suppliedProjectDi
     const mutation = await executeRemoteDomain({ backendClient, actor: as, operation: "note.add", input, command: "add-note" });
     return { node: nodeFromMutation(mutation, id) || mutation.result?.node || null };
   }
-  const policy = await loadApplicablePolicy({ projectDir });
-  const policyAction = policy
-    ? {
+  const policy = source ? null : await loadApplicablePolicy({ projectDir });
+
+  const result = await executeOperation({
+    projectDir,
+    actor: as,
+    operation: "note.add",
+    input,
+    source: withCliProvider(source || {
+      registry: REGISTRY,
+      mutate,
+      selectPolicy: async () => policy,
+      policyAction: policy ? {
         action: "note.add",
         pluginId: policy.pluginId || null,
         decide: async ({ snapshot, target, request, action }) => authorizeAction({
@@ -115,15 +142,10 @@ export default async function addNote({ statePath, projectDir: suppliedProjectDi
           projectDir,
           projectConfig: policy.projectConfig || {},
         }),
-      }
-    : null;
-
-  const result = await mutate({
-    projectDir,
-    request: { action: "add-note", actor: as, input },
-    provider: cliNoteProvider(),
-    policyAction,
-    pluginId,
+      } : null,
+      authorizeAction,
+      pluginId,
+    }),
   });
 
   const updated = result.diff.updated.find((entry) => entry.id === id);

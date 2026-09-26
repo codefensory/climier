@@ -6,9 +6,8 @@
 // the lock, and hands control to the kernel, which owns the lock,
 // the snapshot read, the precondition check, the policy authorize,
 // the draft mutation, the diff/revision computation and the single
-// atomic state + log write. The handler itself no longer imports
-// withLock, updateState, appendWithContext or edit `revision`
-// directly; the only mutating call is `kernel.mutate`.
+// atomic state + log write. The adapter delegates the operation to
+// Application Operations rather than opening a second mutation path.
 //
 // Errors (`SELF_EDGE`, `INVALID_EDGE_TARGET`, `INVALID_EDGE_TYPE`,
 // `MISSING_FIELD`, `POLICY_DENIED`, `REVISION_CONFLICT`,
@@ -16,19 +15,45 @@
 // provider / kernel so existing consumers and tests keep their
 // structured error envelopes.
 
+import { bootstrapBuiltins, executeOperation } from "../../application/operations/index.mjs";
 import { mutate } from "../../kernel/mutate.mjs";
 import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
 import { resolveAgent } from "../actor.mjs";
-import { edgeAddProvider } from "../../providers/core/edge.mjs";
 import { executeRemoteDomain } from "./internal/domain-routing.mjs";
+
+const REGISTRY = bootstrapBuiltins();
+
+function withCliProvider(source) {
+  return {
+    ...source,
+    registry: {
+      ...source.registry,
+      lookup(id) {
+        const entry = source.registry.lookup(id);
+        if (id !== POLICY_ACTION || !entry) return entry;
+        return {
+          ...entry,
+          provider: {
+            ...entry.provider,
+            async prepare(args) {
+              const plan = await entry.provider.prepare(args);
+              args.request.action = LOG_ACTION;
+              return { ...plan, logAction: LOG_ACTION };
+            },
+          },
+        };
+      },
+    },
+  };
+}
 
 export const knownFlags = ["type", "as"];
 
 const POLICY_ACTION = "edge.add";
 const LOG_ACTION = "add-edge";
 
-export default async function addEdge({ statePath, projectDir: suppliedProjectDir, positional = [], flags = {}, pluginId, backendClient }) {
+export default async function addEdge({ statePath, projectDir: suppliedProjectDir, positional = [], flags = {}, pluginId, backendClient, source }) {
   const [from, to] = positional;
   if (!from || !to) {
     throwV2("MISSING_FIELD", "add-edge: from and to ids required", { field: "from,to" });
@@ -57,34 +82,31 @@ export default async function addEdge({ statePath, projectDir: suppliedProjectDi
   }
   const policy = await loadApplicablePolicy({ projectDir });
 
-  // policyAction is the in-lock authorize step the kernel evaluates
-  // against the fresh snapshot + plan. With no applicable policy the
-  // seam is inert (defaults core: allow/abstain both proceed).
-  const policyAction = policy
-    ? {
-        action: POLICY_ACTION,
-        pluginId: policy.pluginId,
-        decide: async ({ snapshot, target, request, action }) => {
-          const decision = await authorizeAction({
-            policy,
-            action,
-            actor: agent,
-            target,
-            snapshot,
-            projectDir,
-            projectConfig: policy.projectConfig || {},
-          });
-          return decision;
-        },
-      }
-    : null;
-
-  const result = await mutate({
+  const result = await executeOperation({
     projectDir,
-    request: { action: LOG_ACTION, actor: agent, input },
-    provider: edgeAddProvider,
-    policyAction,
-    pluginId,
+    actor: agent,
+    operation: POLICY_ACTION,
+    input,
+    source: withCliProvider(source || {
+      registry: REGISTRY,
+      mutate,
+      selectPolicy: async () => policy,
+      policyAction: policy ? {
+        action: POLICY_ACTION,
+        pluginId: policy.pluginId || null,
+        decide: async ({ snapshot, target, request, action }) => authorizeAction({
+          policy,
+          action,
+          actor: request.actor,
+          target,
+          snapshot,
+          projectDir,
+          projectConfig: policy.projectConfig || {},
+        }),
+      } : undefined,
+      authorizeAction,
+      pluginId,
+    }),
   });
 
   // The provider's apply returns `{ result: { edge } }`. Project the

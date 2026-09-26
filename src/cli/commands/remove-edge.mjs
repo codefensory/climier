@@ -17,7 +17,7 @@ export const knownFlags = ["type", "as"];
 
 const REG = bootstrapBuiltins();
 
-export default async function removeEdge({ statePath, projectDir: suppliedProjectDir, positional = [], flags = {}, backendClient }) {
+export default async function removeEdge({ statePath, projectDir: suppliedProjectDir, positional = [], flags = {}, backendClient, source: suppliedSource }) {
   const [from, to] = positional;
   if (!from || !to) {
     throwV2("MISSING_FIELD", "remove-edge: from and to ids required", { field: "from,to" });
@@ -33,8 +33,8 @@ export default async function removeEdge({ statePath, projectDir: suppliedProjec
     const mutation = await executeRemoteDomain({ backendClient, actor, operation: "edge.remove", input, command: "remove-edge" });
     return mutation.result;
   }
-  const policy = await loadApplicablePolicy({ projectDir });
-  const source = {
+  const policy = suppliedSource ? null : await loadApplicablePolicy({ projectDir });
+  const source = suppliedSource || {
     registry: REG,
     mutate,
     selectPolicy: async () => policy,
