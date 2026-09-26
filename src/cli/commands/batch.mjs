@@ -6,6 +6,7 @@ import path from "node:path";
 import { readFile } from "node:fs/promises";
 
 import createOperationBridge from "../../application/operations/bridge.mjs";
+import { createBackendClient } from "../../application/operations/index.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
 import { resolveAgent } from "../actor.mjs";
 
@@ -77,18 +78,6 @@ function parseDocument(raw) {
   return document;
 }
 
-async function createLocalSource() {
-  const { createBuiltinOperationRegistry } = await import("../../application/operations/index.mjs");
-  const { mutate } = await import("../../kernel/mutate.mjs");
-  const { loadApplicablePolicy, authorizeAction } = await import("../../plugins/policy.mjs");
-  return {
-    registry: createBuiltinOperationRegistry(),
-    mutate,
-    loadApplicablePolicy,
-    authorizeAction,
-  };
-}
-
 export default async function batch({ statePath, projectDir, projectConfig, backendClient, source, flags = {}, positional = [] }) {
   if (positional.length > 0) {
     invalidInput("positional arguments are not allowed", { field: "positional" });
@@ -96,15 +85,11 @@ export default async function batch({ statePath, projectDir, projectConfig, back
   const document = parseDocument(await readInput(flags));
   const actor = resolveAgent(flags, "batch");
 
-  let selectedClient = backendClient;
-  if (backendClient?.type !== "remote") {
-    const { createBackendClient } = await import("../../application/operations/index.mjs");
-    selectedClient = createBackendClient({
-      projectDir: projectDir || statePath,
-      projectConfig,
-      source: source || await createLocalSource(),
-    });
-  }
+  const selectedClient = backendClient || createBackendClient({
+    projectDir: projectDir || statePath,
+    projectConfig,
+    source,
+  });
 
   return createOperationBridge({ backendClient: selectedClient }).executeBatch({
     actor,

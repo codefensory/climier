@@ -319,9 +319,12 @@ export async function runCli({
 
     const projectConfig = readProjectConfig(projectDir);
     const backendClient = backendClientFactory({ projectDir, projectConfig, source });
+    const selectedSource = backendClient?.type === "local"
+      ? source ?? await backendClient.operationSource
+      : source;
     context.projectConfig = projectConfig;
     context.backendClient = backendClient;
-    context.source = source;
+    context.source = selectedSource;
     ensureRemoteCommandSupported({ ...context, backendClient });
 
     const result = await dispatch(context);
