@@ -34,6 +34,10 @@ export async function addV2Node(command, prefix, shape, ctx) {
     ...ctx,
     positional: [id],
     flags: { ...ctx.flags, ...shape },
+    projectDir: ctx.projectDir,
+    backendClient: ctx.backendClient,
+    source: ctx.source,
+    createCommand: command,
   });
 }
 
@@ -64,6 +68,9 @@ export async function addNodeInternal({
   flags,
   positional,
   pluginId,
+  backendClient,
+  source,
+  projectDir,
   allowUnregisteredInitiative = false,
 }) {
   return addNode({
@@ -74,5 +81,9 @@ export async function addNodeInternal({
     },
     positional,
     pluginId,
+    backendClient,
+    source,
+    projectDir,
+    createCommand: "add-node",
   });
 }
