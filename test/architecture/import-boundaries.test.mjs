@@ -85,6 +85,35 @@ test("HTTP facade remains the only HTTP module allowed to read storage", async (
   assert.match(source, /from "\.\.\/storage\/state\.mjs"/);
 });
 
+test("HTTP extracted modules do not open projects", async () => {
+  for (const file of [
+    "src/server/http/codec.mjs",
+    "src/server/http/operations.mjs",
+    "src/server/http/reads.mjs",
+    "src/server/http/transfers.mjs",
+  ]) {
+    const source = await readFile(file, "utf8");
+    assert.doesNotMatch(source, /\b(?:openProject|provisionProject|withAuthorizedProject)\b/, file);
+    assert.doesNotMatch(source, /from ["'][^"']*catalog\//, file);
+  }
+});
+
+test("HTTP protocol version is defined once in the public facade", async () => {
+  const files = [
+    "src/server/http.mjs",
+    "src/server/http/codec.mjs",
+    "src/server/http/operations.mjs",
+    "src/server/http/reads.mjs",
+    "src/server/http/transfers.mjs",
+  ];
+  const sources = await Promise.all(files.map((file) => readFile(file, "utf8")));
+  const definitions = sources.flatMap((source, index) =>
+    [...source.matchAll(/\b(?:const|let|var)\s+PROTOCOL_VERSION\s*=/g)].map(() => files[index]));
+
+  assert.deepEqual(definitions, ["src/server/http.mjs"]);
+  assert.match(sources[0], /createHttpCodec\(\{ protocolVersion: PROTOCOL_VERSION \}\)/);
+});
+
 test("scanner recognizes canonical inward dependencies", async () => {
   const applicationImports = await collectRelativeImports("src/application/operations");
   const providerImports = await collectRelativeImports("src/providers/task");
