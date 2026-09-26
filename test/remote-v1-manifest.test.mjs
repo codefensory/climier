@@ -104,6 +104,13 @@ test("remote backend executes manifest operations and rejects IDs outside the ma
   assert.equal(localCalls, 0);
 });
 
+test("remote-v1 operation manifest omits if_revision as an operation property", () => {
+  const revisionField = ["if", "revision"].join("_");
+  for (const operation of remoteV1Manifest.operations) {
+    assert.equal(Object.hasOwn(operation, revisionField), false, `${operation.id} must omit ${revisionField}`);
+  }
+});
+
 test("backend client uses remote HTTP v1 URL, protocol, bearer auth, actor, and result envelope", async () => {
   const result = { diff: { created: [{ id: "T-remote" }] } };
   await withServer(async (request, response) => {
