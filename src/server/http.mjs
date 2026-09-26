@@ -4,7 +4,6 @@ import { executeBatch, executeOperation } from "../application/operations/index.
 import { createBuiltinOperationRegistry } from "../application/operations/builtins.mjs";
 import { remoteV1Manifest } from "../application/operations/remote-v1-manifest.mjs";
 import { mutate } from "../kernel/mutate.mjs";
-import { captureTransferSource, installTransferDestination } from "../kernel/transfer.mjs";
 import {
   blockingForNode,
   derive,
@@ -23,6 +22,7 @@ import { initState } from "../kernel/state-operations.mjs";
 import { authorizeAction as authorizeServerAction, loadApplicablePolicy } from "../plugins/policy.mjs";
 import { withAuthorizedProject } from "./auth/project-scope.mjs";
 import { createHttpCodec } from "./http/codec.mjs";
+import { executeTransferRequest, validateTransferRequest } from "./http/transfers.mjs";
 
 const PROTOCOL_VERSION = "1";
 const { httpError, errorStatus, jsonError, send, parseProjectPath, readJsonBody, readRoute } = createHttpCodec({ protocolVersion: PROTOCOL_VERSION });
@@ -52,7 +52,6 @@ const FORBIDDEN_TOP_LEVEL_FIELDS = new Set([
   "project_dir",
 ]);
 const ALLOWED_TOP_LEVEL_FIELDS = new Set(["operation", "input", "actor"]);
-const TRANSFER_PAYLOAD_FIELDS = new Set(["version", "revision", "nodes", "edges", "initiatives", "log"]);
 
 function validateInputFields(value, field = "input") {
   if (!value || typeof value !== "object" || Array.isArray(value)) return;
@@ -62,48 +61,6 @@ function validateInputFields(value, field = "input") {
     }
     validateInputFields(child, `${field}.${key}`);
   }
-}
-
-function validateTransferRequest(body, route) {
-  if (!body || typeof body !== "object" || Array.isArray(body)) {
-    throw httpError("INVALID_REQUEST", "server http: transfer request must be a JSON object", { field: "body" }, 400);
-  }
-  const allowed = route === "transfer/export" ? new Set() : new Set(["payload", "actor", "overwrite"]);
-  for (const field of Object.keys(body)) {
-    if (!allowed.has(field)) {
-      throw httpError("INVALID_REQUEST", `server http: transfer field '${field}' is not allowed`, { field }, 400);
-    }
-  }
-  if (route === "transfer/export") return body;
-  if (typeof body.actor !== "string" || !body.actor.trim()) {
-    throw httpError("INVALID_REQUEST", "server http: transfer actor is required", { field: "actor" }, 400);
-  }
-  if (!Object.hasOwn(body, "payload")) {
-    throw httpError("INVALID_REQUEST", "server http: transfer payload is required", { field: "payload" }, 400);
-  }
-  if (body.overwrite !== undefined && typeof body.overwrite !== "boolean") {
-    throw httpError("INVALID_REQUEST", "server http: transfer overwrite must be boolean", { field: "overwrite" }, 400);
-  }
-  const payload = body.payload;
-  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
-    throw httpError("INVALID_REQUEST", "server http: transfer payload must be an object", { field: "payload" }, 400);
-  }
-  for (const field of Object.keys(payload)) {
-    if (!TRANSFER_PAYLOAD_FIELDS.has(field)) {
-      throw httpError("INVALID_REQUEST", `server http: transfer payload field '${field}' is not allowed`, { field: `payload.${field}` }, 400);
-    }
-  }
-  for (const field of TRANSFER_PAYLOAD_FIELDS) {
-    if (!Object.hasOwn(payload, field)) {
-      throw httpError("INVALID_REQUEST", `server http: transfer payload field '${field}' is required`, { field: `payload.${field}` }, 400);
-    }
-  }
-  if (payload.version !== 4 || !payload.nodes || typeof payload.nodes !== "object" || Array.isArray(payload.nodes)
-      || !Array.isArray(payload.edges) || !payload.initiatives || typeof payload.initiatives !== "object"
-      || Array.isArray(payload.initiatives) || !Array.isArray(payload.log)) {
-    throw httpError("INVALID_REQUEST", "server http: transfer payload has an invalid snapshot shape", { field: "payload" }, 400);
-  }
-  return body;
 }
 
 function validateOperationRequest(body) {
@@ -309,7 +266,7 @@ export function createRemoteApiServer({
       }
       let body = null;
       if (operationRoute) body = validateOperationRequest(await readJsonBody(request));
-      if (transferRoute) body = validateTransferRequest(await readJsonBody(request), route.route);
+      if (transferRoute) body = validateTransferRequest(await readJsonBody(request), route.route, httpError);
       if (initRoute) {
         body = await readJsonBody(request);
         if (!body || typeof body !== "object" || Array.isArray(body)) {
@@ -337,15 +294,7 @@ export function createRemoteApiServer({
       }
 
       if (transferRoute) {
-        const result = route.route === "transfer/export"
-          ? await captureTransferSource({ sourceProjectDir: project.projectDir })
-          : await installTransferDestination({
-            destinationProjectDir: project.projectDir,
-            payload: body.payload,
-            actor: body.actor,
-            direction: "push",
-            overwrite: body.overwrite === true,
-          });
+        const result = await executeTransferRequest({ projectDir: project.projectDir, route: route.route, body });
         send(response, 200, { ok: true, result });
         return;
       }
