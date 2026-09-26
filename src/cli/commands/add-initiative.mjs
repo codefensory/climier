@@ -53,58 +53,67 @@ function validateName(name) {
   }
 }
 
+function initiativePolicyAction(policy, projectDir, name, desc) {
+  if (!policy) {return null;}
+  return {
+    action: "initiative.create",
+    pluginId: policy.pluginId || null,
+    decide: async ({ snapshot, target, request, action }) => authorizeAction({
+      policy,
+      action,
+      actor: request.actor,
+      target: { ...target, desc, already_registered: Boolean(snapshot.initiatives?.[name]) },
+      snapshot,
+      projectDir,
+      projectConfig: policy.projectConfig || {},
+    }),
+  };
+}
+
+function initiativeEnvelopeData(name, desc, initiative) {
+  return { initiative: { name, desc: initiative?.desc ?? desc, ...(initiative?.created_at ? { created_at: initiative.created_at } : {}) } };
+}
+
+async function createRemoteInitiative(backendClient, actor, name, desc) {
+  const mutation = await executeRemoteDomain({ backendClient, actor, operation: "initiative.create", input: { name, desc }, command: "add-initiative" });
+  const created = mutation.diff?.initiatives?.created?.find((entry) => entry.name === name);
+  const initiative = created ? created.initiative : mutation.result;
+  const responseDesc = initiative?.desc ?? desc;
+  return initiativeEnvelopeData(name, responseDesc, initiative);
+}
+
+function initiativeEnvelope(result, name, _desc) {
+  const created = result.diff.initiatives.created.find((entry) => entry.name === name);
+  const initiative = created ? created.initiative : result.result;
+  return initiativeEnvelopeData(name, initiative.desc, initiative);
+}
+
 export default async function addInitiative({ statePath, projectDir: suppliedProjectDir, flags = {}, positional = [], pluginId, backendClient, source }) {
   const [name] = positional;
   validateName(name);
   // Agent resolution sits at the end of the validation chain so the caller
   // sees bad-data errors (MISSING_FIELD / INVALID_NAME) before identity
   // errors.
-  const as = resolveAgent(flags, "add-initiative");
+  const actor = resolveAgent(flags, "add-initiative");
   const projectDir = suppliedProjectDir || statePath;
   const desc = typeof flags.desc === "string" ? flags.desc : "";
-  if (backendClient?.type === "remote") {
-    const mutation = await executeRemoteDomain({ backendClient, actor: as, operation: "initiative.create", input: { name, desc }, command: "add-initiative" });
-    const initiative = mutation.diff?.initiatives?.created?.find((entry) => entry.name === name)?.initiative || mutation.result;
-    return { initiative: { name, desc: initiative?.desc ?? desc, ...(initiative?.created_at ? { created_at: initiative.created_at } : {}) } };
-  }
+  if (backendClient?.type === "remote") {return createRemoteInitiative(backendClient, actor, name, desc);}
   const policy = await loadApplicablePolicy({ projectDir });
-
   const result = await executeOperation({
     projectDir,
-    actor: as,
+    actor,
     operation: "initiative.create",
     input: { name, desc },
     source: withCliProvider(source || {
       registry: bootstrapBuiltins(),
       mutate,
       selectPolicy: async () => policy,
-      policyAction: policy ? {
-        action: "initiative.create",
-        pluginId: policy.pluginId || null,
-        decide: async ({ snapshot, target, request, action }) => authorizeAction({
-          policy,
-          action,
-          actor: request.actor,
-          target: { ...target, desc, already_registered: Boolean(snapshot.initiatives?.[name]) },
-          snapshot,
-          projectDir,
-          projectConfig: policy.projectConfig || {},
-        }),
-      } : null,
+      policyAction: initiativePolicyAction(policy, projectDir, name, desc),
       authorizeAction,
       pluginId,
     }, "initiative.create", cliInitiativeProvider),
   });
-
-  const created = result.diff.initiatives.created.find((entry) => entry.name === name);
-  const initiative = created ? created.initiative : result.result;
-  return {
-    initiative: {
-      name,
-      desc: initiative.desc,
-      ...(initiative.created_at ? { created_at: initiative.created_at } : {}),
-    },
-  };
+  return initiativeEnvelope(result, name, desc);
 }
 
 function withCliProvider(source, operation, provider) {
