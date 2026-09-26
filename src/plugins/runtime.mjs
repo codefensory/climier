@@ -28,30 +28,37 @@ import { assertLocalBackend } from "./remote-guard.mjs";
 // this module (the dispatch forwards them unchanged to the handler).
 const VALUE_FLAGS = new Set(["project", "as"]);
 
+function flagEntry(argv, index) {
+  const token = argv[index];
+  if (typeof token !== "string" || !token.startsWith("--")) {
+    return null;
+  }
+  const eq = token.indexOf("=");
+  const key = eq === -1 ? token.slice(2) : token.slice(2, eq);
+  if (eq !== -1) {
+    return [{ [key]: token.slice(eq + 1) }, index];
+  }
+  const next = argv[index + 1];
+  if (VALUE_FLAGS.has(key) && typeof next === "string" && !next.startsWith("--")) {
+    return [{ [key]: next }, index + 1];
+  }
+  // Boolean-true path: --as alone is not a value. Treat as missing.
+  return [{ [key]: true }, index];
+}
+
 export function parseFlags(argv) {
   const flags = {};
-  if (!Array.isArray(argv)) return flags;
+  if (!Array.isArray(argv)) {
+    return flags;
+  }
   for (let i = 0; i < argv.length; i++) {
-    const a = argv[i];
-    if (typeof a !== "string") continue;
-    if (!a.startsWith("--")) continue;
-    const eq = a.indexOf("=");
-    let key, val;
-    if (eq !== -1) {
-      key = a.slice(2, eq);
-      val = a.slice(eq + 1);
-    } else {
-      key = a.slice(2);
-      const next = argv[i + 1];
-      if (VALUE_FLAGS.has(key) && typeof next === "string" && !next.startsWith("--")) {
-        val = next;
-        i++;
-      } else {
-        // Boolean-true path: --as alone is not a value. Treat as missing.
-        val = true;
-      }
+    const entry = flagEntry(argv, i);
+    if (!entry) {
+      continue;
     }
-    flags[key] = val;
+    const [values, lastIndex] = entry;
+    Object.assign(flags, values);
+    i = lastIndex;
   }
   return flags;
 }
