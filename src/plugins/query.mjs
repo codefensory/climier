@@ -24,10 +24,12 @@ const HISTORY_FLAGS = new Set(["limit"]);
 
 function asFlags(options, allowed) {
   const flags = {};
-  if (!options || typeof options !== "object") return flags;
+  if (!options || typeof options !== "object") {
+    return flags;
+  }
   for (const [key, value] of Object.entries(options)) {
     if (!allowed.has(key)) {
-      const sorted = [...allowed].sort();
+      const sorted = [...allowed].toSorted();
       throw new Error(`query: unknown option '${key}' (allowed: ${sorted.join(", ")})`);
     }
     flags[key] = value;
@@ -36,7 +38,9 @@ function asFlags(options, allowed) {
 }
 
 function parseStaleMs(value) {
-  if (value === undefined || value === true) return DEFAULT_STALE_MS;
+  if (value === undefined || value === true) {
+    return DEFAULT_STALE_MS;
+  }
   const n = Number.parseInt(value, 10);
   if (Number.isNaN(n) || n < 0) {
     throw new Error(`status: --stale-ms must be a non-negative integer (got '${value}')`);
@@ -45,7 +49,9 @@ function parseStaleMs(value) {
 }
 
 function parseLimit(value) {
-  if (value === undefined || value === true) return null;
+  if (value === undefined || value === true) {
+    return null;
+  }
   const n = Number.parseInt(value, 10);
   if (Number.isNaN(n) || n < 0) {
     throw new Error(`query.status: --limit must be a non-negative integer (got '${value}')`);
@@ -74,8 +80,12 @@ function statusView(snapshot, flags) {
 }
 
 function parseAtMs(at) {
-  if (at == null) return null;
-  if (typeof at === "number") return at;
+  if (at === null || at === undefined) {
+    return null;
+  }
+  if (typeof at === "number") {
+    return at;
+  }
   if (typeof at === "string") {
     const ms = Date.parse(at);
     return Number.isFinite(ms) ? ms : null;
@@ -83,32 +93,84 @@ function parseAtMs(at) {
   return null;
 }
 
-function claimFor(node, staleMs) {
+function claimValue(node) {
   if (node.claim && typeof node.claim === "object" && node.claim.by) {
-    const atMs = parseAtMs(node.claim.at);
-    return { by: node.claim.by, at: node.claim.at ?? null, stale: atMs !== null && Date.now() - atMs > staleMs };
+    return { by: node.claim.by, at: node.claim.at };
   }
   if (node.claimed_by && node.claimed_at !== undefined) {
-    const atMs = parseAtMs(node.claimed_at);
-    return { by: node.claimed_by, at: node.claimed_at ?? null, stale: atMs !== null && Date.now() - atMs > staleMs };
+    return { by: node.claimed_by, at: node.claimed_at };
   }
   return null;
 }
 
-function allowedActions(node, derivedStatus, agent) {
-  if (!node) return [];
-  const anonymous = !agent;
-  if (node.kind === "resolvable" && node.subkind === "task") {
-    if (derivedStatus === "ready") return [...(anonymous ? [] : ["claim"]), "update", "add-note", "cancel"];
-    if (derivedStatus === "in_progress") return anonymous ? ["add-note"] : ["submit", "release", "add-note", "update"];
-    if (derivedStatus === "submitted") return anonymous ? ["add-note"] : ["accept", "reject", "add-note"];
-    if (derivedStatus === "done") return ["add-note", ...(anonymous ? [] : ["reopen"] )];
-    if (derivedStatus === "canceled") return ["add-note", "update"];
+function claimFor(node, staleMs) {
+  const claim = claimValue(node);
+  if (!claim) {
+    return null;
   }
-  if (node.kind === "resolvable" && node.subkind === "gate") {
-    if (derivedStatus === "open") return ["resolve --choice <X> --rationale <Y>", "add-note", "supersede", ...(anonymous ? [] : ["cancel"] )];
-    if (derivedStatus === "resolved") return ["reopen", "supersede"];
-    if (derivedStatus === "superseded") return ["add-note"];
+  const atMs = parseAtMs(claim.at);
+  return {
+    by: claim.by,
+    at: claim.at ?? null,
+    stale: atMs !== null && Date.now() - atMs > staleMs,
+  };
+}
+
+function readyTaskActions(anonymous) {
+  return [...(anonymous ? [] : ["claim"]), "update", "add-note", "cancel"];
+}
+
+function inProgressTaskActions(anonymous) {
+  return anonymous ? ["add-note"] : ["submit", "release", "add-note", "update"];
+}
+
+function submittedTaskActions(anonymous) {
+  return anonymous ? ["add-note"] : ["accept", "reject", "add-note"];
+}
+
+function doneTaskActions(anonymous) {
+  return ["add-note", ...(anonymous ? [] : ["reopen"])];
+}
+
+const TASK_ACTIONS = {
+  ready: readyTaskActions,
+  in_progress: inProgressTaskActions,
+  submitted: submittedTaskActions,
+  done: doneTaskActions,
+  canceled: () => ["add-note", "update"],
+};
+
+function taskActions(derivedStatus, anonymous) {
+  return Object.hasOwn(TASK_ACTIONS, derivedStatus)
+    ? TASK_ACTIONS[derivedStatus](anonymous)
+    : [];
+}
+
+function openGateActions(anonymous) {
+  return ["resolve --choice <X> --rationale <Y>", "add-note", "supersede", ...(anonymous ? [] : ["cancel"] )];
+}
+
+const GATE_ACTIONS = {
+  open: openGateActions,
+  resolved: () => ["reopen", "supersede"],
+  superseded: () => ["add-note"],
+};
+
+function gateActions(derivedStatus, anonymous) {
+  return Object.hasOwn(GATE_ACTIONS, derivedStatus)
+    ? GATE_ACTIONS[derivedStatus](anonymous)
+    : [];
+}
+
+function allowedActions(node, derivedStatus, agent) {
+  if (!node) {
+    return [];
+  }
+  const anonymous = !agent;
+  if (node.kind === "resolvable") {
+    return node.subkind === "task"
+      ? taskActions(derivedStatus, anonymous)
+      : gateActions(derivedStatus, anonymous);
   }
   if (node.kind === "knowledge") {
     return (node.status || "active") === "active"
@@ -118,24 +180,60 @@ function allowedActions(node, derivedStatus, agent) {
   return [];
 }
 
+function staleClaimAlert(id, claim) {
+  if (!claim || !claim.stale) {
+    return null;
+  }
+  return {
+    kind: "STALE_CLAIM",
+    node_id: id,
+    claimed_by: claim.by,
+    message: `${id} claimed by ${claim.by} is stale`,
+  };
+}
+
+function supersededBlockerAlert(id, blocker) {
+  if (!blocker.node || blocker.node.status !== "superseded") {
+    return null;
+  }
+  return {
+    kind: "SUPERSEDED_BLOCKER",
+    node_id: id,
+    blocker_id: blocker.node.id,
+    superseded_by: blocker.node.superseded_by || null,
+    message: `blocker ${blocker.node.id} is superseded${blocker.node.superseded_by ? ` by ${blocker.node.superseded_by}` : ""}`,
+  };
+}
+
+function deprecatedKnowledgeAlert(id, item) {
+  if (item.status !== "deprecated") {
+    return null;
+  }
+  return {
+    kind: "KNOWLEDGE_DEPRECATED_SOON",
+    node_id: id,
+    knowledge_id: item.id,
+    message: `matching knowledge ${item.id} is deprecated`,
+  };
+}
+
+function contextAlerts(id, claim, blocking, knowledge) {
+  return [
+    staleClaimAlert(id, claim),
+    ...blocking.map((blocker) => supersededBlockerAlert(id, blocker)),
+    ...knowledge.map((item) => deprecatedKnowledgeAlert(id, item)),
+  ].filter(Boolean);
+}
+
 function contextView(snapshot, id, agent) {
   const node = snapshot.nodes[id];
-  if (!node) throwV2("NODE_NOT_FOUND", `query.context: node ${id} not found`, { id });
+  if (!node) {
+    throwV2("NODE_NOT_FOUND", `query.context: node ${id} not found`, { id });
+  }
   const claim = claimFor(node, DEFAULT_STALE_MS);
   const blocking = blockingForNode({ snapshot, id });
   const knowledge = knowledgeForNode({ snapshot, id });
   const derivedStatus = statusOf({ snapshot, id });
-  const alerts = [];
-  if (claim && claim.stale) alerts.push({ kind: "STALE_CLAIM", node_id: id, claimed_by: claim.by, message: `${id} claimed by ${claim.by} is stale` });
-  for (const blocker of blocking) {
-    if (blocker.node && blocker.node.status === "superseded") {
-      alerts.push({ kind: "SUPERSEDED_BLOCKER", node_id: id, blocker_id: blocker.node.id, superseded_by: blocker.node.superseded_by || null,
-        message: `blocker ${blocker.node.id} is superseded${blocker.node.superseded_by ? ` by ${blocker.node.superseded_by}` : ""}` });
-    }
-  }
-  for (const item of knowledge) {
-    if (item.status === "deprecated") alerts.push({ kind: "KNOWLEDGE_DEPRECATED_SOON", node_id: id, knowledge_id: item.id, message: `matching knowledge ${item.id} is deprecated` });
-  }
   return {
     node,
     derived_status: derivedStatus,
@@ -145,13 +243,13 @@ function contextView(snapshot, id, agent) {
     blocking,
     knowledge,
     informing: informingForNode({ snapshot, id }),
-    alerts,
+    alerts: contextAlerts(id, claim, blocking, knowledge),
     allowed_actions: allowedActions(node, derivedStatus, agent),
   };
 }
 
 function entryReferencesId(entry, id) {
-  return !!entry && !!id && (
+  return Boolean(entry) && Boolean(id) && (
     entry.node === id || entry.task === id || entry.decision === id || entry.gotcha === id ||
     (typeof entry.note === "string" && entry.note.split(/\s+/).includes(id))
   );
@@ -161,6 +259,89 @@ async function readSnapshot(projectDir) {
   return readState(projectDir);
 }
 
+function legacyNode(snapshot, id) {
+  const node = snapshot.nodes[id];
+  if (!node) {
+    throwV2("NODE_NOT_FOUND", `show: ${id} not found`, { id });
+  }
+  return { type: node.subkind || node.kind, node };
+}
+
+function compatibleNode(snapshot, id) {
+  if (snapshot.tasks && snapshot.tasks[id]) {
+    return { type: "task", node: snapshot.tasks[id] };
+  }
+  if (snapshot.decisions && snapshot.decisions[id]) {
+    return { type: "decision", node: { status: "open", ...snapshot.decisions[id] } };
+  }
+  if (snapshot.gotchas && snapshot.gotchas[id]) {
+    return { type: "gotcha", node: { status: "active", ...snapshot.gotchas[id] } };
+  }
+  throw new Error(`show: ${id} not found (no task, decision, or gotcha with that id)`);
+}
+
+async function queryNode(projectDir, id) {
+  if (typeof id !== "string" || !id) {
+    throw new Error("query.node: id required");
+  }
+  const snapshot = await readSnapshot(projectDir);
+  if (!snapshot) {
+    throw new Error("show: state file missing");
+  }
+  return isV2State(snapshot) || isFencedState(snapshot)
+    ? legacyNode(snapshot, id)
+    : compatibleNode(snapshot, id);
+}
+
+async function queryContext(projectDir, id, agent) {
+  if (typeof id !== "string" || !id) {
+    throw new Error("query.context: id required");
+  }
+  const snapshot = await readSnapshot(projectDir);
+  if (!snapshot) {
+    throw new Error("context: state file missing");
+  }
+  assertStateVersion(snapshot, isFencedState(snapshot) ? 5 : 2, "context");
+  return contextView(snapshot, id, typeof agent === "string" && agent ? agent : null);
+}
+
+async function queryStatus(projectDir, options) {
+  const flags = asFlags(options || {}, STATUS_FLAGS);
+  const snapshot = await readSnapshot(projectDir);
+  if (!snapshot) {
+    return emptyStatus();
+  }
+  return statusView(snapshot, flags);
+}
+
+function parseHistoryLimit(value) {
+  if (value === undefined || value === true) {
+    return null;
+  }
+  const limit = Number.parseInt(value, 10);
+  if (Number.isNaN(limit) || limit < 0) {
+    throw new Error(`history: --limit must be a non-negative integer (got '${value}')`);
+  }
+  return limit;
+}
+
+async function queryHistory(projectDir, id, options) {
+  if (typeof id !== "string" || !id) {
+    throw new Error("query.history: id required");
+  }
+  const flags = asFlags(options || {}, HISTORY_FLAGS);
+  const snapshot = await readSnapshot(projectDir);
+  if (!snapshot) {
+    return { id, entries: [] };
+  }
+  let entries = (snapshot.log || []).filter((entry) => entryReferencesId(entry, id));
+  const limit = parseHistoryLimit(flags.limit);
+  if (limit > 0) {
+    entries = entries.slice(-limit);
+  }
+  return { id, entries };
+}
+
 export function createQuery({ projectDir, agent, pluginId, backendClient }) {
   assertLocalBackend(backendClient, "createQuery");
   return {
@@ -168,45 +349,17 @@ export function createQuery({ projectDir, agent, pluginId, backendClient }) {
       const snapshot = await readSnapshot(projectDir);
       return projectSnapshot({ snapshot, pluginId });
     },
-    async node(id) {
-      if (typeof id !== "string" || !id) throw new Error("query.node: id required");
-      const snapshot = await readSnapshot(projectDir);
-      if (!snapshot) throw new Error("show: state file missing");
-      if (isV2State(snapshot) || isFencedState(snapshot)) {
-        const node = snapshot.nodes[id];
-        if (!node) throwV2("NODE_NOT_FOUND", `show: ${id} not found`, { id });
-        return { type: node.subkind || node.kind, node };
-      }
-      if (snapshot.tasks && snapshot.tasks[id]) return { type: "task", node: snapshot.tasks[id] };
-      if (snapshot.decisions && snapshot.decisions[id]) return { type: "decision", node: { status: "open", ...snapshot.decisions[id] } };
-      if (snapshot.gotchas && snapshot.gotchas[id]) return { type: "gotcha", node: { status: "active", ...snapshot.gotchas[id] } };
-      throw new Error(`show: ${id} not found (no task, decision, or gotcha with that id)`);
+    node(id) {
+      return queryNode(projectDir, id);
     },
-    async context(id) {
-      if (typeof id !== "string" || !id) throw new Error("query.context: id required");
-      const snapshot = await readSnapshot(projectDir);
-      if (!snapshot) throw new Error("context: state file missing");
-      assertStateVersion(snapshot, isFencedState(snapshot) ? 5 : 2, "context");
-      return contextView(snapshot, id, typeof agent === "string" && agent ? agent : null);
+    context(id) {
+      return queryContext(projectDir, id, agent);
     },
-    async status(options) {
-      const flags = asFlags(options || {}, STATUS_FLAGS);
-      const snapshot = await readSnapshot(projectDir);
-      if (!snapshot) return emptyStatus();
-      return statusView(snapshot, flags);
+    status(options) {
+      return queryStatus(projectDir, options);
     },
-    async history(id, options) {
-      if (typeof id !== "string" || !id) throw new Error("query.history: id required");
-      const flags = asFlags(options || {}, HISTORY_FLAGS);
-      const snapshot = await readSnapshot(projectDir);
-      if (!snapshot) return { id, entries: [] };
-      let entries = (snapshot.log || []).filter((entry) => entryReferencesId(entry, id));
-      if (flags.limit !== undefined && flags.limit !== true) {
-        const limit = Number.parseInt(flags.limit, 10);
-        if (Number.isNaN(limit) || limit < 0) throw new Error(`history: --limit must be a non-negative integer (got '${flags.limit}')`);
-        if (limit > 0) entries = entries.slice(-limit);
-      }
-      return { id, entries };
+    history(id, options) {
+      return queryHistory(projectDir, id, options);
     },
   };
 }
