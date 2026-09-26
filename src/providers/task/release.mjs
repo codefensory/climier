@@ -91,7 +91,7 @@ async function prepare({ snapshot, input, request }) {
   validateInputShape(input, request);
   validateTarget(input, snapshot);
   const node = readSnapshotNodes(snapshot)[input.id];
-  const hasClaim = !!(node.claim && node.claim.by);
+  const hasClaim = Boolean(node.claim && node.claim.by);
   return Object.freeze({
     target: Object.freeze({
       id: input.id,

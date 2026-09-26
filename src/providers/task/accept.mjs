@@ -157,7 +157,7 @@ async function apply({ tx, plan, input, request, snapshot }) {
     edges: readSnapshotEdges(snapshot),
   }));
   const afterReady = collectReadyTasks(tx.view());
-  const newlyReady = afterReady.filter((id) => !beforeReady.has(id)).sort();
+  const newlyReady = afterReady.filter((id) => !beforeReady.has(id)).toSorted();
 
   const merged = tx.getNode(plan.target.id);
   const projection = merged
