@@ -8,7 +8,7 @@ import { createRemoteApiServer } from "../src/server/http.mjs";
 import { createProjectCatalog } from "../src/server/catalog/index.mjs";
 import { initState } from "../src/kernel/state-operations.mjs";
 import { writeState } from "./helpers.mjs";
-import { projectSearchView } from "../src/read-model/index.mjs";
+import { projectInitiativesView, projectSearchView } from "../src/read-model/index.mjs";
 import { readModelParity } from "./fixtures/read-model-parity.mjs";
 
 function authHeaders() {
@@ -78,6 +78,26 @@ async function withParityEnvironment(run) {
     await fs.rm(root, { recursive: true, force: true });
   }
 }
+
+test("pure initiatives projection preserves default and all-list contracts", () => {
+  assert.deepEqual(projectInitiativesView({ snapshot: readModelParity.snapshot }), {
+    initiatives: [
+      { name: "migration", desc: "Migration initiative", created_at: "2025-01-01T00:00:00.000Z", nodes: 12, tasks: 10, knowledge: 2 },
+      { name: "other", desc: "Other initiative", created_at: "2025-01-03T00:00:00.000Z", nodes: 3, tasks: 1, knowledge: 2 },
+    ],
+    unregistered: { nodes: 0, values: [] },
+    all: false,
+  });
+  assert.deepEqual(projectInitiativesView({ snapshot: readModelParity.snapshot, all: true }), {
+    initiatives: [
+      { name: "migration", desc: "Migration initiative", created_at: "2025-01-01T00:00:00.000Z", nodes: 12, tasks: 10, knowledge: 2 },
+      { name: "other", desc: "Other initiative", created_at: "2025-01-03T00:00:00.000Z", nodes: 3, tasks: 1, knowledge: 2 },
+      { name: "empty", desc: "Unused", created_at: "2025-01-02T00:00:00.000Z", nodes: 0, tasks: 0, knowledge: 0 },
+    ],
+    unregistered: { nodes: 0, values: [] },
+    all: true,
+  });
+});
 
 test("pure search projection matches the fixture's active and historical knowledge contract", () => {
   assert.deepEqual(projectSearchView({ snapshot: readModelParity.snapshot, query: "API" }), {
