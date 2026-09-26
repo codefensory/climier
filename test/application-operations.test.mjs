@@ -22,7 +22,7 @@ test("application operations: exports executeOperation without importing the ker
     path.resolve(path.dirname(new URL(import.meta.url).pathname), "../src/application/operations/execute.mjs"),
     "utf8",
   );
-  assert.doesNotMatch(source, /from [\"'].*kernel\/mutate\.mjs[\"']/);
+  assert.doesNotMatch(source, new RegExp(String.raw`from ["'].*kernel/mutate.mjs["']`));
 });
 
 test("executeOperation: looks up once and delegates exactly once with an explicit request", async () => {
