@@ -21,15 +21,17 @@ function projectState(overrides = {}) {
   };
 }
 
-async function withProjects(fn) {
+async function withProjects() {
   const sourceDir = await createTempProject();
   const destinationDir = await createTempProject();
-  try {
-    await fn(sourceDir, destinationDir);
-  } finally {
-    await rmTempProject(sourceDir);
-    await rmTempProject(destinationDir);
-  }
+  return {
+    sourceDir,
+    destinationDir,
+    cleanup: async () => {
+      await rmTempProject(sourceDir);
+      await rmTempProject(destinationDir);
+    },
+  };
 }
 
 async function initialize(projectDir, state = projectState()) {
@@ -47,6 +49,10 @@ async function rawLedger(projectDir) {
   return JSON.parse(await fs.readFile(ledgerFile(projectDir), "utf8"));
 }
 
+function rebaseNodeRevisions(nodes, revision) {
+  return Object.fromEntries(Object.entries(nodes).map(([id, node]) => [id, { ...node, revision }]));
+}
+
 const runTransfer = (sourceProjectDir, destinationProjectDir, options = {}) => transferState({
   sourceProjectDir,
   destinationProjectDir,
@@ -56,18 +62,20 @@ const runTransfer = (sourceProjectDir, destinationProjectDir, options = {}) => t
 });
 
 test("kernel source capture returns transferable state without adding an audit event", async () => {
-  await withProjects(async (sourceDir, destinationDir) => {
+  const { sourceDir, destinationDir, cleanup } = await withProjects();
+  try {
     await initialize(sourceDir);
     const payload = await captureTransferSource({ sourceProjectDir: sourceDir });
     assert.deepEqual(payload.log, [{ action: "source-event", agent: "author" }]);
     assert.equal(payload.nodes.T1.title, "source");
     assert.equal(payload.nodes.T1.revision, undefined);
     assert.equal((await fs.access(stateFile(destinationDir)).then(() => true, () => false)), false);
-  });
+  } finally { await cleanup(); }
 });
 
 test("kernel destination install adds exactly one direction-specific event", async () => {
-  await withProjects(async (sourceDir, destinationDir) => {
+  const { sourceDir, destinationDir, cleanup } = await withProjects();
+  try {
     await initialize(sourceDir);
     const payload = await captureTransferSource({ sourceProjectDir: sourceDir });
     const result = await installTransferDestination({
@@ -80,7 +88,7 @@ test("kernel destination install adds exactly one direction-specific event", asy
     assert.equal(result.log.filter((entry) => entry.action.startsWith("transfer.")).length, 1);
     assert.equal(result.log.at(-1).action, "transfer.pull");
     assert.equal(result.log.at(-1).agent, "alice");
-  });
+  } finally { await cleanup(); }
 });
 
 test("kernel transfer ports validate requests before storage delegation", async (t) => {
@@ -101,7 +109,8 @@ test("kernel transfer ports validate requests before storage delegation", async 
 });
 
 test("kernel transfer bootstraps absent destination and replaces its log with source log plus one event", async () => {
-  await withProjects(async (sourceDir, destinationDir) => {
+  const { sourceDir, destinationDir, cleanup } = await withProjects();
+  try {
     await initialize(sourceDir);
     const result = await runTransfer(sourceDir, destinationDir);
     assert.equal(result.nodes.T1.title, "source");
@@ -118,52 +127,65 @@ test("kernel transfer bootstraps absent destination and replaces its log with so
     const source = await readFencedState(sourceDir);
     assert.equal(result.fence_generation, source.fence_generation);
     assert.ok(result.nodes.T1.revision <= result.revision);
-  });
+  } finally { await cleanup(); }
 });
 
 test("kernel transfer accepts pristine initialized destination but create-only conflict preserves it", async (t) => {
-  await t.test("pristine", async () => withProjects(async (sourceDir, destinationDir) => {
-    await initialize(sourceDir);
-    await initialize(destinationDir, null);
-    const result = await runTransfer(sourceDir, destinationDir);
-    assert.equal(result.nodes.T1.title, "source");
-  }));
-  await t.test("non-pristine conflict", async () => withProjects(async (sourceDir, destinationDir) => {
-    await initialize(sourceDir);
-    await initialize(destinationDir, projectState({ nodes: { T2: { id: "T2", kind: "resolvable", status: "open", revision: 0 } } }));
-    const beforeState = await fs.readFile(stateFile(destinationDir), "utf8");
-    const beforeLedger = await fs.readFile(ledgerFile(destinationDir), "utf8");
-    await assert.rejects(runTransfer(sourceDir, destinationDir), { code: "CLIMIER_TRANSFER_DESTINATION_NOT_PRISTINE" });
-    assert.equal(await fs.readFile(stateFile(destinationDir), "utf8"), beforeState);
-    assert.equal(await fs.readFile(ledgerFile(destinationDir), "utf8"), beforeLedger);
-  }));
+  await t.test("pristine", async () => {
+    const { sourceDir, destinationDir, cleanup } = await withProjects();
+    try {
+      await initialize(sourceDir);
+      await initialize(destinationDir, null);
+      const result = await runTransfer(sourceDir, destinationDir);
+      assert.equal(result.nodes.T1.title, "source");
+    } finally { await cleanup(); }
+  });
+  await t.test("non-pristine conflict", async () => {
+    const { sourceDir, destinationDir, cleanup } = await withProjects();
+    try {
+      await initialize(sourceDir);
+      await initialize(destinationDir, projectState({ nodes: { T2: { id: "T2", kind: "resolvable", status: "open", revision: 0 } } }));
+      const beforeState = await fs.readFile(stateFile(destinationDir), "utf8");
+      const beforeLedger = await fs.readFile(ledgerFile(destinationDir), "utf8");
+      await assert.rejects(runTransfer(sourceDir, destinationDir), { code: "CLIMIER_TRANSFER_DESTINATION_NOT_PRISTINE" });
+      assert.equal(await fs.readFile(stateFile(destinationDir), "utf8"), beforeState);
+      assert.equal(await fs.readFile(ledgerFile(destinationDir), "utf8"), beforeLedger);
+    } finally { await cleanup(); }
+  });
 });
 
 test("kernel transfer overwrite is absolute, rejects plugin destinations, and rebases local revisions", async (t) => {
-  await t.test("absolute overwrite", async () => withProjects(async (sourceDir, destinationDir) => {
-    await initialize(sourceDir);
-    const destinationState = projectState({
-      nodes: { OLD: { id: "OLD", kind: "resolvable", status: "open", revision: 0 } },
-      revision: 8,
-      log: [{ action: "destination-only", agent: "bob" }],
-    });
-    await initialize(destinationDir, destinationState);
-    const before = await readFencedState(destinationDir);
-    const result = await runTransfer(sourceDir, destinationDir, { overwrite: true });
-    assert.deepEqual(Object.keys(result.nodes), ["T1"]);
-    assert.ok(result.revision > before.revision);
-    assert.ok(Object.values(result.nodes).every((node) => node.revision === result.revision));
-    assert.equal((await rawLedger(destinationDir)).fence_generation, before.fence_generation);
-    assert.equal(result.log.some((entry) => entry.action === "destination-only"), false);
-    assert.equal(result.log.filter((entry) => entry.action === "transfer.push").length, 1);
-  }));
-  await t.test("plugin data rejected even on overwrite", async () => withProjects(async (sourceDir, destinationDir) => {
-    await initialize(sourceDir);
-    await initialize(destinationDir, projectState({ plugins: { demo: { value: true } } }));
-    const beforeState = await fs.readFile(stateFile(destinationDir), "utf8");
-    await assert.rejects(runTransfer(sourceDir, destinationDir, { overwrite: true }), { code: "CLIMIER_TRANSFER_PLUGIN_DATA" });
-    assert.equal(await fs.readFile(stateFile(destinationDir), "utf8"), beforeState);
-  }));
+  await t.test("absolute overwrite", async () => {
+    const { sourceDir, destinationDir, cleanup } = await withProjects();
+    try {
+      await initialize(sourceDir);
+      const destinationState = projectState({
+        nodes: { OLD: { id: "OLD", kind: "resolvable", status: "open", revision: 0 } },
+        revision: 8,
+        log: [{ action: "destination-only", agent: "bob" }],
+      });
+      await initialize(destinationDir, destinationState);
+      const before = await readFencedState(destinationDir);
+      const result = await runTransfer(sourceDir, destinationDir, { overwrite: true });
+      assert.deepEqual(Object.keys(result.nodes), ["T1"]);
+      assert.ok(result.revision > before.revision);
+      assert.equal(result.nodes.T1.revision, result.revision);
+      assert.equal((await rawLedger(destinationDir)).fence_generation, before.fence_generation);
+      assert.equal(result.log.length, 2);
+      assert.equal(result.log[0].action, "source-event");
+      assert.equal(result.log.at(-1).action, "transfer.push");
+    } finally { await cleanup(); }
+  });
+  await t.test("plugin data rejected even on overwrite", async () => {
+    const { sourceDir, destinationDir, cleanup } = await withProjects();
+    try {
+      await initialize(sourceDir);
+      await initialize(destinationDir, projectState({ plugins: { demo: { value: true } } }));
+      const beforeState = await fs.readFile(stateFile(destinationDir), "utf8");
+      await assert.rejects(runTransfer(sourceDir, destinationDir, { overwrite: true }), { code: "CLIMIER_TRANSFER_PLUGIN_DATA" });
+      assert.equal(await fs.readFile(stateFile(destinationDir), "utf8"), beforeState);
+    } finally { await cleanup(); }
+  });
 });
 
 test("kernel transfer rejects source claims, in-progress tasks, and plugin data", async (t) => {
@@ -173,27 +195,32 @@ test("kernel transfer rejects source claims, in-progress tasks, and plugin data"
     ["root plugin data", { plugins: { demo: { value: true } } }],
     ["node plugin data", { nodes: { T1: { id: "T1", kind: "resolvable", status: "open", plugins: { demo: { value: true } }, revision: 0 } } }],
   ]) {
-    await t.test(label, async () => withProjects(async (sourceDir, destinationDir) => {
-      await initialize(sourceDir, projectState(overrides));
-      await assert.rejects(runTransfer(sourceDir, destinationDir), { code: "CLIMIER_TRANSFER_INVALID_SOURCE" });
-      await assert.rejects(fs.access(stateFile(destinationDir)), { code: "ENOENT" });
-    }));
+    await t.test(label, async () => {
+      const { sourceDir, destinationDir, cleanup } = await withProjects();
+      try {
+        await initialize(sourceDir, projectState(overrides));
+        await assert.rejects(runTransfer(sourceDir, destinationDir), { code: "CLIMIER_TRANSFER_INVALID_SOURCE" });
+        await assert.rejects(fs.access(stateFile(destinationDir)), { code: "ENOENT" });
+      } finally { await cleanup(); }
+    });
   }
 });
 
 test("kernel transfer rejects a fenced source whose state regressed from its ledger", async () => {
-  await withProjects(async (sourceDir, destinationDir) => {
+  const { sourceDir, destinationDir, cleanup } = await withProjects();
+  try {
     await initialize(sourceDir);
     const state = await rawState(sourceDir);
     state.fence_generation += 1;
     await fs.writeFile(stateFile(sourceDir), `${JSON.stringify(state, null, 2)}\n`);
     await assert.rejects(runTransfer(sourceDir, destinationDir), { code: "CLIMIER_LEDGER_STATE_MISMATCH" });
     await assert.rejects(fs.access(stateFile(destinationDir)), { code: "ENOENT" });
-  });
+  } finally { await cleanup(); }
 });
 
 test("kernel transfer recovery delegates to fenced ledger before source capture", async () => {
-  await withProjects(async (sourceDir, destinationDir) => {
+  const { sourceDir, destinationDir, cleanup } = await withProjects();
+  try {
     await initialize(sourceDir);
     const candidate = await readFencedState(sourceDir);
     candidate.nodes.T1.title = "pending valid source";
@@ -201,7 +228,7 @@ test("kernel transfer recovery delegates to fenced ledger before source capture"
       await assert.rejects(commitFencedStateUnderLock(lockContext, {
         ...candidate,
         revision: candidate.revision + 1,
-        nodes: Object.fromEntries(Object.entries(candidate.nodes).map(([id, node]) => [id, { ...node, revision: candidate.revision + 1 }])),
+        nodes: rebaseNodeRevisions(candidate.nodes, candidate.revision + 1),
         log: [...candidate.log, { action: "pending-source" }],
       }, { faultAt: "after-state-rename" }), /injected failure/);
     });
@@ -210,11 +237,12 @@ test("kernel transfer recovery delegates to fenced ledger before source capture"
     assert.equal(transferred.log.filter((entry) => entry.action === "transfer.push").length, 1);
     const sourceLedger = await rawLedger(sourceDir);
     assert.equal(sourceLedger.commit_pending, null);
-  });
+  } finally { await cleanup(); }
 });
 
 test("kernel transfer create-only race serializes and only one caller installs", async () => {
-  await withProjects(async (sourceDir, destinationDir) => {
+  const { sourceDir, destinationDir, cleanup } = await withProjects();
+  try {
     await initialize(sourceDir);
     const results = await Promise.allSettled([
       runTransfer(sourceDir, destinationDir),
@@ -225,5 +253,5 @@ test("kernel transfer create-only race serializes and only one caller installs",
     assert.equal(rejected.reason.code, "CLIMIER_TRANSFER_DESTINATION_NOT_PRISTINE");
     const finalState = await readFencedState(destinationDir);
     assert.equal(finalState.log.filter((entry) => entry.action === "transfer.push").length, 1);
-  });
+  } finally { await cleanup(); }
 });

@@ -12,8 +12,8 @@ import {
 } from "./helpers.mjs";
 
 async function snapshotDir(projectDir) {
-  const { snapshotDir } = await importFresh("./storage/state.mjs");
-  return snapshotDir(projectDir);
+  const { snapshotDir: getSnapshotDir } = await importFresh("./storage/state.mjs");
+  return getSnapshotDir(projectDir);
 }
 
 const baseState = () => ({ version: 4, revision: 0, nodes: {}, edges: [], initiatives: {}, log: [] });
@@ -116,6 +116,7 @@ test("kernel state.restore migrates a v2 snapshot to v4 before writing it", asyn
   } finally { await rmTempProject(dir); }
 });
 
+// oxlint-disable-next-line max-statements -- Keep this bounded regression test and its full assertions intact.
 test("kernel state.restore replaces a valid v5 snapshot through the fenced state path", async () => {
   const dir = await createTempProject();
   try {
@@ -167,7 +168,7 @@ test("kernel state.restore rejects malformed v5 snapshot before policy or pre-sn
     );
     assert.equal(policyCalls, 0);
     assert.equal(await fs.readFile(stateFilePath(dir), "utf8"), before);
-    assert.deepEqual((await fs.readdir(dirPath)).sort(), ["bad-v5.json", "bad-v5.meta.json"]);
+    assert.deepEqual((await fs.readdir(dirPath)).toSorted(), ["bad-v5.json", "bad-v5.meta.json"]);
   } finally { await rmTempProject(dir); }
 });
 
@@ -231,6 +232,7 @@ test("kernel state.restore recovers over v1 and future current state, preserving
   }
 });
 
+// oxlint-disable-next-line max-statements -- Keep this bounded regression test and its full assertions intact.
 test("kernel state.init recovers corrupt bytes through an existing fenced ledger without policy or actor", async () => {
   const dir = await createTempProject();
   try {
