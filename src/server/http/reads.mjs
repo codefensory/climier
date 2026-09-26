@@ -117,4 +117,3 @@ export function createHttpReads({ httpError, routing, query, deps, clock = Date.
 
   return { matchReadRoute, parseReadQuery, projectReadResult };
 }
-
