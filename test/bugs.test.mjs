@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createTempProject, rmTempProject, importFresh, runCli, readState, stateFilePath} from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh } from "./helpers.mjs";
 
 // v1 bug #1 (block) — deleted: v1 block command no longer exists.
 // v1 bug #2 (graph --initiative) — deleted: v1 graph command no longer exists; v2 status supports --initiative.
