@@ -107,8 +107,11 @@ test("HTTP protocol version is defined once in the public facade", async () => {
     "src/server/http/transfers.mjs",
   ];
   const sources = await Promise.all(files.map((file) => readFile(file, "utf8")));
-  const definitions = sources.flatMap((source, index) =>
-    [...source.matchAll(/\b(?:const|let|var)\s+PROTOCOL_VERSION\s*=/g)].map(() => files[index]));
+  const definitions = [];
+  for (const [index, source] of sources.entries()) {
+    const definitionCount = [...source.matchAll(/\b(?:const|let|var)\s+PROTOCOL_VERSION\s*=/g)].length;
+    definitions.push(...Array(definitionCount).fill(files[index]));
+  }
 
   assert.deepEqual(definitions, ["src/server/http.mjs"]);
   assert.match(sources[0], /createHttpCodec\(\{ protocolVersion: PROTOCOL_VERSION \}\)/);
