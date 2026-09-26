@@ -15,7 +15,9 @@ const REGISTRY = bootstrapBuiltins();
 export const knownFlags = ["as", "reason"];
 
 function readReason(flags, positional) {
-  if (typeof flags.reason === "string" && flags.reason.trim()) return flags.reason.trim();
+  if (typeof flags.reason === "string" && flags.reason.trim()) {
+    return flags.reason.trim();
+  }
   return positional.slice(1).join(" ").trim();
 }
 
@@ -70,7 +72,9 @@ function sourceWithCliProvider(source, id, selectedPolicyAction) {
     registry: {
       lookup(operation) {
         const entry = source.registry.lookup(operation);
-        if (!["task.reopen", "gate.reopen"].includes(operation) || !entry) return entry;
+        if (!["task.reopen", "gate.reopen"].includes(operation) || !entry) {
+          return entry;
+        }
         return {
           ...entry,
           provider: {
@@ -92,7 +96,9 @@ function policyAction({ policy, projectDir, agent, id }) {
     action: "task.reopen",
     pluginId: policy && policy.pluginId ? policy.pluginId : null,
     async decide({ snapshot, target }) {
-      if (!policy) return { decision: "abstain" };
+      if (!policy) {
+        return { decision: "abstain" };
+      }
       const node = snapshot && snapshot.nodes ? snapshot.nodes[id] : null;
       return authorizeAction({
         policy,
@@ -107,25 +113,7 @@ function policyAction({ policy, projectDir, agent, id }) {
   };
 }
 
-export default async function reopen({
-  statePath,
-  projectDir,
-  flags = {},
-  positional = [],
-  pluginId,
-  backendClient,
-  source: suppliedSource,
-}) {
-  const id = positional[0];
-  if (!id) throwV2("MISSING_FIELD", "reopen: node id required", { field: "id" });
-  const reason = readReason(flags, positional);
-  const agent = resolveAgent(flags, "reopen");
-  const dir = projectDir || statePath;
-  const remote = await executeRemoteResolvableLifecycle({
-    backendClient, actor: agent, verb: "reopen", command: "reopen", id, input: { id, reason },
-  });
-  if (remote) return { node: remote.node };
-
+async function reopenLocally({ dir, agent, id, reason, pluginId, suppliedSource }) {
   const policy = suppliedSource ? null : await loadApplicablePolicy({ projectDir: dir });
   const baseSource = suppliedSource || {
     registry: REGISTRY,
@@ -143,10 +131,34 @@ export default async function reopen({
     source: sourceWithCliProvider(baseSource, id, policy ? policyAction({ policy, projectDir: dir, agent, id }) : null),
     policyActionFromPlan: true,
   });
-
   const updated = mutation.diff.updated.find((entry) => entry.id === id);
   if (!updated || !updated.node) {
     throwV2("INVALID_EXECUTION_CONTRACT", `reopen: kernel did not return node ${id}`, { id });
   }
   return { node: updated.node };
+}
+
+export default async function reopen({
+  statePath,
+  projectDir,
+  flags = {},
+  positional = [],
+  pluginId,
+  backendClient,
+  source: suppliedSource,
+}) {
+  const id = positional[0];
+  if (!id) {
+    throwV2("MISSING_FIELD", "reopen: node id required", { field: "id" });
+  }
+  const reason = readReason(flags, positional);
+  const agent = resolveAgent(flags, "reopen");
+  const dir = projectDir || statePath;
+  const remote = await executeRemoteResolvableLifecycle({
+    backendClient, actor: agent, verb: "reopen", command: "reopen", id, input: { id, reason },
+  });
+  if (remote) {
+    return { node: remote.node };
+  }
+  return reopenLocally({ dir, agent, id, reason, pluginId, suppliedSource });
 }

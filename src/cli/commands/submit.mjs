@@ -7,12 +7,7 @@ import { executeRemoteTask, throwMissingRemoteNode } from "./internal/task-routi
 
 export const knownFlags = ["as", "note"];
 
-export default async function submit({ statePath, projectDir, projectConfig, source, flags = {}, positional = [], backendClient } = {}) {
-  const id = positional[0];
-  if (!id) throwV2("MISSING_FIELD", "submit: node id required", { field: "id" });
-  const agent = resolveAgent(flags, "submit");
-  const note = typeof flags.note === "string" ? flags.note.trim() : flags.note;
-  const dir = projectDir || statePath;
+async function submitRemote({ backendClient, dir, agent, id, note }) {
   const remote = await executeRemoteTask({
     backendClient,
     projectDir: dir,
@@ -23,17 +18,22 @@ export default async function submit({ statePath, projectDir, projectConfig, sou
     input: { id, note, actor: agent },
     inspectTarget: true,
   });
-  if (remote) {
-    if (!remote.node) throwMissingRemoteNode("submit", id);
-    return { node: remote.node, newly_ready: remote.mutation.effects?.newly_ready || [] };
+  if (!remote) {
+    return null;
   }
+  if (!remote.node) {
+    throwMissingRemoteNode("submit", id);
+  }
+  return { node: remote.node, newly_ready: remote.mutation.effects?.newly_ready || [] };
+}
+
+async function submitLocally({ backendClient, dir, projectConfig, source, agent, id, note }) {
   const selectedClient = backendClient || createBackendClient({ projectDir: dir, projectConfig, source });
   const mutation = await createOperationBridge({ backendClient: selectedClient }).executeOperation({
     actor: agent,
     operation: "task.submit",
     input: { id, note, actor: agent },
   });
-
   const updated = mutation.diff.updated.find((entry) => entry.id === id);
   if (!updated || !updated.node) {
     throwV2("INVALID_EXECUTION_CONTRACT", `submit: kernel did not return node ${id}`, { id });
@@ -44,4 +44,19 @@ export default async function submit({ statePath, projectDir, projectConfig, sou
       ? mutation.effects.newly_ready
       : [],
   };
+}
+
+export default async function submit({ statePath, projectDir, projectConfig, source, flags = {}, positional = [], backendClient } = {}) {
+  const id = positional[0];
+  if (!id) {
+    throwV2("MISSING_FIELD", "submit: node id required", { field: "id" });
+  }
+  const agent = resolveAgent(flags, "submit");
+  const note = typeof flags.note === "string" ? flags.note.trim() : flags.note;
+  const dir = projectDir || statePath;
+  const remote = await submitRemote({ backendClient, dir, agent, id, note });
+  if (remote) {
+    return remote;
+  }
+  return submitLocally({ backendClient, dir, projectConfig, source, agent, id, note });
 }
