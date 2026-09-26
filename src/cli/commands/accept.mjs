@@ -1,18 +1,13 @@
 // `accept <id>` CLI adapter for the canonical task.accept operation.
-// Application Operations selects the provider from the built-in registry; the
-// kernel remains the sole mutation frontier for locking, revisions and logs.
-import { bootstrapBuiltins, executeOperation } from "../../application/operations/index.mjs";
-import { mutate } from "../../kernel/mutate.mjs";
+// The operation bridge selects the local or remote mutation frontier.
+import { createBackendClient, createOperationBridge } from "../../application/operations/index.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
 import { resolveAgent } from "../actor.mjs";
-import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
 import { executeRemoteTask, throwMissingRemoteNode } from "./internal/task-routing.mjs";
-
-const REGISTRY = bootstrapBuiltins();
 
 export const knownFlags = ["as"];
 
-export default async function accept({ statePath, projectDir, flags = {}, positional = [], backendClient } = {}) {
+export default async function accept({ statePath, projectDir, projectConfig, source, flags = {}, positional = [], backendClient } = {}) {
   const id = positional[0];
   if (!id) throwV2("MISSING_FIELD", "accept: node id required", { field: "id" });
   const agent = resolveAgent(flags, "accept");
@@ -31,19 +26,11 @@ export default async function accept({ statePath, projectDir, flags = {}, positi
     if (!remote.node) throwMissingRemoteNode("accept", id);
     return { node: remote.node, newly_ready: remote.mutation.effects?.newly_ready || [] };
   }
-  const policy = await loadApplicablePolicy({ projectDir: dir });
-
-  const mutation = await executeOperation({
-    projectDir: dir,
+  const selectedClient = backendClient || createBackendClient({ projectDir: dir, projectConfig, source });
+  const mutation = await createOperationBridge({ backendClient: selectedClient }).executeOperation({
     actor: agent,
     operation: "task.accept",
     input: { id, actor: agent },
-    source: {
-      registry: REGISTRY,
-      mutate,
-      selectPolicy: async () => policy,
-      authorizeAction,
-    },
   });
 
   const updated = mutation.diff.updated.find((entry) => entry.id === id);
