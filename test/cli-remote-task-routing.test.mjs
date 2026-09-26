@@ -10,7 +10,7 @@ import cancel from "../src/cli/commands/cancel.mjs";
 import submit from "../src/cli/commands/submit.mjs";
 import accept from "../src/cli/commands/accept.mjs";
 import reject from "../src/cli/commands/reject.mjs";
-import { createTempProject, readState, rmTempProject, writeState } from "./helpers.mjs";
+import { createTempProject, readState, rmTempProject, writeState, runCli } from "./helpers.mjs";
 
 const sentinelState = {
   version: 4,
@@ -158,11 +158,11 @@ function createClient(operationCase, { error } = {}) {
       },
       async executeOperation(args) {
         calls.push(args);
-        if (error) throw error;
+        if (error) { throw error; }
         const result = { diff: { created: [], updated: [] }, result: operationCase.result || {}, effects: null };
         const entry = { id: operationCase.node.id, node: operationCase.node };
-        if (operationCase.operation === "task.create") result.diff.created.push(entry);
-        else result.diff.updated.push(entry);
+        if (operationCase.operation === "task.create") { result.diff.created.push(entry); }
+        else { result.diff.updated.push(entry); }
         return result;
       },
       async executeBatch() { throw new Error("unexpected batch"); },
@@ -195,6 +195,23 @@ for (const operationCase of lifecycle) {
   });
 }
 
+async function assertTaskFailure(projectDir, operationCase, error) {
+  const { client, calls } = createClient(operationCase, { error });
+  await assert.rejects(operationCase.run({ projectDir, statePath: projectDir, backendClient: client }), (actual) => actual === error, `${operationCase.name} must propagate ${error.code}`);
+  const operationCalls = calls.filter((call) => call.operation === operationCase.operation).length;
+  if (["create", "take", "release", "update", "reopen", "cancel", "submit", "accept", "reject"].includes(operationCase.name)) {
+    assert.equal(operationCalls, 1);
+  } else {
+    assert.deepEqual(calls, [{ method: "readNode", options: { id: "T-remote" } }]);
+  }
+}
+
+async function assertTaskFailures(projectDir, error) {
+  for (const operationCase of lifecycle) {
+    await assertTaskFailure(projectDir, operationCase, error);
+  }
+}
+
 test("remote task failures propagate without fallback or changing local sentinel", async () => {
   const errors = [
     Object.assign(new Error("unauthorized"), { code: "AUTH_REQUIRED", status: 401 }),
@@ -206,24 +223,52 @@ test("remote task failures propagate without fallback or changing local sentinel
     await writeState(projectDir, sentinelState);
     const before = await readState(projectDir);
     for (const error of errors) {
-      for (const operationCase of lifecycle) {
-        const { client, calls } = createClient(operationCase, { error });
-        await assert.rejects(
-          operationCase.run({ projectDir, statePath: projectDir, backendClient: client }),
-          (actual) => actual === error,
-          `${operationCase.name} must propagate ${error.code}`,
-        );
-        if (["update", "reopen", "cancel", "submit", "accept", "reject"].includes(operationCase.name)) {
-          assert.equal(calls.filter((call) => call.operation === operationCase.operation).length, 1);
-        } else if (!["create", "take", "release"].includes(operationCase.name)) {
-          assert.deepEqual(calls, [{ method: "readNode", options: { id: "T-remote" } }]);
-        } else {
-          assert.equal(calls.filter((call) => call.operation === operationCase.operation).length, 1);
-        }
-      }
+      await assertTaskFailures(projectDir, error);
       assert.deepEqual(await readState(projectDir), before);
     }
   } finally {
     await rmTempProject(projectDir);
+  }
+});
+
+test("CLI: resolve without --note still rejects a task as an unsupported target", async () => {
+  // The task resolve bypass was removed; --note is not a task lifecycle input.
+  const dir = await createTempProject();
+  try {
+    let r = await runCli(["--project", dir, "init"]);
+    assert.equal(r.code, 0, r.stderr);
+    r = await runCli(["--project", dir, "add-initiative", "migration", "--desc", "x"]);
+    assert.equal(r.code, 0, r.stderr);
+    const seed = await runCli(["--project", dir, "add-task", "--initiative", "migration", "--title", "x", "--body", "b", "--acceptance", "a", "--blocked-by", ""]);
+    assert.equal(seed.code, 0, seed.stderr);
+    const seedId = JSON.parse(seed.stdout).node.id;
+
+    r = await runCli(["--project", dir, "resolve", seedId, "--as", "alice"]);
+    assert.notEqual(r.code, 0);
+    const data = JSON.parse(r.stdout);
+    assert.equal(data.ok, false);
+    assert.equal(data.error.code, "INVALID_EXECUTION_CONTRACT");
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("CLI: resolve without --as fails with JSON error", async () => {
+  const dir = await createTempProject();
+  try {
+    let r = await runCli(["--project", dir, "init"]);
+    assert.equal(r.code, 0, r.stderr);
+    r = await runCli(["--project", dir, "add-initiative", "migration", "--desc", "x"]);
+    assert.equal(r.code, 0, r.stderr);
+    const seed = await runCli(["--project", dir, "add-task", "--initiative", "migration", "--title", "x", "--body", "b", "--acceptance", "a", "--blocked-by", ""]);
+    assert.equal(seed.code, 0, seed.stderr);
+    const seedId = JSON.parse(seed.stdout).node.id;
+    await runCli(["--project", dir, "take", seedId, "--as", "alice"]);
+    r = await runCli(["--project", dir, "resolve", seedId, "--note", "missing --as"], { env: { CLIMIER_AGENT: "" } });
+    assert.notEqual(r.code, 0);
+    const data = JSON.parse(r.stdout);
+    assert.match(data.error.message || data.error, /--as/);
+  } finally {
+    await rmTempProject(dir);
   }
 });

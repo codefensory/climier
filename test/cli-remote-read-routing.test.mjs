@@ -9,7 +9,7 @@ import search from "../src/cli/commands/search.mjs";
 import initiatives from "../src/cli/commands/initiatives.mjs";
 import log from "../src/cli/commands/log.mjs";
 import state from "../src/cli/commands/state.mjs";
-import { createTempProject, rmTempProject, writeState, readState } from "./helpers.mjs";
+import { createTempProject, rmTempProject, writeState, readState, runCli, initExampleProject } from "./helpers.mjs";
 
 const sentinelState = {
   version: 4,
@@ -40,119 +40,31 @@ const remoteResponses = {
   state: { revision: 42, nodes: { "T-remote": {} }, edges: [], derived: {}, plugins: {} },
 };
 
+function commandCase({ name, run, options, method, statePath, expected }) {
+  return { name, expected, run, options, method, statePath };
+}
+
 function commandCases(client, statePath = "/not/read/locally") {
+  const id = "T-remote";
   return [
-    {
-      name: "status",
-      expected: remoteResponses.status,
-      run: () => status({
-        statePath,
-        backendClient: client,
-        positional: [],
-        flags: {
-          initiative: "remote-init",
-          kind: "task",
-          status: "ready",
-          domain: "api",
-          "claimed-by": "alice",
-          "stale-ms": "0",
-          limit: "2",
-          all: true,
-          as: "alice",
-        },
-      }),
-      options: {
-        initiative: "remote-init",
-        kind: "task",
-        status: "ready",
-        domain: "api",
-        claimedBy: "alice",
-        staleMs: 0,
-        limit: 2,
-        all: true,
-        as: "alice",
-      },
-      method: "readStatus",
-    },
-    {
-      name: "context",
-      expected: remoteResponses.context,
-      run: () => context({
-        statePath,
-        backendClient: client,
-        positional: ["T-remote"],
-        flags: { as: "alice", staleMs: "0" },
-      }),
-      options: { id: "T-remote", as: "alice", staleMs: 0 },
-      method: "readContext",
-    },
-    {
-      name: "show",
-      expected: remoteResponses.show,
-      run: () => show({
-        statePath,
-        backendClient: client,
-        positional: ["T-remote"],
-        flags: {},
-      }),
-      options: { id: "T-remote" },
-      method: "readNode",
-    },
-    {
-      name: "history",
-      expected: remoteResponses.history,
-      run: () => history({
-        statePath,
-        backendClient: client,
-        positional: ["T-remote"],
-        flags: { limit: "2" },
-      }),
-      options: { id: "T-remote", limit: 2 },
-      method: "readHistory",
-    },
-    {
-      name: "search",
-      expected: remoteResponses.search,
-      run: () => search({
-        statePath,
-        backendClient: client,
-        positional: ["Remote Needle"],
-        flags: { all: true },
-      }),
-      options: { query: "remote needle", all: true },
-      method: "readSearch",
-    },
-    {
-      name: "initiatives",
-      expected: remoteResponses.initiatives,
-      run: () => initiatives({
-        statePath,
-        backendClient: client,
-        positional: [],
-        flags: { all: true },
-      }),
-      options: { all: true },
-      method: "readInitiatives",
-    },
-    {
-      name: "log",
-      expected: remoteResponses.log,
-      run: () => log({
-        statePath,
-        backendClient: client,
-        positional: [],
-        flags: { limit: "2", action: "task.create", agent: "alice", task: "T-remote", decision: "D-remote" },
-      }),
-      options: { limit: 2, action: "task.create", agent: "alice", task: "T-remote", decision: "D-remote" },
-      method: "readLog",
-    },
-    {
-      name: "state",
-      expected: remoteResponses.state,
-      run: () => state({ statePath, backendClient: client }),
-      options: undefined,
-      method: "readState",
-    },
+    commandCase({ name: "status", expected: remoteResponses.status, method: "readStatus", statePath,
+      options: { initiative: "remote-init", kind: "task", status: "ready", domain: "api", claimedBy: "alice", staleMs: 0, limit: 2, all: true, as: "alice" },
+      run: () => status({ statePath, backendClient: client, positional: [], flags: { initiative: "remote-init", kind: "task", status: "ready", domain: "api", "claimed-by": "alice", "stale-ms": "0", limit: "2", all: true, as: "alice" } }) }),
+    commandCase({ name: "context", expected: remoteResponses.context, method: "readContext", statePath,
+      options: { id, as: "alice", staleMs: 0 }, run: () => context({ statePath, backendClient: client, positional: [id], flags: { as: "alice", staleMs: "0" } }) }),
+    commandCase({ name: "show", expected: remoteResponses.show, method: "readNode", statePath,
+      options: { id }, run: () => show({ statePath, backendClient: client, positional: [id], flags: {} }) }),
+    commandCase({ name: "history", expected: remoteResponses.history, method: "readHistory", statePath,
+      options: { id, limit: 2 }, run: () => history({ statePath, backendClient: client, positional: [id], flags: { limit: "2" } }) }),
+    commandCase({ name: "search", expected: remoteResponses.search, method: "readSearch", statePath,
+      options: { query: "remote needle", all: true }, run: () => search({ statePath, backendClient: client, positional: ["Remote Needle"], flags: { all: true } }) }),
+    commandCase({ name: "initiatives", expected: remoteResponses.initiatives, method: "readInitiatives", statePath,
+      options: { all: true }, run: () => initiatives({ statePath, backendClient: client, positional: [], flags: { all: true } }) }),
+    commandCase({ name: "log", expected: remoteResponses.log, method: "readLog", statePath,
+      options: { limit: 2, action: "task.create", agent: "alice", task: id, decision: "D-remote" },
+      run: () => log({ statePath, backendClient: client, positional: [], flags: { limit: "2", action: "task.create", agent: "alice", task: id, decision: "D-remote" } }) }),
+    commandCase({ name: "state", expected: remoteResponses.state, method: "readState", statePath,
+      options: undefined, run: () => state({ statePath, backendClient: client }) }),
   ];
 }
 
@@ -224,4 +136,20 @@ test("remote search routes an empty query to the selected backend", async () => 
   const result = await search({ statePath: "/not/read/locally", backendClient: client, positional: [""], flags: {} });
   assert.deepEqual(result, remoteResponses.search);
   assert.deepEqual(calls, [{ method: "readSearch", options: { query: "", all: false } }]);
+});
+
+test("CLI: context on a ready task reports derived_status=ready and no blocking", async () => {
+  const dir = await createTempProject();
+  try {
+    await initExampleProject(dir);
+    const r = await runCli(["--project", dir, "context", "F0.T1"]);
+    assert.equal(r.code, 0, r.stderr);
+    const data = JSON.parse(r.stdout);
+    assert.equal(data.node.id, "F0.T1");
+    assert.equal(data.derived_status, "ready");
+    assert.equal(data.can_claim, true);
+    assert.equal(data.blocking.length, 0);
+  } finally {
+    await rmTempProject(dir);
+  }
 });

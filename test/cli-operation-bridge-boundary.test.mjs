@@ -6,8 +6,14 @@ import path from "node:path";
 import batch from "../src/cli/commands/batch.mjs";
 import { createBackendClient } from "../src/application/operations/index.mjs";
 import { createLocalOperationSource } from "../src/application/local-operation-source.mjs";
-import { runCli as runCliInProcess } from "../src/cli/dispatch.mjs";
+import { dispatchCommand, runCli as runCliInProcess } from "../src/cli/dispatch.mjs";
+
 import { createTempProject, rmTempProject } from "./helpers.mjs";
+import fsSync from "node:fs";
+
+async function executeLocalBatch(projectDir, inputPath, writes, client) {
+  return runCliInProcess({ argv: ["--project", projectDir, "batch", "--file", inputPath, "--as", "alice"], createBackendClient: () => client, write: (value) => writes.push(value), exit() {} });
+}
 
 test("local backend creates and shares one lazy operation source with batch", async () => {
   const projectDir = await createTempProject();
@@ -38,12 +44,7 @@ test("local backend creates and shares one lazy operation source with batch", as
   });
   const writes = [];
   try {
-    const result = await runCliInProcess({
-      argv: ["--project", projectDir, "batch", "--file", inputPath, "--as", "alice"],
-      createBackendClient: () => client,
-      write: (value) => writes.push(value),
-      exit() {},
-    });
+    const result = await executeLocalBatch(projectDir, inputPath, writes, client);
 
     assert.equal(result, 0);
     assert.deepEqual(JSON.parse(writes[0]), { ok: true, results: [] });
@@ -137,5 +138,108 @@ test("batch shares the already-selected local backend instead of rebuilding its 
     assert.deepEqual(calls, [{ actor: "alice", operations: document.operations, if_state_revision: undefined }]);
   } finally {
     await rmTempProject(projectDir);
+  }
+});
+
+
+
+
+async function assertRemotePluginNotLoaded(dir, marker) {
+  const context = { projectDir: dir, statePath: dir,
+    projectConfig: { project_id: "remote-project", backend: { type: "remote", url: "https://climier.example.test" } },
+    backendClient: { type: "remote" } };
+  const command = { command: "audit", originalArgv: ["audit", "ping"], flags: {} };
+  await assert.rejects(() => dispatchCommand({ ...context, ...command }), (error) => error.code === "REMOTE_UNSUPPORTED_OPERATION" && error.details.command === "audit");
+  assert.equal(fsSync.existsSync(marker), false);
+  await assert.rejects(() => dispatchCommand({ ...context, ...command, flags: undefined }), (error) => error.code === "REMOTE_UNSUPPORTED_OPERATION");
+  assert.equal(fsSync.existsSync(marker), false, "plugin entry remains unloaded for direct dispatch");
+}
+
+async function createPluginFixture(pluginHome) {
+  const installed = path.join(pluginHome, "plugins", "installed", "audit");
+  fsSync.mkdirSync(installed, { recursive: true });
+  const marker = path.join(pluginHome, "loaded");
+  fsSync.writeFileSync(path.join(installed, "package.json"), JSON.stringify({ name: "audit", version: "1.0.0", type: "module", climier: { id: "audit", command: "audit", entry: "./climier.mjs", api: 3 } }));
+  fsSync.writeFileSync(path.join(installed, "climier.mjs"), `import fs from "node:fs"; fsSync.writeFileSync(${JSON.stringify(marker)}, "loaded"); export default { commands: { ping: () => ({ ok: true }) } };`);
+  return marker;
+}
+
+test("dispatch: remote unsupported operation is denied before plugin loading", async () => {
+  const dir = await createTempProject();
+  const previousHome = process.env.CLIMIER_HOME;
+  const pluginHome = fsSync.mkdtempSync(path.join(path.dirname(dir), "climier-remote-plugin-home-"));
+  try {
+    process.env.CLIMIER_HOME = pluginHome;
+    const marker = await createPluginFixture(pluginHome);
+    await assertRemotePluginNotLoaded(dir, marker);
+  } finally {
+    if (previousHome === undefined) { delete process.env.CLIMIER_HOME; }
+    else { process.env.CLIMIER_HOME = previousHome; }
+    await fsSync.promises.rm(pluginHome, { recursive: true, force: true });
+    await rmTempProject(dir);
+  }
+});
+
+async function rejectRemoteLocalOnlyCommands(context, source) {
+  for (const [command, flags] of [["snapshots", {}], ["restore", {}], ["ui", {}], ["init", { force: true }]]) {
+    await assert.rejects(() => dispatchCommand({ command, flags, ...context, source }),
+      (error) => error.code === "REMOTE_UNSUPPORTED_OPERATION" && error.details.command === command);
+  }
+}
+
+async function preserveInitAndStateDispatch(dir, client) {
+  for (const command of ["state", "init"]) {
+    let selected;
+    const result = await runCliInProcess({ argv: ["--project", dir, command], createBackendClient: () => client,
+      dispatch: async ({ command: name }) => { selected = name; return { ok: true }; }, write() {}, exit() {} });
+    assert.equal(result, 0);
+    assert.equal(selected, command);
+  }
+}
+
+test("dispatch: remote unsupported snapshots command fails before local handler I/O", async () => {
+  const dir = await createTempProject();
+  try {
+    const projectConfig = { project_id: "remote-project", backend: { type: "remote", url: "https://climier.example.test" } };
+    const client = { type: "remote" };
+    const sourceCalls = [];
+    const source = {
+      registry: { lookup(...args) { sourceCalls.push(["lookup", ...args]); } },
+      mutate(...args) { sourceCalls.push(["mutate", ...args]); },
+    };
+    fsSync.writeFileSync(path.join(dir, ".climier.json"), JSON.stringify(projectConfig));
+    await rejectRemoteLocalOnlyCommands({ projectDir: dir, statePath: dir, projectConfig, backendClient: client }, source);
+    await preserveInitAndStateDispatch(dir, client);
+    assert.deepEqual(sourceCalls, []);
+    assert.equal(fsSync.existsSync(path.join(dir, ".climier.json")), true);
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("dispatch: absent or local project config selects the local backend without state I/O", async () => {
+  for (const metadata of [null, { version: 1, project_id: "local-project", backend: { type: "local" } }]) {
+    const dir = await createTempProject();
+    try {
+      if (metadata) { fsSync.writeFileSync(path.join(dir, ".climier.json"), JSON.stringify(metadata)); }
+      let received;
+      const result = await runCliInProcess({
+        argv: ["--project", dir, "status", "--as", "alice"],
+        write() {},
+        exit() {},
+        dispatch: async (context) => {
+          received = context;
+          return { ok: true };
+        },
+      });
+      assert.equal(result, 0);
+      assert.equal(received.projectDir, dir);
+      assert.deepEqual(received.projectConfig, metadata || {});
+      assert.equal(received.backendClient.type, "local");
+      assert.equal(received.flags.as, "alice");
+      assert.equal(fsSync.existsSync(path.join(dir, ".climier.json")), Boolean(metadata));
+    } finally {
+      await rmTempProject(dir);
+    }
   }
 });

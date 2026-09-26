@@ -15,7 +15,7 @@ async function runCliWithInput(args, input, { cwd, env } = {}) {
   return new Promise((resolve) => {
     const proc = spawn("node", [BIN, ...args], {
       cwd,
-      env: { ...process.env, ...(env || {}), NO_COLOR: "1" },
+      env: { ...process.env, ...env, NO_COLOR: "1" },
     });
     let stdout = "";
     let stderr = "";
