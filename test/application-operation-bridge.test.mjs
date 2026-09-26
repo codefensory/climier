@@ -5,6 +5,7 @@ import {
   createOperationBridge,
   SUPPORTED_OPERATION_IDS,
 } from "../src/application/operations/index.mjs";
+import { remoteV1Manifest } from "../src/application/operations/remote-v1-manifest.mjs";
 
 function backendClient(type, calls, handlers = {}) {
   return {
@@ -28,6 +29,10 @@ test("operation bridge exposes one immutable catalog of built-in operation ids",
   assert.ok(SUPPORTED_OPERATION_IDS.includes("initiative.create"));
   assert.ok(SUPPORTED_OPERATION_IDS.includes("core.batch"));
   assert.equal(new Set(SUPPORTED_OPERATION_IDS).size, SUPPORTED_OPERATION_IDS.length);
+  for (const { id } of remoteV1Manifest.operations) {
+    assert.ok(SUPPORTED_OPERATION_IDS.includes(id), `${id} remains in the bridge catalog`);
+  }
+  assert.equal(SUPPORTED_OPERATION_IDS.filter((id) => id === remoteV1Manifest.batch.id).length, 1);
 });
 
 test("operation bridge selects the local backend and delegates operation and batch once", async () => {

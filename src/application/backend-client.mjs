@@ -1,5 +1,6 @@
 import { parseBackendConfig } from "./backend-config.mjs";
 import { executeBatch, executeOperation } from "./operations/execute.mjs";
+import { remoteV1Manifest } from "./operations/remote-v1-manifest.mjs";
 import { createLocalOperationSource } from "./local-operation-source.mjs";
 
 function createLocalBackendClient({ projectDir, source }) {
@@ -29,6 +30,32 @@ function createLocalBackendClient({ projectDir, source }) {
 
 export const REMOTE_PROTOCOL_VERSION = "1";
 const DEFAULT_TIMEOUT_MS = 10_000;
+const REMOTE_OPERATION_IDS = new Set(remoteV1Manifest.operations.map(({ id }) => id));
+const REMOTE_BATCH_OPERATION_IDS = new Set(remoteV1Manifest.batch.eligibleOperationIds);
+
+function unsupportedRemoteOperation(operation) {
+  return clientError(
+    "REMOTE_UNSUPPORTED_OPERATION",
+    `application.backendClient: operation '${operation}' is not supported by remote protocol v${REMOTE_PROTOCOL_VERSION}`,
+    { operation },
+  );
+}
+
+function validateRemoteOperation(operation) {
+  if (typeof operation !== "string" || !REMOTE_OPERATION_IDS.has(operation)) {
+    throw unsupportedRemoteOperation(operation);
+  }
+}
+
+function validateRemoteBatch(operations) {
+  if (!Array.isArray(operations)) return;
+  for (const entry of operations) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry) || typeof entry.op !== "string") continue;
+    if (!REMOTE_BATCH_OPERATION_IDS.has(entry.op)) {
+      throw unsupportedRemoteOperation(entry.op);
+    }
+  }
+}
 
 function clientError(code, message, details) {
   const error = new Error(message);
@@ -209,14 +236,16 @@ function createRemoteTransport({ backend, projectId, token, remoteOrigin, timeou
   }
 
   return Object.freeze({
-    executeOperation({ actor, operation, input } = {}) {
-      return request({
+    async executeOperation({ actor, operation, input } = {}) {
+      validateRemoteOperation(operation);
+      return await request({
         method: "POST",
         route: "operations",
         body: { operation, actor, input },
       });
     },
-    executeBatch({ actor, operations, if_state_revision } = {}) {
+    async executeBatch({ actor, operations, if_state_revision } = {}) {
+      validateRemoteBatch(operations);
       const input = { operations };
       if (if_state_revision !== undefined) input.if_state_revision = if_state_revision;
       return request({

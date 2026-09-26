@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 
 import { createBackendClient } from "../src/application/operations/index.mjs";
+import { remoteV1Manifest } from "../src/application/operations/remote-v1-manifest.mjs";
 
 async function withServer(handler, run, { approveOrigin = false } = {}) {
   const server = createServer(handler);
@@ -62,6 +63,52 @@ test("backend client defaults to local and preserves operation dependencies and 
     actor: "alice",
     input: { id: "T-local" },
   });
+});
+
+test("remote backend executes manifest operations and rejects IDs outside the manifest without local fallback", async () => {
+  const requests = [];
+  let localCalls = 0;
+  await withServer(async (request, response) => {
+    const chunks = [];
+    for await (const chunk of request) chunks.push(chunk);
+    requests.push(JSON.parse(Buffer.concat(chunks).toString("utf8")));
+    response.writeHead(200, { "content-type": "application/json", "x-climier-protocol-version": "1" });
+    response.end(JSON.stringify({ ok: true, result: { accepted: true } }));
+  }, async (url) => {
+    const client = createBackendClient({
+      projectDir: "/project",
+      projectConfig: { project_id: "remote-project", backend: { type: "remote", url } },
+      source: {
+        registry: { lookup() { localCalls += 1; return { provider: { prepare() {}, apply() {} } }; } },
+        mutate() { localCalls += 1; return {}; },
+      },
+    });
+    for (const { id: operation } of remoteV1Manifest.operations) {
+      assert.deepEqual(await client.executeOperation({ actor: "alice", operation, input: {} }), { accepted: true });
+    }
+    await assert.rejects(
+      client.executeOperation({ actor: "alice", operation: "plugin.custom", input: {} }),
+      (error) => error.code === "REMOTE_UNSUPPORTED_OPERATION" && error.details.operation === "plugin.custom",
+    );
+    await assert.rejects(
+      client.executeOperation({ actor: "alice", operation: "core.batch", input: {} }),
+      (error) => error.code === "REMOTE_UNSUPPORTED_OPERATION" && error.details.operation === "core.batch",
+    );
+    await assert.rejects(
+      client.executeBatch({ actor: "alice", operations: [{ op: "plugin.custom", input: {} }] }),
+      (error) => error.code === "REMOTE_UNSUPPORTED_OPERATION" && error.details.operation === "plugin.custom",
+    );
+    await assert.rejects(
+      client.executeBatch({ actor: "alice", operations: [{ op: "core.batch", input: {} }] }),
+      (error) => error.code === "REMOTE_UNSUPPORTED_OPERATION" && error.details.operation === "core.batch",
+    );
+    assert.deepEqual(await client.executeBatch({ actor: "alice", operations: [] }), { accepted: true });
+  }, { approveOrigin: true });
+  assert.deepEqual(requests, [
+    ...remoteV1Manifest.operations.map(({ id: operation }) => ({ operation, actor: "alice", input: {} })),
+    { operation: "core.batch", actor: "alice", input: { operations: [] } },
+  ]);
+  assert.equal(localCalls, 0);
 });
 
 test("backend client exposes typed transfer export and import requests", async () => {
