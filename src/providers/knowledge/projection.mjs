@@ -13,6 +13,36 @@
 import { matchesScopes } from "./scopes.mjs";
 import { rankKnowledge } from "./ranking.mjs";
 
+function projectCandidate(node, candidate) {
+  if (!candidate || typeof candidate !== "object" || candidate.kind !== "knowledge") {
+    return null;
+  }
+  const scopeMatches = matchesScopes(node, candidate);
+  if (scopeMatches.length === 0) {
+    return null;
+  }
+  return { ...candidate, scope_matches: scopeMatches };
+}
+
+function matchingKnowledge(node, nodes) {
+  const matches = [];
+  for (const candidate of Object.values(nodes)) {
+    const projected = projectCandidate(node, candidate);
+    if (projected) {
+      matches.push(projected);
+    }
+  }
+  return matches;
+}
+
+function validNodes(nodes) {
+  return nodes && typeof nodes === "object" && !Array.isArray(nodes);
+}
+
+function targetNode(snapshot, id) {
+  return validNodes(snapshot.nodes) ? snapshot.nodes[id] : null;
+}
+
 /**
  * Project knowledge nodes matching the target node's scopes.
  *
@@ -22,21 +52,15 @@ import { rankKnowledge } from "./ranking.mjs";
  * @returns {object[]} Matching knowledge nodes with `scope_matches`.
  */
 export function knowledgeForNode({ snapshot, id } = {}) {
-  if (!snapshot || typeof snapshot !== "object") return [];
-  if (typeof id !== "string" || id.length === 0) return [];
-  if (!snapshot.nodes || typeof snapshot.nodes !== "object" || Array.isArray(snapshot.nodes)) return [];
-
-  const node = snapshot.nodes[id];
-  if (!node || typeof node !== "object") return [];
-
-  const matches = Object.values(snapshot.nodes)
-    .filter((candidate) => candidate && typeof candidate === "object" && candidate.kind === "knowledge")
-    .map((candidate) => {
-      const scopeMatches = matchesScopes(node, candidate);
-      if (scopeMatches.length === 0) return null;
-      return { ...candidate, scope_matches: scopeMatches };
-    })
-    .filter(Boolean);
-
-  return rankKnowledge(matches);
+  if (!snapshot || typeof snapshot !== "object") {
+    return [];
+  }
+  if (typeof id !== "string" || id.length === 0) {
+    return [];
+  }
+  const node = targetNode(snapshot, id);
+  if (!node || typeof node !== "object") {
+    return [];
+  }
+  return rankKnowledge(matchingKnowledge(node, snapshot.nodes));
 }

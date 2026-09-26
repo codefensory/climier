@@ -43,7 +43,7 @@ function asString(value) {
 }
 
 function readInput(input) {
-  if (input == null || typeof input !== "object" || Array.isArray(input)) {
+  if ((input === null || input === undefined) || typeof input !== "object" || Array.isArray(input)) {
     throwV2("MISSING_FIELD", "knowledge.update: input must be an object", { field: "input" });
   }
   return input;
@@ -61,23 +61,22 @@ function readNodes(snapshot) {
 }
 
 function normalizeScope(rawScope) {
-  if (rawScope == null || typeof rawScope !== "object" || Array.isArray(rawScope)) {
+  if ((rawScope === null || rawScope === undefined) || typeof rawScope !== "object" || Array.isArray(rawScope)) {
     return null;
   }
-  // Provider accepts any subset of the four scope arrays, but always emits
-  // the four canonical arrays (same normalization as knowledge.create).
-  // `tx.updateNode` merges at field level, so `scope` is replaced wholesale:
-  // emitting a partial object would silently drop the scope arrays the patch
-  // did not mention. Absent keys therefore normalize to [].
-  const out = { domains: [], initiatives: [], tags: [], node_ids: [] };
+  // `scope` is replaced wholesale by tx.updateNode, so emit all canonical
+  // arrays and use [] for every key omitted by the input.
+  const normalized = { domains: [], initiatives: [], tags: [], node_ids: [] };
   for (const key of SCOPE_KEYS) {
-    if (Array.isArray(rawScope[key])) out[key] = rawScope[key].slice();
+    if (Array.isArray(rawScope[key])) {
+      normalized[key] = rawScope[key].slice();
+    }
   }
-  return out;
+  return normalized;
 }
 
 function pickChanges(rawChanges) {
-  if (rawChanges == null || typeof rawChanges !== "object" || Array.isArray(rawChanges)) {
+  if ((rawChanges === null || rawChanges === undefined) || typeof rawChanges !== "object" || Array.isArray(rawChanges)) {
     throwV2("MISSING_FIELD", "knowledge.update: changes must be an object", { field: "changes" });
   }
   const changes = {};
@@ -95,6 +94,94 @@ function pickChanges(rawChanges) {
   return changes;
 }
 
+function validateTarget(nodes, id) {
+  const current = nodes[id];
+  if (!current) {
+    throwV2("NODE_NOT_FOUND", `knowledge.update: node '${id}' does not exist`, { field: "id", id });
+  }
+  if (current.kind !== "knowledge") {
+    throwV2("INVALID_PROVIDER_INPUT", `knowledge.update: node '${id}' is not a knowledge node (kind=${current.kind})`, {
+      field: "id",
+      id,
+      kind: current.kind,
+    });
+  }
+  if (!Number.isInteger(current.revision)) {
+    throwV2("INVALID_PROVIDER_INPUT", `knowledge.update: node '${id}' has no integer revision`, {
+      field: "revision",
+      id,
+      revision: current.revision,
+    });
+  }
+  return current;
+}
+
+function validateEnum(changes, field, allowed) {
+  if (!Object.prototype.hasOwnProperty.call(changes, field)) {
+    return;
+  }
+  const value = asString(changes[field]);
+  if (!allowed.includes(value)) {
+    throwV2(
+      "INVALID_PROVIDER_INPUT",
+      `knowledge.update: ${field} '${value}' is not allowed (allowed: ${allowed.join(", ")})`,
+      { field, value, allowed },
+    );
+  }
+}
+
+function normalizeChanges(changes) {
+  validateEnum(changes, "knowledge_type", KNOWN_KNOWLEDGE_TYPES);
+  validateEnum(changes, "status", KNOWN_STATUSES);
+  if (changes.scope !== undefined) {
+    const scope = normalizeScope(changes.scope);
+    if (scope === null) {
+      throwV2("MISSING_FIELD", "knowledge.update: scope must be an object", { field: "scope" });
+    }
+    changes.scope = scope;
+  }
+  if (Array.isArray(changes.refs)) {
+    changes.refs = changes.refs.map((ref) => (ref && typeof ref === "object") ? { ...ref } : ref);
+  }
+  if (changes.meta !== undefined && changes.meta !== null && typeof changes.meta === "object" && !Array.isArray(changes.meta)) {
+    changes.meta = { ...changes.meta };
+  }
+  return changes;
+}
+
+function createPlan(id, current, changes) {
+  return {
+    target: { id, kind: "knowledge", revision: current.revision },
+    if_revision: { kind: "single", id, value: current.revision },
+    policyAction: null,
+    idempotent: false,
+    changes,
+  };
+}
+
+async function prepare({ snapshot: rawSnapshot, input: rawInput }) {
+  const snapshot = readSnapshot(rawSnapshot);
+  const input = readInput(rawInput);
+  const id = asNonEmptyString(input.id);
+  if (!id) {
+    throwV2("MISSING_FIELD", "knowledge.update: id is required", { field: "id" });
+  }
+  const current = validateTarget(readNodes(snapshot), id);
+  const changes = normalizeChanges(pickChanges(input.changes));
+  return createPlan(id, current, changes);
+}
+
+async function apply({ tx, plan }) {
+  if (!plan || typeof plan !== "object" || !plan.target || typeof plan.target.id !== "string") {
+    throwV2("INVALID_EXECUTION_CONTRACT", "knowledge.update.apply: plan.target.id missing", { field: "plan.target.id" });
+  }
+  if (!plan.changes || typeof plan.changes !== "object") {
+    throwV2("INVALID_EXECUTION_CONTRACT", "knowledge.update.apply: plan.changes missing", { field: "plan.changes" });
+  }
+  tx.updateNode(plan.target.id, { ...plan.changes });
+  return { result: { id: plan.target.id, kind: "knowledge" }, effects: null };
+}
+
 /**
  * knowledge.update provider factory.
  *
@@ -104,111 +191,5 @@ function pickChanges(rawChanges) {
  * }}
  */
 export function updateProvider() {
-  return {
-    /**
-     * Validate the update request and produce the plan. Read-only.
-     *
-     * Required input: { id, changes }. The `changes` object accepts:
-     *   - title, body, mitigation (string)
-     *   - knowledge_type (one of warning|fact|instruction)
-     *   - status (one of active|deprecated|superseded)
-     *   - domain (string), tags (string[]), refs, meta
-     *   - scope: { domains?, initiatives?, tags?, node_ids? }
-     *
-     * Returns a plan with `target.revision` reflecting the current
-     * revision read from the snapshot and an `if_revision` precondition
-     * (single) so the kernel can validate against the fresh snapshot.
-     */
-    async prepare({ snapshot: rawSnapshot, input: rawInput }) {
-      const snapshot = readSnapshot(rawSnapshot);
-      const input = readInput(rawInput);
-      const id = asNonEmptyString(input.id);
-      if (!id) {
-        throwV2("MISSING_FIELD", "knowledge.update: id is required", { field: "id" });
-      }
-
-      const nodes = readNodes(snapshot);
-      const current = nodes[id];
-      if (!current) {
-        throwV2("NODE_NOT_FOUND", `knowledge.update: node '${id}' does not exist`, { field: "id", id });
-      }
-      if (current.kind !== "knowledge") {
-        throwV2(
-          "INVALID_PROVIDER_INPUT",
-          `knowledge.update: node '${id}' is not a knowledge node (kind=${current.kind})`,
-          { field: "id", id, kind: current.kind },
-        );
-      }
-      if (!Number.isInteger(current.revision)) {
-        throwV2(
-          "INVALID_PROVIDER_INPUT",
-          `knowledge.update: node '${id}' has no integer revision`,
-          { field: "revision", id, revision: current.revision },
-        );
-      }
-
-      const changes = pickChanges(input.changes);
-
-      if (Object.prototype.hasOwnProperty.call(changes, "knowledge_type")) {
-        const kt = asString(changes.knowledge_type);
-        if (!KNOWN_KNOWLEDGE_TYPES.includes(kt)) {
-          throwV2(
-            "INVALID_PROVIDER_INPUT",
-            `knowledge.update: knowledge_type '${kt}' is not allowed (allowed: ${KNOWN_KNOWLEDGE_TYPES.join(", ")})`,
-            { field: "knowledge_type", value: kt, allowed: KNOWN_KNOWLEDGE_TYPES },
-          );
-        }
-      }
-      if (Object.prototype.hasOwnProperty.call(changes, "status")) {
-        const st = asString(changes.status);
-        if (!KNOWN_STATUSES.includes(st)) {
-          throwV2(
-            "INVALID_PROVIDER_INPUT",
-            `knowledge.update: status '${st}' is not allowed (allowed: ${KNOWN_STATUSES.join(", ")})`,
-            { field: "status", value: st, allowed: KNOWN_STATUSES },
-          );
-        }
-      }
-      const normalizedScope = normalizeScope(changes.scope);
-      if (changes.scope !== undefined) {
-        if (normalizedScope === null) {
-          throwV2("MISSING_FIELD", "knowledge.update: scope must be an object", { field: "scope" });
-        }
-        changes.scope = normalizedScope;
-      }
-      // Refs/meta copies to avoid reference sharing between plan and
-      // caller-supplied object.
-      if (Array.isArray(changes.refs)) {
-        changes.refs = changes.refs.map((ref) => (ref && typeof ref === "object") ? { ...ref } : ref);
-      }
-      if (changes.meta !== undefined && changes.meta !== null && typeof changes.meta === "object" && !Array.isArray(changes.meta)) {
-        changes.meta = { ...changes.meta };
-      }
-
-      const plan = {
-        target: { id, kind: "knowledge", revision: current.revision },
-        if_revision: { kind: "single", id, value: current.revision },
-        policyAction: null,
-        idempotent: false,
-        changes,
-      };
-      return plan;
-    },
-
-    /**
-     * Apply the patch via tx.updateNode. Never sets `revision`; the
-     * kernel diff bumps it once per node per apply when the patch
-     * actually changes the node (idempotent → no bump).
-     */
-    async apply({ tx, plan }) {
-      if (!plan || typeof plan !== "object" || !plan.target || typeof plan.target.id !== "string") {
-        throwV2("INVALID_EXECUTION_CONTRACT", "knowledge.update.apply: plan.target.id missing", { field: "plan.target.id" });
-      }
-      if (!plan.changes || typeof plan.changes !== "object") {
-        throwV2("INVALID_EXECUTION_CONTRACT", "knowledge.update.apply: plan.changes missing", { field: "plan.changes" });
-      }
-      tx.updateNode(plan.target.id, { ...plan.changes });
-      return { result: { id: plan.target.id, kind: "knowledge" }, effects: null };
-    },
-  };
+  return { prepare, apply };
 }

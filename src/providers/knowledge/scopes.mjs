@@ -21,6 +21,31 @@ function asArray(value) {
   return Array.isArray(value) ? value : [];
 }
 
+function matchesValue(value, scopeValues) {
+  return typeof value === "string" && value.length > 0 && asArray(scopeValues).includes(value);
+}
+
+function matchesTag(node, scope) {
+  const nodeTags = asArray(node.tags);
+  const scopeTags = asArray(scope.tags);
+  return nodeTags.some((tag) => scopeTags.includes(tag));
+}
+
+function matchesScopeKey(key, node, scope) {
+  switch (key) {
+    case "node_id":
+      return matchesValue(node.id, scope.node_ids);
+    case "domain":
+      return matchesValue(node.domain, scope.domains);
+    case "tag":
+      return matchesTag(node, scope);
+    case "initiative":
+      return matchesValue(node.initiative, scope.initiatives);
+    default:
+      return false;
+  }
+}
+
 /**
  * Returns the scope keys from `knowledge.scope` that match `node`,
  * ordered by `SCOPE_ORDER`. Returns `[]` when nothing matches.
@@ -40,27 +65,11 @@ function asArray(value) {
  * @returns {string[]} Subset of SCOPE_ORDER in priority order.
  */
 export function matchesScopes(node, knowledge) {
-  if (!node || typeof node !== "object") return [];
+  if (!node || typeof node !== "object") {
+    return [];
+  }
   const scope = knowledge && typeof knowledge === "object" && knowledge.scope && typeof knowledge.scope === "object"
     ? knowledge.scope
     : {};
-  const matched = [];
-  if (typeof node.id === "string" && node.id.length > 0 && asArray(scope.node_ids).includes(node.id)) {
-    matched.push("node_id");
-  }
-  if (typeof node.domain === "string" && node.domain.length > 0 && asArray(scope.domains).includes(node.domain)) {
-    matched.push("domain");
-  }
-  if (typeof node.initiative === "string" && node.initiative.length > 0 && asArray(scope.initiatives).includes(node.initiative)) {
-    matched.push("initiative");
-  }
-  const nodeTags = asArray(node.tags);
-  if (nodeTags.length > 0) {
-    const scopeTags = asArray(scope.tags);
-    if (scopeTags.length > 0 && nodeTags.some((tag) => scopeTags.includes(tag))) {
-      matched.push("tag");
-    }
-  }
-  // Re-order by priority: SCOPE_ORDER is authoritative.
-  return SCOPE_ORDER.filter((k) => matched.includes(k));
+  return SCOPE_ORDER.filter((key) => matchesScopeKey(key, node, scope));
 }

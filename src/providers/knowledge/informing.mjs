@@ -27,7 +27,7 @@ function inlineNode(snapshot, id) {
   const supersedeEdges = (snapshot && Array.isArray(snapshot.edges) ? snapshot.edges : [])
     .filter((edge) => edge && edge.type === "SUPERSEDES" && edge.to === id);
   const supersededBy = supersedeEdges.length > 0
-    ? supersedeEdges.map((edge) => edge.from).sort()[0]
+    ? supersedeEdges.map((edge) => edge.from).toSorted()[0]
     : null;
   return {
     ...node,
@@ -45,8 +45,12 @@ function inlineNode(snapshot, id) {
  * @returns {Array<{ edge_type: string, node: object }>}
  */
 export function informingForNode({ snapshot, id } = {}) {
-  if (!snapshot || typeof snapshot !== "object") return [];
-  if (typeof id !== "string" || id.length === 0) return [];
+  if (!snapshot || typeof snapshot !== "object") {
+    return [];
+  }
+  if (typeof id !== "string" || id.length === 0) {
+    return [];
+  }
   const edges = relations(snapshot, id, "INFORMS");
   return edges.map((edge) => ({
     edge_type: edge.type,

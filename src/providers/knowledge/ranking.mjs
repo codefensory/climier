@@ -14,12 +14,9 @@
 
 import { SCOPE_ORDER } from "./scopes.mjs";
 
-const SCOPE_INDEX = Object.freeze(
-  SCOPE_ORDER.reduce((acc, key, idx) => {
-    acc[key] = idx;
-    return acc;
-  }, {}),
-);
+const SCOPE_INDEX = Object.freeze(Object.fromEntries(
+  SCOPE_ORDER.map((key, idx) => [key, idx]),
+));
 
 /**
  * Specificity rank of a knowledge match. Lower means more specific.
@@ -34,20 +31,34 @@ export function specificityRank(scopeMatches) {
   let best = Number.POSITIVE_INFINITY;
   for (const key of scopeMatches) {
     const idx = SCOPE_INDEX[key];
-    if (typeof idx === "number" && idx < best) best = idx;
+    if (typeof idx === "number" && idx < best) {
+      best = idx;
+    }
   }
   return best;
 }
 
-function compareItems(a, b) {
-  const ra = specificityRank(a && a.scope_matches);
-  const rb = specificityRank(b && b.scope_matches);
-  if (ra !== rb) return ra - rb;
-  const ai = a && typeof a.id === "string" ? a.id : "";
-  const bi = b && typeof b.id === "string" ? b.id : "";
-  if (ai < bi) return -1;
-  if (ai > bi) return 1;
+function compareIds(a, b) {
+  if (a < b) {
+    return -1;
+  }
+  if (a > b) {
+    return 1;
+  }
   return 0;
+}
+
+function itemRank(item) {
+  return item ? specificityRank(item.scope_matches) : Number.POSITIVE_INFINITY;
+}
+
+function itemId(item) {
+  return item && typeof item.id === "string" ? item.id : "";
+}
+
+function compareItems(a, b) {
+  const rankComparison = itemRank(a) - itemRank(b);
+  return rankComparison === 0 ? compareIds(itemId(a), itemId(b)) : rankComparison;
 }
 
 /**
@@ -58,6 +69,8 @@ function compareItems(a, b) {
  * @returns {T[]} New sorted array; input is not mutated.
  */
 export function rankKnowledge(items) {
-  if (!Array.isArray(items)) return [];
-  return items.slice().sort(compareItems);
+  if (!Array.isArray(items)) {
+    return [];
+  }
+  return items.toSorted(compareItems);
 }
