@@ -1,20 +1,23 @@
 // `update <id>` CLI adapter for the canonical task/gate/knowledge providers.
 //
-// The CLI keeps its historical flags and envelopes. This module only parses
-// those flags into typed provider input, selects the provider from the fresh
-// kernel snapshot, and delegates the mutation to kernel.mutate. Locking,
-// persistence, revision assignment, logging and policy execution remain
-// kernel responsibilities.
+// The CLI keeps its historical flags and envelopes. This module parses those
+// flags, selects the canonical update operation, and delegates it through the
+// Application Operations bridge. The provider plan carries compatibility-only
+// fields to the same kernel transaction as typed changes.
+import {
+  bootstrapBuiltins,
+  createOperationBridge,
+  executeOperation,
+} from "../../application/operations/index.mjs";
 import { mutate } from "../../kernel/mutate.mjs";
-import { executeRemoteTask, isRemoteBackend, throwMissingRemoteNode } from "./internal/task-routing.mjs";
-import { executeRemoteDomain, readRemoteNode, nodeFromMutation } from "./internal/domain-routing.mjs";
+import { readState } from "../../storage/state.mjs";
+import { isRemoteBackend, throwMissingRemoteNode } from "./internal/task-routing.mjs";
+import { readRemoteNode, nodeFromMutation } from "./internal/domain-routing.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
 import { resolveAgent } from "../actor.mjs";
 import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
-import { PolicyDenied } from "../../plugins/errors.mjs";
-import { taskUpdateProvider } from "../../providers/task/update.mjs";
-import { gateUpdateProvider } from "../../providers/gate/update.mjs";
-import { updateProvider as knowledgeUpdateProvider } from "../../providers/knowledge/update.mjs";
+
+const REGISTRY = bootstrapBuiltins();
 
 export const knownFlags = [
   "title",
@@ -144,73 +147,73 @@ function buildChanges(flags) {
 
 function providerFor(snapshot, id) {
   const node = snapshot && snapshot.nodes ? snapshot.nodes[id] : null;
-  if (node && node.kind === "knowledge") return knowledgeUpdateProvider();
-  if (node && node.kind === "resolvable" && node.subkind === "gate") return gateUpdateProvider;
-  return taskUpdateProvider;
+  if (node && node.kind === "knowledge") return REGISTRY.lookup("knowledge.update").provider;
+  if (node && node.kind === "resolvable" && node.subkind === "gate") return REGISTRY.lookup("gate.update").provider;
+  return REGISTRY.lookup("task.update").provider;
 }
 
-// The typed providers intentionally expose their own domain-specific patch
-// contracts. The historical CLI accepted the complete flag set for any v2
-// node, so retain that compatibility at this adapter boundary: supported
-// fields go through the canonical provider and the remaining known CLI fields
-// are applied to the same kernel transaction after the provider validates the
-// target and CAS. No direct persistence or logging is introduced here.
+// Preserve the complete historical CLI patch surface while applying typed and
+// compatibility-only fields in the provider's one transaction draft.
 const PROVIDER_PATCH_KEYS = Object.freeze({
   task: new Set(["title", "body", "acceptance", "definition", "domain", "initiative", "tags", "refs"]),
   gate: new Set(["title", "body", "initiative", "domain", "tags", "refs", "meta", "definition", "acceptance", "backlog", "purpose", "resolution_mode"]),
   knowledge: new Set(["title", "body", "mitigation", "knowledge_type", "scope", "status", "domain", "tags", "refs", "meta"]),
 });
 
-function typedChanges(node, changes) {
-  const key = node && node.kind === "knowledge"
-    ? "knowledge"
-    : node && node.subkind === "gate"
-      ? "gate"
-      : "task";
-  const allowed = PROVIDER_PATCH_KEYS[key];
-  const typed = {};
-  const legacy = {};
-  for (const [field, value] of Object.entries(changes)) {
-    (allowed.has(field) ? typed : legacy)[field] = value;
-  }
-  return { typed, legacy };
-}
-
-function actionForTarget(target) {
-  if (target && target.kind === "knowledge") return "knowledge.update";
-  if (target && target.kind === "resolvable" && target.subkind === "gate") return "gate.update";
-  return "task.update";
-}
-
-// The kernel receives this action only to label the outer request. The
-// policy seam must still see the typed action selected from the target, so
-// decide derives that action from the provider plan and throws the canonical
-// deny error itself (rather than allowing kernel.mutate to label it `update`).
-function policyAction({ policy, projectDir, agent }) {
+function createUpdateProvider(id, changes, expectedRevision) {
   return {
-    action: "update",
-    pluginId: policy && policy.pluginId ? policy.pluginId : null,
-    async decide({ snapshot, target }) {
-      const action = actionForTarget(target);
-      if (!policy) return { decision: "abstain" };
-      const decision = await authorizeAction({
-        policy,
-        action,
-        actor: agent,
-        target,
-        snapshot,
-        projectDir,
-        projectConfig: policy.projectConfig || {},
-      });
-      if (decision.decision === "deny") {
-        throw new PolicyDenied(
-          policy.pluginId || "(unknown)",
-          action,
-          agent,
-          decision.reason || "denied by policy",
-        );
+    async prepare(args) {
+      const provider = providerFor(args.snapshot, id);
+      const current = args.snapshot?.nodes?.[id] || null;
+      const revision = expectedRevision ?? (Number.isInteger(current?.revision) ? current.revision : 1);
+      args.request.if_revision = { kind: "single", id, value: revision };
+      const providerKey = current?.kind === "knowledge"
+        ? "knowledge"
+        : current?.subkind === "gate"
+          ? "gate"
+          : "task";
+      const typed = {};
+      const legacy = {};
+      for (const [field, value] of Object.entries(changes)) {
+        (PROVIDER_PATCH_KEYS[providerKey].has(field) ? typed : legacy)[field] = value;
       }
-      return decision;
+      if (typed.scope) typed.scope = { ...(current?.scope || {}), ...typed.scope };
+      if (legacy.scope) legacy.scope = { ...(current?.scope || {}), ...legacy.scope };
+      if (legacy.backlog === false) legacy.backlog = undefined;
+      const providerChanges = Object.keys(typed).length > 0
+        ? typed
+        : { title: typeof current?.title === "string" ? current.title : "" };
+      const plan = await provider.prepare({
+        ...args,
+        input: { ...args.input, changes: providerChanges, if_revision: revision },
+      });
+      return {
+        ...plan,
+        target: { ...plan.target, status: current?.status },
+        logAction: "update",
+        legacy_patch: legacy,
+      };
+    },
+    async apply(args) {
+      const provider = providerFor(args.snapshot, id);
+      const applied = await provider.apply(args);
+      if (args.plan.legacy_patch && Object.keys(args.plan.legacy_patch).length > 0) {
+        args.tx.updateNode(id, args.plan.legacy_patch);
+      }
+      return { ...applied, result: args.tx.getNode(id) };
+    },
+  };
+}
+
+function withUpdateProvider(source, provider) {
+  return {
+    ...source,
+    registry: {
+      ...source.registry,
+      lookup(operation) {
+        const entry = source.registry.lookup(operation);
+        return operation.endsWith(".update") && entry ? { ...entry, provider } : entry;
+      },
     },
   };
 }
@@ -222,6 +225,7 @@ export default async function update({
   positional = [],
   pluginId,
   backendClient,
+  source,
 }) {
   const id = positional[0];
   if (!id) throwV2("MISSING_FIELD", "update: node id required", { field: "id" });
@@ -230,119 +234,77 @@ export default async function update({
   const agent = resolveAgent(flags, "update");
   const changes = buildChanges(flags);
   const expectedRevision = parseIfRevision(flags["if-revision"]);
+
+  let operation;
+  let target;
   if (isRemoteBackend(backendClient)) {
-    const target = await readRemoteNode(backendClient, id, "update");
-    if (target.kind === "resolvable" && target.subkind === "task") {
-      const remote = await executeRemoteTask({
-        backendClient,
-        actor: agent,
-        operation: "task.update",
-        command: "update",
-        id,
-        input: { id, changes, if_revision: expectedRevision },
-        inspectTarget: true,
-      });
-      if (!remote.node) throwMissingRemoteNode("update", id);
-      return { node: remote.node };
-    }
-    const operation = target.kind === "knowledge"
+    target = await readRemoteNode(backendClient, id, "update");
+    operation = target.kind === "knowledge"
       ? "knowledge.update"
       : target.kind === "resolvable" && target.subkind === "gate"
         ? "gate.update"
-        : null;
-    if (!operation) throwV2("REMOTE_UNSUPPORTED_OPERATION", `update: remote target ${id} is not a task, gate, or knowledge node`, { id, kind: target.kind, subkind: target.subkind });
-    const remoteInput = { id, changes, if_revision: expectedRevision ?? (Number.isInteger(target.revision) ? target.revision : 1) };
-    const mutation = await executeRemoteDomain({ backendClient, actor: agent, operation, input: remoteInput, command: "update" });
-    const node = nodeFromMutation(mutation, id) || mutation.result?.node || null;
-    if (!node) throwMissingRemoteNode("update", id);
-    return { node };
+        : target.kind === "resolvable" && target.subkind === "task"
+          ? "task.update"
+          : null;
+    if (!operation) {
+      throwV2("REMOTE_UNSUPPORTED_OPERATION", `update: remote target ${id} is not a task, gate, or knowledge node`, {
+        id,
+        kind: target.kind,
+        subkind: target.subkind,
+      });
+    }
+  } else {
+    const snapshot = await readState(dir);
+    target = snapshot.nodes?.[id] || null;
+    operation = target?.kind === "knowledge"
+      ? "knowledge.update"
+      : target?.kind === "resolvable" && target.subkind === "gate"
+        ? "gate.update"
+        : "task.update";
   }
-  const policy = await loadApplicablePolicy({ projectDir: dir });
 
-  // `update` remains the historical audit action in the CLI log. The policy
-  // seam receives the typed operation (task.update/gate.update/
-  // knowledge.update) through `policyAction` below; keeping this request
-  // action stable preserves the public CLI history contract.
-  const request = {
-    action: "update",
+  const input = { id, changes };
+  if (expectedRevision !== undefined) input.if_revision = expectedRevision;
+  else if (isRemoteBackend(backendClient)) input.if_revision = Number.isInteger(target?.revision) ? target.revision : 1;
+  const selectedClient = isRemoteBackend(backendClient)
+    ? backendClient
+    : {
+        ...(backendClient || {}),
+        type: "local",
+        async executeOperation(args) {
+          const operationSource = source || await backendClient?.operationSource || {
+            registry: REGISTRY,
+            mutate,
+            loadApplicablePolicy: ({ projectDir }) => loadApplicablePolicy({ projectDir }),
+            authorizeAction,
+            pluginId,
+          };
+          const provider = createUpdateProvider(id, changes, expectedRevision);
+          return executeOperation({
+            projectDir: dir,
+            actor: agent,
+            operation: args.operation,
+            input: args.input,
+            source: withUpdateProvider({ ...operationSource, pluginId: operationSource.pluginId || pluginId }, provider),
+            policyActionFromPlan: true,
+          });
+        },
+        async executeBatch() {
+          throwV2("INVALID_OPERATION_BRIDGE", "update: single operation execution is required");
+        },
+      };
+  const mutation = await createOperationBridge({ backendClient: selectedClient }).executeOperation({
     actor: agent,
-    input: { id, changes, if_revision: expectedRevision },
-  };
-
-  const adapterProvider = {
-    async prepare(args) {
-      const provider = providerFor(args.snapshot, id);
-      const node = args.snapshot && args.snapshot.nodes ? args.snapshot.nodes[id] : null;
-      const current = node;
-      // Older direct callers did not pass --if-revision. Keep that CLI
-      // compatibility while still declaring a kernel CAS from the fresh
-      // snapshot; callers that provide the flag get the strict value they
-      // requested and stale edits fail with REVISION_CONFLICT.
-      const revision = expectedRevision ?? (current && Number.isInteger(current.revision) ? current.revision : 1);
-      // The task provider's historical plan uses a plain if_revisions map,
-      // while kernel.mutate accepts the structured precondition. Supplying it
-      // on the request gives every provider one canonical single-node CAS.
-      request.if_revision = { kind: "single", id, value: revision };
-      const { typed, legacy } = typedChanges(node, changes);
-      // Scope flags historically patched only the named arrays. Expand the
-      // partial CLI scope against the current node before handing it to a
-      // provider (knowledge.update replaces scope wholesale) or the legacy
-      // compatibility patch below.
-      if (typed.scope) typed.scope = { ...(current && current.scope ? current.scope : {}), ...typed.scope };
-      if (legacy.scope) legacy.scope = { ...(current && current.scope ? current.scope : {}), ...legacy.scope };
-      if (legacy.backlog === false) legacy.backlog = undefined;
-      // A CLI-only field may be the complete patch. Give the provider an
-      // idempotent typed field so it still validates target and revision;
-      // legacy is then applied in the same tx by `apply` below.
-      const providerChanges = Object.keys(typed).length > 0
-        ? typed
-        : { title: current && typeof current.title === "string" ? current.title : "" };
-      const input = {
-        ...args.input,
-        changes: providerChanges,
-        if_revision: revision,
-      };
-      const plan = await provider.prepare({ ...args, input });
-      // Keep the historical policy target projection available in addition
-      // to the typed provider target fields.
-      return {
-        ...plan,
-        target: { ...plan.target, status: current && current.status },
-        legacy_patch: legacy,
-      };
-    },
-    async apply(args) {
-      const provider = providerFor(args.snapshot, id);
-      const applied = await provider.apply(args);
-      if (args.plan.legacy_patch && Object.keys(args.plan.legacy_patch).length > 0) {
-        args.tx.updateNode(id, args.plan.legacy_patch);
-      }
-      // Providers may return a compact result (knowledge.update returns only
-      // id/kind). The CLI envelope has always returned the complete node, so
-      // project the transaction's post-patch node while still letting the
-      // provider supply operation-specific effects.
-      return { ...applied, result: args.tx.getNode(id) };
-    },
-  };
-
-  const mutation = await mutate({
-    projectDir: dir,
-    request,
-    provider: adapterProvider,
-    policyAction: policyAction({ policy, projectDir: dir, agent }),
-    pluginId,
+    operation,
+    input,
   });
-
-  let node = mutation.diff.updated.find((entry) => entry.id === id)?.node;
+  let node = isRemoteBackend(selectedClient)
+    ? nodeFromMutation(mutation, id) || mutation.result?.node || null
+    : mutation.diff.updated.find((entry) => entry.id === id)?.node || null;
   if (!node && mutation.result && typeof mutation.result === "object") {
-    node = {
-      ...mutation.result,
-      revision: mutation.diff.target_revision,
-    };
+    node = { ...mutation.result, revision: mutation.diff.target_revision };
     delete node.added_edges;
   }
-  if (!node) {
-    throwV2("INVALID_EXECUTION_CONTRACT", `update: kernel did not return node ${id}`, { id });
-  }
+  if (!node) throwMissingRemoteNode("update", id);
   return { node };
 }
