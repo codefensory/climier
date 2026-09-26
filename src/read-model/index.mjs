@@ -84,9 +84,23 @@ export const deriveReadModel = derive;
 export const statusOfV2 = statusOf;
 export const projectStatus = statusOf;
 export const projectInitiatives = projectInitiativesView;
+export const projectLog = projectLogView;
 export const projectBlocking = blockingForNode;
 export const projectKnowledge = knowledgeForNode;
 export const projectInforming = informingForNode;
+
+/** Filter a snapshot's append-only log without changing its order or shape. */
+export function projectLogView({ snapshot, filters = {} } = {}) {
+  let entries = snapshot?.log || [];
+  for (const key of ["action", "agent", "task", "decision"]) {
+    if (filters[key]) entries = entries.filter((entry) => entry[key] === filters[key]);
+  }
+  if (filters.limit) {
+    const limit = Number.parseInt(filters.limit, 10);
+    if (Number.isFinite(limit) && limit > 0) entries = entries.slice(-limit);
+  }
+  return entries;
+}
 
 function claimBy(node) {
   if (node?.claim && typeof node.claim === "object" && node.claim.by) return node.claim.by;

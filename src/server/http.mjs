@@ -20,6 +20,7 @@ import {
   projectStatusView,
   projectContextView,
   projectInitiativesView,
+  projectLogView,
   statusOf,
 } from "../read-model/index.mjs";
 import { readState } from "../storage/state.mjs";
@@ -376,13 +377,6 @@ function entryReferencesId(entry, id) {
     || (typeof entry.note === "string" && entry.note.split(/\\s+/).includes(id)));
 }
 
-function readLog(snapshot, query) {
-  let entries = snapshot.log || [];
-  for (const key of ["action", "agent", "task", "decision"]) if (query[key]) entries = entries.filter((entry) => entry[key] === query[key]);
-  if (query.limit) entries = entries.slice(-query.limit);
-  return entries;
-}
-
 function projectReadResult(snapshot, route, query, now) {
   const nodes = snapshot.nodes || {};
   if (route.kind === "status") return statusProjection(snapshot, query, now);
@@ -399,7 +393,7 @@ function projectReadResult(snapshot, route, query, now) {
   }
   if (route.kind === "search") return projectSearchView({ snapshot, query: query.query, all: query.all === true });
   if (route.kind === "initiatives") return projectInitiativesView({ snapshot, all: query.all === true });
-  if (route.kind === "log") return readLog(snapshot, query);
+  if (route.kind === "log") return projectLogView({ snapshot, filters: query });
   if (route.kind === "state") return projectSnapshot({ snapshot });
   const node = nodes[route.id];
   if (!node) throw httpError("NODE_NOT_FOUND", `server http: node '${route.id}' was not found`, { id: route.id }, 404);
