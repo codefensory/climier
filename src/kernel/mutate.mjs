@@ -50,7 +50,55 @@ function currentNestedDepth() {
  * Stable kernel mutation API. All reads, provider callbacks and persistence
  * run through one project lock and are delegated to the execution coordinator.
  */
-export async function mutate({ projectDir, request, provider, policyAction, pluginId, stateOperation, batch }) {
+function selectPolicyAndAuditFromPlan({ request, provider, policyAction }) {
+  let selectedAction = request.action;
+  const wrappedProvider = {
+    ...provider,
+    async prepare(args) {
+      const plan = await provider.prepare(args);
+      if (plan && plan.policyAction && typeof plan.policyAction.action === "string" && plan.policyAction.action.length > 0) {
+        selectedAction = plan.policyAction.action;
+      }
+      if (plan && typeof plan.logAction === "string" && plan.logAction.length > 0) {
+        request.action = plan.logAction;
+      }
+      return plan;
+    },
+  };
+  const wrappedPolicyAction = policyAction ? {
+    ...policyAction,
+    get action() { return selectedAction; },
+    async decide(args) {
+      const decision = typeof policyAction.decide === "function"
+        ? await policyAction.decide({ ...args, action: selectedAction })
+        : { decision: "abstain" };
+      if (selectedAction === "task.takeover" && decision && decision.decision === "abstain") {
+        const error = new Error(`take: task '${args.target.id}' is already claimed`);
+        error.code = "POLICY_TAKEOVER_ABSTAIN";
+        error.details = { id: args.target.id, owner: args.target.previous_owner || null };
+        throw error;
+      }
+      return decision;
+    },
+  } : {
+    get action() { return selectedAction; },
+    async decide(args) {
+      if (selectedAction === "task.takeover") {
+        const error = new Error(`take: task '${args.target.id}' is already claimed`);
+        error.code = "POLICY_TAKEOVER_ABSTAIN";
+        error.details = { id: args.target.id, owner: args.target.previous_owner || null };
+        throw error;
+      }
+      return { decision: "abstain" };
+    },
+  };
+  return { provider: wrappedProvider, policyAction: wrappedPolicyAction };
+}
+
+export async function mutate({ projectDir, request, provider, policyAction, policyActionFromPlan, pluginId, stateOperation, batch }) {
+  if (policyActionFromPlan === true) {
+    ({ provider, policyAction } = selectPolicyAndAuditFromPlan({ request, provider, policyAction }));
+  }
   const commandName = validateMutationArguments({ request, provider, stateOperation, batch });
   const parentDepth = currentNestedDepth();
   if (parentDepth > 0) {

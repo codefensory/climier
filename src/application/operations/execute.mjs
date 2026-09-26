@@ -116,15 +116,19 @@ function resolveAuthorizer(source) {
   return null;
 }
 
-async function buildPolicyAction({ source, projectDir, operation }) {
+async function buildPolicyAction({ source, projectDir, operation, policyActionFromPlan = false }) {
+  const abstainAction = policyActionFromPlan ? {
+    action: operation,
+    async decide() { return { decision: "abstain" }; },
+  } : null;
   const selectPolicy = resolvePolicySelector(source);
-  if (!selectPolicy) return null;
+  if (!selectPolicy) return abstainAction;
 
   // Selection is intentionally performed before the mutation frontier is
   // invoked. The selected policy is only represented as a callback for the
   // kernel; authorization remains the kernel's responsibility under lock.
   const policy = await selectPolicy({ projectDir });
-  if (policy === null || policy === undefined) return null;
+  if (policy === null || policy === undefined) return abstainAction;
 
   const authorizeAction = resolveAuthorizer(source);
   if (!authorizeAction) {
@@ -190,15 +194,21 @@ export async function executeOperation(args = {}) {
   if (!args || typeof args !== "object" || Array.isArray(args)) {
     contractError("arguments must be an object", "arguments");
   }
-  const { projectDir, actor, operation, input, source } = args;
+  const { projectDir, actor, operation, input, source, policyActionFromPlan } = args;
   validateArguments({ projectDir, actor, operation, source });
   const registry = resolveRegistry(source);
   const mutate = resolveMutation(source);
   const provider = resolveProvider(registry, operation);
   const request = buildRequest({ operation, actor, input });
-  const policyAction = await buildPolicyAction({ source, projectDir, operation });
+  const policyAction = await buildPolicyAction({
+    source,
+    projectDir,
+    operation,
+    policyActionFromPlan: policyActionFromPlan === true,
+  });
 
   const mutation = { projectDir, request, provider };
+  if (policyActionFromPlan === true) mutation.policyActionFromPlan = true;
   if (policyAction) mutation.policyAction = policyAction;
   if (typeof source.pluginId === "string" && source.pluginId.length > 0) {
     mutation.pluginId = source.pluginId;
@@ -207,7 +217,14 @@ export async function executeOperation(args = {}) {
   // Keep this as the sole call to the supplied mutation frontier. In
   // particular, application code does not retry, call lifecycle handlers, or
   // persist state itself.
-  return await mutate(mutation);
+  try {
+    return await mutate(mutation);
+  } catch (error) {
+    if (policyActionFromPlan === true && error && error.code === "POLICY_TAKEOVER_ABSTAIN") {
+      throwV2("ALREADY_CLAIMED", error.message, error.details);
+    }
+    throw error;
+  }
 }
 
 /**
