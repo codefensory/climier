@@ -37,8 +37,11 @@ test("backend config rejects malformed or insecure remote URLs", () => {
       );
     }
   } finally {
-    if (previous === undefined) delete process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP;
-    else process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP = previous;
+    if (previous === undefined) {
+      delete process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP;
+    } else {
+      process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP = previous;
+    }
   }
 });
 
@@ -46,8 +49,11 @@ test("backend config permits remote HTTP only with the exact operator opt-in", (
   const previous = process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP;
   try {
     for (const value of [undefined, "false", "TRUE", "true ", "1"]) {
-      if (value === undefined) delete process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP;
-      else process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP = value;
+      if (value === undefined) {
+        delete process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP;
+      } else {
+        process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP = value;
+      }
       assert.throws(
         () => parseBackendConfig({ backend: { type: "remote", url: "http://climier.example.test" } }),
         /backend config: remote url must use HTTPS outside localhost/,
@@ -60,8 +66,11 @@ test("backend config permits remote HTTP only with the exact operator opt-in", (
       { type: "remote", url: "http://climier.example.test/", insecureRemoteHttp: true },
     );
   } finally {
-    if (previous === undefined) delete process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP;
-    else process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP = previous;
+    if (previous === undefined) {
+      delete process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP;
+    } else {
+      process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP = previous;
+    }
   }
 });
 
@@ -74,8 +83,11 @@ test("backend config keeps loopback HTTP independent of the opt-in", () => {
       { type: "remote", url: "http://localhost:4312/" },
     );
   } finally {
-    if (previous === undefined) delete process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP;
-    else process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP = previous;
+    if (previous === undefined) {
+      delete process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP;
+    } else {
+      process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP = previous;
+    }
   }
 });
 
@@ -88,8 +100,11 @@ test("backend config keeps HTTPS remote config outside the insecure exception", 
       { type: "remote", url: "https://climier.example.test/" },
     );
   } finally {
-    if (previous === undefined) delete process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP;
-    else process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP = previous;
+    if (previous === undefined) {
+      delete process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP;
+    } else {
+      process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP = previous;
+    }
   }
 });
 
