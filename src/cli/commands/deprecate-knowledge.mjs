@@ -71,6 +71,29 @@ function withCliProvider(source) {
   };
 }
 
+function validateDeprecationRequest(positional, flags) {
+  const [id] = positional;
+  if (!id) {throwV2("MISSING_FIELD", "deprecate-knowledge: node id required", { field: "id" });}
+  const reason = flags.reason;
+  if (reason === true || !reason || !String(reason).trim()) {
+    throwV2("MISSING_FIELD", "deprecate-knowledge: --reason is required", { field: "reason" });
+  }
+  return { id, input: { id, reason: String(reason) } };
+}
+
+async function deprecateRemote(backendClient, agent, id, input) {
+  const mutation = await executeRemoteDomain({ backendClient, actor: agent, operation: "knowledge.deprecate", input, command: "deprecate-knowledge" });
+  return { node: nodeFromMutation(mutation, id) || mutation.result?.node || null };
+}
+
+function deprecatedNode(mutation, id) {
+  const updated = mutation.diff.updated.find((entry) => entry.id === id);
+  if (!updated || !updated.node) {
+    throwV2("INVALID_EXECUTION_CONTRACT", `deprecate-knowledge: kernel did not return node ${id}`, { id });
+  }
+  return { node: updated.node };
+}
+
 export default async function deprecateKnowledge({
   statePath,
   projectDir,
@@ -80,20 +103,10 @@ export default async function deprecateKnowledge({
   backendClient,
   source,
 }) {
-  const [id] = positional;
-  if (!id) throwV2("MISSING_FIELD", "deprecate-knowledge: node id required", { field: "id" });
-  const reason = flags.reason;
-  if (reason === true || !reason || !String(reason).trim()) {
-    throwV2("MISSING_FIELD", "deprecate-knowledge: --reason is required", { field: "reason" });
-  }
-
+  const { id, input } = validateDeprecationRequest(positional, flags);
   const dir = projectDir || statePath;
   const agent = resolveAgent(flags, "deprecate-knowledge");
-  const input = { id, reason: String(reason) };
-  if (backendClient?.type === "remote") {
-    const mutation = await executeRemoteDomain({ backendClient, actor: agent, operation: "knowledge.deprecate", input, command: "deprecate-knowledge" });
-    return { node: nodeFromMutation(mutation, id) || mutation.result?.node || null };
-  }
+  if (backendClient?.type === "remote") {return deprecateRemote(backendClient, agent, id, input);}
   const policy = await loadApplicablePolicy({ projectDir: dir });
   const operationSource = source || {
     registry: REGISTRY,
@@ -109,10 +122,5 @@ export default async function deprecateKnowledge({
     input,
     source: withCliProvider(operationSource),
   });
-
-  const updated = mutation.diff.updated.find((entry) => entry.id === id);
-  if (!updated || !updated.node) {
-    throwV2("INVALID_EXECUTION_CONTRACT", `deprecate-knowledge: kernel did not return node ${id}`, { id });
-  }
-  return { node: updated.node };
+  return deprecatedNode(mutation, id);
 }

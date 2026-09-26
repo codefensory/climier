@@ -108,13 +108,13 @@ async function npmVersionCheck() {
       resolve({ ok: false, code: "SPAWN_ERROR", reason: err.message, command: cmd });
       return;
     }
-    if (proc.stderr) proc.stderr.on("data", (d) => (stderr += d.toString()));
+    if (proc.stderr) {proc.stderr.on("data", (d) => (stderr += d.toString()));}
     proc.on("error", (err) => {
       resolve({ ok: false, code: err.code || "SPAWN_ERROR", reason: err.message, command: cmd });
     });
     proc.on("close", (exitCode) => {
-      if (exitCode === 0) resolve({ ok: true, command: cmd });
-      else resolve({ ok: false, code: "NON_ZERO_EXIT", reason: stderr.trim() || `exit ${exitCode}`, exitCode, command: cmd });
+      if (exitCode === 0) {resolve({ ok: true, command: cmd });}
+      else {resolve({ ok: false, code: "NON_ZERO_EXIT", reason: stderr.trim() || `exit ${exitCode}`, exitCode, command: cmd });}
     });
   });
 }
@@ -136,7 +136,7 @@ async function npmInstall(stagingDir, source) {
       reject(err);
       return;
     }
-    if (proc.stderr) proc.stderr.on("data", (d) => (stderr += d.toString()));
+    if (proc.stderr) {proc.stderr.on("data", (d) => (stderr += d.toString()));}
     proc.on("error", (err) => reject(err));
     proc.on("close", (exitCode) => {
       resolve({ code: exitCode ?? -1, stderr });
@@ -179,29 +179,35 @@ async function isLocalPath(source) {
 // listInstalled: enumerate existing installed plugins (excluding hidden
 // entries) and read their descriptors. Used to enforce uniqueness
 // before promotion.
+async function installedDescriptor(installedRoot, entry) {
+  const pkgPath = path.join(installedRoot, entry, "package.json");
+  try {
+    const raw = await fs.readFile(pkgPath, "utf8");
+    const pkg = JSON.parse(raw);
+    if (pkg && pkg.climier && typeof pkg.climier === "object") {
+      return { dirName: entry, descriptor: pkg.climier };
+    }
+    return null;
+  } catch (err) {
+    if (err.code === "ENOENT") {return null;}
+    throw err;
+  }
+}
+
 async function listInstalledDescriptors() {
   const installedRoot = path.join(pluginsHome(), "installed");
   let entries = [];
   try {
     entries = await fs.readdir(installedRoot);
   } catch (err) {
-    if (err.code === "ENOENT") return [];
+    if (err.code === "ENOENT") {return [];}
     throw err;
   }
   const out = [];
   for (const entry of entries) {
-    if (entry.startsWith(".")) continue;
-    const pkgPath = path.join(installedRoot, entry, "package.json");
-    try {
-      const raw = await fs.readFile(pkgPath, "utf8");
-      const pkg = JSON.parse(raw);
-      if (pkg && pkg.climier && typeof pkg.climier === "object") {
-        out.push({ dirName: entry, descriptor: pkg.climier });
-      }
-    } catch (err) {
-      if (err.code === "ENOENT") continue;
-      throw err;
-    }
+    if (entry.startsWith(".")) {continue;}
+    const descriptor = await installedDescriptor(installedRoot, entry);
+    if (descriptor) {out.push(descriptor);}
   }
   return out;
 }
@@ -236,12 +242,12 @@ async function pathExists(p) {
     await fs.access(p);
     return true;
   } catch (err) {
-    if (err.code === "ENOENT") return false;
+    if (err.code === "ENOENT") {return false;}
     throw err;
   }
 }
 
-export default async function install({ positional = [], flags = {} } = {}) {
+function validateInstallSource(positional) {
   const source = positional[0];
   if (!source || typeof source !== "string" || !source.trim()) {
     throw new PluginInvalidDescriptor(
@@ -249,16 +255,66 @@ export default async function install({ positional = [], flags = {} } = {}) {
       { field: "source" },
     );
   }
+  return source;
+}
 
+async function requireNpmAvailable() {
   // Pre-flight: confirm npm is available BEFORE taking the lock or
   // creating the staging dir. PLUGIN_NPM_UNAVAILABLE is a structured
   // error per ADR-005; the spec calls for staging cleanup, so any
   // partially-created staging must also be removed.
   const npmOk = await npmVersionCheck();
-  if (npmOk.ok !== true) {
-    throw new PluginNpmUnavailable(npmOk);
-  }
+  if (npmOk.ok !== true) {throw new PluginNpmUnavailable(npmOk);}
+}
 
+async function installStagedPackage(stagingDir, source) {
+  try {
+    const npmResult = await npmInstall(stagingDir, source);
+    if (npmResult.code !== 0) {
+      throw new PluginNpmFailed(
+        `install: npm install failed (exit ${npmResult.code})`,
+        {
+          exit_code: npmResult.code,
+          source,
+          staging_dir: stagingDir,
+          stderr_tail: npmResult.stderr.slice(-2000),
+        },
+      );
+    }
+    return await promoteStagedPackage(stagingDir, source);
+  } catch (err) {
+    await cleanupStaging(stagingDir);
+    throw err;
+  }
+}
+
+async function promoteStagedPackage(stagingDir, source) {
+  const installedPkgDir = predictInstalledPackageDir(stagingDir, source);
+  const descriptor = await readDescriptor(path.join(installedPkgDir, "package.json"));
+  assertNoReservedCollision(descriptor.command);
+  await checkUniqueness(descriptor);
+  await importEntry(path.resolve(installedPkgDir, descriptor.entry));
+  // For local packages, npm install --prefix staging
+  // <local-path> drops the package under <staging>/node_modules/<basename>/
+  // and writes its own (climier-less) package.json at <staging>/package.json.
+  // The loader reads <installed>/<id>/package.json to find the descriptor
+  // and resolves the entry at the installed root, not npm's package path.
+  // Mirror non-node_modules package contents so relative imports keep
+  // working, while preserving the npm tree for transitive dependencies.
+  await mirrorPluginFilesToStagingRoot(installedPkgDir, stagingDir, descriptor.entry);
+  const targetDir = pluginInstalledDir(descriptor.id);
+  await fs.rename(stagingDir, targetDir);
+  return {
+    plugin: {
+      id: descriptor.id,
+      command: descriptor.command,
+      entry: descriptor.entry,
+      installed_dir: targetDir,
+    },
+  };
+}
+
+async function installLocked(source) {
   return withGlobalPluginLock(async () => {
     await fs.mkdir(pluginsHome(), { recursive: true });
     await fs.mkdir(path.join(pluginsHome(), "installed"), { recursive: true });
@@ -268,74 +324,14 @@ export default async function install({ positional = [], flags = {} } = {}) {
     const stagingDir = pluginStagingDir(nonce);
     await fs.mkdir(stagingDir, { recursive: true });
 
-    try {
-      // Step 3: npm install --prefix staging <source>.
-      const npmResult = await npmInstall(stagingDir, source);
-      if (npmResult.code !== 0) {
-        throw new PluginNpmFailed(
-          `install: npm install failed (exit ${npmResult.code})`,
-          {
-            exit_code: npmResult.code,
-            source,
-            staging_dir: stagingDir,
-            stderr_tail: npmResult.stderr.slice(-2000),
-          },
-        );
-      }
-
-      // Step 4: read descriptor from the installed package.
-      const installedPkgDir = predictInstalledPackageDir(stagingDir, source);
-      const descriptor = await readDescriptor(path.join(installedPkgDir, "package.json"));
-
-      // Step 5: reserved namespace collision.
-      assertNoReservedCollision(descriptor.command);
-
-      // Step 6: id + command uniqueness.
-      await checkUniqueness(descriptor);
-
-      // Step 7: import entrypoint and validate default.commands shape.
-      const entryAbsPath = path.resolve(installedPkgDir, descriptor.entry);
-      await importEntry(entryAbsPath);
-
-      // For local packages, npm install --prefix staging
-      // <local-path> drops the package under <staging>/node_modules/<basename>/
-      // and writes its own (climier-less) package.json at <staging>/package.json.
-      // The loader reads <installed>/<id>/package.json to
-      // find the descriptor and resolves the entry as
-      // path.resolve(<installed>/<id>, descriptor.entry) — neither lookup
-      // lands on the npm layout. Mirror the package's files into the
-      // staging root so the loader can find both the descriptor and the
-      // entry at their expected locations after the promotion rename.
-      // We only mirror the descriptor and the entry (plus any non-node_modules
-      // sibling files the entry may transitively import); the npm
-      // node_modules/<basename>/ tree stays in place so transitive deps
-      // (if any) remain reachable. plugin-install.test.mjs continues to
-      // read the descriptor from node_modules/<basename>/package.json.
-      await mirrorPluginFilesToStagingRoot(installedPkgDir, stagingDir, descriptor.entry);
-
-      // Step 8: atomic promotion by rename to installed/<descriptor.id>.
-      // ADR-005 §"Instalación e identidad":
-      // the dir name is descriptor.id; descriptor.command is the CLI
-      // namespace the dispatcher uses for routing.
-      const targetDir = pluginInstalledDir(descriptor.id);
-      await fs.rename(stagingDir, targetDir);
-
-      return {
-        plugin: {
-          id: descriptor.id,
-          command: descriptor.command,
-          entry: descriptor.entry,
-          installed_dir: targetDir,
-        },
-      };
-    } catch (err) {
-      // On any failure inside the lock, drop the staging dir. ADR-005
-      // does not require rolling back npm; it only requires removing
-      // the staging prefix.
-      await cleanupStaging(stagingDir);
-      throw err;
-    }
+    return installStagedPackage(stagingDir, source);
   });
+}
+
+export default async function install({ positional = [], flags: _flags = {} } = {}) {
+  const source = validateInstallSource(positional);
+  await requireNpmAvailable();
+  return installLocked(source);
 }
 
 // mirrorPluginFilesToStagingRoot: copy the descriptor and the entry (and
@@ -362,7 +358,7 @@ async function mirrorPluginFilesToStagingRoot(pkgDir, stagingDir, entryRel) {
 async function copyPackageContents(srcDir, destDir) {
   const entries = await fs.readdir(srcDir, { withFileTypes: true });
   for (const entry of entries) {
-    if (entry.name === "node_modules") continue;
+    if (entry.name === "node_modules") {continue;}
     const s = path.join(srcDir, entry.name);
     const d = path.join(destDir, entry.name);
     if (entry.isDirectory()) {

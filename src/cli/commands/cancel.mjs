@@ -15,7 +15,7 @@ const REGISTRY = bootstrapBuiltins();
 export const knownFlags = ["as", "reason"];
 
 function readReason(flags, positional) {
-  if (typeof flags.reason === "string" && flags.reason.trim()) return flags.reason.trim();
+  if (typeof flags.reason === "string" && flags.reason.trim()) {return flags.reason.trim();}
   return positional.slice(1).join(" ").trim();
 }
 
@@ -57,7 +57,7 @@ function sourceWithCliProvider(source, id, selectedPolicyAction) {
     registry: {
       lookup(operation) {
         const entry = source.registry.lookup(operation);
-        if (!["task.cancel", "gate.cancel"].includes(operation) || !entry) return entry;
+        if (!["task.cancel", "gate.cancel"].includes(operation) || !entry) {return entry;}
         return {
           ...entry,
           provider: {
@@ -79,7 +79,7 @@ function policyAction({ policy, projectDir, agent, id }) {
     action: "task.cancel",
     pluginId: policy && policy.pluginId ? policy.pluginId : null,
     async decide({ snapshot, target }) {
-      if (!policy) return { decision: "abstain" };
+      if (!policy) {return { decision: "abstain" };}
       const node = snapshot && snapshot.nodes ? snapshot.nodes[id] : null;
       return authorizeAction({
         policy,
@@ -94,6 +94,33 @@ function policyAction({ policy, projectDir, agent, id }) {
   };
 }
 
+function cancelSource({ suppliedSource, policy, dir, agent, id, pluginId }) {
+  const baseSource = suppliedSource || {
+    registry: REGISTRY,
+    mutate,
+    selectPolicy: async () => policy,
+    authorizeAction,
+    policyAction: policy ? policyAction({ policy, projectDir: dir, agent, id }) : undefined,
+    pluginId,
+  };
+  return sourceWithCliProvider(baseSource, id, policy ? policyAction({ policy, projectDir: dir, agent, id }) : null);
+}
+
+async function cancelRemote(backendClient, agent, id, reason) {
+  const remote = await executeRemoteResolvableLifecycle({
+    backendClient, actor: agent, verb: "cancel", command: "cancel", id, input: { id, reason },
+  });
+  return remote ? { node: remote.node } : null;
+}
+
+function canceledNode(mutation, id) {
+  const updated = mutation.diff.updated.find((entry) => entry.id === id);
+  if (!updated || !updated.node) {
+    throwV2("INVALID_EXECUTION_CONTRACT", `cancel: kernel did not return node ${id}`, { id });
+  }
+  return { node: updated.node };
+}
+
 export default async function cancel({
   statePath,
   projectDir,
@@ -104,36 +131,20 @@ export default async function cancel({
   source: suppliedSource,
 }) {
   const id = positional[0];
-  if (!id) throwV2("MISSING_FIELD", "cancel: node id required", { field: "id" });
+  if (!id) {throwV2("MISSING_FIELD", "cancel: node id required", { field: "id" });}
   const reason = readReason(flags, positional);
   const agent = resolveAgent(flags, "cancel");
   const dir = projectDir || statePath;
-  const remote = await executeRemoteResolvableLifecycle({
-    backendClient, actor: agent, verb: "cancel", command: "cancel", id, input: { id, reason },
-  });
-  if (remote) return { node: remote.node };
-
+  const remote = await cancelRemote(backendClient, agent, id, reason);
+  if (remote) {return remote;}
   const policy = suppliedSource ? null : await loadApplicablePolicy({ projectDir: dir });
-  const baseSource = suppliedSource || {
-    registry: REGISTRY,
-    mutate,
-    selectPolicy: async () => policy,
-    authorizeAction,
-    policyAction: policy ? policyAction({ policy, projectDir: dir, agent, id }) : undefined,
-    pluginId,
-  };
   const mutation = await executeOperation({
     projectDir: dir,
     actor: agent,
     operation: "task.cancel",
     input: { id, reason, actor: agent },
-    source: sourceWithCliProvider(baseSource, id, policy ? policyAction({ policy, projectDir: dir, agent, id }) : null),
+    source: cancelSource({ suppliedSource, policy, dir, agent, id, pluginId }),
     policyActionFromPlan: true,
   });
-
-  const updated = mutation.diff.updated.find((entry) => entry.id === id);
-  if (!updated || !updated.node) {
-    throwV2("INVALID_EXECUTION_CONTRACT", `cancel: kernel did not return node ${id}`, { id });
-  }
-  return { node: updated.node };
+  return canceledNode(mutation, id);
 }

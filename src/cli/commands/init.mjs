@@ -9,7 +9,7 @@ import { initState } from "../../kernel/state-operations.mjs";
 export const knownFlags = ["force", "as"];
 
 function policyForInit({ policy, projectDir, actor }) {
-  if (!policy) return null;
+  if (!policy) {return null;}
   return {
     action: "state.init_force",
     pluginId: policy.pluginId,
@@ -32,29 +32,26 @@ function policyForInit({ policy, projectDir, actor }) {
   };
 }
 
-export default async function init({ statePath, flags = {}, projectDir, pluginId, backendClient }) {
-  const dir = projectDir || statePath;
-  const force = Boolean(flags.force);
-
-  if (backendClient?.type === "remote") {
-    if (force) {
-      const error = new Error("init: --force is not supported by the remote backend");
-      error.code = "REMOTE_UNSUPPORTED_OPERATION";
-      error.details = { command: "init", option: "--force" };
-      throw error;
-    }
-    const result = await backendClient.init();
-    const response = { ok: true, seeded: result?.seeded ?? null, file: null };
-    if (backendClient.insecureRemoteHttp === true) {
-      response.warnings = [{
-        kind: "insecure-remote-http",
-        severity: "warning",
-        message: "init: remote HTTP is enabled by CLIMIER_ALLOW_INSECURE_REMOTE_HTTP=true; bearer credentials are sent without transport encryption. Internal trusted networks only.",
-      }];
-    }
-    return response;
+async function initRemote(backendClient, force) {
+  if (force) {
+    const error = new Error("init: --force is not supported by the remote backend");
+    error.code = "REMOTE_UNSUPPORTED_OPERATION";
+    error.details = { command: "init", option: "--force" };
+    throw error;
   }
+  const result = await backendClient.init();
+  const response = { ok: true, seeded: result?.seeded ?? null, file: null };
+  if (backendClient.insecureRemoteHttp === true) {
+    response.warnings = [{
+      kind: "insecure-remote-http",
+      severity: "warning",
+      message: "init: remote HTTP is enabled by CLIMIER_ALLOW_INSECURE_REMOTE_HTTP=true; bearer credentials are sent without transport encryption. Internal trusted networks only.",
+    }];
+  }
+  return response;
+}
 
+async function initLocal({ dir, force, flags, pluginId }) {
   let actor;
   let policy = null;
   if (force) {
@@ -64,7 +61,6 @@ export default async function init({ statePath, flags = {}, projectDir, pluginId
     await ensureProjectMeta(dir);
     policy = await loadApplicablePolicy({ projectDir: dir });
   }
-
   const mutation = await initState({
     projectDir: dir,
     force,
@@ -72,15 +68,20 @@ export default async function init({ statePath, flags = {}, projectDir, pluginId
     policyAction: policyForInit({ policy, projectDir: dir, actor }),
     pluginId,
   });
-
   // Plain init can bootstrap using the deterministic fallback project id;
   // create repo metadata only after the kernel accepts the operation so a
   // refusal on an existing state remains side-effect free.
-  if (!force) await ensureProjectMeta(dir);
-
+  if (!force) {await ensureProjectMeta(dir);}
   return {
     ok: true,
     seeded: mutation.result ? mutation.result.seeded : null,
     file: stateFile(dir),
   };
+}
+
+export default async function init({ statePath, flags = {}, projectDir, pluginId, backendClient }) {
+  const dir = projectDir || statePath;
+  const force = Boolean(flags.force);
+  if (backendClient?.type === "remote") {return initRemote(backendClient, force);}
+  return initLocal({ dir, force, flags, pluginId });
 }
