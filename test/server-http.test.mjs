@@ -6,6 +6,8 @@ import path from "node:path";
 
 import * as httpServer from "../src/server/http.mjs";
 import { createHttpCodec } from "../src/server/http/codec.mjs";
+import { dispatchOperationRequest, validateOperationRequest } from "../src/server/http/operations.mjs";
+import { remoteV1Manifest } from "../src/application/operations/remote-v1-manifest.mjs";
 
 const { createRemoteApiServer, PROTOCOL_VERSION } = httpServer;
 import { createProjectCatalog } from "../src/server/catalog/index.mjs";
@@ -411,6 +413,65 @@ test("HTTP v1 executes core.batch through one canonical server mutation", async 
     assert.equal(unchanged.revision, after.revision);
     assert.deepEqual(Object.keys(unchanged.initiatives), ["batch-remote"]);
   });
+});
+
+test("HTTP operation module accepts manifest capabilities and receives complete source at dispatch", async () => {
+  const httpError = (code, message, details, status) => {
+    const error = Object.assign(new Error(message), { code, status });
+    if (details !== undefined) error.details = details;
+    return error;
+  };
+  const request = validateOperationRequest({ operation: "initiative.create", actor: "alice", input: { name: "valid" } }, {
+    manifest: remoteV1Manifest,
+    httpError,
+  });
+  const calls = [];
+  const source = { registry: { lookup() {} }, mutate() {}, selectPolicy() {}, authorizeAction() {} };
+  const result = await dispatchOperationRequest({
+    projectDir: "/trusted/project",
+    body: request,
+    source,
+    manifest: remoteV1Manifest,
+    executeOperation: async (args) => { calls.push(args); return { ok: true }; },
+    executeBatch: async () => { throw new Error("unexpected batch dispatch"); },
+  });
+  assert.deepEqual(result, { ok: true });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].source, source);
+  assert.equal(calls[0].operation, "initiative.create");
+  assert.equal(calls[0].projectDir, "/trusted/project");
+});
+
+test("HTTP v1 dispatches operations with the complete server-owned source", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "climier-server-operation-source-"));
+  try {
+    const catalog = createProjectCatalog({ dataRoot: path.join(root, "catalog"), projectIds: ["project-a"] });
+    const projectDir = await catalog.provisionProject("project-a");
+    const calls = [];
+    const provider = { prepare() {}, apply() {} };
+    const server = createRemoteApiServer({
+      catalog,
+      credentials: [{ token: "test-token", projectIds: ["project-a"] }],
+      registry: { lookup(operationId) { calls.push(["lookup", operationId]); return { provider }; } },
+      mutate: async (mutation) => { calls.push(["mutate", mutation]); return { marker: "server-mutation" }; },
+      selectPolicy: async (context) => { calls.push(["policy", context.projectDir]); return null; },
+      authorizeAction: async () => { throw new Error("unexpected policy authorization"); },
+    });
+    await new Promise((resolve, reject) => { server.once("error", reject); server.listen(0, "127.0.0.1", resolve); });
+    const baseUrl = `http://127.0.0.1:${server.address().port}`;
+    try {
+      const response = await operation(baseUrl, "project-a", "initiative.create", { name: "injected-source" });
+      assert.equal(response.status, 200);
+      assert.deepEqual((await response.json()).result, { marker: "server-mutation" });
+      assert.deepEqual(calls.map(([kind]) => kind), ["lookup", "policy", "mutate"]);
+      assert.equal(calls[1][1], projectDir);
+      assert.equal(calls[2][1].provider, provider);
+    } finally {
+      await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    }
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
 });
 
 test("HTTP v1 validates core.batch schema and nested operation inputs before opening storage", async () => {
