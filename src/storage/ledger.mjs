@@ -54,34 +54,23 @@ export async function bootstrapFencedStateUnderLock(lockContext, initialState, o
   return bootstrapInitialUnderLock(lockContext, initialState, opts);
 }
 
-/** Read and recover a v5 state while the caller holds its project lock. */
-export async function readFencedStateUnderLock(lockContext, opts = {}) {
-  assertActiveLockContext(lockContext, opts.projectDir);
-  const { projectDir, statePath } = getActiveLockContext(lockContext);
-  const ledgerPath = ledgerFile(projectDir);
-  const [hasState, hasLedger] = await Promise.all([fileExists(statePath), fileExists(ledgerPath)]);
-
-  if (!hasState && !hasLedger) return null;
-
-  if (!hasLedger) {
-    const rawState = await fs.readFile(statePath, "utf8");
-    const state = readJson(rawState, "state");
-    if (state.version === FENCED_STATE_VERSION || Number.isInteger(state.fence_generation)) {
-      const missing = new Error("ledger: revision ledger is missing for fenced state; refusing reconstruction");
-      missing.code = "CLIMIER_LEDGER_MISSING";
-      throw missing;
-    }
-    // Reuse the durable source/destination fingerprint protocol. Existing state
-    // reaches the migration branch; absent state never reaches its legacy
-    // bootstrap behavior because it returned null above.
-    if (!SOURCE_VERSIONS.has(state.version)) {
-      const error = new Error(`ledger: cannot migrate unsupported state version ${state.version}`);
-      error.code = "CLIMIER_UNSUPPORTED_SOURCE_VERSION";
-      throw error;
-    }
-    return bootstrapLocked(projectDir, opts, { finishPendingCommit, cleanOrphanCommitStages });
+async function migrateStateWithoutLedger(projectDir, statePath, opts) {
+  const state = readJson(await fs.readFile(statePath, "utf8"), "state");
+  if (state.version === FENCED_STATE_VERSION || Number.isInteger(state.fence_generation)) {
+    const missing = new Error("ledger: revision ledger is missing for fenced state; refusing reconstruction");
+    missing.code = "CLIMIER_LEDGER_MISSING";
+    throw missing;
   }
+  // Existing legacy state reaches the migration protocol, never bootstrap.
+  if (!SOURCE_VERSIONS.has(state.version)) {
+    const error = new Error(`ledger: cannot migrate unsupported state version ${state.version}`);
+    error.code = "CLIMIER_UNSUPPORTED_SOURCE_VERSION";
+    throw error;
+  }
+  return bootstrapLocked(projectDir, opts, { finishPendingCommit, cleanOrphanCommitStages });
+}
 
+async function readValidatedLedger(ledgerPath) {
   let ledger;
   try {
     ledger = readJson(await fs.readFile(ledgerPath, "utf8"), "revision ledger");
@@ -94,17 +83,20 @@ export async function readFencedStateUnderLock(lockContext, opts = {}) {
     throw error;
   }
   assertValidLedger(ledger);
-  if (!hasState) {
-    if (ledger.bootstrap_pending) {
-      return finishPendingBootstrap({ statePath, ledgerPath, ledger });
-    }
-    const missing = new Error("ledger: revision ledger exists without state and no exact bootstrap is pending");
-    missing.code = "CLIMIER_LEDGER_STATE_MISMATCH";
-    throw missing;
-  }
+  return ledger;
+}
+
+function finishBootstrapWithoutState(ledger, statePath, ledgerPath) {
   if (ledger.bootstrap_pending) {
     return finishPendingBootstrap({ statePath, ledgerPath, ledger });
   }
+  const missing = new Error("ledger: revision ledger exists without state and no exact bootstrap is pending");
+  missing.code = "CLIMIER_LEDGER_STATE_MISMATCH";
+  throw missing;
+}
+
+async function finishLedgerRead(lockContext, ledger, paths, opts) {
+  const { statePath, ledgerPath } = paths;
   const rawState = await fs.readFile(statePath, "utf8");
   if (ledger.replace_pending) {
     return replaceUnderActiveLock(lockContext, undefined, opts);
@@ -122,6 +114,28 @@ export async function readFencedStateUnderLock(lockContext, opts = {}) {
   const state = readJson(rawState, "fenced state");
   assertFencedState(state, ledger);
   return state;
+}
+
+/** Read and recover a v5 state while the caller holds its project lock. */
+export async function readFencedStateUnderLock(lockContext, opts = {}) {
+  assertActiveLockContext(lockContext, opts.projectDir);
+  const { projectDir, statePath } = getActiveLockContext(lockContext);
+  const ledgerPath = ledgerFile(projectDir);
+  const [hasState, hasLedger] = await Promise.all([fileExists(statePath), fileExists(ledgerPath)]);
+  if (!hasState && !hasLedger) {
+    return null;
+  }
+  if (!hasLedger) {
+    return migrateStateWithoutLedger(projectDir, statePath, opts);
+  }
+  const ledger = await readValidatedLedger(ledgerPath);
+  if (!hasState) {
+    return finishBootstrapWithoutState(ledger, statePath, ledgerPath);
+  }
+  if (ledger.bootstrap_pending) {
+    return finishPendingBootstrap({ statePath, ledgerPath, ledger });
+  }
+  return finishLedgerRead(lockContext, ledger, { statePath, ledgerPath }, opts);
 }
 
 /** Read a v5 state only when its durable project ledger agrees with it. */
