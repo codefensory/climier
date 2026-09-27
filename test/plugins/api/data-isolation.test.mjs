@@ -48,12 +48,13 @@ test("api.data.node.set writes only the calling plugin's keyspace and preserves 
     assert.deepEqual(stored, { perNode: "T1 audit" });
     const after = await readRawState(dir);
     // Calling plugin's keyspace updated.
-    assert.deepEqual(after.nodes.T1.plugins["example.audit"].data, { perNode: "T1 audit" });
-    // Third-party plugin keyspace preserved.
-    assert.deepEqual(after.nodes.T1.plugins["example.metrics"].data, { perNode: "T1 metrics" });
-    // meta preserved.
-    assert.deepEqual(after.nodes.T1.meta, {
-      execution: { effort: "M", risk: "integration", checks: ["npm test"] },
+    assert.deepEqual(after.nodes.T1, {
+      ...after.nodes.T1,
+      plugins: {
+        "example.audit": { data: { perNode: "T1 audit" } },
+        "example.metrics": { data: { perNode: "T1 metrics" } },
+      },
+      meta: { execution: { effort: "M", risk: "integration", checks: ["npm test"] } },
     });
   } finally {
     await rmTempProject(dir);
@@ -69,8 +70,8 @@ test("api.data.node.set uses kernel revision accounting while preserving the plu
     assert.deepEqual(await api.data.node.set("T1", value), value);
     const after = await readRawState(dir);
     assert.equal(after.nodes.T1.revision, seeded.revision + 1);
-    assert.equal(after.log.length, 1);
     assert.deepEqual(after.nodes.T1.plugins["example.audit"].data, value);
+    assert.equal(after.log.length, 1);
   } finally {
     await rmTempProject(dir);
   }
@@ -88,11 +89,8 @@ test("api.data.project.set writes only the root plugin keyspace and preserves no
     await api.data.project.set("counter", 7);
     const after = await readRawState(dir);
     // Root plugin keyspace updated.
-    assert.deepEqual(after.plugins["example.audit"].data, { counter: 7 });
-    // Per-node plugins preserved.
-    assert.deepEqual(after.nodes.T1.plugins["example.metrics"].data, { perNode: "T1 metrics" });
-    // No per-node plugin entry was created for the calling plugin (it was a project write).
-    assert.equal(after.nodes.T1.plugins["example.audit"], undefined);
+    assert.deepEqual(after.plugins, { "example.audit": { data: { counter: 7 } } });
+    assert.deepEqual(after.nodes.T1.plugins, { "example.metrics": { data: { perNode: "T1 metrics" } } });
   } finally {
     await rmTempProject(dir);
   }
@@ -119,14 +117,9 @@ test("api.data.node.get only returns the calling plugin's data (never another pl
 test("api.data.node.get returns undefined when the calling plugin has no data on the node", async () => {
   const dir = await createTempProject();
   try {
-    await seedState(dir, (s) => {
-      s.nodes.T1.plugins = {
-        "example.metrics": { data: { theirs: true } },
-      };
-    });
+    await seedState(dir, (s) => { s.nodes.T1.plugins = { "example.metrics": { data: { theirs: true } } }; });
     const api = await freshApi(dir, { pluginId: "example.audit" });
-    const data = await api.data.node.get("T1");
-    assert.equal(data, undefined);
+    assert.equal(await api.data.node.get("T1"), undefined);
   } finally {
     await rmTempProject(dir);
   }
@@ -136,9 +129,7 @@ test("api.data.node.get returns undefined for a non-existent node (no throw)", a
   const dir = await createTempProject();
   try {
     await seedState(dir);
-    const api = await freshApi(dir);
-    const data = await api.data.node.get("NOPE");
-    assert.equal(data, undefined);
+    assert.equal(await (await freshApi(dir)).data.node.get("NOPE"), undefined);
   } finally {
     await rmTempProject(dir);
   }
@@ -154,8 +145,7 @@ test("api.data.project.get reads only the calling plugin's root keyspace", async
       };
     });
     const api = await freshApi(dir, { pluginId: "example.audit" });
-    assert.equal(await api.data.project.get("counter"), 7);
-    assert.equal(await api.data.project.get("label"), "audit #7");
+    assert.deepEqual(await Promise.all([api.data.project.get("counter"), api.data.project.get("label")]), [7, "audit #7"]);
   } finally {
     await rmTempProject(dir);
   }
@@ -167,8 +157,7 @@ test("api.data.project.get returns undefined when key is missing", async () => {
     await seedState(dir, (s) => {
       s.plugins = { "example.audit": { data: { counter: 7 } } };
     });
-    const api = await freshApi(dir);
-    assert.equal(await api.data.project.get("not-set"), undefined);
+    assert.equal(await (await freshApi(dir)).data.project.get("not-set"), undefined);
   } finally {
     await rmTempProject(dir);
   }
@@ -256,17 +245,9 @@ test("data.node.set log envelope: action=plugin-data-set, scope=node, node_id, N
     await api.data.node.set("T1", secret);
     const after = await readRawState(dir);
     const last = after.log[after.log.length - 1];
-    assert.equal(last.action, "plugin-data-set");
-    assert.equal(last.scope, "node");
-    assert.equal(last.node_id, "T1");
-    assert.equal(last.plugin_id, "example.audit");
-    assert.equal(last.agent, "alice");
-    // The full log line, serialized, must NOT contain the secret.
-    const serialized = JSON.stringify(last);
-    assert.ok(!serialized.includes("REDACTED-NEVER-LOG"), `log line leaked value: ${serialized}`);
-    assert.ok(!serialized.includes("top-secret"), `log line leaked value: ${serialized}`);
-    assert.equal(last.value, undefined);
-    assert.equal(last.data, undefined);
+    assert.deepEqual([last.action, last.scope, last.node_id, last.plugin_id, last.agent], ["plugin-data-set", "node", "T1", "example.audit", "alice"]);
+    assert.deepEqual([last.value, last.data], [undefined, undefined]);
+    assert.doesNotMatch(JSON.stringify(last), /REDACTED-NEVER-LOG|top-secret/);
   } finally {
     await rmTempProject(dir);
   }
@@ -280,16 +261,9 @@ test("data.project.set log envelope: action=plugin-data-set, scope=project, key,
     await api.data.project.set("token", "top-secret");
     const after = await readRawState(dir);
     const last = after.log[after.log.length - 1];
-    assert.equal(last.action, "plugin-data-set");
-    assert.equal(last.scope, "project");
-    assert.equal(last.key, "token");
-    assert.equal(last.plugin_id, "example.audit");
-    assert.equal(last.agent, "alice");
-    assert.equal(last.node_id, undefined);
-    const serialized = JSON.stringify(last);
-    assert.ok(!serialized.includes("top-secret"), `log line leaked value: ${serialized}`);
-    assert.equal(last.value, undefined);
-    assert.equal(last.data, undefined);
+    assert.deepEqual([last.action, last.scope, last.key, last.plugin_id, last.agent], ["plugin-data-set", "project", "token", "example.audit", "alice"]);
+    assert.deepEqual([last.node_id, last.value, last.data], [undefined, undefined, undefined]);
+    assert.doesNotMatch(JSON.stringify(last), /top-secret/);
   } finally {
     await rmTempProject(dir);
   }
@@ -304,25 +278,16 @@ test("two plugins writing concurrently (node data + project data) preserve both 
     });
     const apiA = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
     const apiB = await freshApi(dir, { agent: "bob", pluginId: "example.metrics" });
-    // Two concurrent sets: A writes node data on T1, B writes project data.
-    const [aResult, bResult] = await Promise.all([
+    const [aResult] = await Promise.all([
       apiA.data.node.set("T1", { perNode: "audit" }),
       apiB.data.project.set("flag", true),
     ]);
     assert.deepEqual(aResult, { perNode: "audit" });
     const after = await readRawState(dir);
-    // A's node data preserved.
-    assert.deepEqual(after.nodes.T1.plugins["example.audit"].data, { perNode: "audit" });
-    // A did not touch B's project data (B's project data was untouched by A's set).
-    assert.equal(after.plugins["example.audit"], undefined);
-    // B's project data preserved.
-    assert.deepEqual(after.plugins["example.metrics"].data, { flag: true });
-    // B did not touch A's node data on T1 (A's per-node data on T1 should
-    // be exactly what A wrote, nothing else).
     assert.deepEqual(after.nodes.T1.plugins["example.audit"], { data: { perNode: "audit" } });
-    // Pre-existing third-party per-node plugin data on T1 is preserved.
     assert.deepEqual(after.nodes.T1.plugins["example.metrics"], { data: { seed: 1 } });
-    // Other root plugin still intact.
+    assert.equal(after.plugins["example.audit"], undefined);
+    assert.deepEqual(after.plugins["example.metrics"].data, { flag: true });
     assert.deepEqual(after.plugins["example.other"].data, { seed: 1 });
   } finally {
     await rmTempProject(dir);
@@ -335,8 +300,6 @@ test("two plugins writing the SAME keyspace (project) serialize under withLock a
     await seedState(dir);
     const apiA = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
     const apiB = await freshApi(dir, { agent: "bob", pluginId: "example.audit" });
-    // Same plugin id (same keyspace), different agents, two concurrent writes
-    // to different keys. Both should land; withLock serializes them.
     await Promise.all([
       apiA.data.project.set("counterA", 1),
       apiB.data.project.set("counterB", 2),
@@ -354,7 +317,6 @@ test("data.set takes the project lock (concurrent set + take both succeed withou
   try {
     await seedState(dir);
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
-    // Two concurrent operations: plugin data.set and a take on the open task.
     const [{ default: takeCmd }] = await Promise.all([
       importFresh("./cli/commands/take.mjs"),
       Promise.resolve(),
@@ -370,8 +332,7 @@ test("data.set takes the project lock (concurrent set + take both succeed withou
     ]);
     assert.deepEqual(setResult, undefined);
     const after = await readRawState(dir);
-    assert.equal(after.nodes.T1.status, "in_progress");
-    assert.deepEqual(after.plugins["example.audit"].data, { ok: true });
+    assert.deepEqual([after.nodes.T1.status, after.plugins["example.audit"].data.ok], ["in_progress", true]);
   } finally {
     await rmTempProject(dir);
   }
@@ -400,8 +361,6 @@ test("createApi accepts pluginId that matches the V1 regex shape", async () => {
   const dir = await createTempProject();
   try {
     const { createApi } = await importFresh("./plugins/api.mjs");
-    // The API applies the same safety validation as the descriptor before
-    // using pluginId as a filesystem path. Confirm canonical id shapes work.
     assert.ok(createApi({ projectDir: dir, agent: "x", pluginId: "example.audit" }));
     assert.ok(createApi({ projectDir: dir, agent: "x", pluginId: "a" }));
     assert.throws(() => createApi({ projectDir: dir, agent: "x", pluginId: "" }));

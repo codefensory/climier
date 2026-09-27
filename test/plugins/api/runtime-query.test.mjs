@@ -1,7 +1,6 @@
 // Split from test/plugin-api.test.mjs; complete original test bodies and cleanup are retained.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-const ID_REGEX = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 import fs from "node:fs/promises";
 import path from "node:path";
 import { createTempProject, rmTempProject, importFresh, writeFencedState, readState as readRawState, stateFilePath } from "../../helpers.mjs";
@@ -49,8 +48,11 @@ test("resolveRuntime: --as falls back to CLIMIER_AGENT when missing", async () =
     assert.equal(out.project_dir, "/tmp/example");
     assert.equal(out.agent, "env-agent");
   } finally {
-    if (prev === undefined) delete process.env.CLIMIER_AGENT;
-    else process.env.CLIMIER_AGENT = prev;
+    if (prev === undefined) {
+      delete process.env.CLIMIER_AGENT;
+    } else {
+      process.env.CLIMIER_AGENT = prev;
+    }
   }
 });
 
@@ -62,8 +64,11 @@ test("resolveRuntime: --as flag takes precedence over CLIMIER_AGENT", async () =
     const out = resolveRuntime(["--project", "/tmp/x", "--as", "alice"]);
     assert.equal(out.agent, "alice");
   } finally {
-    if (prev === undefined) delete process.env.CLIMIER_AGENT;
-    else process.env.CLIMIER_AGENT = prev;
+    if (prev === undefined) {
+      delete process.env.CLIMIER_AGENT;
+    } else {
+      process.env.CLIMIER_AGENT = prev;
+    }
   }
 });
 

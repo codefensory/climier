@@ -1,48 +1,50 @@
 import { createTempProject, importFresh, writeFencedState, readState as readRawState } from "../../helpers.mjs";
 
+function baseNodes() {
+  return {
+    T1: {
+      id: "T1",
+      kind: "resolvable",
+      subkind: "task",
+      title: "T1",
+      initiative: "p",
+      domain: "auth",
+      tags: ["audit"],
+      resolution_mode: "labor",
+      status: "open",
+      revision: 1,
+    },
+    T2: {
+      id: "T2",
+      kind: "resolvable",
+      subkind: "task",
+      title: "T2",
+      initiative: "p",
+      domain: "auth",
+      tags: ["audit"],
+      resolution_mode: "labor",
+      status: "open",
+      revision: 1,
+    },
+    G1: {
+      id: "G1",
+      kind: "resolvable",
+      subkind: "gate",
+      title: "Auth strategy",
+      initiative: "p",
+      status: "open",
+      revision: 1,
+      purpose: "decision",
+    },
+  };
+}
+
 export function baseState() {
   return {
     version: 5,
     revision: 0,
-    nodes: {
-      T1: {
-        id: "T1",
-        kind: "resolvable",
-        subkind: "task",
-        title: "T1",
-        initiative: "p",
-        domain: "auth",
-        tags: ["audit"],
-        resolution_mode: "labor",
-        status: "open",
-        revision: 1,
-      },
-      T2: {
-        id: "T2",
-        kind: "resolvable",
-        subkind: "task",
-        title: "T2",
-        initiative: "p",
-        domain: "auth",
-        tags: ["audit"],
-        resolution_mode: "labor",
-        status: "open",
-        revision: 1,
-      },
-      G1: {
-        id: "G1",
-        kind: "resolvable",
-        subkind: "gate",
-        title: "Auth strategy",
-        initiative: "p",
-        status: "open",
-        revision: 1,
-        purpose: "decision",
-      },
-    },
-    edges: [
-      { from: "T1", to: "T2", type: "BLOCKS" },
-    ],
+    nodes: baseNodes(),
+    edges: [{ from: "T1", to: "T2", type: "BLOCKS" }],
     initiatives: { p: { desc: "plugin platform", created_at: "2026-01-01T00:00:00.000Z" } },
     log: [],
   };
@@ -50,13 +52,17 @@ export function baseState() {
 
 export async function seedState(dir, mutate) {
   const base = baseState();
-  if (typeof mutate === "function") mutate(base);
+  if (typeof mutate === "function") {
+    mutate(base);
+  }
   try {
     const current = await readRawState(dir);
     base.revision = current.revision;
     base.fence_generation = current.fence_generation;
   } catch (error) {
-    if (error.code !== "ENOENT") throw error;
+    if (error.code !== "ENOENT") {
+      throw error;
+    }
     base.revision = 0;
     delete base.fence_generation;
   }

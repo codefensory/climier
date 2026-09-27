@@ -4,6 +4,92 @@ import assert from "node:assert/strict";
 import { rmTempProject, readState as readRawState } from "../../helpers.mjs";
 import { freshApi, readyProject } from "./fixtures.mjs";
 
+function assertKnowledgeCreateResult(out) {
+  assert.ok(out && typeof out === "object", "kernel returned the typed result envelope");
+  assert.equal(typeof out.result, "object", "typed envelope carries result");
+  assert.equal(typeof out.diff, "object", "typed envelope carries diff");
+  assert.equal(Array.isArray(out.diff.created), true, "diff.created is the canonical created list");
+  assert.equal(out.result.id, "K-parity-create", "provider's result.id echoes the input");
+  assert.equal(out.result.kind, "knowledge", "provider's result.kind === knowledge");
+  const created = out.diff.created[0].node;
+  assert.equal(created.id, "K-parity-create");
+  assert.equal(created.kind, "knowledge");
+  assert.equal(created.status, "active");
+  assert.deepEqual(created.scope.tags, ["api", "recovery"], "scope.tags echoes the input");
+  assert.ok(out.log_entry, "typed envelope carries log_entry");
+  assert.equal(out.log_entry.action, "knowledge.create", "kernel log_entry.action equals the op");
+  assert.equal(out.log_entry.plugin_id, "example.audit");
+  assert.equal(out.log_entry.agent, "alice");
+}
+
+function assertKnowledgeCreateState(out, after) {
+  const created = out.diff.created[0].node;
+  assert.equal(created.revision, after.revision, "kernel assigns the global high-water on create");
+  const persisted = after.nodes["K-parity-create"];
+  assert.equal(persisted.status, "active", "persisted status is active");
+  assert.deepEqual(persisted.scope.tags, ["api", "recovery"], "scope.tags persisted");
+  assert.equal(persisted.revision, created.revision, "persisted revision matches the create result");
+  const pluginLogs = after.log.filter((entry) => entry.plugin_id === "example.audit");
+  const lastPluginLog = pluginLogs[pluginLogs.length - 1];
+  assert.equal(lastPluginLog.action, "knowledge.create", "persisted log action is the op id");
+  assert.equal(lastPluginLog.agent, "alice");
+}
+
+async function assertKnowledgeCreate(out, dir) {
+  assertKnowledgeCreateResult(out);
+  assertKnowledgeCreateState(out, await readRawState(dir));
+}
+
+function assertKnowledgeDeprecationResult(out, created) {
+  assert.ok(out && typeof out === "object", "kernel returned the typed result envelope");
+  assert.equal(typeof out.result, "object", "typed envelope carries result");
+  assert.equal(typeof out.diff, "object", "typed envelope carries diff");
+  assert.equal(Array.isArray(out.diff.updated), true, "diff.updated is the canonical updated list");
+  assert.equal(out.result.id, "K-parity-deprecate");
+  assert.equal(out.result.kind, "knowledge");
+  assert.equal(out.result.status, "deprecated", "provider's result.status === deprecated");
+  const updated = out.diff.updated[0].node;
+  assert.equal(updated.id, "K-parity-deprecate");
+  assert.equal(updated.status, "deprecated", "kernel-stamped updated node carries status=deprecated");
+  assert.equal(updated.deprecated_by, "alice", "deprecated_by echoes api.runtime.agent");
+  assert.equal(updated.deprecation_reason, "superseded by ADR-007");
+  assert.equal(typeof updated.deprecated_at, "string", "deprecated_at is an ISO string");
+  assert.equal(updated.revision, created.diff.created[0].node.revision + 1, "deprecate advances the global revision");
+  assert.ok(out.log_entry, "typed envelope carries log_entry");
+  assert.equal(out.log_entry.action, "knowledge.deprecate");
+  assert.equal(out.log_entry.plugin_id, "example.audit");
+  assert.equal(out.log_entry.agent, "alice");
+}
+
+function assertKnowledgeDeprecationState(out, after) {
+  const updated = out.diff.updated[0].node;
+  const persisted = after.nodes["K-parity-deprecate"];
+  assert.equal(persisted.status, "deprecated", "persisted status is deprecated");
+  assert.equal(persisted.deprecated_by, "alice");
+  assert.equal(persisted.deprecation_reason, "superseded by ADR-007");
+  assert.equal(persisted.revision, updated.revision, "persisted revision matches the update result");
+  const deprecateLogs = after.log.filter(
+    (entry) => entry.plugin_id === "example.audit" && entry.action === "knowledge.deprecate",
+  );
+  assert.equal(deprecateLogs.length, 1, "exactly one knowledge.deprecate log entry");
+  assert.equal(deprecateLogs[0].agent, "alice");
+}
+
+async function assertKnowledgeDeprecation(out, created, dir) {
+  assertKnowledgeDeprecationResult(out, created);
+  assertKnowledgeDeprecationState(out, await readRawState(dir));
+}
+
+function assertKnowledgeDeprecationFailureState(before, after) {
+  assert.equal(after.nodes["K-parity-dep-noreason"].status, "active", "node remains active after rejected deprecate");
+  assert.equal(
+    after.nodes["K-parity-dep-noreason"].revision,
+    before.nodes["K-parity-dep-noreason"].revision,
+    "node revision unchanged after rejected deprecate",
+  );
+  assert.equal(after.log.length, before.log.length, "no log entry appended for rejected knowledge.deprecate");
+}
+
 test("api.core.run: knowledge.create dispatches to add-knowledge (requires --scope-*)", async () => {
   // The kernel-driven path returns the typed result shape
   // `{ result, effects, log_entry, idempotent, diff }`. The
@@ -24,35 +110,7 @@ test("api.core.run: knowledge.create dispatches to add-knowledge (requires --sco
         scope: { tags: ["api", "recovery"] },
       },
     });
-    assert.ok(out && typeof out === "object", "kernel returned the typed result envelope");
-    assert.equal(typeof out.result, "object", "typed envelope carries result");
-    assert.equal(typeof out.diff, "object", "typed envelope carries diff");
-    assert.equal(Array.isArray(out.diff.created), true, "diff.created is the canonical created list");
-    // Provider projection: result carries id/kind only.
-    assert.equal(out.result.id, "K-parity-create", "provider's result.id echoes the input");
-    assert.equal(out.result.kind, "knowledge", "provider's result.kind === knowledge");
-    // Kernel-stamped full node lives on diff.created[0].node.
-    const created = out.diff.created[0].node;
-    assert.equal(created.id, "K-parity-create");
-    assert.equal(created.kind, "knowledge");
-    assert.equal(created.status, "active");
-    assert.equal(created.revision, (await readRawState(dir)).revision, "kernel assigns the global high-water on create");
-    assert.deepEqual(created.scope.tags, ["api", "recovery"], "scope.tags echoes the input");
-    // Log entry: kernel stamps action, plugin_id, agent.
-    assert.ok(out.log_entry, "typed envelope carries log_entry");
-    assert.equal(out.log_entry.action, "knowledge.create", "kernel log_entry.action equals the op");
-    assert.equal(out.log_entry.plugin_id, "example.audit");
-    assert.equal(out.log_entry.agent, "alice");
-    // Persisted state mirrors the kernel-stamped node.
-    const after = await readRawState(dir);
-    const persisted = after.nodes["K-parity-create"];
-    assert.equal(persisted.status, "active", "persisted status is active");
-    assert.deepEqual(persisted.scope.tags, ["api", "recovery"], "scope.tags persisted");
-    assert.equal(persisted.revision, created.revision, "persisted revision matches the create result");
-    const pluginLogs = after.log.filter((e) => e.plugin_id === "example.audit");
-    const lastPluginLog = pluginLogs[pluginLogs.length - 1];
-    assert.equal(lastPluginLog.action, "knowledge.create", "persisted log action is the op id");
-    assert.equal(lastPluginLog.agent, "alice");
+    await assertKnowledgeCreate(out, dir);
   } finally {
     await rmTempProject(dir);
   }
@@ -112,39 +170,7 @@ test("api.core.run: knowledge.deprecate sets status='deprecated' on an active kn
       op: "knowledge.deprecate",
       input: { id: "K-parity-deprecate", reason: "superseded by ADR-007" },
     });
-    assert.ok(out && typeof out === "object", "kernel returned the typed result envelope");
-    assert.equal(typeof out.result, "object", "typed envelope carries result");
-    assert.equal(typeof out.diff, "object", "typed envelope carries diff");
-    assert.equal(Array.isArray(out.diff.updated), true, "diff.updated is the canonical updated list");
-    // Provider projection: result carries id/kind/status.
-    assert.equal(out.result.id, "K-parity-deprecate");
-    assert.equal(out.result.kind, "knowledge");
-    assert.equal(out.result.status, "deprecated", "provider's result.status === deprecated");
-    // Kernel-stamped full updated node.
-    const updated = out.diff.updated[0].node;
-    assert.equal(updated.id, "K-parity-deprecate");
-    assert.equal(updated.status, "deprecated", "kernel-stamped updated node carries status=deprecated");
-    assert.equal(updated.deprecated_by, "alice", "deprecated_by echoes api.runtime.agent");
-    assert.equal(updated.deprecation_reason, "superseded by ADR-007");
-    assert.equal(typeof updated.deprecated_at, "string", "deprecated_at is an ISO string");
-    assert.equal(updated.revision, created.diff.created[0].node.revision + 1, "deprecate advances the global revision");
-    // Log entry: kernel stamps action, plugin_id, agent.
-    assert.ok(out.log_entry, "typed envelope carries log_entry");
-    assert.equal(out.log_entry.action, "knowledge.deprecate");
-    assert.equal(out.log_entry.plugin_id, "example.audit");
-    assert.equal(out.log_entry.agent, "alice");
-    // Persisted state mirrors the kernel-stamped node.
-    const after = await readRawState(dir);
-    const persisted = after.nodes["K-parity-deprecate"];
-    assert.equal(persisted.status, "deprecated", "persisted status is deprecated");
-    assert.equal(persisted.deprecated_by, "alice");
-    assert.equal(persisted.deprecation_reason, "superseded by ADR-007");
-    assert.equal(persisted.revision, updated.revision, "persisted revision matches the update result");
-    const deprecateLogs = after.log.filter(
-      (e) => e.plugin_id === "example.audit" && e.action === "knowledge.deprecate",
-    );
-    assert.equal(deprecateLogs.length, 1, "exactly one knowledge.deprecate log entry");
-    assert.equal(deprecateLogs[0].agent, "alice");
+    await assertKnowledgeDeprecation(out, created, dir);
   } finally {
     await rmTempProject(dir);
   }
@@ -170,8 +196,6 @@ test("api.core.run: knowledge.deprecate without --reason is rejected by the adap
       },
     });
     const before = await readRawState(dir);
-    const beforeLogCount = before.log.length;
-    const beforeRevision = before.nodes["K-parity-dep-noreason"].revision;
     await assert.rejects(
       api.core.run({ op: "knowledge.deprecate", input: { id: "K-parity-dep-noreason" } }),
       (err) =>
@@ -184,15 +208,7 @@ test("api.core.run: knowledge.deprecate without --reason is rejected by the adap
         /reason/.test(err.details.cause.message || ""),
     );
     // The knowledge node is unchanged: status remains active.
-    const after = await readRawState(dir);
-    const persisted = after.nodes["K-parity-dep-noreason"];
-    assert.equal(persisted.status, "active", "node remains active after rejected deprecate");
-    assert.equal(persisted.revision, beforeRevision, "node revision unchanged after rejected deprecate");
-    assert.equal(
-      after.log.length,
-      beforeLogCount,
-      "no log entry appended for rejected knowledge.deprecate",
-    );
+    await assertKnowledgeDeprecationFailureState(before, await readRawState(dir));
   } finally {
     await rmTempProject(dir);
   }

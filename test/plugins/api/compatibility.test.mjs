@@ -5,6 +5,34 @@ import path from "node:path";
 import { createTempProject, rmTempProject, importFresh, readState as readRawState, installPolicyFixture, uninstallPolicyFixture, stateFilePath } from "../../helpers.mjs";
 import { seedState, freshApi, readyProject } from "./fixtures.mjs";
 
+function assertInitiativeCreated(out, after) {
+  assert.ok(out && typeof out === "object", "kernel returned the typed result envelope");
+  assert.equal(typeof out.result, "object", "typed envelope carries result");
+  assert.equal(typeof out.diff, "object", "typed envelope carries diff");
+  assert.equal(Array.isArray(out.diff.initiatives.created), true, "diff.initiatives.created is the canonical initiative list");
+  assert.equal(out.result.name, "fresh-initiative", "result.name reflects the new initiative");
+  assert.equal(out.result.desc, "parity slice", "result.desc reflects the new initiative");
+  assert.ok(typeof out.result.created_at === "string", "result.created_at is stamped by the provider at prepare time");
+  const created = out.diff.initiatives.created.find((entry) => entry.name === "fresh-initiative");
+  assert.ok(created, "diff.initiatives.created carries the new initiative");
+  assert.equal(created.name, "fresh-initiative");
+  assert.equal(created.initiative.desc, "parity slice");
+  assert.ok(typeof created.initiative.created_at === "string", "diff initiative carries created_at");
+  assert.ok(after.initiatives["fresh-initiative"], "initiative is registered in state");
+  assert.equal(after.initiatives["fresh-initiative"].desc, "parity slice");
+}
+
+function assertInitiativeLog(out, after) {
+  const lastPluginLog = after.log.filter((entry) => entry.plugin_id === "example.audit").pop();
+  assert.ok(lastPluginLog, "log entry tagged with plugin_id");
+  assert.equal(lastPluginLog.agent, "alice", "agent reflects api.runtime.agent, not plugin id");
+  assert.equal(lastPluginLog.action, "initiative.create", "log action is the op id");
+  assert.ok(out.log_entry, "typed envelope carries log_entry");
+  assert.equal(out.log_entry.action, "initiative.create", "kernel log_entry.action equals the op");
+  assert.equal(out.log_entry.plugin_id, "example.audit");
+  assert.equal(out.log_entry.agent, "alice");
+}
+
 test("createApi: api.runtime shape stays { project_dir, agent } (no core leakage)", async () => {
   const dir = await createTempProject();
   try {
@@ -255,29 +283,9 @@ test("api.core.run: initiative.create dispatches to the kernel and surfaces the 
       op: "initiative.create",
       input: { name: "fresh-initiative", desc: "parity slice" },
     });
-    assert.ok(out && typeof out === "object", "kernel returned the typed result envelope");
-    assert.equal(typeof out.result, "object", "typed envelope carries result");
-    assert.equal(typeof out.diff, "object", "typed envelope carries diff");
-    assert.equal(Array.isArray(out.diff.initiatives.created), true, "diff.initiatives.created is the canonical initiative list");
-    assert.equal(out.result.name, "fresh-initiative", "result.name reflects the new initiative");
-    assert.equal(out.result.desc, "parity slice", "result.desc reflects the new initiative");
-    assert.ok(typeof out.result.created_at === "string", "result.created_at is stamped by the provider at prepare time");
-    const created = out.diff.initiatives.created.find((c) => c.name === "fresh-initiative");
-    assert.ok(created, "diff.initiatives.created carries the new initiative");
-    assert.equal(created.name, "fresh-initiative");
-    assert.equal(created.initiative.desc, "parity slice");
-    assert.ok(typeof created.initiative.created_at === "string", "diff initiative carries created_at");
     const after = await readRawState(dir);
-    assert.ok(after.initiatives["fresh-initiative"], "initiative is registered in state");
-    assert.equal(after.initiatives["fresh-initiative"].desc, "parity slice");
-    const lastPluginLog = after.log.filter((e) => e.plugin_id === "example.audit").pop();
-    assert.ok(lastPluginLog, "log entry tagged with plugin_id");
-    assert.equal(lastPluginLog.agent, "alice", "agent reflects api.runtime.agent, not plugin id");
-    assert.equal(lastPluginLog.action, "initiative.create", "log action is the op id");
-    assert.ok(out.log_entry, "typed envelope carries log_entry");
-    assert.equal(out.log_entry.action, "initiative.create", "kernel log_entry.action equals the op");
-    assert.equal(out.log_entry.plugin_id, "example.audit");
-    assert.equal(out.log_entry.agent, "alice");
+    assertInitiativeCreated(out, after);
+    assertInitiativeLog(out, after);
   } finally {
     await rmTempProject(dir);
   }
