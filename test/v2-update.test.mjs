@@ -276,7 +276,7 @@ test("update: rejects update on a future state with the public incompatibility c
   } finally { await rmTempProject(dir); }
 });
 
-test("update: rejects update on a v1 state", async () => {
+test("update: rejects a pre-release state with migration guidance", async () => {
   const { default: update } = await importFresh("./cli/commands/update.mjs");
   const dir = await createTempProject();
   try {
@@ -298,8 +298,9 @@ test("update: rejects update on a v1 state", async () => {
       await update({ statePath: dir, positional: ["F0T1"], flags: { title: "y", as: "alice" } });
     } catch (e) { caught = e; }
     assert.ok(caught, "should have thrown");
-    assert.equal(caught.code, "STATE_V1_UNSUPPORTED");
-    assert.match(caught.message, /v1/i);
+    assert.equal(caught.code, "PRE_RELEASE_STATE_UNSUPPORTED");
+    assert.match(caught.message, /climier migrate/i);
+    assert.doesNotMatch(caught.message, /init --force/i);
   } finally { await rmTempProject(dir); }
 });
 

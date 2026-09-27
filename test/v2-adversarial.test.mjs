@@ -864,48 +864,46 @@ describe("agent source precedence", () => {
 // =====================================================================
 // Class J — init --force on existing state
 //
-// init always creates a v2 state; --force is required to overwrite an
-// existing state (valid v2 or v1). v1 states must be overwritten
-// explicitly because the v1 schema is no longer supported — init refuses
-// without --force and surfaces the STATE_V1_UNSUPPORTED error so the
-// user is guided to back up and recreate.
+// init creates the current legacy-lane state; --force is required to overwrite
+// any valid existing state, while pre-release task collections are rejected by
+// structural classification and point to the importer rather than init --force.
 // =====================================================================
 
 describe("init --force on existing state", () => {
-  test("init on an existing v1 state without --force refuses with STATE_V1_UNSUPPORTED", async () => {
+  test("init rejects a pre-release tasks shape with migration guidance, not --force", async () => {
     const dir = await createTempProject();
     try {
-      // Bootstrap .climier.json + an empty v2 state, then overwrite the
-      // state file directly with a v1 shape (writeState now rejects v1).
+      // Bootstrap project metadata, then write the pre-release shape directly
+      // to exercise structural classification.
       const r1 = await runCli(["--project", dir, "init"]);
       assert.equal(r1.code, 0, r1.stderr);
       const fs = await import("node:fs/promises");
       const path = await import("node:path");
       const meta = JSON.parse(await fs.readFile(path.join(dir, ".climier.json"), "utf8"));
-      const v1File = path.join(process.env.CLIMIER_HOME, "projects", meta.project_id, "tasks.json");
-      await fs.writeFile(v1File, JSON.stringify({
+      const stateFile = path.join(process.env.CLIMIER_HOME, "projects", meta.project_id, "tasks.json");
+      await fs.writeFile(stateFile, JSON.stringify({
         version: 1,
         tasks: { T1: { id: "T1", title: "x" } },
         decisions: {}, gotchas: {}, initiatives: {}, log: [],
       }), "utf8");
-      // Try to init without --force on the v1 state.
+      // Try to init without --force on the pre-release state.
       const r2 = await runCli(["--project", dir, "init"]);
       assert.equal(r2.code, 1, `expected exit 1; got ${r2.code}: ${r2.stdout}`);
       const data = JSON.parse(r2.stdout);
       assert.equal(data.ok, false);
-      // v1 error surfaces as the structured STATE_V1_UNSUPPORTED shape.
       const code = typeof data.error === "string" ? null : data.error && data.error.code;
       const msg = typeof data.error === "string" ? data.error : (data.error && data.error.message);
-      assert.ok(code === "STATE_V1_UNSUPPORTED" || /STATE_V1_UNSUPPORTED|--force/i.test(msg),
-        `expected STATE_V1_UNSUPPORTED or --force guidance; got code=${code} msg=${msg}`);
-      assert.match(msg, /--force/);
-      // File is still v1.
+      assert.equal(code, "STORAGE_ERROR");
+      assert.match(msg, /PRE_RELEASE_STATE_UNSUPPORTED|climier migrate/i);
+      assert.doesNotMatch(msg, /init --force/i);
+      // Rejection leaves the pre-release shape untouched.
       const s = await readRawState(dir);
       assert.equal(s.version, 1);
+      assert.ok(s.tasks.T1);
     } finally { await rmTempProject(dir); }
   });
 
-  test("init --force on an existing v1 state overwrites to empty v2", async () => {
+  test("init --force on an existing valid v4 state overwrites to empty v4", async () => {
     const dir = await createTempProject();
     try {
       const r1 = await runCli(["--project", dir, "init"]);
@@ -913,16 +911,16 @@ describe("init --force on existing state", () => {
       const fs = await import("node:fs/promises");
       const path = await import("node:path");
       const meta = JSON.parse(await fs.readFile(path.join(dir, ".climier.json"), "utf8"));
-      const v1File = path.join(process.env.CLIMIER_HOME, "projects", meta.project_id, "tasks.json");
-      await fs.writeFile(v1File, JSON.stringify({
-        version: 1, tasks: { T1: { id: "T1", title: "v1" } },
-        decisions: {}, gotchas: {}, initiatives: {}, log: [],
+      const stateFile = path.join(process.env.CLIMIER_HOME, "projects", meta.project_id, "tasks.json");
+      await fs.writeFile(stateFile, JSON.stringify({
+        version: 4, revision: 0, nodes: { T1: { id: "T1", title: "v4" } },
+        edges: [], initiatives: {}, log: [],
       }), "utf8");
       const r2 = await runCli(["--project", dir, "init", "--force"]);
       assert.equal(r2.code, 0, r2.stderr);
       const s = await readRawState(dir);
       assert.equal(s.version, 4);
-      assert.equal(s.revision, 0);
+      assert.equal(s.revision, 1, "force-init replacement preserves monotonic revision progression");
       assert.deepEqual(s.nodes, {});
       assert.deepEqual(s.edges, []);
     } finally { await rmTempProject(dir); }
