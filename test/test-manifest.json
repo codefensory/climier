@@ -2710,6 +2710,30 @@
       "disposition": "keep"
     },
     {
+      "path": "test/migrate-old-forms.test.mjs",
+      "name": "legacy migration backs up source and reports old migration_pending while continuing sweep",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/migrate-old-forms.test.mjs",
+      "name": "legacy v2, v3, and v4 imports normalize gates and create the initial fence",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/migrate-old-forms.test.mjs",
+      "name": "prehistoric import writes a canonical empty state readable by status",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/migrate-old-forms.test.mjs",
+      "name": "SIGKILL at each bootstrap publication boundary resumes to a readable consistent state",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
       "path": "test/migrate.test.mjs",
       "name": "migrate --all --dry-run reports the four on-disk forms without changing bytes",
       "ordinal": 1,

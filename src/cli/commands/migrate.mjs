@@ -3,7 +3,7 @@ import path from "node:path";
 import { climierHome, projectMetaFile } from "../../storage/paths.mjs";
 import { detectMigrationState } from "../../storage/migrate-detection.mjs";
 import { withProjectIdLock } from "../../storage/lock.mjs";
-import { migrateFencedProjectUnderLock } from "../../storage/migrate.mjs";
+import { migrateProjectUnderLock } from "../../storage/migrate.mjs";
 
 export const knownFlags = ["all", "dry-run"];
 
@@ -101,9 +101,20 @@ export default async function migrate({ flags = {}, projectDir, projectConfig } 
         // Lock the explicit storage identity, never the CLIMIER_HOME directory.
         projects.push(await withProjectIdLock(projectId, async (lockContext) => {
           const before = await readProject(projectId);
-          if (before.error) return before;
-          if (before.form !== "fenced-legacy") return before;
-          return migrateFencedProjectUnderLock(lockContext, projectId);
+          let migrationLedger = null;
+          try {
+            migrationLedger = JSON.parse(await fs.readFile(path.join(climierHome(), "projects", projectId, "revision-ledger.json"), "utf8"));
+          } catch (error) {
+            if (error.code !== "ENOENT") throw error;
+          }
+          const resumingBootstrap = Boolean(migrationLedger?.bootstrap_pending);
+          const oldMigrationPending = Boolean(migrationLedger?.migration_pending);
+          if (before.error && !resumingBootstrap && !oldMigrationPending) return before;
+          const importableForm = resumingBootstrap || oldMigrationPending
+            || ["pre-release", "legacy-v2", "legacy-v3", "legacy-v4", "fenced-legacy", "canonical", "empty"].includes(before.form);
+          if (!importableForm || (before.error && !resumingBootstrap && !oldMigrationPending
+              && !["pre-release", "legacy-v2", "legacy-v3", "legacy-v4"].includes(before.form))) return before;
+          return migrateProjectUnderLock(lockContext, projectId);
         }));
       }
     } catch (error) {

@@ -80,18 +80,46 @@ async function publishPendingBootstrapStage(stagePath, statePath, pending, stage
   }
 }
 
-async function readPendingBootstrapState(statePath, stagePath, pending, ledger) {
+async function checkpoint(opts, point) {
+  fault(opts, point);
+  if (typeof opts.onCheckpoint === "function") {
+    await opts.onCheckpoint(point);
+  }
+}
+
+async function replacePendingBootstrapSource(statePath, stagePath, pending, ledger, rawState, opts) {
+  if (!pending.source_sha256 || sha256(rawState) !== pending.source_sha256) {
+    throw fingerprintMismatch("state diverged from the pending bootstrap source and destination");
+  }
+  const staged = await readPendingBootstrapStage(stagePath, pending, ledger);
+  await checkpoint(opts, "before-state-replace");
+  await durableReplace(statePath, staged);
+  await checkpoint(opts, "after-state-replace");
+  return staged;
+}
+
+async function readPendingBootstrapState(statePath, stagePath, pending, ledger, opts) {
   try {
     const rawState = await fs.readFile(statePath, "utf8");
-    if (sha256(rawState) !== pending.destination_sha256) {
-      throw fingerprintMismatch("state diverged from the pending bootstrap destination");
+    const currentHash = sha256(rawState);
+    if (currentHash === pending.destination_sha256) {
+      return rawState;
     }
-    return rawState;
+    if (pending.source_sha256 && currentHash === pending.source_sha256) {
+      return replacePendingBootstrapSource(statePath, stagePath, pending, ledger, rawState, opts);
+    }
+    throw fingerprintMismatch("state diverged from the pending bootstrap source and destination");
   } catch (error) {
     if (error.code !== "ENOENT") {
       throw error;
     }
     const staged = await readPendingBootstrapStage(stagePath, pending, ledger);
+    if (pending.source_sha256) {
+      await checkpoint(opts, "before-state-replace");
+      await durableReplace(statePath, staged);
+      await checkpoint(opts, "after-state-replace");
+      return staged;
+    }
     return publishPendingBootstrapStage(stagePath, statePath, pending, staged);
   }
 }
@@ -109,7 +137,7 @@ async function clearPendingBootstrap({ stagePath, statePath, ledgerPath, ledger,
   return state;
 }
 
-async function finishPendingBootstrap({ statePath, ledgerPath, ledger, expectedDestinationRaw }) {
+async function finishPendingBootstrap({ statePath, ledgerPath, ledger, expectedDestinationRaw, opts = {} }) {
   const pending = ledger.bootstrap_pending;
   if (!pending) {
     return null;
@@ -118,7 +146,7 @@ async function finishPendingBootstrap({ statePath, ledgerPath, ledger, expectedD
     throw fingerprintMismatch("retry initial state does not match the pending bootstrap destination");
   }
   const stagePath = bootstrapStagePath(statePath, pending.stage_id);
-  const rawState = await readPendingBootstrapState(statePath, stagePath, pending, ledger);
+  const rawState = await readPendingBootstrapState(statePath, stagePath, pending, ledger, opts);
   const state = readJson(rawState, "bootstrapped state");
   return clearPendingBootstrap({ stagePath, statePath, ledgerPath, ledger, state });
 }
@@ -183,7 +211,7 @@ function hasPendingBootstrap(ledger) {
   return ledger.bootstrap_pending !== null && ledger.bootstrap_pending !== undefined;
 }
 
-function makeBootstrapLedger(prepared, destinationHash, stageId) {
+function makeBootstrapLedger(prepared, destinationHash, stageId, sourceRaw = null) {
   return {
     version: LEDGER_VERSION,
     fence_generation: 1,
@@ -191,6 +219,7 @@ function makeBootstrapLedger(prepared, destinationHash, stageId) {
     migration_pending: null,
     commit_pending: null,
     bootstrap_pending: {
+      ...(sourceRaw === null ? {} : { source_sha256: sha256(sourceRaw) }),
       destination_sha256: destinationHash,
       stage_id: stageId,
       fence_generation: 1,
@@ -201,24 +230,30 @@ function makeBootstrapLedger(prepared, destinationHash, stageId) {
 
 async function createPendingBootstrap({ stagePath, ledgerPath, statePath, prepared, ledger, opts }) {
   await writeDurableStage(stagePath, prepared.destinationRaw);
-  fault(opts, "before-pending");
+  await checkpoint(opts, "before-pending");
   await durableCreate(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`);
-  fault(opts, "after-pending");
-  try {
-    await fs.link(stagePath, statePath);
-  } catch (error) {
-    if (error.code === "EEXIST") {
-      throw bootstrapExists();
+  await checkpoint(opts, "after-pending");
+  if (await fileExists(statePath) && ledger.bootstrap_pending.source_sha256) {
+    const sourceRaw = await fs.readFile(statePath, "utf8");
+    await replacePendingBootstrapSource(statePath, stagePath, ledger.bootstrap_pending, ledger, sourceRaw, opts);
+  } else {
+    try {
+      await fs.link(stagePath, statePath);
+    } catch (error) {
+      if (error.code === "EEXIST") {
+        throw bootstrapExists();
+      }
+      throw error;
     }
-    throw error;
+    await syncDirectory(path.dirname(statePath));
   }
-  await syncDirectory(path.dirname(statePath));
   fault(opts, "after-state-create");
   return finishPendingBootstrap({
     statePath,
     ledgerPath,
     ledger,
     expectedDestinationRaw: prepared.destinationRaw,
+    opts,
   });
 }
 
@@ -246,20 +281,22 @@ export async function bootstrapInitialUnderLock(lockContext, initialState, opts 
   return createInitialBootstrap({ statePath, ledgerPath, prepared, opts });
 }
 
-async function createInitialBootstrap({ statePath, ledgerPath, prepared, opts }) {
+async function createInitialBootstrap({ statePath, ledgerPath, prepared, opts, sourceRaw = null }) {
   await cleanOrphanBootstrapStages(statePath);
   const stageId = crypto.randomBytes(16).toString("hex");
   const stagePath = bootstrapStagePath(statePath, stageId);
   const destinationHash = sha256(prepared.destinationRaw);
-  const ledger = makeBootstrapLedger(prepared, destinationHash, stageId);
+  const ledger = makeBootstrapLedger(prepared, destinationHash, stageId, sourceRaw);
   if (opts.replaceExisting === true) {
     await writeDurableStage(stagePath, prepared.destinationRaw);
-    fault(opts, "before-pending");
+    await checkpoint(opts, "before-pending");
     await durableReplace(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`);
-    fault(opts, "after-pending");
+    await checkpoint(opts, "after-pending");
+    await checkpoint(opts, "before-state-replace");
     await durableReplace(statePath, prepared.destinationRaw);
+    await checkpoint(opts, "after-state-replace");
     fault(opts, "after-state-create");
-    return finishPendingBootstrap({ statePath, ledgerPath, ledger, expectedDestinationRaw: prepared.destinationRaw });
+    return finishPendingBootstrap({ statePath, ledgerPath, ledger, expectedDestinationRaw: prepared.destinationRaw, opts });
   }
   return createPendingBootstrap({ stagePath, ledgerPath, statePath, prepared, ledger, opts });
 }
@@ -336,6 +373,44 @@ async function publishMigration({ statePath, ledgerPath, ledger, destinationRaw,
   await durableReplace(statePath, destinationRaw);
   fault(opts, "after-state-rename");
   return finishPendingMigration({ statePath, ledgerPath, ledger, rawState: destinationRaw });
+}
+
+export async function migrateLegacyInitialUnderLock(lockContext, initialState, sourceRaw, opts = {}) {
+  assertActiveLockContext(lockContext, opts.projectDir);
+  const { projectDir, statePath } = getActiveLockContext(lockContext);
+  const ledgerPath = path.join(path.dirname(statePath), "revision-ledger.json");
+  const currentLedger = await readOptionalLedger(ledgerPath);
+  if (currentLedger?.bootstrap_pending) {
+    return finishPendingBootstrap({ statePath, ledgerPath, ledger: currentLedger, opts });
+  }
+  const existingState = sourceRaw === null ? null : await readOrCreateState(statePath);
+  if (currentLedger?.migration_pending) {
+    const error = new Error(`migrate: project ${opts.projectId || path.basename(projectDir)} has legacy migration_pending; resolve it with the pre-cut binary or recreate explicitly`);
+    error.code = "CLIMIER_OLD_MIGRATION_PENDING";
+    throw error;
+  }
+  if (currentLedger) {
+    assertValidLedger(currentLedger);
+    if (currentLedger.bootstrap_pending) {
+      const state = await finishPendingBootstrap({ statePath, ledgerPath, ledger: currentLedger, opts });
+      return state;
+    }
+    throw bootstrapExists();
+  }
+  if (sourceRaw !== null && (existingState === null || sha256(existingState) !== sha256(sourceRaw))) {
+    const error = fingerprintMismatch("legacy migration source changed before bootstrap staging");
+    throw error;
+  }
+  const prepared = fencedInitialState(initialState);
+  await fs.mkdir(path.dirname(statePath), { recursive: true });
+  if (sourceRaw !== null) {
+    const targetHighWater = prepared.highWater + 1;
+    prepared.destination.revision = targetHighWater;
+    for (const node of Object.values(prepared.destination.nodes)) node.revision = targetHighWater;
+    prepared.destinationRaw = `${JSON.stringify(prepared.destination, null, 2)}\n`;
+    prepared.highWater = targetHighWater;
+  }
+  return createInitialBootstrap({ statePath, ledgerPath, prepared, opts: { ...opts, replaceExisting: true }, sourceRaw });
 }
 
 async function bootstrapLocked(projectDir, opts, handlers) {
