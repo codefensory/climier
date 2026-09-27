@@ -14,8 +14,8 @@
 //   2. addNodeInternal without the flag still enforces
 //      INITIATIVE_NOT_FOUND on an unregistered initiative.
 //   3. The public CLI rejects --allow-unregistered-initiative on
-//      add-task, add-node, add-gate, add-knowledge, add-edge (bin's
-//      knownFlags guard).
+//      add-task, add-node, add-gate, add-knowledge, add-edge (dispatch's
+//      knownFlags guard) with the structured CLI_USAGE_ERROR envelope.
 //   4. Without the flag, an unregistered initiative on the public
 //      CLI surfaces INITIATIVE_NOT_FOUND with details.initiative.
 //
@@ -185,10 +185,11 @@ test("internal-caps: CLI add-task rejects --allow-unregistered-initiative as unk
       "--acceptance", "a", "--blocked-by", "",
       "--allow-unregistered-initiative",
     ], { cwd: projectDir });
-    assert.equal(r.code, 1, `expected exit 1, got ${r.code}: ${r.stdout}`);
+    assert.equal(r.code, 2, `expected exit 2, got ${r.code}: ${r.stdout}`);
     const body = JSON.parse(r.stdout);
     assert.equal(body.ok, false);
-    assert.match(body.error, /unknown flag --allow-unregistered-initiative/);
+    assert.equal(body.error.code, "CLI_USAGE_ERROR");
+    assert.equal(body.error.details.flag, "allow-unregistered-initiative");
   });
 });
 
@@ -203,10 +204,11 @@ test("internal-caps: CLI add-node rejects --allow-unregistered-initiative as unk
       "--initiative", "auth",
       "--allow-unregistered-initiative",
     ], { cwd: projectDir });
-    assert.equal(r.code, 1, `expected exit 1, got ${r.code}: ${r.stdout}`);
+    assert.equal(r.code, 2, `expected exit 2, got ${r.code}: ${r.stdout}`);
     const body = JSON.parse(r.stdout);
     assert.equal(body.ok, false);
-    assert.match(body.error, /unknown flag --allow-unregistered-initiative/);
+    assert.equal(body.error.code, "CLI_USAGE_ERROR");
+    assert.equal(body.error.details.flag, "allow-unregistered-initiative");
   });
 });
 
@@ -221,10 +223,11 @@ test("internal-caps: CLI add-gate rejects --allow-unregistered-initiative as unk
       "--purpose", "decision",
       "--allow-unregistered-initiative",
     ], { cwd: projectDir });
-    assert.equal(r.code, 1, `expected exit 1, got ${r.code}: ${r.stdout}`);
+    assert.equal(r.code, 2, `expected exit 2, got ${r.code}: ${r.stdout}`);
     const body = JSON.parse(r.stdout);
     assert.equal(body.ok, false);
-    assert.match(body.error, /unknown flag --allow-unregistered-initiative/);
+    assert.equal(body.error.code, "CLI_USAGE_ERROR");
+    assert.equal(body.error.details.flag, "allow-unregistered-initiative");
   });
 });
 
@@ -239,10 +242,11 @@ test("internal-caps: CLI add-knowledge rejects --allow-unregistered-initiative a
       "--scope-domains", "core",
       "--allow-unregistered-initiative",
     ], { cwd: projectDir });
-    assert.equal(r.code, 1, `expected exit 1, got ${r.code}: ${r.stdout}`);
+    assert.equal(r.code, 2, `expected exit 2, got ${r.code}: ${r.stdout}`);
     const body = JSON.parse(r.stdout);
     assert.equal(body.ok, false);
-    assert.match(body.error, /unknown flag --allow-unregistered-initiative/);
+    assert.equal(body.error.code, "CLI_USAGE_ERROR");
+    assert.equal(body.error.details.flag, "allow-unregistered-initiative");
   });
 });
 
@@ -268,10 +272,11 @@ test("internal-caps: CLI add-edge rejects --allow-unregistered-initiative as unk
       "add-edge", "T-1", "T-2", "--type", "BLOCKS",
       "--allow-unregistered-initiative",
     ], { cwd: projectDir });
-    assert.equal(r.code, 1, `expected exit 1, got ${r.code}: ${r.stdout}`);
+    assert.equal(r.code, 2, `expected exit 2, got ${r.code}: ${r.stdout}`);
     const body = JSON.parse(r.stdout);
     assert.equal(body.ok, false);
-    assert.match(body.error, /unknown flag --allow-unregistered-initiative/);
+    assert.equal(body.error.code, "CLI_USAGE_ERROR");
+    assert.equal(body.error.details.flag, "allow-unregistered-initiative");
   });
 });
 

@@ -6,6 +6,7 @@ export const CLI_EXIT_CODES = Object.freeze({ SUCCESS: 0, FAILURE: 1, USAGE: 2 }
 
 export const CLI_ERROR_CODES = Object.freeze({
   STORAGE_ERROR: "STORAGE_ERROR",
+  CLI_USAGE_ERROR: "CLI_USAGE_ERROR",
   CLI_INTERNAL_ERROR: "CLI_INTERNAL_ERROR",
 });
 

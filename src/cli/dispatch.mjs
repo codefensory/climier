@@ -14,10 +14,10 @@ export const PACKAGE_VERSION = JSON.parse(
   fsSync.readFileSync(new URL("../../package.json", import.meta.url), "utf8"),
 ).version;
 
-export const HELP_TEXT = "climier — JSON-first task DAG CLI for coordinating work\n\nUse it when one or many actors need a shared source of truth for what is\nready, claimed, blocked, decided, backlog, done, or archived.\n\nCommon patterns:\n  solo / multi-session: status -> context -> take -> work -> submit -> accept\n  human + AI:           add-task -> context -> take -> add-note -> submit -> accept\n  with a policy plugin: see docs/PLUGINS.md (ADR-007/008); the core\n                        no longer recognises actor names like\n                        \"orchestrator\"/\"recovery\" as authority.\n\nUsage: climier [--project <dir>] <command> [args...]\n\nOutput: every command prints a single JSON value to stdout.\nErrors: { ok: false, error: \"<message>\" } on stdout, non-zero exit.\nExceptions: --help/-h/help and --version/version print plain text.\n\nRead-only:\n  status [--initiative X] [--kind task|gate|knowledge] [--status X] [--domain X]\n        [--claimed-by X] [--stale-ms N] [--limit N] [--all]\n                                          Summary-shape: task buckets (ready/in_progress/blocked/backlog), open gates, knowledge count, alerts.\n                                          in_progress is global by default: every in_progress task is listed and counted\n                                          regardless of caller. Use --claimed-by <agent> to narrow to one agent's claims.\n                                          --as is an identity tag (it scopes context's allowed_actions) and is not a filter\n                                          for status.\n  context <id>                           Agent-first view of a node: spec, blockers, informing edges, scoped knowledge, allowed actions.\n  search \"<query>\" [--all]               Search active knowledge; --all includes deprecated knowledge.\n  initiatives                            List registered initiatives with usage counts.\n  log [--limit N] [--action X] [--agent X] [--task X] [--decision X]\n                                          Show the audit log.\n  history <id> [--limit N]               Log entries that reference a node.\n  show <id>                              Print the raw node object.\n  snapshots                              List recoverable snapshots captured under <state-dir>/snapshots/, newest first.\n  state                                  Read the deterministic current core projection (not historical snapshots).\n  migrate [--project <dir>] [--all] [--dry-run]  Report detected state forms; dry-run is read-only.\n  ui [--port N] [--open=true|false]      Start the local read-only web UI and open it in the browser.\n                                          Requires the ui/ subproject deps (npm install in ui/ once).\n\nMutating (require --as <agent-id>):\n  batch --file <json> --as <agent>       Execute an atomic batch from a JSON file.\n  batch --stdin --as <agent>             Execute an atomic batch from stdin.\n  take <id> --as <agent>                 Claim a ready task (idempotent when you already hold the claim).\n  submit <id> --note \"...\" --as <agent>  Submit an owned in-progress task for validation.\n  accept <id> --as <agent>               Accept a submitted task as done.\n  reject <id> --reason \"...\" --as <agent> Return a submitted task to open with a reason.\n                                          A policy plugin may authorise taking over another actor's claim.\n  release <id> --as <agent>              Free a claim (idempotent when the task is unclaimed). A policy\n                                          plugin may authorise releasing any claim.\n  cancel <id> --reason \"<text>\" --as <agent>\n                                          Terminate a node without resolving (open/in_progress only).\n  resolve <id> --choice \"<text>\" --rationale \"<text>\" --as <agent>\n                                          Resolve a choice gate; tasks close only through submit then accept.\n  reopen <id> --reason \"<text>\" --as <agent>\n                                          Re-open a done task or resolved gate; downstream tasks re-block.\n  restore <snapshot-id> --as <agent>      Replace the live state with the snapshot's raw bytes (validates target\n                                          v2/shape first; takes a pre-restore raw snapshot before changing state).\n                                          A policy plugin may deny or further restrict this action.\n  push --as <agent> [--overwrite=true]    Copy the local DAG to the configured remote project.\n                                          Overwrite is absolute; a timeout may leave the outcome unknown. No retry.\n  pull --as <agent> [--overwrite=true]    Copy the configured remote DAG into the local project.\n                                          Overwrite is absolute; the remote source is fetched before local writes.\n  deprecate-knowledge <id> --reason \"...\" --as <agent>\n                                          Soft-delete a knowledge node (sets status=deprecated + reason).\n\nAdding to the DAG:\n  add-task [id] --initiative X --title \"...\" --body \"...\" --acceptance \"...\" --blocked-by \"...\"\n                                          Append a task. Id is auto-allocated as T-xxxxxxxx when omitted.\n  add-gate [id] --initiative X --title \"...\" --body \"...\" --purpose decision|approval|external-dependency|research [--supersedes OLD]\n                                          Append a gate.\n  add-knowledge [id] --initiative X --title \"...\" --body \"...\" --scope-domains X [--supersedes OLD]\n                                          Append a knowledge node.\n  add-initiative <name> [--desc \"...\"]   Register an initiative.\n  add-node <id> --kind resolvable|knowledge --title \"...\" [--subkind task|gate] [--blocked-by A,B] [--derived-from A,B] [--refs a,b] [--meta '{...}']\n                                          Low-level node creation (prefer add-task/add-gate/add-knowledge).\n  add-edge <from> <to> --type BLOCKS|SUPERSEDES|DERIVED_FROM\n                                          Low-level edge creation.\n  remove-edge <from> <to> --type BLOCKS|SUPERSEDES|DERIVED_FROM\n                                          Idempotently remove one exact edge.\n\nEditing (any agent; status guard applies):\n  update <id> [--title X] [--body \"...\"] [--initiative X] [--domain Y] [--tags ...]\n              [--backlog true|false] [--if-revision N] --as <agent>\n                                          Edit a node's fields; increments revision.\n  add-note <id> \"text\" --as <agent>      Append a note to a node's running thread (any status).\n\nSetup:\n  init [--force]                          Create .climier.json and the project's live state.\n\nGlobal flags:\n  --project <dir>                         Project root (default: CWD)\n  --help, -h                              Show this help and exit\n  --version                               Show the package version and exit\n\nDocs: see README.md for quickstart, workflow, storage model, and command reference.\n\nAvailable commands:\n  status, context, take, submit, accept, reject, resolve, release, cancel, reopen, search, history,\n  show, update, add-note, add-initiative, add-task, add-gate, add-knowledge,\n  deprecate-knowledge, add-node, add-edge, remove-edge, initiatives, log, init, snapshots, state,\n  restore, batch, push, pull, migrate, ui, help, version.";
+export const HELP_TEXT = "climier — JSON-first task DAG CLI for coordinating work\n\nUse it when one or many actors need a shared source of truth for what is\nready, claimed, blocked, decided, backlog, done, or archived.\n\nCommon patterns:\n  solo / multi-session: status -> context -> take -> work -> submit -> accept\n  human + AI:           add-task -> context -> take -> add-note -> submit -> accept\n  with a policy plugin: see docs/PLUGINS.md (ADR-007/008); the core\n                        no longer recognises actor names like\n                        \"orchestrator\"/\"recovery\" as authority.\n\nUsage: climier [--project <dir>] <command> [args...]\n\nOutput: every command prints a single JSON value to stdout.\nErrors: { ok: false, error: { code, message, details } } on stdout, non-zero exit.\nExceptions: --help/-h/help and --version/version print plain text.\n\nRead-only:\n  status [--initiative X] [--kind task|gate|knowledge] [--status X] [--domain X]\n        [--claimed-by X] [--stale-ms N] [--limit N] [--all]\n                                          Summary-shape: task buckets (ready/in_progress/blocked/backlog), open gates, knowledge count, alerts.\n                                          in_progress is global by default: every in_progress task is listed and counted\n                                          regardless of caller. Use --claimed-by <agent> to narrow to one agent's claims.\n                                          --as is an identity tag (it scopes context's allowed_actions) and is not a filter\n                                          for status.\n  context <id>                           Agent-first view of a node: spec, blockers, informing edges, scoped knowledge, allowed actions.\n  search \"<query>\" [--all]               Search active knowledge; --all includes deprecated knowledge.\n  initiatives                            List registered initiatives with usage counts.\n  log [--limit N] [--action X] [--agent X] [--task X] [--decision X]\n                                          Show the audit log.\n  history <id> [--limit N]               Log entries that reference a node.\n  show <id>                              Print the raw node object.\n  snapshots                              List recoverable snapshots captured under <state-dir>/snapshots/, newest first.\n  state                                  Read the deterministic current core projection (not historical snapshots).\n  migrate [--project <dir>] [--all] [--dry-run]  Report detected state forms; dry-run is read-only.\n  ui [--port N] [--open=true|false]      Start the local read-only web UI and open it in the browser.\n                                          Requires the ui/ subproject deps (npm install in ui/ once).\n\nMutating (require --as <agent-id>):\n  batch --file <json> --as <agent>       Execute an atomic batch from a JSON file.\n  batch --stdin --as <agent>             Execute an atomic batch from stdin.\n  take <id> --as <agent>                 Claim a ready task (idempotent when you already hold the claim).\n  submit <id> --note \"...\" --as <agent>  Submit an owned in-progress task for validation.\n  accept <id> --as <agent>               Accept a submitted task as done.\n  reject <id> --reason \"...\" --as <agent> Return a submitted task to open with a reason.\n                                          A policy plugin may authorise taking over another actor's claim.\n  release <id> --as <agent>              Free a claim (idempotent when the task is unclaimed). A policy\n                                          plugin may authorise releasing any claim.\n  cancel <id> --reason \"<text>\" --as <agent>\n                                          Terminate a node without resolving (open/in_progress only).\n  resolve <id> --choice \"<text>\" --rationale \"<text>\" --as <agent>\n                                          Resolve a choice gate; tasks close only through submit then accept.\n  reopen <id> --reason \"<text>\" --as <agent>\n                                          Re-open a done task or resolved gate; downstream tasks re-block.\n  restore <snapshot-id> --as <agent>      Replace the live state with the snapshot's raw bytes (validates target\n                                          v2/shape first; takes a pre-restore raw snapshot before changing state).\n                                          A policy plugin may deny or further restrict this action.\n  push --as <agent> [--overwrite=true]    Copy the local DAG to the configured remote project.\n                                          Overwrite is absolute; a timeout may leave the outcome unknown. No retry.\n  pull --as <agent> [--overwrite=true]    Copy the configured remote DAG into the local project.\n                                          Overwrite is absolute; the remote source is fetched before local writes.\n  deprecate-knowledge <id> --reason \"...\" --as <agent>\n                                          Soft-delete a knowledge node (sets status=deprecated + reason).\n\nAdding to the DAG:\n  add-task [id] --initiative X --title \"...\" --body \"...\" --acceptance \"...\" --blocked-by \"...\"\n                                          Append a task. Id is auto-allocated as T-xxxxxxxx when omitted.\n  add-gate [id] --initiative X --title \"...\" --body \"...\" --purpose decision|approval|external-dependency|research [--supersedes OLD]\n                                          Append a gate.\n  add-knowledge [id] --initiative X --title \"...\" --body \"...\" --scope-domains X [--supersedes OLD]\n                                          Append a knowledge node.\n  add-initiative <name> [--desc \"...\"]   Register an initiative.\n  add-node <id> --kind resolvable|knowledge --title \"...\" [--subkind task|gate] [--blocked-by A,B] [--derived-from A,B] [--refs a,b] [--meta '{...}']\n                                          Low-level node creation (prefer add-task/add-gate/add-knowledge).\n  add-edge <from> <to> --type BLOCKS|SUPERSEDES|DERIVED_FROM\n                                          Low-level edge creation.\n  remove-edge <from> <to> --type BLOCKS|SUPERSEDES|DERIVED_FROM\n                                          Idempotently remove one exact edge.\n\nEditing (any agent; status guard applies):\n  update <id> [--title X] [--body \"...\"] [--initiative X] [--domain Y] [--tags ...]\n              [--backlog true|false] [--if-revision N] --as <agent>\n                                          Edit a node's fields; increments revision.\n  add-note <id> \"text\" --as <agent>      Append a note to a node's running thread (any status).\n\nSetup:\n  init [--force]                          Create .climier.json and the project's live state.\n\nGlobal flags:\n  --project <dir>                         Project root (default: CWD)\n  --help, -h                              Show this help and exit\n  --version                               Show the package version and exit\n\nDocs: see README.md for quickstart, workflow, storage model, and command reference.\n\nAvailable commands:\n  status, context, take, submit, accept, reject, resolve, release, cancel, reopen, search, history,\n  show, update, add-note, add-initiative, add-task, add-gate, add-knowledge,\n  deprecate-knowledge, add-node, add-edge, remove-edge, initiatives, log, init, snapshots, state,\n  restore, batch, push, pull, migrate, ui, help, version.";
 
-// These flags must not consume the next non-flag token as their value. This
-// preserves the historical `--force init` parsing behavior.
+// Boolean flags do not consume the next non-flag token as their value. Specify
+// them as `--flag=true` or after the command.
 export const BOOLEAN_FLAGS = Object.freeze(new Set(["all", "force", "stdin", "dry-run"]));
 
 function parsedFlag(argv, index) {
@@ -70,8 +70,12 @@ export function formatError(error) {
   return formatOutput({ ok: false, error });
 }
 
-// Stable descriptive aliases for consumers of the CLI adapter boundary.
-export const parseArgs = parseArgv;
+const KNOWN_COMMANDS = Object.freeze([
+  "status", "context", "take", "submit", "accept", "reject", "resolve", "release", "cancel", "reopen",
+  "search", "history", "show", "update", "add-note", "add-initiative", "add-task", "add-gate", "add-knowledge",
+  "deprecate-knowledge", "add-node", "add-edge", "remove-edge", "initiatives", "log", "init", "snapshots", "state",
+  "restore", "batch", "push", "pull", "migrate", "ui", "help", "version",
+]);
 
 const REMOTE_SUPPORTED_COMMANDS = new Set([
   "status", "context", "show", "history", "search", "initiatives", "log", "state",
@@ -150,10 +154,8 @@ function validateKnownFlags(command, flags, knownFlags) {
     if (!allowed.has(key)) {
       const sorted = [...allowed].filter((name) => name !== "project").toSorted();
       const error = new Error(`${command}: unknown flag --${key} (valid flags: --${sorted.join(", --")})`);
-      if (command === "migrate") {
-        error.code = "CLI_USAGE_ERROR";
-        error.details = { command, flag: key, valid_flags: sorted };
-      }
+      error.code = "CLI_USAGE_ERROR";
+      error.details = { command, flag: key, valid_flags: sorted };
       throw error;
     }
   }
@@ -240,8 +242,6 @@ function exitWith(exit, code) {
   exit(code);
 }
 
-export const dispatch = dispatchCommand;
-
 function writeHelpResponse(write, exit) {
   write(HELP_TEXT);
   exitWith(exit, 0);
@@ -280,9 +280,10 @@ function writeNoCommandResponse(command, write, exit) {
   if (command) {
     return null;
   }
-  write(formatError(
-    "no command given. Available: status, context, take, submit, accept, reject, resolve, release, cancel, reopen, search, history, show, update, add-note, add-task, add-gate, add-knowledge, add-initiative, add-node, add-edge, remove-edge, deprecate-knowledge, initiatives, log, init, push, pull, migrate, snapshots, state, restore, batch, ui, help, version",
-  ));
+  const error = new Error("no command given");
+  error.code = "CLI_USAGE_ERROR";
+  error.details = { command: null, valid_commands: [...KNOWN_COMMANDS].toSorted() };
+  write(formatError(normalizeCliError(error)));
   exitWith(exit, 2);
   return 2;
 }
@@ -299,26 +300,14 @@ async function addBackendContext(context, { source, backendClientFactory }) {
   return context;
 }
 
-function formatUnknownModuleError(command) {
-  if (!command) {
-    return "no command given. Available: status, context, take, submit, accept, reject, resolve, release, cancel, reopen, search, history, show, update, add-note, add-task, add-gate, add-knowledge, add-initiative, add-node, add-edge, remove-edge, deprecate-knowledge, initiatives, log, init, push, pull, migrate, snapshots, state, restore, batch, ui, help, version";
-  }
-  return `unknown command '${command}'`;
-}
-
 function writeCliError(error, command, write, exit) {
   if (error.code === "MODULE_NOT_FOUND" || error.code === "ERR_MODULE_NOT_FOUND") {
-    write(formatError(formatUnknownModuleError(command)));
-    exitWith(exit, 2);
-    return 2;
+    const usageError = new Error(`unknown command '${command}'`);
+    usageError.code = "CLI_USAGE_ERROR";
+    usageError.details = { command, valid_commands: [...KNOWN_COMMANDS].toSorted() };
+    error = usageError;
   }
-  // Preserve the historical string envelope for unknown flags. The public
-  // operation errors, storage failures, and opaque internal failures use
-  // the stable `{ code, message, details }` shape below.
-  const message = command !== "migrate" && typeof error?.message === "string" && error.message.includes("unknown flag --")
-    ? error.message
-    : normalizeCliError(error);
-  write(formatError(message));
+  write(formatError(normalizeCliError(error)));
   const code = exitCodeForError(error);
   exitWith(exit, code);
   return code;
@@ -372,4 +361,3 @@ async function runCliWithOptions(options = {}) {
 }
 
 export const runCli = runCliWithOptions;
-export const main = runCli;

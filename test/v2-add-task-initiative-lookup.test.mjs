@@ -106,10 +106,12 @@ test("CLI v2 add-task rejects --allow-unregistered-initiative as unknown flag (T
       "--allow-unregistered-initiative",
     ], { cwd: dir });
 
-    assert.equal(result.code, 1, result.stdout);
+    assert.equal(result.code, 2, result.stdout);
     const body = JSON.parse(result.stdout);
     assert.equal(body.ok, false);
-    assert.match(body.error, /unknown flag --allow-unregistered-initiative/);
+    assert.equal(body.error.code, "CLI_USAGE_ERROR");
+    assert.equal(body.error.details.command, "add-task");
+    assert.equal(body.error.details.flag, "allow-unregistered-initiative");
   });
 });
 
