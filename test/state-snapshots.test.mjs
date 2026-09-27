@@ -384,7 +384,7 @@ test("init --force on existing v4 state: snapshot reason=force-init, raw preserv
   }
 });
 
-test("init --force on existing v1 state: snapshot reason=force-init, raw preserves the v1 bytes verbatim", async () => {
+test("init --force on existing valid v4 state: snapshot reason=force-init, raw preserves bytes verbatim", async () => {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
   const { readState, listSnapshots } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
@@ -392,23 +392,19 @@ test("init --force on existing v1 state: snapshot reason=force-init, raw preserv
     // Bootstrap v4 metadata first so stateFile() resolves.
     await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
     const file = stateFilePath(dir);
-    const v1Raw = JSON.stringify({
-      version: 1,
-      tasks: { T1: { id: "T1", title: "v1" } },
-      decisions: {}, gotchas: {}, initiatives: {}, log: [],
-    });
-    await fs.writeFile(file, v1Raw);
+    await bootstrapState(dir, (state) => { state.nodes.T1 = { id: "T1", title: "existing" }; });
+    const existingRaw = await fs.readFile(file, "utf8");
     await init({ statePath: dir, flags: { force: true }, positional: [], projectDir: dir });
     const after = await readState(dir);
     assert.equal(after.version, 4);
-    assert.equal(after.revision, 0);
+    assert.equal(after.revision, 1, "force-init replacement preserves monotonic revision progression");
     assert.deepEqual(after.nodes, {});
     const snaps = await listSnapshots(dir);
     assert.equal(snaps.length, 1);
     assert.equal(snaps[0].reason, "force-init");
     const snapRaw = await rawReadback(dir, snaps[0].id);
-    assert.ok(snapRaw.toString("utf8").includes("\"version\":1"),
-      `snapshot raw must preserve v1 bytes; got ${snapRaw.toString("utf8").slice(0, 200)}`);
+    assert.equal(snapRaw.toString("utf8"), existingRaw,
+      "snapshot raw must preserve the exact existing state bytes");
   } finally {
     await rmTempProject(dir);
   }

@@ -222,34 +222,26 @@ test("init: ignores unknown flags and still creates an empty v4 state", async ()
 
 // === v1-unsupported init behavior =========================================
 
-test("init: refuses on an existing v1 state without --force and mentions --force", async () => {
+test("init: refuses to overwrite an existing valid state without --force", async () => {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
   const dir = await createTempProject();
   try {
-    // Bootstrap .climier.json so stateFile() resolves to a real path.
     await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
-    // Overwrite the state file with a v1 shape (bypassing writeState).
     const file = stateFilePath(dir);
-    await fs.writeFile(file, JSON.stringify({
-      version: 1, tasks: { T1: { id: "T1", title: "v1" } },
-      decisions: {}, gotchas: {}, initiatives: {}, log: [],
-    }), "utf8");
+    const before = await fs.readFile(file, "utf8");
 
     let caught;
     try {
       await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
     } catch (e) { caught = e; }
-    assert.ok(caught, "init without --force on v1 must throw");
-    assert.equal(caught.code, "STATE_V1_UNSUPPORTED");
+    assert.ok(caught, "init without --force on a valid existing state must throw");
+    assert.match(caught.message, /already exists/i);
     assert.match(caught.message, /--force/);
-    assert.match(caught.message, /v1/i);
-    // The v1 file must NOT be overwritten.
-    const raw = JSON.parse(await fs.readFile(file, "utf8"));
-    assert.equal(raw.version, 1, "v1 state must remain on disk without --force");
+    assert.equal(await fs.readFile(file, "utf8"), before, "existing state must remain unchanged");
   } finally { await rmTempProject(dir); }
 });
 
-test("init: --force on an existing v1 state overwrites to empty v4", async () => {
+test("init: --force on an existing v4 state overwrites to empty v4", async () => {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
   const { readState } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
@@ -257,14 +249,14 @@ test("init: --force on an existing v1 state overwrites to empty v4", async () =>
     await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
     const file = stateFilePath(dir);
     await fs.writeFile(file, JSON.stringify({
-      version: 1, tasks: { T1: { id: "T1", title: "v1" } },
-      decisions: {}, gotchas: {}, initiatives: {}, log: [],
+      version: 4, revision: 0, nodes: { T1: { id: "T1", title: "v4" } },
+      edges: [], initiatives: {}, log: [],
     }), "utf8");
 
     await init({ statePath: dir, flags: { force: true }, positional: [], projectDir: dir });
     const s = await readState(dir);
     assert.equal(s.version, 4);
-    assert.equal(s.revision, 0);
+    assert.equal(s.revision, 1, "force-init records the replacement after existing state");
     assert.deepEqual(s.nodes, {});
     assert.deepEqual(s.edges, []);
   } finally { await rmTempProject(dir); }

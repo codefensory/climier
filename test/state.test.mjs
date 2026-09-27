@@ -240,6 +240,23 @@ test("readState classifies version 6 as incompatible", async () => {
   } finally { await rmTempProject(dir); }
 });
 
+test("readState accepts canonical v1 state when its revision ledger is present", async () => {
+  const { readState, stateFile } = await importFresh("./storage/state.mjs");
+  const { bootstrapFencedState } = await importFresh("./storage/ledger.mjs");
+  const fs = await import("node:fs/promises");
+  const dir = await createTempProject();
+  try {
+    const fenced = await bootstrapFencedState(dir);
+    const canonical = { ...fenced, version: 1 };
+    await fs.writeFile(stateFile(dir), JSON.stringify(canonical), "utf8");
+
+    const read = await readState(dir);
+    assert.equal(read.version, 1);
+    assert.ok(Number.isInteger(read.fence_generation));
+    assert.deepEqual(read.nodes, canonical.nodes);
+  } finally { await rmTempProject(dir); }
+});
+
 test("readState rejects canonical v1 state without fence or ledger", async (t) => {
   const { readState } = await importFresh("./storage/state.mjs");
   const fs = await import("node:fs/promises");

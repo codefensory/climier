@@ -894,9 +894,9 @@ test("CLI: v2 cancel is routed to v2-cancel (status=canceled)", async () => {
   } finally { await rmTempProject(dir); }
 });
 
-test("CLI: v1 states are rejected with STATE_V1_UNSUPPORTED", async () => {
-  // The v1 schema is no longer supported. v1 state files are rejected at
-  // read time; the migration path is documented in the error message.
+test("CLI: pre-release states are rejected with structural migration guidance", async () => {
+  // The pre-release task collections are rejected by shape, independently of
+  // their version number, and the error directs users to the importer.
   const dir = await createTempProject();
   try {
     await seedV1State(dir, {
@@ -911,6 +911,8 @@ test("CLI: v1 states are rejected with STATE_V1_UNSUPPORTED", async () => {
     assert.equal(r.code, 1, r.stderr);
     const out = JSON.parse(r.stdout);
     assert.equal(out.ok, false);
-    assert.match(out.error.message || out.error, /version 1|STATE_V1_UNSUPPORTED|v2/i);
+    const message = out.error.message || out.error;
+    assert.match(message, /PRE_RELEASE_STATE_UNSUPPORTED|climier migrate/i);
+    assert.doesNotMatch(message, /init --force/i);
   } finally { await rmTempProject(dir); }
 });
