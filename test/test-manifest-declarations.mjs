@@ -25,7 +25,7 @@ export const rawLaneDeclarations = {
   "test/kernel-state-operations.test.mjs": importerSource("seeds explicit source states and asserts the writer guards that still refuse them"),
   "test/kernel-mutate-initiative.test.mjs": mentionOnly("names the writers in a test title and a comment; the fixture uses the ledger protocol"),
   "test/kernel/mutation/contract-guards.test.mjs": mentionOnly("names the writers in a comment listing what the module exports"),
-  "test/plugin-compat.test.mjs": guard("two cases preserve the explicit raw updateState path; a raw v4 fixture tests corrupt-state recovery"),
+  "test/plugin-compat.test.mjs": guard("the two `legacy raw updateState preserves plugins` cases exercise raw updates; `init --force on a state with corrupt JSON (cannot read) does not crash and writes emptyState()` seeds a raw v4 source with no ledger because a ledger changes recovery by rejecting the replacement candidate with CLIMIER_LEDGER_FINGERPRINT_MISMATCH"),
   "test/plugin-policy-seam-lifecycle-note-initiative.test.mjs": mentionOnly("names updateState in a test title; the fixture uses the ledger protocol"),
   "test/state.test.mjs": importerSource("covers the raw writer semantics and the guards that refuse ledger-backed projects"),
   "test/storage-ledger.test.mjs": importerSource("starts a legacy write to prove the migration fence refuses it"),
