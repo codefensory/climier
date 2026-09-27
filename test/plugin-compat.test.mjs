@@ -9,18 +9,19 @@ import {
   stateFilePath,
   readState,
   writeState,
+  writeCanonicalState,
   bootstrapState,
   seedPluginData,
   assertPluginDataPreserved,
   fsp_writeFile,
 } from "./plugin-compat-helpers.mjs";
 
-test("writeState preserves `plugins` (root) and `nodes[id].plugins` on round-trip", async () => {
+test("writeCanonicalState preserves `plugins` (root) and `nodes[id].plugins` on round-trip", async () => {
   const dir = await createTempProject();
   try {
     const base = await bootstrapState(dir);
     seedPluginData(base);
-    await writeState(dir, base);
+    await writeCanonicalState(dir, base);
     const after = await readState(dir);
     assertPluginDataPreserved(after);
   } finally {
@@ -28,7 +29,7 @@ test("writeState preserves `plugins` (root) and `nodes[id].plugins` on round-tri
   }
 });
 
-test("updateState preserves `plugins` (root) and `nodes[id].plugins` when a mutator touches a node", async () => {
+test("legacy raw updateState preserves `plugins` (root) and `nodes[id].plugins` when a mutator touches a node", async () => {
   const dir = await createTempProject();
   try {
     const base = await bootstrapState(dir);
@@ -47,7 +48,7 @@ test("updateState preserves `plugins` (root) and `nodes[id].plugins` when a muta
   }
 });
 
-test("updateState preserves `plugins` (root) when a mutator touches an unrelated collection (edges)", async () => {
+test("legacy raw updateState preserves `plugins` (root) when a mutator touches an unrelated collection (edges)", async () => {
   const dir = await createTempProject();
   try {
     const base = await bootstrapState(dir);
@@ -86,7 +87,7 @@ test("init --force preserves root `plugins` (nodes are wiped, root plugins survi
   try {
     const base = await bootstrapState(dir);
     seedPluginData(base);
-    await writeState(dir, base);
+    await writeCanonicalState(dir, base);
     const { default: init } = await importFresh("./cli/commands/init.mjs");
     const out = await init({ statePath: dir, flags: { force: true }, projectDir: dir });
     assert.equal(out.ok, true);

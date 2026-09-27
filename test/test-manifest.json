@@ -2537,19 +2537,19 @@
     },
     {
       "path": "test/plugin-compat.test.mjs",
-      "name": "updateState preserves `plugins` (root) and `nodes[id].plugins` when a mutator touches a node",
+      "name": "legacy raw updateState preserves `plugins` (root) and `nodes[id].plugins` when a mutator touches a node",
       "ordinal": 1,
       "disposition": "keep"
     },
     {
       "path": "test/plugin-compat.test.mjs",
-      "name": "updateState preserves `plugins` (root) when a mutator touches an unrelated collection (edges)",
+      "name": "legacy raw updateState preserves `plugins` (root) when a mutator touches an unrelated collection (edges)",
       "ordinal": 1,
       "disposition": "keep"
     },
     {
       "path": "test/plugin-compat.test.mjs",
-      "name": "writeState preserves `plugins` (root) and `nodes[id].plugins` on round-trip",
+      "name": "writeCanonicalState preserves `plugins` (root) and `nodes[id].plugins` on round-trip",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -9803,7 +9803,7 @@
     },
     {
       "path": "test/v5-fixture-helper.test.mjs",
-      "name": "legacy helpers still write intentional v2 and v4 migration fixtures",
+      "name": "exampleState is a canonical version 1 fixture installed through the canonical lane",
       "ordinal": 1,
       "disposition": "keep"
     },

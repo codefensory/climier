@@ -12,7 +12,7 @@ test("test manifest checker rejects a runtime case with no row", () => {
     { path: "test/example.test.mjs", name: "missing" },
   ];
 
-  assert.throws(() => validateManifest(manifest, runtime), /unlisted runtime case.*missing/);
+  assert.throws(() => validateManifest(manifest, runtime), /missing manifest row.*missing/);
 });
 
 test("test manifest checker rejects an unlisted runtime case", () => {
@@ -24,7 +24,7 @@ test("test manifest checker rejects an unlisted runtime case", () => {
     { path: "test/example.test.mjs", name: "extra" },
   ];
 
-  assert.throws(() => validateManifest(manifest, runtime), /unlisted runtime case.*extra/);
+  assert.throws(() => validateManifest(manifest, runtime), /missing manifest row.*extra/);
 });
 
 test("test manifest checker rejects stale manifest rows", () => {

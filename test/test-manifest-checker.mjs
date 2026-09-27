@@ -65,8 +65,9 @@ export function validateManifest(manifest, runtimeCases, { deleteAllowlist } = {
     const identity = key({ ...item, ordinal });
     runtime.set(identity, item);
     const row = declared.get(identity);
-    assert.ok(row, `unlisted runtime case ${item.path}:${item.name}#${ordinal}`);
+    assert.ok(row, `missing manifest row for runtime case ${item.path}:${item.name}#${ordinal}`);
     assert.notEqual(row.disposition, "delete", `runtime case marked delete ${item.path}:${item.name}#${ordinal}`);
+    assert.equal(row.ordinal, ordinal, `manifest ordinal does not match runtime order for ${item.path}:${item.name}`);
   }
 
   for (const [identity, row] of declared) {
