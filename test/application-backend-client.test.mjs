@@ -11,24 +11,33 @@ async function withServer(handler, run, { approveOrigin = false } = {}) {
     server.listen(0, "127.0.0.1", resolve);
   });
   const url = `http://127.0.0.1:${server.address().port}`;
-  const previousOrigin = process.env.CLIMIER_REMOTE_ORIGIN;
+  const restoreRemoteEnvironment = isolateRemoteEnvironment();
   if (approveOrigin) {
     process.env.CLIMIER_REMOTE_ORIGIN = new URL(url).origin;
-  } else {
-    delete process.env.CLIMIER_REMOTE_ORIGIN;
   }
   try {
     await run(url);
   } finally {
-    if (previousOrigin === undefined) {
-      delete process.env.CLIMIER_REMOTE_ORIGIN;
-    } else {
-      process.env.CLIMIER_REMOTE_ORIGIN = previousOrigin;
-    }
+    restoreRemoteEnvironment();
     await new Promise((resolve, reject) => {
       server.close((error) => error ? reject(error) : resolve());
     });
   }
+}
+
+function isolateRemoteEnvironment() {
+  const previous = Object.fromEntries([
+    "CLIMIER_TOKEN",
+    "CLIMIER_REMOTE_ORIGIN",
+    "CLIMIER_ALLOW_INSECURE_REMOTE_HTTP",
+  ].map((key) => [key, process.env[key]]));
+  for (const key of Object.keys(previous)) { delete process.env[key]; }
+  return () => {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) { delete process.env[key]; }
+      else { process.env[key] = value; }
+    }
+  };
 }
 
 function localSource({ calls, result }) {
@@ -225,7 +234,7 @@ test("backend client refuses to send a bearer token when origin binding is absen
 });
 
 test("backend client allows opt-in remote HTTP only with exact origin binding", async () => {
-  const previousOptIn = process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP;
+  const restoreRemoteEnvironment = isolateRemoteEnvironment();
   const previousFetch = globalThis.fetch;
   const requested = [];
   process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP = "true";
@@ -255,13 +264,12 @@ test("backend client allows opt-in remote HTTP only with exact origin binding", 
     assert.equal(requested[0].options.headers.authorization, "Bearer internal-token");
   } finally {
     globalThis.fetch = previousFetch;
-    if (previousOptIn === undefined) { delete process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP; }
-    else { process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP = previousOptIn; }
+    restoreRemoteEnvironment();
   }
 });
 
 test("backend client rejects remote HTTP with missing or inexact opt-in and never requests", async () => {
-  const previousOptIn = process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP;
+  const restoreRemoteEnvironment = isolateRemoteEnvironment();
   const previousFetch = globalThis.fetch;
   let requests = 0;
   globalThis.fetch = async () => {
@@ -287,8 +295,7 @@ test("backend client rejects remote HTTP with missing or inexact opt-in and neve
     assert.equal(requests, 0);
   } finally {
     globalThis.fetch = previousFetch;
-    if (previousOptIn === undefined) { delete process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP; }
-    else { process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP = previousOptIn; }
+    restoreRemoteEnvironment();
   }
 });
 
@@ -305,6 +312,8 @@ test("backend client reports network failures without invoking local execution",
   const client = createBackendClient({
     projectDir: "/project",
     projectConfig: { project_id: "remote-project", backend: { type: "remote", url: `http://127.0.0.1:${port}` } },
+    token: "network-test-token",
+    remoteOrigin: `http://127.0.0.1:${port}`,
     source: {
       registry: { lookup() { localCalls += 1; return { provider: { prepare() {}, apply() {} } }; } },
       mutate() { localCalls += 1; return {}; },

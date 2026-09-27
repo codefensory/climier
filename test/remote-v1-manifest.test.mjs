@@ -9,11 +9,14 @@ async function withServer(handler, run, { approveOrigin = false } = {}) {
   const server = createServer(handler);
   await listen(server);
   const url = `http://127.0.0.1:${server.address().port}`;
-  const restoreOrigin = configureOrigin(url, approveOrigin);
+  const restoreRemoteEnvironment = isolateRemoteEnvironment();
+  if (approveOrigin) {
+    process.env.CLIMIER_REMOTE_ORIGIN = new URL(url).origin;
+  }
   try {
     await run(url);
   } finally {
-    restoreOrigin();
+    restoreRemoteEnvironment();
     await closeServer(server);
   }
 }
@@ -31,22 +34,20 @@ function closeServer(server) {
   });
 }
 
-function configureOrigin(url, approveOrigin) {
-  const previousOrigin = process.env.CLIMIER_REMOTE_ORIGIN;
-  if (approveOrigin) {
-    process.env.CLIMIER_REMOTE_ORIGIN = new URL(url).origin;
-  } else {
-    delete process.env.CLIMIER_REMOTE_ORIGIN;
-  }
+function isolateRemoteEnvironment() {
+  const previous = Object.fromEntries([
+    "CLIMIER_TOKEN",
+    "CLIMIER_REMOTE_ORIGIN",
+    "CLIMIER_ALLOW_INSECURE_REMOTE_HTTP",
+  ].map((key) => [key, process.env[key]]));
+  for (const key of Object.keys(previous)) { delete process.env[key]; }
   return () => {
-    if (previousOrigin === undefined) {
-      delete process.env.CLIMIER_REMOTE_ORIGIN;
-    } else {
-      process.env.CLIMIER_REMOTE_ORIGIN = previousOrigin;
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) { delete process.env[key]; }
+      else { process.env[key] = value; }
     }
   };
 }
-
 
 async function readRequestBody(request) {
   const chunks = [];
@@ -169,6 +170,28 @@ async function assertTypedReads(client) {
   ]);
   return results;
 }
+
+test("backend client isolates an ambient token for an unconfigured project", async () => {
+  const previousToken = process.env.CLIMIER_TOKEN;
+  process.env.CLIMIER_TOKEN = "ambient-test-token";
+  try {
+    await withServer(async (request, response) => {
+      assert.equal(request.headers.authorization, undefined);
+      response.writeHead(200, { "content-type": "application/json", "x-climier-protocol-version": "1" });
+      response.end(JSON.stringify({ ok: true, result: { accepted: true } }));
+    }, async (url) => {
+      assert.equal(process.env.CLIMIER_TOKEN, undefined);
+      const client = createBackendClient({
+        projectDir: "/project",
+        projectConfig: { project_id: "remote-project", backend: { type: "remote", url } },
+      });
+      assert.deepEqual(await client.readStatus(), { accepted: true });
+    }, { approveOrigin: true });
+  } finally {
+    if (previousToken === undefined) { delete process.env.CLIMIER_TOKEN; }
+    else { process.env.CLIMIER_TOKEN = previousToken; }
+  }
+});
 
 test("backend client maps all typed reads to v1 routes and preserves filter values", async () => {
   await verifyTypedReadRoutes();
