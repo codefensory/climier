@@ -20,7 +20,9 @@ async function readCommitStage(stagePath, pending) {
   try {
     raw = await fs.readFile(stagePath, "utf8");
   } catch (error) {
-    if (error.code === "ENOENT") throw fingerprintMismatch("commit stage is missing; explicit recovery is required");
+    if (error.code === "ENOENT") {
+      throw fingerprintMismatch("commit stage is missing; explicit recovery is required");
+    }
     throw error;
   }
   if (sha256(raw) !== pending.destination_sha256) {
@@ -56,31 +58,29 @@ async function cleanOrphanCommitStages(statePath) {
   }
 }
 
-async function finishPendingCommit({ statePath, ledgerPath, ledger, rawState, opts = {} }) {
-  const pending = ledger.commit_pending;
-  const sourceHash = sha256(rawState);
-  const stagePath = commitStagePath(statePath, pending.stage_id);
-  const stagedDestination = await readCommitStage(stagePath, pending);
-  if (sourceHash === pending.source_sha256) {
-    const source = readJson(rawState, "commit source state");
-    if (source.version !== FENCED_STATE_VERSION
-        || source.fence_generation !== pending.fence_generation
-        || source.revision !== pending.source_high_water_revision
-        || source.revision > ledger.high_water_revision) {
-      throw fingerprintMismatch("commit source does not match its reserved generation or source high-water revision");
-    }
-    validateStateInvariants(source, "ledger.commit.source");
-    if (pending.high_water_revision < ledger.high_water_revision) {
-      throw fingerprintMismatch("commit reservation regressed the durable high-water revision");
-    }
-    fault(opts, "before-state-rename");
-    await durableReplace(statePath, stagedDestination);
-    rawState = stagedDestination;
-    fault(opts, "after-state-rename");
-  } else if (sourceHash !== pending.destination_sha256) {
-    throw fingerprintMismatch("state fingerprint diverged from pending commit; explicit recovery is required");
+function assertCommitSource(rawState, pending, ledger) {
+  const source = readJson(rawState, "commit source state");
+  if (source.version !== FENCED_STATE_VERSION
+      || source.fence_generation !== pending.fence_generation
+      || source.revision !== pending.source_high_water_revision
+      || source.revision > ledger.high_water_revision) {
+    throw fingerprintMismatch("commit source does not match its reserved generation or source high-water revision");
   }
+  validateStateInvariants(source, "ledger.commit.source");
+  if (pending.high_water_revision < ledger.high_water_revision) {
+    throw fingerprintMismatch("commit reservation regressed the durable high-water revision");
+  }
+}
 
+async function installPendingCommitSource({ statePath, rawState, pending, ledger, opts, stagedDestination }) {
+  assertCommitSource(rawState, pending, ledger);
+  fault(opts, "before-state-rename");
+  await durableReplace(statePath, stagedDestination);
+  fault(opts, "after-state-rename");
+  return stagedDestination;
+}
+
+function assertInstalledCommit(rawState, pending) {
   const destination = readJson(rawState, "committed state");
   if (destination.fence_generation !== pending.fence_generation
       || destination.revision !== pending.high_water_revision
@@ -91,6 +91,10 @@ async function finishPendingCommit({ statePath, ledgerPath, ledger, rawState, op
     fence_generation: pending.fence_generation,
     high_water_revision: pending.high_water_revision,
   });
+  return destination;
+}
+
+async function clearPendingCommit({ stagePath, ledgerPath, ledger, pending, opts }) {
   ledger.high_water_revision = pending.high_water_revision;
   ledger.commit_pending = null;
   fault(opts, "before-ledger-clear");
@@ -103,51 +107,100 @@ async function finishPendingCommit({ statePath, ledgerPath, ledger, rawState, op
   } finally {
     await directory.close();
   }
+}
+
+async function finishPendingCommit({ statePath, ledgerPath, ledger, rawState, opts = {} }) {
+  const pending = ledger.commit_pending;
+  const stagePath = commitStagePath(statePath, pending.stage_id);
+  const stagedDestination = await readCommitStage(stagePath, pending);
+  const sourceHash = sha256(rawState);
+  if (sourceHash === pending.source_sha256) {
+    rawState = await installPendingCommitSource({
+      statePath,
+      rawState,
+      pending,
+      ledger,
+      opts,
+      stagedDestination,
+    });
+  } else if (sourceHash !== pending.destination_sha256) {
+    throw fingerprintMismatch("state fingerprint diverged from pending commit; explicit recovery is required");
+  }
+  const destination = assertInstalledCommit(rawState, pending);
+  await clearPendingCommit({ stagePath, ledgerPath, ledger, pending, opts });
   return destination;
 }
 
-function validateCommitCandidate(candidate, current, ledger) {
+function assertCandidateEnvelope(candidate) {
   if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
     throw new Error("ledger.commit: candidate must be a state object");
   }
   if (candidate.version !== FENCED_STATE_VERSION) {
     throw new Error(`ledger.commit: candidate schema version must be ${FENCED_STATE_VERSION}`);
   }
+}
+
+function assertCandidateGeneration(candidate, current, ledger) {
   if (candidate.fence_generation !== ledger.fence_generation
       || candidate.fence_generation !== current.fence_generation) {
     throw new Error("ledger.commit: candidate fence_generation must preserve the local generation");
   }
+}
+
+function assertCandidateRevision(candidate, ledger) {
   if (!Number.isInteger(candidate.revision) || candidate.revision <= ledger.high_water_revision) {
     throw new Error("ledger.commit: candidate state revision must advance monotonically beyond ledger high-water revision");
   }
-  validateStateInvariants(candidate, "ledger.commit.candidate");
-  const candidateNodeMax = maxNodeRevision(candidate);
+}
+
+function assertCandidateRevisionRange(candidate, ledger, candidateNodeMax) {
   if (candidateNodeMax > candidate.revision) {
     throw new Error("ledger.commit: node revision cannot exceed candidate state revision");
-  }
-  for (const [id, node] of Object.entries(candidate.nodes)) {
-    const previous = current.nodes[id];
-    if (!Number.isInteger(node.revision) || node.revision < 0) {
-      throw new Error(`ledger.commit: node ${id} revision must be a non-negative integer`);
-    }
-    if (!previous && node.revision <= current.revision) {
-      throw new Error(`ledger.commit: new node ${id} revision must exceed current state revision`);
-    }
-    if (previous && node.revision < previous.revision) {
-      throw new Error(`ledger.commit: node ${id} revision must be monotonic`);
-    }
-    if (previous) {
-      const { revision: _previousRevision, ...previousData } = previous;
-      const { revision: _candidateRevision, ...candidateData } = node;
-      if (!isDeepStrictEqual(previousData, candidateData)
-          && node.revision <= Math.max(previous.revision, current.revision)) {
-        throw new Error(`ledger.commit: modified node ${id} revision must exceed its prior and state revisions`);
-      }
-    }
   }
   if (candidate.revision < ledger.high_water_revision || candidate.revision < candidateNodeMax) {
     throw new Error("ledger.commit: candidate does not reserve all state and node revisions");
   }
+}
+
+function assertNodeRevision(node, previous, id, current) {
+  if (!Number.isInteger(node.revision) || node.revision < 0) {
+    throw new Error(`ledger.commit: node ${id} revision must be a non-negative integer`);
+  }
+  if (!previous && node.revision <= current.revision) {
+    throw new Error(`ledger.commit: new node ${id} revision must exceed current state revision`);
+  }
+  if (previous && node.revision < previous.revision) {
+    throw new Error(`ledger.commit: node ${id} revision must be monotonic`);
+  }
+}
+
+function assertChangedNodeRevision(node, previous, id, current) {
+  const { revision: _previousRevision, ...previousData } = previous;
+  const { revision: _candidateRevision, ...candidateData } = node;
+  if (!isDeepStrictEqual(previousData, candidateData)
+      && node.revision <= Math.max(previous.revision, current.revision)) {
+    throw new Error(`ledger.commit: modified node ${id} revision must exceed its prior and state revisions`);
+  }
+}
+
+function validateCandidateNodes(candidate, current) {
+  for (const [id, node] of Object.entries(candidate.nodes)) {
+    const previous = current.nodes[id];
+    assertNodeRevision(node, previous, id, current);
+    if (previous) {
+      assertChangedNodeRevision(node, previous, id, current);
+    }
+  }
+}
+
+function validateCommitCandidate(candidate, current, ledger) {
+  assertCandidateEnvelope(candidate);
+  assertCandidateGeneration(candidate, current, ledger);
+  assertCandidateRevision(candidate, ledger);
+  validateStateInvariants(candidate, "ledger.commit.candidate");
+  const candidateNodeMax = maxNodeRevision(candidate);
+  assertCandidateRevisionRange(candidate, ledger, candidateNodeMax);
+  validateCandidateNodes(candidate, current);
   return candidateNodeMax;
 }
 
@@ -155,15 +208,9 @@ function validateCommitCandidate(candidate, current, ledger) {
  * Atomically commit a v5 state while the caller holds this project's lock.
  * This API validates the opaque lock capability and never reacquires the lock.
  */
-export async function commitFencedStateUnderLock(lockContext, candidate, opts = {}) {
-  assertActiveLockContext(lockContext);
-  const { projectDir, statePath } = getActiveLockContext(lockContext);
-  const ledgerPath = ledgerFile(projectDir);
-  await fs.mkdir(path.dirname(statePath), { recursive: true });
-
-  let ledger;
+async function readRequiredCommitLedger(ledgerPath) {
   try {
-    ledger = readJson(await fs.readFile(ledgerPath, "utf8"), "revision ledger");
+    return readJson(await fs.readFile(ledgerPath, "utf8"), "revision ledger");
   } catch (error) {
     if (error.code === "ENOENT") {
       const missing = new Error("ledger: revision ledger is missing for fenced commit; refusing reconstruction");
@@ -172,36 +219,45 @@ export async function commitFencedStateUnderLock(lockContext, candidate, opts = 
     }
     throw error;
   }
-  assertValidLedger(ledger);
+}
+
+async function recoverPendingCommitPrerequisite({ statePath, ledgerPath, ledger }) {
   if (ledger.bootstrap_pending) {
     await finishPendingBootstrap({ statePath, ledgerPath, ledger });
     throw new Error("ledger.commit: bootstrap recovery completed; retry against the recovered state");
   }
   if (ledger.migration_pending) {
-    const raw = await fs.readFile(statePath, "utf8");
-    await finishPendingMigration({ statePath, ledgerPath, ledger, rawState: raw });
+    const rawState = await fs.readFile(statePath, "utf8");
+    await finishPendingMigration({ statePath, ledgerPath, ledger, rawState });
     throw new Error("ledger.commit: migration recovery completed; retry against the recovered state");
   }
-  const rawState = await fs.readFile(statePath, "utf8");
-  if (ledger.commit_pending) {
-    await finishPendingCommit({ statePath, ledgerPath, ledger, rawState, opts });
-    throw new Error("ledger.commit: pending commit recovery completed; retry against the recovered state");
+}
+
+async function recoverPendingCommitState({ statePath, ledgerPath, ledger, rawState, opts }) {
+  if (!ledger.commit_pending) {
+    return null;
   }
-  const current = readJson(rawState, "fenced state");
-  assertFencedState(current, ledger);
-  const candidateNodeMax = validateCommitCandidate(candidate, current, ledger);
+  await finishPendingCommit({ statePath, ledgerPath, ledger, rawState, opts });
+  throw new Error("ledger.commit: pending commit recovery completed; retry against the recovered state");
+}
+
+async function stageCommit({ statePath, ledgerPath, ledger, rawState, candidate, candidateNodeMax, opts }) {
   const highWater = Math.max(ledger.high_water_revision, candidate.revision, candidateNodeMax);
   const destinationRaw = `${JSON.stringify(candidate, null, 2)}\n`;
-  const stageId = crypto.randomBytes(16).toString("hex");
-  const stagePath = commitStagePath(statePath, stageId);
+  const stagePath = commitStagePath(statePath, crypto.randomBytes(16).toString("hex"));
   const pending = {
     source_sha256: sha256(rawState),
     destination_sha256: sha256(destinationRaw),
-    stage_id: stageId,
+    stage_id: path.basename(stagePath).slice(".commit-stage-".length),
     source_high_water_revision: ledger.high_water_revision,
     high_water_revision: highWater,
     fence_generation: ledger.fence_generation,
   };
+  await writePendingCommitStage({ stagePath, ledgerPath, statePath, ledger, pending, destinationRaw, opts });
+  return finishPendingCommit({ statePath, ledgerPath, ledger, rawState: destinationRaw, opts });
+}
+
+async function writePendingCommitStage({ stagePath, ledgerPath, statePath, ledger, pending, destinationRaw, opts }) {
   fault(opts, "before-stage");
   await writeDurableStage(stagePath, destinationRaw);
   fault(opts, "after-stage");
@@ -209,13 +265,33 @@ export async function commitFencedStateUnderLock(lockContext, candidate, opts = 
   ledger.commit_pending = pending;
   delete ledger.last_recovery;
   // Reserve before installing state so the durable fence never moves backward.
-  ledger.high_water_revision = highWater;
+  ledger.high_water_revision = pending.high_water_revision;
   await persistLedger(ledgerPath, ledger);
   fault(opts, "after-pending");
+  await installStagedCommit({ statePath, destinationRaw, opts });
+}
+
+async function installStagedCommit({ statePath, destinationRaw, opts }) {
   fault(opts, "before-state-rename");
   await durableReplace(statePath, destinationRaw);
   fault(opts, "after-state-rename");
-  return finishPendingCommit({ statePath, ledgerPath, ledger, rawState: destinationRaw, opts });
+}
+
+export async function commitFencedStateUnderLock(lockContext, candidate, opts = {}) {
+  assertActiveLockContext(lockContext);
+  const { projectDir, statePath } = getActiveLockContext(lockContext);
+  const ledgerPath = ledgerFile(projectDir);
+  await fs.mkdir(path.dirname(statePath), { recursive: true });
+
+  const ledger = await readRequiredCommitLedger(ledgerPath);
+  assertValidLedger(ledger);
+  await recoverPendingCommitPrerequisite({ statePath, ledgerPath, ledger });
+  const rawState = await fs.readFile(statePath, "utf8");
+  await recoverPendingCommitState({ statePath, ledgerPath, ledger, rawState, opts });
+  const current = readJson(rawState, "fenced state");
+  assertFencedState(current, ledger);
+  const candidateNodeMax = validateCommitCandidate(candidate, current, ledger);
+  return stageCommit({ statePath, ledgerPath, ledger, rawState, candidate, candidateNodeMax, opts });
 }
 
 export { cleanOrphanCommitStages, finishPendingCommit };
