@@ -14,7 +14,7 @@ test("fixture: package.json declares descriptor, type module, and no runtime dep
     id: FIXTURE_ID,
     command: FIXTURE_COMMAND,
     entry: "./climier.mjs",
-    api: 3,
+    api: 1,
   });
   for (const depKey of [
     "dependencies",

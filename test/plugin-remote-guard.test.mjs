@@ -108,7 +108,7 @@ async function assertPluginDispatchBackendForwarded(home) {
       await fs.writeFile(path.join(installedRoot, "package.json"), JSON.stringify({
         name: "fixture",
         type: "module",
-        climier: { id: "fixture", command: "fixture", entry: "./climier.mjs", api: 3 },
+        climier: { id: "fixture", command: "fixture", entry: "./climier.mjs", api: 1 },
       }));
       await fs.writeFile(path.join(installedRoot, "climier.mjs"), "export default { commands: { ping: () => ({ ok: true }) } };\n");
       const { dispatchPlugin } = await importFresh("./plugins/dispatch.mjs");

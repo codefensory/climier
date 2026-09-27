@@ -1,7 +1,7 @@
-// V2 plugin core surface (ADR-006 §API y compatibilidad + ADR-012 §2).
+// V1 plugin core surface (ADR-038 §Decision 9).
 //
 // `createCore({ projectDir, agent, pluginId })` returns
-// `{ version: 2, run, batch }`. `run({ op, input })` and
+// `{ version: 1, run, batch }`. `run({ op, input })` and
 // `batch({ if_state_revision, operations })` are mutation surfaces; batch is
 // the SINGLE frontier for its complete declarative operation list.
 // frontier for plugin-issued core actions: it validates the public plugin
@@ -202,7 +202,7 @@ async function selectPolicy({ projectDir, op, _pluginId }) {
 }
 
 /**
- * createCore — exposes `api.core` as `{ version: 2, run, batch }`.
+ * createCore — exposes `api.core` as `{ version: 1, run, batch }`.
  *
  * @param {object} args
  * @param {string} args.projectDir - Project directory (the same
@@ -213,7 +213,7 @@ async function selectPolicy({ projectDir, op, _pluginId }) {
  * @param {string} args.pluginId - Host plugin id; tagged on log
  *   entries via `plugin_id`; cannot be substituted by input.
  *
- * @returns {{ version: 2, run: function, batch: function }}
+ * @returns {{ version: 1, run: function, batch: function }}
  */
 function validateCoreArguments(projectDir, pluginId, backendClient) {
   assertLocalBackend(backendClient, "createCore");
@@ -280,7 +280,7 @@ export function createCore({ projectDir, agent, pluginId, backendClient }) {
   validateCoreArguments(projectDir, pluginId, backendClient);
   const identity = { projectDir, agent, pluginId };
   return {
-    version: 2,
+    version: 1,
 
     /**
      * run — the single mutation frontier for plugin core actions.

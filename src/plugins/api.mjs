@@ -1,13 +1,12 @@
 // plugins/api.mjs: assemble the host API surface.
 //
-// Per ADR-021 §Decision 6, the public host surface is Plugin API v3. The
-// nested core operation adapter retains its own version for its operation
-// contract; `api.version` is the compatibility marker for the whole API.
+// Per ADR-038 §Decision 9, the public host surface is Plugin API v1.
+// `api.version` is the compatibility marker for the whole API.
 //   api = {
 //     runtime: { project_dir, agent, dataDir },
 //     query:   { node, context, status, history },
 //     data:    { node: { get, set }, project: { get, set } },
-//     core:    { version: 2, run({ op, input }), batch({ if_state_revision, operations }) },
+//     core:    { version: 1, run({ op, input }), batch({ if_state_revision, operations }) },
 //   }
 //
 // The dispatch layer invokes createApi({ projectDir, agent, pluginId })
@@ -52,5 +51,5 @@ export function createApi({ projectDir, agent, pluginId, backendClient }) {
     pluginId,
     backendClient,
   });
-  return { version: 3, runtime, query, data, core };
+  return { version: 1, runtime, query, data, core };
 }

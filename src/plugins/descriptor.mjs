@@ -1,7 +1,7 @@
 // Plugin descriptor contract (ADR-021 §Decision 6).
 //
 // The descriptor lives in package.json under `climier`:
-//   { "climier": { "id": "...", "command": "...", "entry": "./climier.mjs", "api": 3 } }
+//   { "climier": { "id": "...", "command": "...", "entry": "./climier.mjs", "api": 1 } }
 //
 // API compatibility is checked while reading the descriptor, before the
 // entrypoint is imported. This keeps an unsupported plugin from executing
@@ -19,7 +19,7 @@ import { pathToFileURL } from "node:url";
 
 // ADR-005 §"Instalación e identidad": id must match this regex.
 export const PLUGIN_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
-export const PLUGIN_API_VERSION = 3;
+export const PLUGIN_API_VERSION = 1;
 
 export class PluginInvalidDescriptor extends Error {
   constructor(message, details = {}) {
@@ -42,7 +42,7 @@ export class PluginLoadFailed extends Error {
 export class PluginApiIncompatible extends Error {
   constructor(received) {
     super(
-      `plugin-descriptor: API version ${String(received ?? "missing")} is incompatible; host supports API version ${PLUGIN_API_VERSION}`,
+      `plugin-descriptor: API version ${String(received ?? "missing")} is incompatible; host expects api: ${PLUGIN_API_VERSION}. Update the plugin descriptor to api: ${PLUGIN_API_VERSION}, rebuild the plugin, and reinstall it.`,
     );
     this.code = "PLUGIN_API_INCOMPATIBLE";
     this.details = { required: PLUGIN_API_VERSION, received: received ?? null };

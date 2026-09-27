@@ -3129,7 +3129,7 @@
     },
     {
       "path": "test/plugin-core-adapter.test.mjs",
-      "name": "plugin-core-adapter: createCore returns { version: 2, run } with run being async",
+      "name": "plugin-core-adapter: createCore returns { version: 1, run } with run being async",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -3333,7 +3333,7 @@
     },
     {
       "path": "test/plugin-core-integration-happy-path.test.mjs",
-      "name": "plugin-core-integration: api.core.version is 2 and api.core.run is a function",
+      "name": "plugin-core-integration: api.core.version is 1 and api.core.run is a function",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -3697,7 +3697,7 @@
     },
     {
       "path": "test/plugin-install-residual-descriptor.test.mjs",
-      "name": "plugin-descriptor: requires the exact supported API major",
+      "name": "plugin-descriptor: strictly rejects API 3 with the expected version and reinstall guidance",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -5255,7 +5255,7 @@
     },
     {
       "path": "test/plugins/api/runtime-query.test.mjs",
-      "name": "createApi: api.core.version is 2 and api.core.run is a function",
+      "name": "createApi: api.core.version is 1 and api.core.run is a function",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -5273,7 +5273,7 @@
     },
     {
       "path": "test/plugins/api/runtime-query.test.mjs",
-      "name": "createApi: public api.version is 3 while api.core keeps its operation version",
+      "name": "createApi: public api.version and api.core.version are 1",
       "ordinal": 1,
       "disposition": "keep"
     },

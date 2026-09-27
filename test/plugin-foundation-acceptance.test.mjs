@@ -86,7 +86,7 @@ async function assertFixtureContract() {
     id: FIXTURE_ID,
     command: FIXTURE_COMMAND,
     entry: "./climier.mjs",
-    api: 3,
+    api: 1,
   });
   for (const key of ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"]) {
     assert.equal(key in packageJson, false, `fixture must not declare ${key}`);

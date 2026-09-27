@@ -6,22 +6,22 @@ import path from "node:path";
 import { createTempProject, rmTempProject, importFresh, writeFencedState, readState as readRawState, stateFilePath } from "../../helpers.mjs";
 import { baseState, seedState, freshApi } from "./fixtures.mjs";
 
-test("createApi: public api.version is 3 while api.core keeps its operation version", async () => {
+test("createApi: public api.version and api.core.version are 1", async () => {
   const dir = await createTempProject();
   try {
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
-    assert.equal(api.version, 3);
-    assert.equal(api.core.version, 2);
+    assert.equal(api.version, 1);
+    assert.equal(api.core.version, 1);
   } finally {
     await rmTempProject(dir);
   }
 });
 
-test("createApi: api.core.version is 2 and api.core.run is a function", async () => {
+test("createApi: api.core.version is 1 and api.core.run is a function", async () => {
   const dir = await createTempProject();
   try {
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
-    assert.equal(api.core.version, 2);
+    assert.equal(api.core.version, 1);
     assert.equal(typeof api.core.run, "function");
     // V1 surface still intact.
     assert.equal(typeof api.runtime, "object");

@@ -36,7 +36,7 @@ export async function mkdirp(directory) {
 }
 
 function fixtureDescriptor(overrides) {
-  const defaults = { id: "test.plugin", command: "test-cmd", entry: "./climier.mjs", api: 3 };
+  const defaults = { id: "test.plugin", command: "test-cmd", entry: "./climier.mjs", api: 1 };
   return Object.fromEntries(Object.keys(defaults).map((key) => [
     key,
     overrides[key] === undefined ? defaults[key] : overrides[key],

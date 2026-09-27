@@ -35,8 +35,8 @@ test("plugin-descriptor: validateDescriptor rejects missing climier fields with 
     [{}, "id"],
     [{ id: "ok.id" }, "command"],
     [{ id: "ok.id", command: "cmd" }, "entry"],
-    [{ id: "ok.id", command: "cmd", entry: "", api: 3 }, "entry"],
-    [{ id: "bad id", command: "cmd", entry: "./x.mjs", api: 3 }, "id regex"],
+    [{ id: "ok.id", command: "cmd", entry: "", api: 1 }, "entry"],
+    [{ id: "bad id", command: "cmd", entry: "./x.mjs", api: 1 }, "id regex"],
   ];
   for (const [descriptor, expected] of cases) {
     const err = capture(() => validateDescriptor(descriptor));
@@ -44,18 +44,25 @@ test("plugin-descriptor: validateDescriptor rejects missing climier fields with 
     assert.equal(err.code, "PLUGIN_INVALID_DESCRIPTOR");
   }
 });
-test("plugin-descriptor: requires the exact supported API major", () => {
+test("plugin-descriptor: strictly rejects API 3 with the expected version and reinstall guidance", () => {
   const { validateDescriptor } = require(DESCRIPTOR_MODULE);
   const base = { id: "ok.id", command: "cmd", entry: "./x.mjs" };
-  for (const api of [undefined, null, "3", 2, 4, 3.1]) {
+  const error = capture(() => validateDescriptor({ ...base, api: 3 }));
+  assert.ok(error);
+  assert.equal(error.code, "PLUGIN_API_INCOMPATIBLE");
+  assert.equal(error.details.required, 1);
+  assert.equal(error.details.received, 3);
+  assert.match(error.message, /api: 1/);
+  assert.match(error.message, /update.*reinstall|reinstall.*update/i);
+  for (const api of [undefined, null, "1", 2, 4, 1.1]) {
     const descriptor = api === undefined ? base : { ...base, api };
     const err = capture(() => validateDescriptor(descriptor));
     assert.ok(err, `expected incompatibility for api=${String(api)}`);
     assert.equal(err.code, "PLUGIN_API_INCOMPATIBLE");
-    assert.equal(err.details.required, 3);
+    assert.equal(err.details.required, 1);
     assert.equal(err.details.received, api ?? null);
   }
-  assert.deepEqual(validateDescriptor({ ...base, api: 3 }), { ...base, api: 3 });
+  assert.deepEqual(validateDescriptor({ ...base, api: 1 }), { ...base, api: 1 });
 });
 test("plugin-descriptor: importEntry rejects missing default.commands with PLUGIN_LOAD_FAILED", async () => {
   const { importEntry } = await importFresh(DESCRIPTOR_MODULE);

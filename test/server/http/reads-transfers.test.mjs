@@ -155,9 +155,21 @@ test("HTTP transfer routes capture and install typed payloads through kernel por
     });
     assert.equal(exported.status, 200, JSON.stringify(await exported.clone().json()));
     const payload = (await exported.json()).result;
+    assert.equal(payload.version, 1);
     assert.equal(payload.nodes["T-transfer-source"].title, "Transfer source");
     assert.equal(payload.nodes["T-transfer-source"].revision, undefined);
     assert.equal(hasTransferLogEntry(payload.log, "transfer."), false);
+
+    const incompatiblePayload = { ...payload, version: 4 };
+    const rejected = await fetch(`${baseUrl}/v1/projects/project-b/transfer/import`, {
+      method: "POST",
+      headers: authHeaders({ "content-type": "application/json" }),
+      body: JSON.stringify({ payload: incompatiblePayload, actor: "alice" }),
+    });
+    assert.equal(rejected.status, 400);
+    assert.equal((await rejected.json()).error.code, "INVALID_REQUEST");
+    assert.equal(rejected.headers.get("x-climier-protocol-version"), PROTOCOL_VERSION);
+    assert.equal(PROTOCOL_VERSION, "1");
 
     const imported = await fetch(`${baseUrl}/v1/projects/project-b/transfer/import`, {
       method: "POST",
