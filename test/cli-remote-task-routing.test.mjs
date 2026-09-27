@@ -10,7 +10,7 @@ import cancel from "../src/cli/commands/cancel.mjs";
 import submit from "../src/cli/commands/submit.mjs";
 import accept from "../src/cli/commands/accept.mjs";
 import reject from "../src/cli/commands/reject.mjs";
-import { createTempProject, readState, rmTempProject, writeState, runCli } from "./helpers.mjs";
+import { createTempProject, readState, rmTempProject, writeCanonicalState, runCli } from "./helpers.mjs";
 
 const sentinelState = {
   version: 4,
@@ -174,7 +174,7 @@ for (const operationCase of lifecycle) {
   test(`remote task ${operationCase.name} routes through bridge and preserves CLI envelope`, async () => {
     const projectDir = await createTempProject();
     try {
-      await writeState(projectDir, sentinelState);
+      await writeCanonicalState(projectDir, sentinelState);
       const before = await readState(projectDir);
       const { client, calls } = createClient(operationCase);
       const result = await operationCase.run({ projectDir, statePath: projectDir, backendClient: client });
@@ -220,7 +220,7 @@ test("remote task failures propagate without fallback or changing local sentinel
   ];
   const projectDir = await createTempProject();
   try {
-    await writeState(projectDir, sentinelState);
+    await writeCanonicalState(projectDir, sentinelState);
     const before = await readState(projectDir);
     for (const error of errors) {
       await assertTaskFailures(projectDir, error);

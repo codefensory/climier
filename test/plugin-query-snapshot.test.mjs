@@ -5,7 +5,7 @@ import {
   createTempProject,
   rmTempProject,
   importFresh,
-  writeState,
+  writeCanonicalState,
 } from "./helpers.mjs";
 
 const SNAPSHOT_NODES = {
@@ -82,7 +82,7 @@ test("read-model projectSnapshot creates a deterministic core lifecycle projecti
 test("api.query.snapshot reads one coherent state and exposes only the caller namespace", async () => {
   const dir = await createTempProject();
   try {
-    await writeState(dir, snapshotState());
+    await writeCanonicalState(dir, { ...snapshotState(), revision: 16 });
     const { createApi } = await importFresh("./plugins/api.mjs");
     const api = createApi({ projectDir: dir, agent: "alice", pluginId: "plugin.a" });
     assert.equal(typeof api.query.snapshot, "function");

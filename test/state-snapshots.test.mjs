@@ -23,14 +23,13 @@ function rawReadback(dir, id) {
   return fs.readFile(path.join(snapshotDir(dir), `${id}.json`));
 }
 
-async function bootstrapState(dir, mutate) {
-  const { writeState } = await importFresh("./storage/state.mjs");
-  const base = { version: 4, revision: 0, nodes: {}, edges: [], initiatives: {}, log: [] };
+async function seedCanonicalFixture(dir, mutate) {
+  const base = { version: 1, revision: 0, nodes: {}, edges: [], initiatives: {}, log: [] };
   if (typeof mutate === "function") {
     mutate(base);
   }
-  await writeState(dir, base);
-  return base;
+  await writeCanonicalState(dir, base);
+  return importFresh("./storage/state.mjs").then(({ readState }) => readState(dir));
 }
 
 // =====================================================================
@@ -41,7 +40,7 @@ test("createSnapshot: writes raw + metadata files under <state-dir>/snapshots", 
   const { createSnapshot } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
-    const base = await bootstrapState(dir, (s) => {
+    const base = await seedCanonicalFixture(dir, (s) => {
       s.nodes["T1"] = { id: "T1", title: "x" };
       s.initiatives.auth = { desc: "auth", created_at: "2026-01-01T00:00:00.000Z" };
     });
@@ -63,7 +62,7 @@ test("createSnapshot: metadata has id, created_at, reason, bytes, sha256 with co
   const { createSnapshot } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
-    const base = await bootstrapState(dir, (s) => {
+    const base = await seedCanonicalFixture(dir, (s) => {
       s.nodes["T1"] = { id: "T1", title: "x" };
     });
     const meta = await createSnapshot(dir, "force-init");
@@ -92,7 +91,7 @@ test("createSnapshot: id matches the ADR format <UTC YYYYMMDDTHHmmssSSS Z>-<reas
   const { createSnapshot } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     const meta = await createSnapshot(dir, "force-init");
     assert.match(meta.id, SNAPSHOT_ID_PATTERN);
     const m = meta.id.match(SNAPSHOT_ID_PATTERN);
@@ -109,7 +108,7 @@ test("createSnapshot: rejects unknown reason", async () => {
   const { createSnapshot } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     await assert.rejects(() => createSnapshot(dir, "bogus-reason"), /invalid reason/i);
     await assert.rejects(() => createSnapshot(dir, "init"), /invalid reason/i);
     await assert.rejects(() => createSnapshot(dir, "force_init"), /invalid reason/i);
@@ -123,7 +122,7 @@ test("createSnapshot: accepts all three valid reasons", async () => {
   const { createSnapshot } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     const m1 = await createSnapshot(dir, "force-init");
     const m2 = await createSnapshot(dir, "corrupt-recovery");
     const m3 = await createSnapshot(dir, "pre-restore");
@@ -139,7 +138,7 @@ test("createSnapshot: uses temp+rename; no .tmp-* leftovers after success", asyn
   const { createSnapshot } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     await createSnapshot(dir, "force-init");
     const entries = await fs.readdir(snapshotDir(dir));
     const tmp = entries.filter((e) => e.includes(".tmp-"));
@@ -153,7 +152,7 @@ test("createSnapshot: snapshot dir perms 0700 on Unix (best-effort)", { skip: pr
   const { createSnapshot } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     const meta = await createSnapshot(dir, "force-init");
     const dstat = await fs.stat(snapshotDir(dir));
     assert.equal(dstat.mode & 0o777, 0o700, `snapshot dir must be 0700; got 0o${(dstat.mode & 0o777).toString(8)}`);
@@ -170,7 +169,7 @@ test("createSnapshot: perms are best-effort on Windows (does not throw)", { skip
   const { createSnapshot } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     // No assertion on mode: chmod is best-effort and the underlying syscall
     // is not portable. The contract is that createSnapshot must NOT throw.
     const meta = await createSnapshot(dir, "force-init");
@@ -213,7 +212,7 @@ test("two snapshots taken back-to-back have different ids (random suffix)", asyn
   const { createSnapshot } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     const m1 = await createSnapshot(dir, "force-init");
     const m2 = await createSnapshot(dir, "force-init");
     assert.notEqual(m1.id, m2.id);
@@ -253,7 +252,7 @@ test("listSnapshots: orphan .json without .meta.json is excluded", async () => {
   const { createSnapshot, listSnapshots } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     await createSnapshot(dir, "force-init");
     await fs.writeFile(path.join(snapshotDir(dir), "orphan-id.json"), "{}");
     const out = await listSnapshots(dir);
@@ -282,7 +281,7 @@ test("listSnapshots: sorted descending by id (newest first)", async () => {
   const { createSnapshot, listSnapshots } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     const m1 = await createSnapshot(dir, "force-init");
     await new Promise((r) => setTimeout(r, 5));
     const m2 = await createSnapshot(dir, "force-init");
@@ -302,7 +301,7 @@ test("listSnapshots: excludes snapshots with corrupt metadata (unparseable JSON)
   const { createSnapshot, listSnapshots } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     await createSnapshot(dir, "force-init");
     const entries = await fs.readdir(snapshotDir(dir));
     const metaFile = entries.find((e) => e.endsWith(".meta.json"));
@@ -318,7 +317,7 @@ test("listSnapshots: excludes snapshots where meta.id does not match filename", 
   const { createSnapshot, listSnapshots } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     await createSnapshot(dir, "force-init");
     const entries = await fs.readdir(snapshotDir(dir));
     const metaFile = entries.find((e) => e.endsWith(".meta.json"));
@@ -337,7 +336,7 @@ test("listSnapshots: lists multiple snapshots with mixed reasons", async () => {
   const { createSnapshot, listSnapshots } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     const m1 = await createSnapshot(dir, "force-init");
     await new Promise((r) => setTimeout(r, 5));
     await createSnapshot(dir, "corrupt-recovery");
@@ -365,7 +364,7 @@ test("init --force on existing v4 state: snapshot reason=force-init, raw preserv
   const dir = await createTempProject();
   try {
     // Pre-existing v4 state with a sentinel.
-    await bootstrapState(dir, (s) => {
+    await seedCanonicalFixture(dir, (s) => {
       s.nodes["Sentinel-A"] = { id: "Sentinel-A", title: "alive" };
     });
     await init({ statePath: dir, flags: { force: true }, positional: [], projectDir: dir });
@@ -455,7 +454,7 @@ test("init on valid existing state without --force: refuses and does NOT create 
   const { listSnapshots } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
-    await bootstrapState(dir, (s) => {
+    await seedCanonicalFixture(dir, (s) => {
       s.nodes["T1"] = { id: "T1", title: "alive" };
     });
     await assert.rejects(() => init({ statePath: dir, flags: {}, positional: [], projectDir: dir }));
@@ -473,7 +472,7 @@ test("init --force twice creates two snapshots, newest first; original pre-reset
   const dir = await createTempProject();
   try {
     // First pre-existing state: "alpha".
-    await bootstrapState(dir, (s) => {
+    await seedCanonicalFixture(dir, (s) => {
       s.nodes["Alpha"] = { id: "Alpha", title: "first" };
     });
     await init({ statePath: dir, flags: { force: true }, positional: [], projectDir: dir });

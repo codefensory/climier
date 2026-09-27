@@ -14,7 +14,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createTempProject, rmTempProject, importFresh, runCli, readState as readRawState } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, runCli, readState as readRawState, writeCanonicalState } from "./helpers.mjs";
 
 // --- pure helpers -------------------------------------------------------
 
@@ -57,7 +57,7 @@ test("writeState: accepts v2 state with empty initiatives", async () => {
   const { writeState, readState } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
-    await writeState(dir, { version: 2, nodes: {}, edges: [], log: [], initiatives: {} });
+    await writeCanonicalState(dir, { nodes: {}, edges: [], log: [], initiatives: {} });
     const back = await readState(dir);
     assert.deepEqual(back.initiatives, {});
   } finally {

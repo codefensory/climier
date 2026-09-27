@@ -9,8 +9,7 @@ import {
   rmTempProject,
   importFresh,
   readState,
-  writeState,
-  bootstrapState,
+  seedPluginFixture,
   baseState,
   seedPluginData,
   assertPluginDataPreserved,
@@ -22,9 +21,9 @@ import {
 test("createSnapshot preserves `plugins` and `nodes[id].plugins` in raw bytes", async () => {
   const dir = await createTempProject();
   try {
-    const base = await bootstrapState(dir);
+    const base = await seedPluginFixture(dir);
     seedPluginData(base);
-    await writeState(dir, base);
+    await writeCanonicalState(dir, base);
     const { createSnapshot } = await importFresh("./storage/state.mjs");
     const meta = await createSnapshot(dir, "force-init");
     const rawBytes = await fs.readFile(
@@ -41,9 +40,9 @@ test("createSnapshot preserves `plugins` and `nodes[id].plugins` in raw bytes", 
 test("listSnapshots is unaffected by plugin data (metadata contract unchanged)", async () => {
   const dir = await createTempProject();
   try {
-    const base = await bootstrapState(dir);
+    const base = await seedPluginFixture(dir);
     seedPluginData(base);
-    await writeState(dir, base);
+    await writeCanonicalState(dir, base);
     const { createSnapshot, listSnapshots } = await importFresh("./storage/state.mjs");
     const meta = await createSnapshot(dir, "force-init");
     const snaps = await listSnapshots(dir);

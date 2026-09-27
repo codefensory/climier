@@ -6,7 +6,7 @@ import {
   createTempProject,
   rmTempProject,
   readState,
-  bootstrapState,
+  seedPluginFixture,
   baseState,
   seedPluginData,
   assertPluginDataPreserved,
@@ -17,7 +17,7 @@ import {
 test("CLI: init --force preserves root plugins via bin", async () => {
   const dir = await createTempProject();
   try {
-    const base = await bootstrapState(dir);
+    const base = await seedPluginFixture(dir);
     seedPluginData(base);
     await writeCanonicalState(dir, base);
     const r = await runCli(["--project", dir, "init", "--force"]);

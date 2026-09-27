@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createTempProject, rmTempProject, importFresh, runCli, writeState } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, runCli, writeCanonicalState } from "./helpers.mjs";
 
 function state(nodes) {
   return { version: 2, nodes, edges: [], initiatives: {}, log: [] };
@@ -22,7 +22,7 @@ test("search: matches active knowledge by case-insensitive substring", async () 
   const dir = await createTempProject();
   try {
     const body = "R".repeat(210);
-    await writeState(dir, state({
+    await writeCanonicalState(dir, state({
       "K-redis": knowledge("K-redis", { title: "Redis sessions", body, domain: "auth" }),
       "T-redis": { id: "T-redis", kind: "resolvable", title: "Redis task", status: "open" },
     }));
@@ -51,7 +51,7 @@ test("search: searches every supported field and reports matched_fields", async 
   const { default: search } = await importFresh("./cli/commands/search.mjs");
   const dir = await createTempProject();
   try {
-    await writeState(dir, state({
+    await writeCanonicalState(dir, state({
       "K-needle": knowledge("K-needle", {
         title: "Needle title",
         body: "Needle body",
@@ -76,7 +76,7 @@ test("search: --all includes deprecated knowledge", async () => {
   const { default: search } = await importFresh("./cli/commands/search.mjs");
   const dir = await createTempProject();
   try {
-    await writeState(dir, state({
+    await writeCanonicalState(dir, state({
       "K-active": knowledge("K-active", { title: "shared active" }),
       "K-old": knowledge("K-old", { title: "shared deprecated", status: "deprecated" }),
     }));
@@ -94,7 +94,7 @@ test("search: empty query returns no matches", async () => {
   const { default: search } = await importFresh("./cli/commands/search.mjs");
   const dir = await createTempProject();
   try {
-    await writeState(dir, state({ "K-a": knowledge("K-a", { title: "Anything" }) }));
+    await writeCanonicalState(dir, state({ "K-a": knowledge("K-a", { title: "Anything" }) }));
     assert.deepEqual(
       await search({ statePath: dir, positional: [""], flags: {} }),
       { matches: [], count: 0 },
@@ -108,7 +108,7 @@ test("search: returns matches in deterministic id order", async () => {
   const { default: search } = await importFresh("./cli/commands/search.mjs");
   const dir = await createTempProject();
   try {
-    await writeState(dir, state({
+    await writeCanonicalState(dir, state({
       "K-z": knowledge("K-z", { body: "common" }),
       "K-a": knowledge("K-a", { body: "common" }),
       "K-m": knowledge("K-m", { body: "common" }),

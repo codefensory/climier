@@ -7,7 +7,7 @@ import release from "../src/cli/commands/release.mjs";
 import submit from "../src/cli/commands/submit.mjs";
 import accept from "../src/cli/commands/accept.mjs";
 import reject from "../src/cli/commands/reject.mjs";
-import { createTempProject, readState, rmTempProject, writeState, runCli, initExampleProject, installPolicyFixture, uninstallPolicyFixture } from "./helpers.mjs";
+import { createTempProject, readState, rmTempProject, writeCanonicalState, runCli, initExampleProject, installPolicyFixture, uninstallPolicyFixture } from "./helpers.mjs";
 
 const initialState = {
   version: 4,
@@ -66,7 +66,7 @@ for (const command of taskLifecycleCommands) {
   test(`remote ${command.name} routes through its canonical task operation`, async () => {
     const projectDir = await createTempProject();
     try {
-      await writeState(projectDir, initialState);
+      await writeCanonicalState(projectDir, initialState);
       const before = await readState(projectDir);
       const target = node("R-task", "task", { status: command.name === "release" ? "in_progress" : "submitted", claim: { by: "alice" } });
       const { client, calls } = lifecycleRemoteClient(target);
@@ -97,7 +97,7 @@ for (const command of taskLifecycleCommands) {
     const projectDir = await createTempProject();
     try {
       const startingStatus = command.name === "release" || command.name === "submit" ? "in_progress" : "submitted";
-      await writeState(projectDir, {
+      await writeCanonicalState(projectDir, {
         ...initialState,
         nodes: {
           ...initialState.nodes,
@@ -150,7 +150,7 @@ for (const command of commands) {
     test(`remote ${command.name} routes ${subkind} through its canonical operation`, async () => {
       const projectDir = await createTempProject();
       try {
-        await writeState(projectDir, initialState);
+        await writeCanonicalState(projectDir, initialState);
         const before = await readState(projectDir);
         const target = node(`R-${subkind}`, subkind);
         const { client, calls } = remoteClient(target);
@@ -178,7 +178,7 @@ for (const command of commands) {
 test("remote lifecycle rejects unsupported target kinds before mutation", async () => {
   const projectDir = await createTempProject();
   try {
-    await writeState(projectDir, initialState);
+    await writeCanonicalState(projectDir, initialState);
     const before = await readState(projectDir);
     for (const target of [
       { id: "K-remote", kind: "knowledge", subkind: undefined },
@@ -204,7 +204,7 @@ test("remote lifecycle rejects unsupported target kinds before mutation", async 
 test("local lifecycle commands retain their existing mutation semantics and envelopes", async () => {
   const projectDir = await createTempProject();
   try {
-    await writeState(projectDir, {
+    await writeCanonicalState(projectDir, {
       ...initialState,
       nodes: {
         "T-local": { id: "T-local", kind: "resolvable", subkind: "task", title: "local task", status: "done", revision: 2, done_by: "alice", done_at: "2026-09-25T00:00:00.000Z" },
@@ -253,7 +253,7 @@ test("remote lifecycle errors propagate without fallback or local mutation", asy
   ];
   const projectDir = await createTempProject();
   try {
-    await writeState(projectDir, initialState);
+    await writeCanonicalState(projectDir, initialState);
     const before = await readState(projectDir);
     for (const error of errors) {
       for (const command of commands) {

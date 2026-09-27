@@ -9,7 +9,7 @@ import search from "../src/cli/commands/search.mjs";
 import initiatives from "../src/cli/commands/initiatives.mjs";
 import log from "../src/cli/commands/log.mjs";
 import state from "../src/cli/commands/state.mjs";
-import { createTempProject, rmTempProject, writeState, readState, runCli, initExampleProject } from "./helpers.mjs";
+import { createTempProject, rmTempProject, writeCanonicalState, readState, runCli, initExampleProject } from "./helpers.mjs";
 
 const sentinelState = {
   version: 4,
@@ -92,7 +92,7 @@ function createRemoteClient({ rejectWith } = {}) {
 test("remote CLI reads use their typed backend methods and preserve local state", async () => {
   const projectDir = await createTempProject();
   try {
-    await writeState(projectDir, sentinelState);
+    await writeCanonicalState(projectDir, sentinelState);
     const before = await readState(projectDir);
     const { client, calls } = createRemoteClient();
     const commands = commandCases(client, projectDir);
@@ -114,7 +114,7 @@ test("remote CLI read failures propagate without returning or changing the local
     Object.assign(new Error("authentication required"), { code: "AUTH_REQUIRED", status: 401 }),
   ];
   try {
-    await writeState(projectDir, sentinelState);
+    await writeCanonicalState(projectDir, sentinelState);
     const before = await readState(projectDir);
 
     for (const remoteError of errors) {

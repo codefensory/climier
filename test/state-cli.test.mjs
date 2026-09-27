@@ -9,13 +9,12 @@ import {
   runCli,
   stateFilePath,
   writeCanonicalState,
-  writeState,
 } from "./helpers.mjs";
 
 function currentState() {
   return {
     version: 4,
-    revision: 17,
+    revision: 16,
     initiatives: {},
     nodes: {
       "T-z": {
@@ -52,7 +51,7 @@ function currentState() {
 test("CLI state returns the deterministic current core projection without plugin namespaces", async () => {
   const dir = await createTempProject();
   try {
-    await writeState(dir, currentState());
+    await writeCanonicalState(dir, currentState());
 
     const result = await runCli(["--project", dir, "state"]);
     assert.equal(result.code, 0, result.stderr);

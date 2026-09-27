@@ -4,7 +4,7 @@ import {
   createTempProject,
   readState,
   rmTempProject,
-  writeState,
+  writeCanonicalState,
 } from "./helpers.mjs";
 import addGate from "../src/cli/commands/add-gate.mjs";
 import addKnowledge from "../src/cli/commands/add-knowledge.mjs";
@@ -78,7 +78,7 @@ function fakeRemoteBackend({ failure } = {}) {
 async function withLocalSentinel(run) {
   const projectDir = await createTempProject();
   try {
-    await writeState(projectDir, initialState);
+    await writeCanonicalState(projectDir, initialState);
     const before = await readState(projectDir);
     await run(projectDir);
     assert.deepEqual(await readState(projectDir), before, "remote operation must not use local persistence");
@@ -100,7 +100,7 @@ test("local domain adapters delegate through the supplied application operation 
   };
   const backendClient = createBackendClient({ projectDir, source });
   try {
-    await writeState(projectDir, initialState);
+    await writeCanonicalState(projectDir, initialState);
     await addInitiative({ projectDir, statePath: projectDir, backendClient, source, positional: ["local-new"], flags: { as: "alice" } });
     await addNote({ projectDir, statePath: projectDir, backendClient, source, positional: ["G-existing", "local note"], flags: { as: "alice" } });
     await addEdge({ projectDir, statePath: projectDir, backendClient, source, positional: ["G-existing", "K-existing"], flags: { type: "DERIVED_FROM", as: "alice" } });

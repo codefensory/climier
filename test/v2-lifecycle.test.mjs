@@ -34,7 +34,7 @@ import {
   readState,
   installPolicyFixture,
   uninstallPolicyFixture,
-  writeState,
+  writeCanonicalState,
 } from "./helpers.mjs";
 
 async function v2Project() {
@@ -94,7 +94,7 @@ async function submitAccept(dir, id = "T-auth-1", as = "alice", note = "shipped"
 async function patchNode(dir, id, patch) {
   const state = await readState(dir);
   state.nodes[id] = { ...state.nodes[id], ...patch };
-  await writeState(dir, state);
+  await writeCanonicalState(dir, state);
 }
 
 // === take ===============================================================

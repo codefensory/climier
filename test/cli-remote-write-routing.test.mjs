@@ -10,7 +10,7 @@ import { createProjectCatalog } from "../src/server/catalog/index.mjs";
 import { initState } from "../src/kernel/state-operations.mjs";
 import { PUBLIC_CORE_OPS, PUBLIC_GATE_OPS, PUBLIC_KNOWLEDGE_OPS, PUBLIC_TASK_OPS } from "../src/application/operations/builtins.mjs";
 import { HELP_TEXT } from "../src/cli/dispatch.mjs";
-import { readState, runCli, writeState } from "./helpers.mjs";
+import { readState, runCli, writeCanonicalState } from "./helpers.mjs";
 
 const builtInWrites = [
   "task.create", "task.update", "task.take", "task.release", "task.reopen", "task.cancel", "task.submit", "task.accept", "task.reject",
@@ -40,7 +40,7 @@ async function createLocalProject(root, projectId) {
     project_id: projectId,
     backend: { type: "remote", url: "http://127.0.0.1:1" },
   }));
-  await writeState(projectDir, localSentinel);
+  await writeCanonicalState(projectDir, localSentinel);
   return projectDir;
 }
 
