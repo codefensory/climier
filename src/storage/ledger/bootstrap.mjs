@@ -13,13 +13,17 @@ function ledgerFile(projectDir) {
   return path.join(path.dirname(stateFile(projectDir)), "revision-ledger.json");
 }
 
-function fencedInitialState(initialState) {
+function assertSupportedInitialState(initialState) {
   if (!initialState || typeof initialState !== "object" || Array.isArray(initialState)
       || !SOURCE_VERSIONS.has(initialState.version)) {
     const error = new Error(`ledger.bootstrap: unsupported initial state version ${initialState?.version}`);
     error.code = "CLIMIER_UNSUPPORTED_SOURCE_VERSION";
     throw error;
   }
+}
+
+function fencedInitialState(initialState) {
+  assertSupportedInitialState(initialState);
   const migrated = migrateState(initialState);
   const compatible = {
     ...migrated,
@@ -42,57 +46,81 @@ function fencedInitialState(initialState) {
   return { destination, destinationRaw: `${JSON.stringify(destination, null, 2)}\n`, highWater: fence };
 }
 
-async function finishPendingBootstrap({ statePath, ledgerPath, ledger, expectedDestinationRaw }) {
-  const pending = ledger.bootstrap_pending;
-  if (!pending) return null;
-  if (expectedDestinationRaw && sha256(expectedDestinationRaw) !== pending.destination_sha256) {
-    throw fingerprintMismatch("retry initial state does not match the pending bootstrap destination");
-  }
-  const stagePath = bootstrapStagePath(statePath, pending.stage_id);
-  let rawState;
+async function readPendingBootstrapStage(stagePath, pending, ledger) {
+  let staged;
   try {
-    rawState = await fs.readFile(statePath, "utf8");
+    staged = await fs.readFile(stagePath, "utf8");
   } catch (error) {
-    if (error.code !== "ENOENT") throw error;
+    if (error.code === "ENOENT") {
+      throw fingerprintMismatch("bootstrap stage is missing; explicit recovery is required");
+    }
+    throw error;
   }
-  if (rawState !== undefined) {
+  if (sha256(staged) !== pending.destination_sha256) {
+    throw fingerprintMismatch("bootstrap stage does not match the pending destination fingerprint");
+  }
+  assertFencedState(readJson(staged, "bootstrap stage"), ledger);
+  return staged;
+}
+
+async function publishPendingBootstrapStage(stagePath, statePath, pending, staged) {
+  try {
+    await fs.link(stagePath, statePath);
+    await syncDirectory(path.dirname(statePath));
+    return staged;
+  } catch (error) {
+    if (error.code !== "EEXIST") {
+      throw error;
+    }
+    const rawState = await fs.readFile(statePath, "utf8");
+    if (sha256(rawState) !== pending.destination_sha256) {
+      throw fingerprintMismatch("state appeared with a different bootstrap destination");
+    }
+    return rawState;
+  }
+}
+
+async function readPendingBootstrapState(statePath, stagePath, pending, ledger) {
+  try {
+    const rawState = await fs.readFile(statePath, "utf8");
     if (sha256(rawState) !== pending.destination_sha256) {
       throw fingerprintMismatch("state diverged from the pending bootstrap destination");
     }
-  } else {
-    let staged;
-    try {
-      staged = await fs.readFile(stagePath, "utf8");
-    } catch (error) {
-      if (error.code === "ENOENT") throw fingerprintMismatch("bootstrap stage is missing; explicit recovery is required");
+    return rawState;
+  } catch (error) {
+    if (error.code !== "ENOENT") {
       throw error;
     }
-    if (sha256(staged) !== pending.destination_sha256) {
-      throw fingerprintMismatch("bootstrap stage does not match the pending destination fingerprint");
-    }
-    const candidate = readJson(staged, "bootstrap stage");
-    assertFencedState(candidate, ledger);
-    try {
-      await fs.link(stagePath, statePath);
-      await syncDirectory(path.dirname(statePath));
-      rawState = staged;
-    } catch (error) {
-      if (error.code !== "EEXIST") throw error;
-      rawState = await fs.readFile(statePath, "utf8");
-      if (sha256(rawState) !== pending.destination_sha256) {
-        throw fingerprintMismatch("state appeared with a different bootstrap destination");
-      }
-    }
+    const staged = await readPendingBootstrapStage(stagePath, pending, ledger);
+    return publishPendingBootstrapStage(stagePath, statePath, pending, staged);
   }
-  const state = readJson(rawState, "bootstrapped state");
+}
+
+async function clearPendingBootstrap({ stagePath, statePath, ledgerPath, ledger, state }) {
   assertFencedState(state, ledger);
   ledger.bootstrap_pending = null;
   await persistLedger(ledgerPath, ledger);
   await fs.unlink(stagePath).catch((error) => {
-    if (error.code !== "ENOENT") throw error;
+    if (error.code !== "ENOENT") {
+      throw error;
+    }
   });
   await syncDirectory(path.dirname(statePath));
   return state;
+}
+
+async function finishPendingBootstrap({ statePath, ledgerPath, ledger, expectedDestinationRaw }) {
+  const pending = ledger.bootstrap_pending;
+  if (!pending) {
+    return null;
+  }
+  if (expectedDestinationRaw && sha256(expectedDestinationRaw) !== pending.destination_sha256) {
+    throw fingerprintMismatch("retry initial state does not match the pending bootstrap destination");
+  }
+  const stagePath = bootstrapStagePath(statePath, pending.stage_id);
+  const rawState = await readPendingBootstrapState(statePath, stagePath, pending, ledger);
+  const state = readJson(rawState, "bootstrapped state");
+  return clearPendingBootstrap({ stagePath, statePath, ledgerPath, ledger, state });
 }
 
 async function cleanOrphanBootstrapStages(statePath) {
@@ -101,7 +129,9 @@ async function cleanOrphanBootstrapStages(statePath) {
   try {
     entries = await fs.readdir(directory, { withFileTypes: true });
   } catch (error) {
-    if (error.code === "ENOENT") return;
+    if (error.code === "ENOENT") {
+      return;
+    }
     throw error;
   }
   let changed = false;
@@ -111,7 +141,9 @@ async function cleanOrphanBootstrapStages(statePath) {
       changed = true;
     }
   }
-  if (changed) await syncDirectory(directory);
+  if (changed) {
+    await syncDirectory(directory);
+  }
 }
 
 function bootstrapExists() {
@@ -125,45 +157,34 @@ async function fileExists(file) {
     await fs.access(file);
     return true;
   } catch (error) {
-    if (error.code === "ENOENT") return false;
+    if (error.code === "ENOENT") {
+      return false;
+    }
     throw error;
   }
 }
 
-export async function bootstrapInitialUnderLock(lockContext, initialState, opts = {}) {
-  assertActiveLockContext(lockContext, opts.projectDir);
-  const { projectDir, statePath } = getActiveLockContext(lockContext);
-  const ledgerPath = ledgerFile(projectDir);
-  const prepared = fencedInitialState(initialState);
-  const destinationHash = sha256(prepared.destinationRaw);
-  await fs.mkdir(path.dirname(statePath), { recursive: true });
-
-  const hasState = await fileExists(statePath);
-  const hasLedger = await fileExists(ledgerPath);
-  if (hasLedger) {
-    let ledger;
-    try {
-      ledger = readJson(await fs.readFile(ledgerPath, "utf8"), "revision ledger");
-      assertValidLedger(ledger);
-    } catch (error) {
-      if (error.code === "ENOENT") throw bootstrapExists();
-      if (error.code === "CLIMIER_CORRUPT_LEDGER" || error.code === "CLIMIER_INVALID_LEDGER") throw bootstrapExists();
-      throw error;
+async function loadExistingBootstrapLedger(ledgerPath) {
+  try {
+    const ledger = readJson(await fs.readFile(ledgerPath, "utf8"), "revision ledger");
+    assertValidLedger(ledger);
+    return ledger;
+  } catch (error) {
+    if (error.code === "ENOENT"
+        || error.code === "CLIMIER_CORRUPT_LEDGER"
+        || error.code === "CLIMIER_INVALID_LEDGER") {
+      throw bootstrapExists();
     }
-    if (ledger.bootstrap_pending == null) throw bootstrapExists();
-    return finishPendingBootstrap({
-      statePath,
-      ledgerPath,
-      ledger,
-      expectedDestinationRaw: prepared.destinationRaw,
-    });
+    throw error;
   }
-  if (hasState) throw bootstrapExists();
+}
 
-  await cleanOrphanBootstrapStages(statePath);
-  const stageId = crypto.randomBytes(16).toString("hex");
-  const stagePath = bootstrapStagePath(statePath, stageId);
-  const ledger = {
+function hasPendingBootstrap(ledger) {
+  return ledger.bootstrap_pending !== null && ledger.bootstrap_pending !== undefined;
+}
+
+function makeBootstrapLedger(prepared, destinationHash, stageId) {
+  return {
     version: LEDGER_VERSION,
     fence_generation: 1,
     high_water_revision: prepared.highWater,
@@ -176,6 +197,9 @@ export async function bootstrapInitialUnderLock(lockContext, initialState, opts 
       high_water_revision: prepared.highWater,
     },
   };
+}
+
+async function createPendingBootstrap({ stagePath, ledgerPath, statePath, prepared, ledger, opts }) {
   await writeDurableStage(stagePath, prepared.destinationRaw);
   fault(opts, "before-pending");
   await durableCreate(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`);
@@ -183,7 +207,9 @@ export async function bootstrapInitialUnderLock(lockContext, initialState, opts 
   try {
     await fs.link(stagePath, statePath);
   } catch (error) {
-    if (error.code === "EEXIST") throw bootstrapExists();
+    if (error.code === "EEXIST") {
+      throw bootstrapExists();
+    }
     throw error;
   }
   await syncDirectory(path.dirname(statePath));
@@ -196,63 +222,84 @@ export async function bootstrapInitialUnderLock(lockContext, initialState, opts 
   });
 }
 
-async function bootstrapLocked(projectDir, opts, { finishPendingCommit, cleanOrphanCommitStages }) {
-  const statePath = stateFile(projectDir);
+export async function bootstrapInitialUnderLock(lockContext, initialState, opts = {}) {
+  assertActiveLockContext(lockContext, opts.projectDir);
+  const { projectDir, statePath } = getActiveLockContext(lockContext);
   const ledgerPath = ledgerFile(projectDir);
+  const prepared = fencedInitialState(initialState);
   await fs.mkdir(path.dirname(statePath), { recursive: true });
-
-  try {
-    const existingLedger = readJson(await fs.readFile(ledgerPath, "utf8"), "revision ledger");
-    assertValidLedger(existingLedger);
-    if (existingLedger.bootstrap_pending) {
-      return finishPendingBootstrap({ statePath, ledgerPath, ledger: existingLedger });
+  if (await fileExists(ledgerPath)) {
+    const ledger = await loadExistingBootstrapLedger(ledgerPath);
+    if (!hasPendingBootstrap(ledger)) {
+      throw bootstrapExists();
     }
-  } catch (error) {
-    if (error.code !== "ENOENT") throw error;
+    return finishPendingBootstrap({
+      statePath,
+      ledgerPath,
+      ledger,
+      expectedDestinationRaw: prepared.destinationRaw,
+    });
   }
+  if (await fileExists(statePath)) {
+    throw bootstrapExists();
+  }
+  return createInitialBootstrap({ statePath, ledgerPath, prepared, opts });
+}
 
-  let rawState;
-  try {
-    rawState = await fs.readFile(statePath, "utf8");
-  } catch (error) {
-    if (error.code !== "ENOENT") throw error;
-    const state = {
-      version: 4,
-      nodes: {},
-      edges: [],
-      initiatives: {},
-      log: [],
-      revision: 0,
-    };
-    rawState = `${JSON.stringify(state, null, 2)}\n`;
-    await durableReplace(statePath, rawState);
-  }
+async function createInitialBootstrap({ statePath, ledgerPath, prepared, opts }) {
+  await cleanOrphanBootstrapStages(statePath);
+  const stageId = crypto.randomBytes(16).toString("hex");
+  const stagePath = bootstrapStagePath(statePath, stageId);
+  const destinationHash = sha256(prepared.destinationRaw);
+  const ledger = makeBootstrapLedger(prepared, destinationHash, stageId);
+  return createPendingBootstrap({ stagePath, ledgerPath, statePath, prepared, ledger, opts });
+}
 
-  let ledger = null;
+async function readOptionalLedger(ledgerPath) {
   try {
-    ledger = readJson(await fs.readFile(ledgerPath, "utf8"), "revision ledger");
+    return readJson(await fs.readFile(ledgerPath, "utf8"), "revision ledger");
   } catch (error) {
-    if (error.code !== "ENOENT") throw error;
+    if (error.code === "ENOENT") {
+      return null;
+    }
+    throw error;
   }
-  if (ledger) {
-    assertValidLedger(ledger);
-    const state = readJson(rawState, "state");
-    if (ledger.migration_pending) {
-      return finishPendingMigration({ statePath, ledgerPath, ledger, rawState });
-    }
-    if (ledger.commit_pending) {
-      return finishPendingCommit({ statePath, ledgerPath, ledger, rawState, opts });
-    }
-    await cleanOrphanCommitStages(statePath);
-    if (state.version !== FENCED_STATE_VERSION) {
-      const error = new Error("ledger: fenced project is missing v5 state marker; refusing legacy downgrade");
-      error.code = "CLIMIER_LEDGER_STATE_MISMATCH";
+}
+
+async function readOrCreateState(statePath) {
+  try {
+    return await fs.readFile(statePath, "utf8");
+  } catch (error) {
+    if (error.code !== "ENOENT") {
       throw error;
     }
-    assertFencedState(state, ledger);
-    return state;
+    const initialState = { version: 4, nodes: {}, edges: [], initiatives: {}, log: [], revision: 0 };
+    const rawState = `${JSON.stringify(initialState, null, 2)}\n`;
+    await durableReplace(statePath, rawState);
+    return rawState;
   }
+}
 
+async function finishExistingLedger({ statePath, ledgerPath, ledger, rawState, opts }, handlers) {
+  assertValidLedger(ledger);
+  const state = readJson(rawState, "state");
+  if (ledger.migration_pending) {
+    return finishPendingMigration({ statePath, ledgerPath, ledger, rawState });
+  }
+  if (ledger.commit_pending) {
+    return handlers.finishPendingCommit({ statePath, ledgerPath, ledger, rawState, opts });
+  }
+  await handlers.cleanOrphanCommitStages(statePath);
+  if (state.version !== FENCED_STATE_VERSION) {
+    const error = new Error("ledger: fenced project is missing v5 state marker; refusing legacy downgrade");
+    error.code = "CLIMIER_LEDGER_STATE_MISMATCH";
+    throw error;
+  }
+  assertFencedState(state, ledger);
+  return state;
+}
+
+async function prepareMigration({ statePath, ledgerPath, rawState, opts }) {
   const source = readJson(rawState, "source state");
   if (source.version === FENCED_STATE_VERSION) {
     const error = new Error("ledger: revision ledger is missing for fenced state; refusing reconstruction");
@@ -260,26 +307,45 @@ async function bootstrapLocked(projectDir, opts, { finishPendingCommit, cleanOrp
     throw error;
   }
   const { destinationRaw, highWater, fence } = fencedDestination(source);
-  const pending = {
-    source_version: source.version,
-    source_high_water_revision: highWater,
-    fence_revision: fence,
-    fence_generation: 1,
-    source_sha256: sha256(rawState),
-    destination_sha256: sha256(destinationRaw),
-  };
-  ledger = {
+  const ledger = {
     version: LEDGER_VERSION,
     fence_generation: 1,
     high_water_revision: fence,
-    migration_pending: pending,
+    migration_pending: {
+      source_version: source.version,
+      source_high_water_revision: highWater,
+      fence_revision: fence,
+      fence_generation: 1,
+      source_sha256: sha256(rawState),
+      destination_sha256: sha256(destinationRaw),
+    },
   };
+  return publishMigration({ statePath, ledgerPath, ledger, destinationRaw, opts });
+}
+
+async function publishMigration({ statePath, ledgerPath, ledger, destinationRaw, opts }) {
   fault(opts, "before-pending");
   await persistLedger(ledgerPath, ledger);
   fault(opts, "after-pending");
   await durableReplace(statePath, destinationRaw);
   fault(opts, "after-state-rename");
   return finishPendingMigration({ statePath, ledgerPath, ledger, rawState: destinationRaw });
+}
+
+async function bootstrapLocked(projectDir, opts, handlers) {
+  const statePath = stateFile(projectDir);
+  const ledgerPath = ledgerFile(projectDir);
+  await fs.mkdir(path.dirname(statePath), { recursive: true });
+  const initialLedger = await readOptionalLedger(ledgerPath);
+  if (initialLedger && hasPendingBootstrap(initialLedger)) {
+    return finishPendingBootstrap({ statePath, ledgerPath, ledger: initialLedger });
+  }
+  const rawState = await readOrCreateState(statePath);
+  const ledger = initialLedger ?? await readOptionalLedger(ledgerPath);
+  if (ledger) {
+    return finishExistingLedger({ statePath, ledgerPath, ledger, rawState, opts }, handlers);
+  }
+  return prepareMigration({ statePath, ledgerPath, rawState, opts });
 }
 
 
