@@ -42,6 +42,40 @@ const NAME_PATTERN = /^[A-Za-z0-9_-]+$/;
 // structural validation that src/kernel/transaction.mjs#createInitiative
 // already does, so the provider's happy path is exercised end-to-end
 // without touching the real tx layer.
+function assertInputObject(input) {
+  if (input === null || input === undefined || typeof input !== "object" || Array.isArray(input)) {
+    const err = new Error("txStub: input must be an object");
+    err.code = "MISSING_FIELD";
+    throw err;
+  }
+}
+
+function initiativeName(value) {
+  const name = typeof value === "string" && value.length > 0 ? value : null;
+  if (!name) {
+    const err = new Error("txStub: requires non-empty 'name'");
+    err.code = "MISSING_FIELD";
+    throw err;
+  }
+  return name;
+}
+
+function assertInitiativeName(name) {
+  if (!NAME_PATTERN.test(name)) {
+    const err = new Error("txStub: initiative name must use the canonical identifier pattern");
+    err.code = "INVALID_NAME";
+    throw err;
+  }
+}
+
+function assertInitiativeAvailable(draft, name) {
+  if (Object.prototype.hasOwnProperty.call(draft, name)) {
+    const err = new Error(`txStub: initiative '${name}' already exists in the draft or snapshot`);
+    err.code = "ID_CONFLICT";
+    throw err;
+  }
+}
+
 function makeTxStub({ initiatives = {} } = {}) {
   const draft = {};
   for (const [name, init] of Object.entries(initiatives)) {
@@ -52,25 +86,17 @@ function makeTxStub({ initiatives = {} } = {}) {
     draft,
     createInitiative(input) {
       this.calls.createInitiative += 1;
-      if (input == null || typeof input !== "object" || Array.isArray(input)) {
-        const err = new Error("txStub: input must be an object");
-        err.code = "MISSING_FIELD";
-        throw err;
-      }
-      const name = typeof input.name === "string" && input.name.length > 0 ? input.name : null;
-      if (!name) {
-        const err = new Error("txStub: requires non-empty 'name'");
-        err.code = "MISSING_FIELD";
-        throw err;
-      }
-      if (Object.prototype.hasOwnProperty.call(this.draft, name)) {
-        const err = new Error(`txStub: initiative '${name}' already exists in the draft or snapshot`);
-        err.code = "ID_CONFLICT";
-        throw err;
-      }
+      assertInputObject(input);
+      const name = initiativeName(input.name);
+      assertInitiativeName(name);
+      assertInitiativeAvailable(this.draft, name);
       const stored = {};
-      if (typeof input.desc === "string") stored.desc = input.desc;
-      if (typeof input.created_at === "string") stored.created_at = input.created_at;
+      if (typeof input.desc === "string") {
+        stored.desc = input.desc;
+      }
+      if (typeof input.created_at === "string") {
+        stored.created_at = input.created_at;
+      }
       this.draft[name] = stored;
       return { ...stored };
     },
