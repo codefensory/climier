@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { createTempProject, rmTempProject, importFresh, stateFilePath, writeState } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, stateFilePath, writeCanonicalState } from "./helpers.mjs";
 import { PLUGIN_MODULE, INSTALL_MODULE, freshEnv, createFixturePackage, installedDir, listStagingDirs, installAndCheckProjectUntouched, assertHappyInstallLayout } from "./plugin-install-test-helpers.mjs";
 
 test("install: valid descriptor installs with promotion by rename; staging is gone", async () => {
@@ -70,7 +70,7 @@ test("install: never mutates the project state file", async () => {
   const env = await freshEnv();
   const projectDir = await createTempProject();
   // Seed a v2 state to make sure install does not touch it.
-  await writeState(projectDir, {
+  await writeCanonicalState(projectDir, {
     version: 2,
     nodes: {
       "T-existing": {

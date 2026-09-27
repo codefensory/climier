@@ -10,7 +10,7 @@ import {
   importFresh,
   readState,
   writeCanonicalState,
-  bootstrapState,
+  seedPluginFixture,
   submitAcceptTask,
 } from "./plugin-compat-helpers.mjs";
 
@@ -88,7 +88,7 @@ test("isSatisfiedV2 does not consume `nodes[id].plugins`", async () => {
 test("`meta` and `nodes[id].plugins` survive take together (disjoint keyspaces)", async () => {
   const dir = await createTempProject();
   try {
-    const base = await bootstrapState(dir, (s) => {
+    const base = await seedPluginFixture(dir, (s) => {
       s.nodes.T1.meta = {
         execution: { effort: "S", risk: "low", checks: ["npm test"] },
       };
@@ -115,7 +115,7 @@ test("`meta` and `nodes[id].plugins` survive take together (disjoint keyspaces)"
 test("`meta` and `nodes[id].plugins` survive submit + accept (task) together", async () => {
   const dir = await createTempProject();
   try {
-    const base = await bootstrapState(dir, (s) => {
+    const base = await seedPluginFixture(dir, (s) => {
       s.nodes.T1.meta = { execution: { effort: "M", risk: "integration", checks: ["npm test"] } };
       s.nodes.T1.plugins = { "example.audit": { data: { x: 2 } } };
     });

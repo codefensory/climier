@@ -10,7 +10,7 @@ import {
   rmTempProject,
   runCli,
   stateFilePath,
-  writeState,
+  writeCanonicalState,
 } from "./helpers.mjs";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
@@ -76,7 +76,7 @@ async function seed(projectDir) {
     "other.plugin": { data: { hidden: "other-node-secret" } },
     [FIXTURE_ID]: { data: { visible: "fixture-node" } },
   };
-  await writeState(projectDir, state);
+  await writeCanonicalState(projectDir, state);
 }
 
 async function assertFixtureContract() {

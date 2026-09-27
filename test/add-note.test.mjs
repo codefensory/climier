@@ -1,20 +1,24 @@
 // add-note: append a note to a node's running thread. Any status (open/in_progress/done/...).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createTempProject, rmTempProject, importFresh, readState } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, readState, writeCanonicalState } from "./helpers.mjs";
 
 function seedTask(extra = {}) {
   return async (dir, id = "T1") => {
-    const { updateState } = await importFresh("./storage/state.mjs");
-    await updateState(dir, (s) => {
-      s.nodes[id] = {
-        id,
-        kind: "resolvable",
-        subkind: "task",
-        title: "t",
-        ...extra,
-      };
-      return s;
+    await writeCanonicalState(dir, {
+      version: 1,
+      nodes: {
+        [id]: {
+          id,
+          kind: "resolvable",
+          subkind: "task",
+          title: "t",
+          ...extra,
+        },
+      },
+      edges: [],
+      initiatives: {},
+      log: [],
     });
   };
 }

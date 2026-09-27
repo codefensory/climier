@@ -33,7 +33,7 @@ import {
   importFresh,
   stateFilePath,
   runCli,
-  writeState,
+  writeCanonicalState,
   readState,
 } from "./helpers.mjs";
 
@@ -47,24 +47,13 @@ function rawBytes(dir, id) {
   return fs.readFile(path.join(snapshotDir(dir), `${id}.json`));
 }
 
-async function writeCanonicalFixture(dir, candidate) {
-  const { bootstrapFencedStateUnderLock, readFencedStateUnderLock, replaceFencedStateUnderLock } = await importFresh("./storage/ledger.mjs");
-  const { withLock } = await import("../src/storage/lock.mjs");
-  return withLock(dir, async (lockContext) => {
-    const current = await readFencedStateUnderLock(lockContext, { projectDir: dir });
-    if (current) {
-      return replaceFencedStateUnderLock(lockContext, candidate, { projectDir: dir });
-    }
-    return bootstrapFencedStateUnderLock(lockContext, candidate, { projectDir: dir });
-  });
-}
-
-async function bootstrapState(dir, mutate) {
-  const base = { version: 1, fence_generation: 1, revision: 1, nodes: {}, edges: [], initiatives: {}, log: [] };
+async function seedCanonicalFixture(dir, mutate) {
+  const base = { version: 1, revision: 0, nodes: {}, edges: [], initiatives: {}, log: [] };
   if (typeof mutate === "function") {
     mutate(base);
   }
-  return writeCanonicalFixture(dir, base);
+  await writeCanonicalState(dir, base);
+  return readState(dir);
 }
 
 function hasOneRestoreEntry(state) {
@@ -96,7 +85,7 @@ test("snapshots command: returns { snapshots: [...] }", async () => {
   try {
     const { createSnapshot } = await importFresh("./storage/state.mjs");
     const { default: snapshots } = await importFresh("./cli/commands/snapshots.mjs");
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     await createSnapshot(dir, "force-init");
     const out = await snapshots({ statePath: dir, flags: {}, positional: [] });
     assert.ok(Array.isArray(out.snapshots));
@@ -134,7 +123,7 @@ test("snapshots command: sorted descending by id (newest first)", async () => {
   try {
     const { createSnapshot } = await importFresh("./storage/state.mjs");
     const { default: snapshots } = await importFresh("./cli/commands/snapshots.mjs");
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     const m1 = await createSnapshot(dir, "force-init");
     await new Promise((r) => setTimeout(r, 5));
     const m2 = await createSnapshot(dir, "force-init");
@@ -155,7 +144,7 @@ test("snapshots command: each entry has id, created_at, reason, bytes (and sha25
   try {
     const { createSnapshot } = await importFresh("./storage/state.mjs");
     const { default: snapshots } = await importFresh("./cli/commands/snapshots.mjs");
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     await createSnapshot(dir, "force-init");
     const out = await snapshots({ statePath: dir, flags: {}, positional: [] });
     assert.equal(out.snapshots.length, 1);
@@ -179,7 +168,7 @@ test("snapshots command: excludes orphan raw (no metadata)", async () => {
   try {
     const { createSnapshot } = await importFresh("./storage/state.mjs");
     const { default: snapshots } = await importFresh("./cli/commands/snapshots.mjs");
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     await createSnapshot(dir, "force-init");
     await fs.writeFile(path.join(snapshotDir(dir), "orphan-raw.json"), "{}");
     const out = await snapshots({ statePath: dir, flags: {}, positional: [] });
@@ -211,7 +200,7 @@ test("snapshots command: excludes snapshots with corrupt metadata", async () => 
   try {
     const { createSnapshot } = await importFresh("./storage/state.mjs");
     const { default: snapshots } = await importFresh("./cli/commands/snapshots.mjs");
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     await createSnapshot(dir, "force-init");
     const entries = await fs.readdir(snapshotDir(dir));
     const metaFile = entries.find((e) => e.endsWith(".meta.json"));
@@ -242,12 +231,12 @@ test("restore: --as <any-non-empty> succeeds and returns { snapshot } with full 
   try {
     const { createSnapshot } = await importFresh("./storage/state.mjs");
     const { default: restore } = await importFresh("./cli/commands/restore.mjs");
-    const baseline = await bootstrapState(dir, (s) => {
+    const baseline = await seedCanonicalFixture(dir, (s) => {
       s.nodes["Sentinel"] = { id: "Sentinel", title: "alive" };
     });
     const meta = await createSnapshot(dir, "force-init");
     // Replace the state with an empty one (simulating init --force).
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     const out = await restore({ statePath: dir, flags: { as: "test-agent" }, positional: [meta.id] });
     assert.ok(out.snapshot);
     assert.equal(out.snapshot.id, meta.id);
@@ -265,11 +254,11 @@ test("restore: --as <any-non-empty> succeeds with second-actor identity (ADR-008
   try {
     const { createSnapshot } = await importFresh("./storage/state.mjs");
     const { default: restore } = await importFresh("./cli/commands/restore.mjs");
-    const baseline = await bootstrapState(dir, (s) => {
+    const baseline = await seedCanonicalFixture(dir, (s) => {
       s.nodes["Sentinel"] = { id: "Sentinel", title: "alive" };
     });
     const meta = await createSnapshot(dir, "force-init");
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     const out = await restore({ statePath: dir, flags: { as: "test-agent" }, positional: [meta.id] });
     assert.ok(out.snapshot);
     assert.equal(out.snapshot.id, meta.id);
@@ -285,7 +274,7 @@ test("restore: replaces state with snapshot raw bytes verbatim (content matches 
   try {
     const { createSnapshot } = await importFresh("./storage/state.mjs");
     const { default: restore } = await importFresh("./cli/commands/restore.mjs");
-    const baseline = await bootstrapState(dir, (s) => {
+    const baseline = await seedCanonicalFixture(dir, (s) => {
       s.nodes["X"] = { id: "X", kind: "resolvable", subkind: "task", title: "restored" };
       s.nodes["Y"] = { id: "Y", kind: "resolvable", subkind: "task", title: "target" };
       s.initiatives["bench"] = { desc: "bench", created_at: "2026-01-01T00:00:00.000Z" };
@@ -293,7 +282,7 @@ test("restore: replaces state with snapshot raw bytes verbatim (content matches 
       s.edges.push({ from: "X", to: "Y", type: "BLOCKS" });
     });
     const meta = await createSnapshot(dir, "force-init");
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     await restore({ statePath: dir, flags: { as: "test-agent" }, positional: [meta.id] });
     const restored = await readState(dir);
     // The restored state should equal baseline plus the appended restore log entry.
@@ -314,13 +303,13 @@ test("restore: takes a pre-restore snapshot of the current state (reason=pre-res
   try {
     const { createSnapshot, listSnapshots } = await importFresh("./storage/state.mjs");
     const { default: restore } = await importFresh("./cli/commands/restore.mjs");
-    const baseline = await bootstrapState(dir, (s) => {
+    const baseline = await seedCanonicalFixture(dir, (s) => {
       s.nodes["Sentinel"] = { id: "Sentinel", title: "alive" };
     });
     const meta = await createSnapshot(dir, "force-init");
     // After force-init, the state is empty. That empty state is what
     // we expect to be preserved as pre-restore.
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     await restore({ statePath: dir, flags: { as: "test-agent" }, positional: [meta.id] });
     const snaps = await listSnapshots(dir);
     const preRestore = snaps.find((s) => s.reason === "pre-restore");
@@ -342,9 +331,9 @@ test("restore: appends log entry { action: 'restore', agent, snapshot_id } to th
   try {
     const { createSnapshot } = await importFresh("./storage/state.mjs");
     const { default: restore } = await importFresh("./cli/commands/restore.mjs");
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     const meta = await createSnapshot(dir, "force-init");
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     await restore({ statePath: dir, flags: { as: "test-agent" }, positional: [meta.id] });
     const after = await readState(dir);
     const restoreEntries = after.log.filter((e) => e.action === "restore");
@@ -362,9 +351,9 @@ test("restore: log entry uses --as agent (recovery agent is recorded)", async ()
   try {
     const { createSnapshot } = await importFresh("./storage/state.mjs");
     const { default: restore } = await importFresh("./cli/commands/restore.mjs");
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     const meta = await createSnapshot(dir, "force-init");
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     await restore({ statePath: dir, flags: { as: "test-agent" }, positional: [meta.id] });
     const after = await readState(dir);
     const restoreEntries = after.log.filter((e) => e.action === "restore");
@@ -381,9 +370,9 @@ test("restore: pre-restore snapshot happens BEFORE the state file is replaced (a
   try {
     const { createSnapshot, listSnapshots } = await importFresh("./storage/state.mjs");
     const { default: restore } = await importFresh("./cli/commands/restore.mjs");
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     const meta = await createSnapshot(dir, "force-init");
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     await restore({ statePath: dir, flags: { as: "test-agent" }, positional: [meta.id] });
     const snaps = await listSnapshots(dir);
     // The pre-restore snapshot's created_at must be earlier than the
@@ -412,9 +401,9 @@ test("restore: --as missing fails with structured error", async () => {
   try {
     const { createSnapshot } = await importFresh("./storage/state.mjs");
     const { default: restore } = await importFresh("./cli/commands/restore.mjs");
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     const meta = await createSnapshot(dir, "force-init");
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     let captured;
     try {
       await restore({ statePath: dir, flags: {}, positional: [meta.id] });
@@ -438,9 +427,9 @@ test("restore: a plain agent (e.g. alice) restores when no policy is installed (
   try {
     const { createSnapshot } = await importFresh("./storage/state.mjs");
     const { default: restore } = await importFresh("./cli/commands/restore.mjs");
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     const meta = await createSnapshot(dir, "force-init");
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     // ADR-008 §"restore e init --force" removed the
     // orchestrator/recovery comparison: with no policy installed the
     // seam abstains and the default core lets any actor restore.
@@ -465,9 +454,9 @@ test("restore: --as with empty string fails with MISSING_AGENT (resolveAgent tri
   try {
     const { createSnapshot } = await importFresh("./storage/state.mjs");
     const { default: restore } = await importFresh("./cli/commands/restore.mjs");
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     const meta = await createSnapshot(dir, "force-init");
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     let captured;
     try {
       await restore({ statePath: dir, flags: { as: "" }, positional: [meta.id] });
@@ -511,7 +500,7 @@ test("restore: target missing (no raw file) fails with NODE_NOT_FOUND and leaves
   const dir = await createTempProject();
   try {
     const { default: restore } = await importFresh("./cli/commands/restore.mjs");
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     const before = await readState(dir);
     let captured;
     try {
@@ -533,7 +522,7 @@ test("restore: target has raw but no metadata (incomplete pair) fails and leaves
   const dir = await createTempProject();
   try {
     const { default: restore } = await importFresh("./cli/commands/restore.mjs");
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     const before = await readState(dir);
     // Drop an orphan raw file (no metadata pair).
     const orphanId = "20260101T000000000Z-force-init-deadbeef";
@@ -558,7 +547,7 @@ test("restore: target has metadata but no raw (incomplete pair) fails", async ()
   const dir = await createTempProject();
   try {
     const { default: restore } = await importFresh("./cli/commands/restore.mjs");
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     const orphanId = "20260101T000000000Z-force-init-deadbeef";
     await fs.mkdir(snapshotDir(dir), { recursive: true });
     await fs.writeFile(
@@ -583,7 +572,7 @@ test("restore: metadata id mismatches filename fails", async () => {
   try {
     const { createSnapshot } = await importFresh("./storage/state.mjs");
     const { default: restore } = await importFresh("./cli/commands/restore.mjs");
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     const meta = await createSnapshot(dir, "force-init");
     // Tamper with metadata.id so it differs from the filename.
     const metaPath = path.join(snapshotDir(dir), `${meta.id}.meta.json`);
@@ -608,7 +597,7 @@ test("restore: corrupt metadata (unparseable JSON) fails", async () => {
   try {
     const { createSnapshot } = await importFresh("./storage/state.mjs");
     const { default: restore } = await importFresh("./cli/commands/restore.mjs");
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     const meta = await createSnapshot(dir, "force-init");
     await fs.writeFile(path.join(snapshotDir(dir), `${meta.id}.meta.json`), "{ not json");
     let captured;
@@ -629,7 +618,7 @@ test("restore: raw is corrupt (not JSON) fails and leaves state intact", async (
   try {
     const { createSnapshot } = await importFresh("./storage/state.mjs");
     const { default: restore } = await importFresh("./cli/commands/restore.mjs");
-    await bootstrapState(dir, (s) => {
+    await seedCanonicalFixture(dir, (s) => {
       s.nodes["Sentinel"] = { id: "Sentinel", title: "alive" };
     });
     const meta = await createSnapshot(dir, "corrupt-recovery");
@@ -656,7 +645,7 @@ test("restore: raw is v1 fails (v1 is no longer supported)", async () => {
   try {
     const { createSnapshot } = await importFresh("./storage/state.mjs");
     const { default: restore } = await importFresh("./cli/commands/restore.mjs");
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     const meta = await createSnapshot(dir, "force-init");
     // Replace raw with a v1-shaped JSON.
     await fs.writeFile(
@@ -681,7 +670,7 @@ test("restore: raw is a future version (v5) fails", async () => {
   try {
     const { createSnapshot } = await importFresh("./storage/state.mjs");
     const { default: restore } = await importFresh("./cli/commands/restore.mjs");
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     const meta = await createSnapshot(dir, "force-init");
     await fs.writeFile(
       path.join(snapshotDir(dir), `${meta.id}.json`),
@@ -705,7 +694,7 @@ test("restore: raw missing version field fails", async () => {
   try {
     const { createSnapshot } = await importFresh("./storage/state.mjs");
     const { default: restore } = await importFresh("./cli/commands/restore.mjs");
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     const meta = await createSnapshot(dir, "force-init");
     await fs.writeFile(
       path.join(snapshotDir(dir), `${meta.id}.json`),
@@ -729,7 +718,7 @@ test("restore: raw is missing a required collection (e.g. no 'nodes') fails", as
   try {
     const { createSnapshot } = await importFresh("./storage/state.mjs");
     const { default: restore } = await importFresh("./cli/commands/restore.mjs");
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     const meta = await createSnapshot(dir, "force-init");
     // Drop 'nodes' from the raw file but keep version=2.
     await fs.writeFile(
@@ -754,7 +743,7 @@ test("restore: raw is missing 'edges' fails", async () => {
   try {
     const { createSnapshot } = await importFresh("./storage/state.mjs");
     const { default: restore } = await importFresh("./cli/commands/restore.mjs");
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     const meta = await createSnapshot(dir, "force-init");
     await fs.writeFile(
       path.join(snapshotDir(dir), `${meta.id}.json`),
@@ -778,7 +767,7 @@ test("restore: raw is missing 'initiatives' fails", async () => {
   try {
     const { createSnapshot } = await importFresh("./storage/state.mjs");
     const { default: restore } = await importFresh("./cli/commands/restore.mjs");
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     const meta = await createSnapshot(dir, "force-init");
     await fs.writeFile(
       path.join(snapshotDir(dir), `${meta.id}.json`),
@@ -802,7 +791,7 @@ test("restore: raw is missing 'log' fails", async () => {
   try {
     const { createSnapshot } = await importFresh("./storage/state.mjs");
     const { default: restore } = await importFresh("./cli/commands/restore.mjs");
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     const meta = await createSnapshot(dir, "force-init");
     await fs.writeFile(
       path.join(snapshotDir(dir), `${meta.id}.json`),
@@ -826,7 +815,7 @@ test("restore: target raw is not a JSON object (e.g. JSON array) fails", async (
   try {
     const { createSnapshot } = await importFresh("./storage/state.mjs");
     const { default: restore } = await importFresh("./cli/commands/restore.mjs");
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     const meta = await createSnapshot(dir, "force-init");
     await fs.writeFile(path.join(snapshotDir(dir), `${meta.id}.json`), "[]");
     let captured;
@@ -847,7 +836,7 @@ test("restore: current state file missing fails (no pre-restore snapshot possibl
   try {
     const { createSnapshot } = await importFresh("./storage/state.mjs");
     const { default: restore } = await importFresh("./cli/commands/restore.mjs");
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     const meta = await createSnapshot(dir, "force-init");
     await fs.unlink(stateFilePath(dir));
     let captured;
@@ -872,7 +861,7 @@ test("restore: on every validation failure, no pre-restore snapshot is created a
   try {
     const { createSnapshot, listSnapshots } = await importFresh("./storage/state.mjs");
     const { default: restore } = await importFresh("./cli/commands/restore.mjs");
-    const baseline = await bootstrapState(dir, (s) => {
+    const baseline = await seedCanonicalFixture(dir, (s) => {
       s.nodes["Sentinel"] = { id: "Sentinel", title: "alive" };
     });
     const meta = await createSnapshot(dir, "force-init");
@@ -904,11 +893,11 @@ test("restore: same agent restores twice from same snapshot — each call create
   try {
     const { createSnapshot, listSnapshots } = await importFresh("./storage/state.mjs");
     const { default: restore } = await importFresh("./cli/commands/restore.mjs");
-    const baseline = await bootstrapState(dir, (s) => {
+    const baseline = await seedCanonicalFixture(dir, (s) => {
       s.nodes["Sentinel"] = { id: "Sentinel", title: "alive" };
     });
     const meta = await createSnapshot(dir, "force-init");
-    await bootstrapState(dir);
+    await seedCanonicalFixture(dir);
     await restore({ statePath: dir, flags: { as: "test-agent" }, positional: [meta.id] });
     await restore({ statePath: dir, flags: { as: "test-agent" }, positional: [meta.id] });
     const after = await readState(dir);
@@ -948,7 +937,7 @@ test("CLI: snapshots via bin returns { snapshots: [...] }", async () => {
     let r = await runCli(["--project", dir, "init"]);
     assert.equal(r.code, 0, r.stderr);
     // Create a force-init snapshot via init --force over a populated canonical state.
-    await bootstrapState(dir, (state) => { state.nodes.T1 = { id: "T1", title: "alive" }; });
+    await seedCanonicalFixture(dir, (state) => { state.nodes.T1 = { id: "T1", title: "alive" }; });
     r = await runCli(["--project", dir, "init", "--force"]);
     assert.equal(r.code, 0, r.stderr);
     r = await runCli(["--project", dir, "snapshots"]);
@@ -970,7 +959,7 @@ test("CLI: restore --as <any-non-empty> via bin returns { snapshot } and replace
     let r = await runCli(["--project", dir, "init"]);
     assert.equal(r.code, 0, r.stderr);
     // Pre-existing canonical state with sentinel.
-    await bootstrapState(dir, (state) => { state.nodes.Sentinel = { id: "Sentinel", title: "alive" }; });
+    await seedCanonicalFixture(dir, (state) => { state.nodes.Sentinel = { id: "Sentinel", title: "alive" }; });
     r = await runCli(["--project", dir, "init", "--force"]);
     assert.equal(r.code, 0, r.stderr);
     // List snapshots and grab the force-init id.
@@ -1000,7 +989,7 @@ test("CLI: restore accepts any non-empty --as via bin (ADR-008 removed the role 
   try {
     let r = await runCli(["--project", dir, "init"]);
     assert.equal(r.code, 0, r.stderr);
-    await bootstrapState(dir, (state) => { state.nodes.Sentinel = { id: "Sentinel", title: "alive" }; });
+    await seedCanonicalFixture(dir, (state) => { state.nodes.Sentinel = { id: "Sentinel", title: "alive" }; });
     r = await runCli(["--project", dir, "init", "--force", "--as", "alice"]);
     assert.equal(r.code, 0, r.stderr);
     const list = await runCli(["--project", dir, "snapshots"]);
@@ -1022,7 +1011,7 @@ test("CLI: restore rejects missing --as via bin with structured error", async ()
   try {
     let r = await runCli(["--project", dir, "init"]);
     assert.equal(r.code, 0, r.stderr);
-    await bootstrapState(dir, (state) => { state.nodes.Sentinel = { id: "Sentinel", title: "alive" }; });
+    await seedCanonicalFixture(dir, (state) => { state.nodes.Sentinel = { id: "Sentinel", title: "alive" }; });
     r = await runCli(["--project", dir, "init", "--force"]);
     assert.equal(r.code, 0, r.stderr);
     const list = await runCli(["--project", dir, "snapshots"]);

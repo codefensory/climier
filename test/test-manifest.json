@@ -7,101 +7,61 @@
       "path": "test/add-note.test.mjs",
       "name": "add-note: appends a log entry with action=add-note, agent=alice, node=T1",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds an existing project through updateState before exercising the add-note adapter",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/add-note.test.mjs",
       "name": "add-note: appends a note to an open task and returns the node envelope",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds an existing project through updateState before exercising the add-note adapter",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/add-note.test.mjs",
       "name": "add-note: fails if node does not exist",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds an existing project through updateState before exercising the add-note adapter",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/add-note.test.mjs",
       "name": "add-note: fails if state missing",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds an existing project through updateState before exercising the add-note adapter",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/add-note.test.mjs",
       "name": "add-note: fails if text is empty",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds an existing project through updateState before exercising the add-note adapter",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/add-note.test.mjs",
       "name": "add-note: multiple notes accumulate on the same node",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds an existing project through updateState before exercising the add-note adapter",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/add-note.test.mjs",
       "name": "add-note: requires --as",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds an existing project through updateState before exercising the add-note adapter",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/add-note.test.mjs",
       "name": "add-note: works on a done task",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds an existing project through updateState before exercising the add-note adapter",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/add-note.test.mjs",
       "name": "add-note: works on an archived task",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds an existing project through updateState before exercising the add-note adapter",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/add-note.test.mjs",
       "name": "add-note: works on an in_progress task",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds an existing project through updateState before exercising the add-note adapter",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/add.test.mjs",
@@ -395,81 +355,49 @@
       "path": "test/batch-cli.test.mjs",
       "name": "batch CLI keeps the state unchanged when a later operation fails",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the batch project state through writeState before running the batch CLI",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/batch-cli.test.mjs",
       "name": "batch CLI reads a JSON document from --file and returns the structured batch result",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the batch project state through writeState before running the batch CLI",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/batch-cli.test.mjs",
       "name": "batch CLI reads the same JSON contract from --stdin",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the batch project state through writeState before running the batch CLI",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/batch-cli.test.mjs",
       "name": "batch CLI rejects malformed JSON and does not mutate state",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the batch project state through writeState before running the batch CLI",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/batch-cli.test.mjs",
       "name": "batch CLI requires exactly one input source",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the batch project state through writeState before running the batch CLI",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/batch-cli.test.mjs",
       "name": "batch is a reserved command and appears in CLI help",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the batch project state through writeState before running the batch CLI",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/batch-cli.test.mjs",
       "name": "remote batch CLI delegates its exact actor, operations, and revision once without touching local state",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the batch project state through writeState before running the batch CLI",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/batch-cli.test.mjs",
       "name": "remote batch CLI propagates auth, protocol, and network failures without local fallback",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the batch project state through writeState before running the batch CLI",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/bugs.test.mjs",
@@ -703,431 +631,259 @@
       "path": "test/cli-remote-domain-routing.test.mjs",
       "name": "local domain adapters delegate through the supplied application operation source",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the routing sentinel through writeState before the remote domain assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/cli-remote-domain-routing.test.mjs",
       "name": "remaining domain adapters use canonical remote operations and retain CLI envelopes",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the routing sentinel through writeState before the remote domain assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/cli-remote-domain-routing.test.mjs",
       "name": "remote operation errors propagate and never fall back to local mutation",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the routing sentinel through writeState before the remote domain assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/cli-remote-domain-routing.test.mjs",
       "name": "remote update selects the operation matching the target node kind",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the routing sentinel through writeState before the remote domain assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/cli-remote-read-routing.test.mjs",
       "name": "CLI: context on a ready task reports derived_status=ready and no blocking",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the routing sentinel through writeState before the remote read assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/cli-remote-read-routing.test.mjs",
       "name": "remote CLI read failures propagate without returning or changing the local sentinel",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the routing sentinel through writeState before the remote read assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/cli-remote-read-routing.test.mjs",
       "name": "remote CLI reads use their typed backend methods and preserve local state",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the routing sentinel through writeState before the remote read assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/cli-remote-read-routing.test.mjs",
       "name": "remote search routes an empty query to the selected backend",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the routing sentinel through writeState before the remote read assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/cli-remote-resolvable-lifecycle-routing.test.mjs",
       "name": "CLI: reopen --as policy-allow actor rolls back a done task end-to-end",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the routing sentinel through writeState before the remote lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/cli-remote-resolvable-lifecycle-routing.test.mjs",
       "name": "CLI: reopen by a stranger succeeds under ADR-009 (no ownership compare on done_by)",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the routing sentinel through writeState before the remote lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/cli-remote-resolvable-lifecycle-routing.test.mjs",
       "name": "CLI: reopen without --reason still fails with MISSING_FIELD (required field is enforced)",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the routing sentinel through writeState before the remote lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/cli-remote-resolvable-lifecycle-routing.test.mjs",
       "name": "local accept delegates once through the operation bridge",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the routing sentinel through writeState before the remote lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/cli-remote-resolvable-lifecycle-routing.test.mjs",
       "name": "local lifecycle commands retain their existing mutation semantics and envelopes",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the routing sentinel through writeState before the remote lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/cli-remote-resolvable-lifecycle-routing.test.mjs",
       "name": "local reject delegates once through the operation bridge",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the routing sentinel through writeState before the remote lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/cli-remote-resolvable-lifecycle-routing.test.mjs",
       "name": "local release delegates once through the operation bridge",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the routing sentinel through writeState before the remote lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/cli-remote-resolvable-lifecycle-routing.test.mjs",
       "name": "local submit delegates once through the operation bridge",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the routing sentinel through writeState before the remote lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/cli-remote-resolvable-lifecycle-routing.test.mjs",
       "name": "remote accept routes through its canonical task operation",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the routing sentinel through writeState before the remote lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/cli-remote-resolvable-lifecycle-routing.test.mjs",
       "name": "remote cancel routes gate through its canonical operation",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the routing sentinel through writeState before the remote lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/cli-remote-resolvable-lifecycle-routing.test.mjs",
       "name": "remote cancel routes task through its canonical operation",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the routing sentinel through writeState before the remote lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/cli-remote-resolvable-lifecycle-routing.test.mjs",
       "name": "remote lifecycle errors propagate without fallback or local mutation",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the routing sentinel through writeState before the remote lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/cli-remote-resolvable-lifecycle-routing.test.mjs",
       "name": "remote lifecycle rejects unsupported target kinds before mutation",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the routing sentinel through writeState before the remote lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/cli-remote-resolvable-lifecycle-routing.test.mjs",
       "name": "remote reject routes through its canonical task operation",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the routing sentinel through writeState before the remote lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/cli-remote-resolvable-lifecycle-routing.test.mjs",
       "name": "remote release routes through its canonical task operation",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the routing sentinel through writeState before the remote lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/cli-remote-resolvable-lifecycle-routing.test.mjs",
       "name": "remote reopen routes gate through its canonical operation",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the routing sentinel through writeState before the remote lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/cli-remote-resolvable-lifecycle-routing.test.mjs",
       "name": "remote reopen routes task through its canonical operation",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the routing sentinel through writeState before the remote lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/cli-remote-resolvable-lifecycle-routing.test.mjs",
       "name": "remote submit routes through its canonical task operation",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the routing sentinel through writeState before the remote lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/cli-remote-task-routing.test.mjs",
       "name": "CLI: resolve without --as fails with JSON error",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the routing sentinel through writeState before the remote task assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/cli-remote-task-routing.test.mjs",
       "name": "CLI: resolve without --note still rejects a task as an unsupported target",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the routing sentinel through writeState before the remote task assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/cli-remote-task-routing.test.mjs",
       "name": "remote task accept routes through bridge and preserves CLI envelope",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the routing sentinel through writeState before the remote task assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/cli-remote-task-routing.test.mjs",
       "name": "remote task cancel routes through bridge and preserves CLI envelope",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the routing sentinel through writeState before the remote task assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/cli-remote-task-routing.test.mjs",
       "name": "remote task create routes through bridge and preserves CLI envelope",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the routing sentinel through writeState before the remote task assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/cli-remote-task-routing.test.mjs",
       "name": "remote task failures propagate without fallback or changing local sentinel",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the routing sentinel through writeState before the remote task assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/cli-remote-task-routing.test.mjs",
       "name": "remote task reject routes through bridge and preserves CLI envelope",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the routing sentinel through writeState before the remote task assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/cli-remote-task-routing.test.mjs",
       "name": "remote task release routes through bridge and preserves CLI envelope",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the routing sentinel through writeState before the remote task assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/cli-remote-task-routing.test.mjs",
       "name": "remote task reopen routes through bridge and preserves CLI envelope",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the routing sentinel through writeState before the remote task assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/cli-remote-task-routing.test.mjs",
       "name": "remote task submit routes through bridge and preserves CLI envelope",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the routing sentinel through writeState before the remote task assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/cli-remote-task-routing.test.mjs",
       "name": "remote task take routes through bridge and preserves CLI envelope",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the routing sentinel through writeState before the remote task assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/cli-remote-task-routing.test.mjs",
       "name": "remote task update routes through bridge and preserves CLI envelope",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the routing sentinel through writeState before the remote task assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/cli-remote-write-routing.test.mjs",
       "name": "real HTTP exercises every built-in write and preserves remote/local state boundaries",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the routing sentinel through writeState before the remote write assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/cli-remote-write-routing.test.mjs",
       "name": "remote auth, protocol, network, and remote operation rejection fail without local fallback",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the routing sentinel through writeState before the remote write assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/cli-remote-write-routing.test.mjs",
       "name": "remote repeated resolve of a resolved gate fails with INVALID_STATUS",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the routing sentinel through writeState before the remote write assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/cli-remote-write-routing.test.mjs",
       "name": "remote unsupported commands reject before opening remote storage",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the routing sentinel through writeState before the remote write assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/cli-remote-write-routing.test.mjs",
       "name": "write matrix includes each public operation and documented remote commands",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the routing sentinel through writeState before the remote write assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/cli-takeover-policy-seam.test.mjs",
@@ -2779,211 +2535,127 @@
       "path": "test/plugin-compat-cli.test.mjs",
       "name": "CLI: init --force preserves root plugins via bin",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the plugin fixture through the local bootstrapState wrapper before the CLI run",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/plugin-compat-cli.test.mjs",
       "name": "CLI: snapshot + restore preserves plugin data via bin",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the plugin fixture through the local bootstrapState wrapper before the CLI run",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/plugin-compat-mutators.test.mjs",
       "name": "add-gate preserves root plugins",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the plugin fixture through the local bootstrapState wrapper before each mutator case",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/plugin-compat-mutators.test.mjs",
       "name": "add-knowledge preserves root plugins",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the plugin fixture through the local bootstrapState wrapper before each mutator case",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/plugin-compat-mutators.test.mjs",
       "name": "add-task preserves root plugins and existing per-node plugins",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the plugin fixture through the local bootstrapState wrapper before each mutator case",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/plugin-compat-mutators.test.mjs",
       "name": "cancel preserves root plugins and per-node plugins",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the plugin fixture through the local bootstrapState wrapper before each mutator case",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/plugin-compat-mutators.test.mjs",
       "name": "release preserves root plugins and per-node plugins",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the plugin fixture through the local bootstrapState wrapper before each mutator case",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/plugin-compat-mutators.test.mjs",
       "name": "reopen preserves root plugins and per-node plugins",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the plugin fixture through the local bootstrapState wrapper before each mutator case",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/plugin-compat-mutators.test.mjs",
       "name": "resolve (gate) preserves root plugins",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the plugin fixture through the local bootstrapState wrapper before each mutator case",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/plugin-compat-mutators.test.mjs",
       "name": "submit + accept (task) preserves root plugins and per-node plugins",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the plugin fixture through the local bootstrapState wrapper before each mutator case",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/plugin-compat-mutators.test.mjs",
       "name": "take preserves root plugins and per-node plugins",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the plugin fixture through the local bootstrapState wrapper before each mutator case",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/plugin-compat-mutators.test.mjs",
       "name": "update preserves root plugins and per-node plugins",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the plugin fixture through the local bootstrapState wrapper before each mutator case",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/plugin-compat-read-model.test.mjs",
       "name": "`meta` and `nodes[id].plugins` survive submit + accept (task) together",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the plugin fixture through the local bootstrapState wrapper before the read-model cases",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/plugin-compat-read-model.test.mjs",
       "name": "`meta` and `nodes[id].plugins` survive take together (disjoint keyspaces)",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the plugin fixture through the local bootstrapState wrapper before the read-model cases",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/plugin-compat-read-model.test.mjs",
       "name": "deriveV2 does not consume `plugins` or `nodes[id].plugins` (ready/blocked unchanged)",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the plugin fixture through the local bootstrapState wrapper before the read-model cases",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/plugin-compat-read-model.test.mjs",
       "name": "isSatisfiedV2 does not consume `nodes[id].plugins`",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the plugin fixture through the local bootstrapState wrapper before the read-model cases",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/plugin-compat-read-model.test.mjs",
       "name": "statusOfV2 does not consume `plugins` or `nodes[id].plugins`",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the plugin fixture through the local bootstrapState wrapper before the read-model cases",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/plugin-compat-snapshots.test.mjs",
       "name": "createSnapshot preserves `plugins` and `nodes[id].plugins` in raw bytes",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the plugin fixture through the local bootstrapState wrapper before the snapshot cases",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/plugin-compat-snapshots.test.mjs",
       "name": "end-to-end: snapshot with plugin data survives restore, then take/submit/accept cycles preserve it",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the plugin fixture through the local bootstrapState wrapper before the snapshot cases",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/plugin-compat-snapshots.test.mjs",
       "name": "listSnapshots is unaffected by plugin data (metadata contract unchanged)",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the plugin fixture through the local bootstrapState wrapper before the snapshot cases",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/plugin-compat-snapshots.test.mjs",
       "name": "restore preserves `plugins` and `nodes[id].plugins` from the snapshot raw bytes",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the plugin fixture through the local bootstrapState wrapper before the snapshot cases",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/plugin-compat.test.mjs",
@@ -2991,9 +2663,9 @@
       "ordinal": 1,
       "disposition": "keep",
       "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the plugin fixture through the local bootstrapState wrapper, and two cases assert the raw updateState path itself",
-      "replacement": "writeCanonicalState"
+      "category": "guard",
+      "motive": "two cases preserve the explicit raw updateState path; a raw v4 fixture tests corrupt-state recovery",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/plugin-compat.test.mjs",
@@ -3001,9 +2673,9 @@
       "ordinal": 1,
       "disposition": "keep",
       "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the plugin fixture through the local bootstrapState wrapper, and two cases assert the raw updateState path itself",
-      "replacement": "writeCanonicalState"
+      "category": "guard",
+      "motive": "two cases preserve the explicit raw updateState path; a raw v4 fixture tests corrupt-state recovery",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/plugin-compat.test.mjs",
@@ -3011,9 +2683,9 @@
       "ordinal": 1,
       "disposition": "keep",
       "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the plugin fixture through the local bootstrapState wrapper, and two cases assert the raw updateState path itself",
-      "replacement": "writeCanonicalState"
+      "category": "guard",
+      "motive": "two cases preserve the explicit raw updateState path; a raw v4 fixture tests corrupt-state recovery",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/plugin-compat.test.mjs",
@@ -3021,9 +2693,9 @@
       "ordinal": 1,
       "disposition": "keep",
       "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the plugin fixture through the local bootstrapState wrapper, and two cases assert the raw updateState path itself",
-      "replacement": "writeCanonicalState"
+      "category": "guard",
+      "motive": "two cases preserve the explicit raw updateState path; a raw v4 fixture tests corrupt-state recovery",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/plugin-compat.test.mjs",
@@ -3031,9 +2703,9 @@
       "ordinal": 1,
       "disposition": "keep",
       "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the plugin fixture through the local bootstrapState wrapper, and two cases assert the raw updateState path itself",
-      "replacement": "writeCanonicalState"
+      "category": "guard",
+      "motive": "two cases preserve the explicit raw updateState path; a raw v4 fixture tests corrupt-state recovery",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/plugin-compat.test.mjs",
@@ -3041,9 +2713,9 @@
       "ordinal": 1,
       "disposition": "keep",
       "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the plugin fixture through the local bootstrapState wrapper, and two cases assert the raw updateState path itself",
-      "replacement": "writeCanonicalState"
+      "category": "guard",
+      "motive": "two cases preserve the explicit raw updateState path; a raw v4 fixture tests corrupt-state recovery",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/plugin-compat.test.mjs",
@@ -3051,9 +2723,9 @@
       "ordinal": 1,
       "disposition": "keep",
       "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the plugin fixture through the local bootstrapState wrapper, and two cases assert the raw updateState path itself",
-      "replacement": "writeCanonicalState"
+      "category": "guard",
+      "motive": "two cases preserve the explicit raw updateState path; a raw v4 fixture tests corrupt-state recovery",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/plugin-core-adapter-cas.test.mjs",
@@ -3653,11 +3325,7 @@
       "path": "test/plugin-foundation-acceptance.test.mjs",
       "name": "plugin-foundation fixture is public-api-only and exercises the complete acceptance flow",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the acceptance project through writeState",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/plugin-foundation-concurrency.test.mjs",
@@ -3735,31 +3403,19 @@
       "path": "test/plugin-install-residual-happy.test.mjs",
       "name": "install: descriptor with id != command lands at installed/<id>",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the install project through writeState",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/plugin-install-residual-happy.test.mjs",
       "name": "install: never mutates the project state file",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the install project through writeState",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/plugin-install-residual-happy.test.mjs",
       "name": "install: valid descriptor installs with promotion by rename; staging is gone",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the install project through writeState",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/plugin-install-residual-invalid.test.mjs",
@@ -3837,31 +3493,19 @@
       "path": "test/plugin-install-residual-uninstall.test.mjs",
       "name": "uninstall: removes installed/<id> and nothing else; project state is untouched",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the install project through writeState",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/plugin-install-residual-uninstall.test.mjs",
       "name": "uninstall: removes installed/<id> by path directly even when id != command",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the install project through writeState",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/plugin-install-residual-uninstall.test.mjs",
       "name": "uninstall: removes installed/<id> even when no project state exists",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the install project through writeState",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/plugin-integration.test.mjs",
@@ -4877,21 +4521,13 @@
       "path": "test/plugin-query-snapshot.test.mjs",
       "name": "api.query.snapshot reads one coherent state and exposes only the caller namespace",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the snapshot state through writeState before the plugin query read",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/plugin-query-snapshot.test.mjs",
       "name": "read-model projectSnapshot creates a deterministic core lifecycle projection",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the snapshot state through writeState before the plugin query read",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/plugin-remote-guard.test.mjs",
@@ -5365,31 +5001,19 @@
       "path": "test/project-storage.test.mjs",
       "name": "storage: init uses the global state path",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "writes a v3 state to prove the path is deterministic before project metadata exists",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/project-storage.test.mjs",
       "name": "storage: project metadata makes sibling worktrees share the same state and lock path",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "writes a v3 state to prove the path is deterministic before project metadata exists",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/project-storage.test.mjs",
       "name": "storage: state path is deterministic even before metadata exists",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "writes a v3 state to prove the path is deterministic before project metadata exists",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/provider-core-edge.test.mjs",
@@ -6937,461 +6561,277 @@
       "path": "test/snapshots-restore.test.mjs",
       "name": "CLI: --help mentions snapshots and restore",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/snapshots-restore.test.mjs",
       "name": "CLI: restore --as <any-non-empty> via bin returns { snapshot } and replaces state (ADR-008)",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/snapshots-restore.test.mjs",
       "name": "CLI: restore accepts any non-empty --as via bin (ADR-008 removed the role check)",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/snapshots-restore.test.mjs",
       "name": "CLI: restore rejects missing --as via bin with structured error",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/snapshots-restore.test.mjs",
       "name": "CLI: snapshots rejects unknown flags via bin",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/snapshots-restore.test.mjs",
       "name": "CLI: snapshots via bin returns { snapshots: [...] }",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/snapshots-restore.test.mjs",
       "name": "restore: --as <any-non-empty> succeeds and returns { snapshot } with full metadata (ADR-008)",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/snapshots-restore.test.mjs",
       "name": "restore: --as <any-non-empty> succeeds with second-actor identity (ADR-008)",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/snapshots-restore.test.mjs",
       "name": "restore: --as missing fails with structured error",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/snapshots-restore.test.mjs",
       "name": "restore: --as with empty string fails with MISSING_AGENT (resolveAgent trims and surfaces as missing)",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/snapshots-restore.test.mjs",
       "name": "restore: a plain agent (e.g. alice) restores when no policy is installed (ADR-008: no role hatch)",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/snapshots-restore.test.mjs",
       "name": "restore: appends log entry { action: 'restore', agent, snapshot_id } to the RESTORED state",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/snapshots-restore.test.mjs",
       "name": "restore: corrupt metadata (unparseable JSON) fails",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/snapshots-restore.test.mjs",
       "name": "restore: current state file missing fails (no pre-restore snapshot possible)",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/snapshots-restore.test.mjs",
       "name": "restore: log entry uses --as agent (recovery agent is recorded)",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/snapshots-restore.test.mjs",
       "name": "restore: metadata id mismatches filename fails",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/snapshots-restore.test.mjs",
       "name": "restore: missing id (no positional) fails with MISSING_FIELD",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/snapshots-restore.test.mjs",
       "name": "restore: on every validation failure, no pre-restore snapshot is created and no state mutation occurs",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/snapshots-restore.test.mjs",
       "name": "restore: pre-restore snapshot happens BEFORE the state file is replaced (atomic ordering)",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/snapshots-restore.test.mjs",
       "name": "restore: raw is a future version (v5) fails",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/snapshots-restore.test.mjs",
       "name": "restore: raw is corrupt (not JSON) fails and leaves state intact",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/snapshots-restore.test.mjs",
       "name": "restore: raw is missing 'edges' fails",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/snapshots-restore.test.mjs",
       "name": "restore: raw is missing 'initiatives' fails",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/snapshots-restore.test.mjs",
       "name": "restore: raw is missing 'log' fails",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/snapshots-restore.test.mjs",
       "name": "restore: raw is missing a required collection (e.g. no 'nodes') fails",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/snapshots-restore.test.mjs",
       "name": "restore: raw is v1 fails (v1 is no longer supported)",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/snapshots-restore.test.mjs",
       "name": "restore: raw missing version field fails",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/snapshots-restore.test.mjs",
       "name": "restore: replaces state with snapshot raw bytes verbatim (content matches baseline, plus the appended restore log entry)",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/snapshots-restore.test.mjs",
       "name": "restore: same agent restores twice from same snapshot — each call creates its own pre-restore; the live log carries the latest restore entry (older entries live in the pre-restore snapshots)",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/snapshots-restore.test.mjs",
       "name": "restore: takes a pre-restore snapshot of the current state (reason=pre-restore)",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/snapshots-restore.test.mjs",
       "name": "restore: target has metadata but no raw (incomplete pair) fails",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/snapshots-restore.test.mjs",
       "name": "restore: target has raw but no metadata (incomplete pair) fails and leaves state intact",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/snapshots-restore.test.mjs",
       "name": "restore: target missing (no raw file) fails with NODE_NOT_FOUND and leaves state intact",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/snapshots-restore.test.mjs",
       "name": "restore: target raw is not a JSON object (e.g. JSON array) fails",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/snapshots-restore.test.mjs",
       "name": "snapshots command: accepts no flags (idempotent knownFlags = [])",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/snapshots-restore.test.mjs",
       "name": "snapshots command: each entry has id, created_at, reason, bytes (and sha256 for completeness)",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/snapshots-restore.test.mjs",
       "name": "snapshots command: excludes orphan metadata (no raw)",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/snapshots-restore.test.mjs",
       "name": "snapshots command: excludes orphan raw (no metadata)",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/snapshots-restore.test.mjs",
       "name": "snapshots command: excludes snapshots with corrupt metadata",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/snapshots-restore.test.mjs",
       "name": "snapshots command: returns [] for an empty snapshot dir",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/snapshots-restore.test.mjs",
       "name": "snapshots command: returns [] when no snapshot dir exists",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/snapshots-restore.test.mjs",
       "name": "snapshots command: returns { snapshots: [...] }",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/snapshots-restore.test.mjs",
       "name": "snapshots command: sorted descending by id (newest first)",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/state-cli.test.mjs",
       "name": "CLI help and reserved namespaces include state",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the current state through writeState before the state projection cases",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/state-cli.test.mjs",
       "name": "CLI state is a current-state read, separate from historical snapshots",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the current state through writeState before the state projection cases",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/state-cli.test.mjs",
       "name": "CLI state returns the deterministic current core projection without plugin namespaces",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the current state through writeState before the state projection cases",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/state-operation-adapters.test.mjs",
@@ -7457,251 +6897,151 @@
       "path": "test/state-snapshots.test.mjs",
       "name": "createSnapshot: accepts all three valid reasons",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/state-snapshots.test.mjs",
       "name": "createSnapshot: id matches the ADR format <UTC YYYYMMDDTHHmmssSSS Z>-<reason>-<8 hex>",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/state-snapshots.test.mjs",
       "name": "createSnapshot: metadata has id, created_at, reason, bytes, sha256 with correct values",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/state-snapshots.test.mjs",
       "name": "createSnapshot: perms are best-effort on Windows (does not throw) # SKIP",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/state-snapshots.test.mjs",
       "name": "createSnapshot: preserves raw bytes verbatim for non-JSON content",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/state-snapshots.test.mjs",
       "name": "createSnapshot: rejects unknown reason",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/state-snapshots.test.mjs",
       "name": "createSnapshot: snapshot dir perms 0700 on Unix (best-effort)",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/state-snapshots.test.mjs",
       "name": "createSnapshot: throws when the source state file is missing",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/state-snapshots.test.mjs",
       "name": "createSnapshot: uses temp+rename; no .tmp-* leftovers after success",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/state-snapshots.test.mjs",
       "name": "createSnapshot: writes raw + metadata files under <state-dir>/snapshots",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/state-snapshots.test.mjs",
       "name": "init --force on existing v4 state: snapshot reason=force-init, raw preserves the pre-reset state",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/state-snapshots.test.mjs",
       "name": "init --force on existing valid v4 state: snapshot reason=force-init, raw preserves bytes verbatim",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/state-snapshots.test.mjs",
       "name": "init --force twice creates two snapshots, newest first; original pre-reset data is recoverable from the first",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/state-snapshots.test.mjs",
       "name": "init on missing state (no file): no snapshot is created",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/state-snapshots.test.mjs",
       "name": "init on valid existing state without --force: refuses and does NOT create a snapshot",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/state-snapshots.test.mjs",
       "name": "init recovery on corrupt JSON (no --force): snapshot reason=corrupt-recovery, raw preserves garbage",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/state-snapshots.test.mjs",
       "name": "listSnapshots: excludes snapshots where meta.id does not match filename",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/state-snapshots.test.mjs",
       "name": "listSnapshots: excludes snapshots with corrupt metadata (unparseable JSON)",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/state-snapshots.test.mjs",
       "name": "listSnapshots: lists multiple snapshots with mixed reasons",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/state-snapshots.test.mjs",
       "name": "listSnapshots: orphan .json without .meta.json is excluded",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/state-snapshots.test.mjs",
       "name": "listSnapshots: orphan .meta.json without .json is excluded",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/state-snapshots.test.mjs",
       "name": "listSnapshots: returns [] for an empty snapshot dir",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/state-snapshots.test.mjs",
       "name": "listSnapshots: returns [] when no snapshot dir exists",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/state-snapshots.test.mjs",
       "name": "listSnapshots: sorted descending by id (newest first)",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/state-snapshots.test.mjs",
       "name": "two snapshots taken back-to-back have different ids (random suffix)",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "plants the pre-snapshot state through the local bootstrapState wrapper",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/state.test.mjs",
@@ -10037,9 +9377,9 @@
       "ordinal": 1,
       "disposition": "keep",
       "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 collection shapes the reader must still accept",
-      "replacement": "writeCanonicalState"
+      "category": "guard",
+      "motive": "asserts legacy writeState schema validation and rejection; valid fixture uses writeCanonicalState",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/v2-initiatives.test.mjs",
@@ -10047,9 +9387,9 @@
       "ordinal": 1,
       "disposition": "keep",
       "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 collection shapes the reader must still accept",
-      "replacement": "writeCanonicalState"
+      "category": "guard",
+      "motive": "asserts legacy writeState schema validation and rejection; valid fixture uses writeCanonicalState",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/v2-initiatives.test.mjs",
@@ -10057,9 +9397,9 @@
       "ordinal": 1,
       "disposition": "keep",
       "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 collection shapes the reader must still accept",
-      "replacement": "writeCanonicalState"
+      "category": "guard",
+      "motive": "asserts legacy writeState schema validation and rejection; valid fixture uses writeCanonicalState",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/v2-initiatives.test.mjs",
@@ -10067,9 +9407,9 @@
       "ordinal": 1,
       "disposition": "keep",
       "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 collection shapes the reader must still accept",
-      "replacement": "writeCanonicalState"
+      "category": "guard",
+      "motive": "asserts legacy writeState schema validation and rejection; valid fixture uses writeCanonicalState",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/v2-initiatives.test.mjs",
@@ -10077,9 +9417,9 @@
       "ordinal": 1,
       "disposition": "keep",
       "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 collection shapes the reader must still accept",
-      "replacement": "writeCanonicalState"
+      "category": "guard",
+      "motive": "asserts legacy writeState schema validation and rejection; valid fixture uses writeCanonicalState",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/v2-initiatives.test.mjs",
@@ -10087,9 +9427,9 @@
       "ordinal": 1,
       "disposition": "keep",
       "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 collection shapes the reader must still accept",
-      "replacement": "writeCanonicalState"
+      "category": "guard",
+      "motive": "asserts legacy writeState schema validation and rejection; valid fixture uses writeCanonicalState",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/v2-initiatives.test.mjs",
@@ -10097,9 +9437,9 @@
       "ordinal": 1,
       "disposition": "keep",
       "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 collection shapes the reader must still accept",
-      "replacement": "writeCanonicalState"
+      "category": "guard",
+      "motive": "asserts legacy writeState schema validation and rejection; valid fixture uses writeCanonicalState",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/v2-initiatives.test.mjs",
@@ -10107,9 +9447,9 @@
       "ordinal": 1,
       "disposition": "keep",
       "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 collection shapes the reader must still accept",
-      "replacement": "writeCanonicalState"
+      "category": "guard",
+      "motive": "asserts legacy writeState schema validation and rejection; valid fixture uses writeCanonicalState",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/v2-initiatives.test.mjs",
@@ -10117,9 +9457,9 @@
       "ordinal": 1,
       "disposition": "keep",
       "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 collection shapes the reader must still accept",
-      "replacement": "writeCanonicalState"
+      "category": "guard",
+      "motive": "asserts legacy writeState schema validation and rejection; valid fixture uses writeCanonicalState",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/v2-initiatives.test.mjs",
@@ -10127,9 +9467,9 @@
       "ordinal": 1,
       "disposition": "keep",
       "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 collection shapes the reader must still accept",
-      "replacement": "writeCanonicalState"
+      "category": "guard",
+      "motive": "asserts legacy writeState schema validation and rejection; valid fixture uses writeCanonicalState",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/v2-initiatives.test.mjs",
@@ -10137,9 +9477,9 @@
       "ordinal": 1,
       "disposition": "keep",
       "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 collection shapes the reader must still accept",
-      "replacement": "writeCanonicalState"
+      "category": "guard",
+      "motive": "asserts legacy writeState schema validation and rejection; valid fixture uses writeCanonicalState",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/v2-initiatives.test.mjs",
@@ -10147,9 +9487,9 @@
       "ordinal": 1,
       "disposition": "keep",
       "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 collection shapes the reader must still accept",
-      "replacement": "writeCanonicalState"
+      "category": "guard",
+      "motive": "asserts legacy writeState schema validation and rejection; valid fixture uses writeCanonicalState",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/v2-initiatives.test.mjs",
@@ -10157,9 +9497,9 @@
       "ordinal": 1,
       "disposition": "keep",
       "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 collection shapes the reader must still accept",
-      "replacement": "writeCanonicalState"
+      "category": "guard",
+      "motive": "asserts legacy writeState schema validation and rejection; valid fixture uses writeCanonicalState",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/v2-initiatives.test.mjs",
@@ -10167,9 +9507,9 @@
       "ordinal": 1,
       "disposition": "keep",
       "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 collection shapes the reader must still accept",
-      "replacement": "writeCanonicalState"
+      "category": "guard",
+      "motive": "asserts legacy writeState schema validation and rejection; valid fixture uses writeCanonicalState",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/v2-initiatives.test.mjs",
@@ -10177,9 +9517,9 @@
       "ordinal": 1,
       "disposition": "keep",
       "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 collection shapes the reader must still accept",
-      "replacement": "writeCanonicalState"
+      "category": "guard",
+      "motive": "asserts legacy writeState schema validation and rejection; valid fixture uses writeCanonicalState",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/v2-initiatives.test.mjs",
@@ -10187,9 +9527,9 @@
       "ordinal": 1,
       "disposition": "keep",
       "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 collection shapes the reader must still accept",
-      "replacement": "writeCanonicalState"
+      "category": "guard",
+      "motive": "asserts legacy writeState schema validation and rejection; valid fixture uses writeCanonicalState",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/v2-initiatives.test.mjs",
@@ -10197,9 +9537,9 @@
       "ordinal": 1,
       "disposition": "keep",
       "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 collection shapes the reader must still accept",
-      "replacement": "writeCanonicalState"
+      "category": "guard",
+      "motive": "asserts legacy writeState schema validation and rejection; valid fixture uses writeCanonicalState",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/v2-initiatives.test.mjs",
@@ -10207,9 +9547,9 @@
       "ordinal": 1,
       "disposition": "keep",
       "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 collection shapes the reader must still accept",
-      "replacement": "writeCanonicalState"
+      "category": "guard",
+      "motive": "asserts legacy writeState schema validation and rejection; valid fixture uses writeCanonicalState",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/v2-initiatives.test.mjs",
@@ -10217,9 +9557,9 @@
       "ordinal": 1,
       "disposition": "keep",
       "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 collection shapes the reader must still accept",
-      "replacement": "writeCanonicalState"
+      "category": "guard",
+      "motive": "asserts legacy writeState schema validation and rejection; valid fixture uses writeCanonicalState",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/v2-initiatives.test.mjs",
@@ -10227,9 +9567,9 @@
       "ordinal": 1,
       "disposition": "keep",
       "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 collection shapes the reader must still accept",
-      "replacement": "writeCanonicalState"
+      "category": "guard",
+      "motive": "asserts legacy writeState schema validation and rejection; valid fixture uses writeCanonicalState",
+      "replacement": "keep while the guard is required"
     },
     {
       "path": "test/v2-internal-capabilities.test.mjs",
@@ -10355,411 +9695,247 @@
       "path": "test/v2-lifecycle.test.mjs",
       "name": "CLI: pre-release states are rejected with structural migration guidance",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-lifecycle.test.mjs",
       "name": "CLI: v2 cancel is routed to v2-cancel (status=canceled)",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-lifecycle.test.mjs",
       "name": "CLI: v2 release is routed to v2-release (clears claim, status=open)",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-lifecycle.test.mjs",
       "name": "CLI: v2 reopen is routed to v2-reopen (status=open, claim cleared)",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-lifecycle.test.mjs",
       "name": "CLI: v2 resolve is routed to v2-resolve and emits { node, newly_ready }",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-lifecycle.test.mjs",
       "name": "v2-cancel: any actor may cancel an in_progress task with no policy (defaults core)",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-lifecycle.test.mjs",
       "name": "v2-cancel: any actor may cancel an open task with no policy (defaults core)",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-lifecycle.test.mjs",
       "name": "v2-cancel: done task returns INVALID_STATUS (cannot cancel terminal)",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-lifecycle.test.mjs",
       "name": "v2-cancel: in_progress + claim owner => status=canceled, claim cleared, log appended",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-lifecycle.test.mjs",
       "name": "v2-cancel: missing --reason returns MISSING_FIELD",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-lifecycle.test.mjs",
       "name": "v2-cancel: missing node returns NODE_NOT_FOUND",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-lifecycle.test.mjs",
       "name": "v2-cancel: open + policy-allow actor => canceled (no claim required)",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-lifecycle.test.mjs",
       "name": "v2-cancel: submitted task becomes canceled and remains an unsatisfied blocker",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-lifecycle.test.mjs",
       "name": "v2-release: a policy-allow actor can release any agent's claim (ex-recovery role equivalent)",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-lifecycle.test.mjs",
       "name": "v2-release: any actor may release another agent's claim with no policy (defaults core)",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-lifecycle.test.mjs",
       "name": "v2-release: any agent may release another agent's claim when policy allow applies",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-lifecycle.test.mjs",
       "name": "v2-release: claim owner releases; returns released=true, claim=null, status=open, revision bumped",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-lifecycle.test.mjs",
       "name": "v2-release: idempotent — a task with no claim returns released=false without mutating",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-lifecycle.test.mjs",
       "name": "v2-release: idempotent — re-releasing a previously-released task is still released=false",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-lifecycle.test.mjs",
       "name": "v2-release: missing --as returns MISSING_AGENT",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-lifecycle.test.mjs",
       "name": "v2-release: missing node returns NODE_NOT_FOUND",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-lifecycle.test.mjs",
       "name": "v2-release: submitted task cannot be released",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-lifecycle.test.mjs",
       "name": "v2-reopen: any actor may reopen a done task with no policy (defaults core)",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-lifecycle.test.mjs",
       "name": "v2-reopen: any agent may reopen a done task when policy allow applies",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-lifecycle.test.mjs",
       "name": "v2-reopen: missing --reason returns MISSING_FIELD",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-lifecycle.test.mjs",
       "name": "v2-reopen: missing node returns NODE_NOT_FOUND",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-lifecycle.test.mjs",
       "name": "v2-reopen: not-done node returns INVALID_STATUS",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-lifecycle.test.mjs",
       "name": "v2-reopen: original done_by can reopen a done task; status -> open, claim cleared, done_* removed",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-lifecycle.test.mjs",
       "name": "v2-reopen: re-blocks downstream tasks (DAG consequence)",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-lifecycle.test.mjs",
       "name": "v2-resolve: gate resolve — --choice and --rationale required, status=resolved, resolution set",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-lifecycle.test.mjs",
       "name": "v2-resolve: gate resolve missing --choice returns MISSING_FIELD",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-lifecycle.test.mjs",
       "name": "v2-resolve: gate resolve missing --rationale returns MISSING_FIELD",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-lifecycle.test.mjs",
       "name": "v2-resolve: missing node returns NODE_NOT_FOUND",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-lifecycle.test.mjs",
       "name": "v2-resolve: repeated local resolve of a resolved gate fails with INVALID_STATUS",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-lifecycle.test.mjs",
       "name": "v2-resolve: task targets are rejected; accept is the done transition",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-lifecycle.test.mjs",
       "name": "v2-take: submitted task cannot be taken",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the lifecycle assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-search.test.mjs",
       "name": "search: --all includes deprecated knowledge",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the search assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-search.test.mjs",
       "name": "search: empty query returns no matches",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the search assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-search.test.mjs",
       "name": "search: matches active knowledge by case-insensitive substring",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the search assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-search.test.mjs",
       "name": "search: returns matches in deterministic id order",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the search assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-search.test.mjs",
       "name": "search: searches every supported field and reports matched_fields",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the search assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-status-history.test.mjs",
@@ -10939,151 +10115,91 @@
       "path": "test/v2-take-by-id.test.mjs",
       "name": "CLI: take T-x --as agent-x works end to end",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the take-by-id assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-take-by-id.test.mjs",
       "name": "take by id: appends a take log entry, never a claim entry",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the take-by-id assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-take-by-id.test.mjs",
       "name": "take by id: backlog tasks remain NOT_READY",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the take-by-id assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-take-by-id.test.mjs",
       "name": "take by id: claims the requested ready task and returns the v2 envelope",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the take-by-id assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-take-by-id.test.mjs",
       "name": "take by id: increments the requested node revision",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the take-by-id assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-take-by-id.test.mjs",
       "name": "take by id: legacy filters are accepted and ignored",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the take-by-id assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-take-by-id.test.mjs",
       "name": "take by id: missing id throws MISSING_FIELD",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the take-by-id assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-take-by-id.test.mjs",
       "name": "take by id: only the first positional argument is used",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the take-by-id assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-take-by-id.test.mjs",
       "name": "take by id: rejects a blocked task with NOT_READY",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the take-by-id assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-take-by-id.test.mjs",
       "name": "take by id: rejects a knowledge node with NOT_CLAIMABLE",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the take-by-id assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-take-by-id.test.mjs",
       "name": "take by id: rejects a task claimed by another agent with ALREADY_CLAIMED",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the take-by-id assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-take-by-id.test.mjs",
       "name": "take by id: rejects an unknown id with NODE_NOT_FOUND",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the take-by-id assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-take-by-id.test.mjs",
       "name": "take by id: rejects done, canceled, resolved, and superseded tasks with NOT_READY",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the take-by-id assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-take-by-id.test.mjs",
       "name": "take by id: repeated take by the owner is idempotent",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the take-by-id assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-take-by-id.test.mjs",
       "name": "take by id: takeover is policy-driven (task.takeover allow replaces claim + previous_owner)",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "lane-legacy",
-      "motive": "seeds the v2 state before the take-by-id assertions",
-      "replacement": "writeCanonicalState"
+      "disposition": "keep"
     },
     {
       "path": "test/v2-take.test.mjs",

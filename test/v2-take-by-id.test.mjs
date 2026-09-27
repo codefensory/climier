@@ -14,7 +14,7 @@ import {
   rmTempProject,
   importFresh,
   runCli,
-  writeState,
+  writeCanonicalState,
   readState,
   installPolicyFixture,
   uninstallPolicyFixture,
@@ -72,7 +72,7 @@ async function take(dir, id, flags = { as: "agent-a" }, extraPositional = []) {
 async function patchNode(dir, id, patch) {
   const state = await readState(dir);
   Object.assign(state.nodes[id], patch);
-  await writeState(dir, state);
+  await writeCanonicalState(dir, state);
 }
 
 test("take by id: claims the requested ready task and returns the v2 envelope", async () => {

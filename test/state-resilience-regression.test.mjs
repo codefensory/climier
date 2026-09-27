@@ -64,7 +64,8 @@ function newPid() {
 }
 
 const SENTINEL_STATE = Object.freeze({
-  version: 2,
+  version: 4,
+  revision: 0,
   nodes: { Sentinel: { id: "Sentinel", title: "alive" } },
   edges: [],
   initiatives: {},
@@ -106,11 +107,10 @@ function cli(...args) {
 // 1. init creates an empty canonical state in the sandbox.
 cli("init");
 
-// 2. Plant a sentinel into the sandbox tasks.json, keeping the canonical
-// shape init wrote, so the upcoming init --force sees a real pre-existing state.
-const planted = JSON.parse(fs.readFileSync(TASKS_FILE, "utf8"));
-planted.nodes.Sentinel = { id: "Sentinel", title: "alive" };
-fs.writeFileSync(TASKS_FILE, JSON.stringify(planted, null, 2) + "\\n");
+// 2. Seed a sentinel through the public CLI path so the state and ledger stay
+// consistent before the upcoming force-init snapshot.
+cli("add-initiative", "sentinel", "--as", "test-agent");
+cli("add-task", "Sentinel", "--initiative", "sentinel", "--title", "alive", "--body", "sentinel", "--acceptance", "alive", "--blocked-by", "", "--as", "test-agent");
 
 // 3. init --force: snapshots the sentinel (reason=force-init) and
 // then resets the state to empty.

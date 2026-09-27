@@ -10,7 +10,8 @@ import {
   readState,
   writeState,
   writeCanonicalState,
-  bootstrapState,
+  seedPluginFixture,
+  baseState,
   seedPluginData,
   assertPluginDataPreserved,
   fsp_writeFile,
@@ -19,7 +20,7 @@ import {
 test("writeCanonicalState preserves `plugins` (root) and `nodes[id].plugins` on round-trip", async () => {
   const dir = await createTempProject();
   try {
-    const base = await bootstrapState(dir);
+    const base = await seedPluginFixture(dir);
     seedPluginData(base);
     await writeCanonicalState(dir, base);
     const after = await readState(dir);
@@ -32,7 +33,7 @@ test("writeCanonicalState preserves `plugins` (root) and `nodes[id].plugins` on 
 test("legacy raw updateState preserves `plugins` (root) and `nodes[id].plugins` when a mutator touches a node", async () => {
   const dir = await createTempProject();
   try {
-    const base = await bootstrapState(dir);
+    const base = baseState();
     seedPluginData(base);
     await writeState(dir, base);
     const { updateState } = await importFresh("./storage/state.mjs");
@@ -51,7 +52,7 @@ test("legacy raw updateState preserves `plugins` (root) and `nodes[id].plugins` 
 test("legacy raw updateState preserves `plugins` (root) when a mutator touches an unrelated collection (edges)", async () => {
   const dir = await createTempProject();
   try {
-    const base = await bootstrapState(dir);
+    const base = baseState();
     seedPluginData(base);
     await writeState(dir, base);
     const { updateState } = await importFresh("./storage/state.mjs");
@@ -85,7 +86,7 @@ test("init on a fresh project writes emptyState() without `plugins` (plugins is 
 test("init --force preserves root `plugins` (nodes are wiped, root plugins survive)", async () => {
   const dir = await createTempProject();
   try {
-    const base = await bootstrapState(dir);
+    const base = await seedPluginFixture(dir);
     seedPluginData(base);
     await writeCanonicalState(dir, base);
     const { default: init } = await importFresh("./cli/commands/init.mjs");
@@ -105,7 +106,7 @@ test("init --force preserves root `plugins` (nodes are wiped, root plugins survi
 test("init --force on a state WITHOUT plugins writes emptyState() unchanged", async () => {
   const dir = await createTempProject();
   try {
-    await bootstrapState(dir);
+    await seedPluginFixture(dir);
     const { default: init } = await importFresh("./cli/commands/init.mjs");
     await init({ statePath: dir, flags: { force: true }, projectDir: dir });
     const after = await readState(dir);
@@ -119,7 +120,7 @@ test("init --force on a state WITHOUT plugins writes emptyState() unchanged", as
 test("init --force on a state with corrupt JSON (cannot read) does not crash and writes emptyState()", async () => {
   const dir = await createTempProject();
   try {
-    await bootstrapState(dir);
+    await writeState(dir, { version: 4, nodes: {}, edges: [], initiatives: {}, log: [] });
     // Corrupt the state file directly.
     await fsp_writeFile(stateFilePath(dir), "{ not valid json");
     const { default: init } = await importFresh("./cli/commands/init.mjs");

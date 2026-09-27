@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
-import { createTempProject, rmTempProject, runCli, stateFilePath, readState, writeState } from "./helpers.mjs";
+import { createTempProject, rmTempProject, runCli, stateFilePath, readState, writeCanonicalState } from "./helpers.mjs";
 import { HELP_TEXT } from "../src/cli/dispatch.mjs";
 import batch from "../src/cli/commands/batch.mjs";
 import { RESERVED_NAMESPACES } from "../src/cli/commands/reserved-namespaces.mjs";
@@ -182,7 +182,7 @@ test("remote batch CLI delegates its exact actor, operations, and revision once 
     operations: [{ op: "initiative.create", input: { name: "remote" } }],
   };
   try {
-    await writeState(dir, sentinelState);
+    await writeCanonicalState(dir, sentinelState);
     const before = await readState(dir);
     const result = await invokeRemoteBatch(dir, backendClient, document);
 
@@ -207,7 +207,7 @@ test("remote batch CLI propagates auth, protocol, and network failures without l
   ];
   const document = { operations: [{ op: "initiative.create", input: { name: "remote" } }] };
   try {
-    await writeState(dir, sentinelState);
+    await writeCanonicalState(dir, sentinelState);
     const before = await readState(dir);
     for (const remoteError of errors) {
       let calls = 0;

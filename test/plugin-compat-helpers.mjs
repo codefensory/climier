@@ -98,13 +98,13 @@ export function seedPluginData(state) {
   }
 }
 
-export async function bootstrapState(dir, mutate) {
+export async function seedPluginFixture(dir, mutate) {
   const base = baseState();
   if (typeof mutate === "function") {
     mutate(base);
   }
-  await writeState(dir, base);
-  return base;
+  await writeCanonicalState(dir, base);
+  return readState(dir);
 }
 
 export function assertPluginDataPreserved(state) {
