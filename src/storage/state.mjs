@@ -49,15 +49,44 @@ export async function ensureProjectMeta(projectDir) {
   return meta;
 }
 
+export const STATE_SCHEMA_VERSION = 1;
 const CURRENT_STATE_VERSION = 4;
-const FENCED_STATE_VERSION = 5;
+export const FENCED_STATE_VERSION = 5;
 const LEGACY_STATE_VERSION = 2;
 const PREVIOUS_STATE_VERSION = 3;
 
-export { FENCED_STATE_VERSION };
+export function isFencedStateVersion(version) {
+  return version === STATE_SCHEMA_VERSION || version === FENCED_STATE_VERSION;
+}
 
 export function isFencedState(state) {
-  return state?.version === FENCED_STATE_VERSION;
+  return isFencedStateVersion(state?.version);
+}
+
+export function classifyStateShape(state) {
+  if (!state || typeof state !== "object" || Array.isArray(state)) { return { kind: "invalid" }; }
+  if (!Object.prototype.hasOwnProperty.call(state, "nodes")
+      && ["tasks", "decisions", "gotchas"].some((field) => Object.prototype.hasOwnProperty.call(state, field))) {
+    return { kind: "pre-release" };
+  }
+  if (!Number.isInteger(state.version)
+      || state.version > FENCED_STATE_VERSION
+      || (state.version > STATE_SCHEMA_VERSION
+        && ![LEGACY_STATE_VERSION, PREVIOUS_STATE_VERSION, CURRENT_STATE_VERSION, FENCED_STATE_VERSION].includes(state.version))) {
+    return { kind: "incompatible" };
+  }
+  if (state.version === STATE_SCHEMA_VERSION) {
+    if (!Object.prototype.hasOwnProperty.call(state, "nodes")
+        && ["tasks", "decisions", "gotchas"].some((field) => Object.prototype.hasOwnProperty.call(state, field))) {
+      return { kind: "pre-release" };
+    }
+    const missing = ["nodes", "edges", "initiatives", "log"].filter((field) => !Object.prototype.hasOwnProperty.call(state, field));
+    if (missing.length > 0) { return { kind: "incomplete", missing }; }
+    if (!Number.isInteger(state.fence_generation)) { return { kind: "noncanonical", reason: "fence_generation is missing or invalid" }; }
+    return { kind: "canonical" };
+  }
+  if (isFencedState(state)) { return { kind: "fenced-legacy" }; }
+  return { kind: "legacy" };
 }
 
 // Upgrade legacy-compatible state without changing the input object.
@@ -98,61 +127,64 @@ async function readMissingState(projectDir) {
   return readFencedState(projectDir);
 }
 
-function rejectLegacyV1State(state, file) {
-  if (!state || typeof state !== "object" || state.version !== 1) { return; }
-  const migrationSteps = [
-    "1. Backup the existing tasks.json file.",
-    "2. Export any nodes you want to keep (the v1 schema uses tasks/decisions/gotchas; recreate them with add-task/add-gate/add-knowledge).",
-    "3. Run `climier init --force` to recreate the project state in v3.",
-    "4. Recreate each node with add-initiative / add-task / add-gate / add-knowledge (see `climier --help` for the v3 surface).",
-  ];
-  const wrapped = new Error(
-    `state: file at ${file} has version 1; this version of climier no longer supports the v1 schema. ` +
-    `To migrate, follow these steps:\n${migrationSteps.join("\n")}`,
-  );
-  wrapped.code = "STATE_V1_UNSUPPORTED";
-  wrapped.details = {
-    file,
-    version: 1,
-    migration_steps: migrationSteps,
-    hint: "Run `climier init --force` to overwrite the v1 state with a fresh v3 state (this will erase the v1 data).",
-  };
-  throw wrapped;
-}
-
-function rejectMalformedFencedState(state, file) {
-  if (state && typeof state === "object" && state.version === FENCED_STATE_VERSION
-      && !Number.isInteger(state.fence_generation)) {
-    const error = new Error(`state: file at ${file} has version ${state.version} but this climier requires a fenced state`);
-    error.code = "CLIMIER_INCOMPATIBLE_VERSION";
-    throw error;
-  }
-}
-
-async function readLedgerState(projectDir, state) {
-  const { ledgerFile, readFencedState } = await import("./ledger.mjs");
-  if (state.version === FENCED_STATE_VERSION) { return readFencedState(projectDir); }
-  const compatible = [LEGACY_STATE_VERSION, PREVIOUS_STATE_VERSION, CURRENT_STATE_VERSION].includes(state.version);
-  if (!compatible) { return null; }
-  try { await fs.access(ledgerFile(projectDir)); }
-  catch (error) { if (error.code === "ENOENT") { return null; } throw error; }
-  return readFencedState(projectDir);
-}
-
-function rejectFutureState(state, file) {
-  if (state?.version > FENCED_STATE_VERSION) { rejectFutureWritableVersion(state, file); }
+function stateShapeError(code, message, details) {
+  const error = new Error(message);
+  error.code = code;
+  error.details = details;
+  return error;
 }
 
 async function parseStateFile(projectDir, file, raw) {
   const state = JSON.parse(raw);
-  rejectLegacyV1State(state, file);
-  rejectMalformedFencedState(state, file);
-  const ledgerState = state && typeof state === "object" ? await readLedgerState(projectDir, state) : null;
-  if (ledgerState) { return ledgerState; }
-  rejectFutureState(state, file);
-  const migrated = migrateState(state);
-  if (migrated && typeof migrated === "object") { validateStateInvariants(migrated, "state.read"); }
-  return migrated;
+  const shape = classifyStateShape(state);
+  if (shape.kind === "invalid") {
+    throw stateShapeError("CLIMIER_INVALID_STATE_FORMAT", `state: file at ${file} is not a JSON object`, { file });
+  }
+  if (shape.kind === "pre-release") {
+    throw stateShapeError("PRE_RELEASE_STATE_UNSUPPORTED", `state: pre-release state at ${file} has tasks/decisions/gotchas without nodes; run climier migrate`, {
+      file, version: state.version, hint: "Run climier migrate to import this pre-release state.",
+    });
+  }
+  if (shape.kind === "incompatible") { rejectFutureWritableVersion(state, file); }
+  if (shape.kind === "incomplete") {
+    throw stateShapeError("CLIMIER_INCOMPLETE_STATE", `state: canonical version 1 file at ${file} is incomplete (missing ${shape.missing.join(", ")})`, {
+      file, missing: shape.missing,
+    });
+  }
+  if (shape.kind === "noncanonical") {
+    throw stateShapeError("CLIMIER_NONCANONICAL_STATE", `state: version 1 file at ${file} is not canonical (${shape.reason}); run climier migrate`, {
+      file, version: STATE_SCHEMA_VERSION, reason: shape.reason, hint: "Run climier migrate to create a canonical state.",
+    });
+  }
+  if (shape.kind === "canonical" || shape.kind === "fenced-legacy") {
+    const { ledgerFile, readFencedState } = await import("./ledger.mjs");
+    try { await fs.access(ledgerFile(projectDir)); }
+    catch (error) {
+      if (error.code === "ENOENT") {
+        if (shape.kind === "canonical") {
+          throw stateShapeError("CLIMIER_NONCANONICAL_STATE", `state: version 1 file at ${file} is not canonical (revision-ledger.json is missing); run climier migrate`, {
+            file, version: STATE_SCHEMA_VERSION, reason: "revision-ledger.json is missing", hint: "Run climier migrate to create a canonical state.",
+          });
+        }
+        const incompatible = new Error(`state: file at ${file} is missing its revision ledger`);
+        incompatible.code = "CLIMIER_LEDGER_MISSING";
+        throw incompatible;
+      }
+      throw error;
+    }
+    return readFencedState(projectDir);
+  }
+  const { ledgerFile, readFencedState } = await import("./ledger.mjs");
+  try { await fs.access(ledgerFile(projectDir)); }
+  catch (error) {
+    if (error.code === "ENOENT") {
+      const migrated = migrateState(state);
+      validateStateInvariants(migrated, "state.read");
+      return migrated;
+    }
+    throw error;
+  }
+  return readFencedState(projectDir);
 }
 
 export async function readState(projectDir) {
@@ -226,7 +258,7 @@ function rejectLegacyWritableVersion(file) {
 }
 
 function rejectFutureWritableVersion(state, file) {
-  const error = new Error(`state: file at ${file} has version ${state.version} but this climier only understands version ${FENCED_STATE_VERSION}`);
+  const error = new Error(`state: file at ${file} has version ${state.version} but this climier only understands schema version ${STATE_SCHEMA_VERSION} (or fenced legacy ${FENCED_STATE_VERSION})`);
   error.code = "CLIMIER_INCOMPATIBLE_VERSION";
   throw error;
 }

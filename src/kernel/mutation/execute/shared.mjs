@@ -1,7 +1,7 @@
 // Shared execution contracts and helpers used by mutation phases.
 
 import fs from "node:fs/promises";
-import { readState, stateFile } from "../../../storage/state.mjs";
+import { classifyStateShape, readState, stateFile } from "../../../storage/state.mjs";
 import { readFencedStateUnderLock } from "../../../storage/ledger.mjs";
 import { throwV2 } from "../../../contracts/errors.mjs";
 import {
@@ -296,12 +296,12 @@ function assertLedgerStateValid(raw, hasLedger, statePath) {
 }
 
 function hasIncompatibleVersion(raw) {
-  const parsed = parseStateRaw(raw);
-  return parsed && typeof parsed === "object" && (parsed.version === 1 || parsed.version > 5);
+  return classifyStateShape(parseStateRaw(raw)).kind === "incompatible";
 }
 
 function isIncompatibleVersionError(error) {
-  return error.code === "STATE_V1_UNSUPPORTED" || error.code === "CLIMIER_INCOMPATIBLE_VERSION";
+  return error.code === "STATE_V1_UNSUPPORTED" || error.code === "CLIMIER_INCOMPATIBLE_VERSION"
+    || error.code === "PRE_RELEASE_STATE_UNSUPPORTED" || error.code === "CLIMIER_NONCANONICAL_STATE";
 }
 
 async function validateStateVersion(raw, projectDir) {

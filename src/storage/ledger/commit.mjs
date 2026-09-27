@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
-import { stateFile, FENCED_STATE_VERSION } from "../state.mjs";
+import { stateFile, isFencedStateVersion } from "../state.mjs";
 import { getActiveLockContext, assertActiveLockContext } from "../lock.mjs";
 import { validateStateInvariants } from "../../contracts/state-invariants.mjs";
 import { assertValidLedger } from "./recovery.mjs";
@@ -29,7 +29,8 @@ async function readCommitStage(stagePath, pending) {
     throw fingerprintMismatch("commit stage does not match the pending destination fingerprint");
   }
   const destination = readJson(raw, "commit stage");
-  if (destination.version !== FENCED_STATE_VERSION
+  if (!isFencedStateVersion(destination.version)
+      || !Number.isInteger(destination.fence_generation)
       || destination.fence_generation !== pending.fence_generation
       || destination.revision !== pending.high_water_revision) {
     throw fingerprintMismatch("commit stage state does not match reserved generation or high-water revision");
@@ -60,7 +61,7 @@ async function cleanOrphanCommitStages(statePath) {
 
 function assertCommitSource(rawState, pending, ledger) {
   const source = readJson(rawState, "commit source state");
-  if (source.version !== FENCED_STATE_VERSION
+  if (!isFencedStateVersion(source.version)
       || source.fence_generation !== pending.fence_generation
       || source.revision !== pending.source_high_water_revision
       || source.revision > ledger.high_water_revision) {
@@ -135,13 +136,14 @@ function assertCandidateEnvelope(candidate) {
   if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
     throw new Error("ledger.commit: candidate must be a state object");
   }
-  if (candidate.version !== FENCED_STATE_VERSION) {
-    throw new Error(`ledger.commit: candidate schema version must be ${FENCED_STATE_VERSION}`);
+  if (!isFencedStateVersion(candidate.version)) {
+    throw new Error("ledger.commit: candidate schema version must be canonical version 1 or fenced legacy version 5");
   }
 }
 
 function assertCandidateGeneration(candidate, current, ledger) {
-  if (candidate.fence_generation !== ledger.fence_generation
+  if (!Number.isInteger(candidate.fence_generation)
+      || candidate.fence_generation !== ledger.fence_generation
       || candidate.fence_generation !== current.fence_generation) {
     throw new Error("ledger.commit: candidate fence_generation must preserve the local generation");
   }

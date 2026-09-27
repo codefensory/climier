@@ -2,7 +2,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { FENCED_STATE_VERSION } from "../state.mjs";
+import { isFencedStateVersion } from "../state.mjs";
 import { validateStateInvariants } from "../../contracts/state-invariants.mjs";
 
 const injectedFault = "injected failure";
@@ -12,7 +12,7 @@ export function sha256(value) {
 }
 
 export function assertFencedState(state, ledger) {
-  if (!state || state.version !== FENCED_STATE_VERSION
+  if (!state || !isFencedStateVersion(state.version)
       || state.fence_generation !== ledger.fence_generation
       || !Number.isInteger(state.revision) || state.revision !== ledger.high_water_revision
       || maxNodeRevision(state) > ledger.high_water_revision) {
