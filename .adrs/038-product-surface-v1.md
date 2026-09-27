@@ -55,7 +55,7 @@ La superficie pública arrastra acomodos que existen solo por historia: filtros 
 - `climier install <pkg> --as x` falla; `climier install <pkg>` funciona.
 - `resolve` sobre un gate ya resuelto se comporta de forma documentada y testeada, sin conversiones silenciosas.
 - `update` con un campo desconocido falla con error claro, sin `legacy_patch`.
-- `update <id> --backlog true` cambia el campo por el contrato tipado —no por el parche— y `update <id> --meta '{}'` falla como unknown flag con el envelope estructurado.
+- `update <id> --backlog true` y `update <id> --meta '{}'` cambian el campo por el contrato tipado —no por el parche—: ambos entran a la allowlist de `task.update` según la decisión 4, porque `meta` ya es tipado en gate y knowledge, se acepta al crear en los tres kinds y lo indexa la búsqueda. Una clave conocida que no aplica al kind se rechaza con un error que nombra las permitidas, y ninguna se escribe en silencio.
 - Un plugin con `api: 3` falla con un mensaje que nombra la versión esperada (`api: 1`), y un plugin con `api: 1` carga.
 - Transfer entre cliente y servidor del mismo release funciona con `version: 1` en el payload; el encabezado de protocolo sigue siendo `1`.
 - `history` de un nodo no devuelve entradas por campos `task`/`decision`/`gotcha`.
