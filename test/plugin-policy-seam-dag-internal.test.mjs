@@ -112,12 +112,12 @@ test("seam-dag: CLI add-task rejects --allow-unregistered-initiative as unknown 
       "--acceptance", "a", "--blocked-by", "",
       "--allow-unregistered-initiative",
     ]);
-    assert.equal(r.code, 1);
-    // The bin's unknown-flag guard raises a generic Error (no .code),
-    // so the envelope is the message-only shape.
+    assert.equal(r.code, 2);
     const body = JSON.parse(r.stdout);
     assert.equal(body.ok, false);
-    assert.match(body.error, /unknown flag --allow-unregistered-initiative/);
+    assert.equal(body.error.code, "CLI_USAGE_ERROR");
+    assert.equal(body.error.details.command, "add-task");
+    assert.equal(body.error.details.flag, "allow-unregistered-initiative");
   });
 });
 
@@ -131,10 +131,12 @@ test("seam-dag: CLI add-node rejects --allow-unregistered-initiative as unknown 
       "--title", "t",
       "--allow-unregistered-initiative",
     ]);
-    assert.equal(r.code, 1);
+    assert.equal(r.code, 2);
     const body = JSON.parse(r.stdout);
     assert.equal(body.ok, false);
-    assert.match(body.error, /unknown flag --allow-unregistered-initiative/);
+    assert.equal(body.error.code, "CLI_USAGE_ERROR");
+    assert.equal(body.error.details.command, "add-node");
+    assert.equal(body.error.details.flag, "allow-unregistered-initiative");
   });
 });
 

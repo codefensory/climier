@@ -14,6 +14,24 @@ function rawDeclaration() {
 }
 
 const RAW_FILE = "test/raw.test.mjs";
+const MOVE_SOURCE = "test/old.test.mjs";
+const MOVE_DESTINATION = "test/new.test.mjs";
+
+function moveManifest(destinationNames = ["first", "second"], sourceNames = ["first", "second"]) {
+  return {
+    version: 1,
+    base_sha: SHA,
+    tests: [
+      ...sourceNames.map((name) => ({ path: MOVE_SOURCE, name, ordinal: 1, disposition: "move", move_from: MOVE_SOURCE })),
+      ...destinationNames.map((name) => ({ path: MOVE_DESTINATION, name, ordinal: 1, disposition: "move", move_from: MOVE_SOURCE })),
+    ],
+  };
+}
+
+const movedRuntime = [
+  { path: MOVE_DESTINATION, name: "first" },
+  { path: MOVE_DESTINATION, name: "second" },
+];
 
 test("test manifest checker rejects a raw writer file with no declaration", () => {
   const manifest = { version: 1, base_sha: SHA, tests: [
@@ -110,6 +128,30 @@ test("test manifest checker rejects an unlisted runtime case", () => {
   ];
 
   assert.throws(() => validateManifest(manifest, runtime), /missing manifest row.*extra/);
+});
+
+test("test manifest checker accepts a moved file when source and destination names match", () => {
+  assert.equal(validateManifest(moveManifest(), movedRuntime), true);
+});
+
+test("test manifest checker rejects a move with a different name multiset", () => {
+  assert.throws(
+    () => validateManifest(moveManifest(["first", "third"]), [
+      { path: MOVE_DESTINATION, name: "first" },
+      { path: MOVE_DESTINATION, name: "third" },
+    ]),
+    /move from test\/old\.test\.mjs must preserve the runtime name multiset/,
+  );
+});
+
+test("test manifest checker rejects a move source with no rows", () => {
+  const manifest = moveManifest();
+  manifest.tests = manifest.tests.filter((row) => row.path !== MOVE_SOURCE);
+
+  assert.throws(
+    () => validateManifest(manifest, movedRuntime),
+    /move source test\/old\.test\.mjs has no manifest rows/,
+  );
 });
 
 test("test manifest checker rejects stale manifest rows", () => {

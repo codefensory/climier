@@ -106,7 +106,8 @@ test("contract: unknown command is JSON to stdout with ok:false", async () => {
     assert.notEqual(r.code, 0);
     const data = JSON.parse(r.stdout);
     assert.equal(data.ok, false);
-    assert.match(data.error, /unknown command/i);
+    assert.equal(data.error.code, "CLI_USAGE_ERROR");
+    assert.equal(data.error.details.command, "nosuchcmd");
     assert.equal(r.stderr.trim(), "");
   } finally {
     await rmTempProject(dir);
@@ -120,7 +121,8 @@ test("contract: no command given is JSON to stdout with ok:false", async () => {
     assert.notEqual(r.code, 0);
     const data = JSON.parse(r.stdout);
     assert.equal(data.ok, false);
-    assert.match(data.error, /no command/i);
+    assert.equal(data.error.code, "CLI_USAGE_ERROR");
+    assert.equal(data.error.details.command, null);
     assert.equal(r.stderr.trim(), "");
   } finally {
     await rmTempProject(dir);
@@ -139,7 +141,8 @@ test("contract: --json flag is gone (no longer a global flag)", async () => {
     assert.notEqual(r.code, 0);
     const data = JSON.parse(r.stdout);
     assert.equal(data.ok, false);
-    assert.match(data.error, /unknown flag --json|no command given/i);
+    assert.equal(data.error.code, "CLI_USAGE_ERROR");
+    assert.equal(data.error.details.command, null);
   } finally {
     await rmTempProject(dir);
   }
@@ -153,7 +156,9 @@ test("contract: unknown flag is JSON to stdout (not stderr)", async () => {
     assert.notEqual(r.code, 0);
     const data = JSON.parse(r.stdout);
     assert.equal(data.ok, false);
-    assert.match(data.error, /unknown flag --banana/);
+    assert.equal(data.error.code, "CLI_USAGE_ERROR");
+    assert.equal(data.error.details.command, "take");
+    assert.equal(data.error.details.flag, "banana");
     assert.equal(r.stderr.trim(), "");
   } finally {
     await rmTempProject(dir);

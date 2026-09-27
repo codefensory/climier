@@ -149,9 +149,10 @@ test("Issue 3: 'Available:' error string lists cancel, resolve, history", async 
     assert.equal(out.code, 2, `expected exit 2, got ${out.code}: stdout=${out.stdout}`);
     const data = JSON.parse(out.stdout);
     assert.equal(data.ok, false);
-    assert.equal(typeof data.error, "string");
+    assert.equal(data.error.code, "CLI_USAGE_ERROR");
+    assert.equal(data.error.details.command, null);
     for (const cmd of ["cancel", "resolve", "history"]) {
-      assert.match(data.error, new RegExp(`\\b${cmd}\\b`), `Available: string missing '${cmd}': ${data.error}`);
+      assert.ok(data.error.details.valid_commands.includes(cmd), `valid command list missing '${cmd}'`);
     }
   } finally { await rmTempProject(dir); }
 });
@@ -238,7 +239,8 @@ test("Issue 5: add-decision on v2 state is rejected as unknown command", async (
     assert.notEqual(out.code, 0);
     const data = JSON.parse(out.stdout);
     assert.equal(data.ok, false);
-    assert.match(data.error, /unknown command/i);
+    assert.equal(data.error.code, "CLI_USAGE_ERROR");
+    assert.equal(data.error.details.command, "add-decision");
   } finally { await rmTempProject(dir); }
 });
 
@@ -254,6 +256,7 @@ test("Issue 5: add-gotcha on v2 state is rejected as unknown command", async () 
     assert.notEqual(out.code, 0);
     const data = JSON.parse(out.stdout);
     assert.equal(data.ok, false);
-    assert.match(data.error, /unknown command/i);
+    assert.equal(data.error.code, "CLI_USAGE_ERROR");
+    assert.equal(data.error.details.command, "add-gotcha");
   } finally { await rmTempProject(dir); }
 });

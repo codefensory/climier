@@ -527,7 +527,7 @@
     },
     {
       "path": "test/cli-dispatch.test.mjs",
-      "name": "CLI: unknown command exits non-zero with JSON error",
+      "name": "CLI: unknown command returns a structured usage error",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -8121,7 +8121,37 @@
     },
     {
       "path": "test/test-manifest.test.mjs",
+      "name": "test manifest checker accepts a moved file when source and destination names match",
+      "ordinal": 1,
+      "disposition": "keep",
+      "lane": "raw",
+      "category": "mention-only",
+      "motive": "carries the lane detector's fixture text; the file writes no state",
+      "replacement": "none needed"
+    },
+    {
+      "path": "test/test-manifest.test.mjs",
       "name": "test manifest checker rejects a declaration whose file no longer writes raw",
+      "ordinal": 1,
+      "disposition": "keep",
+      "lane": "raw",
+      "category": "mention-only",
+      "motive": "carries the lane detector's fixture text; the file writes no state",
+      "replacement": "none needed"
+    },
+    {
+      "path": "test/test-manifest.test.mjs",
+      "name": "test manifest checker rejects a move source with no rows",
+      "ordinal": 1,
+      "disposition": "keep",
+      "lane": "raw",
+      "category": "mention-only",
+      "motive": "carries the lane detector's fixture text; the file writes no state",
+      "replacement": "none needed"
+    },
+    {
+      "path": "test/test-manifest.test.mjs",
+      "name": "test manifest checker rejects a move with a different name multiset",
       "ordinal": 1,
       "disposition": "keep",
       "lane": "raw",
@@ -8197,12 +8227,6 @@
     },
     {
       "path": "test/unknown-flags.test.mjs",
-      "name": "CLI: error message lists the valid flags for the command",
-      "ordinal": 1,
-      "disposition": "keep"
-    },
-    {
-      "path": "test/unknown-flags.test.mjs",
       "name": "CLI: known flags still work and return JSON to stdout (no regression)",
       "ordinal": 1,
       "disposition": "keep"
@@ -8221,7 +8245,13 @@
     },
     {
       "path": "test/unknown-flags.test.mjs",
-      "name": "CLI: take --banana exits non-zero with JSON error on stdout",
+      "name": "CLI: take --banana returns a structured usage error",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/unknown-flags.test.mjs",
+      "name": "CLI: unknown flag details list valid flags for the command",
       "ordinal": 1,
       "disposition": "keep"
     },

@@ -310,8 +310,11 @@ test("CLI: --informs, --relates-to, --conflicts-with are no longer recognized fl
         "--initiative", "auth",
         `--${flag}`, "G1",
       ]);
-      assert.equal(r.code, 1, `expected --${flag} to fail, got ${r.stdout}`);
-      assert.match(r.stdout, new RegExp(`unknown flag --${flag}`));
+      assert.equal(r.code, 2, `expected --${flag} to fail, got ${r.stdout}`);
+      const envelope = JSON.parse(r.stdout);
+      assert.equal(envelope.error.code, "CLI_USAGE_ERROR");
+      assert.equal(envelope.error.details.command, "add-node");
+      assert.equal(envelope.error.details.flag, flag);
     }
   } finally {
     await rmTempProject(dir);

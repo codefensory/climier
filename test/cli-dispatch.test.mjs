@@ -6,7 +6,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createTempProject, rmTempProject, runCli, initExampleProject } from "./helpers.mjs";
-import { runCli as runCliInProcess } from "../src/cli/dispatch.mjs";
+import * as dispatchModule from "../src/cli/dispatch.mjs";
+const { runCli: runCliInProcess } = dispatchModule;
+
+for (const retiredExport of ["parseArgs", "dispatch", "main"]) {
+  assert.equal(Object.hasOwn(dispatchModule, retiredExport), false, `dispatch export ${retiredExport} is retired`);
+}
 
 const packageVersion = JSON.parse(
   fs.readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "package.json"), "utf8")
@@ -181,14 +186,15 @@ test("CLI: context on a missing task exits non-zero with JSON error", async () =
   }
 });
 
-test("CLI: unknown command exits non-zero with JSON error", async () => {
+test("CLI: unknown command returns a structured usage error", async () => {
   const dir = await createTempProject();
   try {
-    await runCli(["--project", dir, "init"]);
     const r = await runCli(["--project", dir, "nosuchcmd"]);
-    assert.notEqual(r.code, 0);
+    assert.equal(r.code, 2);
     const data = JSON.parse(r.stdout);
-    assert.match(data.error, /unknown command/);
+    assert.equal(data.ok, false);
+    assert.equal(data.error.code, "CLI_USAGE_ERROR");
+    assert.equal(data.error.details.command, "nosuchcmd");
   } finally {
     await rmTempProject(dir);
   }
@@ -319,7 +325,9 @@ test("dispatch: help and no-command handling remain ahead of backend selection",
     });
     assert.equal(noCommandResult, 2);
     assert.deepEqual(noCommandCodes, [2]);
-    assert.match(JSON.parse(noCommandOutput[0]).error, /no command given/i);
+    const noCommandEnvelope = JSON.parse(noCommandOutput[0]);
+    assert.equal(noCommandEnvelope.error.code, "CLI_USAGE_ERROR");
+    assert.equal(noCommandEnvelope.error.details.command, null);
   } finally {
     await rmTempProject(dir);
   }

@@ -276,9 +276,11 @@ test("CLI: init rejects --v2 flag", async () => {
   const dir = await createTempProject();
   try {
     const r = await runCli(["--project", dir, "init", "--v2"]);
-    assert.equal(r.code, 1, `expected exit 1; got ${r.code}: ${r.stdout}`);
+    assert.equal(r.code, 2, `expected exit 2; got ${r.code}: ${r.stdout}`);
     const data = JSON.parse(r.stdout);
     assert.equal(data.ok, false);
-    assert.match(data.error, /unknown flag --v2/);
+    assert.equal(data.error.code, "CLI_USAGE_ERROR");
+    assert.equal(data.error.details.command, "init");
+    assert.equal(data.error.details.flag, "v2");
   } finally { await rmTempProject(dir); }
 });
