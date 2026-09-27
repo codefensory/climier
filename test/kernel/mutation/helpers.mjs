@@ -14,9 +14,9 @@ export async function importKernel() {
 // ===================================================================
 
 // createTaskProvider — composes a brand-new node + edges in one apply.
-export function createTaskProvider({ id, kind = "resolvable", subkind = "task", title, edges = [], fields = {} } = {}) {
+export function createTaskProvider({ id, kind = "resolvable", subkind = "task", title, revisionAfter = 1, edges = [], fields = {} } = {}) {
   return {
-    prepare: async () => {
+    prepare: async ({ snapshot }) => {
       return {
         target: { id, kind, subkind },
         policyAction: null,
@@ -47,7 +47,7 @@ export function createTaskProvider({ id, kind = "resolvable", subkind = "task", 
 }
 
 // updateNodeProvider — updates an existing node's title.
-export function updateNodeProvider({ id, newTitle }) {
+export function updateNodeProvider({ id, newTitle, newRevision }) {
   let prepareCalls = 0;
   let applyCalls = 0;
   const provider = {
@@ -108,7 +108,7 @@ export async function bootstrapProject(dir, mutate) {
     initiatives: { kernel: { desc: "kernel", created_at: "2026-01-01T00:00:00.000Z" } },
     log: [],
   };
-  if (typeof mutate === "function") { mutate(base); }
+  if (typeof mutate === "function") mutate(base);
   await writeStateHelper(dir, base);
   const { bootstrapFencedState } = await import("../../../src/storage/ledger.mjs");
   const fenced = await bootstrapFencedState(dir);

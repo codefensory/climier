@@ -70,7 +70,7 @@ test("kernel.mutate: policyAction.decide runs against the FRESH snapshot under t
     await bootstrapProject(dir);
     let capturedRevision = null;
     const provider = {
-      prepare: async () => ({ target: { id: "T1", kind: "resolvable", subkind: "task" } }),
+      prepare: async ({ snapshot }) => ({ target: { id: "T1", kind: "resolvable", subkind: "task" } }),
       apply: async ({ tx }) => {
         tx.updateNode("T1", { title: "post-policy" });
         return { result: null };

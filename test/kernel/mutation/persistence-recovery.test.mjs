@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import { createTempProject, readState as readStateHelper, rmTempProject, stateFilePath, writeState as writeStateHelper, importFresh } from "../../helpers.mjs";
 import { bootstrapProject, importKernel, updateNodeProvider } from "./helpers.mjs";
+import { withLock } from "../../../src/storage/lock.mjs";
 
 // failingPrepareProvider — prepare throws a structured error.
 function failingPrepareProvider(message = "blocked by domain rule") {
@@ -33,8 +34,6 @@ function failingApplyProvider(message = "boom in apply") {
 }
 
 
-import { withLock } from "../../../src/storage/lock.mjs";
-
 test("kernel.mutate: provider.prepare throws ⇒ no state mutation, no log entry, lock released", async () => {
   const { mutate } = await importKernel();
   const dir = await createTempProject();
@@ -55,8 +54,8 @@ test("kernel.mutate: provider.prepare throws ⇒ no state mutation, no log entry
     assert.deepEqual(after.nodes, base.nodes);
     assert.equal(after.log.length, 0);
     // Lock released: a fresh withLock should succeed immediately.
-    const { withLock: reacquireLock } = await importFresh("./storage/lock.mjs");
-    await reacquireLock(dir, async () => { lockObserved = true; });
+    const { withLock } = await importFresh("./storage/lock.mjs");
+    await withLock(dir, async () => { lockObserved = true; });
     assert.equal(lockObserved, true, "withLock must be released after the failing call");
   } finally {
     await rmTempProject(dir);
@@ -237,7 +236,7 @@ test("kernel.mutate recovers a pending fenced commit before checking caller CAS"
 
 test("kernel.mutate bootstraps a missing project only after provider policy allows", async () => {
   const { mutate } = await importKernel();
-  const { stateExists: checkStateExists, stateFilePath: getStateFilePath } = await import("../../helpers.mjs");
+  const { stateExists, stateFilePath } = await import("../../helpers.mjs");
   const { ledgerFile } = await import("../../../src/storage/ledger.mjs");
   const dir = await createTempProject();
   try {
@@ -249,7 +248,7 @@ test("kernel.mutate bootstraps a missing project only after provider policy allo
       policyAction: { decide: async () => ({ decision: "allow" }) },
     });
     assert.equal(result.result.name, "new-project");
-    assert.equal(await checkStateExists(dir), true);
+    assert.equal(await stateExists(dir), true);
     const { readFencedState } = await import("../../../src/storage/ledger.mjs");
     const state = await readFencedState(dir);
     assert.equal(state.version, 5);
@@ -266,9 +265,9 @@ test("kernel.mutate bootstraps a missing project only after provider policy allo
         provider: initiativeCreateProvider,
         policyAction: { decide: async () => ({ decision: "deny", reason: "no" }) },
       }), (error) => error.code === "POLICY_DENIED");
-      assert.equal(await checkStateExists(deniedDir), false);
+      assert.equal(await stateExists(deniedDir), false);
       await assert.rejects(fs.access(ledgerFile(deniedDir)), { code: "ENOENT" });
-      await assert.rejects(fs.access(getStateFilePath(deniedDir)), { code: "ENOENT" });
+      await assert.rejects(fs.access(stateFilePath(deniedDir)), { code: "ENOENT" });
     } finally {
       await rmTempProject(deniedDir);
     }
