@@ -26,7 +26,7 @@ export function assertFencedState(state, ledger) {
 export function maxNodeRevision(state) {
   let max = 0;
   for (const node of Object.values(state.nodes || {})) {
-    if (Number.isInteger(node?.revision) && node.revision > max) max = node.revision;
+    if (Number.isInteger(node?.revision) && node.revision > max) { max = node.revision; }
   }
   return max;
 }
@@ -125,7 +125,7 @@ export async function cleanOrphanRecoveryStages(statePath) {
       changed = true;
     }
   }
-  if (changed) await syncDirectory(directory);
+  if (changed) { await syncDirectory(directory); }
 }
 
 export async function syncDirectory(directory) {
