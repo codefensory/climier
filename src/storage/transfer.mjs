@@ -39,7 +39,8 @@ function transferPayload(state) {
     return [id, transferNode];
   }));
   return {
-    version: 4,
+    version: 1,
+    fence_generation: state.fence_generation,
     revision: 0,
     nodes,
     edges: structuredClone(state.edges),

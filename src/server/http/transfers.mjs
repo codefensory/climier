@@ -1,6 +1,6 @@
 import { captureTransferSource, installTransferDestination } from "../../kernel/transfer.mjs";
 
-const TRANSFER_PAYLOAD_FIELDS = new Set(["version", "revision", "nodes", "edges", "initiatives", "log"]);
+const TRANSFER_PAYLOAD_FIELDS = new Set(["version", "fence_generation", "revision", "nodes", "edges", "initiatives", "log"]);
 
 function invalidTransferRequest(httpError, message, field) {
   throw httpError("INVALID_REQUEST", `server http: ${message}`, { field }, 400);
@@ -11,7 +11,8 @@ function isRecord(value) {
 }
 
 function hasValidTransferSnapshotShape(payload) {
-  return payload.version === 4 && isRecord(payload.nodes) && Array.isArray(payload.edges)
+  return payload.version === 1 && Number.isInteger(payload.fence_generation)
+    && isRecord(payload.nodes) && Array.isArray(payload.edges)
     && isRecord(payload.initiatives) && Array.isArray(payload.log);
 }
 
