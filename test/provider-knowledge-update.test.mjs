@@ -38,6 +38,41 @@ import {
 // update provider — prepare / apply via kernel.mutate
 // ===================================================================
 
+async function applyKnowledgeUpdate(provider, mutate, dir) {
+  const base = emptySnapshot({
+    nodes: {
+      "K-1": knowledgeNode("K-1", {
+        revision: 2, title: "old", body: "old body", mitigation: "old m",
+        scope: { domains: ["auth"] },
+      }),
+    },
+  });
+  await writeFencedState(dir, base);
+  const out = await mutate({
+    projectDir: dir,
+    request: { action: "knowledge.update", actor: "alice", input: {
+      id: "K-1", changes: {
+        title: "new", body: "new body", mitigation: "new m",
+        scope: { domains: ["auth", "billing"], tags: ["ops"] },
+      },
+    } },
+    provider,
+  });
+  return { out, after: await readStateHelper(dir) };
+}
+
+function assertUpdatedKnowledgeState(after) {
+  assert.equal(after.nodes["K-1"].title, "new");
+  assert.equal(after.nodes["K-1"].body, "new body");
+  assert.equal(after.nodes["K-1"].mitigation, "new m");
+  assert.deepEqual(after.nodes["K-1"].scope, {
+    domains: ["auth", "billing"], tags: ["ops"], initiatives: [], node_ids: [],
+  });
+  assert.equal(after.log.length, 1);
+  assert.equal(after.log[0].action, "knowledge.update");
+  assert.equal(after.log[0].revision, 4);
+}
+
 test("update: prepare rejects missing id", async () => {
   const { updateProvider } = await importProviders();
   const provider = updateProvider();
@@ -149,39 +184,12 @@ test("update: apply patches title/body/mitigation/scope via tx", async () => {
   const provider = updateProvider();
   const dir = await createTempProject();
   try {
-    const base = emptySnapshot({
-      nodes: {
-        "K-1": knowledgeNode("K-1", {
-          revision: 2, title: "old", body: "old body", mitigation: "old m",
-          scope: { domains: ["auth"] },
-        }),
-      },
-    });
-    await writeFencedState(dir, base);
-    const out = await mutate({
-      projectDir: dir,
-      request: { action: "knowledge.update", actor: "alice", input: {
-        id: "K-1", changes: {
-          title: "new", body: "new body", mitigation: "new m",
-          scope: { domains: ["auth", "billing"], tags: ["ops"] },
-        },
-      } },
-      provider,
-    });
+    const { out, after } = await applyKnowledgeUpdate(provider, mutate, dir);
     assert.equal(out.idempotent, false);
     assert.equal(out.diff.updated.length, 1);
     assert.equal(out.diff.updated[0].id, "K-1");
     assert.equal(out.diff.updated[0].node.revision, 4, "kernel advances beyond the fenced fixture high-water");
-    const after = await readStateHelper(dir);
-    assert.equal(after.nodes["K-1"].title, "new");
-    assert.equal(after.nodes["K-1"].body, "new body");
-    assert.equal(after.nodes["K-1"].mitigation, "new m");
-    assert.deepEqual(after.nodes["K-1"].scope, {
-      domains: ["auth", "billing"], tags: ["ops"], initiatives: [], node_ids: [],
-    });
-    assert.equal(after.log.length, 1);
-    assert.equal(after.log[0].action, "knowledge.update");
-    assert.equal(after.log[0].revision, 4);
+    assertUpdatedKnowledgeState(after);
   } finally {
     await rmTempProject(dir);
   }
