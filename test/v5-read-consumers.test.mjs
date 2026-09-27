@@ -137,14 +137,14 @@ test("read consumers reject future state versions", async () => {
     const { createQuery } = await importFresh("../src/plugins/query.mjs");
     const query = createQuery({ projectDir: dir, agent: "alice", pluginId: "plugin.a" });
     const reads = [
-      show({ statePath: dir, positional: ["T1"], flags: {} }),
-      context({ statePath: dir, positional: ["T1"], flags: {} }),
-      search({ statePath: dir, positional: ["needle"], flags: {} }),
-      query.node("T1"),
-      query.context("T1"),
-      query.snapshot(),
-      query.status(),
-      query.history("T1"),
+      () => show({ statePath: dir, positional: ["T1"], flags: {} }),
+      () => context({ statePath: dir, positional: ["T1"], flags: {} }),
+      () => search({ statePath: dir, positional: ["needle"], flags: {} }),
+      () => query.node("T1"),
+      () => query.context("T1"),
+      () => query.snapshot(),
+      () => query.status(),
+      () => query.history("T1"),
     ];
 
     for (const read of reads) {
