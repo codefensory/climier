@@ -5,61 +5,12 @@ import os from "node:os";
 import path from "node:path";
 
 import { createProjectCatalog } from "../../../src/server/catalog/index.mjs";
-import { initState } from "../../../src/kernel/state-operations.mjs";
 import { createRemoteApiServer } from "../../../src/server/http.mjs";
 import { dispatchOperationRequest, validateOperationRequest } from "../../../src/server/http/operations.mjs";
 import { remoteV1Manifest } from "../../../src/application/operations/remote-v1-manifest.mjs";
 import { bootstrapFencedState } from "../../../src/storage/ledger.mjs";
+import { authHeaders, operation, withApi } from "./fixtures.mjs";
 
-async function withApi(run) {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "climier-server-http-"));
-  const previousHome = process.env.CLIMIER_HOME;
-  process.env.CLIMIER_HOME = path.join(root, "home");
-  const projectIds = ["project-a", "project-b"];
-  const catalog = createProjectCatalog({ dataRoot: path.join(root, "catalog"), projectIds });
-  const projectDirs = await Promise.all(projectIds.map((id) => catalog.provisionProject(id)));
-  for (const projectDir of projectDirs) { await initState({ projectDir }); }
-  let openCount = 0;
-  const server = createRemoteApiServer({
-    catalog,
-    credentials: [{ token: "test-token", projectIds }],
-    async openProject(storagePath, metadata) {
-      openCount += 1;
-      assert.equal(typeof metadata.projectId, "string");
-      return { projectDir: storagePath };
-    },
-  });
-  await new Promise((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", resolve);
-  });
-  const address = server.address();
-  const baseUrl = `http://127.0.0.1:${address.port}`;
-  try {
-    await run({ baseUrl, openCount: () => openCount, projectDirs });
-  } finally {
-    await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
-    if (previousHome === undefined) { delete process.env.CLIMIER_HOME; }
-    else { process.env.CLIMIER_HOME = previousHome; }
-    await fs.rm(root, { recursive: true, force: true });
-  }
-}
-
-function authHeaders(extra = {}) {
-  return {
-    authorization: "Bearer test-token",
-    "x-climier-protocol-version": "1",
-    ...extra,
-  };
-}
-
-async function operation(baseUrl, projectId, operationId, input) {
-  return fetch(`${baseUrl}/v1/projects/${encodeURIComponent(projectId)}/operations`, {
-    method: "POST",
-    headers: authHeaders({ "content-type": "application/json" }),
-    body: JSON.stringify({ operation: operationId, input, actor: "alice" }),
-  });
-}
 
 test("HTTP v1 delegates core operations and read projections through server boundaries", async () => {
   await withApi(async ({ baseUrl }) => {
@@ -201,7 +152,7 @@ test("HTTP v1 executes core.batch through one canonical server mutation", async 
 test("HTTP operation module accepts manifest capabilities and receives complete source at dispatch", async () => {
   const httpError = (code, message, details, status) => {
     const error = Object.assign(new Error(message), { code, status });
-    if (details !== undefined) { error.details = details; }
+    if (details !== undefined) error.details = details;
     return error;
   };
   const request = validateOperationRequest({ operation: "initiative.create", actor: "alice", input: { name: "valid" } }, {
