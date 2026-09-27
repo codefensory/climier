@@ -7625,7 +7625,7 @@
     },
     {
       "path": "test/test-manifest.test.mjs",
-      "name": "collector sees runtime interpolated title captured > nested t.test row",
+      "name": "TAP collector builds full names from runtime nesting and indentation",
       "ordinal": 1,
       "disposition": "keep"
     },
