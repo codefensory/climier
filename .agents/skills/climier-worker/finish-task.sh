@@ -84,7 +84,7 @@ fi
 
 branch="$(git -C "$current_root" branch --show-current)"
 base_branch="$(git -C "$project_root" branch --show-current)"
-base_sha="$(git -C "$project_root" rev-parse "$base_branch" 2>/dev/null || echo "")"
+base_sha="$(git -C "$current_root" merge-base HEAD "$base_branch" 2>/dev/null || echo "")"
 
 # 1. Legacy WORKTREE note (back-compat — keep exact format). Echo to stdout
 # AFTER the add-note succeeds so callers (validator, integration-preflight,
