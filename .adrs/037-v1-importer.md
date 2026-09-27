@@ -47,6 +47,8 @@ Dos hechos ordenan el trabajo. Los cinco estados prehistóricos están vacíos, 
 
 ## Plan de implementación
 
+**Orden de las dependencias.** La detección estructural de la pieza 2 reusa `classifyStateShape` de `src/storage/state.mjs` (ADR-036 §Decisión 3), así que esa slice depende del **clasificador** y no del arranque canónico: es un barrido de solo lectura que no migra nada ni escribe un byte. Las piezas 3 y 4 sí dependen del arranque canónico, porque escriben por el protocolo de stage y commit del ledger (ADR-036 §Plan pieza 2: «el importador fenced los vuelve a tocar después, en orden»). En el DAG eso se refleja como `T-v1-state-classifier → T-v1-migrate-skeleton` y `T-v1-schema-bootstrap → T-v1-migrate-fenced`, con lo que el esqueleto puede correr en paralelo con el bootstrap.
+
 1. **Comando y selección de alcance** — archivos: `src/cli/commands/migrate.mjs` (nuevo), `src/cli/dispatch.mjs` (routing y help), `src/cli/commands/reserved-namespaces.mjs`. `--project`, `--all`, `--dry-run`, la API de lock por `project_id`, y **sin `--as`**: la entrada de log usa el actor de sistema fijo.
 2. **Detección de forma y reporte** — archivos: módulo de detección junto a `src/storage/state.mjs`. Clasificación estructural de las cuatro formas y reporte por proyecto sin abortar el barrido.
 3. **Camino de formas viejas (2/3/4 y prehistórico)** — archivos: el módulo del importador, `src/storage/ledger/bootstrap.mjs`. Normalización y fence inicial usando el protocolo de stage, fingerprint y pending generalizado, con la política de detenerse ante un `migration_pending` previo.
