@@ -4,6 +4,31 @@ import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, importFresh, readState as readRawState } from "../../helpers.mjs";
 import { freshApi, readyProject } from "./fixtures.mjs";
 
+async function assertCreatedTaskResult(out, dir) {
+  assert.ok(out && typeof out === "object", "kernel returned the typed result envelope");
+  assert.equal(typeof out.result, "object", "typed envelope carries result");
+  assert.equal(typeof out.diff, "object", "typed envelope carries diff");
+  assert.equal(Array.isArray(out.diff.created), true, "diff.created is the canonical created list");
+  assert.equal(out.result.id, "T-from-core", "explicit id is propagated to the provider");
+  assert.equal(out.diff.created[0].id, "T-from-core", "diff reflects the created id");
+  assert.equal(out.diff.created[0].node.id, "T-from-core");
+  const after = await readRawState(dir);
+  assert.equal(out.diff.created[0].node.revision, after.revision, "create receives the global high-water revision");
+  assert.ok(after.nodes["T-from-core"], "task.create created the node");
+  return after;
+}
+
+function assertCreatedTaskLog(out, after) {
+  const lastPluginLog = after.log.filter((entry) => entry.plugin_id === "example.audit").pop();
+  assert.ok(lastPluginLog, "log entry tagged with plugin_id");
+  assert.equal(lastPluginLog.agent, "alice", "agent reflects api.runtime.agent, not plugin id");
+  assert.equal(lastPluginLog.action, "task.create", "log action is the op id");
+  assert.ok(out.log_entry, "typed envelope carries log_entry");
+  assert.equal(out.log_entry.action, "task.create", "kernel log_entry.action equals the op");
+  assert.equal(out.log_entry.plugin_id, "example.audit");
+  assert.equal(out.log_entry.agent, "alice");
+}
+
 test("api.core.run: task.create dispatches through the kernel with actor fixed from api.runtime.agent", async () => {
   // The kernel-driven path returns the typed result shape
   // `{ result, effects, log_entry, idempotent, diff }`. `result` is
@@ -29,29 +54,8 @@ test("api.core.run: task.create dispatches through the kernel with actor fixed f
         blocked_by: "",
       },
     });
-    assert.ok(out && typeof out === "object", "kernel returned the typed result envelope");
-    assert.equal(typeof out.result, "object", "typed envelope carries result");
-    assert.equal(typeof out.diff, "object", "typed envelope carries diff");
-    assert.equal(Array.isArray(out.diff.created), true, "diff.created is the canonical created list");
-    assert.equal(out.result.id, "T-from-core", "explicit id is propagated to the provider");
-    assert.equal(out.diff.created[0].id, "T-from-core", "diff reflects the created id");
-    assert.equal(out.diff.created[0].node.id, "T-from-core");
-    assert.equal(out.diff.created[0].node.revision, (await readRawState(dir)).revision, "create receives the global high-water revision");
-    const after = await readRawState(dir);
-    assert.ok(after.nodes["T-from-core"], "task.create created the node");
-    // The plugin's identity is not in the log entry's agent: the kernel
-    // stamps request.actor from api.runtime.agent, so the log entry
-    // records alice (not the plugin id). The log action is the op
-    // id (request.action) — the kernel owns the log envelope and
-    // uses op, not a domain-specific "add-node" alias.
-    const lastPluginLog = after.log.filter((e) => e.plugin_id === "example.audit").pop();
-    assert.ok(lastPluginLog, "log entry tagged with plugin_id");
-    assert.equal(lastPluginLog.agent, "alice", "agent reflects api.runtime.agent, not plugin id");
-    assert.equal(lastPluginLog.action, "task.create", "log action is the op id");
-    assert.ok(out.log_entry, "typed envelope carries log_entry");
-    assert.equal(out.log_entry.action, "task.create", "kernel log_entry.action equals the op");
-    assert.equal(out.log_entry.plugin_id, "example.audit");
-    assert.equal(out.log_entry.agent, "alice");
+    const after = await assertCreatedTaskResult(out, dir);
+    assertCreatedTaskLog(out, after);
   } finally {
     await rmTempProject(dir);
   }
