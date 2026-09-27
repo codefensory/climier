@@ -84,8 +84,8 @@ test("kernel.mutate: source file does not import providers/registry/adapter/bin/
   const fsp = await import("node:fs/promises");
   const fpath = await import("node:path");
   const { fileURLToPath } = await import("node:url");
-  const __dirname = fpath.dirname(fileURLToPath(import.meta.url));
-  const src = await fsp.readFile(fpath.resolve(__dirname, "..", "..", "..", "src", "kernel", "mutate.mjs"), "utf8");
+  const testDirectory = fpath.dirname(fileURLToPath(import.meta.url));
+  const src = await fsp.readFile(fpath.resolve(testDirectory, "..", "..", "..", "src", "kernel", "mutate.mjs"), "utf8");
   // Forbidden patterns: anything that would couple the kernel to
   // providers, registry, adapter, bin, UI, or std modules that are not
   // allowed. The plan's B1b explicitly grants `src/storage/state.mjs`,

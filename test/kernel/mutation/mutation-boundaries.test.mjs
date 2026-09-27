@@ -9,7 +9,7 @@ test("kernel.mutate: provider cannot set 'revision' on a node (tx layer rejects 
   try {
     await bootstrapProject(dir);
     const provider = {
-      prepare: async ({ snapshot }) => ({
+      prepare: async () => ({
         target: { id: "T2", kind: "resolvable", subkind: "task" },
         policyAction: null,
       }),
@@ -54,7 +54,7 @@ test("kernel.mutate: existing-node revision is bumped exactly once even on multi
     // Provider applies 3 patches to T1 — the kernel must bump revision
     // only once (not once per patch). ADR-011 §2.
     const provider = {
-      prepare: async ({ snapshot }) => ({
+      prepare: async () => ({
         target: { id: "T1", kind: "resolvable", subkind: "task" },
         policyAction: null,
       }),
@@ -91,7 +91,7 @@ test("kernel.mutate: edges added and removed in the same apply; only-changed-edg
     // proof). Better: swap to a different in-snapshot node. Swap
     // G1->T1 with G1->T1-redirected; we add G1->NEW and remove G1->T1.
     const provider = {
-      prepare: async ({ snapshot }) => ({
+      prepare: async () => ({
         target: { id: "G1", kind: "resolvable", subkind: "gate" },
         policyAction: null,
       }),
@@ -160,6 +160,47 @@ test("kernel provider diff fences created and modified nodes above state revisio
   }
 });
 
+function assertExports(revisions, validation, logEntry, kernel) {
+  for (const name of ["assignRevisionsAndDiff", "deriveTargetRevision"]) {
+    assert.equal(typeof revisions[name], "function", `${name} is exported by revisions`);
+    assert.equal(typeof kernel["__kernelInternals"][name], "function", `${name} remains available through the façade`);
+  }
+  for (const name of ["assignNodeRevision", "deriveNextStateRevision"]) {
+    assert.equal(typeof revisions[name], "function", `${name} is exported by revisions`);
+  }
+  for (const name of ["normalizeLogFields", "validateDraftStructural"]) {
+    assert.equal(typeof validation[name], "function", `${name} is exported by validation`);
+    assert.equal(typeof kernel["__kernelInternals"][name], "function", `${name} remains available through the façade`);
+  }
+  assert.equal(typeof logEntry.buildLogEntry, "function");
+  assert.equal(typeof kernel["__kernelInternals"].buildLogEntry, "function");
+}
+
+function assertDiffHelpers(diff, snapshot, draft) {
+  assert.equal(typeof diff.assignRevisionsAndDiff, "function");
+  assert.equal(typeof diff.computeEdgeDiff, "function");
+  assert.equal(typeof diff.computeInitiativeDiff, "function");
+  assert.equal(typeof diff.deepEqualNodes, "function");
+  assert.deepEqual(diff.assignRevisionsAndDiff(snapshot, draft), {
+    next: {
+      T1: { id: "T1", title: "same", revision: 3 },
+      T2: { id: "T2", title: "new", revision: 2 },
+      T3: { id: "T3", title: "created", revision: 1 },
+    },
+    removed: [],
+    created: [{ id: "T3", node: { id: "T3", title: "created", revision: 1 } }],
+    updated: [{ id: "T2", node: { id: "T2", title: "new", revision: 2 } }],
+  });
+  assert.deepEqual(diff.computeEdgeDiff(snapshot.edges, draft.edges), {
+    added: [{ from: "T2", to: "T3", type: "BLOCKS" }],
+    removed: [],
+  });
+  assert.deepEqual(diff.computeInitiativeDiff(snapshot.initiatives, draft.initiatives), {
+    created: [{ name: "auth", initiative: { desc: "auth" } }],
+    updated: [],
+  });
+}
+
 test("kernel mutation diff helpers are extracted and preserve deterministic diff shapes", async () => {
   const diff = await importFresh("./kernel/mutation/diff.mjs");
   const snapshot = {
@@ -186,28 +227,7 @@ test("kernel mutation diff helpers are extracted and preserve deterministic diff
     },
   };
 
-  assert.equal(typeof diff.assignRevisionsAndDiff, "function");
-  assert.equal(typeof diff.computeEdgeDiff, "function");
-  assert.equal(typeof diff.computeInitiativeDiff, "function");
-  assert.equal(typeof diff.deepEqualNodes, "function");
-  assert.deepEqual(diff.assignRevisionsAndDiff(snapshot, draft), {
-    next: {
-      T1: { id: "T1", title: "same", revision: 3 },
-      T2: { id: "T2", title: "new", revision: 2 },
-      T3: { id: "T3", title: "created", revision: 1 },
-    },
-    removed: [],
-    created: [{ id: "T3", node: { id: "T3", title: "created", revision: 1 } }],
-    updated: [{ id: "T2", node: { id: "T2", title: "new", revision: 2 } }],
-  });
-  assert.deepEqual(diff.computeEdgeDiff(snapshot.edges, draft.edges), {
-    added: [{ from: "T2", to: "T3", type: "BLOCKS" }],
-    removed: [],
-  });
-  assert.deepEqual(diff.computeInitiativeDiff(snapshot.initiatives, draft.initiatives), {
-    created: [{ name: "auth", initiative: { desc: "auth" } }],
-    updated: [],
-  });
+  assertDiffHelpers(diff, snapshot, draft);
 });
 
 test("kernel mutation request helpers are extracted and preserved through the façade", async () => {
@@ -219,12 +239,12 @@ test("kernel mutation request helpers are extracted and preserved through the fa
   assert.equal(request.commandLabel, request.operationLabel);
   for (const name of ["validateRequest", "validateProvider", "validatePlan"]) {
     assert.equal(typeof request[name], "function", `${name} is exported by the request boundary`);
-    assert.equal(typeof kernel.__kernelInternals[name], "function", `${name} remains available through __kernelInternals`);
+    assert.equal(typeof kernel["__kernelInternals"][name], "function", `${name} remains available through __kernelInternals`);
   }
-  assert.equal(typeof kernel.__kernelInternals.commandLabel, "function");
-  assert.equal(typeof kernel.__kernelInternals.operationLabel, "function");
-  assert.equal(kernel.__kernelInternals.commandLabel({ action: "task.create" }), request.operationLabel({ action: "task.create" }));
-  assert.equal(kernel.__kernelInternals.operationLabel({}), request.operationLabel({}));
+  assert.equal(typeof kernel["__kernelInternals"].commandLabel, "function");
+  assert.equal(typeof kernel["__kernelInternals"].operationLabel, "function");
+  assert.equal(kernel["__kernelInternals"].commandLabel({ action: "task.create" }), request.operationLabel({ action: "task.create" }));
+  assert.equal(kernel["__kernelInternals"].operationLabel({}), request.operationLabel({}));
 });
 
 test("kernel mutation execution coordinator owns the pipeline while the façade keeps compatibility helpers", async () => {
@@ -233,7 +253,7 @@ test("kernel mutation execution coordinator owns the pipeline while the façade 
 
   assert.equal(typeof execute.executeMutation, "function");
   assert.equal(typeof kernel.mutate, "function");
-  assert.equal(typeof kernel.__kernelInternals.buildLogEntry, "function");
+  assert.equal(typeof kernel["__kernelInternals"].buildLogEntry, "function");
 });
 
 test("revision assignment fences new, recreated, and modified nodes above the state revision", async () => {
@@ -266,32 +286,10 @@ test("revision assignment fences new, recreated, and modified nodes above the st
     Math.max(...Object.values(assigned.next).map((node) => node.revision)));
 });
 
-test("kernel mutation finalization helpers are pure boundaries preserved through the façade", async () => {
-  const revisions = await importFresh("./kernel/mutation/revisions.mjs");
-  const validation = await importFresh("./kernel/mutation/validation.mjs");
-  const logEntry = await importFresh("./kernel/mutation/log-entry.mjs");
-  const kernel = await importKernel();
-
-  for (const name of ["assignRevisionsAndDiff", "deriveTargetRevision"]) {
-    assert.equal(typeof revisions[name], "function", `${name} is exported by revisions`);
-    assert.equal(typeof kernel.__kernelInternals[name], "function", `${name} remains available through the façade`);
-  }
-  for (const name of ["assignNodeRevision", "deriveNextStateRevision"]) {
-    assert.equal(typeof revisions[name], "function", `${name} is exported by revisions`);
-  }
-  for (const name of ["normalizeLogFields", "validateDraftStructural"]) {
-    assert.equal(typeof validation[name], "function", `${name} is exported by validation`);
-    assert.equal(typeof kernel.__kernelInternals[name], "function", `${name} remains available through the façade`);
-  }
-  assert.equal(typeof logEntry.buildLogEntry, "function");
-  assert.equal(typeof kernel.__kernelInternals.buildLogEntry, "function");
-
-  const snapshot = { nodes: { T1: { id: "T1", title: "old", revision: 2 } } };
-  const draft = { nodes: { T1: { id: "T1", title: "new" } }, edges: [], initiatives: {} };
+function assertFinalizationValues(revisions, validation, logEntry, { snapshot, draft }) {
   const revisionsResult = revisions.assignRevisionsAndDiff(snapshot, draft);
   assert.equal(revisionsResult.updated[0].node.revision, 3);
   assert.equal(revisions.deriveTargetRevision(snapshot, { target: { id: "T1" } }, [], revisionsResult.updated), 3);
-
   validation.validateDraftStructural(draft, "test");
   assert.deepEqual(validation.normalizeLogFields({ reason: "because", ignored: true }, "test"), { reason: "because" });
   const built = logEntry.buildLogEntry(
@@ -312,4 +310,17 @@ test("kernel mutation finalization helpers are pure boundaries preserved through
   assert.equal(built.revision, 3);
   assert.equal(built.reason, "because");
   assert.match(built.ts, /^\d{4}-\d{2}-\d{2}T/);
+}
+
+test("kernel mutation finalization helpers are pure boundaries preserved through the façade", async () => {
+  const revisions = await importFresh("./kernel/mutation/revisions.mjs");
+  const validation = await importFresh("./kernel/mutation/validation.mjs");
+  const logEntry = await importFresh("./kernel/mutation/log-entry.mjs");
+  const kernel = await importKernel();
+
+  assertExports(revisions, validation, logEntry, kernel);
+
+  const snapshot = { nodes: { T1: { id: "T1", title: "old", revision: 2 } } };
+  const draft = { nodes: { T1: { id: "T1", title: "new" } }, edges: [], initiatives: {} };
+  assertFinalizationValues(revisions, validation, logEntry, { snapshot, draft });
 });

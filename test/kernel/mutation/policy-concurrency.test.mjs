@@ -3,6 +3,125 @@ import assert from "node:assert/strict";
 import { createTempProject, readState as readStateHelper, rmTempProject } from "../../helpers.mjs";
 import { bootstrapProject, importKernel, updateNodeProvider } from "./helpers.mjs";
 
+function policyFields(state) {
+  return {
+    version: state.version,
+    revision: state.revision,
+    nodes: state.nodes,
+    edges: state.edges,
+    initiatives: state.initiatives,
+    log: state.log,
+    plugins: state.plugins,
+  };
+}
+
+function addPluginFixture(state) {
+  state.plugins = { fixture: { preserved: true } };
+}
+
+function assertPolicyDenied(error, decidedWith, state, base) {
+  assert.ok(error, "deny should throw");
+  assert.equal(error.code, "POLICY_DENIED");
+  assert.equal(error.details.action, "task.update");
+  assert.equal(error.details.reason, "too risky");
+  assert.equal(error.details.policy_id, "policy-fixture");
+  assert.ok(decidedWith, "decide was called");
+  assert.equal(decidedWith.action, "task.update");
+  assert.equal(decidedWith.target.id, "T1");
+  assert.deepEqual(state.nodes.T1, base.nodes.T1, "no mutation after deny");
+  assert.equal(state.log.length, 0);
+}
+
+function assertSemanticSnapshot(snapshot, expectedRevision, expectedFields) {
+  assert.equal(Object.hasOwn(snapshot, "fence_generation"), false, "policy must not see the internal fence");
+  assert.equal(snapshot.version, 5);
+  assert.equal(snapshot.revision, expectedRevision, "policy sees the current semantic snapshot revision");
+  assert.deepEqual(snapshot, expectedFields, "projection preserves every other semantic field");
+}
+
+async function setupFencedPolicyProject(dir, mutate, readFencedState) {
+  await bootstrapProject(dir, addPluginFixture);
+  await mutate({
+    projectDir: dir,
+    request: { action: "task.update", actor: "alice", input: {} },
+    provider: updateNodeProvider({ id: "T1", newTitle: "fenced v5 baseline" }).provider,
+  });
+  const initial = await readFencedState(dir);
+  assert.equal(initial.version, 5, "test policy uses a fenced v5 fixture");
+  return initial;
+}
+
+function capturePolicySnapshots(snapshots) {
+  let applyCount = 0;
+  const policyAction = {
+    decide: async ({ snapshot }) => {
+      snapshots.push(snapshot);
+      return { decision: "allow" };
+    },
+  };
+  const provider = {
+    prepare: async ({ snapshot }) => ({
+      target: { id: "T1", kind: snapshot.nodes.T1.kind, subkind: snapshot.nodes.T1.subkind },
+    }),
+    apply: async ({ tx }) => {
+      applyCount += 1;
+      tx.updateNode("T1", { title: `policy snapshot fenced ${applyCount}` });
+      return { result: null };
+    },
+  };
+  return { policyAction, provider };
+}
+
+async function runSingleAndBatchPolicyMutation({ dir, mutate, readFencedState, provider, policyAction }) {
+  await mutate({
+    projectDir: dir,
+    request: { action: "task.update", actor: "alice", input: {} },
+    provider,
+    policyAction,
+  });
+  const beforeBatch = await readFencedState(dir);
+  await mutate({
+    projectDir: dir,
+    request: {
+      action: "core.batch",
+      actor: "alice",
+      input: { operations: [{ op: "task.update", input: { id: "T1" } }] },
+    },
+    batch: { registry: { lookup: () => provider } },
+    policyAction,
+  });
+  return beforeBatch;
+}
+
+function assertPolicySnapshots(snapshots, initial, beforeBatch) {
+  assert.equal(snapshots.length, 2, "single and batch both reach policy");
+  for (const [index, snapshot] of snapshots.entries()) {
+    const expected = { ...(index === 0 ? policyFields(initial) : beforeBatch) };
+    delete expected.fence_generation;
+    assertSemanticSnapshot(snapshot, index === 0 ? initial.revision : beforeBatch.revision, expected);
+  }
+}
+
+function assertPersistedPolicyState(persisted, initial) {
+  assert.equal(persisted.version, 5);
+  assert.equal(persisted.fence_generation, initial.fence_generation, "persisted state retains its fence generation");
+  assert.equal(persisted.revision, initial.revision + 2);
+  assert.deepEqual(persisted.plugins, initial.plugins);
+}
+
+function assertConcurrentOutcome(state) {
+  if (state.nodes.T1.revision === 5) {
+    assert.equal(state.nodes.T1.title, "second-arrives", "ordering A: req1 then req2");
+    assert.equal(state.log.length, 2, "ordering A: both writes persisted");
+    assert.deepEqual(state.log.map((entry) => entry.revision), [4, 5], "logs carry matching post-bump revisions");
+  } else {
+    assert.equal(state.nodes.T1.revision, 4, "ordering B: only req1 applied");
+    assert.equal(state.nodes.T1.title, "first-arrives", "ordering B: req2 conflicted");
+    assert.equal(state.log.length, 1, "ordering B: only req1 wrote");
+    assert.equal(state.log[0].revision, 4);
+  }
+}
+
 test("kernel.mutate: policyAction.decide = deny throws POLICY_DENIED with no state change", async () => {
   const { mutate } = await importKernel();
   const { provider } = updateNodeProvider({ id: "T1", newTitle: "should-not-stick" });
@@ -13,7 +132,7 @@ test("kernel.mutate: policyAction.decide = deny throws POLICY_DENIED with no sta
     const policyAction = {
       pluginId: "policy-fixture",
       action: "task.update",
-      decide: async ({ snapshot, target, action }) => {
+      decide: async ({ target, action }) => {
         decidedWith = { target, action };
         return { decision: "deny", reason: "too risky" };
       },
@@ -27,17 +146,7 @@ test("kernel.mutate: policyAction.decide = deny throws POLICY_DENIED with no sta
         policyAction,
       });
     } catch (err) { caught = err; }
-    assert.ok(caught, "deny should throw");
-    assert.equal(caught.code, "POLICY_DENIED");
-    assert.equal(caught.details.action, "task.update");
-    assert.equal(caught.details.reason, "too risky");
-    assert.equal(caught.details.policy_id, "policy-fixture");
-    assert.ok(decidedWith, "decide was called");
-    assert.equal(decidedWith.action, "task.update");
-    assert.equal(decidedWith.target.id, "T1");
-    const after = await readStateHelper(dir);
-    assert.deepEqual(after.nodes.T1, base.nodes.T1, "no mutation after deny");
-    assert.equal(after.log.length, 0);
+    assertPolicyDenied(caught, decidedWith, await readStateHelper(dir), base);
   } finally {
     await rmTempProject(dir);
   }
@@ -70,7 +179,7 @@ test("kernel.mutate: policyAction.decide runs against the FRESH snapshot under t
     await bootstrapProject(dir);
     let capturedRevision = null;
     const provider = {
-      prepare: async ({ snapshot }) => ({ target: { id: "T1", kind: "resolvable", subkind: "task" } }),
+      prepare: async () => ({ target: { id: "T1", kind: "resolvable", subkind: "task" } }),
       apply: async ({ tx }) => {
         tx.updateNode("T1", { title: "post-policy" });
         return { result: null };
@@ -100,77 +209,13 @@ test("kernel.mutate: policy receives fenced semantic snapshots without fence_gen
   const { readFencedState } = await import("../../../src/storage/ledger.mjs");
   const dir = await createTempProject();
   try {
-    await bootstrapProject(dir, (state) => {
-      state.plugins = { fixture: { preserved: true } };
-    });
-    await mutate({
-      projectDir: dir,
-      request: { action: "task.update", actor: "alice", input: {} },
-      provider: updateNodeProvider({ id: "T1", newTitle: "fenced v5 baseline" }).provider,
-    });
-    const initial = await readFencedState(dir);
-    assert.equal(initial.version, 5, "test policy uses a fenced v5 fixture");
-    const expectedPolicyFields = {
-      version: initial.version,
-      revision: initial.revision,
-      nodes: initial.nodes,
-      edges: initial.edges,
-      initiatives: initial.initiatives,
-      log: initial.log,
-      plugins: initial.plugins,
-    };
+    const initial = await setupFencedPolicyProject(dir, mutate, readFencedState);
     const snapshots = [];
-    let applyCount = 0;
-    const policyAction = {
-      decide: async ({ snapshot }) => {
-        snapshots.push(snapshot);
-        return { decision: "allow" };
-      },
-    };
-    const provider = {
-      prepare: async ({ snapshot }) => ({
-        target: { id: "T1", kind: snapshot.nodes.T1.kind, subkind: snapshot.nodes.T1.subkind },
-      }),
-      apply: async ({ tx }) => {
-        applyCount += 1;
-        tx.updateNode("T1", { title: `policy snapshot fenced ${applyCount}` });
-        return { result: null };
-      },
-    };
-
-    await mutate({
-      projectDir: dir,
-      request: { action: "task.update", actor: "alice", input: {} },
-      provider,
-      policyAction,
-    });
-    const beforeBatch = await readFencedState(dir);
-    await mutate({
-      projectDir: dir,
-      request: {
-        action: "core.batch",
-        actor: "alice",
-        input: { operations: [{ op: "task.update", input: { id: "T1" } }] },
-      },
-      batch: { registry: { lookup: () => provider } },
-      policyAction,
-    });
-
-    assert.equal(snapshots.length, 2, "single and batch both reach policy");
-    for (const [index, snapshot] of snapshots.entries()) {
-      assert.equal(Object.hasOwn(snapshot, "fence_generation"), false, "policy must not see the internal fence");
-      assert.equal(snapshot.version, 5);
-      assert.equal(snapshot.revision, index === 0 ? initial.revision : beforeBatch.revision,
-        "policy sees the current semantic snapshot revision");
-      const expected = { ...(index === 0 ? expectedPolicyFields : beforeBatch) };
-      delete expected.fence_generation;
-      assert.deepEqual(snapshot, expected, "projection preserves every other semantic field");
-    }
+    const { policyAction, provider } = capturePolicySnapshots(snapshots);
+    const beforeBatch = await runSingleAndBatchPolicyMutation({ dir, mutate, readFencedState, provider, policyAction });
+    assertPolicySnapshots(snapshots, initial, beforeBatch);
     const persisted = await readFencedState(dir);
-    assert.equal(persisted.version, 5);
-    assert.equal(persisted.fence_generation, initial.fence_generation, "persisted state retains its fence generation");
-    assert.equal(persisted.revision, initial.revision + 2);
-    assert.deepEqual(persisted.plugins, expectedPolicyFields.plugins);
+    assertPersistedPolicyState(persisted, initial);
   } finally {
     await rmTempProject(dir);
   }
@@ -219,19 +264,7 @@ test("kernel.mutate: two concurrent mutate calls serialise under the project loc
     //   (B) req2 first: req2's if_revision=4 doesn't match snapshot
     //       rev=3, REVISION_CONFLICT, no write. req1 then applies
     //       3→4 ("first-arrives"). Final rev=4.
-    if (after.nodes.T1.revision === 5) {
-      assert.equal(after.nodes.T1.title, "second-arrives",
-        "ordering A: req1 wrote rev 3→4, req2 wrote rev 4→5");
-      assert.equal(after.log.length, 2, "ordering A: both writes persisted");
-      assert.deepEqual(after.log.map((e) => e.revision), [4, 5],
-        "log entries carry the matching post-bump revisions in order");
-    } else {
-      assert.equal(after.nodes.T1.revision, 4, "ordering B: only req1 applied");
-      assert.equal(after.nodes.T1.title, "first-arrives",
-        "ordering B: req2 hit REVISION_CONFLICT and did not write");
-      assert.equal(after.log.length, 1, "ordering B: only req1 wrote");
-      assert.equal(after.log[0].revision, 4);
-    }
+    assertConcurrentOutcome(after);
   } finally {
     await rmTempProject(dir);
   }
