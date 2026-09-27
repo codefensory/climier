@@ -43,10 +43,6 @@ function asEdges(state) {
   return Array.isArray(state && state.edges) ? state.edges : [];
 }
 
-function asNodes(state) {
-  return state && typeof state.nodes === "object" && state.nodes !== null ? state.nodes : {};
-}
-
 /**
  * Pure predicate: does the state's edges array already contain an edge with
  * the exact (from, to, type) triple?

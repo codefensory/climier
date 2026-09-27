@@ -7,8 +7,8 @@
 import { assignRevisionsAndDiff, deepEqualNodes, stripRevision } from "./revisions.mjs";
 
 function asEdge(e) {
-  if (!e || typeof e !== "object" || Array.isArray(e)) return null;
-  if (typeof e.from !== "string" || typeof e.to !== "string" || typeof e.type !== "string") return null;
+  if (!e || typeof e !== "object" || Array.isArray(e)) {return null;}
+  if (typeof e.from !== "string" || typeof e.to !== "string" || typeof e.type !== "string") {return null;}
   return { from: e.from, to: e.to, type: e.type };
 }
 
@@ -20,7 +20,7 @@ function snapshotEdgeMap(edges) {
   const map = new Map();
   for (const e of edges || []) {
     const normalized = asEdge(e);
-    if (!normalized) continue;
+    if (!normalized) {continue;}
     map.set(edgeKey(normalized), normalized);
   }
   return map;
@@ -36,10 +36,10 @@ export function computeEdgeDiff(snapshotEdges, draftEdges) {
   const added = [];
   const removed = [];
   for (const [k, e] of draftMap) {
-    if (!snapMap.has(k)) added.push(e);
+    if (!snapMap.has(k)) {added.push(e);}
   }
   for (const [k, e] of snapMap) {
-    if (!draftMap.has(k)) removed.push(e);
+    if (!draftMap.has(k)) {removed.push(e);}
   }
   return { added, removed };
 }
@@ -47,18 +47,17 @@ export function computeEdgeDiff(snapshotEdges, draftEdges) {
 // Compare two v2 initiative entries by their JSON-serializable fields.
 // We only persist primitives (desc: string, created_at?: string), so a
 // shallow key-by-key comparison is sufficient for the initiative shape.
-function initiativesEqual(a, b) {
-  if (a === b) return true;
-  if (!a || !b) return false;
-  if (typeof a !== "object" || typeof b !== "object") return false;
+function sameObjectKeys(a, b) {
   const aKeys = Object.keys(a);
   const bKeys = Object.keys(b);
-  if (aKeys.length !== bKeys.length) return false;
-  for (const k of aKeys) {
-    if (!Object.prototype.hasOwnProperty.call(b, k)) return false;
-    if (a[k] !== b[k]) return false;
-  }
-  return true;
+  if (aKeys.length !== bKeys.length) {return false;}
+  return aKeys.every((key) => Object.prototype.hasOwnProperty.call(b, key));
+}
+
+function initiativesEqual(a, b) {
+  if (a === b) {return true;}
+  if (!a || !b || typeof a !== "object" || typeof b !== "object") {return false;}
+  return sameObjectKeys(a, b) && Object.keys(a).every((key) => a[key] === b[key]);
 }
 
 // Snapshot-vs-draft delta on the initiatives map. Registration is monotonic:

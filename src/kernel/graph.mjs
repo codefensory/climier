@@ -86,6 +86,6 @@ export function outgoing(state, id, type) {
  * @returns {object[]}
  */
 export function relations(state, id, type) {
-  if (type === undefined) return [];
+  if (type === undefined) {return [];}
   return outgoing(state, id, type);
 }
