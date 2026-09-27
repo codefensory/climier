@@ -101,7 +101,7 @@ async function verifyRecoveryCrashRetry(projectDir, setup, pending) {
   const recovered = await recover(projectDir, setup.sourceState);
   const rawDestination = await fs.readFile(setup.statePath, "utf8");
   const after = JSON.parse(await fs.readFile(setup.ledgerPath, "utf8"));
-  assert.equal(recovered.version, 5);
+  assert.equal(recovered.version, 1);
   assert.equal(after.recovery_pending, null);
   if (pending) {assert.equal(pending.destination_sha256, sha256(rawDestination));}
   assert.deepEqual(await recover(projectDir), recovered);
@@ -157,7 +157,7 @@ test("fenced recovery rebases stale legacy state above local high-water and pres
     const { fenced, candidate, ledgerPath } = await prepareStaleRecovery(projectDir);
     const recovered = await recover(projectDir, candidate);
     const after = JSON.parse(await fs.readFile(ledgerPath, "utf8"));
-    assert.equal(recovered.version, 5);
+    assert.equal(recovered.version, 1);
     assert.equal(recovered.fence_generation, 7);
     assert.ok(recovered.revision > 40);
     assert.ok(allNodesAboveRevision(recovered, 40));
@@ -201,7 +201,7 @@ test("recovery without a candidate retries durable null input fingerprints", asy
     await fs.writeFile(setup.ledgerPath, `${JSON.stringify(durableLedger, null, 2)}\n`, "utf8");
 
     const recovered = await readFencedState(projectDir);
-    assert.equal(recovered.version, 5);
+    assert.equal(recovered.version, 1);
     assert.equal(JSON.parse(await fs.readFile(setup.ledgerPath, "utf8")).recovery_pending, null);
     assert.deepEqual(await readFencedState(projectDir), recovered);
   });

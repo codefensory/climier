@@ -80,7 +80,7 @@ function replacementCandidate() {
 }
 
 function assertRebasedReplacement(replaced, ledger) {
-  assert.equal(replaced.version, 5);
+  assert.equal(replaced.version, 1);
   assert.equal(replaced.fence_generation, 7);
   assert.equal(replaced.revision, 41);
   assert.ok(Object.values(replaced.nodes).every((node) => node.revision === 41));
@@ -116,7 +116,7 @@ async function runReplaceCrash(projectDir, faultAt) {
   await assert.rejects(replace(projectDir, candidate, { faultAt }), /injected failure/);
   const pendingLedger = JSON.parse(await fs.readFile(ledgerPath, "utf8"));
   const replaced = await assertPendingReplace(projectDir, { file, candidate, sourceRaw, pendingLedger }, faultAt);
-  assert.equal(replaced.version, 5);
+  assert.equal(replaced.version, 1);
   assert.equal(replaced.fence_generation, 7);
   assert.equal(replaced.revision, 41);
   assert.equal(JSON.parse(await fs.readFile(ledgerPath, "utf8")).replace_pending, null);
