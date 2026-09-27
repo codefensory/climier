@@ -9,17 +9,15 @@
 //     never comes from the caller-supplied input (the adapter injects
 //     it from the installed descriptor).
 //
-// Both helpers share the same validation and the same atomic
-// updateState path so the withLock → updateState → append invariant is
-// preserved: a single log entry appears per handler call, even when
+// Both helpers share the same validation and the same atomic ledger
+// commit, so a single log entry appears per handler call, even when
 // ctx.pluginId is set.
 //
 // One composable helper for the mutation pipeline:
 //   - prepareLogEntry(entry, ctx): returns the canonical { ts, ... }
 //     shape WITHOUT writing it anywhere. Used by `kernel.mutate`
 //     (ADR-011 §1) so it can compose state mutation + log append into a
-//     single `writeState` call. The lock is owned by the kernel so
-//     `updateState` is intentionally not invoked here.
+//     single ledger commit owned by the kernel.
 import { emptyState, stateFile } from "./state.mjs";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -42,8 +40,7 @@ function resolvedPluginId(ctx) {
 // prepareLogEntry — pure helper that returns the canonical log entry
 // shape (timestamp + optional plugin_id) without persisting. Used by
 // `kernel.mutate` (ADR-011 §1) so it can compose state mutation + log
-// append into a single `writeState` call. The lock is owned by the
-// kernel so `updateState` is intentionally not invoked here.
+// append into a single ledger commit owned by the kernel.
 //
 // Validation responsibility: callers (`append`, `appendWithContext`,
 // `kernel.mutate`) MUST validate the entry shape before passing it
