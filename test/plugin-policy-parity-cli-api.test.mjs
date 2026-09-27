@@ -52,17 +52,19 @@ async function withFreshEnv(body) {
   try {
     return await body({ home, projectDir });
   } finally {
-    if (prev.CLIMIER_HOME === undefined) delete process.env.CLIMIER_HOME;
-    else process.env.CLIMIER_HOME = prev.CLIMIER_HOME;
-    if (prev.CLIMIER_AGENT === undefined) process.env.CLIMIER_AGENT = prev.CLIMIER_AGENT;
-    else process.env.CLIMIER_AGENT = prev.CLIMIER_AGENT;
+    if (prev.CLIMIER_HOME === undefined) {
+      delete process.env.CLIMIER_HOME;
+    } else {
+      process.env.CLIMIER_HOME = prev.CLIMIER_HOME;
+    }
+    if (prev.CLIMIER_AGENT === undefined) {
+      delete process.env.CLIMIER_AGENT;
+    } else {
+      process.env.CLIMIER_AGENT = prev.CLIMIER_AGENT;
+    }
     await fs.rm(home, { recursive: true, force: true });
     await rmTempProject(projectDir);
   }
-}
-
-async function cliRaw(args) {
-  return runCli(args);
 }
 
 async function cli(args) {
@@ -72,7 +74,9 @@ async function cli(args) {
       `climier exited ${result.code}\nargv: ${JSON.stringify(args)}\nstdout: ${result.stdout}\nstderr: ${result.stderr}`,
     );
   }
-  if (!result.stdout.trim()) return null;
+  if (!result.stdout.trim()) {
+    return null;
+  }
   return JSON.parse(result.stdout);
 }
 
@@ -107,6 +111,37 @@ async function initAndSeed(projectDir) {
     "--kind", "resolvable", "--subkind", "task", "--title", "parity",
     "--initiative", "auth",
   ]);
+}
+
+async function addTask(projectDir, id, title) {
+  await cli([
+    "--project", projectDir, "--as", "setup",
+    "add-node", id,
+    "--kind", "resolvable", "--subkind", "task", "--title", title,
+    "--initiative", "auth",
+  ]);
+}
+
+async function seedClaimedTasks(projectDir, tasks) {
+  for (const { id, title } of tasks) {
+    await addTask(projectDir, id, title);
+    await cli(["--project", projectDir, "take", id, "--as", "alice"]);
+  }
+}
+
+async function acceptTasks(projectDir, ids) {
+  for (const id of ids) {
+    await cli(["--project", projectDir, "submit", id, "--note", "shipped", "--as", "alice"]);
+    await cli(["--project", projectDir, "accept", id, "--as", "alice"]);
+  }
+}
+
+async function assertRecorded(projectDir, action, actor) {
+  const rec = await recorded(projectDir);
+  assert.equal(rec.recorded.mode, "allow");
+  assert.equal(rec.recorded.received.action, action);
+  assert.equal(rec.recorded.received.actor, actor);
+  return rec.recorded.received;
 }
 
 async function freshApi(projectDir, { agent, pluginId }) {
@@ -224,46 +259,21 @@ test("parity: accept — CLI and api.core.run produce the same actor and canonic
     await initAndSeed(projectDir);
     await installFixture(projectDir);
     try {
-      // Seed two tasks and have alice claim both.
-      await cli([
-        "--project", projectDir, "--as", "setup",
-        "add-node", "T-res-1",
-        "--kind", "resolvable", "--subkind", "task", "--title", "r1",
-        "--initiative", "auth",
+      await seedClaimedTasks(projectDir, [
+        { id: "T-res-1", title: "r1" },
+        { id: "T-res-2", title: "r2" },
       ]);
-      await cli([
-        "--project", projectDir, "--as", "setup",
-        "add-node", "T-res-2",
-        "--kind", "resolvable", "--subkind", "task", "--title", "r2",
-        "--initiative", "auth",
-      ]);
-      await cli(["--project", projectDir, "take", "T-res-1", "--as", "alice"]);
-      await cli(["--project", projectDir, "take", "T-res-2", "--as", "alice"]);
 
-      // --- CLI accept
-      await cli([
-        "--project", projectDir, "submit", "T-res-1",
-        "--note", "done via CLI", "--as", "alice",
-      ]);
-      await cli([
-        "--project", projectDir, "accept", "T-res-1", "--as", "alice",
-      ]);
-      const cliRec = await recorded(projectDir);
-      assert.equal(cliRec.recorded.mode, "allow");
-      assert.equal(cliRec.recorded.received.action, "task.accept");
-      assert.equal(cliRec.recorded.received.actor, "alice");
+      await cli(["--project", projectDir, "submit", "T-res-1", "--note", "done via CLI", "--as", "alice"]);
+      await cli(["--project", projectDir, "accept", "T-res-1", "--as", "alice"]);
+      const cliRec = await assertRecorded(projectDir, "task.accept", "alice");
 
-      // --- API core accept
       const api = await freshApi(projectDir, { agent: "alice", pluginId: "example.audit" });
       await api.core.run({ op: "task.submit", input: { id: "T-res-2", note: "done via api" } });
       await api.core.run({ op: "task.accept", input: { id: "T-res-2" } });
-      const apiRec = await recorded(projectDir);
-      assert.equal(apiRec.recorded.mode, "allow");
-      assert.equal(apiRec.recorded.received.action, "task.accept");
-      assert.equal(apiRec.recorded.received.actor, "alice");
-
-      assert.equal(apiRec.recorded.received.action, cliRec.recorded.received.action);
-      assert.equal(apiRec.recorded.received.actor, cliRec.recorded.received.actor);
+      const apiRec = await assertRecorded(projectDir, "task.accept", "alice");
+      assert.equal(apiRec.action, cliRec.action);
+      assert.equal(apiRec.actor, cliRec.actor);
     } finally { await uninstallPolicyFixture(projectDir); }
   });
 });
@@ -277,38 +287,19 @@ test("parity: release — CLI and api.core.run produce the same actor and canoni
     await initAndSeed(projectDir);
     await installFixture(projectDir);
     try {
-      await cli([
-        "--project", projectDir, "--as", "setup",
-        "add-node", "T-rel-1",
-        "--kind", "resolvable", "--subkind", "task", "--title", "rel1",
-        "--initiative", "auth",
+      await seedClaimedTasks(projectDir, [
+        { id: "T-rel-1", title: "rel1" },
+        { id: "T-rel-2", title: "rel2" },
       ]);
-      await cli([
-        "--project", projectDir, "--as", "setup",
-        "add-node", "T-rel-2",
-        "--kind", "resolvable", "--subkind", "task", "--title", "rel2",
-        "--initiative", "auth",
-      ]);
-      await cli(["--project", projectDir, "take", "T-rel-1", "--as", "alice"]);
-      await cli(["--project", projectDir, "take", "T-rel-2", "--as", "alice"]);
 
-      // --- CLI release
       await cli(["--project", projectDir, "release", "T-rel-1", "--as", "alice"]);
-      const cliRec = await recorded(projectDir);
-      assert.equal(cliRec.recorded.mode, "allow");
-      assert.equal(cliRec.recorded.received.action, "task.release");
-      assert.equal(cliRec.recorded.received.actor, "alice");
+      const cliRec = await assertRecorded(projectDir, "task.release", "alice");
 
-      // --- API core release
       const api = await freshApi(projectDir, { agent: "alice", pluginId: "example.audit" });
       await api.core.run({ op: "task.release", input: { id: "T-rel-2" } });
-      const apiRec = await recorded(projectDir);
-      assert.equal(apiRec.recorded.mode, "allow");
-      assert.equal(apiRec.recorded.received.action, "task.release");
-      assert.equal(apiRec.recorded.received.actor, "alice");
-
-      assert.equal(apiRec.recorded.received.action, cliRec.recorded.received.action);
-      assert.equal(apiRec.recorded.received.actor, cliRec.recorded.received.actor);
+      const apiRec = await assertRecorded(projectDir, "task.release", "alice");
+      assert.equal(apiRec.action, cliRec.action);
+      assert.equal(apiRec.actor, cliRec.actor);
     } finally { await uninstallPolicyFixture(projectDir); }
   });
 });
@@ -322,42 +313,20 @@ test("parity: reopen — CLI and api.core.run produce the same actor and canonic
     await initAndSeed(projectDir);
     await installFixture(projectDir);
     try {
-      await cli([
-        "--project", projectDir, "--as", "setup",
-        "add-node", "T-reo-1",
-        "--kind", "resolvable", "--subkind", "task", "--title", "reo1",
-        "--initiative", "auth",
+      await seedClaimedTasks(projectDir, [
+        { id: "T-reo-1", title: "reo1" },
+        { id: "T-reo-2", title: "reo2" },
       ]);
-      await cli([
-        "--project", projectDir, "--as", "setup",
-        "add-node", "T-reo-2",
-        "--kind", "resolvable", "--subkind", "task", "--title", "reo2",
-        "--initiative", "auth",
-      ]);
-      await cli(["--project", projectDir, "take", "T-reo-1", "--as", "alice"]);
-      await cli(["--project", projectDir, "take", "T-reo-2", "--as", "alice"]);
-      await cli(["--project", projectDir, "submit", "T-reo-1", "--note", "shipped", "--as", "alice"]);
-      await cli(["--project", projectDir, "accept", "T-reo-1", "--as", "alice"]);
-      await cli(["--project", projectDir, "submit", "T-reo-2", "--note", "shipped", "--as", "alice"]);
-      await cli(["--project", projectDir, "accept", "T-reo-2", "--as", "alice"]);
+      await acceptTasks(projectDir, ["T-reo-1", "T-reo-2"]);
 
-      // --- CLI reopen
       await cli(["--project", projectDir, "reopen", "T-reo-1", "--reason", "wrong acceptance", "--as", "alice"]);
-      const cliRec = await recorded(projectDir);
-      assert.equal(cliRec.recorded.mode, "allow");
-      assert.equal(cliRec.recorded.received.action, "task.reopen");
-      assert.equal(cliRec.recorded.received.actor, "alice");
+      const cliRec = await assertRecorded(projectDir, "task.reopen", "alice");
 
-      // --- API core reopen
       const api = await freshApi(projectDir, { agent: "alice", pluginId: "example.audit" });
       await api.core.run({ op: "task.reopen", input: { id: "T-reo-2", reason: "wrong acceptance" } });
-      const apiRec = await recorded(projectDir);
-      assert.equal(apiRec.recorded.mode, "allow");
-      assert.equal(apiRec.recorded.received.action, "task.reopen");
-      assert.equal(apiRec.recorded.received.actor, "alice");
-
-      assert.equal(apiRec.recorded.received.action, cliRec.recorded.received.action);
-      assert.equal(apiRec.recorded.received.actor, cliRec.recorded.received.actor);
+      const apiRec = await assertRecorded(projectDir, "task.reopen", "alice");
+      assert.equal(apiRec.action, cliRec.action);
+      assert.equal(apiRec.actor, cliRec.actor);
     } finally { await uninstallPolicyFixture(projectDir); }
   });
 });
@@ -371,38 +340,19 @@ test("parity: cancel — CLI and api.core.run produce the same actor and canonic
     await initAndSeed(projectDir);
     await installFixture(projectDir);
     try {
-      await cli([
-        "--project", projectDir, "--as", "setup",
-        "add-node", "T-can-1",
-        "--kind", "resolvable", "--subkind", "task", "--title", "can1",
-        "--initiative", "auth",
+      await seedClaimedTasks(projectDir, [
+        { id: "T-can-1", title: "can1" },
+        { id: "T-can-2", title: "can2" },
       ]);
-      await cli([
-        "--project", projectDir, "--as", "setup",
-        "add-node", "T-can-2",
-        "--kind", "resolvable", "--subkind", "task", "--title", "can2",
-        "--initiative", "auth",
-      ]);
-      await cli(["--project", projectDir, "take", "T-can-1", "--as", "alice"]);
-      await cli(["--project", projectDir, "take", "T-can-2", "--as", "alice"]);
 
-      // --- CLI cancel
       await cli(["--project", projectDir, "cancel", "T-can-1", "--reason", "out of scope", "--as", "alice"]);
-      const cliRec = await recorded(projectDir);
-      assert.equal(cliRec.recorded.mode, "allow");
-      assert.equal(cliRec.recorded.received.action, "task.cancel");
-      assert.equal(cliRec.recorded.received.actor, "alice");
+      const cliRec = await assertRecorded(projectDir, "task.cancel", "alice");
 
-      // --- API core cancel
       const api = await freshApi(projectDir, { agent: "alice", pluginId: "example.audit" });
       await api.core.run({ op: "task.cancel", input: { id: "T-can-2", reason: "out of scope" } });
-      const apiRec = await recorded(projectDir);
-      assert.equal(apiRec.recorded.mode, "allow");
-      assert.equal(apiRec.recorded.received.action, "task.cancel");
-      assert.equal(apiRec.recorded.received.actor, "alice");
-
-      assert.equal(apiRec.recorded.received.action, cliRec.recorded.received.action);
-      assert.equal(apiRec.recorded.received.actor, cliRec.recorded.received.actor);
+      const apiRec = await assertRecorded(projectDir, "task.cancel", "alice");
+      assert.equal(apiRec.action, cliRec.action);
+      assert.equal(apiRec.actor, cliRec.actor);
     } finally { await uninstallPolicyFixture(projectDir); }
   });
 });
