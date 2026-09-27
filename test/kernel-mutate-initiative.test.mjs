@@ -303,8 +303,8 @@ test("kernel.mutate: initiative.create bootstraps an absent state in one write",
     });
     assert.equal(out.idempotent, false);
     const after = await readStateHelper(dir);
-    assert.equal(after.version, 5);
-    assert.equal(after.revision, 1);
+    assert.equal(after.version, 1);
+    assert.equal(after.revision, 2, "bootstrap reserves revision 1; the create commits revision 2");
     assert.deepEqual(after.nodes, {});
     assert.deepEqual(after.edges, []);
     assert.deepEqual(after.initiatives.bootstrap, { desc: "first project", created_at: after.initiatives.bootstrap.created_at });

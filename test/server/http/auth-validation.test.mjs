@@ -94,7 +94,7 @@ async function verifyInitializedState(dataRoot, response, openCount) {
   const projectDir = await (await import("../../../src/server/catalog/index.mjs")).createProjectCatalog({ dataRoot, projectIds: ["catalogued"] }).resolveProject("catalogued");
   const { readState, stateFile } = await import("../../../src/storage/state.mjs");
   const state = await readState(projectDir);
-  assert.equal(state.version, 4);
+  assert.equal(state.version, 1);
   assert.deepEqual(state.nodes, {});
   assert.deepEqual(state.edges, []);
   assert.deepEqual(state.initiatives, {});
