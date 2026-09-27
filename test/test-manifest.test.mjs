@@ -1,7 +1,92 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { validateManifest } from "./test-manifest-checker.mjs";
 import { parseTapTestNames } from "./test-manifest-collector.mjs";
+import { findRawWriterFiles } from "./test-manifest-lanes.mjs";
+
+const SHA = "a".repeat(40);
+
+function rawDeclaration() {
+  return { category: "lane-legacy", motive: "seeds a pre-cut state", replacement: "writeCanonicalState" };
+}
+
+const RAW_FILE = "test/raw.test.mjs";
+
+test("test manifest checker rejects a raw writer file with no declaration", () => {
+  const manifest = { version: 1, base_sha: SHA, tests: [
+    { path: RAW_FILE, name: "seeds a raw state", ordinal: 1, disposition: "keep" },
+  ] };
+
+  assert.throws(
+    () => validateManifest(manifest, [{ path: RAW_FILE, name: "seeds a raw state" }], {
+      rawWriterFiles: [RAW_FILE],
+      rawLaneDeclarations: {},
+    }),
+    /raw-lane declaration.*test\/raw\.test\.mjs/,
+  );
+});
+
+test("test manifest checker rejects a declaration whose file no longer writes raw", () => {
+  const manifest = { version: 1, base_sha: SHA, tests: [
+    { path: "test/clean.test.mjs", name: "uses the canonical helper", ordinal: 1, disposition: "keep" },
+  ] };
+
+  assert.throws(
+    () => validateManifest(manifest, [{ path: "test/clean.test.mjs", name: "uses the canonical helper" }], {
+      rawWriterFiles: [],
+      rawLaneDeclarations: { "test/clean.test.mjs": rawDeclaration() },
+    }),
+    /stale raw-lane declaration.*test\/clean\.test\.mjs/,
+  );
+});
+
+test("test manifest checker requires the raw lane annotation on every declared row", () => {
+  const runtime = [{ path: RAW_FILE, name: "seeds a raw state" }];
+  const bare = { version: 1, base_sha: SHA, tests: [
+    { path: RAW_FILE, name: "seeds a raw state", ordinal: 1, disposition: "keep" },
+  ] };
+  const annotated = { version: 1, base_sha: SHA, tests: [
+    {
+      path: RAW_FILE,
+      name: "seeds a raw state",
+      ordinal: 1,
+      disposition: "keep",
+      lane: "raw",
+      category: "lane-legacy",
+      motive: "seeds a pre-cut state",
+      replacement: "writeCanonicalState",
+    },
+  ] };
+
+  assert.throws(
+    () => validateManifest(bare, runtime, { rawWriterFiles: [RAW_FILE], rawLaneDeclarations: { [RAW_FILE]: rawDeclaration() } }),
+    /raw lane row.*needs lane, category, motive and replacement/,
+  );
+  assert.equal(
+    validateManifest(annotated, runtime, { rawWriterFiles: [RAW_FILE], rawLaneDeclarations: { [RAW_FILE]: rawDeclaration() } }),
+    true,
+  );
+});
+
+test("test manifest lane scan finds the files that write state outside the canonical helper", async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "climier-manifest-lanes-"));
+  try {
+    await writeFile(path.join(dir, "raw-writer.test.mjs"), "await writeState(dir, state);\n");
+    await writeFile(path.join(dir, "legacy-mutator.test.mjs"), "await updateState(dir, (state) => state);\n");
+    await writeFile(path.join(dir, "canonical.test.mjs"), "await writeCanonicalState(dir, state);\n");
+    await writeFile(path.join(dir, "notes.md"), "writeState(dir, state)\n");
+
+    assert.deepEqual(await findRawWriterFiles(dir), [
+      "legacy-mutator.test.mjs",
+      "raw-writer.test.mjs",
+    ]);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
 
 test("test manifest checker rejects a runtime case with no row", () => {
   const manifest = { version: 1, base_sha: "a".repeat(40), tests: [

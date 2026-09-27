@@ -34,7 +34,7 @@ function assertMoveNameMultisets(manifest) {
   }
 }
 
-export function validateManifest(manifest, runtimeCases, { deleteAllowlist } = {}) {
+export function validateManifest(manifest, runtimeCases, { deleteAllowlist, rawWriterFiles, rawLaneDeclarations } = {}) {
   assert.equal(manifest?.version, 1, "manifest version must be 1");
   assert.match(manifest?.base_sha ?? "", /^[0-9a-f]{40}$/, "manifest base_sha must be a full commit SHA");
   assert.ok(Array.isArray(manifest.tests), "manifest tests must be an array");
@@ -78,7 +78,32 @@ export function validateManifest(manifest, runtimeCases, { deleteAllowlist } = {
   const declaredDeletes = manifest.tests.filter((row) => row.disposition === "delete").map(key).toSorted();
   const allowedDeletes = (deleteAllowlist ?? declaredDeletes).toSorted();
   assert.deepEqual(declaredDeletes, allowedDeletes, "manifest deletes must match the deletion allowlist");
+  assertRawLane(manifest, { rawWriterFiles, rawLaneDeclarations });
   return true;
+}
+
+function assertRawLane(manifest, { rawWriterFiles, rawLaneDeclarations }) {
+  if (!rawWriterFiles && !rawLaneDeclarations) return;
+  const files = rawWriterFiles ?? [];
+  const declarations = rawLaneDeclarations ?? {};
+
+  for (const filePath of files) {
+    assert.ok(declarations[filePath], `raw-lane declaration missing for ${filePath}`);
+  }
+  for (const filePath of Object.keys(declarations)) {
+    assert.ok(files.includes(filePath), `stale raw-lane declaration for ${filePath}`);
+  }
+  for (const row of manifest.tests) {
+    const declaration = declarations[row.path];
+    if (!declaration) continue;
+    assert.ok(
+      row.lane === "raw"
+        && row.category === declaration.category
+        && row.motive === declaration.motive
+        && (row.replacement || row.coverage_removed === true),
+      `raw lane row ${row.path}:${row.name} needs lane, category, motive and replacement`,
+    );
+  }
 }
 
 export { countByFileAndName };
