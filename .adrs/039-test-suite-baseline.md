@@ -1,0 +1,54 @@
+# ADR-039: suite de tests del baseline
+
+- Gate: `G-v1-baseline-adr-039` · Deriva de: `G-v1-baseline-rfc` · Estado: borrador
+- Fecha: 2026-09-27
+
+## Contexto
+
+La suite core son 188 archivos y más de 42.600 líneas. De esos archivos, **57 escriben literales de versión 2, 3 o 4** y la fixture compartida `exampleStateFixture` (`test/helpers.mjs:133-188`, hoy `version: 2`) tiene **30 llamadas en seis suites**: cada una de esas suites atraviesa la migración sin proponérselo. Además hay 22 archivos con nombre de era (`test/v2-*.test.mjs`, ~7.700 líneas) que no prueban versiones viejas sino contratos actuales, con 39 llamadas inertes a `flags: { v2: true }`, y la exclusión por prefijo `ui-` del runner core (`test/run-core-tests.mjs:15`) más el script `test:ui` (`package.json:23`) existen solo para una suite que este corte elimina. Dos reglas del repo condicionan el trabajo: ADR-034 exige igualdad exacta del multiconjunto de nombres de `test()` al mover o partir suites, pero **no contabiliza borrados intencionales**; y el árbol de tests es un blanco móvil (el runner pasó de descubrir 159 archivos a 188 durante la redacción del RFC, por splits ya integrados). El RFC aprobado decidió que la suite UI vuele porque el dueño no trabaja en la UI ahora.
+
+## Decisión
+
+1. **Manifiesto reproducible antes de tocar nada.** No alcanza con listar nombres: un test puede quedar vaciado conservando su nombre. Se produce un artefacto versionado —un manifiesto en el repo, generado por un script y verificado por otro— con esta forma: `base_sha` del commit de referencia, y por cada caso una fila con `path`, nombre completo del test (incluido su `describe`), `ordinal` para duplicados dentro de un archivo, y una disposición `keep`, `move` o `delete`. Para cada `delete`, además, categoría (`lane-legacy`, `ui-suite`, `era-rename`, `canonical-fixture`), motivo y reemplazo, o la declaración explícita de que la cobertura se elimina a propósito.
+2. **El checker falla por omisión y por sobra.** Un verificador reproducible exige: cada fila `keep` o `move` aparece exactamente una vez en el árbol; cada `delete` coincide con una entrada de la allowlist; no hay filas obsoletas (un caso que ya no existe y no está marcado como baja); y cada `move` conserva el cuerpo y las assertions salvo los cambios de fixture declarados en el manifiesto. ADR-034 sigue aplicando para la igualdad del multiconjunto de nombres en movimientos y splits.
+3. **Se conserva exactamente un guard de forward-compat.** Un test único que verifica que una versión desconocida o futura se rechaza en lectura y en escritura. Todo el resto de los tests de aceptación de esquemas viejos y de rechazo del prehistórico se borra.
+4. **Las fixtures pasan al esquema canónico, con dos lanes separadas.** Las suites normales usan un helper de estado canónico válido; la lane de escritura cruda **subsiste pero restringida** a los tests que la necesitan por contrato: los del importador (que deben sembrar fuentes prehistóricas, v2, v3, v4, v5, desconocidas y corruptas) y los de los guards. "Un solo camino de fixture" no puede prohibir esas siembras. **Orden:** llevar `exampleStateFixture` al esquema canónico depende de la pieza 2 de ADR-036 (bootstrap canónico), porque hoy `writeFencedState` exige `version: 5` y arranca en v4: mover la fixture antes del cambio de storage no pasa ni el helper ni el código. Un solo owner edita `test/helpers.mjs`, y las slices siguientes dependen de esa edición y tocan paths disjuntos.
+5. **Renombre de era.** Se renombran por contrato (lo que prueban, no la era en que aparecieron) los 21 archivos `test/v2-*.test.mjs` **más `test/v2.test.mjs`, que queda fuera de ese patrón** y no debe pasarse por alto. Se borran los 39 `flags: { v2: true }`. Los consumidores que hay que actualizar en la misma slice: `package.json:16` (`test:concurrent` apunta a tres de ellos), `test/cli-operation-bridge-matrix.test.mjs` (varias referencias por nombre), y las menciones en `AGENTS.md`. Ningún nombre de archivo, describe o comentario debe conservar una etiqueta de versión que ya no existe.
+6. **La suite UI se elimina completa**: los 14 tests trackeados, el andamiaje de JSX y overview, el loader exclusivo `test/jsx-loader.mjs`, el script `test:ui` y la exclusión por prefijo del runner core. Se agrega una aserción en `test/package.test.mjs` que verifica que no quede ningún `test/ui-*.test.mjs` ni dependencia del script retirado.
+7. **Cancelar la tarea de lint de UI no alcanza.** `T-rar-lint-test-ui-files` es blocker declarado de `T-rar-lint-global-zero` (el comando global está bloqueado por ella) y ADR-035 mantiene los 14 paths `test/ui-*.test.mjs` dentro del scope de lint. La eliminación tiene que retirar ese edge y actualizar el scope y el baseline de la tarea global, no solo cancelarla.
+8. **Ownership documental de la retirada de UI.** Los paths que quedan desactualizados y hay que tocar en la misma slice: `AGENTS.md` (tabla de comandos y layout), `src/cli/dispatch.mjs` (help), `docs/reference.md` y `README.md` (etiquetar `climier ui` como **experimental** —decisión del dueño: el comando se queda en el producto y va a seguir cambiando, así que la etiqueta reemplaza al "no verificado" mientras no tenga suite—), `docs/ui-redesign-plan.md` y `docs/plans/*` (comandos de prueba que ya no existen), y las menciones en `.adrs/034-test-contract-organization.md` (§§4/5/8 y su verificación) y `.adrs/035-oxlint-touched-path-policy.md` (contexto y decisión 7), que hoy afirman que esas suites siguen y se lintean.
+9. **Precondición objetiva de la slice UI.** No arranca hasta que `git status --short` esté vacío para la lista exacta de paths de UI. Los mtime no cuentan como prueba. Ya se cumplió una vez (el trabajo ajeno se integró en `e0784ac`), y se reverifica antes de borrar.
+10. **El contrato de lint de docs deja de pinnear números de versión.** `test/v2-docs.test.mjs:11` exige el literal `"version: 3"` en `docs/reference.md`; se reemplaza por una verificación que no dependa de un número que el esquema canónico ya no usa.
+
+## Consecuencias
+
+- A favor: la suite deja de probar la compatibilidad que ya no existe, y cada test que queda prueba el producto actual.
+- A favor: `npm test` deja de tener una lane implícita de migración por la que pasan 30 llamadas de fixture sin que nadie lo note.
+- En contra / deuda: se pierde cobertura sobre formas de estado que existieron. Es deliberado y va acompañado de la allowlist; el guard de forward-compat se conserva justamente para no perder el rechazo de lo desconocido.
+- En contra / deuda: la slice UI borra 14 archivos que hoy nadie ejecuta en `npm test`, así que su desaparición no cambia la cobertura del runner core; el efecto real es que `climier ui` y `ui/server` quedan como superficie **experimental** sin suite mientras su fuente siga en el árbol. La etiqueta experimental y el fallo accionable del artefacto (ADR-040 §Decisión 8) son la mitigación declarada, no una promesa de verificación.
+
+## Plan de implementación
+
+**Ownership y serialización.** Los paths compartidos con ADR-036 y ADR-037 son: `test/helpers.mjs`, `test/init.test.mjs`, `test/kernel/mutation/persistence-recovery.test.mjs`, `test/storage-ledger.test.mjs`, `test/kernel-state-operations.test.mjs` y `test/kernel-transfer.test.mjs`. Regla: **las regresiones de ADR-036 y los tests del importador de ADR-037 van primero**; la limpieza de esta ADR va después, sobre paths ya estabilizados. Dentro de esta ADR, el manifiesto y la eliminación de UI se tocan en `test/run-core-tests.mjs`; los renombres y la eliminación de UI tocan `package.json`; `test/v2-docs.test.mjs` se renombra en una slice y se reemplaza en otra. Cada path compartido tiene un owner y una dependencia serial declarada antes de delegar, o se combinan en una sola task.
+
+1. **Manifiesto y checker** — archivos: el manifiesto versionado en `test/`, el script generador y el verificador; `test/run-core-tests.mjs` si el checker se engancha ahí. Se clasifica cada caso de los 57 archivos con literales de versión como baja de lane o fixture canónica, distinguiendo esquema de payload y de API (por ejemplo `test/application-backend-client.test.mjs:74` y `test/plugin-core-adapter.test.mjs:8-11` son versiones de payload/API, no de esquema).
+2. **Contrato de fixtures canónicas** — archivos: `test/helpers.mjs`. Owner único; depende de la pieza 2 de ADR-036.
+3. **Borrado de la lane legacy** — archivos, además de los obvios de migración: `test/kernel-mutation-batch.test.mjs` (fixtures v2 en `:37-47`), `test/plugin-install-residual-happy.test.mjs:72-88`, `test/plugin-install-residual-uninstall.test.mjs:15-21`, `test/state-snapshots.test.mjs:25-32,483`, y `test/v5-fixture-helper.test.mjs:63-79`, que hoy afirma que `writeState` debe seguir aceptando v2 y v4. Las tres suites con etiqueta v5 (`storage-state-read-v5`, `v5-read-consumers`, `v5-fixture-helper`) también entran: o se renombran o se borran, pero no quedan con la etiqueta. Conservar el guard único de versión desconocida.
+4. **Renombre de era** — archivos: los 21 `test/v2-*.test.mjs` más `test/v2.test.mjs`; `package.json`; `test/cli-operation-bridge-matrix.test.mjs`; `AGENTS.md`.
+5. **Eliminación de la suite UI** — archivos: `test/ui-*.test.mjs`, andamiaje de JSX y overview, `test/jsx-loader.mjs`, `package.json`, `test/run-core-tests.mjs`, `test/package.test.mjs`, `.adrs/034-*.md`, `.adrs/035-*.md`, `AGENTS.md`, `src/cli/dispatch.mjs`, `docs/`. Bloqueada por la precondición de §Decisión 7 del RFC (checkout limpio sobre la lista exacta de paths) y por el retiro del edge en `T-rar-lint-global-zero`.
+6. **Contrato de lint de docs** — archivos: `test/v2-docs.test.mjs` (o su reemplazo) y `docs/reference.md`, en coordinación con la actualización de docs.
+
+## Onboarding breve para crear tasks
+
+- [ ] Onboarding realizado — pendiente antes de materializar tasks: decidir si el inventario lo produce un script versionado o una nota de task, y confirmar la lista exacta de paths de UI que la precondición debe exigir limpia.
+- [ ] No hace falta — por qué el ADR ya permite crear una task clara.
+
+## Verificación
+
+- `npm test` verde después de cada slice, y el multiconjunto de nombres de `test()` de cada archivo movido coincide exactamente con el de su origen (regla de ADR-034).
+- La allowlist del inventario explica cada `test()` que desaparece; no hay bajas sin entrada.
+- `find test -name "ui-*.test.mjs"` no devuelve nada, y `grep -rn "test:ui" package.json .github/` tampoco.
+- El help, `README.md` y `docs/reference.md` presentan `ui` como experimental; ninguna doc promete que el comando esté verificado.
+- `grep -rn "version: [234]," test/` no devuelve resultados en archivos core.
+- `grep -rn "v2" test/ --include="*.test.mjs" -l` no devuelve archivos cuyo nombre o describe conserve la etiqueta de era.
+- `npm run pack:check` sigue pasando y el tarball no cambia de contenido por razones de test.
