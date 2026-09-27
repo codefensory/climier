@@ -290,6 +290,31 @@ test("real HTTP exercises every built-in write and preserves remote/local state 
   await withRemoteFixture(exerciseRemoteWrites);
 });
 
+test("remote repeated resolve of a resolved gate fails with INVALID_STATUS", async () => {
+  await withRemoteFixture(async ({ projectDir, remoteDir, remoteEnv }) => {
+    const initiative = await cli(projectDir, "add-initiative", ["resolve-contract", "--as", "alice"], remoteEnv);
+    assert.equal(initiative.code, 0, JSON.stringify(initiative.body));
+    const gate = await cli(projectDir, "add-gate", [
+      "G-resolve-contract", "--initiative", "resolve-contract", "--title", "Resolve contract",
+      "--body", "Gate for repeated resolve", "--purpose", "decision", "--as", "alice",
+    ], remoteEnv);
+    assert.equal(gate.code, 0, JSON.stringify(gate.body));
+
+    const input = ["G-resolve-contract", "--choice", "opaque sessions", "--rationale", "immediate revocation", "--as", "alice"];
+    const first = await cli(projectDir, "resolve", input, remoteEnv);
+    assert.equal(first.code, 0, JSON.stringify(first.body));
+    assert.equal(first.body.node.status, "resolved");
+    const beforeRetry = await readState(remoteDir);
+
+    const retry = await cli(projectDir, "resolve", input, remoteEnv);
+    assert.notEqual(retry.code, 0);
+    assert.equal(retry.body.error.code, "INVALID_STATUS");
+    const afterRetry = await readState(remoteDir);
+    assert.deepEqual(afterRetry.nodes["G-resolve-contract"], beforeRetry.nodes["G-resolve-contract"]);
+    assert.equal(afterRetry.log.length, beforeRetry.log.length);
+  });
+});
+
 async function checkAuthAndProtocolRejection(fixture, before) {
   const { projectDir, apiUrl, remoteEnv } = fixture;
   const unauthorized = await cli(projectDir, "add-initiative", ["unauthorized", "--as", "alice"], { ...remoteEnv, CLIMIER_TOKEN: "invalid-token" });

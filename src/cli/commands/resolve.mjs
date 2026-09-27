@@ -13,28 +13,6 @@ const REGISTRY = bootstrapBuiltins();
 
 export const knownFlags = ["as", "note", "choice", "rationale"];
 
-function gateSnapshot(snapshot, id) {
-  // add-node historically omitted resolution_mode while the CLI still
-  // treated such gates as choice gates. Keep that legacy default at the CLI
-  // boundary; typed operation callers remain strict.
-  const node = snapshot.nodes[id];
-  if (!node || (node.resolution_mode && node.status !== "resolved")) {
-    return snapshot;
-  }
-  return {
-    ...snapshot,
-    nodes: {
-      ...snapshot.nodes,
-      [id]: {
-        ...node,
-        resolution_mode: node.resolution_mode || "choice",
-        // The historical CLI did not reject a repeated resolve.
-        ...(node.status === "resolved" ? { status: "open" } : {}),
-      },
-    },
-  };
-}
-
 function validateGateTarget(node, id) {
   if (node && (node.kind !== "resolvable" || node.subkind !== "gate")) {
     throwV2(
@@ -45,21 +23,11 @@ function validateGateTarget(node, id) {
   }
 }
 
-function preserveResolveStatus(prepared, status) {
-  if (status === undefined) {
-    return prepared;
-  }
-  return { ...prepared, target: { ...prepared.target, status } };
-}
-
-async function prepareCliResolve(args, id, resolvedNode) {
+async function prepareCliResolve(args, id, resolvedNode, provider) {
   const node = args.snapshot.nodes[id];
   resolvedNode.value = node || null;
   validateGateTarget(node, id);
-  const prepared = await gateResolveProvider.prepare({
-    ...args, snapshot: gateSnapshot(args.snapshot, id),
-  });
-  return preserveResolveStatus(prepared, args.snapshot.nodes[id]?.status);
+  return provider.prepare(args);
 }
 
 function sourceWithCliProvider(source, id, resolvedNode) {
@@ -71,11 +39,12 @@ function sourceWithCliProvider(source, id, resolvedNode) {
         if (operation !== "gate.resolve" || !entry) {
           return entry;
         }
+        const provider = entry.provider || entry;
         return {
           ...entry,
           provider: {
-            prepare: (args) => prepareCliResolve(args, id, resolvedNode),
-            apply: gateResolveProvider.apply,
+            prepare: (args) => prepareCliResolve(args, id, resolvedNode, provider),
+            apply: provider.apply,
           },
         };
       },

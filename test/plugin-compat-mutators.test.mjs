@@ -177,6 +177,7 @@ test("resolve (gate) preserves root plugins", async () => {
         title: "G1",
         initiative: "p",
         status: "open",
+        resolution_mode: "choice",
         revision: 1,
         purpose: "decision",
       };

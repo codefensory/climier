@@ -151,14 +151,16 @@ test("CLI resolve delegates its gate operation through Application Operations", 
       flags: { choice: "yes", rationale: "accepted", as: "operator" },
     });
     assert.equal(out.node.status, "resolved");
-    const repeated = await resolve({
-      projectDir: dir,
-      statePath: dir,
-      source,
-      positional: ["G-resolve"],
-      flags: { choice: "yes", rationale: "accepted", as: "operator" },
-    });
-    assert.equal(repeated.node.status, "resolved");
+    await assert.rejects(
+      resolve({
+        projectDir: dir,
+        statePath: dir,
+        source,
+        positional: ["G-resolve"],
+        flags: { choice: "yes", rationale: "accepted", as: "operator" },
+      }),
+      (error) => error.code === "INVALID_STATUS",
+    );
     assert.deepEqual(operations, ["gate.resolve", "gate.resolve"]);
   } finally {
     await rmTempProject(dir);
@@ -193,7 +195,7 @@ test("CLI resolve rejects tasks without mutating them; accept is the done transi
     await seedTask(dir, "T-resolve");
     let out = await jsonCommand(dir, "take", "T-resolve", "--as", "worker");
     assert.equal(out.result.code, 0, out.result.stderr);
-    out = await jsonCommand(dir, "resolve", "T-resolve", "--note", "done", "--as", "worker");
+    out = await jsonCommand(dir, "resolve", "T-resolve", "--choice", "done", "--rationale", "not a gate", "--as", "worker");
     assert.equal(out.result.code, 1);
     assert.equal(out.data.ok, false);
     assert.equal(out.data.error.code, "INVALID_EXECUTION_CONTRACT");
