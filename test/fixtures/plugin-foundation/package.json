@@ -8,6 +8,6 @@
     "id": "foundation.acceptance",
     "command": "foundation",
     "entry": "./climier.mjs",
-    "api": 3
+    "api": 1
   }
 }

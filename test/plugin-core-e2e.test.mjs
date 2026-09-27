@@ -160,7 +160,7 @@ test("fixture: package.json declares descriptor, type module, and no runtime dep
     id: FIXTURE_ID,
     command: FIXTURE_COMMAND,
     entry: "./climier.mjs",
-    api: 3,
+    api: 1,
   });
   // ADR-006 plan §8 risk #4: the fixture must NOT declare any runtime
   // dependency so `npm install --prefix staging ./core-plugin` works

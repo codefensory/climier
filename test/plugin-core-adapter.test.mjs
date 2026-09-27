@@ -5,10 +5,10 @@ import * as helpers from "./plugin-core-adapter-helpers.mjs";
 // 1. createCore — module shape (no state, no kernel)
 // =====================================================================
 
-test("plugin-core-adapter: createCore returns { version: 2, run } with run being async", async () => {
+test("plugin-core-adapter: createCore returns { version: 1, run } with run being async", async () => {
   const { createCore } = await helpers.importFresh(helpers.ADAPTER_MODULE);
   const core = createCore({ projectDir: "/tmp/whatever", agent: "alice", pluginId: "p.test" });
-  assert.equal(core.version, 2);
+  assert.equal(core.version, 1);
   assert.equal(typeof core.run, "function");
 });
 

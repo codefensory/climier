@@ -159,7 +159,7 @@ async function createPluginFixture(pluginHome) {
   const installed = path.join(pluginHome, "plugins", "installed", "audit");
   fsSync.mkdirSync(installed, { recursive: true });
   const marker = path.join(pluginHome, "loaded");
-  fsSync.writeFileSync(path.join(installed, "package.json"), JSON.stringify({ name: "audit", version: "1.0.0", type: "module", climier: { id: "audit", command: "audit", entry: "./climier.mjs", api: 3 } }));
+  fsSync.writeFileSync(path.join(installed, "package.json"), JSON.stringify({ name: "audit", version: "1.0.0", type: "module", climier: { id: "audit", command: "audit", entry: "./climier.mjs", api: 1 } }));
   fsSync.writeFileSync(path.join(installed, "climier.mjs"), `import fs from "node:fs"; fsSync.writeFileSync(${JSON.stringify(marker)}, "loaded"); export default { commands: { ping: () => ({ ok: true }) } };`);
   return marker;
 }

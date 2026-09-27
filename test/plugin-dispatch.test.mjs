@@ -19,7 +19,7 @@ await fs.rm(projectDir,{recursive:true,force:true})}}}async function seedInstall
 "plugins","installed",namespace);
 await fs.mkdir(installedRoot,{recursive:true});
   const descriptor={id:opts.id??namespace,command:opts.command??namespace,entry:opts.entry??"./climier.mjs",
-api:opts.api??3};
+api:opts.api??1};
   await fs.writeFile(path.join(installedRoot,"package.json"),JSON.stringify({name:opts.npmName??namespace,version:"1.0.0",
 type:"module",climier:descriptor},null,2)+"\n","utf8");
 await fs.writeFile(path.join(installedRoot,"climier.mjs"),opts.entryCode??defaultEntryCode(),"utf8");
@@ -57,6 +57,7 @@ async env=>{await seedInstalledPlugin(env.home,"audit");
 const{loadInstalledPlugin}=await importFresh(LOADER_MODULE);
 const loaded=await loadInstalledPlugin("audit");
 assert.equal(loaded.pluginId,"audit");
+assert.equal(loaded.descriptor.api,1);
 assert.equal(loaded.descriptor.id,"audit");
 assert.equal(loaded.descriptor.command,"audit");
 assert.equal(typeof loaded.commands.ping,"function");
@@ -67,7 +68,7 @@ testWithEnv("plugin-loader: rejects an incompatible descriptor before importing 
 await fs.mkdir(installedRoot,{recursive:true});
 const marker=path.join(env.home,"imported");
   await fs.writeFile(path.join(installedRoot,"package.json"),JSON.stringify({name:"future",version:"1.0.0",type:"module",
-climier:{id:"future",command:"future",api:4,entry:"./climier.mjs"}},null,2)+"\n","utf8");
+climier:{id:"future",command:"future",api:3,entry:"./climier.mjs"}},null,2)+"\n","utf8");
 await fs.writeFile(path.join(installedRoot,"climier.mjs"),`import "node:fs";
 await import("node:fs/promises").then((fs) => fs.writeFile(${JSON.stringify(marker)}, "imported"));
 export default { commands: {} };
@@ -76,7 +77,9 @@ export default { commands: {} };
 const{loadInstalledPlugin}=await importFresh(LOADER_MODULE);
 const error=await captureRejection(loadInstalledPlugin("future"));
 assert.equal(error.code,"PLUGIN_API_INCOMPATIBLE");
-assert.equal(error.details.received,4);
+assert.equal(error.details.received,3);
+assert.match(error.message,/api: 1/);
+assert.match(error.message,/update.*reinstall|reinstall.*update/i);
 const markerError=await captureRejection(fs.access(marker));
 assert.equal(markerError.code,"ENOENT")});
 testWithEnv("plugin-loader: loadInstalledPlugin throws PLUGIN_LOAD_FAILED when installed dir is missing",async()=>{const{loadInstalledPlugin}=await importFresh(LOADER_MODULE);
@@ -101,7 +104,7 @@ testWithEnv("plugin-loader: loadInstalledPlugin throws PLUGIN_INVALID_DESCRIPTOR
 async env=>{const installedRoot=path.join(env.home,"plugins","installed","mismatch");
 await fs.mkdir(installedRoot,{recursive:true});
   await fs.writeFile(path.join(installedRoot,"package.json"),JSON.stringify({name:"mismatch-pkg",version:"1.0.0",
-type:"module",climier:{id:"wrong.id",command:"mismatch",entry:"./climier.mjs",api:3}},null,2)+"\n","utf8");
+type:"module",climier:{id:"wrong.id",command:"mismatch",entry:"./climier.mjs",api:1}},null,2)+"\n","utf8");
 await fs.writeFile(path.join(installedRoot,"climier.mjs"),"export default { commands: { ping: () => ({ ok: true }) } };\n",
 "utf8");
 const{loadInstalledPlugin}=await importFresh(LOADER_MODULE);
@@ -124,7 +127,7 @@ testWithEnv("plugin-loader: loadInstalledPlugin throws PLUGIN_INVALID_DESCRIPTOR
 async env=>{const installedRoot=path.join(env.home,"plugins","installed","bad");
 await fs.mkdir(installedRoot,{recursive:true});
     await fs.writeFile(path.join(installedRoot,"package.json"),JSON.stringify({name:"bad",type:"module",climier:{id:".bad",
-command:"bad",entry:"./x.mjs",api:3}},null,2)+"\n","utf8");
+command:"bad",entry:"./x.mjs",api:1}},null,2)+"\n","utf8");
 await fs.writeFile(path.join(installedRoot,"climier.mjs"),"export default { commands: {} };\n","utf8");
 const{loadInstalledPlugin}=await importFresh(LOADER_MODULE);
 const error=await captureRejection(loadInstalledPlugin("bad"));

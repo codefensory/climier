@@ -15,11 +15,11 @@ import {
   assertFullSliceState,
 } from "./plugin-core-integration-helpers.mjs";
 
-test("plugin-core-integration: api.core.version is 2 and api.core.run is a function", async () => {
+test("plugin-core-integration: api.core.version is 1 and api.core.run is a function", async () => {
   const dir = await createTempProject();
   try {
     const api = await makeApi(dir);
-    assert.equal(api.core.version, 2);
+    assert.equal(api.core.version, 1);
     assert.equal(typeof api.core.run, "function");
     // V1 surface still present.
     assert.equal(typeof api.runtime, "object");

@@ -65,7 +65,7 @@ export async function writePlugin(home, opts) {
         name: opts.npmName ?? id,
         version: "1.0.0",
         type: "module",
-        climier: { id, command, entry: "./climier.mjs", api: 3 },
+        climier: { id, command, entry: "./climier.mjs", api: 1 },
       },
       null,
       2,

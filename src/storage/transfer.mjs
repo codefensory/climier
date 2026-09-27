@@ -4,6 +4,8 @@ import { withLock } from "./lock.mjs";
 import { ledgerFile, bootstrapFencedStateUnderLock, readFencedStateUnderLock, replaceFencedStateUnderLock } from "./ledger.mjs";
 import { migrateState, stateFile } from "./state.mjs";
 
+export const TRANSFER_PAYLOAD_VERSION = 1;
+
 function transferError(code, message) {
   const error = new Error(message);
   error.code = code;
@@ -39,7 +41,7 @@ function transferPayload(state) {
     return [id, transferNode];
   }));
   return {
-    version: 1,
+    version: TRANSFER_PAYLOAD_VERSION,
     fence_generation: state.fence_generation,
     revision: 0,
     nodes,

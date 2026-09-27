@@ -99,7 +99,7 @@ test("fixture: package.json declares descriptor, type module, and no runtime dep
     id: FIXTURE_ID,
     command: FIXTURE_COMMAND,
     entry: "./climier.mjs",
-    api: 3,
+    api: 1,
   });
   // ADR-005 + plan §8 risk #6: the fixture must be self-contained so
   // `npm install --prefix staging ./sample-plugin` does not pull

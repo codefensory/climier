@@ -300,7 +300,7 @@ async function writeCustomPolicyPackage(customDir, pluginId) {
     description: `Custom policy fixture for ${pluginId} (T-plugin-policy-fixture helper)`,
     private: true,
     type: "module",
-    climier: { id: pluginId, command: "policy", entry: "./climier.mjs", api: 3 },
+    climier: { id: pluginId, command: "policy", entry: "./climier.mjs", api: 1 },
   };
   await fsp.writeFile(path.join(customDir, "package.json"), JSON.stringify(pkg, null, 2) + "\n", "utf8");
 }

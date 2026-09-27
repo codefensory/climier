@@ -8,6 +8,6 @@
     "id": "example.core",
     "command": "core",
     "entry": "./climier.mjs",
-    "api": 3
+    "api": 1
   }
 }
