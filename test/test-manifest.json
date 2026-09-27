@@ -6124,6 +6124,54 @@
       "disposition": "keep"
     },
     {
+      "path": "test/provider-task-supersession-cli.test.mjs",
+      "name": "CLI status and context project replacement-chain readiness from an isolated CLIMIER_HOME",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/provider-task-supersession.test.mjs",
+      "name": "canceled task follows a two-hop replacement chain to a done task",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/provider-task-supersession.test.mjs",
+      "name": "canceled task replaced by a done task satisfies its dependent",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/provider-task-supersession.test.mjs",
+      "name": "canceled task replaced by an archived task satisfies its dependent",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/provider-task-supersession.test.mjs",
+      "name": "canceled task replaced by an open task keeps blocking its dependent",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/provider-task-supersession.test.mjs",
+      "name": "canceled task without a replacement keeps blocking its dependent",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/provider-task-supersession.test.mjs",
+      "name": "gate and knowledge satisfaction behavior remains unchanged",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/provider-task-supersession.test.mjs",
+      "name": "SUPERSEDES cycle between canceled tasks stays blocked and terminates",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
       "path": "test/providers/task/create-update.test.mjs",
       "name": "task.create apply: composes task + BLOCKS edges atomically through tx only",
       "ordinal": 1,
