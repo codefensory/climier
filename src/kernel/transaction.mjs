@@ -76,6 +76,29 @@ function requireNodeId(nodeId, operation) {
   return id;
 }
 
+function isRecord(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function validateEdgeShape(edge, commandName) {
+  if (edge === null || edge === undefined || typeof edge !== "object") {
+    throwV2("MISSING_FIELD", `${commandName}: edge must be an object`, { field: "edge" });
+  }
+  const from = asNonEmptyString(edge.from);
+  if (!from) {
+    throwV2("MISSING_FIELD", `${commandName}: edge requires non-empty 'from'`, { field: "from" });
+  }
+  const to = asNonEmptyString(edge.to);
+  if (!to) {
+    throwV2("MISSING_FIELD", `${commandName}: edge requires non-empty 'to'`, { field: "to" });
+  }
+  const type = asNonEmptyString(edge.type);
+  if (!type) {
+    throwV2("MISSING_FIELD", `${commandName}: edge requires non-empty 'type'`, { field: "type" });
+  }
+  return { from, to, type };
+}
+
 function cloneValue(value, operation, field) {
   try {
     return clone(value);
@@ -89,7 +112,9 @@ function cloneValue(value, operation, field) {
 
 function findEdgeIndex(edges, predicate) {
   for (let i = 0; i < edges.length; i++) {
-    if (predicate(edges[i])) return i;
+    if (predicate(edges[i])) {
+      return i;
+    }
   }
   return -1;
 }
@@ -102,7 +127,7 @@ function hasRevisionField(input) {
   // The provider must never seed or carry revision; the kernel computes it
   // once per node per apply. We detect any property named `revision`,
   // including inherited ones via plain `in` checks on the seed object.
-  return input != null && typeof input === "object" && "revision" in input;
+  return input !== null && input !== undefined && typeof input === "object" && "revision" in input;
 }
 
 /**
@@ -170,7 +195,7 @@ export function createTransaction(snapshot) {
   }
 
   function createNode(input) {
-    if (input == null || typeof input !== "object") {
+    if (input === null || typeof input !== "object") {
       throwV2("MISSING_FIELD", "createNode: input must be an object", { field: "input" });
     }
     const id = asNonEmptyString(input.id);
@@ -210,7 +235,7 @@ export function createTransaction(snapshot) {
     if (!nodeId) {
       throwV2("MISSING_FIELD", "updateNode: target id must be a non-empty string", { field: "id" });
     }
-    if (patch == null || typeof patch !== "object") {
+    if (patch === null || typeof patch !== "object") {
       throwV2("MISSING_FIELD", "updateNode: patch must be an object", { field: "patch" });
     }
     const existing = draftNodes[nodeId];
@@ -234,29 +259,6 @@ export function createTransaction(snapshot) {
     delete merged.revision;
     draftNodes[nodeId] = merged;
     return clone(merged);
-  }
-
-  function validateEdgeShape(edge, commandName) {
-    if (edge == null || typeof edge !== "object") {
-      throwV2("MISSING_FIELD", `${commandName}: edge must be an object`, { field: "edge" });
-    }
-    const from = asNonEmptyString(edge.from);
-    if (!from) {
-      throwV2("MISSING_FIELD", `${commandName}: edge requires non-empty 'from'`, { field: "from" });
-    }
-    const to = asNonEmptyString(edge.to);
-    if (!to) {
-      throwV2("MISSING_FIELD", `${commandName}: edge requires non-empty 'to'`, { field: "to" });
-    }
-    const type = asNonEmptyString(edge.type);
-    if (!type) {
-      throwV2("MISSING_FIELD", `${commandName}: edge requires non-empty 'type'`, { field: "type" });
-    }
-    return { from, to, type };
-  }
-
-  function resolveEdgeNode(id) {
-    return draftNodes[id];
   }
 
   function addEdge(rawEdge) {
@@ -313,10 +315,10 @@ export function createTransaction(snapshot) {
     if (!node) {
       throwV2("NODE_NOT_FOUND", `getNodePluginData: node '${nid}' does not exist in the draft or snapshot`, { id: nid });
     }
-    const entry = node.plugins && typeof node.plugins === "object" && !Array.isArray(node.plugins)
-      ? node.plugins[pid]
-      : undefined;
-    if (!entry || typeof entry !== "object" || Array.isArray(entry) || !("data" in entry)) return undefined;
+    const entry = isRecord(node.plugins) ? node.plugins[pid] : undefined;
+    if (!isRecord(entry) || !("data" in entry)) {
+      return undefined;
+    }
     return cloneValue(entry.data, "getNodePluginData", "data");
   }
 
@@ -327,12 +329,8 @@ export function createTransaction(snapshot) {
     if (!node) {
       throwV2("NODE_NOT_FOUND", `setNodePluginData: node '${nid}' does not exist in the draft or snapshot`, { id: nid });
     }
-    const plugins = node.plugins && typeof node.plugins === "object" && !Array.isArray(node.plugins)
-      ? { ...node.plugins }
-      : {};
-    const existing = plugins[pid] && typeof plugins[pid] === "object" && !Array.isArray(plugins[pid])
-      ? { ...plugins[pid] }
-      : {};
+    const plugins = isRecord(node.plugins) ? { ...node.plugins } : {};
+    const existing = isRecord(plugins[pid]) ? { ...plugins[pid] } : {};
     existing.data = cloneValue(value, "setNodePluginData", "value");
     plugins[pid] = existing;
     draftNodes[nid] = { ...node, plugins };
@@ -346,18 +344,19 @@ export function createTransaction(snapshot) {
     if (!node) {
       throwV2("NODE_NOT_FOUND", `deleteNodePluginData: node '${nid}' does not exist in the draft or snapshot`, { id: nid });
     }
-    const plugins = node.plugins && typeof node.plugins === "object" && !Array.isArray(node.plugins)
-      ? node.plugins
-      : {};
+    const plugins = isRecord(node.plugins) ? node.plugins : {};
     const entry = plugins[pid];
-    if (!entry || typeof entry !== "object" || Array.isArray(entry) || !Object.prototype.hasOwnProperty.call(entry, "data")) {
+    if (!isRecord(entry) || !Object.prototype.hasOwnProperty.call(entry, "data")) {
       return false;
     }
     const nextPlugins = { ...plugins };
     const nextEntry = { ...entry };
     delete nextEntry.data;
-    if (Object.keys(nextEntry).length === 0) delete nextPlugins[pid];
-    else nextPlugins[pid] = nextEntry;
+    if (Object.keys(nextEntry).length === 0) {
+      delete nextPlugins[pid];
+    } else {
+      nextPlugins[pid] = nextEntry;
+    }
     draftNodes[nid] = { ...node, plugins: nextPlugins };
     return true;
   }
@@ -365,14 +364,20 @@ export function createTransaction(snapshot) {
   function getProjectPluginData(pluginId, key) {
     const pid = requirePluginId(pluginId, "getProjectPluginData");
     const entry = draftPlugins[pid];
-    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return undefined;
+    if (!isRecord(entry)) {
+      return undefined;
+    }
     const data = entry.data;
-    if (key === undefined) return data === undefined ? undefined : cloneValue(data, "getProjectPluginData", "data");
+    if (key === undefined) {
+      return data === undefined ? undefined : cloneValue(data, "getProjectPluginData", "data");
+    }
     const field = asNonEmptyString(key);
     if (!field) {
       throwV2("MISSING_FIELD", "getProjectPluginData: key must be a non-empty string", { field: "key" });
     }
-    if (!data || typeof data !== "object" || Array.isArray(data)) return undefined;
+    if (!isRecord(data)) {
+      return undefined;
+    }
     return Object.prototype.hasOwnProperty.call(data, field)
       ? cloneValue(data[field], "getProjectPluginData", "value")
       : undefined;
@@ -384,12 +389,8 @@ export function createTransaction(snapshot) {
     if (!field) {
       throwV2("MISSING_FIELD", "setProjectPluginData: key must be a non-empty string", { field: "key" });
     }
-    const current = draftPlugins[pid] && typeof draftPlugins[pid] === "object" && !Array.isArray(draftPlugins[pid])
-      ? { ...draftPlugins[pid] }
-      : {};
-    const data = current.data && typeof current.data === "object" && !Array.isArray(current.data)
-      ? { ...current.data }
-      : {};
+    const current = isRecord(draftPlugins[pid]) ? { ...draftPlugins[pid] } : {};
+    const data = isRecord(current.data) ? { ...current.data } : {};
     data[field] = cloneValue(value, "setProjectPluginData", "value");
     current.data = data;
     draftPlugins[pid] = current;
@@ -403,8 +404,7 @@ export function createTransaction(snapshot) {
       throwV2("MISSING_FIELD", "deleteProjectPluginData: key must be a non-empty string", { field: "key" });
     }
     const current = draftPlugins[pid];
-    if (!current || typeof current !== "object" || Array.isArray(current) ||
-        !current.data || typeof current.data !== "object" || Array.isArray(current.data) ||
+    if (!isRecord(current) || !isRecord(current.data) ||
         !Object.prototype.hasOwnProperty.call(current.data, field)) {
       return false;
     }
@@ -450,13 +450,15 @@ export function createTransaction(snapshot) {
 
   function getInitiative(name) {
     const key = asNonEmptyString(name);
-    if (!key) return undefined;
+    if (!key) {
+      return undefined;
+    }
     const init = draftInitiatives[key];
     return init === undefined ? undefined : clone(init);
   }
 
   function createInitiative(input) {
-    if (input == null || typeof input !== "object" || Array.isArray(input)) {
+    if (input === null || typeof input !== "object" || Array.isArray(input)) {
       throwV2("MISSING_FIELD", "createInitiative: input must be an object", { field: "input" });
     }
     const name = asNonEmptyString(input.name);
@@ -475,8 +477,12 @@ export function createTransaction(snapshot) {
     // without re-reading the snapshot. desc is normalised to a string to
     // keep the diff stable when a provider passes desc: undefined.
     const stored = {};
-    if (typeof input.desc === "string") stored.desc = input.desc;
-    if (typeof input.created_at === "string") stored.created_at = input.created_at;
+    if (typeof input.desc === "string") {
+      stored.desc = input.desc;
+    }
+    if (typeof input.created_at === "string") {
+      stored.created_at = input.created_at;
+    }
     draftInitiatives[name] = stored;
     return clone(stored);
   }
