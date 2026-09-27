@@ -35,7 +35,7 @@ const LOG_FIELD_RESERVED = new Set([
 ]);
 
 export function normalizeLogFields(logFields, commandName) {
-  if (logFields === undefined) return {};
+  if (logFields === undefined) {return {};}
   if (!logFields || typeof logFields !== "object" || Array.isArray(logFields)) {
     throwV2("INVALID_EXECUTION_CONTRACT", `${commandName}: plan.logFields must be an object`, { field: "logFields" });
   }
@@ -48,7 +48,7 @@ export function normalizeLogFields(logFields, commandName) {
         { field: `logFields.${key}` },
       );
     }
-    if (LOG_FIELD_ALLOWLIST.has(key)) allowed[key] = value;
+    if (LOG_FIELD_ALLOWLIST.has(key)) {allowed[key] = value;}
   }
   return allowed;
 }
@@ -56,20 +56,25 @@ export function normalizeLogFields(logFields, commandName) {
 // Last line of defence after provider.apply. The transaction layer enforces
 // the major structural errors; this boundary validates the full draft shape
 // and keeps future tightening isolated from transaction mechanics.
-export function validateDraftStructural(draftView, commandName) {
-  const nodes = draftView && draftView.nodes;
+function validateDraftNodes(nodes, commandName) {
   if (!nodes || typeof nodes !== "object" || Array.isArray(nodes)) {
     throwV2("INVALID_EXECUTION_CONTRACT", `${commandName}: draft view missing nodes`, { field: "draft" });
   }
-  for (const [id, node] of Object.entries(nodes)) {
-    if (node && typeof node === "object" && "revision" in node && node.revision !== undefined) {
-      throwV2(
-        "INVALID_EXECUTION_CONTRACT",
-        `${commandName}: draft node ${id} unexpectedly carries 'revision'`,
-        { id },
-      );
-    }
+  for (const [id, node] of Object.entries(nodes)) {validateDraftNodeRevision(id, node, commandName);}
+}
+
+function validateDraftNodeRevision(id, node, commandName) {
+  if (node && typeof node === "object" && "revision" in node && node.revision !== undefined) {
+    throwV2(
+      "INVALID_EXECUTION_CONTRACT",
+      `${commandName}: draft node ${id} unexpectedly carries 'revision'`,
+      { id },
+    );
   }
+}
+
+export function validateDraftStructural(draftView, commandName) {
+  validateDraftNodes(draftView && draftView.nodes, commandName);
   validateStateInvariants(draftView, commandName, {
     requireCollections: false,
     requireRevision: false,

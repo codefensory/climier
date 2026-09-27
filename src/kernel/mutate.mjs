@@ -50,48 +50,49 @@ function currentNestedDepth() {
  * Stable kernel mutation API. All reads, provider callbacks and persistence
  * run through one project lock and are delegated to the execution coordinator.
  */
-function selectPolicyAndAuditFromPlan({ request, provider, policyAction }) {
-  let selectedAction = request.action;
-  const wrappedProvider = {
+function takeoverAbstainError(args) {
+  const error = new Error(`take: task '${args.target.id}' is already claimed`);
+  error.code = "POLICY_TAKEOVER_ABSTAIN";
+  error.details = { id: args.target.id, owner: args.target.previous_owner || null };
+  return error;
+}
+
+function policyDecision(policyAction, selectedAction, args) {
+  if (typeof policyAction.decide !== "function") {return { decision: "abstain" };}
+  return policyAction.decide({ ...args, action: selectedAction });
+}
+
+function wrapPrepare(request, provider, selectAction) {
+  return {
     ...provider,
     async prepare(args) {
       const plan = await provider.prepare(args);
       if (plan && plan.policyAction && typeof plan.policyAction.action === "string" && plan.policyAction.action.length > 0) {
-        selectedAction = plan.policyAction.action;
+        selectAction(plan.policyAction.action);
       }
-      if (plan && typeof plan.logAction === "string" && plan.logAction.length > 0) {
-        request.action = plan.logAction;
-      }
+      if (plan && typeof plan.logAction === "string" && plan.logAction.length > 0) {request.action = plan.logAction;}
       return plan;
     },
   };
-  const wrappedPolicyAction = policyAction ? {
+}
+
+function wrapPolicyAction(policyAction, getAction) {
+  return {
     ...policyAction,
-    get action() { return selectedAction; },
+    get action() { return getAction(); },
     async decide(args) {
-      const decision = typeof policyAction.decide === "function"
-        ? await policyAction.decide({ ...args, action: selectedAction })
-        : { decision: "abstain" };
-      if (selectedAction === "task.takeover" && decision && decision.decision === "abstain") {
-        const error = new Error(`take: task '${args.target.id}' is already claimed`);
-        error.code = "POLICY_TAKEOVER_ABSTAIN";
-        error.details = { id: args.target.id, owner: args.target.previous_owner || null };
-        throw error;
-      }
+      const selectedAction = getAction();
+      const decision = policyAction ? await policyDecision(policyAction, selectedAction, args) : { decision: "abstain" };
+      if (selectedAction === "task.takeover" && decision && decision.decision === "abstain") {throw takeoverAbstainError(args);}
       return decision;
     },
-  } : {
-    get action() { return selectedAction; },
-    async decide(args) {
-      if (selectedAction === "task.takeover") {
-        const error = new Error(`take: task '${args.target.id}' is already claimed`);
-        error.code = "POLICY_TAKEOVER_ABSTAIN";
-        error.details = { id: args.target.id, owner: args.target.previous_owner || null };
-        throw error;
-      }
-      return { decision: "abstain" };
-    },
   };
+}
+
+function selectPolicyAndAuditFromPlan({ request, provider, policyAction }) {
+  let selectedAction = request.action;
+  const wrappedProvider = wrapPrepare(request, provider, (action) => { selectedAction = action; });
+  const wrappedPolicyAction = wrapPolicyAction(policyAction, () => selectedAction);
   return { provider: wrappedProvider, policyAction: wrappedPolicyAction };
 }
 
@@ -123,7 +124,7 @@ export async function mutate({ projectDir, request, provider, policyAction, poli
   );
 }
 
-export const __kernelInternals = Object.freeze({
+const kernelInternals = Object.freeze({
   commandLabel,
   operationLabel,
   executeMutation,
@@ -145,3 +146,5 @@ export const __kernelInternals = Object.freeze({
   normalizeLogFields,
   buildLogEntry,
 });
+
+export { kernelInternals as "__kernelInternals" };

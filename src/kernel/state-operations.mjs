@@ -26,16 +26,22 @@ function validateSnapshotMetadata(meta, id) {
   }
 }
 
-function parseSnapshot(raw, id) {
-  let parsed;
+function parseSnapshotJson(raw, id) {
   try {
-    parsed = JSON.parse(raw.toString("utf8"));
+    return JSON.parse(raw.toString("utf8"));
   } catch (err) {
     throwV2("INVALID_STATUS", `state.restore: snapshot ${id} raw is not valid JSON`, { id, error: err.message });
   }
+}
+
+function validateSnapshotVersion(parsed, id) {
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed) || ![2, 3, 4, 5].includes(parsed.version)) {
     throwV2("INVALID_STATUS", `state.restore: snapshot ${id} is not a supported state`, { id, version: parsed && parsed.version });
   }
+  validateFenceGeneration(parsed, id);
+}
+
+function validateFenceGeneration(parsed, id) {
   if (parsed.version === 5 && !Number.isInteger(parsed.fence_generation)) {
     throwV2("INVALID_STATUS", `state.restore: snapshot ${id} has an invalid fence_generation`, {
       id,
@@ -43,40 +49,53 @@ function parseSnapshot(raw, id) {
       value: parsed.fence_generation ?? null,
     });
   }
+}
+
+function validateSnapshotCollections(parsed, id) {
   for (const field of REQUIRED_COLLECTIONS) {
     if (!(field in parsed)) {
       throwV2("INVALID_STATUS", `state.restore: snapshot ${id} is missing '${field}' collection`, { id, missing: field });
     }
   }
+}
+
+function parseSnapshot(raw, id) {
+  const parsed = parseSnapshotJson(raw, id);
+  validateSnapshotVersion(parsed, id);
+  validateSnapshotCollections(parsed, id);
   const restored = migrateState(parsed);
-  try {
-    validateStateInvariants(restored, `state.restore: snapshot ${id}`);
-  } catch (error) {
-    throw error;
-  }
+  validateStateInvariants(restored, `state.restore: snapshot ${id}`);
   return restored;
+}
+
+function validateInitSnapshot(projectDir, snapshot, force) {
+  if (force || !snapshot.exists) {return;}
+  // Corrupt JSON can be recovered without force. Unsupported versions must
+  // remain visible instead of being silently reset.
+  if (snapshot.stateError && snapshot.stateError.code !== "CLIMIER_CORRUPT_STATE") {
+    throw snapshot.stateError;
+  }
+  if (!snapshot.stateError) {
+    throw new Error(`state.init: state file already exists at ${stateFile(projectDir)} (use --force to overwrite)`);
+  }
+}
+
+function initPlan(projectDir, snapshot, force) {
+  let snapshotReason = null;
+  if (snapshot.exists) {snapshotReason = force ? "force-init" : "corrupt-recovery";}
+  return Object.freeze({
+    target: Object.freeze({ id: "state", kind: "state", state_file: stateFile(projectDir), exists: snapshot.exists }),
+    snapshotReason,
+    force,
+    corruptRecovery: !force && snapshot.stateError?.code === "CLIMIER_CORRUPT_STATE",
+  });
 }
 
 const initOperation = Object.freeze({
   async prepare({ projectDir, snapshot, input }) {
     const force = input && input.force === true;
-    if (!force && snapshot.exists) {
-      // A corrupt JSON file is the one non-force recovery supported by the
-      // existing init contract. Unsupported versions must remain visible to
-      // the caller instead of being silently reset.
-      if (snapshot.stateError && snapshot.stateError.code !== "CLIMIER_CORRUPT_STATE") {
-        throw snapshot.stateError;
-      }
-      if (!snapshot.stateError) {
-        throw new Error(`state.init: state file already exists at ${stateFile(projectDir)} (use --force to overwrite)`);
-      }
-    }
-    return Object.freeze({
-      target: Object.freeze({ id: "state", kind: "state", state_file: stateFile(projectDir), exists: snapshot.exists }),
-      snapshotReason: snapshot.exists ? (force ? "force-init" : "corrupt-recovery") : null,
-      force,
-      corruptRecovery: !force && snapshot.stateError?.code === "CLIMIER_CORRUPT_STATE",
-    });
+    validateInitSnapshot(projectDir, snapshot, force);
+    return initPlan(projectDir, snapshot, force);
   },
   async apply({ snapshot, plan }) {
     const fresh = emptyState();
@@ -87,44 +106,61 @@ const initOperation = Object.freeze({
   },
 });
 
+function validateRestoreInput(id, snapshot) {
+  if (typeof id !== "string" || !id || !SNAPSHOT_ID_RE.test(id) || id.includes("..")) {
+    throwV2("MISSING_FIELD", "state.restore: snapshot id required", { field: "snapshot_id" });
+  }
+  if (!snapshot.exists) {
+    throwV2("INVALID_STATUS", "state.restore: no current state file; cannot pre-snapshot before restoring", { id });
+  }
+}
+
+async function readSnapshotMetadata(metaPath, id) {
+  let metaRaw;
+  try {
+    metaRaw = await fs.readFile(metaPath, "utf8");
+  } catch (err) {
+    if (err.code === "ENOENT") {throwV2("NODE_NOT_FOUND", `state.restore: snapshot ${id} not found`, { id });}
+    throw err;
+  }
+  let meta;
+  try { meta = JSON.parse(metaRaw); } catch (err) {
+    throwV2("NODE_NOT_FOUND", `state.restore: snapshot ${id} metadata is corrupt`, { id, error: err.message });
+  }
+  validateSnapshotMetadata(meta, id);
+  return meta;
+}
+
+async function readSnapshotBytes(rawPath, id) {
+  try {
+    return await fs.readFile(rawPath);
+  } catch (err) {
+    if (err.code === "ENOENT") {throwV2("NODE_NOT_FOUND", `state.restore: snapshot ${id} is incomplete`, { id });}
+    throw err;
+  }
+}
+
+function restorePlan(id, meta, restored) {
+  return Object.freeze({
+    target: Object.freeze({ id, kind: "snapshot", snapshot: meta }),
+    restored,
+    snapshotMeta: meta,
+    snapshotReason: "pre-restore",
+    logAction: "restore",
+    log: { snapshot_id: id },
+  });
+}
+
 const restoreOperation = Object.freeze({
   async prepare({ projectDir, snapshot, input }) {
     const id = input && input.snapshot_id;
-    if (typeof id !== "string" || !id || !SNAPSHOT_ID_RE.test(id) || id.includes("..")) {
-      throwV2("MISSING_FIELD", "state.restore: snapshot id required", { field: "snapshot_id" });
-    }
-    if (!snapshot.exists) {
-      throwV2("INVALID_STATUS", "state.restore: no current state file; cannot pre-snapshot before restoring", { id });
-    }
+    validateRestoreInput(id, snapshot);
     const dir = snapshotDir(projectDir);
     const metaPath = path.join(dir, `${id}.meta.json`);
     const rawPath = path.join(dir, `${id}.json`);
-    let metaRaw;
-    try {
-      metaRaw = await fs.readFile(metaPath, "utf8");
-    } catch (err) {
-      if (err.code === "ENOENT") throwV2("NODE_NOT_FOUND", `state.restore: snapshot ${id} not found`, { id });
-      throw err;
-    }
-    let meta;
-    try { meta = JSON.parse(metaRaw); } catch (err) {
-      throwV2("NODE_NOT_FOUND", `state.restore: snapshot ${id} metadata is corrupt`, { id, error: err.message });
-    }
-    validateSnapshotMetadata(meta, id);
-    let raw;
-    try { raw = await fs.readFile(rawPath); } catch (err) {
-      if (err.code === "ENOENT") throwV2("NODE_NOT_FOUND", `state.restore: snapshot ${id} is incomplete`, { id });
-      throw err;
-    }
-    const restored = parseSnapshot(raw, id);
-    return Object.freeze({
-      target: Object.freeze({ id, kind: "snapshot", snapshot: meta }),
-      restored,
-      snapshotMeta: meta,
-      snapshotReason: "pre-restore",
-      logAction: "restore",
-      log: { snapshot_id: id },
-    });
+    const meta = await readSnapshotMetadata(metaPath, id);
+    const restored = parseSnapshot(await readSnapshotBytes(rawPath, id), id);
+    return restorePlan(id, meta, restored);
   },
   async apply({ plan }) {
     return { state: plan.restored, result: { snapshot: plan.snapshotMeta }, effects: null };
