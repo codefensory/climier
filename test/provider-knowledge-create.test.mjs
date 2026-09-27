@@ -37,6 +37,37 @@ import {
 // create provider — prepare / apply via kernel.mutate
 // ===================================================================
 
+async function prepareCreateFromDisk(provider, dir) {
+  await writeFencedState(dir, emptySnapshot());
+  const before = await readStateHelper(dir);
+  await provider.prepare({
+    snapshot: before,
+    input: createInput(),
+    request: { action: "knowledge.create", actor: "alice" },
+  });
+  assert.deepEqual(await readStateHelper(dir), before, "prepare must not touch state");
+}
+
+function assertCreatedKnowledge(node) {
+  assert.equal(node.title, "t");
+  assert.equal(node.kind, "knowledge");
+  assert.equal(node.status, "active");
+  assert.equal(node.knowledge_type, "warning");
+  assert.deepEqual(node.scope, { domains: ["auth"], initiatives: [], tags: [], node_ids: [] });
+}
+
+function assertKnowledgeCreateLog(log) {
+  assert.equal(log.length, 1);
+  assert.equal(log[0].action, "knowledge.create");
+  assert.equal(log[0].agent, "alice");
+  assert.equal(log[0].node, "K-1");
+  assert.equal(log[0].revision, 2);
+}
+
+function createInput() {
+  return { id: "K-1", title: "t", body: "b", initiative: "auth", scope: { domains: ["auth"] } };
+}
+
 test("create: prepare rejects missing title/body with MISSING_FIELD", async () => {
   const { createProvider } = await importProviders();
   const provider = createProvider();
@@ -120,14 +151,14 @@ test("create: prepare accepts a free-form knowledge_type", async () => {
 test("create: prepare accepts a minimal valid input", async () => {
   const { createProvider } = await importProviders();
   const provider = createProvider();
-  const plan = await provider.prepare({
+  const createPlan = await provider.prepare({
     snapshot: emptySnapshot(),
-    input: { id: "K-1", title: "t", body: "b", initiative: "auth", scope: { domains: ["auth"] } },
+    input: createInput(),
     request: { action: "knowledge.create", actor: "alice" },
   });
-  assert.deepEqual(plan.target, { id: "K-1", kind: "knowledge" });
-  assert.equal(plan.policyAction, null);
-  assert.equal(plan.idempotent, false);
+  assert.deepEqual(createPlan.target, { id: "K-1", kind: "knowledge" });
+  assert.equal(createPlan.policyAction, null);
+  assert.equal(createPlan.idempotent, false);
 });
 
 test("create: apply uses tx only (does not modify the snapshot)", async () => {
@@ -136,26 +167,11 @@ test("create: apply uses tx only (does not modify the snapshot)", async () => {
   const provider = createProvider();
   const dir = await createTempProject();
   try {
-    await writeFencedState(dir, emptySnapshot());
-    const before = await readStateHelper(dir);
-    const plan = await provider.prepare({
-      snapshot: before,
-      input: { id: "K-1", title: "t", body: "b", initiative: "auth", scope: { domains: ["auth"] } },
-      request: { action: "knowledge.create", actor: "alice" },
-    });
-    // prepare is read-only: the on-disk state is untouched.
-    const afterPrepare = await readStateHelper(dir);
-    assert.deepEqual(afterPrepare, before, "prepare must not touch state");
-    // Now apply via the kernel. The kernel forwards `request.input` to
-    // prepare, so the request must carry the full create payload (the
-    // provider re-validates it; there is no plan hand-off shortcut).
+    await prepareCreateFromDisk(provider, dir);
+    // Kernel prepare receives the same full payload; there is no plan hand-off shortcut.
     const out = await mutate({
       projectDir: dir,
-      request: {
-        action: "knowledge.create",
-        actor: "alice",
-        input: { id: "K-1", title: "t", body: "b", initiative: "auth", scope: { domains: ["auth"] } },
-      },
+      request: { action: "knowledge.create", actor: "alice", input: createInput() },
       provider,
     });
     assert.equal(out.idempotent, false);
@@ -163,24 +179,34 @@ test("create: apply uses tx only (does not modify the snapshot)", async () => {
     assert.equal(out.diff.created[0].id, "K-1");
     assert.equal(out.diff.created[0].node.revision, 2);
     const after = await readStateHelper(dir);
-    assert.equal(after.nodes["K-1"].title, "t");
-    assert.equal(after.nodes["K-1"].kind, "knowledge");
-    assert.equal(after.nodes["K-1"].status, "active");
-    assert.equal(after.nodes["K-1"].knowledge_type, "warning");
-    // create normalizes scope to the four canonical arrays (same shape the
-    // v2 state stores); absent keys are persisted as empty arrays.
-    assert.deepEqual(after.nodes["K-1"].scope, {
-      domains: ["auth"], initiatives: [], tags: [], node_ids: [],
-    });
-    assert.equal(after.log.length, 1);
-    assert.equal(after.log[0].action, "knowledge.create");
-    assert.equal(after.log[0].agent, "alice");
-    assert.equal(after.log[0].node, "K-1");
-    assert.equal(after.log[0].revision, 2);
+    assertCreatedKnowledge(after.nodes["K-1"]);
+    assertKnowledgeCreateLog(after.log);
   } finally {
     await rmTempProject(dir);
   }
 });
+
+async function createSupersedingKnowledge(provider, mutate, dir) {
+  const base = emptySnapshot({
+    nodes: {
+      "K-old": knowledgeNode("K-old", { revision: 4, scope: { domains: ["auth"] } }),
+    },
+    edges: [],
+  });
+  await writeFencedState(dir, base);
+  return mutate({
+    projectDir: dir,
+    request: {
+      action: "knowledge.create",
+      actor: "alice",
+      input: {
+        id: "K-new", title: "t", body: "b", initiative: "auth",
+        scope: { domains: ["auth"] }, supersedes: "K-old",
+      },
+    },
+    provider,
+  });
+}
 
 test("create: supersedes marks the target as superseded and adds a SUPERSEDES edge", async () => {
   const { createProvider } = await importProviders();
@@ -188,25 +214,7 @@ test("create: supersedes marks the target as superseded and adds a SUPERSEDES ed
   const provider = createProvider();
   const dir = await createTempProject();
   try {
-    const base = emptySnapshot({
-      nodes: {
-        "K-old": knowledgeNode("K-old", { revision: 4, scope: { domains: ["auth"] } }),
-      },
-      edges: [],
-    });
-    await writeFencedState(dir, base);
-    const out = await mutate({
-      projectDir: dir,
-      request: {
-        action: "knowledge.create",
-        actor: "alice",
-        input: {
-          id: "K-new", title: "t", body: "b", initiative: "auth",
-          scope: { domains: ["auth"] }, supersedes: "K-old",
-        },
-      },
-      provider,
-    });
+    const out = await createSupersedingKnowledge(provider, mutate, dir);
     assert.equal(out.diff.created.length, 1);
     assert.equal(out.diff.created[0].id, "K-new");
     assert.equal(out.diff.updated.length, 1, "superseded target is updated");

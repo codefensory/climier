@@ -39,6 +39,75 @@ import {
 // (plan B4-knowledge-lifecycle)
 // ===================================================================
 
+async function deprecateKnowledgeWithSearch(provider, mutate, dir) {
+  const base = emptySnapshot({
+    nodes: {
+      "K-active": knowledgeNode("K-active", { title: "shared active", body: "shared body" }),
+      "K-old": knowledgeNode("K-old", { title: "shared deprecated", body: "shared body" }),
+    },
+  });
+  await writeFencedState(dir, base);
+  await mutate({
+    projectDir: dir,
+    request: {
+      action: "knowledge.deprecate",
+      actor: "alice",
+      input: { id: "K-old", reason: "obsolete" },
+    },
+    provider,
+  });
+  return readStateHelper(dir);
+}
+
+function assertDeprecationSearch(providerResult, searchKnowledge) {
+  const activeSearch = searchKnowledge({ snapshot: providerResult, query: "shared" });
+  const allSearch = searchKnowledge({ snapshot: providerResult, query: "shared", all: true });
+  assertVisibleDeprecationResults(activeSearch, allSearch);
+  assert.equal(providerResult.nodes["K-old"].status, "deprecated");
+}
+
+function assertVisibleDeprecationResults(activeSearch, allSearch) {
+  assert.deepEqual(activeSearch.matches.map(({ id }) => id), ["K-active"], "deprecated hidden by default");
+  assert.deepEqual(
+    allSearch.matches.map(({ id }) => id),
+    ["K-active", "K-old"].toSorted(),
+    "deprecated included when all=true",
+  );
+}
+
+function assertDeprecationLog(log) {
+  assert.equal(log.length, 1);
+  assert.equal(log[0].action, "knowledge.deprecate");
+  assert.equal(log[0].agent, "alice");
+  assert.equal(log[0].node, "K-1");
+  assert.equal(log[0].revision, 6);
+  // The deprecation reason lives on the node itself (`deprecation_reason`).
+  assert.equal(log[0].reason, undefined);
+}
+
+function assertDeprecatedKnowledgeNode(node) {
+  assert.equal(node.status, "deprecated");
+  assert.equal(node.deprecation_reason, "superseded by v2 endpoint");
+  assert.equal(node.deprecated_by, "alice");
+  assert.equal(typeof node.deprecated_at, "string");
+  assert.ok(!Number.isNaN(Date.parse(node.deprecated_at)), "deprecated_at is ISO 8601");
+}
+
+function assertPreservedKnowledgeFields(node) {
+  assert.equal(node.title, "old title");
+  assert.equal(node.body, "old body");
+  assert.equal(node.knowledge_type, "warning");
+  assert.deepEqual(node.scope, {
+    domains: ["auth"],
+    initiatives: ["platform"],
+    tags: ["ops"],
+    node_ids: [],
+  });
+  assert.equal(node.domain, "auth");
+  assert.deepEqual(node.tags, ["ops"]);
+  assert.deepEqual(node.refs, [{ type: "external", target: "docs/x.md" }]);
+}
+
 test("deprecate: prepare rejects missing id", async () => {
   const { deprecateProvider } = await importProviders();
   const provider = deprecateProvider();
@@ -113,69 +182,50 @@ test("deprecate: prepare returns the current revision as if_revision (single)", 
   assert.deepEqual(plan.policyAction, { action: "knowledge.deprecate" });
 });
 
+async function applyDeprecationWithDetails(provider, mutate, dir) {
+  const base = emptySnapshot({
+    nodes: {
+      "K-1": knowledgeNode("K-1", {
+        revision: 4,
+        title: "old title",
+        body: "old body",
+        knowledge_type: "warning",
+        scope: { domains: ["auth"], initiatives: ["platform"], tags: ["ops"], node_ids: [] },
+        domain: "auth",
+        tags: ["ops"],
+        refs: [{ type: "external", target: "docs/x.md" }],
+      }),
+    },
+  });
+  await writeFencedState(dir, base);
+  const out = await mutate({
+    projectDir: dir,
+    request: {
+      action: "knowledge.deprecate",
+      actor: "alice",
+      input: { id: "K-1", reason: "superseded by v2 endpoint" },
+    },
+    provider,
+  });
+  return { out, after: await readStateHelper(dir) };
+}
+
 test("deprecate: apply preserves scope, status, reason, deprecated_at/by via kernel.mutate", async () => {
   const { deprecateProvider } = await importProviders();
   const { mutate } = await importKernel();
   const provider = deprecateProvider();
   const dir = await createTempProject();
   try {
-    const base = emptySnapshot({
-      nodes: {
-        "K-1": knowledgeNode("K-1", {
-          revision: 4,
-          title: "old title",
-          body: "old body",
-          knowledge_type: "warning",
-          scope: { domains: ["auth"], initiatives: ["platform"], tags: ["ops"], node_ids: [] },
-          domain: "auth",
-          tags: ["ops"],
-          refs: [{ type: "external", target: "docs/x.md" }],
-        }),
-      },
-    });
-    await writeFencedState(dir, base);
-    const out = await mutate({
-      projectDir: dir,
-      request: {
-        action: "knowledge.deprecate",
-        actor: "alice",
-        input: { id: "K-1", reason: "superseded by v2 endpoint" },
-      },
-      provider,
-    });
+    const { out, after } = await applyDeprecationWithDetails(provider, mutate, dir);
     assert.equal(out.idempotent, false, "deprecate is never idempotent (records a new event)");
     assert.equal(out.diff.updated.length, 1);
     assert.equal(out.diff.updated[0].id, "K-1");
     assert.equal(out.diff.updated[0].node.revision, 6, "kernel advances beyond the fenced fixture high-water");
 
-    const after = await readStateHelper(dir);
     const node = after.nodes["K-1"];
-    assert.equal(node.status, "deprecated");
-    assert.equal(node.deprecation_reason, "superseded by v2 endpoint");
-    assert.equal(node.deprecated_by, "alice");
-    assert.equal(typeof node.deprecated_at, "string");
-    assert.ok(!Number.isNaN(Date.parse(node.deprecated_at)), "deprecated_at is ISO 8601");
-    // Preserve every non-deprecated field.
-    assert.equal(node.title, "old title");
-    assert.equal(node.body, "old body");
-    assert.equal(node.knowledge_type, "warning");
-    assert.deepEqual(node.scope, {
-      domains: ["auth"],
-      initiatives: ["platform"],
-      tags: ["ops"],
-      node_ids: [],
-    });
-    assert.equal(node.domain, "auth");
-    assert.deepEqual(node.tags, ["ops"]);
-    assert.deepEqual(node.refs, [{ type: "external", target: "docs/x.md" }]);
-    assert.equal(after.log.length, 1);
-    assert.equal(after.log[0].action, "knowledge.deprecate");
-    assert.equal(after.log[0].agent, "alice");
-    assert.equal(after.log[0].node, "K-1");
-    assert.equal(after.log[0].revision, 6);
-    // The log entry mirrors the kernel canonical shape; the deprecation
-    // reason lives on the node itself (`deprecation_reason`).
-    assert.equal(after.log[0].reason, undefined);
+    assertDeprecatedKnowledgeNode(node);
+    assertPreservedKnowledgeFields(node);
+    assertDeprecationLog(after.log);
   } finally {
     await rmTempProject(dir);
   }
@@ -187,33 +237,8 @@ test("deprecate: deprecated node is hidden from default search and visible with 
   const provider = deprecateProvider();
   const dir = await createTempProject();
   try {
-    const base = emptySnapshot({
-      nodes: {
-        "K-active": knowledgeNode("K-active", { title: "shared active", body: "shared body" }),
-        "K-old": knowledgeNode("K-old", { title: "shared deprecated", body: "shared body" }),
-      },
-    });
-    await writeFencedState(dir, base);
-    await mutate({
-      projectDir: dir,
-      request: {
-        action: "knowledge.deprecate",
-        actor: "alice",
-        input: { id: "K-old", reason: "obsolete" },
-      },
-      provider,
-    });
-    const after = await readStateHelper(dir);
-    const activeSearch = searchKnowledge({ snapshot: after, query: "shared" });
-    const allSearch = searchKnowledge({ snapshot: after, query: "shared", all: true });
-    assert.deepEqual(activeSearch.matches.map(({ id }) => id), ["K-active"], "deprecated hidden by default");
-    assert.deepEqual(
-      allSearch.matches.map(({ id }) => id),
-      ["K-active", "K-old"].sort(),
-      "deprecated included when all=true",
-    );
-    // Also assert the underlying status flipped so the alert path stays coherent.
-    assert.equal(after.nodes["K-old"].status, "deprecated");
+    const after = await deprecateKnowledgeWithSearch(provider, mutate, dir);
+    assertDeprecationSearch(after, searchKnowledge);
   } finally {
     await rmTempProject(dir);
   }
