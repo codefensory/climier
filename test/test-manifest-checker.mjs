@@ -13,6 +13,14 @@ function countByFileAndName(rows) {
   return counts;
 }
 
+function countByName(rows) {
+  const counts = new Map();
+  for (const row of rows) {
+    counts.set(row.name, (counts.get(row.name) ?? 0) + 1);
+  }
+  return counts;
+}
+
 function assertMoveNameMultisets(manifest) {
   const moves = new Map();
   for (const row of manifest.tests) {
@@ -23,12 +31,13 @@ function assertMoveNameMultisets(manifest) {
     moves.set(row.move_from, source);
   }
 
-  for (const [sourcePath, destinationRows] of moves) {
+  for (const [sourcePath, rows] of moves) {
     const sourceRows = manifest.tests.filter((row) => row.path === sourcePath && row.disposition === "move");
+    const destinationRows = rows.filter((row) => row.path !== sourcePath);
     assert.ok(sourceRows.length > 0, `move source ${sourcePath} has no manifest rows`);
     assert.deepEqual(
-      countByFileAndName(sourceRows),
-      countByFileAndName(destinationRows),
+      countByName(sourceRows),
+      countByName(destinationRows),
       `move from ${sourcePath} must preserve the runtime name multiset`,
     );
   }
@@ -70,8 +79,11 @@ export function validateManifest(manifest, runtimeCases, { deleteAllowlist, rawW
     assert.equal(row.ordinal, ordinal, `manifest ordinal does not match runtime order for ${item.path}:${item.name}`);
   }
 
+  const moveSourcePaths = new Set(manifest.tests
+    .filter((row) => row.disposition === "move")
+    .map((row) => row.move_from));
   for (const [identity, row] of declared) {
-    if (row.disposition === "delete") continue;
+    if (row.disposition === "delete" || moveSourcePaths.has(row.path)) continue;
     assert.ok(runtime.has(identity), `stale manifest row ${row.path}:${row.name}#${row.ordinal}`);
   }
 
