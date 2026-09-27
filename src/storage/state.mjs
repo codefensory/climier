@@ -97,7 +97,8 @@ export function migrateState(state) {
 
 export function emptyState() {
   return {
-    version: CURRENT_STATE_VERSION,
+    version: STATE_SCHEMA_VERSION,
+    fence_generation: 1,
     nodes: {},
     edges: [],
     initiatives: {},

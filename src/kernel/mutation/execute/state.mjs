@@ -2,8 +2,8 @@
 
 import fs from "node:fs/promises";
 import path from "node:path";
-import { readState, writeState, stateFile, createSnapshot } from "../../../storage/state.mjs";
-import { recoverFencedStateUnderLock, replaceFencedStateUnderLock } from "../../../storage/ledger.mjs";
+import { readState, stateFile, createSnapshot } from "../../../storage/state.mjs";
+import { bootstrapFencedStateUnderLock, recoverFencedStateUnderLock, replaceFencedStateUnderLock } from "../../../storage/ledger.mjs";
 import { prepareLogEntry } from "../../../storage/log.mjs";
 import { throwV2 } from "../../../contracts/errors.mjs";
 import { commandLabel, runPolicy, checkStateRevision } from "./shared.mjs";
@@ -138,9 +138,12 @@ async function recoverCorruptFencedState({ plan, snapshot, lockContext, projectD
 async function persistState({ lockContext, projectDir, fencedCurrentState, nextState }) {
   if (fencedCurrentState) {
     await replaceFencedStateUnderLock(lockContext, nextState, { projectDir });
-  } else {
-    await writeState(projectDir, nextState);
+    return;
   }
+  if (!nextState || nextState.version !== 1 || !Number.isInteger(nextState.fence_generation)) {
+    throw new Error("state mutation: refusing to persist a noncanonical state outside the ledger");
+  }
+  await bootstrapFencedStateUnderLock(lockContext, nextState, { projectDir });
 }
 
 function resultWithSnapshot(result, snapshotMeta) {

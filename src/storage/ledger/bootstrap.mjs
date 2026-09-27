@@ -2,7 +2,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { stateFile, migrateState, FENCED_STATE_VERSION } from "../state.mjs";
+import { stateFile, migrateState, STATE_SCHEMA_VERSION, FENCED_STATE_VERSION } from "../state.mjs";
 import { assertActiveLockContext, getActiveLockContext } from "../lock.mjs";
 import { validateStateInvariants } from "../../contracts/state-invariants.mjs";
 import { assertValidLedger, LEDGER_VERSION, SOURCE_VERSIONS } from "./recovery.mjs";
@@ -15,7 +15,7 @@ function ledgerFile(projectDir) {
 
 function assertSupportedInitialState(initialState) {
   if (!initialState || typeof initialState !== "object" || Array.isArray(initialState)
-      || !SOURCE_VERSIONS.has(initialState.version)) {
+      || (!SOURCE_VERSIONS.has(initialState.version) && initialState.version !== STATE_SCHEMA_VERSION)) {
     const error = new Error(`ledger.bootstrap: unsupported initial state version ${initialState?.version}`);
     error.code = "CLIMIER_UNSUPPORTED_SOURCE_VERSION";
     throw error;
@@ -37,7 +37,7 @@ function fencedInitialState(initialState) {
   const fence = highWater + 1;
   const destination = {
     ...compatible,
-    version: FENCED_STATE_VERSION,
+    version: STATE_SCHEMA_VERSION,
     revision: fence,
     fence_generation: 1,
     nodes: Object.fromEntries(Object.entries(compatible.nodes).map(([id, node]) => [id, { ...node, revision: fence }])),

@@ -9,7 +9,7 @@ import { withLock } from "../../../src/storage/lock.mjs";
 function assertBootstrapPolicyResult(result, state, exists) {
   assert.equal(result.result.name, "new-project");
   assert.equal(exists, true);
-  assert.equal(state.version, 5);
+  assert.equal(state.version, 1);
   assert.equal(state.fence_generation, 1);
   assert.equal(state.initiatives["new-project"] !== undefined, true);
   assert.equal(state.log.length, 1);

@@ -1,6 +1,6 @@
 // Provider mutation phase for the kernel execution coordinator.
 
-import { emptyState } from "../../../storage/state.mjs";
+import { emptyState, isFencedStateVersion } from "../../../storage/state.mjs";
 import { bootstrapFencedStateUnderLock, commitFencedStateUnderLock } from "../../../storage/ledger.mjs";
 import { createTransaction } from "../../transaction.mjs";
 import { throwV2 } from "../../../contracts/errors.mjs";
@@ -27,7 +27,7 @@ function isBootstrapAllowed(loadedState, request, provider) {
 }
 
 function validateLoadedSnapshot(snapshot, mayBootstrap, commandName) {
-  const invalidSnapshot = !snapshot || typeof snapshot !== "object" || snapshot.version !== 5;
+  const invalidSnapshot = !snapshot || typeof snapshot !== "object" || !isFencedStateVersion(snapshot.version);
   if (invalidSnapshot && !mayBootstrap) {
     throw new Error(`${commandName}: state file missing or not v5 (run init first)`);
   }
@@ -35,7 +35,7 @@ function validateLoadedSnapshot(snapshot, mayBootstrap, commandName) {
 
 function initialSnapshot(loadedState, request, provider, commandName) {
   const mayBootstrap = isBootstrapAllowed(loadedState, request, provider);
-  const snapshot = loadedState ?? (mayBootstrap ? { ...emptyState(), version: 5, fence_generation: 1 } : null);
+  const snapshot = loadedState ?? (mayBootstrap ? emptyState() : null);
   validateLoadedSnapshot(snapshot, mayBootstrap, commandName);
   return { snapshot, mayBootstrap };
 }
@@ -137,7 +137,7 @@ function createPersistedState({ snapshot, draftView, diff, request, pluginId, ta
   );
   const persistedState = {
     ...snapshot,
-    version: 5,
+    version: snapshot.version,
     fence_generation: snapshot.fence_generation,
     nodes: finalNodesForSnapshot(snapshot, diff.nextNodes),
     edges: draftView.edges,
@@ -155,13 +155,7 @@ function createPersistedState({ snapshot, draftView, diff, request, pluginId, ta
 
 async function persistMutation({ mayBootstrap, lockContext, persistedState }) {
   if (mayBootstrap) {
-    const bootstrapState = {
-      ...persistedState,
-      version: 4,
-      revision: Math.max(0, ...Object.values(persistedState.nodes).map((node) => Number.isInteger(node.revision) ? node.revision : 0)),
-    };
-    delete bootstrapState.fence_generation;
-    await bootstrapFencedStateUnderLock(lockContext, bootstrapState);
+    await bootstrapFencedStateUnderLock(lockContext, persistedState);
     return;
   }
   await commitFencedStateUnderLock(lockContext, persistedState);

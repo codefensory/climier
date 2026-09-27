@@ -6,7 +6,7 @@ import path from "node:path";
 import { createTempProject, rmTempProject, stateExists, stateFilePath, importFresh, runCli } from "./helpers.mjs";
 import { runCli as runCliInProcess } from "../src/cli/dispatch.mjs";
 
-test("init: creates empty v4 state file when none exists", async () => {
+test("init: creates empty canonical v1 state and ledger when none exists", async () => {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
   const dir = await createTempProject();
   try {
@@ -19,8 +19,13 @@ test("init: creates empty v4 state file when none exists", async () => {
     assert.equal(stateFilePath(dir).startsWith(path.join(process.env.CLIMIER_HOME, "projects")), true);
     const { readState } = await importFresh("./storage/state.mjs");
     const s = await readState(dir);
-    assert.equal(s.version, 4);
-    assert.equal(s.revision, 0);
+    assert.equal(s.version, 1);
+    assert.equal(s.fence_generation, 1);
+    assert.equal(s.revision, 1);
+    const ledgerPath = path.join(path.dirname(stateFilePath(dir)), "revision-ledger.json");
+    const ledger = JSON.parse(await fs.readFile(ledgerPath, "utf8"));
+    assert.equal(ledger.high_water_revision, s.revision);
+    assert.equal(ledger.migration_pending, null);
     assert.deepEqual(s.nodes, {});
     assert.deepEqual(s.edges, []);
     assert.deepEqual(s.initiatives, {});
@@ -204,15 +209,16 @@ test("init: fails if state already exists (no overwrite)", async () => {
   }
 });
 
-test("init: ignores unknown flags and still creates an empty v4 state", async () => {
+test("init: ignores unknown flags and still creates an empty canonical v1 state", async () => {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
   const { readState } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, flags: { seed: "migration" }, positional: [], projectDir: dir });
     const s = await readState(dir);
-    assert.equal(s.version, 4);
-    assert.equal(s.revision, 0);
+    assert.equal(s.version, 1);
+    assert.equal(s.fence_generation, 1);
+    assert.equal(s.revision, 1);
     assert.deepEqual(s.nodes, {});
     assert.deepEqual(s.edges, []);
   } finally {
