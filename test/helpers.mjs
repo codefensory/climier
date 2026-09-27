@@ -120,7 +120,11 @@ export async function writeFencedState(dir, state) {
 // the schema it claims. A raw write into a bootstrapped project leaves a
 // ledger beside a legacy state, which the reader reports as non-canonical.
 export async function writeCanonicalState(dir, state) {
-  const initialState = { ...state, version: 4 };
+  const initialState = {
+    ...state,
+    version: 4,
+    revision: Number.isInteger(state.revision) ? state.revision : 0,
+  };
   delete initialState.fence_generation;
 
   return withLock(dir, async (lockContext) => {

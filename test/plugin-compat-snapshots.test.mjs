@@ -11,10 +11,12 @@ import {
   readState,
   writeState,
   bootstrapState,
+  baseState,
   seedPluginData,
   assertPluginDataPreserved,
   snapshotDir,
   submitAcceptTask,
+  writeCanonicalState,
 } from "./plugin-compat-helpers.mjs";
 
 test("createSnapshot preserves `plugins` and `nodes[id].plugins` in raw bytes", async () => {
@@ -60,20 +62,13 @@ test("listSnapshots is unaffected by plugin data (metadata contract unchanged)",
 test("restore preserves `plugins` and `nodes[id].plugins` from the snapshot raw bytes", async () => {
   const dir = await createTempProject();
   try {
-    const base = await bootstrapState(dir);
+    const base = baseState();
     seedPluginData(base);
-    await writeState(dir, base);
+    await writeCanonicalState(dir, base);
     const { createSnapshot } = await importFresh("./storage/state.mjs");
     const { default: restore } = await importFresh("./cli/commands/restore.mjs");
     const meta = await createSnapshot(dir, "force-init");
-    // Wipe the state to a different shape (no plugins).
-    await writeState(dir, {
-      version: 2,
-      nodes: {},
-      edges: [],
-      initiatives: {},
-      log: [],
-    });
+    await writeCanonicalState(dir, { nodes: {}, edges: [], initiatives: {}, log: [] });
     const out = await restore({
       statePath: dir,
       projectDir: dir,
@@ -91,14 +86,14 @@ test("restore preserves `plugins` and `nodes[id].plugins` from the snapshot raw 
 test("end-to-end: snapshot with plugin data survives restore, then take/submit/accept cycles preserve it", async () => {
   const dir = await createTempProject();
   try {
-    const base = await bootstrapState(dir);
+    const base = baseState();
     seedPluginData(base);
-    await writeState(dir, base);
+    await writeCanonicalState(dir, base);
     const { createSnapshot } = await importFresh("./storage/state.mjs");
     const { default: restore } = await importFresh("./cli/commands/restore.mjs");
     const { default: take } = await importFresh("./cli/commands/take.mjs");
     const meta = await createSnapshot(dir, "force-init");
-    await writeState(dir, { version: 2, nodes: {}, edges: [], initiatives: {}, log: [] });
+    await writeCanonicalState(dir, { nodes: {}, edges: [], initiatives: {}, log: [] });
     await restore({
       statePath: dir,
       projectDir: dir,
