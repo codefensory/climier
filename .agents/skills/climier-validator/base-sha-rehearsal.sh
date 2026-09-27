@@ -35,8 +35,8 @@ task_head="$(git -C "$task_worktree" rev-parse HEAD)"
 # state or global project metadata is accessed by this throwaway rehearsal.
 printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' 'for arg in "$@"; do case "$arg" in EVIDENCE\ *) printf "%s\\n" "$arg" > "$EVIDENCE_CAPTURE";; esac; done' 'printf "{}\\n"' > "$tmp/bin/climier"
 chmod +x "$tmp/bin/climier"
-git -C "$task_worktree" -c user.name='Rehearsal Worker' -c user.email='rehearsal@example.invalid' commit --allow-empty -qm 'finish marker [T-rehearsal-stale]'
-finish_output="$(PATH="$tmp/bin:$PATH" EVIDENCE_CAPTURE="$tmp/finish-evidence" bash "$finish_task" T-rehearsal-stale rehearsal 'rehearsal only')"
+git -C "$task_worktree" -c user.name='Rehearsal Worker' -c user.email='rehearsal@example.invalid' commit --allow-empty -qm 'finish marker [T-v1-basesha-staleness-integrity]'
+finish_output="$(cd "$task_worktree" && PATH="$tmp/bin:$PATH" EVIDENCE_CAPTURE="$tmp/finish-evidence" bash "$finish_task" T-v1-basesha-staleness-integrity rehearsal 'rehearsal only')"
 finish_evidence="$(printf '%s\n' "$finish_output" | grep '^EVIDENCE ' || true)"
 [[ -n "$finish_evidence" ]] || { printf 'finish-task did not emit EVIDENCE\n' >&2; exit 1; }
 finished_base="$(EVIDENCE_LINE="$finish_evidence" node -e 'const x=JSON.parse(process.env.EVIDENCE_LINE.slice(9)); process.stdout.write(x.base_sha)')"
@@ -46,7 +46,7 @@ finished_base="$(EVIDENCE_LINE="$finish_evidence" node -e 'const x=JSON.parse(pr
 }
 
 # Verify finish-task's truthful cut point reports the advanced trunk and overlap.
-if result="$(bash "$preflight" --task T-rehearsal-stale --project-root "$root" --json --note-text "$finish_evidence" 2>"$tmp/fresh.stderr")"; then
+if result="$(bash "$preflight" --task T-v1-basesha-staleness-integrity --project-root "$root" --json --note-text "$finish_evidence" 2>"$tmp/fresh.stderr")"; then
   fresh_status=0
 else
   fresh_status=$?
@@ -59,7 +59,7 @@ printf '%s\n' "$(node -e 'const x=JSON.parse(process.argv[1]); process.stdout.wr
 # Replay the incident's bad finish-time value: Y was recorded although the task
 # branch does not contain Y. This disagreement must be visible, never clean.
 incident_evidence="$(EVIDENCE_LINE="$finish_evidence" CURRENT_BASE="$current_base" node -e 'const x=JSON.parse(process.env.EVIDENCE_LINE.slice(9)); x.base_sha=process.env.CURRENT_BASE; process.stdout.write("EVIDENCE "+JSON.stringify(x))')"
-if incident_result="$(bash "$preflight" --task T-rehearsal-stale --project-root "$root" --json --note-text "$incident_evidence" 2>"$tmp/incident.stderr")"; then
+if incident_result="$(bash "$preflight" --task T-v1-basesha-staleness-integrity --project-root "$root" --json --note-text "$incident_evidence" 2>"$tmp/incident.stderr")"; then
   incident_status=0
 else
   incident_status=$?
