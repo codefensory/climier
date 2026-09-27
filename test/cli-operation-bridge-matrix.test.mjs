@@ -125,7 +125,7 @@ const writes = [
     operation: "knowledge.deprecate", commands: ["deprecate-knowledge"], input: "id, reason",
     policyAction: "knowledge.deprecate", envelope: "{ node }", error: "MISSING_FIELD / INVALID_STATUS",
     logAction: "knowledge.deprecate", state: "knowledge deprecated",
-    local: "provider-knowledge.test.mjs", remote: "cli-remote-write-routing.test.mjs",
+    local: "provider-knowledge-deprecate.test.mjs", remote: "cli-remote-write-routing.test.mjs",
   },
   {
     operation: "initiative.create", commands: ["add-initiative"], input: "name, desc",
@@ -157,6 +157,7 @@ const writes = [
     logAction: "per-operation audit entries in the one batch transaction",
     state: "all operations commit atomically or none commit",
     local: "cli-operation-bridge-boundary.test.mjs", remote: "cli-remote-write-routing.test.mjs",
+    http: "server/http/operations-batch.test.mjs",
   },
 ];
 
@@ -220,13 +221,15 @@ test("write matrix covers every registered operation and documents local/remote 
   assert.deepEqual([...matrix].filter((operation) => operation !== "core.batch").toSorted(), [...catalog].toSorted(), "every registered operation has one matrix row");
   assert.ok(matrix.includes("core.batch"), "batch's descriptor is also represented");
   assert.equal(new Set(matrix).size, matrix.length, "matrix operation ids are unique");
+  const batch = writes.find(({ operation }) => operation === "core.batch");
+  assertTestFiles([batch.http]);
 
   for (const row of writes) {
     for (const field of ["commands", "input", "policyAction", "envelope", "error", "logAction", "state", "local", "remote"]) {
       assert.ok(row[field], `${row.operation} documents ${field}`);
     }
     assertTestFiles([row.local, row.remote]);
-    for (const file of [row.local, row.remote]) {
+    for (const file of [row.local, row.remote, ...(row.http ? [row.http] : [])]) {
       await fs.access(path.resolve(TEST_DIR, file));
     }
   }
