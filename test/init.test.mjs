@@ -247,7 +247,7 @@ test("init: refuses to overwrite an existing valid state without --force", async
   } finally { await rmTempProject(dir); }
 });
 
-test("init: --force on an existing v4 state overwrites to empty v4", async () => {
+test("init: --force on an existing v4 state writes empty canonical v1 and preserves ledger high-water", async () => {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
   const { readState } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
@@ -261,8 +261,12 @@ test("init: --force on an existing v4 state overwrites to empty v4", async () =>
 
     await init({ statePath: dir, flags: { force: true }, positional: [], projectDir: dir });
     const s = await readState(dir);
-    assert.equal(s.version, 4);
-    assert.equal(s.revision, 1, "force-init records the replacement after existing state");
+    assert.equal(s.version, 1);
+    assert.equal(s.fence_generation, 1);
+    const ledgerPath = path.join(path.dirname(file), "revision-ledger.json");
+    const ledger = JSON.parse(await fs.readFile(ledgerPath, "utf8"));
+    assert.equal(s.revision, ledger.high_water_revision);
+    assert.ok(s.revision > 1, "force-init must not lower an existing ledger high-water");
     assert.deepEqual(s.nodes, {});
     assert.deepEqual(s.edges, []);
   } finally { await rmTempProject(dir); }

@@ -36,14 +36,21 @@ test("append adds multiple entries in order", async () => {
   }
 });
 
-test("append rejects legacy writes after fenced bootstrap without changing state", async () => {
+test("append commits to the ledger without rebasing node revisions", async () => {
   const { append } = await importFresh("./storage/log.mjs");
-  const { bootstrapFencedState, readFencedState } = await importFresh("./storage/ledger.mjs");
+  const { bootstrapFencedState, readFencedState, commitFencedStateUnderLock } = await importFresh("./storage/ledger.mjs");
+  const { withLock } = await import("../src/storage/lock.mjs");
   const dir = await createTempProject();
   try {
     const before = await bootstrapFencedState(dir);
-    await assert.rejects(append(dir, { agent: "a", action: "legacy-append", task: "T1" }), { code: "CLIMIER_LEDGER_REQUIRED" });
-    assert.deepEqual(await readFencedState(dir), before);
+    const seeded = { ...before, nodes: { T1: { id: "T1", kind: "resolvable", subkind: "task", title: "keep", status: "open", revision: before.revision + 1 } }, revision: before.revision + 1 };
+    await withLock(dir, (lockContext) => commitFencedStateUnderLock(lockContext, seeded));
+    const committed = await readFencedState(dir);
+    await append(dir, { agent: "a", action: "ledger-append", task: "T1" });
+    const after = await readFencedState(dir);
+    assert.equal(after.log.at(-1).action, "ledger-append");
+    assert.equal(after.nodes.T1.revision, committed.nodes.T1.revision);
+    assert.equal(after.revision, committed.revision + 1);
   } finally {
     await rmTempProject(dir);
   }

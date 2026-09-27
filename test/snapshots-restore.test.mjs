@@ -47,17 +47,44 @@ function rawBytes(dir, id) {
   return fs.readFile(path.join(snapshotDir(dir), `${id}.json`));
 }
 
+async function writeCanonicalFixture(dir, candidate) {
+  const { bootstrapFencedStateUnderLock, readFencedStateUnderLock, replaceFencedStateUnderLock } = await importFresh("./storage/ledger.mjs");
+  const { withLock } = await import("../src/storage/lock.mjs");
+  return withLock(dir, async (lockContext) => {
+    const current = await readFencedStateUnderLock(lockContext, { projectDir: dir });
+    if (current) {
+      return replaceFencedStateUnderLock(lockContext, candidate, { projectDir: dir });
+    }
+    return bootstrapFencedStateUnderLock(lockContext, candidate, { projectDir: dir });
+  });
+}
+
 async function bootstrapState(dir, mutate) {
-  const base = { version: 2, nodes: {}, edges: [], initiatives: {}, log: [] };
+  const base = { version: 1, fence_generation: 1, revision: 1, nodes: {}, edges: [], initiatives: {}, log: [] };
   if (typeof mutate === "function") {
     mutate(base);
   }
-  await writeState(dir, base);
-  return base;
+  return writeCanonicalFixture(dir, base);
 }
 
 function hasOneRestoreEntry(state) {
   return state.log.filter((entry) => entry.action === "restore").length === 1;
+}
+
+function assertRebasedNodes(actual, expected) {
+  assert.deepEqual(
+    Object.fromEntries(Object.entries(actual).map(([id, node]) => {
+      const { revision: _revision, ...data } = node;
+      return [id, data];
+    })),
+    Object.fromEntries(Object.entries(expected).map(([id, node]) => {
+      const { revision: _revision, ...data } = node;
+      return [id, data];
+    })),
+  );
+  for (const node of Object.values(actual)) {
+    assert.ok(Number.isInteger(node.revision));
+  }
 }
 
 // =========================================================================
@@ -227,7 +254,7 @@ test("restore: --as <any-non-empty> succeeds and returns { snapshot } with full 
     assert.equal(out.snapshot.reason, "force-init");
     // State was restored to the baseline raw bytes.
     const restored = await readState(dir);
-    assert.deepEqual(restored.nodes, baseline.nodes);
+    assertRebasedNodes(restored.nodes, baseline.nodes);
   } finally {
     await rmTempProject(dir);
   }
@@ -247,7 +274,7 @@ test("restore: --as <any-non-empty> succeeds with second-actor identity (ADR-008
     assert.ok(out.snapshot);
     assert.equal(out.snapshot.id, meta.id);
     const restored = await readState(dir);
-    assert.deepEqual(restored.nodes, baseline.nodes);
+    assertRebasedNodes(restored.nodes, baseline.nodes);
   } finally {
     await rmTempProject(dir);
   }
@@ -270,7 +297,7 @@ test("restore: replaces state with snapshot raw bytes verbatim (content matches 
     await restore({ statePath: dir, flags: { as: "test-agent" }, positional: [meta.id] });
     const restored = await readState(dir);
     // The restored state should equal baseline plus the appended restore log entry.
-    assert.deepEqual(restored.nodes, baseline.nodes);
+    assertRebasedNodes(restored.nodes, baseline.nodes);
     assert.deepEqual(restored.initiatives, baseline.initiatives);
     assert.deepEqual(restored.edges, baseline.edges);
     // The log carries the baseline entries plus one restore entry appended after.
@@ -304,7 +331,7 @@ test("restore: takes a pre-restore snapshot of the current state (reason=pre-res
       "pre-restore raw should NOT contain Sentinel (it was the empty state)");
     // Restored state contains the baseline.
     const restored = await readState(dir);
-    assert.deepEqual(restored.nodes, baseline.nodes);
+    assertRebasedNodes(restored.nodes, baseline.nodes);
   } finally {
     await rmTempProject(dir);
   }
@@ -885,7 +912,7 @@ test("restore: same agent restores twice from same snapshot — each call create
     await restore({ statePath: dir, flags: { as: "test-agent" }, positional: [meta.id] });
     await restore({ statePath: dir, flags: { as: "test-agent" }, positional: [meta.id] });
     const after = await readState(dir);
-    assert.deepEqual(after.nodes, baseline.nodes);
+    assertRebasedNodes(after.nodes, baseline.nodes);
     // The live state file is the second restore, whose log equals the
     // snapshot's log (empty baseline.log) plus one appended restore entry.
     const restoreEntries = after.log.filter((e) => e.action === "restore");
@@ -920,10 +947,8 @@ test("CLI: snapshots via bin returns { snapshots: [...] }", async () => {
   try {
     let r = await runCli(["--project", dir, "init"]);
     assert.equal(r.code, 0, r.stderr);
-    // Create a force-init snapshot via init --force over a populated state.
-    await writeState(dir, {
-      version: 2, nodes: { "T1": { id: "T1", title: "alive" } }, edges: [], initiatives: {}, log: [],
-    });
+    // Create a force-init snapshot via init --force over a populated canonical state.
+    await bootstrapState(dir, (state) => { state.nodes.T1 = { id: "T1", title: "alive" }; });
     r = await runCli(["--project", dir, "init", "--force"]);
     assert.equal(r.code, 0, r.stderr);
     r = await runCli(["--project", dir, "snapshots"]);
@@ -944,10 +969,8 @@ test("CLI: restore --as <any-non-empty> via bin returns { snapshot } and replace
   try {
     let r = await runCli(["--project", dir, "init"]);
     assert.equal(r.code, 0, r.stderr);
-    // Pre-existing state with sentinel.
-    await writeState(dir, {
-      version: 2, nodes: { "Sentinel": { id: "Sentinel", title: "alive" } }, edges: [], initiatives: {}, log: [],
-    });
+    // Pre-existing canonical state with sentinel.
+    await bootstrapState(dir, (state) => { state.nodes.Sentinel = { id: "Sentinel", title: "alive" }; });
     r = await runCli(["--project", dir, "init", "--force"]);
     assert.equal(r.code, 0, r.stderr);
     // List snapshots and grab the force-init id.
@@ -977,9 +1000,7 @@ test("CLI: restore accepts any non-empty --as via bin (ADR-008 removed the role 
   try {
     let r = await runCli(["--project", dir, "init"]);
     assert.equal(r.code, 0, r.stderr);
-    await writeState(dir, {
-      version: 2, nodes: { "Sentinel": { id: "Sentinel", title: "alive" } }, edges: [], initiatives: {}, log: [],
-    });
+    await bootstrapState(dir, (state) => { state.nodes.Sentinel = { id: "Sentinel", title: "alive" }; });
     r = await runCli(["--project", dir, "init", "--force", "--as", "alice"]);
     assert.equal(r.code, 0, r.stderr);
     const list = await runCli(["--project", dir, "snapshots"]);
@@ -1001,9 +1022,7 @@ test("CLI: restore rejects missing --as via bin with structured error", async ()
   try {
     let r = await runCli(["--project", dir, "init"]);
     assert.equal(r.code, 0, r.stderr);
-    await writeState(dir, {
-      version: 2, nodes: { "Sentinel": { id: "Sentinel", title: "alive" } }, edges: [], initiatives: {}, log: [],
-    });
+    await bootstrapState(dir, (state) => { state.nodes.Sentinel = { id: "Sentinel", title: "alive" }; });
     r = await runCli(["--project", dir, "init", "--force"]);
     assert.equal(r.code, 0, r.stderr);
     const list = await runCli(["--project", dir, "snapshots"]);

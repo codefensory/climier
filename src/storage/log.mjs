@@ -20,7 +20,15 @@
 //     (ADR-011 §1) so it can compose state mutation + log append into a
 //     single `writeState` call. The lock is owned by the kernel so
 //     `updateState` is intentionally not invoked here.
-import { updateState } from "./state.mjs";
+import { emptyState, stateFile } from "./state.mjs";
+import fs from "node:fs/promises";
+import path from "node:path";
+import { withLock } from "./lock.mjs";
+import {
+  bootstrapFencedStateUnderLock,
+  commitFencedStateUnderLock,
+  readFencedStateUnderLock,
+} from "./ledger.mjs";
 
 function tsField() {
   return new Date().toISOString();
@@ -75,10 +83,32 @@ function validateAppendEntry(entry, commandName = "append") {
 
 export async function append(projectDir, entry) {
   validateAppendEntry(entry, "append");
-  return updateState(projectDir, (s) => {
-    s.log = s.log || [];
-    s.log.push(prepareLogEntry(entry));
-    return s;
+  const preparedEntry = prepareLogEntry(entry);
+  return withLock(projectDir, async (lockContext) => {
+    let state;
+    try {
+      state = await readFencedStateUnderLock(lockContext, { projectDir });
+    } catch (error) {
+      if (error.code !== "CLIMIER_LEDGER_STATE_MISMATCH") { throw error; }
+    }
+    if (!state) {
+      state = { ...emptyState(), log: [preparedEntry] };
+      let hasState = true;
+      try { await fs.access(stateFile(projectDir)); }
+      catch (error) { if (error.code === "ENOENT") { hasState = false; } else { throw error; } }
+      let hasLedger = true;
+      try { await fs.access(path.join(path.dirname(stateFile(projectDir)), "revision-ledger.json")); }
+      catch (error) { if (error.code === "ENOENT") { hasLedger = false; } else { throw error; } }
+      if (hasLedger) { throw new Error("append: cannot initialize over a corrupt ledger-backed state"); }
+      if (hasState) { throw new Error("append: cannot initialize over a corrupt state without explicit recovery"); }
+      return bootstrapFencedStateUnderLock(lockContext, state, { projectDir });
+    }
+    const next = {
+      ...state,
+      revision: state.revision + 1,
+      log: [...(Array.isArray(state.log) ? state.log : []), preparedEntry],
+    };
+    return commitFencedStateUnderLock(lockContext, next, { projectDir });
   });
 }
 

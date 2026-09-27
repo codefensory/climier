@@ -189,7 +189,7 @@ test("ledger bootstrap migrates pre-fence state to v5 and records exact fingerpr
   assert.equal((await readFencedState(projectDir)).fence_generation, 1);
 });
 
-test("fenced bootstrap creates an initial v5 state under an active lock without reacquiring", async (t) => {
+test("fenced bootstrap creates an initial canonical v1 state under an active lock without reacquiring", async (t) => {
   const projectDir = await createProjectForTest(t);
   const initialState = {
     version: 4,
@@ -207,7 +207,7 @@ test("fenced bootstrap creates an initial v5 state under an active lock without 
     }),
     new Promise((_, reject) => setTimeout(() => reject(new Error("bootstrap reacquired the held lock")), 1000)),
   ]);
-  assert.equal(result.version, 5);
+  assert.equal(result.version, 1);
   assert.equal(result.fence_generation, 1);
   assert.equal(result.revision, 4);
   assert.deepEqual((await readFencedState(projectDir)).log, [{ action: "authorized-bootstrap" }]);
@@ -265,7 +265,7 @@ test("fenced bootstrap recovers interrupted initial publication without divergen
       assert.equal(stateExists, faultAt === "after-state-create");
       assert.equal(ledgerExists, faultAt !== "before-pending");
       const state = await bootstrapUnderLock(projectDir, initialState);
-      assert.equal(state.version, 5);
+      assert.equal(state.version, 1);
       assert.deepEqual(state.log, [{ action: "only-once" }]);
       assert.deepEqual(await readFencedState(projectDir), state);
       const ledger = JSON.parse(await fs.readFile(ledgerPath, "utf8"));
