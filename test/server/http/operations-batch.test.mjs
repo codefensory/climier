@@ -12,6 +12,22 @@ import { bootstrapFencedState } from "../../../src/storage/ledger.mjs";
 import { authHeaders, operation, withApi } from "./fixtures.mjs";
 
 
+async function assertCreatedTaskProjection(baseUrl) {
+  const status = await fetch(`${baseUrl}/v1/projects/project-a/read/status`, { headers: authHeaders() });
+  assert.equal(status.status, 200);
+  const statusBody = await status.json();
+  assert.equal(statusBody.ok, true);
+  assert.equal(statusBody.result.summary.ready, 1);
+  assert.deepEqual(statusBody.result.tasks.ready.map((task) => task.id), ["T-remote-1"]);
+
+  const node = await fetch(`${baseUrl}/v1/projects/project-a/read/nodes/T-remote-1`, { headers: authHeaders() });
+  assert.equal(node.status, 200);
+  const nodeBody = await node.json();
+  assert.equal(nodeBody.result.node.title, "Remote task");
+  assert.equal(nodeBody.result.derived_status, "ready");
+  assert.deepEqual(nodeBody.result.blocking, []);
+}
+
 test("HTTP v1 delegates core operations and read projections through server boundaries", async () => {
   await withApi(async ({ baseUrl }) => {
     const createdInitiative = await operation(baseUrl, "project-a", "initiative.create", {
@@ -30,21 +46,37 @@ test("HTTP v1 delegates core operations and read projections through server boun
     });
     assert.equal(createdTask.status, 200);
 
-    const status = await fetch(`${baseUrl}/v1/projects/project-a/read/status`, { headers: authHeaders() });
-    assert.equal(status.status, 200);
-    const statusBody = await status.json();
-    assert.equal(statusBody.ok, true);
-    assert.equal(statusBody.result.summary.ready, 1);
-    assert.deepEqual(statusBody.result.tasks.ready.map((task) => task.id), ["T-remote-1"]);
-
-    const node = await fetch(`${baseUrl}/v1/projects/project-a/read/nodes/T-remote-1`, { headers: authHeaders() });
-    assert.equal(node.status, 200);
-    const nodeBody = await node.json();
-    assert.equal(nodeBody.result.node.title, "Remote task");
-    assert.equal(nodeBody.result.derived_status, "ready");
-    assert.deepEqual(nodeBody.result.blocking, []);
+    await assertCreatedTaskProjection(baseUrl);
   });
 });
+
+async function assertGateHasCanonicalEdges(projectDirs) {
+  const { readState } = await import("../../../src/storage/state.mjs");
+  const state = await readState(projectDirs[0]);
+  assert.deepEqual(state.edges.filter((edge) => edge.from === "G-http-edges" || edge.to === "G-http-edges"), [
+    { from: "T-gate-http-source", to: "G-http-edges", type: "BLOCKS" },
+    { from: "G-http-edges", to: "T-gate-http-source", type: "DERIVED_FROM" },
+  ]);
+}
+
+async function assertEmptyGateBlockers(projectDirs) {
+  const { readState } = await import("../../../src/storage/state.mjs");
+  const state = await readState(projectDirs[0]);
+  assert.equal(state.nodes["G-http-empty-blockers"].id, "G-http-empty-blockers");
+}
+
+async function assertInvalidGateInputs(baseUrl, openCount) {
+  for (const extra of [{ resolution_mode: "labor" }, { unexpected: true }]) {
+    const opensBefore = openCount();
+    const invalid = await operation(baseUrl, "project-a", "gate.create", {
+      id: "G-http-invalid", initiative: "gate-http", title: "Invalid gate input",
+      body: "Must fail at the HTTP boundary", purpose: "approval", ...extra,
+    });
+    assert.equal(invalid.status, 400);
+    assert.equal((await invalid.json()).error.code, "INVALID_REQUEST");
+    assert.equal(openCount(), opensBefore, "invalid schema must be rejected before storage is opened");
+  }
+}
 
 test("HTTP gate.create accepts canonical edge inputs and rejects fields before storage", async () => {
   await withApi(async ({ baseUrl, openCount, projectDirs }) => {
@@ -70,12 +102,7 @@ test("HTTP gate.create accepts canonical edge inputs and rejects fields before s
       derived_from: ["T-gate-http-source"],
     });
     assert.equal(gate.status, 200, JSON.stringify(await gate.clone().json()));
-    const { readState } = await import("../../../src/storage/state.mjs");
-    let state = await readState(projectDirs[0]);
-    assert.deepEqual(state.edges.filter((edge) => edge.from === "G-http-edges" || edge.to === "G-http-edges"), [
-      { from: "T-gate-http-source", to: "G-http-edges", type: "BLOCKS" },
-      { from: "G-http-edges", to: "T-gate-http-source", type: "DERIVED_FROM" },
-    ]);
+    await assertGateHasCanonicalEdges(projectDirs);
 
     const emptyBlockers = await operation(baseUrl, "project-a", "gate.create", {
       id: "G-http-empty-blockers",
@@ -86,25 +113,38 @@ test("HTTP gate.create accepts canonical edge inputs and rejects fields before s
       blocked_by: [],
     });
     assert.equal(emptyBlockers.status, 200, JSON.stringify(await emptyBlockers.clone().json()));
-    state = await readState(projectDirs[0]);
-    assert.equal(state.nodes["G-http-empty-blockers"].id, "G-http-empty-blockers");
-
-    for (const extra of [{ resolution_mode: "labor" }, { unexpected: true }]) {
-      const opensBefore = openCount();
-      const invalid = await operation(baseUrl, "project-a", "gate.create", {
-        id: "G-http-invalid",
-        initiative: "gate-http",
-        title: "Invalid gate input",
-        body: "Must fail at the HTTP boundary",
-        purpose: "approval",
-        ...extra,
-      });
-      assert.equal(invalid.status, 400);
-      assert.equal((await invalid.json()).error.code, "INVALID_REQUEST");
-      assert.equal(openCount(), opensBefore, "invalid schema must be rejected before storage is opened");
-    }
+    await assertEmptyGateBlockers(projectDirs);
+    await assertInvalidGateInputs(baseUrl, openCount);
   });
 });
+
+function httpError(code, message, details, status) {
+  const error = Object.assign(new Error(message), { code, status });
+  if (details !== undefined) {
+    error.details = details;
+  }
+  return error;
+}
+
+function assertCommittedBatchState(state, before) {
+  assert.equal(state.nodes["T-batch-remote"].title, "Batch task");
+  assert.equal(state.initiatives["batch-remote"].desc, "Created in batch");
+  assert.equal(state.revision, before.revision + 1);
+  assert.equal(state.log.length, 1);
+  assert.equal(state.log[0].action, "core.batch");
+}
+
+async function assertFailedBatchIsAtomic(baseUrl, projectDir, expectedRevision) {
+  const invalidDomainInput = await operation(baseUrl, "project-a", "core.batch", {
+    operations: [{ op: "initiative.create", input: { name: "bad/name" } }],
+  });
+  assert.equal(invalidDomainInput.status, 400);
+  assert.equal((await invalidDomainInput.json()).error.code, "BATCH_OPERATION_FAILED");
+  const { readState } = await import("../../../src/storage/state.mjs");
+  const unchanged = await readState(projectDir);
+  assert.equal(unchanged.revision, expectedRevision);
+  assert.deepEqual(Object.keys(unchanged.initiatives), ["batch-remote"]);
+}
 
 test("HTTP v1 executes core.batch through one canonical server mutation", async () => {
   await withApi(async ({ baseUrl, projectDirs }) => {
@@ -132,29 +172,12 @@ test("HTTP v1 executes core.batch through one canonical server mutation", async 
     assert.equal(body.result.revision_before, before.revision);
     assert.equal(body.result.revision_after, before.revision + 1);
     const after = await readState(projectDirs[0]);
-    assert.equal(after.nodes["T-batch-remote"].title, "Batch task");
-    assert.equal(after.initiatives["batch-remote"].desc, "Created in batch");
-    assert.equal(after.revision, before.revision + 1);
-    assert.equal(after.log.length, 1);
-    assert.equal(after.log[0].action, "core.batch");
-
-    const invalidDomainInput = await operation(baseUrl, "project-a", "core.batch", {
-      operations: [{ op: "initiative.create", input: { name: "bad/name" } }],
-    });
-    assert.equal(invalidDomainInput.status, 400);
-    assert.equal((await invalidDomainInput.json()).error.code, "BATCH_OPERATION_FAILED");
-    const unchanged = await readState(projectDirs[0]);
-    assert.equal(unchanged.revision, after.revision);
-    assert.deepEqual(Object.keys(unchanged.initiatives), ["batch-remote"]);
+    assertCommittedBatchState(after, before);
+    await assertFailedBatchIsAtomic(baseUrl, projectDirs[0], after.revision);
   });
 });
 
 test("HTTP operation module accepts manifest capabilities and receives complete source at dispatch", async () => {
-  const httpError = (code, message, details, status) => {
-    const error = Object.assign(new Error(message), { code, status });
-    if (details !== undefined) error.details = details;
-    return error;
-  };
   const request = validateOperationRequest({ operation: "initiative.create", actor: "alice", input: { name: "valid" } }, {
     manifest: remoteV1Manifest,
     httpError,
@@ -208,6 +231,16 @@ test("HTTP v1 dispatches operations with the complete server-owned source", asyn
   }
 });
 
+async function assertInvalidActor(baseUrl) {
+  const invalidActor = await fetch(`${baseUrl}/v1/projects/project-a/operations`, {
+    method: "POST",
+    headers: authHeaders({ "content-type": "application/json" }),
+    body: JSON.stringify({ operation: "core.batch", actor: "", input: { operations: [{ op: "initiative.create", input: { name: "valid" } }] } }),
+  });
+  assert.equal(invalidActor.status, 400);
+  assert.equal((await invalidActor.json()).error.code, "INVALID_REQUEST");
+}
+
 test("HTTP v1 validates core.batch schema and nested operation inputs before opening storage", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "climier-server-batch-schema-"));
   try {
@@ -237,13 +270,7 @@ test("HTTP v1 validates core.batch schema and nested operation inputs before ope
         assert.equal(response.status, 400, JSON.stringify(await response.clone().json()));
         assert.equal((await response.json()).error.code, "INVALID_REQUEST");
       }
-      const invalidActor = await fetch(`${baseUrl}/v1/projects/project-a/operations`, {
-        method: "POST",
-        headers: authHeaders({ "content-type": "application/json" }),
-        body: JSON.stringify({ operation: "core.batch", actor: "", input: { operations: [{ op: "initiative.create", input: { name: "valid" } }] } }),
-      });
-      assert.equal(invalidActor.status, 400);
-      assert.equal((await invalidActor.json()).error.code, "INVALID_REQUEST");
+      await assertInvalidActor(baseUrl);
       assert.equal(openCount, 0);
     } finally {
       await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));

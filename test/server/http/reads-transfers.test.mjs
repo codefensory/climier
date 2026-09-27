@@ -38,16 +38,25 @@ function readApiState() {
   };
 }
 
-async function cliCommand(projectDir, command, query = "", positional = []) {
-  const args = ["--project", projectDir, command, ...positional];
+function queryArgs(query) {
+  const args = [];
   for (const [key, value] of new URLSearchParams(query)) {
     if (key === "all") {
-      if (value === "true" || value === "") args.push("--all");
+      if (value === "true" || value === "") {
+        args.push("--all");
+      }
       continue;
     }
-    if (key === "query") continue;
+    if (key === "query") {
+      continue;
+    }
     args.push(`--${key}`, value);
   }
+  return args;
+}
+
+async function cliCommand(projectDir, command, query = "", positional = []) {
+  const args = ["--project", projectDir, command, ...positional, ...queryArgs(query)];
   const result = await runCli(args);
   assert.equal(result.code, 0, result.stdout || result.stderr);
   return JSON.parse(result.stdout);
@@ -57,10 +66,18 @@ async function cliStatus(projectDir, query = "") {
   return cliCommand(projectDir, "status", query);
 }
 
+function hasTransferLogEntry(log, action) {
+  return log.some((entry) => entry.action.startsWith(action));
+}
+
+function countTransferLogEntries(log, action) {
+  return log.filter((entry) => entry.action === action).length;
+}
+
 function normalizeStatusTimes(status) {
   return {
     ...status,
-    alerts: (status.alerts || []).map(({ age_ms, message, ...alert }) => ({
+    alerts: (status.alerts || []).map(({ age_ms: _ageMs, message, ...alert }) => ({
       ...alert,
       message: message.replace(/\(\d+m old\)/, "(rounded old)"),
     })),
@@ -140,7 +157,7 @@ test("HTTP transfer routes capture and install typed payloads through kernel por
     const payload = (await exported.json()).result;
     assert.equal(payload.nodes["T-transfer-source"].title, "Transfer source");
     assert.equal(payload.nodes["T-transfer-source"].revision, undefined);
-    assert.equal(payload.log.some((entry) => entry.action.startsWith("transfer.")), false);
+    assert.equal(hasTransferLogEntry(payload.log, "transfer."), false);
 
     const imported = await fetch(`${baseUrl}/v1/projects/project-b/transfer/import`, {
       method: "POST",
@@ -151,23 +168,30 @@ test("HTTP transfer routes capture and install typed payloads through kernel por
     const { readState } = await import("../../../src/storage/state.mjs");
     const installed = await readState(projectDirs[1]);
     assert.equal(installed.nodes["T-transfer-source"].title, "Transfer source");
-    assert.equal(installed.log.filter((entry) => entry.action === "transfer.push").length, 1);
+    assert.equal(countTransferLogEntries(installed.log, "transfer.push"), 1);
     assert.equal(installed.log.at(-1).agent, "alice");
   });
 });
 
+async function assertTransferPreOpenError(baseUrl, openCount, request) {
+  const { route, headers, body, status, code } = request;
+  const before = openCount();
+  const response = await fetch(`${baseUrl}/v1/projects/project-a/${route}`, { method: "POST", headers, body });
+  assert.equal(response.status, status);
+  assert.equal((await response.json()).error.code, code);
+  if (route.endsWith("import") && status === 400) {
+    assert.equal(openCount(), before);
+  }
+}
+
 test("HTTP transfer routes validate schema and authorization before kernel access", async () => {
   await withApi(async ({ baseUrl, openCount }) => {
-    for (const { route, headers, body, status, code } of [
+    for (const request of [
       { route: "transfer/export", headers: authHeaders({ authorization: "Bearer wrong", "content-type": "application/json" }), body: "{}", status: 401, code: "AUTH_INVALID" },
       { route: "transfer/import", headers: authHeaders({ "content-type": "application/json" }), body: JSON.stringify({ payload: {}, actor: "alice", sourceProjectDir: "/tmp/private" }), status: 400, code: "INVALID_REQUEST" },
       { route: "transfer/import", headers: authHeaders({ "content-type": "application/json" }), body: JSON.stringify({ payload: {}, actor: "alice", overwrite: "yes" }), status: 400, code: "INVALID_REQUEST" },
     ]) {
-      const before = openCount();
-      const response = await fetch(`${baseUrl}/v1/projects/project-a/${route}`, { method: "POST", headers, body });
-      assert.equal(response.status, status);
-      assert.equal((await response.json()).error.code, code);
-      if (route.endsWith("import") && status === 400) assert.equal(openCount(), before);
+      await assertTransferPreOpenError(baseUrl, openCount, request);
     }
   });
 });

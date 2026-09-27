@@ -29,69 +29,86 @@ test("HTTP codec keeps path and body decoding contracts and receives the public 
   });
 });
 
+function assertHeaders(response, bodyText) {
+  assert.equal(response.headers.get("content-type"), "application/json; charset=utf-8");
+  assert.equal(response.headers.get("content-length"), String(Buffer.byteLength(bodyText)));
+  assert.equal(response.headers.get("cache-control"), "no-store");
+  assert.equal(response.headers.get("x-climier-protocol-version"), PROTOCOL_VERSION);
+}
+
+async function assertOperationResponse(baseUrl) {
+  const operationResponse = await operation(baseUrl, "project-a", "initiative.create", { name: "headers" });
+  const operationText = await operationResponse.text();
+  assert.equal(operationResponse.status, 200);
+  assertHeaders(operationResponse, operationText);
+  assert.deepEqual(Object.keys(JSON.parse(operationText)), ["ok", "result"]);
+}
+
+async function assertReadResponse(baseUrl) {
+  const readResponse = await fetch(`${baseUrl}/v1/projects/project-a/read/status`, { headers: authHeaders() });
+  const readText = await readResponse.text();
+  assert.equal(readResponse.status, 200);
+  assertHeaders(readResponse, readText);
+  assert.deepEqual(Object.keys(JSON.parse(readText)), ["ok", "result"]);
+}
+
+async function assertTransferResponse(baseUrl) {
+  const transferResponse = await fetch(`${baseUrl}/v1/projects/project-a/transfer/export`, {
+    method: "POST", headers: authHeaders({ "content-type": "application/json" }), body: "{}",
+  });
+  const transferText = await transferResponse.text();
+  assert.equal(transferResponse.status, 200);
+  assertHeaders(transferResponse, transferText);
+  assert.deepEqual(Object.keys(JSON.parse(transferText)), ["ok", "result"]);
+}
+
+async function assertErrorResponse(baseUrl) {
+  const errorResponse = await operation(baseUrl, "project-a", "not.registered", {});
+  const errorText = await errorResponse.text();
+  assert.equal(errorResponse.status, 404);
+  assertHeaders(errorResponse, errorText);
+  assert.deepEqual(JSON.parse(errorText), {
+    ok: false,
+    error: {
+      code: "OPERATION_NOT_FOUND",
+      message: "application.executeOperation: operation 'not.registered' is not registered",
+      details: { operation: "not.registered" },
+    },
+  });
+}
+
+async function assertInitResponses(baseUrl) {
+  const route = `${baseUrl}/v1/projects/catalogued/init`;
+  const initialized = await fetch(route, {
+    method: "POST", headers: authHeaders({ "content-type": "application/json" }), body: "{}",
+  });
+  const initializedText = await initialized.text();
+  assert.equal(initialized.status, 200);
+  assertHeaders(initialized, initializedText);
+  assert.deepEqual(JSON.parse(initializedText), { ok: true, result: { seeded: null } });
+
+  const repeated = await fetch(route, {
+    method: "POST", headers: authHeaders({ "content-type": "application/json" }), body: "{}",
+  });
+  const repeatedText = await repeated.text();
+  assert.equal(repeated.status, 409);
+  assertHeaders(repeated, repeatedText);
+  assert.equal(JSON.parse(repeatedText).error.code, "STATE_ALREADY_INITIALIZED");
+}
+
 test("HTTP facade exports and response headers/envelopes remain stable", async () => {
-  assert.deepEqual(Object.keys(httpServer).sort(), ["PROTOCOL_VERSION", "createRemoteApiServer"]);
+  assert.deepEqual(Object.keys(httpServer).toSorted(), ["PROTOCOL_VERSION", "createRemoteApiServer"]);
   assert.equal(typeof createRemoteApiServer, "function");
   assert.equal(PROTOCOL_VERSION, "1");
 
-  function assertHeaders(response, bodyText) {
-    assert.equal(response.headers.get("content-type"), "application/json; charset=utf-8");
-    assert.equal(response.headers.get("content-length"), String(Buffer.byteLength(bodyText)));
-    assert.equal(response.headers.get("cache-control"), "no-store");
-    assert.equal(response.headers.get("x-climier-protocol-version"), PROTOCOL_VERSION);
-  }
-
   await withApi(async ({ baseUrl }) => {
-    const operationResponse = await operation(baseUrl, "project-a", "initiative.create", { name: "headers" });
-    const operationText = await operationResponse.text();
-    assert.equal(operationResponse.status, 200);
-    assertHeaders(operationResponse, operationText);
-    assert.deepEqual(Object.keys(JSON.parse(operationText)), ["ok", "result"]);
-
-    const readResponse = await fetch(`${baseUrl}/v1/projects/project-a/read/status`, { headers: authHeaders() });
-    const readText = await readResponse.text();
-    assert.equal(readResponse.status, 200);
-    assertHeaders(readResponse, readText);
-    assert.deepEqual(Object.keys(JSON.parse(readText)), ["ok", "result"]);
-
-    const transferResponse = await fetch(`${baseUrl}/v1/projects/project-a/transfer/export`, {
-      method: "POST", headers: authHeaders({ "content-type": "application/json" }), body: "{}",
-    });
-    const transferText = await transferResponse.text();
-    assert.equal(transferResponse.status, 200);
-    assertHeaders(transferResponse, transferText);
-    assert.deepEqual(Object.keys(JSON.parse(transferText)), ["ok", "result"]);
-
-    const errorResponse = await operation(baseUrl, "project-a", "not.registered", {});
-    const errorText = await errorResponse.text();
-    assert.equal(errorResponse.status, 404);
-    assertHeaders(errorResponse, errorText);
-    assert.deepEqual(JSON.parse(errorText), {
-      ok: false,
-      error: {
-        code: "OPERATION_NOT_FOUND",
-        message: "application.executeOperation: operation 'not.registered' is not registered",
-        details: { operation: "not.registered" },
-      },
-    });
+    await assertOperationResponse(baseUrl);
+    await assertReadResponse(baseUrl);
+    await assertTransferResponse(baseUrl);
+    await assertErrorResponse(baseUrl);
   });
 
   await withInitApi(async ({ baseUrl }) => {
-    const route = `${baseUrl}/v1/projects/catalogued/init`;
-    const initialized = await fetch(route, {
-      method: "POST", headers: authHeaders({ "content-type": "application/json" }), body: "{}",
-    });
-    const initializedText = await initialized.text();
-    assert.equal(initialized.status, 200);
-    assertHeaders(initialized, initializedText);
-    assert.deepEqual(JSON.parse(initializedText), { ok: true, result: { seeded: null } });
-
-    const repeated = await fetch(route, {
-      method: "POST", headers: authHeaders({ "content-type": "application/json" }), body: "{}",
-    });
-    const repeatedText = await repeated.text();
-    assert.equal(repeated.status, 409);
-    assertHeaders(repeated, repeatedText);
-    assert.equal(JSON.parse(repeatedText).error.code, "STATE_ALREADY_INITIALIZED");
+    await assertInitResponses(baseUrl);
   });
 });
