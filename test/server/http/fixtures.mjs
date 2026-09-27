@@ -14,7 +14,9 @@ export async function withApi(run) {
   const projectIds = ["project-a", "project-b"];
   const catalog = createProjectCatalog({ dataRoot: path.join(root, "catalog"), projectIds });
   const projectDirs = await Promise.all(projectIds.map((id) => catalog.provisionProject(id)));
-  for (const projectDir of projectDirs) await initState({ projectDir });
+  for (const projectDir of projectDirs) {
+    await initState({ projectDir });
+  }
   let openCount = 0;
   const server = createRemoteApiServer({
     catalog,
@@ -35,8 +37,11 @@ export async function withApi(run) {
     await run({ baseUrl, openCount: () => openCount, projectDirs });
   } finally {
     await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
-    if (previousHome === undefined) delete process.env.CLIMIER_HOME;
-    else process.env.CLIMIER_HOME = previousHome;
+    if (previousHome === undefined) {
+      delete process.env.CLIMIER_HOME;
+    } else {
+      process.env.CLIMIER_HOME = previousHome;
+    }
     await fs.rm(root, { recursive: true, force: true });
   }
 }
@@ -66,8 +71,11 @@ export async function withInitApi(run) {
     await run({ baseUrl, dataRoot, openCount: () => openCount });
   } finally {
     await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
-    if (previousHome === undefined) delete process.env.CLIMIER_HOME;
-    else process.env.CLIMIER_HOME = previousHome;
+    if (previousHome === undefined) {
+      delete process.env.CLIMIER_HOME;
+    } else {
+      process.env.CLIMIER_HOME = previousHome;
+    }
     await fs.rm(root, { recursive: true, force: true });
   }
 }
@@ -80,10 +88,11 @@ export function authHeaders(extra = {}) {
   };
 }
 
-export async function operation(baseUrl, projectId, operation, input, actor = "alice") {
+export async function operation(baseUrl, projectId, operationId, input) {
+  const actor = "alice";
   return fetch(`${baseUrl}/v1/projects/${encodeURIComponent(projectId)}/operations`, {
     method: "POST",
     headers: authHeaders({ "content-type": "application/json" }),
-    body: JSON.stringify({ operation, input, actor }),
+    body: JSON.stringify({ operation: operationId, input, actor }),
   });
 }
