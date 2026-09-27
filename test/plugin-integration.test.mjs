@@ -58,10 +58,18 @@ async function withFreshEnv(body, prefix = "climier-integration-test") {
   try {
     return await body({ home, projectDir });
   } finally {
-    if (prev.CLIMIER_HOME === undefined) delete process.env.CLIMIER_HOME;
-    else process.env.CLIMIER_HOME = prev.CLIMIER_HOME;
-    if (prev.CLIMIER_AGENT === undefined) delete process.env.CLIMIER_AGENT;
-    else process.env.CLIMIER_AGENT = prev.CLIMIER_AGENT;
+    if (prev.CLIMIER_HOME === undefined) {
+      delete process.env.CLIMIER_HOME;
+    }
+    else {
+      process.env.CLIMIER_HOME = prev.CLIMIER_HOME;
+    }
+    if (prev.CLIMIER_AGENT === undefined) {
+      delete process.env.CLIMIER_AGENT;
+    }
+    else {
+      process.env.CLIMIER_AGENT = prev.CLIMIER_AGENT;
+    }
     await fs.rm(home, { recursive: true, force: true });
     await rmTempProject(projectDir);
   }
@@ -77,7 +85,7 @@ async function cli(args) {
         `stderr: ${result.stderr}`,
     );
   }
-  if (!result.stdout.trim()) return null;
+  if (!result.stdout.trim()) {return null;}
   return JSON.parse(result.stdout);
 }
 
@@ -133,231 +141,157 @@ test("fixture: climier.mjs default export exposes one dedicated command per V1 m
 
 // ---- End-to-end smoke -----------------------------------------------
 
-test("smoke: install + per-method commands + uninstall + reinstall + data persists; flags forwarded in original order; log redacted", async () => {
-  await withFreshEnv(async ({ home, projectDir }) => {
-    // T-plugin-command-layout-fix: installed dir name = descriptor.id.
-    const installedDir = path.join(home, "plugins", "installed", FIXTURE_ID);
+async function initializePluginProject({ home, projectDir }) {
+  const installedDir = path.join(home, "plugins", "installed", FIXTURE_ID);
+  const init = await cli(["--project", projectDir, "init"]);
+  assert.equal(init.ok, true);
+  const registered = await cli([
+    "--project", projectDir, "--as", "seed-agent", "add-initiative", "plugin-platform",
+    "--desc", "Plugin platform V1 host",
+  ]);
+  assert.ok(registered.initiative || registered.node, "add-initiative returned an initiative");
+  const added = await cli([
+    "--project", projectDir, "--as", "seed-agent", "add-task", "T-fixture-target",
+    "--initiative", "plugin-platform", "--title", "Fixture target node",
+    "--body", "Smoke target for data.node set/get.",
+    "--acceptance", "data round-trip succeeds.", "--blocked-by", "",
+  ]);
+  const seededNode = added.task || added.node;
+  assert.ok(seededNode, "add-task returned a node envelope");
+  assert.equal(seededNode.id, "T-fixture-target");
+  const installRes = await cli(["--project", projectDir, "install", FIXTURE_DIR]);
+  assert.equal(installRes.plugin.id, FIXTURE_ID);
+  assert.equal(installRes.plugin.command, FIXTURE_COMMAND);
+  assert.equal(installRes.plugin.entry, "./climier.mjs");
+  assert.ok((await fs.stat(installedDir)).isDirectory(), "installed/<id> exists");
+  const installedPkg = JSON.parse(await fs.readFile(
+    path.join(installedDir, "node_modules", "sample-plugin", "package.json"), "utf8",
+  ));
+  assert.equal(installedPkg.climier.id, FIXTURE_ID);
+  return installedDir;
+}
 
-    // 1. Initialize the project so plugin handlers can read/write state.
-    const init = await cli(["--project", projectDir, "init"]);
-    assert.equal(init.ok, true);
+async function assertQueryCommands(projectDir) {
+  const runtime = await cli([
+    "--as", "fixture-agent", "--project", projectDir, FIXTURE_COMMAND, "runtime",
+    "--trailing-flag", "trailing-value",
+  ]);
+  assert.equal(runtime.command, "runtime");
+  assert.equal(runtime.runtime.agent, "fixture-agent");
+  assert.equal(path.resolve(runtime.runtime.project_dir), path.resolve(projectDir));
+  assert.deepEqual(runtime.forwarded_args, [
+    "--as", "fixture-agent", "--project", projectDir,
+    "--trailing-flag", "trailing-value",
+  ]);
+  const qn = await cli([
+    "--project", projectDir, "--as", "fixture-agent", FIXTURE_COMMAND,
+    "query-node", "T-fixture-target",
+  ]);
+  assert.equal(qn.command, "query-node");
+  assert.equal(qn.id, "T-fixture-target");
+  assert.equal(qn.node.type, "task");
+  assert.equal(qn.node.node.id, "T-fixture-target");
+  const qc = await cli([
+    "--project", projectDir, "--as", "fixture-agent", FIXTURE_COMMAND,
+    "query-context", "T-fixture-target",
+  ]);
+  assert.equal(qc.command, "query-context");
+  assert.ok(Array.isArray(qc.allowed_actions));
+  const qs = await cli([
+    "--project", projectDir, "--as", "fixture-agent", FIXTURE_COMMAND, "query-status",
+  ]);
+  assert.equal(qs.command, "query-status");
+  assert.ok(qs.summary && typeof qs.summary === "object");
+  const qh = await cli([
+    "--project", projectDir, "--as", "fixture-agent", FIXTURE_COMMAND,
+    "query-history", "T-fixture-target",
+  ]);
+  assert.equal(qh.command, "query-history");
+  assert.equal(qh.id, "T-fixture-target");
+  assert.ok(Array.isArray(qh.entries));
+}
 
-    // 1b. Register the initiative that hosts the seeded task.
-    const registered = await cli([
-      "--project", projectDir,
-      "--as", "seed-agent",
-      "add-initiative", "plugin-platform",
-      "--desc", "Plugin platform V1 host",
-    ]);
-    assert.ok(registered.initiative || registered.node, "add-initiative returned an initiative");
+async function assertDataRoundTrips(projectDir) {
+  const nodeSecret = "ULTRA-SECRET-NODE-DO-NOT-LOG";
+  const nodeValue = { secret: nodeSecret, tag: "node-1", count: 7 };
+  await cli([
+    "--project", projectDir, "--as", "fixture-agent", FIXTURE_COMMAND,
+    "data-node-set", "T-fixture-target", JSON.stringify(nodeValue),
+  ]);
+  const dng = await cli([
+    "--project", projectDir, "--as", "fixture-agent", FIXTURE_COMMAND,
+    "data-node-get", "T-fixture-target",
+  ]);
+  assert.equal(dng.command, "data-node-get");
+  assert.deepEqual(dng.data, nodeValue);
+  const projectSecret = "PROJECT-SECRET-DO-NOT-LOG";
+  await cli([
+    "--project", projectDir, "--as", "fixture-agent", FIXTURE_COMMAND,
+    "data-project-set", "greeting", JSON.stringify(projectSecret),
+  ]);
+  const dpg = await cli([
+    "--project", projectDir, "--as", "fixture-agent", FIXTURE_COMMAND,
+    "data-project-get", "greeting",
+  ]);
+  assert.equal(dpg.command, "data-project-get");
+  assert.equal(dpg.data, projectSecret);
+  return { nodeSecret, nodeValue, projectSecret };
+}
 
-    // 2. Seed a task so data.node.* has a real target. add-task requires
-    //    --blocked-by; "" is the documented "no blockers" escape hatch.
-    const added = await cli([
-      "--project", projectDir,
-      "--as", "seed-agent",
-      "add-task", "T-fixture-target",
-      "--initiative", "plugin-platform",
-      "--title", "Fixture target node",
-      "--body", "Smoke target for data.node set/get.",
-      "--acceptance", "data round-trip succeeds.",
-      "--blocked-by", "",
-    ]);
-    const seededNode = added.task || added.node;
-    assert.ok(seededNode, "add-task returned a node envelope");
-    assert.equal(seededNode.id, "T-fixture-target");
+function assertLogRedaction(state, nodeSecret, projectSecret) {
+  const pluginDataLogs = (state.log || []).filter((entry) => entry.action === "plugin-data-set");
+  assert.equal(pluginDataLogs.length, 2, "expected exactly two plugin-data-set entries (node + project)");
+  for (const entry of pluginDataLogs) {
+    assert.equal(entry.plugin_id, FIXTURE_ID);
+    assert.ok(entry.scope === "node" || entry.scope === "project");
+    assert.ok(!("value" in entry), "log entry must not contain a `value` field");
+    const serialized = JSON.stringify(entry);
+    assert.ok(!serialized.includes(nodeSecret), `log entry leaked node secret: ${serialized}`);
+    assert.ok(!serialized.includes(projectSecret), `log entry leaked project secret: ${serialized}`);
+  }
+  const nodeEntry = pluginDataLogs.find((entry) => entry.scope === "node");
+  const projectEntry = pluginDataLogs.find((entry) => entry.scope === "project");
+  assert.ok(nodeEntry && nodeEntry.node_id === "T-fixture-target");
+  assert.ok(nodeEntry.key === null || nodeEntry.key === undefined);
+  assert.ok(projectEntry && projectEntry.key === "greeting");
+  assert.ok(projectEntry.node_id === undefined || projectEntry.node_id === null);
+}
 
-    // 3. Install the fixture from the local path.
-    const installRes = await cli(["--project", projectDir, "install", FIXTURE_DIR]);
-    assert.equal(installRes.plugin.id, FIXTURE_ID);
-    assert.equal(installRes.plugin.command, FIXTURE_COMMAND);
-    assert.equal(installRes.plugin.entry, "./climier.mjs");
-    assert.ok((await fs.stat(installedDir)).isDirectory(), "installed/<id> exists");
-    // npm puts the package under node_modules/<basename>/package.json.
-    const installedPkg = JSON.parse(
-      await fs.readFile(
-        path.join(installedDir, "node_modules", "sample-plugin", "package.json"),
-        "utf8",
-      ),
-    );
-    assert.equal(installedPkg.climier.id, FIXTURE_ID);
+async function assertUninstallAndReinstall(projectDir, installedDir, nodeValue, projectSecret) {
+  const uninstallRes = await cli(["--project", projectDir, "uninstall", FIXTURE_ID]);
+  assert.equal(uninstallRes.plugin.id, FIXTURE_ID);
+  assert.equal(uninstallRes.plugin.uninstalled, true);
+  await assert.rejects(fs.access(installedDir));
+  const stateAfterUninstall = JSON.parse(await fs.readFile(stateFilePath(projectDir), "utf8"));
+  assert.ok(stateAfterUninstall.plugins[FIXTURE_ID]);
+  assert.ok(stateAfterUninstall.nodes["T-fixture-target"].plugins[FIXTURE_ID]);
+  const reinstall = await cli(["--project", projectDir, "install", FIXTURE_DIR]);
+  assert.equal(reinstall.plugin.id, FIXTURE_ID);
+  assert.ok((await fs.stat(installedDir)).isDirectory());
+  const persistedNode = await cli([
+    "--project", projectDir, "--as", "fixture-agent", FIXTURE_COMMAND,
+    "data-node-get", "T-fixture-target",
+  ]);
+  assert.deepEqual(persistedNode.data, nodeValue);
+  const persistedProject = await cli([
+    "--project", projectDir, "--as", "fixture-agent", FIXTURE_COMMAND,
+    "data-project-get", "greeting",
+  ]);
+  assert.equal(persistedProject.data, projectSecret);
+}
 
-    // 4. runtime: --as placed BEFORE --project to assert order-
-    //    independence. The host resolves them from originalArgv
-    //    (first-wins), so api.runtime carries the effective values
-    //    regardless of position, and the forwarded argv preserves the
-    //    original token order with the namespace + subcommand stripped.
-    const runtime = await cli([
-      "--as", "fixture-agent",
-      "--project", projectDir,
-      FIXTURE_COMMAND, "runtime",
-      "--trailing-flag", "trailing-value",
-    ]);
-    assert.equal(runtime.command, "runtime");
-    assert.equal(runtime.runtime.agent, "fixture-agent");
-    assert.equal(
-      path.resolve(runtime.runtime.project_dir),
-      path.resolve(projectDir),
-    );
-    assert.deepEqual(runtime.forwarded_args, [
-      "--as", "fixture-agent",
-      "--project", projectDir,
-      "--trailing-flag", "trailing-value",
-    ]);
+async function runIntegration({ home, projectDir }) {
+  // Installed directory name is the descriptor id.
+  const installedDir = await initializePluginProject({ home, projectDir });
+  await assertQueryCommands(projectDir);
+  const { nodeSecret, nodeValue, projectSecret } = await assertDataRoundTrips(projectDir);
+  const state = JSON.parse(await fs.readFile(stateFilePath(projectDir), "utf8"));
+  assert.ok(state.plugins && state.plugins[FIXTURE_ID], "root plugins[sample.plugin] exists");
+  assert.deepEqual(state.plugins[FIXTURE_ID].data, { greeting: projectSecret });
+  assert.ok(state.nodes["T-fixture-target"].plugins?.[FIXTURE_ID]);
+  assert.deepEqual(state.nodes["T-fixture-target"].plugins[FIXTURE_ID].data, nodeValue);
+  assertLogRedaction(state, nodeSecret, projectSecret);
+  await assertUninstallAndReinstall(projectDir, installedDir, nodeValue, projectSecret);
+}
 
-    // 5. query.node
-    const qn = await cli([
-      "--project", projectDir, "--as", "fixture-agent",
-      FIXTURE_COMMAND, "query-node", "T-fixture-target",
-    ]);
-    assert.equal(qn.command, "query-node");
-    assert.equal(qn.id, "T-fixture-target");
-    // api.query.node returns the { type, node } envelope produced by
-    // `climier show`; the fixture forwards it verbatim.
-    assert.equal(qn.node.type, "task");
-    assert.equal(qn.node.node.id, "T-fixture-target");
-
-    // 6. query.context: allowed_actions is scoped to api.runtime.agent
-    //    (the host passes --as=runtime.agent to context); the array
-    //    shape is enough — the test does not pin agent-specific actions.
-    const qc = await cli([
-      "--project", projectDir, "--as", "fixture-agent",
-      FIXTURE_COMMAND, "query-context", "T-fixture-target",
-    ]);
-    assert.equal(qc.command, "query-context");
-    assert.ok(Array.isArray(qc.allowed_actions));
-
-    // 7. query.status
-    const qs = await cli([
-      "--project", projectDir, "--as", "fixture-agent",
-      FIXTURE_COMMAND, "query-status",
-    ]);
-    assert.equal(qs.command, "query-status");
-    assert.ok(qs.summary && typeof qs.summary === "object");
-
-    // 8. query.history
-    const qh = await cli([
-      "--project", projectDir, "--as", "fixture-agent",
-      FIXTURE_COMMAND, "query-history", "T-fixture-target",
-    ]);
-    assert.equal(qh.command, "query-history");
-    assert.equal(qh.id, "T-fixture-target");
-    assert.ok(Array.isArray(qh.entries));
-
-    // 9. data.node.set then data.node.get
-    const nodeSecret = "ULTRA-SECRET-NODE-DO-NOT-LOG";
-    const nodeValue = { secret: nodeSecret, tag: "node-1", count: 7 };
-    await cli([
-      "--project", projectDir, "--as", "fixture-agent",
-      FIXTURE_COMMAND, "data-node-set",
-      "T-fixture-target",
-      JSON.stringify(nodeValue),
-    ]);
-    const dng = await cli([
-      "--project", projectDir, "--as", "fixture-agent",
-      FIXTURE_COMMAND, "data-node-get", "T-fixture-target",
-    ]);
-    assert.equal(dng.command, "data-node-get");
-    assert.deepEqual(dng.data, nodeValue);
-
-    // 10. data.project.set then data.project.get
-    const projectSecret = "PROJECT-SECRET-DO-NOT-LOG";
-    await cli([
-      "--project", projectDir, "--as", "fixture-agent",
-      FIXTURE_COMMAND, "data-project-set", "greeting",
-      JSON.stringify(projectSecret),
-    ]);
-    const dpg = await cli([
-      "--project", projectDir, "--as", "fixture-agent",
-      FIXTURE_COMMAND, "data-project-get", "greeting",
-    ]);
-    assert.equal(dpg.command, "data-project-get");
-    assert.equal(dpg.data, projectSecret);
-
-    // 11. Persisted shape: root `plugins[<id>].data` AND
-    //     `nodes[<id>].plugins[<id>].data` are both populated.
-    const state = JSON.parse(await fs.readFile(stateFilePath(projectDir), "utf8"));
-    assert.ok(state.plugins && state.plugins[FIXTURE_ID], "root plugins[sample.plugin] exists");
-    assert.deepEqual(state.plugins[FIXTURE_ID].data, { greeting: projectSecret });
-    assert.ok(
-      state.nodes["T-fixture-target"].plugins &&
-        state.nodes["T-fixture-target"].plugins[FIXTURE_ID],
-      "node.plugins[sample.plugin] exists",
-    );
-    assert.deepEqual(
-      state.nodes["T-fixture-target"].plugins[FIXTURE_ID].data,
-      nodeValue,
-    );
-
-    // 12. Log redaction: every plugin-data-set entry carries
-    //     plugin_id/scope/agent without the value. No `value` field, and
-    //     the secret strings must not appear anywhere in the serialized
-    //     entry (so an attacker tailing the log cannot recover them).
-    const pluginDataLogs = (state.log || []).filter((e) => e.action === "plugin-data-set");
-    assert.equal(
-      pluginDataLogs.length,
-      2,
-      "expected exactly two plugin-data-set entries (node + project)",
-    );
-    for (const entry of pluginDataLogs) {
-      assert.equal(entry.plugin_id, FIXTURE_ID);
-      assert.ok(entry.scope === "node" || entry.scope === "project");
-      assert.ok(!("value" in entry), "log entry must not contain a `value` field");
-      const serialized = JSON.stringify(entry);
-      assert.ok(
-        !serialized.includes(nodeSecret),
-        `log entry leaked node secret: ${serialized}`,
-      );
-      assert.ok(
-        !serialized.includes(projectSecret),
-        `log entry leaked project secret: ${serialized}`,
-      );
-    }
-    // Shape: node entry carries node_id (no usable key — plugin-data.mjs
-    // sets key: null to keep the envelope shape stable); project entry
-    // carries key (no node_id).
-    const nodeEntry = pluginDataLogs.find((e) => e.scope === "node");
-    const projectEntry = pluginDataLogs.find((e) => e.scope === "project");
-    assert.ok(nodeEntry && nodeEntry.node_id === "T-fixture-target");
-    assert.ok(
-      nodeEntry.key === null || nodeEntry.key === undefined,
-      "node-scoped log entry must not carry a usable `key`",
-    );
-    assert.ok(projectEntry && projectEntry.key === "greeting");
-    assert.ok(
-      projectEntry.node_id === undefined || projectEntry.node_id === null,
-      "project-scoped log entry must not carry `node_id`",
-    );
-
-    // 13. Uninstall: removes installed/<id> but does NOT purge data
-    //     (ADR-005 §"Instalación e identidad": `uninstall <id>` elimina
-    //     ese directorio y no purga datos de proyectos).
-    const uninstallRes = await cli([
-      "--project", projectDir, "uninstall", FIXTURE_ID,
-    ]);
-    assert.equal(uninstallRes.plugin.id, FIXTURE_ID);
-    assert.equal(uninstallRes.plugin.uninstalled, true);
-    await assert.rejects(fs.access(installedDir));
-    const stateAfterUninstall = JSON.parse(
-      await fs.readFile(stateFilePath(projectDir), "utf8"),
-    );
-    assert.ok(stateAfterUninstall.plugins[FIXTURE_ID]);
-    assert.ok(stateAfterUninstall.nodes["T-fixture-target"].plugins[FIXTURE_ID]);
-
-    // 14. Reinstall: data is still readable through the new install.
-    const reinstall = await cli(["--project", projectDir, "install", FIXTURE_DIR]);
-    assert.equal(reinstall.plugin.id, FIXTURE_ID);
-    assert.ok((await fs.stat(installedDir)).isDirectory());
-
-    const persistedNode = await cli([
-      "--project", projectDir, "--as", "fixture-agent",
-      FIXTURE_COMMAND, "data-node-get", "T-fixture-target",
-    ]);
-    assert.deepEqual(persistedNode.data, nodeValue);
-    const persistedProject = await cli([
-      "--project", projectDir, "--as", "fixture-agent",
-      FIXTURE_COMMAND, "data-project-get", "greeting",
-    ]);
-    assert.equal(persistedProject.data, projectSecret);
-  });
-});
+test("smoke: install + per-method commands + uninstall + reinstall + data persists; flags forwarded in original order; log redacted", () => withFreshEnv(runIntegration));
