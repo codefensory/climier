@@ -30,7 +30,7 @@ test("providers do not import filesystem, lock, state, log, policy, commands, re
     providers.taskReopenProvider,
     providers.taskCancelProvider,
   ]) {
-    const keys = Object.keys(provider).sort();
+    const keys = Object.keys(provider).toSorted();
     assert.deepEqual(keys, ["apply", "prepare"], `provider keys must be exactly apply/prepare; got ${keys.join(",")}`);
   }
 });
