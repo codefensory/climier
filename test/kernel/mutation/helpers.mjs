@@ -14,9 +14,9 @@ export async function importKernel() {
 // ===================================================================
 
 // createTaskProvider — composes a brand-new node + edges in one apply.
-export function createTaskProvider({ id, kind = "resolvable", subkind = "task", title, revisionAfter = 1, edges = [], fields = {} } = {}) {
+export function createTaskProvider({ id, kind = "resolvable", subkind = "task", title, _revisionAfter = 1, edges = [], fields = {} } = {}) {
   return {
-    prepare: async ({ snapshot }) => {
+    prepare: async () => {
       return {
         target: { id, kind, subkind },
         policyAction: null,
@@ -47,7 +47,7 @@ export function createTaskProvider({ id, kind = "resolvable", subkind = "task", 
 }
 
 // updateNodeProvider — updates an existing node's title.
-export function updateNodeProvider({ id, newTitle, newRevision }) {
+export function updateNodeProvider({ id, newTitle, _newRevision }) {
   let prepareCalls = 0;
   let applyCalls = 0;
   const provider = {
@@ -79,6 +79,17 @@ export function updateNodeProvider({ id, newTitle, newRevision }) {
 // Base state fixture
 // ===================================================================
 
+function applyFixtureMutation(base, mutate) {
+  if (typeof mutate === "function") {
+    mutate(base);
+  }
+}
+
+async function initializeFencedState(dir) {
+  const { bootstrapFencedState } = await import("../../../src/storage/ledger.mjs");
+  return bootstrapFencedState(dir);
+}
+
 export async function bootstrapProject(dir, mutate) {
   const base = {
     version: 2,
@@ -108,10 +119,9 @@ export async function bootstrapProject(dir, mutate) {
     initiatives: { kernel: { desc: "kernel", created_at: "2026-01-01T00:00:00.000Z" } },
     log: [],
   };
-  if (typeof mutate === "function") mutate(base);
+  applyFixtureMutation(base, mutate);
   await writeStateHelper(dir, base);
-  const { bootstrapFencedState } = await import("../../../src/storage/ledger.mjs");
-  const fenced = await bootstrapFencedState(dir);
+  const fenced = await initializeFencedState(dir);
   base.version = fenced.version;
   base.revision = fenced.revision;
   base.fence_generation = fenced.fence_generation;

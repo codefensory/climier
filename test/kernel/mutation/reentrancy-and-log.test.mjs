@@ -3,6 +3,24 @@ import assert from "node:assert/strict";
 import { createTempProject, readState as readStateHelper, rmTempProject } from "../../helpers.mjs";
 import { bootstrapProject, importKernel, createTaskProvider, updateNodeProvider } from "./helpers.mjs";
 
+async function attemptNestedMutation(mutate, dir) {
+  return mutate({
+    projectDir: dir,
+    request: { action: "task.create", actor: "alice", input: {} },
+    provider: createTaskProvider({ id: "T-inner", title: "evil" }),
+  });
+}
+
+async function assertNoInnerMutation(dir, outerError, innerError) {
+  assert.ok(outerError, "outer mutation must surface the nested error");
+  assert.equal(outerError.code, "INVALID_EXECUTION_CONTRACT");
+  assert.match(outerError.message, /nested kernel\.mutate/i);
+  const after = await readStateHelper(dir);
+  assert.equal(after.nodes["T-inner"], undefined, "nested rejection did not persist");
+  assert.equal(after.log.length, 0, "no log entry on outer failure");
+  assert.equal(innerError === null || innerError.code === "INVALID_EXECUTION_CONTRACT", true);
+}
+
 test("kernel.mutate: nested mutate throws INVALID_EXECUTION_CONTRACT and inner state untouched", async () => {
   const { mutate } = await importKernel();
   const dir = await createTempProject();
@@ -10,13 +28,9 @@ test("kernel.mutate: nested mutate throws INVALID_EXECUTION_CONTRACT and inner s
     await bootstrapProject(dir);
     let innerCaught = null;
     // Outer provider.apply will call mutate again — must be rejected.
-    const innerMutationAttempt = () => mutate({
-      projectDir: dir,
-      request: { action: "task.create", actor: "alice", input: {} },
-      provider: createTaskProvider({ id: "T-inner", title: "evil" }),
-    });
+    const innerMutationAttempt = () => attemptNestedMutation(mutate, dir);
     const outerProvider = {
-      prepare: async ({ snapshot }) => ({
+      prepare: async () => ({
         target: { id: "T1", kind: "resolvable", subkind: "task" },
         policyAction: null,
       }),
@@ -41,7 +55,7 @@ test("kernel.mutate: nested mutate throws INVALID_EXECUTION_CONTRACT and inner s
         request: { action: "task.update", actor: "alice", input: {}, if_revision: { kind: "single", id: "T1", value: 3 } },
         provider: {
           prepare: outerProvider.prepare,
-          apply: async (applyCtx) => {
+          apply: async () => {
             // Attempt nested mutate; capture the rejection but do NOT
             // re-throw so the outer apply can still complete its tx.
             await innerMutationAttempt();
@@ -50,16 +64,7 @@ test("kernel.mutate: nested mutate throws INVALID_EXECUTION_CONTRACT and inner s
         },
       });
     } catch (err) { outerCaught = err; }
-    assert.ok(outerCaught, "outer mutation must surface the nested error");
-    assert.equal(outerCaught.code, "INVALID_EXECUTION_CONTRACT");
-    assert.match(outerCaught.message, /nested kernel\.mutate/i);
-    // The inner mutation did NOT touch state — only nodes from the
-    // original snapshot remain.
-    const after = await readStateHelper(dir);
-    assert.equal(after.nodes["T-inner"], undefined, "nested rejection did not persist");
-    assert.equal(after.log.length, 0, "no log entry on outer failure");
-    // Suppress unused-variable linter complaint.
-    assert.equal(innerCaught === null || innerCaught.code === "INVALID_EXECUTION_CONTRACT", true);
+    await assertNoInnerMutation(dir, outerCaught, innerCaught);
   } finally {
     await rmTempProject(dir);
   }

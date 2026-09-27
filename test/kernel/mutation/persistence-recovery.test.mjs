@@ -6,6 +6,16 @@ import { bootstrapProject, importKernel, updateNodeProvider } from "./helpers.mj
 import { withLock } from "../../../src/storage/lock.mjs";
 
 // failingPrepareProvider — prepare throws a structured error.
+function assertBootstrapPolicyResult(result, state, exists) {
+  assert.equal(result.result.name, "new-project");
+  assert.equal(exists, true);
+  assert.equal(state.version, 5);
+  assert.equal(state.fence_generation, 1);
+  assert.equal(state.initiatives["new-project"] !== undefined, true);
+  assert.equal(state.log.length, 1);
+  assert.equal(state.log[0].action, "initiative.create");
+}
+
 function failingPrepareProvider(message = "blocked by domain rule") {
   return {
     prepare: async () => {
@@ -20,7 +30,7 @@ function failingPrepareProvider(message = "blocked by domain rule") {
 // failingApplyProvider — apply throws AFTER prepare succeeds.
 function failingApplyProvider(message = "boom in apply") {
   return {
-    prepare: async ({ snapshot }) => ({
+    prepare: async () => ({
       target: { id: "T-apply-fail", kind: "resolvable", subkind: "task" },
       policyAction: null,
       newTitle: "x",
@@ -54,8 +64,8 @@ test("kernel.mutate: provider.prepare throws ⇒ no state mutation, no log entry
     assert.deepEqual(after.nodes, base.nodes);
     assert.equal(after.log.length, 0);
     // Lock released: a fresh withLock should succeed immediately.
-    const { withLock } = await importFresh("./storage/lock.mjs");
-    await withLock(dir, async () => { lockObserved = true; });
+    const { withLock: freshWithLock } = await importFresh("./storage/lock.mjs");
+    await freshWithLock(dir, async () => { lockObserved = true; });
     assert.equal(lockObserved, true, "withLock must be released after the failing call");
   } finally {
     await rmTempProject(dir);
@@ -142,31 +152,39 @@ test("kernel.mutate: failing call writes nothing — final on-disk state equals 
 // Plugin attribution / log shape
 // ===================================================================
 
+async function mutateLegacyState(dir, mutate, provider) {
+  await writeStateHelper(dir, {
+    version: 4,
+    revision: 2,
+    nodes: { T1: { id: "T1", kind: "resolvable", subkind: "task", title: "before", status: "open", revision: 2 } },
+    edges: [],
+    initiatives: {},
+    log: [],
+  });
+  await mutate({
+    projectDir: dir,
+    request: { action: "task.update", actor: "alice", input: { id: "T1" }, if_state_revision: 3 },
+    provider,
+  });
+}
+
+function assertFencedState(state, expectedFenceGeneration, expectedRevision, expectedTitle) {
+  assert.equal(state.version, 5);
+  assert.equal(state.fence_generation, expectedFenceGeneration);
+  assert.equal(state.revision, expectedRevision);
+  assert.equal(state.nodes.T1.revision, expectedRevision);
+  assert.equal(state.nodes.T1.title, expectedTitle);
+}
+
 test("kernel mutation migrates legacy state and writes provider changes through the fenced commit", async () => {
   const { mutate } = await importKernel();
   const { readFencedState, bootstrapFencedState } = await import("../../../src/storage/ledger.mjs");
   const dir = await createTempProject();
   try {
-    await writeStateHelper(dir, {
-      version: 4,
-      revision: 2,
-      nodes: { T1: { id: "T1", kind: "resolvable", subkind: "task", title: "before", status: "open", revision: 2 } },
-      edges: [],
-      initiatives: {},
-      log: [],
-    });
     const { provider } = updateNodeProvider({ id: "T1", newTitle: "fenced provider" });
-    await mutate({
-      projectDir: dir,
-      request: { action: "task.update", actor: "alice", input: { id: "T1" }, if_state_revision: 3 },
-      provider,
-    });
+    await mutateLegacyState(dir, mutate, provider);
     const state = await readFencedState(dir);
-    assert.equal(state.version, 5);
-    assert.equal(state.fence_generation, 1);
-    assert.equal(state.revision, 4);
-    assert.equal(state.nodes.T1.revision, 4);
-    assert.equal(state.nodes.T1.title, "fenced provider");
+    assertFencedState(state, 1, 4, "fenced provider");
 
     const secondDir = await createTempProject();
     try {
@@ -179,10 +197,7 @@ test("kernel mutation migrates legacy state and writes provider changes through 
         provider: nextProvider,
       });
       const next = await readFencedState(secondDir);
-      assert.equal(next.version, 5);
-      assert.equal(next.fence_generation, fenced.fence_generation);
-      assert.equal(next.revision, fenced.revision + 1);
-      assert.equal(next.nodes.T1.revision, next.revision);
+      assertFencedState(next, fenced.fence_generation, fenced.revision + 1, "fenced again");
     } finally {
       await rmTempProject(secondDir);
     }
@@ -236,7 +251,7 @@ test("kernel.mutate recovers a pending fenced commit before checking caller CAS"
 
 test("kernel.mutate bootstraps a missing project only after provider policy allows", async () => {
   const { mutate } = await importKernel();
-  const { stateExists, stateFilePath } = await import("../../helpers.mjs");
+  const { stateExists } = await import("../../helpers.mjs");
   const { ledgerFile } = await import("../../../src/storage/ledger.mjs");
   const dir = await createTempProject();
   try {
@@ -247,15 +262,9 @@ test("kernel.mutate bootstraps a missing project only after provider policy allo
       provider: initiativeCreateProvider,
       policyAction: { decide: async () => ({ decision: "allow" }) },
     });
-    assert.equal(result.result.name, "new-project");
-    assert.equal(await stateExists(dir), true);
     const { readFencedState } = await import("../../../src/storage/ledger.mjs");
     const state = await readFencedState(dir);
-    assert.equal(state.version, 5);
-    assert.equal(state.fence_generation, 1);
-    assert.equal(state.initiatives["new-project"] !== undefined, true);
-    assert.equal(state.log.length, 1);
-    assert.equal(state.log[0].action, "initiative.create");
+    assertBootstrapPolicyResult(result, state, await stateExists(dir));
 
     const deniedDir = await createTempProject();
     try {

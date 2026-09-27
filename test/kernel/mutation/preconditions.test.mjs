@@ -4,6 +4,14 @@ import fs from "node:fs/promises";
 import { createTempProject, readState as readStateHelper, rmTempProject, stateFilePath } from "../../helpers.mjs";
 import { bootstrapProject, importKernel, updateNodeProvider } from "./helpers.mjs";
 
+function assertRevisionConflict(err) {
+  assert.ok(err, "should have thrown");
+  assert.equal(err.code, "REVISION_CONFLICT");
+  assert.equal(err.details.id, "T1");
+  assert.equal(err.details.expected, 1);
+  assert.equal(err.details.current, 3);
+}
+
 test("kernel.mutate: if_revision (single) mismatch throws REVISION_CONFLICT with no state change and no log", async () => {
   const { mutate } = await importKernel();
   const { provider, count } = updateNodeProvider({ id: "T1", newTitle: "should-not-stick" });
@@ -20,11 +28,7 @@ test("kernel.mutate: if_revision (single) mismatch throws REVISION_CONFLICT with
         provider,
       });
     } catch (err) { caught = err; }
-    assert.ok(caught, "should have thrown");
-    assert.equal(caught.code, "REVISION_CONFLICT");
-    assert.equal(caught.details.id, "T1");
-    assert.equal(caught.details.expected, 1);
-    assert.equal(caught.details.current, 3);
+    assertRevisionConflict(caught);
 
     const after = await readStateHelper(dir);
     assert.deepEqual(after.nodes.T1, base.nodes.T1, "no node mutation");
@@ -67,7 +71,7 @@ test("kernel.mutate: if_revisions (multi) for multiple nodes; all must match und
     });
     // Multi-target update provider: rename both T1 and T2 in a single apply.
     const provider = {
-      prepare: async ({ snapshot }) => ({
+      prepare: async () => ({
         target: { id: "T1", kind: "resolvable", subkind: "task" },
         policyAction: null,
       }),
@@ -108,7 +112,7 @@ test("kernel.mutate: if_revisions (multi) mismatch throws on the offending node 
       s.nodes.T2 = { id: "T2", kind: "resolvable", subkind: "task", title: "second", initiative: "kernel", status: "open", revision: 7 };
     });
     const provider = {
-      prepare: async ({ snapshot }) => ({ target: { id: "T1", kind: "resolvable", subkind: "task" } }),
+      prepare: async () => ({ target: { id: "T1", kind: "resolvable", subkind: "task" } }),
       apply: async ({ tx }) => {
         tx.updateNode("T1", { title: "should-not-stick" });
         tx.updateNode("T2", { title: "should-not-stick-2" });
