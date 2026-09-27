@@ -10,7 +10,7 @@
 #     finds the task worktree, compares recorded base_sha against the current
 #     tip of base_ref, and lists files changed by the task.
 #   - Reports divergence and overlap candidates (paths touched in both the
-#     task branch and the project's main branch since base_sha).
+#     task branch and the project's base branch since the real cut point).
 #   - NEVER touches git state: no checkout, merge, reset, commit, push,
 #     fetch, worktree remove, or file edits. Only read-only git inspection.
 #
@@ -174,6 +174,8 @@ recorded_branch=""
 recorded_worktree=""
 recorded_base_ref=""
 recorded_base_sha=""
+recorded_cut_point_sha=""
+recorded_evidence_base_sha=""
 recorded_commit=""
 recorded_files_json='[]'
 recorded_checks_json='[]'
@@ -195,6 +197,9 @@ process.stdin.on("end", () => {
       worktree: o.worktree || "",
       base_ref: o.base_ref || "",
       base_sha: o.base_sha || "",
+      cut_point_sha: o.cut_point_sha || "",
+      evidence_base_sha: o.evidence_base_sha || "",
+      branch_contains_evidence_base: o.branch_contains_evidence_base === true,
       files: JSON.stringify(Array.isArray(o.files) ? o.files : []),
       checks: JSON.stringify(Array.isArray(o.checks) ? o.checks : []),
     };
@@ -217,6 +222,8 @@ process.stdin.on("end", () => {
       worktree) recorded_worktree="$value" ;;
       base_ref) recorded_base_ref="$value" ;;
       base_sha) recorded_base_sha="$value" ;;
+      cut_point_sha) recorded_cut_point_sha="$value" ;;
+      evidence_base_sha) recorded_evidence_base_sha="$value" ;;
       files) recorded_files_json="$value" ;;
       checks) recorded_checks_json="$value" ;;
     esac
@@ -287,29 +294,59 @@ if [[ -z "$current_base_sha" ]]; then
   exit 2
 fi
 
-# Divergence analysis (only when we have a recorded base_sha).
+# Keep the branch cut point separate from the base snapshot against which the
+# evidence was produced. New evidence records both; legacy base_sha remains the
+# cut-point field. Containment of the current base is authoritative even when a
+# merge makes the present merge-base newer than the original cut point.
+real_cut_point="$(git -C "$worktree_path" merge-base "$task_head_sha" "$current_base_sha" 2>/dev/null || true)"
+recorded_cut_point="${recorded_cut_point_sha:-$recorded_base_sha}"
+evidence_base_sha="${recorded_evidence_base_sha:-$recorded_base_sha}"
 divergence_status="unknown"
 ahead_count="0"
 behind_count="0"
 recorded_base_match_current="false"
 recorded_base_reachable="false"
+recorded_base_matches_cut_point="false"
+recorded_cut_point_matches_real="false"
+evidence_base_reachable="false"
+branch_contains_evidence_base="false"
+branch_contains_current_base="false"
 
-if [[ -n "$recorded_base_sha" ]]; then
-  if [[ "$recorded_base_sha" == "$current_base_sha" ]]; then
-    recorded_base_match_current="true"
-    recorded_base_reachable="true"
+if [[ -n "$real_cut_point" ]]; then
+  if [[ "$real_cut_point" == "$current_base_sha" ]]; then
+    branch_contains_current_base="true"
+  fi
+  if [[ -n "$recorded_cut_point" && "$recorded_cut_point" == "$real_cut_point" ]]; then
+    recorded_base_matches_cut_point="true"
+    recorded_cut_point_matches_real="true"
+  fi
+fi
+
+if [[ -n "$recorded_base_sha" && "$recorded_base_sha" == "$current_base_sha" ]]; then
+  recorded_base_match_current="true"
+fi
+if [[ -n "$recorded_cut_point" ]] && git -C "$worktree_path" cat-file -e "$recorded_cut_point^{commit}" 2>/dev/null \
+  && git -C "$worktree_path" merge-base --is-ancestor "$recorded_cut_point" "$task_head_sha" 2>/dev/null; then
+  recorded_base_reachable="true"
+fi
+if [[ -n "$evidence_base_sha" ]] && git -C "$worktree_path" cat-file -e "$evidence_base_sha^{commit}" 2>/dev/null \
+  && git -C "$worktree_path" merge-base --is-ancestor "$evidence_base_sha" "$task_head_sha" 2>/dev/null; then
+  evidence_base_reachable="true"
+  branch_contains_evidence_base="true"
+fi
+
+if [[ -n "$real_cut_point" ]]; then
+  if [[ "$branch_contains_current_base" == "true" ]]; then
     divergence_status="clean"
+  elif [[ -n "$recorded_cut_point" && "$recorded_cut_point_matches_real" != "true" ]]; then
+    divergence_status="base_sha_mismatch"
+  elif git -C "$project_root" merge-base --is-ancestor "$real_cut_point" "$current_base_sha" 2>/dev/null; then
+    ahead_count="$(git -C "$project_root" rev-list --count "$real_cut_point..$current_base_sha" 2>/dev/null || echo 0)"
+    divergence_status="base_advanced"
+  elif git -C "$project_root" merge-base --is-ancestor "$current_base_sha" "$real_cut_point" 2>/dev/null; then
+    divergence_status="base_rewound"
   else
-    recorded_base_match_current="false"
-    if git -C "$project_root" merge-base --is-ancestor "$recorded_base_sha" "$current_base_sha" 2>/dev/null; then
-      recorded_base_reachable="true"
-      ahead_count="$(git -C "$project_root" rev-list --count "$recorded_base_sha..$current_base_sha" 2>/dev/null || echo 0)"
-      divergence_status="base_advanced"
-    elif git -C "$project_root" merge-base --is-ancestor "$current_base_sha" "$recorded_base_sha" 2>/dev/null; then
-      divergence_status="base_rewound"
-    else
-      divergence_status="base_diverged"
-    fi
+    divergence_status="base_diverged"
   fi
 fi
 
@@ -342,7 +379,9 @@ fi
 # Overlap: in the time since recorded_base_sha (or current base fallback), are
 # any of our task files also touched by main?
 overlap_files=()
-if [[ -n "$recorded_base_sha" ]]; then
+if [[ -n "$real_cut_point" ]]; then
+  compare_from="$real_cut_point"
+elif [[ -n "$recorded_base_sha" ]]; then
   compare_from="$recorded_base_sha"
 else
   compare_from="$current_base_sha"
@@ -367,14 +406,18 @@ worktree_status="$(git -C "$worktree_path" status --short --untracked-files=all 
 worktree_clean="true"
 [[ -z "$worktree_status" ]] || worktree_clean="false"
 
-# Decide the verdict.
+# Decide the verdict. A clean result is reserved for branches that contain the
+# current base; divergence metadata or path-disjoint changes do not waive it.
 verdict="clean"
 [[ "$recorded_commit_match" != "true" ]] && verdict="incongruent"
 case "$divergence_status" in
-  base_rewound|base_diverged) verdict="diverged" ;;
+  base_rewound|base_diverged|base_sha_mismatch) verdict="diverged" ;;
 esac
 [[ ${#overlap_files[@]} -gt 0 ]] && verdict="overlap"
-[[ "$worktree_clean" != "true" ]] && verdict="dirty"
+  [[ "$worktree_clean" != "true" ]] && verdict="dirty"
+# A clean preflight guarantees the branch integrates the current recorded base.
+# A mismatched or stale base is non-clean even when task/base paths do not overlap.
+[[ "$branch_contains_current_base" != "true" && "$verdict" == "clean" ]] && verdict="diverged"
 
 # Exit code.
 case "$verdict" in
@@ -392,10 +435,17 @@ if [[ "$emit_json" -eq 1 ]]; then
   export EVIDENCE__HEAD_SHA="$task_head_sha"
   export EVIDENCE__BASE_REF="$recorded_base_ref"
   export EVIDENCE__RECORDED_BASE_SHA="$recorded_base_sha"
+  export EVIDENCE__RECORDED_CUT_POINT_SHA="$recorded_cut_point"
+  export EVIDENCE__EVIDENCE_BASE_SHA="$evidence_base_sha"
   export EVIDENCE__CURRENT_BASE_SHA="$current_base_sha"
   export EVIDENCE__DIVERGENCE="$divergence_status"
   export EVIDENCE__BASE_MATCH="$recorded_base_match_current"
   export EVIDENCE__BASE_REACHABLE="$recorded_base_reachable"
+  export EVIDENCE__REAL_CUT_POINT="$real_cut_point"
+  export EVIDENCE__RECORDED_BASE_MATCHES_CUT_POINT="$recorded_base_matches_cut_point"
+  export EVIDENCE__EVIDENCE_BASE_REACHABLE="$evidence_base_reachable"
+  export EVIDENCE__BRANCH_CONTAINS_EVIDENCE_BASE="$branch_contains_evidence_base"
+  export EVIDENCE__BRANCH_CONTAINS_CURRENT_BASE="$branch_contains_current_base"
   export EVIDENCE__MAIN_AHEAD="$ahead_count"
   export EVIDENCE__TASK_AHEAD="$task_ahead_of_main"
   export EVIDENCE__COMMIT="$recorded_commit"
@@ -434,9 +484,16 @@ const out = {
   base: {
     ref: env.EVIDENCE__BASE_REF,
     recorded_sha: env.EVIDENCE__RECORDED_BASE_SHA,
+    recorded_cut_point_sha: env.EVIDENCE__RECORDED_CUT_POINT_SHA,
+    evidence_base_sha: env.EVIDENCE__EVIDENCE_BASE_SHA,
     current_sha: env.EVIDENCE__CURRENT_BASE_SHA,
+    real_cut_point: env.EVIDENCE__REAL_CUT_POINT,
     match: env.EVIDENCE__BASE_MATCH === "true",
     reachable: env.EVIDENCE__BASE_REACHABLE === "true",
+    recorded_matches_cut_point: env.EVIDENCE__RECORDED_BASE_MATCHES_CUT_POINT === "true",
+    evidence_base_reachable: env.EVIDENCE__EVIDENCE_BASE_REACHABLE === "true",
+    branch_contains_evidence_base: env.EVIDENCE__BRANCH_CONTAINS_EVIDENCE_BASE === "true",
+    branch_contains_current_base: env.EVIDENCE__BRANCH_CONTAINS_CURRENT_BASE === "true",
     divergence: env.EVIDENCE__DIVERGENCE,
     main_ahead_of_recorded: Number(env.EVIDENCE__MAIN_AHEAD) || 0,
     task_ahead_of_current: Number(env.EVIDENCE__TASK_AHEAD) || 0,
@@ -467,7 +524,9 @@ fi
   echo "  base ref        : $recorded_base_ref"
   echo "  recorded base   : ${recorded_base_sha:-<absent — degraded>}"
   echo "  current  base   : $current_base_sha"
-  echo "  base divergence : $divergence_status (recorded==current: $recorded_base_match_current)"
+  echo "  real cut point  : ${real_cut_point:-<unknown>} (recorded matches: $recorded_base_matches_cut_point)"
+  echo "  branch current  : $branch_contains_current_base (recorded==current: $recorded_base_match_current)"
+  echo "  base divergence : $divergence_status"
   echo "  main ahead      : $ahead_count commit(s) since recorded base"
   echo "  task ahead      : $task_ahead_of_main commit(s) of new work over current base"
   echo "  HEAD == recorded: $recorded_commit_match"

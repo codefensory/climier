@@ -84,7 +84,13 @@ fi
 
 branch="$(git -C "$current_root" branch --show-current)"
 base_branch="$(git -C "$project_root" branch --show-current)"
-base_sha="$(git -C "$project_root" rev-parse "$base_branch" 2>/dev/null || echo "")"
+base_sha="$(git -C "$current_root" merge-base HEAD "$base_branch" 2>/dev/null || echo "")"
+cut_point_sha="$base_sha"
+evidence_base_sha="$(git -C "$project_root" rev-parse "$base_branch" 2>/dev/null || echo "")"
+branch_contains_evidence_base="false"
+if [[ -n "$evidence_base_sha" ]] && git -C "$current_root" merge-base --is-ancestor "$evidence_base_sha" HEAD 2>/dev/null; then
+  branch_contains_evidence_base="true"
+fi
 
 # 1. Legacy WORKTREE note (back-compat — keep exact format). Echo to stdout
 # AFTER the add-note succeeds so callers (validator, integration-preflight,
@@ -120,7 +126,7 @@ if [[ -n "$evidence_file" ]]; then
     exit 2
   fi
   caller_json="$(cat "$evidence_file")"
-  evidence_note_text="$(TASK_ID="$task_id" COMMIT_SHA="$commit_sha" BRANCH="$branch" CURRENT_ROOT="$current_root" BASE_BRANCH="$base_branch" BASE_SHA="$base_sha" FILES_JSON="$files_status_json" CHECKS_JSON="$checks_json" CALLER_JSON="$caller_json" node -e '
+  evidence_note_text="$(TASK_ID="$task_id" COMMIT_SHA="$commit_sha" BRANCH="$branch" CURRENT_ROOT="$current_root" BASE_BRANCH="$base_branch" BASE_SHA="$base_sha" CUT_POINT_SHA="$cut_point_sha" EVIDENCE_BASE_SHA="$evidence_base_sha" BRANCH_CONTAINS_EVIDENCE_BASE="$branch_contains_evidence_base" FILES_JSON="$files_status_json" CHECKS_JSON="$checks_json" CALLER_JSON="$caller_json" node -e '
 const env = process.env;
 let caller = {};
 try { caller = JSON.parse(env.CALLER_JSON); } catch { caller = {}; }
@@ -135,6 +141,9 @@ const out = {
   worktree: typeof caller.worktree === "string" ? caller.worktree : env.CURRENT_ROOT,
   base_ref: typeof caller.base_ref === "string" ? caller.base_ref : env.BASE_BRANCH,
   base_sha: typeof caller.base_sha === "string" ? caller.base_sha : env.BASE_SHA,
+  cut_point_sha: typeof caller.cut_point_sha === "string" ? caller.cut_point_sha : env.CUT_POINT_SHA,
+  evidence_base_sha: typeof caller.evidence_base_sha === "string" ? caller.evidence_base_sha : env.EVIDENCE_BASE_SHA,
+  branch_contains_evidence_base: typeof caller.branch_contains_evidence_base === "boolean" ? caller.branch_contains_evidence_base : env.BRANCH_CONTAINS_EVIDENCE_BASE === "true",
   files: Array.isArray(caller.files) ? caller.files : files,
   checks: Array.isArray(caller.checks) ? caller.checks : checks,
 };
@@ -146,7 +155,7 @@ if (typeof process.send === "function") {
 }
 ')"
 else
-  evidence_note_text="$(TASK_ID="$task_id" COMMIT_SHA="$commit_sha" BRANCH="$branch" CURRENT_ROOT="$current_root" BASE_BRANCH="$base_branch" BASE_SHA="$base_sha" FILES_JSON="$files_status_json" CHECKS_JSON="$checks_json" node -e '
+  evidence_note_text="$(TASK_ID="$task_id" COMMIT_SHA="$commit_sha" BRANCH="$branch" CURRENT_ROOT="$current_root" BASE_BRANCH="$base_branch" BASE_SHA="$base_sha" CUT_POINT_SHA="$cut_point_sha" EVIDENCE_BASE_SHA="$evidence_base_sha" BRANCH_CONTAINS_EVIDENCE_BASE="$branch_contains_evidence_base" FILES_JSON="$files_status_json" CHECKS_JSON="$checks_json" node -e '
 const env = process.env;
 let files = [];
 try { files = JSON.parse(env.FILES_JSON); } catch { files = []; }
@@ -159,6 +168,9 @@ const out = {
   worktree: env.CURRENT_ROOT,
   base_ref: env.BASE_BRANCH,
   base_sha: env.BASE_SHA,
+  cut_point_sha: env.CUT_POINT_SHA,
+  evidence_base_sha: env.EVIDENCE_BASE_SHA,
+  branch_contains_evidence_base: env.BRANCH_CONTAINS_EVIDENCE_BASE === "true",
   files,
   checks,
 };
