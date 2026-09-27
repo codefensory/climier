@@ -8781,7 +8781,37 @@
     },
     {
       "path": "test/test-manifest.test.mjs",
+      "name": "test manifest checker accepts a moved file when source and destination names match",
+      "ordinal": 1,
+      "disposition": "keep",
+      "lane": "raw",
+      "category": "mention-only",
+      "motive": "carries the lane detector's fixture text; the file writes no state",
+      "replacement": "none needed"
+    },
+    {
+      "path": "test/test-manifest.test.mjs",
       "name": "test manifest checker rejects a declaration whose file no longer writes raw",
+      "ordinal": 1,
+      "disposition": "keep",
+      "lane": "raw",
+      "category": "mention-only",
+      "motive": "carries the lane detector's fixture text; the file writes no state",
+      "replacement": "none needed"
+    },
+    {
+      "path": "test/test-manifest.test.mjs",
+      "name": "test manifest checker rejects a move source with no rows",
+      "ordinal": 1,
+      "disposition": "keep",
+      "lane": "raw",
+      "category": "mention-only",
+      "motive": "carries the lane detector's fixture text; the file writes no state",
+      "replacement": "none needed"
+    },
+    {
+      "path": "test/test-manifest.test.mjs",
+      "name": "test manifest checker rejects a move with a different name multiset",
       "ordinal": 1,
       "disposition": "keep",
       "lane": "raw",
