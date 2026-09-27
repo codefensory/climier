@@ -205,7 +205,11 @@ test("App.jsx uses classifyWidth / sidebarWidthPx in its layout", () => {
 
 test("NAV_GROUPS ids and ROUTE_META ids stay in sync (existing route test)", () => {
   const grouped = new Set();
-  for (const g of NAV_GROUPS) for (const id of g.ids) grouped.add(id);
+  for (const g of NAV_GROUPS) {
+    for (const id of g.ids) {
+      grouped.add(id);
+    }
+  }
   for (const id of Object.keys(ROUTE_META)) {
     assert.ok(grouped.has(id), `ROUTE_META.${id} must appear in NAV_GROUPS`);
   }

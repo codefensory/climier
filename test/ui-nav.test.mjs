@@ -16,7 +16,7 @@ process.env.UI_JSX_GENERATE = "dom";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { pathToFileURL } from "node:url";
 import { createRequire, register } from "node:module";
 
 register(new URL("./jsx-loader.mjs", import.meta.url).href, import.meta.url);
@@ -79,8 +79,12 @@ async function waitFor(fn, ms = 2000, step = 10) {
   const deadline = Date.now() + ms;
   for (;;) {
     const v = fn();
-    if (v) return v;
-    if (Date.now() > deadline) throw new Error("waitFor: condition not met in time");
+    if (v) {
+      return v;
+    }
+    if (Date.now() > deadline) {
+      throw new Error("waitFor: condition not met in time");
+    }
     await new Promise((r) => setTimeout(r, step));
   }
 }
@@ -130,48 +134,56 @@ async function bootApp() {
   return { dispose, dom };
 }
 
+// Assert the global header mirrors the routed page: the title text, and none
+// of the chrome the redesign removed (brand icon, trailing project metadata,
+// bottom separator).
+function assertTopbar(title) {
+  assert.equal(
+    document.querySelector(".ui-shell-topbar h1")?.textContent.trim(),
+    title,
+    "global header shows the current page title",
+  );
+  assert.equal(
+    document.querySelector(".ui-shell-topbar .ui-brand-mark"),
+    null,
+    "global header title has no brand icon",
+  );
+  assert.equal(
+    document.querySelector(".ui-shell-topbar .ui-topbar-project"),
+    null,
+    "global header has no trailing project metadata",
+  );
+  assert.ok(
+    !document.querySelector(".ui-shell-topbar")?.className.includes("border-b"),
+    "global header has no bottom separator",
+  );
+}
+
+// Click a nav item the same way a user would (real bubbling MouseEvent).
+function clickNav(selector, dom) {
+  const link = document.querySelector(selector);
+  assert.ok(link, `${selector} nav item exists`);
+  link.dispatchEvent(
+    new dom.window.MouseEvent("click", { bubbles: true, cancelable: true, button: 0 }),
+  );
+}
+
 test("sidebar click switches the view without reload (regression)", { skip }, async () => {
   const { dispose, dom } = await bootApp();
   try {
     // Initial view is Overview and the global header mirrors the page title.
     assert.ok(document.querySelector('main[data-route="overview"]'), "starts on overview");
-    assert.equal(
-      document.querySelector(".ui-shell-topbar h1")?.textContent.trim(),
-      "Overview",
-      "global header shows the current page title",
-    );
-    assert.equal(
-      document.querySelector(".ui-shell-topbar .ui-brand-mark"),
-      null,
-      "global header title has no brand icon",
-    );
-    assert.equal(
-      document.querySelector(".ui-shell-topbar .ui-topbar-project"),
-      null,
-      "global header has no trailing project metadata",
-    );
-    assert.ok(
-      !document.querySelector(".ui-shell-topbar")?.className.includes("border-b"),
-      "global header has no bottom separator",
-    );
+    assertTopbar("Overview");
 
     // Click the Tasks nav item the same way a user would.
-    const tasksLink = document.querySelector('[data-route="tasks"]');
-    assert.ok(tasksLink, "tasks nav item exists");
-    tasksLink.dispatchEvent(
-      new dom.window.MouseEvent("click", { bubbles: true, cancelable: true, button: 0 }),
-    );
+    clickNav('[data-route="tasks"]', dom);
 
     // The view must switch in place — no reload.
     assert.ok(
       document.querySelector('main[data-route="tasks"]'),
       "main route flips to tasks after the click",
     );
-    assert.equal(
-      document.querySelector(".ui-shell-topbar h1")?.textContent.trim(),
-      "Tasks",
-      "global header follows the routed page title",
-    );
+    assertTopbar("Tasks");
     const tasksView = document.querySelector('[data-view="tasks"]');
     assert.ok(tasksView, "RouteView renders the tasks view after the click");
     assert.equal(
@@ -182,10 +194,7 @@ test("sidebar click switches the view without reload (regression)", { skip }, as
     assert.equal(dom.window.location.hash, "#/tasks", "hash is written for deep-link/back");
 
     // And navigation keeps working (back to Overview).
-    const overviewLink = document.querySelector('[data-route="overview"]');
-    overviewLink.dispatchEvent(
-      new dom.window.MouseEvent("click", { bubbles: true, cancelable: true, button: 0 }),
-    );
+    clickNav('[data-route="overview"]', dom);
     assert.ok(
       document.querySelector('[data-view="overview"]'),
       "navigating back to overview works",

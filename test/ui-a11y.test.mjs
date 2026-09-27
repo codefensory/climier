@@ -29,18 +29,16 @@ import {
   rmTempProject,
   writeState,
 } from "./helpers.mjs";
+import { compileJsxView, uiDepsInstalled } from "./ui-view-compiler.mjs";
 
 const UI_DIR = path.resolve("ui");
 const SERVER_FILE = path.resolve("ui/server/server.mjs");
-const UI_DEPS_OK =
-  fs.existsSync(path.resolve("ui/node_modules/express")) &&
-  fs.existsSync(path.resolve("ui/node_modules/solid-js")) &&
-  fs.existsSync(path.resolve("ui/node_modules/@babel/core"));
+// These fixture tests boot the real server, so express is required too.
+const UI_DEPS_OK = uiDepsInstalled && fs.existsSync(path.resolve("ui/node_modules/express"));
 const skip = UI_DEPS_OK ? false : "ui dependencies not installed (run npm install in ui/)";
 
 const serverMod = await import(pathToFileURL(SERVER_FILE).href);
 const UI_REQUIRE = createRequire(path.join(UI_DIR, "package.json"));
-const babel = UI_REQUIRE("@babel/core");
 
 async function startServer(projectDir) {
   const started = await serverMod.start({ projectDir, port: 0, log: () => {} });
@@ -89,95 +87,29 @@ test("stateReadAlert returns null when there is no state-read-error alert", () =
 // overview's grouped-alert helper stays generic; `pageAlerts` is the
 // view-level filter that drops shell-owned kinds.
 
-const tmpFiles = new Set();
-function rewriteJsxImports(src) {
-  let out = src;
-  out = out.replace(
-    /import\s*\{([^}]+)\}\s*from\s*["']\.\.\/store\.jsx["'];?/g,
-    (_m, names) => {
-      const list = names
-        .split(",")
-        .map((n) => n.trim())
-        .filter(Boolean);
-      const stubLines = list
-        .map((n) => {
-          if (n === "useStore") {
-            return `const useStore = () => ({ snapshot: () => null, select: () => {}, setRoute: () => {}, lastSuccessfulAt: () => null, refreshing: () => false, snapshotError: () => null });`;
-          }
-          return `const ${n} = () => null;`;
-        })
-        .join("\n");
-      return stubLines;
-    },
-  );
-  out = out.replace(
-    /import\s*\{([^}]+)\}\s*from\s*["']\.\.\/shell\.mjs["'];?/g,
-    (_m, names) => {
-      const list = names
-        .split(",")
-        .map((n) => n.trim())
-        .filter(Boolean);
-      const stubLines = list
-        .map((n) => (n === "projectDisplayName" ? `const projectDisplayName = () => "proj";` : `const ${n} = () => null;`))
-        .join("\n");
-      return stubLines;
-    },
-  );
-  out = out.replace(
-    /import\s*\{([^}]+)\}\s*from\s*["']\.\.\/components\.jsx["'];?/g,
-    (_m, names) => {
-      const list = names
-        .split(",")
-        .map((n) => n.trim())
-        .filter(Boolean);
-      const stubLines = list
-        .map((n) => {
-          if (n === "kindFor") {
-            return `const kindFor = (n) => { if (!n) return "task"; if (n.kind === "knowledge") return "knowledge"; if (n.subkind === "gate") return "gate"; return "task"; };`;
-          }
-          return `const ${n} = () => null;`;
-        })
-        .join("\n");
-      return stubLines;
-    },
-  );
-  return out;
-}
-
-async function compileJsx(file, rewrite, t) {
-  const rawSource = fs.readFileSync(file, "utf8");
-  const source = rewrite ? rewrite(rawSource) : rawSource;
-  const out = await babel.transformAsync(source, {
-    filename: file,
-    sourceType: "module",
-    presets: [
-      [UI_REQUIRE.resolve("babel-preset-solid"), { generate: "ssr", hydratable: false }],
-    ],
-  });
-  const dir = path.dirname(file);
-  const base = path.basename(file, ".jsx");
-  const tmp = path.join(dir, `.${base}.compiled.${process.pid}.${Date.now()}.mjs`);
-  fs.writeFileSync(tmp, out.code, "utf8");
-  tmpFiles.add(tmp);
-  const cleanup = () => {
-    tmpFiles.delete(tmp);
-    return fs.promises.unlink(tmp).catch(() => {});
-  };
-  if (t && typeof t.after === "function") t.after(cleanup);
-  const module = await import(pathToFileURL(tmp).href);
-  return { module, cleanup };
-}
-
-process.on("exit", () => {
-  for (const f of tmpFiles) {
-    try { fs.unlinkSync(f); } catch {}
-  }
-});
+// Stub tables for the two views compiled here. Overview needs the store,
+// shell and components stubs (see ui-overview-harness.mjs for the same table);
+// Activity only needs a hook-free store plus its api/components imports.
+const OVERVIEW_STUBS = [
+  ["../store.jsx", {
+    useStore: `const useStore = () => ({ snapshot: () => null, select: () => {}, setRoute: () => {}, lastSuccessfulAt: () => null, refreshing: () => false, snapshotError: () => null });`,
+  }],
+  ["../shell.mjs", {
+    projectDisplayName: `const projectDisplayName = () => "proj";`,
+  }],
+  ["../components.jsx", {
+    kindFor: `const kindFor = (n) => { if (!n) return "task"; if (n.kind === "knowledge") return "knowledge"; if (n.subkind === "gate") return "gate"; return "task"; };`,
+  }],
+];
 
 const OVERVIEW_FILE = path.join(UI_DIR, "src", "views", "Overview.jsx");
 
+function compileOverview(t) {
+  return compileJsxView(OVERVIEW_FILE, { stubs: OVERVIEW_STUBS, t });
+}
+
 test("Overview.jsx exports pageAlerts and it drops shell-level alerts", { skip }, async (t) => {
-  const { module: mod } = await compileJsx(OVERVIEW_FILE, rewriteJsxImports, t);
+  const { module: mod } = await compileOverview(t);
   assert.equal(typeof mod.pageAlerts, "function", "pageAlerts must be exported");
   const alerts = [
     { kind: "stale-claim", severity: "warning", node_id: "T1", message: "stale" },
@@ -198,39 +130,25 @@ test("Overview.jsx exports pageAlerts and it drops shell-level alerts", { skip }
 // reachable, correct accessible name). We extract `ActivityRow` so the
 // contract is testable without a DOM.
 
-function rewriteActivityImports(src) {
-  let out = src;
-  out = out.replace(
-    /import\s*\{([^}]+)\}\s*from\s*["']\.\.\/store\.jsx["'];?/g,
-    () => "const useStore = () => ({ select: () => {} });",
-  );
-  out = out.replace(
-    /import\s*\{([^}]+)\}\s*from\s*["']\.\.\/api\.js["'];?/g,
-    () => "const getActivity = async () => ({ entries: [], total: 0, facets: { actions: [], agents: [] } });",
-  );
-  out = out.replace(
-    /import\s*\{([^}]+)\}\s*from\s*["']\.\.\/components\.jsx["'];?/g,
-    (_m, names) => {
-      const list = names
-        .split(",")
-        .map((n) => n.trim())
-        .filter(Boolean);
-      const stubLines = list
-        .map((n) => {
-          if (n === "fmtTime") return `const fmtTime = () => "just now";`;
-          return `const ${n} = () => null;`;
-        })
-        .join("\n");
-      return stubLines;
-    },
-  );
-  return out;
-}
+// Activity needs the whole named import replaced (its store/api stubs ignore
+// the imported names), so this table carries one stub per module rather than
+// per export.
+const ACTIVITY_STUBS = [
+  ["../store.jsx", { useStore: "const useStore = () => ({ select: () => {} });" }],
+  ["../api.js", { getActivity: "const getActivity = async () => ({ entries: [], total: 0, facets: { actions: [], agents: [] } });" }],
+  ["../components.jsx", {
+    fmtTime: `const fmtTime = () => "just now";`,
+  }],
+];
 
 const ACTIVITY_FILE = path.join(UI_DIR, "src", "views", "Activity.jsx");
 
+function compileActivity(t) {
+  return compileJsxView(ACTIVITY_FILE, { stubs: ACTIVITY_STUBS, t });
+}
+
 test("Activity.jsx exports ActivityRow with a real expand/collapse button", { skip }, async (t) => {
-  const { module: mod } = await compileJsx(ACTIVITY_FILE, rewriteActivityImports, t);
+  const { module: mod } = await compileActivity(t);
   assert.equal(typeof mod.ActivityRow, "function", "ActivityRow must be exported for keyboard testing");
   const { renderToString } = await UI_REQUIRE("solid-js/web");
 
@@ -352,9 +270,10 @@ function sparseState() {
 function bigState(count = 200) {
   const nodes = {};
   const edges = [];
+  const initiativeNames = ["alpha", "beta", "gamma"];
   for (let i = 0; i < count; i++) {
     const id = `B-${String(i).padStart(3, "0")}`;
-    const initiative = i % 3 === 0 ? "alpha" : i % 3 === 1 ? "beta" : "gamma";
+    const initiative = initiativeNames[i % 3];
     nodes[id] = {
       id,
       kind: "resolvable",
@@ -364,7 +283,9 @@ function bigState(count = 200) {
       status: "open",
       revision: 1,
     };
-    if (i > 0) edges.push({ from: `B-${String(i - 1).padStart(3, "0")}`, to: id, type: "BLOCKS" });
+    if (i > 0) {
+      edges.push({ from: `B-${String(i - 1).padStart(3, "0")}`, to: id, type: "BLOCKS" });
+    }
   }
   nodes["B-GATE"] = { id: "B-GATE", kind: "resolvable", subkind: "gate", title: "Fixture gate", initiative: "alpha", status: "open", purpose: "decision", revision: 1 };
   nodes["B-KNOW"] = { id: "B-KNOW", kind: "knowledge", title: "Fixture knowledge", initiative: "beta", status: "active", knowledge_type: "fact", revision: 1 };

@@ -19,7 +19,6 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { pathToFileURL } from "node:url";
 import path from "node:path";
 import fs from "node:fs";
 
@@ -103,7 +102,11 @@ test("every id in NAV_GROUPS exists in ROUTE_META and is unique", () => {
 
 test("every ROUTE_META id appears in exactly one NAV_GROUPS bucket", () => {
   const grouped = new Set();
-  for (const g of NAV_GROUPS) for (const id of g.ids) grouped.add(id);
+  for (const g of NAV_GROUPS) {
+    for (const id of g.ids) {
+      grouped.add(id);
+    }
+  }
   for (const id of Object.keys(ROUTE_META)) {
     assert.ok(grouped.has(id), `ROUTE_META.${id} is not in any NAV_GROUPS bucket`);
   }

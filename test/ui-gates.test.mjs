@@ -25,6 +25,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { createRequire } from "node:module";
+import { stubJsxImports } from "./ui-jsx-stubs.mjs";
 
 const UI_DIR = path.resolve("ui");
 const UI_REQUIRE = createRequire(path.join(UI_DIR, "package.json"));
@@ -45,49 +46,22 @@ const skip = UI_DEPS_OK ? false : "ui dependencies not installed (run npm instal
 // groupAndSortGates) live at module scope, so this rewriting does not
 // affect them.
 const tmpFiles = new Set();
+// Stub store imports — every named export is a callable that returns
+// empty/null signals when invoked as a hook — and components imports, which
+// are no-op components returning null except for the kind helper the view
+// calls during render. Every other name falls back to `() => null` in
+// ui-jsx-stubs.mjs.
+const JSX_STUBS = [
+  ["../store.jsx", {
+    useStore: `const useStore = () => ({ snapshot: () => null, select: () => {}, lastSuccessfulAt: () => null, refreshing: () => false });`,
+  }],
+  ["../components.jsx", {
+    kindFor: `const kindFor = (n) => { if (!n) return "task"; if (n.kind === "knowledge") return "knowledge"; if (n.subkind === "gate") return "gate"; return "task"; };`,
+  }],
+];
+
 function rewriteJsxImports(src) {
-  // Replace `import { a, b } from "../store.jsx"` (or components.jsx) with
-  // stubs that always return inert values. We only stub what the view
-  // actually references; anything else is replaced with a Proxy that
-  // returns proxy components for any access.
-  let out = src;
-  // Stub store imports — every named export is a callable that returns
-  // empty/null signals when invoked as a hook.
-  out = out.replace(
-    /import\s*\{([^}]+)\}\s*from\s*["']\.\.\/store\.jsx["'];?/g,
-    (_m, names) => {
-      const list = names
-        .split(",")
-        .map((n) => n.trim())
-        .filter(Boolean);
-      const stubLines = list
-        .map((n) => {
-          if (n === "useStore") return `const useStore = () => ({ snapshot: () => null, select: () => {}, lastSuccessfulAt: () => null, refreshing: () => false });`;
-          return `const ${n} = () => null;`;
-        })
-        .join("\n");
-      return stubLines;
-    },
-  );
-  // Stub components imports — every named export is a no-op component that
-  // returns null when rendered.
-  out = out.replace(
-    /import\s*\{([^}]+)\}\s*from\s*["']\.\.\/components\.jsx["'];?/g,
-    (_m, names) => {
-      const list = names
-        .split(",")
-        .map((n) => n.trim())
-        .filter(Boolean);
-      const stubLines = list
-        .map((n) => {
-          if (n === "kindFor") return `const kindFor = (n) => { if (!n) return "task"; if (n.kind === "knowledge") return "knowledge"; if (n.subkind === "gate") return "gate"; return "task"; };`;
-          return `const ${n} = () => null;`;
-        })
-        .join("\n");
-      return stubLines;
-    },
-  );
-  return out;
+  return stubJsxImports(src, JSX_STUBS);
 }
 async function compileGates(t) {
   const rawSource = fs.readFileSync(GATES_FILE, "utf8");
@@ -107,7 +81,9 @@ async function compileGates(t) {
     tmpFiles.delete(file);
     return fs.promises.unlink(file).catch(() => {});
   };
-  if (t && typeof t.after === "function") t.after(cleanup);
+  if (t && typeof t.after === "function") {
+    t.after(cleanup);
+  }
   const module = await import(pathToFileURL(file).href);
   return { module, cleanup };
 }
@@ -156,7 +132,7 @@ test("downstreamImpact counts BLOCKS edges whose target is still actionable", { 
   };
   const result = mod.downstreamImpact(edges, "G1", nodes);
   assert.equal(result.length, 2, `expected 2 actionable targets (T1, T2) — got ${result.length}`);
-  const targets = result.map((e) => e.to).sort();
+  const targets = result.map((e) => e.to).toSorted();
   assert.deepEqual(targets, ["T1", "T2"]);
 });
 
@@ -241,6 +217,12 @@ test("isOpenGate treats missing status as 'open'", { skip }, async (t) => {
 
 // --- groupAndSortGates ---------------------------------------------------
 
+// Map a returned gate group back to a stable { name, ids } shape so the
+// assertions do not depend on the node objects the view carries.
+function toGroupSummary({ initiative: name, gates: list }) {
+  return { name, ids: list.map((gate) => gate.id) };
+}
+
 test("groupAndSortGates groups by initiative; open gates come first within a group", { skip }, async (t) => {
   const { module: mod } = await compileGates(t);
   const edges = [];
@@ -252,10 +234,7 @@ test("groupAndSortGates groups by initiative; open gates come first within a gro
   const gates = [gA1, gA2, gB1, gNone];
   const groups = mod.groupAndSortGates(gates, edges, nodes);
   // Map back to [{initiative, ids}] for stable comparison.
-  const summary = groups.map(({ initiative: name, gates: list }) => ({
-    name,
-    ids: list.map((g) => g.id),
-  }));
+  const summary = groups.map(toGroupSummary);
   // Within alpha: open G-A2 before resolved G-A1.
   const alpha = summary.find((s) => s.name === "alpha");
   assert.ok(alpha, `alpha group must exist, got ${JSON.stringify(summary)}`);

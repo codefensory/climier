@@ -70,7 +70,9 @@ async function compileFinder(t) {
     tmpFiles.delete(file);
     return fs.promises.unlink(file).catch(() => {});
   };
-  if (t && typeof t.after === "function") t.after(cleanup);
+  if (t && typeof t.after === "function") {
+    t.after(cleanup);
+  }
   const mod = await import(pathToFileURL(file).href + `?ts=${Date.now()}`);
   return { mod, cleanup };
 }
@@ -114,7 +116,7 @@ function resultFixture() {
 
 test("Finder pure helpers: group order, flat indices, keyboard math", { skip }, async (t) => {
   const { mod } = await compileFinder(t);
-  const { groupedResults, flattenResults, nextItemIndex } = mod;
+  const { groupedResults, flattenResults } = mod;
 
   // Group order is fixed (Tasks, Gates, Knowledge); empty groups drop out.
   const res = { gates: [node("G-1", { subkind: "gate" })], knowledge: [], tasks: [node("T-1")] };
@@ -332,7 +334,7 @@ test("/api/search groups tasks/gates/knowledge and hides deprecated by default",
   t.after(() => closeServer(server));
 
   const body = await getJson(`${base}/api/search?q=auth`);
-  assert.deepEqual(Object.keys(body).sort(), ["gates", "knowledge", "tasks"]);
+  assert.deepEqual(Object.keys(body).toSorted(), ["gates", "knowledge", "tasks"]);
   assert.ok(Array.isArray(body.tasks) && Array.isArray(body.gates) && Array.isArray(body.knowledge));
   assert.ok(body.tasks.length > 0, `tasks group should have hits: ${JSON.stringify(body)}`);
   assert.ok(body.gates.length > 0, `gates group should have hits: ${JSON.stringify(body)}`);

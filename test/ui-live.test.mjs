@@ -41,13 +41,25 @@ async function getJson(url) {
   return r.json();
 }
 
-test("snapshot and node endpoints reflect state mutations without restart", { skip }, async (t) => {
+// Boot the live server against a fresh temp project: create the dir, run
+// `prepare` (for fixtures that must exist before the state file), write
+// `state`, start the server, and register both cleanups with the test.
+async function startLiveProject(t, { state, prepare } = {}) {
   const dir = await createTempProject();
   t.after(() => rmTempProject(dir));
-  await writeState(dir, exampleState());
-
+  if (prepare) {
+    await prepare(dir);
+  }
+  if (state) {
+    await writeState(dir, state);
+  }
   const { base, server } = await startServer(dir);
   t.after(() => closeServer(server));
+  return { dir, base, server };
+}
+
+test("snapshot and node endpoints reflect state mutations without restart", { skip }, async (t) => {
+  const { dir, base } = await startLiveProject(t, { state: exampleState() });
 
   const before = await getJson(`${base}/api/snapshot`);
   assert.equal(before.project.initialized, true);
@@ -72,11 +84,8 @@ test("snapshot and node endpoints reflect state mutations without restart", { sk
 });
 
 test("snapshot picks up a project initialized while the server runs", { skip }, async (t) => {
-  const dir = await createTempProject();
-  t.after(() => rmTempProject(dir));
   // No state file yet: the project starts uninitialized.
-  const { base, server } = await startServer(dir);
-  t.after(() => closeServer(server));
+  const { dir, base } = await startLiveProject(t);
 
   const before = await getJson(`${base}/api/snapshot`);
   assert.equal(before.project.initialized, false);
@@ -89,12 +98,7 @@ test("snapshot picks up a project initialized while the server runs", { skip }, 
 });
 
 test("corrupt state mid-run serves last good snapshot with a state-read-error alert", { skip }, async (t) => {
-  const dir = await createTempProject();
-  t.after(() => rmTempProject(dir));
-  await writeState(dir, exampleState());
-
-  const { base, server } = await startServer(dir);
-  t.after(() => closeServer(server));
+  const { dir, base } = await startLiveProject(t, { state: exampleState() });
 
   // Corrupt the state file behind the running server's back.
   await fs.promises.writeFile(stateFilePath(dir), "{ not json", "utf8");
@@ -113,12 +117,7 @@ function withClaim(state, id, claim) {
 }
 
 test("open gate derived_status is 'open' (not 'ready')", { skip }, async (t) => {
-  const dir = await createTempProject();
-  t.after(() => rmTempProject(dir));
-  await writeState(dir, exampleState());
-
-  const { base, server } = await startServer(dir);
-  t.after(() => closeServer(server));
+  const { base } = await startLiveProject(t, { state: exampleState() });
 
   // D1 is an open decision gate in the example fixture.
   const node = await getJson(`${base}/api/node/D1`);
@@ -126,17 +125,12 @@ test("open gate derived_status is 'open' (not 'ready')", { skip }, async (t) => 
 });
 
 test("stale-claim alert uses claim.at (not claim.ts)", { skip }, async (t) => {
-  const dir = await createTempProject();
-  t.after(() => rmTempProject(dir));
   const baseState = exampleState();
   const staleAt = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString();
   // Stale-claim alerts only fire on in_progress tasks (per the plan: a
   // done task with an old claim is not stale work). Set the status too.
   baseState.nodes["F0.T1"].status = "in_progress";
-  await writeState(dir, withClaim(baseState, "F0.T1", { by: "alice", at: staleAt }));
-
-  const { base, server } = await startServer(dir);
-  t.after(() => closeServer(server));
+  const { base } = await startLiveProject(t, { state: withClaim(baseState, "F0.T1", { by: "alice", at: staleAt }) });
 
   const snap = await getJson(`${base}/api/snapshot`);
   const stale = snap.alerts.find((a) => a.kind === "stale-claim");
@@ -147,14 +141,9 @@ test("stale-claim alert uses claim.at (not claim.ts)", { skip }, async (t) => {
 });
 
 test("summary includes placeholders, archived, open_decisions and counts zero when missing", { skip }, async (t) => {
-  const dir = await createTempProject();
-  t.after(() => rmTempProject(dir));
   // exampleState has multiple placeholders (F2.OPEN..F9.OPEN) and decision
   // gates (D1..D4), so placeholders > 0, open_decisions = 4.
-  await writeState(dir, exampleState());
-
-  const { base, server } = await startServer(dir);
-  t.after(() => closeServer(server));
+  const { base } = await startLiveProject(t, { state: exampleState() });
 
   const snap = await getJson(`${base}/api/snapshot`);
   assert.ok(snap.summary, "summary must exist");
@@ -170,8 +159,6 @@ test("summary includes placeholders, archived, open_decisions and counts zero wh
 });
 
 test("refs come back as structured objects {target,type,source}", { skip }, async (t) => {
-  const dir = await createTempProject();
-  t.after(() => rmTempProject(dir));
   const baseState = exampleState();
   // Mix: a structured ref, a bare string ref, and a body that references a doc path.
   baseState.nodes["F0.T1"].refs = [
@@ -179,10 +166,7 @@ test("refs come back as structured objects {target,type,source}", { skip }, asyn
     "docs/notes.md",
   ];
   baseState.nodes["F0.T1"].body = "see docs/from-body.md for the design";
-  await writeState(dir, baseState);
-
-  const { base, server } = await startServer(dir);
-  t.after(() => closeServer(server));
+  const { base } = await startLiveProject(t, { state: baseState });
 
   const node = await getJson(`${base}/api/node/F0.T1`);
   assert.ok(Array.isArray(node.refs));
@@ -202,18 +186,13 @@ test("refs come back as structured objects {target,type,source}", { skip }, asyn
 });
 
 test("recent_activity entries expose node_id and node_title for add-node events", { skip }, async (t) => {
-  const dir = await createTempProject();
-  t.after(() => rmTempProject(dir));
   const baseState = exampleState();
   const ts = new Date().toISOString();
   baseState.log = [
     ...baseState.log,
     { action: "add-node", node: "F2.OPEN", agent: "bob", ts, note: "added placeholder" },
   ];
-  await writeState(dir, baseState);
-
-  const { base, server } = await startServer(dir);
-  t.after(() => closeServer(server));
+  const { base } = await startLiveProject(t, { state: baseState });
 
   const snap = await getJson(`${base}/api/snapshot`);
   const last = snap.recent_activity[snap.recent_activity.length - 1];
@@ -223,20 +202,17 @@ test("recent_activity entries expose node_id and node_title for add-node events"
 });
 
 test("project_id is read from .climier.json metadata", { skip }, async (t) => {
-  const dir = await createTempProject();
-  t.after(() => rmTempProject(dir));
   // The meta file must exist BEFORE the state file so the global state
   // path resolves to the same project_id the meta advertises. Otherwise
   // writeState falls back to the default (hash-of-dir) project id and
   // the server reads from a different path than we wrote.
-  await fs.promises.writeFile(
-    path.join(dir, ".climier.json"),
-    JSON.stringify({ version: 1, project_id: "abcdef1234567890" }),
-  );
-  await writeState(dir, exampleState());
-
-  const { base, server } = await startServer(dir);
-  t.after(() => closeServer(server));
+  const { base } = await startLiveProject(t, {
+    state: exampleState(),
+    prepare: (dir) => fs.promises.writeFile(
+      path.join(dir, ".climier.json"),
+      JSON.stringify({ version: 1, project_id: "abcdef1234567890" }),
+    ),
+  });
 
   const snap = await getJson(`${base}/api/snapshot`);
   assert.equal(snap.project.initialized, true);
@@ -244,12 +220,7 @@ test("project_id is read from .climier.json metadata", { skip }, async (t) => {
 });
 
 test("initiative_summary breaks down totals by kind", { skip }, async (t) => {
-  const dir = await createTempProject();
-  t.after(() => rmTempProject(dir));
-  await writeState(dir, exampleState());
-
-  const { base, server } = await startServer(dir);
-  t.after(() => closeServer(server));
+  const { base } = await startLiveProject(t, { state: exampleState() });
 
   const snap = await getJson(`${base}/api/snapshot`);
   assert.ok(Array.isArray(snap.initiative_summary));
@@ -266,23 +237,20 @@ test("initiative_summary breaks down totals by kind", { skip }, async (t) => {
 // --- Phase 5D Track D: Activity endpoint (q, initiative, facets) ---------
 
 test("activity endpoint supports q filter (substring across note/agent/action/node)", { skip }, async (t) => {
-  const dir = await createTempProject();
-  t.after(() => rmTempProject(dir));
   const baseState = exampleState();
   baseState.log = [
     { action: "add-note", node: "F0.T1", agent: "alice", ts: new Date().toISOString(), note: "first discovery" },
     { action: "take", node: "F0.T2", agent: "bob", ts: new Date().toISOString(), note: "F0.T2" },
     { action: "resolve", node: "F0.T3", agent: "alice", ts: new Date().toISOString(), note: "shipped to staging" },
   ];
-  await writeState(dir, baseState);
-
-  const { base, server } = await startServer(dir);
-  t.after(() => closeServer(server));
+  const { base } = await startLiveProject(t, { state: baseState });
 
   // q matches against agent
   const r1 = await getJson(`${base}/api/activity?q=alice`);
   assert.equal(r1.total, 2, "q=alice must match the two entries with agent=alice");
-  for (const e of r1.entries) assert.equal(e.agent, "alice");
+  for (const e of r1.entries) {
+    assert.equal(e.agent, "alice");
+  }
 
   // q matches against note text
   const r2 = await getJson(`${base}/api/activity?q=staging`);
@@ -296,8 +264,6 @@ test("activity endpoint supports q filter (substring across note/agent/action/no
 });
 
 test("activity endpoint supports initiative filter (against the node's initiative)", { skip }, async (t) => {
-  const dir = await createTempProject();
-  t.after(() => rmTempProject(dir));
   const baseState = exampleState();
   // Two entries, two different initiatives.
   baseState.nodes["F0.T1"].initiative = "alpha";
@@ -306,10 +272,7 @@ test("activity endpoint supports initiative filter (against the node's initiativ
     { action: "take", node: "F0.T1", agent: "alice", ts: new Date().toISOString(), note: "F0.T1" },
     { action: "take", node: "F0.T2", agent: "bob", ts: new Date().toISOString(), note: "F0.T2" },
   ];
-  await writeState(dir, baseState);
-
-  const { base, server } = await startServer(dir);
-  t.after(() => closeServer(server));
+  const { base } = await startLiveProject(t, { state: baseState });
 
   const r = await getJson(`${base}/api/activity?initiative=alpha`);
   assert.equal(r.total, 1);
@@ -321,8 +284,6 @@ test("activity endpoint supports initiative filter (against the node's initiativ
 });
 
 test("activity endpoint returns facets for actions and agents (derived from the log)", { skip }, async (t) => {
-  const dir = await createTempProject();
-  t.after(() => rmTempProject(dir));
   const baseState = exampleState();
   // Custom action that would NOT exist in a fixed list of actions.
   baseState.log = [
@@ -333,10 +294,7 @@ test("activity endpoint returns facets for actions and agents (derived from the 
     // A future / custom action must still appear in facets.
     { action: "import-batch", node: "F0.T1", agent: "importer", ts: new Date().toISOString(), note: "bulk import" },
   ];
-  await writeState(dir, baseState);
-
-  const { base, server } = await startServer(dir);
-  t.after(() => closeServer(server));
+  const { base } = await startLiveProject(t, { state: baseState });
 
   const r = await getJson(`${base}/api/activity`);
   assert.ok(r.facets, "response must include facets");
@@ -352,18 +310,13 @@ test("activity endpoint returns facets for actions and agents (derived from the 
 });
 
 test("activity node_title is read from the current state (not from the log entry)", { skip }, async (t) => {
-  const dir = await createTempProject();
-  t.after(() => rmTempProject(dir));
   const baseState = exampleState();
   baseState.log = [
     { action: "take", node: "F0.T1", agent: "alice", ts: new Date().toISOString(), note: "F0.T1" },
   ];
   // Rename the node AFTER the log entry was written.
   baseState.nodes["F0.T1"].title = "Renamed skeleton task";
-  await writeState(dir, baseState);
-
-  const { base, server } = await startServer(dir);
-  t.after(() => closeServer(server));
+  const { base } = await startLiveProject(t, { state: baseState });
 
   const r = await getJson(`${base}/api/activity`);
   const entry = r.entries.find((e) => e.node_id === "F0.T1");
@@ -372,17 +325,12 @@ test("activity node_title is read from the current state (not from the log entry
 });
 
 test("activity entry for an unknown node has node_id set but node_title null", { skip }, async (t) => {
-  const dir = await createTempProject();
-  t.after(() => rmTempProject(dir));
   const baseState = exampleState();
   // Log entry pointing at a node that does not exist in state.nodes.
   baseState.log = [
     { action: "take", node: "GHOST", agent: "alice", ts: new Date().toISOString(), note: "GHOST" },
   ];
-  await writeState(dir, baseState);
-
-  const { base, server } = await startServer(dir);
-  t.after(() => closeServer(server));
+  const { base } = await startLiveProject(t, { state: baseState });
 
   const r = await getJson(`${base}/api/activity`);
   assert.equal(r.entries.length, 1);
@@ -393,9 +341,7 @@ test("activity entry for an unknown node has node_id set but node_title null", {
 // --- Phase 5D Track D: normalize log writes so the UI can open the detail -
 
 test("add-node (real CLI path) writes a log entry with `node` so the UI can open the detail", { skip }, async (t) => {
-  const dir = await createTempProject();
-  t.after(() => rmTempProject(dir));
-  await initExampleProject(dir);
+  const { dir, base } = await startLiveProject(t, { prepare: (projectDir) => initExampleProject(projectDir) });
 
   const r = await runCli([
     "--project", dir,
@@ -413,9 +359,6 @@ test("add-node (real CLI path) writes a log entry with `node` so the UI can open
   assert.ok(logEntry, "add-node must write a log entry");
   assert.equal(logEntry.node, "T-new", "log entry must carry node=T-new so the UI can navigate");
 
-  const { base, server } = await startServer(dir);
-  t.after(() => closeServer(server));
-
   const activity = await getJson(`${base}/api/activity?action=add-node`);
   const entry = activity.entries.find((e) => e.note === "T-new");
   assert.ok(entry);
@@ -424,9 +367,7 @@ test("add-node (real CLI path) writes a log entry with `node` so the UI can open
 });
 
 test("add-edge (real CLI path) writes a log entry with `node` for activity linking", { skip }, async (t) => {
-  const dir = await createTempProject();
-  t.after(() => rmTempProject(dir));
-  await initExampleProject(dir);
+  const { dir, base } = await startLiveProject(t, { prepare: (projectDir) => initExampleProject(projectDir) });
 
   const r = await runCli([
     "--project", dir,
@@ -441,9 +382,6 @@ test("add-edge (real CLI path) writes a log entry with `node` for activity linki
   assert.ok(logEntry, "add-edge must write a log entry");
   assert.ok(logEntry.node, "add-edge log entry must carry a node so the activity list links to it");
 
-  const { base, server } = await startServer(dir);
-  t.after(() => closeServer(server));
-
   const activity = await getJson(`${base}/api/activity?action=add-edge`);
   assert.ok(activity.entries.length >= 1, "add-edge must surface in the activity endpoint");
   for (const e of activity.entries) {
@@ -452,12 +390,7 @@ test("add-edge (real CLI path) writes a log entry with `node` for activity linki
 });
 
 test("GET endpoints never mutate the live state file", { skip }, async (t) => {
-  const dir = await createTempProject();
-  t.after(() => rmTempProject(dir));
-  await writeState(dir, exampleState());
-
-  const { base, server } = await startServer(dir);
-  t.after(() => closeServer(server));
+  const { dir, base } = await startLiveProject(t, { state: exampleState() });
 
   // Fire a handful of reads; the file mtime must not change.
   const stateFile = stateFilePath(dir);

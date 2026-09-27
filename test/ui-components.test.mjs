@@ -24,22 +24,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
 import { createRequire } from "node:module";
+import { compileJsxView, uiSkip as skip } from "./ui-view-compiler.mjs";
 
-// Babel + the solid preset live in the UI subproject's node_modules (the CLI
-// itself stays stdlib-only). Resolve them relative to that subproject rather
-// than the repo root, so this test never adds a dependency to the CLI.
+// The UI subproject owns babel + the solid preset (the CLI itself stays
+// stdlib-only), so we resolve both through ui/package.json. The compile
+// harness does the same for every view-level test.
 const UI_DIR = path.resolve("ui");
 const UI_REQUIRE = createRequire(path.join(UI_DIR, "package.json"));
-const babel = UI_REQUIRE("@babel/core");
 
 const COMPONENTS_FILE = path.join(UI_DIR, "src", "components.jsx");
-const UI_DEPS_OK = fs.existsSync(path.join(UI_DIR, "node_modules", "solid-js"))
-  && fs.existsSync(path.join(UI_DIR, "node_modules", "@babel", "core"));
-const skip = UI_DEPS_OK ? false : "ui dependencies not installed (run npm install in ui/)";
 
 // Primitives required by the Fase 2 F2b contract (task body + ui/DESIGN.md §4).
 const REQUIRED_EXPORTS = [
@@ -72,47 +67,13 @@ const LEGACY_EXPORTS = [
   "lastActionLabel",
 ];
 
-// Transform components.jsx with babel + the solid preset and write the
-// result to a tmp file inside ui/src so its relative imports of solid-js/web
-// resolve through the UI's node_modules. Returns { module, cleanup } where
-// cleanup removes the tmp file. A fresh tmp file per test keeps the module
-// cache from serving stale output across iterations.
-//
-// Each test is responsible for calling cleanup(); we register a t.after()
-// at the helper level too as a safety net so a failing assertion doesn't
-// leave the file lying around for the next run to trip over.
-const tmpFiles = new Set();
-async function compileComponents(t) {
-  const source = fs.readFileSync(COMPONENTS_FILE, "utf8");
-  const out = await babel.transformAsync(source, {
-    filename: COMPONENTS_FILE,
-    sourceType: "module",
-    // Resolve the preset through the same UI-local require so we don't
-    // depend on the CLI having @babel/* on its NODE_PATH.
-    presets: [[UI_REQUIRE.resolve("babel-preset-solid"), { generate: "ssr", hydratable: false }]],
-  });
-  // Drop the file inside ui/src so node module resolution finds
-  // ui/node_modules for the relative `import "solid-js/web"`.
-  const dir = path.join(UI_DIR, "src");
-  const file = path.join(dir, `.components.compiled.${process.pid}.${Date.now()}.mjs`);
-  fs.writeFileSync(file, out.code, "utf8");
-  tmpFiles.add(file);
-  const cleanup = () => {
-    tmpFiles.delete(file);
-    return fs.promises.unlink(file).catch(() => {});
-  };
-  if (t && typeof t.after === "function") t.after(cleanup);
-  const module = await import(pathToFileURL(file).href);
-  return { module, cleanup };
+// Compile components.jsx into a tmp module inside ui/src so its relative
+// `solid-js/web` import resolves through the UI's node_modules. See
+// ui-view-compiler.mjs: a fresh tmp file per test keeps the module cache from
+// serving stale output, and the harness unlinks it when the test ends.
+function compileComponents(t) {
+  return compileJsxView(COMPONENTS_FILE, { t });
 }
-
-// Best-effort cleanup at process exit so a crashed test run doesn't pollute
-// the working tree with .components.compiled.*.mjs files.
-process.on("exit", () => {
-  for (const f of tmpFiles) {
-    try { fs.unlinkSync(f); } catch {}
-  }
-});
 
 test("components.jsx exists and exports every required primitive", { skip }, async (t) => {
   assert.ok(fs.existsSync(COMPONENTS_FILE), `${COMPONENTS_FILE} must exist`);
@@ -215,12 +176,10 @@ test("MetricCard renders <button> only when onClick is provided", { skip }, asyn
   assert.ok(btnHtml.includes('aria-label="Ready"'), "clickable MetricCard must expose an accessible name");
 });
 
-test("Controls and cards comply with the visual contract", { skip }, async (t) => {
+test("IconButton is square, reaches the 36 px floor and is labelled twice over", { skip }, async (t) => {
   const { module: mod } = await compileComponents(t);
   const { renderToString } = await UI_REQUIRE("solid-js/web");
 
-  // IconButton: must be square (not pill), must have min 36 px hit area,
-  // must surface the label via aria-label and title.
   const icon = renderToString(() => mod.IconButton({ label: "Close", onClick: () => {} }, "<span>×</span>"));
   assert.ok(icon.includes("h-9"), `IconButton md size must hit the 36 px floor (h-9): ${icon}`);
   assert.ok(icon.includes("w-9"), `IconButton md size must be square (w-9): ${icon}`);
@@ -228,28 +187,38 @@ test("Controls and cards comply with the visual contract", { skip }, async (t) =
   assert.ok(!icon.includes("rounded-full"), `IconButton must never be a pill: ${icon}`);
   assert.ok(icon.includes('aria-label="Close"'), "IconButton must expose its label to assistive tech");
   assert.ok(icon.includes('title="Close"'), "IconButton must expose its label as a tooltip");
+});
 
-  // Panel: cards are radius 12, no shadow by default; drawer/popovers opt in.
+test("Panel uses card radius and only casts a shadow when elevated", { skip }, async (t) => {
+  const { module: mod } = await compileComponents(t);
+  const { renderToString } = await UI_REQUIRE("solid-js/web");
+
   const panel = renderToString(() => mod.Panel({ title: "Tasks" }, "<div>body</div>"));
   assert.ok(panel.includes("rounded-card"), `Panel must use card radius: ${panel}`);
   assert.ok(!panel.includes("shadow"), `Panel without elevated must not have a shadow: ${panel}`);
 
   const drawer = renderToString(() => mod.Panel({ title: "Drawer", elevated: true }, "<div>body</div>"));
   assert.ok(drawer.includes("shadow-md"), `Panel elevated must add a shadow: ${drawer}`);
+});
 
-  // FilterBar: must reach the 36 px control floor.
+test("FilterBar reaches the 36 px floor and only offers Clear filters with onClear", { skip }, async (t) => {
+  const { module: mod } = await compileComponents(t);
+  const { renderToString } = await UI_REQUIRE("solid-js/web");
+
   const fb = renderToString(() => mod.FilterBar({ label: "Filters" }, "<button>x</button>"));
   assert.ok(fb.includes("min-h-[36px]"), `FilterBar must enforce the 36 px control floor: ${fb}`);
+  assert.ok(!fb.includes("Clear filters"), `FilterBar without onClear must not show Clear filters: ${fb}`);
 
-  // FilterBar: Clear filters button appears only when onClear is provided.
-  const noClear = renderToString(() => mod.FilterBar({ label: "Filters" }, "<button>x</button>"));
-  assert.ok(!noClear.includes("Clear filters"), `FilterBar without onClear must not show Clear filters: ${noClear}`);
   const withClear = renderToString(() =>
     mod.FilterBar({ label: "Filters", onClear: () => {} }, "<button>x</button>")
   );
   assert.ok(withClear.includes("Clear filters"), `FilterBar with onClear must show Clear filters: ${withClear}`);
+});
 
-  // NodeRow: must reach the 36 px floor when interactive.
+test("NodeRow reaches the 36 px floor, advertises the cursor and carries the focus ring", { skip }, async (t) => {
+  const { module: mod } = await compileComponents(t);
+  const { renderToString } = await UI_REQUIRE("solid-js/web");
+
   const row = renderToString(() =>
     mod.NodeRow({ node: { id: "T-1", title: "Build", status: "ready" }, onClick: () => {} })
   );
