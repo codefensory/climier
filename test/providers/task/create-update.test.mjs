@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { expectThrows, importTaskProvider, makeInputCreate, makeInputUpdate, makeRequest, makeSnapshot, makeTxStub } from "./task-fixtures.mjs";
+import { expectThrows, importTaskProvider, makeInputCreate, makeInputUpdate, makeRequest, makeSnapshot, makeTxStub, runTaskCreateApplyTest, assertTaskUpdatePatchResult } from "./task-fixtures.mjs";
 
 test("task.create prepare: returns a frozen plan with target, policyAction and logAction", async () => {
   const { taskCreateProvider } = await importTaskProvider();
@@ -197,36 +197,7 @@ test("task.create apply: composes task + BLOCKS edges atomically through tx only
   const tx = makeTxStub({ initialNodes: snapshot.nodes });
   const out = await taskCreateProvider.apply({ tx, plan, input, request, snapshot });
 
-  // createNode called exactly once with the new task node
-  assert.equal(tx.calls.createNode.length, 1);
-  const created = tx.calls.createNode[0];
-  assert.equal(created.id, "T-x");
-  assert.equal(created.kind, "resolvable");
-  assert.equal(created.subkind, "task");
-  assert.equal(created.title, "do thing");
-  assert.equal(created.body, "details");
-  assert.equal(created.acceptance, "done when ok");
-  assert.equal(created.initiative, "foo");
-  assert.equal(created.status, "open");
-  // apply MUST NOT carry revision; the kernel assigns it
-  assert.equal("revision" in created, false, "apply must not carry revision on createNode input");
-
-  // BLOCKS edges added in canonical direction (blocker -> blocked)
-  assert.equal(tx.calls.addEdge.length, 2);
-  assert.deepEqual(tx.calls.addEdge[0], { from: "T-a", to: "T-x", type: "BLOCKS" });
-  assert.deepEqual(tx.calls.addEdge[1], { from: "T-b", to: "T-x", type: "BLOCKS" });
-
-  // No updateNode/removeEdge should fire on create
-  assert.equal(tx.calls.updateNode.length, 0);
-  assert.equal(tx.calls.removeEdge.length, 0);
-
-  // Result is the new task shape (without revision) plus the new edges
-  assert.equal(out.result.id, "T-x");
-  assert.deepEqual(out.result.added_edges, [
-    { from: "T-a", to: "T-x", type: "BLOCKS" },
-    { from: "T-b", to: "T-x", type: "BLOCKS" },
-  ]);
-  assert.equal(out.effects, null);
+  runTaskCreateApplyTest({ tx, out });
 });
 
 test("task.create apply: no-blockers input produces a single createNode with zero edges", async () => {
@@ -386,22 +357,7 @@ test("task.update apply: tx.updateNode only, never carries revision", async () =
   const tx = makeTxStub({ existingNode: existing });
   const out = await taskUpdateProvider.apply({ tx, plan, input, request, snapshot });
 
-  // tx.updateNode called exactly once with the normalized patch
-  assert.equal(tx.calls.updateNode.length, 1);
-  const upd = tx.calls.updateNode[0];
-  assert.equal(upd.id, "T-x");
-  assert.deepEqual(upd.patch, { title: "new", body: "b2" });
-  // patch must NOT carry revision
-  assert.equal("revision" in upd.patch, false, "apply must not carry revision on updateNode patch");
-  // No node creation / edges on a pure patch
-  assert.equal(tx.calls.createNode.length, 0);
-  assert.equal(tx.calls.addEdge.length, 0);
-  assert.equal(tx.calls.removeEdge.length, 0);
-  // Result returns the merged shape without revision
-  assert.equal(out.result.id, "T-x");
-  assert.equal(out.result.title, "new");
-  assert.equal("revision" in out.result, false, "result must not carry revision");
-  assert.deepEqual(out.result.added_edges, []);
+  assertTaskUpdatePatchResult({ tx, out });
 });
 
 test("task.update apply: adds new BLOCKS edges when blocked_by is supplied", async () => {

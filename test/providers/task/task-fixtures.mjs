@@ -28,8 +28,12 @@ export function makeSnapshot({ nodes = {}, edges = [], initiatives = { foo: { de
 
 export function makeRequest({ action, input, actor = ACTOR, if_revision, if_revisions } = {}) {
   const request = { action, actor, input };
-  if (if_revision !== undefined) request.if_revision = if_revision;
-  if (if_revisions !== undefined) request.if_revisions = if_revisions;
+  if (if_revision !== undefined) {
+    request.if_revision = if_revision;
+  }
+  if (if_revisions !== undefined) {
+    request.if_revisions = if_revisions;
+  }
   return request;
 }
 
@@ -54,18 +58,7 @@ export function makeInputUpdate(overrides = {}) {
   };
 }
 
-// makeTxStub — captures createNode / updateNode / addEdge / removeEdge
-// / view calls. The provider must mutate only via these accessors; this
-// stub exposes the same shape as src/kernel/transaction.mjs's draft.
-// `initialNodes` is the draft's starting map (typically the snapshot's
-// nodes for update paths, or empty for create paths). `existingNode` is
-// retained as a backwards-compatible shorthand for tests that only need
-// to seed the target.
-export function makeTxStub({ existingNode, initialNodes } = {}) {
-  const created = [];
-  const updated = [];
-  const addedEdges = [];
-  const removedEdges = [];
+function cloneNodes(initialNodes) {
   const nodes = {};
   if (initialNodes && typeof initialNodes === "object") {
     for (const [id, node] of Object.entries(initialNodes)) {
@@ -74,95 +67,171 @@ export function makeTxStub({ existingNode, initialNodes } = {}) {
       nodes[id] = cloned;
     }
   }
+  return nodes;
+}
+
+function makeTxState({ existingNode, initialNodes }) {
+  const nodes = cloneNodes(initialNodes);
   if (existingNode) {
     nodes[existingNode.id] = { ...existingNode };
     delete nodes[existingNode.id].revision;
   }
+  return { nodes, created: [], updated: [], addedEdges: [], removedEdges: [] };
+}
+
+function createNode(calls, state, input) {
+  calls.createNode.push(input);
+  state.nodes[input.id] = { ...input };
+  delete state.nodes[input.id].revision;
+  state.created.push({ id: input.id, node: { ...state.nodes[input.id] } });
+  return { ...state.nodes[input.id] };
+}
+
+function updateNode(calls, state, id, patch) {
+  calls.updateNode.push({ id, patch });
+  const current = state.nodes[id];
+  if (!current) {
+    const err = new Error(`txStub: node ${id} not found`);
+    err.code = "NODE_NOT_FOUND";
+    throw err;
+  }
+  if ("revision" in patch) {
+    const err = new Error(`txStub: patch for ${id} must not carry 'revision'`);
+    err.code = "INVALID_EXECUTION_CONTRACT";
+    throw err;
+  }
+  state.nodes[id] = { ...current, ...patch };
+  delete state.nodes[id].revision;
+  state.updated.push({ id, node: { ...state.nodes[id] } });
+  return { ...state.nodes[id] };
+}
+
+function requireEdgeNodes(state, edge) {
+  const fromNode = state.nodes[edge.from];
+  const toNode = state.nodes[edge.to];
+  if (!fromNode || !toNode) {
+    const missing = !fromNode ? edge.from : edge.to;
+    const err = new Error(`txStub: edge ${edge.type} ${edge.from} -> ${edge.to} references missing node '${missing}'`);
+    err.code = "INVALID_EDGE_TARGET";
+    err.details = { from: edge.from, to: edge.to, type: edge.type, missing };
+    throw err;
+  }
+  return { fromNode, toNode };
+}
+
+function rejectSelfEdge(edge) {
+  if (edge.from === edge.to) {
+    const err = new Error(`txStub: edge ${edge.from} -> ${edge.to} is a self-edge`);
+    err.code = "SELF_EDGE";
+    err.details = { from: edge.from, to: edge.to, type: edge.type };
+    throw err;
+  }
+}
+
+function rejectInvalidBlocks({ fromNode, toNode, edge }) {
+  if (edge.type === "BLOCKS" && (fromNode.kind !== "resolvable" || toNode.kind !== "resolvable")) {
+    const err = new Error("txStub: BLOCKS requires both ends to be resolvable");
+    err.code = "INVALID_EDGE_KIND";
+    err.details = { from: edge.from, to: edge.to, type: edge.type };
+    throw err;
+  }
+}
+
+function rejectDuplicateEdge(state, edge) {
+  const duplicate = state.addedEdges.some((item) => (
+    item.from === edge.from && item.to === edge.to && item.type === edge.type
+  ));
+  if (duplicate) {
+    const err = new Error(`txStub: edge ${edge.type} ${edge.from} -> ${edge.to} already exists`);
+    err.code = "DUPLICATE_EDGE";
+    err.details = { from: edge.from, to: edge.to, type: edge.type };
+    throw err;
+  }
+}
+
+function addEdge(calls, state, edge) {
+  const nodes = requireEdgeNodes(state, edge);
+  rejectSelfEdge(edge);
+  rejectInvalidBlocks({ ...nodes, edge });
+  rejectDuplicateEdge(state, edge);
+  calls.addEdge.push(edge);
+  state.addedEdges.push(edge);
+  return { ...edge };
+}
+
+function view(state) {
+  const nodes = {};
+  for (const [id, node] of Object.entries(state.nodes)) {
+    nodes[id] = { ...node };
+    delete nodes[id].revision;
+  }
+  return { nodes, edges: state.addedEdges.slice() };
+}
+
+// makeTxStub — captures transaction accessor calls. It mirrors the test
+// surface of src/kernel/transaction.mjs without exposing provider internals.
+export function makeTxStub({ existingNode, initialNodes } = {}) {
+  const calls = { createNode: [], updateNode: [], addEdge: [], removeEdge: [], view: 0 };
+  const state = makeTxState({ existingNode, initialNodes });
   return {
-    calls: { createNode: [], updateNode: [], addEdge: [], removeEdge: [], view: 0 },
-    state: { nodes, created, updated, addedEdges, removedEdges },
+    calls,
+    state,
     getNode(id) {
-      return this.state.nodes[id] ? { ...this.state.nodes[id] } : undefined;
+      return state.nodes[id] ? { ...state.nodes[id] } : undefined;
     },
     createNode(input) {
-      this.calls.createNode.push(input);
-      this.state.nodes[input.id] = { ...input };
-      delete this.state.nodes[input.id].revision;
-      this.state.created.push({ id: input.id, node: { ...this.state.nodes[input.id] } });
-      return { ...this.state.nodes[input.id] };
+      return createNode(calls, state, input);
     },
     updateNode(id, patch) {
-      this.calls.updateNode.push({ id, patch });
-      const cur = this.state.nodes[id];
-      if (!cur) {
-        const err = new Error(`txStub: node ${id} not found`);
-        err.code = "NODE_NOT_FOUND";
-        throw err;
-      }
-      if ("revision" in patch) {
-        const err = new Error(`txStub: patch for ${id} must not carry 'revision'`);
-        err.code = "INVALID_EXECUTION_CONTRACT";
-        throw err;
-      }
-      this.state.nodes[id] = { ...cur, ...patch };
-      delete this.state.nodes[id].revision;
-      this.state.updated.push({ id, node: { ...this.state.nodes[id] } });
-      return { ...this.state.nodes[id] };
+      return updateNode(calls, state, id, patch);
     },
     addEdge(edge) {
-      // Mirror src/kernel/transaction.mjs#addEdge structural validation
-      // so the provider's `apply` can rely on tx.addEdge to enforce
-      // self-edge / missing-target / kind / duplicate / type contracts
-      // without duplicating that logic in the provider.
-      const fromNode = this.state.nodes[edge.from];
-      const toNode = this.state.nodes[edge.to];
-      if (!fromNode || !toNode) {
-        const missing = !fromNode ? edge.from : edge.to;
-        const err = new Error(`txStub: edge ${edge.type} ${edge.from} -> ${edge.to} references missing node '${missing}'`);
-        err.code = "INVALID_EDGE_TARGET";
-        err.details = { from: edge.from, to: edge.to, type: edge.type, missing };
-        throw err;
-      }
-      if (edge.from === edge.to) {
-        const err = new Error(`txStub: edge ${edge.from} -> ${edge.to} is a self-edge`);
-        err.code = "SELF_EDGE";
-        err.details = { from: edge.from, to: edge.to, type: edge.type };
-        throw err;
-      }
-      if (edge.type === "BLOCKS") {
-        if (fromNode.kind !== "resolvable" || toNode.kind !== "resolvable") {
-          const err = new Error(`txStub: BLOCKS requires both ends to be resolvable`);
-          err.code = "INVALID_EDGE_KIND";
-          err.details = { from: edge.from, to: edge.to, type: edge.type };
-          throw err;
-        }
-      }
-      const dup = this.state.addedEdges.some((e) => e.from === edge.from && e.to === edge.to && e.type === edge.type);
-      if (dup) {
-        const err = new Error(`txStub: edge ${edge.type} ${edge.from} -> ${edge.to} already exists`);
-        err.code = "DUPLICATE_EDGE";
-        err.details = { from: edge.from, to: edge.to, type: edge.type };
-        throw err;
-      }
-      this.calls.addEdge.push(edge);
-      this.state.addedEdges.push(edge);
-      return { ...edge };
+      return addEdge(calls, state, edge);
     },
     removeEdge(edge) {
-      this.calls.removeEdge.push(edge);
-      this.state.removedEdges.push(edge);
+      calls.removeEdge.push(edge);
+      state.removedEdges.push(edge);
       return { ...edge };
     },
     view() {
-      this.calls.view += 1;
-      const nodesOut = {};
-      for (const [id, node] of Object.entries(this.state.nodes)) {
-        nodesOut[id] = { ...node };
-        delete nodesOut[id].revision;
-      }
-      return { nodes: nodesOut, edges: this.state.addedEdges.slice() };
+      calls.view += 1;
+      return view(state);
     },
   };
+}
+
+export function runTaskCreateApplyTest({ tx, out }) {
+  const created = tx.calls.createNode[0];
+  assert.equal(tx.calls.createNode.length, 1);
+  assert.deepEqual(
+    Object.fromEntries(["id", "kind", "subkind", "title", "body", "acceptance", "initiative", "status"].map((key) => [key, created[key]])),
+    {
+      id: "T-x", kind: "resolvable", subkind: "task", title: "do thing",
+      body: "details", acceptance: "done when ok", initiative: "foo", status: "open",
+    },
+  );
+  assert.equal("revision" in created, false, "apply must not carry revision on createNode input");
+  assert.deepEqual(tx.calls.addEdge, [
+    { from: "T-a", to: "T-x", type: "BLOCKS" },
+    { from: "T-b", to: "T-x", type: "BLOCKS" },
+  ]);
+  assert.equal(tx.calls.updateNode.length + tx.calls.removeEdge.length, 0);
+  assert.equal(out.result.id, "T-x");
+  assert.deepEqual(out.result.added_edges, tx.calls.addEdge);
+  assert.equal(out.effects, null);
+}
+
+export function assertTaskUpdatePatchResult({ tx, out }) {
+  assert.equal(tx.calls.updateNode.length, 1);
+  const update = tx.calls.updateNode[0];
+  assert.equal(update.id, "T-x");
+  assert.deepEqual(update.patch, { title: "new", body: "b2" });
+  assert.equal("revision" in update.patch, false, "apply must not carry revision on updateNode patch");
+  assert.equal(tx.calls.createNode.length + tx.calls.addEdge.length + tx.calls.removeEdge.length, 0);
+  assert.equal(out.result.id, "T-x");
+  assert.equal(out.result.title, "new");
+  assert.equal("revision" in out.result, false, "result must not carry revision");
+  assert.deepEqual(out.result.added_edges, []);
 }
 
 // expectThrows — assert the async function throws, surfacing the
