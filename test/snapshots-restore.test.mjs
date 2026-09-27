@@ -1058,7 +1058,9 @@ test("CLI: snapshots rejects unknown flags via bin", async () => {
     assert.notEqual(r.code, 0);
     const data = JSON.parse(r.stdout);
     assert.equal(data.ok, false);
-    assert.match(data.error.message || data.error, /unknown flag/);
+    assert.equal(data.error.code, "CLI_USAGE_ERROR");
+    assert.equal(data.error.details.command, "snapshots");
+    assert.equal(data.error.details.flag, "bogus");
   } finally {
     await rmTempProject(dir);
   }

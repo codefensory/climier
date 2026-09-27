@@ -226,7 +226,7 @@ testWithEnv("bin: unknown command exits 2 with `unknown command '<x>'` JSON",asy
 env.projectDir,"nosuchplugin"]);
 assert.equal(r.code,2,r.stderr);
 const data=JSON.parse(r.stdout);
-assert.match(data.error,/unknown command 'nosuchplugin'/)});
+assert.equal(data.error.code,"CLI_USAGE_ERROR");assert.equal(data.error.details.command,"nosuchplugin")});
 testWithEnv("bin: node id passed as `climier show <id>` still works when <id> collides with a plugin namespace",
 async env=>{const dir=env.projectDir;
 let r=await runCli(["--project",dir,"init"]);
@@ -274,7 +274,7 @@ testWithEnv("bin: unknown namespace preserves exit 2 with `unknown command '<x>'
 env.projectDir,"nosuchplugin","sub"]);
 assert.equal(r.code,2,r.stderr);
 const data=JSON.parse(r.stdout);
-assert.match(data.error,/unknown command 'nosuchplugin'/)});
+assert.equal(data.error.code,"CLI_USAGE_ERROR");assert.equal(data.error.details.command,"nosuchplugin")});
 testWithEnv("bin: handler promise rejection produces PLUGIN_HANDLER_FAILED envelope with exit 1",async env=>{await seedInstalledPlugin(env.home,
 "audit");
 const r=await runCli(["--project",env.projectDir,"audit","thrower"]);
