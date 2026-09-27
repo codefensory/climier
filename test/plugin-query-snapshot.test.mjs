@@ -8,43 +8,39 @@ import {
   writeState,
 } from "./helpers.mjs";
 
+const SNAPSHOT_NODES = {
+  "T-z": {
+    id: "T-z",
+    kind: "resolvable",
+    subkind: "task",
+    status: "open",
+    plugins: {
+      "plugin.a": { data: { node: "a" } },
+      "plugin.b": { data: { secret: "b" } },
+    },
+  },
+  "T-a": {
+    id: "T-a",
+    kind: "resolvable",
+    subkind: "task",
+    status: "done",
+    plugins: { "plugin.a": { data: { node: "a2" } } },
+  },
+  "G-open": { id: "G-open", kind: "resolvable", subkind: "gate", status: "open" },
+};
+const SNAPSHOT_EDGES = [
+  { from: "T-z", to: "T-a", type: "DERIVED_FROM" },
+  { from: "G-open", to: "T-z", type: "BLOCKS" },
+  { from: "T-a", to: "T-z", type: "SUPERSEDES" },
+];
+
 function snapshotState() {
   return {
     version: 4,
     revision: 17,
     initiatives: {},
-    nodes: {
-      "T-z": {
-        id: "T-z",
-        kind: "resolvable",
-        subkind: "task",
-        status: "open",
-        plugins: {
-          "plugin.a": { data: { node: "a" } },
-          "plugin.b": { data: { secret: "b" } },
-        },
-      },
-      "T-a": {
-        id: "T-a",
-        kind: "resolvable",
-        subkind: "task",
-        status: "done",
-        plugins: {
-          "plugin.a": { data: { node: "a2" } },
-        },
-      },
-      "G-open": {
-        id: "G-open",
-        kind: "resolvable",
-        subkind: "gate",
-        status: "open",
-      },
-    },
-    edges: [
-      { from: "T-z", to: "T-a", type: "DERIVED_FROM" },
-      { from: "G-open", to: "T-z", type: "BLOCKS" },
-      { from: "T-a", to: "T-z", type: "SUPERSEDES" },
-    ],
+    nodes: structuredClone(SNAPSHOT_NODES),
+    edges: structuredClone(SNAPSHOT_EDGES),
     plugins: {
       "plugin.b": { data: { secret: "project-b" }, meta: { private: true } },
       "plugin.a": { data: { project: "a" }, meta: { private: false } },

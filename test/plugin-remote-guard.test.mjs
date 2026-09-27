@@ -19,8 +19,8 @@ async function withPluginHome(run) {
   try {
     return await run(home);
   } finally {
-    if (previous === undefined) delete process.env.CLIMIER_HOME;
-    else process.env.CLIMIER_HOME = previous;
+    if (previous === undefined) {delete process.env.CLIMIER_HOME;}
+    else {process.env.CLIMIER_HOME = previous;}
     await fs.rm(home, { recursive: true, force: true });
   }
 }
@@ -30,13 +30,24 @@ function assertRemoteUnsupported(error) {
   assert.equal(error?.details?.backend, "remote");
 }
 
-test("plugin factories reject remote backends before filesystem access", async () => {
-  const projectDir = await createTempProject();
+async function createRemoteFactories(projectDir) {
   const { createApi } = await importFresh("./plugins/api.mjs");
   const { createQuery } = await importFresh("./plugins/query.mjs");
   const { createData } = await importFresh("./plugins/data.mjs");
   const { createCore } = await importFresh("./plugins/core-adapter.mjs");
   const { createRuntime } = await importFresh("./plugins/runtime.mjs");
+  return [
+    ["createApi", () => createApi({ projectDir, agent: "alice", pluginId: "example.audit", backendClient: remote })],
+    ["createQuery", () => createQuery({ projectDir, agent: "alice", pluginId: "example.audit", backendClient: remote })],
+    ["createData", () => createData({ projectDir, agent: "alice", pluginId: "example.audit", backendClient: remote })],
+    ["createCore", () => createCore({ projectDir, agent: "alice", pluginId: "example.audit", backendClient: remote })],
+    ["createRuntime", () => createRuntime({ projectDir, agent: "alice", pluginId: "example.audit", backendClient: remote })],
+  ];
+}
+
+async function runRemoteFactoryGuard() {
+  const projectDir = await createTempProject();
+  const factories = await createRemoteFactories(projectDir);
   const originalReadFileSync = fsSync.readFileSync;
   const originalMkdirSync = fsSync.mkdirSync;
   let readFileCalls = 0;
@@ -51,14 +62,6 @@ test("plugin factories reject remote backends before filesystem access", async (
   };
 
   try {
-    const factories = [
-      ["createApi", () => createApi({ projectDir, agent: "alice", pluginId: "example.audit", backendClient: remote })],
-      ["createQuery", () => createQuery({ projectDir, agent: "alice", pluginId: "example.audit", backendClient: remote })],
-      ["createData", () => createData({ projectDir, agent: "alice", pluginId: "example.audit", backendClient: remote })],
-      ["createCore", () => createCore({ projectDir, agent: "alice", pluginId: "example.audit", backendClient: remote })],
-      ["createRuntime", () => createRuntime({ projectDir, agent: "alice", pluginId: "example.audit", backendClient: remote })],
-    ];
-
     for (const [name, factory] of factories) {
       assert.throws(factory, (error) => {
         assertRemoteUnsupported(error);
@@ -73,10 +76,11 @@ test("plugin factories reject remote backends before filesystem access", async (
     fsSync.mkdirSync = originalMkdirSync;
     await rmTempProject(projectDir);
   }
-});
+}
 
-test("plugin dispatch rejects remote backend before plugin loading", async () => {
-  await withPluginHome(async (home) => {
+test("plugin factories reject remote backends before filesystem access", () => runRemoteFactoryGuard());
+
+async function assertRemoteDispatchRejected(home) {
     const { dispatchPlugin } = await importFresh("./plugins/dispatch.mjs");
     const installedRoot = path.join(home, "plugins", "installed");
     await assert.rejects(
@@ -92,11 +96,11 @@ test("plugin dispatch rejects remote backend before plugin loading", async () =>
       },
     );
     await assert.rejects(fs.access(installedRoot), (error) => error.code === "ENOENT");
-  });
-});
+}
 
-test("plugin dispatch forwards backend context into the API factory", async () => {
-  await withPluginHome(async (home) => {
+test("plugin dispatch rejects remote backend before plugin loading", () => withPluginHome(assertRemoteDispatchRejected));
+
+async function assertPluginDispatchBackendForwarded(home) {
     const projectDir = await fs.mkdtemp(path.join(os.tmpdir(), "climier-remote-dispatch-project-"));
     try {
       const installedRoot = path.join(home, "plugins", "installed", "fixture");
@@ -124,8 +128,9 @@ test("plugin dispatch forwards backend context into the API factory", async () =
     } finally {
       await fs.rm(projectDir, { recursive: true, force: true });
     }
-  });
-});
+}
+
+test("plugin dispatch forwards backend context into the API factory", () => withPluginHome(assertPluginDispatchBackendForwarded));
 
 test("plugin CLI dispatch forwards its resolved backend client into plugin dispatch", async () => {
   const projectDir = await createTempProject();
