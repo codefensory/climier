@@ -29,7 +29,20 @@ export function supersededBy(state, id) {
 
 function isSatisfiedNode(node, state, id, seen) {
   if (node.subkind === "task") {
-    return SATISFIED_TASK_STATUSES.has(node.status || "open");
+    const status = node.status || "open";
+    if (SATISFIED_TASK_STATUSES.has(status)) {
+      return true;
+    }
+    if (status !== "canceled") {
+      return false;
+    }
+    const nextId = supersededBy(state, id);
+    if (!nextId) {
+      return false;
+    }
+    const nextSeen = new Set(seen);
+    nextSeen.add(id);
+    return isSatisfiedV2(state, nextId, nextSeen);
   }
   if (node.subkind !== "gate") {
     return false;
@@ -53,9 +66,9 @@ function isSatisfiedNode(node, state, id, seen) {
 /**
  * Whether a node satisfies a BLOCKS dependency.
  *
- * Unknown nodes and knowledge nodes are intentionally unsatisfied. A
- * superseded gate follows its replacement chain, with cycle protection so a
- * malformed graph remains blocked instead of overflowing the stack.
+ * Unknown nodes and knowledge nodes are intentionally unsatisfied. Superseded
+ * gates and canceled tasks with replacements follow their chains, with cycle
+ * protection so malformed graphs remain blocked instead of overflowing.
  */
 export function isSatisfiedV2(state, id, seen = new Set()) {
   const node = nodesOf(state)[id];
