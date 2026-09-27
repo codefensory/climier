@@ -87,4 +87,3 @@ export async function operation(baseUrl, projectId, operation, input, actor = "a
     body: JSON.stringify({ operation, input, actor }),
   });
 }
-
