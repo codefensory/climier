@@ -170,6 +170,30 @@ test("choice/rationale are validated as applicable pairs", async () => {
   assert.deepEqual(plan.node.resolution, { choice: "A", rationale: "because" });
 });
 
+function assertSupersedeEffects({ plan, view, result, effects, snapshot, before }) {
+  assert.equal(plan.logAction, "supersede");
+  assert.equal(plan.logNote, "G-B supersedes G-A");
+  assert.deepEqual(plan.affected, ["G-A"]);
+  assert.deepEqual(plan.if_revisions, { kind: "multi", values: { "G-A": 2 } });
+  assert.equal(view.nodes["G-B"].id, "G-B");
+  assert.equal(view.nodes["G-A"].status, "superseded");
+  assert.equal("revision" in view.nodes["G-A"], false);
+  assert.ok(edgeExists(view.edges, "G-B", "G-A", "SUPERSEDES"));
+  assert.ok(edgeExists(view.edges, "T1", "G-B", "BLOCKS"));
+  assert.ok(edgeExists(view.edges, "T2", "G-B", "BLOCKS"));
+  assert.ok(!edgeExists(view.edges, "T1", "G-A", "BLOCKS"));
+  assert.ok(!edgeExists(view.edges, "T2", "G-A", "BLOCKS"));
+  assert.ok(edgeExists(view.edges, "G-A", "T2", "BLOCKS"));
+  assert.equal(result.superseded.status, "superseded");
+  assert.equal(effects.superseded, "G-A");
+  assert.deepEqual(effects.blockers_rewritten, [
+    { blocker: "T1", from: "G-A", to: "G-B" },
+    { blocker: "T2", from: "G-A", to: "G-B" },
+  ]);
+  assert.deepEqual(effects.affected, ["G-A"]);
+  assert.deepEqual(snapshot, before);
+}
+
 test("supersede rewrites incoming blockers atomically across multiple nodes", async () => {
   const snapshot = baseSnapshot();
   snapshot.edges.push({ from: "T2", to: "G-A", type: "BLOCKS" });
@@ -179,33 +203,8 @@ test("supersede rewrites incoming blockers atomically across multiple nodes", as
     validInput({ supersedes: "G-A", if_revisions: { "G-A": 2 } }),
   );
 
-  assert.equal(plan.logAction, "supersede");
-  assert.equal(plan.logNote, "G-B supersedes G-A");
-  assert.deepEqual(plan.affected, ["G-A"]);
-  assert.deepEqual(plan.if_revisions, { kind: "multi", values: { "G-A": 2 } });
-
-  // multi-node draft: new gate + superseded gate, no revision touched.
-  assert.equal(view.nodes["G-B"].id, "G-B");
-  assert.equal(view.nodes["G-A"].status, "superseded");
-  assert.equal("revision" in view.nodes["G-A"], false);
-
-  // blockers of the old gate now block the new gate; dependents keep pointing
-  // at the superseded gate (the v2 derivation walks the SUPERSEDES chain).
-  assert.ok(edgeExists(view.edges, "G-B", "G-A", "SUPERSEDES"));
-  assert.ok(edgeExists(view.edges, "T1", "G-B", "BLOCKS"));
-  assert.ok(edgeExists(view.edges, "T2", "G-B", "BLOCKS"));
-  assert.ok(!edgeExists(view.edges, "T1", "G-A", "BLOCKS"));
-  assert.ok(!edgeExists(view.edges, "T2", "G-A", "BLOCKS"));
-  assert.ok(edgeExists(view.edges, "G-A", "T2", "BLOCKS"));
-
-  assert.equal(result.superseded.status, "superseded");
-  assert.equal(effects.superseded, "G-A");
-  assert.deepEqual(effects.blockers_rewritten, [
-    { blocker: "T1", from: "G-A", to: "G-B" },
-    { blocker: "T2", from: "G-A", to: "G-B" },
-  ]);
-  assert.deepEqual(effects.affected, ["G-A"]);
-  assert.deepEqual(snapshot, before);
+  // multi-node draft: rewrite blocker edges and preserve the source snapshot.
+  assertSupersedeEffects({ plan, view, result, effects, snapshot, before });
 });
 
 test("supersede collapses a rewrite that would duplicate a planned blocker", async () => {
