@@ -6106,6 +6106,12 @@
       "disposition": "keep"
     },
     {
+      "path": "test/provider-task-supersession-cli.test.mjs",
+      "name": "CLI status and context project replacement-chain readiness from an isolated CLIMIER_HOME",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
       "path": "test/provider-task-supersession.test.mjs",
       "name": "canceled task follows a two-hop replacement chain to a done task",
       "ordinal": 1,

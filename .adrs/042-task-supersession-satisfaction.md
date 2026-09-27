@@ -23,5 +23,6 @@ Una tarea cancelada que conserva una arista `BLOCKS` hacia una dependiente la de
 ## Verificación
 
 - Siete pruebas con snapshots literales cubren reemplazo `done` y `archived`, reemplazo abierto, ausencia de reemplazo, cadena de dos saltos, ciclo y comportamiento existente de gates/knowledge.
-- La integración del corte añade `T-v1-schema-bootstrap SUPERSEDES T-v1-single-writer`; el contexto de `T-v1-lane-retiro` deja de mostrar esa tarea cancelada en `blocking[]` y conserva solo sus bloqueadores realmente abiertos.
+- Una prueba E2E en proyecto y `CLIMIER_HOME` temporales verifica `status` y `context` con reemplazo satisfecho y con reemplazo abierto.
+- La confirmación sobre el grafo vivo es un paso del dueño posterior a la promoción del trunk integrado al plano de control. El binario de coordinación reside en un checkout separado y su proyección no adopta esta semántica antes de esa promoción; por eso esta comprobación no es evidencia de la task.
 - La suite completa se ejecuta en un entorno limpio con las variables remotas de Climier sin definir.
