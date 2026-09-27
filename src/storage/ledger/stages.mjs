@@ -11,8 +11,37 @@ export function sha256(value) {
   return crypto.createHash("sha256").update(value).digest("hex");
 }
 
+export function assertFencedMigrationSource(state, ledger) {
+  if (!state || state.version !== 5
+      || !ledger || !Number.isInteger(ledger.fence_generation)
+      || !Number.isInteger(ledger.high_water_revision)
+      || state.fence_generation !== ledger.fence_generation
+      || !Number.isInteger(state.revision) || state.revision !== ledger.high_water_revision
+      || maxNodeRevision(state) > ledger.high_water_revision) {
+    const error = new Error("ledger: fenced migration source and revision ledger are inconsistent");
+    error.code = "CLIMIER_LEDGER_STATE_MISMATCH";
+    throw error;
+  }
+  validateStateInvariants(state, "ledger.migrate.source");
+  return state;
+}
+
+export function hasFencedSchemaMigrationEntry(state) {
+  return Array.isArray(state?.log) && state.log.some((entry) => entry?.action === "migrate"
+    && entry?.agent === "migrate" && entry?.from_version === 5 && entry?.to_version === 1);
+}
+
+export function isSchemaMigratedState(state, ledger) {
+  return state?.version === 1
+    && state.fence_generation === ledger?.fence_generation
+    && Number.isInteger(state.revision)
+    && state.revision === ledger?.high_water_revision
+    && hasFencedSchemaMigrationEntry(state);
+}
+
 export function assertFencedState(state, ledger) {
-  if (!state || !isFencedStateVersion(state.version)
+  const canonicalMigration = isSchemaMigratedState(state, ledger);
+  if (!state || (!isFencedStateVersion(state.version) && !canonicalMigration)
       || state.fence_generation !== ledger.fence_generation
       || !Number.isInteger(state.revision) || state.revision !== ledger.high_water_revision
       || maxNodeRevision(state) > ledger.high_water_revision) {
@@ -21,6 +50,43 @@ export function assertFencedState(state, ledger) {
     throw error;
   }
   validateStateInvariants(state, "ledger.read");
+}
+
+export function assertSchemaMigratedState(state, ledger, expectedRevision) {
+  if (state?.version !== 1
+      || state.fence_generation !== ledger?.fence_generation
+      || state.revision !== expectedRevision
+      || state.revision !== ledger?.high_water_revision
+      || !hasFencedSchemaMigrationEntry(state)
+      || maxNodeRevision(state) > ledger.high_water_revision) {
+    const error = new Error("ledger: schema migration state and revision ledger are inconsistent");
+    error.code = "CLIMIER_LEDGER_STATE_MISMATCH";
+    throw error;
+  }
+  validateStateInvariants(state, "ledger.schema-migration");
+  return state;
+}
+
+export function assertSchemaMigrationDestination(source, destination, sourceLedger, destinationLedger) {
+  assertFencedMigrationSource(source, sourceLedger);
+  assertSchemaMigratedState(destination, destinationLedger, destinationLedger.high_water_revision);
+  const { version: _version, revision: _revision, log: _log, ...sourceData } = source;
+  const { version: _destinationVersion, revision: _destinationRevision, log: _destinationLog, ...destinationData } = destination;
+  if (JSON.stringify(sourceData) !== JSON.stringify(destinationData)
+      || destination.log.length !== source.log.length + 1
+      || JSON.stringify(destination.log.slice(0, -1)) !== JSON.stringify(source.log)) {
+    const error = new Error("ledger: schema migration changed data outside schema, revision, and migration log");
+    error.code = "CLIMIER_LEDGER_STATE_MISMATCH";
+    throw error;
+  }
+  for (const [id, node] of Object.entries(source.nodes)) {
+    if (!destination.nodes[id] || destination.nodes[id].revision !== node.revision) {
+      const error = new Error(`ledger: schema migration changed node ${id} revision`);
+      error.code = "CLIMIER_LEDGER_STATE_MISMATCH";
+      throw error;
+    }
+  }
+  return destination;
 }
 
 export function maxNodeRevision(state) {

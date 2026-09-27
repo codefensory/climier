@@ -3,6 +3,7 @@ import path from "node:path";
 import { climierHome, projectMetaFile } from "../../storage/paths.mjs";
 import { detectMigrationState } from "../../storage/migrate-detection.mjs";
 import { withProjectIdLock } from "../../storage/lock.mjs";
+import { migrateFencedProjectUnderLock } from "../../storage/migrate.mjs";
 
 export const knownFlags = ["all", "dry-run"];
 
@@ -97,9 +98,13 @@ export default async function migrate({ flags = {}, projectDir, projectConfig } 
         // Do not create a transient lock file or any other bytes in dry-run.
         projects.push(await readProject(projectId));
       } else {
-        // The write-capable import paths use this explicit storage identity,
-        // never the CLIMIER_HOME directory as a project root.
-        projects.push(await withProjectIdLock(projectId, () => readProject(projectId)));
+        // Lock the explicit storage identity, never the CLIMIER_HOME directory.
+        projects.push(await withProjectIdLock(projectId, async (lockContext) => {
+          const before = await readProject(projectId);
+          if (before.error) return before;
+          if (before.form !== "fenced-legacy") return before;
+          return migrateFencedProjectUnderLock(lockContext, projectId);
+        }));
       }
     } catch (error) {
       projects.push({

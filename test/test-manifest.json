@@ -2692,6 +2692,24 @@
       "disposition": "keep"
     },
     {
+      "path": "test/migrate-fenced.test.mjs",
+      "name": "fenced migrate preserves node CAS, advances state and ledger revisions, logs once, and is idempotent",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/migrate-fenced.test.mjs",
+      "name": "migrate --dry-run does not write a fenced project",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/migrate-fenced.test.mjs",
+      "name": "migrate refuses an incompatible version without modifying state or ledger",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
       "path": "test/migrate.test.mjs",
       "name": "migrate --all --dry-run reports the four on-disk forms without changing bytes",
       "ordinal": 1,
