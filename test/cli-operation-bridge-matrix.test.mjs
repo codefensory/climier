@@ -185,7 +185,7 @@ const exceptions = [
   {
     command: "init", owner: "kernel/state-operations.mjs:initState",
     path: "src/cli/commands/init.mjs", markers: ["initState(", "backendClient.init()"],
-    tests: ["init.test.mjs", "kernel-state-operations.test.mjs", "server-http.test.mjs"],
+    tests: ["init.test.mjs", "kernel-state-operations.test.mjs", "server/http/auth-validation.test.mjs"],
   },
   {
     command: "restore", owner: "kernel/state-operations.mjs:restoreState",
@@ -195,12 +195,12 @@ const exceptions = [
   {
     command: "push", owner: "kernel/transfer.mjs:captureTransferSource + remote importTransfer",
     path: "src/cli/commands/push.mjs", markers: ["captureTransferSource(", "backendClient.importTransfer("],
-    tests: ["cli-transfer.test.mjs", "kernel-transfer.test.mjs", "server-http.test.mjs"], downstream: "T-rar-032-transfers",
+    tests: ["cli-transfer.test.mjs", "kernel-transfer.test.mjs", "server/http/reads-transfers.test.mjs"], downstream: "T-rar-032-transfers",
   },
   {
     command: "pull", owner: "remote exportTransfer + kernel/transfer.mjs:installTransferDestination",
     path: "src/cli/commands/pull.mjs", markers: ["backendClient.exportTransfer(", "installTransferDestination("],
-    tests: ["cli-transfer.test.mjs", "kernel-transfer.test.mjs", "server-http.test.mjs"], downstream: "T-rar-032-transfers",
+    tests: ["cli-transfer.test.mjs", "kernel-transfer.test.mjs", "server/http/reads-transfers.test.mjs"], downstream: "T-rar-032-transfers",
   },
 ];
 
