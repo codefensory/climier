@@ -24,7 +24,7 @@
 // `claim` is `{ by, at, stale }` when the node is currently claimed (either
 // via the take command's structured claim or via legacy claimed_by/claimed_at),
 // else `null`.
-import { readState, assertStateVersion, isFencedState } from "../../storage/state.mjs";
+import { readState, assertReadableState } from "../../storage/state.mjs";
 import { projectContextView } from "../../read-model/index.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
 
@@ -52,7 +52,7 @@ async function readRemoteContext(id, flags, backendClient) {
 async function readLocalContext(statePath, id, flags) {
   const snapshot = await readState(statePath);
   if (!snapshot) {throw new Error("context: state file missing");}
-  assertStateVersion(snapshot, isFencedState(snapshot) ? 5 : 2, "context");
+  assertReadableState(snapshot, "context");
   const view = projectContextView({
     snapshot,
     id,

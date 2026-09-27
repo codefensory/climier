@@ -115,10 +115,21 @@ export function isV3State(state) {
   return [PREVIOUS_STATE_VERSION, CURRENT_STATE_VERSION].includes(state?.version);
 }
 
-export function assertStateVersion(state, version, commandName) {
+const READABLE_STATE_KINDS = new Set(["canonical", "fenced-legacy", "legacy"]);
+
+// Reading commands accept any structurally readable form: canonical (version 1
+// with fence_generation and ledger) or a live legacy form (2/3/4 without
+// ledger, 5 fenced). Prehistoric, incomplete and incompatible states are
+// rejected by shape, so this guard cannot drift from the classifier the way a
+// bare version number can.
+export function assertReadableState(state, commandName) {
   if (!state) { return; }
-  if (state.version === version || (version === LEGACY_STATE_VERSION && state.version === CURRENT_STATE_VERSION)) { return; }
-  throw new Error(`${commandName}: state version ${state.version} is not supported by this command (expected version ${version})`);
+  const shape = classifyStateShape(state);
+  if (READABLE_STATE_KINDS.has(shape.kind)) { return; }
+  const error = new Error(`${commandName}: state is not readable (${shape.kind})`);
+  error.code = "CLIMIER_STATE_NOT_READABLE";
+  error.details = { kind: shape.kind, version: state.version };
+  throw error;
 }
 
 async function readMissingState(projectDir) {
@@ -245,7 +256,13 @@ function rejectUnsupportedWriteVersion(state, file) {
 
 async function readStateForUpdate(file) {
   try { return JSON.parse(await fs.readFile(file, "utf8")); }
-  catch (error) { if (error.code !== "ENOENT") { throw error; } return emptyState(); }
+  catch (error) {
+    if (error.code !== "ENOENT") { throw error; }
+    // The legacy writer's blank slate is a legacy state: emptyState() is the
+    // canonical shape and this path refuses it. Only the canonical bootstrap
+    // creates state for real projects.
+    return { version: CURRENT_STATE_VERSION, nodes: {}, edges: [], initiatives: {}, log: [], revision: 0 };
+  }
 }
 
 function rejectLegacyWritableVersion(file) {
