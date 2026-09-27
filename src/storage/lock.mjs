@@ -61,11 +61,11 @@ export async function withCurrentProjectLock(projectDir, fn, opts = {}) {
   return withLock(projectDir, fn, opts);
 }
 
-function makeLockContext(projectDir) {
+function makeLockContext(projectDir, statePath = stateFile(projectDir)) {
   const context = Object.freeze(Object.create(null));
   activeLockContexts.set(context, {
     projectDir: path.resolve(projectDir),
-    statePath: stateFile(projectDir),
+    statePath,
     active: true,
   });
   return context;
@@ -116,8 +116,8 @@ async function acquireLockFile(lockPathname, { timeoutMs, retryEveryMs }) {
   }
 }
 
-async function runWithLockContext(projectDir, lockPathname, fn) {
-  const lockContext = makeLockContext(projectDir);
+async function runWithLockContext(projectDir, lockPathname, fn, statePath) {
+  const lockContext = makeLockContext(projectDir, statePath);
   const inheritedContexts = activeProjectLock.getStore()?.lockContexts;
   const lockContexts = new Map(inheritedContexts ?? []);
   lockContexts.set(projectDir, lockContext);
@@ -131,6 +131,23 @@ async function runWithLockContext(projectDir, lockPathname, fn) {
       // Ignore a missing lock file while preserving the operation result.
     }
   }
+}
+
+export async function withProjectIdLock(projectId, fn, opts = {}) {
+  if (typeof projectId !== "string" || !projectId.trim() || projectId === "." || projectId === ".."
+      || path.basename(projectId) !== projectId || projectId.includes(path.sep) || projectId.includes("\\")) {
+    throw new TypeError("lock: project_id must be a non-empty path component");
+  }
+  const home = path.resolve(process.env.CLIMIER_HOME || path.join(process.env.HOME || ".", ".climier"));
+  const storageProjectDir = path.join(home, "projects", projectId);
+  const pathname = path.join(storageProjectDir, ".lock");
+  const options = {
+    timeoutMs: opts.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+    retryEveryMs: opts.retryEveryMs ?? RETRY_BASE_MS,
+  };
+  await fs.mkdir(storageProjectDir, { recursive: true });
+  await acquireLockFile(pathname, options);
+  return runWithLockContext(storageProjectDir, pathname, fn, path.join(storageProjectDir, "tasks.json"));
 }
 
 export async function withLock(projectDir, fn, opts = {}) {
