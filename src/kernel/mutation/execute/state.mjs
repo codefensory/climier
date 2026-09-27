@@ -2,8 +2,8 @@
 
 import fs from "node:fs/promises";
 import path from "node:path";
-import { readState, writeState, stateFile, createSnapshot } from "../../../storage/state.mjs";
-import { recoverFencedStateUnderLock, replaceFencedStateUnderLock } from "../../../storage/ledger.mjs";
+import { readState, stateFile, createSnapshot, isFencedStateVersion } from "../../../storage/state.mjs";
+import { bootstrapFencedStateUnderLock, recoverFencedStateUnderLock, replaceFencedStateUnderLock } from "../../../storage/ledger.mjs";
 import { prepareLogEntry } from "../../../storage/log.mjs";
 import { throwV2 } from "../../../contracts/errors.mjs";
 import { commandLabel, runPolicy, checkStateRevision } from "./shared.mjs";
@@ -38,7 +38,7 @@ async function loadCurrentState(projectDir, exists) {
   try {
     return { currentState: await readState(projectDir), stateError: null };
   } catch (error) {
-    const recoverable = ["CLIMIER_CORRUPT_STATE", "STATE_V1_UNSUPPORTED", "CLIMIER_INCOMPATIBLE_VERSION"].includes(error.code);
+    const recoverable = ["CLIMIER_CORRUPT_STATE", "STATE_V1_UNSUPPORTED", "CLIMIER_INCOMPATIBLE_VERSION", "CLIMIER_LEDGER_STATE_MISMATCH"].includes(error.code);
     if (!recoverable) {
       throw error;
     }
@@ -135,12 +135,35 @@ async function recoverCorruptFencedState({ plan, snapshot, lockContext, projectD
   };
 }
 
-async function persistState({ lockContext, projectDir, fencedCurrentState, nextState }) {
+async function persistState({ lockContext, projectDir, fencedCurrentState, fencedCorrupt, nextState }) {
   if (fencedCurrentState) {
     await replaceFencedStateUnderLock(lockContext, nextState, { projectDir });
-  } else {
-    await writeState(projectDir, nextState);
+    return;
   }
+  const ledgerPath = path.join(path.dirname(stateFile(projectDir)), "revision-ledger.json");
+  if (nextState?.version === 1 && Number.isInteger(nextState.fence_generation)) {
+    let existingLedger = true;
+    try { await fs.access(ledgerPath); }
+    catch (error) { if (error.code === "ENOENT") { existingLedger = false; } else { throw error; } }
+    if (existingLedger) {
+      await recoverFencedStateUnderLock(lockContext, nextState, { projectDir });
+    } else {
+      await bootstrapFencedStateUnderLock(lockContext, nextState, { projectDir, replaceExisting: true });
+    }
+    return;
+  }
+  let ledgerExists = true;
+  try { await fs.access(ledgerPath); }
+  catch (error) { if (error.code === "ENOENT") { ledgerExists = false; } else { throw error; } }
+  if (ledgerExists) {
+    await recoverFencedStateUnderLock(lockContext, nextState, { projectDir });
+    return;
+  }
+  if (fencedCorrupt) {
+    await recoverFencedStateUnderLock(lockContext, nextState, { projectDir });
+    return;
+  }
+  await bootstrapFencedStateUnderLock(lockContext, nextState, { projectDir, replaceExisting: true });
 }
 
 function resultWithSnapshot(result, snapshotMeta) {
@@ -190,7 +213,13 @@ async function finishStateMutation({ plan, snapshot, lockContext, projectDir, ap
     return recoveryResult;
   }
   const { nextState, logEntry } = createNextState({ applied, currentState, snapshot, plan, request, pluginId });
-  await persistState({ lockContext, projectDir, fencedCurrentState: Boolean(currentState && currentState.version === 5), nextState });
+  await persistState({
+    lockContext,
+    projectDir,
+    fencedCurrentState: Boolean(currentState && isFencedStateVersion(currentState.version)),
+    fencedCorrupt: snapshot.fencedCorrupt,
+    nextState,
+  });
   const result = resultWithSnapshot(applied.result === undefined ? null : applied.result, snapshotMeta);
   return stateMutationResult({ applied, logEntry, result });
 }

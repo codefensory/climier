@@ -8,7 +8,7 @@ import { projectLogView } from "../src/read-model/index.mjs";
 import { createRemoteApiServer } from "../src/server/http.mjs";
 import { createProjectCatalog } from "../src/server/catalog/index.mjs";
 import { initState } from "../src/kernel/state-operations.mjs";
-import { runCli, writeState } from "./helpers.mjs";
+import { runCli, writeCanonicalState } from "./helpers.mjs";
 import { readModelParity } from "./fixtures/read-model-parity.mjs";
 
 const log = [
@@ -40,7 +40,7 @@ async function withLogProject(run) {
     server.listen(0, "127.0.0.1", resolve);
   });
   try {
-    await writeState(projectDir, snapshot);
+    await writeCanonicalState(projectDir, snapshot);
     await run({ baseUrl: `http://127.0.0.1:${server.address().port}`, projectDir });
   } finally {
     await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));

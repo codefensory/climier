@@ -13,6 +13,7 @@ import {
   readState,
   installPolicyFixture,
   uninstallPolicyFixture,
+  writeCanonicalState,
 } from "./helpers.mjs";
 
 export {
@@ -25,6 +26,7 @@ export {
   readState,
   installPolicyFixture,
   uninstallPolicyFixture,
+  writeCanonicalState,
 };
 
 export async function submitAcceptTask(dir, id = "T1", as = "tester", note = "done") {

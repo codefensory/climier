@@ -1,6 +1,7 @@
 // Batch mutation phase for the kernel execution coordinator.
 
 import { commitFencedStateUnderLock } from "../../../storage/ledger.mjs";
+import { isFencedStateVersion } from "../../../storage/state.mjs";
 import { throwV2 } from "../../../contracts/errors.mjs";
 import { prepareLogEntry } from "../../../storage/log.mjs";
 import { createTransaction } from "../../transaction.mjs";
@@ -181,7 +182,6 @@ function buildPersistedBatchState({ snapshot, draftView, diff, results, plans, r
   const logEntry = prepareLogEntry({ action: "core.batch", agent: request.actor, revision: revisionAfter, operations: logOperations }, { pluginId });
   const persistedState = {
     ...snapshot,
-    version: 5,
     fence_generation: snapshot.fence_generation,
     nodes: finalNodes,
     edges: draftView.edges,
@@ -201,7 +201,7 @@ function buildPersistedBatchState({ snapshot, draftView, diff, results, plans, r
 export async function executeBatchMutation({ projectDir, lockContext, request, batch, policyAction, pluginId }) {
   const commandName = "core.batch";
   const snapshot = await readMutationStateUnderLock(lockContext, projectDir);
-  if (!snapshot || typeof snapshot !== "object" || snapshot.version !== 5) {
+  if (!snapshot || typeof snapshot !== "object" || !isFencedStateVersion(snapshot.version)) {
     throw new Error(`${commandName}: state file missing or not v5 (run init first)`);
   }
   checkStateRevision(request.if_state_revision, snapshot, commandName);

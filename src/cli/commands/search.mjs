@@ -1,4 +1,4 @@
-import { assertStateVersion, isFencedState, readState } from "../../storage/state.mjs";
+import { assertReadableState, readState } from "../../storage/state.mjs";
 import { projectSearchView } from "../../read-model/index.mjs";
 
 export const knownFlags = ["all"];
@@ -7,7 +7,7 @@ async function readLocalSearch(statePath, query, flags) {
   if (!query) {return { matches: [], count: 0 };}
   const snapshot = await readState(statePath);
   if (!snapshot) {throw new Error("search: state file missing");}
-  assertStateVersion(snapshot, isFencedState(snapshot) ? 5 : 2, "search");
+  assertReadableState(snapshot, "search");
   const all = flags.all === true || flags.all === "true";
   return projectSearchView({ snapshot, query, all });
 }

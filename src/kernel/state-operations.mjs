@@ -9,7 +9,6 @@ import path from "node:path";
 import { mutate } from "./mutate.mjs";
 import {
   emptyState,
-  migrateState,
   stateFile,
   snapshotDir,
 } from "../storage/state.mjs";
@@ -35,14 +34,14 @@ function parseSnapshotJson(raw, id) {
 }
 
 function validateSnapshotVersion(parsed, id) {
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed) || ![2, 3, 4, 5].includes(parsed.version)) {
-    throwV2("INVALID_STATUS", `state.restore: snapshot ${id} is not a supported state`, { id, version: parsed && parsed.version });
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed) || parsed.version !== 1) {
+    throwV2("INVALID_STATUS", `state.restore: snapshot ${id} is not a canonical v1 state; run climier migrate`, { id, version: parsed && parsed.version });
   }
   validateFenceGeneration(parsed, id);
 }
 
 function validateFenceGeneration(parsed, id) {
-  if (parsed.version === 5 && !Number.isInteger(parsed.fence_generation)) {
+  if (!Number.isInteger(parsed.fence_generation)) {
     throwV2("INVALID_STATUS", `state.restore: snapshot ${id} has an invalid fence_generation`, {
       id,
       field: "fence_generation",
@@ -63,7 +62,7 @@ function parseSnapshot(raw, id) {
   const parsed = parseSnapshotJson(raw, id);
   validateSnapshotVersion(parsed, id);
   validateSnapshotCollections(parsed, id);
-  const restored = migrateState(parsed);
+  const restored = parsed;
   validateStateInvariants(restored, `state.restore: snapshot ${id}`);
   return restored;
 }

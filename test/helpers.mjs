@@ -115,6 +115,32 @@ export async function writeFencedState(dir, state) {
   });
 }
 
+// Install a canonical fixture (version 1 plus its ledger) through the same
+// protocol the product uses, so a fixture project is never inconsistent with
+// the schema it claims. A raw write into a bootstrapped project leaves a
+// ledger beside a legacy state, which the reader reports as non-canonical.
+export async function writeCanonicalState(dir, state) {
+  const initialState = {
+    ...state,
+    version: 4,
+    revision: Number.isInteger(state.revision) ? state.revision : 0,
+  };
+  delete initialState.fence_generation;
+
+  return withLock(dir, async (lockContext) => {
+    const current = await readFencedStateUnderLock(lockContext);
+    if (current) {
+      return replaceFencedStateUnderLock(lockContext, {
+        ...state,
+        version: 1,
+        fence_generation: current.fence_generation,
+        revision: Number.isInteger(current.revision) ? current.revision : 0,
+      });
+    }
+    return bootstrapFencedStateUnderLock(lockContext, initialState);
+  });
+}
+
 export async function readState(dir) {
   const file = stateFilePath(dir);
   const raw = await fsp.readFile(file, "utf8");
@@ -200,7 +226,7 @@ export async function initExampleProject(dir, { force = false } = {}) {
   if (r.code !== 0) {
     return r;
   }
-  await writeState(dir, exampleState());
+  await writeCanonicalState(dir, exampleState());
   return r;
 }
 

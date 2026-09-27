@@ -22,7 +22,9 @@ async function withProject(fn) {
   }
 }
 
-function v5Fixture(title, revision, fenceGeneration) {
+// The source fixture carries the legacy marker as the input token the helper
+// accepts; the destination it installs is canonical.
+function fencedSourceFixture(title, revision, fenceGeneration) {
   return {
     version: 5,
     fence_generation: fenceGeneration,
@@ -37,17 +39,17 @@ function v5Fixture(title, revision, fenceGeneration) {
   };
 }
 
-test("writeFencedState bootstraps and replaces consistent v5 fixtures through storage APIs", async () => {
+test("writeFencedState bootstraps and replaces consistent fixtures through storage APIs", async () => {
   await withProject(async (projectDir) => {
-    const first = await writeFencedState(projectDir, v5Fixture("first", 40, 8));
-    assert.equal(first.version, 5);
+    const first = await writeFencedState(projectDir, fencedSourceFixture("first", 40, 8));
+    assert.equal(first.version, 1);
     assert.equal(first.nodes.T1.title, "first");
     assert.equal(first.fence_generation, 1);
     assert.ok(first.revision > 41);
     assert.deepEqual(Object.values(first.nodes).map((node) => node.revision), [first.revision, first.revision]);
 
-    const replaced = await writeFencedState(projectDir, v5Fixture("replacement", 2, 99));
-    assert.equal(replaced.version, 5);
+    const replaced = await writeFencedState(projectDir, fencedSourceFixture("replacement", 2, 99));
+    assert.equal(replaced.version, 1);
     assert.equal(replaced.nodes.T1.title, "replacement");
     assert.equal(replaced.fence_generation, first.fence_generation);
     assert.equal(replaced.revision, first.revision + 1);

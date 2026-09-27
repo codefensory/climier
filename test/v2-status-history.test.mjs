@@ -12,7 +12,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createTempProject, rmTempProject, importFresh, readState as readRawState, writeFencedState, runCli } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, readState as readRawState, writeCanonicalState, runCli } from "./helpers.mjs";
 
 async function bootstrapProject(dir, initName) {
   if (initName === undefined) {initName = "work";}
@@ -135,7 +135,7 @@ test("status: submitted tasks have an explicit bucket and respect filters and li
     const state = await readRawState(dir);
     state.nodes["T-submitted"].status = "submitted";
     state.nodes["T-other"].status = "submitted";
-    await writeFencedState(dir, state);
+    await writeCanonicalState(dir, state);
 
     const out = await v2Status(dir, { domain: "validation", status: "submitted", limit: 1 });
     assert.equal(out.summary.submitted, 1);
@@ -352,7 +352,7 @@ test("status: --all includes done groups and alerts", async () => {
     const state = await readRawState(dir);
     const tId = first.node.id;
     state.nodes[tId].status = "done";
-    await writeFencedState(dir, state);
+    await writeCanonicalState(dir, state);
 
     const out = await v2Status(dir, { all: true });
     assert.equal(typeof out.done, "object", "done groups present when --all");

@@ -43,7 +43,7 @@ test("readState fails closed for ledger-only projects and recovers exact pending
       const initial = { version: 4, nodes: {}, edges: [], initiatives: {}, log: [], revision: 0 };
       await assert.rejects(bootstrapFencedState(dir, { faultAt: "after-pending" }), /injected failure/);
       const recovered = await readState(dir);
-      assert.equal(recovered.version, 5);
+      assert.equal(recovered.version, 1);
       assert.equal(recovered.fence_generation, 1);
       assert.deepEqual(recovered.log, initial.log);
       assert.notEqual(await fs.readFile(stateFile(dir), "utf8"), "");
@@ -180,16 +180,17 @@ test("readState rejects a cyclic v3 state without rewriting it", async () => {
   } finally { await rmTempProject(dir); }
 });
 
-test("emptyState returns a valid empty v4 schema", async () => {
+test("emptyState returns a valid empty canonical schema", async () => {
   const { emptyState } = await importFresh("./storage/state.mjs");
   const s = emptyState();
-  assert.equal(s.version, 4);
+  assert.equal(s.version, 1);
+  assert.equal(s.fence_generation, 1);
   assert.equal(s.revision, 0);
   assert.deepEqual(s.nodes, {});
   assert.deepEqual(s.edges, []);
   assert.deepEqual(s.initiatives, {});
   assert.deepEqual(s.log, []);
-  // No v1 collections.
+  // No pre-release collections.
   assert.equal(s.tasks, undefined);
   assert.equal(s.decisions, undefined);
   assert.equal(s.gotchas, undefined);

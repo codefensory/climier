@@ -903,7 +903,7 @@ describe("init --force on existing state", () => {
     } finally { await rmTempProject(dir); }
   });
 
-  test("init --force on an existing valid v4 state overwrites to empty v4", async () => {
+  test("init --force on an existing legacy v4 state overwrites to an empty canonical state", async () => {
     const dir = await createTempProject();
     try {
       const r1 = await runCli(["--project", dir, "init"]);
@@ -919,8 +919,8 @@ describe("init --force on existing state", () => {
       const r2 = await runCli(["--project", dir, "init", "--force"]);
       assert.equal(r2.code, 0, r2.stderr);
       const s = await readRawState(dir);
-      assert.equal(s.version, 4);
-      assert.equal(s.revision, 1, "force-init replacement preserves monotonic revision progression");
+      assert.equal(s.version, 1);
+      assert.equal(s.revision, 2, "force-init replacement preserves monotonic revision progression");
       assert.deepEqual(s.nodes, {});
       assert.deepEqual(s.edges, []);
     } finally { await rmTempProject(dir); }
@@ -938,7 +938,7 @@ describe("init --force on existing state", () => {
       r = await runCli(["--project", dir, "init", "--force"]);
       assert.equal(r.code, 0, r.stderr);
       const s = await readRawState(dir);
-      assert.equal(s.version, 5);
+      assert.equal(s.version, 1);
       assert.equal(s.revision, 5, "--force advances beyond the fenced state high-water");
       assert.deepEqual(s.nodes, {}, "data must be wiped after --force reinit");
       assert.deepEqual(s.initiatives, {}, "initiatives must be wiped too");

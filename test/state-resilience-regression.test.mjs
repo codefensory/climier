@@ -103,22 +103,14 @@ function cli(...args) {
   return JSON.parse(result);
 }
 
-const SENTINEL = {
-  version: 2,
-  nodes: { Sentinel: { id: "Sentinel", title: "alive" } },
-  edges: [],
-  initiatives: {},
-  log: [],
-};
-
-// 1. init creates an empty v3 state in the sandbox.
+// 1. init creates an empty canonical state in the sandbox.
 cli("init");
 
-// 2. Plant sentinel directly into the sandbox tasks.json. We write the
-// exact same bytes writeState would have produced so the upcoming
-// init --force sees a real pre-existing state.
-fs.mkdirSync(path.dirname(TASKS_FILE), { recursive: true });
-fs.writeFileSync(TASKS_FILE, JSON.stringify(SENTINEL, null, 2) + "\\n");
+// 2. Plant a sentinel into the sandbox tasks.json, keeping the canonical
+// shape init wrote, so the upcoming init --force sees a real pre-existing state.
+const planted = JSON.parse(fs.readFileSync(TASKS_FILE, "utf8"));
+planted.nodes.Sentinel = { id: "Sentinel", title: "alive" };
+fs.writeFileSync(TASKS_FILE, JSON.stringify(planted, null, 2) + "\\n");
 
 // 3. init --force: snapshots the sentinel (reason=force-init) and
 // then resets the state to empty.
@@ -302,7 +294,7 @@ test("NEGATIVE CONTROL: without smoke-sandbox, init --force with copied project_
         "if this assertion fails, the negative control no longer demonstrates the bug"
     );
     const after = JSON.parse(controlBytes);
-    assert.equal(after.version, 4);
+    assert.equal(after.version, 1);
     assert.deepEqual(
       after.nodes,
       {},

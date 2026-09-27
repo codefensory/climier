@@ -2,7 +2,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { stateFile, migrateState, FENCED_STATE_VERSION } from "../state.mjs";
+import { stateFile, migrateState, STATE_SCHEMA_VERSION, FENCED_STATE_VERSION } from "../state.mjs";
 import { assertActiveLockContext, getActiveLockContext } from "../lock.mjs";
 import { validateStateInvariants } from "../../contracts/state-invariants.mjs";
 import { assertValidLedger, LEDGER_VERSION, SOURCE_VERSIONS } from "./recovery.mjs";
@@ -15,7 +15,7 @@ function ledgerFile(projectDir) {
 
 function assertSupportedInitialState(initialState) {
   if (!initialState || typeof initialState !== "object" || Array.isArray(initialState)
-      || !SOURCE_VERSIONS.has(initialState.version)) {
+      || (!SOURCE_VERSIONS.has(initialState.version) && initialState.version !== STATE_SCHEMA_VERSION)) {
     const error = new Error(`ledger.bootstrap: unsupported initial state version ${initialState?.version}`);
     error.code = "CLIMIER_UNSUPPORTED_SOURCE_VERSION";
     throw error;
@@ -37,7 +37,7 @@ function fencedInitialState(initialState) {
   const fence = highWater + 1;
   const destination = {
     ...compatible,
-    version: FENCED_STATE_VERSION,
+    version: STATE_SCHEMA_VERSION,
     revision: fence,
     fence_generation: 1,
     nodes: Object.fromEntries(Object.entries(compatible.nodes).map(([id, node]) => [id, { ...node, revision: fence }])),
@@ -240,7 +240,7 @@ export async function bootstrapInitialUnderLock(lockContext, initialState, opts 
       expectedDestinationRaw: prepared.destinationRaw,
     });
   }
-  if (await fileExists(statePath)) {
+  if (await fileExists(statePath) && opts.replaceExisting !== true) {
     throw bootstrapExists();
   }
   return createInitialBootstrap({ statePath, ledgerPath, prepared, opts });
@@ -252,6 +252,15 @@ async function createInitialBootstrap({ statePath, ledgerPath, prepared, opts })
   const stagePath = bootstrapStagePath(statePath, stageId);
   const destinationHash = sha256(prepared.destinationRaw);
   const ledger = makeBootstrapLedger(prepared, destinationHash, stageId);
+  if (opts.replaceExisting === true) {
+    await writeDurableStage(stagePath, prepared.destinationRaw);
+    fault(opts, "before-pending");
+    await durableReplace(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`);
+    fault(opts, "after-pending");
+    await durableReplace(statePath, prepared.destinationRaw);
+    fault(opts, "after-state-create");
+    return finishPendingBootstrap({ statePath, ledgerPath, ledger, expectedDestinationRaw: prepared.destinationRaw });
+  }
   return createPendingBootstrap({ stagePath, ledgerPath, statePath, prepared, ledger, opts });
 }
 
@@ -273,10 +282,7 @@ async function readOrCreateState(statePath) {
     if (error.code !== "ENOENT") {
       throw error;
     }
-    const initialState = { version: 4, nodes: {}, edges: [], initiatives: {}, log: [], revision: 0 };
-    const rawState = `${JSON.stringify(initialState, null, 2)}\n`;
-    await durableReplace(statePath, rawState);
-    return rawState;
+    return null;
   }
 }
 
@@ -290,8 +296,8 @@ async function finishExistingLedger({ statePath, ledgerPath, ledger, rawState, o
     return handlers.finishPendingCommit({ statePath, ledgerPath, ledger, rawState, opts });
   }
   await handlers.cleanOrphanCommitStages(statePath);
-  if (state.version !== FENCED_STATE_VERSION) {
-    const error = new Error("ledger: fenced project is missing v5 state marker; refusing legacy downgrade");
+  if (state.version !== FENCED_STATE_VERSION && state.version !== STATE_SCHEMA_VERSION) {
+    const error = new Error("ledger: fenced project is missing a supported state marker; refusing legacy downgrade");
     error.code = "CLIMIER_LEDGER_STATE_MISMATCH";
     throw error;
   }
@@ -337,13 +343,32 @@ async function bootstrapLocked(projectDir, opts, handlers) {
   const ledgerPath = ledgerFile(projectDir);
   await fs.mkdir(path.dirname(statePath), { recursive: true });
   const initialLedger = await readOptionalLedger(ledgerPath);
+  if (opts.replaceExisting === true) {
+    const source = await readOrCreateState(statePath);
+    const priorLedger = initialLedger;
+    const highWater = Math.max(
+      priorLedger?.high_water_revision || 0,
+      source ? (() => { try { return maxNodeRevision(readJson(source, "replaced state")); } catch { return 0; } })() : 0,
+    );
+    const initial = { version: STATE_SCHEMA_VERSION, nodes: {}, edges: [], initiatives: {}, log: [], revision: highWater };
+    const prepared = fencedInitialState(initial);
+    const ledger = makeBootstrapLedger(prepared, sha256(prepared.destinationRaw), crypto.randomBytes(16).toString("hex"));
+    ledger.high_water_revision = highWater + 1;
+    return replaceWithCanonicalBootstrap({ statePath, ledgerPath, prepared, ledger, opts });
+  }
   if (initialLedger && hasPendingBootstrap(initialLedger)) {
     return finishPendingBootstrap({ statePath, ledgerPath, ledger: initialLedger });
   }
   const rawState = await readOrCreateState(statePath);
   const ledger = initialLedger ?? await readOptionalLedger(ledgerPath);
   if (ledger) {
+    if (rawState === null) {
+      return finishBootstrapWithoutState(ledger, statePath, ledgerPath);
+    }
     return finishExistingLedger({ statePath, ledgerPath, ledger, rawState, opts }, handlers);
+  }
+  if (rawState === null) {
+    return createInitialBootstrap({ statePath, ledgerPath, prepared: fencedInitialState({ version: STATE_SCHEMA_VERSION, nodes: {}, edges: [], initiatives: {}, log: [], revision: 0 }), opts });
   }
   return prepareMigration({ statePath, ledgerPath, rawState, opts });
 }

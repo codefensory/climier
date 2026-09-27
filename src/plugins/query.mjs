@@ -4,7 +4,7 @@
 // lock. They use the canonical read-model for graph/domain projections and do
 // not depend on CLI command adapters or the transitional v2 facade.
 
-import { readState, isFencedState, isV2State, assertStateVersion } from "../storage/state.mjs";
+import { readState, isFencedState, isV2State, assertReadableState } from "../storage/state.mjs";
 import { assertLocalBackend } from "./remote-guard.mjs";
 import { throwV2 } from "../contracts/errors.mjs";
 import {
@@ -301,7 +301,7 @@ async function queryContext(projectDir, id, agent) {
   if (!snapshot) {
     throw new Error("context: state file missing");
   }
-  assertStateVersion(snapshot, isFencedState(snapshot) ? 5 : 2, "context");
+  assertReadableState(snapshot, "context");
   return contextView(snapshot, id, typeof agent === "string" && agent ? agent : null);
 }
 

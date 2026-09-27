@@ -5,7 +5,7 @@ import { createHttpReads } from "../../../src/server/http/reads.mjs";
 import { createHttpCodec } from "../../../src/server/http/codec.mjs";
 import { PROTOCOL_VERSION } from "../../../src/server/http.mjs";
 import * as readModel from "../../../src/read-model/index.mjs";
-import { runCli, writeState } from "../../helpers.mjs";
+import { runCli, writeCanonicalState } from "../../helpers.mjs";
 import { authHeaders, operation, withApi } from "./fixtures.mjs";
 
 
@@ -86,7 +86,7 @@ function normalizeStatusTimes(status) {
 
 test("HTTP status read matches the complete CLI projection and all nine exact filters", async () => {
   await withApi(async ({ baseUrl, projectDirs }) => {
-    await writeState(projectDirs[0], readApiState());
+    await writeCanonicalState(projectDirs[0], readApiState());
     const queries = [
       "",
       "initiative=migration",
@@ -115,7 +115,7 @@ test("HTTP status read matches the complete CLI projection and all nine exact fi
 
 test("HTTP typed read routes match the CLI output from the same state snapshot", async () => {
   await withApi(async ({ baseUrl, projectDirs }) => {
-    await writeState(projectDirs[0], readApiState());
+    await writeCanonicalState(projectDirs[0], readApiState());
     const routes = [
       ["read/context/T-ready", "context", "as=alice&staleMs=0", ["T-ready"]],
       ["read/show/T-ready", "show", "", ["T-ready"]],
@@ -135,7 +135,7 @@ test("HTTP typed read routes match the CLI output from the same state snapshot",
 
 test("HTTP typed read routes reject unknown, repeated, and invalid query parameters", async () => {
   await withApi(async ({ baseUrl, projectDirs }) => {
-    await writeState(projectDirs[0], readApiState());
+    await writeCanonicalState(projectDirs[0], readApiState());
     for (const query of ["claimedBy=alice", "kind=task&kind=gate", "limit=-1", "stale-ms=nope", "all=maybe", "as=alice&as=bob"]) {
       const response = await fetch(`${baseUrl}/v1/projects/project-a/read/status?${query}`, { headers: authHeaders() });
       assert.equal(response.status, 400, query);

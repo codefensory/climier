@@ -2,7 +2,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { FENCED_STATE_VERSION, migrateState } from "../state.mjs";
+import { STATE_SCHEMA_VERSION, FENCED_STATE_VERSION, migrateState } from "../state.mjs";
 import { getActiveLockContext } from "../lock.mjs";
 import { validateStateInvariants } from "../../contracts/state-invariants.mjs";
 import {
@@ -12,7 +12,7 @@ import {
 
 export const LEDGER_VERSION = 1;
 export const SOURCE_VERSIONS = new Set([2, 3, 4]);
-export const RECOVERY_VERSIONS = new Set([2, 3, 4, FENCED_STATE_VERSION]);
+export const RECOVERY_VERSIONS = new Set([STATE_SCHEMA_VERSION, 2, 3, 4, FENCED_STATE_VERSION]);
 
 const isPresent = (value) => value !== null && value !== undefined;
 const isObject = (value) => value !== null && typeof value === "object";
@@ -74,8 +74,8 @@ function validCommitPending(pending, ledger) {
 
 function validRecoveryPending(pending, ledger) {
   const validInput = pending.input_sha256 === null ? pending.candidate_supplied !== true : isSha256(pending.input_sha256);
-  const validSource = SOURCE_VERSIONS.has(pending.source_version)
-    && (pending.corrupt_source === undefined || pending.corrupt_source === true);
+    const validSource = (SOURCE_VERSIONS.has(pending.source_version) || pending.source_version === STATE_SCHEMA_VERSION)
+      && (pending.corrupt_source === undefined || pending.corrupt_source === true);
   const validRevision = pending.high_water_revision === ledger.high_water_revision
     && pending.high_water_revision > pending.source_high_water_revision;
   return all([isSha256(pending.source_sha256), isSha256(pending.destination_sha256), validInput,
@@ -125,6 +125,7 @@ function recoveryDestination(candidate, ledger) {
     ...migrated,
     nodes: Object.fromEntries(Object.entries(migrated.nodes || {}).map(([id, node]) => [id, { ...node }])),
   };
+  if (compatible.version === STATE_SCHEMA_VERSION) { compatible.version = 4; }
   if (compatible.version === FENCED_STATE_VERSION) { compatible.version = 4; }
   delete compatible.fence_generation;
   validateStateInvariants(compatible, "ledger.recover.candidate");
@@ -136,7 +137,7 @@ function recoveryDestination(candidate, ledger) {
   const fence = highWater + 1;
   const destination = {
     ...compatible,
-    version: FENCED_STATE_VERSION,
+    version: STATE_SCHEMA_VERSION,
     revision: fence,
     fence_generation: ledger.fence_generation,
     nodes: Object.fromEntries(Object.entries(compatible.nodes).map(([id, node]) => [id, { ...node, revision: fence }])),
@@ -159,7 +160,7 @@ async function readPendingRecoveryStage(stagePath, pending) {
     throw fingerprintMismatch("recovery stage does not match the pending destination fingerprint");
   }
   const staged = readJson(stageRaw, "recovery stage");
-  if (staged.version !== FENCED_STATE_VERSION
+  if ((staged.version !== STATE_SCHEMA_VERSION && staged.version !== FENCED_STATE_VERSION)
       || staged.fence_generation !== pending.fence_generation
       || staged.revision !== pending.high_water_revision) {
     throw fingerprintMismatch("recovery stage does not match the pending generation or high-water revision");
@@ -329,7 +330,7 @@ function recoverySource(rawState, candidate) {
   if (corruptSource) {
     assertNoCandidateForCorruptSource(candidate);
     candidate = { version: 4, nodes: {}, edges: [], initiatives: {}, log: [], revision: 0 };
-  } else if (!SOURCE_VERSIONS.has(source.version) || Number.isInteger(source.fence_generation)) {
+  } else if ((!SOURCE_VERSIONS.has(source.version) && source.version !== STATE_SCHEMA_VERSION) || Number.isInteger(source.fence_generation)) {
     throw fingerprintMismatch("explicit recovery accepts only an unfenced legacy source state");
   }
   return { source, candidate: candidate ?? source, corruptSource };
