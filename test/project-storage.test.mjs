@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createTempProject, rmTempProject, importFresh, stateFilePath, lockFilePath } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, stateFilePath, lockFilePath, writeCanonicalState } from "./helpers.mjs";
 
 test("storage: init uses the global state path", async () => {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
@@ -17,7 +17,7 @@ test("storage: init uses the global state path", async () => {
 
 test("storage: project metadata makes sibling worktrees share the same state and lock path", async () => {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
-  const { updateState, readState } = await importFresh("./storage/state.mjs");
+  const { readState } = await importFresh("./storage/state.mjs");
   const a = await createTempProject();
   const b = await createTempProject();
   try {
@@ -27,9 +27,11 @@ test("storage: project metadata makes sibling worktrees share the same state and
     assert.equal(stateFilePath(a), stateFilePath(b));
     assert.equal(lockFilePath(a), lockFilePath(b));
 
-    await updateState(a, (s) => {
-      s.nodes.T1 = { id: "T1", title: "shared" };
-      return s;
+    await writeCanonicalState(a, {
+      nodes: { T1: { id: "T1", title: "shared" } },
+      edges: [],
+      initiatives: {},
+      log: [],
     });
     const back = await readState(b);
     assert.equal(back.nodes.T1.title, "shared");

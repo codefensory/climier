@@ -2,7 +2,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createTempProject, rmTempProject, importFresh, readState, writeFencedState } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, readState, writeCanonicalState } from "./helpers.mjs";
 import { submitAcceptTask, initProject, seedOpenTask, lastLog } from "./plugin-log-seam-residual-helpers.mjs";
 
 test("accept (task): CLI call writes accept log entry without plugin_id", async () => {
@@ -12,7 +12,7 @@ test("accept (task): CLI call writes accept log entry without plugin_id", async 
     await seedOpenTask(dir, "T-resolve-1", { status: "in_progress" });
     const state = await readState(dir);
     state.nodes["T-resolve-1"].claim = { by: "alice", at: new Date().toISOString() };
-    await writeFencedState(dir, state);
+    await writeCanonicalState(dir, state);
     await submitAcceptTask(dir, "T-resolve-1");
     const s = await readState(dir);
     const entry = lastLog(s);
@@ -32,7 +32,7 @@ test("accept (task): direct CLI adapter keeps the log entry free of plugin_id", 
     await seedOpenTask(dir, "T-resolve-2", { status: "in_progress" });
     const state = await readState(dir);
     state.nodes["T-resolve-2"].claim = { by: "alice", at: new Date().toISOString() };
-    await writeFencedState(dir, state);
+    await writeCanonicalState(dir, state);
     await submitAcceptTask(dir, "T-resolve-2", { as: "alice", note: "done", pluginId: "example.audit" });
     const s = await readState(dir);
     const entry = lastLog(s);
