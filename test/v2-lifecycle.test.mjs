@@ -351,6 +351,25 @@ test("v2-resolve: gate resolve — --choice and --rationale required, status=res
   } finally { await rmTempProject(dir); }
 });
 
+test("v2-resolve: repeated local resolve of a resolved gate fails with INVALID_STATUS", async () => {
+  const dir = await v2Project();
+  const input = { as: "test-agent", choice: "opaque sessions", rationale: "immediate revocation" };
+  try {
+    await addGate(dir, "G-auth-v2");
+    await resolve(dir, input, ["G-auth-v2"]);
+    const beforeRetry = await readState(dir);
+
+    await assert.rejects(
+      resolve(dir, input, ["G-auth-v2"]),
+      (error) => error.code === "INVALID_STATUS",
+    );
+
+    const afterRetry = await readState(dir);
+    assert.deepEqual(afterRetry.nodes["G-auth-v2"], beforeRetry.nodes["G-auth-v2"]);
+    assert.equal(afterRetry.log.length, beforeRetry.log.length);
+  } finally { await rmTempProject(dir); }
+});
+
 test("v2-resolve: gate resolve missing --choice returns MISSING_FIELD", async () => {
   const dir = await v2Project();
   try {
