@@ -7,7 +7,7 @@ import path from "node:path";
 import { createRemoteApiServer } from "../src/server/http.mjs";
 import { createProjectCatalog } from "../src/server/catalog/index.mjs";
 import { initState } from "../src/kernel/state-operations.mjs";
-import { writeState } from "./helpers.mjs";
+import { writeCanonicalState } from "./helpers.mjs";
 import { projectInitiativesView, projectSearchView } from "../src/read-model/index.mjs";
 import { readModelParity } from "./fixtures/read-model-parity.mjs";
 
@@ -94,7 +94,7 @@ async function withParityEnvironment(run) {
   });
   const baseUrl = `http://127.0.0.1:${server.address().port}`;
   try {
-    await writeState(projectDir, readModelParity.snapshot);
+    await writeCanonicalState(projectDir, readModelParity.snapshot);
     await run({ baseUrl, projectDir });
   } finally {
     await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
