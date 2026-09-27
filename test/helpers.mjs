@@ -156,9 +156,9 @@ export async function stateExists(dir) {
   }
 }
 
-// v2 migration fixture: tasks, gates, knowledge, placeholders, and BLOCKS edges.
+// Canonical example fixture: tasks, gates, knowledge, placeholders, and BLOCKS edges.
 const exampleStateFixture = {
-  version: 2,
+  version: 1,
   nodes: {
     "F0.T1": { id: "F0.T1", kind: "resolvable", subkind: "task", title: "Create monorepo skeleton", initiative: "migration", domain: "monorepo", tags: ["node"], resolution_mode: "labor", status: "open", revision: 1 },
     "F0.T2": { id: "F0.T2", kind: "resolvable", subkind: "task", title: "Scaffold API service with /health", initiative: "migration", domain: "api", tags: ["node", "http"], resolution_mode: "labor", status: "open", revision: 1 },

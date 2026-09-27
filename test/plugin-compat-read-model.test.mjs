@@ -9,7 +9,7 @@ import {
   rmTempProject,
   importFresh,
   readState,
-  writeState,
+  writeCanonicalState,
   bootstrapState,
   submitAcceptTask,
 } from "./plugin-compat-helpers.mjs";
@@ -94,7 +94,7 @@ test("`meta` and `nodes[id].plugins` survive take together (disjoint keyspaces)"
       };
       s.nodes.T1.plugins = { "example.audit": { data: { x: 1 } } };
     });
-    await writeState(dir, base);
+    await writeCanonicalState(dir, base);
     const { default: take } = await importFresh("./cli/commands/take.mjs");
     await take({
       positional: ["T1"],
@@ -119,7 +119,7 @@ test("`meta` and `nodes[id].plugins` survive submit + accept (task) together", a
       s.nodes.T1.meta = { execution: { effort: "M", risk: "integration", checks: ["npm test"] } };
       s.nodes.T1.plugins = { "example.audit": { data: { x: 2 } } };
     });
-    await writeState(dir, base);
+    await writeCanonicalState(dir, base);
     const { default: take } = await importFresh("./cli/commands/take.mjs");
     await take({
       positional: ["T1"],

@@ -7,7 +7,7 @@ import {
   rmTempProject,
   importFresh,
   readState,
-  writeState,
+  writeCanonicalState,
   bootstrapState,
   seedPluginData,
   assertPluginDataPreserved,
@@ -21,7 +21,7 @@ test("add-task preserves root plugins and existing per-node plugins", async () =
   try {
     const base = await bootstrapState(dir);
     seedPluginData(base);
-    await writeState(dir, base);
+    await writeCanonicalState(dir, base);
     const { default: addTask } = await importFresh("./cli/commands/add-task.mjs");
     await addTask({
       statePath: dir,
@@ -50,7 +50,7 @@ test("add-gate preserves root plugins", async () => {
   try {
     const base = await bootstrapState(dir);
     seedPluginData(base);
-    await writeState(dir, base);
+    await writeCanonicalState(dir, base);
     const { default: addGate } = await importFresh("./cli/commands/add-gate.mjs");
     await addGate({
       statePath: dir,
@@ -76,7 +76,7 @@ test("add-knowledge preserves root plugins", async () => {
   try {
     const base = await bootstrapState(dir);
     seedPluginData(base);
-    await writeState(dir, base);
+    await writeCanonicalState(dir, base);
     const { default: addKnowledge } = await importFresh("./cli/commands/add-knowledge.mjs");
     await addKnowledge({
       statePath: dir,
@@ -102,7 +102,7 @@ test("update preserves root plugins and per-node plugins", async () => {
   try {
     const base = await bootstrapState(dir);
     seedPluginData(base);
-    await writeState(dir, base);
+    await writeCanonicalState(dir, base);
     const { default: update } = await importFresh("./cli/commands/update.mjs");
     await update({
       statePath: dir,
@@ -126,7 +126,7 @@ test("take preserves root plugins and per-node plugins", async () => {
   try {
     const base = await bootstrapState(dir);
     seedPluginData(base);
-    await writeState(dir, base);
+    await writeCanonicalState(dir, base);
     const { default: take } = await importFresh("./cli/commands/take.mjs");
     await take({
       positional: ["T1"],
@@ -148,7 +148,7 @@ test("submit + accept (task) preserves root plugins and per-node plugins", async
   try {
     const base = await bootstrapState(dir);
     seedPluginData(base);
-    await writeState(dir, base);
+    await writeCanonicalState(dir, base);
     const { default: take } = await importFresh("./cli/commands/take.mjs");
     await take({
       positional: ["T1"],
@@ -185,7 +185,7 @@ test("resolve (gate) preserves root plugins", async () => {
       delete s.nodes.T2;
     });
     seedPluginData(base);
-    await writeState(dir, base);
+    await writeCanonicalState(dir, base);
     const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
     await resolve({
       statePath: dir,
@@ -206,7 +206,7 @@ test("reopen preserves root plugins and per-node plugins", async () => {
   try {
     const base = await bootstrapState(dir);
     seedPluginData(base);
-    await writeState(dir, base);
+    await writeCanonicalState(dir, base);
     const { default: take } = await importFresh("./cli/commands/take.mjs");
     await take({
       positional: ["T1"],
@@ -235,7 +235,7 @@ test("release preserves root plugins and per-node plugins", async () => {
   try {
     const base = await bootstrapState(dir);
     seedPluginData(base);
-    await writeState(dir, base);
+    await writeCanonicalState(dir, base);
     const { default: take } = await importFresh("./cli/commands/take.mjs");
     await take({
       positional: ["T1"],
@@ -265,7 +265,7 @@ test("cancel preserves root plugins and per-node plugins", async () => {
   try {
     const base = await bootstrapState(dir);
     seedPluginData(base);
-    await writeState(dir, base);
+    await writeCanonicalState(dir, base);
     // Cancel an unclaimed open task. Under ADR-009 the core lets any
     // actor cancel; the policy-fixture is kept here so the test still
     // covers the seam allow branch alongside the default core path.
