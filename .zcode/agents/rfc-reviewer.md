@@ -3,7 +3,7 @@ name: "rfc-reviewer"
 description: "Revisa un RFC o ADR (gate de climier) con una lente especifica (producto, arquitectura o ejecucion). Read-only + add-note. Comenta, nunca edita el doc ni resuelve el gate."
 color: purple
 model: new-provider/gpt-6-luna
-thoughtLevel: max
+thoughtLevel: high
 tools:
   - Bash
   - Read
