@@ -33,9 +33,13 @@ function parseSnapshotJson(raw, id) {
   }
 }
 
-function validateSnapshotVersion(parsed, id) {
+function validateSnapshotVersion(parsed, id, snapshotPath) {
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed) || parsed.version !== 1) {
-    throwV2("INVALID_STATUS", `state.restore: snapshot ${id} is not a canonical v1 state; run climier migrate`, { id, version: parsed && parsed.version });
+    throwV2("INVALID_STATUS", `state.restore: snapshot ${snapshotPath} (id ${id}) is not a canonical v1 state; run climier migrate`, {
+      id,
+      path: snapshotPath,
+      version: parsed && parsed.version,
+    });
   }
   validateFenceGeneration(parsed, id);
 }
@@ -58,9 +62,9 @@ function validateSnapshotCollections(parsed, id) {
   }
 }
 
-function parseSnapshot(raw, id) {
+function parseSnapshot(raw, id, snapshotPath) {
   const parsed = parseSnapshotJson(raw, id);
-  validateSnapshotVersion(parsed, id);
+  validateSnapshotVersion(parsed, id, snapshotPath);
   validateSnapshotCollections(parsed, id);
   const restored = parsed;
   validateStateInvariants(restored, `state.restore: snapshot ${id}`);
@@ -158,7 +162,7 @@ const restoreOperation = Object.freeze({
     const metaPath = path.join(dir, `${id}.meta.json`);
     const rawPath = path.join(dir, `${id}.json`);
     const meta = await readSnapshotMetadata(metaPath, id);
-    const restored = parseSnapshot(await readSnapshotBytes(rawPath, id), id);
+    const restored = parseSnapshot(await readSnapshotBytes(rawPath, id), id, rawPath);
     return restorePlan(id, meta, restored);
   },
   async apply({ plan }) {

@@ -8802,6 +8802,42 @@
       "disposition": "keep"
     },
     {
+      "path": "test/v1-restore-transfer.test.mjs",
+      "name": "push reports canonical v1 numbering in the transfer payload",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/v1-restore-transfer.test.mjs",
+      "name": "restore installs a canonical snapshot and the restored project accepts a mutation",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/v1-restore-transfer.test.mjs",
+      "name": "restore rejects historical v2 snapshots with path and migration guidance",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/v1-restore-transfer.test.mjs",
+      "name": "restore rejects historical v3 snapshots with path and migration guidance",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/v1-restore-transfer.test.mjs",
+      "name": "restore rejects historical v4 snapshots with path and migration guidance",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/v1-restore-transfer.test.mjs",
+      "name": "restore rejects historical v5 snapshots with path and migration guidance",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
       "path": "test/v2-add-task-initiative-lookup.test.mjs",
       "name": "CLI v2 add-task accepts an initiative registered by add-initiative",
       "ordinal": 1,
