@@ -14,7 +14,7 @@ const GATE_SUBKIND = "gate";
 
 // Keep this list aligned with the CLI update command's gate-usable patch
 // flags. `resolution_mode` is the typed API spelling of `--resolution-mode`.
-const ALLOWED_PATCH_KEYS = new Set([
+export const ALLOWED_PATCH_KEYS = new Set([
   "title",
   "body",
   "initiative",

@@ -152,7 +152,7 @@ Cycles in the DAG must not crash. The derivation keeps cycle members blocked. Un
 | `update <id> [--title X] [--body "..."] [--definition "..."] [--acceptance "..."] [--domain Y] [--tags ...] [--backlog true\|false] [--if-revision N]` | `cli/commands/update.mjs` | yes | required (any value) |
 | `add-note <id> "<text>"` | `cli/commands/add-note.mjs` | yes | required (any value) |
 | `add-initiative <name> [--desc "..."]` | `cli/commands/add-initiative.mjs` | yes | required |
-| `add-task [id] --initiative X --title "..." --body "..." --acceptance "..." --blocked-by A,B [--backlog true]` | `cli/commands/add-task.mjs` | yes | required |
+| `add-task [id] --initiative X --title "..." --body "..." --acceptance "..." --blocked-by A,B` | `cli/commands/add-task.mjs` | yes | required |
 | `add-gate [id] --initiative X --title "..." --body "..." --purpose decision\|approval\|external-dependency\|research [--supersedes OLD]` | `cli/commands/add-gate.mjs` | yes | required |
 | `add-knowledge [id] --initiative X --title "..." --body "..." [--scope-domains X] [--scope-initiatives X] [--scope-tags X] [--scope-node-ids X] [--supersedes OLD]` | `cli/commands/add-knowledge.mjs` | yes | required |
 | `deprecate-knowledge <id> --reason "<text>"` | `cli/commands/deprecate-knowledge.mjs` | yes | required |

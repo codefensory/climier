@@ -12,7 +12,7 @@ import { readState } from "../../storage/state.mjs";
 
 export const knownFlags = ["limit"];
 
-const REFERENCE_FIELDS = ["node"];
+export const REFERENCE_FIELDS = ["node"];
 
 function entryReferencesId(entry, id) {
   if (!entry || !id) {return false;}

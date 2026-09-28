@@ -21,6 +21,17 @@ const REGISTRY = bootstrapBuiltins();
 
 export const knownFlags = ["title", "body", "initiative", "domain", "tags", "refs", "meta", "definition", "acceptance", "backlog", "purpose", "resolution-mode", "knowledge-type", "mitigation", "scope-domains", "scope-initiatives", "scope-tags", "scope-node-ids", "if-revision", "as"];
 
+// Public flag names are adapter concerns; provider keys are the typed contract.
+// The checker uses this mapping to verify documentation against provider unions.
+export const UPDATE_FLAG_TO_KEY = Object.freeze({
+  "resolution-mode": "resolution_mode",
+  "knowledge-type": "knowledge_type",
+  "scope-domains": "scope.domains",
+  "scope-initiatives": "scope.initiatives",
+  "scope-tags": "scope.tags",
+  "scope-node-ids": "scope.node_ids",
+});
+
 function csv(raw) {
   if (!raw || raw === true) {
     return [];

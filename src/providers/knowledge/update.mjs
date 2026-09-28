@@ -21,7 +21,7 @@ import { throwV2 } from "../../contracts/errors.mjs";
 const KNOWN_KNOWLEDGE_TYPES = Object.freeze(["warning", "fact", "instruction"]);
 const KNOWN_STATUSES = Object.freeze(["active", "deprecated", "superseded"]);
 const SCOPE_KEYS = Object.freeze(["domains", "initiatives", "tags", "node_ids"]);
-const PATCHABLE_FIELDS = Object.freeze([
+export const PATCHABLE_FIELDS = Object.freeze([
   "title",
   "body",
   "mitigation",

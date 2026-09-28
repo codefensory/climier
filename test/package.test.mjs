@@ -37,8 +37,11 @@ test("package: npm pack only includes runtime files", () => {
   assert.ok(paths.some((p) => p.startsWith("src/")));
   assert.ok(paths.includes("LICENSE"));
   assert.ok(paths.includes("CHANGELOG.md"));
+  assert.ok(paths.includes("README.md"));
+  assert.ok(paths.includes("docs/reference.md"));
 
   assert.equal(paths.some((p) => p.startsWith("test/")), false);
+  assert.equal(paths.some((p) => p.startsWith("ui/")), false);
   assert.equal(paths.includes("AGENTS.md"), false);
   assert.equal(paths.some((p) => p.startsWith(".agents/")), false);
 });
