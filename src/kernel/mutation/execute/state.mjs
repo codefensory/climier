@@ -38,7 +38,7 @@ async function loadCurrentState(projectDir, exists) {
   try {
     return { currentState: await readState(projectDir), stateError: null };
   } catch (error) {
-    const recoverable = ["CLIMIER_CORRUPT_STATE", "STATE_V1_UNSUPPORTED", "CLIMIER_INCOMPATIBLE_VERSION", "CLIMIER_LEDGER_STATE_MISMATCH"].includes(error.code);
+    const recoverable = ["CLIMIER_CORRUPT_STATE", "CLIMIER_INCOMPATIBLE_VERSION", "CLIMIER_LEDGER_STATE_MISMATCH"].includes(error.code);
     if (!recoverable) {
       throw error;
     }

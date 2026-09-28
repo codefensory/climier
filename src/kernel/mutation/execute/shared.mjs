@@ -300,7 +300,7 @@ function hasIncompatibleVersion(raw) {
 }
 
 function isIncompatibleVersionError(error) {
-  return error.code === "STATE_V1_UNSUPPORTED" || error.code === "CLIMIER_INCOMPATIBLE_VERSION"
+  return error.code === "CLIMIER_INCOMPATIBLE_VERSION"
     || error.code === "PRE_RELEASE_STATE_UNSUPPORTED" || error.code === "CLIMIER_NONCANONICAL_STATE";
 }
 

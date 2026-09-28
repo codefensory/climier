@@ -4,7 +4,7 @@
 // lock. They use the canonical read-model for graph/domain projections and do
 // not depend on CLI command adapters or the transitional v2 facade.
 
-import { readState, isFencedState, isV2State, assertReadableState } from "../storage/state.mjs";
+import { readState, assertReadableState } from "../storage/state.mjs";
 import { assertLocalBackend } from "./remote-guard.mjs";
 import { throwV2 } from "../contracts/errors.mjs";
 import {
@@ -259,25 +259,12 @@ async function readSnapshot(projectDir) {
   return readState(projectDir);
 }
 
-function legacyNode(snapshot, id) {
+function nodeById(snapshot, id) {
   const node = snapshot.nodes[id];
   if (!node) {
     throwV2("NODE_NOT_FOUND", `show: ${id} not found`, { id });
   }
   return { type: node.subkind || node.kind, node };
-}
-
-function compatibleNode(snapshot, id) {
-  if (snapshot.tasks && snapshot.tasks[id]) {
-    return { type: "task", node: snapshot.tasks[id] };
-  }
-  if (snapshot.decisions && snapshot.decisions[id]) {
-    return { type: "decision", node: { status: "open", ...snapshot.decisions[id] } };
-  }
-  if (snapshot.gotchas && snapshot.gotchas[id]) {
-    return { type: "gotcha", node: { status: "active", ...snapshot.gotchas[id] } };
-  }
-  throw new Error(`show: ${id} not found (no task, decision, or gotcha with that id)`);
 }
 
 async function queryNode(projectDir, id) {
@@ -288,9 +275,7 @@ async function queryNode(projectDir, id) {
   if (!snapshot) {
     throw new Error("show: state file missing");
   }
-  return isV2State(snapshot) || isFencedState(snapshot)
-    ? legacyNode(snapshot, id)
-    : compatibleNode(snapshot, id);
+  return nodeById(snapshot, id);
 }
 
 async function queryContext(projectDir, id, agent) {

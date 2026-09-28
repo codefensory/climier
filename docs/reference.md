@@ -61,11 +61,11 @@ If you only need the quickstart, use `README.md`. If you need the actual contrac
 
 ## State shape
 
-`init` creates a `version: 3` state with this shape. Compatible v2 states are normalized to v3 on read/write:
+`init` creates the canonical `version: 1` state with this shape. The reader accepts only this form; run `climier migrate` for states written before the refactor:
 
 ```js
 {
-  version: 3,
+  version: 1,
   initiatives: {
     "auth": { desc: "Auth migration", created_at: "2026-01-01T00:00:00.000Z" }
   },
@@ -83,7 +83,7 @@ If you only need the quickstart, use `README.md`. If you need the actual contrac
 
 The required top-level collections are:
 
-- `version: 3`
+- `version: 1`
 - `nodes`
 - `edges`
 - `initiatives`
@@ -867,7 +867,6 @@ Important codes you will actually hit:
 - `ALREADY_CLAIMED`
 - `NOT_OWNER`
 - `INVALID_STATUS`
-- `STATE_V1_UNSUPPORTED` — a `version: 1` state file was found. v1 is no longer supported. The error `details.migration_steps` explains how to back up and recreate the project; `details.hint` points at `climier init --force` as the path to overwrite a v1 state file (after backup).
 
 ## Minimal flow
 

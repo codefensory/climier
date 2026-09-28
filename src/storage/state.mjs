@@ -97,14 +97,6 @@ export function emptyState() {
   };
 }
 
-export function isV2State(state) {
-  return [2, 3, 4].includes(state?.version);
-}
-
-export function isV3State(state) {
-  return [3, 4].includes(state?.version);
-}
-
 const READABLE_STATE_KINDS = new Set(["canonical"]);
 
 // Readers accept only canonical version 1. The classifier retains legacy forms
