@@ -6,9 +6,9 @@ import {
   createTempProject,
   importFresh,
   rmTempProject,
+  writeCanonicalState,
   writeState,
 } from "./helpers.mjs";
-import { bootstrapFencedState } from "../src/storage/ledger.mjs";
 
 function compatibleState(version = 4) {
   return {
@@ -43,17 +43,14 @@ function compatibleState(version = 4) {
 async function withFencedProject(run) {
   const dir = await createTempProject();
   try {
-    await writeState(dir, compatibleState());
-    const fenced = await bootstrapFencedState(dir);
-    assert.equal(fenced.version, 5);
-    assert.ok(Number.isInteger(fenced.fence_generation));
+    await writeCanonicalState(dir, compatibleState(1));
     await run(dir);
   } finally {
     await rmTempProject(dir);
   }
 }
 
-test("local show reads a fenced v5 node without exposing fence metadata", async () => {
+test("local show reads a canonical v1 node without exposing fence metadata", async () => {
   await withFencedProject(async (dir) => {
     const { default: show } = await importFresh("./cli/commands/show.mjs");
     const result = await show({ statePath: dir, positional: ["T1"], flags: {} });
@@ -64,7 +61,7 @@ test("local show reads a fenced v5 node without exposing fence metadata", async 
   });
 });
 
-test("local context and search read fenced v5 node collections", async () => {
+test("local context and search read canonical v1 node collections", async () => {
   await withFencedProject(async (dir) => {
     const { default: context } = await importFresh("./cli/commands/context.mjs");
     const { default: search } = await importFresh("./cli/commands/search.mjs");
@@ -79,7 +76,7 @@ test("local context and search read fenced v5 node collections", async () => {
   });
 });
 
-test("plugin query reads fenced v5 nodes and projects no fence or ledger fields", async () => {
+test("plugin query reads canonical v1 nodes and projects no fence or ledger fields", async () => {
   await withFencedProject(async (dir) => {
     const { createQuery } = await importFresh("../src/plugins/query.mjs");
     const query = createQuery({ projectDir: dir, agent: "alice", pluginId: "plugin.a" });
@@ -105,22 +102,40 @@ test("plugin query reads fenced v5 nodes and projects no fence or ledger fields"
   });
 });
 
-test("read consumers preserve v2, v3, and v4 collection compatibility", async () => {
+test("read consumers reject legacy state versions with a migration hint", async () => {
   const dir = await createTempProject();
   try {
-    const { default: show } = await importFresh("./cli/commands/show.mjs");
-    const { default: context } = await importFresh("./cli/commands/context.mjs");
-    const { default: search } = await importFresh("./cli/commands/search.mjs");
-    const { createQuery } = await importFresh("../src/plugins/query.mjs");
-    const query = createQuery({ projectDir: dir, agent: "alice", pluginId: "plugin.a" });
+    const reads = [
+      async (version) => {
+        await writeState(dir, compatibleState(version));
+        const { default: show } = await importFresh("./cli/commands/show.mjs");
+        return show({ statePath: dir, positional: ["T1"], flags: {} });
+      },
+        async (version) => {
+        await writeState(dir, compatibleState(version));
+        const { default: context } = await importFresh("./cli/commands/context.mjs");
+        return context({ statePath: dir, positional: ["T1"], flags: {} });
+      },
+      async (version) => {
+        await writeState(dir, compatibleState(version));
+        const { default: search } = await importFresh("./cli/commands/search.mjs");
+        return search({ statePath: dir, positional: ["needle"], flags: {} });
+      },
+      async (version) => {
+        await writeState(dir, compatibleState(version));
+        const { createQuery } = await importFresh("../src/plugins/query.mjs");
+        return createQuery({ projectDir: dir, agent: "alice", pluginId: "plugin.a" }).node("T1");
+      },
+    ];
 
-    for (const version of [2, 3, 4]) {
-      await writeState(dir, compatibleState(version));
-      assert.equal((await show({ statePath: dir, positional: ["T1"], flags: {} })).node.id, "T1");
-      assert.equal((await context({ statePath: dir, positional: ["T1"], flags: {} })).derived_status, "ready");
-      assert.deepEqual((await search({ statePath: dir, positional: ["needle"], flags: {} })).matches.map(({ id }) => id), ["K-needle"]);
-      assert.equal((await query.node("T1")).node.id, "T1");
-      assert.equal((await query.context("T1")).derived_status, "ready");
+    for (const version of [2, 3, 4, 5]) {
+      for (const read of reads) {
+        await assert.rejects(read(version), (error) => {
+          assert.ok(["CLIMIER_INCOMPATIBLE_VERSION", "CLIMIER_STATE_NOT_READABLE"].includes(error.code));
+          assert.match(error.message, /climier migrate/i);
+          return true;
+        });
+      }
     }
   } finally {
     await rmTempProject(dir);

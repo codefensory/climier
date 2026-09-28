@@ -229,7 +229,7 @@ test("kernel state.restore recovers over future current state, preserving raw pr
     // cannot interpret, and the raw file is left untouched.
     await assert.rejects(
       () => restoreState({ projectDir: dir, snapshotId: target.id, actor: "recovery" }),
-      /accepts only an unfenced legacy source state/,
+      /accepts only a canonical version 1 source state/,
     );
     assert.equal(await fs.readFile(stateFilePath(dir), "utf8"), raw);
     assert.ok((await listSnapshots(dir)).some((item) => item.id === target.id));

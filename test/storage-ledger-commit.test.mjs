@@ -8,32 +8,13 @@ import { stateFile } from "../src/storage/state.mjs";
 import { withLock, assertActiveLockContext } from "../src/storage/lock.mjs";
 import {
   bootstrapFencedState,
+  bootstrapFencedStateUnderLock,
   commitFencedStateUnderLock,
   ledgerFile,
   readFencedState,
   readFencedStateUnderLock,
 } from "../src/storage/ledger.mjs";
 
-function preFenceState() {
-  return {
-    version: 4,
-    nodes: {
-      T1: { id: "T1", revision: 8 },
-      T2: { id: "T2", revision: 12 },
-    },
-    edges: [],
-    initiatives: {},
-    log: [{ action: "seed" }],
-    revision: 10,
-  };
-}
-
-async function seedState(projectDir) {
-  const file = stateFile(projectDir);
-  await fs.mkdir(path.dirname(file), { recursive: true });
-  await fs.writeFile(file, `${JSON.stringify(preFenceState(), null, 2)}\n`, "utf8");
-  return file;
-}
 
 async function withProject(fn) {
   const projectDir = await createTempProject();
@@ -128,7 +109,6 @@ test("fenced read requires an active capability and reads without reacquiring th
   const first = await createTempProject();
   const second = await createTempProject();
   try {
-    await seedState(first);
     const expected = await bootstrapFencedState(first);
     let expiredContext;
     await withLock(first, async (lockContext) => {
@@ -156,7 +136,7 @@ test("fenced read requires an active capability and reads without reacquiring th
 
 test("fenced read rejects malformed, downgraded, generation, and revision-mismatched state", async (t) => {
   const cases = [
-    ["degraded schema", (state) => ({ ...state, version: 4 })],
+    ["degraded schema", (state) => ({ ...state, version: 5 })],
     ["missing generation", (state) => {
       const { fence_generation: _generation, ...degraded } = state;
       return degraded;
@@ -166,10 +146,10 @@ test("fenced read rejects malformed, downgraded, generation, and revision-mismat
   ];
   for (const [label, alter] of cases) {
     await runProjectSubtest(t, label, async (projectDir) => {
-      await seedState(projectDir);
-      const state = await bootstrapFencedState(projectDir);
+      await bootstrapFencedState(projectDir);
+      const state = await readFencedState(projectDir);
       await fs.writeFile(stateFile(projectDir), `${JSON.stringify(alter(state), null, 2)}\n`, "utf8");
-      await assert.rejects(readUnderLock(projectDir), { code: "CLIMIER_LEDGER_STATE_MISMATCH" });
+      await assert.rejects(readUnderLock(projectDir), { code: label === "degraded schema" ? "CLIMIER_INCOMPATIBLE_VERSION" : "CLIMIER_LEDGER_STATE_MISMATCH" });
     });
   }
 });
@@ -181,7 +161,6 @@ test("fenced commit requires an active capability and commits under the existing
   );
 
   await withProject(async (projectDir) => {
-    await seedState(projectDir);
     const initial = await bootstrapFencedState(projectDir);
     const candidate = nextCandidate(initial);
     const result = await Promise.race([
@@ -197,7 +176,6 @@ test("fenced commit requires an active capability and commits under the existing
 
 test("fenced commit rejects created or modified nodes without advancing their revisions", async () => {
   await withProject(async (projectDir) => {
-    await seedState(projectDir);
     const current = await bootstrapFencedState(projectDir);
     const created = nextCandidate(current);
     created.nodes.T3 = { id: "T3", revision: current.revision };
@@ -211,13 +189,18 @@ test("fenced commit rejects created or modified nodes without advancing their re
 
 test("fenced commit preserves generation and requires strictly monotonic state and node revisions", async () => {
   await withProject(async (projectDir) => {
-    await seedState(projectDir);
-    const current = await bootstrapFencedState(projectDir);
+    const current = await withLock(projectDir, (context) => bootstrapFencedStateUnderLock(context, {
+      version: 1, nodes: { T1: { id: "T1", revision: 3 } }, edges: [], initiatives: {}, log: [], revision: 2,
+    }));
+    const populated = {
+      ...current,
+      nodes: { T1: { id: "T1", revision: current.revision } },
+    };
     const candidates = [
       { ...nextCandidate(current), fence_generation: current.fence_generation + 1 },
       { ...nextCandidate(current), revision: current.revision },
-      { ...nextCandidate(current), nodes: { ...nextCandidate(current).nodes, T1: { ...current.nodes.T1, revision: current.nodes.T1.revision - 1 } } },
-      { ...nextCandidate(current), nodes: { ...nextCandidate(current).nodes, T1: { ...current.nodes.T1, revision: current.revision + 2 } } },
+      { ...nextCandidate(populated), nodes: { ...nextCandidate(populated).nodes, T1: { ...populated.nodes.T1, revision: populated.nodes.T1.revision - 1 } } },
+      { ...nextCandidate(populated), nodes: { ...nextCandidate(populated).nodes, T1: { ...populated.nodes.T1, revision: populated.revision + 2 } } },
     ];
     for (const candidate of candidates) {
       await assert.rejects(commit(projectDir, candidate), /generation|monotonic|revision/i);
@@ -228,10 +211,8 @@ test("fenced commit preserves generation and requires strictly monotonic state a
 
 test("fenced commit reserves at least all candidate revisions and persists exact state/log bytes", async () => {
   await withProject(async (projectDir) => {
-    await seedState(projectDir);
     const current = await bootstrapFencedState(projectDir);
     const candidate = nextCandidate(current, current.revision + 3);
-    candidate.nodes.T1.revision = candidate.revision - 1;
     const result = await commit(projectDir, candidate);
     const raw = await fs.readFile(stateFile(projectDir), "utf8");
     const ledger = JSON.parse(await fs.readFile(ledgerFile(projectDir), "utf8"));
@@ -248,8 +229,8 @@ test("fenced commit reserves at least all candidate revisions and persists exact
 test("commit crash before durable stage or pending leaves source state and ledger unchanged", async (t) => {
   for (const faultAt of ["before-stage", "after-stage", "before-pending"]) {
     await runProjectSubtest(t, faultAt, async (projectDir) => {
-      await seedState(projectDir);
-      const current = await bootstrapFencedState(projectDir);
+      await bootstrapFencedState(projectDir);
+      const current = await readFencedState(projectDir);
       const sourceRaw = await fs.readFile(stateFile(projectDir), "utf8");
       const ledgerRaw = await fs.readFile(ledgerFile(projectDir), "utf8");
       await assert.rejects(commit(projectDir, nextCandidate(current), { faultAt }), /injected failure/);
@@ -263,8 +244,8 @@ test("commit crash before durable stage or pending leaves source state and ledge
 test("commit recovery resumes exact source or destination fingerprints idempotently", async (t) => {
   for (const faultAt of ["after-pending", "before-state-rename", "after-state-rename", "before-ledger-clear"]) {
     await runProjectSubtest(t, faultAt, async (projectDir) => {
-      await seedState(projectDir);
-      const current = await bootstrapFencedState(projectDir);
+      await bootstrapFencedState(projectDir);
+      const current = await readFencedState(projectDir);
       const candidate = nextCandidate(current);
       await assert.rejects(commit(projectDir, candidate, { faultAt }), /injected failure/);
 
@@ -290,7 +271,6 @@ test("commit recovery resumes exact source or destination fingerprints idempoten
 
 test("commit recovery fails closed when state diverges from both pending fingerprints", async () => {
   await withProject(async (projectDir) => {
-    await seedState(projectDir);
     const current = await bootstrapFencedState(projectDir);
     await assert.rejects(commit(projectDir, nextCandidate(current), { faultAt: "after-pending" }), /injected failure/);
     const changed = { ...current, log: [...current.log, { action: "unrelated" }] };
@@ -303,7 +283,6 @@ test("commit recovery fails closed when state diverges from both pending fingerp
 
 test("commit recovery fails closed when the durable ledger advances beyond the pending reservation", async () => {
   await withProject(async (projectDir) => {
-    await seedState(projectDir);
     const current = await bootstrapFencedState(projectDir);
     await assert.rejects(commit(projectDir, nextCandidate(current), { faultAt: "after-pending" }), /injected failure/);
     const ledger = JSON.parse(await fs.readFile(ledgerFile(projectDir), "utf8"));
@@ -318,8 +297,8 @@ test("commit recovery fails closed when the durable ledger advances beyond the p
 test("commit pending recovery rejects missing or altered durable stage without clearing pending", async (t) => {
   for (const stageState of ["missing", "altered"]) {
     await runProjectSubtest(t, stageState, async (projectDir) => {
-      await seedState(projectDir);
-      const current = await bootstrapFencedState(projectDir);
+      await bootstrapFencedState(projectDir);
+      const current = await readFencedState(projectDir);
       await assert.rejects(commit(projectDir, nextCandidate(current), { faultAt: "after-pending" }), /injected failure/);
       const ledger = JSON.parse(await fs.readFile(ledgerFile(projectDir), "utf8"));
       const stage = path.join(path.dirname(stateFile(projectDir)), `.commit-stage-${ledger.commit_pending.stage_id}`);

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
-import { createTempProject, readState as readStateHelper, rmTempProject, stateFilePath, writeState as writeStateHelper, importFresh } from "../../helpers.mjs";
+import { createTempProject, readState as readStateHelper, rmTempProject, stateFilePath, writeCanonicalState, importFresh } from "../../helpers.mjs";
 import { bootstrapProject, importKernel, updateNodeProvider } from "./helpers.mjs";
 import { withLock } from "../../../src/storage/lock.mjs";
 
@@ -152,9 +152,9 @@ test("kernel.mutate: failing call writes nothing — final on-disk state equals 
 // Plugin attribution / log shape
 // ===================================================================
 
-async function mutateLegacyState(dir, mutate, provider) {
-  await writeStateHelper(dir, {
-    version: 4,
+async function mutateCanonicalState(dir, mutate, provider) {
+  await writeCanonicalState(dir, {
+    version: 1,
     revision: 2,
     nodes: { T1: { id: "T1", kind: "resolvable", subkind: "task", title: "before", status: "open", revision: 2 } },
     edges: [],
@@ -168,23 +168,23 @@ async function mutateLegacyState(dir, mutate, provider) {
   });
 }
 
-function assertFencedState(state, expectedFenceGeneration, expectedRevision, expectedTitle) {
-  assert.equal(state.version, 5);
+function assertCanonicalState(state, expectedFenceGeneration, expectedRevision, expectedTitle) {
+  assert.equal(state.version, 1);
   assert.equal(state.fence_generation, expectedFenceGeneration);
   assert.equal(state.revision, expectedRevision);
   assert.equal(state.nodes.T1.revision, expectedRevision);
   assert.equal(state.nodes.T1.title, expectedTitle);
 }
 
-test("kernel mutation migrates legacy state and writes provider changes through the fenced commit", async () => {
+test("kernel mutation writes provider changes through the ledger commit over a canonical state", async () => {
   const { mutate } = await importKernel();
   const { readFencedState, bootstrapFencedState } = await import("../../../src/storage/ledger.mjs");
   const dir = await createTempProject();
   try {
     const { provider } = updateNodeProvider({ id: "T1", newTitle: "fenced provider" });
-    await mutateLegacyState(dir, mutate, provider);
+    await mutateCanonicalState(dir, mutate, provider);
     const state = await readFencedState(dir);
-    assertFencedState(state, 1, 4, "fenced provider");
+    assertCanonicalState(state, 1, 4, "fenced provider");
 
     const secondDir = await createTempProject();
     try {
@@ -197,7 +197,7 @@ test("kernel mutation migrates legacy state and writes provider changes through 
         provider: nextProvider,
       });
       const next = await readFencedState(secondDir);
-      assertFencedState(next, fenced.fence_generation, fenced.revision + 1, "fenced again");
+      assertCanonicalState(next, fenced.fence_generation, fenced.revision + 1, "fenced again");
     } finally {
       await rmTempProject(secondDir);
     }
@@ -290,8 +290,8 @@ test("direct mutation executor requires the active lock capability supplied by m
   const { withLock: withActiveLock } = await import("../../../src/storage/lock.mjs");
   const dir = await createTempProject();
   try {
-    await writeStateHelper(dir, {
-      version: 4,
+    await writeCanonicalState(dir, {
+      version: 1,
       revision: 3,
       nodes: { T1: { id: "T1", kind: "resolvable", subkind: "task", title: "before", status: "open", revision: 2 } },
       edges: [],
@@ -317,7 +317,7 @@ test("direct mutation executor requires the active lock capability supplied by m
       assert.equal(mutation.result.ok, true);
     });
     const after = await readStateHelper(dir);
-    assert.equal(after.version, 5);
+    assert.equal(after.version, 1);
     assert.equal(after.revision, 5);
     assert.equal(after.nodes.T1.revision, 5);
     assert.equal(after.nodes.T1.title, "after");

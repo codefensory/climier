@@ -29,7 +29,7 @@ import { createRequire, register } from "node:module";
 import {
   createTempProject,
   rmTempProject,
-  writeState,
+  writeCanonicalState,
   exampleState,
 } from "./helpers.mjs";
 
@@ -327,7 +327,7 @@ function searchFixture() {
 test("/api/search groups tasks/gates/knowledge and hides deprecated by default", { skip }, async (t) => {
   const dir = await createTempProject();
   t.after(() => rmTempProject(dir));
-  await writeState(dir, searchFixture());
+  await writeCanonicalState(dir, searchFixture());
   const { base, server } = await startServer(dir);
   t.after(() => closeServer(server));
 

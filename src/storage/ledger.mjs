@@ -3,17 +3,15 @@
 // before writing state v5.
 import fs from "node:fs/promises";
 import path from "node:path";
-import { stateFile, FENCED_STATE_VERSION } from "./state.mjs";
+import { stateFile } from "./state.mjs";
 import { withLock, withCurrentProjectLock, assertActiveLockContext, getActiveLockContext } from "./lock.mjs";
 import {
   assertValidLedger,
   recoverUnderActiveLock as recoverUnderActiveLockProtocol,
-  SOURCE_VERSIONS,
 } from "./ledger/recovery.mjs";
 import { assertFencedState, readJson } from "./ledger/stages.mjs";
 import { bootstrapInitialUnderLock, bootstrapLocked, fileExists, finishPendingBootstrap } from "./ledger/bootstrap.mjs";
 import { cleanOrphanCommitStages, commitFencedStateUnderLock as commitProtocol, finishPendingCommit } from "./ledger/commit.mjs";
-import { finishPendingMigration } from "./ledger/migration.mjs";
 import { replaceUnderActiveLock } from "./ledger/replace.mjs";
 
 export function ledgerFile(projectDir) {
@@ -23,7 +21,6 @@ export function ledgerFile(projectDir) {
 function runRecoveryProtocol(lockContext, candidate, opts) {
   return recoverUnderActiveLockProtocol(lockContext, candidate, opts, {
     finishPendingBootstrap,
-    finishPendingMigration,
     finishPendingCommit,
   });
 }
@@ -54,22 +51,6 @@ export async function bootstrapFencedStateUnderLock(lockContext, initialState, o
   return bootstrapInitialUnderLock(lockContext, initialState, opts);
 }
 
-async function migrateStateWithoutLedger(projectDir, statePath, opts) {
-  const state = readJson(await fs.readFile(statePath, "utf8"), "state");
-  if (state.version === FENCED_STATE_VERSION || Number.isInteger(state.fence_generation)) {
-    const missing = new Error("ledger: revision ledger is missing for fenced state; refusing reconstruction");
-    missing.code = "CLIMIER_LEDGER_MISSING";
-    throw missing;
-  }
-  // Existing legacy state reaches the migration protocol, never bootstrap.
-  if (!SOURCE_VERSIONS.has(state.version)) {
-    const error = new Error(`ledger: cannot migrate unsupported state version ${state.version}`);
-    error.code = "CLIMIER_UNSUPPORTED_SOURCE_VERSION";
-    throw error;
-  }
-  return bootstrapLocked(projectDir, opts, { finishPendingCommit, cleanOrphanCommitStages });
-}
-
 async function readValidatedLedger(ledgerPath) {
   let ledger;
   try {
@@ -98,20 +79,23 @@ function finishBootstrapWithoutState(ledger, statePath, ledgerPath) {
 async function finishLedgerRead(lockContext, ledger, paths, opts) {
   const { statePath, ledgerPath } = paths;
   const rawState = await fs.readFile(statePath, "utf8");
+  const parsedState = readJson(rawState, "fenced state");
   if (ledger.replace_pending) {
     return replaceUnderActiveLock(lockContext, undefined, opts);
   }
   if (ledger.recovery_pending || ledger.last_recovery) {
     return runRecoveryProtocol(lockContext, undefined, opts);
   }
-  if (ledger.migration_pending) {
-    return finishPendingMigration({ statePath, ledgerPath, ledger, rawState });
-  }
   if (ledger.commit_pending) {
     return finishPendingCommit({ statePath, ledgerPath, ledger, rawState, opts });
   }
+  if (!ledger.commit_pending && !ledger.bootstrap_pending && !ledger.recovery_pending && !ledger.replace_pending && parsedState.version !== 1) {
+    const incompatible = new Error("ledger: state is not canonical version 1; run climier migrate");
+    incompatible.code = "CLIMIER_INCOMPATIBLE_VERSION";
+    throw incompatible;
+  }
   await cleanOrphanCommitStages(statePath);
-  const state = readJson(rawState, "fenced state");
+  const state = parsedState;
   assertFencedState(state, ledger);
   return state;
 }
@@ -126,7 +110,9 @@ export async function readFencedStateUnderLock(lockContext, opts = {}) {
     return null;
   }
   if (!hasLedger) {
-    return migrateStateWithoutLedger(projectDir, statePath, opts);
+    const error = new Error(`ledger: canonical state at ${statePath} has no revision ledger`);
+    error.code = "CLIMIER_LEDGER_MISSING";
+    throw error;
   }
   const ledger = await readValidatedLedger(ledgerPath);
   if (!hasState) {

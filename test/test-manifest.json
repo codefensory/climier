@@ -1007,7 +1007,7 @@
     },
     {
       "path": "test/init.test.mjs",
-      "name": "init: --force on an existing v4 state writes empty canonical v1 and preserves ledger high-water",
+      "name": "init: --force replaces an existing canonical v1 state and preserves ledger high-water",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -2185,7 +2185,7 @@
     },
     {
       "path": "test/kernel/mutation/persistence-recovery.test.mjs",
-      "name": "kernel mutation migrates legacy state and writes provider changes through the fenced commit",
+      "name": "kernel mutation writes provider changes through the ledger commit over a canonical state",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -2616,7 +2616,7 @@
       "disposition": "keep",
       "lane": "raw",
       "category": "guard",
-      "motive": "the two `legacy raw updateState preserves plugins` cases exercise raw updates; `init --force on a state with corrupt JSON (cannot read) does not crash and writes emptyState()` seeds a raw v4 source with no ledger because a ledger changes recovery by rejecting the replacement candidate with CLIMIER_LEDGER_FINGERPRINT_MISMATCH",
+      "motive": "`init --force on a state with corrupt JSON (cannot read) does not crash and writes emptyState()` seeds a raw v4 source with no ledger because a ledger changes recovery by rejecting the replacement candidate with CLIMIER_LEDGER_FINGERPRINT_MISMATCH",
       "replacement": "keep while the guard is required"
     },
     {
@@ -2626,7 +2626,7 @@
       "disposition": "keep",
       "lane": "raw",
       "category": "guard",
-      "motive": "the two `legacy raw updateState preserves plugins` cases exercise raw updates; `init --force on a state with corrupt JSON (cannot read) does not crash and writes emptyState()` seeds a raw v4 source with no ledger because a ledger changes recovery by rejecting the replacement candidate with CLIMIER_LEDGER_FINGERPRINT_MISMATCH",
+      "motive": "`init --force on a state with corrupt JSON (cannot read) does not crash and writes emptyState()` seeds a raw v4 source with no ledger because a ledger changes recovery by rejecting the replacement candidate with CLIMIER_LEDGER_FINGERPRINT_MISMATCH",
       "replacement": "keep while the guard is required"
     },
     {
@@ -2636,7 +2636,7 @@
       "disposition": "keep",
       "lane": "raw",
       "category": "guard",
-      "motive": "the two `legacy raw updateState preserves plugins` cases exercise raw updates; `init --force on a state with corrupt JSON (cannot read) does not crash and writes emptyState()` seeds a raw v4 source with no ledger because a ledger changes recovery by rejecting the replacement candidate with CLIMIER_LEDGER_FINGERPRINT_MISMATCH",
+      "motive": "`init --force on a state with corrupt JSON (cannot read) does not crash and writes emptyState()` seeds a raw v4 source with no ledger because a ledger changes recovery by rejecting the replacement candidate with CLIMIER_LEDGER_FINGERPRINT_MISMATCH",
       "replacement": "keep while the guard is required"
     },
     {
@@ -2646,28 +2646,26 @@
       "disposition": "keep",
       "lane": "raw",
       "category": "guard",
-      "motive": "the two `legacy raw updateState preserves plugins` cases exercise raw updates; `init --force on a state with corrupt JSON (cannot read) does not crash and writes emptyState()` seeds a raw v4 source with no ledger because a ledger changes recovery by rejecting the replacement candidate with CLIMIER_LEDGER_FINGERPRINT_MISMATCH",
+      "motive": "`init --force on a state with corrupt JSON (cannot read) does not crash and writes emptyState()` seeds a raw v4 source with no ledger because a ledger changes recovery by rejecting the replacement candidate with CLIMIER_LEDGER_FINGERPRINT_MISMATCH",
       "replacement": "keep while the guard is required"
     },
     {
       "path": "test/plugin-compat.test.mjs",
       "name": "legacy raw updateState preserves `plugins` (root) and `nodes[id].plugins` when a mutator touches a node",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "guard",
-      "motive": "the two `legacy raw updateState preserves plugins` cases exercise raw updates; `init --force on a state with corrupt JSON (cannot read) does not crash and writes emptyState()` seeds a raw v4 source with no ledger because a ledger changes recovery by rejecting the replacement candidate with CLIMIER_LEDGER_FINGERPRINT_MISMATCH",
-      "replacement": "keep while the guard is required"
+      "disposition": "delete",
+      "category": "raw-lane",
+      "reason": "the raw writer (updateState) refuses a legacy state on disk now (`run climier migrate`), so the behavior this case pinned no longer exists",
+      "replacement": "test/kernel-plugin-data.test.mjs covers plugin data preservation through the surviving canonical mutation path"
     },
     {
       "path": "test/plugin-compat.test.mjs",
       "name": "legacy raw updateState preserves `plugins` (root) when a mutator touches an unrelated collection (edges)",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "guard",
-      "motive": "the two `legacy raw updateState preserves plugins` cases exercise raw updates; `init --force on a state with corrupt JSON (cannot read) does not crash and writes emptyState()` seeds a raw v4 source with no ledger because a ledger changes recovery by rejecting the replacement candidate with CLIMIER_LEDGER_FINGERPRINT_MISMATCH",
-      "replacement": "keep while the guard is required"
+      "disposition": "delete",
+      "category": "raw-lane",
+      "reason": "same retired raw writer path as its sibling: updateState refuses a legacy state on disk, so there is no acceptance left to assert",
+      "replacement": "test/kernel-plugin-data.test.mjs covers plugin data preservation through the surviving canonical mutation path"
     },
     {
       "path": "test/plugin-compat.test.mjs",
@@ -2676,7 +2674,7 @@
       "disposition": "keep",
       "lane": "raw",
       "category": "guard",
-      "motive": "the two `legacy raw updateState preserves plugins` cases exercise raw updates; `init --force on a state with corrupt JSON (cannot read) does not crash and writes emptyState()` seeds a raw v4 source with no ledger because a ledger changes recovery by rejecting the replacement candidate with CLIMIER_LEDGER_FINGERPRINT_MISMATCH",
+      "motive": "`init --force on a state with corrupt JSON (cannot read) does not crash and writes emptyState()` seeds a raw v4 source with no ledger because a ledger changes recovery by rejecting the replacement candidate with CLIMIER_LEDGER_FINGERPRINT_MISMATCH",
       "replacement": "keep while the guard is required"
     },
     {
@@ -6997,13 +6995,72 @@
     },
     {
       "path": "test/state.test.mjs",
-      "name": "direct legacy writers reject a durable migration_pending ledger",
+      "name": "canonical-only ledger protocols load without the migration module",
       "ordinal": 1,
       "disposition": "keep",
       "lane": "raw",
       "category": "importer-source",
       "motive": "covers the raw writer semantics and the guards that refuse ledger-backed projects",
       "replacement": "no replacement until the importer lane retires"
+    },
+    {
+      "path": "test/state.test.mjs",
+      "name": "canonical-only reader rejects versions 2 through 5 while retaining classification",
+      "ordinal": 1,
+      "disposition": "keep",
+      "lane": "raw",
+      "category": "importer-source",
+      "motive": "covers the raw writer semantics and the guards that refuse ledger-backed projects",
+      "replacement": "no replacement until the importer lane retires"
+    },
+    {
+      "path": "test/state.test.mjs",
+      "name": "canonical-only reader rejects versions 2 through 5 while retaining classification > version 2",
+      "ordinal": 1,
+      "disposition": "keep",
+      "lane": "raw",
+      "category": "importer-source",
+      "motive": "covers the raw writer semantics and the guards that refuse ledger-backed projects",
+      "replacement": "no replacement until the importer lane retires"
+    },
+    {
+      "path": "test/state.test.mjs",
+      "name": "canonical-only reader rejects versions 2 through 5 while retaining classification > version 3",
+      "ordinal": 1,
+      "disposition": "keep",
+      "lane": "raw",
+      "category": "importer-source",
+      "motive": "covers the raw writer semantics and the guards that refuse ledger-backed projects",
+      "replacement": "no replacement until the importer lane retires"
+    },
+    {
+      "path": "test/state.test.mjs",
+      "name": "canonical-only reader rejects versions 2 through 5 while retaining classification > version 4",
+      "ordinal": 1,
+      "disposition": "keep",
+      "lane": "raw",
+      "category": "importer-source",
+      "motive": "covers the raw writer semantics and the guards that refuse ledger-backed projects",
+      "replacement": "no replacement until the importer lane retires"
+    },
+    {
+      "path": "test/state.test.mjs",
+      "name": "canonical-only reader rejects versions 2 through 5 while retaining classification > version 5",
+      "ordinal": 1,
+      "disposition": "keep",
+      "lane": "raw",
+      "category": "importer-source",
+      "motive": "covers the raw writer semantics and the guards that refuse ledger-backed projects",
+      "replacement": "no replacement until the importer lane retires"
+    },
+    {
+      "path": "test/state.test.mjs",
+      "name": "direct legacy writers reject a durable migration_pending ledger",
+      "ordinal": 1,
+      "disposition": "delete",
+      "category": "raw-lane",
+      "reason": "the implicit migration lane and its migration_pending record are retired",
+      "replacement": "direct state writers reject ledger-backed and fenced projects before mutation (test/state.test.mjs)"
     },
     {
       "path": "test/state.test.mjs",
@@ -7049,11 +7106,10 @@
       "path": "test/state.test.mjs",
       "name": "migrateState upgrades v3 to v4 with global revision zero",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "covers the raw writer semantics and the guards that refuse ledger-backed projects",
-      "replacement": "no replacement until the importer lane retires"
+      "disposition": "delete",
+      "category": "raw-lane",
+      "reason": "migrateState is deleted with src/storage/ledger/migration.mjs",
+      "replacement": "test/migrate.test.mjs, test/migrate-old-forms.test.mjs and test/migrate-fenced.test.mjs cover the explicit importer"
     },
     {
       "path": "test/state.test.mjs",
@@ -7068,16 +7124,6 @@
     {
       "path": "test/state.test.mjs",
       "name": "readState classifies pre-release v1 structure before checking its version",
-      "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "covers the raw writer semantics and the guards that refuse ledger-backed projects",
-      "replacement": "no replacement until the importer lane retires"
-    },
-    {
-      "path": "test/state.test.mjs",
-      "name": "readState classifies version 6 as incompatible",
       "ordinal": 1,
       "disposition": "keep",
       "lane": "raw",
@@ -7119,21 +7165,19 @@
       "path": "test/state.test.mjs",
       "name": "readState migrates a v2 snapshot to v4 without losing collections or fields",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "covers the raw writer semantics and the guards that refuse ledger-backed projects",
-      "replacement": "no replacement until the importer lane retires"
+      "disposition": "delete",
+      "category": "raw-lane",
+      "reason": "the reader no longer migrates in memory; a legacy form is refused with the error that points at climier migrate",
+      "replacement": "canonical-only reader rejects versions 2 through 5 while retaining classification (test/state.test.mjs)"
     },
     {
       "path": "test/state.test.mjs",
       "name": "readState rejects a cyclic v3 state without rewriting it",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "covers the raw writer semantics and the guards that refuse ledger-backed projects",
-      "replacement": "no replacement until the importer lane retires"
+      "disposition": "delete",
+      "category": "raw-lane",
+      "reason": "v3 is a retired input form: the reader refuses it before any structural check",
+      "replacement": "canonical-only reader rejects versions 2 through 5 while retaining classification (test/state.test.mjs)"
     },
     {
       "path": "test/state.test.mjs",
@@ -7187,73 +7231,76 @@
     },
     {
       "path": "test/state.test.mjs",
-      "name": "updateState applies a mutator function and persists atomically",
+      "name": "unknown future schema version is rejected on read and write",
       "ordinal": 1,
       "disposition": "keep",
       "lane": "raw",
       "category": "importer-source",
       "motive": "covers the raw writer semantics and the guards that refuse ledger-backed projects",
       "replacement": "no replacement until the importer lane retires"
+    },
+    {
+      "path": "test/state.test.mjs",
+      "name": "updateState applies a mutator function and persists atomically",
+      "ordinal": 1,
+      "disposition": "delete",
+      "category": "raw-lane",
+      "reason": "the raw writer persists version 4, a form the reader refuses, and a second call is refused as legacy on disk; the lane retires with T-v1-lane-retiro-consumers",
+      "coverage_removed": true
     },
     {
       "path": "test/state.test.mjs",
       "name": "updateState creates file if missing",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "covers the raw writer semantics and the guards that refuse ledger-backed projects",
-      "replacement": "no replacement until the importer lane retires"
+      "disposition": "delete",
+      "category": "raw-lane",
+      "reason": "same retired raw writer path: the created file is a version 4 state no reader accepts",
+      "coverage_removed": true
     },
     {
       "path": "test/state.test.mjs",
       "name": "updateState does not corrupt file on mutator error (atomic write)",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "covers the raw writer semantics and the guards that refuse ledger-backed projects",
-      "replacement": "no replacement until the importer lane retires"
+      "disposition": "delete",
+      "category": "raw-lane",
+      "reason": "the second call that raised the mutator error is refused before the mutator runs, so the atomicity claim is unreachable",
+      "coverage_removed": true
     },
     {
       "path": "test/state.test.mjs",
       "name": "updateState migrates a v2 file before applying and persists v4",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "covers the raw writer semantics and the guards that refuse ledger-backed projects",
-      "replacement": "no replacement until the importer lane retires"
+      "disposition": "delete",
+      "category": "raw-lane",
+      "reason": "neither the reader nor the writer migrates a legacy form in place anymore",
+      "replacement": "test/migrate.test.mjs, test/migrate-old-forms.test.mjs and test/migrate-fenced.test.mjs cover the explicit importer"
     },
     {
       "path": "test/state.test.mjs",
       "name": "updateState reuses the active lock and holds it through mutation and write",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "covers the raw writer semantics and the guards that refuse ledger-backed projects",
-      "replacement": "no replacement until the importer lane retires"
+      "disposition": "delete",
+      "category": "raw-lane",
+      "reason": "same retired raw writer path: only its first write into an empty project is reachable now",
+      "coverage_removed": true
     },
     {
       "path": "test/state.test.mjs",
       "name": "updateState throws STATE_V1_UNSUPPORTED on a v1 file",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "covers the raw writer semantics and the guards that refuse ledger-backed projects",
-      "replacement": "no replacement until the importer lane retires"
+      "disposition": "delete",
+      "category": "raw-lane",
+      "reason": "superseded: the raw writer refuses a canonical input with a clear error instead of a dedicated code",
+      "replacement": "writeState rejects a v1-shaped object with a clear error (test/state.test.mjs)"
     },
     {
       "path": "test/state.test.mjs",
       "name": "writeState persists migrated v2 input as v4",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "covers the raw writer semantics and the guards that refuse ledger-backed projects",
-      "replacement": "no replacement until the importer lane retires"
+      "disposition": "delete",
+      "category": "raw-lane",
+      "reason": "migration is retired; the raw writer only stages pre-cut fixtures for refusal tests",
+      "replacement": "canonical-only reader rejects versions 2 through 5 while retaining classification (test/state.test.mjs)"
     },
     {
       "path": "test/state.test.mjs",
@@ -7279,11 +7326,10 @@
       "path": "test/state.test.mjs",
       "name": "writeState then readState round-trips as v4",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "covers the raw writer semantics and the guards that refuse ledger-backed projects",
-      "replacement": "no replacement until the importer lane retires"
+      "disposition": "delete",
+      "category": "raw-lane",
+      "reason": "the reader refuses the version 4 form the raw writer produces, so the round-trip no longer exists",
+      "coverage_removed": true
     },
     {
       "path": "test/storage-ledger-commit.test.mjs",
@@ -7587,7 +7633,7 @@
     },
     {
       "path": "test/storage-ledger-replace.test.mjs",
-      "name": "fenced replace rebases a v5 candidate above local high-water and preserves generation",
+      "name": "fenced replace rebases a canonical candidate above local high-water and preserves generation",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -7685,251 +7731,205 @@
       "path": "test/storage-ledger.test.mjs",
       "name": "fenced bootstrap creates an initial canonical v1 state under an active lock without reacquiring",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "starts a legacy write to prove the migration fence refuses it",
-      "replacement": "no replacement until the importer lane retires"
+      "disposition": "keep"
     },
     {
       "path": "test/storage-ledger.test.mjs",
       "name": "fenced bootstrap does not overwrite an existing state or ledger",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "starts a legacy write to prove the migration fence refuses it",
-      "replacement": "no replacement until the importer lane retires"
+      "disposition": "keep"
     },
     {
       "path": "test/storage-ledger.test.mjs",
       "name": "fenced bootstrap does not overwrite an existing state or ledger > ledger",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "starts a legacy write to prove the migration fence refuses it",
-      "replacement": "no replacement until the importer lane retires"
+      "disposition": "keep"
     },
     {
       "path": "test/storage-ledger.test.mjs",
       "name": "fenced bootstrap does not overwrite an existing state or ledger > state",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "starts a legacy write to prove the migration fence refuses it",
-      "replacement": "no replacement until the importer lane retires"
+      "disposition": "keep"
     },
     {
       "path": "test/storage-ledger.test.mjs",
       "name": "fenced bootstrap recovers interrupted initial publication without divergent state or ledger",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "starts a legacy write to prove the migration fence refuses it",
-      "replacement": "no replacement until the importer lane retires"
+      "disposition": "keep"
     },
     {
       "path": "test/storage-ledger.test.mjs",
       "name": "fenced bootstrap recovers interrupted initial publication without divergent state or ledger > after-pending",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "starts a legacy write to prove the migration fence refuses it",
-      "replacement": "no replacement until the importer lane retires"
+      "disposition": "keep"
     },
     {
       "path": "test/storage-ledger.test.mjs",
       "name": "fenced bootstrap recovers interrupted initial publication without divergent state or ledger > after-state-create",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "starts a legacy write to prove the migration fence refuses it",
-      "replacement": "no replacement until the importer lane retires"
+      "disposition": "keep"
     },
     {
       "path": "test/storage-ledger.test.mjs",
       "name": "fenced bootstrap recovers interrupted initial publication without divergent state or ledger > before-pending",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "starts a legacy write to prove the migration fence refuses it",
-      "replacement": "no replacement until the importer lane retires"
+      "disposition": "keep"
     },
     {
       "path": "test/storage-ledger.test.mjs",
       "name": "fenced bootstrap rejects a retry with a different initial-state fingerprint",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "starts a legacy write to prove the migration fence refuses it",
-      "replacement": "no replacement until the importer lane retires"
+      "disposition": "keep"
     },
     {
       "path": "test/storage-ledger.test.mjs",
       "name": "fenced bootstrap rejects invalid lock capabilities before storage access",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "starts a legacy write to prove the migration fence refuses it",
-      "replacement": "no replacement until the importer lane retires"
+      "disposition": "keep"
     },
     {
       "path": "test/storage-ledger.test.mjs",
       "name": "ledger bootstrap fails closed for corrupt or missing ledger after fencing",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "starts a legacy write to prove the migration fence refuses it",
-      "replacement": "no replacement until the importer lane retires"
+      "disposition": "keep"
     },
     {
       "path": "test/storage-ledger.test.mjs",
       "name": "ledger bootstrap migrates pre-fence state to v5 and records exact fingerprints",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "starts a legacy write to prove the migration fence refuses it",
-      "replacement": "no replacement until the importer lane retires"
+      "disposition": "delete",
+      "category": "raw-lane",
+      "reason": "only the explicit importer accepts a legacy source now; the reader's fence bootstrap does not migrate",
+      "replacement": "test/migrate.test.mjs, test/migrate-old-forms.test.mjs and test/migrate-fenced.test.mjs cover the explicit importer"
     },
     {
       "path": "test/storage-ledger.test.mjs",
       "name": "ledger bootstrap recovers a failure before pending is durable without changing source",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "starts a legacy write to prove the migration fence refuses it",
-      "replacement": "no replacement until the importer lane retires"
+      "disposition": "delete",
+      "category": "raw-lane",
+      "reason": "the pre-fence source path it faulted is gone; the fault points survive with a canonical source",
+      "replacement": "fenced bootstrap recovers interrupted initial publication without divergent state or ledger (before-pending, after-pending, after-state-create)"
     },
     {
       "path": "test/storage-ledger.test.mjs",
       "name": "ledger bootstrap rejects a source that does not match the pending fingerprint",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "starts a legacy write to prove the migration fence refuses it",
-      "replacement": "no replacement until the importer lane retires"
+      "disposition": "delete",
+      "category": "raw-lane",
+      "reason": "the pending-migration fingerprint check belongs to the retired lane",
+      "replacement": "fenced bootstrap rejects a retry with a different initial-state fingerprint (test/storage-ledger.test.mjs)"
     },
     {
       "path": "test/storage-ledger.test.mjs",
       "name": "ledger bootstrap resumes after state rename and clears pending durably",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "starts a legacy write to prove the migration fence refuses it",
-      "replacement": "no replacement until the importer lane retires"
+      "disposition": "delete",
+      "category": "raw-lane",
+      "reason": "migration_pending is retired with the lane",
+      "replacement": "fenced bootstrap recovers interrupted initial publication without divergent state or ledger (test/storage-ledger.test.mjs)"
     },
     {
       "path": "test/storage-ledger.test.mjs",
       "name": "ledger bootstrap resumes from durable pending when state rename has not happened",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "starts a legacy write to prove the migration fence refuses it",
-      "replacement": "no replacement until the importer lane retires"
+      "disposition": "delete",
+      "category": "raw-lane",
+      "reason": "migration_pending is retired with the lane",
+      "replacement": "fenced bootstrap recovers interrupted initial publication without divergent state or ledger (test/storage-ledger.test.mjs)"
     },
     {
       "path": "test/storage-ledger.test.mjs",
       "name": "legacy update racing under-lock migration is fenced after migration publishes",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "starts a legacy write to prove the migration fence refuses it",
-      "replacement": "no replacement until the importer lane retires"
+      "disposition": "delete",
+      "category": "raw-lane",
+      "reason": "the under-lock migration lane is deleted",
+      "replacement": "under-lock fenced read rejects legacy forms even when a ledger exists (test/storage-ledger.test.mjs)"
     },
     {
       "path": "test/storage-ledger.test.mjs",
       "name": "under-lock fenced read fails closed for ledger-only projects unless bootstrap is pending",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "starts a legacy write to prove the migration fence refuses it",
-      "replacement": "no replacement until the importer lane retires"
+      "disposition": "keep"
     },
     {
       "path": "test/storage-ledger.test.mjs",
       "name": "under-lock fenced read migrates existing legacy state with exact fingerprints",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "starts a legacy write to prove the migration fence refuses it",
-      "replacement": "no replacement until the importer lane retires"
+      "disposition": "delete",
+      "category": "raw-lane",
+      "reason": "the reader no longer migrates an existing legacy state under the lock",
+      "replacement": "under-lock fenced read rejects legacy forms even when a ledger exists (test/storage-ledger.test.mjs)"
     },
     {
       "path": "test/storage-ledger.test.mjs",
       "name": "under-lock fenced read rejects expired and foreign lock capabilities",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "starts a legacy write to prove the migration fence refuses it",
-      "replacement": "no replacement until the importer lane retires"
+      "disposition": "keep"
     },
     {
       "path": "test/storage-ledger.test.mjs",
-      "name": "under-lock fenced read rejects v5 state without its ledger",
+      "name": "under-lock fenced read rejects legacy forms even when a ledger exists",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "starts a legacy write to prove the migration fence refuses it",
-      "replacement": "no replacement until the importer lane retires"
+      "disposition": "keep"
+    },
+    {
+      "path": "test/storage-ledger.test.mjs",
+      "name": "under-lock fenced read rejects legacy forms even when a ledger exists > version 2",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/storage-ledger.test.mjs",
+      "name": "under-lock fenced read rejects legacy forms even when a ledger exists > version 3",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/storage-ledger.test.mjs",
+      "name": "under-lock fenced read rejects legacy forms even when a ledger exists > version 4",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/storage-ledger.test.mjs",
+      "name": "under-lock fenced read rejects legacy forms even when a ledger exists > version 5",
+      "ordinal": 1,
+      "disposition": "keep"
     },
     {
       "path": "test/storage-ledger.test.mjs",
       "name": "under-lock fenced read returns null without creating paths for an absent project",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "starts a legacy write to prove the migration fence refuses it",
-      "replacement": "no replacement until the importer lane retires"
+      "disposition": "keep"
     },
     {
       "path": "test/storage-ledger.test.mjs",
       "name": "under-lock read recovers only the exact durable migration pending record",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "starts a legacy write to prove the migration fence refuses it",
-      "replacement": "no replacement until the importer lane retires"
+      "disposition": "delete",
+      "category": "raw-lane",
+      "reason": "migration_pending is retired with the lane",
+      "replacement": "readState recovers exact pending bootstrap (test/storage-state-read-v5.test.mjs)"
     },
     {
       "path": "test/storage-ledger.test.mjs",
       "name": "under-lock read recovers only the exact durable migration pending record > after-pending",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "starts a legacy write to prove the migration fence refuses it",
-      "replacement": "no replacement until the importer lane retires"
+      "disposition": "delete",
+      "category": "raw-lane",
+      "reason": "migration_pending is retired with the lane",
+      "replacement": "readState recovers exact pending bootstrap (test/storage-state-read-v5.test.mjs)"
     },
     {
       "path": "test/storage-ledger.test.mjs",
       "name": "under-lock read recovers only the exact durable migration pending record > after-state-rename",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "starts a legacy write to prove the migration fence refuses it",
-      "replacement": "no replacement until the importer lane retires"
+      "disposition": "delete",
+      "category": "raw-lane",
+      "reason": "migration_pending is retired with the lane",
+      "replacement": "readState recovers exact pending bootstrap (test/storage-state-read-v5.test.mjs)"
     },
     {
       "path": "test/storage-lock-log-layout.test.mjs",
@@ -7963,31 +7963,55 @@
     },
     {
       "path": "test/storage-state-read-v5.test.mjs",
-      "name": "readState delegates v5 state validation to the fenced ledger reader",
+      "name": "readState delegates canonical state validation to the fenced ledger reader",
       "ordinal": 1,
       "disposition": "keep"
     },
     {
       "path": "test/storage-state-read-v5.test.mjs",
-      "name": "readState fails closed when a v5 ledger is missing or corrupt",
+      "name": "readState fails closed when a canonical ledger is missing or corrupt",
       "ordinal": 1,
       "disposition": "keep"
     },
     {
       "path": "test/storage-state-read-v5.test.mjs",
-      "name": "readState fails closed when a v5 state diverges from the ledger",
+      "name": "readState fails closed when canonical state diverges from the ledger",
       "ordinal": 1,
       "disposition": "keep"
     },
     {
       "path": "test/storage-state-read-v5.test.mjs",
-      "name": "readState preserves v2-v4 compatibility and v2/v3 normalization",
+      "name": "readState recovers exact pending bootstrap",
       "ordinal": 1,
       "disposition": "keep"
     },
     {
       "path": "test/storage-state-read-v5.test.mjs",
-      "name": "readState recovers only the exact pending migration source fingerprint",
+      "name": "readState rejects versions 2 through 5 and directs explicit migration",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/storage-state-read-v5.test.mjs",
+      "name": "readState rejects versions 2 through 5 and directs explicit migration > version 2",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/storage-state-read-v5.test.mjs",
+      "name": "readState rejects versions 2 through 5 and directs explicit migration > version 3",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/storage-state-read-v5.test.mjs",
+      "name": "readState rejects versions 2 through 5 and directs explicit migration > version 4",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/storage-state-read-v5.test.mjs",
+      "name": "readState rejects versions 2 through 5 and directs explicit migration > version 5",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -8073,6 +8097,16 @@
     },
     {
       "path": "test/test-manifest.test.mjs",
+      "name": "test manifest checker accepts a delete row listed by the caller's allowlist",
+      "ordinal": 1,
+      "disposition": "keep",
+      "lane": "raw",
+      "category": "mention-only",
+      "motive": "carries the lane detector's fixture text; the file writes no state",
+      "replacement": "none needed"
+    },
+    {
+      "path": "test/test-manifest.test.mjs",
       "name": "test manifest checker accepts a moved file when source and destination names match",
       "ordinal": 1,
       "disposition": "keep",
@@ -8084,6 +8118,16 @@
     {
       "path": "test/test-manifest.test.mjs",
       "name": "test manifest checker rejects a declaration whose file no longer writes raw",
+      "ordinal": 1,
+      "disposition": "keep",
+      "lane": "raw",
+      "category": "mention-only",
+      "motive": "carries the lane detector's fixture text; the file writes no state",
+      "replacement": "none needed"
+    },
+    {
+      "path": "test/test-manifest.test.mjs",
+      "name": "test manifest checker rejects a delete row the allowlist does not list",
       "ordinal": 1,
       "disposition": "keep",
       "lane": "raw",
@@ -8154,6 +8198,16 @@
     {
       "path": "test/test-manifest.test.mjs",
       "name": "test manifest checker requires the raw lane annotation on every declared row",
+      "ordinal": 1,
+      "disposition": "keep",
+      "lane": "raw",
+      "category": "mention-only",
+      "motive": "carries the lane detector's fixture text; the file writes no state",
+      "replacement": "none needed"
+    },
+    {
+      "path": "test/test-manifest.test.mjs",
+      "name": "test manifest checker skips the raw lane annotation for a delete row of a declared file",
       "ordinal": 1,
       "disposition": "keep",
       "lane": "raw",
@@ -10455,7 +10509,7 @@
     },
     {
       "path": "test/v5-read-consumers.test.mjs",
-      "name": "local context and search read fenced v5 node collections",
+      "name": "local context and search read canonical v1 node collections",
       "ordinal": 1,
       "disposition": "keep",
       "lane": "raw",
@@ -10465,7 +10519,7 @@
     },
     {
       "path": "test/v5-read-consumers.test.mjs",
-      "name": "local show reads a fenced v5 node without exposing fence metadata",
+      "name": "local show reads a canonical v1 node without exposing fence metadata",
       "ordinal": 1,
       "disposition": "keep",
       "lane": "raw",
@@ -10475,17 +10529,7 @@
     },
     {
       "path": "test/v5-read-consumers.test.mjs",
-      "name": "plugin query reads fenced v5 nodes and projects no fence or ledger fields",
-      "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "guard",
-      "motive": "seeds 2, 3 and 4 sources for read compatibility and a version 6 source to prove the refusal",
-      "replacement": "keep while the guard is required"
-    },
-    {
-      "path": "test/v5-read-consumers.test.mjs",
-      "name": "read consumers preserve v2, v3, and v4 collection compatibility",
+      "name": "plugin query reads canonical v1 nodes and projects no fence or ledger fields",
       "ordinal": 1,
       "disposition": "keep",
       "lane": "raw",
@@ -10496,6 +10540,16 @@
     {
       "path": "test/v5-read-consumers.test.mjs",
       "name": "read consumers reject future state versions",
+      "ordinal": 1,
+      "disposition": "keep",
+      "lane": "raw",
+      "category": "guard",
+      "motive": "seeds 2, 3 and 4 sources for read compatibility and a version 6 source to prove the refusal",
+      "replacement": "keep while the guard is required"
+    },
+    {
+      "path": "test/v5-read-consumers.test.mjs",
+      "name": "read consumers reject legacy state versions with a migration hint",
       "ordinal": 1,
       "disposition": "keep",
       "lane": "raw",

@@ -2,10 +2,10 @@
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { stateFile, migrateState, STATE_SCHEMA_VERSION, FENCED_STATE_VERSION } from "../state.mjs";
+import { stateFile, STATE_SCHEMA_VERSION } from "../state.mjs";
 import { assertActiveLockContext, getActiveLockContext } from "../lock.mjs";
 import { validateStateInvariants } from "../../contracts/state-invariants.mjs";
-import { assertValidLedger, RECOVERY_VERSIONS } from "./recovery.mjs";
+import { assertValidLedger } from "./recovery.mjs";
 import {
   assertFencedState,
   durableReplace,
@@ -25,13 +25,12 @@ function ledgerFile(projectDir) {
 
 function assertReplacementCandidate(candidate) {
   if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)
-      || !RECOVERY_VERSIONS.has(candidate.version)) {
+      || candidate.version !== STATE_SCHEMA_VERSION) {
     const error = new Error(`ledger.replace: unsupported replacement state version ${candidate?.version}`);
     error.code = "CLIMIER_UNSUPPORTED_SOURCE_VERSION";
     throw error;
   }
-  if ((candidate.version === STATE_SCHEMA_VERSION || candidate.version === FENCED_STATE_VERSION)
-      && !Number.isInteger(candidate.fence_generation)) {
+  if (!Number.isInteger(candidate.fence_generation)) {
     const error = new Error("ledger.replace: fenced replacement candidate must include fence_generation");
     error.code = "CLIMIER_LEDGER_STATE_MISMATCH";
     throw error;
@@ -39,15 +38,10 @@ function assertReplacementCandidate(candidate) {
 }
 
 function replacementCandidateForValidation(candidate) {
-  const migrated = migrateState(candidate);
   const compatible = {
-    ...migrated,
-    nodes: Object.fromEntries(Object.entries(migrated.nodes || {}).map(([id, node]) => [id, { ...node }])),
+    ...candidate,
+    nodes: Object.fromEntries(Object.entries(candidate.nodes || {}).map(([id, node]) => [id, { ...node }])),
   };
-  if (compatible.version === STATE_SCHEMA_VERSION || compatible.version === FENCED_STATE_VERSION) {
-    compatible.version = 4;
-  }
-  delete compatible.fence_generation;
   validateStateInvariants(compatible, "ledger.replace.candidate");
   return compatible;
 }
@@ -98,7 +92,7 @@ async function readPendingReplaceStage(stagePath, pending) {
     throw fingerprintMismatch("replace stage does not match the pending destination fingerprint");
   }
   const staged = readJson(stageRaw, "replace stage");
-  if ((staged.version !== STATE_SCHEMA_VERSION && staged.version !== FENCED_STATE_VERSION)
+  if (staged.version !== STATE_SCHEMA_VERSION
       || staged.fence_generation !== pending.fence_generation
       || staged.revision !== pending.high_water_revision) {
     throw fingerprintMismatch("replace stage does not match pending generation or high-water revision");
@@ -111,7 +105,7 @@ async function installPendingReplace({ statePath, pending, rawState, stageRaw, o
   const currentHash = sha256(rawState);
   if (currentHash === pending.source_sha256) {
     const source = readJson(rawState, "replace source state");
-    if ((source.version !== STATE_SCHEMA_VERSION && source.version !== FENCED_STATE_VERSION)
+    if (source.version !== STATE_SCHEMA_VERSION
         || source.fence_generation !== pending.fence_generation
         || source.revision !== pending.source_high_water_revision) {
       throw fingerprintMismatch("replace source does not match pending generation or source high-water revision");
@@ -214,7 +208,7 @@ async function stateForReplacement(statePath) {
 }
 
 function assertNoOtherPendingOperation(ledger) {
-  if (ledger.migration_pending || ledger.commit_pending || ledger.bootstrap_pending || ledger.recovery_pending) {
+  if (ledger.commit_pending || ledger.bootstrap_pending || ledger.recovery_pending) {
     throw fingerprintMismatch("cannot replace state while another fenced operation is pending");
   }
 }

@@ -17,11 +17,6 @@ import {
   fsp_writeFile,
 } from "./plugin-compat-helpers.mjs";
 
-// The raw lane seeds the pre-cut form on purpose: the two `legacy raw updateState`
-// cases exercise the raw writer against a state with no ledger (see
-// test-manifest-declarations.mjs), so they plant the v2 form the raw writer migrates.
-const rawBase = () => ({ ...baseState(), version: 2 });
-
 test("writeCanonicalState preserves `plugins` (root) and `nodes[id].plugins` on round-trip", async () => {
   const dir = await createTempProject();
   try {
@@ -35,43 +30,7 @@ test("writeCanonicalState preserves `plugins` (root) and `nodes[id].plugins` on 
   }
 });
 
-test("legacy raw updateState preserves `plugins` (root) and `nodes[id].plugins` when a mutator touches a node", async () => {
-  const dir = await createTempProject();
-  try {
-    const base = rawBase();
-    seedPluginData(base);
-    await writeState(dir, base);
-    const { updateState } = await importFresh("./storage/state.mjs");
-    await updateState(dir, (st) => {
-      st.nodes["T1"].title = "T1 (mutated)";
-      return st;
-    });
-    const after = await readState(dir);
-    assertPluginDataPreserved(after);
-    assert.equal(after.nodes.T1.title, "T1 (mutated)");
-  } finally {
-    await rmTempProject(dir);
-  }
-});
 
-test("legacy raw updateState preserves `plugins` (root) when a mutator touches an unrelated collection (edges)", async () => {
-  const dir = await createTempProject();
-  try {
-    const base = rawBase();
-    seedPluginData(base);
-    await writeState(dir, base);
-    const { updateState } = await importFresh("./storage/state.mjs");
-    await updateState(dir, (st) => {
-      st.edges.push({ from: "T1", to: "T2", type: "BLOCKS" });
-      return st;
-    });
-    const after = await readState(dir);
-    assertPluginDataPreserved(after);
-    assert.deepEqual(after.edges, [{ from: "T1", to: "T2", type: "BLOCKS" }]);
-  } finally {
-    await rmTempProject(dir);
-  }
-});
 
 test("init on a fresh project writes emptyState() without `plugins` (plugins is optional)", async () => {
   const dir = await createTempProject();

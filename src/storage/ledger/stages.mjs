@@ -40,12 +40,15 @@ export function isSchemaMigratedState(state, ledger) {
 }
 
 export function assertFencedState(state, ledger) {
-  const canonicalMigration = isSchemaMigratedState(state, ledger);
-  if (!state || (!isFencedStateVersion(state.version) && !canonicalMigration)
-      || state.fence_generation !== ledger.fence_generation
+  if (!state || !isFencedStateVersion(state.version)) {
+    const error = new Error("ledger: state is not canonical version 1; run climier migrate");
+    error.code = "CLIMIER_INCOMPATIBLE_VERSION";
+    throw error;
+  }
+  if (state.fence_generation !== ledger.fence_generation
       || !Number.isInteger(state.revision) || state.revision !== ledger.high_water_revision
       || maxNodeRevision(state) > ledger.high_water_revision) {
-    const error = new Error("ledger: state and revision ledger are inconsistent or indicate legacy downgrade");
+    const error = new Error("ledger: state and revision ledger are inconsistent");
     error.code = "CLIMIER_LEDGER_STATE_MISMATCH";
     throw error;
   }

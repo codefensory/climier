@@ -27,7 +27,7 @@ import { createRequire } from "node:module";
 import {
   createTempProject,
   rmTempProject,
-  writeState,
+  writeCanonicalState,
 } from "./helpers.mjs";
 
 const UI_DIR = path.resolve("ui");
@@ -321,7 +321,7 @@ test("Knowledge card body preview exposes the full body via title tooltip", () =
 
 function emptyState() {
   return {
-    version: 2,
+    version: 1,
     nodes: {},
     edges: [],
     initiatives: {},
@@ -331,7 +331,7 @@ function emptyState() {
 
 function sparseState() {
   return {
-    version: 2,
+    version: 1,
     nodes: {
       "S.T1": { id: "S.T1", kind: "resolvable", subkind: "task", title: "First sparse task", initiative: "sparse", status: "open", revision: 1 },
       "S.T2": { id: "S.T2", kind: "resolvable", subkind: "task", title: "Second sparse task", initiative: "sparse", status: "open", revision: 1 },
@@ -368,7 +368,7 @@ function bigState(count = 200) {
   }
   nodes["B-GATE"] = { id: "B-GATE", kind: "resolvable", subkind: "gate", title: "Fixture gate", initiative: "alpha", status: "open", purpose: "decision", revision: 1 };
   nodes["B-KNOW"] = { id: "B-KNOW", kind: "knowledge", title: "Fixture knowledge", initiative: "beta", status: "active", knowledge_type: "fact", revision: 1 };
-  return { version: 2, nodes, edges, initiatives: { alpha: { desc: "a" }, beta: { desc: "b" }, gamma: { desc: "c" } }, log: [] };
+  return { version: 1, nodes, edges, initiatives: { alpha: { desc: "a" }, beta: { desc: "b" }, gamma: { desc: "c" } }, log: [] };
 }
 
 test("fixture: uninitialized project reports initialized=false with zero-safe snapshot", { skip }, async (t) => {
@@ -390,7 +390,7 @@ test("fixture: uninitialized project reports initialized=false with zero-safe sn
 test("fixture: empty initialized project keeps zero-safe summary and no derived pools", { skip }, async (t) => {
   const dir = await createTempProject();
   t.after(() => rmTempProject(dir));
-  await writeState(dir, emptyState());
+  await writeCanonicalState(dir, emptyState());
 
   const { base, server } = await startServer(dir);
   t.after(() => closeServer(server));
@@ -407,7 +407,7 @@ test("fixture: empty initialized project keeps zero-safe summary and no derived 
 test("fixture: sparse project derives ready/blocked/gates from its tiny graph", { skip }, async (t) => {
   const dir = await createTempProject();
   t.after(() => rmTempProject(dir));
-  await writeState(dir, sparseState());
+  await writeCanonicalState(dir, sparseState());
 
   const { base, server } = await startServer(dir);
   t.after(() => closeServer(server));
@@ -433,7 +433,7 @@ test("fixture: sparse project derives ready/blocked/gates from its tiny graph", 
 test("fixture: ~200-node project stays coherent and derivable", { skip }, async (t) => {
   const dir = await createTempProject();
   t.after(() => rmTempProject(dir));
-  await writeState(dir, bigState(200));
+  await writeCanonicalState(dir, bigState(200));
 
   const { base, server } = await startServer(dir);
   t.after(() => closeServer(server));

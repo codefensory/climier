@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createTempProject, readState as readStateHelper, rmTempProject, writeState as writeStateHelper, importFresh } from "../../helpers.mjs";
+import { createTempProject, readState as readStateHelper, rmTempProject, writeCanonicalState, importFresh } from "../../helpers.mjs";
 import { bootstrapProject, importKernel, createTaskProvider, updateNodeProvider } from "./helpers.mjs";
 
 test("kernel.mutate: provider cannot set 'revision' on a node (tx layer rejects it)", async () => {
@@ -126,8 +126,8 @@ test("kernel provider diff fences created and modified nodes above state revisio
   const { mutate } = await importKernel();
   const dir = await createTempProject();
   try {
-    await writeStateHelper(dir, {
-      version: 4,
+    await writeCanonicalState(dir, {
+      version: 1,
       revision: 12,
       initiatives: { kernel: { desc: "kernel", created_at: "2026-01-01T00:00:00.000Z" } },
       nodes: {

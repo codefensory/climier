@@ -2,14 +2,15 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import test from "node:test";
 import { createTempProject, rmTempProject } from "./helpers.mjs";
-import { stateFile } from "../src/storage/state.mjs";
+import { STATE_SCHEMA_VERSION, stateFile } from "../src/storage/state.mjs";
 import { ledgerFile, bootstrapFencedState, replaceFencedStateUnderLock, readFencedState, commitFencedStateUnderLock } from "../src/storage/ledger.mjs";
 import { withLock } from "../src/storage/lock.mjs";
 import { captureTransferSource, installTransferDestination, transferState } from "../src/kernel/transfer.mjs";
 
 function projectState(overrides = {}) {
   return {
-    version: 4,
+    version: STATE_SCHEMA_VERSION,
+    fence_generation: 1,
     revision: 0,
     nodes: {
       T1: { id: "T1", kind: "resolvable", subkind: "task", status: "open", revision: 0, title: "source" },

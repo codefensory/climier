@@ -1,5 +1,5 @@
 // Shared fixtures for the kernel mutation contract suites.
-import { importFresh, writeState as writeStateHelper } from "../../helpers.mjs";
+import { importFresh, writeCanonicalState } from "../../helpers.mjs";
 
 // importKernel — helper that imports the kernel module fresh and pulls
 // both `mutate` and `__kernelInternals` from the named export. Mutate is
@@ -85,14 +85,9 @@ function applyFixtureMutation(base, mutate) {
   }
 }
 
-async function initializeFencedState(dir) {
-  const { bootstrapFencedState } = await import("../../../src/storage/ledger.mjs");
-  return bootstrapFencedState(dir);
-}
-
 export async function bootstrapProject(dir, mutate) {
   const base = {
-    version: 2,
+    version: 1,
     nodes: {
       G1: {
         id: "G1",
@@ -120,11 +115,5 @@ export async function bootstrapProject(dir, mutate) {
     log: [],
   };
   applyFixtureMutation(base, mutate);
-  await writeStateHelper(dir, base);
-  const fenced = await initializeFencedState(dir);
-  base.version = fenced.version;
-  base.revision = fenced.revision;
-  base.fence_generation = fenced.fence_generation;
-  base.nodes = fenced.nodes;
-  return fenced;
+  return writeCanonicalState(dir, base);
 }

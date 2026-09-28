@@ -2,7 +2,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { STATE_SCHEMA_VERSION, FENCED_STATE_VERSION, migrateState } from "../state.mjs";
+import { STATE_SCHEMA_VERSION } from "../state.mjs";
 import { getActiveLockContext } from "../lock.mjs";
 import { validateStateInvariants } from "../../contracts/state-invariants.mjs";
 import {
@@ -12,12 +12,11 @@ import {
 
 export const LEDGER_VERSION = 1;
 export const SOURCE_VERSIONS = new Set([2, 3, 4]);
-export const RECOVERY_VERSIONS = new Set([STATE_SCHEMA_VERSION, 2, 3, 4, FENCED_STATE_VERSION]);
+export const RECOVERY_VERSIONS = new Set([STATE_SCHEMA_VERSION, ...SOURCE_VERSIONS]);
 
 const isPresent = (value) => value !== null && value !== undefined;
 const isObject = (value) => value !== null && typeof value === "object";
 const isOptionalObject = (value) => value === undefined || value === null || isObject(value);
-const isNullOrObject = (value) => value === null || isObject(value);
 const isSha256 = (value) => typeof value === "string" && /^[a-f0-9]{64}$/.test(value);
 const isStageId = (value) => typeof value === "string" && /^[a-f0-9]{32}$/.test(value);
 const all = (checks) => checks.every(Boolean);
@@ -35,8 +34,7 @@ function validLedgerCore(ledger) {
 }
 
 function validLedgerOptionalFields(ledger) {
-  return isNullOrObject(ledger.migration_pending)
-    && all([isOptionalObject(ledger.commit_pending), isOptionalObject(ledger.bootstrap_pending),
+  return all([isOptionalObject(ledger.migration_pending), isOptionalObject(ledger.last_migration), isOptionalObject(ledger.commit_pending), isOptionalObject(ledger.bootstrap_pending),
       isOptionalObject(ledger.recovery_pending), isOptionalObject(ledger.replace_pending),
       isOptionalObject(ledger.last_recovery), isOptionalObject(ledger.last_replace)]);
 }
@@ -46,22 +44,16 @@ function validLedgerHeader(ledger) {
 }
 
 function validPendingCombination(ledger) {
-  const { migration_pending: migration, commit_pending: commit, bootstrap_pending: bootstrap,
+  const { commit_pending: commit, bootstrap_pending: bootstrap,
     recovery_pending: recovery, replace_pending: replace } = ledger;
-  return [[migration, commit], [bootstrap, migration, commit, recovery, replace],
-    [recovery, migration, commit, bootstrap, replace], [replace, migration, commit, bootstrap, recovery]]
-    .every((group) => group.filter(isPresent).length < 2);
+  return [[bootstrap, commit, recovery, replace], [recovery, commit, bootstrap, replace],
+    [replace, commit, bootstrap, recovery]].every((group) => group.filter(isPresent).length < 2);
 }
 
 function validBootstrapPending(pending, ledger) {
   return all([isSha256(pending.destination_sha256), isStageId(pending.stage_id), Number.isInteger(pending.fence_generation),
     pending.fence_generation === ledger.fence_generation, Number.isInteger(pending.high_water_revision),
     pending.high_water_revision === ledger.high_water_revision]);
-}
-
-function validMigrationPending(pending) {
-  return all([isSha256(pending.source_sha256), isSha256(pending.destination_sha256), Number.isInteger(pending.source_high_water_revision),
-    Number.isInteger(pending.fence_revision), Number.isInteger(pending.fence_generation), Number.isInteger(pending.source_version)]);
 }
 
 function validCommitPending(pending, ledger) {
@@ -74,7 +66,7 @@ function validCommitPending(pending, ledger) {
 
 function validRecoveryPending(pending, ledger) {
   const validInput = pending.input_sha256 === null ? pending.candidate_supplied !== true : isSha256(pending.input_sha256);
-    const validSource = (SOURCE_VERSIONS.has(pending.source_version) || pending.source_version === STATE_SCHEMA_VERSION)
+    const validSource = pending.source_version === STATE_SCHEMA_VERSION
       && (pending.corrupt_source === undefined || pending.corrupt_source === true);
   const validRevision = pending.high_water_revision === ledger.high_water_revision
     && pending.high_water_revision > pending.source_high_water_revision;
@@ -101,10 +93,9 @@ function assertPendingRecord(pending, valid, message) {
 export function assertValidLedger(ledger) {
   if (!validLedgerHeader(ledger)) { invalidLedger(); }
   if (!validPendingCombination(ledger)) {
-    invalidLedger("ledger: bootstrap, migration, and commit recovery markers cannot coexist");
+    invalidLedger("ledger: bootstrap, recovery, replace, and commit markers cannot coexist");
   }
   assertPendingRecord(ledger.bootstrap_pending, (pending) => validBootstrapPending(pending, ledger), "ledger: invalid bootstrap_pending record");
-  assertPendingRecord(ledger.migration_pending, validMigrationPending, "ledger: invalid migration_pending record");
   assertPendingRecord(ledger.commit_pending, (pending) => validCommitPending(pending, ledger), "ledger: invalid commit_pending record");
   assertPendingRecord(ledger.recovery_pending, (pending) => validRecoveryPending(pending, ledger), "ledger: invalid recovery_pending record");
   assertPendingRecord(ledger.replace_pending, (pending) => validReplacePending(pending, ledger), "ledger: invalid replace_pending record");
@@ -120,14 +111,10 @@ function assertSupportedRecoveryCandidate(candidate) {
 
 function recoveryDestination(candidate, ledger) {
   assertSupportedRecoveryCandidate(candidate);
-  const migrated = migrateState(candidate);
   const compatible = {
-    ...migrated,
-    nodes: Object.fromEntries(Object.entries(migrated.nodes || {}).map(([id, node]) => [id, { ...node }])),
+    ...candidate,
+    nodes: Object.fromEntries(Object.entries(candidate.nodes || {}).map(([id, node]) => [id, { ...node }])),
   };
-  if (compatible.version === STATE_SCHEMA_VERSION) { compatible.version = 4; }
-  if (compatible.version === FENCED_STATE_VERSION) { compatible.version = 4; }
-  delete compatible.fence_generation;
   validateStateInvariants(compatible, "ledger.recover.candidate");
   const highWater = Math.max(
     ledger.high_water_revision,
@@ -160,7 +147,7 @@ async function readPendingRecoveryStage(stagePath, pending) {
     throw fingerprintMismatch("recovery stage does not match the pending destination fingerprint");
   }
   const staged = readJson(stageRaw, "recovery stage");
-  if ((staged.version !== STATE_SCHEMA_VERSION && staged.version !== FENCED_STATE_VERSION)
+  if (staged.version !== STATE_SCHEMA_VERSION
       || staged.fence_generation !== pending.fence_generation
       || staged.revision !== pending.high_water_revision) {
     throw fingerprintMismatch("recovery stage does not match the pending generation or high-water revision");
@@ -180,8 +167,8 @@ function assertCorruptRecoverySource(rawState) {
 
 function assertLegacyRecoverySource(rawState) {
   const source = readJson(rawState, "recovery source state");
-  if (!SOURCE_VERSIONS.has(source.version) || Number.isInteger(source.fence_generation)) {
-    throw fingerprintMismatch("recovery source no longer matches the stale legacy state");
+  if (source.version !== STATE_SCHEMA_VERSION || !Number.isInteger(source.fence_generation)) {
+    throw fingerprintMismatch("recovery source no longer matches the stale canonical state");
   }
 }
 
@@ -189,7 +176,7 @@ function assertRecoverySourceMatches(rawState, pending) {
   if (pending.corrupt_source) {
     assertCorruptRecoverySource(rawState);
   } else {
-    assertLegacyRecoverySource(rawState);
+    assertLegacyRecoverySource(rawState, pending);
   }
 }
 
@@ -289,12 +276,9 @@ async function resumePendingRecovery({ statePath, ledgerPath, ledger, rawState, 
 }
 
 async function resumeOtherPending({ statePath, ledgerPath, ledger, rawState, opts, finalizers }) {
-  const { finishPendingBootstrap, finishPendingMigration, finishPendingCommit } = finalizers;
+  const { finishPendingBootstrap, finishPendingCommit } = finalizers;
   if (ledger.bootstrap_pending) {
     return finishPendingBootstrap({ statePath, ledgerPath, ledger });
-  }
-  if (ledger.migration_pending) {
-    return finishPendingMigration({ statePath, ledgerPath, ledger, rawState });
   }
   if (ledger.commit_pending) {
     return finishPendingCommit({ statePath, ledgerPath, ledger, rawState, opts });
@@ -318,7 +302,7 @@ function assertNoCandidateForCorruptSource(candidate) {
   }
 }
 
-function recoverySource(rawState, candidate) {
+function recoverySource(rawState, candidate, ledger) {
   let source = null;
   let corruptSource = false;
   try {
@@ -329,9 +313,9 @@ function recoverySource(rawState, candidate) {
   }
   if (corruptSource) {
     assertNoCandidateForCorruptSource(candidate);
-    candidate = { version: 4, nodes: {}, edges: [], initiatives: {}, log: [], revision: 0 };
-  } else if ((!SOURCE_VERSIONS.has(source.version) && source.version !== STATE_SCHEMA_VERSION) || Number.isInteger(source.fence_generation)) {
-    throw fingerprintMismatch("explicit recovery accepts only an unfenced legacy source state");
+    candidate = { version: STATE_SCHEMA_VERSION, fence_generation: ledger.fence_generation, nodes: {}, edges: [], initiatives: {}, log: [], revision: 0 };
+  } else if (source.version !== STATE_SCHEMA_VERSION || !Number.isInteger(source.fence_generation)) {
+    throw fingerprintMismatch("explicit recovery accepts only a canonical version 1 source state");
   }
   return { source, candidate: candidate ?? source, corruptSource };
 }
@@ -351,7 +335,7 @@ async function stageRecovery({ statePath, ledgerPath, ledger, rawState, source, 
     input_sha256: inputHash,
     ...(candidateSupplied ? { candidate_supplied: true } : {}),
     stage_id: stageId,
-    source_version: corruptSource ? 4 : source.version,
+    source_version: corruptSource ? STATE_SCHEMA_VERSION : source.version,
     source_high_water_revision: ledger.high_water_revision,
     high_water_revision: prepared.highWater,
     fence_generation: ledger.fence_generation,
@@ -379,6 +363,6 @@ export async function recoverUnderActiveLock(lockContext, candidate, opts = {}, 
   }
   const recovered = alreadyRecovered(rawState, candidate, ledger);
   if (recovered !== null) { return recovered; }
-  const source = recoverySource(rawState, candidate);
+  const source = recoverySource(rawState, candidate, ledger);
   return stageRecovery({ statePath, ledgerPath, ledger, rawState, ...source, candidateSupplied, opts });
 }

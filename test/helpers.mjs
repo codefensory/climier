@@ -97,22 +97,18 @@ export async function writeState(dir, state) {
   await fsp.writeFile(file, JSON.stringify(state, null, 2) + "\n", "utf8");
 }
 
-// Bootstrap or replace an explicit v5 fixture using the fenced storage
-// protocol. Keep writeState available for intentional legacy migration fixtures.
+// Plant a fixture through the canonical ledger protocol. The input keeps the
+// pre-cut fenced shape (version 5) so callers stay explicit, and the helper
+// installs the content as canonical version 1: after the reader collapsed to
+// canonical-only there is no other writable form, and a fixture project must
+// never claim a schema the reader refuses. The name retires with the era
+// renames slice.
 export async function writeFencedState(dir, state) {
   if (!state || typeof state !== "object" || Array.isArray(state) || state.version !== 5) {
     throw new TypeError("writeFencedState: expected a v5 state fixture");
   }
-  const initialState = { ...state, version: 4 };
-  delete initialState.fence_generation;
-
-  return withLock(dir, async (lockContext) => {
-    const current = await readFencedStateUnderLock(lockContext);
-    if (current) {
-      return replaceFencedStateUnderLock(lockContext, state);
-    }
-    return bootstrapFencedStateUnderLock(lockContext, initialState);
-  });
+  const { fence_generation: _fenceGeneration, ...content } = state;
+  return writeCanonicalState(dir, content);
 }
 
 // Install a canonical fixture (version 1 plus its ledger) through the same

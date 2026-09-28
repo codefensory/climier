@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import { validateStateInvariants } from "../contracts/state-invariants.mjs";
 import { withLock } from "./lock.mjs";
 import { ledgerFile, bootstrapFencedStateUnderLock, readFencedStateUnderLock, replaceFencedStateUnderLock } from "./ledger.mjs";
-import { migrateState, stateFile } from "./state.mjs";
+import { STATE_SCHEMA_VERSION, stateFile } from "./state.mjs";
 
 export const TRANSFER_PAYLOAD_VERSION = 1;
 
@@ -26,6 +26,9 @@ function hasPluginData(state) {
 function assertTransferableSource(state) {
   if (!state || typeof state !== "object" || Array.isArray(state)) {
     throw transferError("CLIMIER_TRANSFER_INVALID_SOURCE", "transfer: source project has no valid state");
+  }
+  if (state.version !== STATE_SCHEMA_VERSION || !Number.isInteger(state.fence_generation)) {
+    throw transferError("CLIMIER_TRANSFER_INVALID_SOURCE", "transfer: source state is not canonical version 1");
   }
   validateStateInvariants(state, "transfer.source");
   if (hasPluginData(state)
@@ -70,18 +73,17 @@ async function exists(file) {
   }
 }
 
-async function readLegacyDestinationWithoutMigration(lockContext, projectDir) {
+async function readCanonicalDestinationWithoutLedger(projectDir) {
   const statePath = stateFile(projectDir);
   const raw = await fs.readFile(statePath, "utf8");
   let state;
-  try {
-    state = JSON.parse(raw);
-  } catch (cause) {
-    throw transferError("CLIMIER_TRANSFER_INVALID_DESTINATION", `transfer: destination state is corrupt: ${cause.message}`);
+  try { state = JSON.parse(raw); }
+  catch (cause) { throw transferError("CLIMIER_TRANSFER_INVALID_DESTINATION", `transfer: destination state is corrupt: ${cause.message}`); }
+  if (state?.version !== STATE_SCHEMA_VERSION || !Number.isInteger(state.fence_generation)) {
+    throw transferError("CLIMIER_TRANSFER_INVALID_DESTINATION", `transfer: destination state at ${statePath} is not canonical version ${STATE_SCHEMA_VERSION}; run climier migrate`);
   }
-  const migrated = migrateState(state);
-  validateStateInvariants(migrated, "transfer.destination");
-  return migrated;
+  validateStateInvariants(state, "transfer.destination");
+  return state;
 }
 
 /** Capture and validate a complete source snapshot while holding its own lock. */
@@ -107,10 +109,10 @@ function parseDestinationState(rawState) {
 async function assertLegacyDestinationReplaceable(lockContext, projectDir, statePath, overwrite) {
   const rawState = await fs.readFile(statePath, "utf8");
   const unmigrated = parseDestinationState(rawState);
-  if (unmigrated.version === 5) {
+  if (unmigrated.version === STATE_SCHEMA_VERSION && Number.isInteger(unmigrated.fence_generation)) {
     return;
   }
-  const current = await readLegacyDestinationWithoutMigration(lockContext, projectDir);
+  const current = await readCanonicalDestinationWithoutLedger(projectDir);
   assertDestinationReplaceable(current, overwrite);
 }
 

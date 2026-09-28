@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { createTempProject, rmTempProject } from "./helpers.mjs";
-import { stateFile } from "../src/storage/state.mjs";
+import { STATE_SCHEMA_VERSION, stateFile } from "../src/storage/state.mjs";
 import { withLock } from "../src/storage/lock.mjs";
 import {
   bootstrapFencedState,
@@ -14,9 +14,10 @@ import {
   replaceFencedStateUnderLock,
 } from "../src/storage/ledger.mjs";
 
-function legacyState(revision = 10) {
+function canonicalState(revision = 10, fenceGeneration = 1) {
   return {
-    version: 4,
+    version: STATE_SCHEMA_VERSION,
+    fence_generation: fenceGeneration,
     nodes: { T1: { id: "T1", revision: 8 }, T2: { id: "T2", revision: 12 } },
     edges: [],
     initiatives: {},
@@ -35,10 +36,8 @@ async function withProject(fn) {
 }
 
 async function seedFenced(projectDir) {
-  const file = stateFile(projectDir);
-  await fs.mkdir(path.dirname(file), { recursive: true });
-  await fs.writeFile(file, `${JSON.stringify(legacyState(), null, 2)}\n`, "utf8");
   await bootstrapFencedState(projectDir);
+  const file = stateFile(projectDir);
   const state = JSON.parse(await fs.readFile(file, "utf8"));
   const ledgerPath = ledgerFile(projectDir);
   const ledger = JSON.parse(await fs.readFile(ledgerPath, "utf8"));
@@ -60,18 +59,17 @@ async function runProjectSubtest(t, label, fn) {
   await t.test(label, () => withProject(fn));
 }
 
-async function recoverLegacyState(projectDir, statePath) {
-  const stale = legacyState(5);
+async function recoverCanonicalState(projectDir, statePath) {
+  const stale = canonicalState(5, 7);
   stale.nodes.T1.revision = 2;
   stale.nodes.T2.revision = 4;
+  stale.log = [{ action: "stale-canonical-source" }];
   await fs.writeFile(statePath, `${JSON.stringify(stale, null, 2)}\n`, "utf8");
   return withLock(projectDir, (lockContext) => recoverFencedStateUnderLock(lockContext));
 }
 
 function replacementCandidate() {
-  const candidate = legacyState(3);
-  candidate.version = 5;
-  candidate.fence_generation = 99;
+  const candidate = canonicalState(3);
   candidate.nodes.T1.revision = 2;
   candidate.nodes.T2.revision = 4;
   candidate.nodes.T1.title = "restored payload";
@@ -80,7 +78,7 @@ function replacementCandidate() {
 }
 
 function assertRebasedReplacement(replaced, ledger) {
-  assert.equal(replaced.version, 1);
+  assert.equal(replaced.version, STATE_SCHEMA_VERSION);
   assert.equal(replaced.fence_generation, 7);
   assert.equal(replaced.revision, 41);
   assert.ok(Object.values(replaced.nodes).every((node) => node.revision === 41));
@@ -111,12 +109,12 @@ async function assertPendingReplace(projectDir, setup, faultAt) {
 async function runReplaceCrash(projectDir, faultAt) {
   const { file, ledgerPath } = await seedFenced(projectDir);
   const sourceRaw = await fs.readFile(file, "utf8");
-  const candidate = legacyState(3);
+  const candidate = canonicalState(3);
   candidate.log = [{ action: "crash-replace" }];
   await assert.rejects(replace(projectDir, candidate, { faultAt }), /injected failure/);
   const pendingLedger = JSON.parse(await fs.readFile(ledgerPath, "utf8"));
   const replaced = await assertPendingReplace(projectDir, { file, candidate, sourceRaw, pendingLedger }, faultAt);
-  assert.equal(replaced.version, 1);
+  assert.equal(replaced.version, STATE_SCHEMA_VERSION);
   assert.equal(replaced.fence_generation, 7);
   assert.equal(replaced.revision, 41);
   assert.equal(JSON.parse(await fs.readFile(ledgerPath, "utf8")).replace_pending, null);
@@ -125,7 +123,7 @@ async function runReplaceCrash(projectDir, faultAt) {
 
 async function runReplaceAlteration(projectDir, alteration) {
   const { file, ledgerPath } = await seedFenced(projectDir);
-  const candidate = legacyState(3);
+  const candidate = canonicalState(3);
   await assert.rejects(replace(projectDir, candidate, { faultAt: "after-pending" }), /injected failure/);
   const ledger = JSON.parse(await fs.readFile(ledgerPath, "utf8"));
   const pending = ledger.replace_pending;
@@ -160,7 +158,7 @@ async function runMissingOrCorruptLedger(projectDir, mode) {
     state: "CLIMIER_LEDGER_STATE_MISMATCH",
   };
   const expected = errorCodes[mode];
-  await assert.rejects(replace(projectDir, legacyState(2)), { code: expected });
+  await assert.rejects(replace(projectDir, canonicalState(2)), { code: expected });
 }
 
 test("fenced replace rejects invalid lock capabilities before storage access", async () => {
@@ -170,7 +168,7 @@ test("fenced replace rejects invalid lock capabilities before storage access", a
   }), {}), { code: "CLIMIER_INVALID_LOCK_CONTEXT" });
 });
 
-test("fenced replace rebases a v5 candidate above local high-water and preserves generation", async () => {
+test("fenced replace rebases a canonical candidate above local high-water and preserves generation", async () => {
   await withProject(async (projectDir) => {
     const { file, ledgerPath } = await seedFenced(projectDir);
     const candidate = replacementCandidate();
@@ -187,7 +185,7 @@ test("fenced replace rebases a v5 candidate above local high-water and preserves
 test("replace checkpoint is invalidated durably before installing a replacement", async () => {
   await withProject(async (projectDir) => {
     const { file, ledgerPath } = await seedFenced(projectDir);
-    const recovered = await recoverLegacyState(projectDir, file);
+    const recovered = await recoverCanonicalState(projectDir, file);
     assert.ok(JSON.parse(await fs.readFile(ledgerPath, "utf8")).last_recovery);
     const candidate = replacementCandidate();
 

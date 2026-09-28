@@ -154,6 +154,71 @@ test("test manifest checker rejects a move source with no rows", () => {
   );
 });
 
+test("test manifest checker accepts a delete row listed by the caller's allowlist", () => {
+  const manifest = { version: 1, base_sha: "a".repeat(40), tests: [
+    { path: "test/example.test.mjs", name: "present", ordinal: 1, disposition: "keep" },
+    {
+      path: "test/example.test.mjs",
+      name: "removed",
+      ordinal: 1,
+      disposition: "delete",
+      category: "raw-lane",
+      reason: "the behavior this case pinned no longer exists",
+      replacement: "covered by the canonical suite",
+    },
+  ] };
+  const allowlist = manifest.tests
+    .filter((row) => row.disposition === "delete")
+    .map(({ path: filePath, name, ordinal }) => ({ path: filePath, name, ordinal }));
+
+  assert.equal(
+    validateManifest(manifest, [{ path: "test/example.test.mjs", name: "present" }], { deleteAllowlist: allowlist }),
+    true,
+  );
+});
+
+test("test manifest checker rejects a delete row the allowlist does not list", () => {
+  const manifest = { version: 1, base_sha: "a".repeat(40), tests: [
+    { path: "test/example.test.mjs", name: "present", ordinal: 1, disposition: "keep" },
+    {
+      path: "test/example.test.mjs",
+      name: "removed",
+      ordinal: 1,
+      disposition: "delete",
+      category: "raw-lane",
+      reason: "the behavior this case pinned no longer exists",
+      replacement: "covered by the canonical suite",
+    },
+  ] };
+
+  assert.throws(
+    () => validateManifest(manifest, [{ path: "test/example.test.mjs", name: "present" }], { deleteAllowlist: [] }),
+    /manifest deletes must match the deletion allowlist/,
+  );
+});
+
+test("test manifest checker skips the raw lane annotation for a delete row of a declared file", () => {
+  const rows = [
+    { path: RAW_FILE, name: "kept raw case", ordinal: 1, disposition: "keep", lane: "raw", ...rawDeclaration() },
+    {
+      path: RAW_FILE,
+      name: "retired raw case",
+      ordinal: 1,
+      disposition: "delete",
+      category: "raw-lane",
+      reason: "the raw writer refuses the state this case planted",
+      replacement: "covered by the canonical suite",
+    },
+  ];
+  const manifest = { version: 1, base_sha: "a".repeat(40), tests: rows };
+  const runtime = [{ path: RAW_FILE, name: "kept raw case" }];
+
+  assert.equal(
+    validateManifest(manifest, runtime, { rawWriterFiles: [RAW_FILE], rawLaneDeclarations: { [RAW_FILE]: rawDeclaration() } }),
+    true,
+  );
+});
+
 test("test manifest checker rejects stale manifest rows", () => {
   const manifest = { version: 1, base_sha: "a".repeat(40), tests: [
     { path: "test/example.test.mjs", name: "present", ordinal: 1, disposition: "keep" },

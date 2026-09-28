@@ -88,7 +88,11 @@ export function validateManifest(manifest, runtimeCases, { deleteAllowlist, rawW
   }
 
   const declaredDeletes = manifest.tests.filter((row) => row.disposition === "delete").map(key).toSorted();
-  const allowedDeletes = (deleteAllowlist ?? declaredDeletes).toSorted();
+  // The allowlist arrives as rows from the caller (the CLI builds it from the
+  // manifest) and is compared by identity, so normalize both shapes to keys.
+  const allowedDeletes = (deleteAllowlist ?? manifest.tests.filter((row) => row.disposition === "delete"))
+    .map((row) => (typeof row === "string" ? row : key(row)))
+    .toSorted();
   assert.deepEqual(declaredDeletes, allowedDeletes, "manifest deletes must match the deletion allowlist");
   assertRawLane(manifest, { rawWriterFiles, rawLaneDeclarations });
   return true;
@@ -106,6 +110,7 @@ function assertRawLane(manifest, { rawWriterFiles, rawLaneDeclarations }) {
     assert.ok(files.includes(filePath), `stale raw-lane declaration for ${filePath}`);
   }
   for (const row of manifest.tests) {
+    if (row.disposition === "delete") continue;
     const declaration = declarations[row.path];
     if (!declaration) continue;
     assert.ok(

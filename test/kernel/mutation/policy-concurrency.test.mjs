@@ -34,7 +34,7 @@ function assertPolicyDenied(error, decidedWith, state, base) {
 
 function assertSemanticSnapshot(snapshot, expectedRevision, expectedFields) {
   assert.equal(Object.hasOwn(snapshot, "fence_generation"), false, "policy must not see the internal fence");
-  assert.equal(snapshot.version, 5);
+  assert.equal(snapshot.version, 1);
   assert.equal(snapshot.revision, expectedRevision, "policy sees the current semantic snapshot revision");
   assert.deepEqual(snapshot, expectedFields, "projection preserves every other semantic field");
 }
@@ -47,7 +47,7 @@ async function setupFencedPolicyProject(dir, mutate, readFencedState) {
     provider: updateNodeProvider({ id: "T1", newTitle: "fenced v5 baseline" }).provider,
   });
   const initial = await readFencedState(dir);
-  assert.equal(initial.version, 5, "test policy uses a fenced v5 fixture");
+  assert.equal(initial.version, 1, "test policy uses a canonical fixture");
   return initial;
 }
 
@@ -103,7 +103,7 @@ function assertPolicySnapshots(snapshots, initial, beforeBatch) {
 }
 
 function assertPersistedPolicyState(persisted, initial) {
-  assert.equal(persisted.version, 5);
+  assert.equal(persisted.version, 1);
   assert.equal(persisted.fence_generation, initial.fence_generation, "persisted state retains its fence generation");
   assert.equal(persisted.revision, initial.revision + 2);
   assert.deepEqual(persisted.plugins, initial.plugins);

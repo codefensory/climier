@@ -50,13 +50,11 @@ export async function ensureProjectMeta(projectDir) {
 }
 
 export const STATE_SCHEMA_VERSION = 1;
-const CURRENT_STATE_VERSION = 4;
-export const FENCED_STATE_VERSION = 5;
-const LEGACY_STATE_VERSION = 2;
-const PREVIOUS_STATE_VERSION = 3;
+const CLASSIFIABLE_NONCANONICAL_VERSIONS = new Set([2, 3, 4, 5]);
+const FENCED_LEGACY_VERSION = 5;
 
 export function isFencedStateVersion(version) {
-  return version === STATE_SCHEMA_VERSION || version === FENCED_STATE_VERSION;
+  return version === STATE_SCHEMA_VERSION;
 }
 
 export function isFencedState(state) {
@@ -70,9 +68,7 @@ export function classifyStateShape(state) {
     return { kind: "pre-release" };
   }
   if (!Number.isInteger(state.version)
-      || state.version > FENCED_STATE_VERSION
-      || (state.version > STATE_SCHEMA_VERSION
-        && ![LEGACY_STATE_VERSION, PREVIOUS_STATE_VERSION, CURRENT_STATE_VERSION, FENCED_STATE_VERSION].includes(state.version))) {
+      || (state.version > STATE_SCHEMA_VERSION && !CLASSIFIABLE_NONCANONICAL_VERSIONS.has(state.version))) {
     return { kind: "incompatible" };
   }
   if (state.version === STATE_SCHEMA_VERSION) {
@@ -85,14 +81,8 @@ export function classifyStateShape(state) {
     if (!Number.isInteger(state.fence_generation)) { return { kind: "noncanonical", reason: "fence_generation is missing or invalid" }; }
     return { kind: "canonical" };
   }
-  if (isFencedState(state)) { return { kind: "fenced-legacy" }; }
+  if (state.version === FENCED_LEGACY_VERSION) { return { kind: "fenced-legacy" }; }
   return { kind: "legacy" };
-}
-
-// Upgrade legacy-compatible state without changing the input object.
-export function migrateState(state) {
-  if (state && (state.version === LEGACY_STATE_VERSION || state.version === PREVIOUS_STATE_VERSION)) { return { ...state, version: CURRENT_STATE_VERSION, revision: 0 }; }
-  return state;
 }
 
 export function emptyState() {
@@ -108,20 +98,17 @@ export function emptyState() {
 }
 
 export function isV2State(state) {
-  return [LEGACY_STATE_VERSION, PREVIOUS_STATE_VERSION, CURRENT_STATE_VERSION].includes(state?.version);
+  return [2, 3, 4].includes(state?.version);
 }
 
 export function isV3State(state) {
-  return [PREVIOUS_STATE_VERSION, CURRENT_STATE_VERSION].includes(state?.version);
+  return [3, 4].includes(state?.version);
 }
 
-const READABLE_STATE_KINDS = new Set(["canonical", "fenced-legacy", "legacy"]);
+const READABLE_STATE_KINDS = new Set(["canonical"]);
 
-// Reading commands accept any structurally readable form: canonical (version 1
-// with fence_generation and ledger) or a live legacy form (2/3/4 without
-// ledger, 5 fenced). Prehistoric, incomplete and incompatible states are
-// rejected by shape, so this guard cannot drift from the classifier the way a
-// bare version number can.
+// Readers accept only canonical version 1. The classifier retains legacy forms
+// for migrate detection, but never grants those forms read acceptance.
 export function assertReadableState(state, commandName) {
   if (!state) { return; }
   const shape = classifyStateShape(state);
@@ -157,6 +144,11 @@ async function parseStateFile(projectDir, file, raw) {
       file, version: state.version, hint: "Run climier migrate to import this pre-release state.",
     });
   }
+  if (shape.kind === "legacy" || shape.kind === "fenced-legacy") {
+    throw stateShapeError("CLIMIER_INCOMPATIBLE_VERSION", `state: file at ${file} is not a canonical version ${STATE_SCHEMA_VERSION} state; run climier migrate`, {
+      file, version: state.version, hint: "Run climier migrate to import this state.",
+    });
+  }
   if (shape.kind === "incompatible") { rejectFutureWritableVersion(state, file); }
   if (shape.kind === "incomplete") {
     throw stateShapeError("CLIMIER_INCOMPLETE_STATE", `state: canonical version 1 file at ${file} is incomplete (missing ${shape.missing.join(", ")})`, {
@@ -168,35 +160,20 @@ async function parseStateFile(projectDir, file, raw) {
       file, version: STATE_SCHEMA_VERSION, reason: shape.reason, hint: "Run climier migrate to create a canonical state.",
     });
   }
-  if (shape.kind === "canonical" || shape.kind === "fenced-legacy") {
+  if (shape.kind === "canonical") {
     const { ledgerFile, readFencedState } = await import("./ledger.mjs");
     try { await fs.access(ledgerFile(projectDir)); }
     catch (error) {
       if (error.code === "ENOENT") {
-        if (shape.kind === "canonical") {
-          throw stateShapeError("CLIMIER_NONCANONICAL_STATE", `state: version 1 file at ${file} is not canonical (revision-ledger.json is missing); run climier migrate`, {
-            file, version: STATE_SCHEMA_VERSION, reason: "revision-ledger.json is missing", hint: "Run climier migrate to create a canonical state.",
-          });
-        }
-        const incompatible = new Error(`state: file at ${file} is missing its revision ledger`);
-        incompatible.code = "CLIMIER_LEDGER_MISSING";
-        throw incompatible;
+        throw stateShapeError("CLIMIER_NONCANONICAL_STATE", `state: version 1 file at ${file} is not canonical (revision-ledger.json is missing); run climier migrate`, {
+          file, version: STATE_SCHEMA_VERSION, reason: "revision-ledger.json is missing", hint: "Run climier migrate to create a canonical state.",
+        });
       }
       throw error;
     }
     return readFencedState(projectDir);
   }
-  const { ledgerFile, readFencedState } = await import("./ledger.mjs");
-  try { await fs.access(ledgerFile(projectDir)); }
-  catch (error) {
-    if (error.code === "ENOENT") {
-      const migrated = migrateState(state);
-      validateStateInvariants(migrated, "state.read");
-      return migrated;
-    }
-    throw error;
-  }
-  return readFencedState(projectDir);
+  throw stateShapeError("CLIMIER_INCOMPATIBLE_VERSION", `state: file at ${file} is not a canonical version ${STATE_SCHEMA_VERSION} state; run climier migrate`, { file, version: state.version, hint: "Run climier migrate to import this state." });
 }
 
 export async function readState(projectDir) {
@@ -228,10 +205,10 @@ function ledgerRequired(message) {
 }
 
 function hasFenceMarker(state) {
-  return state?.version === FENCED_STATE_VERSION || Number.isInteger(state?.fence_generation);
+  return state?.version === FENCED_LEGACY_VERSION || Number.isInteger(state?.fence_generation);
 }
 
-async function assertLegacyWriteAllowed(lockContext, projectDir, targetState) {
+async function assertUnledgeredWriteAllowed(lockContext, projectDir, targetState) {
   assertActiveLockContext(lockContext, projectDir);
   const { statePath } = getActiveLockContext(lockContext);
   const ledgerPath = path.join(path.dirname(statePath), "revision-ledger.json");
@@ -250,46 +227,38 @@ async function assertLegacyWriteAllowed(lockContext, projectDir, targetState) {
 }
 
 function rejectUnsupportedWriteVersion(state, file) {
-  if (state?.version === 1) { throw new Error("writeState: invalid state (version 1 is no longer supported; this build of climier only writes v4 states)"); }
-  if (state?.version > FENCED_STATE_VERSION) { rejectFutureWritableVersion(state, file); }
+  if (state?.version === STATE_SCHEMA_VERSION) { throw new Error("writeState: invalid state (version 1 is no longer supported)"); }
+  if (!Number.isInteger(state?.version) || (state.version > STATE_SCHEMA_VERSION && !CLASSIFIABLE_NONCANONICAL_VERSIONS.has(state.version))) { rejectFutureWritableVersion(state, file); }
 }
 
 async function readStateForUpdate(file) {
   try { return JSON.parse(await fs.readFile(file, "utf8")); }
   catch (error) {
     if (error.code !== "ENOENT") { throw error; }
-    // The legacy writer's blank slate is a legacy state: emptyState() is the
-    // canonical shape and this path refuses it. Only the canonical bootstrap
-    // creates state for real projects.
-    return { version: CURRENT_STATE_VERSION, nodes: {}, edges: [], initiatives: {}, log: [], revision: 0 };
+    return { version: STATE_SCHEMA_VERSION, nodes: {}, edges: [], initiatives: {}, log: [], revision: 0 };
   }
 }
 
-function rejectLegacyWritableVersion(file) {
-  const error = new Error(
-    `state: file at ${file} has version 1; this version of climier no longer supports the v1 schema. ` +
-    `Run \`climier init --force\` to overwrite the v1 state with a fresh v3 state.`,
-  );
-  error.code = "STATE_V1_UNSUPPORTED";
-  error.details = { file, version: 1, hint: "Run `climier init --force` to overwrite the v1 state." };
-  throw error;
-}
-
 function rejectFutureWritableVersion(state, file) {
-  const error = new Error(`state: file at ${file} has version ${state.version} but this climier only understands schema version ${STATE_SCHEMA_VERSION} (or fenced legacy ${FENCED_STATE_VERSION})`);
+  const error = new Error(`state: file at ${file} has version ${state?.version} but this climier only understands schema version ${STATE_SCHEMA_VERSION}; run climier migrate`);
   error.code = "CLIMIER_INCOMPATIBLE_VERSION";
   throw error;
 }
 
 function assertWritableStateVersion(state, file) {
   if (!state || typeof state !== "object") { return; }
-  if (state.version === 1) { rejectLegacyWritableVersion(file); }
-  if (state.version === FENCED_STATE_VERSION) { throw ledgerRequired("state.update: v5 states require the revision ledger commit API (not integrated)"); }
-  if (state.version > FENCED_STATE_VERSION) { rejectFutureWritableVersion(state, file); }
+  if (state.version === STATE_SCHEMA_VERSION) { throw new Error("state.update: version 1 state requires the canonical ledger write API"); }
+  if (state.version > STATE_SCHEMA_VERSION && !CLASSIFIABLE_NONCANONICAL_VERSIONS.has(state.version)) { rejectFutureWritableVersion(state, file); }
+  if (!Number.isInteger(state.version)) { rejectFutureWritableVersion(state, file); }
+  if (CLASSIFIABLE_NONCANONICAL_VERSIONS.has(state.version)) {
+    throw stateShapeError("CLIMIER_INCOMPATIBLE_VERSION", `state: file at ${file} has legacy version ${state.version}; run climier migrate`, {
+      file, version: state.version, hint: "Run climier migrate to import this state.",
+    });
+  }
 }
 
 async function persistUpdatedState(file, lockContext, projectDir, state) {
-  await assertLegacyWriteAllowed(lockContext, projectDir, state);
+  await assertUnledgeredWriteAllowed(lockContext, projectDir, state);
   const tmp = `${file}.tmp-${process.pid}-${Date.now()}`;
   await fs.writeFile(tmp, `${JSON.stringify(state, null, 2)}\n`, "utf8");
   await fs.rename(tmp, file);
@@ -297,11 +266,11 @@ async function persistUpdatedState(file, lockContext, projectDir, state) {
 
 async function updateStateUnderLock(projectDir, lockContext, mutator) {
   const file = stateFile(projectDir);
-  await assertLegacyWriteAllowed(lockContext, projectDir);
+  await assertUnledgeredWriteAllowed(lockContext, projectDir);
   await fs.mkdir(path.dirname(file), { recursive: true });
   let state = await readStateForUpdate(file);
   assertWritableStateVersion(state, file);
-  state = migrateState(state);
+  state = { ...state, version: 4, revision: Number.isInteger(state.revision) ? state.revision : 0 };
   if (state && typeof state === "object") { validateStateInvariants(state, "state.update"); }
   const next = mutator({ ...state });
   if (next === undefined) { throw new Error("updateState mutator must return the new state object"); }
@@ -415,10 +384,10 @@ export async function listSnapshots(projectDir) {
 
 async function writeStateUnderLock(projectDir, lockContext, state) {
   if (!state || typeof state !== "object") { throw new Error("writeState: invalid state (not an object)"); }
+  await assertUnledgeredWriteAllowed(lockContext, projectDir, state);
   rejectUnsupportedWriteVersion(state, stateFile(projectDir));
-  await assertLegacyWriteAllowed(lockContext, projectDir, state);
-  state = migrateState(state);
-  if (state.version !== CURRENT_STATE_VERSION) { throw new Error(`writeState: invalid state (version ${state.version} is not supported; expected version ${CURRENT_STATE_VERSION})`); }
+  state = { ...state, version: 4, revision: Number.isInteger(state.revision) ? state.revision : 0 };
+  if (state.version !== 4) { throw new Error(`writeState: invalid state (version ${state.version} is not supported; expected version 4)`); }
   validateStateInvariants(state, "writeState");
   for (const key of ["nodes", "edges", "initiatives", "log"]) {
     if (!(key in state)) { throw new Error(`writeState: invalid state (missing '${key}' collection)`); }

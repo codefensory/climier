@@ -2,11 +2,11 @@
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { stateFile, migrateState, STATE_SCHEMA_VERSION, FENCED_STATE_VERSION } from "../state.mjs";
+import { stateFile, STATE_SCHEMA_VERSION } from "../state.mjs";
 import { assertActiveLockContext, getActiveLockContext } from "../lock.mjs";
 import { validateStateInvariants } from "../../contracts/state-invariants.mjs";
 import { assertValidLedger, LEDGER_VERSION, SOURCE_VERSIONS } from "./recovery.mjs";
-import { fencedDestination, finishPendingMigration } from "./migration.mjs";
+
 import { assertFencedState, bootstrapStagePath, durableCreate, durableReplace, fault, fingerprintMismatch, maxNodeRevision, persistLedger, readJson, sha256, syncDirectory, writeDurableStage } from "./stages.mjs";
 
 function ledgerFile(projectDir) {
@@ -14,8 +14,8 @@ function ledgerFile(projectDir) {
 }
 
 function assertSupportedInitialState(initialState) {
-  if (!initialState || typeof initialState !== "object" || Array.isArray(initialState)
-      || (!SOURCE_VERSIONS.has(initialState.version) && initialState.version !== STATE_SCHEMA_VERSION)) {
+  const supported = initialState?.version === STATE_SCHEMA_VERSION || SOURCE_VERSIONS.has(initialState?.version);
+  if (!initialState || typeof initialState !== "object" || Array.isArray(initialState) || !supported) {
     const error = new Error(`ledger.bootstrap: unsupported initial state version ${initialState?.version}`);
     error.code = "CLIMIER_UNSUPPORTED_SOURCE_VERSION";
     throw error;
@@ -24,10 +24,10 @@ function assertSupportedInitialState(initialState) {
 
 function fencedInitialState(initialState) {
   assertSupportedInitialState(initialState);
-  const migrated = migrateState(initialState);
   const compatible = {
-    ...migrated,
-    nodes: Object.fromEntries(Object.entries(migrated.nodes || {}).map(([id, node]) => [id, { ...node }])),
+    ...initialState,
+    version: STATE_SCHEMA_VERSION,
+    nodes: Object.fromEntries(Object.entries(initialState.nodes || {}).map(([id, node]) => [id, { ...node }])),
   };
   validateStateInvariants(compatible, "ledger.bootstrap.initial");
   const highWater = Math.max(
@@ -216,7 +216,6 @@ function makeBootstrapLedger(prepared, destinationHash, stageId, sourceRaw = nul
     version: LEDGER_VERSION,
     fence_generation: 1,
     high_water_revision: prepared.highWater,
-    migration_pending: null,
     commit_pending: null,
     bootstrap_pending: {
       ...(sourceRaw === null ? {} : { source_sha256: sha256(sourceRaw) }),
@@ -326,15 +325,12 @@ async function readOrCreateState(statePath) {
 async function finishExistingLedger({ statePath, ledgerPath, ledger, rawState, opts }, handlers) {
   assertValidLedger(ledger);
   const state = readJson(rawState, "state");
-  if (ledger.migration_pending) {
-    return finishPendingMigration({ statePath, ledgerPath, ledger, rawState });
-  }
   if (ledger.commit_pending) {
     return handlers.finishPendingCommit({ statePath, ledgerPath, ledger, rawState, opts });
   }
   await handlers.cleanOrphanCommitStages(statePath);
-  if (state.version !== FENCED_STATE_VERSION && state.version !== STATE_SCHEMA_VERSION) {
-    const error = new Error("ledger: fenced project is missing a supported state marker; refusing legacy downgrade");
+  if (state.version !== STATE_SCHEMA_VERSION) {
+    const error = new Error("ledger: fenced project is missing canonical state marker");
     error.code = "CLIMIER_LEDGER_STATE_MISMATCH";
     throw error;
   }
@@ -342,64 +338,21 @@ async function finishExistingLedger({ statePath, ledgerPath, ledger, rawState, o
   return state;
 }
 
-async function prepareMigration({ statePath, ledgerPath, rawState, opts }) {
-  const source = readJson(rawState, "source state");
-  if (source.version === FENCED_STATE_VERSION) {
-    const error = new Error("ledger: revision ledger is missing for fenced state; refusing reconstruction");
-    error.code = "CLIMIER_LEDGER_MISSING";
-    throw error;
-  }
-  const { destinationRaw, highWater, fence } = fencedDestination(source);
-  const ledger = {
-    version: LEDGER_VERSION,
-    fence_generation: 1,
-    high_water_revision: fence,
-    migration_pending: {
-      source_version: source.version,
-      source_high_water_revision: highWater,
-      fence_revision: fence,
-      fence_generation: 1,
-      source_sha256: sha256(rawState),
-      destination_sha256: sha256(destinationRaw),
-    },
-  };
-  return publishMigration({ statePath, ledgerPath, ledger, destinationRaw, opts });
-}
-
-async function publishMigration({ statePath, ledgerPath, ledger, destinationRaw, opts }) {
-  fault(opts, "before-pending");
-  await persistLedger(ledgerPath, ledger);
-  fault(opts, "after-pending");
-  await durableReplace(statePath, destinationRaw);
-  fault(opts, "after-state-rename");
-  return finishPendingMigration({ statePath, ledgerPath, ledger, rawState: destinationRaw });
-}
-
 export async function migrateLegacyInitialUnderLock(lockContext, initialState, sourceRaw, opts = {}) {
   assertActiveLockContext(lockContext, opts.projectDir);
   const { projectDir, statePath } = getActiveLockContext(lockContext);
   const ledgerPath = path.join(path.dirname(statePath), "revision-ledger.json");
   const currentLedger = await readOptionalLedger(ledgerPath);
-  if (currentLedger?.bootstrap_pending) {
-    return finishPendingBootstrap({ statePath, ledgerPath, ledger: currentLedger, opts });
-  }
   const existingState = sourceRaw === null ? null : await readOrCreateState(statePath);
-  if (currentLedger?.migration_pending) {
-    const error = new Error(`migrate: project ${opts.projectId || path.basename(projectDir)} has legacy migration_pending; resolve it with the pre-cut binary or recreate explicitly`);
-    error.code = "CLIMIER_OLD_MIGRATION_PENDING";
-    throw error;
-  }
   if (currentLedger) {
     assertValidLedger(currentLedger);
     if (currentLedger.bootstrap_pending) {
-      const state = await finishPendingBootstrap({ statePath, ledgerPath, ledger: currentLedger, opts });
-      return state;
+      return finishPendingBootstrap({ statePath, ledgerPath, ledger: currentLedger, opts });
     }
     throw bootstrapExists();
   }
   if (sourceRaw !== null && (existingState === null || sha256(existingState) !== sha256(sourceRaw))) {
-    const error = fingerprintMismatch("legacy migration source changed before bootstrap staging");
-    throw error;
+    throw fingerprintMismatch("legacy migration source changed before bootstrap staging");
   }
   const prepared = fencedInitialState(initialState);
   await fs.mkdir(path.dirname(statePath), { recursive: true });
@@ -445,7 +398,9 @@ async function bootstrapLocked(projectDir, opts, handlers) {
   if (rawState === null) {
     return createInitialBootstrap({ statePath, ledgerPath, prepared: fencedInitialState({ version: STATE_SCHEMA_VERSION, nodes: {}, edges: [], initiatives: {}, log: [], revision: 0 }), opts });
   }
-  return prepareMigration({ statePath, ledgerPath, rawState, opts });
+  const incompatible = new Error(`ledger.bootstrap: existing state at ${statePath} is not canonical version ${STATE_SCHEMA_VERSION}; run climier migrate`);
+  incompatible.code = "CLIMIER_INCOMPATIBLE_VERSION";
+  throw incompatible;
 }
 
 

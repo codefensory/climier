@@ -14,9 +14,10 @@ import {
   recoverFencedStateUnderLock,
 } from "../src/storage/ledger.mjs";
 
-function legacyState(revision = 10) {
+function canonicalState(revision = 10, fenceGeneration = 1) {
   return {
-    version: 4,
+    version: 1,
+    fence_generation: fenceGeneration,
     nodes: { T1: { id: "T1", revision: 8 }, T2: { id: "T2", revision: 12 } },
     edges: [],
     initiatives: {},
@@ -54,28 +55,29 @@ async function readRecoveryUnderLock(projectDir, state) {
 }
 
 async function prepareStaleRecovery(projectDir) {
-  const statePath = await seedLegacy(projectDir);
   const fenced = await bootstrapFencedState(projectDir);
+  const statePath = stateFile(projectDir);
   const ledgerPath = ledgerFile(projectDir);
   const ledger = JSON.parse(await fs.readFile(ledgerPath, "utf8"));
   ledger.fence_generation = 7;
   ledger.high_water_revision = 40;
   await fs.writeFile(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`, "utf8");
-  const stale = legacyState(5);
+  const stale = canonicalState(5, 6);
+  stale.log = [{ action: "stale-canonical-source" }];
   stale.nodes.T1.revision = 2;
   stale.nodes.T2.revision = 4;
   await fs.writeFile(statePath, `${JSON.stringify(stale, null, 2)}\n`, "utf8");
-  const candidate = legacyState(3);
+  const candidate = { ...canonicalState(3), fence_generation: 7 };
   candidate.nodes.T1.title = "recovered payload";
   candidate.log = [{ action: "restore-payload" }];
   return { fenced, candidate, ledgerPath };
 }
 
 async function prepareRecoveryCrash(projectDir) {
-  const statePath = await seedLegacy(projectDir);
+  const statePath = stateFile(projectDir);
   await bootstrapFencedState(projectDir);
   const ledgerPath = ledgerFile(projectDir);
-  const sourceState = legacyState();
+  const sourceState = { ...canonicalState(), fence_generation: 1 };
   const sourceRaw = `${JSON.stringify(sourceState, null, 2)}\n`;
   await fs.writeFile(statePath, sourceRaw, "utf8");
   const before = JSON.parse(await fs.readFile(ledgerPath, "utf8"));
@@ -109,15 +111,16 @@ async function verifyRecoveryCrashRetry(projectDir, setup, pending) {
 }
 
 async function runRecoveryAlteration(projectDir, alteration) {
-  const statePath = await seedLegacy(projectDir);
   await bootstrapFencedState(projectDir);
+  const statePath = stateFile(projectDir);
   const ledgerPath = ledgerFile(projectDir);
-  await fs.writeFile(statePath, `${JSON.stringify(legacyState(), null, 2)}\n`, "utf8");
-  await assert.rejects(recover(projectDir, JSON.parse(await fs.readFile(statePath, "utf8")), { faultAt: "after-pending" }), /injected failure/);
+  const canonicalSource = { ...canonicalState(), fence_generation: 1 };
+  await fs.writeFile(statePath, `${JSON.stringify(canonicalSource, null, 2)}\n`, "utf8");
+  await assert.rejects(recover(projectDir, canonicalSource, { faultAt: "after-pending" }), /injected failure/);
   const ledger = JSON.parse(await fs.readFile(ledgerPath, "utf8"));
   const pending = ledger.recovery_pending;
   if (alteration === "state") {
-    await fs.writeFile(statePath, `${JSON.stringify({ ...legacyState(), log: [{ action: "diverged" }] }, null, 2)}\n`, "utf8");
+    await fs.writeFile(statePath, `${JSON.stringify({ ...canonicalSource, log: [{ action: "diverged" }] }, null, 2)}\n`, "utf8");
   } else if (alteration === "stage") {
     await fs.writeFile(path.join(path.dirname(statePath), `.recovery-stage-${pending.stage_id}`), "tampered", "utf8");
   } else {
@@ -128,13 +131,6 @@ async function runRecoveryAlteration(projectDir, alteration) {
     ? { code: "CLIMIER_INVALID_LEDGER" }
     : { code: "CLIMIER_LEDGER_FINGERPRINT_MISMATCH" });
   assert.ok(JSON.parse(await fs.readFile(ledgerPath, "utf8")).recovery_pending);
-}
-
-async function seedLegacy(projectDir) {
-  const file = stateFile(projectDir);
-  await fs.mkdir(path.dirname(file), { recursive: true });
-  await fs.writeFile(file, `${JSON.stringify(legacyState(), null, 2)}\n`, "utf8");
-  return file;
 }
 
 function sha256(raw) {
@@ -223,13 +219,15 @@ test("recovery pending with an explicit candidate still requires its matching fi
 test("fenced recovery refuses to reconstruct an absent or invalid local ledger", async (t) => {
   for (const mode of ["absent", "corrupt"]) {
     await runProjectSubtest(t, mode, async (projectDir) => {
-      const statePath = await seedLegacy(projectDir);
+      await bootstrapFencedState(projectDir);
+      const statePath = stateFile(projectDir);
       const ledgerPath = ledgerFile(projectDir);
       if (mode === "corrupt") {await fs.writeFile(ledgerPath, "{broken", "utf8");}
+      else { await fs.unlink(ledgerPath); }
       await assert.rejects(recover(projectDir), mode === "absent"
         ? { code: "CLIMIER_LEDGER_MISSING" }
         : { code: "CLIMIER_CORRUPT_LEDGER" });
-      assert.equal(JSON.parse(await fs.readFile(statePath, "utf8")).version, 4);
+      assert.equal(JSON.parse(await fs.readFile(statePath, "utf8")).version, 1);
     });
   }
 });

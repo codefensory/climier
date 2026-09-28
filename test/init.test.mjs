@@ -25,7 +25,7 @@ test("init: creates empty canonical v1 state and ledger when none exists", async
     const ledgerPath = path.join(path.dirname(stateFilePath(dir)), "revision-ledger.json");
     const ledger = JSON.parse(await fs.readFile(ledgerPath, "utf8"));
     assert.equal(ledger.high_water_revision, s.revision);
-    assert.equal(ledger.migration_pending, null);
+    assert.equal(Object.hasOwn(ledger, "migration_pending"), false);
     assert.deepEqual(s.nodes, {});
     assert.deepEqual(s.edges, []);
     assert.deepEqual(s.initiatives, {});
@@ -247,7 +247,7 @@ test("init: refuses to overwrite an existing valid state without --force", async
   } finally { await rmTempProject(dir); }
 });
 
-test("init: --force on an existing v4 state writes empty canonical v1 and preserves ledger high-water", async () => {
+test("init: --force replaces an existing canonical v1 state and preserves ledger high-water", async () => {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
   const { readState } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
@@ -255,7 +255,7 @@ test("init: --force on an existing v4 state writes empty canonical v1 and preser
     await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
     const file = stateFilePath(dir);
     await fs.writeFile(file, JSON.stringify({
-      version: 4, revision: 0, nodes: { T1: { id: "T1", title: "v4" } },
+      version: 1, fence_generation: 1, revision: 0, nodes: { T1: { id: "T1", title: "v1" } },
       edges: [], initiatives: {}, log: [],
     }), "utf8");
 

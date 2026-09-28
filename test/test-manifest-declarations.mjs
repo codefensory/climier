@@ -24,10 +24,9 @@ const mentionOnly = (motive) => ({ category: "mention-only", motive, replacement
 export const rawLaneDeclarations = {
   "test/kernel-mutate-initiative.test.mjs": mentionOnly("names the writers in a test title and a comment; the fixture uses the ledger protocol"),
   "test/kernel/mutation/contract-guards.test.mjs": mentionOnly("names the writers in a comment listing what the module exports"),
-  "test/plugin-compat.test.mjs": guard("the two `legacy raw updateState preserves plugins` cases exercise raw updates; `init --force on a state with corrupt JSON (cannot read) does not crash and writes emptyState()` seeds a raw v4 source with no ledger because a ledger changes recovery by rejecting the replacement candidate with CLIMIER_LEDGER_FINGERPRINT_MISMATCH"),
+  "test/plugin-compat.test.mjs": guard("`init --force on a state with corrupt JSON (cannot read) does not crash and writes emptyState()` seeds a raw v4 source with no ledger because a ledger changes recovery by rejecting the replacement candidate with CLIMIER_LEDGER_FINGERPRINT_MISMATCH"),
   "test/plugin-policy-seam-lifecycle-note-initiative.test.mjs": mentionOnly("names updateState in a test title; the fixture uses the ledger protocol"),
   "test/state.test.mjs": importerSource("covers the raw writer semantics and the guards that refuse ledger-backed projects"),
-  "test/storage-ledger.test.mjs": importerSource("starts a legacy write to prove the migration fence refuses it"),
   "test/test-manifest.test.mjs": mentionOnly("carries the lane detector's fixture text; the file writes no state"),
   "test/v2-initiatives.test.mjs": guard("asserts legacy writeState schema validation and rejection; valid fixture uses writeCanonicalState"),
   "test/v5-read-consumers.test.mjs": guard("seeds 2, 3 and 4 sources for read compatibility and a version 6 source to prove the refusal"),

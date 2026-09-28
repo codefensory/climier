@@ -8,7 +8,6 @@ import { getActiveLockContext, assertActiveLockContext } from "../lock.mjs";
 import { validateStateInvariants } from "../../contracts/state-invariants.mjs";
 import { assertValidLedger } from "./recovery.mjs";
 import { finishPendingBootstrap } from "./bootstrap.mjs";
-import { finishPendingMigration } from "./migration.mjs";
 import { assertFencedMigrationSource, assertSchemaMigrationDestination, assertSchemaMigratedState, assertFencedState, hasFencedSchemaMigrationEntry, isSchemaMigratedState, commitStagePath, durableReplace, fault, fingerprintMismatch, maxNodeRevision, persistLedger, readJson, sha256, writeDurableStage } from "./stages.mjs";
 
 function ledgerFile(statePath) {
@@ -282,11 +281,6 @@ async function recoverPendingCommitPrerequisite({ statePath, ledgerPath, ledger 
   if (ledger.bootstrap_pending) {
     await finishPendingBootstrap({ statePath, ledgerPath, ledger });
     throw new Error("ledger.commit: bootstrap recovery completed; retry against the recovered state");
-  }
-  if (ledger.migration_pending) {
-    const rawState = await fs.readFile(statePath, "utf8");
-    await finishPendingMigration({ statePath, ledgerPath, ledger, rawState });
-    throw new Error("ledger.commit: migration recovery completed; retry against the recovered state");
   }
 }
 
