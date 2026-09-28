@@ -1,6 +1,6 @@
 // Durable, project-local revision fence bootstrap. The API intentionally does
 // not wire itself into mutation callers; callers must migrate to fenced commits
-// before writing state v5.
+
 import fs from "node:fs/promises";
 import path from "node:path";
 import { stateFile } from "./state.mjs";
@@ -25,7 +25,7 @@ function runRecoveryProtocol(lockContext, candidate, opts) {
   });
 }
 
-/** Rebase an explicit legacy recovery payload under an already-active project lock. */
+
 export async function recoverFencedStateUnderLock(lockContext, candidate, opts = {}) {
   assertActiveLockContext(lockContext, opts.projectDir);
   return runRecoveryProtocol(lockContext, candidate, opts);
@@ -100,7 +100,7 @@ async function finishLedgerRead(lockContext, ledger, paths, opts) {
   return state;
 }
 
-/** Read and recover a v5 state while the caller holds its project lock. */
+
 export async function readFencedStateUnderLock(lockContext, opts = {}) {
   assertActiveLockContext(lockContext, opts.projectDir);
   const { projectDir, statePath } = getActiveLockContext(lockContext);

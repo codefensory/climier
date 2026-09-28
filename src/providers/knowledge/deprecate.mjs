@@ -1,7 +1,6 @@
 // src/providers/knowledge/deprecate.mjs — `knowledge.deprecate` provider
 // for the graph kernel.
-//
-// Implements the kernel provider contract from ADR-011 §1:
+
 //   - `prepare({ snapshot, input, request }) → plan`
 //       read-only; validates that the target is an existing knowledge
 //       node; surfaces the current revision as `if_revision` so the
@@ -14,11 +13,9 @@
 //       mitigation, title, body, refs, meta, …). The kernel owns
 //       revision assignment; this file never reads or writes the
 //       `revision` field (see src/kernel/mutate.mjs + transaction.mjs).
-//
-// The persisted shape for a deprecated knowledge node is:
-// `status: "deprecated"`, `deprecation_reason`, `deprecated_at` (ISO 8601),
+
+
 // and `deprecated_by` (the actor that ran the operation).
-//
 // Pure: no fs, no lock, no state, no log, no policy, no commands, no
 // registry, no adapter, no CLI, no UI. The only side effect is on the
 // caller-supplied `tx` draft.
@@ -144,14 +141,7 @@ async function apply({ tx, plan }) {
   };
 }
 
-/**
- * knowledge.deprecate provider factory.
- *
- * @returns {{
- *   prepare: (args: { snapshot: object, input: object, request: object }) => Promise<object>,
- *   apply: (args: { tx: object, plan: object }) => Promise<{ result: object, effects: object|null }>,
- * }}
- */
+
 export function deprecateProvider() {
   return { prepare, apply };
 }

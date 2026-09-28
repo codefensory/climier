@@ -87,21 +87,7 @@
     },
     {
       "path": "src/application/local-operation-source.mjs",
-      "comment_lines": 3,
-      "protected_lines": 0,
-      "prohibited": {
-        "provenance": 0,
-        "task_or_adr": 0,
-        "commented_code": 0,
-        "banner": 0,
-        "documentation_mirror": 0,
-        "narration": 1
-      },
-      "directives": 0
-    },
-    {
-      "path": "src/application/operations/bridge.mjs",
-      "comment_lines": 5,
+      "comment_lines": 0,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
@@ -114,35 +100,7 @@
       "directives": 0
     },
     {
-      "path": "src/application/operations/builtins.mjs",
-      "comment_lines": 6,
-      "protected_lines": 0,
-      "prohibited": {
-        "provenance": 0,
-        "task_or_adr": 0,
-        "commented_code": 0,
-        "banner": 0,
-        "documentation_mirror": 0,
-        "narration": 2
-      },
-      "directives": 0
-    },
-    {
-      "path": "src/application/operations/execute.mjs",
-      "comment_lines": 7,
-      "protected_lines": 0,
-      "prohibited": {
-        "provenance": 0,
-        "task_or_adr": 0,
-        "commented_code": 0,
-        "banner": 0,
-        "documentation_mirror": 0,
-        "narration": 1
-      },
-      "directives": 0
-    },
-    {
-      "path": "src/application/operations/index.mjs",
+      "path": "src/application/operations/bridge.mjs",
       "comment_lines": 1,
       "protected_lines": 0,
       "prohibited": {
@@ -156,8 +114,8 @@
       "directives": 0
     },
     {
-      "path": "src/application/operations/registry.mjs",
-      "comment_lines": 6,
+      "path": "src/application/operations/builtins.mjs",
+      "comment_lines": 4,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
@@ -166,6 +124,48 @@
         "banner": 0,
         "documentation_mirror": 0,
         "narration": 2
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/application/operations/execute.mjs",
+      "comment_lines": 4,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/application/operations/index.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/application/operations/registry.mjs",
+      "comment_lines": 4,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
       },
       "directives": 0
     },
@@ -787,7 +787,7 @@
     },
     {
       "path": "src/contracts/agent.mjs",
-      "comment_lines": 5,
+      "comment_lines": 4,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
@@ -801,10 +801,24 @@
     },
     {
       "path": "src/contracts/errors.mjs",
-      "comment_lines": 4,
+      "comment_lines": 1,
       "protected_lines": 0,
       "prohibited": {
-        "provenance": 2,
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/contracts/state-invariants.mjs",
+      "comment_lines": 3,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
         "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
@@ -814,40 +828,26 @@
       "directives": 0
     },
     {
-      "path": "src/contracts/state-invariants.mjs",
-      "comment_lines": 8,
+      "path": "src/kernel/edges.mjs",
+      "comment_lines": 54,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
         "task_or_adr": 0,
-        "commented_code": 1,
-        "banner": 0,
-        "documentation_mirror": 0,
-        "narration": 2
-      },
-      "directives": 0
-    },
-    {
-      "path": "src/kernel/edges.mjs",
-      "comment_lines": 65,
-      "protected_lines": 0,
-      "prohibited": {
-        "provenance": 8,
-        "task_or_adr": 1,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 5
+        "narration": 4
       },
       "directives": 0
     },
     {
       "path": "src/kernel/graph.mjs",
-      "comment_lines": 62,
+      "comment_lines": 57,
       "protected_lines": 0,
       "prohibited": {
-        "provenance": 2,
-        "task_or_adr": 1,
+        "provenance": 0,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
@@ -857,7 +857,7 @@
     },
     {
       "path": "src/kernel/mutate.mjs",
-      "comment_lines": 13,
+      "comment_lines": 8,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
@@ -871,10 +871,10 @@
     },
     {
       "path": "src/kernel/mutation/diff.mjs",
-      "comment_lines": 12,
+      "comment_lines": 10,
       "protected_lines": 0,
       "prohibited": {
-        "provenance": 1,
+        "provenance": 0,
         "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
@@ -885,7 +885,7 @@
     },
     {
       "path": "src/kernel/mutation/execute.mjs",
-      "comment_lines": 6,
+      "comment_lines": 4,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
@@ -899,7 +899,7 @@
     },
     {
       "path": "src/kernel/mutation/execute/batch.mjs",
-      "comment_lines": 1,
+      "comment_lines": 0,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
@@ -913,7 +913,7 @@
     },
     {
       "path": "src/kernel/mutation/execute/provider.mjs",
-      "comment_lines": 1,
+      "comment_lines": 0,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
@@ -927,7 +927,7 @@
     },
     {
       "path": "src/kernel/mutation/execute/shared.mjs",
-      "comment_lines": 1,
+      "comment_lines": 0,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
@@ -941,7 +941,7 @@
     },
     {
       "path": "src/kernel/mutation/execute/state.mjs",
-      "comment_lines": 1,
+      "comment_lines": 0,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
@@ -955,7 +955,7 @@
     },
     {
       "path": "src/kernel/mutation/log-entry.mjs",
-      "comment_lines": 6,
+      "comment_lines": 5,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
@@ -969,10 +969,10 @@
     },
     {
       "path": "src/kernel/mutation/preconditions.mjs",
-      "comment_lines": 17,
+      "comment_lines": 15,
       "protected_lines": 4,
       "prohibited": {
-        "provenance": 1,
+        "provenance": 0,
         "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
@@ -983,24 +983,24 @@
     },
     {
       "path": "src/kernel/mutation/request.mjs",
-      "comment_lines": 7,
+      "comment_lines": 0,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
         "task_or_adr": 0,
-        "commented_code": 1,
+        "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 2
+        "narration": 0
       },
       "directives": 0
     },
     {
       "path": "src/kernel/mutation/revisions.mjs",
-      "comment_lines": 15,
+      "comment_lines": 10,
       "protected_lines": 0,
       "prohibited": {
-        "provenance": 2,
+        "provenance": 0,
         "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
@@ -1011,7 +1011,7 @@
     },
     {
       "path": "src/kernel/mutation/validation.mjs",
-      "comment_lines": 11,
+      "comment_lines": 10,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
@@ -1025,7 +1025,7 @@
     },
     {
       "path": "src/kernel/state-operations.mjs",
-      "comment_lines": 9,
+      "comment_lines": 6,
       "protected_lines": 1,
       "prohibited": {
         "provenance": 0,
@@ -1039,21 +1039,21 @@
     },
     {
       "path": "src/kernel/transaction.mjs",
-      "comment_lines": 94,
+      "comment_lines": 73,
       "protected_lines": 1,
       "prohibited": {
-        "provenance": 3,
-        "task_or_adr": 2,
-        "commented_code": 9,
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 10
+        "narration": 8
       },
       "directives": 0
     },
     {
       "path": "src/kernel/transfer.mjs",
-      "comment_lines": 3,
+      "comment_lines": 2,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
@@ -1263,12 +1263,12 @@
     },
     {
       "path": "src/providers/core/edge.mjs",
-      "comment_lines": 69,
+      "comment_lines": 62,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
-        "task_or_adr": 1,
-        "commented_code": 4,
+        "task_or_adr": 0,
+        "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
         "narration": 4
@@ -1277,26 +1277,12 @@
     },
     {
       "path": "src/providers/core/initiative.mjs",
-      "comment_lines": 87,
+      "comment_lines": 73,
       "protected_lines": 0,
       "prohibited": {
-        "provenance": 3,
-        "task_or_adr": 1,
-        "commented_code": 5,
-        "banner": 0,
-        "documentation_mirror": 0,
-        "narration": 7
-      },
-      "directives": 0
-    },
-    {
-      "path": "src/providers/core/note.mjs",
-      "comment_lines": 77,
-      "protected_lines": 5,
-      "prohibited": {
-        "provenance": 1,
-        "task_or_adr": 2,
-        "commented_code": 4,
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
         "narration": 5
@@ -1304,12 +1290,26 @@
       "directives": 0
     },
     {
+      "path": "src/providers/core/note.mjs",
+      "comment_lines": 69,
+      "protected_lines": 5,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 4
+      },
+      "directives": 0
+    },
+    {
       "path": "src/providers/gate/create.mjs",
-      "comment_lines": 27,
+      "comment_lines": 21,
       "protected_lines": 2,
       "prohibited": {
         "provenance": 0,
-        "task_or_adr": 1,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
@@ -1319,11 +1319,25 @@
     },
     {
       "path": "src/providers/gate/index.mjs",
-      "comment_lines": 13,
+      "comment_lines": 3,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
-        "task_or_adr": 2,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/providers/gate/lifecycle.mjs",
+      "comment_lines": 59,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
@@ -1332,36 +1346,22 @@
       "directives": 0
     },
     {
-      "path": "src/providers/gate/lifecycle.mjs",
-      "comment_lines": 89,
-      "protected_lines": 0,
-      "prohibited": {
-        "provenance": 1,
-        "task_or_adr": 6,
-        "commented_code": 4,
-        "banner": 0,
-        "documentation_mirror": 0,
-        "narration": 4
-      },
-      "directives": 0
-    },
-    {
       "path": "src/providers/gate/semantics.mjs",
-      "comment_lines": 32,
+      "comment_lines": 13,
       "protected_lines": 0,
       "prohibited": {
-        "provenance": 3,
-        "task_or_adr": 2,
-        "commented_code": 2,
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 4
+        "narration": 2
       },
       "directives": 0
     },
     {
       "path": "src/providers/gate/update.mjs",
-      "comment_lines": 9,
+      "comment_lines": 8,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
@@ -1375,12 +1375,12 @@
     },
     {
       "path": "src/providers/knowledge/create.mjs",
-      "comment_lines": 29,
+      "comment_lines": 14,
       "protected_lines": 0,
       "prohibited": {
-        "provenance": 2,
-        "task_or_adr": 1,
-        "commented_code": 2,
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
         "narration": 3
@@ -1389,24 +1389,24 @@
     },
     {
       "path": "src/providers/knowledge/deprecate.mjs",
-      "comment_lines": 31,
+      "comment_lines": 17,
       "protected_lines": 1,
       "prohibited": {
-        "provenance": 2,
-        "task_or_adr": 1,
-        "commented_code": 2,
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 2
+        "narration": 1
       },
       "directives": 0
     },
     {
       "path": "src/providers/knowledge/index.mjs",
-      "comment_lines": 9,
+      "comment_lines": 6,
       "protected_lines": 0,
       "prohibited": {
-        "provenance": 1,
+        "provenance": 0,
         "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
@@ -1417,11 +1417,11 @@
     },
     {
       "path": "src/providers/knowledge/informing.mjs",
-      "comment_lines": 21,
+      "comment_lines": 7,
       "protected_lines": 0,
       "prohibited": {
-        "provenance": 1,
-        "task_or_adr": 1,
+        "provenance": 0,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
@@ -1431,10 +1431,10 @@
     },
     {
       "path": "src/providers/knowledge/projection.mjs",
-      "comment_lines": 19,
+      "comment_lines": 7,
       "protected_lines": 0,
       "prohibited": {
-        "provenance": 3,
+        "provenance": 0,
         "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
@@ -1445,7 +1445,7 @@
     },
     {
       "path": "src/providers/knowledge/ranking.mjs",
-      "comment_lines": 26,
+      "comment_lines": 11,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
@@ -1459,11 +1459,11 @@
     },
     {
       "path": "src/providers/knowledge/scopes.mjs",
-      "comment_lines": 34,
+      "comment_lines": 30,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
-        "task_or_adr": 2,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
@@ -1473,12 +1473,12 @@
     },
     {
       "path": "src/providers/knowledge/search.mjs",
-      "comment_lines": 21,
+      "comment_lines": 14,
       "protected_lines": 0,
       "prohibited": {
-        "provenance": 3,
-        "task_or_adr": 1,
-        "commented_code": 1,
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
         "narration": 1
@@ -1487,12 +1487,12 @@
     },
     {
       "path": "src/providers/knowledge/update.mjs",
-      "comment_lines": 29,
+      "comment_lines": 15,
       "protected_lines": 0,
       "prohibited": {
-        "provenance": 1,
-        "task_or_adr": 2,
-        "commented_code": 2,
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
         "narration": 4
@@ -1515,12 +1515,12 @@
     },
     {
       "path": "src/providers/plugin-data/index.mjs",
-      "comment_lines": 4,
+      "comment_lines": 3,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
         "task_or_adr": 0,
-        "commented_code": 1,
+        "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
         "narration": 0
@@ -1543,15 +1543,15 @@
     },
     {
       "path": "src/providers/plugin-data/node.mjs",
-      "comment_lines": 4,
+      "comment_lines": 3,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
         "task_or_adr": 0,
-        "commented_code": 1,
+        "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 2
+        "narration": 1
       },
       "directives": 0
     },
@@ -1585,11 +1585,11 @@
     },
     {
       "path": "src/providers/task/accept.mjs",
-      "comment_lines": 24,
+      "comment_lines": 15,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
-        "task_or_adr": 6,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
@@ -1599,11 +1599,11 @@
     },
     {
       "path": "src/providers/task/cancel.mjs",
-      "comment_lines": 28,
+      "comment_lines": 17,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
-        "task_or_adr": 5,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
@@ -1613,11 +1613,11 @@
     },
     {
       "path": "src/providers/task/create.mjs",
-      "comment_lines": 4,
+      "comment_lines": 0,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
-        "task_or_adr": 4,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
@@ -1627,26 +1627,26 @@
     },
     {
       "path": "src/providers/task/derivation.mjs",
-      "comment_lines": 42,
+      "comment_lines": 15,
       "protected_lines": 0,
       "prohibited": {
-        "provenance": 4,
-        "task_or_adr": 5,
-        "commented_code": 2,
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 5
+        "narration": 0
       },
       "directives": 0
     },
     {
       "path": "src/providers/task/index.mjs",
-      "comment_lines": 14,
+      "comment_lines": 8,
       "protected_lines": 0,
       "prohibited": {
-        "provenance": 1,
-        "task_or_adr": 3,
-        "commented_code": 1,
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
         "narration": 0
@@ -1655,11 +1655,11 @@
     },
     {
       "path": "src/providers/task/reject.mjs",
-      "comment_lines": 23,
+      "comment_lines": 16,
       "protected_lines": 1,
       "prohibited": {
-        "provenance": 1,
-        "task_or_adr": 4,
+        "provenance": 0,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
@@ -1669,11 +1669,11 @@
     },
     {
       "path": "src/providers/task/release.mjs",
-      "comment_lines": 30,
+      "comment_lines": 24,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
-        "task_or_adr": 5,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
@@ -1683,11 +1683,11 @@
     },
     {
       "path": "src/providers/task/reopen.mjs",
-      "comment_lines": 31,
+      "comment_lines": 17,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
-        "task_or_adr": 6,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
@@ -1697,11 +1697,11 @@
     },
     {
       "path": "src/providers/task/submit.mjs",
-      "comment_lines": 19,
+      "comment_lines": 15,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
-        "task_or_adr": 3,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
@@ -1711,11 +1711,11 @@
     },
     {
       "path": "src/providers/task/take.mjs",
-      "comment_lines": 48,
+      "comment_lines": 28,
       "protected_lines": 0,
       "prohibited": {
-        "provenance": 1,
-        "task_or_adr": 12,
+        "provenance": 0,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
@@ -1725,21 +1725,21 @@
     },
     {
       "path": "src/providers/task/update.mjs",
-      "comment_lines": 71,
+      "comment_lines": 54,
       "protected_lines": 0,
       "prohibited": {
-        "provenance": 1,
-        "task_or_adr": 8,
-        "commented_code": 4,
-        "banner": 2,
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
         "documentation_mirror": 0,
-        "narration": 3
+        "narration": 2
       },
       "directives": 0
     },
     {
       "path": "src/read-model/context.mjs",
-      "comment_lines": 1,
+      "comment_lines": 0,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
@@ -1753,24 +1753,24 @@
     },
     {
       "path": "src/read-model/core.mjs",
-      "comment_lines": 12,
+      "comment_lines": 2,
       "protected_lines": 0,
       "prohibited": {
-        "provenance": 1,
-        "task_or_adr": 3,
-        "commented_code": 1,
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 2
+        "narration": 0
       },
       "directives": 0
     },
     {
       "path": "src/read-model/index.mjs",
-      "comment_lines": 5,
+      "comment_lines": 3,
       "protected_lines": 0,
       "prohibited": {
-        "provenance": 1,
+        "provenance": 0,
         "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
@@ -1781,7 +1781,7 @@
     },
     {
       "path": "src/read-model/initiatives.mjs",
-      "comment_lines": 1,
+      "comment_lines": 0,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
@@ -1795,7 +1795,7 @@
     },
     {
       "path": "src/read-model/search.mjs",
-      "comment_lines": 1,
+      "comment_lines": 0,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
@@ -1809,7 +1809,7 @@
     },
     {
       "path": "src/read-model/snapshot.mjs",
-      "comment_lines": 1,
+      "comment_lines": 0,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
@@ -1823,7 +1823,7 @@
     },
     {
       "path": "src/read-model/status.mjs",
-      "comment_lines": 1,
+      "comment_lines": 0,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
@@ -1963,15 +1963,15 @@
     },
     {
       "path": "src/storage/ledger.mjs",
-      "comment_lines": 11,
+      "comment_lines": 8,
       "protected_lines": 3,
       "prohibited": {
-        "provenance": 3,
+        "provenance": 0,
         "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 2
+        "narration": 1
       },
       "directives": 0
     },
@@ -2047,29 +2047,29 @@
     },
     {
       "path": "src/storage/lock.mjs",
-      "comment_lines": 4,
+      "comment_lines": 2,
       "protected_lines": 2,
       "prohibited": {
         "provenance": 0,
         "task_or_adr": 0,
-        "commented_code": 1,
+        "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 2
+        "narration": 1
       },
       "directives": 0
     },
     {
       "path": "src/storage/log.mjs",
-      "comment_lines": 32,
+      "comment_lines": 22,
       "protected_lines": 1,
       "prohibited": {
-        "provenance": 1,
-        "task_or_adr": 3,
+        "provenance": 0,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 2
+        "narration": 1
       },
       "directives": 0
     },
@@ -2089,22 +2089,8 @@
     },
     {
       "path": "src/storage/migrate.mjs",
-      "comment_lines": 9,
+      "comment_lines": 2,
       "protected_lines": 1,
-      "prohibited": {
-        "provenance": 7,
-        "task_or_adr": 0,
-        "commented_code": 0,
-        "banner": 0,
-        "documentation_mirror": 0,
-        "narration": 3
-      },
-      "directives": 0
-    },
-    {
-      "path": "src/storage/paths.mjs",
-      "comment_lines": 1,
-      "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
         "task_or_adr": 0,
@@ -2116,11 +2102,25 @@
       "directives": 0
     },
     {
+      "path": "src/storage/paths.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
       "path": "src/storage/state.mjs",
-      "comment_lines": 12,
+      "comment_lines": 8,
       "protected_lines": 1,
       "prohibited": {
-        "provenance": 1,
+        "provenance": 0,
         "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
@@ -2131,7 +2131,7 @@
     },
     {
       "path": "src/storage/transfer.mjs",
-      "comment_lines": 2,
+      "comment_lines": 1,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,

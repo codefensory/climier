@@ -1,5 +1,4 @@
 // src/providers/gate/update.mjs — pure provider for `gate.update`.
-//
 // The CLI keeps one `update` surface, while the provider seam classifies a
 // gate update as `gate.update`. This provider accepts the gate fields exposed
 // by that surface and owns only domain/input planning plus draft patching.

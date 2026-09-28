@@ -34,10 +34,7 @@ function validateBackendClient(backendClient) {
   }
 }
 
-/**
- * Select one project backend for all built-in write operations. The bridge
- * performs no policy, plugin, metadata, kernel, or storage work itself.
- */
+
 export function createOperationBridge({ backendClient } = {}) {
   validateBackendClient(backendClient);
   return Object.freeze({

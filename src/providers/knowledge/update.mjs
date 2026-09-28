@@ -1,18 +1,16 @@
 // src/providers/knowledge/update.mjs — `knowledge.update` provider for
 // the graph kernel.
-//
-// Implements the kernel provider contract from ADR-011 §1:
+
 //   - `prepare({ snapshot, input, request }) → plan`
 //       read-only; validates domain rules and emits a plan carrying
 //       `{ target, if_revision, policyAction, idempotent, changes }`.
 //       The kernel validates `if_revision` under the lock; we surface
 //       the expected revision so callers can use the same precondition
-//       contract as the v2 CLI.
+
 //   - `apply({ tx, plan }) → { result }`
 //       patches the draft via `tx.updateNode`. The kernel diff bumps
 //       `revision` by 1 when the patch actually changes the node; an
 //       idempotent patch (same fields → same values) produces no diff.
-//
 // Pure: no fs, no lock, no state, no log, no policy, no commands, no
 // registry, no adapter, no CLI, no UI.
 
@@ -79,8 +77,7 @@ function pickChanges(rawChanges) {
   if ((rawChanges === null || rawChanges === undefined) || typeof rawChanges !== "object" || Array.isArray(rawChanges)) {
     throwV2("MISSING_FIELD", "knowledge.update: changes must be an object", { field: "changes" });
   }
-  // A key the kind does not patch is refused by name, like task.update and
-  // gate.update do: dropping it would answer OK while writing nothing.
+
   const unknown = Object.keys(rawChanges).filter((field) => !PATCHABLE_FIELDS.includes(field));
   if (unknown.length > 0) {
     const allowed = [...PATCHABLE_FIELDS].toSorted();
@@ -193,14 +190,7 @@ async function apply({ tx, plan }) {
   return { result: { id: plan.target.id, kind: "knowledge" }, effects: null };
 }
 
-/**
- * knowledge.update provider factory.
- *
- * @returns {{
- *   prepare: (args: { snapshot: object, input: object, request: object }) => Promise<object>,
- *   apply: (args: { tx: object, plan: object }) => Promise<{ result: object }>,
- * }}
- */
+
 export function updateProvider() {
   return { prepare, apply };
 }

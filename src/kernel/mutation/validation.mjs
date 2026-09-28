@@ -1,5 +1,4 @@
 // Pure final validation for the kernel mutation pipeline.
-//
 // Transaction methods enforce operation-level invariants while a provider
 // applies a draft. These checks validate the complete draft before revision
 // assignment and persistence, without importing storage or adapters.

@@ -33,7 +33,7 @@ function initiativeSummary(snapshot, usage, name) {
   };
 }
 
-/** Project initiatives and their observed node counts. */
+
 export function projectInitiativesView({ snapshot, all = false } = {}) {
   const usage = countInitiativeUsage(snapshot?.nodes);
   const initiatives = Object.keys(snapshot?.initiatives || {})

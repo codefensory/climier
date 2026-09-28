@@ -1,15 +1,13 @@
 // src/providers/knowledge/search.mjs — pure knowledge search helper for
 // the knowledge provider.
-//
 // Implements case-insensitive substring matching across
-// id/title/body/mitigation/domain/tags/refs/meta; active by default;
-// deprecated only with `all: true`; deterministic id order; body snippets
+
+
 // are truncated to 200 chars. It operates on a snapshot rather than
 // reading state from the filesystem.
-//
 // Pure: no fs, no lock, no state, no log, no policy, no commands, no
 // registry, no adapter, no CLI, no UI. This is the canonical provider
-// implementation per ADR-012 §3.
+
 
 const SNIPPET_LIMIT = 200;
 
@@ -99,9 +97,7 @@ function projectMatches(collected, includeDeprecated) {
  * Search the snapshot for knowledge nodes matching `query`.
  *
  * @param {object} args
- * @param {object} args.snapshot - v2 state snapshot ({nodes, edges, ...}).
  * @param {string} args.query - Substring (case-insensitive). Empty/whitespace → no matches.
- * @param {boolean} [args.all=false] - When true, include deprecated knowledge.
  * @returns {{ matches: object[], count: number }} Matches in deterministic id order.
  */
 export function searchKnowledge({ snapshot, query, all = false } = {}) {

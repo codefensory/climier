@@ -17,7 +17,7 @@ function includes(value, textQuery) {
   return text ? text.toLowerCase().includes(textQuery) : false;
 }
 
-/** Project matching knowledge nodes and the fields that matched. */
+
 export function projectSearchView({ snapshot, query = "", all = false } = {}) {
   const textQuery = String(query ?? "").toLowerCase();
   if (!textQuery) {

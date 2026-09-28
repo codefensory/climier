@@ -86,7 +86,7 @@ async function readCanonicalDestinationWithoutLedger(projectDir) {
   return state;
 }
 
-/** Capture and validate a complete source snapshot while holding its own lock. */
+
 export async function captureTransferSource(projectDir) {
   return withLock(projectDir, async (lockContext) => {
     const state = await readFencedStateUnderLock(lockContext);

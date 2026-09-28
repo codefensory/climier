@@ -1,6 +1,4 @@
-// F2 — structured v2 errors.
-// Every v2 command throws via throwV2(code, message, details).
-// The CLI entry detects V2Error by err.code + err.details and emits a JSON envelope.
+
 
 export const CLI_EXIT_CODES = Object.freeze({ SUCCESS: 0, FAILURE: 1, USAGE: 2 });
 

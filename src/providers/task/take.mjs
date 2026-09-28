@@ -1,8 +1,7 @@
-// src/providers/task/take.mjs — pure provider for `task.take` / `task.takeover`.
-//
-// ADR-011 §§1–4:
-//   - `prepare` is read-only. It classifies the action (task.take vs
-//     task.takeover), validates the target is a task in a claimable
+
+
+
+
 //     state, and detects the same-actor idempotent short-circuit.
 //   - `apply` mutates the in-memory tx draft only: tx.updateNode to
 //     install the new claim and `in_progress` status. The takeover
@@ -10,7 +9,7 @@
 //     surface it in the log; the provider never writes the log
 //     directly. Revision is never written.
 //   - Imports nothing from filesystem, lock, state, log, policy,
-//     commands, registry, adapters, CLI or UI. Only the v2 error
+
 //     helpers are used.
 
 import { throwV2 } from "../../contracts/errors.mjs";
@@ -32,7 +31,7 @@ function asNonEmptyString(value) {
 // input.actor. Both shapes remain accepted for compatibility, but
 // request.actor wins when both are present:
 // the adapter is the canonical source of truth for agent identity
-// in plugin-issued calls (ADR-006 §API y compatibilidad).
+
 function resolveActor(input, request) {
   return (
     asNonEmptyString(request && request.actor) ||
@@ -91,13 +90,12 @@ function validateTarget(input, snapshot) {
 
 // classifyAction — runs against the snapshot (read-only). Returns a
 // frozen descriptor consumed by prepare/apply. The semantic matrix
-// matches the take contract (ADR-008 §"Tabla de take"):
-//
+
 //   status        | claim.by    | action         | takeover | idempotent
 //   --------------|-------------|----------------|----------|------------
-//   in_progress   | same actor  | task.take      | false    | true
-//   in_progress   | other actor | task.takeover  | true     | false
-//   open          | n/a         | task.take      | false    | false
+
+
+
 //   open + blocked deps         | NOT_READY
 //   any other status            | NOT_READY
 function actionForExistingClaim(actor, owner) {
@@ -129,7 +127,6 @@ function classifyAction(node, actor, snapshot) {
 }
 
 /**
- * Pure `prepare` for task.take / task.takeover.
  *
  * @param {{ snapshot: object, input: object, request: object }} args
  * @returns {object} frozen plan
@@ -160,12 +157,7 @@ async function prepare({ snapshot, input, request }) {
   });
 }
 
-/**
- * Pure `apply` for task.take / task.takeover.
- *
- * @param {{ tx: object, plan: object, input: object, request: object, snapshot: object }} args
- * @returns {Promise<{ result: object, effects: null }>}
- */
+
 async function apply({ tx, plan, input, request, snapshot }) {
   void input;
   void request;
@@ -178,7 +170,7 @@ async function apply({ tx, plan, input, request, snapshot }) {
     );
   }
   if (plan.idempotent) {
-    // Same actor already holds the claim. ADR-008 §"Tabla de take":
+
     // idempotent, no mutation. The kernel diff will see no change and
     // skip both the write and the log append.
     const existing = tx.getNode(plan.target.id);

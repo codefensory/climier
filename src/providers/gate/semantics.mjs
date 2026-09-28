@@ -1,5 +1,4 @@
 // src/providers/gate/semantics.mjs — canonical gate graph semantics.
-//
 // This module owns the pure rules shared by gate providers and projections:
 // supersedence, currentness, satisfaction, readiness effects, and the inline
 // gate projection. It deliberately has no filesystem, transaction, policy,
@@ -20,14 +19,7 @@ function edgesOf(state) {
   return Array.isArray(state && state.edges) ? state.edges : [];
 }
 
-/**
- * Return the deterministic superseding gate for `id`.
- *
- * SUPERSEDES edges point from the newer gate to the older one, so a
- * superseder is an incoming edge to the node being queried. Existing data
- * may contain more than one such edge; choosing the lexical first keeps
- * projections and satisfaction deterministic while preserving the v2 rule.
- */
+
 export function supersededBy(state, id) {
   const next = incoming({ edges: edgesOf(state) }, id, "SUPERSEDES")
     .map((edge) => edge.from)
@@ -36,7 +28,7 @@ export function supersededBy(state, id) {
   return next[0] || null;
 }
 
-/** Whether a node has no superseding node in the graph. */
+
 export function isCurrent(state, id) {
   return supersededBy(state, id) === null;
 }
@@ -81,7 +73,7 @@ function satisfyGate(state, id, status, visited) {
   return nextId ? satisfyNode(state, nodesOf(state)[nextId], nextId, visited) : false;
 }
 
-/** Same satisfaction rule when callers already hold the graph pair. */
+
 export function isSatisfiedByGraph(nodes, edges, id, seen) {
   return isSatisfied({ nodes, edges }, id, seen);
 }
@@ -90,7 +82,7 @@ function incomingBlockers(edges, id) {
   return edges.filter((edge) => edge && edge.type === "BLOCKS" && edge.to === id);
 }
 
-/** Pure readiness check matching the v2 task derivation. */
+
 export function taskIsReadyByGraph(nodes, edges, id) {
   const node = nodes && nodes[id];
   if (!isReadyTaskCandidate(node) || !isInReadyPool(node, node.status || "open")) {
@@ -100,11 +92,7 @@ export function taskIsReadyByGraph(nodes, edges, id) {
     .every((edge) => isSatisfiedByGraph(nodes, edges, edge.from));
 }
 
-/**
- * Return task ids whose readiness flips when a gate changes between two
- * graph views. `up` reports newly ready tasks; `down` reports newly blocked
- * tasks. The result is sorted for stable provider effects.
- */
+
 export function diffReadyByGate(snapshotGraph, viewGraph, gateId, direction) {
   const before = normalizeGraph(snapshotGraph);
   const after = normalizeGraph(viewGraph);
@@ -154,7 +142,6 @@ function readinessChanged(up, wasReady, isReady) {
 
 /**
  * Add the canonical currentness fields to a gate projection. Missing nodes
- * use the same compatibility shape as the v2 inline projection.
  */
 export function gateProjection(state, id) {
   const node = nodesOf(state)[id];
@@ -169,5 +156,5 @@ export function gateProjection(state, id) {
   };
 }
 
-// Descriptive alias for consumers that prefer the noun-first name.
+
 export const projectGate = gateProjection;

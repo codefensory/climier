@@ -81,7 +81,7 @@ function copyPlugin(sourcePlugins, pluginId) {
   return plugins;
 }
 
-/** Project a serialized state read for a public plugin query. */
+
 export function projectSnapshot({ snapshot, pluginId } = {}) {
   const source = sourceRecord(snapshot);
   const sourceNodes = sourceRecord(source.nodes);

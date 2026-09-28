@@ -1,12 +1,10 @@
 // src/providers/knowledge/scopes.mjs — pure scope-matching helper for the
 // knowledge provider.
-//
 // Responsibility:
 //   - `matchesScopes(node, knowledge)` returns the scope keys that match
 //     `node` against `knowledge.scope`, ordered by priority.
 //   - `SCOPE_ORDER` exposes the canonical priority (node_id > domain > tag
-//     > initiative). This is the canonical provider order per ADR-012 §3.
-//
+
 // Constraints:
 //   - Pure function over JSON-shaped values: no fs, no lock, no state, no
 //     log, no policy, no commands, no registry, no adapter, no CLI, no UI.
@@ -60,7 +58,6 @@ function matchesScopeKey(key, node, scope) {
  *   - `tag` matches when any of `node.tags` is contained in
  *     `scope.tags`.
  *
- * @param {object} node - Target node (task/gate/knowledge) being matched.
  * @param {object} knowledge - Knowledge node carrying `scope`.
  * @returns {string[]} Subset of SCOPE_ORDER in priority order.
  */

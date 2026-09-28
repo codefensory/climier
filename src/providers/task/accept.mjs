@@ -1,10 +1,9 @@
-// src/providers/task/accept.mjs — pure provider for `task.accept`.
-//
-// ADR-015/016:
-//   - `prepare` validates a task is in the explicit `submitted` state and
+
+
+
 //     records the host actor and acceptance timestamp.
 //   - `apply` changes only the transaction draft, preserving submission
-//     metadata while marking the task done. It computes `newly_ready` by
+
 //     comparing canonical readiness before and after the transition.
 //   - This provider does not own persistence, locks, logs, or adapters.
 
@@ -22,8 +21,7 @@ function asNonEmptyString(value) {
   return typeof value === "string" && value.length > 0 ? value : null;
 }
 
-// Actor identity is fixed by the host request. The input fallback preserves
-// compatibility with direct/core callers that provide actor in their input.
+
 function resolveActor(input, request) {
   return (
     asNonEmptyString(request && request.actor) ||
@@ -88,7 +86,6 @@ function validateTarget(input, snapshot) {
 }
 
 /**
- * Pure `prepare` for task.accept.
  *
  * @param {{ snapshot: object, input: object, request: object }} args
  * @returns {object} frozen plan
@@ -120,7 +117,6 @@ async function prepare({ snapshot, input, request }) {
 }
 
 /**
- * Pure `apply` for task.accept. The transaction owns the draft; this provider
  * only requests the submitted-to-done patch and projects its graph effect.
  *
  * @param {{ tx: object, plan: object, input: object, request: object, snapshot: object }} args

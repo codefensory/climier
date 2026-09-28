@@ -34,7 +34,7 @@ export function getActiveLockContext(lockContext) {
   return Object.freeze({ projectDir: details.projectDir, statePath: details.statePath });
 }
 
-/** Return the current live lock capability only when its project matches. */
+
 export function getCurrentLockContext(projectDir) {
   const active = activeProjectLock.getStore();
   const lockContext = active?.lockContexts?.get(path.resolve(projectDir));
@@ -52,7 +52,7 @@ export function getCurrentLockContext(projectDir) {
   }
 }
 
-/** Run a storage operation under a live project lock, reusing same-project ALS. */
+
 export async function withCurrentProjectLock(projectDir, fn, opts = {}) {
   const lockContext = getCurrentLockContext(projectDir);
   if (lockContext) {

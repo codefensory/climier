@@ -1,5 +1,4 @@
 // Built-in operation catalog for the Application Operations boundary.
-//
 // This module owns native operation IDs and provider composition. It is
 // process-local: building the registry does not touch state or persistence.
 
@@ -98,7 +97,7 @@ export function createBuiltinOperationRegistry() {
   return buildRegistry(collectBuiltins());
 }
 
-/** Compatibility name for callers that bootstrap the native catalog. */
+
 export function bootstrapBuiltins() {
   return createBuiltinOperationRegistry();
 }

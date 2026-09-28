@@ -1,5 +1,4 @@
-// Generic, process-local registry for application operations.
-// It validates and indexes providers, with no adapter or persistence knowledge.
+
 
 const ADMITTED_KINDS = Object.freeze(["task", "gate", "knowledge", "core"]);
 

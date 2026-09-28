@@ -1,22 +1,19 @@
 // log.mjs: append entries to the global state log.
-//
 // Two entry points:
 //   - append(projectDir, entry): CLI path. Shape unchanged.
 //   - appendWithContext(projectDir, entry, ctx): plugin path. Adds
 //     `plugin_id` to the entry when ctx.pluginId is a non-empty string.
-//     Per ADR-006 §"Locks y logs" the plugin_id is attributed on the
-//     log entry so `history <id>` can identify the calling plugin; it
+
+
 //     never comes from the caller-supplied input (the adapter injects
 //     it from the installed descriptor).
-//
 // Both helpers share the same validation and the same atomic ledger
 // commit, so a single log entry appears per handler call, even when
 // ctx.pluginId is set.
-//
 // One composable helper for the mutation pipeline:
 //   - prepareLogEntry(entry, ctx): returns the canonical { ts, ... }
 //     shape WITHOUT writing it anywhere. Used by `kernel.mutate`
-//     (ADR-011 §1) so it can compose state mutation + log append into a
+
 //     single ledger commit owned by the kernel.
 import { emptyState, stateFile } from "./state.mjs";
 import fs from "node:fs/promises";
@@ -39,9 +36,8 @@ function resolvedPluginId(ctx) {
 
 // prepareLogEntry — pure helper that returns the canonical log entry
 // shape (timestamp + optional plugin_id) without persisting. Used by
-// `kernel.mutate` (ADR-011 §1) so it can compose state mutation + log
+
 // append into a single ledger commit owned by the kernel.
-//
 // Validation responsibility: callers (`append`, `appendWithContext`,
 // `kernel.mutate`) MUST validate the entry shape before passing it
 // in. `prepareLogEntry` assumes the entry has been validated.
@@ -73,8 +69,7 @@ function validateAppendEntry(entry, commandName = "append") {
   if (!entry.agent) {
     throw new Error("append: entry.agent is required");
   }
-  // Keep the argument in the helper signature for callers that provide a
-  // command label, while append errors retain their stable prefix.
+
   void commandName;
 }
 

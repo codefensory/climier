@@ -1,5 +1,4 @@
-// src/providers/task/create.mjs — pure provider for `task.create`.
-// ADR-011/012: prepare validates; apply mutates only the draft.
+
 
 import { throwV2 } from "../../contracts/errors.mjs";
 import { blocksEdge } from "../../kernel/edges.mjs";
@@ -293,7 +292,7 @@ function asPlainObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-/** Pure `prepare` for task.create. */
+
 async function prepare({ snapshot, input, request }) {
   void request;
   validateInputShape(input);
@@ -320,7 +319,7 @@ async function prepare({ snapshot, input, request }) {
   });
 }
 
-/** Pure `apply` for task.create. */
+
 async function apply({ tx, plan, input, request, snapshot }) {
   void input;
   void request;

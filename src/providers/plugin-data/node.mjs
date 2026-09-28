@@ -1,5 +1,5 @@
 // Pure provider for node-scoped plugin data writes.
-// The kernel owns locking, persistence, revisions and audit timestamps;
+
 // this provider only validates the typed request and mutates its draft
 // keyspace through setNodePluginData.
 import { throwV2 } from "../../contracts/errors.mjs";

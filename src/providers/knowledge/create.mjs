@@ -1,7 +1,6 @@
 // src/providers/knowledge/create.mjs — `knowledge.create` provider for
 // the graph kernel.
-//
-// Implements the kernel provider contract from ADR-011 §1:
+
 //   - `prepare({ snapshot, input, request }) → plan`
 //       read-only; validates domain rules; returns an immutable plan
 //       carrying `{ target, policyAction, idempotent, node, supersedes? }`.
@@ -9,15 +8,13 @@
 //       mutates ONLY the tx draft via `tx.createNode` / `tx.updateNode` /
 //       `tx.addEdge`. The kernel owns revision assignment (see
 //       `src/kernel/mutate.mjs`); the provider never seeds `revision`.
-//
 // Supports `knowledge.create` with optional `supersedes`.
-//
 // Pure: no fs, no lock, no state, no log, no policy, no commands, no
 // registry, no adapter, no CLI, no UI.
 
 import { throwV2 } from "../../contracts/errors.mjs";
 
-const KNOWN_STATUSES = Object.freeze(["active", "deprecated"]); // deprecated cannot be set on create, kept for completeness
+const KNOWN_STATUSES = Object.freeze(["active", "deprecated"]);
 const SCOPE_KEYS = Object.freeze(["domains", "initiatives", "tags", "node_ids"]);
 
 function asString(value) {
@@ -111,7 +108,7 @@ function validateStatus(input) {
 
 function validateKnowledgeType(input) {
   const knowledgeType = input.knowledge_type === undefined ? "warning" : asString(input.knowledge_type);
-  // knowledge_type is a free-form taxonomy string. Custom types are allowed.
+
   if (knowledgeType.length === 0) {
     throwV2(
       "MISSING_FIELD",
@@ -202,7 +199,7 @@ function createNode(input, values) {
     scope: values.scope,
   };
   if (values.allowUnregistered && !values.initiative) {
-    // Trusted internals (recovery, bulk migration) may omit initiative.
+
     delete node.initiative;
   }
   addOptionalFields(node, input);
@@ -261,14 +258,7 @@ async function apply({ tx, plan }) {
   return { result: { id, kind: "knowledge" }, effects: null };
 }
 
-/**
- * knowledge.create provider factory.
- *
- * @returns {{
- *   prepare: (args: { snapshot: object, input: object, request: object }) => Promise<object>,
- *   apply: (args: { tx: object, plan: object }) => Promise<{ result: object }>,
- * }}
- */
+
 export function createProvider() {
   return { prepare, apply };
 }

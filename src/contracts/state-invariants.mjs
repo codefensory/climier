@@ -69,7 +69,7 @@ function validateEdgeKinds(nodes, edge, commandName) {
   }
 }
 
-/** Validate one edge against the supplied node collection. */
+
 export function validateEdge(state, edge, commandName = "state") {
   const { from, to, type } = validateEdgeShape(edge, commandName);
   if (from === to) {
@@ -125,10 +125,7 @@ function pathBetween(adjacency, start, target) {
   return visit(start);
 }
 
-/**
- * Return true when adding a BLOCKS edge would make the graph cyclic.
- * Accepts either (state, { from, to, type }) or (state, from, to).
- */
+
 export function blocksCyclePath(state, edgeOrFrom, maybeTo) {
   const edge = typeof edgeOrFrom === "object"
     ? edgeOrFrom

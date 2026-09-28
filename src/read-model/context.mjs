@@ -144,7 +144,7 @@ function createContextAlerts(claim, blocking, knowledge, id) {
   return alerts;
 }
 
-/** Project node context, returning null for absence so adapters own errors. */
+
 export function projectContextView({ snapshot, id, agent, staleMs = 2 * 60 * 60 * 1000, now } = {}) {
   if (typeof now !== "number" || !Number.isFinite(now)) {
     throw new TypeError("read-model: now epoch-ms is required");

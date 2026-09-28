@@ -1,19 +1,15 @@
-// Kernel mutation request contracts.
-//
-// This module owns the small, shared validation boundary at the kernel entry
-// point. It deliberately has no filesystem or provider dependencies: callers
-// can validate requests and plans before entering the mutation coordinator.
+
 
 import { throwV2 } from "../../contracts/errors.mjs";
 
-/** Return the stable operation label used in kernel errors. */
+
 export function operationLabel(request) {
   return request && typeof request.action === "string" && request.action.length > 0
     ? `kernel.mutate(${request.action})`
     : "kernel.mutate";
 }
 
-// Compatibility alias for callers using the earlier helper name.
+
 export const commandLabel = operationLabel;
 
 function validateRequestFields(request) {

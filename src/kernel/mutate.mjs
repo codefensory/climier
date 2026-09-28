@@ -1,5 +1,4 @@
 // Stable kernel mutation façade.
-//
 // The façade owns only the public entry point, the project lock and the
 // async-chain re-entrancy guard. The mutation algorithm lives in
 // ./mutation/execute.mjs. Pure helper exports below are retained for
@@ -46,10 +45,7 @@ function currentNestedDepth() {
   return typeof store === "number" ? store : 0;
 }
 
-/**
- * Stable kernel mutation API. All reads, provider callbacks and persistence
- * run through one project lock and are delegated to the execution coordinator.
- */
+
 function takeoverAbstainError(args) {
   const error = new Error(`take: task '${args.target.id}' is already claimed`);
   error.code = "POLICY_TAKEOVER_ABSTAIN";

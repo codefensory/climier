@@ -1,4 +1,4 @@
-// Provider mutation phase for the kernel execution coordinator.
+
 
 import { emptyState, isFencedStateVersion } from "../../../storage/state.mjs";
 import { bootstrapFencedStateUnderLock, commitFencedStateUnderLock } from "../../../storage/ledger.mjs";

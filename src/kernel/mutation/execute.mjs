@@ -1,4 +1,4 @@
-// Mutation execution facade. The kernel facade remains the owner of locking.
+
 import { validateMutationArguments, commandLabel, operationLabel, freezePlan } from "./execute/shared.mjs";
 import { executeBatchMutation } from "./execute/batch.mjs";
 import { executeStateMutation } from "./execute/state.mjs";
@@ -19,5 +19,5 @@ export async function executeMutation({ projectDir, lockContext, request, provid
   return executeProviderMutation({ projectDir, lockContext, request, provider, policyAction, pluginId, commandName });
 }
 
-// Compatibility aliases retained for callers that imported coordinator helpers.
+
 export { commandLabel, operationLabel, executeBatchMutation, freezePlan, validateMutationArguments };

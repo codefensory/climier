@@ -1,22 +1,17 @@
 // src/providers/gate/lifecycle.mjs — gate.resolve / gate.reopen / gate.cancel
-// providers (ADR-011 §§1–4 + ADR-012 §3).
-//
+
 // Pure domain semantics for the gate lifecycle operations. The provider
 // owns validation and the in-memory draft mutation; it never touches the
 // filesystem, the lock, the persisted state, the log, policy, commands,
 // the registry, adapters, the CLI or the UI, and it NEVER writes or
 // increments `revision` (the kernel assigns revision once per apply).
-//
 // Each operation follows the same shape:
-//
 //   prepare({ snapshot, input, request })
 //     // read-only; declares target, policyAction, logAction, affected,
 //     // and the agent-facing if_revision(s) precondition.
 //   apply({ tx, plan, snapshot })
 //     // mutates ONLY the tx draft via updateNode; returns { result, effects }.
-//
-// Behavioural contract (ADR-009 §"Resto de operaciones"):
-//
+
 //   gate.resolve
 //     - target: existing gate with status open|in_progress.
 //     - input: { id, choice, rationale, if_revision? }
@@ -29,31 +24,28 @@
 //     - policy action: "gate.resolve".
 //     - effect: newly_ready = tasks that were blocked only by this gate
 //       and become ready once it resolves.
-//
 //   gate.reopen
 //     - target: existing gate with status "resolved".
 //     - input: { id, reason, if_revision? }
 //     - status -> open, clears node.resolution.
 //     - log action: "reopen", note: <reason>.
-//     - policy action: "task.reopen" (consistent with the seam).
+
 //     - effect: newly_blocked = tasks that lose their only satisfied
 //       blocker when the gate goes back to open.
-//
 //   gate.cancel
 //     - target: existing gate with status open|in_progress.
 //     - input: { id, reason, if_revision? }
 //     - status -> canceled; clears node.claim if any.
 //     - log action: "cancel", note: <reason>.
-//     - policy action: "task.cancel" (consistent with the seam).
+
 //     - effect: newly_blocked = tasks that lose their only satisfied
 //       blocker when the gate moves to canceled (canceled gates never
 //       satisfy, matching isSatisfiedV2).
-//
-// isSatisfied truth table (mirrors the task provider's graph semantics):
-//   task:  done | archived => true
-//   gate:  resolved       => true
-//          superseded     => chain walk through SUPERSEDES
-//          anything else  => false
+
+
+
+
+
 // The provider uses a pure in-graph helper so it can evaluate isSatisfied
 // against both the snapshot and the draft view without importing adapters.
 
@@ -76,9 +68,9 @@ const CANCEL_POLICY = "task.cancel";
 // Statuses from which a gate can be resolved. The resolver accepts
 // only open/in_progress gates.
 const RESOLVABLE_STATUSES = Object.freeze(["open", "in_progress"]);
-// Statuses from which a gate can be canceled. Matches cancel.mjs.
+
 const CANCELABLE_STATUSES = Object.freeze(["open", "in_progress"]);
-// Terminal gate status that reopen can roll back. Matches reopen.mjs.
+
 const TERMINAL_STATUS = "resolved";
 
 function asPlainObject(value) {
@@ -230,7 +222,7 @@ function applyResolutionPatch(tx, plan) {
 }
 
 function applyReopenPatch(tx, plan) {
-  // The reopen must drop the previous resolution so isSatisfied falls back
+
   // to the open status (false). updateNode never carries revision.
   tx.updateNode(plan.target.id, { status: "open" });
   // updateNode merges keys and does not expose deletion, so explicitly
@@ -244,9 +236,7 @@ function applyCancelPatch(tx, plan) {
   tx.updateNode(plan.target.id, { status: "canceled" });
 }
 
-// ─────────────────────────────────────────────────────────────────────────
-// gate.resolve
-// ─────────────────────────────────────────────────────────────────────────
+
 
 export async function prepareGateResolve({ snapshot, input }) {
   const command = RESOLVE_OP;
@@ -320,9 +310,7 @@ export async function applyGateResolve({ tx, plan, snapshot }) {
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────
-// gate.reopen
-// ─────────────────────────────────────────────────────────────────────────
+
 
 export async function prepareGateReopen({ snapshot, input }) {
   const command = REOPEN_OP;
@@ -386,9 +374,7 @@ export async function applyGateReopen({ tx, plan, snapshot }) {
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────
-// gate.cancel
-// ─────────────────────────────────────────────────────────────────────────
+
 
 export async function prepareGateCancel({ snapshot, input }) {
   const command = CANCEL_OP;
@@ -453,7 +439,7 @@ export const gateResolveProvider = Object.freeze({ prepare: prepareGateResolve, 
 export const gateReopenProvider = Object.freeze({ prepare: prepareGateReopen, apply: applyGateReopen });
 export const gateCancelProvider = Object.freeze({ prepare: prepareGateCancel, apply: applyGateCancel });
 
-// Public constants consumed by the registry and adapter.
+
 export const GATE_RESOLVE_OP = RESOLVE_OP;
 export const GATE_REOPEN_OP = REOPEN_OP;
 export const GATE_CANCEL_OP = CANCEL_OP;

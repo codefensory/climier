@@ -1,4 +1,4 @@
-// Batch mutation phase for the kernel execution coordinator.
+
 
 import { commitFencedStateUnderLock } from "../../../storage/ledger.mjs";
 import { isFencedStateVersion } from "../../../storage/state.mjs";

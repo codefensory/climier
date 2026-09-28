@@ -1,5 +1,4 @@
-// Canonical core projections over a v2 snapshot.
-//
+
 // These pure projections compose graph semantics with domain providers. They
 // have no filesystem, argv, mutation, or logging concerns.
 
@@ -26,15 +25,12 @@ function projectionArgs(input, id) {
   return { snapshot: input, id };
 }
 
-/** Derive the read-model task and gate pools from an explicit snapshot. */
+
 export function derive({ snapshot } = {}) {
   return deriveV2(snapshot);
 }
 
-/**
- * Return the externally visible status for a node. Open gates are a
- * read-model status, rather than task readiness.
- */
+
 export function statusOf(input, id) {
   const args = projectionArgs(input, id);
   const { snapshot } = args;
@@ -45,7 +41,7 @@ export function statusOf(input, id) {
   return taskStatusOfV2(snapshot, args.id);
 }
 
-/** Project BLOCKS dependencies with gate projection and task satisfaction. */
+
 export function blockingForNode(input, id) {
   const { snapshot, id: targetId } = projectionArgs(input, id);
   return incoming(snapshot, targetId, "BLOCKS").map((edge) => ({
@@ -55,13 +51,13 @@ export function blockingForNode(input, id) {
   }));
 }
 
-/** Project knowledge matching the target node's explicit scopes. */
+
 export function knowledgeForNode(input, id) {
   const { snapshot, id: targetId } = projectionArgs(input, id);
   return providerKnowledgeForNode({ snapshot, id: targetId });
 }
 
-/** Project INFORMS relations as inline nodes. */
+
 export function informingForNode(input, id) {
   const { snapshot, id: targetId } = projectionArgs(input, id);
   return providerInformingForNode({ snapshot, id: targetId });
