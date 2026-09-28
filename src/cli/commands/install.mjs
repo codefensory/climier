@@ -1,42 +1,6 @@
-// `climier install <source>`: install a plugin into
-// <CLIMIER_HOME>/plugins/installed/<descriptor.id>/ using an isolated
-// staging prefix and a global plugin lock.
-//
-// ADR-005 §"Instalación e identidad": the
-// installed directory name is descriptor.id. descriptor.command is the
-// CLI namespace (the first non-flag token); the dispatcher discovers it
-// by scanning installed/<*> package.json files (no persistent manifest,
-// as the spec forbids one). id and command can differ; the host does
-// NOT introduce implicit aliases.
-//
-// Lifecycle:
-//   1. Take the global plugin lock (withGlobalPluginLock).
-//   2. Resolve the npm command; reject with PLUGIN_NPM_UNAVAILABLE if it
-//      cannot be spawned or returns non-zero on `--version`.
-//   3. Generate a staging nonce and run `npm install --prefix
-//      <staging> --no-audit --no-fund <source>`. The source may be a
-//      local path or a registry package name (ADR-005 §"Instalación e
-//      identidad": "El nombre npm solo es el origen de instalación").
-//   4. Read the descriptor from the installed package.json (under
-//      node_modules/<basename>/package.json for local sources; under
-//      node_modules/<source>/package.json for registry sources).
-//   5. Validate descriptor shape (PLUGIN_INVALID_DESCRIPTOR) and
-//      reserved-namespace uniqueness (PLUGIN_INVALID_DESCRIPTOR).
-//   6. Validate id uniqueness via installed/<id> existence (the dir is
-//      named after id, so a collision is a simple path-existence check)
-//      and command uniqueness by scanning every installed descriptor
-//      (no manifest; this is the only place command collisions can be
-//      caught).
-//   7. Import the entrypoint ESM and assert default.commands is an
-//      object (PLUGIN_LOAD_FAILED).
+
 //   8. Promote via fs.rename from .staging/<nonce> to
 //      installed/<descriptor.id>. This rename is atomic on the same
-//      filesystem, matching ADR-005 §"Instalación e identidad".
-//
-// On any failure inside the lock, the staging directory is removed with
-// fs.rm(recursive, force). The host does NOT roll back npm's internal
-// state inside the staging prefix — that is npm's responsibility per
-// the ADR.
 
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
@@ -56,9 +20,6 @@ import {
 } from "../../plugins/descriptor.mjs";
 import { assertNoReservedCollision } from "./reserved-namespaces.mjs";
 
-// We accept --as as identity (not enforced); it is harmless to allow it
-// even though install does not write to project state.
-// Plugin install carries no actor: no plugin operation runs here (ADR-038).
 export const knownFlags = [];
 
 class PluginIdConflict extends Error {
@@ -88,16 +49,10 @@ class PluginNpmUnavailable extends Error {
   }
 }
 
-// resolveNpmCommand: tests can pin a non-existent command via
-// CLIMIER_NPM_CMD to exercise PLUGIN_NPM_UNAVAILABLE without monkey-
-// patching PATH.
 function resolveNpmCommand() {
   return process.env.CLIMIER_NPM_CMD || "npm";
 }
 
-// npmVersionCheck: confirm the npm binary exists and works. We do this
-// up-front so PLUGIN_NPM_UNAVAILABLE surfaces before any staging dir is
-// created.
 async function npmVersionCheck() {
   const cmd = resolveNpmCommand();
   return new Promise((resolve) => {
@@ -120,8 +75,6 @@ async function npmVersionCheck() {
   });
 }
 
-// npmInstall: run `npm install --prefix <staging> --no-audit --no-fund <source>`
-// and resolve with { code, stderr }.
 async function npmInstall(stagingDir, source) {
   const cmd = resolveNpmCommand();
   return new Promise((resolve, reject) => {
@@ -145,30 +98,21 @@ async function npmInstall(stagingDir, source) {
   });
 }
 
-// cleanupStaging: best-effort removal of the staging dir on failure.
 async function cleanupStaging(dir) {
   try {
     await fs.rm(dir, { recursive: true, force: true });
   } catch {
-    // ignore — staging removal is best-effort and must not mask the
-    // primary error that triggered cleanup.
+
   }
 }
 
-// resolveInstalledPackageDir: predict where npm dropped the plugin.
-//   - Local path:  basename(source)
-//   - Registry:    source (e.g. "example-plugin" or "@scope/example")
-//
-// We read its package.json directly; if npm has not put a package there
-// (or the descriptor is missing) we surface PLUGIN_INVALID_DESCRIPTOR.
 function predictInstalledPackageDir(stagingDir, source) {
   const basename = path.basename(source);
   return path.join(stagingDir, "node_modules", basename);
 }
 
 async function isLocalPath(source) {
-  // Treat absolute paths, dot-relative paths, and tilde expansions as
-  // local. Anything else is a registry package name.
+
   return (
     source.startsWith("/") ||
     source.startsWith("./") ||
@@ -177,9 +121,6 @@ async function isLocalPath(source) {
   );
 }
 
-// listInstalled: enumerate existing installed plugins (excluding hidden
-// entries) and read their descriptors. Used to enforce uniqueness
-// before promotion.
 async function installedDescriptor(installedRoot, entry) {
   const pkgPath = path.join(installedRoot, entry, "package.json");
   try {
@@ -214,10 +155,7 @@ async function listInstalledDescriptors() {
 }
 
 async function checkUniqueness(descriptor) {
-  // ADR-005: id uniqueness is a path
-  // collision at installed/<descriptor.id> (the dir name IS the id);
-  // command uniqueness scans every other installed descriptor because
-  // no two plugins may claim the same CLI namespace.
+
   const targetDir = pluginInstalledDir(descriptor.id);
   if (await pathExists(targetDir)) {
     throw new PluginIdConflict(descriptor.id, {
@@ -225,7 +163,7 @@ async function checkUniqueness(descriptor) {
       target_dir: targetDir,
     });
   }
-  // Command collision against any other installed plugin's climier.command.
+
   const installed = await listInstalledDescriptors();
   for (const { dirName, descriptor: other } of installed) {
     if (other && other.command === descriptor.command) {
@@ -260,10 +198,7 @@ function validateInstallSource(positional) {
 }
 
 async function requireNpmAvailable() {
-  // Pre-flight: confirm npm is available BEFORE taking the lock or
-  // creating the staging dir. PLUGIN_NPM_UNAVAILABLE is a structured
-  // error per ADR-005; the spec calls for staging cleanup, so any
-  // partially-created staging must also be removed.
+
   const npmOk = await npmVersionCheck();
   if (npmOk.ok !== true) {throw new PluginNpmUnavailable(npmOk);}
 }
@@ -295,13 +230,7 @@ async function promoteStagedPackage(stagingDir, source) {
   assertNoReservedCollision(descriptor.command);
   await checkUniqueness(descriptor);
   await importEntry(path.resolve(installedPkgDir, descriptor.entry));
-  // For local packages, npm install --prefix staging
-  // <local-path> drops the package under <staging>/node_modules/<basename>/
-  // and writes its own (climier-less) package.json at <staging>/package.json.
-  // The loader reads <installed>/<id>/package.json to find the descriptor
-  // and resolves the entry at the installed root, not npm's package path.
-  // Mirror non-node_modules package contents so relative imports keep
-  // working, while preserving the npm tree for transitive dependencies.
+
   await mirrorPluginFilesToStagingRoot(installedPkgDir, stagingDir, descriptor.entry);
   const targetDir = pluginInstalledDir(descriptor.id);
   await fs.rename(stagingDir, targetDir);
@@ -335,24 +264,13 @@ export default async function install({ positional = [], flags: _flags = {} } = 
   return installLocked(source);
 }
 
-// mirrorPluginFilesToStagingRoot: copy the descriptor and the entry (and
-// any sibling files the entry may transitively import via relative
-// paths) from <staging>/node_modules/<basename>/ to <staging>/ itself.
-// Skips the package's own node_modules/ subtree so we do not collide
-// with npm's structure. Used by install() to make the dispatcher's
-// <installed>/<id>/{package.json, entry} layout work after the npm-
-// driven install path.
 async function mirrorPluginFilesToStagingRoot(pkgDir, stagingDir, entryRel) {
-  // Normalize the entry relative path so it is rooted at pkgDir.
+
   const entryPath = path.resolve(pkgDir, entryRel);
   if (!entryPath.startsWith(pkgDir + path.sep) && entryPath !== pkgDir) {
     throw new Error(`install: entry '${entryRel}' escapes the package root`);
   }
-  // Copy the descriptor (package.json) and the entry file. The entry's
-  // own relative imports resolve against pkgDir, but their destination
-  // under stagingDir mirrors that directory layout — we copy the whole
-  // package contents (minus node_modules) so relative imports keep
-  // working after the loader imports the entry from <installed>/<id>/.
+
   await copyPackageContents(pkgDir, stagingDir);
 }
 
@@ -371,6 +289,4 @@ async function copyPackageContents(srcDir, destDir) {
   }
 }
 
-// Local-only re-export for tests; the function is intentionally not part
-// of the CLI surface (no flag for it).
 export { isLocalPath, mirrorPluginFilesToStagingRoot };

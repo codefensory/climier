@@ -1,7 +1,5 @@
 // `batch` CLI adapter for the canonical atomic core.batch operation.
-//
-// The adapter owns input transport and JSON/document validation. The
-// application bridge selects local or remote execution behind one boundary.
+
 import path from "node:path";
 import { readFile } from "node:fs/promises";
 

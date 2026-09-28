@@ -1,6 +1,4 @@
-// `release <id>` CLI adapter for the canonical task.release operation.
-// The operation bridge selects the local or remote mutation frontier; this
-// module only maps CLI input and projects the legacy envelope.
+
 import { createBackendClient, createOperationBridge } from "../../application/operations/index.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
 import { resolveAgent } from "../actor.mjs";

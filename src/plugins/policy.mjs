@@ -1,61 +1,7 @@
-// Policy selection and authorization seam (ADR-007 + ADR-008).
-//
-// This module is the SINGLE source of truth for:
-//   - loadApplicablePolicy({ projectDir }) — pick zero or one installed
-//     policy plugin for the project, applying `applies()` once per
-//     candidate with the projectConfig frozen.
-//   - authorizeAction({ policy, action, actor, target, snapshot,
-//     projectDir, projectConfig }) — run the selected policy's
-//     `authorize()` against the snapshot taken under the handler's
-//     lock, returning a structured decision or throwing a POLICY_*
-//     error envelope.
-//
-// The module is intentionally I/O-light: it imports plugins
-// (cache-bypassed via the `loadInstalledPolicyPlugins` scan) but does
-// NOT touch state. CLI command adapters own the lock, the state mutation,
-// and the log entry; this module only decides whether a policy wants to
-// allow/deny/abstain on a given action.
-//
-// Discovery + selector (loadApplicablePolicy) runs BEFORE the lock —
-// importing an entrypoint is allowed outside the lock because plugins
-// do not have access to `withLock` or any mutable state during
-// `applies`. Authorization (authorizeAction) runs INSIDE the lock,
-// receiving the snapshot read under the lock as `snapshot` so the
-// plugin can check `target` and the current DAG without observing a
-// post-decision race.
 
 import { loadInstalledPolicyPlugins, readProjectConfig } from "./loader.mjs";
 import { PolicyError, PolicyConflict } from "./errors.mjs";
 
-// loadApplicablePolicy — return the unique applicable policy plugin
-// for `projectDir`, or `null` when none applies.
-//
-// Selection algorithm (ADR-007 §"Discovery global"):
-//   1. readProjectConfig(projectDir) — frozen, raw .climier.json or {}.
-//   2. loadInstalledPolicyPlugins() — installed entries with a valid
-//      `default.policy`. NOT cached between calls (ADR-007 §"Discovery
-//      global" item 5).
-//   3. For each installed candidate:
-//        - `applies` absent → candidate is applicable.
-//        - `applies(projectConfig)` present → invoke once; truthy
-//          result means applicable, falsy means excluded. The host
-//          does NOT inspect the return value beyond truthiness.
-//   4. More than one applicable → POLICY_CONFLICT (with plugin_ids
-//      and namespaces; ADR-007 §"Errores").
-//   5. Zero applicable → return null (defaults core).
-//   6. An `applies()` exception is treated as a contract violation
-//      from the plugin → POLICY_ERROR with `op` (and `action`) set to
-//      `"applies"` and the original cause preserved under
-//      `cause_message` so operators can attribute the failure
-//      (ADR-007 §"Errores": POLICY_ERROR covers any exception or
-//      invalid response in `applies`/`authorize`;
-//      POLICY_CONFLICT is reserved exclusively for more than one
-//      applicable policy).
-//
-// Selection does NOT cache. Each call re-reads the install set and
-// the project config, so `climier install <plugin>` followed by an
-// immediate mutating command observes the new plugin without a
-// restart. ADR-007 §"Discovery global" item 5 makes this explicit.
 export async function loadApplicablePolicy({ projectDir }) {
   const projectConfig = await readProjectConfig(projectDir);
   const installed = await loadInstalledPolicyPlugins();
@@ -64,8 +10,7 @@ export async function loadApplicablePolicy({ projectDir }) {
   for (const candidate of installed) {
     const { policy, pluginId } = candidate;
     if (typeof policy.applies !== "function") {
-      // No `applies` → always applicable (ADR-007 §"Discovery global"
-      // item 2).
+
       applicable.push(candidate);
       continue;
     }
@@ -73,14 +18,7 @@ export async function loadApplicablePolicy({ projectDir }) {
     try {
       result = await policy.applies(projectConfig);
     } catch (err) {
-      // The plugin's `applies` raised. Per ADR-007 §"Errores", an
-      // exception or invalid response from `applies` (or `authorize`)
-      // maps to POLICY_ERROR, NOT POLICY_CONFLICT
-      // (which is reserved for >1 applicable policy). The structured
-      // envelope records the candidate plugin id under `plugin_id`,
-      // the operation name as `"applies"` in both `op` and `action`,
-      // and preserves the original cause via `cause_message` so the
-      // orchestrator/operator can attribute the failure.
+
       throw new PolicyError(pluginId, "applies", err);
     }
     if (result) {applicable.push(candidate);}
@@ -105,27 +43,6 @@ export async function loadApplicablePolicy({ projectDir }) {
   };
 }
 
-// authorizeAction — invoke the selected policy's `authorize` against
-// the snapshot taken under the handler's lock. Returns a structured
-// decision or throws a POLICY_* envelope. The function is PURE: it
-// does not mutate state, does not call `withLock`, and does not
-// import other plugins.
-//
-// Decision contract (ADR-007 §"Contrato de autorización"):
-//   - policy === null → return `{ decision: "abstain" }` (defaults
-//     core; the handler applies its own rules without a policy).
-//   - policy.policy.authorize throws → throw PolicyError with the
-//     original cause's message captured under `cause_message`.
-//   - policy.policy.authorize returns an object whose `decision` is
-//     `"allow"`, `"deny"`, or `"abstain"` → return the same object
-//     (handlers must trust the policy's structure but they should
-//     NOT mutate the response).
-//   - any other response → throw PolicyError (the policy violated
-//     the contract).
-//
-// The function does NOT translate decisions into errors here:
-// handlers do that, because the mapping is action-specific. authorizeAction
-// only validates the response shape and propagates exceptions.
 function policyError(policy, action, reason) {
   const pluginId = policy?.pluginId || "(unknown)";
   throw new PolicyError(pluginId, action, reason);
@@ -198,11 +115,6 @@ export async function authorizeAction({
   return validatePolicyResult(policy, action, result);
 }
 
-// isPolicyError — predicate for code paths that must distinguish
-// POLICY_* from the PLUGIN_* and PLUGIN_CORE_* families. Mirrors
-// `isPluginCoreError` (src/plugins/errors.mjs) and `isPluginError`
-// for the policy namespace. Not consulted by the bin's catch (the
-// envelope is uniform); useful for handler-side guards and tests.
 export function isPolicyError(err) {
   return Boolean(
     err &&

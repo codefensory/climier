@@ -1,11 +1,4 @@
-// add-initiative: register an initiative with description.
-// Duplicate names are rejected with ID_CONFLICT; initiatives must be
-// registered before nodes reference them.
-//
-// This command is an adapter only. The initiative provider owns domain
-// validation and the kernel owns locking, revision/diff handling, logging and
-// persistence. The historical `add-initiative` action is retained in the
-// request so the persisted audit stream remains compatible.
+
 import { bootstrapBuiltins, executeOperation } from "../../application/operations/index.mjs";
 import { mutate } from "../../kernel/mutate.mjs";
 import { initiativeCreateProvider } from "../../providers/core/initiative.mjs";
@@ -14,8 +7,6 @@ import { resolveAgent } from "../actor.mjs";
 import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
 import { executeRemoteDomain } from "./internal/domain-routing.mjs";
 
-// Keep legacy policy-target fields and the CLI audit action while routing the
-// operation through the canonical Application Operations registry.
 const cliInitiativeProvider = Object.freeze({
   ...initiativeCreateProvider,
   async prepare(args) {
@@ -91,9 +82,7 @@ function initiativeEnvelope(result, name, _desc) {
 export default async function addInitiative({ statePath, projectDir: suppliedProjectDir, flags = {}, positional = [], pluginId, backendClient, source }) {
   const [name] = positional;
   validateName(name);
-  // Agent resolution sits at the end of the validation chain so the caller
-  // sees bad-data errors (MISSING_FIELD / INVALID_NAME) before identity
-  // errors.
+
   const actor = resolveAgent(flags, "add-initiative");
   const projectDir = suppliedProjectDir || statePath;
   const desc = typeof flags.desc === "string" ? flags.desc : "";

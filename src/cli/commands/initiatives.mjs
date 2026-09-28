@@ -1,7 +1,4 @@
-// initiatives: list registered initiatives with usage counts.
-// Counts both resolvable and knowledge nodes per initiative.
-// --all includes initiatives with zero live nodes (default hides them, per the
-// v2 design doc: "Por defecto muestra solo initiatives con nodos vivos").
+
 import { readState } from "../../storage/state.mjs";
 import { projectInitiativesView } from "../../read-model/index.mjs";
 

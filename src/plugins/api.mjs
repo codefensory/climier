@@ -1,32 +1,3 @@
-// plugins/api.mjs: assemble the host API surface.
-//
-// Per ADR-038 §Decision 9, the public host surface is Plugin API v1.
-// `api.version` is the compatibility marker for the whole API.
-//   api = {
-//     runtime: { project_dir, agent, dataDir },
-//     query:   { node, context, status, history },
-//     data:    { node: { get, set }, project: { get, set } },
-//     core:    { version: 1, run({ op, input }), batch({ if_state_revision, operations }) },
-//   }
-//
-// The dispatch layer invokes createApi({ projectDir, agent, pluginId })
-// once per plugin invocation. The handler receives `api` and uses it.
-//
-// V1 constraints enforced here:
-//   - projectDir and pluginId are required non-empty strings.
-//   - agent may be the empty string (anonymous dispatch is not a V1
-//     invariant), but data.*.set will throw MISSING_AGENT when it is.
-//   - api.runtime projects the resolved identity and the plugin-owned runtime
-//     directory. The directory is created before createApi returns; its
-//     contents are opaque to the host. It exists so handlers can read
-//     project_dir, agent and dataDir without touching argv or env vars
-//     themselves.
-//
-// api.core is the host surface for individual core actions. It is created
-// unconditionally — V1 hosts may call `api.core?.version`, while the host
-// defined by ADR-006 always imports this adapter. runtime.agent is captured
-// into the core surface so `core.run` can fix flags.as on every call
-// regardless of what the plugin passes in input.
 
 import { createQuery } from "./query.mjs";
 import { createData } from "./data.mjs";

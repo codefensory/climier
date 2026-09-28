@@ -1,6 +1,4 @@
-// `take <id>` CLI adapter for the canonical task.take operation.
-// Application Operations selects the provider; the kernel remains the sole
-// mutation frontier for locking, policy, revisions, audit and persistence.
+
 import { bootstrapBuiltins, executeOperation } from "../../application/operations/index.mjs";
 import { mutate } from "../../kernel/mutate.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
@@ -12,8 +10,6 @@ import { executeRemoteTask, requireRemoteTask, throwMissingRemoteNode } from "./
 
 const REGISTRY = bootstrapBuiltins();
 
-// `take <id>` names its target positionally and only carries the actor.
-// Filters that were accepted and ignored are unknown flags now (ADR-038).
 export const knownFlags = ["as"];
 
 function hasReadinessContext(error, args) {
@@ -42,7 +38,7 @@ async function prepareCliTake(args, snapshotNode) {
     }
     return plan;
   } catch (error) {
-    // Preserve the CLI's historical derived readiness projection.
+
     restoreHistoricalReadiness(error, args);
     throw error;
   }
@@ -77,9 +73,7 @@ function takeSource(source, snapshotNode, pluginId) {
     ...withCliTakeProvider(operationSource, snapshotNode),
     pluginId: operationSource.pluginId || pluginId,
     async authorizeAction(args) {
-      // The provider's fresh plan distinguishes idempotence from takeover.
-      // Identity (--as) is never authorization, and same-owner repeats do not
-      // invoke policy or create a mutation/audit entry.
+
       if (args.target?.status === "in_progress" && !args.target.takeover) {
         return { decision: "abstain" };
       }

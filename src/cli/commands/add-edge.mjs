@@ -1,19 +1,5 @@
-// add-edge: append a new edge to the v2 state.
-//
-// This handler is a thin adapter
-// over the kernel mutation frontier (`kernel.mutate` + the `edge.add`
-// provider). The adapter parses argv, resolves the policy outside
-// the lock, and hands control to the kernel, which owns the lock,
-// the snapshot read, the precondition check, the policy authorize,
-// the draft mutation, the diff/revision computation and the single
+
 // atomic state + log write. The adapter delegates the operation to
-// Application Operations rather than opening a second mutation path.
-//
-// Errors (`SELF_EDGE`, `INVALID_EDGE_TARGET`, `INVALID_EDGE_TYPE`,
-// `MISSING_FIELD`, `POLICY_DENIED`, `REVISION_CONFLICT`,
-// `INVALID_EXECUTION_CONTRACT`, …) propagate verbatim from the
-// provider / kernel so existing consumers and tests keep their
-// structured error envelopes.
 
 import { bootstrapBuiltins, executeOperation } from "../../application/operations/index.mjs";
 import { mutate } from "../../kernel/mutate.mjs";

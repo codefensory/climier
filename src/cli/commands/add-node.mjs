@@ -1,39 +1,3 @@
-// add-node: low-level escape hatch for creating v2 nodes.
-//
-// The handler is a thin adapter over the Application Operation bridge. It
-// parses flags, selects the canonical operation for the node kind, and leaves
-// provider validation, policy timing, locking, revisions and persistence to
-// the shared operation source and mutation frontier.
-//
-// Operation routing:
-//   - kind=resolvable + subkind=task  → task.create
-//   - kind=resolvable + subkind=gate  → gate.create
-//   - kind=knowledge                  → knowledge.create
-//
-// Internal capability (ADR-008 §"Capacidad interna"):
-//   addNodeInternal({ allowUnregisteredInitiative: true }) sets
-//   `allow_unregistered_initiative: true` on the provider input so
-//   recovery / migration tooling can seed nodes before the matching
-//   initiative exists. The flag is NOT in `knownFlags`, so the CLI
-//   surface rejects it as unknown. The flag IS forwarded by
-//   `addNodeInternal` (src/cli/commands/internal/create-node.mjs) which is the only
-//   sanctioned caller.
-//
-// Defaults:
-//   add-node is a low-level adapter; the public contract accepts a
-//   minimal flag set (title + initiative + edges). The strict built-in
-//   providers require body / acceptance / purpose, so the adapter fills
-//   those with non-empty placeholders derived from the title when the
-//   caller omits them. The high-level wrappers `add-task`, `add-gate`
-//   and `add-knowledge` enforce their own required-field contract via
-//   `requireFields` before reaching this handler.
-//
-// Errors (`MISSING_FIELD`, `INVALID_ID`, `ID_CONFLICT`,
-// `INITIATIVE_NOT_FOUND`, `REVISION_CONFLICT`, `POLICY_DENIED`,
-// `INVALID_EXECUTION_CONTRACT`, `INVALID_EDGE_KIND`,
-// `INVALID_EDGE_TARGET`, `DUPLICATE_EDGE`, `SELF_EDGE`, …) propagate
-// verbatim from the provider / kernel so existing consumers and tests
-// keep their structured error envelopes.
 
 import { createBackendClient } from "../../application/backend-client.mjs";
 import { createOperationBridge, executeOperation } from "../../application/operations/index.mjs";
@@ -76,10 +40,6 @@ function csv(raw) {
   return String(raw).split(",").map((x) => x.trim()).filter(Boolean);
 }
 
-// refs — the strict built-in providers expect a CSV string (or array of
-// strings) and wrap each target as `{ type: "external", target }` inside
-// `buildNode`. The adapter forwards the raw flag value so the provider
-// owns the normalisation.
 function refs(raw) {
   return raw;
 }
@@ -96,8 +56,7 @@ function parseMeta(raw) {
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     throw new Error("add-node: --meta must be a JSON object");
   }
-  // Metadata is generic JSON. In particular, historical meta.execution
-  // values are opaque and must survive create/update without core semantics.
+
   return parsed;
 }
 
@@ -115,12 +74,6 @@ function optionalString(value) {
   return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
-// nonEmptyString — returns the value when it's a non-empty string,
-// otherwise the supplied default. Used to default body/acceptance/
-// purpose to non-empty placeholders before delegating to the strict
-// built-in providers (the providers reject empty strings as
-// MISSING_FIELD; the wrappers enforce richer requirements before
-// reaching this handler).
 function nonEmptyString(value, fallback) {
   return typeof value === "string" && value.length > 0 ? value : fallback;
 }
@@ -171,8 +124,7 @@ function taskInput(id, flags, allowUnregistered) {
     derived_from: typeof flags["derived-from"] === "string" ? flags["derived-from"] : "",
     backlog: parseBacklog(flags.backlog) === true,
     allow_unregistered_initiative: allowUnregistered === true,
-    // The task input includes meta, which the task provider preserves on
-    // the created node.
+
     meta: parseMeta(flags.meta),
   };
 }
@@ -180,13 +132,7 @@ function taskInput(id, flags, allowUnregistered) {
 function gateInput(id, flags, allowUnregistered) {
   const title = flags.title;
   const status = optionalString(flags.status);
-  // The gate provider requires a complete (choice, rationale) pair
-  // when choice is provided OR when status='resolved'. The low-level
-  // add-node adapter defaults both when missing so the public CLI
-  // escape hatch stays usable without forcing callers to spell out
-  // every half of a resolution. Defaults are derived from the title
-  // so the persisted node never carries a literal placeholder that
-  // could be mistaken for a real decision.
+
   const choice = optionalString(flags.choice)
     || (status === "resolved" ? title : undefined);
   const rationale = optionalString(flags.rationale)
@@ -217,13 +163,7 @@ function gateInput(id, flags, allowUnregistered) {
 
 function knowledgeInput(id, flags, allowUnregistered) {
   const title = flags.title;
-  // The strict knowledge provider rejects empty scopes. The low-level
-  // add-node adapter is a documented escape hatch and historically
-  // tolerated an unscoped knowledge node; the wrapper `add-knowledge`
-  // still enforces the contract via `requireFields` before reaching
-  // this handler. Default to a single placeholder tag when the
-  // caller omits every scope-* flag so the node can still be created
-  // (e.g. for low-level edge-validation scenarios).
+
   const scope = {
     domains: csv(flags["scope-domains"]),
     initiatives: csv(flags["scope-initiatives"]),

@@ -1,39 +1,3 @@
-// Plugin dispatch orchestration (ADR-005 §"Dispatch y contrato de errores"
-// + §"Discovery, namespaces y dispatch").
-//
-// Inputs:
-//   originalArgv — full argv (process.argv.slice(2)) so we can preserve
-//                  the original order of all tokens, including flags
-//                  placed before the namespace.
-//   namespace    — first non-flag token, already resolved by the bin.
-//   projectDir   — effective project root, used only as a fallback when
-//                  --project was not passed in argv at all.
-//   flags        — parsed flags object from the bin (kept for back-compat
-//                  with the bin's core dispatch path; NOT consulted for
-//                  the host's effective project_dir / agent because the
-//                  bin's parser uses last-wins and would let a forwarded
-//                  duplicate alter the host's resolution).
-//   createApi    — optional factory injected by the caller. When omitted,
-//                  the dispatcher lazy-imports ./api.mjs. If that
-//                  import is unavailable, a placeholder factory satisfies
-//                  the runtime contract but throws on every query/data call.
-//
-// Algorithm:
-//   1. loadInstalledPlugin(namespace)
-//   2. findStripIndices(originalArgv, namespace) — first non-flag after
-//      the namespace is the subcommand.
-//   3. Validate commands[subcommand] is a function. Throw
-//      PLUGIN_SUBCOMMAND_NOT_FOUND otherwise.
-//   4. Build forwardedTokens by removing the namespace + subcommand
-//      positions from originalArgv.
-//   5. Resolve effective project_dir and agent from originalArgv
-//      (first-wins). This makes api.runtime immune to duplicate
-//      --project/--as tokens in the forwarded tail.
-//   6. createApi({ projectDir, agent, pluginId }) → api.
-//   7. await commands[subcommand](forwardedTokens, api).
-//      Handler errors → PLUGIN_HANDLER_FAILED with namespace/subcommand
-//      in details. Existing PLUGIN_* errors are propagated without
-//      rewrapping.
 
 import path from "node:path";
 
@@ -46,20 +10,8 @@ import {
 import { loadInstalledPlugin } from "./loader.mjs";
 import { assertLocalBackend } from "./remote-guard.mjs";
 
-// ---- Token stripping ------------------------------------------------
-
-// Boolean flags that do NOT consume the next argv token as their value.
-// Mirrors the parser in bin/climier.mjs so the dispatcher can walk
-// originalArgv and identify non-flag tokens.
 const BOOLEAN_FLAGS = new Set(["all", "force"]);
 
-// findStripIndices — walks `argv` and returns the array indices of the
-// namespace token and the next non-flag token (subcommand).
-//
-// The bin already knows `namespace` from its own parser; this function
-// is the dispatcher's authoritative walk over `originalArgv` because
-// it must understand boolean flags to correctly identify which argv
-// positions are flag values (consumed) and which are positional tokens.
 function consumedFlagValue(argv, index, token) {
   const eq = token.indexOf("=");
   const key = eq === -1 ? token.slice(2) : token.slice(2, eq);
@@ -115,8 +67,6 @@ export function findStripIndices(argv, namespace) {
   return subcommandIndex === -1 ? [namespaceIndex] : [namespaceIndex, subcommandIndex];
 }
 
-// stripAtIndices — returns a new array with the given positions removed.
-// Preserves the original order of the remaining tokens.
 export function stripAtIndices(argv, indices) {
   if (!indices || indices.length === 0) {
     return argv.slice();
@@ -131,16 +81,6 @@ export function stripAtIndices(argv, indices) {
   return out;
 }
 
-// ---- Host flag resolution -------------------------------------------
-
-// findFirstFlagValue — walks argv and returns the value of the FIRST
-// occurrence of `--<flag>` (or `--<flag>=<value>`). The host resolves
-// `--project` and `--as` from `originalArgv` (not from the bin's flags
-// object) so that any duplicate occurrences in the forwarded tail
-// cannot alter the effective values used by `api.runtime`. The bin's
-// argv parser uses last-wins for flags, so relying on its `flags`
-// object would let a forwarded `--project /tmp/elsewhere` overwrite the
-// host's effective project_dir.
 export function findFirstFlagValue(argv, flagName) {
   const eqPrefix = `--${flagName}=`;
   const exact = `--${flagName}`;
@@ -151,8 +91,7 @@ export function findFirstFlagValue(argv, flagName) {
       return tok.slice(eqPrefix.length);
     }
     if (tok === exact) {
-      // Value follows in the next argv slot unless it looks like another
-      // flag. Boolean `--<flag>` is treated as no-value.
+
       const next = argv[i + 1];
       if (next !== undefined && !String(next).startsWith("--")) {return next;}
       return null;
@@ -161,10 +100,6 @@ export function findFirstFlagValue(argv, flagName) {
   return null;
 }
 
-// resolveEffectiveProjectDir — host resolution of --project. Falls back
-// to the bin-supplied `projectDir` only when the user did not pass
-// --project in argv at all (this is the common case and matches the
-// behavior the bin already uses for core commands).
 export function resolveEffectiveProjectDir(argv, fallback) {
   const v = findFirstFlagValue(argv || [], "project");
   if (v && String(v).trim()) {
@@ -173,11 +108,6 @@ export function resolveEffectiveProjectDir(argv, fallback) {
   return fallback;
 }
 
-// resolveEffectiveAgent — host resolution of --as with the same
-// precedence as resolveAgent (flags.as > CLIMIER_AGENT > error). The
-// bin's flags object is ignored on purpose; we read directly from argv
-// so forwarded duplicates do not flip identity. Throws
-// PLUGIN_HANDLER_FAILED via PluginAgentMissing when no agent resolves.
 export function resolveEffectiveAgent(argv, namespace) {
   const v = findFirstFlagValue(argv || [], "as");
   const fromArgv = v && String(v).trim() ? String(v).trim() : "";
@@ -192,13 +122,6 @@ export function resolveEffectiveAgent(argv, namespace) {
   throw new PluginAgentMissing(namespace);
 }
 
-// ---- API seam -------------------------------------------------------
-
-// placeholderApiFactory — used when src/plugins/api.mjs has not been
-// merged yet. Exposes a complete `runtime` (the only contract the
-// dispatcher must guarantee) and throws a structured
-// PLUGIN_HANDLER_FAILED for every query/data access so the failure is
-// attributable rather than silent.
 function placeholderApiFactory({ projectDir, agent, pluginId }) {
   const notImpl = (key) => () => {
     throw new PluginHandlerFailed(
@@ -226,9 +149,6 @@ function placeholderApiFactory({ projectDir, agent, pluginId }) {
   };
 }
 
-// loadApiFactory — lazy import of ./api.mjs. Caches the successful
-// module; falls back to the placeholder on any import failure so
-// the bin can report a structured handler error.
 let apiFactory = null;
 let apiFactoryResolved = false;
 async function loadApiFactory() {
@@ -241,7 +161,7 @@ async function loadApiFactory() {
       apiFactory = mod.createApi;
     }
   } catch {
-    // Module missing or threw at import time — fall back to placeholder.
+
   }
   apiFactoryResolved = true;
   if (!apiFactory) {
@@ -250,17 +170,12 @@ async function loadApiFactory() {
   return apiFactory;
 }
 
-// resetApiFactoryForTests — re-arms the lazy import so the next call
-// re-tries the import. Used by test suites that want to swap in a
-// different api.mjs after a test reset.
 function resetApiFactoryForTests() {
   apiFactory = null;
   apiFactoryResolved = false;
 }
 
 export { resetApiFactoryForTests as _resetApiFactoryForTests };
-
-// ---- Dispatch --------------------------------------------------------
 
 function validateSubcommand(commands, namespace, subcommand) {
   if (!subcommand || typeof subcommand !== "string" || typeof commands[subcommand] !== "function") {
@@ -279,9 +194,6 @@ async function invokePluginHandler({ commands, subcommand, namespace, tokens, ap
   }
 }
 
-// dispatchPlugin — orchestrates the lifecycle above. Returns the
-// handler's return value (or undefined) so the bin can serialize it
-// to stdout.
 export async function dispatchPlugin({
   originalArgv,
   namespace,

@@ -1,12 +1,3 @@
-// `history <id>`: log entries that reference a node id.
-//
-// Be generous — an entry counts if `node === id` OR `task === id` OR
-// `node === id` OR the string `id` appears in `note`
-// (covers things like `add-edge A B` whose note string mentions B).
-// Every mutation records its target under the canonical `node` field, so that
-// entries remain searchable without migration.
-//
-// Returns { id, entries }; entries is [] when nothing matches.
 
 import { readState } from "../../storage/state.mjs";
 
@@ -17,8 +8,7 @@ export const REFERENCE_FIELDS = ["node"];
 function entryReferencesId(entry, id) {
   if (!entry || !id) {return false;}
   if (REFERENCE_FIELDS.some((field) => entry[field] === id)) {return true;}
-  // add-edge / add-node style: the note is `${from} ${type} ${to}` (add-edge)
-  // or the node id itself (add-node). The split includes the id when present.
+
   return typeof entry.note === "string" && entry.note.split(/\s+/).includes(id);
 }
 

@@ -1,10 +1,7 @@
-// add-note: append a timestamped comment to a node's notes thread.
-//
-// This command is a CLI adapter. The note provider validates and applies the
+
 // domain operation; kernel.mutate owns the lock, snapshot, CAS, revisions,
 // audit log and atomic persistence. The request action remains `add-note` so
-// the historical CLI log contract is preserved (the plugin API uses
-// `note.add`).
+
 import { bootstrapBuiltins, executeOperation } from "../../application/operations/index.mjs";
 import { mutate } from "../../kernel/mutate.mjs";
 import { noteAddProvider } from "../../providers/core/note.mjs";
@@ -60,15 +57,13 @@ function providerRevision(input, node) {
 
 async function prepareCliNote({ snapshot, input, request }) {
   const node = snapshot && snapshot.nodes ? snapshot.nodes[input.id] : null;
-  // The public CLI historically had no revision flag. For that legacy
+
   // surface, derive the CAS from the fresh kernel snapshot. This remains
   // atomic because prepare and apply execute under the same lock. A few
-  // old v2 fixtures predate node revisions; preserve their compatibility
+
   // by allowing that one case to use the trusted no-CAS path.
   const providerInput = { ...input, if_revision: providerRevision(input, node) };
-  // Some pre-revision v2 fixtures are still valid state files. Give the
-  // provider the compatibility revision only for its local validation;
-  // the real snapshot remains the one passed to kernel.mutate/apply.
+
   const providerSnapshot = noteProviderSnapshot(snapshot, node, input.id);
   const plan = await noteAddProvider.prepare({
     snapshot: providerSnapshot,

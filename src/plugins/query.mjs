@@ -1,8 +1,3 @@
-// Read-only query adapters for the plugin host.
-//
-// Query methods deliberately read the latest serialized snapshot without a
-// lock. They use the canonical read-model for graph/domain projections and do
-// not depend on CLI command adapters or the transitional v2 facade.
 
 import { readState, assertReadableState } from "../storage/state.mjs";
 import { assertLocalBackend } from "./remote-guard.mjs";

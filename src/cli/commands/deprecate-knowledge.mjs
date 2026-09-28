@@ -1,6 +1,4 @@
-// `deprecate-knowledge` CLI adapter for the canonical knowledge.deprecate
-// provider. The kernel owns locking, state, revisions, policy execution and
-// audit persistence; this module only maps the legacy CLI surface.
+
 import { bootstrapBuiltins, executeOperation } from "../../application/operations/index.mjs";
 import { mutate } from "../../kernel/mutate.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
@@ -16,7 +14,7 @@ export const knownFlags = ["reason", "as"];
 const knowledgeProvider = deprecateProvider();
 
 // Keep the historical CLI error code for a non-knowledge target while leaving
-// domain validation to the provider. Other provider errors, including
+
 // revision/CAS errors, must propagate unchanged.
 const cliKnowledgeProvider = Object.freeze({
   async prepare(args) {
@@ -27,15 +25,14 @@ const cliKnowledgeProvider = Object.freeze({
       return {
         ...plan,
         logAction: "deprecate-knowledge",
-        // The old policy seam exposed these live-node fields. Preserve that
+
         // target projection while retaining the provider's CAS revision.
         target: {
           ...plan.target,
           subkind: node.subkind,
           status: node.status,
         },
-        // `reason` was part of the historical deprecate-knowledge log entry;
-        // the kernel owns the rest of the audit envelope.
+
         logFields: { reason: plan.reason },
       };
     } catch (error) {

@@ -1,32 +1,3 @@
-// `status` view: agent-first picture of the DAG.
-//
-// Output shape (per design doc):
-//   {
-//     summary: { ready, in_progress, submitted, blocked, backlog, open_gates, active_knowledge },
-//     tasks: { ready: [...], in_progress: [...], submitted: [...], blocked: [...], backlog: [...] },
-//     gates: { open: [...] },
-//     knowledge_count: number,            // default
-//     knowledge: [...]   (only when --kind knowledge + --all, or just --all)
-//     alerts: [...],
-//     ... // --all adds done / canceled / resolved / superseded / deprecated groups
-//   }
-//
-// Filters:
-//   --initiative X          narrow to one initiative (matches the node's own field)
-//   --kind task|gate|knowledge    restrict task buckets AND/OR scope knowledge
-//   --status X              restrict the in_progress / blocked / ready buckets by
-//                           exact status (rare; mainly 'in_progress' / 'ready' / 'blocked')
-//   --domain X              narrow by node.domain
-//   --claimed-by X          restrict in_progress to one agent (default: all in_progress visible)
-//   --as <agent>            scopes allowed_actions in `context`; it is NOT a filter for `status`.
-//                           `status` shows every in_progress task by default, regardless of caller.
-//   --stale-ms N            threshold for stale-claim alerts (default 2h)
-//   --limit N               cap per-bucket list sizes
-//   --all                   include done / canceled / resolved / superseded / deprecated
-//                           groups; dump actual knowledge items instead of count only
-//
-// ponytail: simplest implementation filters post-derive; no per-bucket indexes.
-// The expected state of a v2 project is a few dozen nodes; O(n) scans are fine.
 
 import { readState } from "../../storage/state.mjs";
 import { projectStatusView } from "../../read-model/index.mjs";

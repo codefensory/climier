@@ -1,6 +1,4 @@
-// `cancel <id>` CLI adapter for task.cancel / gate.cancel.
-// Application Operations selects the provider; the kernel remains the sole
-// mutation frontier for locking, revisions, policy and audit persistence.
+
 import { bootstrapBuiltins, executeOperation } from "../../application/operations/index.mjs";
 import { mutate } from "../../kernel/mutate.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";

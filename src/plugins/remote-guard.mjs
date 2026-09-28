@@ -1,5 +1,4 @@
-// Remote backend guard. Keep this module pure so callers can reject before
-// plugin loading or any filesystem, storage, policy, or runtime access.
+
 export function assertLocalBackend(backendClient, operation) {
   if (backendClient?.type !== "remote") {return;}
 

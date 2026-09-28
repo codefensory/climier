@@ -1,4 +1,4 @@
-// log: read and filter the append-only log.
+
 import { projectLogView } from "../../read-model/index.mjs";
 import { readState } from "../../storage/state.mjs";
 
