@@ -16,6 +16,9 @@ test("package: npm test uses the bounded core runner", () => {
 test("package: the UI test suite is gone with its script and loader", async () => {
   const pkg = JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8"));
   assert.equal(pkg.scripts["test:ui"], undefined, "no test:ui script survives the suite it ran");
+  assert.equal(pkg.repository, undefined);
+  assert.equal(pkg.homepage, undefined);
+  assert.equal(pkg.bugs, undefined);
   const testDir = path.join(repoRoot, "test");
   const uiTests = (await readdir(testDir)).filter((name) => name.startsWith("ui-") && name.endsWith(".test.mjs"));
   assert.deepEqual(uiTests, [], "no root ui-* test file remains");

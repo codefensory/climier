@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* oxlint-disable complexity, max-statements, max-depth, no-nested-ternary -- the scanner intentionally keeps its source/fixture matching rules together. */
 // Check the public v1 surface against the canonical CLI/provider declarations.
 // This deliberately derives commands, flags, history references and update keys
 // from source modules instead of maintaining a second list in documentation.
@@ -24,7 +25,7 @@ async function canonicalFlags() {
   const files = await fs.readdir(COMMAND_DIR);
   for (const file of files.filter((name) => name.endsWith(".mjs"))) {
     const command = file.slice(0, -4);
-    if (!KNOWN_COMMANDS.includes(command)) continue;
+    if (!KNOWN_COMMANDS.includes(command)) {continue;}
     const module = await import(pathToFileURL(path.join(COMMAND_DIR, file)).href);
     if (Array.isArray(module.knownFlags)) {
       result.set(command, new Set(module.knownFlags));
@@ -39,11 +40,11 @@ function issue(issues, file, line, message) {
 
 function commandFromLine(line, currentCommand, commands) {
   const heading = line.match(/^###\s+`([a-z][a-z0-9-]*)\b/i);
-  if (heading && commands.has(heading[1])) return heading[1];
+  if (heading && commands.has(heading[1])) {return heading[1];}
   const table = line.match(/^\|\s*`([a-z][a-z0-9-]*)\b/i);
-  if (table && commands.has(table[1])) return table[1];
+  if (table && commands.has(table[1])) {return table[1];}
   const invocation = line.match(/\bclimier\s+(?:--project\s+\S+\s+)?([a-z][a-z0-9-]*)\b/i);
-  if (invocation && commands.has(invocation[1])) return invocation[1];
+  if (invocation && commands.has(invocation[1])) {return invocation[1];}
   return currentCommand;
 }
 
@@ -57,7 +58,7 @@ function scanText(text, file, { flagsByCommand, commands, issues, help = false, 
       currentCommand = candidate && commands.has(candidate[1]) ? candidate[1] : null;
     } else {
       currentCommand = commandFromLine(line, persistent ? currentCommand : null, commands);
-      if (persistent && /^#{1,2}\s+/.test(line) && !line.startsWith("### `")) currentCommand = null;
+      if (persistent && /^#{1,2}\s+/.test(line) && !line.startsWith("### `")) {currentCommand = null;}
     }
 
     if (currentCommand) {
@@ -94,15 +95,15 @@ function validateUpdateSection(text, file, issues) {
       inUpdate = true;
       continue;
     }
-    if (inUpdate && /^###\s+/.test(line)) break;
-    if (!inUpdate) continue;
+    if (inUpdate && /^###\s+/.test(line)) {break;}
+    if (!inUpdate) {continue;}
     for (const match of line.matchAll(/`--([a-z][a-z0-9-]*)\b[^`]*`/g)) {
       documented.push(match[1]);
     }
   }
   const union = new Set([...TASK_PATCH_KEYS, ...GATE_PATCH_KEYS, ...KNOWLEDGE_PATCH_KEYS]);
   for (const flag of documented) {
-    if (["as", "if-revision"].includes(flag)) continue;
+    if (["as", "if-revision"].includes(flag)) {continue;}
     const mapped = UPDATE_FLAG_TO_KEY[flag] ?? flag.replaceAll("-", "_");
     const key = mapped.startsWith("scope.") ? "scope" : mapped;
     if (!union.has(key)) {
@@ -136,11 +137,11 @@ export async function scanRetiredSurfaces({ root = path.resolve(path.dirname(fil
     try {
       content = await fs.readFile(file, "utf8");
     } catch (error) {
-      if (error.code === "ENOENT") continue;
+      if (error.code === "ENOENT") {continue;}
       throw error;
     }
     scanText(content, relative, { flagsByCommand, commands, issues, persistent: relative === "docs/reference.md" });
-    if (relative === "docs/reference.md") validateUpdateSection(content, relative, issues);
+    if (relative === "docs/reference.md") {validateUpdateSection(content, relative, issues);}
   }
   await scanCi(root, issues, commands, flagsByCommand);
   return { issues, checked: TARGETS.length + 1 };
@@ -151,7 +152,7 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   const root = rootArgument >= 0 ? path.resolve(process.argv[rootArgument + 1]) : undefined;
   const result = await scanRetiredSurfaces({ root });
   if (result.issues.length > 0) {
-    for (const item of result.issues) console.error(item);
+    for (const item of result.issues) {console.error(item);}
     process.exitCode = 1;
   } else {
     console.log(`retired surface check: ${result.checked} sources clean`);

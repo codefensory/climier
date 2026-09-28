@@ -17,7 +17,7 @@ test("retired surface checker derives the contract and catches removed flags and
   const root = await fixtureRoot();
   await fs.writeFile(path.join(root, "docs-reference.md"), "");
   await fs.writeFile(path.join(root, "docs", "reference.md"), "### `take <id>`\n- `--as`\n- `--initiative`\nentry.task\n").catch(async (error) => {
-    if (error.code !== "ENOENT") throw error;
+    if (error.code !== "ENOENT") {throw error;}
     await fs.mkdir(path.join(root, "docs"), { recursive: true });
     await fs.writeFile(path.join(root, "docs", "reference.md"), "### `take <id>`\n- `--as`\n- `--initiative`\nentry.task\n");
   });
