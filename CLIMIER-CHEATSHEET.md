@@ -1,13 +1,15 @@
 # climier cheatsheet
 
-Quick reference for agents working in this repository. State shape: `{ version: 2, initiatives, nodes, edges, log }` at `~/.climier/projects/<project_id>/tasks.json` (global, machine-local, NOT in the repo). The repo commits only `.climier.json`, which pins the `<project_id>`.
+Quick reference for agents working in this repository. State shape: canonical schema-1 `{ version: 1, initiatives, nodes, edges, log, fence_generation, revision }` at `~/.climier/projects/<project_id>/tasks.json` (global, machine-local, NOT in the repo). The repo commits only `.climier.json`, which pins the `<project_id>`. Existing projects must be imported before v1 writers use them; see `docs/remote-server.md`.
 
 Errors are JSON to stdout with a structured shape: `{ ok: false, error: { code, message, details } }`. Branch on `error.code`, not `error.message`.
 
 ## Setup
 
 - `climier init` — create the empty state file for this project (one-time per machine).
-- `climier init --force` — full reset to empty state (after backing up).
+- `climier init --force` — full reset to empty state (after backing up); never use it to import an existing project.
+- `climier migrate --all --dry-run` — inspect every pre-cut project without writing.
+- `climier migrate --all` — import the project park after stopping all writers; verify each project before restart.
 
 ## Orient / read
 
@@ -36,7 +38,10 @@ Errors are JSON to stdout with a structured shape: `{ ok: false, error: { code, 
 - `climier release <id> --as <agent>` — free the claim without submitting. Idempotent; policy may constrain the transition.
 - `climier cancel <id> --reason "<text>" --as <agent>` — terminate a node (open/in_progress only), subject to policy.
 - `climier reopen <id> --reason "<text>" --as <agent>` — roll a `done` task back to `open` for correction, subject to policy.
-- `climier restore <snapshot-id> --as orchestrator|recovery` — replace the live state with a snapshot's raw bytes. Validates target v2 + required collections before any state change; takes a `pre-restore` snapshot of the current state under the same lock; restores via `tmp+rename`; appends `{ action: "restore", agent, snapshot_id }` to the restored log; returns `{ snapshot }`. Restricted to `orchestrator` / `recovery` — no per-agent restore. Targets that are absent, incomplete, corrupt, v1, future versions, or missing required collections fail with structured errors and leave state untouched.
+- `climier restore <snapshot-id> --as <agent>` — replace the live state with a validated schema-1 snapshot through the recovery path; takes a `pre-restore` snapshot under the lock, appends `{ action: "restore", agent, snapshot_id }`, and returns `{ snapshot }`. Invalid or incomplete targets fail without changing state.
+- `climier state` — read the deterministic current core projection.
+- `climier batch --file <json> --as <agent>` / `--stdin` — execute an atomic group of operations.
+- `climier push --as <agent>` / `pull --as <agent>` — transfer the configured remote DAG; add `--overwrite=true` for explicit replacement.
 - `climier add-note <id> "<text>" --as <agent>` — append a timestamped note (any status, append-only). Use for breadcrumb findings; also use `add-note "<id>" "blocked: ..."` for escalations.
 
 ## Spec edits
@@ -55,6 +60,7 @@ Errors are JSON to stdout with a structured shape: `{ ok: false, error: { code, 
 
 - `climier add-node <id> --kind resolvable|knowledge --title "..." [--subkind task|gate] [--blocked-by A,B] [--derived-from A,B] [--refs a,b] [--meta '{...}'] --initiative X ... --as <agent>` — low-level node creation. Prefer the wrappers above.
 - `climier add-edge <from> <to> --type BLOCKS|SUPERSEDES|DERIVED_FROM --as <agent>` — low-level edge CRUD.
+- `climier remove-edge <from> <to> --type BLOCKS|SUPERSEDES|DERIVED_FROM --as <agent>` — idempotently remove one exact edge.
 
 ## Edge direction
 

@@ -223,9 +223,7 @@ no `--json` flag. JSON is the default.
 
 ## Command reference
 
-`init` creates a `version: 3` state with `{ initiatives, nodes, edges, log }`. Compatible v2 states are normalized to v3 on read/write. The creation flow uses `add-task`, `add-gate`, and `add-knowledge`; `add-node` and `add-edge` are low-level escape hatches.
-
-Projects coming from a v1 (`version: 1`) state fail with `STATE_V1_UNSUPPORTED` on first read; the error's `details.migration_steps` walks through backing up, exporting, and recreating the project. The hint suggests `climier init --force` after backup.
+`init` creates a canonical schema-1 state with `{ initiatives, nodes, edges, log }` plus the revision-ledger fields. The v1 binary does not read older state forms. Import existing projects first with `climier migrate --all --dry-run` and then `climier migrate --all`, while every writer is stopped; see [`docs/remote-server.md`](docs/remote-server.md) for the ordered import and rollback procedure. `init --force` is only a deliberate reset of a project, never an import mechanism. The creation flow uses `add-task`, `add-gate`, and `add-knowledge`; `add-node` and `add-edge` are low-level escape hatches.
 
 Full reference: `docs/reference.md`.
 
@@ -243,7 +241,7 @@ Canonical `BLOCKS` direction is `{ from: blocker, to: blocked, type: "BLOCKS" }`
 | `initiatives` | List registered initiatives plus unregistered initiative values still present in nodes. |
 | `log [--limit N] [--action X] [--agent X] [--node X]` | Audit log. |
 | `snapshots` | List recoverable snapshots captured under `<state-dir>/snapshots/`, newest first. Each entry carries `id`, `created_at`, `reason` (`force-init`, `corrupt-recovery`, `pre-restore`), `bytes`, and `sha256`. Only complete pairs (raw + metadata) appear; orphans are excluded. |
-| `ui [--port N] [--open=true\|false]` | Start the local read-only web UI (board, node context, activity) and open it in the browser. **Experimental**: it ships without a test suite of its own and is not part of the supported CLI surface. Requires the `ui/` subproject deps (`npm install` in `ui/` once); the UI assets are built on demand. The server reads the live state with the CLI's own derivation functions; the browser never touches `tasks.json`. |
+| `ui [--port N] [--open=true\|false]` | Start the local read-only web UI (board, node context, activity) and open it in the browser. **Experimental**: it is a local subproject with separate dependencies and is excluded from the published tarball. If it is not installed, the command returns an actionable error. |
 
 ### Mutating
 
@@ -257,8 +255,11 @@ Canonical `BLOCKS` direction is `{ from: blocker, to: blocked, type: "BLOCKS" }`
 | `release <id> --as <agent>` | Free an `in_progress` implementation claim. Policy may constrain who can perform the transition. |
 | `resolve <id> --choice "<text>" --rationale "<text>" --as <agent>` | Resolve an open gate. `resolve` is not a task lifecycle command; workers submit tasks and validators accept or reject them. |
 | `reopen <id> --reason "<text>" --as <agent>` | Roll a `done` task back to `open` for correction, subject to policy. |
-| `restore <snapshot-id> --as orchestrator\|recovery` | Replace the live state with a validated v2/v3 snapshot, normalizing v2 to v3, under the same lock and with a `pre-restore` snapshot. Authority is restricted to `orchestrator` or `recovery`. Invalid, v1, future-version or incomplete snapshots fail without mutating state. |
+| `restore <snapshot-id> --as <agent>` | Replace the live state with a validated schema-1 snapshot under the recovery path and a pre-restore snapshot. A policy plugin may restrict the actor; invalid or incomplete snapshots fail without mutating state. |
 | `cancel <id> --reason "<text>" --as <agent>` | Terminate a task without resolving from `open`, `in_progress` or `submitted`. |
+| `batch --file <json> --as <agent>` / `batch --stdin --as <agent>` | Execute several operations atomically. |
+| `push --as <agent> [--overwrite=true]` / `pull --as <agent> [--overwrite=true]` | Transfer the local DAG to or from the configured remote project. |
+| `migrate [--all] [--dry-run]` | Inspect or import pre-cut projects; run once during the v1 release window while all writers are stopped. |
 | `deprecate-knowledge <id> --reason "<text>" --as <agent>` | Soft-delete a knowledge node (`status="deprecated"`). |
 | `update <id> ... --as <agent>` | Edit node fields such as title, body, definition, acceptance, domain, backlog, tags, or refs. |
 | `add-note <id> "<text>" --as <agent>` | Append a note thread entry to any node. |
@@ -275,6 +276,8 @@ For `take`, claims are serialized under the project lock; takeover behavior is s
 | `add-knowledge [id] --initiative X --title "..." --body "..." --scope-domains X [--scope-initiatives X] [--scope-tags X] [--scope-node-ids X] [--supersedes OLD] --as <agent>` | Append scoped knowledge; any `--scope-*` flag satisfies the scope requirement. `--supersedes` atomically replaces existing knowledge. |
 | `add-node <id> --kind resolvable\|knowledge --title "..." [--subkind task\|gate] [--blocked-by A,B] [--derived-from A,B] [--refs a,b] [--meta '{...}']` | Low-level node creation (prefer `add-task` / `add-gate` / `add-knowledge`). |
 | `add-edge <from> <to> --type BLOCKS\|SUPERSEDES\|DERIVED_FROM` | Low-level edge creation. |
+| `remove-edge <from> <to> --type BLOCKS\|SUPERSEDES\|DERIVED_FROM` | Idempotently remove one exact edge. |
+| `state` | Read the deterministic current core projection. |
 
 ## Operational guarantees
 
@@ -349,29 +352,30 @@ Put boolean flags after the command, or pass them as `--flag=true`. Example:
 climier init --force
 # or
 climier --project . init --force=true
+
+# `--force` resets a project; it does not import an existing state.
 ```
 
-## Release flow
+## Release checklist
 
-Keep it manual until releasing becomes frequent:
+The v1.0.0 release is the first clean publication. The owner performs the
+external tag and publish; the implementation chain leaves the repository ready
+for those actions:
 
-1. update `CHANGELOG.md` under `## [Unreleased]`
-2. bump `package.json` version
-3. run the checks
-4. move `Unreleased` notes into a dated release section
-5. tag the release
-6. publish when ready
+1. install or link the v1 binary and stop the control plane, UI, workers, and
+   remote server;
+2. review `climier migrate --all --dry-run`, then run `climier migrate --all`;
+3. verify every project with `climier --project <checkout> status` and one
+   authorized operation;
+4. run `npm test`, `npm run surface:check`, `npm run lint:cut`,
+   `npm run pack:check`, and `npm run smoke:pack`;
+5. inspect `npm pack --dry-run` and confirm the CHANGELOG has one dated
+   `[1.0.0]` section and an empty `[Unreleased]` section;
+6. create tag `v1.0.0` and run `npm publish` only after the checks and the
+   import rehearsal pass.
 
-Example:
-
-```bash
-npm test
-npm run pack:check
-npm version 1.0.0
-npm pack --dry-run
-# git tag vX.Y.Z if you did not use npm version
-# npm publish
-```
+The complete server shutdown, import, stale-lock recovery, and rollback
+procedure is in [`docs/remote-server.md`](docs/remote-server.md).
 
 ## License
 

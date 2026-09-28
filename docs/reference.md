@@ -61,11 +61,13 @@ If you only need the quickstart, use `README.md`. If you need the actual contrac
 
 ## State shape
 
-`init` creates the canonical `version: 1` state with this shape. The reader accepts only this form; run `climier migrate` for states written before the refactor:
+`init` creates the canonical schema-1 state with this shape. The reader accepts only this form. Existing projects must be imported with `climier migrate` during the release window; never use `init --force` as an import operation:
 
 ```js
 {
   version: 1,
+  fence_generation: 1,
+  revision: 0,
   initiatives: {
     "auth": { desc: "Auth migration", created_at: "2026-01-01T00:00:00.000Z" }
   },
@@ -84,6 +86,8 @@ If you only need the quickstart, use `README.md`. If you need the actual contrac
 The required top-level collections are:
 
 - `version: 1`
+- `fence_generation`
+- `revision`
 - `nodes`
 - `edges`
 - `initiatives`
@@ -212,10 +216,10 @@ Backlog tasks are a separate pool. They stay `backlog`, not `ready`, until they 
 
 `climier ui [--port N] [--open=true|false]` starts the local read-only board and
 opens it in the browser. It is experimental: it lives in the `ui/` subproject
-with its own dependencies, it reads the live state through the CLI's own
-derivation functions, and it ships without a root test suite — changes there
-are checked with the subproject's own build and a documented manual check, not
-with `npm test`. The CLI surface and the JSON contract do not depend on it.
+with its own dependencies, reads the schema-1 state through the CLI's own
+derivation functions, and is not included in the published tarball. A missing
+subproject or dependency produces an actionable error. The CLI surface and
+JSON contract do not depend on it.
 
 ## Agent identity
 
@@ -476,23 +480,19 @@ Rules:
 
 ### `resolve <id>`
 
-Closes a resolvable node as a compatibility/manual bypass.
+Resolves an open gate. It is not a task lifecycle command; workers submit tasks
+and validators accept or reject them.
 
-For tasks:
+Required:
 
-- required: `--note`
-- remains available for `open` / `in_progress -> done`; workers and automated flows use `submit` instead
-- sets `status = "done"`
-- stores `done_by`, `done_at`, `note`
-- clears claim
+- `--choice "..."`
+- `--rationale "..."`
+- `--as <agent>`
 
-For gates:
-
-- required: `--choice`
-- required: `--rationale`
-- no claim required
-- sets `status = "resolved"`
-- stores `resolution: { choice, rationale }`
+A second resolve of an already resolved gate fails. To correct an accepted
+decision, use `reopen` first and then resolve it again with explicit choice and
+rationale. The operation stores `resolution: { choice, rationale }` and computes
+newly ready dependents.
 
 Output shape:
 
@@ -806,44 +806,53 @@ No flags.
 
 ### `restore <snapshot-id>`
 
-Replace the live state with a validated snapshot. v2 snapshots are normalized to v3 before persistence. Authority is restricted to `orchestrator` / `recovery` — no per-agent restore.
-
-Requires:
-
-- `--as orchestrator|recovery`
+Replace the live state with a validated schema-1 snapshot. The operation runs
+through the recovery path under the project lock and takes a pre-restore
+snapshot before changing the live state. A policy plugin may restrict the
+actor; callers must use the actor permitted by the active policy.
 
 Behavior:
 
-- Validates the snapshot exists as a complete pair (`<id>.json` + `<id>.meta.json`); metadata id matches the filename; metadata parses.
-- Validates the raw bytes parse as a v2 or v3 JSON state and carry every required collection (`nodes`, `edges`, `initiatives`, `log`). v2 is normalized to v3; v1, future versions, missing fields, or unparseable raw → fail with `INVALID_STATUS` without mutating state.
-- All target validation runs BEFORE the pre-restore snapshot, so a bad target leaves no trace in `<state-dir>/snapshots/`.
-- Under `withLock`:
-  - asserts the current state file exists (no current state to displace → fail)
-  - calls `createSnapshot(projectDir, "pre-restore")` (raw + metadata, same `tmp+rename` discipline as `init --force`)
-  - writes the validated, normalized v3 state to the state path via `tmp+rename`
-  - appends `{ ts, agent, action: "restore", snapshot_id }` to the restored log (the entry lands in the state we just wrote, not the displaced one)
-- Returns `{ snapshot: <metadata> }`.
+- validates a complete snapshot pair and its metadata before changing anything;
+- validates the canonical schema-1 collections and ledger fields;
+- takes the pre-restore snapshot, writes the validated state atomically, and
+  appends the restore event to the restored log;
+- returns `{ snapshot: <metadata> }` and leaves state untouched on invalid input.
 
-Output shape:
+Use `init --force` only for an intentional reset of the project, never to
+convert an existing project. For a pre-cut project, use the ordered import in
+[`docs/remote-server.md`](remote-server.md).
 
-```js
-{ snapshot: { id, created_at, reason, bytes, sha256 } }
-```
+### `migrate [--all] [--dry-run]`
 
-Error codes:
+The importer is a one-time release operation for projects written before the
+schema-1 cut. `--dry-run` reports each project's detected form without writing;
+`--all` scans every project under `CLIMIER_HOME`. For a real import, stop the
+control plane, UI, workers, and remote server first, then run the dry-run and
+`climier migrate --all`. The importer backs up each project before changing it.
+Verify every project with `climier --project <checkout> status` before restarting
+writers. See [`docs/remote-server.md`](remote-server.md) for rollback and stale
+lock recovery.
 
-- `MISSING_AGENT` — `--as` missing or empty
-- `NOT_OWNER` — `--as` is some agent other than `orchestrator` or `recovery`
-- `MISSING_FIELD` — no snapshot id passed positionally
-- `NODE_NOT_FOUND` — target absent, incomplete pair, corrupt metadata, or `meta.id` does not match filename
-- `INVALID_STATUS` — raw is unparseable, not an object, missing version, v1, future version, or missing a required collection; or current state file is missing (no pre-restore snapshot possible)
+### `state`
+
+Returns the deterministic current core projection. It is read-only and does not
+inspect historical snapshots.
+
+### `batch`, `push`, `pull`, and edge removal
+
+`batch --file <json>` or `batch --stdin` applies an authorized group of
+operations atomically. `push` and `pull` transfer the configured remote DAG and
+require `--as`; `--overwrite=true` makes replacement explicit. The low-level
+`remove-edge <from> <to> --type ...` operation is idempotent and removes only
+one exact edge.
 
 ## Low-level semantics worth knowing
 
 - every created node starts at `revision: 1`
 - mutating lifecycle commands bump `revision`
 - state mutation and log append happen under the same lock
-- `show`, `context`, `search`, `take`, `update`, lifecycle commands are version-aware
+- `show`, `context`, `search`, `take`, `update`, and lifecycle commands require the canonical schema-1 state
 - `add-node` and `add-edge` are the raw escape hatches; prefer `add-task [id]`, `add-gate [id]`, and `add-knowledge [id]`
 
 ## Structured errors

@@ -1,12 +1,84 @@
 # Operating a Climier remote server
 
-This runbook describes a single-host Node.js deployment of the built-in HTTP API. It uses only local example values; replace every `<...>` placeholder in your private deployment files. Never commit the private config, bearer tokens, machine names, IP addresses, or deployment paths. Node.js 20 or newer is required. The root CLI and server launcher use Node's standard library only.
+This runbook covers a single-host Node.js deployment of the v1 HTTP API and
+its one-time state import. Replace every `<...>` placeholder with a private
+value. Never commit bearer tokens, machine names, IP addresses, deployment
+paths, or the private config. Node.js 20 or newer is required; the CLI and
+server use Node's standard library at runtime.
 
-## Install and configure
+## Release window: import the existing project park
 
-Install a reviewed Climier release on the server host using the project's normal package or deployment process. The package exposes `climier-server` alongside `climier`; the launcher and its `src/server` runtime must be present. Keep the service account, configuration, catalog, and state directories private to the service operator.
+The v1 binary writes and reads only the canonical schema-1 state. Import is
+mandatory for every project written by an older checkout. The importer writes a
+complete backup of each project (state and revision ledger) before changing it.
+Treat the import as one maintenance window:
 
-Create a private server config outside the checkout, for example `/srv/climier/private/server.json`:
+1. **Install or link the v1 binary first.** Verify the intended binary with
+   `climier --version` and make sure the control plane, UI, workers, and remote
+   server will all use that binary after the window.
+2. **Stop every writer.** Stop the control plane and workers, close the UI, and
+   stop the remote server before migrating its `stateHome`. Do not let an old
+   process retry while the import is running.
+3. Review the complete park without writing it:
+
+   ```sh
+   climier migrate --all --dry-run
+   ```
+
+4. Import every project while all writers remain stopped:
+
+   ```sh
+   climier migrate --all
+   ```
+
+5. Verify each checkout/project before reopening writers. Run the command with
+   the checkout whose `.climier.json` names that project:
+
+   ```sh
+   climier --project /srv/climier/checkouts/<project> status
+   ```
+
+   Confirm that the expected nodes and initiatives are present, then perform
+   one authorized read or small mutation according to the project's change
+   policy. Verify the server's catalog and every client that shares the state
+   home. Only after these checks pass may the writers restart.
+
+A pre-cut binary must not touch an imported project. It may classify schema-1
+state as the prehistorical form and suggest `init --force`; that command can
+erase data. If any old process starts during the window, stop it immediately,
+do not accept the suggestion, and restore from the project's backup before
+continuing.
+
+### Rollback / camino de vuelta
+
+If verification fails, keep **all writers stopped**. Because the v1 binary has
+already been linked and the projects have been imported, reverse the window in
+this order:
+
+1. For each affected project, restore the complete backup made by the importer
+   under `CLIMIER_HOME/backups/<project-id>/<timestamp>/` (state and revision
+   ledger together). Restore one project at a time and preserve the failed v1
+   files for investigation.
+2. Verify the restored state with the same project-level command and confirm
+   that its bytes and ledger match the backup before allowing a writer to open.
+3. Relink the **previous** binary only after the backups are restored and
+   verified. Never run the previous binary against an imported schema-1 state.
+4. Restart one writer, verify the project, and then reopen the remaining
+   writers in a controlled order.
+
+The backup is the recovery boundary: do not run `init --force`, delete
+`tasks.json`, or mix a state from one project with another project's ledger.
+Record which projects were restored and the reason in the deployment log.
+
+## Install and configure the server
+
+Install the reviewed v1 package on the server host using the normal package or
+deployment process. The package exposes `climier-server` alongside `climier`;
+the launcher and its `src/server` runtime must be present. Keep the service
+account, configuration, catalog, and state directories private.
+
+Create a private config outside the checkout, for example
+`/srv/climier/private/server.json`:
 
 ```json
 {
@@ -20,9 +92,18 @@ Create a private server config outside the checkout, for example `/srv/climier/p
 }
 ```
 
-Use absolute paths owned by the service account. Restrict the config to its owner (`chmod 600 /srv/climier/private/server.json` on Linux); it contains bearer credentials. The catalog and `stateHome` must be server-controlled and not writable by clients. The server maps catalog project IDs to hash-safe internal project directories and pins Climier state to `stateHome`; do not place `tasks.json`, a client-provided project path, or token in the client checkout. Back up the server catalog and `stateHome` together using a consistent filesystem or service-level backup procedure, and protect backups like the original data.
+Use absolute paths owned by the service account and restrict the config to its
+owner (`chmod 600 /srv/climier/private/server.json` on Linux). It contains
+bearer credentials. The catalog and `stateHome` must not be writable by
+clients. Back up the catalog and `stateHome` together with a consistent
+filesystem or service-level backup procedure, and protect those backups like
+the original data.
 
-The example binds loopback for a local deployment or a TLS-terminating reverse proxy on the same host. For a remote network listener, explicitly select and secure the interface/firewall and terminate TLS at a trusted proxy; do not send bearer tokens over plaintext networks. A proxy should forward only the versioned Climier API and must not expose the private config or data directories.
+The example binds loopback for a local deployment or a TLS-terminating reverse
+proxy on the same host. For a network listener, explicitly secure the
+interface/firewall and terminate TLS at a trusted proxy. Do not send bearer
+tokens over plaintext networks. A proxy must forward only the versioned Climier
+API and must not expose the private config or data directories.
 
 Start in the foreground to verify the deployment:
 
@@ -30,13 +111,22 @@ Start in the foreground to verify the deployment:
 node /path/to/climier/bin/climier-server.mjs /srv/climier/private/server.json
 ```
 
-On success, stdout prints one JSON health line with `ok`, the listening `host`, and an allocated `port` (for example, when configured with port `0`). Confirm the reported address and port are the intended private listener before configuring clients. Startup/configuration errors are written to stderr and return a non-zero exit. In production, run the same command under the host's service manager with the private config path; do not put tokens in command-line arguments or service logs.
+On success, stdout prints one JSON health line with `ok`, the listening `host`,
+and the allocated `port` (for example, when configured with port `0`). Confirm
+the reported address and port before configuring clients. Configuration errors
+are written to stderr and return non-zero. In production, run the same command
+under the host's service manager; do not put tokens in command-line arguments
+or service logs.
 
-## Provision and connect clients
+## Provision and connect a client
 
-Add a project ID to `projectIds` and to the intended credential's `projectIds` in the private config, then restart the service to load the catalog. Generate a high-entropy bearer token with the operator's secret manager and deliver it through that manager, not source control or chat. Restart the service after rotating credentials and revoke old credentials from the config.
+Add a project ID to `projectIds` and to the intended credential's `projectIds`,
+then restart the service to load the catalog. Generate a high-entropy bearer
+token with the operator's secret manager. Rotate credentials by updating the
+private config, restarting, and revoking the old token.
 
-For each client checkout, configure only the opaque catalog ID and HTTPS API URL in `.climier.json`:
+For each client checkout, configure only the opaque catalog ID and HTTPS API
+URL in `.climier.json`:
 
 ```json
 {
@@ -46,32 +136,65 @@ For each client checkout, configure only the opaque catalog ID and HTTPS API URL
 }
 ```
 
-Supply the token as `CLIMIER_TOKEN` from the secret manager. Separately approve the exact API origin with `CLIMIER_REMOTE_ORIGIN`; it must equal the origin parsed from `backend.url` (scheme, host, and port). This binding is not a secret and does not replace TLS. Never store the token in `.climier.json`. Use `climier init` from a configured remote client to initialize the already-cataloged project, then use ordinary supported remote commands. Remote errors, invalid authentication, and network failures are fail-closed: they do not authorize local state fallback.
+Supply the token as `CLIMIER_TOKEN` from the secret manager. Set
+`CLIMIER_REMOTE_ORIGIN` to exactly the origin parsed from `backend.url` (scheme,
+host, and port). Never store the token in `.climier.json`. Use `climier init`
+from a configured remote client only after the import window has been verified;
+then use the supported remote commands. Remote errors and invalid
+authentication fail closed and never fall back to local state.
 
 ## Internal-only plaintext HTTP exception
 
-HTTPS remains the default and recommended transport for every remote client. Do not use plaintext HTTP as a product or general deployment mode. The only exception is internal, opt-in use on a network whose operators explicitly assume responsibility for transport confidentiality and integrity.
+HTTPS is the default and recommended transport. The only exception is internal,
+opt-in use on a network whose operators explicitly assume responsibility for
+confidentiality and integrity. Set exactly
+`CLIMIER_ALLOW_INSECURE_REMOTE_HTTP=true` in the client environment; never put
+it in `.climier.json`. Keep `CLIMIER_TOKEN` secret and still set
+`CLIMIER_REMOTE_ORIGIN` to the exact approved origin. Remove the variable and
+use HTTPS to reverse the exception.
 
-To allow a remote non-loopback `http:` backend for that internal use, set exactly `CLIMIER_ALLOW_INSECURE_REMOTE_HTTP=true` in the client process environment. This is a temporary operator choice, not a project setting: do not put it in `.climier.json` or a committed config. Without this exact opt-in, remote HTTP remains rejected; loopback HTTP continues to work without it.
+## Health, shutdown, restart, and stale-lock recovery
 
-Plaintext HTTP does not encrypt or integrity-protect requests. A bearer token sent this way can be observed or changed by anyone able to monitor or interfere with the network. Use only a network boundary you explicitly trust; a private network, firewall, tunnel, or origin binding is not itself TLS. The normal bearer safeguards remain mandatory: keep `CLIMIER_TOKEN` in a secret manager and set `CLIMIER_REMOTE_ORIGIN` to exactly the origin parsed from `backend.url` (including its `http` scheme, host, and port) before a bearer request. Exact origin approval limits where the client sends the token but does not protect it in transit.
+Check service health by observing the launcher's JSON line **and** probing the
+API with an authorized client command. A listening socket alone does not prove
+credentials or project scope. On planned shutdown, send `SIGTERM` through the
+service manager; the launcher closes its HTTP server. Keep the service offline
+while restoring a coordinated catalog/state backup.
 
-When `climier init` succeeds against a remote non-loopback HTTP backend enabled by this opt-in, its JSON result includes an `insecure-remote-http` warning. HTTPS, loopback, and local initialization do not include that warning, and failed initialization retains its existing error result. See [CLI output and exit codes](reference.md#cli-output-and-exit-codes) for the warning's structured shape.
+Climier serializes writes with a per-project `.lock`. Locks are deliberately
+not auto-cleared. If a process crashes and leaves one behind:
 
-To reverse the exception, remove `CLIMIER_ALLOW_INSECURE_REMOTE_HTTP` from the client process environment and use HTTPS for remote access. With the variable absent, non-loopback remote HTTP is rejected again.
+1. Stop or isolate the service and every other writer for that `stateHome`.
+2. On the host that owns the storage, verify that the lock owner's process is
+   gone and that no second service instance can write the project.
+3. Preserve a backup and record the verification (process/service check,
+   project id, and timestamp).
+4. Remove only that specific stale lock, then run the project-level `status`
+   command and confirm it reads the expected schema-1 state before resuming.
+5. Investigate repeated lock residue; never remove a lock while a writer may be
+   active and never use a blanket cleanup command.
 
-## Health, shutdown, restart, and recovery
+The recovery contract is covered by the test
+`stale lock recovery requires verified manual removal before schema-1 operation resumes`
+in `test/lock.test.mjs`. It verifies timeout without auto-clear, explicit lock
+removal, and a subsequent schema-1 read/write. Run it with:
 
-Check service health by observing the launcher's JSON line and probing the configured API with an authorized client command. Do not interpret a listening socket alone as proof that client credentials or project scope are correct. On planned shutdown, send `SIGTERM` through the service manager; the launcher closes its HTTP server. Restart with the same private config and storage roots. Keep the service offline while restoring a coordinated backup of catalog and state.
-
-Climier serializes writes with a per-project `.lock`. If a process crashes and leaves a stale lock, first stop or isolate the service and verify that the lock owner is no longer running on the host that owns the storage. Confirm no other service instance can use that `stateHome`; only then remove the specific stale lock and restart. Never delete locks automatically, while a writer may be active, or as a general cleanup step. Preserve a backup before manual recovery and investigate repeated lock residue.
+```sh
+timeout -k 10s 180s node --test --test-name-pattern="stale lock recovery requires verified manual removal" test/lock.test.mjs
+```
 
 ## Local two-client verification
 
-The automated `test/server-operations-e2e.test.mjs` starts the packaged launcher on loopback with temporary config/catalog/state roots and independent client homes. It verifies launcher health, remote initialization, a mutation by client A visible to client B, unchanged client-local sentinel states, invalid bearer rejection, and endpoint-unavailable failure without local fallback. Run it with:
+The packaged end-to-end test starts the launcher on loopback with temporary
+catalog/state roots and independent client homes. It verifies health, remote
+initialization, a mutation visible to a second client, unchanged client-local
+sentinels, invalid bearer rejection, and endpoint-unavailable failure without
+local fallback:
 
 ```sh
 timeout -k 10s 180s node --test test/server-operations-e2e.test.mjs
 ```
 
-This local test does not require or imply a Tailscale deployment. A separately authorized Tailscale smoke, when planned, must use temporary operator-controlled credentials and endpoints and publish only redacted evidence.
+This test does not require a Tailscale deployment. A separately authorized
+network smoke must use temporary operator-controlled credentials and publish
+only redacted evidence.

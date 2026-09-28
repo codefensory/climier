@@ -4337,6 +4337,12 @@
     },
     {
       "path": "test/lock.test.mjs",
+      "name": "stale lock recovery requires verified manual removal before schema-1 operation resumes",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/lock.test.mjs",
       "name": "withLock acquires and releases on success",
       "ordinal": 1,
       "disposition": "keep"

@@ -48,9 +48,11 @@ src/
     task/, gate/, knowledge/, core/     # prepare/apply providers and read semantics
     plugin-data/                       # Typed plugin-scoped state providers
   read-model/                          # Pure status, blocking, knowledge, and informing projections
-  storage/                             # Project metadata, state, lock, snapshots, and log primitives
-    paths.mjs, state.mjs                # Project resolution and v3 state migration/read/write
+  storage/                             # Project metadata, canonical state, ledger, locks, snapshots, and logs
+    paths.mjs, state.mjs                # Project resolution and schema-1 state guards/read helpers
     lock.mjs, log.mjs                   # Locking and log primitives
+    ledger/                              # Revision fence, migration, recovery, and atomic commits
+  server/                              # Authenticated remote HTTP runtime and typed API projections
   plugins/                             # Plugin host, discovery, policy, and compatibility adapters
   cli/
     actor.mjs                          # CLI actor resolution from flags/environment
@@ -92,17 +94,27 @@ frontier in a command or plugin.
 
 ### The state shape
 
-The repository uses a single state schema:
+The repository uses one canonical schema-1 state plus its revision fence and
+ledger:
 
 ```js
 {
-  version: 3,
+  version: 1,
+  fence_generation: 1,
+  revision: 0,
   initiatives: { "auth-migration": { desc, created_at } },
   nodes: { "T-auth-1": { id, kind, subkind, title, status, ... } },
   edges: [{ from, to, type }],
   log: []
 }
 ```
+
+Every writer also maintains `revision-ledger.json` beside the state. The ledger,
+lock, state, and log are committed atomically. Projects written before this
+cut must go through `climier migrate --all --dry-run` and `climier migrate
+--all` with every writer stopped; the import and rollback order is in
+`docs/remote-server.md`. `init --force` is a deliberate reset only, never a
+migration path.
 
 `status: "ready"` and `"blocked"` are **derived** from the DAG. They are NOT persisted. Persisted statuses on tasks are `open` (default), `in_progress`, `submitted`, `done`, `canceled`. `submitted` is waiting for validation and never satisfies `BLOCKS`; only `done` and `archived` do. `done` means implementation accepted. Gates additionally use `resolved` / `superseded`. Knowledge uses `active` / `deprecated`.
 
@@ -158,8 +170,13 @@ Cycles in the DAG must not crash. The derivation keeps cycle members blocked. Un
 | `deprecate-knowledge <id> --reason "<text>"` | `cli/commands/deprecate-knowledge.mjs` | yes | required |
 | `add-node <id> --kind resolvable\|knowledge --title "..." [--subkind task\|gate] [--blocked-by A,B] [--derived-from A,B] [--refs a,b] [--meta '{...}']` | `cli/commands/add-node.mjs` | yes | required |
 | `add-edge <from> <to> --type BLOCKS\|SUPERSEDES\|DERIVED_FROM` | `cli/commands/add-edge.mjs` | yes | required |
+| `remove-edge <from> <to> --type BLOCKS\|SUPERSEDES\|DERIVED_FROM` | `cli/commands/remove-edge.mjs` | yes | required |
 | `snapshots` | `cli/commands/snapshots.mjs` | no (read-only) | no |
-| `restore <id> --as orchestrator\|recovery` | `cli/commands/restore.mjs` | yes (locked; accepts v2/v3 snapshots, normalizes v2 to v3; pre-snapshot) | yes (orchestrator\|recovery only) |
+| `state` | `cli/commands/state.mjs` | no (read-only) | no |
+| `restore <id> --as <agent>` | `cli/commands/restore.mjs` | yes (locked; canonical schema-1 snapshot; pre-snapshot) | required |
+| `batch --file <json> --as <agent>` / `batch --stdin --as <agent>` | `cli/commands/batch.mjs` | yes | required |
+| `push --as <agent> [--overwrite=true]` / `pull --as <agent> [--overwrite=true]` | `cli/commands/push.mjs`, `cli/commands/pull.mjs` | yes | required |
+| `migrate [--project <dir>] [--all] [--dry-run]` | `cli/commands/migrate.mjs` | yes unless dry-run | required for import |
 | `ui [--port N] [--open=true\|false]` (experimental) | `cli/commands/ui.mjs` (starts `ui/server/server.mjs`) | no (read-only) | no |
 
 ## Hard rules for contributing
@@ -168,7 +185,11 @@ Cycles in the DAG must not crash. The derivation keeps cycle members blocked. Un
 2. **TDD strict.** Write the failing test first, then make it pass. The test suite is the spec. Exception: the `ui/` subproject does not require TDD nor changes to `test/`; it does require verification proportional to the blast radius, explicit (named command, observed output, or manual check), and documented in the commit body, the PR description, or a `climier add-note`. The TDD rule still applies to everything outside `ui/`.
 3. **No silent failures.** Every error path either throws with a clear message or has a tested behavior. If you find yourself "handling" an error by logging and continuing, write a test that documents the behavior, or change the code to fail loud.
 4. **Schema validation on write.** `writeState` rejects states missing `nodes`/`edges`/`initiatives`/`log`. Don't relax this without a test that says why.
-5. **Versioning.** The state has `version: 3`; `readState` migrates compatible v2 snapshots to v3. Additive optional fields that an older compatible CLI can safely preserve and ignore do not require a version bump. Bump the version and add a migration in `readState` when a change removes or reinterprets existing data, makes a field required for correct behavior, changes core semantics, or otherwise means an older CLI cannot safely read and write the state. Document the compatibility decision and never silently accept unknown future versions.
+5. **Versioning.** The canonical state schema is 1 and the reader rejects older
+   or unknown forms. Migration is an explicit, one-time import command, not an
+   implicit read/write conversion. Any future schema change needs an explicit
+   migration and tests; never silently accept an unknown form or use
+   `init --force` as a conversion shortcut.
 6. **Multi-agent safety.** Any new state mutation must enter through the kernel mutation frontier (or an explicitly documented setup/recovery path) and be serialized by `withLock`. Any new "log" must be committed with the state change it describes. If you split them, a concurrent op can interleave and the log will lie.
 7. **Task validation lifecycle.** `submit` hands an implementation to validation; `accept` records the validated task as `done`, and `reject` returns it to `open` with a reason. `resolve` is reserved for gates; `release`, `reopen`, and `cancel` remain administrative lifecycle operations.
 8. **No boolean flags before the command.** The CLI parser treats `--force init` as `--force=init`. New boolean flags must be used as `--flag=true` or after the command. Document any new boolean flag with this caveat.
@@ -273,7 +294,7 @@ When you fix a bug, write a test that reproduces it BEFORE the fix. The test goe
 - **`status --status DONE` (uppercase) works in `tasks` style filters.** Case-insensitive.
 - **`status --staleMs 0` marks all in_progress as stale.** `staleMs: 0` is valid and means "everything in_progress is stale".
 - **`status` is global by default for in_progress.** `tasks.in_progress` and `summary.in_progress` include every in_progress task in scope, regardless of caller. `--claimed-by <agent>` is the only way to narrow claims; `--as` is an identity tag for `context` and is intentionally not a filter for `status`. Stale-claim alerts follow the same rule.
-- **`init --force` auto-recovers a corrupt state file** even without `--force`, but `--force` is still needed to overwrite a *valid* state.
+- **`init --force` is destructive reset behavior**, not migration. It must never be used to convert a pre-cut project; import with `migrate` after stopping every writer.
 - **`add-task --blocked-by NONEXISTENT` fails** with a clear error. The validator only runs when the state file exists (so empty projects can still bootstrap).
 - **The state file is owned by the script.** `writeState` validates the schema. Don't write to the file from outside the CLI — even tests should go through `updateState`/`writeState` (or write valid schemas).
 - **`status` returns an empty `tasks` / `gates` shape for an empty state, never throws.** New code that consumes `status` should preserve this.
