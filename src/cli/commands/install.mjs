@@ -98,11 +98,13 @@ async function npmInstall(stagingDir, source) {
   });
 }
 
+// cleanupStaging: best-effort removal of the staging dir on failure.
 async function cleanupStaging(dir) {
   try {
     await fs.rm(dir, { recursive: true, force: true });
   } catch {
-
+    // ignore — staging removal is best-effort and must not mask the
+    // primary error that triggered cleanup.
   }
 }
 

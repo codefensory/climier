@@ -381,7 +381,7 @@
     },
     {
       "path": "src/cli/commands/init.mjs",
-      "comment_lines": 0,
+      "comment_lines": 2,
       "protected_lines": 1,
       "prohibited": {
         "provenance": 0,
@@ -409,7 +409,7 @@
     },
     {
       "path": "src/cli/commands/install.mjs",
-      "comment_lines": 0,
+      "comment_lines": 3,
       "protected_lines": 2,
       "prohibited": {
         "provenance": 0,

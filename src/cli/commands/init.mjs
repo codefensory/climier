@@ -53,7 +53,8 @@ async function initLocal({ dir, force, flags, pluginId }) {
   let actor;
   let policy = null;
   if (force) {
-
+    // Preserve the force-init preflight order: missing identity must fail
+    // before project metadata or policy discovery has any side effect.
     actor = resolveAgent(flags, "init");
     await ensureProjectMeta(dir);
     policy = await loadApplicablePolicy({ projectDir: dir });
