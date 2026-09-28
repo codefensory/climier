@@ -13,6 +13,14 @@ test("package: npm test uses the bounded core runner", () => {
   assert.equal(pkg.scripts.test, "node test/run-core-tests.mjs");
 });
 
+test("package: every published bin entry uses the portable Node shebang", () => {
+  const pkg = JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8"));
+  for (const [name, relativePath] of Object.entries(pkg.bin)) {
+    const firstLine = readFileSync(path.join(repoRoot, relativePath), "utf8").split("\n", 1)[0];
+    assert.equal(firstLine, "#!/usr/bin/env node", `${name} must use the Node shebang`);
+  }
+});
+
 test("package: the UI test suite is gone with its script and loader", async () => {
   const pkg = JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8"));
   assert.equal(pkg.scripts["test:ui"], undefined, "no test:ui script survives the suite it ran");
