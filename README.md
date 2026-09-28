@@ -371,8 +371,13 @@ for those actions:
    `npm run pack:check`, and `npm run smoke:pack`;
 5. inspect `npm pack --dry-run` and confirm the CHANGELOG has one dated
    `[1.0.0]` section and an empty `[Unreleased]` section;
-6. create tag `v1.0.0` and run `npm publish` only after the checks and the
-   import rehearsal pass.
+6. push the release commit and wait for CI on that exact commit: the matrix
+   runs the test suite, the retired-surface check, the packed smoke, and the
+   pack check on Node 20 and 24. A local green run does not substitute for it;
+7. create tag `v1.0.0` on the commit CI verified and run `npm publish` only
+   after the checks and the import rehearsal pass. `npm publish` needs an
+   authenticated registry session; the tag and the publish are the owner's
+   actions, never a worker's.
 
 The complete server shutdown, import, stale-lock recovery, and rollback
 procedure is in [`docs/remote-server.md`](docs/remote-server.md).
