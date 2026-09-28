@@ -1,7 +1,7 @@
 /* eslint-disable max-lines, max-statements -- Lifecycle regression scenarios keep each complete transition assertion in one case. */
 // F11 — lifecycle: release, submit/accept, gate resolve, reopen, cancel.
 //
-// Pins the behaviors the design doc requires of the lifecycle commands:
+
 //   - release: any actor (or a policy that explicitly denies); idempotent
 //     on a node with no claim (no seam invocation).
 //   - submit + accept: tasks move from `in_progress` to `done` through the
@@ -13,7 +13,7 @@
 //   - cancel: open/in_progress/submitted + any actor (or a policy that
 //     explicitly denies); done/resolved tasks return INVALID_STATUS.
 //
-// T-plugin-policy-minimal-core-handlers / ADR-009: the historical
+
 // owner-invariant assertions (NOT_OWNER for non-owner release /
 // reopen / cancel) were inverted: with no policy, the default core lets
 // any actor mutate, and the tests verify the mutation envelope
@@ -146,9 +146,9 @@ test("release: claim owner releases; returns released=true, claim=null, status=o
 });
 
 test("release: any actor may release another agent's claim with no policy (defaults core)", async () => {
-  // ADR-009 §"Resto de operaciones": the core no longer compares the
+
   // actor against the claim owner. Without a policy plugin, any actor
-  // with --as may release a claimed task. A policy plugin may still
+
   // deny the action.
   const { default: release } = await importFresh("./cli/commands/release.mjs");
   const dir = await projectFixture();
@@ -172,7 +172,7 @@ test("release: any actor may release another agent's claim with no policy (defau
 });
 
 test("release: any agent may release another agent's claim when policy allow applies", async () => {
-  // T-plugin-policy-seam-lifecycle / ADR-008: the historical
+
   // orchestrator/recovery bypass is replaced by a policy seam allow.
   const { default: release } = await importFresh("./cli/commands/release.mjs");
   const dir = await projectFixture();
@@ -195,7 +195,7 @@ test("release: any agent may release another agent's claim when policy allow app
 });
 
 test("release: a policy-allow actor can release any agent's claim (ex-recovery role equivalent)", async () => {
-  // T-plugin-policy-seam-lifecycle / ADR-008: the historical
+
   // recovery-bypass path is replaced by a policy seam allow.
   const { default: release } = await importFresh("./cli/commands/release.mjs");
   const dir = await projectFixture();
@@ -295,7 +295,7 @@ test("release: missing --as returns MISSING_AGENT", async () => {
   const prev = process.env.CLIMIER_AGENT;
   delete process.env.CLIMIER_AGENT;
   try {
-    // Seed the task with an explicit --as so add-node doesn't trip the
+
     // missing-agent check before the release assertion runs.
     await addTask(dir, "T-auth-1", { as: "seeder" });
     let caught;
@@ -453,7 +453,7 @@ test("reopen: original done_by can reopen a done task; status -> open, claim cle
 });
 
 test("reopen: any agent may reopen a done task when policy allow applies", async () => {
-  // T-plugin-policy-seam-lifecycle / ADR-008: the historical
+
   // orchestrator-reopen bypass is replaced by a policy seam allow.
   const { default: reopen } = await importFresh("./cli/commands/reopen.mjs");
   const dir = await projectFixture();
@@ -477,9 +477,9 @@ test("reopen: any agent may reopen a done task when policy allow applies", async
 });
 
 test("reopen: any actor may reopen a done task with no policy (defaults core)", async () => {
-  // ADR-009 §"Resto de operaciones": the core does not compare the
+
   // actor against done_by. Without a policy plugin, any actor with
-  // --as may reopen a task in a terminal reopenable state. done_by /
+
   // done_at / note are cleared exactly as before.
   const { default: reopen } = await importFresh("./cli/commands/reopen.mjs");
   const dir = await projectFixture();
@@ -614,7 +614,7 @@ test("cancel: in_progress + claim owner => status=canceled, claim cleared, log a
 });
 
 test("cancel: open + policy-allow actor => canceled (no claim required)", async () => {
-  // T-plugin-policy-seam-lifecycle / ADR-008: the historical
+
   // orchestrator-bypass on an unclaimed node is replaced by a policy
   // seam allow.
   const { default: cancel } = await importFresh("./cli/commands/cancel.mjs");
@@ -636,7 +636,7 @@ test("cancel: open + policy-allow actor => canceled (no claim required)", async 
 });
 
 test("cancel: any actor may cancel an open task with no policy (defaults core)", async () => {
-  // ADR-009 §"Resto de operaciones": the core does not require the actor
+
   // to be the claim owner. Without a policy plugin, any actor with --as
   // may cancel an open node.
   const { default: cancel } = await importFresh("./cli/commands/cancel.mjs");
@@ -659,10 +659,10 @@ test("cancel: any actor may cancel an open task with no policy (defaults core)",
 });
 
 test("cancel: any actor may cancel an in_progress task with no policy (defaults core)", async () => {
-  // ADR-009 §"Resto de operaciones": the core does not require the actor
+
   // to be the claim owner. Without a policy plugin, any actor with --as
   // may cancel an in_progress node, including a third party that never
-  // claimed the task.
+
   const { default: cancel } = await importFresh("./cli/commands/cancel.mjs");
   const dir = await projectFixture();
   try {
@@ -765,7 +765,7 @@ test("cancel: missing node returns NODE_NOT_FOUND", async () => {
 // === CLI dispatch =======================================================
 
 async function seedV1State(dir, state) {
-  // Bootstrap a v1 state file directly (no need to run `init` first; we
+
   // just need the .climier.json to know the project id).
   const metaPath = path.join(dir, ".climier.json");
   let projectId;
@@ -895,7 +895,7 @@ test("CLI: cancel is routed to the cancel command (status=canceled)", async () =
 });
 
 test("CLI: pre-release states are rejected with structural migration guidance", async () => {
-  // The pre-release task collections are rejected by shape, independently of
+
   // their version number, and the error directs users to the importer.
   const dir = await createTempProject();
   try {

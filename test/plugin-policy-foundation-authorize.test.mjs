@@ -198,7 +198,7 @@ test("policy-foundation: authorizeAction passes actor, target, snapshot, project
     // not let plugins mutate them; the contract is that handlers treat
     // them as read-only. We assert by checking that no mutation
     // occurred during authorizeAction's own call (the policy returned
-    // allow without writing back to target/snapshot/projectConfig).
+
     assert.deepEqual(received.target, target);
     assert.deepEqual(received.snapshot, snapshot);
     assert.deepEqual(received.projectConfig, projectConfig);

@@ -5,7 +5,7 @@ import { deriveV2 } from "../src/providers/task/derivation.mjs";
 import { createTempProject, rmTempProject, runCli, readState as readRawState } from "./helpers.mjs";
 
 // Canonical edge direction contract:
-//   { from: "G-y", to: "T-x", type: "BLOCKS" }  ⇔  T-x is BLOCKED-BY G-y.
+
 //
 // `climier add-task T-x ... --blocked-by G-y` must persist exactly that shape,
 // AND helpers that compute "who blocks T-x" must read incoming edges (where

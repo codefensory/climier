@@ -1,4 +1,4 @@
-// add-note: append a note to a node's running thread. Any status (open/in_progress/done/...).
+
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, importFresh, readState, writeCanonicalState } from "./helpers.mjs";

@@ -6,7 +6,7 @@
 //   - writeState requires the `initiatives` collection.
 //   - add-initiative: validate name, reject duplicates with ID_CONFLICT,
 //     persist created_at.
-//   - add-initiative in v1 still overwrites on dup (backward compat).
+
 //   - initiatives command handles a canonical state (node counts, --all).
 //   - add-node: --initiative is mandatory (MISSING_FIELD).
 //   - add-node: --initiative must be registered (INITIATIVE_NOT_FOUND),
@@ -172,8 +172,6 @@ test("CLI: add-initiative duplicate emits ID_CONFLICT", async () => {
   }
 });
 
-// --- initiatives command: listing path ---------------------------------------
-
 test("initiatives : lists only initiatives with at least one live node by default", async () => {
   const { default: initiatives } = await importFresh("./cli/commands/initiatives.mjs");
   const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
@@ -304,8 +302,6 @@ test("add-node : unregistered initiative emits INITIATIVE_NOT_FOUND with details
   }
 });
 
-// T-plugin-policy-migration-tests / ADR-008 §"Capacidad interna": the
-// historical `--allow-unregistered-initiative` bypass test moved to
 // test/internal-capabilities.test.mjs (which exercises
 // addNodeInternal, the only sanctioned caller of the flag).
 

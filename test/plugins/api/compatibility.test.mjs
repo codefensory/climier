@@ -138,7 +138,7 @@ test("api.core.run: input._as is rejected (no alias sneaks past)", async () => {
 });
 
 test("api.core.run: missing required field throws PLUGIN_CORE_ACTION_FAILED (provider-level MISSING_FIELD) without mutating", async () => {
-  // The kernel-driven path has no adapter-side required-field
+
   // whitelist for the core ops; the provider's prepare throws
   // MISSING_FIELD and the adapter wraps it as PLUGIN_CORE_ACTION_FAILED
   // with a structured `cause`. State and the plugin-tagged log are
@@ -160,7 +160,7 @@ test("api.core.run: missing required field throws PLUGIN_CORE_ACTION_FAILED (pro
         err.details.cause.code === "MISSING_FIELD" &&
         /type/.test(err.details.cause.message || ""),
     );
-    // The state is untouched: no edges, no plugin-tagged log entry.
+
     const after = await readRawState(dir);
     assert.deepEqual(after.edges, [], "no edges persisted");
     const pluginLogs = after.log.filter((e) => e.plugin_id === "example.audit");
@@ -174,7 +174,7 @@ test("api.core.run: known op with empty input does not mutate state (provider-le
   // The typed-result contract surfaces provider-level validation
   // (missing required fields on a known op) as
   // PLUGIN_CORE_ACTION_FAILED with a structured `cause` envelope.
-  // The adapter never invents the failure mode; the kernel runs the
+
   // provider's prepare under the lock and the rejection happens
   // before any state write or log append.
   const dir = await createTempProject();
@@ -227,11 +227,11 @@ test("api.core.run: NODE_NOT_FOUND in the handler is wrapped as PLUGIN_CORE_ACTI
 });
 
 test("api.core.run: PLUGIN_CORE_* errors thrown by the handler are NOT rewrapped (isPluginError short-circuits)", async () => {
-  // The handler itself never throws a PLUGIN_CORE_* error today, but
+
   // the short-circuit on isPluginError is a contract that the adapter
   // must honor so dispatch.PluginCoreActionFailed never gets wrapped
   // into PLUGIN_HANDLER_FAILED. Verify the path through isPluginError:
-  // if the adapter catches a PLUGIN_CORE_*, it lets it bubble as-is.
+
   const { isPluginError, PluginCoreActionFailed } = await importFresh("./plugins/errors.mjs");
   const err = new PluginCoreActionFailed("example.audit", "task.take", {
     code: "CORE_ERROR",
@@ -239,7 +239,7 @@ test("api.core.run: PLUGIN_CORE_* errors thrown by the handler are NOT rewrapped
     details: {},
   });
   assert.equal(isPluginError(err), true);
-  // dispatchPlugin uses isPluginError (broader PLUGIN_* prefix);
+
   // adapter must use the same predicate to avoid rewrap.
 });
 
@@ -249,7 +249,7 @@ test("api.core.run: an opaque core error (no code/details) is normalized to CORE
     const { default: init } = await importFresh("./cli/commands/init.mjs");
     await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
-    // task.take against a non-existent task throws NODE_NOT_FOUND through the
+
     // handler — that is structured. To exercise the bare-Error branch of
     // wrapCoreError we cannot reach it via a public handler, so we instead
     // verify the helper directly here (already covered exhaustively in
@@ -269,12 +269,12 @@ test("api.core.run: an opaque core error (no code/details) is normalized to CORE
 });
 
 test("api.core.run: initiative.create dispatches to the kernel and surfaces the typed initiative envelope", async () => {
-  // The kernel-driven path returns the typed result shape
+
   // `{ result, effects, log_entry, idempotent, diff }`. initiative.create
   // has no node (initiatives are not resolvable nodes), so the typed
   // envelope surfaces the persisted initiative in `result`
   // (`name/desc/created_at/persisted`) and in `diff.initiatives.created`.
-  // The log entry is stamped by the kernel with action=request.action
+
   // (the op id) and plugin_id from the host.
   const dir = await readyProject();
   try {
@@ -292,9 +292,9 @@ test("api.core.run: initiative.create dispatches to the kernel and surfaces the 
 });
 
 test("api.core.run: initiative.create without name is rejected with PLUGIN_CORE_ACTION_FAILED (provider-level MISSING_FIELD)", async () => {
-  // The kernel-driven path has no adapter-side required-field whitelist
+
   // for initiative.create; the provider's prepare throws MISSING_FIELD
-  // when `name` is missing and the adapter wraps it as
+
   // PLUGIN_CORE_ACTION_FAILED with a structured `cause`. State is not
   // mutated and no log entry is appended.
   const dir = await readyProject();
@@ -324,7 +324,7 @@ test("api.core.run: initiative.create without name is rejected with PLUGIN_CORE_
 });
 
 test("cli parity: a parity handler called without ctx.pluginId does NOT tag its log entry with plugin_id", async () => {
-  // The seam is opt-in: when the dispatcher is invoked the CLI way
+
   // (no pluginId in ctx), appendWithContext drops plugin_id. This is
   // the same path bin/climier.mjs exercises, so we keep the contract
   // for callers that wrap the handler directly.

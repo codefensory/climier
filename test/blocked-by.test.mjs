@@ -1,5 +1,5 @@
 // F5 — CLI surface for BLOCKS edges uses natural language.
-// The CLI exposes `--blocked-by <csv>`. Internally the edge direction is
+
 // inverted: "I (this node) am blocked by X" → `{from: X, to: <this node>}`.
 // This file is the spec for the user-facing contract.
 

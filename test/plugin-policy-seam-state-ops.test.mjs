@@ -1,6 +1,6 @@
-// T-plugin-policy-seam-state-ops — focal matrix for the state-ops seam.
+
 //
-// ADR-008 §"`restore` e `init --force`" + plan §3.6 / §4.5:
+
 //
 //   restore:  resolve actor → read target (raw + meta) → withLock →
 //             validate target (no side effects) →
@@ -21,7 +21,7 @@
 //     uses the canonical action `state.init_force`.
 //   - `init` without `--force` is bootstrap: no actor required, no
 //     policy invoked (not even with a deny policy installed). Same for
-//     the corrupt-recovery path.
+
 //
 // Every test runs against an isolated CLIMIER_HOME and a per-test temp
 // project dir, mirroring test/plugin-policy-seam-lifecycle.test.mjs.
@@ -56,7 +56,7 @@ async function withFreshEnv(body) {
   };
   process.env.CLIMIER_HOME = home;
   // Actor identity must be explicit through --as in every dispatch so
-  // the MISSING_AGENT cases are reproducible.
+
   delete process.env.CLIMIER_AGENT;
   try {
     return await body({ home, projectDir });
@@ -142,8 +142,7 @@ async function assertPolicyDidNotRun(home) {
 }
 
 // seedSnapshotWithSentinel — produce a restorable snapshot that carries
-// the Sentinel node, then leave the live state empty. The `init --force`
-// used to create it runs with NO policy installed (abstain → defaults
+
 // core) and an explicit actor.
 async function seedSnapshotWithSentinel(projectDir, mode) {
   await initAndSeed({ projectDir });
@@ -168,9 +167,7 @@ async function recorded(home) {
   }
 }
 
-// ===========================================================================
 // restore
-// ===========================================================================
 
 test("seam-restore: a plain agent restores when no policy is installed (no role hatch left)", async () => {
   await withFreshEnv(async ({ projectDir }) => {
@@ -273,9 +270,7 @@ test("seam-restore: an unknown target fails before the seam and creates no pre-r
   });
 });
 
-// ===========================================================================
 // init --force
-// ===========================================================================
 
 test("seam-init-force: init --force without an actor fails with MISSING_AGENT and does not wipe state", async () => {
   await withFreshEnv(async ({ projectDir }) => {
@@ -366,9 +361,7 @@ test("seam-init-force: policy throw returns POLICY_ERROR and preserves state", a
   });
 });
 
-// ===========================================================================
 // init without --force stays out of the seam (bootstrap)
-// ===========================================================================
 
 test("seam-init: plain init needs no actor and never invokes the policy (deny installed)", async () => {
   await withFreshEnv(async ({ projectDir, home }) => {

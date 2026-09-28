@@ -146,7 +146,7 @@ test("seam-dag: snapshot passed to authorize reflects the live state under the l
     await registerInitiative(projectDir, "alpha");
     await installPolicyFixture(projectDir);
     await baseClimierJson(projectDir, buildEnvNamespace("allow"));
-    // Pre-seed another task so the snapshot under the lock is not empty.
+
     await cli(
       ["--project", projectDir, "--as", "agent-a",
        "add-task", "T-pre",
@@ -168,7 +168,7 @@ test("seam-dag: snapshot passed to authorize reflects the live state under the l
     assert.deepEqual(rec.recorded.received.snapshot_keys.toSorted(), [
       "edges", "initiatives", "log", "nodes", "revision", "version",
     ], "public policy snapshots do not expose internal fence metadata");
-    // The recorded payload exposes a target fingerprint (id/kind/subkind)
+
     // so the policy can branch on what's being created.
     assert.equal(rec.recorded.received.target.id, "T-post");
     assert.equal(rec.recorded.received.target.subkind, "task");

@@ -1,15 +1,15 @@
 /* eslint-disable max-lines -- Integration tests exercise the full worker/validator workflow in one fixture file. */
-// Tests for the EVIDENCE note emission in finish-task.sh and the read-only
+
 // integration-preflight.sh.
 //
 // These tests exercise the bash scripts via real subprocesses against a
 // temporary git repo and a sandboxed Climier state. The scripts are the
 // contract for "structured evidence + preflight" agreed in
-// T-workflow-evidence-preflight.
+
 //
 // Important: each invocation runs in its own private CLIMIER_HOME under
 // /tmp/climier-wp-test-* (a namespace distinct from smoke-sandbox's
-// climier-smoke-*). Tests run setup + finish-task + preflight inside a
+
 // SINGLE subprocess invocation so state is shared, and the private home
 // is removed when that subprocess closes. We deliberately avoid
 // smoke-sandbox.sh here because its /tmp/climier-smoke-* namespace is
@@ -28,9 +28,8 @@ const ROOT = path.resolve(process.cwd());
 const FINISH = path.join(ROOT, ".agents/skills/climier-worker", "finish-task.sh");
 const PREFLIGHT = path.join(ROOT, ".agents/skills/climier-validator", "integration-preflight.sh");
 
-// finish-task.sh intentionally uses the stable `climier` command in
 // production. Point it at this worktree only inside these subprocess tests,
-// whose setup creates v3 state through the local binary.
+
 const CLIMIER_SHIM_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "climier-test-cli-shim-"));
 const CLIMIER_SHIM = path.join(CLIMIER_SHIM_DIR, "climier");
 fs.writeFileSync(CLIMIER_SHIM, `#!/usr/bin/env bash\nexec ${process.execPath} ${JSON.stringify(BIN)} "$@"\n`);
@@ -49,7 +48,7 @@ function git(cwd, args) {
 // does not collide with /tmp/climier-smoke-* (used by smoke-sandbox.sh
 // and asserted by test/smoke-sandbox.test.mjs). The home is removed
 // after the subprocess closes; if the test runner is killed mid-flight,
-// the dir is left under /tmp and never touches the real ~/.climier.
+
 function runIsolated(script, env = process.env) {
   const home = tmp();
   fs.chmodSync(home, 0o700);
@@ -260,7 +259,7 @@ test("integration-preflight.sh: parses EVIDENCE JSON and reports clean state", a
 test("integration-preflight.sh: legacy WORKTREE note degrades with explicit reason", async () => {
   const { repo, wt } = makeRepo();
   try {
-    // Set up climier with only WORKTREE note, no EVIDENCE.
+
     const script = [
       `cd '${repo}'`,
       `node ${BIN} --project '${repo}' init >/dev/null`,

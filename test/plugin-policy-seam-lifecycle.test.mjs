@@ -182,7 +182,7 @@ test("seam-release: non-owner with policy deny returns POLICY_DENIED (no state m
 });
 
 test("seam-release: non-owner with policy abstain succeeds (defaults core proceeds)", async () => {
-  // ADR-009 §"Resto de operaciones": with abstain, the default core
+
   // proceeds and any actor can release. NOT_OWNER no longer applies
   // to release.
   await withFreshEnv(async ({ projectDir }) => {

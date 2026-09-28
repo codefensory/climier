@@ -1,13 +1,12 @@
 /* eslint-disable max-lines -- Status and history contracts remain grouped by API surface. */
-// F12 — status, history, deprecate-knowledge.
+
 //
 // Three concerns:
-//   1. `deprecate-knowledge` mutates a knowledge node (status=deprecated,
+
 //      reasons, agent, revision++; refuses non-knowledge).
-//   2. `history <id>` returns log entries that reference the id; empty array
-//      when none match.
+
 //   3. `status` returns the summary-shape: {summary, tasks, gates,
-//      knowledge_count, alerts}; --kind knowledge (or --all) dumps knowledge;
+
 //      filters narrow scope.
 
 import { test } from "node:test";
@@ -101,9 +100,7 @@ async function historyOf(dir, id, flags) {
   return hist({ statePath: dir, positional: [id], flags });
 }
 
-// ---------------------------------------------------------------------------
 // status
-// ---------------------------------------------------------------------------
 
 test("status: returns summary-shape with empty defaults", async () => {
   const dir = await createTempProject();
@@ -163,7 +160,7 @@ test("status: --kind knowledge dumps knowledge items when --all is set", async (
     assert.equal(out.knowledge_count, 2);
     const ids = out.knowledge.map((k) => k.id).toSorted();
     assert.deepEqual(ids, ["K-bar", "K-foo"]);
-    // The default `active_knowledge` count is 2 (no deprecations yet).
+
     assert.equal(out.summary.active_knowledge, 2);
   } finally { await rmTempProject(dir); }
 });
@@ -206,7 +203,6 @@ test("status: in_progress visibility is global by default; --as does not restric
     await take({ statePath: dir, projectDir: dir, flags: { as: "alice" }, positional: ["T-a"] });
     await take({ statePath: dir, projectDir: dir, flags: { as: "bob" }, positional: ["T-b"] });
 
-    // No --as, no --claimed-by: every in_progress task is listed and counted.
     const all = await statusOf(dir);
     assert.equal(all.summary.in_progress, 2,
       `expected summary.in_progress=2 by default; got ${all.summary.in_progress}`);
@@ -348,7 +344,7 @@ test("status: --all includes done groups and alerts", async () => {
     const { default: take } = await importFresh("./cli/commands/take.mjs");
     const first = await take({ statePath: dir, projectDir: dir, flags: { as: "alice" }, positional: ["T-z"] });
     // Flip status by hand because this test exercises the status view, not
-    // the resolve command.
+
     const state = await readRawState(dir);
     const tId = first.node.id;
     state.nodes[tId].status = "done";
@@ -384,9 +380,7 @@ test("status: blocked reports unsatisfied BLOCKS", async () => {
   } finally { await rmTempProject(dir); }
 });
 
-// ---------------------------------------------------------------------------
 // deprecate-knowledge
-// ---------------------------------------------------------------------------
 
 test("deprecate-knowledge: happy path sets fields, bumps revision, logs", async () => {
   const dir = await createTempProject();
@@ -467,10 +461,6 @@ test("deprecate-knowledge: unknown id throws NODE_NOT_FOUND", async () => {
   } finally { await rmTempProject(dir); }
 });
 
-// ---------------------------------------------------------------------------
-// history
-// ---------------------------------------------------------------------------
-
 test("history: returns matching log entries referencing the id", async () => {
   const dir = await createTempProject();
   try {
@@ -483,8 +473,7 @@ test("history: returns matching log entries referencing the id", async () => {
     const out = await historyOf(dir, "T-1");
     assert.equal(out.id, "T-1");
     assert.ok(Array.isArray(out.entries));
-    // add-node + 2 add-notes all reference T-1 (the add-node entry's `note`
-    // is the id by design; both add-note entries carry `node: T-1`).
+
     assert.equal(out.entries.length, 3);
     for (const e of out.entries) {
       const haystack = [e.node, e.task, e.decision, e.gotcha, e.note].filter(Boolean).join(" ");
@@ -532,9 +521,7 @@ test("history: missing id is a clear error", async () => {
   } finally { await rmTempProject(dir); }
 });
 
-// ---------------------------------------------------------------------------
 // bin routing (CLI end-to-end)
-// ---------------------------------------------------------------------------
 
 test("CLI: status routes to the summary-shape on a canonical state", async () => {
   const dir = await createTempProject();
@@ -574,7 +561,7 @@ test("CLI: deprecate-knowledge routes and writes log entry via the bin", async (
     assert.equal(data.node.status, "deprecated");
     assert.equal(data.node.deprecation_reason, "obsolete");
     assert.equal(data.node.deprecated_by, "alice");
-    // history picks up the new log entry
+
     const h = await runCli(["--project", dir, "history", "K-1"]);
     assert.equal(h.code, 0, h.stderr);
     const histData = JSON.parse(h.stdout);

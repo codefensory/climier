@@ -1,12 +1,11 @@
 // test/provider-core-edge.test.mjs — pure unit tests for the
-// `edge.add` core provider (T-graph-kernel-provider-core-ops).
+
 //
 // Scope:
 //   - prepare is read-only and validates input shape, normalizes
 //     type to uppercase, rejects self-edges, missing endpoints,
 //     invalid types, and duplicates already present in the
-//     snapshot;
-//   - apply only touches tx.addEdge (no fs/lock/state/log/handler);
+
 //   - plan carries a frozen `target` whose `id` matches the
 //     BLOCKS-direction `to` endpoint so kernel.mutate can build a
 //     log entry, plus the normalized edge shape for apply.

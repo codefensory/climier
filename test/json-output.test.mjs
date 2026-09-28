@@ -12,7 +12,7 @@ const packageVersion = JSON.parse(
 ).version;
 
 async function seedV2Project(dir) {
-  // Seed a v2 project with one initiative and one ready task.
+
   let r = await runCli(["--project", dir, "init"]);
   assert.equal(r.code, 0, r.stderr);
   r = await runCli(["--project", dir, "add-initiative", "migration", "--desc", "x"]);
@@ -35,9 +35,9 @@ test("contract: every read command outputs valid JSON to stdout", async () => {
       ["show", "T-"],
     ]) {
       const r = await runCli(["--project", dir, ...cmd]);
-      // Some reads may legitimately 0-out (history might be empty if id is wrong); only fail on parse error.
+
       if (r.code !== 0) {
-        // Allow JSON-shaped errors.
+
         assert.doesNotThrow(() => JSON.parse(r.stdout), `${cmd.join(" ")} stdout not JSON: ${r.stdout.slice(0, 100)}`);
       } else {
         assert.doesNotThrow(() => JSON.parse(r.stdout), `${cmd.join(" ")} stdout not JSON: ${r.stdout.slice(0, 100)}`);

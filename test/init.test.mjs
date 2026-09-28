@@ -226,8 +226,6 @@ test("init: ignores unknown flags and still creates an empty canonical v1 state"
   }
 });
 
-// === v1-unsupported init behavior =========================================
-
 test("init: refuses to overwrite an existing valid state without --force", async () => {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
   const dir = await createTempProject();

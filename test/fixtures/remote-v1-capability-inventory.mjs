@@ -1,4 +1,4 @@
-// Snapshot of the current built-in catalog and HTTP v1 superficial schemas.
+
 // core.batch is a protocol envelope, not a provider-backed operation.
 export const remoteV1CapabilityInventory = Object.freeze({
   operations: Object.freeze([

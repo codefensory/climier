@@ -131,7 +131,7 @@ test("policy-foundation: loadApplicablePolicy wraps applies() throws as POLICY_E
       caught = err;
     }
     assert.ok(caught, "expected POLICY_ERROR");
-    // ADR-007 §"Errores" + docs/plans/plugin-policy-execution.md §3.2:
+
     // POLICY_ERROR covers any exception or invalid response from
     // `applies` (or `authorize`); POLICY_CONFLICT is reserved for
     // two or more applicable policies. The plugin's `applies` raised

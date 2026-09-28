@@ -266,7 +266,7 @@ test("cancel preserves root plugins and per-node plugins", async () => {
     const base = await seedPluginFixture(dir);
     seedPluginData(base);
     await writeCanonicalState(dir, base);
-    // Cancel an unclaimed open task. Under ADR-009 the core lets any
+
     // actor cancel; the policy-fixture is kept here so the test still
     // covers the seam allow branch alongside the default core path.
     // The preservation contract is independent of the authority rule

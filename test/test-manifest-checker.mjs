@@ -88,7 +88,7 @@ export function validateManifest(manifest, runtimeCases, { deleteAllowlist, rawW
   }
 
   const declaredDeletes = manifest.tests.filter((row) => row.disposition === "delete").map(key).toSorted();
-  // The allowlist arrives as rows from the caller (the CLI builds it from the
+
   // manifest) and is compared by identity, so normalize both shapes to keys.
   const allowedDeletes = (deleteAllowlist ?? manifest.tests.filter((row) => row.disposition === "delete"))
     .map((row) => (typeof row === "string" ? row : key(row)))

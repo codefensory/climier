@@ -4,14 +4,12 @@ import { importFresh, writeCanonicalState } from "../../helpers.mjs";
 // importKernel — helper that imports the kernel module fresh and pulls
 // both `mutate` and `__kernelInternals` from the named export. Mutate is
 // exported by name, not as default; helpers.mjs's importFresh returns
-// the module's namespace, so we destructure `mutate` directly.
+
 export async function importKernel() {
   return importFresh("./kernel/mutate.mjs");
 }
 
-// ===================================================================
 // Fixture providers
-// ===================================================================
 
 // createTaskProvider — composes a brand-new node + edges in one apply.
 export function createTaskProvider({ id, kind = "resolvable", subkind = "task", title, _revisionAfter = 1, edges = [], fields = {} } = {}) {
@@ -21,7 +19,7 @@ export function createTaskProvider({ id, kind = "resolvable", subkind = "task", 
         target: { id, kind, subkind },
         policyAction: null,
         idempotent: false,
-        // The plan carries enough information for apply to compose
+
         // without re-reading the snapshot.
         edges,
       };
@@ -75,9 +73,7 @@ export function updateNodeProvider({ id, newTitle, _newRevision }) {
   return { provider, count: () => ({ prepare: prepareCalls, apply: applyCalls }) };
 }
 
-// ===================================================================
 // Base state fixture
-// ===================================================================
 
 function applyFixtureMutation(base, mutate) {
   if (typeof mutate === "function") {

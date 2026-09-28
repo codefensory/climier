@@ -3,15 +3,15 @@
 // What this covers:
 //   1. Fixture package.json declares the descriptor (climier.id, command,
 //      entry), declares type: "module", and does NOT declare any runtime
-//      dependency (ADR-005 + plan §8 risk #6).
+
 //   2. Fixture entrypoint exposes one dedicated subcommand per V1 API
-//      method: runtime, query.{node,context,status,history},
+
 //      data.{node,project}.{get,set}.
-//   3. The full ADR-005 smoke flow against a real project:
+
 //        install fixture (local path)
-//        exercise each V1 method via its dedicated subcommand
+
 //        verify --project/--as forwarded in original order
-//        check `plugins[<id>].data` (root) and
+
 //              `nodes[<id>].plugins[<id>].data` (per-node)
 //        verify log redaction
 //              (action=plugin-data-set, plugin_id, scope, node_id?/key,
@@ -121,7 +121,7 @@ test("fixture: climier.mjs default export exposes one dedicated command per V1 m
   assert.ok(mod && typeof mod.default === "object" && mod.default !== null);
   const commands = mod.default.commands;
   assert.ok(commands && typeof commands === "object" && !Array.isArray(commands));
-  // One dedicated subcommand per V1 API method (ADR-005 §"API y
+
   // persistencia"). Each command maps 1:1 to a method on api.*
   const expected = [
     "runtime",

@@ -1,14 +1,14 @@
-// T-plugin-core-e2e — end-to-end smoke for the V2 plugin core surface.
+
 //
 // ADR-006 plan §4.5 ("T-plugin-core-e2e — Fixture V2, error smoke y
 // child_process con CLIMIER_HOME compartido") defines the scope:
 //
 //   - test/fixtures/core-plugin/{package.json,climier.mjs} — self-
-//     contained V2 plugin, climier.id="example.core", command="core",
+
 //     no runtime dependencies, offline-friendly.
 //   - test/plugin-core-e2e.test.mjs (this file) — install the fixture
 //     from a local path, exercise the happy subcommand against the
-//     real core handlers, and verify envelopes, state, history with
+
 //     plugin_id, PLUGIN_CORE_INVALID_OPERATION, PLUGIN_CORE_ACTION_FAILED
 //     with cause.code=NODE_NOT_FOUND, and partial sequences.
 //   - test/plugin-core-concurrency.test.mjs — child_process fan-out
@@ -35,7 +35,7 @@ const FIXTURE_DIR = path.resolve("test/fixtures/core-plugin");
 const FIXTURE_ID = "example.core";
 const FIXTURE_COMMAND = "core";
 const FIXTURE_BASENAME = "core-plugin";
-// T-plugin-command-layout-fix / ADR-005 §"Instalación e identidad":
+
 // installed dir name = descriptor.id; dispatch namespace = descriptor
 // .command (the first non-flag token). The bin scans installed/<*> for
 // descriptor.command === <first-token> at dispatch time.

@@ -45,7 +45,7 @@ test("uninstall: removes installed/<id> even when no project state exists", asyn
       dirName: "lone-pkg",
     });
     await install({ positional: [path.join(fixtureDir, "lone-pkg")], flags: {}, projectDir: "/tmp/x", statePath: "/tmp/x" });
-    // T-plugin-command-layout-fix: installed dir IS descriptor.id;
+
     // uninstall <id> removes it by path directly.
     const aPath = await installedDir(env, "lone.plugin");
     assert.ok((await fs.stat(aPath)).isDirectory());
@@ -76,7 +76,7 @@ test("uninstall: removes installed/<id> by path directly even when id != command
       projectDir: "/tmp/x",
       statePath: "/tmp/x",
     });
-    // T-plugin-command-layout-fix: installed dir IS descriptor.id
+
     // (NOT descriptor.command). The bin dispatches `climier audit ...`
     // via descriptor scan; uninstall `example.audit` removes the dir
     // named after that id.

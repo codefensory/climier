@@ -25,7 +25,7 @@ test("plugin-core-integration: PLUGIN_CORE_INVALID_OPERATION does not mutate and
     await rejectUnknownCoreOperation(api);
     // input.as — must reject.
     await rejectSpoofedActor(api);
-    // Non-object input is rejected before the provider and lock.
+
     await rejectNonObjectCoreInput(api);
     const after = await readState(dir);
     assert.equal(after.edges.length, beforeEdges, "no edges added by rejected runs");
@@ -41,7 +41,7 @@ test("plugin-core-integration: handler-rejected actions surface as PLUGIN_CORE_A
   try {
     await initProject(dir);
     const api = await makeApi(dir, { agent: "alice", pluginId: "example.core" });
-    // task.take against a non-existent task throws NODE_NOT_FOUND.
+
     await assert.rejects(
       api.core.run({ op: "task.take", input: { id: "T-bogus" } }),
       (err) =>
@@ -52,7 +52,7 @@ test("plugin-core-integration: handler-rejected actions surface as PLUGIN_CORE_A
         err.details.cause &&
         err.details.cause.code === "NODE_NOT_FOUND",
     );
-    // add-edge from a missing node → INVALID_EDGE_TARGET (add-edge
+
     // validates both endpoints before mutating). The adapter wraps it
     // as PLUGIN_CORE_ACTION_FAILED with the structured cause.
     await assert.rejects(
@@ -79,7 +79,7 @@ test("plugin-core-integration: a successful task.create is preserved when a subs
   try {
     await initProject(dir);
     const api = await makeApi(dir, { agent: "alice", pluginId: "example.core" });
-    // Success: create the task.
+
     await api.core.run({ op: "task.create", input: taskInput("T-partial-1", "t") });
     // Failure: edge.add to a missing target.
     await assert.rejects(
@@ -89,7 +89,7 @@ test("plugin-core-integration: a successful task.create is preserved when a subs
       }),
       (err) => err && err.code === "PLUGIN_CORE_ACTION_FAILED",
     );
-    // The previously created task is still present (no roll-back).
+
     const after = await readState(dir);
     assert.ok(after.nodes["T-partial-1"], "T-partial-1 survives a failed follow-up");
     assert.equal(after.nodes["T-partial-1"].status, "open");

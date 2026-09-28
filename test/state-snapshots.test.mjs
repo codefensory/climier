@@ -1,7 +1,7 @@
 /* oxlint-disable max-lines -- snapshot primitive and lifecycle inventory remains in its owned suite. */
 // state-snapshots.test.mjs — primitives de snapshot raw + metadata.
 //
-// Cubre ADR-004 §§Snapshots/Plan 1: storage primitives debajo del lock
+
 // existente, y la integración con `init --force` (force-init) y el recovery
 // de JSON corrupto (corrupt-recovery). El comando `snapshots` y el
 // comando `restore` llegan en pasos posteriores.
@@ -32,9 +32,7 @@ async function seedCanonicalFixture(dir, mutate) {
   return importFresh("./storage/state.mjs").then(({ readState }) => readState(dir));
 }
 
-// =====================================================================
 // Snapshot creation primitives
-// =====================================================================
 
 test("createSnapshot: writes raw + metadata files under <state-dir>/snapshots", async () => {
   const { createSnapshot } = await importFresh("./storage/state.mjs");
@@ -193,8 +191,7 @@ test("createSnapshot: preserves raw bytes verbatim for non-JSON content", async 
   const { createSnapshot } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
-    // Bootstrap a v2 metadata first (so stateFile() resolves), then overwrite
-    // the state file with raw non-JSON bytes.
+
     const { default: init } = await importFresh("./cli/commands/init.mjs");
     await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
     const file = stateFilePath(dir);
@@ -221,9 +218,7 @@ test("two snapshots taken back-to-back have different ids (random suffix)", asyn
   }
 });
 
-// =====================================================================
 // listSnapshots primitive
-// =====================================================================
 
 test("listSnapshots: returns [] when no snapshot dir exists", async () => {
   const { listSnapshots } = await importFresh("./storage/state.mjs");
@@ -354,16 +349,14 @@ test("listSnapshots: lists multiple snapshots with mixed reasons", async () => {
   }
 });
 
-// =====================================================================
 // init integration: force-init and corrupt-recovery paths
-// =====================================================================
 
 test("init --force on existing v4 state: snapshot reason=force-init, raw preserves the pre-reset state", async () => {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
   const { readState, listSnapshots } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
-    // Pre-existing v4 state with a sentinel.
+
     await seedCanonicalFixture(dir, (s) => {
       s.nodes["Sentinel-A"] = { id: "Sentinel-A", title: "alive" };
     });
@@ -477,7 +470,7 @@ test("init --force twice creates two snapshots, newest first; original pre-reset
     });
     await init({ statePath: dir, flags: { force: true }, positional: [], projectDir: dir });
     // After the first force-init, the state is empty. Populate "beta" through
-    // the canonical lane and force-init again.
+
     await writeCanonicalState(dir, { nodes: { Beta: { id: "Beta", title: "second" } }, edges: [], initiatives: {}, log: [] });
     await new Promise((r) => setTimeout(r, 5));
     await init({ statePath: dir, flags: { force: true }, positional: [], projectDir: dir });

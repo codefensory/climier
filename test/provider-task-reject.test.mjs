@@ -1,5 +1,5 @@
-// Canonical task.reject provider tests (ADR-015/016).
-// The provider owns only the submitted -> open transition; persistence and
+
+
 // audit entry construction remain kernel responsibilities.
 
 import test from "node:test";

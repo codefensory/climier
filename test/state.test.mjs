@@ -69,14 +69,11 @@ test("emptyState returns a valid empty canonical schema", async () => {
   assert.equal(s.gotchas, undefined);
 });
 
-// === v1-unsupported behavior =================================================
-
 test("readState classifies pre-release v1 structure before checking its version", async () => {
   const { readState } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
-    // Bootstrap a v1 state file directly (bypassing writeState, which
-    // would now reject it). This mirrors the on-disk reality of a v1
+
     // project someone is trying to migrate from.
     const fs = await import("node:fs/promises");
     const file = stateFilePath(dir);

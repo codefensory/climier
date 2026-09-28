@@ -2,7 +2,6 @@
 // Tests:
 //   1. errors.mjs unit tests (V2_ERROR_CODES, makeError, throwV2).
 //   2. CLI integration tests: commands emit { ok: false, error: { code, message, details } }.
-//   3. v1 backward compat: existing v1 commands keep emitting the { ok: false, error: "<string>" } shape.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -335,5 +334,4 @@ test("CLI: show missing node emits NODE_NOT_FOUND with details", async () => {
   } finally { await rmTempProject(dir); }
 });
 
-// --- v1 backward compat: v1 commands are no longer dispatched -----------
 // (claim, pre-claim, etc. no longer exist; commands emit structured errors.)

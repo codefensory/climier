@@ -281,7 +281,7 @@ test("update: rejects a pre-release state with migration guidance", async () => 
   const dir = await createTempProject();
   try {
     // Bootstrap .climier.json + an empty canonical state, then overwrite the
-    // state file directly with a v1 shape (writeState now rejects v1).
+
     const { default: init } = await importFresh("./cli/commands/init.mjs");
     await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
     const fs = await import("node:fs/promises");

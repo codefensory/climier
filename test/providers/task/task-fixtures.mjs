@@ -4,7 +4,7 @@ import { importFresh } from "../../helpers.mjs";
 const ACTOR = "codex-worker";
 
 // importTaskProvider — returns the module namespace fresh per call.
-// We use importFresh to defeat module caching between tests so any
+
 // accidental module-level state in the provider would surface as a
 // regression.
 export async function importTaskProvider() {
@@ -19,7 +19,6 @@ export async function importTaskProvider() {
   };
 }
 
-// makeSnapshot — minimal v2 state with `nodes`, `edges`, `initiatives`,
 // `log`. Tests construct literal snapshots so the provider's read-only
 // expectation is verified by reference equality on input.
 export function makeSnapshot({ nodes = {}, edges = [], initiatives = { foo: { desc: "x" } }, log = [] } = {}) {
@@ -235,7 +234,7 @@ export function assertTaskUpdatePatchResult({ tx, out }) {
 }
 
 // expectThrows — assert the async function throws, surfacing the
-// structured v2 code (the provider reuses throwV2 so callers can
+
 // branch on `err.code === "..."`). Returns the caught error.
 export async function expectThrows(fn, code) {
   try {
@@ -248,10 +247,6 @@ export async function expectThrows(fn, code) {
   }
   assert.fail("expected throw, got success");
 }
-
-// ===================================================================
-// task.create
-// ===================================================================
 
 export function makeInputTake(overrides = {}) {
   return { id: "T-x", actor: "alice", at: "2026-01-01T00:00:00.000Z", ...overrides };

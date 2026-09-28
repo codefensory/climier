@@ -16,7 +16,7 @@ const log = [
   { ts: "2025-01-02T00:00:00.000Z", agent: "bob", action: "update", node: "T-two" },
   { ts: "2025-01-03T00:00:00.000Z", agent: "alice", action: "take", node: "T-two" },
   { ts: "2025-01-04T00:00:00.000Z", agent: "alice", action: "take", node: "T-one" },
-  // A pre-canonical entry: `task`/`decision`/`gotcha` were references once.
+
   { ts: "2025-01-05T00:00:00.000Z", agent: "alice", action: "take", task: "T-one", decision: "T-one", gotcha: "T-one" },
 ];
 const snapshot = { ...readModelParity.snapshot, log };
@@ -92,8 +92,7 @@ test("log CLI and HTTP use the same pure filter, order, limit, and array project
 });
 
 test("history matches the canonical node reference and ignores the pre-canonical fields", async () => {
-  // Local: the node field and a note mention are references; `task`, `decision`
-  // and `gotcha` are not, so an old entry no longer pulls the id into history.
+
   await withLogProject(async ({ baseUrl, projectDir }) => {
     const http = await (await fetch(`${baseUrl}/v1/projects/log-parity/read/history/T-one`, { headers: authHeaders() })).json();
     const entries = http.result.entries;

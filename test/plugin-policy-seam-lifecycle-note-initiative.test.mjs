@@ -181,7 +181,7 @@ test("seam-add-initiative: pluginId null (CLI path) does NOT add plugin_id to th
     // No fixture → defaults core. We still want to assert that the
     // CLI path (no pluginId, pluginId=null/undefined) does NOT inject
     // plugin_id into the log entry — the seam contract from
-    // ADR-006 §"Locks y logs" requires appendWithContext to omit
+
     // plugin_id when ctx.pluginId is not a non-empty string.
     const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
     await addInit({

@@ -1,7 +1,7 @@
 /* oxlint-disable max-lines -- end-to-end sandbox regression scenarios and orchestrator fixture stay together. */
 // state-resilience-regression.test.mjs — end-to-end regression for ADR-004.
 //
-// Reproduce the incident that motivated ADR-004: a temp project that
+
 // copied the same `project_id` ran `init --force` against a real,
 // shared CLIMIER_HOME and clobbered the live state with no backup. The
 // mitigation has two parts that we exercise here:
@@ -11,8 +11,7 @@
 //   - The `init --force` path takes a `force-init` snapshot under
 //     `<state-dir>/snapshots/` before resetting, and `restore
 //     <snapshot-id> --as orchestrator|recovery` lets recovery roll
-//     the state back. Both pieces were shipped in Plan 1 and Plan 3
-//     of ADR-004.
+
 //
 // What this test asserts (Plan 4 / acceptance):
 //   - NEGATIVE CONTROL — without the helper, the same scenario DOES
@@ -33,9 +32,8 @@
 //     wins. The orchestrator's `summary.sandbox_home` proves the
 //     helper replaced the parent value.
 //
-// The test does NOT touch `~/.climier`. CONTROL_HOME lives under
+
 // `os.tmpdir()`. We only mutate files we own under `os.tmpdir()`, and
-// we clean them up in `finally`.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -73,11 +71,10 @@ const SENTINEL_STATE = Object.freeze({
 });
 const SENTINEL_BYTES = JSON.stringify(SENTINEL_STATE, null, 2) + "\n";
 
-// -------------------------------------------------------------------------
 // Orchestrator: runs the full lifecycle inside the helper. The helper sets
 // CLIMIER_HOME to a private sandbox; this script reads tasks.json from that
 // sandbox and emits a single JSON summary to stdout.
-// -------------------------------------------------------------------------
+
 const ORCHESTRATOR_SOURCE = `
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
@@ -236,7 +233,6 @@ function spawnHelper(args, env = {}) {
   });
 }
 
-// Plant a sentinel v2 state at CONTROL/projects/<pid>/tasks.json and a
 // temp project that copies the same project_id. Returns the paths so the
 // test can assert and clean up.
 function setupIncidentFixtures(pid) {
@@ -254,13 +250,11 @@ function setupIncidentFixtures(pid) {
   return { control, tempProj };
 }
 
-// =============================================================================
 // NEGATIVE CONTROL — proves the bug exists. Without smoke-sandbox, init --force
 // on a temp project that copied project_id WILL clobber a sentinel control
 // home. If this assertion ever stops failing, the bug has somehow stopped
 // reproducing, which would mean the regression test below is no longer
 // measuring what it claims to measure.
-// =============================================================================
 
 test("NEGATIVE CONTROL: without smoke-sandbox, init --force with copied project_id clobbers a sentinel control home (pins the original incident)", async () => {
   const pid = newPid();
@@ -271,7 +265,7 @@ test("NEGATIVE CONTROL: without smoke-sandbox, init --force with copied project_
     // is the npm test runner's tmpdir; we override to CONTROL via the
     // subprocess env so the smoke targets our sentinel home.
     const r = await spawnCli(
-      // --as is mandatory for init --force since ADR-008
+
       // §"restore e init --force"; the actor is opaque to the core.
       [BIN, "--project", tempProj, "init", "--force", "--as", "smoke"],
       { CLIMIER_HOME: control }
@@ -306,13 +300,10 @@ test("NEGATIVE CONTROL: without smoke-sandbox, init --force with copied project_
   }
 });
 
-// =============================================================================
 // REGRESSION + FULL ROUNDTRIP — the helper isolates CLIMIER_HOME so the
 // sentinel survives, while the sandbox goes through init -> init --force ->
 // snapshots -> restore -> show. The orchestrator script (written into the
 // temp project and run inside the helper) drives the lifecycle from inside
-// the sandbox.
-// =============================================================================
 
 // oxlint-disable-next-line max-lines-per-function, max-statements -- full recovery lifecycle assertions stay together
 test("REGRESSION: with smoke-sandbox, init --force with copied project_id does NOT touch the sentinel control home", async () => {
@@ -352,7 +343,6 @@ test("REGRESSION: with smoke-sandbox, init --force with copied project_id does N
         `Expected (sentinel): ${SENTINEL_BYTES}\nActual: ${controlBytes}`
     );
 
-    // Parse the orchestrator's single-line JSON summary.
     const summary = JSON.parse(r.stdout.trim());
     assert.equal(summary.ok, true, `orchestrator reported not-ok; summary=${JSON.stringify(summary)}`);
     assert.equal(summary.pid, pid);
@@ -382,13 +372,11 @@ test("REGRESSION: with smoke-sandbox, init --force with copied project_id does N
   }
 });
 
-// =============================================================================
 // ISOLATION OVERRIDE — explicit check that the helper REPLACES the parent
 // CLIMIER_HOME, not just appends. We pass CLIMIER_HOME=<control> in the
 // parent env and assert that the helper's wrapped command sees a different
 // CLIMIER_HOME (= the sandbox, not control). This is acceptance criterion
 // #4 framed as a direct property.
-// =============================================================================
 
 test("HELPER ISOLATION: smoke-sandbox.sh overrides the parent's CLIMIER_HOME even when the caller exports one", async () => {
   const pid = newPid();
@@ -413,7 +401,6 @@ test("HELPER ISOLATION: smoke-sandbox.sh overrides the parent's CLIMIER_HOME eve
       "helper must override the parent's CLIMIER_HOME; observed value must not equal the control home"
     );
 
-    // The sentinel was untouched by the probe run.
     const controlBytes = fs.readFileSync(
       path.join(control, "projects", pid, "tasks.json"),
       "utf8"
@@ -425,12 +412,10 @@ test("HELPER ISOLATION: smoke-sandbox.sh overrides the parent's CLIMIER_HOME eve
   }
 });
 
-// =============================================================================
 // DEEP-HOLE — the helper's umask 0077 means the sandbox dir is only
 // accessible to the user running the test. The orchestrator captures the
-// file modes INSIDE the sandbox (before the helper's EXIT trap wipes it)
+
 // and the parent test asserts against the summary.
-// =============================================================================
 
 // oxlint-disable-next-line max-lines-per-function -- filesystem permission invariants stay in one scenario
 test("SANDBOX FILES: orchestrator-created state file lives under the sandbox home with private umask (0700/0600)", async () => {
@@ -454,7 +439,7 @@ test("SANDBOX FILES: orchestrator-created state file lives under the sandbox hom
 
     const summary = JSON.parse(r.stdout.trim());
     assert.match(summary.sandbox_home, /^\/tmp\/climier-smoke-[^/]+\/home$/);
-    // The orchestrator captured modes from inside the sandbox before the
+
     // helper's EXIT trap removed it. The contract is that init, restore
     // and snapshot paths under smoke-sandbox inherit umask 0077.
     assert.equal(

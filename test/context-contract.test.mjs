@@ -41,7 +41,7 @@ test("context: returns the design doc shape with revision, claim, blocking, know
     assert.deepEqual(out.knowledge, []);
     assert.deepEqual(out.alerts, []);
     assert.ok(Array.isArray(out.allowed_actions));
-    // Backward-compat with the F7 test that asserts out.informing.
+
     assert.deepEqual(out.informing, []);
   } finally {
     await rmTempProject(dir);
@@ -405,11 +405,10 @@ test("context: allowed_actions for task in_progress with --as bob (non-owner) ->
         },
       },
     });
-    // ADR-009 §"Resto de operaciones" + §"Contexto y documentación":
+
     // allowed_actions describes the actions the state permits. The
     // core no longer compares the caller against the claim owner for
-    // submit/release. Any identified caller sees submit/release;
-    // the actual ownership check is delegated to a plugin (or to the
+
     // core default of "any actor is authorised"). The role-based
     // hatch is gone.
     const out = await context({ statePath: dir, positional: ["T-x"], flags: { as: "bob" } });
@@ -442,7 +441,7 @@ test("context: allowed_actions for task in_progress --as test-agent (non-owner) 
         },
       },
     });
-    // ADR-009: the literal actor name (here `test-agent`) carries no
+
     // authority. An identified caller that is not the claim owner
     // still sees submit/release because allowed_actions reflects the
     // state invariant, not the ownership check. The handler's default
@@ -477,7 +476,7 @@ test("context: allowed_actions for task in_progress anonymous (no --as) -> add-n
       },
     });
     // Anonymous callers have no actor to record; actions that write to
-    // the log (claim, resolve, release, reopen, cancel) are not
+
     // surfaced. add-note/update remain because they are read-shaped
     // from the perspective of allowed_actions.
     const out = await context({ statePath: dir, positional: ["T-x"], flags: {} });
@@ -557,9 +556,7 @@ test("context: allowed_actions for task done with --as bob (not done_by) -> reop
         },
       },
     });
-    // ADR-009 §"Resto de operaciones" + §"Contexto y documentación":
-    // the core no longer compares the caller against `done_by` for
-    // reopen. Any identified caller sees reopen because the task's
+
     // state (done) and shape permit it.
     const out = await context({ statePath: dir, positional: ["T-x"], flags: { as: "bob" } });
     assert.ok(out.allowed_actions.includes("reopen"));
@@ -820,7 +817,7 @@ test("context: alerts include KNOWLEDGE_DEPRECATED_SOON when matching knowledge 
 test("context: --project and unknown flags are rejected by the known-flags guard", async () => {
   const { default: context } = await importFresh("./cli/commands/context.mjs");
   assert.ok(Array.isArray(context.knownFlags || (await importFresh("./cli/commands/context.mjs")).default.knownFlags) || true);
-  // The known-flags guard is in bin/climier.mjs; here we just verify the export.
+
   const mod = await importFresh("./cli/commands/context.mjs");
   assert.ok(mod.knownFlags.includes("as"));
   assert.ok(mod.knownFlags.includes("staleMs"));

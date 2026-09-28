@@ -2,13 +2,13 @@
 // T-plugin-fixture — sample V1 plugin entrypoint.
 //
 // Self-contained ESM module that exposes one dedicated subcommand per
-// V1 API method declared in ADR-005 §"API y persistencia":
+
 //
 //   runtime          -> api.runtime
 //   query-node       -> api.query.node(id)
 //   query-context    -> api.query.context(id)
 //   query-status     -> api.query.status()
-//   query-history    -> api.query.history(id, { limit })
+
 //   data-node-get    -> api.data.node.get(id)
 //   data-node-set    -> api.data.node.set(id, value)
 //   data-project-get -> api.data.project.get(key)
@@ -18,7 +18,7 @@
 // method so the integration test (test/plugin-integration.test.mjs)
 // can attribute failures to a specific surface.
 //
-// The module has no external runtime dependencies; it is meant to be
+
 // installed as a local path by `climier install <fixture-dir>`.
 
 // eslint-disable-next-line max-statements -- Keep the fixture argv parser faithful to forwarded host argument behavior.
@@ -116,15 +116,13 @@ export default {
       return { command: "query-status", summary: status.summary };
     },
 
-    // query.history
     async "query-history"(args, api) {
       const { positional, flags } = parseArgs(args);
       const id = requirePositional(positional, 0, "node id");
       const opts =
         flags.limit !== undefined ? { limit: Number(flags.limit) } : undefined;
       const result = await api.query.history(id, opts);
-      // api.query.history returns the { id, entries } envelope produced
-      // by `climier history`; forward the inner entries array verbatim.
+
       return {
         command: "query-history",
         id,

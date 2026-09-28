@@ -1,8 +1,8 @@
 // test/kernel-mutate-concurrency.test.mjs — concurrency contract for
 // kernel.mutate. Covers the regression in
-// T-graph-kernel-mutate-concurrency-fix: the previous module-level
+
 // nestedDepth counter rejected two independent concurrent mutations on
-// the same project as if they were nested. The fix uses
+
 // AsyncLocalStorage so reentrancy is tracked per async chain; only
 // direct nested calls from the same chain are still rejected.
 //
@@ -20,9 +20,7 @@ async function importKernel() {
   return importFresh("./kernel/mutate.mjs");
 }
 
-// ===================================================================
 // Fixture: two independent nodes in the same project
-// ===================================================================
 
 async function bootstrap(dir) {
   await writeStateHelper(dir, {
@@ -58,9 +56,7 @@ function updateProvider({ id, newTitle }) {
   };
 }
 
-// ===================================================================
 // Regression: two concurrent independent mutations on the same project
-// ===================================================================
 
 // oxlint-disable-next-line max-statements, max-lines-per-function -- Keep this bounded regression test and its full assertions intact.
 test("kernel.mutate: two concurrent independent mutations on the same project both complete without INVALID_EXECUTION_CONTRACT", async () => {
@@ -70,7 +66,7 @@ test("kernel.mutate: two concurrent independent mutations on the same project bo
     const fenced = await bootstrap(dir);
     // Fire both at the same time. Each targets a different node with a
     // matching if_revision. With the old module-level nestedDepth guard,
-    // the second mutate() would throw INVALID_EXECUTION_CONTRACT before
+
     // reaching withLock. With the AsyncLocalStorage fix, each chain has
     // its own depth=0→1 and withLock serialises the writes.
     const req1 = mutate({
@@ -171,10 +167,8 @@ test("kernel.mutate: many concurrent independent mutations on the same project a
   }
 });
 
-// ===================================================================
 // Regression preserved: provider.apply → kernel.mutate on same chain
 // still rejected (the only legitimate use of the guard)
-// ===================================================================
 
 // oxlint-disable-next-line max-lines-per-function -- Keep this bounded regression test and its full assertions intact.
 test("kernel.mutate: provider.apply calling kernel.mutate on the same chain is rejected with INVALID_EXECUTION_CONTRACT", async () => {
@@ -185,7 +179,7 @@ test("kernel.mutate: provider.apply calling kernel.mutate on the same chain is r
     let innerCaught = null;
     // Outer mutate updates T1; inside apply we attempt a nested mutate
     // on T2. The inner call must be rejected by the same-chain guard;
-    // the outer apply still completes its tx so T1 is persisted.
+
     await mutate({
       projectDir: dir,
       request: { action: "task.update", actor: "alice", input: {}, if_revision: { kind: "single", id: "T1", value: fenced.nodes.T1.revision } },
@@ -225,11 +219,9 @@ test("kernel.mutate: provider.apply calling kernel.mutate on the same chain is r
   }
 });
 
-// ===================================================================
 // Edge: a same-chain call that bubbles up via Promise.resolve must also
 // be rejected (provider.apply returning a promise that resolves into
 // a chained mutate call still belongs to the same async chain).
-// ===================================================================
 
 // oxlint-disable-next-line max-lines-per-function -- Keep this bounded regression test and its full assertions intact.
 test("kernel.mutate: same-chain nested mutate via awaited microtask is still rejected", async () => {

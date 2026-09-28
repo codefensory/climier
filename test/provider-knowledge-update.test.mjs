@@ -1,7 +1,7 @@
 // Knowledge update contract tests for the knowledge-core provider slice
 // (plan B4-knowledge-core).
 //
-// Scope (mirrors the task body and acceptance):
+
 //   - helpers puros: scope_matches, ranking determinista, búsqueda
 //     activa/todas, informing.
 //   - providers create/update con prepare/apply, sin fs / lock / state / log.
@@ -22,21 +22,11 @@ import {
   readState as readStateHelper,
 } from "./helpers.mjs";
 
-// ===================================================================
 // Pure imports (no fs) — re-imported per test for freshness.
-// ===================================================================
 
-
-
-// ===================================================================
 // State fixtures (pure, JSON-shaped)
-// ===================================================================
 
-
-
-// ===================================================================
 // update provider — prepare / apply via kernel.mutate
-// ===================================================================
 
 async function applyKnowledgeUpdate(provider, mutate, dir) {
   const base = emptySnapshot({

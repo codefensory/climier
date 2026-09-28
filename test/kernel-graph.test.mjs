@@ -1,12 +1,12 @@
-// B2 — pure generic traversals over the v2 graph.
+
 //
-// ADR-011 §§2–3 + ADR-012 §3 + plan §B2:
+
 // `src/kernel/graph.mjs` exposes incoming / outgoing / relations helpers
-// over a v2 state shape (nodes + edges arrays). The functions are pure:
+
 // no filesystem, no locks, no providers, no command-specific semantics.
 //
 // Conventions:
-//   - pure-function tests; import the module fresh per case for isolation;
+
 //   - one focused assertion per test;
 //   - deterministic ordering (filter preserves snapshot insertion order).
 
@@ -165,7 +165,7 @@ test("traversals: preserve snapshot insertion order (deterministic)", async () =
 test("integration: blocksEdge + incoming + outgoing cooperate for BLOCKS direction", async () => {
   const { blocksEdge } = await importFresh("../src/kernel/edges.mjs");
   const { incoming, outgoing } = await importFresh("../src/kernel/graph.mjs");
-  // Two gates both blocking the same task; one of them also supersedes the
+
   // other. The kernel traversals must answer each direction independently.
   const edge1 = blocksEdge("G1", "T");
   const edge2 = blocksEdge("G2", "T");

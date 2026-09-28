@@ -155,7 +155,7 @@ for (const [name, buildFlags, positional, register] of [
         // Setup passes --as so add-initiative itself doesn't trip the new
         // MISSING_AGENT gate before we get to the command under test.
         await addInit({ statePath: dir, flags: { desc: "auth", as: "setup" }, positional: ["auth"] });
-        // Pre-create the edge endpoints if needed (add-edge needs both T-a and T-b).
+
         if (name === "add-edge") {
           const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
           await addNode({
@@ -294,7 +294,7 @@ test("CLI: --as takes precedence over CLIMIER_AGENT in the log entry", async () 
       { env: { CLIMIER_AGENT: "env-agent" } },
     );
     assert.equal(r.code, 0, r.stderr);
-    // Read the log directly to inspect the recorded agent.
+
     const fs = await import("node:fs/promises");
     const path = await import("node:path");
     const meta = JSON.parse(await fs.readFile(path.join(dir, ".climier.json"), "utf8"));

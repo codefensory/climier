@@ -12,8 +12,7 @@
 //   - structural failures (NODE_NOT_FOUND, REVISION_CONFLICT) assert
 //     err.code AND err.details, not just the message text
 //
-// The existing suite already covers the happy paths; this file probes
-// the awkward corners: status filter asymmetry, silent flag drops,
+
 // concurrent reads/writes, and validation gaps.
 
 import { test, describe } from "node:test";
@@ -106,15 +105,12 @@ async function projectFixture() {
   return dir;
 }
 
-// =====================================================================
-// Class A — status filter coverage
 //
 // The status filter MUST apply to every bucket. Today it only filters
 // ready/blocked/backlog (the post-derived pools). The in_progress bucket
 // is derived from the persistent `node.status` and never sees the filter.
 // That makes `--status ready --as alice` return alice's in_progress in
 // summary.in_progress, which contradicts the user's expectation.
-// =====================================================================
 
 describe("status: --status filter applies to ALL buckets (not just derived)", () => {
   test("--status ready with a claimed in_progress task: summary.in_progress is 0 (not the claimer's count)", async () => {
@@ -192,7 +188,7 @@ describe("status: --status filter applies to ALL buckets (not just derived)", ()
     try {
       await addGateNode(dir, "G-a");
       await addGateNode(dir, "G-b");
-      // Resolve G-b to leave one open gate.
+
       const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
       await resolve({ statePath: dir, flags: { as: "alice", choice: "yes", rationale: "ok" }, positional: ["G-b"] });
       const { default: status } = await importFresh("./cli/commands/status.mjs");
@@ -204,15 +200,11 @@ describe("status: --status filter applies to ALL buckets (not just derived)", ()
   });
 });
 
-// =====================================================================
-// Class B — silent flag drops in add-task
 //
-// `add-task` has no pre-refactor vocabulary. Calling it with an old flag like
+
 // --depends-on must be rejected at the CLI entry (unknown flag) so the
 // caller is never confused into thinking the flag had an effect. A direct
 // programmatic call still no-ops the unknown flag, so the surface must
-// keep the surface narrow (no v1 fields in knownFlags).
-// =====================================================================
 
 describe("add-task: --depends-on must NOT be silently dropped", () => {
   test("add-task CLI: --depends-on is rejected as an unknown flag (not silently dropped)", async () => {
@@ -236,15 +228,12 @@ describe("add-task: --depends-on must NOT be silently dropped", () => {
   });
 });
 
-// =====================================================================
-// Class C — search edge cases
 //
 // search.mjs does case-insensitive substring matching, but the user's
 // query is sent through `.toLowerCase()` only on the call side; the
 // matched text is also `.toLowerCase()`-ed, so the .includes is literal.
 // However, regex metacharacters MUST NOT act as regex — `.includes` is
 // already literal, so this test pins that contract.
-// =====================================================================
 
 describe("search: regex metacharacters are literal (no regex engine)", () => {
   test("search '.' matches a literal dot, not 'any char'", async () => {
@@ -344,15 +333,12 @@ describe("search: regex metacharacters are literal (no regex engine)", () => {
   });
 });
 
-// =====================================================================
-// Class D — history envelope consistency
 //
 // history.mjs returns { id, entries: [] } when nothing matches. It must not
 // crash on a missing id, on a missing state file, or on a non-matching id.
 // The `entry.note` tokenization must NOT match substrings — only full
 // whitespace-delimited tokens. (E.g. a task T1 should NOT match the
 // note "T10 because of T11".)
-// =====================================================================
 
 describe("history: tokenization matches whole id only", () => {
   test("history T1 does NOT match a log note 'T10 because of T11'", async () => {
@@ -391,8 +377,7 @@ describe("history: tokenization matches whole id only", () => {
       });
       const { default: history } = await importFresh("./cli/commands/history.mjs");
       const out = await history({ statePath: dir, positional: ["T1"], flags: {} });
-      // The second entry has node === T1 (match).
-      // The first entry's note "T10 BLOCKS T1" has T1 as a whole token (match).
+
       assert.equal(out.entries.length, 2,
         `expected 2 matches for T1; got ${out.entries.length}`);
     } finally { await rmTempProject(dir); }
@@ -450,13 +435,10 @@ describe("history: tokenization matches whole id only", () => {
   });
 });
 
-// =====================================================================
-// Class E — concurrent ops on the same node
 //
 // Two processes operating on the same node should serialize cleanly via
 // the file lock. The contract: one wins, the other observes the new
 // state. No partial writes. No torn revisions. No lost log entries.
-// =====================================================================
 
 describe("concurrency: two operations on the same node serialize cleanly", () => {
   test("two takes on the same task: one claims, the other sees ALREADY_CLAIMED", async () => {
@@ -503,8 +485,7 @@ describe("concurrency: two operations on the same node serialize cleanly", () =>
 
   test("concurrent resolve attempts on a task are rejected without mutation", async () => {
     // `resolve` is gate-only. Concurrent attempts against a task must
-    // both reject before changing the task or appending a resolve log;
-    // the preceding take is the only mutation in this scenario.
+
     const dir = await projectFixture();
     try {
       await addTaskNode(dir, "T-a");
@@ -540,14 +521,11 @@ describe("concurrency: two operations on the same node serialize cleanly", () =>
   });
 });
 
-// =====================================================================
-// Class F — idempotency edges
 //
 // add-note with the same text twice should create two notes (audit log
 // is append-only by design). add-edge with the same triple should
 // DUPLICATE_EDGE. add-initiative should ID_CONFLICT. These tests
 // pin each contract so any drift is caught.
-// =====================================================================
 
 describe("idempotency contracts", () => {
   test("add-note: identical text twice creates two notes (audit, not dedupe)", async () => {
@@ -577,8 +555,7 @@ describe("idempotency contracts", () => {
       } catch (e) { caught = e; }
       assert.ok(caught, "second add-edge should throw");
       assert.equal(caught.code, "DUPLICATE_EDGE");
-      // The core edge provider attaches `existing` so callers can see
-      // the conflicting edge identity; the test only cares that the
+
       // canonical (from, to, type) tuple is present.
       assert.equal(caught.details.from, "T-a");
       assert.equal(caught.details.to, "T-b");
@@ -619,14 +596,11 @@ describe("idempotency contracts", () => {
   });
 });
 
-// =====================================================================
-// Class G — revision control gaps
 //
 // --if-revision must throw REVISION_CONFLICT when the stored revision
 // has moved past the caller's expected one. Without --if-revision, last-
 // write-wins is the contract. take increments revision; subsequent
 // updates see the bumped revision.
-// =====================================================================
 
 describe("revision control", () => {
   test("update --if-revision matches -> applies and bumps", async () => {
@@ -716,15 +690,12 @@ describe("revision control", () => {
   });
 });
 
-// =====================================================================
-// Class H — context envelope for non-task node types
 //
 // The `context` view is the agent's primary read. Its envelope must be
-// shaped consistently for every node type (task / gate / knowledge), and
+
 // `allowed_actions` must surface the actual command the agent needs to
 // run — including the flag shape for gates (resolve needs --choice AND
 // --rationale; the agent can't tell that from "resolve" alone).
-// =====================================================================
 
 describe("context envelope per node kind", () => {
   test("context for a gate: allowed_actions for resolve hints at --choice and --rationale", async () => {
@@ -751,7 +722,7 @@ describe("context envelope per node kind", () => {
       assert.equal(out.claim, null);
       assert.deepEqual(out.blocking, []);
       assert.equal(out.derived_status, "active");
-      // Knowledge can be deprecated via the `deprecate-knowledge` command.
+
       assert.ok(out.allowed_actions.includes("deprecate-knowledge"),
         `expected deprecate-knowledge in allowed_actions; got ${JSON.stringify(out.allowed_actions)}`);
     } finally { await rmTempProject(dir); }
@@ -761,7 +732,7 @@ describe("context envelope per node kind", () => {
     const dir = await projectFixture();
     try {
       await addGateNode(dir, "G-old");
-      // Create G-new with --supersedes G-old so the target is marked superseded.
+
       const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
       await addNode({
         statePath: dir, positional: ["G-new"],
@@ -781,10 +752,6 @@ describe("context envelope per node kind", () => {
     } finally { await rmTempProject(dir); }
   });
 });
-
-// =====================================================================
-// Class I — agent precedence (CLIMIER_AGENT vs --as)
-// =====================================================================
 
 describe("agent source precedence", () => {
   test("--as wins over CLIMIER_AGENT", async () => {
@@ -861,13 +828,9 @@ describe("agent source precedence", () => {
   });
 });
 
-// =====================================================================
-// Class J — init --force on existing state
 //
-// init creates the current legacy-lane state; --force is required to overwrite
-// any valid existing state, while pre-release task collections are rejected by
+
 // structural classification and point to the importer rather than init --force.
-// =====================================================================
 
 describe("init --force on existing state", () => {
   test("init rejects a pre-release tasks shape with migration guidance, not --force", async () => {
@@ -942,13 +905,10 @@ describe("init --force on existing state", () => {
   });
 });
 
-// =====================================================================
-// Class K — take idempotency + takeover paths
 //
-// take from the same agent twice returns the same task with
+
 // freshly_claimed=false and NO new log entry. Orchestrator can take over
 // an in_progress claim. A different agent cannot.
-// =====================================================================
 
 describe("take idempotency and takeover", () => {
   test("take twice as the same agent: no second log entry, no second revision bump", async () => {
@@ -968,10 +928,9 @@ describe("take idempotency and takeover", () => {
   });
 
   test("take as policy-allow actor takes over alice's in_progress claim", async () => {
-    // T-plugin-policy-seam-lifecycle / ADR-008 §"Tabla de take": the
-    // historical orchestrator takeover is replaced by a policy seam
+
     // allow. We install the policy-fixture and exercise the
-    // `task.takeover` action with mode=allow.
+
     const dir = await projectFixture();
     await installPolicyFixture(dir);
     try {
@@ -1023,14 +982,11 @@ describe("take idempotency and takeover", () => {
   });
 });
 
-// =====================================================================
-// Class L — lifecycle completion newly_ready diff is correct
 //
 // Resolving a gate that blocks exactly one task should make that task
-// newly ready. Submitting and accepting a task with downstream dependents
+
 // should unblock them. The diff should be the symmetric difference between
 // pre- and post-transition `ready` sets.
-// =====================================================================
 
 describe("lifecycle completion: newly_ready is the diff of pre/post derive", () => {
   test("resolve a gate that unblocks one task: newly_ready contains exactly that task", async () => {
@@ -1072,14 +1028,11 @@ describe("lifecycle completion: newly_ready is the diff of pre/post derive", () 
   });
 });
 
-// =====================================================================
-// Class M — knowledge node scoping
 //
 // knowledgeForNode matches a knowledge node when its scope mentions the
 // target via any of: node_id, domain, tag, initiative. The match should
 // include the knowledge even when the knowledge is mid-supersede (it has
 // status="superseded" but scope_matches still resolves).
-// =====================================================================
 
 describe("knowledge scoping on context", () => {
   test("knowledge with scope.domains matches a task whose domain is in the list", async () => {
@@ -1119,12 +1072,9 @@ describe("knowledge scoping on context", () => {
   });
 });
 
-// =====================================================================
-// Class N — show / add-initiative / log envelopes
 //
 // These pin the documented shapes so a future refactor that drifts them
 // is caught.
-// =====================================================================
 
 describe("envelope shape consistency", () => {
   test("show on a task returns { type: 'task', node }", async () => {
@@ -1167,7 +1117,7 @@ describe("envelope shape consistency", () => {
   test("initiatives --all: includes initiatives with zero usage", async () => {
     const dir = await projectFixture();
     try {
-      // Add an extra initiative with no usage.
+
       await addInit(dir, "unused", "unused");
       // Without --all, 'unused' is hidden (zero nodes).
       const { default: initiatives } = await importFresh("./cli/commands/initiatives.mjs");

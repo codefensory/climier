@@ -1,7 +1,7 @@
 // Knowledge query contract tests for the knowledge-core provider slice
 // (plan B4-knowledge-core).
 //
-// Scope (mirrors the task body and acceptance):
+
 //   - helpers puros: scope_matches, ranking determinista, búsqueda
 //     activa/todas, informing.
 //   - providers create/update con prepare/apply, sin fs / lock / state / log.
@@ -14,27 +14,11 @@ import assert from "node:assert/strict";
 
 import { emptySnapshot, importProviders, knowledgeNode, taskNode } from "./provider-knowledge/fixtures.mjs";
 
-
-
-// ===================================================================
 // Pure imports (no fs) — re-imported per test for freshness.
-// ===================================================================
 
-
-
-
-// ===================================================================
 // State fixtures (pure, JSON-shaped)
-// ===================================================================
 
-
-
-
-
-
-// ===================================================================
 // scope_matches — matchesScopes / SCOPE_ORDER
-// ===================================================================
 
 test("scope_matches: node_id is the highest-priority scope", async () => {
   const { matchesScopes, SCOPE_ORDER } = await importProviders();
@@ -78,9 +62,7 @@ test("scope_matches: missing scope / undefined fields are tolerated", async () =
   assert.deepEqual(matchesScopes(node, { scope: { domains: undefined } }), []);
 });
 
-// ===================================================================
 // ranking determinista — specificityRank / rankKnowledge
-// ===================================================================
 
 test("ranking: specificityRank prefers node_id, then domain, then tag, then initiative", async () => {
   const { specificityRank } = await importProviders();
@@ -116,9 +98,7 @@ test("ranking: rankKnowledge is pure (does not mutate the input)", async () => {
   assert.deepEqual(items.map(({ id }) => id), before);
 });
 
-// ===================================================================
 // search — searchKnowledge (pure, snapshot-only)
-// ===================================================================
 
 test("search: empty query returns no matches", async () => {
   const { searchKnowledge } = await importProviders();
@@ -204,9 +184,7 @@ test("search: snippet is body truncated to 200 chars", async () => {
   assert.equal(out.matches[0].snippet, "R".repeat(200));
 });
 
-// ===================================================================
 // knowledge projection — knowledgeForNode (pure)
-// ===================================================================
 
 test("knowledge projection: matches all scopes, includes deprecated entries, and ranks deterministically", async () => {
   const { knowledgeForNode } = await importProviders();
@@ -246,9 +224,7 @@ test("knowledge projection: missing target or malformed snapshot returns []", as
   assert.deepEqual(knowledgeForNode(), []);
 });
 
-// ===================================================================
 // informing — informingForNode (pure)
-// ===================================================================
 
 test("informing: returns inline node data for INFORMS edges only", async () => {
   const { informingForNode } = await importProviders();

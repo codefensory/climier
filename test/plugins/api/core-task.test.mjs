@@ -30,11 +30,9 @@ function assertCreatedTaskLog(out, after) {
 }
 
 test("api.core.run: task.create dispatches through the kernel with actor fixed from api.runtime.agent", async () => {
-  // The kernel-driven path returns the typed result shape
+
   // `{ result, effects, log_entry, idempotent, diff }`. `result` is
-  // the provider's projected shape (id/kind/subkind/status/added_edges
-  // for task.create); the full node with revision lives in
-  // `diff.created[0].node`. There is no `{ node }` legacy envelope
+
   // anymore and `input.as` cannot substitute the actor.
   const dir = await createTempProject();
   try {
@@ -65,14 +63,14 @@ test("api.core.run: input.as is dropped even though the handler call is made on 
   // The adapter must ignore input.as and use api.runtime.agent. A successful
   // task.create with input.as set should not change the caller's apparent
   // identity: an attacker supplying as="bob" must not be able to claim
-  // ownership of an alice-owned task.
+
   const dir = await createTempProject();
   try {
     const { default: init } = await importFresh("./cli/commands/init.mjs");
     const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
     await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
     await addInit({ statePath: dir, flags: { desc: "plugin-platform" }, positional: ["plugin-platform"] });
-    // input.as is rejected outright (covered by previous test); the path we
+
     // verify here is that even if a future flag rename makes a snake key
     // collide, the adapter still records api.runtime.agent as the author.
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
@@ -92,13 +90,13 @@ test("api.core.run: input.as is dropped even though the handler call is made on 
 test("api.core.run: task.update dispatches through the kernel with explicit CAS (if_revision) and bumps revision", async () => {
   // task.update is the explicit-CAS op (ADR-011 §4): the agent-facing
   // input must carry `changes` and `if_revision`. The kernel validates
-  // the precondition under the lock and the typed result surfaces the
+
   // merged node (revision-stripped — the kernel owns revision) plus
-  // the deterministic diff with the next revision assigned.
+
   const dir = await readyProject();
   try {
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
-    // Seed a task via task.create.
+
     const created = await api.core.run({
       op: "task.create",
       input: {
@@ -134,7 +132,7 @@ test("api.core.run: task.update dispatches through the kernel with explicit CAS 
 });
 
 test("api.core.run: task.update log entry carries plugin_id (kernel routes plugin_id from the host)", async () => {
-  // The kernel stamps plugin_id on the log entry from the adapter's
+
   // pluginId argument; the agent is stamped from request.actor
   // (api.runtime.agent), never from input. The kernel-driven update
   // requires explicit CAS — `changes` + `if_revision`.
@@ -178,7 +176,7 @@ test("api.core.run: task.update log entry carries plugin_id (kernel routes plugi
 });
 
 test("api.core.run: task.release dispatches through the kernel after a take (idempotent lifecycle)", async () => {
-  // task.release returns the provider's typed projection on
+
   // `out.result` (id/released/claim/status/previous_owner). There is
   // no `{ node }` envelope; the post-state lives in `diff.updated`
   // and in the persisted state file.
@@ -211,8 +209,7 @@ test("api.core.run: task.release dispatches through the kernel after a take (ide
 });
 
 test("api.core.run: task.cancel dispatches through the kernel and sets status='canceled'", async () => {
-  // task.cancel returns the provider's typed projection
-  // (id/status/previous_owner); there is no legacy `{ node }`
+
   // envelope. The persisted state file is the canonical place to
   // observe the post-mutation node.
   const dir = await readyProject();
@@ -229,9 +226,9 @@ test("api.core.run: task.cancel dispatches through the kernel and sets status='c
         blocked_by: "",
       },
     });
-    // Under ADR-009 the core does not require the claim; any actor
+
     // can cancel. Cancelling documents the parity path regardless of
-    // claim state (the historical NOT_OWNER refusal is gone).
+
     const out = await api.core.run({
       op: "task.cancel",
       input: { id: "T-parity-cancel", reason: "out of scope" },
@@ -247,7 +244,7 @@ test("api.core.run: task.cancel dispatches through the kernel and sets status='c
 });
 
 test("api.core.run: task.cancel without --reason is rejected with PLUGIN_CORE_ACTION_FAILED (provider-level MISSING_FIELD)", async () => {
-  // The kernel-driven path has no adapter-side required-field
+
   // whitelist; the provider's prepare throws MISSING_FIELD when
   // `reason` is missing and the adapter wraps it as
   // PLUGIN_CORE_ACTION_FAILED with a structured `cause`. State is
@@ -279,7 +276,7 @@ test("api.core.run: task.cancel without --reason is rejected with PLUGIN_CORE_AC
 });
 
 test("api.core.run: task.reopen works after acceptance (close -> roll back to open)", async () => {
-  // task.reopen returns the provider's typed projection
+
   // (id/status/previous_done_by); the post-state lives in the
   // persisted state file. The kernel strips `done_by`/`done_at`/
   // `note`/`claim` on reopen via the transaction layer.
@@ -309,8 +306,7 @@ test("api.core.run: task.reopen works after acceptance (close -> roll back to op
     const after = await readRawState(dir);
     assert.equal(after.nodes["T-parity-reopen"].status, "open", "persisted status is open");
     assert.equal(after.nodes["T-parity-reopen"].claim, null, "claim cleared by reopen");
-    // task.reopen rolls status back to open and clears the claim; the
-    // terminal-task metadata (done_by / done_at / note) is left
+
     // untouched by the kernel-driven provider today. The state file
     // is the canonical post-state — assert status/claim there and
     // avoid asserting on fields the provider does not clear.

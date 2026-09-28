@@ -1,6 +1,5 @@
 /* eslint-disable max-statements -- This test pins first-claim and idempotent-take response and revision behavior. */
-// F9 — `take <id>`: idempotent claim of an explicit ready task.
-// First `take <id>` from an agent claims that task and returns
+
 // freshly_claimed=true. Repeating the same id as the same agent returns it
 // with freshly_claimed=false. The retired filters are unknown flags at the CLI.
 

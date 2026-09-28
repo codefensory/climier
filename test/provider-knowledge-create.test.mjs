@@ -1,7 +1,7 @@
 // Knowledge create contract tests for the knowledge-core provider slice
 // (plan B4-knowledge-core).
 //
-// Scope (mirrors the task body and acceptance):
+
 //   - helpers puros: scope_matches, ranking determinista, búsqueda
 //     activa/todas, informing.
 //   - providers create/update con prepare/apply, sin fs / lock / state / log.
@@ -21,21 +21,9 @@ import {
   readState as readStateHelper,
 } from "./helpers.mjs";
 
-// ===================================================================
 // Pure imports (no fs) — re-imported per test for freshness.
-// ===================================================================
 
-
-
-// ===================================================================
 // State fixtures (pure, JSON-shaped)
-// ===================================================================
-
-
-
-// ===================================================================
-// create provider — prepare / apply via kernel.mutate
-// ===================================================================
 
 async function prepareCreateFromDisk(provider, dir) {
   await writeFencedState(dir, emptySnapshot());
@@ -131,8 +119,7 @@ test("create: prepare rejects missing initiative", async () => {
 });
 
 test("create: prepare accepts a free-form knowledge_type", async () => {
-  // T-graph-kernel-adapters-wave1 relaxed knowledge_type validation:
-  // the create provider treats knowledge_type as a free-form taxonomy
+
   // string (warning / fact / instruction / custom). Empty strings are
   // still rejected as MISSING_FIELD.
   const { createProvider } = await importProviders();
@@ -290,7 +277,7 @@ test("create: provider never writes revision (kernel assigns it)", async () => {
       })),
       (err) => err.code === "INVALID_EXECUTION_CONTRACT",
     );
-    // The provider attempted to seed revision; the kernel (via tx) refused.
+
     assert.equal(applySawRevision, false, "tx.createNode stripped revision before return");
   } finally {
     await rmTempProject(dir);

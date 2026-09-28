@@ -28,7 +28,7 @@ if (!process.env.CLIMIER_HOME) {
 } else {
   // Guard rail: a developer must NEVER run the suite against the real
   // ~/.climier. If CLIMIER_HOME is already set when helpers.mjs loads,
-  // we verify it points at a fresh temp dir or fail loudly.
+
   // Acceptable paths:
   //   - <tmpdir>/climier-home-*      (auto-created by us in another process)
   //   - <tmpdir>/<anything>          (any other temp location)
@@ -58,7 +58,7 @@ if (!process.env.CLIMIER_HOME) {
 }
 // Default CLIMIER_AGENT for tests that exercise mutating commands but
 // don't pass --as. test/agent-source.test.mjs deletes
-// this env var to exercise the MISSING_AGENT path. v1 commands ignore it.
+
 if (!("CLIMIER_AGENT" in process.env)) {
   process.env.CLIMIER_AGENT = "test-agent";
 }
@@ -98,8 +98,7 @@ export async function writeState(dir, state) {
 }
 
 // Plant a fixture through the canonical ledger protocol. The input keeps the
-// pre-cut fenced shape (version 5) so callers stay explicit, and the helper
-// installs the content as canonical version 1: after the reader collapsed to
+
 // canonical-only there is no other writable form, and a fixture project must
 // never claim a schema the reader refuses. The name retires with the era
 // renames slice.
@@ -113,8 +112,7 @@ export async function writeFencedState(dir, state) {
 
 // Install a canonical fixture (version 1 plus its ledger) through the same
 // protocol the product uses, so a fixture project is never inconsistent with
-// the schema it claims. A raw write into a bootstrapped project leaves a
-// ledger beside a legacy state, which the reader reports as non-canonical.
+
 export async function writeCanonicalState(dir, state) {
   const initialState = {
     ...state,
@@ -242,7 +240,6 @@ export function runCli(args, { cwd, env } = {}) {
   });
 }
 
-// Import a src module fresh (bypass module cache between tests).
 export async function importFresh(modulePath) {
   const url = new URL(modulePath, `file://${SRC_DIR}/`).href;
   return import(`${url}?t=${Date.now()}-${Math.random()}`);
@@ -410,7 +407,7 @@ export async function installPolicyFixture(projectDir, options = {}) {
 }
 
 export async function uninstallPolicyFixture(projectDir, options = {}) {
-  // Resolve the uninstall id from `pluginId` (preferred — matches the
+
   // install helper's option name) or `id` (kept as a backward-
   // compatible alias for older callers).
   let id = POLICY_FIXTURE_DEFAULT_ID;

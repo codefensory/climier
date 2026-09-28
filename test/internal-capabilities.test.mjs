@@ -1,11 +1,8 @@
 /* eslint-disable max-nested-callbacks -- Internal capability tests keep setup and rejection predicates with the exercised API call. */
-// T-plugin-policy-migration-tests — ADR-008 §"Capacidad interna":
-// the internal capability `addNodeInternal({ allowUnregisteredInitiative: true })`
+
 // in src/commands/internal/create-node.mjs is the ONLY sanctioned caller of the
 // `--allow-unregistered-initiative` flag. The flag is not in the
-// public CLI knownFlags set for add-task / add-node / add-gate /
-// add-knowledge / add-edge, so the bin rejects it before reaching
-// the handler. Without the internal capability, an unregistered
+
 // initiative must surface INITIATIVE_NOT_FOUND.
 //
 // Coverage:
@@ -14,12 +11,12 @@
 //   2. addNodeInternal without the flag still enforces
 //      INITIATIVE_NOT_FOUND on an unregistered initiative.
 //   3. The public CLI rejects --allow-unregistered-initiative on
-//      add-task, add-node, add-gate, add-knowledge, add-edge (dispatch's
+
 //      knownFlags guard) with the structured CLI_USAGE_ERROR envelope.
 //   4. Without the flag, an unregistered initiative on the public
 //      CLI surfaces INITIATIVE_NOT_FOUND with details.initiative.
 //
-// The tests run against an isolated CLIMIER_HOME per test (helpers.mjs
+
 // guards the real ~/.climier) and never touch production code.
 
 import { test } from "node:test";
@@ -77,9 +74,7 @@ async function registerInitiative(projectDir, name) {
   assert.equal(r.code, 0, `add-initiative failed\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
 }
 
-// ===========================================================================
 // Internal capability: addNodeInternal({ allowUnregisteredInitiative: true })
-// ===========================================================================
 
 test("internal-caps: addNodeInternal with allowUnregisteredInitiative=true accepts an unregistered initiative", async () => {
   await withFreshHome(async ({ projectDir }) => {
@@ -135,7 +130,7 @@ test("internal-caps: addNodeInternal with allowUnregisteredInitiative=true also 
     });
     assert.equal(out.node.id, "T-no-init");
     // No initiative recorded (the public surface would have rejected
-    // the missing --initiative with MISSING_FIELD).
+
     assert.equal(out.node.initiative, undefined);
   });
 });
@@ -169,10 +164,6 @@ test("internal-caps: addNodeInternal without the flag still enforces INITIATIVE_
     );
   });
 });
-
-// ===========================================================================
-// Public CLI surface: --allow-unregistered-initiative is unknown everywhere
-// ===========================================================================
 
 test("internal-caps: CLI add-task rejects --allow-unregistered-initiative as unknown flag", async () => {
   await withFreshHome(async ({ projectDir }) => {
@@ -280,10 +271,8 @@ test("internal-caps: CLI add-edge rejects --allow-unregistered-initiative as unk
   });
 });
 
-// ===========================================================================
 // Without the internal capability, the public surface must surface
 // INITIATIVE_NOT_FOUND for unregistered initiatives.
-// ===========================================================================
 
 test("internal-caps: CLI add-task without the internal capability returns INITIATIVE_NOT_FOUND for unregistered initiatives", async () => {
   await withFreshHome(async ({ projectDir }) => {

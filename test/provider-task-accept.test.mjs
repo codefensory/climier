@@ -1,5 +1,4 @@
-// Canonical task.accept provider tests (ADR-015/016).
-// Acceptance transitions a submitted task to done without writing persistence.
+
 
 import test from "node:test";
 import assert from "node:assert/strict";

@@ -1,11 +1,8 @@
-// `take <id>` claims exactly the requested task.
+
 // Filters are accepted but ignored; backlog tasks remain unclaimable.
 //
-// T-plugin-policy-seam-lifecycle / ADR-008 §"Tabla de take": takeover
-// (a take on another agent's in-progress task) is now policy-driven.
-// The historical orchestrator takeover test is migrated below to use
+
 // the policy-fixture plugin (T-plugin-policy-fixture) with applies=true
-// and mode=allow, exercising the `task.takeover` seam allow path.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -190,11 +187,10 @@ test("take by id: backlog tasks remain NOT_READY", async () => {
 });
 
 test("take by id: takeover is policy-driven (task.takeover allow replaces claim + previous_owner)", async () => {
-  // T-plugin-policy-seam-lifecycle / ADR-008 §"Tabla de take": takeover
-  // (a take on another agent's in-progress task) is now driven by the
+
   // policy seam. We install the policy-fixture plugin (T-plugin-policy-fixture)
   // with applies=true and mode=allow so the seam's allow path replaces
-  // the claim and preserves previous_owner in the log entry.
+
   const dir = await projectFixture();
   await installPolicyFixture(dir);
   try {

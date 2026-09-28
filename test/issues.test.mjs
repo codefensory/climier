@@ -8,12 +8,11 @@
 // Issue 2: add-node and add-edge must call resolveAgent BEFORE updateState
 //   so a missing agent leaves no orphan state / no orphan log entry.
 // Issue 3: "Available:" error string + HELP_TEXT must list cancel, resolve,
-//   history.
+
 // Issue 4: AGENTS.md description must reflect the full set of lifecycle
 //   commands (take/update/status/release/resolve/reopen/cancel/deprecate-knowledge/
-//   initiatives/history), not just the original six.
+
 // Issue 5: add-decision and add-gotcha must throw a clear
-//   error instead of silently writing to a v1-style field.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -41,17 +40,11 @@ async function freshProject(dir) {
   await init({ statePath: dir, positional: [], projectDir: dir });
 }
 
-// ---------------------------------------------------------------------------
-// Issue 1: v1 stubs for cancel / resolve / deprecate-knowledge.
 //
-// The v1 schema is no longer supported. The bin now rejects v1 states with
-// STATE_V1_UNSUPPORTED, and the v1-only commands are gone. The remaining
-// surface (cancel / resolve / deprecate-knowledge) is all that is left.
-// ---------------------------------------------------------------------------
 
-// ---------------------------------------------------------------------------
+// surface (cancel / resolve / deprecate-knowledge) is all that is left.
+
 // Issue 2: resolveAgent must run BEFORE updateState in add-node / add-edge.
-// ---------------------------------------------------------------------------
 
 test("Issue 2: add-node with missing agent does NOT mutate state (no orphan log entry)", async () => {
   const dir = await createTempProject();
@@ -77,11 +70,10 @@ test("Issue 2: add-node with missing agent does NOT mutate state (no orphan log 
     // Critical assertion: state file must NOT contain the new node.
     const s = await readState(dir);
     assert.equal(s.nodes["T-orphan"], undefined, "node must not be created");
-    // The add-initiative bootstrap writes one log entry per
-    // ADR-006 §"Locks y logs" / plan §4.3 (T-plugin-policy-seam-lifecycle
+
     // closes the parity-slice gap). The failed add-node MUST NOT add
     // any further entries — so the log should contain exactly one
-    // add-initiative entry and nothing else.
+
     assert.equal(s.log.length, 1, `log should contain exactly the add-initiative bootstrap entry, got ${JSON.stringify(s.log)}`);
     assert.equal(s.log[0].action, "add-initiative");
     assert.equal(s.log[0].node, "auth");
@@ -112,7 +104,7 @@ test("Issue 2: add-edge with missing agent does NOT mutate state", async () => {
     const beforeEdges = before.edges.length;
     // After init + add-initiative + 2 add-node setup calls we expect
     // exactly 3 log entries: add-initiative (parity-slice close,
-    // ADR-006 §"Locks y logs" / plan §4.3) + 2 add-node entries.
+
     assert.equal(before.log.length, 3, `expected 3 setup log entries (add-initiative + 2 add-node), got ${JSON.stringify(before.log)}`);
     assert.equal(before.log[0].action, "add-initiative");
     assert.equal(before.log[1].action, "add-node");
@@ -137,9 +129,7 @@ test("Issue 2: add-edge with missing agent does NOT mutate state", async () => {
   } finally { restore(); await rmTempProject(dir); }
 });
 
-// ---------------------------------------------------------------------------
 // Issue 3: "Available:" error string and HELP_TEXT completeness.
-// ---------------------------------------------------------------------------
 
 test("Issue 3: 'Available:' error string lists cancel, resolve, history", async () => {
   const dir = await createTempProject();
@@ -164,20 +154,17 @@ test("Issue 3: HELP_TEXT lists cancel and resolve", async () => {
   assert.match(out.stdout, /\bresolve\b/);
 });
 
-// ---------------------------------------------------------------------------
 // Issue 4: AGENTS.md description reflects the current scope.
-// ---------------------------------------------------------------------------
 
 test("Issue 4: AGENTS.md mentions the lifecycle commands beyond the original six", async () => {
   const text = await fs.readFile(
     path.resolve(import.meta.dirname, "..", "AGENTS.md"),
     "utf8",
   );
-  // The Commands table is the canonical place where the lifecycle
+
   // surface is described. Verify the table covers the commands added
   // beyond the original six (the pre-refactor 'scope (...)' sentinel was
-  // removed when the v1 surface was dropped; the Commands table replaces
-  // it as the source of truth).
+
   const section = text.match(/## Commands[\s\S]*?(?=\n## |\s*$)/);
   assert.ok(section, "AGENTS.md must have a '## Commands' section");
   const commands = section[0];
@@ -187,9 +174,7 @@ test("Issue 4: AGENTS.md mentions the lifecycle commands beyond the original six
   }
 });
 
-// ---------------------------------------------------------------------------
 // Issue 5: add-decision / add-gotcha must be rejected with a clear error.
-// ---------------------------------------------------------------------------
 
 test("Issue 5: add-decision throws a clear unknown-command error (no silent mutation)", async () => {
   const dir = await createTempProject();

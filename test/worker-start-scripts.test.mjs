@@ -8,9 +8,9 @@
 //   - start-worktree.sh: writes a WORKTREE note with path, branch, base, base_ref,
 //     base_sha — backwards compatible with the validator's parser.
 //   - start-worktree.sh: captures base_ref/base_sha from the main branch before
-//     any state mutation, so the values are immutable provenance for the task.
+
 //   - start-worktree.sh: if git worktree add fails after a successful take,
-//     the script releases the claim and exits non-zero with a clear message.
+
 //   - start-worktree.sh: rejects existing branch/path before touching state.
 
 import { test } from "node:test";
@@ -29,7 +29,6 @@ const SCRIPTS = path.join(ROOT, ".agents/skills/climier-worker");
 const GUARD = path.join(SCRIPTS, "worker-guard.sh");
 const START = path.join(SCRIPTS, "start-worktree.sh");
 
-// The workflow scripts intentionally call the stable `climier` command in
 // production. Tests must point that command at this worktree's binary so a
 // v3 state fixture is not handed to an older globally linked control binary.
 const CLIMIER_SHIM_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "climier-test-cli-shim-"));
@@ -92,7 +91,7 @@ function worktreeAbsPath(projectRoot, taskId, agentId) {
 async function cleanupWorktree(projectRoot, taskId, agentId) {
   const branch = `work/${taskId}-${agentId}`;
   const wtAbs = worktreeAbsPath(projectRoot, taskId, agentId);
-  // Remove the worktree if it still exists.
+
   try {
     execFileSync("git", ["-C", projectRoot, "worktree", "remove", "--force", wtAbs], {
       stdio: "ignore",
@@ -177,9 +176,7 @@ async function readWorktreeNote(projectRoot, taskId) {
   return parseWorktreeNote(log);
 }
 
-// ---------------------------------------------------------------------------
 // worker-guard.sh
-// ---------------------------------------------------------------------------
 
 test("worker-guard.sh: prints project_root from the main worktree", async () => {
   const projectRoot = await fsp.mkdtemp(path.join(os.tmpdir(), "climier-guard-clean-"));
@@ -197,7 +194,7 @@ test("worker-guard.sh: fails non-zero when the worktree is dirty", async () => {
   const projectRoot = await fsp.mkdtemp(path.join(os.tmpdir(), "climier-guard-dirty-"));
   try {
     await initRepo(projectRoot);
-    // Create an unstaged change so the guard fails.
+
     fs.writeFileSync(path.join(projectRoot, "dirty.txt"), "unsaved\n");
     const r = await runBash(GUARD, [], { cwd: projectRoot });
     assert.notEqual(r.code, 0, "expected non-zero exit on dirty worktree");
@@ -221,9 +218,7 @@ test("worker-guard.sh: fails non-zero when a tracked file is modified", async ()
   }
 });
 
-// ---------------------------------------------------------------------------
 // start-worktree.sh — arg validation
-// ---------------------------------------------------------------------------
 
 test("start-worktree.sh: requires two positional args", () => {
   const r = spawn("bash", [START], { encoding: "utf8" });
@@ -238,9 +233,7 @@ test("start-worktree.sh: requires two positional args", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
 // start-worktree.sh — happy path
-// ---------------------------------------------------------------------------
 
 test("start-worktree.sh: takes, creates worktree, writes WORKTREE note with base_ref and base_sha", async () => {
   const projectRoot = await fsp.mkdtemp(path.join(os.tmpdir(), "climier-start-happy-"));
@@ -265,7 +258,6 @@ test("start-worktree.sh: takes, creates worktree, writes WORKTREE note with base
     assert.match(r.stdout, new RegExp(`BASE_SHA ${baseSha}`));
     assert.match(r.stdout, /NEXT cd /);
 
-    // The persisted WORKTREE note carries every required key.
     const note = await readWorktreeNote(projectRoot, taskId);
     assert.ok(note, "expected a WORKTREE note on the task log");
     assert.ok(note.path, "WORKTREE note must include path");
@@ -298,9 +290,7 @@ test("start-worktree.sh: takes, creates worktree, writes WORKTREE note with base
   }
 });
 
-// ---------------------------------------------------------------------------
 // start-worktree.sh — guard runs exactly once
-// ---------------------------------------------------------------------------
 
 test("start-worktree.sh: calls worker-guard.sh exactly once per invocation", async () => {
   const projectRoot = await fsp.mkdtemp(path.join(os.tmpdir(), "climier-start-once-"));
@@ -391,9 +381,7 @@ exit 2
   }
 });
 
-// ---------------------------------------------------------------------------
 // start-worktree.sh — pre-take rejection
-// ---------------------------------------------------------------------------
 
 test("start-worktree.sh: rejects when the branch already exists (before take)", async () => {
   const projectRoot = await fsp.mkdtemp(path.join(os.tmpdir(), "climier-start-branch-"));
@@ -449,9 +437,7 @@ test("start-worktree.sh: rejects when the worktree path already exists (before t
   }
 });
 
-// ---------------------------------------------------------------------------
 // start-worktree.sh — recovery after take
-// ---------------------------------------------------------------------------
 
 test("start-worktree.sh: releases the claim when git worktree add fails after take", async () => {
   const projectRoot = await fsp.mkdtemp(path.join(os.tmpdir(), "climier-start-fail-"));
@@ -465,7 +451,7 @@ test("start-worktree.sh: releases the claim when git worktree add fails after ta
     // A fake `git` shim that lets everything pass except `worktree add`,
     // which fails. We rely on PATH ordering: shim first, real git as fallback.
     // start-worktree.sh invokes git as `git -C <dir> worktree add ...`. Match
-    // the adjacent "worktree" + "add" pair anywhere in the argv.
+
     const shimGit = [
       "#!/usr/bin/env bash",
       'prev=""',
@@ -494,7 +480,7 @@ test("start-worktree.sh: releases the claim when git worktree add fails after ta
     const state = await readStateSafe(projectRoot);
     const node = state.nodes[taskId];
     assert.ok(node, "task should still exist");
-    // climier release nulls out the claim rather than deleting the key;
+
     // either shape means the claim is gone.
     const stillClaimed =
       node.claim && typeof node.claim === "object" && node.claim.by;

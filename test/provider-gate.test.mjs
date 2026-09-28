@@ -1,5 +1,5 @@
 // test/provider-gate.test.mjs — pure tests for the gate provider
-// (plan §B4-gate-core, ADR-011 §§1-5, ADR-012 §3).
+
 //
 // Every test runs against literal state objects and the real kernel
 // transaction. No temp dirs, no filesystem, no lock, no CLI.

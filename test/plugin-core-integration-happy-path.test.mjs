@@ -21,7 +21,7 @@ test("plugin-core-integration: api.core.version is 1 and api.core.run is a funct
     const api = await makeApi(dir);
     assert.equal(api.core.version, 1);
     assert.equal(typeof api.core.run, "function");
-    // V1 surface still present.
+
     assert.equal(typeof api.runtime, "object");
     assert.equal(typeof api.query, "object");
     assert.equal(typeof api.data, "object");

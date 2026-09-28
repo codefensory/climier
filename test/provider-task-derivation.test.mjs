@@ -1,5 +1,4 @@
-// Canonical task derivation tests (ADR-011 §2, ADR-012 §3).
-// The provider owns pure status, satisfaction and readiness semantics.
+
 
 import test from "node:test";
 import assert from "node:assert/strict";
