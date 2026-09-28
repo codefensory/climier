@@ -3,7 +3,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createTempProject, rmTempProject, importFresh, lockFilePath } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, lockFilePath, writeCanonicalState } from "./helpers.mjs";
+import { commitFencedStateUnderLock, readFencedStateUnderLock } from "../src/storage/ledger.mjs";
 
 test("withLock acquires and releases on success", async () => {
   const { withLock } = await importFresh("./storage/lock.mjs");
@@ -140,6 +141,42 @@ test("withLock does not auto-clear an old lock file", async () => {
       withLock(dir, async () => {}, { timeoutMs: 200, retryEveryMs: 50 }),
       /lock/
     );
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("stale lock recovery requires verified manual removal before schema-1 operation resumes", async () => {
+  const { withLock } = await import("../src/storage/lock.mjs");
+  const dir = await createTempProject();
+  try {
+    await writeCanonicalState(dir, { version: 1, nodes: {}, edges: [], initiatives: {}, log: [] });
+    const lockPath = lockFilePath(dir);
+    await fs.writeFile(lockPath, JSON.stringify({ heldBy: "dead-process", at: 0 }));
+
+    await assert.rejects(
+      withLock(dir, async () => {}, { timeoutMs: 200, retryEveryMs: 50 }),
+      /lock/
+    );
+    await fs.access(lockPath);
+
+    await fs.rm(lockPath);
+    await withLock(dir, async (lockContext) => {
+      const current = await readFencedStateUnderLock(lockContext, { projectDir: dir });
+      assert.equal(current.version, 1);
+      const next = {
+        ...current,
+        revision: current.revision + 1,
+        log: [...current.log, { action: "stale-lock-recovery-test" }],
+      };
+      await commitFencedStateUnderLock(lockContext, next, { projectDir: dir });
+    });
+
+    const recovered = await withLock(dir, async (lockContext) => (
+      readFencedStateUnderLock(lockContext, { projectDir: dir })
+    ));
+    assert.equal(recovered.version, 1);
+    assert.equal(recovered.log.at(-1).action, "stale-lock-recovery-test");
   } finally {
     await rmTempProject(dir);
   }
