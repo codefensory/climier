@@ -22,82 +22,75 @@ export const PROHIBITED_PATTERNS = Object.freeze({
 function lineNumberAt(text, offset) {
   let line = 1;
   for (let index = 0; index < offset; index += 1) {
-    if (text[index] === "\n") line += 1;
+    if (text[index] === "\n") {line += 1;}
   }
   return line;
 }
 
 function collectComment(text, start, end, kind) {
-  const value = text.slice(start, end);
   const firstLine = lineNumberAt(text, start);
-  const lines = value.split(/\r?\n/);
-  return lines.map((content, index) => ({
+  return text.slice(start, end).split(/\r?\n/).map((content, index) => ({
     line: firstLine + index,
     text: content.replace(/^\s*\*?\s?/, "").replace(/\s*\*\/$/, "").trim(),
     kind,
   }));
 }
 
+function skipQuoted(text, start, quote) {
+  let index = start + 1;
+  while (index < text.length) {
+    if (text[index] === "\\") {index += 2; continue;}
+    if (text[index] === quote) {return index + 1;}
+    index += 1;
+  }
+  return text.length;
+}
+
+function readLineComment(text, start) {
+  const end = text.indexOf("\n", start + 2);
+  const finish = end < 0 ? text.length : end;
+  return { end: finish, comments: collectComment(text, start + 2, finish, "line") };
+}
+
+function readBlockComment(text, start) {
+  const close = text.indexOf("*/", start + 2);
+  const end = close < 0 ? text.length : close;
+  return { end: close < 0 ? end : close + 2, comments: collectComment(text, start + 2, end, "block") };
+}
+
+function advanceCode(text, index, comments) {
+  const character = text[index];
+  const next = text[index + 1];
+  if (character === "\"" || character === "'" || character === "`") {return skipQuoted(text, index, character);}
+  if (character !== "/" || !["/", "*"].includes(next)) {return index + 1;}
+  const result = next === "/" ? readLineComment(text, index) : readBlockComment(text, index);
+  comments.push(...result.comments);
+  return result.end;
+}
+
 export function extractComments(text) {
   const comments = [];
-  let state = "code";
-  let start = -1;
-  let quote = "";
-  for (let index = 0; index < text.length; index += 1) {
-    const character = text[index];
-    const next = text[index + 1];
-    if (state === "line") {
-      if (character === "\n") {
-        comments.push(...collectComment(text, start + 2, index, "line"));
-        state = "code";
-      }
-      continue;
-    }
-    if (state === "block") {
-      if (character === "*" && next === "/") {
-        comments.push(...collectComment(text, start + 2, index, "block"));
-        index += 1;
-        state = "code";
-      }
-      continue;
-    }
-    if (state === "string") {
-      if (character === "\\") index += 1;
-      else if (character === quote) state = "code";
-      continue;
-    }
-    if (character === "\"" || character === "'" || character === "`") {
-      state = "string";
-      quote = character;
-    } else if (character === "/" && next === "/") {
-      state = "line";
-      start = index;
-    } else if (character === "/" && next === "*") {
-      state = "block";
-      start = index;
-    }
-  }
-  if (state === "line") comments.push(...collectComment(text, start + 2, text.length, "line"));
-  if (state === "block") comments.push(...collectComment(text, start + 2, text.length, "block"));
+  let index = 0;
+  while (index < text.length) {index = advanceCode(text, index, comments);}
   return comments;
 }
 
 export function isProtectedComment(comment, filePath) {
   const text = comment.text;
-  if (PROTECTED_DIRECTIVE.test(text) || PROTECTED_PRAGMA.test(text) || PROTECTED_DURABILITY.test(text) || PROTECTED_ERROR_CONTRACT.test(text)) return true;
-  return filePath.startsWith("test/") && PROTECTED_TEST_CONTRACT.test(text);
+  const protectedByContract = PROTECTED_DIRECTIVE.test(text)
+    || PROTECTED_PRAGMA.test(text)
+    || PROTECTED_DURABILITY.test(text)
+    || PROTECTED_ERROR_CONTRACT.test(text);
+  return protectedByContract || (filePath.startsWith("test/") && PROTECTED_TEST_CONTRACT.test(text));
 }
 
 export function classifyComments(comments, filePath) {
   const prohibited = Object.fromEntries(Object.keys(PROHIBITED_PATTERNS).map((name) => [name, 0]));
   let protectedLines = 0;
   for (const comment of comments) {
-    if (isProtectedComment(comment, filePath)) {
-      protectedLines += 1;
-      continue;
-    }
+    if (isProtectedComment(comment, filePath)) {protectedLines += 1; continue;}
     for (const [name, pattern] of Object.entries(PROHIBITED_PATTERNS)) {
-      if (pattern.test(comment.text)) prohibited[name] += 1;
+      if (pattern.test(comment.text)) {prohibited[name] += 1;}
     }
   }
   return {
@@ -111,7 +104,7 @@ export function classifyComments(comments, filePath) {
 async function findFiles(directory, rootDir, result) {
   for (const entry of await readdir(directory, { withFileTypes: true })) {
     const absolute = path.join(directory, entry.name);
-    if (entry.isDirectory()) await findFiles(absolute, rootDir, result);
+    if (entry.isDirectory()) {await findFiles(absolute, rootDir, result);}
     else if (entry.isFile() && COMMENT_EXTENSIONS.has(path.extname(entry.name))) {
       result.push(path.relative(rootDir, absolute).split(path.sep).join("/"));
     }
@@ -120,9 +113,7 @@ async function findFiles(directory, rootDir, result) {
 
 export async function collectCommentBaselines(rootDir) {
   const paths = [];
-  for (const relativeRoot of COMMENT_ROOTS) {
-    await findFiles(path.join(rootDir, relativeRoot), rootDir, paths);
-  }
+  for (const relativeRoot of COMMENT_ROOTS) {await findFiles(path.join(rootDir, relativeRoot), rootDir, paths);}
   const files = [];
   for (const filePath of paths.toSorted()) {
     const text = await readFile(path.join(rootDir, filePath), "utf8");
