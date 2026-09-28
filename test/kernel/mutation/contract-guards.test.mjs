@@ -76,7 +76,7 @@ test("kernel.mutate: throws when state file is missing (provider kernel does not
       });
     } catch (err) { caught = err; }
     assert.ok(caught);
-    assert.match(caught.message, /state file missing or not v5/);
+    assert.match(caught.message, /state file missing or not canonical/);
   } finally { await rmTempProject(dir); }
 });
 

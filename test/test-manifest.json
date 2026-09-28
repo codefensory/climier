@@ -4403,6 +4403,18 @@
     },
     {
       "path": "test/migrate-old-forms.test.mjs",
+      "name": "boundary: a fenced legacy marker is refused and migrate adopts it without touching the bytes first",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/migrate-old-forms.test.mjs",
+      "name": "boundary: the reader refuses the legacy bytes that migrate then imports in place",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/migrate-old-forms.test.mjs",
       "name": "legacy migration backs up source and reports old migration_pending while continuing sweep",
       "ordinal": 1,
       "disposition": "keep"

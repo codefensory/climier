@@ -171,8 +171,8 @@ test("writeState rejects a v1-shaped object with a clear error", async () => {
     const v1 = { version: 1, tasks: {}, decisions: {}, gotchas: {}, initiatives: {}, log: [] };
     let caught;
     try { await writeState(dir, v1); } catch (e) { caught = e; }
-    assert.ok(caught, "writeState must reject v1");
-    assert.match(caught.message, /version 1 is no longer supported/i);
+    assert.ok(caught, "writeState must reject the pre-canonical shape");
+    assert.match(caught.message, /pre-canonical|run climier migrate/i);
   } finally { await rmTempProject(dir); }
 });
 

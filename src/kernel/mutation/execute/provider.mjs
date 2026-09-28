@@ -29,7 +29,7 @@ function isBootstrapAllowed(loadedState, request, provider) {
 function validateLoadedSnapshot(snapshot, mayBootstrap, commandName) {
   const invalidSnapshot = !snapshot || typeof snapshot !== "object" || !isFencedStateVersion(snapshot.version);
   if (invalidSnapshot && !mayBootstrap) {
-    throw new Error(`${commandName}: state file missing or not v5 (run init first)`);
+    throw new Error(`${commandName}: state file missing or not canonical (run init first)`);
   }
 }
 

@@ -215,11 +215,18 @@ async function assertUnledgeredWriteAllowed(lockContext, projectDir, targetState
   try {
     existing = JSON.parse(await fs.readFile(statePath, "utf8"));
   } catch (error) { if (error.code !== "ENOENT" && !(error instanceof SyntaxError)) { throw error; } }
-  if (hasFenceMarker(existing) || hasFenceMarker(targetState)) { throw ledgerRequired("state: v5 states require the revision ledger commit API"); }
+  if (hasFenceMarker(existing) || hasFenceMarker(targetState)) { throw ledgerRequired("state: canonical states require the revision ledger commit API"); }
 }
 
 function rejectUnsupportedWriteVersion(state, file) {
-  if (state?.version === STATE_SCHEMA_VERSION) { throw new Error("writeState: invalid state (version 1 is no longer supported)"); }
+  if (state?.version === STATE_SCHEMA_VERSION) {
+    if (classifyStateShape(state).kind === "pre-release") {
+      throw stateShapeError("PRE_RELEASE_STATE_UNSUPPORTED", `state: ${file} holds a pre-canonical state (tasks/decisions/gotchas without nodes); run climier migrate`, {
+        file, hint: "Run climier migrate to import this state.",
+      });
+    }
+    throw ledgerRequired("state: canonical states require the revision ledger commit API");
+  }
   if (!Number.isInteger(state?.version) || (state.version > STATE_SCHEMA_VERSION && !CLASSIFIABLE_NONCANONICAL_VERSIONS.has(state.version))) { rejectFutureWritableVersion(state, file); }
 }
 

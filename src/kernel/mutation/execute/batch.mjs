@@ -202,7 +202,7 @@ export async function executeBatchMutation({ projectDir, lockContext, request, b
   const commandName = "core.batch";
   const snapshot = await readMutationStateUnderLock(lockContext, projectDir);
   if (!snapshot || typeof snapshot !== "object" || !isFencedStateVersion(snapshot.version)) {
-    throw new Error(`${commandName}: state file missing or not v5 (run init first)`);
+    throw new Error(`${commandName}: state file missing or not canonical (run init first)`);
   }
   checkStateRevision(request.if_state_revision, snapshot, commandName);
   const operations = validateOperations(request.input && request.input.operations);

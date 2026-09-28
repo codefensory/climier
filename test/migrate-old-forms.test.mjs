@@ -150,3 +150,60 @@ test("SIGKILL at each bootstrap publication boundary resumes to a readable consi
     }
   }
 });
+
+// --- boundary: the reader refuses exactly what migrate imports ---------------
+
+test("boundary: the reader refuses the legacy bytes that migrate then imports in place", async (t) => {
+  for (const version of [2, 3, 4]) {
+    const { projectDir, statePath } = await createLegacyProject(t, { version });
+    const before = await fs.readFile(statePath);
+
+    const refused = await runCli(["--project", projectDir, "status"], { env: { CLIMIER_HOME: process.env.CLIMIER_HOME } });
+    assert.notEqual(refused.code, 0, `status must refuse a legacy version ${version} state`);
+    const error = JSON.parse(refused.stdout).error;
+    assert.equal(error.code, "STORAGE_ERROR", `version ${version} must be refused as a storage error`);
+    assert.equal(error.details.cause, "CLIMIER_INCOMPATIBLE_VERSION", `version ${version} must be refused as incompatible`);
+    assert.match(error.message, /climier migrate/, `version ${version} refusal must point at the importer`);
+    assert.deepEqual(await fs.readFile(statePath), before, `the refused read must leave the version ${version} bytes untouched`);
+
+    const migrated = await runMigrate(projectDir);
+    assert.equal(migrated.code, 0, `migrate must import version ${version}: ${migrated.stderr}`);
+
+    const imported = JSON.parse(await fs.readFile(statePath, "utf8"));
+    assert.equal(imported.version, 1, `migrate must land on the canonical version for source ${version}`);
+    assert.ok(Number.isInteger(imported.fence_generation), `source ${version} must carry a fence after import`);
+    assert.ok(imported.nodes.T1, `source ${version} must keep its nodes`);
+
+    const readable = await runCli(["--project", projectDir, "status"], { env: { CLIMIER_HOME: process.env.CLIMIER_HOME } });
+    assert.equal(readable.code, 0, `the imported state must be readable: ${readable.stderr}`);
+  }
+});
+
+test("boundary: a fenced legacy marker is refused and migrate adopts it without touching the bytes first", async (t) => {
+  const projectDir = await createTempProject();
+  t.after(() => rmTempProject(projectDir));
+  const projectId = `fenced-boundary-${path.basename(projectDir)}`;
+  await fs.writeFile(path.join(projectDir, ".climier.json"), JSON.stringify({ version: 1, project_id: projectId }));
+  const created = await runCli(["--project", projectDir, "init"], { env: { CLIMIER_HOME: process.env.CLIMIER_HOME } });
+  assert.equal(created.code, 0, created.stderr);
+
+  const statePath = stateFile(projectDir);
+  const ledger = JSON.parse(await fs.readFile(ledgerFile(projectDir), "utf8"));
+  const canonical = JSON.parse(await fs.readFile(statePath, "utf8"));
+  await fs.writeFile(statePath, `${JSON.stringify({ ...canonical, version: 5, fence_generation: ledger.fence_generation }, null, 2)}\n`);
+  const before = await fs.readFile(statePath);
+
+  const refused = await runCli(["--project", projectDir, "status"], { env: { CLIMIER_HOME: process.env.CLIMIER_HOME } });
+  assert.notEqual(refused.code, 0, "status must refuse a fenced legacy marker");
+  const fencedError = JSON.parse(refused.stdout).error;
+  assert.equal(fencedError.details.cause, "CLIMIER_INCOMPATIBLE_VERSION", fencedError.message);
+  assert.deepEqual(await fs.readFile(statePath), before, "the refused read must leave the fenced bytes untouched");
+
+  const migrated = await runMigrate(projectDir);
+  assert.equal(migrated.code, 0, migrated.stderr);
+  const imported = JSON.parse(await fs.readFile(statePath, "utf8"));
+  assert.equal(imported.version, 1);
+
+  const readable = await runCli(["--project", projectDir, "status"], { env: { CLIMIER_HOME: process.env.CLIMIER_HOME } });
+  assert.equal(readable.code, 0, readable.stderr);
+});
