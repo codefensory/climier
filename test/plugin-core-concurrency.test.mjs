@@ -1,12 +1,12 @@
-// T-plugin-core-e2e — concurrency between a V2 plugin and CLI writers
+
 // sharing one CLIMIER_HOME.
 //
-// ADR-006 plan §4.5 ("T-plugin-core-e2e") + §8 risk #5 say the e2e
+
 // layer must demonstrate that:
 //
 //   1. Two child_process can drive the same project state at the same
 //      time: one through the V2 plugin fixture (api.core.run), one
-//      through the core CLI (climier add-task / take).
+
 //   2. The withLock → updateState → append invariant holds across
 //      processes — every committed state transition lands intact, no
 //      lost writes, no interleaving inside any single log entry.
@@ -16,7 +16,7 @@
 //
 // Isolation: per-test CLIMIER_HOME under os.tmpdir() — the helper
 // helpers.mjs guards against `~/.climier` (its own private check inside
-// the suite). Both child processes share that home, so they both see
+
 // the same installed fixture and the same project state file.
 
 import { test } from "node:test";
@@ -36,7 +36,7 @@ import {
 const REPO_ROOT = path.resolve(".");
 const FIXTURE_DIR = path.join(REPO_ROOT, "test/fixtures/core-plugin");
 const FIXTURE_ID = "example.core";
-// T-plugin-command-namespace: CLI namespace = descriptor.command,
+
 // installed dir name = descriptor.command, uninstall arg = descriptor.id.
 const FIXTURE_NAMESPACE = "core";
 const BIN = path.join(REPO_ROOT, "bin", "climier.mjs");
@@ -293,6 +293,5 @@ async function runConcurrency({ projectDir }) {
   assertPluginLogOrder(pluginLogs, pluginIds);
   assertLogAttribution(pluginLogs, cliLogs);
 }
-
 
 test("concurrency: plugin fixture + CLI add-task run in parallel share state, no lost writes, plugin_id only on plugin entries", () => withFreshEnv(runConcurrency));

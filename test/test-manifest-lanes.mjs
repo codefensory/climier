@@ -6,8 +6,6 @@ import path from "node:path";
 // wrappers several suites define around them.
 const RAW_WRITER_CALL = /(?:^|[^.\w])(?:writeState|updateState|bootstrapState)\s*\(/m;
 
-// The manifest and this scan share one file set: the ui-* suites are a separate
-// lane (T-v1-ui-delete) and the collector does not enumerate them.
 export async function findRawWriterFiles(directory, relativeTo = directory) {
   const entries = await readdir(directory, { withFileTypes: true });
   const files = [];

@@ -119,11 +119,11 @@ function assertGateLifecycleState(after, reopenRevision, cancelRevision) {
 }
 
 test("api.core.run: gate.create dispatches through the kernel and surfaces the typed gate envelope", async () => {
-  // The kernel-driven path returns the typed result shape
+
   // `{ result, effects, log_entry, idempotent, diff }`. The provider's
   // apply projects `{ node, superseded, edges }` into `result`; the
   // kernel-stamped revision lives on `diff.created[0].node`. There is
-  // no `{ node }` legacy envelope at the top level — the post-state
+
   // is observed via `diff.created` and the persisted state file.
   const dir = await readyProject();
   try {
@@ -158,7 +158,7 @@ test("api.core.run: gate.create dispatches through the kernel and surfaces the t
 });
 
 test("api.core.run: gate.create without --purpose is rejected with PLUGIN_CORE_ACTION_FAILED (provider-level MISSING_FIELD)", async () => {
-  // The kernel-driven path has no adapter-side required-field whitelist
+
   // for gate.create; the provider's prepare throws MISSING_FIELD when
   // `purpose` is missing and the adapter wraps it as
   // PLUGIN_CORE_ACTION_FAILED with a structured `cause`. State is not
@@ -236,7 +236,7 @@ test("api.core.run: gate.resolve dispatches through the kernel and stores resolu
 });
 
 test("api.core.run: gate.resolve without --rationale is rejected with PLUGIN_CORE_ACTION_FAILED (provider-level MISSING_FIELD)", async () => {
-  // The kernel-driven path has no adapter-side required-field whitelist
+
   // for gate.resolve; the provider's prepare throws MISSING_FIELD when
   // `rationale` is missing and the adapter wraps it as
   // PLUGIN_CORE_ACTION_FAILED with a structured `cause`. State is not
@@ -277,16 +277,15 @@ test("api.core.run: gate.resolve without --rationale is rejected with PLUGIN_COR
 });
 
 test("api.core.run: gate.reopen and gate.cancel roll back or terminate gates with --reason", async () => {
-  // ADR-009 §"Resto de operaciones": any actor may reopen or cancel a
+
   // gate. The policy-fixture below exercises the seam allow path
   // explicitly to keep coverage of the optional policy-driven branch
-  // that ADR-007 introduced; the default core (no policy) would also
-  // succeed here under ADR-009.
+
   //
   // gate.reopen and gate.cancel return the provider's typed projection
   // on `out.result.node` (revision-stripped draft view). The
   // kernel-stamped post-state lives on `diff.updated[0].node`, and
-  // the persisted state file is the canonical post-state.
+
   const dir = await readyProject();
   await installPolicyFixture(dir);
   try {

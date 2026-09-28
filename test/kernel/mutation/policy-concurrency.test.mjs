@@ -221,9 +221,7 @@ test("kernel.mutate: policy receives fenced semantic snapshots without fence_gen
   }
 });
 
-// ===================================================================
 // Idempotency (no diff ⇒ no write, no log)
-// ===================================================================
 
 test("kernel.mutate: two concurrent mutate calls serialise under the project lock", async () => {
   const { mutate } = await importKernel();
@@ -247,7 +245,7 @@ test("kernel.mutate: two concurrent mutate calls serialise under the project loc
       provider: provider2,
     });
     const settled = await Promise.allSettled([req1, req2]);
-    // T-graph-kernel-mutate-concurrency-fix: independent concurrent
+
     // mutations must NOT be flagged as nested. REVISION_CONFLICT is
     // still acceptable when req2 acquires the lock first and its
     // if_revision=4 doesn't match the initial snapshot rev=3.

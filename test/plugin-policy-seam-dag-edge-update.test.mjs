@@ -75,7 +75,7 @@ test("seam-dag: add-edge with policy=deny returns POLICY_DENIED without mutating
     await initProject(projectDir);
     await registerInitiative(projectDir, "alpha");
     await installPolicyFixture(projectDir);
-    // Seed the project with mode=allow so the bootstrap add-task calls
+
     // are not denied, then switch to mode=deny for the add-edge under test.
     await baseClimierJson(projectDir, buildEnvNamespace("allow"));
     await cli(
@@ -113,7 +113,7 @@ test("seam-dag: add-edge with policy=throw returns POLICY_ERROR without mutating
     await initProject(projectDir);
     await registerInitiative(projectDir, "alpha");
     await installPolicyFixture(projectDir);
-    // Seed the project with mode=allow so the bootstrap add-task calls
+
     // are not thrown on, then switch to mode=throw for the add-edge.
     await baseClimierJson(projectDir, buildEnvNamespace("allow"));
     await cli(
@@ -225,7 +225,7 @@ test("seam-dag: update with policy=deny returns POLICY_DENIED without mutating s
     await initProject(projectDir);
     await registerInitiative(projectDir, "alpha");
     await installPolicyFixture(projectDir);
-    // Seed the project with mode=allow so the bootstrap add-task is
+
     // not denied, then switch to mode=deny for the update under test.
     await baseClimierJson(projectDir, buildEnvNamespace("allow"));
     await cli(

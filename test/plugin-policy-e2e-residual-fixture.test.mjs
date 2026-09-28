@@ -35,7 +35,7 @@ test("fixture: default export exposes commands + policy with applies/authorize o
   }
   const policy = mod.default.policy;
   assert.ok(policy && typeof policy === "object" && !Array.isArray(policy));
-  // ADR-007 §"Entry único": no extra fields allowed inside policy.
+
   assert.deepEqual(Object.keys(policy).toSorted(), ["applies", "authorize"]);
   assert.equal(typeof policy.applies, "function");
   assert.equal(typeof policy.authorize, "function");

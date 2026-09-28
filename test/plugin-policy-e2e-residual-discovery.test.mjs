@@ -16,7 +16,6 @@ test("e2e: install — fixture installs under CLIMIER_HOME and dispatches by com
     assert.equal(installRes.plugin.installed_dir, installedDir);
     assert.ok((await fs.stat(installedDir)).isDirectory(), "installed/<id> exists");
 
-    // Dispatch by command namespace (the first non-flag token). The
     // bin's discovery scans installed/*/package.json for
     // descriptor.command === "policy" (no manifest).
     await baseClimierJson(projectDir);

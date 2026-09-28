@@ -1,4 +1,4 @@
-// add-task, add-gate, add-knowledge, add-initiative: v2 surface only.
+
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, importFresh, readState } from "./helpers.mjs";

@@ -85,7 +85,7 @@ test("seam-reopen: policy deny returns POLICY_DENIED (no state mutation)", async
 });
 
 test("seam-reopen: not-done_by with policy abstain succeeds (defaults core proceeds)", async () => {
-  // ADR-009 §"Resto de operaciones": the core no longer compares the
+
   // actor against done_by. Any actor with --as can reopen; the
   // plugin's abstain falls through to the default core, which proceeds.
   await withFreshEnv(async ({ projectDir }) => {
@@ -220,7 +220,7 @@ test("seam-cancel: policy deny returns POLICY_DENIED (no state mutation)", async
 });
 
 test("seam-cancel: non-owner with policy abstain succeeds (defaults core proceeds)", async () => {
-  // ADR-009 §"Resto de operaciones": the core no longer compares the
+
   // actor against the claim owner. Any actor with --as can cancel an
   // open/in_progress node; the plugin's abstain falls through to the
   // default core, which proceeds.

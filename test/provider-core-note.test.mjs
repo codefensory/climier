@@ -1,15 +1,14 @@
 // test/provider-core-note.test.mjs — pure unit tests for the
-// `note.add` core provider (T-graph-kernel-provider-core-ops).
+
 //
 // Scope:
 //   - prepare is read-only; validates target existence, non-empty
 //     text, and matching if_revision (single-CAS);
 //   - apply appends one note (with agent from request.actor, ISO
 //     timestamp) via tx.updateNode only and never touches revision
-//     or any external surface;
+
 //   - plan exposes if_revision so kernel.mutate can validate the CAS
-//     under the lock;
-//   - structured errors carry the canonical v2 codes
+
 //     (MISSING_FIELD, NODE_NOT_FOUND, REVISION_CONFLICT,
 //     INVALID_EXECUTION_CONTRACT).
 //
@@ -56,7 +55,7 @@ function makeTaskNode(id, { revision = 1, notes = [] } = {}) {
 // makeTxStub — captures updateNode calls and serves a draft whose
 // nodes mirror the seed. Mirrors src/kernel/transaction.mjs#updateNode
 // so the provider's apply is exercised end-to-end without touching
-// the real tx layer.
+
 function makeTxStub({ initialNodes = {} } = {}) {
   const nodes = {};
   for (const [id, node] of Object.entries(initialNodes)) {

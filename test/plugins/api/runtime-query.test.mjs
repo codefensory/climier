@@ -23,7 +23,7 @@ test("createApi: api.core.version is 1 and api.core.run is a function", async ()
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
     assert.equal(api.core.version, 1);
     assert.equal(typeof api.core.run, "function");
-    // V1 surface still intact.
+
     assert.equal(typeof api.runtime, "object");
     assert.equal(typeof api.query, "object");
     assert.equal(typeof api.data, "object");
@@ -124,8 +124,6 @@ test("createApi: creates a stable, isolated runtime.dataDir before returning", a
     const stat = await fs.stat(api.runtime.dataDir);
     assert.equal(stat.isDirectory(), true);
 
-    // The host only provisions the directory. Plugin-owned contents survive a
-    // later API construction and are not parsed or migrated by the core.
     await fs.writeFile(path.join(api.runtime.dataDir, "plugin.sqlite"), "plugin-owned", "utf8");
     const restarted = await freshApi(dir, { pluginId });
     assert.equal(restarted.runtime.dataDir, expected);
@@ -236,7 +234,7 @@ test("api.query.context uses the runtime agent to scope allowed_actions", async 
     const api = await freshApi(dir, { agent: "alice" });
     const out = await api.query.context("T1");
     assert.equal(out.derived_status, "ready");
-    // ready task + named agent: allowed_actions includes "claim".
+
     assert.ok(out.allowed_actions.includes("claim"), "ready task should include claim for named agent");
   } finally {
     await rmTempProject(dir);

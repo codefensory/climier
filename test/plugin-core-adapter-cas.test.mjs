@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import * as helpers from "./plugin-core-adapter-helpers.mjs";
 
 // 5. run — fixed actor + pluginId on the wire (end-to-end, real kernel)
-// =====================================================================
 
 test("plugin-core-adapter: task.create logs carry plugin_id and the actor matches api.runtime.agent", async () => {
   await helpers.withIsolatedEnv(async () => {
@@ -67,9 +66,7 @@ test("plugin-core-adapter: input.as is rejected even when the rest of the input 
   });
 });
 
-// =====================================================================
 // 6. run — task.update with changes+if_revision (typed CAS)
-// =====================================================================
 
 test("plugin-core-adapter: task.update consumes { id, changes, if_revision } and bumps revision by exactly 1", async () => {
   await helpers.withIsolatedEnv(async () => {
@@ -135,7 +132,7 @@ test("plugin-core-adapter: task.update without if_revision fails inside the prov
         // wrapCoreError → PLUGIN_CORE_ACTION_FAILED with the original
         // code preserved under details.cause.code (see
         // src/plugin-errors.mjs:normalizeCoreCause). The contract is
-        // the wrapped envelope, NOT the bare MISSING_FIELD.
+
         helpers.isTaskUpdateMissingField,
       );
       const after = await helpers.readState(dir);
@@ -147,9 +144,7 @@ test("plugin-core-adapter: task.update without if_revision fails inside the prov
   });
 });
 
-// =====================================================================
 // 7. run — note.add with explicit CAS (id+text+if_revision)
-// =====================================================================
 
 test("plugin-core-adapter: note.add consumes { id, text, if_revision } and appends exactly one note", async () => {
   await helpers.withIsolatedEnv(async () => {
@@ -204,7 +199,7 @@ test("plugin-core-adapter: note.add without if_revision fails with MISSING_FIELD
           op: "note.add",
           input: { id: "T-note-no-cas", text: "no CAS" },
         }),
-        // Provider-level MISSING_FIELD is wrapped via PLUGIN_CORE_ACTION_FAILED;
+
         // see the matching task.update assertion above for the rationale.
         helpers.isNoteAddMissingField,
       );
@@ -215,5 +210,3 @@ test("plugin-core-adapter: note.add without if_revision fails with MISSING_FIELD
     }
   });
 });
-
-// =====================================================================

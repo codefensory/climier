@@ -2,21 +2,21 @@
 // T-plugin-policy-fixture — V2-policy fixture.
 //
 // Reusable plugin entry that exercises the policy contract from
-// ADR-007 §"Discovery global" and §"Contrato de autorización".
+
 // The fixture has zero runtime dependencies so `climier install
 // ./test/fixtures/plugins/policy-fixture` works offline
-// (mirrors ADR-006 plan §8 risk #4 for the V2 fixtures).
+
 //
 //   default.commands
 //     applies-check        Reports what applies(projectConfig) returns
 //                        given the current .climier.json (read raw by
-//                        the subcommand; the foundation's
+
 //                        readProjectConfig will do the same).
 //     authorize-check <action>
 //                        Synthesizes a policy context and reports
 //                        what authorize returns (or throws) and
 //                        which actor/action/target/projectConfig
-//                        it received. The projectConfig is frozen
+
 //                        before being passed, mirroring what the
 //                        foundation will do per plan §3.3.
 //     recorded            Returns the last invocation recorded by
@@ -32,21 +32,21 @@
 //     authorize(ctx)
 //                        Reads mode from the namespace
 //                        plugins["policy-fixture"].mode:
-//                          allow   -> { decision: "allow" }
+
 //                          deny    -> { decision: "deny", reason }
 //                          abstain -> { decision: "abstain" }
 //                          slow    -> sleep
 //                                      plugins["policy-fixture"].slowMs
 //                                      (default 50), then
 //                                      { decision: "allow" }
-//                          throw   -> throws POLICY_ERROR_FIXTURE
+
 //                        Each invocation is recorded under
 //                        CLIMIER_HOME/policy-fixture-state.json so
 //                        downstream tests can audit what the seam
 //                        observed without re-reading .climier.json.
 //
 // The plugin only reads its own namespace (`plugins["policy-fixture"]`)
-// per ADR-007 §"Discovery global": "El plugin solo lee su propio
+
 // namespace". Other plugins' namespaces do not affect applies/authorize.
 
 import fs from "node:fs/promises";
@@ -57,7 +57,7 @@ const PLUGIN_ID = "policy-fixture";
 // parseArgs: split forwarded tokens into {flags, positional}. Mirrors
 // the host's bin parser so the fixture can pick the first positional
 // even when the user forwarded flags like `--project`/`--as`. Boolean
-// flags (`--all`, `--force`, `--no-color`) are treated as no-value;
+
 // everything else consumes the next token when present.
 function parseArgs(tokens) {
   const flags = {};
@@ -107,7 +107,7 @@ async function readRawConfig(projectDir) {
 }
 
 // applyNamespace: returns the policy-fixture namespace entry from
-// the raw projectConfig, or null when missing. Defensive: non-object
+
 // configs or non-object namespaces return null rather than throwing,
 // so a malformed harness cannot take down the test.
 function applyNamespace(projectConfig) {
@@ -190,12 +190,12 @@ export async function applies(projectConfig) {
 //   or throws (mapped to POLICY_ERROR by the seam).
 //
 // Modes (driven by .climier.json plugins["policy-fixture"].mode):
-//   allow | deny | abstain | throw | slow
+
 //
 // Slow mode sleeps ctx.projectConfig.plugins["policy-fixture"].slowMs
 // (default 50ms) then returns { decision: "allow" }. The lock-holding
 // concurrency tests verify the seam holds withLock throughout the
-// sleep (ADR-008 §"Seam por handler").
+
 export async function authorize(ctx) {
   const ns = applyNamespace(ctx && ctx.projectConfig);
   const mode = ns && typeof ns.mode === "string" ? ns.mode : "allow";
@@ -229,7 +229,7 @@ export async function authorize(ctx) {
   }
 
   // Unknown mode -> throw (mirrors what POLICY_ERROR expects from the
-  // seam per ADR-007 §"Errores"). This is intentionally not "abstain"
+
   // so a typo in the harness surfaces immediately.
   const err = new Error(`policy-fixture: unknown mode '${mode}'`);
   err.code = "POLICY_ERROR_FIXTURE";
@@ -278,7 +278,7 @@ export default {
     // authorize-check <action>: synthesizes a context and calls
     // authorize(); returns the decision (or error) and the
     // actor/action/target/projectConfig-keys the fixture received.
-    // The freeze + snapshot shape mirror what the foundation will
+
     // pass so the fixture sees a contract-compatible input.
     async "authorize-check"(args, api) {
       const config = await readRawConfig(api.runtime.project_dir);

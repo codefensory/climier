@@ -293,8 +293,6 @@ test("add-edge: rejects INFORMS, RELATES_TO, CONFLICTS_WITH with code INVALID_ED
   }
 });
 
-// --- add-node: deprecated edge-type flags are no longer accepted ------
-
 test("CLI: --informs, --relates-to, --conflicts-with are no longer recognized flags", async () => {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
   const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");

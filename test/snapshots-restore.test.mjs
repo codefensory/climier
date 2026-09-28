@@ -1,15 +1,15 @@
 /* oxlint-disable max-lines -- restore validation matrix and CLI integration cases remain together. */
 // snapshots-restore.test.mjs — `snapshots` listing and `restore` command.
 //
-// Cubre ADR-004 §§Commands/Plan 3 y ADR-008 §"`restore` e `init --force`":
+
 // el comando read-only `snapshots` y el comando mutante
-// `restore <snapshot-id> --as <agent>` que valida target v2/shape, toma
+
 // un snapshot pre-restore del estado actual, restaura bajo lock y
 // agrega un log `{ action: "restore", agent, snapshot_id }` al estado
 // restaurado. Depende de los primitives `createSnapshot` /
 // `listSnapshots` introducidos en Plan 1.
 //
-// T-plugin-policy-migration-tests / ADR-008: el bypass histórico
+
 // orchestrator/recovery se reemplaza por una policy opcional (ver
 // test/plugin-policy-seam-state-ops.test.mjs). Este archivo conserva
 // happy-path y error-path con `as: "test-agent"` (nominal).
@@ -19,7 +19,7 @@
 //   - restore happy path: --as <any-non-empty agent>, raw preservado,
 //     pre-restore snapshot reason=pre-restore, log entry en el estado restaurado
 //   - restore authority: --as faltante, --as con valor no permitido
-//   - restore error paths: target ausente / incompleto / corrupto / v1 / futuro / shape inválido
+
 //   - restore invariante: cualquier fallo deja el estado intacto
 //   - CLI dispatch via bin
 
@@ -76,9 +76,7 @@ function assertRebasedNodes(actual, expected) {
   }
 }
 
-// =========================================================================
 // `snapshots` command (read-only)
-// =========================================================================
 
 test("snapshots command: returns { snapshots: [...] }", async () => {
   const dir = await createTempProject();
@@ -222,9 +220,7 @@ test("snapshots command: accepts no flags (idempotent knownFlags = [])", async (
   }
 });
 
-// =========================================================================
 // `restore` happy path
-// =========================================================================
 
 test("restore: --as <any-non-empty> succeeds and returns { snapshot } with full metadata (ADR-008)", async () => {
   const dir = await createTempProject();
@@ -289,7 +285,7 @@ test("restore: replaces state with snapshot raw bytes verbatim (content matches 
     assertRebasedNodes(restored.nodes, baseline.nodes);
     assert.deepEqual(restored.initiatives, baseline.initiatives);
     assert.deepEqual(restored.edges, baseline.edges);
-    // The log carries the baseline entries plus one restore entry appended after.
+
     const restoreEntries = restored.log.filter((e) => e.action === "restore");
     assert.equal(restoreEntries.length, 1);
     assert.deepEqual(restored.log.slice(0, baseline.log.length), baseline.log);
@@ -308,7 +304,7 @@ test("restore: takes a pre-restore snapshot of the current state (reason=pre-res
     });
     const meta = await createSnapshot(dir, "force-init");
     // After force-init, the state is empty. That empty state is what
-    // we expect to be preserved as pre-restore.
+
     await seedCanonicalFixture(dir);
     await restore({ statePath: dir, flags: { as: "test-agent" }, positional: [meta.id] });
     const snaps = await listSnapshots(dir);
@@ -390,10 +386,6 @@ test("restore: pre-restore snapshot happens BEFORE the state file is replaced (a
   }
 });
 
-// =========================================================================
-// `restore` authority: ADR-008 — any non-empty --as succeeds when no policy is installed (seam abstains → defaults core).
-// =========================================================================
-
 test("restore: --as missing fails with structured error", async () => {
   const dir = await createTempProject();
   const prevAgent = process.env.CLIMIER_AGENT;
@@ -430,7 +422,7 @@ test("restore: a plain agent (e.g. alice) restores when no policy is installed (
     await seedCanonicalFixture(dir);
     const meta = await createSnapshot(dir, "force-init");
     await seedCanonicalFixture(dir);
-    // ADR-008 §"restore e init --force" removed the
+
     // orchestrator/recovery comparison: with no policy installed the
     // seam abstains and the default core lets any actor restore.
     // Policy allow/deny/abstain/throw coverage (including "deny leaves
@@ -438,7 +430,7 @@ test("restore: a plain agent (e.g. alice) restores when no policy is installed (
     // test/plugin-policy-seam-state-ops.test.mjs.
     const out = await restore({ statePath: dir, flags: { as: "alice" }, positional: [meta.id] });
     assert.equal(out.snapshot.id, meta.id);
-    // The successful restore DID create the pre-restore snapshot.
+
     const { listSnapshots } = await importFresh("./storage/state.mjs");
     const snaps = await listSnapshots(dir);
     assert.ok(snaps.find((s) => s.reason === "pre-restore"));
@@ -492,9 +484,7 @@ test("restore: missing id (no positional) fails with MISSING_FIELD", async () =>
   }
 });
 
-// =========================================================================
 // `restore` error paths: target validation must fail without modifying state
-// =========================================================================
 
 test("restore: target missing (no raw file) fails with NODE_NOT_FOUND and leaves state intact", async () => {
   const dir = await createTempProject();
@@ -647,7 +637,7 @@ test("restore: raw is v1 fails (v1 is no longer supported)", async () => {
     const { default: restore } = await importFresh("./cli/commands/restore.mjs");
     await seedCanonicalFixture(dir);
     const meta = await createSnapshot(dir, "force-init");
-    // Replace raw with a v1-shaped JSON.
+
     await fs.writeFile(
       path.join(snapshotDir(dir), `${meta.id}.json`),
       JSON.stringify({ version: 1, tasks: {}, decisions: {}, gotchas: {}, initiatives: {}, log: [] }),
@@ -865,7 +855,7 @@ test("restore: on every validation failure, no pre-restore snapshot is created a
       s.nodes["Sentinel"] = { id: "Sentinel", title: "alive" };
     });
     const meta = await createSnapshot(dir, "force-init");
-    // Snapshot count before the failure: 1 (the force-init we just took).
+
     const snapsBefore = await listSnapshots(dir);
     assert.equal(snapsBefore.length, 1);
     // Corrupt the raw so validation fails.
@@ -902,7 +892,7 @@ test("restore: same agent restores twice from same snapshot — each call create
     await restore({ statePath: dir, flags: { as: "test-agent" }, positional: [meta.id] });
     const after = await readState(dir);
     assertRebasedNodes(after.nodes, baseline.nodes);
-    // The live state file is the second restore, whose log equals the
+
     // snapshot's log (empty baseline.log) plus one appended restore entry.
     const restoreEntries = after.log.filter((e) => e.action === "restore");
     assert.equal(restoreEntries.length, 1);
@@ -927,16 +917,14 @@ test("restore: same agent restores twice from same snapshot — each call create
   }
 });
 
-// =========================================================================
 // CLI dispatch via bin
-// =========================================================================
 
 test("CLI: snapshots via bin returns { snapshots: [...] }", async () => {
   const dir = await createTempProject();
   try {
     let r = await runCli(["--project", dir, "init"]);
     assert.equal(r.code, 0, r.stderr);
-    // Create a force-init snapshot via init --force over a populated canonical state.
+
     await seedCanonicalFixture(dir, (state) => { state.nodes.T1 = { id: "T1", title: "alive" }; });
     r = await runCli(["--project", dir, "init", "--force"]);
     assert.equal(r.code, 0, r.stderr);

@@ -113,7 +113,6 @@ test("kernel state.restore rejects a historical v2 snapshot and points at climie
     await fs.writeFile(stateFilePath(dir), JSON.stringify(legacy), "utf8");
     const target = await createSnapshot(dir, "force-init");
 
-    // Installing a historical snapshot would reintroduce the schema
     // conversion this cut removes, so restore refuses and names the way out.
     await assert.rejects(
       () => restoreState({ projectDir: dir, snapshotId: target.id, actor: "recovery" }),
@@ -224,7 +223,7 @@ test("kernel state.restore recovers over future current state, preserving raw pr
     const target = await createSnapshot(dir, "force-init");
     const raw = JSON.stringify({ version, nodes: {}, edges: [], initiatives: {}, log: [] });
     await fs.writeFile(stateFilePath(dir), raw, "utf8");
-    // The cut removes the path that recovered over an unknown future version:
+
     // a ledger-backed project refuses instead of silently overwriting bytes it
     // cannot interpret, and the raw file is left untouched.
     await assert.rejects(

@@ -7,7 +7,7 @@ test("providers do not import filesystem, lock, state, log, policy, commands, re
   // Smoke: import the provider modules in isolation and confirm they
   // expose only the expected surface. If a future change accidentally
   // pulls in one of the forbidden modules the importFresh will surface
-  // the require error here.
+
   const providers = await importTaskProvider();
   assert.equal(typeof providers.taskCreateProvider.prepare, "function");
   assert.equal(typeof providers.taskCreateProvider.apply, "function");

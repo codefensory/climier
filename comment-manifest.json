@@ -2145,7 +2145,7 @@
     },
     {
       "path": "test/add-note.test.mjs",
-      "comment_lines": 1,
+      "comment_lines": 0,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
@@ -2153,21 +2153,21 @@
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 1
+        "narration": 0
       },
       "directives": 0
     },
     {
       "path": "test/add-task-initiative-lookup.test.mjs",
-      "comment_lines": 7,
+      "comment_lines": 4,
       "protected_lines": 1,
       "prohibited": {
         "provenance": 0,
-        "task_or_adr": 1,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 2
+        "narration": 0
       },
       "directives": 1
     },
@@ -2187,43 +2187,43 @@
     },
     {
       "path": "test/add.test.mjs",
-      "comment_lines": 1,
+      "comment_lines": 0,
       "protected_lines": 0,
       "prohibited": {
-        "provenance": 1,
-        "task_or_adr": 1,
+        "provenance": 0,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 1
+        "narration": 0
       },
       "directives": 0
     },
     {
       "path": "test/adversarial.test.mjs",
-      "comment_lines": 128,
+      "comment_lines": 64,
       "protected_lines": 41,
       "prohibited": {
-        "provenance": 5,
-        "task_or_adr": 12,
-        "commented_code": 15,
-        "banner": 28,
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
         "documentation_mirror": 0,
-        "narration": 11
+        "narration": 0
       },
       "directives": 1
     },
     {
       "path": "test/agent-source.test.mjs",
-      "comment_lines": 19,
+      "comment_lines": 17,
       "protected_lines": 1,
       "prohibited": {
         "provenance": 0,
-        "task_or_adr": 1,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 1
+        "narration": 0
       },
       "directives": 1
     },
@@ -2341,7 +2341,7 @@
     },
     {
       "path": "test/blocked-by.test.mjs",
-      "comment_lines": 8,
+      "comment_lines": 7,
       "protected_lines": 2,
       "prohibited": {
         "provenance": 0,
@@ -2349,17 +2349,17 @@
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 1
+        "narration": 0
       },
       "directives": 1
     },
     {
       "path": "test/blocks-direction.test.mjs",
-      "comment_lines": 5,
+      "comment_lines": 4,
       "protected_lines": 4,
       "prohibited": {
         "provenance": 0,
-        "task_or_adr": 1,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
@@ -2369,11 +2369,11 @@
     },
     {
       "path": "test/bugs.test.mjs",
-      "comment_lines": 5,
+      "comment_lines": 1,
       "protected_lines": 4,
       "prohibited": {
-        "provenance": 3,
-        "task_or_adr": 1,
+        "provenance": 0,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
@@ -2411,10 +2411,10 @@
     },
     {
       "path": "test/cli-dispatch.test.mjs",
-      "comment_lines": 6,
+      "comment_lines": 5,
       "protected_lines": 1,
       "prohibited": {
-        "provenance": 1,
+        "provenance": 0,
         "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
@@ -2495,11 +2495,11 @@
     },
     {
       "path": "test/cli-remote-resolvable-lifecycle-routing.test.mjs",
-      "comment_lines": 7,
+      "comment_lines": 4,
       "protected_lines": 5,
       "prohibited": {
         "provenance": 0,
-        "task_or_adr": 3,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
@@ -2509,15 +2509,15 @@
     },
     {
       "path": "test/cli-remote-task-routing.test.mjs",
-      "comment_lines": 1,
+      "comment_lines": 0,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
-        "task_or_adr": 1,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 1
+        "narration": 0
       },
       "directives": 0
     },
@@ -2593,15 +2593,15 @@
     },
     {
       "path": "test/context-contract.test.mjs",
-      "comment_lines": 40,
+      "comment_lines": 30,
       "protected_lines": 5,
       "prohibited": {
-        "provenance": 1,
-        "task_or_adr": 4,
-        "commented_code": 1,
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 4
+        "narration": 0
       },
       "directives": 1
     },
@@ -2649,10 +2649,10 @@
     },
     {
       "path": "test/edges.test.mjs",
-      "comment_lines": 7,
+      "comment_lines": 6,
       "protected_lines": 0,
       "prohibited": {
-        "provenance": 1,
+        "provenance": 0,
         "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
@@ -2663,10 +2663,10 @@
     },
     {
       "path": "test/errors.test.mjs",
-      "comment_lines": 12,
+      "comment_lines": 10,
       "protected_lines": 0,
       "prohibited": {
-        "provenance": 2,
+        "provenance": 0,
         "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
@@ -2677,7 +2677,7 @@
     },
     {
       "path": "test/execution-contract.test.mjs",
-      "comment_lines": 1,
+      "comment_lines": 0,
       "protected_lines": 2,
       "prohibited": {
         "provenance": 0,
@@ -2685,21 +2685,21 @@
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 1
+        "narration": 0
       },
       "directives": 0
     },
     {
       "path": "test/fixtures/core-plugin/climier.mjs",
-      "comment_lines": 46,
+      "comment_lines": 33,
       "protected_lines": 12,
       "prohibited": {
-        "provenance": 1,
-        "task_or_adr": 11,
+        "provenance": 0,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 1
+        "narration": 0
       },
       "directives": 1
     },
@@ -2719,15 +2719,15 @@
     },
     {
       "path": "test/fixtures/plugins/policy-fixture/climier.mjs",
-      "comment_lines": 94,
+      "comment_lines": 81,
       "protected_lines": 23,
       "prohibited": {
-        "provenance": 1,
-        "task_or_adr": 5,
-        "commented_code": 2,
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 6
+        "narration": 0
       },
       "directives": 1
     },
@@ -2747,10 +2747,10 @@
     },
     {
       "path": "test/fixtures/remote-v1-capability-inventory.mjs",
-      "comment_lines": 2,
+      "comment_lines": 1,
       "protected_lines": 0,
       "prohibited": {
-        "provenance": 1,
+        "provenance": 0,
         "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
@@ -2761,15 +2761,15 @@
     },
     {
       "path": "test/fixtures/sample-plugin/climier.mjs",
-      "comment_lines": 32,
+      "comment_lines": 26,
       "protected_lines": 4,
       "prohibited": {
-        "provenance": 5,
-        "task_or_adr": 1,
+        "provenance": 0,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 1
+        "narration": 0
       },
       "directives": 2
     },
@@ -2789,7 +2789,7 @@
     },
     {
       "path": "test/helpers-safety.test.mjs",
-      "comment_lines": 5,
+      "comment_lines": 3,
       "protected_lines": 3,
       "prohibited": {
         "provenance": 0,
@@ -2797,30 +2797,30 @@
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 2
+        "narration": 0
       },
       "directives": 0
     },
     {
       "path": "test/helpers.mjs",
-      "comment_lines": 34,
+      "comment_lines": 26,
       "protected_lines": 8,
       "prohibited": {
-        "provenance": 4,
+        "provenance": 0,
         "task_or_adr": 0,
-        "commented_code": 1,
+        "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 4
+        "narration": 0
       },
       "directives": 0
     },
     {
       "path": "test/init.test.mjs",
-      "comment_lines": 2,
+      "comment_lines": 1,
       "protected_lines": 0,
       "prohibited": {
-        "provenance": 1,
+        "provenance": 0,
         "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
@@ -2831,11 +2831,11 @@
     },
     {
       "path": "test/initiative-validation.test.mjs",
-      "comment_lines": 6,
+      "comment_lines": 2,
       "protected_lines": 1,
       "prohibited": {
-        "provenance": 2,
-        "task_or_adr": 2,
+        "provenance": 0,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
@@ -2845,82 +2845,82 @@
     },
     {
       "path": "test/initiatives.test.mjs",
-      "comment_lines": 23,
+      "comment_lines": 19,
       "protected_lines": 2,
       "prohibited": {
-        "provenance": 3,
-        "task_or_adr": 1,
+        "provenance": 0,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
-        "documentation_mirror": 1,
+        "documentation_mirror": 0,
         "narration": 0
       },
       "directives": 1
     },
     {
       "path": "test/internal-capabilities.test.mjs",
-      "comment_lines": 34,
+      "comment_lines": 19,
       "protected_lines": 3,
       "prohibited": {
-        "provenance": 1,
-        "task_or_adr": 3,
+        "provenance": 0,
+        "task_or_adr": 0,
         "commented_code": 0,
-        "banner": 6,
-        "documentation_mirror": 1,
-        "narration": 6
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
       },
       "directives": 1
     },
     {
       "path": "test/issues.test.mjs",
-      "comment_lines": 39,
+      "comment_lines": 16,
       "protected_lines": 17,
       "prohibited": {
-        "provenance": 7,
-        "task_or_adr": 2,
+        "provenance": 0,
+        "task_or_adr": 0,
         "commented_code": 0,
-        "banner": 10,
+        "banner": 0,
         "documentation_mirror": 0,
-        "narration": 5
+        "narration": 0
       },
       "directives": 1
     },
     {
       "path": "test/json-output.test.mjs",
-      "comment_lines": 10,
+      "comment_lines": 7,
       "protected_lines": 2,
       "prohibited": {
-        "provenance": 2,
-        "task_or_adr": 1,
+        "provenance": 0,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 1
+        "narration": 0
       },
       "directives": 0
     },
     {
       "path": "test/kernel-edges.test.mjs",
-      "comment_lines": 22,
+      "comment_lines": 14,
       "protected_lines": 4,
       "prohibited": {
-        "provenance": 2,
-        "task_or_adr": 4,
-        "commented_code": 1,
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 1
+        "narration": 0
       },
       "directives": 0
     },
     {
       "path": "test/kernel-graph.test.mjs",
-      "comment_lines": 24,
+      "comment_lines": 19,
       "protected_lines": 5,
       "prohibited": {
-        "provenance": 2,
-        "task_or_adr": 2,
-        "commented_code": 1,
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
         "narration": 0
@@ -2929,29 +2929,29 @@
     },
     {
       "path": "test/kernel-mutate-concurrency.test.mjs",
-      "comment_lines": 38,
+      "comment_lines": 26,
       "protected_lines": 15,
       "prohibited": {
-        "provenance": 1,
-        "task_or_adr": 1,
+        "provenance": 0,
+        "task_or_adr": 0,
         "commented_code": 0,
-        "banner": 8,
+        "banner": 0,
         "documentation_mirror": 0,
-        "narration": 3
+        "narration": 0
       },
       "directives": 4
     },
     {
       "path": "test/kernel-mutate-initiative.test.mjs",
-      "comment_lines": 39,
+      "comment_lines": 23,
       "protected_lines": 7,
       "prohibited": {
         "provenance": 0,
-        "task_or_adr": 1,
+        "task_or_adr": 0,
         "commented_code": 0,
-        "banner": 14,
+        "banner": 0,
         "documentation_mirror": 0,
-        "narration": 1
+        "narration": 0
       },
       "directives": 1
     },
@@ -3013,15 +3013,15 @@
     },
     {
       "path": "test/kernel-state-operations.test.mjs",
-      "comment_lines": 6,
+      "comment_lines": 4,
       "protected_lines": 2,
       "prohibited": {
-        "provenance": 1,
+        "provenance": 0,
         "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 1
+        "narration": 0
       },
       "directives": 2
     },
@@ -3041,11 +3041,11 @@
     },
     {
       "path": "test/kernel-transaction-initiative.test.mjs",
-      "comment_lines": 17,
+      "comment_lines": 16,
       "protected_lines": 7,
       "prohibited": {
         "provenance": 0,
-        "task_or_adr": 1,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
@@ -3083,7 +3083,7 @@
     },
     {
       "path": "test/kernel/mutation/contract-guards.test.mjs",
-      "comment_lines": 7,
+      "comment_lines": 6,
       "protected_lines": 1,
       "prohibited": {
         "provenance": 0,
@@ -3091,47 +3091,47 @@
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 1
+        "narration": 0
       },
       "directives": 0
     },
     {
       "path": "test/kernel/mutation/helpers.mjs",
-      "comment_lines": 12,
+      "comment_lines": 6,
       "protected_lines": 3,
       "prohibited": {
         "provenance": 0,
         "task_or_adr": 0,
         "commented_code": 0,
-        "banner": 4,
+        "banner": 0,
         "documentation_mirror": 0,
-        "narration": 2
+        "narration": 0
       },
       "directives": 0
     },
     {
       "path": "test/kernel/mutation/mutation-boundaries.test.mjs",
-      "comment_lines": 10,
+      "comment_lines": 7,
       "protected_lines": 3,
       "prohibited": {
         "provenance": 0,
-        "task_or_adr": 2,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 1
+        "narration": 0
       },
       "directives": 0
     },
     {
       "path": "test/kernel/mutation/persistence-recovery.test.mjs",
-      "comment_lines": 12,
+      "comment_lines": 5,
       "protected_lines": 1,
       "prohibited": {
         "provenance": 0,
-        "task_or_adr": 1,
+        "task_or_adr": 0,
         "commented_code": 0,
-        "banner": 6,
+        "banner": 0,
         "documentation_mirror": 0,
         "narration": 0
       },
@@ -3139,13 +3139,13 @@
     },
     {
       "path": "test/kernel/mutation/policy-concurrency.test.mjs",
-      "comment_lines": 16,
+      "comment_lines": 13,
       "protected_lines": 2,
       "prohibited": {
         "provenance": 0,
-        "task_or_adr": 1,
+        "task_or_adr": 0,
         "commented_code": 0,
-        "banner": 2,
+        "banner": 0,
         "documentation_mirror": 0,
         "narration": 0
       },
@@ -3195,15 +3195,15 @@
     },
     {
       "path": "test/lifecycle.test.mjs",
-      "comment_lines": 56,
+      "comment_lines": 40,
       "protected_lines": 4,
       "prohibited": {
-        "provenance": 6,
-        "task_or_adr": 14,
+        "provenance": 0,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
-        "documentation_mirror": 1,
-        "narration": 1
+        "documentation_mirror": 0,
+        "narration": 0
       },
       "directives": 2
     },
@@ -3237,10 +3237,10 @@
     },
     {
       "path": "test/migrate-fenced.test.mjs",
-      "comment_lines": 1,
+      "comment_lines": 0,
       "protected_lines": 1,
       "prohibited": {
-        "provenance": 1,
+        "provenance": 0,
         "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
@@ -3251,7 +3251,7 @@
     },
     {
       "path": "test/migrate-old-forms.test.mjs",
-      "comment_lines": 3,
+      "comment_lines": 2,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
@@ -3259,7 +3259,7 @@
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 1
+        "narration": 0
       },
       "directives": 0
     },
@@ -3335,11 +3335,11 @@
     },
     {
       "path": "test/plugin-compat-mutators.test.mjs",
-      "comment_lines": 5,
+      "comment_lines": 4,
       "protected_lines": 2,
       "prohibited": {
         "provenance": 0,
-        "task_or_adr": 1,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
@@ -3391,15 +3391,15 @@
     },
     {
       "path": "test/plugin-core-adapter-cas.test.mjs",
-      "comment_lines": 17,
+      "comment_lines": 9,
       "protected_lines": 5,
       "prohibited": {
         "provenance": 0,
         "task_or_adr": 0,
-        "commented_code": 1,
-        "banner": 6,
+        "commented_code": 0,
+        "banner": 0,
         "documentation_mirror": 0,
-        "narration": 1
+        "narration": 0
       },
       "directives": 0
     },
@@ -3419,13 +3419,13 @@
     },
     {
       "path": "test/plugin-core-adapter-policy.test.mjs",
-      "comment_lines": 2,
+      "comment_lines": 1,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
         "task_or_adr": 0,
         "commented_code": 0,
-        "banner": 1,
+        "banner": 0,
         "documentation_mirror": 0,
         "narration": 0
       },
@@ -3433,27 +3433,27 @@
     },
     {
       "path": "test/plugin-core-adapter-run.test.mjs",
-      "comment_lines": 17,
+      "comment_lines": 12,
       "protected_lines": 6,
       "prohibited": {
         "provenance": 0,
         "task_or_adr": 0,
         "commented_code": 0,
-        "banner": 4,
+        "banner": 0,
         "documentation_mirror": 0,
-        "narration": 1
+        "narration": 0
       },
       "directives": 0
     },
     {
       "path": "test/plugin-core-adapter.test.mjs",
-      "comment_lines": 2,
+      "comment_lines": 1,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
         "task_or_adr": 0,
         "commented_code": 0,
-        "banner": 1,
+        "banner": 0,
         "documentation_mirror": 0,
         "narration": 0
       },
@@ -3475,25 +3475,25 @@
     },
     {
       "path": "test/plugin-core-concurrency.test.mjs",
-      "comment_lines": 22,
+      "comment_lines": 17,
       "protected_lines": 6,
       "prohibited": {
-        "provenance": 1,
-        "task_or_adr": 4,
+        "provenance": 0,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 1
+        "narration": 0
       },
       "directives": 0
     },
     {
       "path": "test/plugin-core-e2e.test.mjs",
-      "comment_lines": 29,
+      "comment_lines": 25,
       "protected_lines": 5,
       "prohibited": {
-        "provenance": 3,
-        "task_or_adr": 2,
+        "provenance": 0,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
@@ -3503,15 +3503,15 @@
     },
     {
       "path": "test/plugin-core-errors.test.mjs",
-      "comment_lines": 23,
+      "comment_lines": 16,
       "protected_lines": 2,
       "prohibited": {
-        "provenance": 2,
-        "task_or_adr": 2,
+        "provenance": 0,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 3
+        "narration": 0
       },
       "directives": 0
     },
@@ -3531,24 +3531,24 @@
     },
     {
       "path": "test/plugin-core-integration-errors.test.mjs",
-      "comment_lines": 8,
+      "comment_lines": 3,
       "protected_lines": 2,
       "prohibited": {
-        "provenance": 2,
-        "task_or_adr": 3,
+        "provenance": 0,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 2
+        "narration": 0
       },
       "directives": 0
     },
     {
       "path": "test/plugin-core-integration-happy-path.test.mjs",
-      "comment_lines": 1,
+      "comment_lines": 0,
       "protected_lines": 0,
       "prohibited": {
-        "provenance": 1,
+        "provenance": 0,
         "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
@@ -3573,15 +3573,15 @@
     },
     {
       "path": "test/plugin-core-registry.test.mjs",
-      "comment_lines": 42,
+      "comment_lines": 29,
       "protected_lines": 4,
       "prohibited": {
-        "provenance": 2,
-        "task_or_adr": 10,
+        "provenance": 0,
+        "task_or_adr": 0,
         "commented_code": 1,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 2
+        "narration": 0
       },
       "directives": 0
     },
@@ -3643,7 +3643,7 @@
     },
     {
       "path": "test/plugin-install-residual-descriptor.test.mjs",
-      "comment_lines": 2,
+      "comment_lines": 1,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
@@ -3651,7 +3651,7 @@
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 1
+        "narration": 0
       },
       "directives": 0
     },
@@ -3699,11 +3699,11 @@
     },
     {
       "path": "test/plugin-install-residual-reserved.test.mjs",
-      "comment_lines": 4,
+      "comment_lines": 3,
       "protected_lines": 2,
       "prohibited": {
         "provenance": 0,
-        "task_or_adr": 1,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
@@ -3727,12 +3727,12 @@
     },
     {
       "path": "test/plugin-install-residual-uninstall.test.mjs",
-      "comment_lines": 7,
+      "comment_lines": 5,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
-        "task_or_adr": 2,
-        "commented_code": 1,
+        "task_or_adr": 0,
+        "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
         "narration": 0
@@ -3755,25 +3755,25 @@
     },
     {
       "path": "test/plugin-integration.test.mjs",
-      "comment_lines": 30,
+      "comment_lines": 24,
       "protected_lines": 8,
       "prohibited": {
-        "provenance": 3,
-        "task_or_adr": 3,
+        "provenance": 0,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 1
+        "narration": 0
       },
       "directives": 0
     },
     {
       "path": "test/plugin-log-seam-residual-add-task.test.mjs",
-      "comment_lines": 8,
+      "comment_lines": 4,
       "protected_lines": 0,
       "prohibited": {
-        "provenance": 1,
-        "task_or_adr": 4,
+        "provenance": 0,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
@@ -3853,35 +3853,35 @@
     },
     {
       "path": "test/plugin-policy-concurrency.test.mjs",
-      "comment_lines": 74,
+      "comment_lines": 53,
       "protected_lines": 10,
       "prohibited": {
-        "provenance": 1,
-        "task_or_adr": 7,
+        "provenance": 0,
+        "task_or_adr": 0,
         "commented_code": 0,
-        "banner": 12,
+        "banner": 0,
         "documentation_mirror": 0,
-        "narration": 3
+        "narration": 0
       },
       "directives": 0
     },
     {
       "path": "test/plugin-policy-e2e-residual-authorize.test.mjs",
-      "comment_lines": 9,
+      "comment_lines": 6,
       "protected_lines": 5,
       "prohibited": {
-        "provenance": 1,
+        "provenance": 0,
         "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 2
+        "narration": 0
       },
       "directives": 0
     },
     {
       "path": "test/plugin-policy-e2e-residual-discovery.test.mjs",
-      "comment_lines": 8,
+      "comment_lines": 7,
       "protected_lines": 5,
       "prohibited": {
         "provenance": 0,
@@ -3889,17 +3889,17 @@
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 1
+        "narration": 0
       },
       "directives": 0
     },
     {
       "path": "test/plugin-policy-e2e-residual-fixture.test.mjs",
-      "comment_lines": 1,
+      "comment_lines": 0,
       "protected_lines": 1,
       "prohibited": {
         "provenance": 0,
-        "task_or_adr": 1,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
@@ -3937,7 +3937,7 @@
     },
     {
       "path": "test/plugin-policy-foundation-authorize.test.mjs",
-      "comment_lines": 2,
+      "comment_lines": 1,
       "protected_lines": 3,
       "prohibited": {
         "provenance": 0,
@@ -3945,17 +3945,17 @@
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 1
+        "narration": 0
       },
       "directives": 0
     },
     {
       "path": "test/plugin-policy-foundation-config.test.mjs",
-      "comment_lines": 11,
+      "comment_lines": 10,
       "protected_lines": 3,
       "prohibited": {
         "provenance": 0,
-        "task_or_adr": 1,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
@@ -4007,25 +4007,25 @@
     },
     {
       "path": "test/plugin-policy-parity-cli-api.test.mjs",
-      "comment_lines": 65,
+      "comment_lines": 39,
       "protected_lines": 5,
       "prohibited": {
-        "provenance": 1,
-        "task_or_adr": 4,
+        "provenance": 0,
+        "task_or_adr": 0,
         "commented_code": 0,
-        "banner": 16,
+        "banner": 0,
         "documentation_mirror": 0,
-        "narration": 6
+        "narration": 0
       },
       "directives": 0
     },
     {
       "path": "test/plugin-policy-seam-dag-edge-update.test.mjs",
-      "comment_lines": 7,
+      "comment_lines": 4,
       "protected_lines": 3,
       "prohibited": {
         "provenance": 0,
-        "task_or_adr": 3,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
@@ -4049,15 +4049,15 @@
     },
     {
       "path": "test/plugin-policy-seam-dag-internal.test.mjs",
-      "comment_lines": 6,
+      "comment_lines": 4,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
-        "task_or_adr": 1,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 1
+        "narration": 0
       },
       "directives": 0
     },
@@ -4091,11 +4091,11 @@
     },
     {
       "path": "test/plugin-policy-seam-lifecycle-note-initiative.test.mjs",
-      "comment_lines": 16,
+      "comment_lines": 15,
       "protected_lines": 5,
       "prohibited": {
         "provenance": 0,
-        "task_or_adr": 1,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
@@ -4105,11 +4105,11 @@
     },
     {
       "path": "test/plugin-policy-seam-lifecycle-reopen-cancel.test.mjs",
-      "comment_lines": 9,
+      "comment_lines": 7,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
-        "task_or_adr": 2,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
@@ -4119,11 +4119,11 @@
     },
     {
       "path": "test/plugin-policy-seam-lifecycle.test.mjs",
-      "comment_lines": 12,
+      "comment_lines": 11,
       "protected_lines": 1,
       "prohibited": {
         "provenance": 0,
-        "task_or_adr": 1,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
@@ -4133,15 +4133,15 @@
     },
     {
       "path": "test/plugin-policy-seam-state-ops.test.mjs",
-      "comment_lines": 44,
+      "comment_lines": 32,
       "protected_lines": 3,
       "prohibited": {
-        "provenance": 1,
-        "task_or_adr": 2,
+        "provenance": 0,
+        "task_or_adr": 0,
         "commented_code": 0,
-        "banner": 6,
+        "banner": 0,
         "documentation_mirror": 0,
-        "narration": 3
+        "narration": 0
       },
       "directives": 0
     },
@@ -4175,57 +4175,57 @@
     },
     {
       "path": "test/plugins/api/compatibility.test.mjs",
-      "comment_lines": 47,
+      "comment_lines": 35,
       "protected_lines": 7,
       "prohibited": {
         "provenance": 0,
-        "task_or_adr": 1,
-        "commented_code": 1,
+        "task_or_adr": 0,
+        "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 10
+        "narration": 0
       },
       "directives": 0
     },
     {
       "path": "test/plugins/api/core-gate.test.mjs",
-      "comment_lines": 33,
+      "comment_lines": 25,
       "protected_lines": 1,
       "prohibited": {
-        "provenance": 1,
-        "task_or_adr": 3,
+        "provenance": 0,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 4
+        "narration": 0
       },
       "directives": 0
     },
     {
       "path": "test/plugins/api/core-knowledge.test.mjs",
-      "comment_lines": 23,
+      "comment_lines": 15,
       "protected_lines": 1,
       "prohibited": {
-        "provenance": 1,
+        "provenance": 0,
         "task_or_adr": 0,
-        "commented_code": 1,
+        "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 6
+        "narration": 0
       },
       "directives": 0
     },
     {
       "path": "test/plugins/api/core-task.test.mjs",
-      "comment_lines": 42,
+      "comment_lines": 23,
       "protected_lines": 10,
       "prohibited": {
-        "provenance": 4,
-        "task_or_adr": 9,
+        "provenance": 0,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 6
+        "narration": 0
       },
       "directives": 0
     },
@@ -4259,15 +4259,15 @@
     },
     {
       "path": "test/plugins/api/runtime-query.test.mjs",
-      "comment_lines": 6,
+      "comment_lines": 2,
       "protected_lines": 2,
       "prohibited": {
-        "provenance": 2,
-        "task_or_adr": 1,
+        "provenance": 0,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 1
+        "narration": 0
       },
       "directives": 0
     },
@@ -4287,12 +4287,12 @@
     },
     {
       "path": "test/provider-core-edge.test.mjs",
-      "comment_lines": 19,
+      "comment_lines": 16,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
-        "task_or_adr": 1,
-        "commented_code": 2,
+        "task_or_adr": 0,
+        "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
         "narration": 0
@@ -4301,43 +4301,43 @@
     },
     {
       "path": "test/provider-core-initiative.test.mjs",
-      "comment_lines": 31,
+      "comment_lines": 24,
       "protected_lines": 4,
       "prohibited": {
-        "provenance": 1,
-        "task_or_adr": 1,
-        "commented_code": 2,
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 3
+        "narration": 0
       },
       "directives": 0
     },
     {
       "path": "test/provider-core-note.test.mjs",
-      "comment_lines": 20,
+      "comment_lines": 15,
       "protected_lines": 2,
       "prohibited": {
-        "provenance": 1,
-        "task_or_adr": 1,
-        "commented_code": 2,
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 1
+        "narration": 0
       },
       "directives": 0
     },
     {
       "path": "test/provider-gate-lifecycle.test.mjs",
-      "comment_lines": 29,
+      "comment_lines": 17,
       "protected_lines": 4,
       "prohibited": {
-        "provenance": 1,
-        "task_or_adr": 8,
+        "provenance": 0,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 3
+        "narration": 0
       },
       "directives": 0
     },
@@ -4357,11 +4357,11 @@
     },
     {
       "path": "test/provider-gate.test.mjs",
-      "comment_lines": 9,
+      "comment_lines": 8,
       "protected_lines": 2,
       "prohibited": {
         "provenance": 0,
-        "task_or_adr": 1,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
@@ -4371,41 +4371,41 @@
     },
     {
       "path": "test/provider-knowledge-create.test.mjs",
-      "comment_lines": 24,
+      "comment_lines": 13,
       "protected_lines": 1,
       "prohibited": {
         "provenance": 0,
-        "task_or_adr": 2,
+        "task_or_adr": 0,
         "commented_code": 0,
-        "banner": 6,
+        "banner": 0,
         "documentation_mirror": 0,
-        "narration": 3
+        "narration": 0
       },
       "directives": 0
     },
     {
       "path": "test/provider-knowledge-deprecate.test.mjs",
-      "comment_lines": 27,
+      "comment_lines": 18,
       "protected_lines": 3,
       "prohibited": {
         "provenance": 0,
-        "task_or_adr": 1,
+        "task_or_adr": 0,
         "commented_code": 0,
-        "banner": 6,
+        "banner": 0,
         "documentation_mirror": 0,
-        "narration": 2
+        "narration": 0
       },
       "directives": 0
     },
     {
       "path": "test/provider-knowledge-query.test.mjs",
-      "comment_lines": 30,
+      "comment_lines": 15,
       "protected_lines": 1,
       "prohibited": {
         "provenance": 0,
-        "task_or_adr": 1,
+        "task_or_adr": 0,
         "commented_code": 0,
-        "banner": 14,
+        "banner": 0,
         "documentation_mirror": 0,
         "narration": 0
       },
@@ -4413,13 +4413,13 @@
     },
     {
       "path": "test/provider-knowledge-update.test.mjs",
-      "comment_lines": 18,
+      "comment_lines": 11,
       "protected_lines": 1,
       "prohibited": {
         "provenance": 0,
-        "task_or_adr": 1,
+        "task_or_adr": 0,
         "commented_code": 0,
-        "banner": 6,
+        "banner": 0,
         "documentation_mirror": 0,
         "narration": 0
       },
@@ -4455,11 +4455,11 @@
     },
     {
       "path": "test/provider-task-accept.test.mjs",
-      "comment_lines": 2,
+      "comment_lines": 0,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
-        "task_or_adr": 2,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
@@ -4469,29 +4469,29 @@
     },
     {
       "path": "test/provider-task-derivation.test.mjs",
-      "comment_lines": 2,
+      "comment_lines": 0,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
-        "task_or_adr": 1,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 1
+        "narration": 0
       },
       "directives": 0
     },
     {
       "path": "test/provider-task-reject.test.mjs",
-      "comment_lines": 3,
+      "comment_lines": 1,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
-        "task_or_adr": 1,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 1
+        "narration": 0
       },
       "directives": 0
     },
@@ -4539,21 +4539,21 @@
     },
     {
       "path": "test/providers/task/create-update.test.mjs",
-      "comment_lines": 14,
+      "comment_lines": 12,
       "protected_lines": 5,
       "prohibited": {
         "provenance": 0,
-        "task_or_adr": 1,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 1
+        "narration": 0
       },
       "directives": 0
     },
     {
       "path": "test/providers/task/lifecycle.test.mjs",
-      "comment_lines": 4,
+      "comment_lines": 3,
       "protected_lines": 2,
       "prohibited": {
         "provenance": 0,
@@ -4561,21 +4561,21 @@
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 1
+        "narration": 0
       },
       "directives": 0
     },
     {
       "path": "test/providers/task/task-fixtures.mjs",
-      "comment_lines": 13,
+      "comment_lines": 7,
       "protected_lines": 2,
       "prohibited": {
-        "provenance": 2,
-        "task_or_adr": 1,
+        "provenance": 0,
+        "task_or_adr": 0,
         "commented_code": 0,
-        "banner": 2,
+        "banner": 0,
         "documentation_mirror": 0,
-        "narration": 1
+        "narration": 0
       },
       "directives": 0
     },
@@ -4623,11 +4623,11 @@
     },
     {
       "path": "test/read-model-log-parity.test.mjs",
-      "comment_lines": 3,
+      "comment_lines": 0,
       "protected_lines": 0,
       "prohibited": {
-        "provenance": 1,
-        "task_or_adr": 2,
+        "provenance": 0,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
@@ -4847,7 +4847,7 @@
     },
     {
       "path": "test/smoke-sandbox.test.mjs",
-      "comment_lines": 45,
+      "comment_lines": 37,
       "protected_lines": 6,
       "prohibited": {
         "provenance": 0,
@@ -4855,21 +4855,21 @@
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 8
+        "narration": 0
       },
       "directives": 0
     },
     {
       "path": "test/snapshots-restore.test.mjs",
-      "comment_lines": 72,
+      "comment_lines": 49,
       "protected_lines": 8,
       "prohibited": {
-        "provenance": 5,
-        "task_or_adr": 4,
+        "provenance": 0,
+        "task_or_adr": 0,
         "commented_code": 0,
-        "banner": 10,
+        "banner": 0,
         "documentation_mirror": 0,
-        "narration": 5
+        "narration": 0
       },
       "directives": 3
     },
@@ -4903,15 +4903,15 @@
     },
     {
       "path": "test/state-resilience-regression.test.mjs",
-      "comment_lines": 83,
+      "comment_lines": 61,
       "protected_lines": 19,
       "prohibited": {
-        "provenance": 3,
-        "task_or_adr": 3,
+        "provenance": 0,
+        "task_or_adr": 0,
         "commented_code": 0,
-        "banner": 10,
+        "banner": 0,
         "documentation_mirror": 0,
-        "narration": 7
+        "narration": 0
       },
       "directives": 3
     },
@@ -4931,24 +4931,24 @@
     },
     {
       "path": "test/state-snapshots.test.mjs",
-      "comment_lines": 28,
+      "comment_lines": 17,
       "protected_lines": 5,
       "prohibited": {
-        "provenance": 2,
-        "task_or_adr": 1,
+        "provenance": 0,
+        "task_or_adr": 0,
         "commented_code": 0,
-        "banner": 6,
+        "banner": 0,
         "documentation_mirror": 0,
-        "narration": 2
+        "narration": 0
       },
       "directives": 2
     },
     {
       "path": "test/state.test.mjs",
-      "comment_lines": 5,
+      "comment_lines": 2,
       "protected_lines": 2,
       "prohibited": {
-        "provenance": 3,
+        "provenance": 0,
         "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
@@ -4959,15 +4959,15 @@
     },
     {
       "path": "test/status-history.test.mjs",
-      "comment_lines": 34,
+      "comment_lines": 14,
       "protected_lines": 1,
       "prohibited": {
-        "provenance": 5,
-        "task_or_adr": 3,
-        "commented_code": 1,
-        "banner": 8,
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
         "documentation_mirror": 0,
-        "narration": 4
+        "narration": 0
       },
       "directives": 1
     },
@@ -5099,25 +5099,25 @@
     },
     {
       "path": "test/take-by-id.test.mjs",
-      "comment_lines": 11,
+      "comment_lines": 3,
       "protected_lines": 2,
       "prohibited": {
-        "provenance": 1,
-        "task_or_adr": 6,
+        "provenance": 0,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 2
+        "narration": 0
       },
       "directives": 0
     },
     {
       "path": "test/take.test.mjs",
-      "comment_lines": 14,
+      "comment_lines": 12,
       "protected_lines": 1,
       "prohibited": {
         "provenance": 0,
-        "task_or_adr": 2,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
@@ -5155,7 +5155,7 @@
     },
     {
       "path": "test/test-manifest-checker.mjs",
-      "comment_lines": 2,
+      "comment_lines": 1,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
@@ -5163,7 +5163,7 @@
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 1
+        "narration": 0
       },
       "directives": 0
     },
@@ -5183,29 +5183,29 @@
     },
     {
       "path": "test/test-manifest-declarations.mjs",
-      "comment_lines": 15,
+      "comment_lines": 11,
       "protected_lines": 3,
       "prohibited": {
-        "provenance": 2,
-        "task_or_adr": 1,
+        "provenance": 0,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 2
+        "narration": 0
       },
       "directives": 0
     },
     {
       "path": "test/test-manifest-lanes.mjs",
-      "comment_lines": 5,
+      "comment_lines": 3,
       "protected_lines": 0,
       "prohibited": {
-        "provenance": 1,
-        "task_or_adr": 1,
+        "provenance": 0,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 1
+        "narration": 0
       },
       "directives": 0
     },
@@ -5214,12 +5214,12 @@
       "comment_lines": 19,
       "protected_lines": 0,
       "prohibited": {
-        "provenance": 1,
+        "provenance": 0,
         "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 2
+        "narration": 0
       },
       "directives": 0
     },
@@ -5253,10 +5253,10 @@
     },
     {
       "path": "test/update.test.mjs",
-      "comment_lines": 9,
+      "comment_lines": 8,
       "protected_lines": 4,
       "prohibited": {
-        "provenance": 1,
+        "provenance": 0,
         "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
@@ -5309,29 +5309,29 @@
     },
     {
       "path": "test/worker-start-scripts.test.mjs",
-      "comment_lines": 54,
+      "comment_lines": 34,
       "protected_lines": 7,
       "prohibited": {
         "provenance": 0,
-        "task_or_adr": 1,
-        "commented_code": 1,
-        "banner": 12,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
         "documentation_mirror": 0,
-        "narration": 6
+        "narration": 0
       },
       "directives": 1
     },
     {
       "path": "test/workflow-evidence-preflight.test.mjs",
-      "comment_lines": 29,
+      "comment_lines": 22,
       "protected_lines": 2,
       "prohibited": {
-        "provenance": 1,
-        "task_or_adr": 4,
+        "provenance": 0,
+        "task_or_adr": 0,
         "commented_code": 0,
         "banner": 0,
         "documentation_mirror": 0,
-        "narration": 2
+        "narration": 0
       },
       "directives": 1
     }

@@ -33,7 +33,7 @@ async function createFencedProject(t) {
   assert.ok(path.resolve(resolvedLedgerPath).startsWith(`${tempHome}${path.sep}`),
     `fixture ledger must live under isolated CLIMIER_HOME: ${resolvedLedgerPath}`);
   // The shared fixture helper follows the current canonical bootstrap. Install
-  // an explicitly fenced-v5 synthetic source beside its matching test ledger.
+
   const canonical = JSON.parse(await fs.readFile(resolvedStatePath, "utf8"));
   const ledger = JSON.parse(await fs.readFile(resolvedLedgerPath, "utf8"));
   await fs.writeFile(resolvedStatePath, `${JSON.stringify({

@@ -1,5 +1,5 @@
 // Regression coverage for retiring meta.execution semantics from the core.
-// The metadata remains opaque and is never validated, normalized, or projected
+
 // as an execution contract or ownership signal.
 
 import { test } from "node:test";

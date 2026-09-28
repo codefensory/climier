@@ -91,7 +91,7 @@ test("kernel.mutate: source file does not import providers/registry/adapter/bin/
   // allowed. The plan's B1b explicitly grants `src/storage/state.mjs`,
   // `src/lock.mjs`, and `src/log.mjs` (atomicity primitives + log
   // shaping) and `src/kernel/transaction.mjs` (the existing draft) is
-  // the whole point of B1b; those imports are required.
+
   const forbiddenPatterns = [
     /from\s+["'](node:fs|fs|fs\/promises|path|child_process|crypto|os|stream|util|events)["']/,
     /from\s+["']\.\.\/(paths|plugin|v2|commands|ui|agent|execution-contract|providers)["']/,

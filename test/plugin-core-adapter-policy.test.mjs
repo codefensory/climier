@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import * as helpers from "./plugin-core-adapter-helpers.mjs";
 
 // 8. policy — selection outside lock, decision inside, errors preserved
-// =====================================================================
 
 test("plugin-core-adapter: with no policy installed, run completes successfully (default abstain)", async () => {
   await helpers.withIsolatedEnv(async () => {

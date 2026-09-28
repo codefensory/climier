@@ -1,7 +1,7 @@
 // test/kernel-mutate-initiative.test.mjs — initiative persistence through
-// the single kernel.mutate frontier.
+
 //
-// Scope (B1b extension, task T-graph-kernel-core-transaction):
+
 //   - A provider that creates an initiative through tx.createInitiative
 //     persists it via the same writeState call (no separate updateState).
 //   - Idempotency considers initiatives (an apply that touches only
@@ -63,9 +63,7 @@ function bootstrap(dir, mutate) {
   return writeCanonicalState(dir, base);
 }
 
-// ===================================================================
 // Acceptance: kernel.mutate persists initiatives via the same writeState
-// ===================================================================
 
 test("kernel.mutate: createInitiative persists in the same writeState (no second updateState)", async () => {
   const { mutate } = await importKernel();
@@ -104,9 +102,7 @@ test("kernel.mutate: createInitiative persists in the same writeState (no second
   }
 });
 
-// ===================================================================
 // Acceptance: changing initiatives does NOT bump node.revision
-// ===================================================================
 
 test("kernel.mutate: creating an initiative alone does not bump any node revision", async () => {
   const { mutate } = await importKernel();
@@ -132,9 +128,7 @@ test("kernel.mutate: creating an initiative alone does not bump any node revisio
   }
 });
 
-// ===================================================================
 // Acceptance: idempotency considers initiatives
-// ===================================================================
 
 test("kernel.mutate: idempotent provider (no draft change ⇒ no write, no log, no revision bump)", async () => {
   const { mutate } = await importKernel();
@@ -170,9 +164,7 @@ test("kernel.mutate: idempotent provider (no draft change ⇒ no write, no log, 
   }
 });
 
-// ===================================================================
 // Acceptance: node + initiative changes in the same apply persist together
-// ===================================================================
 
 // oxlint-disable-next-line max-statements, max-lines-per-function -- Keep this bounded regression test and its full assertions intact.
 test("kernel.mutate: combined node + initiative mutation persists both in one writeState", async () => {
@@ -221,9 +213,7 @@ test("kernel.mutate: combined node + initiative mutation persists both in one wr
   }
 });
 
-// ===================================================================
 // Negative: provider fails inside apply ⇒ no initiatives persisted
-// ===================================================================
 
 test("kernel.mutate: apply throws after creating an initiative in the draft ⇒ nothing persisted", async () => {
   const { mutate } = await importKernel();
@@ -262,10 +252,8 @@ test("kernel.mutate: apply throws after creating an initiative in the draft ⇒ 
   }
 });
 
-// ===================================================================
 // Isolation: existing tests' invariant still holds (T1 unchanged when
 // an unrelated initiative is created).
-// ===================================================================
 
 test("kernel.mutate: snapshot's initiatives map is preserved when only a new one is added", async () => {
   const { mutate } = await importKernel();
@@ -286,9 +274,7 @@ test("kernel.mutate: snapshot's initiatives map is preserved when only a new one
   }
 });
 
-// ===================================================================
 // Acceptance: the built-in initiative provider may bootstrap once
-// ===================================================================
 
 test("kernel.mutate: initiative.create bootstraps an absent state in one write", async () => {
   const { mutate } = await importKernel();

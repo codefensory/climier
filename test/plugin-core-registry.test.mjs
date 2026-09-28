@@ -2,12 +2,11 @@
 // `buildRegistry(providers)` compatibility facade and the built-in
 // bootstrap owned by `src/application/operations/builtins.mjs`.
 //
-// T-graph-kernel-registry · plan §B6A + ADR-012 §§1–3: the registry
-// replaces the legacy `handler` table from ADR-006 with a typed entry
+
 // shape `{ id, kind, provider: { prepare, apply } }`. The builder
 // detects operation-id collisions deterministically and returns an
 // immutable registry object; Application Operations bootstraps the
-// built-in providers task / gate / knowledge that §B4 already validated.
+
 //
 // Pure: no filesystem, no lock, no state, no log, no policy, no
 // command, no adapter, no CLI, no UI. The tests build literal
@@ -280,10 +279,6 @@ test("bootstrapBuiltins: includes all ADR-012 task / gate / knowledge operation 
   const mod = await importRegistry();
   const reg = mod.bootstrapBuiltins();
 
-  // ADR-012 §2 operation IDs that the built-in core covers, plus
-  // the core-resident operations added by
-  // T-graph-kernel-provider-core-ops (edge.add, note.add) and
-  // T-graph-kernel-provider-core-initiative (initiative.create).
   const expectedIds = [
     "task.create",
     "task.update",
@@ -310,10 +305,9 @@ test("bootstrapBuiltins: includes all ADR-012 task / gate / knowledge operation 
   assertBuiltinIds(reg, expectedIds);
 
   // bootstrap must NOT expose plan-derived actions that are not part
-  // of the public core surface (task.takeover, state.restore, etc.).
+
   // edge.add, note.add and initiative.create ARE public surface since
-  // T-graph-kernel-provider-core-ops /
-  // T-graph-kernel-provider-core-initiative, so they are intentionally
+
   // not listed here.
   for (const forbidden of [
     "task.takeover",
@@ -326,7 +320,6 @@ test("bootstrapBuiltins: includes all ADR-012 task / gate / knowledge operation 
   // Each entry exposes its canonical typed provider pair.
   assertBuiltinEntryShape(reg, expectedIds);
 
-  // byKind grouping: task, gate, knowledge, and core operations.
   assertBuiltinKinds(reg);
 
   // bootstrap is callable any number of times and is deterministic.
@@ -347,8 +340,7 @@ test("bootstrapBuiltins: provider references are the frozen built-in objects (no
   for (const id of reg.ops) {
     const provider = reg.get(id).provider;
     assert.ok(Object.isFrozen(provider), `${id} provider is frozen`);
-    // The provider's prepare takes a *named* argument shape (`{ snapshot,
-    // input, request }`); it does NOT take `(argv)` like a legacy
+
     // `handler`. Assert the function has 0 declared parameters (only
     // destructured args) by checking `prepare.length <= 1`.
     assert.ok(provider.prepare.length <= 1, `${id} provider.prepare is not argv-style`);

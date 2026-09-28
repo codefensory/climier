@@ -91,11 +91,9 @@ function assertKnowledgeDeprecationFailureState(before, after) {
 }
 
 test("api.core.run: knowledge.create dispatches to add-knowledge (requires --scope-*)", async () => {
-  // The kernel-driven path returns the typed result shape
+
   // `{ result, effects, log_entry, idempotent, diff }`. The
-  // knowledge.create provider projects `{ id, kind }` into result;
-  // the kernel-stamped full node (with revision=1, scope, status)
-  // lives on `diff.created[0].node`. There is no `{ node }` legacy
+
   // envelope at the top level.
   const dir = await readyProject();
   try {
@@ -117,7 +115,7 @@ test("api.core.run: knowledge.create dispatches to add-knowledge (requires --sco
 });
 
 test("api.core.run: knowledge.create without any --scope-* throws PLUGIN_CORE_ACTION_FAILED", async () => {
-  // The any-of-scope rule is delegated to the handler (the adapter's
+
   // `required` check is "all of" only); the handler throws
   // MISSING_FIELD which the adapter wraps as PLUGIN_CORE_ACTION_FAILED.
   const dir = await readyProject();
@@ -145,7 +143,7 @@ test("api.core.run: knowledge.create without any --scope-* throws PLUGIN_CORE_AC
 });
 
 test("api.core.run: knowledge.deprecate sets status='deprecated' on an active knowledge node", async () => {
-  // The kernel-driven path returns the typed result shape
+
   // `{ result, effects, log_entry, idempotent, diff }`. The
   // knowledge.deprecate provider projects `{ id, kind, status }`
   // into result; the kernel-stamped full node (with revision=2,
@@ -177,7 +175,7 @@ test("api.core.run: knowledge.deprecate sets status='deprecated' on an active kn
 });
 
 test("api.core.run: knowledge.deprecate without --reason is rejected by the adapter as PLUGIN_CORE_ACTION_FAILED (provider-level MISSING_FIELD)", async () => {
-  // The kernel-driven path has no adapter-side required-field
+
   // whitelist; the provider's prepare throws MISSING_FIELD when
   // `reason` is missing and the adapter wraps it as
   // PLUGIN_CORE_ACTION_FAILED with a structured `cause`. State is
@@ -207,7 +205,7 @@ test("api.core.run: knowledge.deprecate without --reason is rejected by the adap
         err.details.cause.code === "MISSING_FIELD" &&
         /reason/.test(err.details.cause.message || ""),
     );
-    // The knowledge node is unchanged: status remains active.
+
     await assertKnowledgeDeprecationFailureState(before, await readRawState(dir));
   } finally {
     await rmTempProject(dir);

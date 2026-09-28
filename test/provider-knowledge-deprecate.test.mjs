@@ -1,7 +1,7 @@
 // Knowledge deprecate contract tests for the knowledge-core provider slice
 // (plan B4-knowledge-core).
 //
-// Scope (mirrors the task body and acceptance):
+
 //   - helpers puros: scope_matches, ranking determinista, búsqueda
 //     activa/todas, informing.
 //   - providers create/update con prepare/apply, sin fs / lock / state / log.
@@ -22,22 +22,12 @@ import {
   readState as readStateHelper,
 } from "./helpers.mjs";
 
-// ===================================================================
 // Pure imports (no fs) — re-imported per test for freshness.
-// ===================================================================
 
-
-
-// ===================================================================
 // State fixtures (pure, JSON-shaped)
-// ===================================================================
 
-
-
-// ===================================================================
 // deprecate provider — prepare / apply via kernel.mutate
 // (plan B4-knowledge-lifecycle)
-// ===================================================================
 
 async function deprecateKnowledgeWithSearch(provider, mutate, dir) {
   const base = emptySnapshot({
@@ -81,7 +71,7 @@ function assertDeprecationLog(log) {
   assert.equal(log[0].agent, "alice");
   assert.equal(log[0].node, "K-1");
   assert.equal(log[0].revision, 6);
-  // The deprecation reason lives on the node itself (`deprecation_reason`).
+
   assert.equal(log[0].reason, undefined);
 }
 
@@ -282,7 +272,7 @@ test("deprecate: apply uses tx only (does not leak the snapshot after kernel mut
       provider,
     });
     // The reference returned by `before` must not have flipped status:
-    // the kernel mutates the disk via writeState, not the in-memory
+
     // object we held. This guards against accidental snapshot leakage
     // in the provider (which only ever touches the draft).
     assert.equal(before.nodes["K-1"].status, "active");

@@ -14,9 +14,9 @@ test("kernel.mutate: provider cannot set 'revision' on a node (tx layer rejects 
         policyAction: null,
       }),
       apply: async ({ tx }) => {
-        // The provider intentionally tries to seed revision=99 — the
+
         // tx must reject this so the kernel owns revision assignment
-        // (ADR-011 §2).
+
         tx.createNode({
           id: "T2",
           kind: "resolvable",
@@ -52,7 +52,7 @@ test("kernel.mutate: existing-node revision is bumped exactly once even on multi
   try {
     await bootstrapProject(dir);
     // Provider applies 3 patches to T1 — the kernel must bump revision
-    // only once (not once per patch). ADR-011 §2.
+
     const provider = {
       prepare: async () => ({
         target: { id: "T1", kind: "resolvable", subkind: "task" },

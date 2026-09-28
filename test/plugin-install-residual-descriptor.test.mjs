@@ -66,7 +66,7 @@ test("plugin-descriptor: strictly rejects API 3 with the expected version and re
 });
 test("plugin-descriptor: importEntry rejects missing default.commands with PLUGIN_LOAD_FAILED", async () => {
   const { importEntry } = await importFresh(DESCRIPTOR_MODULE);
-  // Build a temp entry file that has no commands key on default export.
+
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "climier-plugin-entry-"));
   try {
     await fs.writeFile(

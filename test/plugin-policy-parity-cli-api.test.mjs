@@ -1,4 +1,4 @@
-// T-plugin-policy-migration-tests — parity coverage for the policy seam:
+
 //
 // Every lifecycle action must reach the policy with the SAME canonical
 // action name regardless of whether the call came from the public CLI
@@ -7,16 +7,16 @@
 // paths, since the seam uses the actor to scope its decision.
 //
 // This test file installs the policy-fixture in mode=allow and records
-// the last authorize() invocation. For each category (take, takeover,
+
 // submit/accept, release, reopen, cancel, add-note, add-initiative) it runs
-// the same intent via:
+
 //   - the CLI bin (`node bin/climier.mjs ...`)
 //   - the plugin API core (`api.core.run({ op, input })`)
 // and asserts both paths produced the SAME canonical action and
 // recorded the SAME actor. A divergence here would mean the adapter
 // has drifted from the bin.
 //
-// The actor identity is sourced from the CLI's --as flag or the
+
 // api.runtime.agent field (the adapter sets `flags.as` from
 // api.runtime.agent automatically; see src/plugin-core-adapter.mjs).
 //
@@ -160,10 +160,6 @@ async function installFixture(projectDir) {
   await installPolicyFixture(projectDir);
 }
 
-// ===========================================================================
-// take (free task)
-// ===========================================================================
-
 test("parity: take — CLI and api.core.run produce the same actor and canonical action", async () => {
   await withFreshEnv(async ({ projectDir }) => {
     await initAndSeed(projectDir);
@@ -178,7 +174,7 @@ test("parity: take — CLI and api.core.run produce the same actor and canonical
       assert.equal(cliRec.recorded.received.target.id, "T-parity-1");
 
       // --- API core path
-      // Reset by re-seeding a fresh task; the seam records only the
+
       // LAST authorize invocation, so the second path needs its own
       // target.
       await cli([
@@ -202,9 +198,7 @@ test("parity: take — CLI and api.core.run produce the same actor and canonical
   });
 });
 
-// ===========================================================================
 // takeover (with policy allow)
-// ===========================================================================
 
 test("parity: takeover — CLI preserves takeover policy action while api.core.run uses typed task.take", async () => {
   await withFreshEnv(async ({ projectDir }) => {
@@ -240,8 +234,7 @@ test("parity: takeover — CLI preserves takeover policy action while api.core.r
       await api.core.run({ op: "task.take", input: { id: "T-take-2" } });
       const apiRec = await recorded(projectDir);
       assert.equal(apiRec.recorded.mode, "allow");
-      // The CLI seam keeps its detailed takeover policy action. The typed
-      // API exposes only task.take; the kernel classifies the live claim
+
       // while preserving the core take/log operation semantics.
       assert.equal(apiRec.recorded.received.action, "task.take");
       assert.equal(apiRec.recorded.received.actor, "bob");
@@ -250,9 +243,7 @@ test("parity: takeover — CLI preserves takeover policy action while api.core.r
   });
 });
 
-// ===========================================================================
 // submit + accept
-// ===========================================================================
 
 test("parity: accept — CLI and api.core.run produce the same actor and canonical action", async () => {
   await withFreshEnv(async ({ projectDir }) => {
@@ -278,9 +269,7 @@ test("parity: accept — CLI and api.core.run produce the same actor and canonic
   });
 });
 
-// ===========================================================================
 // release
-// ===========================================================================
 
 test("parity: release — CLI and api.core.run produce the same actor and canonical action", async () => {
   await withFreshEnv(async ({ projectDir }) => {
@@ -304,9 +293,7 @@ test("parity: release — CLI and api.core.run produce the same actor and canoni
   });
 });
 
-// ===========================================================================
 // reopen (after accept)
-// ===========================================================================
 
 test("parity: reopen — CLI and api.core.run produce the same actor and canonical action", async () => {
   await withFreshEnv(async ({ projectDir }) => {
@@ -331,9 +318,7 @@ test("parity: reopen — CLI and api.core.run produce the same actor and canonic
   });
 });
 
-// ===========================================================================
 // cancel
-// ===========================================================================
 
 test("parity: cancel — CLI and api.core.run produce the same actor and canonical action", async () => {
   await withFreshEnv(async ({ projectDir }) => {
@@ -356,10 +341,6 @@ test("parity: cancel — CLI and api.core.run produce the same actor and canonic
     } finally { await uninstallPolicyFixture(projectDir); }
   });
 });
-
-// ===========================================================================
-// add-note
-// ===========================================================================
 
 test("parity: add-note — CLI and api.core.run produce the same actor and canonical action", async () => {
   await withFreshEnv(async ({ projectDir }) => {
@@ -392,10 +373,6 @@ test("parity: add-note — CLI and api.core.run produce the same actor and canon
     } finally { await uninstallPolicyFixture(projectDir); }
   });
 });
-
-// ===========================================================================
-// add-initiative
-// ===========================================================================
 
 test("parity: add-initiative — CLI and api.core.run produce the same actor and canonical action", async () => {
   await withFreshEnv(async ({ projectDir }) => {

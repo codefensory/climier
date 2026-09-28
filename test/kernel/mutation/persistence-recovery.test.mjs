@@ -43,7 +43,6 @@ function failingApplyProvider(message = "boom in apply") {
   };
 }
 
-
 test("kernel.mutate: provider.prepare throws ⇒ no state mutation, no log entry, lock released", async () => {
   const { mutate } = await importKernel();
   const dir = await createTempProject();
@@ -95,10 +94,6 @@ test("kernel.mutate: provider.apply throws after prepare succeeds ⇒ no state m
   }
 });
 
-// ===================================================================
-// Effects are not persisted (ADR-011 §4)
-// ===================================================================
-
 test("kernel.mutate: state + log are persisted together; final on-disk state has both", async () => {
   const { mutate } = await importKernel();
   const { provider } = updateNodeProvider({ id: "T1", newTitle: "atomic-final" });
@@ -148,9 +143,7 @@ test("kernel.mutate: failing call writes nothing — final on-disk state equals 
   }
 });
 
-// ===================================================================
 // Plugin attribution / log shape
-// ===================================================================
 
 async function mutateCanonicalState(dir, mutate, provider) {
   await writeCanonicalState(dir, {
@@ -326,6 +319,4 @@ test("direct mutation executor requires the active lock capability supplied by m
   }
 });
 
-// ===================================================================
 // Forbidden imports
-// ===================================================================

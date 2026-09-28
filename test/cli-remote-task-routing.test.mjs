@@ -232,7 +232,7 @@ test("remote task failures propagate without fallback or changing local sentinel
 });
 
 test("CLI: resolve without --note still rejects a task as an unsupported target", async () => {
-  // The task resolve bypass was removed; --note is not a task lifecycle input.
+
   const dir = await createTempProject();
   try {
     let r = await runCli(["--project", dir, "init"]);

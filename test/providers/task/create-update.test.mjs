@@ -19,7 +19,7 @@ test("task.create prepare: returns a frozen plan with target, policyAction and l
   assert.ok(Object.isFrozen(plan), "plan must be frozen");
   assert.ok(Object.isFrozen(plan.target), "plan.target must be frozen");
   assert.ok(Object.isFrozen(plan.policyAction), "plan.policyAction must be frozen");
-  // read-only: prepare did not mutate the snapshot
+
   assert.equal(Object.keys(snapshot.nodes).length, 0, "snapshot.nodes must remain empty after prepare");
 });
 
@@ -134,7 +134,7 @@ test("task.create prepare: rejects self-edge (SELF_EDGE)", async () => {
   const snapshot = makeSnapshot({
     nodes: { "T-z": { id: "T-z", kind: "resolvable", subkind: "task", title: "z", status: "open", revision: 1 } },
   });
-  const input = makeInputCreate({ blocked_by: ["T-x"] }); // T-x is the new id
+  const input = makeInputCreate({ blocked_by: ["T-x"] });
 
   await expectThrows(
     () => taskCreateProvider.prepare({ snapshot, input, request: makeRequest({ action: "task.create", input }) }),

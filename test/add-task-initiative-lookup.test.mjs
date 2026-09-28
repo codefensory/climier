@@ -89,13 +89,13 @@ test("add-task rejects an unregistered initiative with INITIATIVE_NOT_FOUND", as
 });
 
 test("CLI add-task rejects --allow-unregistered-initiative as unknown flag (T-plugin-policy-seam-dag)", async () => {
-  // T-plugin-policy-seam-dag (ADR-008 §"Capacidad interna"):
+
   // --allow-unregistered-initiative is no longer accepted on the
   // public CLI surface. The bin's knownFlags check rejects it before
-  // the handler runs. The internal capability lives in
+
   // `addNodeInternal({ allowUnregisteredInitiative: true })` in
   // src/commands/internal/create-node.mjs; see test/plugin-policy-seam-dag.test.mjs for
-  // the corresponding positive test.
+
   await withProject(async (dir) => {
     let result = await runCli(["init"], { cwd: dir });
     assert.equal(result.code, 0, result.stdout);

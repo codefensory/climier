@@ -1,16 +1,15 @@
-// T-plugin-policy-migration-tests — concurrency matrix for the policy seam.
+
 //
-// ADR-008 §"Seam por handler" requires the seam's authorize() to run
+
 // INSIDE the handler's withLock block, so the lock is held for the
 // full duration of the policy decision. Concurrent takes against the
 // same CLIMIER_HOME / project state exercise:
 //
-//   1. Free take race           → two processes take the same task
+
 //                                  concurrently; one wins the original
-//                                  `task.take`, the other sees an
+
 //                                  in_progress claim and turns into a
-//                                  `task.takeover`. With mode=allow,
-//                                  the takeover succeeds and the final
+
 //                                  owner is the second process.
 //   2. Takeover deny            → second process gets POLICY_DENIED,
 //                                  no state mutation, no log entry.
@@ -97,7 +96,7 @@ async function cli(args) {
 async function writeClimierJson(projectDir, mode, extra = {}) {
   // project_id MUST be pinned before init so the state file lands in
   // <CLIMIER_HOME>/projects/<project_id>/tasks.json and both children
-  // resolve to the same path (same as plugin-policy-seam-* helpers).
+
   const value = {
     version: 1,
     project_id: "policy-concurrency-project",
@@ -272,10 +271,6 @@ async function assertSlowTakeState(projectDir) {
   assert.equal(state.nodes["T-conc-1"].claim.by, takeoverEntry.agent);
 }
 
-// ===========================================================================
-// 1. Free take race: one wins task.take, the other transitions to task.takeover
-// ===========================================================================
-
 test("policy-concurrency: two concurrent takes — one wins task.take, the other sees task.takeover and (with allow) wins the claim", async () => {
   await withFreshEnv(async ({ projectDir }) => {
     await bootstrap(projectDir, "allow");
@@ -295,7 +290,7 @@ test("policy-concurrency: two concurrent takes — one wins task.take, the other
     ]);
 
     // Both processes must finish — one is the original task.take winner,
-    // the other is a task.takeover that the policy authorised.
+
     assert.equal(aliceRes.code, 0, `alice failed\nstdout: ${aliceRes.stdout}\nstderr: ${aliceRes.stderr}`);
     assert.equal(bobRes.code, 0, `bob failed\nstdout: ${bobRes.stdout}\nstderr: ${bobRes.stderr}`);
 
@@ -312,9 +307,7 @@ test("policy-concurrency: two concurrent takes — one wins task.take, the other
   });
 });
 
-// ===========================================================================
 // 2. Takeover deny — second process gets POLICY_DENIED, no log entry
-// ===========================================================================
 
 test("policy-concurrency: takeover with policy deny returns POLICY_DENIED with no state mutation and no log entry", async () => {
   await withFreshEnv(async ({ projectDir }) => {
@@ -354,9 +347,7 @@ test("policy-concurrency: takeover with policy deny returns POLICY_DENIED with n
   });
 });
 
-// ===========================================================================
 // 3. Takeover abstain — second process gets ALREADY_CLAIMED, no log entry
-// ===========================================================================
 
 test("policy-concurrency: takeover with policy abstain returns ALREADY_CLAIMED with no state mutation and no log entry", async () => {
   await withFreshEnv(async ({ projectDir }) => {
@@ -385,9 +376,7 @@ test("policy-concurrency: takeover with policy abstain returns ALREADY_CLAIMED w
   });
 });
 
-// ===========================================================================
 // 4. Slow policy under lock — lock is held during authorizeAction sleep
-// ===========================================================================
 
 test("policy-concurrency: a slow policy under the lock delays a concurrent take until the seam returns", async () => {
   await withFreshEnv(async ({ projectDir }) => {
@@ -428,9 +417,7 @@ test("policy-concurrency: a slow policy under the lock delays a concurrent take 
   });
 });
 
-// ===========================================================================
 // 5. State integrity — interleaving-free under contention
-// ===========================================================================
 
 test("policy-concurrency: state file remains coherent under contention (no torn writes, exactly one claim owner)", async () => {
   await withFreshEnv(async ({ projectDir }) => {
@@ -449,11 +436,9 @@ test("policy-concurrency: state file remains coherent under contention (no torn 
   });
 });
 
-// ===========================================================================
 // 6. Concurrency contract for the seam itself (no policy installed →
 //    ALREADY_CLAIMED, the seam must observe the in_progress claim and
 //    refuse the takeover with no log entry).
-// ===========================================================================
 
 test("policy-concurrency: no policy installed → takeover attempt gets ALREADY_CLAIMED with no log entry", async () => {
   await withFreshEnv(async ({ projectDir }) => {

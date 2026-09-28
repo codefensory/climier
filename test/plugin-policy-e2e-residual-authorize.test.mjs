@@ -89,7 +89,7 @@ test("e2e: authorize — throw mode raises through the dispatcher", async () => 
       "--as", "fixture-agent",
       FIXTURE_COMMAND, "authorize-check", "task.take",
     ]);
-    // The dispatcher wraps the plugin's throw into PLUGIN_HANDLER_FAILED
+
     // (ADR-005 §"Dispatch y contrato de errores"). The fixture's throw
     // attaches code = "POLICY_ERROR_FIXTURE" but the dispatcher keeps
     // only the message in details.cause; verifying the message is
@@ -103,7 +103,7 @@ test("e2e: authorize — throw mode raises through the dispatcher", async () => 
 
     // The fixture still records the throw attempt for audit — verify
     // a separate `recorded` call sees mode='throw' and the original
-    // actor/action (recordLast runs before the throw inside authorize).
+
     const recorded = await cli([
       "--project", projectDir,
       "--as", "fixture-agent",
@@ -161,7 +161,7 @@ test("e2e: authorize — actor/action passed through unchanged", async () => {
     assert.equal(out.received.target_id, "T-fixture-target");
     assert.equal(out.received.target_kind, "resolvable");
     assert.equal(out.received.projectDir, projectDir);
-    // The seam freezes the top-level projectConfig before passing it
+
     // to authorize (plan §3.3). The subcommand mirrors that contract.
     assert.equal(out.received.projectConfig_frozen, true);
     // The fixture only reads its own namespace; verify the namespace

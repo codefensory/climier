@@ -265,9 +265,8 @@ test("remote lifecycle errors propagate without fallback or local mutation", asy
   }
 });
 
-
 test("CLI: reopen --as policy-allow actor rolls back a done task end-to-end", async () => {
-  // ADR-008 §"`task.reopen`" exercises the seam allow path via the
+
   // policy-fixture: under ADR-009 the core itself accepts any actor,
   // so this case pins the policy allow behavior explicitly. Without
   // the fixture the same reopen would also succeed (default core).
@@ -309,7 +308,7 @@ function assertReopenedTask(data) {
 }
 
 test("CLI: reopen by a stranger succeeds under ADR-009 (no ownership compare on done_by)", async () => {
-  // ADR-009 §"Resto de operaciones": reopen may roll back any terminal
+
   // resolvable from any actor; the core only checks state validity and
   // required fields. State validation and required-field enforcement
   // are still verified separately (see the next two tests).
@@ -339,7 +338,7 @@ test("CLI: reopen by a stranger succeeds under ADR-009 (no ownership compare on 
 });
 
 test("CLI: reopen without --reason still fails with MISSING_FIELD (required field is enforced)", async () => {
-  // ADR-009 §"Resto de operaciones": state validation and required fields
+
   // are part of the core contract; only ownership checks were removed.
   const dir = await createTempProject();
   try {

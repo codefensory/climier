@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import * as helpers from "./plugin-core-adapter-helpers.mjs";
 
 // 3. run — rejection BEFORE any kernel call (no state required)
-// =====================================================================
 
 test("plugin-core-adapter: run rejects non-string op with PLUGIN_CORE_INVALID_OPERATION and lists supported ops", async () => {
   const { createCore } = await helpers.importFresh(helpers.ADAPTER_MODULE);
@@ -90,9 +89,7 @@ test("plugin-core-adapter: run rejects input._as with the same reason (no alias 
   );
 });
 
-// =====================================================================
 // 4. run — accepts any of the 18 ops without rejection; rejects unknown
-// =====================================================================
 
 test("plugin-core-adapter: run rejects unknown op without mutating state (rejection happens before any lock)", async () => {
   await helpers.withIsolatedEnv(async () => {
@@ -122,7 +119,7 @@ test("plugin-core-adapter: run rejects unknown op without mutating state (reject
         "no new user-shaped nodes after rejection",
       );
       // The log MUST be byte-for-byte the same length and content as
-      // the post-setup baseline. Any drift means the rejected call
+
       // touched state (it must not).
       assert.equal(
         after.log.length,
@@ -137,5 +134,3 @@ test("plugin-core-adapter: run rejects unknown op without mutating state (reject
     }
   });
 });
-
-// =====================================================================

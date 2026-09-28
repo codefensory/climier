@@ -85,7 +85,6 @@ test("CLI: take, submit and accept --as work", async () => {
   }
 });
 
-
 test("CLI: add-gate creates an open gate (replaces v1 add-decision)", async () => {
   const dir = await createTempProject();
   try {
@@ -262,7 +261,7 @@ test("CLI: update on an in_progress task is allowed (v2 contract: no claim lock)
     // take so it's in_progress
     r = await runCli(["--project", dir, "take", seedId, "--as", "alice"]);
     assert.equal(r.code, 0, r.stderr);
-    // v2 update is allowed on in_progress tasks (no claim lock).
+
     r = await runCli(["--project", dir, "update", seedId, "--title", "edited while in progress", "--as", "alice"]);
     assert.equal(r.code, 0, r.stderr);
     const data = JSON.parse(r.stdout);
@@ -296,8 +295,6 @@ test("CLI: resolve on a ready task is rejected without mutation", async () => {
     await rmTempProject(dir);
   }
 });
-
-
 
 test("dispatch: help and no-command handling remain ahead of backend selection", async () => {
   const dir = await createTempProject();

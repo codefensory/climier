@@ -130,7 +130,7 @@ test("SIGKILL at each bootstrap publication boundary resumes to a readable consi
     child.kill("SIGKILL");
     await new Promise((resolve) => child.once("exit", resolve));
     // SIGKILL intentionally leaves the documented file lock behind; clear only
-    // this synthetic project's lock so the second process can exercise resume.
+
     await fs.rm(path.join(process.env.CLIMIER_HOME, "projects", fixture.projectId, ".lock"), { force: true });
     const resumed = await runMigrate(fixture.projectDir);
     assert.equal(resumed.code, 0, `${checkpoint}: ${resumed.stdout}`);
