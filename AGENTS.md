@@ -160,7 +160,7 @@ Cycles in the DAG must not crash. The derivation keeps cycle members blocked. Un
 | `add-edge <from> <to> --type BLOCKS\|SUPERSEDES\|DERIVED_FROM` | `cli/commands/add-edge.mjs` | yes | required |
 | `snapshots` | `cli/commands/snapshots.mjs` | no (read-only) | no |
 | `restore <id> --as orchestrator\|recovery` | `cli/commands/restore.mjs` | yes (locked; accepts v2/v3 snapshots, normalizes v2 to v3; pre-snapshot) | yes (orchestrator\|recovery only) |
-| `ui [--port N] [--open=true\|false]` | `cli/commands/ui.mjs` (starts `ui/server/server.mjs`) | no (read-only) | no |
+| `ui [--port N] [--open=true\|false]` (experimental) | `cli/commands/ui.mjs` (starts `ui/server/server.mjs`) | no (read-only) | no |
 
 ## Hard rules for contributing
 
@@ -250,10 +250,9 @@ Do not put domain rules or persistence in the CLI layer.
 
 ## Testing
 
-- `npm test` runs the CLI/core suite and skips `ui-*` tests.
-- `npm run test:ui` runs the UI test suite in isolation.
-- For changes limited to `/ui`, do not run the full Climier CLI suite by default. Run `npm run test:ui` and, when the change affects the frontend build, `(cd ui && npm run build)`.
-- UI and CLI tests are separate by design, but `ui/server/` consumes CLI state and read-only helpers. If a change crosses that boundary or changes a shared CLI contract, run the relevant targeted CLI tests too; use `npm test` when the blast radius warrants it.
+- `npm test` runs the whole suite; there is no separate UI suite to skip.
+- For changes limited to `/ui`, the subproject's own checks are enough: `(cd ui && npm run build)` and any manual check you document. The root suite still applies to everything outside `/ui`.
+- `ui/server/` consumes CLI state and read-only helpers. If a change crosses that boundary or changes a shared CLI contract, run the relevant targeted CLI tests too; use `npm test` when the blast radius warrants it. The UI is experimental and carries no root test suite.
 - `npm run test:concurrent` runs the multi-agent race tests in isolation.
 - Each test uses a temp dir (see `helpers.mjs`) so tests don't interfere.
 - `importFresh()` re-imports modules fresh between tests (defeats the module cache); use it when you need clean state.

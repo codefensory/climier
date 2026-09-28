@@ -4474,6 +4474,12 @@
       "disposition": "keep"
     },
     {
+      "path": "test/package.test.mjs",
+      "name": "package: the UI test suite is gone with its script and loader",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
       "path": "test/plugin-api-layout.test.mjs",
       "name": "plugin API surfaces live under src/plugins without root plugin files",
       "ordinal": 1,

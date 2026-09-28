@@ -52,3 +52,13 @@ Cada task registra Oxlint antes/después sobre paths fuente y destinos conforme 
 - UI build queda fuera de alcance salvo autorización explícita para cambios de frontend.
 - Para cada suite core partida, el multiconjunto exacto de nombres de casos `test()` en la fuente antes del movimiento es igual a la unión de destinos después; ejecutar destinos. Diffs muestran solo movimiento/setup extraction imprescindible. Los splits UI están cancelados.
 - Oxlint por paths y cierre del universo `src bin test` según ADR-035; `git diff --check` limpio.
+
+## Enmienda (v1-baseline, T-v1-ui-delete)
+
+El slice 5 de ADR-039 eliminó la suite UI raíz: los catorce `test/ui-*.test.mjs`,
+`test/jsx-loader.mjs`, el script `test:ui` y el andamiaje JSX/overview. Por eso
+las decisiones 5, 8 y 10 de este ADR quedan superadas en lo que se refiere a
+esos paths: ya no existen, no están en el alcance de Oxlint y no hay deuda de
+lint que limpiar en ellos. `T-rar-lint-test-ui-files` se canceló por esa razón.
+El resto del ADR (particiones core, ownership exclusivo, verificación focal)
+sigue vigente.

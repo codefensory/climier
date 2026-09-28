@@ -208,6 +208,15 @@ A `BLOCKS` edge is satisfied only when the blocker is satisfied:
 
 Backlog tasks are a separate pool. They stay `backlog`, not `ready`, until they are edited out of backlog via `update --backlog false`.
 
+## Local web UI (experimental)
+
+`climier ui [--port N] [--open=true|false]` starts the local read-only board and
+opens it in the browser. It is experimental: it lives in the `ui/` subproject
+with its own dependencies, it reads the live state through the CLI's own
+derivation functions, and it ships without a root test suite — changes there
+are checked with the subproject's own build and a documented manual check, not
+with `npm test`. The CLI surface and the JSON contract do not depend on it.
+
 ## Agent identity
 
 Every mutating command needs an agent identity.

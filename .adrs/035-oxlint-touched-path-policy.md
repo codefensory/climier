@@ -56,3 +56,13 @@ Toda deuda heredada que quede en sources/destinos tocados se añade explícitame
 - `T-rar-lint-global-zero` no puede iniciarse hasta que esté resuelto `G-rar-transaction-size-debt` y se haya actualizado su acceptance según la decisión. Si se aprueba una ruta permitida y verificada que retire los tres size findings de `src/kernel/transaction.mjs`, el cierre exige cero. Si una enmienda explícita de ADR-035 difiere los tres, el cierre documenta esos diagnostics exactos y su resultado no-cero sin llamarlo «cero» o limpio. La mera existencia/resolución del gate no es un waiver.
 - En cierre, `npm run lint` ejecuta Oxlint 1.85.0 en `src bin test` con `/ui/` excluido por `ignorePatterns` y mantiene incluidos todos los tests bajo `test/` (incluidos los catorce `test/ui-*.test.mjs` de raíz); no requiere ejecutar `npm run test:ui`. Si el gate de transaction elige la ruta arquitectónica a cero, el cierre devuelve cero diagnósticos; si ADR-035 se enmienda para diferir los tres size findings, el cierre reporta el resultado no-cero y esas rutas/reglas explícitamente, sin denominarlo cero. La deuda baseline de esos catorce archivos raíz tiene cleanup owner `T-rar-lint-test-ui-files`, que valida Oxlint sin ejecutar las suites. Los cuatro destinos y el helper común predeclarado del split provider-knowledge tienen cleanup owner `T-rar-lint-residual-provider-knowledge`; `test/providers/task/task-fixtures.mjs` pertenece a `T-rar-lint-residual-provider-test`; `test/server/http/fixtures.mjs` y `test/cli-operation-bridge-matrix.test.mjs` pertenecen a `T-rar-lint-residual-server-http`; y `test/kernel/mutation/helpers.mjs` pertenece a `T-rar-lint-residual-kernel-tests`. Cada owner está bloqueado por su split y ADR-035, posee cada path/helper una sola vez, y figura como blocker explícito de `T-rar-lint-global-zero`.
 - No se habilita CI sin decisión separada.
+
+## Enmienda (v1-baseline, T-v1-ui-delete)
+
+El slice 5 de ADR-039 eliminó la suite UI raíz (`test/ui-*.test.mjs`,
+`test/jsx-loader.mjs`, `test:ui` y el andamiaje JSX/overview), así que las
+decisiones 6, 7 y el apartado de cierre de este ADR ya no incluyen esos paths:
+el cierre global de lint cubre `src bin test` sin los catorce archivos UI, que
+dejaron de existir. `T-rar-lint-test-ui-files` se canceló y su deuda dejó de
+formar parte del blocker de `T-rar-lint-global-zero`, cuyo baseline se anotó
+con esta actualización. La partición por scope de los demás owners sigue igual.

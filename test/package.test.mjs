@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { readdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -10,6 +11,15 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 test("package: npm test uses the bounded core runner", () => {
   const pkg = JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8"));
   assert.equal(pkg.scripts.test, "node test/run-core-tests.mjs");
+});
+
+test("package: the UI test suite is gone with its script and loader", async () => {
+  const pkg = JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8"));
+  assert.equal(pkg.scripts["test:ui"], undefined, "no test:ui script survives the suite it ran");
+  const testDir = path.join(repoRoot, "test");
+  const uiTests = (await readdir(testDir)).filter((name) => name.startsWith("ui-") && name.endsWith(".test.mjs"));
+  assert.deepEqual(uiTests, [], "no root ui-* test file remains");
+  assert.equal(existsSync(path.join(testDir, "jsx-loader.mjs")), false, "the JSX loader existed only for those files");
 });
 
 test("package: npm pack only includes runtime files", () => {
