@@ -61,8 +61,8 @@ function commandCases(client, statePath = "/not/read/locally") {
     commandCase({ name: "initiatives", expected: remoteResponses.initiatives, method: "readInitiatives", statePath,
       options: { all: true }, run: () => initiatives({ statePath, backendClient: client, positional: [], flags: { all: true } }) }),
     commandCase({ name: "log", expected: remoteResponses.log, method: "readLog", statePath,
-      options: { limit: 2, action: "task.create", agent: "alice", task: id, decision: "D-remote" },
-      run: () => log({ statePath, backendClient: client, positional: [], flags: { limit: "2", action: "task.create", agent: "alice", task: id, decision: "D-remote" } }) }),
+      options: { limit: 2, action: "task.create", agent: "alice", node: id },
+      run: () => log({ statePath, backendClient: client, positional: [], flags: { limit: "2", action: "task.create", agent: "alice", node: id } }) }),
     commandCase({ name: "state", expected: remoteResponses.state, method: "readState", statePath,
       options: undefined, run: () => state({ statePath, backendClient: client }) }),
   ];

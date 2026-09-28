@@ -2,7 +2,7 @@
 import { projectLogView } from "../../read-model/index.mjs";
 import { readState } from "../../storage/state.mjs";
 
-export const knownFlags = ["limit", "action", "agent", "task", "decision"];
+export const knownFlags = ["limit", "action", "agent", "node"];
 
 async function readRemoteLog(flags, backendClient) {
   const limit = flags.limit ? Number.parseInt(flags.limit, 10) : undefined;
@@ -10,8 +10,7 @@ async function readRemoteLog(flags, backendClient) {
     limit: Number.isFinite(limit) && limit > 0 ? limit : undefined,
     action: flags.action || undefined,
     agent: flags.agent || undefined,
-    task: flags.task || undefined,
-    decision: flags.decision || undefined,
+    node: flags.node || undefined,
   });
 }
 

@@ -8121,6 +8121,12 @@
     },
     {
       "path": "test/read-model-log-parity.test.mjs",
+      "name": "history matches the canonical node reference and ignores the pre-canonical fields",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/read-model-log-parity.test.mjs",
       "name": "log CLI and HTTP use the same pure filter, order, limit, and array projection",
       "ordinal": 1,
       "disposition": "keep"

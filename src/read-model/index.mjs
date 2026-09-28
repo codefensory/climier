@@ -12,7 +12,7 @@ import { projectSnapshot } from "./snapshot.mjs";
 
 function filterLogEntries(entries, filters) {
   let current = entries;
-  for (const key of ["action", "agent", "task", "decision"]) {
+  for (const key of ["action", "agent", "node"]) {
     if (filters[key]) {
       current = current.filter((entry) => entry[key] === filters[key]);
     }

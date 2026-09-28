@@ -250,7 +250,7 @@ function contextView(snapshot, id, agent) {
 
 function entryReferencesId(entry, id) {
   return Boolean(entry) && Boolean(id) && (
-    entry.node === id || entry.task === id || entry.decision === id || entry.gotcha === id ||
+    entry.node === id ||
     (typeof entry.note === "string" && entry.note.split(/\s+/).includes(id))
   );
 }

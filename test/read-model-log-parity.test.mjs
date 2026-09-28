@@ -12,10 +12,12 @@ import { runCli, writeCanonicalState } from "./helpers.mjs";
 import { readModelParity } from "./fixtures/read-model-parity.mjs";
 
 const log = [
-  { ts: "2025-01-01T00:00:00.000Z", agent: "alice", action: "take", task: "T-two", decision: "D-one" },
-  { ts: "2025-01-02T00:00:00.000Z", agent: "bob", action: "update", task: "T-two", decision: "D-one" },
-  { ts: "2025-01-03T00:00:00.000Z", agent: "alice", action: "take", task: "T-two", decision: "D-two" },
-  { ts: "2025-01-04T00:00:00.000Z", agent: "alice", action: "take", task: "T-one", decision: "D-two" },
+  { ts: "2025-01-01T00:00:00.000Z", agent: "alice", action: "take", node: "T-two" },
+  { ts: "2025-01-02T00:00:00.000Z", agent: "bob", action: "update", node: "T-two" },
+  { ts: "2025-01-03T00:00:00.000Z", agent: "alice", action: "take", node: "T-two" },
+  { ts: "2025-01-04T00:00:00.000Z", agent: "alice", action: "take", node: "T-one" },
+  // A pre-canonical entry: `task`/`decision`/`gotcha` were references once.
+  { ts: "2025-01-05T00:00:00.000Z", agent: "alice", action: "take", task: "T-one", decision: "T-one", gotcha: "T-one" },
 ];
 const snapshot = { ...readModelParity.snapshot, log };
 
@@ -65,17 +67,18 @@ async function cliLog(projectDir, filters) {
 
 test("pure log projection preserves exact filters, chronological order, limit, and array shape", () => {
   assert.deepEqual(projectLogView({ snapshot }), log);
-  assert.deepEqual(projectLogView({ snapshot, filters: { action: "take", agent: "alice", task: "T-two", decision: "D-two", limit: 1 } }), [log[2]]);
-  assert.deepEqual(projectLogView({ snapshot, filters: { agent: "alice", limit: 2 } }), [log[2], log[3]]);
+  assert.deepEqual(projectLogView({ snapshot, filters: { action: "take", agent: "alice", node: "T-two", limit: 1 } }), [log[2]]);
+  assert.deepEqual(projectLogView({ snapshot, filters: { agent: "alice", limit: 2 } }), [log[3], log[4]]);
   assert.deepEqual(projectLogView({ snapshot: { ...snapshot, log: undefined } }), []);
+  assert.deepEqual(projectLogView({ snapshot, filters: { node: "T-one" } }), [log[3]], "node is the canonical reference field");
 });
 
 test("log CLI and HTTP use the same pure filter, order, limit, and array projection", async () => {
   await withLogProject(async ({ baseUrl, projectDir }) => {
     const cases = [
       { query: "", filters: {}, expected: log },
-      { query: "action=take&agent=alice&task=T-two&decision=D-two&limit=1", filters: { action: "take", agent: "alice", task: "T-two", decision: "D-two", limit: 1 }, expected: [log[2]] },
-      { query: "agent=alice&limit=2", filters: { agent: "alice", limit: 2 }, expected: [log[2], log[3]] },
+      { query: "action=take&agent=alice&node=T-two&limit=1", filters: { action: "take", agent: "alice", node: "T-two", limit: 1 }, expected: [log[2]] },
+      { query: "agent=alice&limit=2", filters: { agent: "alice", limit: 2 }, expected: [log[3], log[4]] },
     ];
     for (const entry of cases) {
       const response = await fetch(`${baseUrl}/v1/projects/log-parity/read/log${entry.query ? `?${entry.query}` : ""}`, { headers: authHeaders() });
@@ -85,5 +88,20 @@ test("log CLI and HTTP use the same pure filter, order, limit, and array project
       assert.deepEqual(http, entry.expected, entry.query);
       assert.deepEqual(await cliLog(projectDir, entry.filters), entry.expected, entry.query);
     }
+  });
+});
+
+test("history matches the canonical node reference and ignores the pre-canonical fields", async () => {
+  // Local: the node field and a note mention are references; `task`, `decision`
+  // and `gotcha` are not, so an old entry no longer pulls the id into history.
+  await withLogProject(async ({ baseUrl, projectDir }) => {
+    const http = await (await fetch(`${baseUrl}/v1/projects/log-parity/read/history/T-one`, { headers: authHeaders() })).json();
+    const entries = http.result.entries;
+    assert.ok(Array.isArray(entries));
+    assert.deepEqual(entries.map((entry) => entry.ts), ["2025-01-04T00:00:00.000Z"]);
+
+    const cli = await runCli(["--project", projectDir, "history", "T-one"]);
+    assert.equal(cli.code, 0, cli.stdout || cli.stderr);
+    assert.deepEqual(JSON.parse(cli.stdout).entries.map((entry) => entry.ts), ["2025-01-04T00:00:00.000Z"]);
   });
 });

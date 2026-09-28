@@ -1,9 +1,9 @@
 // `history <id>`: log entries that reference a node id.
 //
 // Be generous — an entry counts if `node === id` OR `task === id` OR
-// `decision === id` OR `gotcha === id` OR the string `id` appears in `note`
+// `node === id` OR the string `id` appears in `note`
 // (covers things like `add-edge A B` whose note string mentions B).
-// The legacy `task`/`decision`/`gotcha` fields are kept matched so old log
+// Every mutation records its target under the canonical `node` field, so that
 // entries remain searchable without migration.
 //
 // Returns { id, entries }; entries is [] when nothing matches.
@@ -12,7 +12,7 @@ import { readState } from "../../storage/state.mjs";
 
 export const knownFlags = ["limit"];
 
-const REFERENCE_FIELDS = ["node", "task", "decision", "gotcha"];
+const REFERENCE_FIELDS = ["node"];
 
 function entryReferencesId(entry, id) {
   if (!entry || !id) {return false;}

@@ -5,7 +5,7 @@ const READ_ROUTES = [
   ["history", /^read\/history\/([^/]+)$/, ["limit"]],
   ["search", /^read\/search(?:\/([^/]+))?$/, ["query", "all"]],
   ["initiatives", /^read\/initiatives$/, ["all"]],
-  ["log", /^read\/log$/, ["limit", "action", "agent", "task", "decision"]],
+  ["log", /^read\/log$/, ["limit", "action", "agent", "node"]],
   ["state", /^read\/state$/, []],
   ["node", /^read\/nodes\/([^/]+)$/, []],
 ];
@@ -121,7 +121,7 @@ function entryReferencesId(entry, id) {
   if (!entry || !id) {
     return false;
   }
-  const directReferences = new Set([entry.node, entry.task, entry.decision, entry.gotcha]);
+  const directReferences = new Set([entry.node]);
   const hasDirectReference = directReferences.has(id);
   const hasNoteReference = typeof entry.note === "string" && entry.note.split(/\\s+/).includes(id);
   return hasDirectReference || hasNoteReference;
