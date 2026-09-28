@@ -1,0 +1,4 @@
+Temporary evidence home: /tmp/climier-v1-park-rehearsal-20260928/home
+Temporary project metadata root: /tmp/climier-v1-park-rehearsal-20260928/project
+Machine-readable reports: /tmp/climier-v1-park-rehearsal-20260928/reports/
+Route guard: /tmp/climier-v1-park-rehearsal-20260928/reports/dry-run.json and stdout assertions
