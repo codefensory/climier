@@ -1,0 +1,5344 @@
+{
+  "version": 1,
+  "files": [
+    {
+      "path": "bin/climier-server.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "bin/climier.mjs",
+      "comment_lines": 2,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/application/backend-client.mjs",
+      "comment_lines": 1,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/application/backend-config.mjs",
+      "comment_lines": 1,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/application/backend-remote-reads.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/application/backend-remote-transport.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/application/local-operation-source.mjs",
+      "comment_lines": 3,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/application/operations/bridge.mjs",
+      "comment_lines": 5,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/application/operations/builtins.mjs",
+      "comment_lines": 6,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 2
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/application/operations/execute.mjs",
+      "comment_lines": 7,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/application/operations/index.mjs",
+      "comment_lines": 1,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/application/operations/registry.mjs",
+      "comment_lines": 6,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 2
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/application/operations/remote-v1-manifest.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/cli/actor.mjs",
+      "comment_lines": 13,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 2
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/cli/commands/accept.mjs",
+      "comment_lines": 2,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/cli/commands/add-edge.mjs",
+      "comment_lines": 15,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 5
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/cli/commands/add-gate.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/cli/commands/add-initiative.mjs",
+      "comment_lines": 13,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 2,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 3
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/cli/commands/add-knowledge.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/cli/commands/add-node.mjs",
+      "comment_lines": 64,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 4,
+        "task_or_adr": 4,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 13
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/cli/commands/add-note.mjs",
+      "comment_lines": 10,
+      "protected_lines": 5,
+      "prohibited": {
+        "provenance": 4,
+        "task_or_adr": 0,
+        "commented_code": 1,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 5
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/cli/commands/add-task.mjs",
+      "comment_lines": 7,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 3,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 1,
+        "narration": 3
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/cli/commands/batch.mjs",
+      "comment_lines": 3,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/cli/commands/cancel.mjs",
+      "comment_lines": 3,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/cli/commands/context.mjs",
+      "comment_lines": 26,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 2,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/cli/commands/deprecate-knowledge.mjs",
+      "comment_lines": 7,
+      "protected_lines": 3,
+      "prohibited": {
+        "provenance": 2,
+        "task_or_adr": 0,
+        "commented_code": 1,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 2
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/cli/commands/history.mjs",
+      "comment_lines": 11,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 2,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/cli/commands/init.mjs",
+      "comment_lines": 9,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 0,
+        "commented_code": 1,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 2
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/cli/commands/initiatives.mjs",
+      "comment_lines": 4,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/cli/commands/install.mjs",
+      "comment_lines": 93,
+      "protected_lines": 2,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 7,
+        "commented_code": 1,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 4
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/cli/commands/internal/create-node.mjs",
+      "comment_lines": 22,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 2,
+        "commented_code": 1,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 3
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/cli/commands/internal/domain-routing.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/cli/commands/internal/resolvable-lifecycle-routing.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/cli/commands/internal/task-routing.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/cli/commands/log.mjs",
+      "comment_lines": 1,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/cli/commands/migrate.mjs",
+      "comment_lines": 1,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/cli/commands/pull.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/cli/commands/push.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/cli/commands/reject.mjs",
+      "comment_lines": 2,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/cli/commands/release.mjs",
+      "comment_lines": 3,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/cli/commands/remove-edge.mjs",
+      "comment_lines": 5,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 2
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/cli/commands/reopen.mjs",
+      "comment_lines": 3,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/cli/commands/reserved-namespaces.mjs",
+      "comment_lines": 22,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 2
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/cli/commands/resolve.mjs",
+      "comment_lines": 3,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/cli/commands/restore.mjs",
+      "comment_lines": 6,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 2
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/cli/commands/search.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/cli/commands/show.mjs",
+      "comment_lines": 1,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/cli/commands/snapshots.mjs",
+      "comment_lines": 11,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/cli/commands/state.mjs",
+      "comment_lines": 8,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/cli/commands/status.mjs",
+      "comment_lines": 29,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 3,
+        "task_or_adr": 2,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/cli/commands/submit.mjs",
+      "comment_lines": 2,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/cli/commands/take.mjs",
+      "comment_lines": 9,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 2,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/cli/commands/ui.mjs",
+      "comment_lines": 12,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 3
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/cli/commands/uninstall.mjs",
+      "comment_lines": 17,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 2,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/cli/commands/update.mjs",
+      "comment_lines": 15,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 2,
+        "task_or_adr": 2,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 3
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/cli/dispatch.mjs",
+      "comment_lines": 9,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 3
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/contracts/agent.mjs",
+      "comment_lines": 5,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/contracts/errors.mjs",
+      "comment_lines": 4,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 2,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/contracts/state-invariants.mjs",
+      "comment_lines": 8,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 1,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 2
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/kernel/edges.mjs",
+      "comment_lines": 65,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 8,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 5
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/kernel/graph.mjs",
+      "comment_lines": 62,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 2,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 4
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/kernel/mutate.mjs",
+      "comment_lines": 13,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 2
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/kernel/mutation/diff.mjs",
+      "comment_lines": 12,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 3
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/kernel/mutation/execute.mjs",
+      "comment_lines": 6,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/kernel/mutation/execute/batch.mjs",
+      "comment_lines": 1,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/kernel/mutation/execute/provider.mjs",
+      "comment_lines": 1,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/kernel/mutation/execute/shared.mjs",
+      "comment_lines": 1,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/kernel/mutation/execute/state.mjs",
+      "comment_lines": 1,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/kernel/mutation/log-entry.mjs",
+      "comment_lines": 6,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/kernel/mutation/preconditions.mjs",
+      "comment_lines": 17,
+      "protected_lines": 4,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/kernel/mutation/request.mjs",
+      "comment_lines": 7,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 1,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 2
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/kernel/mutation/revisions.mjs",
+      "comment_lines": 15,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 2,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/kernel/mutation/validation.mjs",
+      "comment_lines": 11,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/kernel/state-operations.mjs",
+      "comment_lines": 9,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/kernel/transaction.mjs",
+      "comment_lines": 94,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 3,
+        "task_or_adr": 2,
+        "commented_code": 9,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 10
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/kernel/transfer.mjs",
+      "comment_lines": 3,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/plugins/api.mjs",
+      "comment_lines": 29,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 5,
+        "task_or_adr": 2,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/plugins/core-adapter.mjs",
+      "comment_lines": 94,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 2,
+        "task_or_adr": 2,
+        "commented_code": 7,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 7
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/plugins/core-registry.mjs",
+      "comment_lines": 3,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/plugins/data.mjs",
+      "comment_lines": 11,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/plugins/descriptor.mjs",
+      "comment_lines": 34,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 2,
+        "task_or_adr": 4,
+        "commented_code": 1,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 3
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/plugins/dispatch.mjs",
+      "comment_lines": 86,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 1,
+        "commented_code": 1,
+        "banner": 0,
+        "documentation_mirror": 2,
+        "narration": 8
+      },
+      "directives": 1
+    },
+    {
+      "path": "src/plugins/errors.mjs",
+      "comment_lines": 109,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 4,
+        "task_or_adr": 5,
+        "commented_code": 1,
+        "banner": 0,
+        "documentation_mirror": 1,
+        "narration": 7
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/plugins/loader.mjs",
+      "comment_lines": 128,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 6,
+        "commented_code": 4,
+        "banner": 0,
+        "documentation_mirror": 1,
+        "narration": 10
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/plugins/lock.mjs",
+      "comment_lines": 10,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/plugins/paths.mjs",
+      "comment_lines": 21,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/plugins/policy.mjs",
+      "comment_lines": 90,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 9,
+        "commented_code": 2,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 9
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/plugins/query.mjs",
+      "comment_lines": 5,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/plugins/remote-guard.mjs",
+      "comment_lines": 2,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/plugins/runtime.mjs",
+      "comment_lines": 26,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 2,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 2
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/providers/core/edge.mjs",
+      "comment_lines": 69,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 1,
+        "commented_code": 4,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 4
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/providers/core/initiative.mjs",
+      "comment_lines": 87,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 3,
+        "task_or_adr": 1,
+        "commented_code": 5,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 7
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/providers/core/note.mjs",
+      "comment_lines": 77,
+      "protected_lines": 5,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 2,
+        "commented_code": 4,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 5
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/providers/gate/create.mjs",
+      "comment_lines": 27,
+      "protected_lines": 2,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/providers/gate/index.mjs",
+      "comment_lines": 13,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 2,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 3
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/providers/gate/lifecycle.mjs",
+      "comment_lines": 89,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 6,
+        "commented_code": 4,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 4
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/providers/gate/semantics.mjs",
+      "comment_lines": 32,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 3,
+        "task_or_adr": 2,
+        "commented_code": 2,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 4
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/providers/gate/update.mjs",
+      "comment_lines": 9,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 3
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/providers/knowledge/create.mjs",
+      "comment_lines": 29,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 2,
+        "task_or_adr": 1,
+        "commented_code": 2,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 3
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/providers/knowledge/deprecate.mjs",
+      "comment_lines": 31,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 2,
+        "task_or_adr": 1,
+        "commented_code": 2,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 2
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/providers/knowledge/index.mjs",
+      "comment_lines": 9,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/providers/knowledge/informing.mjs",
+      "comment_lines": 21,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/providers/knowledge/projection.mjs",
+      "comment_lines": 19,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 3,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/providers/knowledge/ranking.mjs",
+      "comment_lines": 26,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/providers/knowledge/scopes.mjs",
+      "comment_lines": 34,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 2,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/providers/knowledge/search.mjs",
+      "comment_lines": 21,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 3,
+        "task_or_adr": 1,
+        "commented_code": 1,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/providers/knowledge/update.mjs",
+      "comment_lines": 29,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 2,
+        "commented_code": 2,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 4
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/providers/plugin-data/common.mjs",
+      "comment_lines": 4,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/providers/plugin-data/index.mjs",
+      "comment_lines": 4,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 1,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/providers/plugin-data/node-delete.mjs",
+      "comment_lines": 1,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/providers/plugin-data/node.mjs",
+      "comment_lines": 4,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 1,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 2
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/providers/plugin-data/project-delete.mjs",
+      "comment_lines": 1,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/providers/plugin-data/project.mjs",
+      "comment_lines": 5,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/providers/task/accept.mjs",
+      "comment_lines": 24,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 6,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/providers/task/cancel.mjs",
+      "comment_lines": 28,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 5,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 2
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/providers/task/create.mjs",
+      "comment_lines": 4,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 4,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/providers/task/derivation.mjs",
+      "comment_lines": 42,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 4,
+        "task_or_adr": 5,
+        "commented_code": 2,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 5
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/providers/task/index.mjs",
+      "comment_lines": 14,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 3,
+        "commented_code": 1,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/providers/task/reject.mjs",
+      "comment_lines": 23,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 4,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/providers/task/release.mjs",
+      "comment_lines": 30,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 5,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 2
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/providers/task/reopen.mjs",
+      "comment_lines": 31,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 6,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/providers/task/submit.mjs",
+      "comment_lines": 19,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 3,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 2
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/providers/task/take.mjs",
+      "comment_lines": 48,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 12,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/providers/task/update.mjs",
+      "comment_lines": 71,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 8,
+        "commented_code": 4,
+        "banner": 2,
+        "documentation_mirror": 0,
+        "narration": 3
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/read-model/context.mjs",
+      "comment_lines": 1,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/read-model/core.mjs",
+      "comment_lines": 12,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 3,
+        "commented_code": 1,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 2
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/read-model/index.mjs",
+      "comment_lines": 5,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/read-model/initiatives.mjs",
+      "comment_lines": 1,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/read-model/search.mjs",
+      "comment_lines": 1,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/read-model/snapshot.mjs",
+      "comment_lines": 1,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/read-model/status.mjs",
+      "comment_lines": 1,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/server/auth/project-scope.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/server/catalog/index.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/server/http.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/server/http/codec.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/server/http/operations.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/server/http/reads.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/server/http/transfers.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/server/runtime-config.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/server/runtime.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/storage/ledger.mjs",
+      "comment_lines": 11,
+      "protected_lines": 3,
+      "prohibited": {
+        "provenance": 3,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 2
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/storage/ledger/bootstrap.mjs",
+      "comment_lines": 0,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/storage/ledger/commit.mjs",
+      "comment_lines": 4,
+      "protected_lines": 2,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/storage/ledger/recovery.mjs",
+      "comment_lines": 0,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/storage/ledger/replace.mjs",
+      "comment_lines": 0,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/storage/ledger/stages.mjs",
+      "comment_lines": 0,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/storage/lock.mjs",
+      "comment_lines": 4,
+      "protected_lines": 2,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 1,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 2
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/storage/log.mjs",
+      "comment_lines": 32,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 3,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 2
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/storage/migrate-detection.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/storage/migrate.mjs",
+      "comment_lines": 9,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 7,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 3
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/storage/paths.mjs",
+      "comment_lines": 1,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/storage/state.mjs",
+      "comment_lines": 12,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "src/storage/transfer.mjs",
+      "comment_lines": 2,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/add-note.test.mjs",
+      "comment_lines": 1,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/add-task-initiative-lookup.test.mjs",
+      "comment_lines": 7,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 2
+      },
+      "directives": 1
+    },
+    {
+      "path": "test/add-wrappers.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 1
+    },
+    {
+      "path": "test/add.test.mjs",
+      "comment_lines": 1,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/adversarial.test.mjs",
+      "comment_lines": 128,
+      "protected_lines": 41,
+      "prohibited": {
+        "provenance": 5,
+        "task_or_adr": 12,
+        "commented_code": 15,
+        "banner": 28,
+        "documentation_mirror": 0,
+        "narration": 11
+      },
+      "directives": 1
+    },
+    {
+      "path": "test/agent-source.test.mjs",
+      "comment_lines": 19,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 1
+    },
+    {
+      "path": "test/application-backend-client.test.mjs",
+      "comment_lines": 2,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/application-operation-bridge.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/application-operation-registry.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/application-operations.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/architecture/import-boundaries.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/architecture/import-graph.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/backend-config.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/batch-cli.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/blocked-by.test.mjs",
+      "comment_lines": 8,
+      "protected_lines": 2,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 1
+    },
+    {
+      "path": "test/blocks-direction.test.mjs",
+      "comment_lines": 5,
+      "protected_lines": 4,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/bugs.test.mjs",
+      "comment_lines": 5,
+      "protected_lines": 4,
+      "prohibited": {
+        "provenance": 3,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/check-test-manifest.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/claim-adapters.test.mjs",
+      "comment_lines": 1,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 1,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/cli-dispatch.test.mjs",
+      "comment_lines": 6,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/cli-integration.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 2,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 2
+    },
+    {
+      "path": "test/cli-operation-bridge-boundary.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/cli-operation-bridge-matrix.test.mjs",
+      "comment_lines": 4,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/cli-remote-domain-routing.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/cli-remote-read-routing.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/cli-remote-resolvable-lifecycle-routing.test.mjs",
+      "comment_lines": 7,
+      "protected_lines": 5,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 3,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/cli-remote-task-routing.test.mjs",
+      "comment_lines": 1,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/cli-remote-write-routing.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/cli-takeover-policy-seam.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/cli-transfer.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/command-ui.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/comment-policy.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/context-contract.test.mjs",
+      "comment_lines": 40,
+      "protected_lines": 5,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 4,
+        "commented_code": 1,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 4
+      },
+      "directives": 1
+    },
+    {
+      "path": "test/contracts-layout.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/docs.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/edge-remove.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/edges.test.mjs",
+      "comment_lines": 7,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/errors.test.mjs",
+      "comment_lines": 12,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 2,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/execution-contract.test.mjs",
+      "comment_lines": 1,
+      "protected_lines": 2,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/fixtures/core-plugin/climier.mjs",
+      "comment_lines": 46,
+      "protected_lines": 12,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 11,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 1
+    },
+    {
+      "path": "test/fixtures/plugin-foundation/climier.mjs",
+      "comment_lines": 0,
+      "protected_lines": 2,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 2
+    },
+    {
+      "path": "test/fixtures/plugins/policy-fixture/climier.mjs",
+      "comment_lines": 94,
+      "protected_lines": 23,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 5,
+        "commented_code": 2,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 6
+      },
+      "directives": 1
+    },
+    {
+      "path": "test/fixtures/read-model-parity.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/fixtures/remote-v1-capability-inventory.mjs",
+      "comment_lines": 2,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/fixtures/sample-plugin/climier.mjs",
+      "comment_lines": 32,
+      "protected_lines": 4,
+      "prohibited": {
+        "provenance": 5,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 2
+    },
+    {
+      "path": "test/generate-test-manifest.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/helpers-safety.test.mjs",
+      "comment_lines": 5,
+      "protected_lines": 3,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 2
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/helpers.mjs",
+      "comment_lines": 34,
+      "protected_lines": 8,
+      "prohibited": {
+        "provenance": 4,
+        "task_or_adr": 0,
+        "commented_code": 1,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 4
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/init.test.mjs",
+      "comment_lines": 2,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/initiative-validation.test.mjs",
+      "comment_lines": 6,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 2,
+        "task_or_adr": 2,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/initiatives.test.mjs",
+      "comment_lines": 23,
+      "protected_lines": 2,
+      "prohibited": {
+        "provenance": 3,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 1,
+        "narration": 0
+      },
+      "directives": 1
+    },
+    {
+      "path": "test/internal-capabilities.test.mjs",
+      "comment_lines": 34,
+      "protected_lines": 3,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 3,
+        "commented_code": 0,
+        "banner": 6,
+        "documentation_mirror": 1,
+        "narration": 6
+      },
+      "directives": 1
+    },
+    {
+      "path": "test/issues.test.mjs",
+      "comment_lines": 39,
+      "protected_lines": 17,
+      "prohibited": {
+        "provenance": 7,
+        "task_or_adr": 2,
+        "commented_code": 0,
+        "banner": 10,
+        "documentation_mirror": 0,
+        "narration": 5
+      },
+      "directives": 1
+    },
+    {
+      "path": "test/json-output.test.mjs",
+      "comment_lines": 10,
+      "protected_lines": 2,
+      "prohibited": {
+        "provenance": 2,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/kernel-edges.test.mjs",
+      "comment_lines": 22,
+      "protected_lines": 4,
+      "prohibited": {
+        "provenance": 2,
+        "task_or_adr": 4,
+        "commented_code": 1,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/kernel-graph.test.mjs",
+      "comment_lines": 24,
+      "protected_lines": 5,
+      "prohibited": {
+        "provenance": 2,
+        "task_or_adr": 2,
+        "commented_code": 1,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/kernel-mutate-concurrency.test.mjs",
+      "comment_lines": 38,
+      "protected_lines": 15,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 8,
+        "documentation_mirror": 0,
+        "narration": 3
+      },
+      "directives": 4
+    },
+    {
+      "path": "test/kernel-mutate-initiative.test.mjs",
+      "comment_lines": 39,
+      "protected_lines": 7,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 14,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 1
+    },
+    {
+      "path": "test/kernel-mutate-preconditions.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/kernel-mutation-batch.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/kernel-plugin-data.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 1
+    },
+    {
+      "path": "test/kernel-policy-errors.test.mjs",
+      "comment_lines": 2,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/kernel-state-operations.test.mjs",
+      "comment_lines": 6,
+      "protected_lines": 2,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 2
+    },
+    {
+      "path": "test/kernel-takeover-policy-seam.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/kernel-transaction-initiative.test.mjs",
+      "comment_lines": 17,
+      "protected_lines": 7,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/kernel-transaction.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/kernel-transfer.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/kernel/mutation/contract-guards.test.mjs",
+      "comment_lines": 7,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/kernel/mutation/helpers.mjs",
+      "comment_lines": 12,
+      "protected_lines": 3,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 4,
+        "documentation_mirror": 0,
+        "narration": 2
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/kernel/mutation/mutation-boundaries.test.mjs",
+      "comment_lines": 10,
+      "protected_lines": 3,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 2,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/kernel/mutation/persistence-recovery.test.mjs",
+      "comment_lines": 12,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 6,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/kernel/mutation/policy-concurrency.test.mjs",
+      "comment_lines": 16,
+      "protected_lines": 2,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 2,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/kernel/mutation/preconditions.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/kernel/mutation/provider-contracts.test.mjs",
+      "comment_lines": 2,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/kernel/mutation/reentrancy-and-log.test.mjs",
+      "comment_lines": 7,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/lifecycle.test.mjs",
+      "comment_lines": 56,
+      "protected_lines": 4,
+      "prohibited": {
+        "provenance": 6,
+        "task_or_adr": 14,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 1,
+        "narration": 1
+      },
+      "directives": 2
+    },
+    {
+      "path": "test/lock.test.mjs",
+      "comment_lines": 1,
+      "protected_lines": 2,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/log.test.mjs",
+      "comment_lines": 1,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/migrate-fenced.test.mjs",
+      "comment_lines": 1,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/migrate-old-forms.test.mjs",
+      "comment_lines": 3,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/migrate.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/package.test.mjs",
+      "comment_lines": 1,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-api-layout.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-compat-cli.test.mjs",
+      "comment_lines": 1,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-compat-helpers.mjs",
+      "comment_lines": 1,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-compat-mutators.test.mjs",
+      "comment_lines": 5,
+      "protected_lines": 2,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-compat-read-model.test.mjs",
+      "comment_lines": 2,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-compat-snapshots.test.mjs",
+      "comment_lines": 3,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-compat.test.mjs",
+      "comment_lines": 3,
+      "protected_lines": 2,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-core-adapter-cas.test.mjs",
+      "comment_lines": 17,
+      "protected_lines": 5,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 1,
+        "banner": 6,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-core-adapter-helpers.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-core-adapter-policy.test.mjs",
+      "comment_lines": 2,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 1,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-core-adapter-run.test.mjs",
+      "comment_lines": 17,
+      "protected_lines": 6,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 4,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-core-adapter.test.mjs",
+      "comment_lines": 2,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 1,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-core-batch.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-core-concurrency.test.mjs",
+      "comment_lines": 22,
+      "protected_lines": 6,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 4,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-core-e2e.test.mjs",
+      "comment_lines": 29,
+      "protected_lines": 5,
+      "prohibited": {
+        "provenance": 3,
+        "task_or_adr": 2,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-core-errors.test.mjs",
+      "comment_lines": 23,
+      "protected_lines": 2,
+      "prohibited": {
+        "provenance": 2,
+        "task_or_adr": 2,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 3
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-core-integration-concurrency.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-core-integration-errors.test.mjs",
+      "comment_lines": 8,
+      "protected_lines": 2,
+      "prohibited": {
+        "provenance": 2,
+        "task_or_adr": 3,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 2
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-core-integration-happy-path.test.mjs",
+      "comment_lines": 1,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-core-integration-helpers.mjs",
+      "comment_lines": 2,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-core-registry.test.mjs",
+      "comment_lines": 42,
+      "protected_lines": 4,
+      "prohibited": {
+        "provenance": 2,
+        "task_or_adr": 10,
+        "commented_code": 1,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 2
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-dispatch.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-foundation-acceptance.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-foundation-concurrency.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-install-residual-conflicts.test.mjs",
+      "comment_lines": 16,
+      "protected_lines": 2,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-install-residual-descriptor.test.mjs",
+      "comment_lines": 2,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-install-residual-happy.test.mjs",
+      "comment_lines": 7,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-install-residual-invalid.test.mjs",
+      "comment_lines": 4,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-install-residual-path-lock.test.mjs",
+      "comment_lines": 1,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-install-residual-reserved.test.mjs",
+      "comment_lines": 4,
+      "protected_lines": 2,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-install-residual-uninstall-validation.test.mjs",
+      "comment_lines": 1,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-install-residual-uninstall.test.mjs",
+      "comment_lines": 7,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 2,
+        "commented_code": 1,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-install-test-helpers.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-integration.test.mjs",
+      "comment_lines": 30,
+      "protected_lines": 8,
+      "prohibited": {
+        "provenance": 3,
+        "task_or_adr": 3,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-log-seam-residual-add-task.test.mjs",
+      "comment_lines": 8,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 4,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-log-seam-residual-append.test.mjs",
+      "comment_lines": 1,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-log-seam-residual-dag.test.mjs",
+      "comment_lines": 1,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-log-seam-residual-helpers.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-log-seam-residual-invariant.test.mjs",
+      "comment_lines": 5,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-log-seam-residual-lifecycle.test.mjs",
+      "comment_lines": 1,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-policy-concurrency.test.mjs",
+      "comment_lines": 74,
+      "protected_lines": 10,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 7,
+        "commented_code": 0,
+        "banner": 12,
+        "documentation_mirror": 0,
+        "narration": 3
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-policy-e2e-residual-authorize.test.mjs",
+      "comment_lines": 9,
+      "protected_lines": 5,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 2
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-policy-e2e-residual-discovery.test.mjs",
+      "comment_lines": 8,
+      "protected_lines": 5,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-policy-e2e-residual-fixture.test.mjs",
+      "comment_lines": 1,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-policy-e2e-residual-helpers.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-policy-e2e-residual-recorded.test.mjs",
+      "comment_lines": 1,
+      "protected_lines": 3,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-policy-foundation-authorize.test.mjs",
+      "comment_lines": 2,
+      "protected_lines": 3,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-policy-foundation-config.test.mjs",
+      "comment_lines": 11,
+      "protected_lines": 3,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-policy-foundation-helpers.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-policy-foundation.test.mjs",
+      "comment_lines": 3,
+      "protected_lines": 2,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-policy-layout.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-policy-parity-cli-api.test.mjs",
+      "comment_lines": 65,
+      "protected_lines": 5,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 4,
+        "commented_code": 0,
+        "banner": 16,
+        "documentation_mirror": 0,
+        "narration": 6
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-policy-seam-dag-edge-update.test.mjs",
+      "comment_lines": 7,
+      "protected_lines": 3,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 3,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-policy-seam-dag-helpers.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-policy-seam-dag-internal.test.mjs",
+      "comment_lines": 6,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-policy-seam-dag.test.mjs",
+      "comment_lines": 1,
+      "protected_lines": 2,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-policy-seam-lifecycle-helpers.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-policy-seam-lifecycle-note-initiative.test.mjs",
+      "comment_lines": 16,
+      "protected_lines": 5,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-policy-seam-lifecycle-reopen-cancel.test.mjs",
+      "comment_lines": 9,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 2,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-policy-seam-lifecycle.test.mjs",
+      "comment_lines": 12,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-policy-seam-state-ops.test.mjs",
+      "comment_lines": 44,
+      "protected_lines": 3,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 2,
+        "commented_code": 0,
+        "banner": 6,
+        "documentation_mirror": 0,
+        "narration": 3
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-query-snapshot.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugin-remote-guard.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugins/api/compatibility.test.mjs",
+      "comment_lines": 47,
+      "protected_lines": 7,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 1,
+        "commented_code": 1,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 10
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugins/api/core-gate.test.mjs",
+      "comment_lines": 33,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 3,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 4
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugins/api/core-knowledge.test.mjs",
+      "comment_lines": 23,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 0,
+        "commented_code": 1,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 6
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugins/api/core-task.test.mjs",
+      "comment_lines": 42,
+      "protected_lines": 10,
+      "prohibited": {
+        "provenance": 4,
+        "task_or_adr": 9,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 6
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugins/api/data-isolation.test.mjs",
+      "comment_lines": 3,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugins/api/fixtures.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/plugins/api/runtime-query.test.mjs",
+      "comment_lines": 6,
+      "protected_lines": 2,
+      "prohibited": {
+        "provenance": 2,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/project-storage.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/provider-core-edge.test.mjs",
+      "comment_lines": 19,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 1,
+        "commented_code": 2,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/provider-core-initiative.test.mjs",
+      "comment_lines": 31,
+      "protected_lines": 4,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 1,
+        "commented_code": 2,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 3
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/provider-core-note.test.mjs",
+      "comment_lines": 20,
+      "protected_lines": 2,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 1,
+        "commented_code": 2,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/provider-gate-lifecycle.test.mjs",
+      "comment_lines": 29,
+      "protected_lines": 4,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 8,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 3
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/provider-gate-semantics.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/provider-gate.test.mjs",
+      "comment_lines": 9,
+      "protected_lines": 2,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/provider-knowledge-create.test.mjs",
+      "comment_lines": 24,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 2,
+        "commented_code": 0,
+        "banner": 6,
+        "documentation_mirror": 0,
+        "narration": 3
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/provider-knowledge-deprecate.test.mjs",
+      "comment_lines": 27,
+      "protected_lines": 3,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 6,
+        "documentation_mirror": 0,
+        "narration": 2
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/provider-knowledge-query.test.mjs",
+      "comment_lines": 30,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 14,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/provider-knowledge-update.test.mjs",
+      "comment_lines": 18,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 6,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/provider-knowledge/fixtures.mjs",
+      "comment_lines": 0,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/provider-plugin-data.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/provider-task-accept.test.mjs",
+      "comment_lines": 2,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 2,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/provider-task-derivation.test.mjs",
+      "comment_lines": 2,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/provider-task-reject.test.mjs",
+      "comment_lines": 3,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/provider-task-submit.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/provider-task-supersession-cli.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/provider-task-supersession.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/providers/task/create-update.test.mjs",
+      "comment_lines": 14,
+      "protected_lines": 5,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/providers/task/lifecycle.test.mjs",
+      "comment_lines": 4,
+      "protected_lines": 2,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/providers/task/task-fixtures.mjs",
+      "comment_lines": 13,
+      "protected_lines": 2,
+      "prohibited": {
+        "provenance": 2,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 2,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/read-consumer-boundaries.test.mjs",
+      "comment_lines": 1,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 1,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/read-consumer-imports.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/read-model-contract-matrix.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 1
+    },
+    {
+      "path": "test/read-model-log-parity.test.mjs",
+      "comment_lines": 3,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 2,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/read-model.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/remote-v1-capability-inventory.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/remote-v1-manifest-conformance.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/remote-v1-manifest.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/retired-surfaces.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/run-core-tests.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/search.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/server-catalog.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/server-operations-e2e.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/server-runtime.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/server/http/auth-validation.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/server/http/facade-contract.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/server/http/fixtures.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/server/http/operations-batch.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/server/http/reads-transfers.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/smoke-sandbox.test.mjs",
+      "comment_lines": 45,
+      "protected_lines": 6,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 8
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/snapshots-restore.test.mjs",
+      "comment_lines": 72,
+      "protected_lines": 8,
+      "prohibited": {
+        "provenance": 5,
+        "task_or_adr": 4,
+        "commented_code": 0,
+        "banner": 10,
+        "documentation_mirror": 0,
+        "narration": 5
+      },
+      "directives": 3
+    },
+    {
+      "path": "test/state-cli.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/state-operation-adapters.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/state-resilience-regression.test.mjs",
+      "comment_lines": 83,
+      "protected_lines": 19,
+      "prohibited": {
+        "provenance": 3,
+        "task_or_adr": 3,
+        "commented_code": 0,
+        "banner": 10,
+        "documentation_mirror": 0,
+        "narration": 7
+      },
+      "directives": 3
+    },
+    {
+      "path": "test/state-revision-cas.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/state-snapshots.test.mjs",
+      "comment_lines": 28,
+      "protected_lines": 5,
+      "prohibited": {
+        "provenance": 2,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 6,
+        "documentation_mirror": 0,
+        "narration": 2
+      },
+      "directives": 2
+    },
+    {
+      "path": "test/state.test.mjs",
+      "comment_lines": 5,
+      "protected_lines": 2,
+      "prohibited": {
+        "provenance": 3,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 1
+    },
+    {
+      "path": "test/status-history.test.mjs",
+      "comment_lines": 34,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 5,
+        "task_or_adr": 3,
+        "commented_code": 1,
+        "banner": 8,
+        "documentation_mirror": 0,
+        "narration": 4
+      },
+      "directives": 1
+    },
+    {
+      "path": "test/storage-ledger-commit.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/storage-ledger-recovery.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/storage-ledger-replace.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/storage-ledger.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/storage-lock-log-layout.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/storage-paths.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/storage-state-layout.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/storage-state-read-v5.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/supersede.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 1
+    },
+    {
+      "path": "test/take-by-id.test.mjs",
+      "comment_lines": 11,
+      "protected_lines": 2,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 6,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 2
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/take.test.mjs",
+      "comment_lines": 14,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 2,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 1
+    },
+    {
+      "path": "test/task-lifecycle-cli.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/task-lifecycle-integration.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/test-manifest-checker.mjs",
+      "comment_lines": 2,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/test-manifest-collector.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/test-manifest-declarations.mjs",
+      "comment_lines": 15,
+      "protected_lines": 3,
+      "prohibited": {
+        "provenance": 2,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 2
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/test-manifest-lanes.mjs",
+      "comment_lines": 5,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 1,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 1
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/test-manifest-rows.mjs",
+      "comment_lines": 19,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 2
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/test-manifest.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/unknown-flags.test.mjs",
+      "comment_lines": 3,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/update.test.mjs",
+      "comment_lines": 9,
+      "protected_lines": 4,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 1
+    },
+    {
+      "path": "test/v1-restore-transfer.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/v5-fixture-helper.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 0,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 0
+    },
+    {
+      "path": "test/v5-read-consumers.test.mjs",
+      "comment_lines": 0,
+      "protected_lines": 1,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 0,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 0
+      },
+      "directives": 1
+    },
+    {
+      "path": "test/worker-start-scripts.test.mjs",
+      "comment_lines": 54,
+      "protected_lines": 7,
+      "prohibited": {
+        "provenance": 0,
+        "task_or_adr": 1,
+        "commented_code": 1,
+        "banner": 12,
+        "documentation_mirror": 0,
+        "narration": 6
+      },
+      "directives": 1
+    },
+    {
+      "path": "test/workflow-evidence-preflight.test.mjs",
+      "comment_lines": 29,
+      "protected_lines": 2,
+      "prohibited": {
+        "provenance": 1,
+        "task_or_adr": 4,
+        "commented_code": 0,
+        "banner": 0,
+        "documentation_mirror": 0,
+        "narration": 2
+      },
+      "directives": 1
+    }
+  ],
+  "directive_counts": {
+    "src": 1,
+    "bin": 0,
+    "test": 44
+  }
+}
