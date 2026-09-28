@@ -26,7 +26,7 @@ test("CLI: take --banana returns a structured usage error", async () => {
     assert.equal(data.error.code, "CLI_USAGE_ERROR");
     assert.equal(data.error.details.command, "take");
     assert.equal(data.error.details.flag, "banana");
-    assert.deepEqual(data.error.details.valid_flags, ["as", "domain", "initiative", "tag"]);
+    assert.deepEqual(data.error.details.valid_flags, ["as"]);
     assert.equal(r.stderr.trim(), "");
   } finally {
     await rmTempProject(dir);
@@ -92,7 +92,7 @@ test("CLI: unknown flag details list valid flags for the command", async () => {
     const data = JSON.parse(r.stdout);
     assert.equal(data.error.code, "CLI_USAGE_ERROR");
     assert.equal(data.error.details.command, "take");
-    assert.deepEqual(data.error.details.valid_flags, ["as", "domain", "initiative", "tag"]);
+    assert.deepEqual(data.error.details.valid_flags, ["as"]);
   } finally {
     await rmTempProject(dir);
   }

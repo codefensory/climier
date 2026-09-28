@@ -58,7 +58,8 @@ import { assertNoReservedCollision } from "./reserved-namespaces.mjs";
 
 // We accept --as as identity (not enforced); it is harmless to allow it
 // even though install does not write to project state.
-export const knownFlags = ["as"];
+// Plugin install carries no actor: no plugin operation runs here (ADR-038).
+export const knownFlags = [];
 
 class PluginIdConflict extends Error {
   constructor(id, extra = {}) {

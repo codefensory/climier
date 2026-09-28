@@ -5347,6 +5347,12 @@
     },
     {
       "path": "test/plugin-install-residual-happy.test.mjs",
+      "name": "CLI: install rejects --as as an unknown flag and installs without it",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/plugin-install-residual-happy.test.mjs",
       "name": "install: descriptor with id != command lands at installed/<id>",
       "ordinal": 1,
       "disposition": "keep"
@@ -10376,17 +10382,29 @@
     },
     {
       "path": "test/take.test.mjs",
+      "name": "CLI: take rejects the retired filters --initiative, --domain and --tag as unknown flags",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/take.test.mjs",
       "name": "take: accepts and ignores --domain",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/v2-take.test.mjs"
+      "disposition": "delete",
+      "move_from": "test/v2-take.test.mjs",
+      "category": "retired-flag",
+      "reason": "--domain left take's knownFlags (ADR-038) for the same reason as --initiative",
+      "replacement": "test/take.test.mjs: CLI: take rejects the retired filters --initiative, --domain and --tag as unknown flags"
     },
     {
       "path": "test/take.test.mjs",
       "name": "take: accepts and ignores --initiative",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/v2-take.test.mjs"
+      "disposition": "delete",
+      "move_from": "test/v2-take.test.mjs",
+      "category": "retired-flag",
+      "reason": "--initiative left take's knownFlags (ADR-038): the filter was accepted and ignored, and the CLI now rejects it as an unknown flag",
+      "replacement": "test/take.test.mjs: CLI: take rejects the retired filters --initiative, --domain and --tag as unknown flags"
     },
     {
       "path": "test/take.test.mjs",
@@ -10406,8 +10424,11 @@
       "path": "test/take.test.mjs",
       "name": "take: an unmatched --initiative does not exclude the explicit id",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/v2-take.test.mjs"
+      "disposition": "delete",
+      "move_from": "test/v2-take.test.mjs",
+      "category": "retired-flag",
+      "reason": "same retired --initiative flag; the explicit id stays the only target take accepts",
+      "replacement": "test/take.test.mjs: CLI: take rejects the retired filters --initiative, --domain and --tag as unknown flags"
     },
     {
       "path": "test/take.test.mjs",
@@ -13068,20 +13089,6 @@
     },
     {
       "path": "test/v2-take.test.mjs",
-      "name": "take: accepts and ignores --domain",
-      "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/v2-take.test.mjs"
-    },
-    {
-      "path": "test/v2-take.test.mjs",
-      "name": "take: accepts and ignores --initiative",
-      "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/v2-take.test.mjs"
-    },
-    {
-      "path": "test/v2-take.test.mjs",
       "name": "take: accepts and ignores --tag",
       "ordinal": 1,
       "disposition": "move",
@@ -13090,13 +13097,6 @@
     {
       "path": "test/v2-take.test.mjs",
       "name": "take: accepts and ignores legacy filter combinations",
-      "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/v2-take.test.mjs"
-    },
-    {
-      "path": "test/v2-take.test.mjs",
-      "name": "take: an unmatched --initiative does not exclude the explicit id",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/v2-take.test.mjs"

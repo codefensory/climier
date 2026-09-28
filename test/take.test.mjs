@@ -2,7 +2,7 @@
 // F9 — `take <id>`: idempotent claim of an explicit ready task.
 // First `take <id>` from an agent claims that task and returns
 // freshly_claimed=true. Repeating the same id as the same agent returns it
-// with freshly_claimed=false. Legacy filters are accepted but ignored.
+// with freshly_claimed=false. The retired filters are unknown flags at the CLI.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -106,38 +106,22 @@ test("take: throws NOT_READY when the requested task is blocked", async () => {
 
 // --- filters ----------------------------------------------------------
 
-test("take: accepts and ignores --initiative", async () => {
+test("CLI: take rejects the retired filters --initiative, --domain and --tag as unknown flags", async () => {
   const dir = await projectFixture();
   try {
-    await addInitiative(dir, "billing", "billing");
-    await addTask(dir, "T-auth-1", { title: "auth task", initiative: "auth" });
-    await addTask(dir, "T-billing-1", { title: "billing task", initiative: "billing" });
-
-    const out = await take(dir, "T-auth-1", { as: "alice", initiative: "billing" });
-    assert.equal(out.node.id, "T-auth-1");
+    await addTask(dir, "T-auth-1", { title: "auth task" });
+    for (const flag of ["initiative", "domain", "tag"]) {
+      const r = await runCli(["--project", dir, "take", "T-auth-1", `--${flag}`, "x", "--as", "alice"]);
+      assert.equal(r.code, 2, `--${flag} must be rejected as an unknown flag`);
+      const data = JSON.parse(r.stdout);
+      assert.equal(data.ok, false);
+      assert.equal(data.error.code, "CLI_USAGE_ERROR");
+      assert.equal(data.error.details.command, "take");
+      assert.equal(data.error.details.flag, flag);
+      assert.deepEqual(data.error.details.valid_flags, ["as"]);
+    }
   } finally { await rmTempProject(dir); }
 });
-
-test("take: an unmatched --initiative does not exclude the explicit id", async () => {
-  const dir = await projectFixture();
-  try {
-    await addTask(dir, "T-auth-1", { title: "auth task", initiative: "auth" });
-    const out = await take(dir, "T-auth-1", { as: "alice", initiative: "ghost" });
-    assert.equal(out.node.id, "T-auth-1");
-  } finally { await rmTempProject(dir); }
-});
-
-test("take: accepts and ignores --domain", async () => {
-  const dir = await projectFixture();
-  try {
-    await addTask(dir, "T-auth-1", { title: "auth task", domain: "auth" });
-    await addTask(dir, "T-auth-2", { title: "data task", domain: "data" });
-
-    const out = await take(dir, "T-auth-1", { as: "alice", domain: "data" });
-    assert.equal(out.node.id, "T-auth-1");
-  } finally { await rmTempProject(dir); }
-});
-
 test("take: accepts and ignores --tag", async () => {
   const dir = await projectFixture();
   try {

@@ -12,7 +12,9 @@ import { executeRemoteTask, requireRemoteTask, throwMissingRemoteNode } from "./
 
 const REGISTRY = bootstrapBuiltins();
 
-export const knownFlags = ["as", "initiative", "domain", "tag"];
+// `take <id>` names its target positionally and only carries the actor.
+// Filters that were accepted and ignored are unknown flags now (ADR-038).
+export const knownFlags = ["as"];
 
 function hasReadinessContext(error, args) {
   return Boolean(error && error.code === "NOT_READY" && args && args.snapshot && args.input);

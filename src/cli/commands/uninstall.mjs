@@ -15,7 +15,8 @@ import fs from "node:fs/promises";
 import { withGlobalPluginLock } from "../../plugins/lock.mjs";
 import { pluginInstalledDir } from "../../plugins/paths.mjs";
 
-export const knownFlags = ["as"];
+// Plugin uninstall carries no actor, like install (ADR-038).
+export const knownFlags = [];
 
 export default async function uninstall({ positional = [] } = {}) {
   const id = positional[0];

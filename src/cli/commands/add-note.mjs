@@ -58,14 +58,8 @@ function providerRevision(input, node) {
   return hasNodeRevision(node) ? node.revision : 1;
 }
 
-function noteCompatibilityPlan(node, hasExplicitRevision) {
-  if (hasNodeRevision(node) || hasExplicitRevision) {return {};}
-  return { if_revision: undefined };
-}
-
 async function prepareCliNote({ snapshot, input, request }) {
   const node = snapshot && snapshot.nodes ? snapshot.nodes[input.id] : null;
-  const hasExplicitRevision = input.if_revision !== undefined;
   // The public CLI historically had no revision flag. For that legacy
   // surface, derive the CAS from the fresh kernel snapshot. This remains
   // atomic because prepare and apply execute under the same lock. A few
@@ -86,10 +80,6 @@ async function prepareCliNote({ snapshot, input, request }) {
     ...plan,
     target: noteProviderTarget(plan, node, input.text),
     logAction: "add-note",
-    // Legacy fixtures without a revision cannot satisfy the kernel CAS
-    // check. Their provider validation still checks the target, and the
-    // kernel assigns the first revision when the note is persisted.
-    ...noteCompatibilityPlan(node, hasExplicitRevision),
     logFields: { note: input.text },
   };
 }
