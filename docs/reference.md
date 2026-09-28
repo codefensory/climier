@@ -266,13 +266,11 @@ Important: `--blocked-by` is required so dependency intent is explicit. If there
 
 Optional flags:
 
-- `--definition`
 - `--domain`
 - `--tags a,b`
 - `--refs a,b`
 - `--meta '{"x":1}'`
 - `--derived-from A,B`
-- `--backlog true`
 - `--as <agent>`
 
 Notes:
@@ -376,7 +374,6 @@ Optional:
 - `--blocked-by A,B`
 - `--derived-from A,B`
 - `--supersedes OLD`
-- `--allow-unregistered-initiative=true`
 - `--as <agent>`
 
 Output is `{ node }`.
@@ -402,7 +399,6 @@ Output is `{ edge }`.
 Accepted flags:
 
 - `--as <agent>`
-- legacy but ignored: `--initiative`, `--domain`, `--tag`
 
 Rules:
 
@@ -768,7 +764,7 @@ Output shape:
 An entry matches when the id appears in:
 
 - `entry.node`
-- whole-token matches inside `entry.note`
+- whole-token matches inside the entry's `note` text
 
 ### `initiatives`
 

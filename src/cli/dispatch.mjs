@@ -70,7 +70,7 @@ export function formatError(error) {
   return formatOutput({ ok: false, error });
 }
 
-const KNOWN_COMMANDS = Object.freeze([
+export const KNOWN_COMMANDS = Object.freeze([
   "status", "context", "take", "submit", "accept", "reject", "resolve", "release", "cancel", "reopen",
   "search", "history", "show", "update", "add-note", "add-initiative", "add-task", "add-gate", "add-knowledge",
   "deprecate-knowledge", "add-node", "add-edge", "remove-edge", "initiatives", "log", "init", "snapshots", "state",

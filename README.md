@@ -270,7 +270,7 @@ For `take`, claims are serialized under the project lock; takeover behavior is s
 | Command | Purpose |
 |---|---|
 | `add-initiative <name> [--desc "..."]` | Register an initiative. |
-| `add-task [id] --initiative X --title "..." --body "..." --acceptance "..." --blocked-by A,B [--backlog true] --as <agent>` | Append a task. The id is auto-allocated as `T-xxxxxxxx` when omitted. |
+| `add-task [id] --initiative X --title "..." --body "..." --acceptance "..." --blocked-by A,B --as <agent>` | Append a task. The id is auto-allocated as `T-xxxxxxxx` when omitted. |
 | `add-gate [id] --initiative X --title "..." --body "..." --purpose decision\|approval\|external-dependency\|research [--supersedes OLD] --as <agent>` | Append a gate. `--supersedes` atomically replaces an existing gate and rewires downstream `BLOCKS` edges. |
 | `add-knowledge [id] --initiative X --title "..." --body "..." --scope-domains X [--scope-initiatives X] [--scope-tags X] [--scope-node-ids X] [--supersedes OLD] --as <agent>` | Append scoped knowledge; any `--scope-*` flag satisfies the scope requirement. `--supersedes` atomically replaces existing knowledge. |
 | `add-node <id> --kind resolvable\|knowledge --title "..." [--subkind task\|gate] [--blocked-by A,B] [--derived-from A,B] [--refs a,b] [--meta '{...}']` | Low-level node creation (prefer `add-task` / `add-gate` / `add-knowledge`). |
@@ -315,10 +315,11 @@ climier reopen <id> --reason "..." --as orchestrator
 
 ### A task should exist, but not yet be claimable
 
-Create it in backlog, then take it later when it is no longer blocked:
+Create it, mark it as backlog, then take it later when it is no longer blocked:
 
 ```bash
-climier add-task T-cutover-1 --initiative migration --title "Cut over traffic" --body "..." --acceptance "..." --blocked-by "" --backlog true --as orchestrator
+climier add-task T-cutover-1 --initiative migration --title "Cut over traffic" --body "..." --acceptance "..." --blocked-by "" --as orchestrator
+climier update T-cutover-1 --backlog true --as orchestrator
 # later, when blockers are clear:
 climier take T-cutover-1 --as orchestrator
 ```

@@ -1821,6 +1821,24 @@
       "disposition": "keep"
     },
     {
+      "path": "test/command-ui.test.mjs",
+      "name": "ui reads state before optional UI code and preserves a corrupt-state error",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/command-ui.test.mjs",
+      "name": "ui subproject detection accepts the server entry and express dependency",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/command-ui.test.mjs",
+      "name": "ui subproject detection gives an actionable experimental feature error",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
       "path": "test/context-contract.test.mjs",
       "name": "context: --project and unknown flags are rejected by the known-flags guard",
       "ordinal": 1,
@@ -8236,6 +8254,24 @@
     {
       "path": "test/remote-v1-manifest.test.mjs",
       "name": "typed read methods validate required ids and query option types before requesting",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/retired-surfaces.test.mjs",
+      "name": "provider allowlists retain kind-specific fields",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/retired-surfaces.test.mjs",
+      "name": "retired surface checker derives the contract and catches removed flags and history fields",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/retired-surfaces.test.mjs",
+      "name": "retired surface checker passes the repository sources",
       "ordinal": 1,
       "disposition": "keep"
     },

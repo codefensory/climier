@@ -27,7 +27,7 @@ const TASK_SUBKIND = "task";
 // `blocked_by` (which is encoded as edges, not a node field). Any key
 // outside this set is rejected in prepare so the provider can never
 // silently widen the public contract.
-const ALLOWED_PATCH_KEYS = new Set([
+export const ALLOWED_PATCH_KEYS = new Set([
   "title",
   "body",
   "acceptance",

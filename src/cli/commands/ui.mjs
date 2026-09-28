@@ -10,7 +10,7 @@ import fsSync from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { stateFile } from "../../storage/state.mjs";
+import { readState, stateFile } from "../../storage/state.mjs";
 
 export const knownFlags = ["port", "open"];
 
@@ -20,19 +20,30 @@ export const UI_DIR = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "..", "..", "..", "ui",
 );
-const NODE_MODULES = path.join(UI_DIR, "node_modules");
 const DIST_INDEX = path.join(UI_DIR, "dist", "index.html");
 
 function npmCommand() {
   return process.platform === "win32" ? "npm.cmd" : "npm";
 }
 
-function ensureDeps() {
-  if (!fsSync.existsSync(path.join(NODE_MODULES, "express"))) {
-    throw new Error(
-      `ui: dependencies missing in ${UI_DIR}. Run: (cd ${UI_DIR} && npm install)`,
+export function assertUiSubproject(uiDir = UI_DIR) {
+  const serverEntry = path.join(uiDir, "server", "server.mjs");
+  const dependencies = path.join(uiDir, "node_modules", "express");
+  const missing = [];
+  if (!fsSync.existsSync(serverEntry)) {missing.push("ui/server/server.mjs");}
+  if (!fsSync.existsSync(dependencies)) {missing.push("ui/node_modules/express");}
+  if (missing.length > 0) {
+    const error = new Error(
+      `ui: experimental UI is unavailable (${missing.join(", ")}). Run \`npm install\` in ${uiDir} to enable it, or use the CLI without \`ui\`.`,
     );
+    error.code = "UI_SUBPROJECT_MISSING";
+    error.details = { ui_dir: uiDir, missing, action: `cd ${uiDir} && npm install` };
+    throw error;
   }
+}
+
+function ensureDeps() {
+  assertUiSubproject(UI_DIR);
 }
 
 function ensureBuild() {
@@ -71,6 +82,9 @@ export default async function uiCommand(ctx) {
   const port = parseInt(ctx.flags.port, 10);
   const finalPort = Number.isInteger(port) && port > 0 ? port : DEFAULT_PORT;
 
+  // Read through the CLI storage boundary before touching optional UI code.
+  // Corrupt or incompatible state must retain its binary storage error.
+  await readState(projectDir);
   ensureDeps();
   ensureBuild();
 

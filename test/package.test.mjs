@@ -16,6 +16,9 @@ test("package: npm test uses the bounded core runner", () => {
 test("package: the UI test suite is gone with its script and loader", async () => {
   const pkg = JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8"));
   assert.equal(pkg.scripts["test:ui"], undefined, "no test:ui script survives the suite it ran");
+  assert.equal(pkg.repository, undefined);
+  assert.equal(pkg.homepage, undefined);
+  assert.equal(pkg.bugs, undefined);
   const testDir = path.join(repoRoot, "test");
   const uiTests = (await readdir(testDir)).filter((name) => name.startsWith("ui-") && name.endsWith(".test.mjs"));
   assert.deepEqual(uiTests, [], "no root ui-* test file remains");
@@ -37,8 +40,11 @@ test("package: npm pack only includes runtime files", () => {
   assert.ok(paths.some((p) => p.startsWith("src/")));
   assert.ok(paths.includes("LICENSE"));
   assert.ok(paths.includes("CHANGELOG.md"));
+  assert.ok(paths.includes("README.md"));
+  assert.ok(paths.includes("docs/reference.md"));
 
   assert.equal(paths.some((p) => p.startsWith("test/")), false);
+  assert.equal(paths.some((p) => p.startsWith("ui/")), false);
   assert.equal(paths.includes("AGENTS.md"), false);
   assert.equal(paths.some((p) => p.startsWith(".agents/")), false);
 });
