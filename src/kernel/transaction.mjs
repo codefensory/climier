@@ -1,9 +1,7 @@
 // src/kernel/transaction.mjs — pure draft transaction for the graph kernel.
-//
-// ADR-011 §2: the in-memory draft that providers and `kernel.mutate` use
+
 // to compose a logical mutation (nodes + edges) without
 // touching the filesystem, locks, the persisted state, or the log.
-//
 // Contract:
 //   - createTransaction(snapshot) returns a transaction whose accessors
 //     (getNode/createNode/updateNode/addEdge/removeEdge/view) operate on a
@@ -12,7 +10,7 @@
 //     leak into the draft and the draft cannot leak back to the caller.
 //   - createNode refuses to seed a node that already carries `revision`.
 //     updateNode refuses to apply a patch that carries `revision`. The
-//     kernel (not the provider) owns revision increment; ADR-011 §2.
+
 //   - Edges are validated against the union of the snapshot and the draft
 //     (snapshot + draft are the only authoritative view during apply).
 //   - No filesystem, no locks, no updateState, no log writes, no providers,
@@ -27,10 +25,7 @@ import {
 } from "../contracts/state-invariants.mjs";
 
 function clone(value) {
-  // structuredClone is available in Node >= 17 and is the deep-clone primitive
-  // we already rely on elsewhere. It handles plain objects, arrays, and the
-  // JSON-safe shapes (id/title/status/initiatives/scope/...) that appear in
-  // the v2 state.
+
   return structuredClone(value);
 }
 
@@ -43,8 +38,7 @@ function readSnapshotEdges(snapshot) {
 }
 
 function readSnapshotInitiatives(snapshot) {
-  // initiatives: { name -> { desc, created_at? } }. The v2 schema keeps it
-  // as a plain object; use an empty map for a partial snapshot.
+
   return snapshot && snapshot.initiatives && typeof snapshot.initiatives === "object" && !Array.isArray(snapshot.initiatives)
     ? snapshot.initiatives
     : {};
@@ -138,16 +132,7 @@ function hasRevisionField(input) {
  * intentionally exposes no commit/abort surface; commit/abort belongs to
  * `kernel.mutate`.
  *
- * @param {object} snapshot - v2 state snapshot with { nodes, edges, ... }.
  * @returns {{
- *   getNode: (id: string) => object | undefined,
- *   createNode: (input: object) => object,
- *   updateNode: (id: string, patch: object) => object,
- *   addEdge: (edge: { from: string, to: string, type: string }) => object,
- *   removeEdge: (edge: { from: string, to: string, type: string }) => object,
- *   getInitiative: (name: string) => object | undefined,
- *   createInitiative: (input: { name: string, desc?: string, created_at?: string }) => object,
- *   view: () => { nodes: object, edges: object[], initiatives: object }
  * }}
  */
 export function createTransaction(snapshot) {
@@ -169,7 +154,7 @@ export function createTransaction(snapshot) {
     delete cloned.revision;
     draftNodes[id] = cloned;
   }
-  // edges: list of cloned edge objects. addEdge appends, removeEdge splices.
+
   const draftEdges = baseEdges.map((edge) => clone(edge));
   // initiatives: { name -> cloned initiative }. Initiatives do not carry
   // a kernel-managed revision, so the draft mirrors the snapshot 1:1 and
@@ -506,6 +491,6 @@ export function createTransaction(snapshot) {
   };
 }
 
-// Export the local edge-types whitelist so the kernel mutation path can
+
 // reuse the same source of truth without going through command adapters.
 export { EDGE_TYPES };

@@ -1,5 +1,4 @@
 // Kernel mutation precondition contracts.
-//
 // This module is deliberately pure: it validates caller/provider CAS
 // declarations against the snapshot supplied by the mutation pipeline and
 // performs no filesystem or lock operations. The caller is responsible for
@@ -11,7 +10,6 @@ import { throwV2 } from "../../contracts/errors.mjs";
  * Select the CAS declaration for a mutation.
  *
  * A request declaration is agent-facing and takes precedence over a provider
- * plan declaration. Both the singular and plural legacy spellings are
  * preserved; the selected value is validated by checkPrecondition.
  */
 function declaredPrecondition(value) {

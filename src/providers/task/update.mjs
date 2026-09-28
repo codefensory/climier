@@ -1,9 +1,8 @@
-// src/providers/task/update.mjs — pure provider for `task.update`.
-//
-// ADR-011 §§1, 2, 3 + ADR-012 §3:
+
+
 //   - `prepare` is read-only. It validates the target exists, is a
-//     task (kind=resolvable/subkind=task), that the input carries an
-//     `if_revision` precondition (ADR-011 §4: every agent-facing op
+
+
 //     that may modify a node requires if_revision), and that the
 //     patch does not carry `revision` or unknown top-level keys.
 //   - `apply` uses only tx.updateNode for the patch fields and
@@ -21,7 +20,7 @@ const LOG_ACTION = "update";
 const TASK_KIND = "resolvable";
 const TASK_SUBKIND = "task";
 
-// ALLOWED_PATCH_KEYS — the canonical set of patch fields the task
+
 // provider accepts. Mirrors the public `update` CLI surface (its scalar
 // and array fields) plus
 // `blocked_by` (which is encoded as edges, not a node field). Any key
@@ -38,7 +37,7 @@ export const ALLOWED_PATCH_KEYS = new Set([
   "tags",
   "refs",
   "blocked_by",
-  // backlog is a domain field with its own derivation (ADR-038 decision 4).
+
   "backlog",
   // meta is typed on gate and knowledge, accepted on create for all three
   // kinds and indexed by search, so retiring it here would leave a field
@@ -188,19 +187,14 @@ function buildNodePatch(changes) {
   return Object.freeze(patch);
 }
 
-// ===================================================================
-// Provider
-// ===================================================================
+
 
 /**
- * Pure `prepare` for task.update.
  *
  * Contract:
- *   - read-only: never mutates the snapshot, never reads the filesystem;
  *   - validates id, kind/subkind, the patch shape, every patch key
  *     against the public allow-list, that `if_revision` matches the
  *     snapshot, that the new blockers (when present) are valid against
- *     the snapshot, and that no `revision` field leaked into the patch;
  *   - returns a frozen plan carrying the normalized patch, the
  *     pre-sorted blocker list, and the precondition map the kernel
  *     will validate under the lock.
@@ -235,12 +229,9 @@ async function prepare({ snapshot, input, request }) {
 }
 
 /**
- * Pure `apply` for task.update.
  *
  * Contract:
  *   - mutates the tx draft only (tx.updateNode for the patch fields
- *     and one tx.addEdge per new BLOCKS edge);
- *   - never writes or increments `revision`;
  *   - returns `{ result, effects }` with the projected node shape and
  *     the deterministic added_edges list.
  *
@@ -268,7 +259,7 @@ async function apply({ tx, plan, input, request, snapshot }) {
     const edge = blocksEdge(blockerId, plan.target.id);
     // tx.addEdge validates self-edge / missing / kind / duplicate
     // against the draft (snapshot + adds so far) and throws the
-    // canonical v2 error codes. The provider does not duplicate
+
     // those checks here.
     const persisted = tx.addEdge(edge);
     addedEdges.push(persisted);

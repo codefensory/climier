@@ -1,5 +1,4 @@
 // Pure node revision and snapshot-vs-draft helpers for the mutation pipeline.
-//
 // This module owns revision assignment and node comparison. It performs no
 // I/O, so the kernel can finalize a draft without coupling revision semantics
 // to locking or persistence.
@@ -22,9 +21,7 @@ function sameKeys(a, b) {
     && aKeys.every((key) => Object.prototype.hasOwnProperty.call(b, key));
 }
 
-// Deep equality on JSON-shaped values; sufficient for kernel diffs because
-// v2 node and plugin values are JSON-serializable by construction. Keeps the
-// result deterministic — same input → same comparison → same id list.
+
 export function deepEqualNodes(a, b) {
   if (a === b) {return true;}
   if (!a || !b || typeof a !== "object" || typeof b !== "object") {return false;}
@@ -50,7 +47,7 @@ export function stripRevision(node) {
 }
 
 // Assign a node revision against the persisted state fence. Every recreated
-// or modified node advances beyond both its own previous revision and the
+
 // state revision; unchanged nodes retain their revision.
 export function assignNodeRevision(stateRevision, previous, draft) {
   const draftNode = stripRevision(draft);

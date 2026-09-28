@@ -1,4 +1,4 @@
-// Shared execution contracts and helpers used by mutation phases.
+
 
 import fs from "node:fs/promises";
 import { classifyStateShape, readState, stateFile } from "../../../storage/state.mjs";

@@ -1,6 +1,5 @@
-// src/providers/task/cancel.mjs — pure provider for `task.cancel`.
-//
-// ADR-011 §§1–4:
+
+
 //   - `prepare` is read-only. Validates input + target + allowed
 //     statuses (open / in_progress / submitted) and the required `reason`.
 //   - `apply` uses tx.updateNode to set status=canceled and clear
@@ -27,7 +26,7 @@ function asNonEmptyString(value) {
 // input.actor. Both shapes remain accepted for compatibility, but
 // request.actor wins when both are present:
 // the adapter is the canonical source of truth for agent identity
-// in plugin-issued calls (ADR-006 §API y compatibilidad).
+
 function resolveActor(input, request) {
   return (
     asNonEmptyString(request && request.actor) ||
@@ -84,7 +83,6 @@ function validateTarget(input, snapshot) {
 }
 
 /**
- * Pure `prepare` for task.cancel.
  *
  * @param {{ snapshot: object, input: object, request: object }} args
  * @returns {object} frozen plan
@@ -107,12 +105,7 @@ async function prepare({ snapshot, input, request }) {
   });
 }
 
-/**
- * Pure `apply` for task.cancel.
- *
- * @param {{ tx: object, plan: object, input: object, request: object, snapshot: object }} args
- * @returns {Promise<{ result: object, effects: null }>}
- */
+
 async function apply({ tx, plan, input, request, snapshot }) {
   void input;
   void request;

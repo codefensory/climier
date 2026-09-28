@@ -50,7 +50,7 @@ async function backupProject(projectId, projectDir) {
     await fs.access(path.join(backupDir, "revision-ledger.json"));
   } catch (error) {
     if (error.code !== "ENOENT") throw error;
-    // Preserve the pre-import fact that the legacy project had no ledger.
+
     await fs.writeFile(path.join(backupDir, "revision-ledger.json"), `${JSON.stringify({ absent_at_backup: true }, null, 2)}\n`, { flag: "wx" });
   }
   return backupDir;
@@ -72,8 +72,7 @@ function normalizeLegacyState(source, form) {
     : {};
   const normalized = {
     ...source,
-    // Route v2/v3 through the v4-compatible initial fence without applying
-    // their legacy revision reset; the destination is still canonical v1.
+
     version: 4,
     nodes,
     edges: Array.isArray(source.edges) ? source.edges : [],
@@ -150,7 +149,7 @@ export async function migrateOldProjectUnderLock(lockContext, projectId, opts = 
   return migrateParsedOldProjectUnderLock(lockContext, projectId, rawStateFile.raw, source, ledger, opts);
 }
 
-/** Commit the fenced-v5 to canonical-v1 schema transition under its project lock. */
+
 export async function migrateFencedProjectUnderLock(lockContext, projectId, opts = {}) {
   assertActiveLockContext(lockContext);
   const { statePath } = getActiveLockContext(lockContext);
@@ -178,8 +177,7 @@ export async function migrateFencedProjectUnderLock(lockContext, projectId, opts
   if (detection.form !== "fenced-legacy") {
     throw new Error(`migrate: project ${projectId} has unsupported form ${detection.form}`);
   }
-  // The source is recognized by its v5 structure and matching ledger, not by
-  // the global active fence marker: that marker may already have moved to v1.
+
   assertFencedMigrationSource(source, ledger);
   await backupProject(projectId, getActiveLockContext(lockContext).projectDir);
 
@@ -210,7 +208,7 @@ export async function migrateFencedProjectUnderLock(lockContext, projectId, opts
   };
 }
 
-/** Route each recognized disk form through its one canonical migration path. */
+
 export async function migrateProjectUnderLock(lockContext, projectId, opts = {}) {
   assertActiveLockContext(lockContext);
   const { statePath } = getActiveLockContext(lockContext);

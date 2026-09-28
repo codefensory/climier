@@ -1,5 +1,4 @@
 // Pure snapshot-vs-draft diff helpers for the kernel mutation pipeline.
-//
 // This module owns comparison of edges and initiatives. Node comparison and
 // revision assignment live in revisions.mjs. No helper performs I/O or
 // depends on storage, locks, or adapters.
@@ -44,7 +43,7 @@ export function computeEdgeDiff(snapshotEdges, draftEdges) {
   return { added, removed };
 }
 
-// Compare two v2 initiative entries by their JSON-serializable fields.
+
 // We only persist primitives (desc: string, created_at?: string), so a
 // shallow key-by-key comparison is sufficient for the initiative shape.
 function sameObjectKeys(a, b) {

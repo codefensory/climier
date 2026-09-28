@@ -99,7 +99,7 @@ export function emptyState() {
 
 const READABLE_STATE_KINDS = new Set(["canonical"]);
 
-// Readers accept only canonical version 1. The classifier retains legacy forms
+
 // for migrate detection, but never grants those forms read acceptance.
 export function assertReadableState(state, commandName) {
   if (!state) { return; }
@@ -290,7 +290,7 @@ function snapshotDir(projectDir) {
 export { snapshotDir };
 
 function buildSnapshotId(reason) {
-  // Timestamp prefix preserves creation ordering at millisecond precision.
+
   const iso = new Date().toISOString();
   const ts = iso.replace(/[-:.]/g, "");
   const random = crypto.randomBytes(4).toString("hex");
@@ -304,7 +304,7 @@ async function tryChmod(target, mode) {
   try {
     await fs.chmod(target, mode);
   } catch {
-    // ignored by design
+
   }
 }
 
@@ -324,7 +324,7 @@ async function writeSnapshotPair(raw, metadata, dir) {
 export async function createSnapshot(projectDir, reason) {
   if (!VALID_SNAPSHOT_REASONS.has(reason)) { throw new Error(`createSnapshot: invalid reason '${reason}' (allowed: ${[...VALID_SNAPSHOT_REASONS].join(", ")})`); }
   const statePath = stateFile(projectDir);
-  // Preserve raw bytes; corrupt-recovery snapshots may not be JSON.
+
   const raw = await fs.readFile(statePath);
   const dir = snapshotDir(projectDir);
   await fs.mkdir(dir, { recursive: true });

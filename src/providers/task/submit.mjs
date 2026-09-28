@@ -1,5 +1,4 @@
-// src/providers/task/submit.mjs — pure provider for `task.submit`.
-//
+
 // Submission is the worker-owned transition from in_progress to submitted.
 // The provider validates against the fresh snapshot and applies only through
 // the transaction draft; locking, persistence, revisions and audit logging
@@ -99,7 +98,6 @@ function validateTarget(input, snapshot, actor) {
 }
 
 /**
- * Pure `prepare` for task.submit.
  *
  * @param {{ snapshot: object, input: object, request: object }} args
  * @returns {object} frozen plan
@@ -128,7 +126,6 @@ async function prepare({ snapshot, input, request }) {
 }
 
 /**
- * Pure `apply` for task.submit. Submission deliberately has no readiness
  * effect: only a later acceptance can satisfy BLOCKS edges.
  *
  * @param {{ tx: object, plan: object }} args

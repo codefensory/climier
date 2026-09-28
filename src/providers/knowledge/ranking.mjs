@@ -1,6 +1,5 @@
 // src/providers/knowledge/ranking.mjs — pure deterministic ranking for
 // scoped knowledge matches.
-//
 // Responsibility:
 //   - `specificityRank(scopeMatches)` returns the priority index of the
 //     most specific match (lower is more specific; `node_id` = 0,
@@ -8,7 +7,6 @@
 //   - `rankKnowledge(items)` returns a NEW array sorted by specificity
 //     (most specific first) then by id for determinism. Input array is
 //     never mutated.
-//
 // Pure: no fs, no lock, no state, no log, no policy, no commands, no
 // registry, no adapter, no CLI, no UI.
 
@@ -18,12 +16,7 @@ const SCOPE_INDEX = Object.freeze(Object.fromEntries(
   SCOPE_ORDER.map((key, idx) => [key, idx]),
 ));
 
-/**
- * Specificity rank of a knowledge match. Lower means more specific.
- *
- * @param {string[]} scopeMatches - Result of `matchesScopes`.
- * @returns {number} Priority index. `Infinity` when no match.
- */
+
 export function specificityRank(scopeMatches) {
   if (!Array.isArray(scopeMatches) || scopeMatches.length === 0) {
     return Number.POSITIVE_INFINITY;
@@ -61,13 +54,7 @@ function compareItems(a, b) {
   return rankComparison === 0 ? compareIds(itemId(a), itemId(b)) : rankComparison;
 }
 
-/**
- * Sort knowledge items by specificity, then by id for determinism.
- *
- * @template {{ id: string, scope_matches: string[] }} T
- * @param {T[]} items
- * @returns {T[]} New sorted array; input is not mutated.
- */
+
 export function rankKnowledge(items) {
   if (!Array.isArray(items)) {
     return [];

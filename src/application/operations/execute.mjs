@@ -1,5 +1,4 @@
-// Application-level composition for registered operations.
-// Hosts provide the registry and mutation frontier explicitly.
+
 
 import { throwV2 } from "../../contracts/errors.mjs";
 
@@ -211,7 +210,7 @@ async function batchMutation({ args, registry, mutate, source }) {
   return mutate(mutation);
 }
 
-/** Execute a declarative batch through one kernel mutation call. */
+
 export async function executeBatch(args = {}) {
   assertArgumentsObject(args);
   const { projectDir, actor, source } = args;

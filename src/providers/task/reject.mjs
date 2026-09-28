@@ -1,10 +1,8 @@
-// src/providers/task/reject.mjs — pure provider for `task.reject`.
-//
-// ADR-015/016: reject is the typed submitted -> open transition. The
+
+
 // provider validates the lifecycle state and reason, updates only the
 // transaction draft, and supplies the reason as an allow-listed log field for
 // the kernel's atomic state-plus-log commit.
-//
 // This module intentionally has no filesystem, lock, state, log, policy,
 // command, registry, adapter, CLI, or UI dependencies.
 
@@ -75,7 +73,6 @@ function validateTarget(input, snapshot) {
 }
 
 /**
- * Pure `prepare` for task.reject.
  *
  * @param {{ snapshot: object, input: object, request: object }} args
  * @returns {object} frozen plan
@@ -99,9 +96,7 @@ async function prepare({ snapshot, input, request }) {
 }
 
 /**
- * Pure `apply` for task.reject. The four submission/acceptance metadata
  * fields are explicit nulls so the next open cycle cannot inherit the
- * previous submission. Claim ownership is implementation-only and is also
  * cleared. No revision or log is written here.
  *
  * @param {{ tx: object, plan: object, input: object, request: object, snapshot: object }} args

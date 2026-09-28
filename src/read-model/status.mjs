@@ -254,7 +254,7 @@ function taskLists({ snapshot, nodes, pools, filters, derived }) {
   };
 }
 
-/** Project the status view from one snapshot and a request-sampled epoch-ms. */
+
 export function projectStatusView({ snapshot, filters = {}, now } = {}) {
   requireNow(now);
   const nodes = snapshot?.nodes || {};

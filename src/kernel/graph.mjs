@@ -1,13 +1,11 @@
-// src/kernel/graph.mjs — pure generic traversals over the v2 graph.
-//
-// ADR-011 §§2–3 + ADR-012 §3: the kernel owns the generic traversals
+
+
 // (incoming / outgoing / relations). status/context, providers and
 // the UI server all consume these helpers; nothing else
 // may redefine them.
-//
 // Contract:
 //   - All functions are pure: no filesystem, no locks, no providers, no
-//     command-specific state. They take a v2 state shape and return arrays
+
 //     of edge references (no cloning) so traversal is O(n) and idempotent.
 //   - Insertion order is preserved by Array.prototype.filter; traversals
 //     are deterministic given a fixed snapshot.

@@ -1,5 +1,4 @@
-// Canonical read-only projections over a v2 snapshot.
-//
+
 // This layer composes pure projections; object-shaped arguments are the
 // canonical API and positional forms remain available for compatibility.
 

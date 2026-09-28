@@ -1,5 +1,4 @@
 // Pure mutation log construction boundary.
-//
 // The kernel owns the audit identity and structural metadata. Providers may
 // contribute only the allow-listed operation-specific fields. This module
 // performs no state I/O; prepareLogEntry only adds the canonical timestamp

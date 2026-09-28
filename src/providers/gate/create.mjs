@@ -1,4 +1,4 @@
-// Gate creation provider (ADR-011 §§1-5, ADR-012 §3).
+
 // prepare validates read-only and declares authorization, logging, and CAS;
 // apply mutates only the in-memory draft, leaving revisions to the kernel.
 // Superseding rewrites incoming BLOCKS edges atomically and collapses duplicate
@@ -193,7 +193,7 @@ function validateSupersedes(snapshot, input, { id, workingState }) {
   if (target === id) {
     throwV2("SELF_EDGE", `${COMMAND}: edge ${id} -> ${target} is a self-edge`, edge);
   }
-  // Structural validation first, then the gate-specific subkind rule.
+
   validateEdge(workingState, edge, COMMAND);
   const targetNode = snapshotNodes(snapshot)[target];
   if (targetNode.subkind !== "gate") {
@@ -296,9 +296,7 @@ function planEdges(snapshot, input, { id, workingState, supersedes }) {
   return { edges, known };
 }
 
-// Incoming BLOCKS edges of the superseded gate move to the new gate. A
-// rewrite whose destination already exists (snapshot edge or planned edge)
-// collapses: the stale edge is removed and no duplicate is added.
+
 function planRewrites(snapshot, { id, supersedes, known }) {
   const rewrites = [];
   if (!supersedes) {
@@ -345,7 +343,7 @@ export async function prepare({ snapshot, input }) {
   const status = validateStatus(payload);
   const node = buildNode(payload, { id, initiative, status });
 
-  // Structural edge validation needs a state where the new node exists.
+
   const workingState = { ...snapshot, nodes: { ...nodes, [id]: node } };
   const supersedes = validateSupersedes(snapshot, payload, { id, workingState });
   const { edges, known } = planEdges(snapshot, payload, { id, workingState, supersedes });

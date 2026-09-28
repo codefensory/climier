@@ -70,7 +70,7 @@ export async function installTransferDestination(request = {}) {
   });
 }
 
-/** Copy a complete validated DAG snapshot between project stores. */
+
 export async function transferState(request = {}) {
   assertTransferRequest(request);
   const payload = await captureTransferSource({ sourceProjectDir: request.sourceProjectDir });

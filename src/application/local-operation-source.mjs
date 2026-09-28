@@ -1,5 +1,4 @@
-// Local operation composition is deliberately lazy so selecting remote does
-// not load the kernel, policy implementation, or built-in provider catalog.
+
 async function buildLocalOperationSource() {
   const [builtins, kernel, policy] = await Promise.all([
     import("./operations/builtins.mjs"),
@@ -14,7 +13,7 @@ async function buildLocalOperationSource() {
   });
 }
 
-/** Create a memoized source getter for one selected local backend. */
+
 export function createLocalOperationSource(source) {
   let sourcePromise;
   return () => {

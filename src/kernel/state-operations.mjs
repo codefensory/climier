@@ -1,5 +1,4 @@
 // Trusted state operations used by the kernel frontier.
-//
 // These operations intentionally are not registry entries: state bootstrap,
 // force-init and restore are recovery primitives, not agent-facing core ops.
 // They provide prepare/apply semantics to kernel.mutate; only the kernel owns
@@ -174,7 +173,7 @@ function operationRequest(action, actor, input) {
   return { action, actor, input };
 }
 
-/** Execute normal bootstrap or force-init through kernel.mutate. */
+
 export async function initState({ projectDir, force = false, actor, policyAction, pluginId } = {}) {
   const isForce = force === true;
   const resolvedActor = isForce ? requireAgent(actor, "state.init_force") : (actor || "system");
@@ -187,7 +186,7 @@ export async function initState({ projectDir, force = false, actor, policyAction
   });
 }
 
-/** Execute recovery restore through kernel.mutate. */
+
 export async function restoreState({ projectDir, snapshotId, actor, policyAction, pluginId } = {}) {
   const resolvedActor = requireAgent(actor, "state.restore");
   return mutate({
