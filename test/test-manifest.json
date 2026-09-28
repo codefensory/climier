@@ -10778,6 +10778,18 @@
     },
     {
       "path": "test/update.test.mjs",
+      "name": "CLI: --backlog and --meta on a task both go through the typed contract",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/update.test.mjs",
+      "name": "CLI: a known key that does not apply to the node kind is rejected naming the allowed keys",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/update.test.mjs",
       "name": "CLI: update emits REVISION_CONFLICT with structured details",
       "ordinal": 1,
       "disposition": "move",
@@ -10829,8 +10841,11 @@
       "path": "test/update.test.mjs",
       "name": "update: local bridge applies legacy fields inside the single operation mutation",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/v2-update.test.mjs"
+      "disposition": "delete",
+      "move_from": "test/v2-update.test.mjs",
+      "category": "retired-flag",
+      "reason": "the case pinned the adapter's compatibility patch (tx.updateNode), which ADR-038 decision 4 removes: meta is a typed task key now and no change bypasses the provider contract",
+      "replacement": "test/update.test.mjs: update: the typed patch reaches the node through one canonical operation and one kernel mutation"
     },
     {
       "path": "test/update.test.mjs",
@@ -10866,6 +10881,12 @@
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/v2-update.test.mjs"
+    },
+    {
+      "path": "test/update.test.mjs",
+      "name": "update: the typed patch reaches the node through one canonical operation and one kernel mutation",
+      "ordinal": 1,
+      "disposition": "keep"
     },
     {
       "path": "test/update.test.mjs",
@@ -13216,13 +13237,6 @@
     {
       "path": "test/v2-update.test.mjs",
       "name": "update: idempotent bridge result retains the current node revision",
-      "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/v2-update.test.mjs"
-    },
-    {
-      "path": "test/v2-update.test.mjs",
-      "name": "update: local bridge applies legacy fields inside the single operation mutation",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/v2-update.test.mjs"

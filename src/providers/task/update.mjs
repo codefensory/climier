@@ -38,6 +38,12 @@ const ALLOWED_PATCH_KEYS = new Set([
   "tags",
   "refs",
   "blocked_by",
+  // backlog is a domain field with its own derivation (ADR-038 decision 4).
+  "backlog",
+  // meta is typed on gate and knowledge, accepted on create for all three
+  // kinds and indexed by search, so retiring it here would leave a field
+  // writable on create, searchable and not editable.
+  "meta",
 ]);
 
 function asNonEmptyString(value) {
@@ -78,6 +84,13 @@ function validateChanges(input) {
   }
   if (Object.keys(input.changes).length === 0) {
     throwV2("MISSING_FIELD", `${OP}: input.changes is empty`, { field: "changes" });
+  }
+  const { backlog, meta } = input.changes;
+  if (backlog !== undefined && typeof backlog !== "boolean") {
+    throwV2("INVALID_EXECUTION_CONTRACT", `${OP}: changes.backlog must be a boolean`, { field: "changes.backlog", value: backlog });
+  }
+  if (meta !== undefined && (meta === null || typeof meta !== "object" || Array.isArray(meta))) {
+    throwV2("INVALID_EXECUTION_CONTRACT", `${OP}: changes.meta must be an object`, { field: "changes.meta" });
   }
   if ("revision" in input.changes) {
     throwV2("INVALID_EXECUTION_CONTRACT", `${OP}: input.changes must not carry 'revision' (the kernel increments revision once per apply)`, {

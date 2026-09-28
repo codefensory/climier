@@ -64,7 +64,7 @@ test("update: changes title and bumps revision to 2", async () => {
   } finally { await rmTempProject(dir); }
 });
 
-test("update: local bridge applies legacy fields inside the single operation mutation", async () => {
+test("update: the typed patch reaches the node through one canonical operation and one kernel mutation", async () => {
   const { bootstrapBuiltins } = await import("../src/application/operations/builtins.mjs");
   const { mutate: kernelMutate } = await import("../src/kernel/mutate.mjs");
   const { default: update } = await importFresh("./cli/commands/update.mjs");
@@ -97,7 +97,7 @@ test("update: local bridge applies legacy fields inside the single operation mut
     });
 
     assert.deepEqual(operations, ["task.update"], "one canonical operation is selected");
-    assert.equal(mutations.length, 1, "legacy patch and typed update share one kernel mutation");
+    assert.equal(mutations.length, 1, "the typed patch and the operation share one kernel mutation");
     assert.equal(mutations[0].policyActionFromPlan, true);
     assert.equal(out.node.title, "updated through bridge");
     assert.deepEqual(out.node.meta, { ticket: "AUTH-bridge" });
@@ -352,4 +352,64 @@ test("CLI: update missing node emits NODE_NOT_FOUND", async () => {
     assert.equal(err.error.code, "NODE_NOT_FOUND");
     assert.equal(err.error.details.id, "ghost");
   } finally { await rmTempProject(dir); }
+});
+// --- typed contract per kind (ADR-038 decision 4) -------------------------
+
+async function seedProjectWithTaskAndKnowledge(dir) {
+  let r = await runCli(["--project", dir, "init"]);
+  assert.equal(r.code, 0, r.stderr);
+  r = await runCli(["--project", dir, "add-initiative", "auth", "--desc", "x"]);
+  assert.equal(r.code, 0, r.stderr);
+  r = await runCli(["--project", dir, "add-node", "T-auth-1", "--kind", "resolvable", "--subkind", "task",
+    "--title", "t", "--initiative", "auth"]);
+  assert.equal(r.code, 0, r.stderr);
+  r = await runCli(["--project", dir, "add-knowledge", "K-auth-1", "--initiative", "auth", "--title", "k",
+    "--body", "b", "--scope-domains", "auth"]);
+  assert.equal(r.code, 0, r.stderr);
+}
+
+test("CLI: a known key that does not apply to the node kind is rejected naming the allowed keys", async () => {
+  const dir = await createTempProject();
+  try {
+    await seedProjectWithTaskAndKnowledge(dir);
+    const taskKeys = ["purpose", "resolution-mode", "mitigation", "knowledge-type", "scope-domains", "scope-tags"];
+    for (const flag of taskKeys) {
+      const r = await runCli(["--project", dir, "update", "T-auth-1", `--${flag}`, "x", "--as", "alice"]);
+      assert.equal(r.code, 1, `--${flag} on a task must be rejected: ${r.stdout}`);
+      const data = JSON.parse(r.stdout);
+      assert.equal(data.error.code, "INVALID_EXECUTION_CONTRACT", `--${flag}: ${r.stdout}`);
+      assert.match(data.error.message, /allowed: /);
+      assert.ok(data.error.details.allowed.includes("title"), `--${flag} must name the allowed task keys`);
+      assert.ok(!data.error.details.allowed.includes(flag.replace(/-/g, "_")), `--${flag} must not be allowed on a task`);
+    }
+    const onKnowledge = await runCli(["--project", dir, "update", "K-auth-1", "--backlog", "true", "--as", "alice"]);
+    assert.equal(onKnowledge.code, 1, `--backlog on a knowledge node must be rejected: ${onKnowledge.stdout}`);
+    assert.match(JSON.parse(onKnowledge.stdout).error.message, /allowed: /);
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("CLI: --backlog and --meta on a task both go through the typed contract", async () => {
+  const dir = await createTempProject();
+  try {
+    await seedProjectWithTaskAndKnowledge(dir);
+    const backlog = await runCli(["--project", dir, "update", "T-auth-1", "--backlog", "true", "--as", "alice"]);
+    assert.equal(backlog.code, 0, backlog.stderr);
+    assert.equal(JSON.parse(backlog.stdout).node.backlog, true);
+
+    const cleared = await runCli(["--project", dir, "update", "T-auth-1", "--backlog", "false", "--as", "alice"]);
+    assert.equal(cleared.code, 0, cleared.stderr);
+    assert.equal(JSON.parse(cleared.stdout).node.backlog, false);
+
+    const meta = await runCli(["--project", dir, "update", "T-auth-1", "--meta", '{"ticket":"AUTH-1"}', "--as", "alice"]);
+    assert.equal(meta.code, 0, meta.stderr);
+    assert.deepEqual(JSON.parse(meta.stdout).node.meta, { ticket: "AUTH-1" });
+
+    const state = await readRawState(dir);
+    assert.equal(state.nodes["T-auth-1"].backlog, false);
+    assert.deepEqual(state.nodes["T-auth-1"].meta, { ticket: "AUTH-1" });
+  } finally {
+    await rmTempProject(dir);
+  }
 });

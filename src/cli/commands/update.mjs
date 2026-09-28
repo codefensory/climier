@@ -164,71 +164,30 @@ function providerFor(snapshot, id) {
   return REGISTRY.lookup("task.update").provider;
 }
 
-// Preserve the complete historical CLI patch surface while applying typed and
-// compatibility-only fields in the provider's one transaction draft.
-const PROVIDER_PATCH_KEYS = Object.freeze({
-  task: new Set(["title", "body", "acceptance", "definition", "domain", "initiative", "tags", "refs"]),
-  gate: new Set(["title", "body", "initiative", "domain", "tags", "refs", "meta", "definition", "acceptance", "backlog", "purpose", "resolution_mode"]),
-  knowledge: new Set(["title", "body", "mitigation", "knowledge_type", "scope", "status", "domain", "tags", "refs", "meta"]),
-});
-
-function providerKeyFor(current) {
-  if (current?.kind === "knowledge") {
-    return "knowledge";
-  }
-  if (current?.subkind === "gate") {
-    return "gate";
-  }
-  return "task";
-}
-function splitProviderChanges(changes, current, providerKey) {
-  const typed = {};
-  const legacy = {};
-  for (const [field, value] of Object.entries(changes)) {
-    (PROVIDER_PATCH_KEYS[providerKey].has(field) ? typed : legacy)[field] = value;
-  }
-  if (typed.scope) {
-    typed.scope = { ...current?.scope, ...typed.scope };
-  }
-  if (legacy.scope) {
-    legacy.scope = { ...current?.scope, ...legacy.scope };
-  }
-  if (legacy.backlog === false) {
-    legacy.backlog = undefined;
-  }
-  return { typed, legacy };
-}
-function providerChangesFor(typed, current) {
-  if (Object.keys(typed).length > 0) {
-    return typed;
-  }
-  return { title: typeof current?.title === "string" ? current.title : "" };
-}
-
+// Every change goes to the provider as-is: the provider owns the contract for
+// its kind and rejects a key that does not belong to it, naming the allowed
+// ones. The adapter no longer keeps a compatibility patch beside the provider,
+// because writing a key the provider never validated is exactly the silent
+// write ADR-038 decision 4 removes.
 async function prepareUpdateProvider(args, id, changes, expectedRevision) {
   const provider = providerFor(args.snapshot, id);
   const current = args.snapshot?.nodes?.[id] || null;
   const revision = expectedRevision ?? (Number.isInteger(current?.revision) ? current.revision : 1);
   args.request.if_revision = { kind: "single", id, value: revision };
-  const { typed, legacy } = splitProviderChanges(changes, current, providerKeyFor(current));
   const plan = await provider.prepare({
     ...args,
-    input: { ...args.input, changes: providerChangesFor(typed, current), if_revision: revision },
+    input: { ...args.input, changes, if_revision: revision },
   });
   return {
     ...plan,
     target: { ...plan.target, status: current?.status },
     logAction: "update",
-    legacy_patch: legacy,
   };
 }
 
 async function applyUpdateProvider(args, id) {
   const provider = providerFor(args.snapshot, id);
   const applied = await provider.apply(args);
-  if (args.plan.legacy_patch && Object.keys(args.plan.legacy_patch).length > 0) {
-    args.tx.updateNode(id, args.plan.legacy_patch);
-  }
   return { ...applied, result: args.tx.getNode(id) };
 }
 function createUpdateProvider(id, changes, expectedRevision) {

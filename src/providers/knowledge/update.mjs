@@ -79,6 +79,17 @@ function pickChanges(rawChanges) {
   if ((rawChanges === null || rawChanges === undefined) || typeof rawChanges !== "object" || Array.isArray(rawChanges)) {
     throwV2("MISSING_FIELD", "knowledge.update: changes must be an object", { field: "changes" });
   }
+  // A key the kind does not patch is refused by name, like task.update and
+  // gate.update do: dropping it would answer OK while writing nothing.
+  const unknown = Object.keys(rawChanges).filter((field) => !PATCHABLE_FIELDS.includes(field));
+  if (unknown.length > 0) {
+    const allowed = [...PATCHABLE_FIELDS].toSorted();
+    throwV2(
+      "INVALID_EXECUTION_CONTRACT",
+      `knowledge.update: changes.${unknown[0]} is not a valid patch key (allowed: ${allowed.join(", ")})`,
+      { field: `changes.${unknown[0]}`, allowed },
+    );
+  }
   const changes = {};
   for (const field of PATCHABLE_FIELDS) {
     if (Object.prototype.hasOwnProperty.call(rawChanges, field)) {
