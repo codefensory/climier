@@ -28,6 +28,6 @@ export const rawLaneDeclarations = {
   "test/plugin-policy-seam-lifecycle-note-initiative.test.mjs": mentionOnly("names updateState in a test title; the fixture uses the ledger protocol"),
   "test/state.test.mjs": importerSource("covers the raw writer semantics and the guards that refuse ledger-backed projects"),
   "test/test-manifest.test.mjs": mentionOnly("carries the lane detector's fixture text; the file writes no state"),
-  "test/v2-initiatives.test.mjs": guard("asserts legacy writeState schema validation and rejection; valid fixture uses writeCanonicalState"),
+  "test/initiatives.test.mjs": guard("asserts legacy writeState schema validation and rejection; valid fixture uses writeCanonicalState"),
   "test/v5-read-consumers.test.mjs": guard("seeds 2, 3 and 4 sources for read compatibility and a version 6 source to prove the refusal"),
 };

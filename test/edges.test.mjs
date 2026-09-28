@@ -1,5 +1,5 @@
-// F1 — centralized edge validation for v2.
-// Pure-function tests cover validateEdge / existingEdge / v2Error.
+// F1 — centralized edge validation.
+// Pure-function tests cover validateEdge / existingEdge / throwV2.
 // Integration tests cover add-edge and add-node end-to-end.
 
 import { test } from "node:test";
@@ -148,7 +148,7 @@ test("add-edge: rejects self-edges with code SELF_EDGE", async () => {
   const { default: addEdge } = await importFresh("./cli/commands/add-edge.mjs");
   const dir = await createTempProject();
   try {
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+    await init({ statePath: dir, positional: [], projectDir: dir });
     await assert.rejects(
       addEdge({ statePath: dir, positional: ["T1", "T1"], flags: { type: "BLOCKS" } }),
       (err) => err.code === "SELF_EDGE",
@@ -163,7 +163,7 @@ test("add-edge: rejects missing target nodes with code INVALID_EDGE_TARGET", asy
   const { default: addEdge } = await importFresh("./cli/commands/add-edge.mjs");
   const dir = await createTempProject();
   try {
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+    await init({ statePath: dir, positional: [], projectDir: dir });
     await assert.rejects(
       addEdge({ statePath: dir, positional: ["ghost", "also-ghost"], flags: { type: "BLOCKS" } }),
       (err) => err.code === "INVALID_EDGE_TARGET",
@@ -180,7 +180,7 @@ test("add-edge: rejects BLOCKS targeting knowledge with code INVALID_EDGE_KIND",
   const { default: addEdge } = await importFresh("./cli/commands/add-edge.mjs");
   const dir = await createTempProject();
   try {
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+    await init({ statePath: dir, positional: [], projectDir: dir });
     await addInit({ statePath: dir, flags: { desc: "test" }, positional: ["auth"] });
     await addNode({
       statePath: dir,
@@ -208,7 +208,7 @@ test("add-edge: rejects SUPERSEDES across kinds with code INVALID_EDGE_KIND", as
   const { default: addEdge } = await importFresh("./cli/commands/add-edge.mjs");
   const dir = await createTempProject();
   try {
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+    await init({ statePath: dir, positional: [], projectDir: dir });
     await addInit({ statePath: dir, flags: { desc: "test" }, positional: ["auth"] });
     await addNode({
       statePath: dir,
@@ -236,7 +236,7 @@ test("add-edge: rejects duplicate (from, to, type) edges with code DUPLICATE_EDG
   const { default: addEdge } = await importFresh("./cli/commands/add-edge.mjs");
   const dir = await createTempProject();
   try {
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+    await init({ statePath: dir, positional: [], projectDir: dir });
     await addInit({ statePath: dir, flags: { desc: "test" }, positional: ["auth"] });
     await addNode({
       statePath: dir,
@@ -269,7 +269,7 @@ test("add-edge: rejects INFORMS, RELATES_TO, CONFLICTS_WITH with code INVALID_ED
   const { default: addEdge } = await importFresh("./cli/commands/add-edge.mjs");
   const dir = await createTempProject();
   try {
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+    await init({ statePath: dir, positional: [], projectDir: dir });
     await addInit({ statePath: dir, flags: { desc: "test" }, positional: ["auth"] });
     await addNode({
       statePath: dir,
@@ -300,7 +300,7 @@ test("CLI: --informs, --relates-to, --conflicts-with are no longer recognized fl
   const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
   const dir = await createTempProject();
   try {
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+    await init({ statePath: dir, positional: [], projectDir: dir });
     await addInit({ statePath: dir, flags: { desc: "test" }, positional: ["auth"] });
 
     for (const flag of ["informs", "relates-to", "conflicts-with"]) {

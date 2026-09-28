@@ -1,7 +1,7 @@
-// F2 — structured v2 errors.
+// F2 — structured errors.
 // Tests:
 //   1. errors.mjs unit tests (V2_ERROR_CODES, makeError, throwV2).
-//   2. CLI integration tests: v2 commands emit { ok: false, error: { code, message, details } }.
+//   2. CLI integration tests: commands emit { ok: false, error: { code, message, details } }.
 //   3. v1 backward compat: existing v1 commands keep emitting the { ok: false, error: "<string>" } shape.
 
 import { test } from "node:test";
@@ -19,7 +19,7 @@ function assertV2Error(data, code) {
   assert.ok(data.error.details !== undefined, "error.details must be present");
 }
 
-async function v2Project(dir) {
+async function projectFixture(dir) {
   const r = await runCli(["--project", dir, "init"]);
   assert.equal(r.code, 0, r.stderr);
   // Pre-register the default initiative used by the add-node helper below
@@ -86,12 +86,12 @@ test("errors.mjs: toJSON output is JSON-serialisable", async () => {
   assert.deepEqual(round, { ok: false, error: { code: "X", message: "y", details: { a: 1 } } });
 });
 
-// --- CLI integration: v2 commands emit the rich shape -------------------
+// --- CLI integration: commands emit the rich shape ----------------------
 
 test("CLI: add-node missing id emits MISSING_FIELD with details", async () => {
   const dir = await createTempProject();
   try {
-    await v2Project(dir);
+    await projectFixture(dir);
     const r = await runCli([
       "--project", dir, "add-node",
       "--kind", "resolvable", "--subkind", "task", "--title", "t",
@@ -107,7 +107,7 @@ test("CLI: add-node missing id emits MISSING_FIELD with details", async () => {
 test("CLI: add-node missing --kind emits MISSING_FIELD with details", async () => {
   const dir = await createTempProject();
   try {
-    await v2Project(dir);
+    await projectFixture(dir);
     const r = await runCli(["--project", dir, "add-node", "T1", "--title", "t"]);
     assert.equal(r.code, 1);
     const data = JSON.parse(r.stdout);
@@ -119,7 +119,7 @@ test("CLI: add-node missing --kind emits MISSING_FIELD with details", async () =
 test("CLI: add-node missing --title emits MISSING_FIELD with details", async () => {
   const dir = await createTempProject();
   try {
-    await v2Project(dir);
+    await projectFixture(dir);
     const r = await runCli(["--project", dir, "add-node", "T1", "--kind", "resolvable"]);
     assert.equal(r.code, 1);
     const data = JSON.parse(r.stdout);
@@ -131,7 +131,7 @@ test("CLI: add-node missing --title emits MISSING_FIELD with details", async () 
 test("CLI: add-node duplicate id emits ID_CONFLICT with details", async () => {
   const dir = await createTempProject();
   try {
-    await v2Project(dir);
+    await projectFixture(dir);
     let r = await runCli([
       "--project", dir, "add-node", "T1",
       "--kind", "resolvable", "--subkind", "task", "--title", "t",
@@ -153,7 +153,7 @@ test("CLI: add-node duplicate id emits ID_CONFLICT with details", async () => {
 test("CLI: add-node --blocked-by with missing target emits INVALID_EDGE_TARGET with details", async () => {
   const dir = await createTempProject();
   try {
-    await v2Project(dir);
+    await projectFixture(dir);
     const r = await runCli([
       "--project", dir, "add-node", "T-x",
       "--kind", "resolvable", "--subkind", "task", "--title", "t",
@@ -171,7 +171,7 @@ test("CLI: add-node --blocked-by with missing target emits INVALID_EDGE_TARGET w
 test("CLI: add-edge missing --type emits MISSING_FIELD with details", async () => {
   const dir = await createTempProject();
   try {
-    await v2Project(dir);
+    await projectFixture(dir);
     await runCli([
       "--project", dir, "add-node", "T1",
       "--kind", "resolvable", "--subkind", "task", "--title", "t",
@@ -193,7 +193,7 @@ test("CLI: add-edge missing --type emits MISSING_FIELD with details", async () =
 test("CLI: add-edge bad --type emits INVALID_EDGE_TYPE with details", async () => {
   const dir = await createTempProject();
   try {
-    await v2Project(dir);
+    await projectFixture(dir);
     await runCli([
       "--project", dir, "add-node", "T1",
       "--kind", "resolvable", "--subkind", "task", "--title", "t",
@@ -215,7 +215,7 @@ test("CLI: add-edge bad --type emits INVALID_EDGE_TYPE with details", async () =
 test("CLI: add-edge self-edge emits SELF_EDGE with details", async () => {
   const dir = await createTempProject();
   try {
-    await v2Project(dir);
+    await projectFixture(dir);
     await runCli([
       "--project", dir, "add-node", "T1",
       "--kind", "resolvable", "--subkind", "task", "--title", "t",
@@ -233,7 +233,7 @@ test("CLI: add-edge self-edge emits SELF_EDGE with details", async () => {
 test("CLI: add-edge missing target emits INVALID_EDGE_TARGET with details", async () => {
   const dir = await createTempProject();
   try {
-    await v2Project(dir);
+    await projectFixture(dir);
     await runCli([
       "--project", dir, "add-node", "T1",
       "--kind", "resolvable", "--subkind", "task", "--title", "t",
@@ -250,7 +250,7 @@ test("CLI: add-edge missing target emits INVALID_EDGE_TARGET with details", asyn
 test("CLI: add-edge BLOCKS-to-knowledge emits INVALID_EDGE_KIND with details", async () => {
   const dir = await createTempProject();
   try {
-    await v2Project(dir);
+    await projectFixture(dir);
     await runCli([
       "--project", dir, "add-node", "T1",
       "--kind", "resolvable", "--subkind", "task", "--title", "t",
@@ -276,7 +276,7 @@ test("CLI: add-edge BLOCKS-to-knowledge emits INVALID_EDGE_KIND with details", a
 test("CLI: add-edge duplicate emits DUPLICATE_EDGE with details", async () => {
   const dir = await createTempProject();
   try {
-    await v2Project(dir);
+    await projectFixture(dir);
     await runCli([
       "--project", dir, "add-node", "T1",
       "--kind", "resolvable", "--subkind", "task", "--title", "t",
@@ -302,7 +302,7 @@ test("CLI: add-edge duplicate emits DUPLICATE_EDGE with details", async () => {
 test("CLI: context missing node emits NODE_NOT_FOUND with details", async () => {
   const dir = await createTempProject();
   try {
-    await v2Project(dir);
+    await projectFixture(dir);
     const r = await runCli(["--project", dir, "context", "ghost"]);
     assert.equal(r.code, 1);
     const data = JSON.parse(r.stdout);
@@ -314,7 +314,7 @@ test("CLI: context missing node emits NODE_NOT_FOUND with details", async () => 
 test("CLI: context missing id emits MISSING_FIELD with details", async () => {
   const dir = await createTempProject();
   try {
-    await v2Project(dir);
+    await projectFixture(dir);
     const r = await runCli(["--project", dir, "context"]);
     assert.equal(r.code, 1);
     const data = JSON.parse(r.stdout);
@@ -323,10 +323,10 @@ test("CLI: context missing id emits MISSING_FIELD with details", async () => {
   } finally { await rmTempProject(dir); }
 });
 
-test("CLI: show v2 missing node emits NODE_NOT_FOUND with details", async () => {
+test("CLI: show missing node emits NODE_NOT_FOUND with details", async () => {
   const dir = await createTempProject();
   try {
-    await v2Project(dir);
+    await projectFixture(dir);
     const r = await runCli(["--project", dir, "show", "ghost"]);
     assert.equal(r.code, 1);
     const data = JSON.parse(r.stdout);
@@ -336,4 +336,4 @@ test("CLI: show v2 missing node emits NODE_NOT_FOUND with details", async () => 
 });
 
 // --- v1 backward compat: v1 commands are no longer dispatched -----------
-// (claim, pre-claim, etc. no longer exist; v2 commands emit structured errors.)
+// (claim, pre-claim, etc. no longer exist; commands emit structured errors.)

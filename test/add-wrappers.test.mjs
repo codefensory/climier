@@ -25,11 +25,11 @@ const knowledgeFlags = () => ({
   "scope-domains": "auth",
 });
 
-async function withV2(fn, { register = true } = {}) {
+async function withProject(fn, { register = true } = {}) {
   const dir = await createTempProject();
   try {
     const { default: init } = await importFresh("./cli/commands/init.mjs");
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+    await init({ statePath: dir, positional: [], projectDir: dir });
     if (register) {
       const { default: addInitiative } = await importFresh("./cli/commands/add-initiative.mjs");
       await addInitiative({ statePath: dir, flags: { desc: "Auth migration" }, positional: ["auth"] });
@@ -52,8 +52,8 @@ function assertMissing(commandName, field) {
   };
 }
 
-test("add-task v2: creates a task through add-node and maps --blocked-by", async () => {
-  await withV2(async (dir) => {
+test("add-task: creates a task through add-node and maps --blocked-by", async () => {
+  await withProject(async (dir) => {
     const addNode = await command("add-node");
     await addNode({
       statePath: dir,
@@ -80,8 +80,8 @@ test("add-task v2: creates a task through add-node and maps --blocked-by", async
   });
 });
 
-test("add-gate v2: creates a gate through add-node", async () => {
-  await withV2(async (dir) => {
+test("add-gate: creates a gate through add-node", async () => {
+  await withProject(async (dir) => {
     const addGate = await command("add-gate");
     const out = await addGate({
       statePath: dir,
@@ -99,8 +99,8 @@ test("add-gate v2: creates a gate through add-node", async () => {
   });
 });
 
-test("add-knowledge v2: creates scoped knowledge through add-node", async () => {
-  await withV2(async (dir) => {
+test("add-knowledge: creates scoped knowledge through add-node", async () => {
+  await withProject(async (dir) => {
     const addKnowledge = await command("add-knowledge");
     const out = await addKnowledge({
       statePath: dir,
@@ -124,8 +124,8 @@ test("add-knowledge v2: creates scoped knowledge through add-node", async () => 
 });
 
 for (const field of ["initiative", "title", "body", "acceptance", "blocked-by"]) {
-  test(`add-task v2: missing --${field} emits MISSING_FIELD`, async () => {
-    await withV2(async (dir) => {
+  test(`add-task: missing --${field} emits MISSING_FIELD`, async () => {
+    await withProject(async (dir) => {
       const flags = taskFlags();
       delete flags[field];
       const addTask = await command("add-task");
@@ -137,8 +137,8 @@ for (const field of ["initiative", "title", "body", "acceptance", "blocked-by"])
   });
 }
 
-test('add-task v2: missing --blocked-by explains that --blocked-by "" is valid', async () => {
-  await withV2(async (dir) => {
+test('add-task: missing --blocked-by explains that --blocked-by "" is valid', async () => {
+  await withProject(async (dir) => {
     const flags = taskFlags();
     delete flags["blocked-by"];
     const addTask = await command("add-task");
@@ -154,8 +154,8 @@ test('add-task v2: missing --blocked-by explains that --blocked-by "" is valid',
   });
 });
 
-test("add-task v2: an explicitly empty --blocked-by means no blockers", async () => {
-  await withV2(async (dir) => {
+test("add-task: an explicitly empty --blocked-by means no blockers", async () => {
+  await withProject(async (dir) => {
     const addTask = await command("add-task");
     const out = await addTask({ statePath: dir, projectDir: dir, positional: ["T-auth"], flags: taskFlags() });
     assert.equal(out.node.id, "T-auth");
@@ -164,8 +164,8 @@ test("add-task v2: an explicitly empty --blocked-by means no blockers", async ()
 });
 
 for (const field of ["initiative", "title", "body", "purpose"]) {
-  test(`add-gate v2: missing --${field} emits MISSING_FIELD`, async () => {
-    await withV2(async (dir) => {
+  test(`add-gate: missing --${field} emits MISSING_FIELD`, async () => {
+    await withProject(async (dir) => {
       const flags = gateFlags();
       delete flags[field];
       const addGate = await command("add-gate");
@@ -178,8 +178,8 @@ for (const field of ["initiative", "title", "body", "purpose"]) {
 }
 
 for (const field of ["initiative", "title", "body"]) {
-  test(`add-knowledge v2: missing --${field} emits MISSING_FIELD`, async () => {
-    await withV2(async (dir) => {
+  test(`add-knowledge: missing --${field} emits MISSING_FIELD`, async () => {
+    await withProject(async (dir) => {
       const flags = knowledgeFlags();
       delete flags[field];
       const addKnowledge = await command("add-knowledge");
@@ -191,8 +191,8 @@ for (const field of ["initiative", "title", "body"]) {
   });
 }
 
-test("add-knowledge v2: missing every --scope-* emits MISSING_FIELD", async () => {
-  await withV2(async (dir) => {
+test("add-knowledge: missing every --scope-* emits MISSING_FIELD", async () => {
+  await withProject(async (dir) => {
     const flags = knowledgeFlags();
     delete flags["scope-domains"];
     const addKnowledge = await command("add-knowledge");
@@ -203,8 +203,8 @@ test("add-knowledge v2: missing every --scope-* emits MISSING_FIELD", async () =
   });
 });
 
-test("add-knowledge v2: empty values for every --scope-* emit MISSING_FIELD", async () => {
-  await withV2(async (dir) => {
+test("add-knowledge: empty values for every --scope-* emit MISSING_FIELD", async () => {
+  await withProject(async (dir) => {
     const flags = {
       ...knowledgeFlags(),
       "scope-domains": "",
@@ -225,8 +225,8 @@ for (const [name, id, flags] of [
   ["add-gate", "G-auth", gateFlags],
   ["add-knowledge", "K-auth", knowledgeFlags],
 ]) {
-  test(`${name} v2: rejects an unregistered initiative`, async () => {
-    await withV2(async (dir) => {
+  test(`${name}: rejects an unregistered initiative`, async () => {
+    await withProject(async (dir) => {
       const add = await command(name);
       await assert.rejects(
         add({ statePath: dir, projectDir: dir, positional: [id], flags: { ...flags(), initiative: "ghost" } }),
@@ -241,8 +241,8 @@ for (const [name, prefix, flags] of [
   ["add-gate", "G-", gateFlags],
   ["add-knowledge", "K-", knowledgeFlags],
 ]) {
-  test(`${name} v2: generates an id with the ${prefix} prefix when omitted`, async () => {
-    await withV2(async (dir) => {
+  test(`${name}: generates an id with the ${prefix} prefix when omitted`, async () => {
+    await withProject(async (dir) => {
       const add = await command(name);
       const out = await add({ statePath: dir, projectDir: dir, positional: [], flags: flags() });
       assert.equal(typeof out.node.id, "string");
@@ -257,8 +257,8 @@ for (const [name, flags] of [
   ["add-gate", gateFlags],
   ["add-knowledge", knowledgeFlags],
 ]) {
-  test(`${name} v2: rejects a provided id outside the allowed format`, async () => {
-    await withV2(async (dir) => {
+  test(`${name}: rejects a provided id outside the allowed format`, async () => {
+    await withProject(async (dir) => {
       const add = await command(name);
       await assert.rejects(
         add({ statePath: dir, projectDir: dir, positional: ["bad/id"], flags: flags() }),
@@ -269,7 +269,7 @@ for (const [name, flags] of [
 }
 
 test("add wrappers route local creates through the operation bridge", async () => {
-  await withV2(async (dir) => {
+  await withProject(async (dir) => {
     const calls = [];
     const backendClient = {
       type: "local",

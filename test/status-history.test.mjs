@@ -1,12 +1,12 @@
 /* eslint-disable max-lines -- Status and history contracts remain grouped by API surface. */
-// F12 — v2 status, history, deprecate-knowledge.
+// F12 — status, history, deprecate-knowledge.
 //
 // Three concerns:
 //   1. `deprecate-knowledge` mutates a knowledge node (status=deprecated,
 //      reasons, agent, revision++; refuses non-knowledge).
 //   2. `history <id>` returns log entries that reference the id; empty array
 //      when none match.
-//   3. `status` on v2 returns the new summary-shape: {summary, tasks, gates,
+//   3. `status` returns the summary-shape: {summary, tasks, gates,
 //      knowledge_count, alerts}; --kind knowledge (or --all) dumps knowledge;
 //      filters narrow scope.
 
@@ -83,19 +83,19 @@ async function addKnowledge(dir, id, extra) {
   });
 }
 
-async function v2Status(dir, flags) {
+async function statusOf(dir, flags) {
   flags = flags || {};
   const { default: status } = await importFresh("./cli/commands/status.mjs");
   return status({ statePath: dir, flags, positional: [] });
 }
 
-async function v2Deprecate(dir, id, flags) {
+async function deprecateOf(dir, id, flags) {
   flags = flags || {};
   const { default: deprecate } = await importFresh("./cli/commands/deprecate-knowledge.mjs");
   return deprecate({ statePath: dir, positional: [id], flags });
 }
 
-async function v2History(dir, id, flags) {
+async function historyOf(dir, id, flags) {
   flags = flags || {};
   const { default: hist } = await importFresh("./cli/commands/history.mjs");
   return hist({ statePath: dir, positional: [id], flags });
@@ -105,11 +105,11 @@ async function v2History(dir, id, flags) {
 // status
 // ---------------------------------------------------------------------------
 
-test("status: v2 returns summary-shape with empty defaults", async () => {
+test("status: returns summary-shape with empty defaults", async () => {
   const dir = await createTempProject();
   try {
     await bootstrapProject(dir);
-    const out = await v2Status(dir);
+    const out = await statusOf(dir);
     assert.deepEqual(out.summary, {
       ready: 0,
       in_progress: 0,
@@ -137,14 +137,14 @@ test("status: submitted tasks have an explicit bucket and respect filters and li
     state.nodes["T-other"].status = "submitted";
     await writeCanonicalState(dir, state);
 
-    const out = await v2Status(dir, { domain: "validation", status: "submitted", limit: 1 });
+    const out = await statusOf(dir, { domain: "validation", status: "submitted", limit: 1 });
     assert.equal(out.summary.submitted, 1);
     assert.equal(out.tasks.submitted.length, 1);
     assert.equal(out.tasks.submitted[0].id, "T-submitted");
     assert.deepEqual(out.tasks.ready, []);
     assert.deepEqual(out.tasks.blocked, []);
 
-    const all = await v2Status(dir, { all: true });
+    const all = await statusOf(dir, { all: true });
     assert.equal(all.summary.submitted, 2);
     assert.deepEqual(all.tasks.submitted.map((task) => task.id), ["T-submitted", "T-other"]);
   } finally { await rmTempProject(dir); }
@@ -157,7 +157,7 @@ test("status: --kind knowledge dumps knowledge items when --all is set", async (
     await addKnowledge(dir, "K-foo", { domain: "auth", title: "Foo knowledge", "knowledge-type": "warning" });
     await addKnowledge(dir, "K-bar", { domain: "auth", title: "Bar knowledge", "knowledge-type": "tip" });
 
-    const out = await v2Status(dir, { all: true });
+    const out = await statusOf(dir, { all: true });
     assert.ok(Array.isArray(out.knowledge), "--all dumps actual knowledge items");
     assert.equal(out.knowledge.length, 2);
     assert.equal(out.knowledge_count, 2);
@@ -173,7 +173,7 @@ test("status: --kind knowledge alone does not dump items (count only)", async ()
   try {
     await bootstrapProject(dir);
     await addKnowledge(dir, "K-foo", { domain: "auth" });
-    const out = await v2Status(dir, { kind: "knowledge" });
+    const out = await statusOf(dir, { kind: "knowledge" });
     assert.equal(typeof out.knowledge, "undefined", "no knowledge array unless --all");
     assert.equal(out.knowledge_count, 1);
     assert.equal(out.summary.active_knowledge, 1);
@@ -189,7 +189,7 @@ test("status: --initiative filters the nodes", async () => {
     await addTask(dir, "T-work", { initiative: "work", title: "W" });
     await addTask(dir, "T-other", { initiative: "other", title: "O" });
 
-    const out = await v2Status(dir, { initiative: "other" });
+    const out = await statusOf(dir, { initiative: "other" });
     assert.equal(out.summary.ready, 1);
     assert.equal(out.tasks.ready.length, 1);
     assert.equal(out.tasks.ready[0].id, "T-other");
@@ -207,7 +207,7 @@ test("status: in_progress visibility is global by default; --as does not restric
     await take({ statePath: dir, projectDir: dir, flags: { as: "bob" }, positional: ["T-b"] });
 
     // No --as, no --claimed-by: every in_progress task is listed and counted.
-    const all = await v2Status(dir);
+    const all = await statusOf(dir);
     assert.equal(all.summary.in_progress, 2,
       `expected summary.in_progress=2 by default; got ${all.summary.in_progress}`);
     assert.equal(all.tasks.in_progress.length, 2);
@@ -215,7 +215,7 @@ test("status: in_progress visibility is global by default; --as does not restric
     assert.deepEqual(owners, ["alice", "bob"]);
 
     // --as is an identity tag, not a filter: alice still sees both claims.
-    const alice = await v2Status(dir, { as: "alice" });
+    const alice = await statusOf(dir, { as: "alice" });
     assert.equal(alice.summary.in_progress, 2,
       `expected summary.in_progress=2 with --as alice; got ${alice.summary.in_progress}`);
     assert.equal(alice.tasks.in_progress.length, 2);
@@ -232,12 +232,12 @@ test("status: --claimed-by X narrows in_progress to one agent", async () => {
     await take({ statePath: dir, projectDir: dir, flags: { as: "alice" }, positional: ["T-a"] });
     await take({ statePath: dir, projectDir: dir, flags: { as: "bob" }, positional: ["T-b"] });
 
-    const aliceOnly = await v2Status(dir, { "claimed-by": "alice" });
+    const aliceOnly = await statusOf(dir, { "claimed-by": "alice" });
     assert.equal(aliceOnly.summary.in_progress, 1);
     assert.equal(aliceOnly.tasks.in_progress.length, 1);
     assert.equal(aliceOnly.tasks.in_progress[0].claimed_by, "alice");
 
-    const bobOnly = await v2Status(dir, { "claimed-by": "bob" });
+    const bobOnly = await statusOf(dir, { "claimed-by": "bob" });
     assert.equal(bobOnly.summary.in_progress, 1);
     assert.equal(bobOnly.tasks.in_progress[0].claimed_by, "bob");
   } finally { await rmTempProject(dir); }
@@ -253,15 +253,15 @@ test("status: in_progress honors --status (in_progress shows all; other values l
     await take({ statePath: dir, projectDir: dir, flags: { as: "alice" }, positional: ["T-a"] });
     await take({ statePath: dir, projectDir: dir, flags: { as: "bob" }, positional: ["T-b"] });
 
-    const ip = await v2Status(dir, { status: "in_progress" });
+    const ip = await statusOf(dir, { status: "in_progress" });
     assert.equal(ip.summary.in_progress, 2);
     assert.equal(ip.tasks.in_progress.length, 2);
 
-    const open = await v2Status(dir, { status: "open" });
+    const open = await statusOf(dir, { status: "open" });
     assert.equal(open.summary.in_progress, 0);
     assert.deepEqual(open.tasks.in_progress, []);
 
-    const done = await v2Status(dir, { status: "done" });
+    const done = await statusOf(dir, { status: "done" });
     assert.equal(done.summary.in_progress, 0);
     assert.deepEqual(done.tasks.in_progress, []);
   } finally { await rmTempProject(dir); }
@@ -279,7 +279,7 @@ test("status: in_progress list honors --limit", async () => {
     await take({ statePath: dir, projectDir: dir, flags: { as: "bob" }, positional: ["T-b"] });
     await take({ statePath: dir, projectDir: dir, flags: { as: "carol" }, positional: ["T-c"] });
 
-    const out = await v2Status(dir, { limit: 2 });
+    const out = await statusOf(dir, { limit: 2 });
     assert.equal(out.summary.in_progress, 3,
       "summary count is unaffected by --limit; only the list is capped");
     assert.equal(out.tasks.in_progress.length, 2,
@@ -299,12 +299,12 @@ test("status: in_progress list honors --initiative (and --as does not re-scope)"
     await take({ statePath: dir, projectDir: dir, flags: { as: "alice" }, positional: ["T-w"] });
     await take({ statePath: dir, projectDir: dir, flags: { as: "bob" }, positional: ["T-o"] });
 
-    const work = await v2Status(dir, { initiative: "work" });
+    const work = await statusOf(dir, { initiative: "work" });
     assert.equal(work.summary.in_progress, 1);
     assert.equal(work.tasks.in_progress[0].id, "T-w");
     assert.equal(work.tasks.in_progress[0].initiative, "work");
 
-    const other = await v2Status(dir, { initiative: "other", as: "alice" });
+    const other = await statusOf(dir, { initiative: "other", as: "alice" });
     assert.equal(other.summary.in_progress, 1,
       "--as must not restrict; --initiative does");
     assert.equal(other.tasks.in_progress[0].id, "T-o");
@@ -322,17 +322,17 @@ test("status: stale-claim alerts are global by default; --claimed-by X narrows t
     await take({ statePath: dir, projectDir: dir, flags: { as: "bob" }, positional: ["T-b"] });
 
     // --stale-ms 0 forces every in_progress claim to be stale.
-    const all = await v2Status(dir, { "stale-ms": 0 });
+    const all = await statusOf(dir, { "stale-ms": 0 });
     const staleAlerts = all.alerts.filter((a) => a.kind === "stale-claim");
     assert.equal(staleAlerts.length, 2,
       `expected 2 stale-claim alerts by default; got ${staleAlerts.length}`);
 
-    const aliceOnly = await v2Status(dir, { "claimed-by": "alice", "stale-ms": 0 });
+    const aliceOnly = await statusOf(dir, { "claimed-by": "alice", "stale-ms": 0 });
     const aliceAlerts = aliceOnly.alerts.filter((a) => a.kind === "stale-claim");
     assert.equal(aliceAlerts.length, 1);
     assert.equal(aliceAlerts[0].claimed_by, "alice");
 
-    const aliceViaAs = await v2Status(dir, { as: "alice", "stale-ms": 0 });
+    const aliceViaAs = await statusOf(dir, { as: "alice", "stale-ms": 0 });
     const aliceViaAsAlerts = aliceViaAs.alerts.filter((a) => a.kind === "stale-claim");
     assert.equal(aliceViaAsAlerts.length, 2,
       "--as must not narrow stale-claim alerts either");
@@ -354,7 +354,7 @@ test("status: --all includes done groups and alerts", async () => {
     state.nodes[tId].status = "done";
     await writeCanonicalState(dir, state);
 
-    const out = await v2Status(dir, { all: true });
+    const out = await statusOf(dir, { all: true });
     assert.equal(typeof out.done, "object", "done groups present when --all");
     assert.ok(Array.isArray(out.done.tasks), "done tasks listed");
     assert.equal(out.done.tasks.length, 1);
@@ -368,7 +368,7 @@ test("status: blocked reports unsatisfied BLOCKS", async () => {
     await addGate(dir, "G-1", { title: "g1" });
     await addTask(dir, "T-1", { title: "t1", "blocked-by": "G-1" });
 
-    const out = await v2Status(dir);
+    const out = await statusOf(dir);
     assert.equal(out.summary.blocked, 1);
     assert.equal(out.tasks.blocked.length, 1);
     assert.equal(out.tasks.blocked[0].id, "T-1");
@@ -395,7 +395,7 @@ test("deprecate-knowledge: happy path sets fields, bumps revision, logs", async 
     await addKnowledge(dir, "K-1", { title: "Foo", domain: "auth" });
     const revisionBeforeDeprecate = (await readRawState(dir)).nodes["K-1"].revision;
 
-    const out = await v2Deprecate(dir, "K-1", { reason: "obsolete after rollout", as: "alice" });
+    const out = await deprecateOf(dir, "K-1", { reason: "obsolete after rollout", as: "alice" });
     assert.equal(out.node.id, "K-1");
     assert.equal(out.node.status, "deprecated");
     assert.equal(out.node.deprecation_reason, "obsolete after rollout");
@@ -419,7 +419,7 @@ test("deprecate-knowledge: missing --reason throws MISSING_FIELD", async () => {
     await bootstrapProject(dir);
     await addKnowledge(dir, "K-1", { domain: "auth" });
     await assert.rejects(
-      v2Deprecate(dir, "K-1", { as: "alice" }),
+      deprecateOf(dir, "K-1", { as: "alice" }),
       (err) => err.code === "MISSING_FIELD" && err.details.field === "reason",
     );
   } finally { await rmTempProject(dir); }
@@ -435,7 +435,7 @@ test("deprecate-knowledge: missing --as throws MISSING_AGENT", async () => {
     prev = process.env.CLIMIER_AGENT;
     delete process.env.CLIMIER_AGENT;
     await assert.rejects(
-      v2Deprecate(dir, "K-1", { reason: "x" }),
+      deprecateOf(dir, "K-1", { reason: "x" }),
       (err) => err.code === "MISSING_AGENT",
     );
   } finally {
@@ -450,7 +450,7 @@ test("deprecate-knowledge: rejects non-knowledge node with INVALID_EDGE_KIND", a
     await bootstrapProject(dir);
     await addTask(dir, "T-1", { title: "task" });
     await assert.rejects(
-      v2Deprecate(dir, "T-1", { reason: "x", as: "alice" }),
+      deprecateOf(dir, "T-1", { reason: "x", as: "alice" }),
       (err) => err.code === "INVALID_EDGE_KIND" && /knowledge/.test(err.message),
     );
   } finally { await rmTempProject(dir); }
@@ -461,7 +461,7 @@ test("deprecate-knowledge: unknown id throws NODE_NOT_FOUND", async () => {
   try {
     await bootstrapProject(dir);
     await assert.rejects(
-      v2Deprecate(dir, "K-missing", { reason: "x", as: "alice" }),
+      deprecateOf(dir, "K-missing", { reason: "x", as: "alice" }),
       (err) => err.code === "NODE_NOT_FOUND" && err.details.id === "K-missing",
     );
   } finally { await rmTempProject(dir); }
@@ -480,7 +480,7 @@ test("history: returns matching log entries referencing the id", async () => {
     await addNote({ statePath: dir, positional: ["T-1", "first thought"], flags: { as: "alice" } });
     await addNote({ statePath: dir, positional: ["T-1", "second thought"], flags: { as: "alice" } });
 
-    const out = await v2History(dir, "T-1");
+    const out = await historyOf(dir, "T-1");
     assert.equal(out.id, "T-1");
     assert.ok(Array.isArray(out.entries));
     // add-node + 2 add-notes all reference T-1 (the add-node entry's `note`
@@ -498,7 +498,7 @@ test("history: empty entries for an unknown node id", async () => {
   try {
     await bootstrapProject(dir);
     await addTask(dir, "T-1", { title: "t1" });
-    const out = await v2History(dir, "K-nothing");
+    const out = await historyOf(dir, "K-nothing");
     assert.deepEqual(out, { id: "K-nothing", entries: [] });
   } finally { await rmTempProject(dir); }
 });
@@ -512,7 +512,7 @@ test("history: --limit caps results but stays in chronological order", async () 
     for (let i = 0; i < 5; i++) {
       await addNote({ statePath: dir, positional: ["T-1", `note ${i}`], flags: { as: "alice" } });
     }
-    const out = await v2History(dir, "T-1", { limit: 2 });
+    const out = await historyOf(dir, "T-1", { limit: 2 });
     assert.equal(out.entries.length, 2);
     // chronological: oldest first; we want the LATEST two (most recent), so the
     // last two notes ("note 3" then "note 4").
@@ -526,7 +526,7 @@ test("history: missing id is a clear error", async () => {
   try {
     await bootstrapProject(dir);
     await assert.rejects(
-      v2History(dir, undefined, {}),
+      historyOf(dir, undefined, {}),
       (err) => /history/.test(err.message) && /id/i.test(err.message),
     );
   } finally { await rmTempProject(dir); }
@@ -536,7 +536,7 @@ test("history: missing id is a clear error", async () => {
 // bin routing (CLI end-to-end)
 // ---------------------------------------------------------------------------
 
-test("CLI: status routes to v2-shape on a v2 state", async () => {
+test("CLI: status routes to the summary-shape on a canonical state", async () => {
   const dir = await createTempProject();
   try {
     let r = await runCli(["--project", dir, "init"]);

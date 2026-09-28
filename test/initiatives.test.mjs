@@ -1,15 +1,15 @@
 /* eslint-disable max-lines -- Initiative command tests stay together as a cohesive API contract file. */
-// F3 — mandatory initiative for v2 add-node + v2 initiative commands.
+// F3 — mandatory initiative for add-node + the initiative commands.
 //
 // Coverage:
 //   - emptyState(2) includes `initiatives: {}`.
-//   - writeState requires `initiatives` for v2.
-//   - add-initiative in v2: validate name, reject duplicates with ID_CONFLICT,
+//   - writeState requires the `initiatives` collection.
+//   - add-initiative: validate name, reject duplicates with ID_CONFLICT,
 //     persist created_at.
 //   - add-initiative in v1 still overwrites on dup (backward compat).
-//   - initiatives command handles v2 state (nodes counts, --all).
-//   - add-node in v2: --initiative is mandatory (MISSING_FIELD).
-//   - add-node in v2: --initiative must be registered (INITIATIVE_NOT_FOUND),
+//   - initiatives command handles a canonical state (node counts, --all).
+//   - add-node: --initiative is mandatory (MISSING_FIELD).
+//   - add-node: --initiative must be registered (INITIATIVE_NOT_FOUND),
 //     unless --allow-unregistered-initiative is passed.
 
 import { test } from "node:test";
@@ -33,14 +33,14 @@ test("emptyState() seeds initiatives: {} on a fresh canonical state", async () =
   const s = emptyState();
   assert.equal(s.version, 1);
   assert.equal(s.revision, 0);
-  assert.ok("initiatives" in s, "v2 state must declare initiatives");
+  assert.ok("initiatives" in s, "the state must declare initiatives");
   assert.deepEqual(s.initiatives, {});
   assert.ok("nodes" in s);
   assert.ok("edges" in s);
   assert.ok("log" in s);
 });
 
-test("writeState: rejects v2 state missing initiatives", async () => {
+test("writeState: rejects a state missing initiatives", async () => {
   const { writeState } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
@@ -53,7 +53,7 @@ test("writeState: rejects v2 state missing initiatives", async () => {
   }
 });
 
-test("writeState: accepts v2 state with empty initiatives", async () => {
+test("writeState: accepts a state with empty initiatives", async () => {
   const { writeState, readState } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
@@ -65,15 +65,15 @@ test("writeState: accepts v2 state with empty initiatives", async () => {
   }
 });
 
-// --- add-initiative: v2 path ---------------------------------------------
+// --- add-initiative: registration path ---------------------------------------------
 
-test("add-initiative (v2): registers a new initiative with desc and created_at", async () => {
+test("add-initiative : registers a new initiative with desc and created_at", async () => {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
   const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
   const { readState } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+    await init({ statePath: dir, positional: [], projectDir: dir });
     const out = await addInit({
       statePath: dir,
       flags: { desc: "auth swap plan" },
@@ -89,12 +89,12 @@ test("add-initiative (v2): registers a new initiative with desc and created_at",
   }
 });
 
-test("add-initiative (v2): rejects duplicate name with ID_CONFLICT", async () => {
+test("add-initiative : rejects duplicate name with ID_CONFLICT", async () => {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
   const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
   const dir = await createTempProject();
   try {
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+    await init({ statePath: dir, positional: [], projectDir: dir });
     await addInit({ statePath: dir, flags: { desc: "first" }, positional: ["auth"] });
     await assert.rejects(
       addInit({ statePath: dir, flags: { desc: "second" }, positional: ["auth"] }),
@@ -105,12 +105,12 @@ test("add-initiative (v2): rejects duplicate name with ID_CONFLICT", async () =>
   }
 });
 
-test("add-initiative (v2): rejects bad name characters", async () => {
+test("add-initiative : rejects bad name characters", async () => {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
   const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
   const dir = await createTempProject();
   try {
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+    await init({ statePath: dir, positional: [], projectDir: dir });
     for (const bad of ["has space", "with.dot", "with/slash", "with$dollar", ""]) {
       await assert.rejects(
         addInit({ statePath: dir, flags: { desc: "x" }, positional: [bad] }),
@@ -123,12 +123,12 @@ test("add-initiative (v2): rejects bad name characters", async () => {
   }
 });
 
-test("add-initiative (v2): missing name emits MISSING_FIELD", async () => {
+test("add-initiative : missing name emits MISSING_FIELD", async () => {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
   const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
   const dir = await createTempProject();
   try {
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+    await init({ statePath: dir, positional: [], projectDir: dir });
     await assert.rejects(
       addInit({ statePath: dir, flags: { desc: "x" }, positional: [] }),
       (err) => err.code === "MISSING_FIELD" && err.details && err.details.field === "name",
@@ -138,7 +138,7 @@ test("add-initiative (v2): missing name emits MISSING_FIELD", async () => {
   }
 });
 
-test("CLI: add-initiative v2 registers and emits a created_at envelope", async () => {
+test("CLI: add-initiative registers and emits a created_at envelope", async () => {
   const dir = await createTempProject();
   try {
     let r = await runCli(["--project", dir, "init"]);
@@ -155,7 +155,7 @@ test("CLI: add-initiative v2 registers and emits a created_at envelope", async (
   }
 });
 
-test("CLI: add-initiative v2 duplicate emits ID_CONFLICT", async () => {
+test("CLI: add-initiative duplicate emits ID_CONFLICT", async () => {
   const dir = await createTempProject();
   try {
     let r = await runCli(["--project", dir, "init"]);
@@ -172,16 +172,16 @@ test("CLI: add-initiative v2 duplicate emits ID_CONFLICT", async () => {
   }
 });
 
-// --- initiatives command: v2 path ---------------------------------------
+// --- initiatives command: listing path ---------------------------------------
 
-test("initiatives (v2): lists only initiatives with at least one live node by default", async () => {
+test("initiatives : lists only initiatives with at least one live node by default", async () => {
   const { default: initiatives } = await importFresh("./cli/commands/initiatives.mjs");
   const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
   const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
   const dir = await createTempProject();
   try {
     const { default: init } = await importFresh("./cli/commands/init.mjs");
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+    await init({ statePath: dir, positional: [], projectDir: dir });
     await addInit({ statePath: dir, flags: { desc: "x" }, positional: ["a"] });
     await addInit({ statePath: dir, flags: { desc: "y" }, positional: ["b"] });
     await addNode({
@@ -204,13 +204,13 @@ test("initiatives (v2): lists only initiatives with at least one live node by de
   }
 });
 
-test("initiatives (v2): --all surfaces every registered initiative, even empty ones", async () => {
+test("initiatives : --all surfaces every registered initiative, even empty ones", async () => {
   const { default: initiatives } = await importFresh("./cli/commands/initiatives.mjs");
   const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
   const dir = await createTempProject();
   try {
     const { default: init } = await importFresh("./cli/commands/init.mjs");
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+    await init({ statePath: dir, positional: [], projectDir: dir });
     await addInit({ statePath: dir, flags: { desc: "" }, positional: ["a"] });
     await addInit({ statePath: dir, flags: { desc: "" }, positional: ["b"] });
     const out = await initiatives({ statePath: dir, flags: { all: true } });
@@ -221,14 +221,14 @@ test("initiatives (v2): --all surfaces every registered initiative, even empty o
   }
 });
 
-test("initiatives (v2): counts both resolvable and knowledge nodes", async () => {
+test("initiatives : counts both resolvable and knowledge nodes", async () => {
   const { default: initiatives } = await importFresh("./cli/commands/initiatives.mjs");
   const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
   const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
   const dir = await createTempProject();
   try {
     const { default: init } = await importFresh("./cli/commands/init.mjs");
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+    await init({ statePath: dir, positional: [], projectDir: dir });
     await addInit({ statePath: dir, flags: { desc: "" }, positional: ["a"] });
     await addNode({
       statePath: dir,
@@ -255,14 +255,14 @@ test("initiatives (v2): counts both resolvable and knowledge nodes", async () =>
   }
 });
 
-// --- add-node: mandatory initiative in v2 ------------------------------
+// --- add-node: mandatory initiative ------------------------------
 
-test("add-node (v2): missing --initiative emits MISSING_FIELD with field=initiative", async () => {
+test("add-node : missing --initiative emits MISSING_FIELD with field=initiative", async () => {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
   const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
   const dir = await createTempProject();
   try {
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+    await init({ statePath: dir, positional: [], projectDir: dir });
     await assert.rejects(
       addNode({
         statePath: dir,
@@ -276,12 +276,12 @@ test("add-node (v2): missing --initiative emits MISSING_FIELD with field=initiat
   }
 });
 
-test("add-node (v2): unregistered initiative emits INITIATIVE_NOT_FOUND with details", async () => {
+test("add-node : unregistered initiative emits INITIATIVE_NOT_FOUND with details", async () => {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
   const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
   const dir = await createTempProject();
   try {
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+    await init({ statePath: dir, positional: [], projectDir: dir });
     await assert.rejects(
       addNode({
         statePath: dir,
@@ -306,16 +306,16 @@ test("add-node (v2): unregistered initiative emits INITIATIVE_NOT_FOUND with det
 
 // T-plugin-policy-migration-tests / ADR-008 §"Capacidad interna": the
 // historical `--allow-unregistered-initiative` bypass test moved to
-// test/v2-internal-capabilities.test.mjs (which exercises
+// test/internal-capabilities.test.mjs (which exercises
 // addNodeInternal, the only sanctioned caller of the flag).
 
-test("add-node (v2): registered initiative is accepted with no INITIATIVE_NOT_FOUND", async () => {
+test("add-node : registered initiative is accepted with no INITIATIVE_NOT_FOUND", async () => {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
   const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
   const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
   const dir = await createTempProject();
   try {
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+    await init({ statePath: dir, positional: [], projectDir: dir });
     await addInit({ statePath: dir, flags: { desc: "" }, positional: ["auth"] });
     const out = await addNode({
       statePath: dir,
@@ -333,12 +333,12 @@ test("add-node (v2): registered initiative is accepted with no INITIATIVE_NOT_FO
   }
 });
 
-test("add-node (v2): knowledge nodes also require --initiative", async () => {
+test("add-node : knowledge nodes also require --initiative", async () => {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
   const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
   const dir = await createTempProject();
   try {
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+    await init({ statePath: dir, positional: [], projectDir: dir });
     await assert.rejects(
       addNode({
         statePath: dir,
@@ -352,7 +352,7 @@ test("add-node (v2): knowledge nodes also require --initiative", async () => {
   }
 });
 
-test("CLI: add-node (v2) without --initiative emits MISSING_FIELD with initiative field", async () => {
+test("CLI: add-node without --initiative emits MISSING_FIELD with initiative field", async () => {
   const dir = await createTempProject();
   try {
     let r = await runCli(["--project", dir, "init"]);
@@ -370,7 +370,7 @@ test("CLI: add-node (v2) without --initiative emits MISSING_FIELD with initiativ
   }
 });
 
-test("CLI: add-node (v2) with unregistered initiative emits INITIATIVE_NOT_FOUND", async () => {
+test("CLI: add-node with an unregistered initiative emits INITIATIVE_NOT_FOUND", async () => {
   const dir = await createTempProject();
   try {
     let r = await runCli(["--project", dir, "init"]);
@@ -409,16 +409,16 @@ test("CLI: add-node --initiative registered works end-to-end", async () => {
   }
 });
 
-// --- legacy v2 tests that pass --initiative without registering still pass
+// --- tests that pass --initiative without registering still pass
 //     because the workflow pre-registered the initiative. This avoids an
 //     unrelated test churn. Confirm explicitly:
-test("v2 legacy: existing test data with --initiative 'auth-migration' is fine if registered", async () => {
+test("existing test data with --initiative 'auth-migration' is fine if registered", async () => {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
   const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
   const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
   const dir = await createTempProject();
   try {
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+    await init({ statePath: dir, positional: [], projectDir: dir });
     await addInit({ statePath: dir, flags: { desc: "" }, positional: ["auth-migration"] });
     await addNode({
       statePath: dir,

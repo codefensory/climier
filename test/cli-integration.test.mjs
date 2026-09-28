@@ -1,4 +1,4 @@
-/* eslint-disable max-lines, max-lines-per-function -- The v2 integration contracts preserve their established end-to-end test boundaries. */
+/* eslint-disable max-lines, max-lines-per-function -- The integration contracts preserve their established end-to-end test boundaries. */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, importFresh, readState as readRawState, runCli, writeFencedState } from "./helpers.mjs";
@@ -8,7 +8,7 @@ test("init: creates an empty canonical state by default", async () => {
   const { readState } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+    await init({ statePath: dir, positional: [], projectDir: dir });
     const s = await readState(dir);
     assert.equal(s.version, 1);
     assert.equal(s.fence_generation, 1);
@@ -21,14 +21,14 @@ test("init: creates an empty canonical state by default", async () => {
   }
 });
 
-test("add-node: creates a v2 task node and show returns it", async () => {
+test("add-node: creates a task node and show returns it", async () => {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
   const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
   const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
   const { default: show } = await importFresh("./cli/commands/show.mjs");
   const dir = await createTempProject();
   try {
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+    await init({ statePath: dir, positional: [], projectDir: dir });
     await addInit({ statePath: dir, flags: { desc: "test" }, positional: ["auth-migration"] });
     await addNode({
       statePath: dir,
@@ -62,7 +62,7 @@ test("add-node: can create typed edges in the same call", async () => {
   const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
   const dir = await createTempProject();
   try {
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+    await init({ statePath: dir, positional: [], projectDir: dir });
     await addInit({ statePath: dir, flags: { desc: "test" }, positional: ["auth-migration"] });
     await addNode({
       statePath: dir,
@@ -118,7 +118,7 @@ test("add-node: stores refs as external targets", async () => {
   const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+    await init({ statePath: dir, positional: [], projectDir: dir });
     await addInit({ statePath: dir, flags: { desc: "test" }, positional: ["auth-migration"] });
     await addNode({
       statePath: dir,
@@ -148,7 +148,7 @@ test("add-node: stores refs as external targets", async () => {
   }
 });
 
-test("CLI: add-node --refs persists refs in v2", async () => {
+test("CLI: add-node --refs persists refs", async () => {
   const dir = await createTempProject();
   try {
     let r = await runCli(["--project", dir, "init"]);
@@ -182,7 +182,7 @@ test("add-node: stores meta from JSON", async () => {
   const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+    await init({ statePath: dir, positional: [], projectDir: dir });
     await addInit({ statePath: dir, flags: { desc: "test" }, positional: ["auth-migration"] });
     await addNode({
       statePath: dir,
@@ -212,7 +212,7 @@ test("add-node: stores meta from JSON", async () => {
   }
 });
 
-test("CLI: add-node --meta persists metadata in v2", async () => {
+test("CLI: add-node --meta persists metadata", async () => {
   const dir = await createTempProject();
   try {
     let r = await runCli(["--project", dir, "init"]);
@@ -239,7 +239,7 @@ test("CLI: add-node --meta persists metadata in v2", async () => {
   }
 });
 
-test("add-note: appends notes to a v2 node", async () => {
+test("add-note: appends notes to a node", async () => {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
   const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
   const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
@@ -247,7 +247,7 @@ test("add-note: appends notes to a v2 node", async () => {
   const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+    await init({ statePath: dir, positional: [], projectDir: dir });
     await addInit({ statePath: dir, flags: { desc: "test" }, positional: ["auth-migration"] });
     await addNode({
       statePath: dir,
@@ -273,7 +273,7 @@ test("add-note: appends notes to a v2 node", async () => {
   }
 });
 
-test("CLI: add-note works on a v2 node", async () => {
+test("CLI: add-note works on a node", async () => {
   const dir = await createTempProject();
   try {
     let r = await runCli(["--project", dir, "init"]);
@@ -303,14 +303,14 @@ test("CLI: add-note works on a v2 node", async () => {
   }
 });
 
-test("add-edge: BLOCKS cannot target knowledge in v2", async () => {
+test("add-edge: BLOCKS cannot target knowledge", async () => {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
   const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
   const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
   const { default: addEdge } = await importFresh("./cli/commands/add-edge.mjs");
   const dir = await createTempProject();
   try {
-    await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+    await init({ statePath: dir, positional: [], projectDir: dir });
     await addInit({ statePath: dir, flags: { desc: "test" }, positional: ["auth-migration"] });
     await addNode({
       statePath: dir,
@@ -343,7 +343,7 @@ test("add-edge: BLOCKS cannot target knowledge in v2", async () => {
   }
 });
 
-test("context: returns blockers, informing edges, and scoped knowledge for a v2 task", async () => {
+test("context: returns blockers, informing edges, and scoped knowledge for a task", async () => {
   const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
@@ -423,8 +423,8 @@ test("context: returns blockers, informing edges, and scoped knowledge for a v2 
   }
 });
 
-// eslint-disable-next-line max-statements -- This single integration case covers the public v2 command sequence.
-test("CLI: v2 commands work end-to-end", async () => {
+// eslint-disable-next-line max-statements -- This single integration case covers the public command sequence.
+test("CLI: commands work end-to-end", async () => {
   const dir = await createTempProject();
   try {
     let r = await runCli(["--project", dir, "init"]);

@@ -21,9 +21,9 @@ async function withProject(fn) {
   }
 }
 
-async function initV2(dir) {
+async function initProject(dir) {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
-  await init({ statePath: dir, projectDir: dir, positional: [], flags: { v2: true } });
+  await init({ statePath: dir, projectDir: dir, positional: [] });
 }
 
 async function registerFoo(dir) {
@@ -36,9 +36,9 @@ async function registerFoo(dir) {
   });
 }
 
-test("v2 add-task accepts an initiative registered by add-initiative", async () => {
+test("add-task accepts an initiative registered by add-initiative", async () => {
   await withProject(async (dir) => {
-    await initV2(dir);
+    await initProject(dir);
     await registerFoo(dir);
     const { default: addTask } = await importFresh("./cli/commands/add-task.mjs");
 
@@ -53,7 +53,7 @@ test("v2 add-task accepts an initiative registered by add-initiative", async () 
   });
 });
 
-test("CLI v2 add-task accepts an initiative registered by add-initiative", async () => {
+test("CLI add-task accepts an initiative registered by add-initiative", async () => {
   await withProject(async (dir) => {
     let result = await runCli(["init"], { cwd: dir });
     assert.equal(result.code, 0, result.stdout);
@@ -70,9 +70,9 @@ test("CLI v2 add-task accepts an initiative registered by add-initiative", async
   });
 });
 
-test("v2 add-task rejects an unregistered initiative with INITIATIVE_NOT_FOUND", async () => {
+test("add-task rejects an unregistered initiative with INITIATIVE_NOT_FOUND", async () => {
   await withProject(async (dir) => {
-    await initV2(dir);
+    await initProject(dir);
     const { default: addTask } = await importFresh("./cli/commands/add-task.mjs");
 
     await assert.rejects(
@@ -88,7 +88,7 @@ test("v2 add-task rejects an unregistered initiative with INITIATIVE_NOT_FOUND",
   });
 });
 
-test("CLI v2 add-task rejects --allow-unregistered-initiative as unknown flag (T-plugin-policy-seam-dag)", async () => {
+test("CLI add-task rejects --allow-unregistered-initiative as unknown flag (T-plugin-policy-seam-dag)", async () => {
   // T-plugin-policy-seam-dag (ADR-008 §"Capacidad interna"):
   // --allow-unregistered-initiative is no longer accepted on the
   // public CLI surface. The bin's knownFlags check rejects it before
@@ -115,7 +115,7 @@ test("CLI v2 add-task rejects --allow-unregistered-initiative as unknown flag (T
   });
 });
 
-test("CLI v2 add-task returns a structured error when initiative is missing", async () => {
+test("CLI add-task returns a structured error when initiative is missing", async () => {
   await withProject(async (dir) => {
     let result = await runCli(["init"], { cwd: dir });
     assert.equal(result.code, 0, result.stdout);

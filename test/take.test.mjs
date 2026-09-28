@@ -1,5 +1,5 @@
 /* eslint-disable max-statements -- This test pins first-claim and idempotent-take response and revision behavior. */
-// F9 — `take <id>`: idempotent claim of an explicit ready v2 task.
+// F9 — `take <id>`: idempotent claim of an explicit ready task.
 // First `take <id>` from an agent claims that task and returns
 // freshly_claimed=true. Repeating the same id as the same agent returns it
 // with freshly_claimed=false. Legacy filters are accepted but ignored.
@@ -8,11 +8,11 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, importFresh, runCli, readState } from "./helpers.mjs";
 
-async function v2Project() {
+async function projectFixture() {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
   const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
   const dir = await createTempProject();
-  await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+  await init({ statePath: dir, positional: [], projectDir: dir });
   await addInit({ statePath: dir, flags: { desc: "auth" }, positional: ["auth"] });
   return dir;
 }
@@ -47,7 +47,7 @@ async function take(dir, id, flags) {
 // --- happy path --------------------------------------------------------
 
 test("take: first call claims a ready task and returns freshly_claimed=true; second call returns same task with freshly_claimed=false", async () => {
-  const dir = await v2Project();
+  const dir = await projectFixture();
   try {
     await addTask(dir, "T-auth-1", { title: "Add session middleware", tags: "backend,api" });
     const revisionBeforeTake = (await readState(dir)).nodes["T-auth-1"].revision;
@@ -77,7 +77,7 @@ test("take: first call claims a ready task and returns freshly_claimed=true; sec
 // --- selection rule ----------------------------------------------------
 
 test("take: claims the explicitly requested ready task instead of auto-selecting", async () => {
-  const dir = await v2Project();
+  const dir = await projectFixture();
   try {
     await addTask(dir, "T-auth-zeta", { title: "Z task" });
     await addTask(dir, "T-blocker", { title: "Unfinished blocker" });
@@ -93,7 +93,7 @@ test("take: claims the explicitly requested ready task instead of auto-selecting
 // --- no ready tasks ---------------------------------------------------
 
 test("take: throws NOT_READY when the requested task is blocked", async () => {
-  const dir = await v2Project();
+  const dir = await projectFixture();
   try {
     await addTask(dir, "T-blocker");
     await addTask(dir, "T-blocked", { "blocked-by": "T-blocker" });
@@ -107,7 +107,7 @@ test("take: throws NOT_READY when the requested task is blocked", async () => {
 // --- filters ----------------------------------------------------------
 
 test("take: accepts and ignores --initiative", async () => {
-  const dir = await v2Project();
+  const dir = await projectFixture();
   try {
     await addInitiative(dir, "billing", "billing");
     await addTask(dir, "T-auth-1", { title: "auth task", initiative: "auth" });
@@ -119,7 +119,7 @@ test("take: accepts and ignores --initiative", async () => {
 });
 
 test("take: an unmatched --initiative does not exclude the explicit id", async () => {
-  const dir = await v2Project();
+  const dir = await projectFixture();
   try {
     await addTask(dir, "T-auth-1", { title: "auth task", initiative: "auth" });
     const out = await take(dir, "T-auth-1", { as: "alice", initiative: "ghost" });
@@ -128,7 +128,7 @@ test("take: an unmatched --initiative does not exclude the explicit id", async (
 });
 
 test("take: accepts and ignores --domain", async () => {
-  const dir = await v2Project();
+  const dir = await projectFixture();
   try {
     await addTask(dir, "T-auth-1", { title: "auth task", domain: "auth" });
     await addTask(dir, "T-auth-2", { title: "data task", domain: "data" });
@@ -139,7 +139,7 @@ test("take: accepts and ignores --domain", async () => {
 });
 
 test("take: accepts and ignores --tag", async () => {
-  const dir = await v2Project();
+  const dir = await projectFixture();
   try {
     await addTask(dir, "T-auth-1", { title: "backend task", tags: "backend,api" });
     await addTask(dir, "T-auth-2", { title: "frontend task", tags: "frontend,ui" });
@@ -150,7 +150,7 @@ test("take: accepts and ignores --tag", async () => {
 });
 
 test("take: accepts and ignores legacy filter combinations", async () => {
-  const dir = await v2Project();
+  const dir = await projectFixture();
   try {
     await addInitiative(dir, "billing", "billing");
     await addTask(dir, "T-1", { title: "auth/backend", initiative: "auth", domain: "auth", tags: "backend" });
@@ -165,7 +165,7 @@ test("take: accepts and ignores legacy filter combinations", async () => {
 // --- idempotence semantics --------------------------------------------
 
 test("take: explicit id wins over the agent's existing claim", async () => {
-  const dir = await v2Project();
+  const dir = await projectFixture();
   try {
     await addInitiative(dir, "billing", "billing");
     await addTask(dir, "T-auth-1", { title: "auth1", initiative: "auth" });
@@ -182,7 +182,7 @@ test("take: explicit id wins over the agent's existing claim", async () => {
 });
 
 test("take: another agent cannot take the explicit in-progress task", async () => {
-  const dir = await v2Project();
+  const dir = await projectFixture();
   try {
     await addTask(dir, "T-only", { title: "only one ready" });
 
@@ -198,7 +198,7 @@ test("take: another agent cannot take the explicit in-progress task", async () =
 });
 
 test("take: second agent can claim a different task when another agent holds one", async () => {
-  const dir = await v2Project();
+  const dir = await projectFixture();
   try {
     await addTask(dir, "T-aaa");
     await addTask(dir, "T-zzz");
@@ -216,7 +216,7 @@ test("take: second agent can claim a different task when another agent holds one
 // --- arg validation ----------------------------------------------------
 
 test("take: rejects --as with no value (MISSING_AGENT)", async () => {
-  const dir = await v2Project();
+  const dir = await projectFixture();
   const prev = process.env.CLIMIER_AGENT;
   delete process.env.CLIMIER_AGENT;
   try {
@@ -232,7 +232,7 @@ test("take: rejects --as with no value (MISSING_AGENT)", async () => {
 });
 
 test("take: rejects missing --as (MISSING_AGENT)", async () => {
-  const dir = await v2Project();
+  const dir = await projectFixture();
   const prev = process.env.CLIMIER_AGENT;
   delete process.env.CLIMIER_AGENT;
   try {
@@ -250,7 +250,7 @@ test("take: rejects missing --as (MISSING_AGENT)", async () => {
 // --- persistence -------------------------------------------------------
 
 test("take: persists claim = { by, at }, status = 'in_progress', and bumps revision", async () => {
-  const dir = await v2Project();
+  const dir = await projectFixture();
   try {
     await addTask(dir, "T-auth-1", { title: "Auth task" });
     const before = (await readState(dir)).nodes["T-auth-1"].revision;
@@ -271,7 +271,7 @@ test("take: persists claim = { by, at }, status = 'in_progress', and bumps revis
 
 // --- CLI smoke ---------------------------------------------------------
 
-test("CLI: take <id> --as agent-x returns node + context + freshly_claimed = true on a fresh v2 project", async () => {
+test("CLI: take <id> --as agent-x returns node + context + freshly_claimed = true on a fresh project", async () => {
   const dir = await createTempProject();
   try {
     let r = await runCli(["--project", dir, "init"]);

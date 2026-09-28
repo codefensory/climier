@@ -10,7 +10,7 @@ import { createTempProject, rmTempProject, importFresh, runCli, readState as rea
 async function bootstrapV2(dir, initiative = "auth") {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
   const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
-  await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+  await init({ statePath: dir, positional: [], projectDir: dir });
   await addInit({ statePath: dir, flags: { desc: "test" }, positional: [initiative] });
 }
 

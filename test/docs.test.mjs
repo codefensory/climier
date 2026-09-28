@@ -62,7 +62,7 @@ test("docs: reference.md exists and covers the implemented surface", async () =>
   }
 });
 
-test("v2 docs: README links to the dedicated v2 documentation", async () => {
+test("docs: README links to the dedicated reference documentation", async () => {
   const text = await readFile(README, "utf8");
   assert.match(text, /docs\/reference\.md/, "README.md should link to docs/reference.md");
 });

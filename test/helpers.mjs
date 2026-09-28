@@ -56,8 +56,8 @@ if (!process.env.CLIMIER_HOME) {
     );
   }
 }
-// Default CLIMIER_AGENT for tests that exercise v2 mutating commands but
-// don't pass --as. The new test file (v2-agent-source.test.mjs) deletes
+// Default CLIMIER_AGENT for tests that exercise mutating commands but
+// don't pass --as. test/agent-source.test.mjs deletes
 // this env var to exercise the MISSING_AGENT path. v1 commands ignore it.
 if (!("CLIMIER_AGENT" in process.env)) {
   process.env.CLIMIER_AGENT = "test-agent";

@@ -1,7 +1,7 @@
 /* eslint-disable max-lines, max-lines-per-function, max-nested-callbacks -- Adversarial regression matrix keeps each fixture lifecycle and rejection assertion together. */
-// F13 — v2 adversarial test pass.
+// F13 — adversarial test pass.
 //
-// Goal: surface root-cause bugs in the v2 surface by exercising edges the
+// Goal: surface root-cause bugs by exercising edges the
 // existing suites don't probe. Each describe block names the bug class. A
 // failing test is a real bug to fix; a passing test pins the contract.
 //
@@ -31,9 +31,9 @@ import {
 
 // --- shared scaffolding ------------------------------------------------
 
-async function freshV2(dir) {
+async function freshProject(dir) {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
-  await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+  await init({ statePath: dir, positional: [], projectDir: dir });
 }
 
 async function addInit(dir, name = "auth", desc = "auth") {
@@ -99,15 +99,15 @@ async function submitAcceptTask(dir, id, as, note = "shipped") {
   return accept({ statePath: dir, projectDir: dir, flags: { as }, positional: [id] });
 }
 
-async function v2Project() {
+async function projectFixture() {
   const dir = await createTempProject();
-  await freshV2(dir);
+  await freshProject(dir);
   await addInit(dir);
   return dir;
 }
 
 // =====================================================================
-// Class A — v2-status filter coverage
+// Class A — status filter coverage
 //
 // The status filter MUST apply to every bucket. Today it only filters
 // ready/blocked/backlog (the post-derived pools). The in_progress bucket
@@ -116,9 +116,9 @@ async function v2Project() {
 // summary.in_progress, which contradicts the user's expectation.
 // =====================================================================
 
-describe("v2-status: --status filter applies to ALL buckets (not just derived)", () => {
+describe("status: --status filter applies to ALL buckets (not just derived)", () => {
   test("--status ready with a claimed in_progress task: summary.in_progress is 0 (not the claimer's count)", async () => {
-    const dir = await v2Project();
+    const dir = await projectFixture();
     try {
       await addTaskNode(dir, "T-a");
       await addTaskNode(dir, "T-b");
@@ -137,7 +137,7 @@ describe("v2-status: --status filter applies to ALL buckets (not just derived)",
   });
 
   test("--status done with an in_progress task: tasks.in_progress is empty", async () => {
-    const dir = await v2Project();
+    const dir = await projectFixture();
     try {
       await addTaskNode(dir, "T-a");
       await takeNode(dir, "T-a", "alice");
@@ -154,7 +154,7 @@ describe("v2-status: --status filter applies to ALL buckets (not just derived)",
   });
 
   test("--status in_progress returns exactly the in_progress tasks in the bucket (no scoping by --as)", async () => {
-    const dir = await v2Project();
+    const dir = await projectFixture();
     try {
       await addTaskNode(dir, "T-a");
       await addTaskNode(dir, "T-b");
@@ -174,7 +174,7 @@ describe("v2-status: --status filter applies to ALL buckets (not just derived)",
   });
 
   test("--status open hides in_progress from the summary count", async () => {
-    const dir = await v2Project();
+    const dir = await projectFixture();
     try {
       await addTaskNode(dir, "T-a");
       await takeNode(dir, "T-a", "alice");
@@ -188,7 +188,7 @@ describe("v2-status: --status filter applies to ALL buckets (not just derived)",
   });
 
   test("--status on open_gates: filters by status", async () => {
-    const dir = await v2Project();
+    const dir = await projectFixture();
     try {
       await addGateNode(dir, "G-a");
       await addGateNode(dir, "G-b");
@@ -205,18 +205,18 @@ describe("v2-status: --status filter applies to ALL buckets (not just derived)",
 });
 
 // =====================================================================
-// Class B — silent flag drops in add-task v2
+// Class B — silent flag drops in add-task
 //
-// `add-task` in v2 has no v1 vocabulary. Calling it with a v1 flag like
+// `add-task` has no pre-refactor vocabulary. Calling it with an old flag like
 // --depends-on must be rejected at the CLI entry (unknown flag) so the
 // caller is never confused into thinking the flag had an effect. A direct
-// programmatic call still no-ops the unknown flag, so the v2 surface must
+// programmatic call still no-ops the unknown flag, so the surface must
 // keep the surface narrow (no v1 fields in knownFlags).
 // =====================================================================
 
-describe("add-task v2: --depends-on must NOT be silently dropped", () => {
+describe("add-task: --depends-on must NOT be silently dropped", () => {
   test("add-task CLI: --depends-on is rejected as an unknown flag (not silently dropped)", async () => {
-    const dir = await v2Project();
+    const dir = await projectFixture();
     try {
       await addTaskNode(dir, "T-y");
       const out = await runCli([
@@ -347,7 +347,7 @@ describe("search: regex metacharacters are literal (no regex engine)", () => {
 // =====================================================================
 // Class D — history envelope consistency
 //
-// history.mjs returns { id, entries: [] } for a v2 state. It must not
+// history.mjs returns { id, entries: [] } when nothing matches. It must not
 // crash on a missing id, on a missing state file, or on a non-matching id.
 // The `entry.note` tokenization must NOT match substrings — only full
 // whitespace-delimited tokens. (E.g. a task T1 should NOT match the
@@ -460,7 +460,7 @@ describe("history: tokenization matches whole id only", () => {
 
 describe("concurrency: two operations on the same node serialize cleanly", () => {
   test("two takes on the same task: one claims, the other sees ALREADY_CLAIMED", async () => {
-    const dir = await v2Project();
+    const dir = await projectFixture();
     try {
       await addTaskNode(dir, "T-a");
       const a = runCli(["--project", dir, "take", "T-a", "--as", "alice"]);
@@ -484,7 +484,7 @@ describe("concurrency: two operations on the same node serialize cleanly", () =>
   });
 
   test("concurrent updates on the same node: revision bumps twice; both writes apply", async () => {
-    const dir = await v2Project();
+    const dir = await projectFixture();
     try {
       await addTaskNode(dir, "T-a");
       const a = runCli(["--project", dir, "update", "T-a", "--title", "from alice", "--as", "alice"]);
@@ -505,7 +505,7 @@ describe("concurrency: two operations on the same node serialize cleanly", () =>
     // `resolve` is gate-only. Concurrent attempts against a task must
     // both reject before changing the task or appending a resolve log;
     // the preceding take is the only mutation in this scenario.
-    const dir = await v2Project();
+    const dir = await projectFixture();
     try {
       await addTaskNode(dir, "T-a");
       await takeNode(dir, "T-a", "alice");
@@ -522,7 +522,7 @@ describe("concurrency: two operations on the same node serialize cleanly", () =>
   });
 
   test("concurrent add-edge on the same pair: exactly one DUPLICATE_EDGE", async () => {
-    const dir = await v2Project();
+    const dir = await projectFixture();
     try {
       await addTaskNode(dir, "T-a");
       await addTaskNode(dir, "T-b");
@@ -545,13 +545,13 @@ describe("concurrency: two operations on the same node serialize cleanly", () =>
 //
 // add-note with the same text twice should create two notes (audit log
 // is append-only by design). add-edge with the same triple should
-// DUPLICATE_EDGE. add-initiative on v2 should ID_CONFLICT. These tests
+// DUPLICATE_EDGE. add-initiative should ID_CONFLICT. These tests
 // pin each contract so any drift is caught.
 // =====================================================================
 
 describe("idempotency contracts", () => {
   test("add-note: identical text twice creates two notes (audit, not dedupe)", async () => {
-    const dir = await v2Project();
+    const dir = await projectFixture();
     try {
       await addTaskNode(dir, "T-a");
       const { default: addNote } = await importFresh("./cli/commands/add-note.mjs");
@@ -565,7 +565,7 @@ describe("idempotency contracts", () => {
   });
 
   test("add-edge: same (from,to,type) twice throws DUPLICATE_EDGE", async () => {
-    const dir = await v2Project();
+    const dir = await projectFixture();
     try {
       await addTaskNode(dir, "T-a");
       await addTaskNode(dir, "T-b");
@@ -587,7 +587,7 @@ describe("idempotency contracts", () => {
   });
 
   test("add-edge: BLOCKS A→B and BLOCKS B→A are rejected as CYCLE_DETECTED", async () => {
-    const dir = await v2Project();
+    const dir = await projectFixture();
     try {
       await addTaskNode(dir, "T-a");
       await addTaskNode(dir, "T-b");
@@ -600,10 +600,10 @@ describe("idempotency contracts", () => {
     } finally { await rmTempProject(dir); }
   });
 
-  test("add-initiative: same name twice on v2 throws ID_CONFLICT with structured details", async () => {
+  test("add-initiative: same name twice throws ID_CONFLICT with structured details", async () => {
     const dir = await createTempProject();
     try {
-      await freshV2(dir);
+      await freshProject(dir);
       const { default: addInitiative } = await importFresh("./cli/commands/add-initiative.mjs");
       await addInitiative({ statePath: dir, projectDir: dir, flags: { desc: "first" }, positional: ["auth"] });
       let caught;
@@ -630,7 +630,7 @@ describe("idempotency contracts", () => {
 
 describe("revision control", () => {
   test("update --if-revision matches -> applies and bumps", async () => {
-    const dir = await v2Project();
+    const dir = await projectFixture();
     try {
       await addTaskNode(dir, "T-a");
       const currentRevision = (await readRawState(dir)).nodes["T-a"].revision;
@@ -644,7 +644,7 @@ describe("revision control", () => {
   });
 
   test("update --if-revision stale -> REVISION_CONFLICT, no write", async () => {
-    const dir = await v2Project();
+    const dir = await projectFixture();
     try {
       await addTaskNode(dir, "T-a");
       const { default: update } = await importFresh("./cli/commands/update.mjs");
@@ -672,7 +672,7 @@ describe("revision control", () => {
   });
 
   test("take bumps revision; update without --if-revision observes the bumped value", async () => {
-    const dir = await v2Project();
+    const dir = await projectFixture();
     try {
       await addTaskNode(dir, "T-a");
       const beforeTake = (await readRawState(dir)).nodes["T-a"].revision;
@@ -699,7 +699,7 @@ describe("revision control", () => {
   });
 
   test("update --if-revision=0 is rejected as not a positive integer", async () => {
-    const dir = await v2Project();
+    const dir = await projectFixture();
     try {
       await addTaskNode(dir, "T-a");
       const { default: update } = await importFresh("./cli/commands/update.mjs");
@@ -728,7 +728,7 @@ describe("revision control", () => {
 
 describe("context envelope per node kind", () => {
   test("context for a gate: allowed_actions for resolve hints at --choice and --rationale", async () => {
-    const dir = await v2Project();
+    const dir = await projectFixture();
     try {
       await addGateNode(dir, "G-a");
       const { default: context } = await importFresh("./cli/commands/context.mjs");
@@ -743,7 +743,7 @@ describe("context envelope per node kind", () => {
   });
 
   test("context for a knowledge node: returns claim=null, blocking=[], status reflects active", async () => {
-    const dir = await v2Project();
+    const dir = await projectFixture();
     try {
       await addKnowledgeNode(dir, "K-a", { body: "x", "scope-domains": "auth" });
       const { default: context } = await importFresh("./cli/commands/context.mjs");
@@ -758,7 +758,7 @@ describe("context envelope per node kind", () => {
   });
 
   test("context alerts include SUPERSEDED_BLOCKER when a blocker is superseded", async () => {
-    const dir = await v2Project();
+    const dir = await projectFixture();
     try {
       await addGateNode(dir, "G-old");
       // Create G-new with --supersedes G-old so the target is marked superseded.
@@ -788,7 +788,7 @@ describe("context envelope per node kind", () => {
 
 describe("agent source precedence", () => {
   test("--as wins over CLIMIER_AGENT", async () => {
-    const dir = await v2Project();
+    const dir = await projectFixture();
     try {
       await addTaskNode(dir, "T-a");
       const prev = process.env.CLIMIER_AGENT;
@@ -806,7 +806,7 @@ describe("agent source precedence", () => {
   });
 
   test("CLIMIER_AGENT used when --as is absent", async () => {
-    const dir = await v2Project();
+    const dir = await projectFixture();
     try {
       await addTaskNode(dir, "T-a");
       const prev = process.env.CLIMIER_AGENT;
@@ -824,7 +824,7 @@ describe("agent source precedence", () => {
   });
 
   test("neither CLIMIER_AGENT nor --as: MISSING_AGENT with code", async () => {
-    const dir = await v2Project();
+    const dir = await projectFixture();
     try {
       await addTaskNode(dir, "T-a");
       const prev = process.env.CLIMIER_AGENT;
@@ -843,7 +843,7 @@ describe("agent source precedence", () => {
   });
 
   test("--as '' (empty string) falls through to CLIMIER_AGENT", async () => {
-    const dir = await v2Project();
+    const dir = await projectFixture();
     try {
       await addTaskNode(dir, "T-a");
       const prev = process.env.CLIMIER_AGENT;
@@ -922,7 +922,7 @@ describe("init --force on existing state", () => {
     } finally { await rmTempProject(dir); }
   });
 
-  test("init --force on an existing v2 state overwrites (data loss, but explicit)", async () => {
+  test("init --force on an existing state overwrites (data loss, but explicit)", async () => {
     const dir = await createTempProject();
     try {
       let r = await runCli(["--project", dir, "init"]);
@@ -952,7 +952,7 @@ describe("init --force on existing state", () => {
 
 describe("take idempotency and takeover", () => {
   test("take twice as the same agent: no second log entry, no second revision bump", async () => {
-    const dir = await v2Project();
+    const dir = await projectFixture();
     try {
       await addTaskNode(dir, "T-a");
       const r1 = await takeNode(dir, "T-a", "alice");
@@ -972,7 +972,7 @@ describe("take idempotency and takeover", () => {
     // historical orchestrator takeover is replaced by a policy seam
     // allow. We install the policy-fixture and exercise the
     // `task.takeover` action with mode=allow.
-    const dir = await v2Project();
+    const dir = await projectFixture();
     await installPolicyFixture(dir);
     try {
       await addTaskNode(dir, "T-a");
@@ -992,7 +992,7 @@ describe("take idempotency and takeover", () => {
   });
 
   test("take as bob on alice's claim: ALREADY_CLAIMED, not a takeover", async () => {
-    const dir = await v2Project();
+    const dir = await projectFixture();
     try {
       await addTaskNode(dir, "T-a");
       await takeNode(dir, "T-a", "alice");
@@ -1007,7 +1007,7 @@ describe("take idempotency and takeover", () => {
   });
 
   test("take on a `done` task: NOT_READY (cannot revive from done)", async () => {
-    const dir = await v2Project();
+    const dir = await projectFixture();
     try {
       await addTaskNode(dir, "T-a");
       await takeNode(dir, "T-a", "alice");
@@ -1034,7 +1034,7 @@ describe("take idempotency and takeover", () => {
 
 describe("lifecycle completion: newly_ready is the diff of pre/post derive", () => {
   test("resolve a gate that unblocks one task: newly_ready contains exactly that task", async () => {
-    const dir = await v2Project();
+    const dir = await projectFixture();
     try {
       await addGateNode(dir, "G-a");
       await addTaskNode(dir, "T-x", { "blocked-by": "G-a" });
@@ -1048,7 +1048,7 @@ describe("lifecycle completion: newly_ready is the diff of pre/post derive", () 
   });
 
   test("resolve a gate that unblocks nothing: newly_ready is []", async () => {
-    const dir = await v2Project();
+    const dir = await projectFixture();
     try {
       await addGateNode(dir, "G-a");
       const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
@@ -1061,7 +1061,7 @@ describe("lifecycle completion: newly_ready is the diff of pre/post derive", () 
   });
 
   test("submit + accept a task with one downstream task: newly_ready contains the downstream", async () => {
-    const dir = await v2Project();
+    const dir = await projectFixture();
     try {
       await addTaskNode(dir, "T-a");
       await addTaskNode(dir, "T-b", { "blocked-by": "T-a" });
@@ -1083,7 +1083,7 @@ describe("lifecycle completion: newly_ready is the diff of pre/post derive", () 
 
 describe("knowledge scoping on context", () => {
   test("knowledge with scope.domains matches a task whose domain is in the list", async () => {
-    const dir = await v2Project();
+    const dir = await projectFixture();
     try {
       await addKnowledgeNode(dir, "K-auth-ttl", { body: "x", domain: "auth", "scope-domains": "auth" });
       await addTaskNode(dir, "T-a", { domain: "auth" });
@@ -1096,7 +1096,7 @@ describe("knowledge scoping on context", () => {
   });
 
   test("knowledge with scope.initiatives matches a task in that initiative", async () => {
-    const dir = await v2Project();
+    const dir = await projectFixture();
     try {
       await addKnowledgeNode(dir, "K-sso", { body: "x", "scope-initiatives": "auth" });
       await addTaskNode(dir, "T-a");
@@ -1108,7 +1108,7 @@ describe("knowledge scoping on context", () => {
   });
 
   test("knowledge with no matching scope does NOT appear in context.knowledge", async () => {
-    const dir = await v2Project();
+    const dir = await projectFixture();
     try {
       await addKnowledgeNode(dir, "K-orph", { body: "x", domain: "unrelated", "scope-domains": "unrelated" });
       await addTaskNode(dir, "T-a", { domain: "auth" });
@@ -1127,8 +1127,8 @@ describe("knowledge scoping on context", () => {
 // =====================================================================
 
 describe("envelope shape consistency", () => {
-  test("show on a v2 task returns { type: 'task', node }", async () => {
-    const dir = await v2Project();
+  test("show on a task returns { type: 'task', node }", async () => {
+    const dir = await projectFixture();
     try {
       await addTaskNode(dir, "T-a");
       const { default: show } = await importFresh("./cli/commands/show.mjs");
@@ -1140,8 +1140,8 @@ describe("envelope shape consistency", () => {
     } finally { await rmTempProject(dir); }
   });
 
-  test("show on a v2 knowledge returns { type: 'knowledge', node }", async () => {
-    const dir = await v2Project();
+  test("show on a knowledge node returns { type: 'knowledge', node }", async () => {
+    const dir = await projectFixture();
     try {
       await addKnowledgeNode(dir, "K-a", { body: "x", "scope-domains": "auth" });
       const { default: show } = await importFresh("./cli/commands/show.mjs");
@@ -1152,8 +1152,8 @@ describe("envelope shape consistency", () => {
     } finally { await rmTempProject(dir); }
   });
 
-  test("show on a v2 gate returns { type: 'gate', node }", async () => {
-    const dir = await v2Project();
+  test("show on a gate returns { type: 'gate', node }", async () => {
+    const dir = await projectFixture();
     try {
       await addGateNode(dir, "G-a");
       const { default: show } = await importFresh("./cli/commands/show.mjs");
@@ -1165,7 +1165,7 @@ describe("envelope shape consistency", () => {
   });
 
   test("initiatives --all: includes initiatives with zero usage", async () => {
-    const dir = await v2Project();
+    const dir = await projectFixture();
     try {
       // Add an extra initiative with no usage.
       await addInit(dir, "unused", "unused");

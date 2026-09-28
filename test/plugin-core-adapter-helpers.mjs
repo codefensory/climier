@@ -31,7 +31,7 @@ export async function withIsolatedEnv(body) {
 export async function freshCore(projectDir, { agent = "alice", pluginId = "example.audit" } = {}) {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
   const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
-  await init({ statePath: projectDir, flags: { v2: true }, positional: [], projectDir });
+  await init({ statePath: projectDir, positional: [], projectDir });
   await addInit({ statePath: projectDir, flags: { desc: "plugin platform" }, positional: ["plugin-platform"] });
   const { createCore } = await importFresh(ADAPTER_MODULE);
   return createCore({ projectDir, agent, pluginId });

@@ -20,7 +20,7 @@ const baseState = () => ({ version: 1, initiatives: {}, nodes: {}, edges: [], lo
 
 async function bootstrap(dir) {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
-  await init({ statePath: dir, projectDir: dir, positional: [], flags: { v2: true } });
+  await init({ statePath: dir, projectDir: dir, positional: [] });
   const { default: addInitiative } = await importFresh("./cli/commands/add-initiative.mjs");
   await addInitiative({
     statePath: dir,

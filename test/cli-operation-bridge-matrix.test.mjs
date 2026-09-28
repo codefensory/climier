@@ -23,14 +23,14 @@ const writes = [
     input: "id, initiative, title, body, acceptance, blocked_by, tags, refs, meta",
     policyAction: "task.create", envelope: "{ node }", error: "MISSING_FIELD / INVALID_ID",
     logAction: "add-task / add-node", state: "created task, revision, and blocker edges",
-    local: "v2-add-wrappers.test.mjs", remote: "cli-remote-write-routing.test.mjs",
+    local: "add-wrappers.test.mjs", remote: "cli-remote-write-routing.test.mjs",
   },
   {
     operation: "task.update", commands: ["update(task)"],
     input: "id, changes, if_revision; legacy fields share the operation input",
     policyAction: "task.update", envelope: "{ node }", error: "NODE_NOT_FOUND / REVISION_CONFLICT",
     logAction: "update", state: "updated task and revision; idempotence preserves both",
-    local: "v2-update.test.mjs", remote: "cli-remote-write-routing.test.mjs",
+    local: "update.test.mjs", remote: "cli-remote-write-routing.test.mjs",
   },
   {
     operation: "task.take", commands: ["take"],
@@ -82,13 +82,13 @@ const writes = [
     input: "id, initiative, title, body, purpose, blocked_by, derived_from",
     policyAction: "gate.create", envelope: "{ node }", error: "MISSING_FIELD / INVALID_EDGE_KIND",
     logAction: "add-node / supersede", state: "created gate and supersedes edge when requested",
-    local: "v2-add-wrappers.test.mjs", remote: "cli-remote-write-routing.test.mjs",
+    local: "add-wrappers.test.mjs", remote: "cli-remote-write-routing.test.mjs",
   },
   {
     operation: "gate.update", commands: ["update(gate)"], input: "id, changes, if_revision",
     policyAction: "gate.update", envelope: "{ node }", error: "NODE_NOT_FOUND / REVISION_CONFLICT",
     logAction: "update", state: "updated gate and revision",
-    local: "v2-update.test.mjs", remote: "cli-remote-write-routing.test.mjs",
+    local: "update.test.mjs", remote: "cli-remote-write-routing.test.mjs",
   },
   {
     operation: "gate.resolve", commands: ["resolve"], input: "id, choice, rationale, if_revisions",
@@ -113,13 +113,13 @@ const writes = [
     input: "id, initiative, title, body, scope, refs, derived_from",
     policyAction: "knowledge.create", envelope: "{ node }", error: "MISSING_FIELD / INVALID_EDGE_KIND",
     logAction: "add-node / supersede", state: "created knowledge and supersedes edge when requested",
-    local: "v2-add-wrappers.test.mjs", remote: "cli-remote-write-routing.test.mjs",
+    local: "add-wrappers.test.mjs", remote: "cli-remote-write-routing.test.mjs",
   },
   {
     operation: "knowledge.update", commands: ["update(knowledge)"], input: "id, changes, if_revision",
     policyAction: "knowledge.update", envelope: "{ node }", error: "NODE_NOT_FOUND / REVISION_CONFLICT",
     logAction: "update", state: "updated knowledge and revision",
-    local: "v2-update.test.mjs", remote: "cli-remote-write-routing.test.mjs",
+    local: "update.test.mjs", remote: "cli-remote-write-routing.test.mjs",
   },
   {
     operation: "knowledge.deprecate", commands: ["deprecate-knowledge"], input: "id, reason",

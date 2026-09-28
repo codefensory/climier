@@ -11,7 +11,7 @@ import {
 async function setup(dir) {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
   const { default: addInitiative } = await importFresh("./cli/commands/add-initiative.mjs");
-  await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+  await init({ statePath: dir, positional: [], projectDir: dir });
   await addInitiative({ statePath: dir, flags: { desc: "test" }, positional: ["work"] });
 }
 

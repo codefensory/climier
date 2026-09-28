@@ -6,6 +6,7 @@ import path from "node:path";
 import { validateManifest } from "./test-manifest-checker.mjs";
 import { parseTapTestNames } from "./test-manifest-collector.mjs";
 import { findRawWriterFiles } from "./test-manifest-lanes.mjs";
+import { buildManifestRows } from "./test-manifest-rows.mjs";
 
 const SHA = "a".repeat(40);
 
@@ -253,3 +254,45 @@ test("TAP collector builds full names from runtime nesting and indentation", () 
 
 const interpolatedTitle = `runtime interpolated title ${"captured"}`;
 test(`collector sees ${interpolatedTitle}`, () => {});
+
+test("manifest rows: a move keeps the source rows when the file is gone", () => {
+  const previous = {
+    tests: [
+      { path: MOVE_SOURCE, name: "first", ordinal: 1, disposition: "move", move_from: MOVE_SOURCE },
+      { path: MOVE_SOURCE, name: "second", ordinal: 1, disposition: "move", move_from: MOVE_SOURCE },
+      { path: MOVE_DESTINATION, name: "first", ordinal: 1, disposition: "move", move_from: MOVE_SOURCE },
+      { path: MOVE_DESTINATION, name: "second", ordinal: 1, disposition: "move", move_from: MOVE_SOURCE },
+    ],
+  };
+
+  const tests = buildManifestRows({ rows: movedRuntime, previous: previous.tests, declarations: {} });
+  const manifest = { version: 1, base_sha: SHA, tests };
+
+  assert.equal(validateManifest(manifest, movedRuntime), true);
+  assert.equal(tests.filter((row) => row.path === MOVE_SOURCE).length, 2, "the source rows must survive the regeneration");
+});
+
+test("manifest rows: regenerating without a previous manifest keeps every runtime row", () => {
+  const tests = buildManifestRows({ rows: movedRuntime, previous: [], declarations: {} });
+
+  assert.deepEqual(tests.map((row) => [row.path, row.name, row.disposition]), [
+    [MOVE_DESTINATION, "first", "keep"],
+    [MOVE_DESTINATION, "second", "keep"],
+  ]);
+});
+
+test("manifest rows: a stale keep row is dropped while delete and move rows are carried", () => {
+  const previous = [
+    { path: "test/gone.test.mjs", name: "stale keep", ordinal: 1, disposition: "keep" },
+    { path: "test/gone.test.mjs", name: "retired", ordinal: 1, disposition: "delete", category: "raw-lane", reason: "behavior removed", coverage_removed: true },
+    { path: MOVE_SOURCE, name: "first", ordinal: 1, disposition: "move", move_from: MOVE_SOURCE },
+  ];
+
+  const tests = buildManifestRows({ rows: [{ path: MOVE_DESTINATION, name: "first" }], previous, declarations: {} });
+
+  assert.deepEqual(tests.map((row) => [row.path, row.name, row.disposition]), [
+    ["test/gone.test.mjs", "retired", "delete"],
+    [MOVE_DESTINATION, "first", "keep"],
+    [MOVE_SOURCE, "first", "move"],
+  ]);
+});

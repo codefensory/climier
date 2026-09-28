@@ -1,18 +1,18 @@
-// Audit fixes for v2 issues — see AGENTS.md audit round.
+// Audit fixes for the issues found in the audit round — see AGENTS.md.
 // Each test exercises one issue and one fix path; minimal scaffolding.
 //
 // Issue 1: cancel / resolve / deprecate-knowledge on v1 state must NOT be
-//   reported as "unknown command"; they need v1 stubs that throw a clear
-//   "v2-only" error. v1 release/reopen still work because their v1 modules
-//   already exist.
+//   reported as "unknown command"; they need stubs that throw a clear
+//   "not supported here" error. release/reopen keep working because their
+//   modules already exist.
 // Issue 2: add-node and add-edge must call resolveAgent BEFORE updateState
 //   so a missing agent leaves no orphan state / no orphan log entry.
 // Issue 3: "Available:" error string + HELP_TEXT must list cancel, resolve,
 //   history.
-// Issue 4: AGENTS.md v2 description must reflect the full set of v2-capable
+// Issue 4: AGENTS.md description must reflect the full set of lifecycle
 //   commands (take/update/status/release/resolve/reopen/cancel/deprecate-knowledge/
 //   initiatives/history), not just the original six.
-// Issue 5: add-decision and add-gotcha on v2 state must throw a clear
+// Issue 5: add-decision and add-gotcha must throw a clear
 //   error instead of silently writing to a v1-style field.
 
 import { test } from "node:test";
@@ -36,9 +36,9 @@ function clearAgentEnv() {
   };
 }
 
-async function freshV2(dir) {
+async function freshProject(dir) {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
-  await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+  await init({ statePath: dir, positional: [], projectDir: dir });
 }
 
 // ---------------------------------------------------------------------------
@@ -46,7 +46,7 @@ async function freshV2(dir) {
 //
 // The v1 schema is no longer supported. The bin now rejects v1 states with
 // STATE_V1_UNSUPPORTED, and the v1-only commands are gone. The remaining
-// surface (cancel / resolve / deprecate-knowledge) is v2-only.
+// surface (cancel / resolve / deprecate-knowledge) is all that is left.
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
@@ -57,7 +57,7 @@ test("Issue 2: add-node with missing agent does NOT mutate state (no orphan log 
   const dir = await createTempProject();
   const restore = clearAgentEnv();
   try {
-    await freshV2(dir);
+    await freshProject(dir);
     const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
     await addInit({ statePath: dir, flags: { desc: "auth", as: "setup" }, positional: ["auth"] });
 
@@ -93,7 +93,7 @@ test("Issue 2: add-edge with missing agent does NOT mutate state", async () => {
   const dir = await createTempProject();
   const restore = clearAgentEnv();
   try {
-    await freshV2(dir);
+    await freshProject(dir);
     const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
     await addInit({ statePath: dir, flags: { desc: "auth", as: "setup" }, positional: ["auth"] });
     const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
@@ -165,17 +165,17 @@ test("Issue 3: HELP_TEXT lists cancel and resolve", async () => {
 });
 
 // ---------------------------------------------------------------------------
-// Issue 4: AGENTS.md v2 description reflects current scope.
+// Issue 4: AGENTS.md description reflects the current scope.
 // ---------------------------------------------------------------------------
 
-test("Issue 4: AGENTS.md mentions the v2 lifecycle commands beyond the original six", async () => {
+test("Issue 4: AGENTS.md mentions the lifecycle commands beyond the original six", async () => {
   const text = await fs.readFile(
     path.resolve(import.meta.dirname, "..", "AGENTS.md"),
     "utf8",
   );
-  // The Commands table is the canonical place where the v2 lifecycle
-  // surface is described. Verify the table covers the v2-only commands
-  // beyond the original six (the v1-only 'v2 scope (...)' sentinel was
+  // The Commands table is the canonical place where the lifecycle
+  // surface is described. Verify the table covers the commands added
+  // beyond the original six (the pre-refactor 'scope (...)' sentinel was
   // removed when the v1 surface was dropped; the Commands table replaces
   // it as the source of truth).
   const section = text.match(/## Commands[\s\S]*?(?=\n## |\s*$)/);
@@ -188,33 +188,32 @@ test("Issue 4: AGENTS.md mentions the v2 lifecycle commands beyond the original 
 });
 
 // ---------------------------------------------------------------------------
-// Issue 5: add-decision / add-gotcha must reject v2 state with a clear error.
+// Issue 5: add-decision / add-gotcha must be rejected with a clear error.
 // ---------------------------------------------------------------------------
 
-test("Issue 5: add-decision on v2 state throws a clear v1-only error (no silent mutation)", async () => {
+test("Issue 5: add-decision throws a clear unknown-command error (no silent mutation)", async () => {
   const dir = await createTempProject();
   try {
-    await freshV2(dir);
+    await freshProject(dir);
     const out = await runCli(["--project", dir, "add-decision", "D1", "--title", "pick", "--initiative", "x"]);
-    // The v1 command no longer exists in the v2-only surface; the CLI must
-    // reject the call (unknown command) and must not write anything to the
-    // v2 state.
+    // The pre-refactor command no longer exists; the CLI must reject the
+    // call (unknown command) and must not write anything to the state.
     assert.notEqual(out.code, 0, `expected non-zero exit, got ${out.code}: stdout=${out.stdout}`);
     const data = JSON.parse(out.stdout);
     assert.equal(data.ok, false);
     const msg = typeof data.error === "string" ? data.error : data.error.message;
-    assert.match(msg, /unknown command|not (a|found)|v1[- ]only|v2 does not|v2 state/i, `got: ${msg}`);
+    assert.match(msg, /unknown command|not (a|found)/i, `got: ${msg}`);
     // The state file must NOT have a `decisions` collection written.
     const s = await readState(dir);
-    assert.equal(s.decisions, undefined, `decisions collection must not be written to v2 state`);
+    assert.equal(s.decisions, undefined, `decisions collection must not be written to the state`);
     assert.equal(s.log.length, 0, `log should be empty`);
   } finally { await rmTempProject(dir); }
 });
 
-test("Issue 5: add-gotcha on v2 state throws a clear v1-only error (no silent mutation)", async () => {
+test("Issue 5: add-gotcha throws a clear unknown-command error (no silent mutation)", async () => {
   const dir = await createTempProject();
   try {
-    await freshV2(dir);
+    await freshProject(dir);
     const out = await runCli([
       "--project", dir, "add-gotcha", "G1",
       "--title", "trap", "--applies-to", "domain:db",
@@ -223,18 +222,18 @@ test("Issue 5: add-gotcha on v2 state throws a clear v1-only error (no silent mu
     const data = JSON.parse(out.stdout);
     assert.equal(data.ok, false);
     const msg = typeof data.error === "string" ? data.error : data.error.message;
-    assert.match(msg, /unknown command|not (a|found)|v1[- ]only|v2 does not|v2 state/i, `got: ${msg}`);
+    assert.match(msg, /unknown command|not (a|found)/i, `got: ${msg}`);
     const s = await readState(dir);
-    assert.equal(s.gotchas, undefined, `gotchas collection must not be written to v2 state`);
+    assert.equal(s.gotchas, undefined, `gotchas collection must not be written to the state`);
     assert.equal(s.log.length, 0, `log should be empty`);
   } finally { await rmTempProject(dir); }
 });
 
-test("Issue 5: add-decision on v2 state is rejected as unknown command", async () => {
+test("Issue 5: add-decision is rejected as unknown command", async () => {
   // Replaces the v1 regression test: v1 commands no longer exist.
   const dir = await createTempProject();
   try {
-    await freshV2(dir);
+    await freshProject(dir);
     const out = await runCli(["--project", dir, "add-decision", "D1", "--title", "pick", "--initiative", "auth"]);
     assert.notEqual(out.code, 0);
     const data = JSON.parse(out.stdout);
@@ -244,11 +243,11 @@ test("Issue 5: add-decision on v2 state is rejected as unknown command", async (
   } finally { await rmTempProject(dir); }
 });
 
-test("Issue 5: add-gotcha on v2 state is rejected as unknown command", async () => {
+test("Issue 5: add-gotcha is rejected as unknown command", async () => {
   // Replaces the v1 regression test: v1 commands no longer exist.
   const dir = await createTempProject();
   try {
-    await freshV2(dir);
+    await freshProject(dir);
     const out = await runCli([
       "--project", dir, "add-gotcha", "G1",
       "--title", "trap", "--applies-to", "domain:db",

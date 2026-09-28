@@ -289,7 +289,7 @@ npm test
 node --test test/status.test.mjs
 
 # Run a single test by name
-node --test --test-name-pattern="take.*same agent" test/v2-take.test.mjs
+node --test --test-name-pattern="take.*same agent" test/take.test.mjs
 
 # Watch mode
 npm run test:watch
@@ -324,7 +324,7 @@ When you add a new command, pick whichever shape fits the data. **Do not** add a
 1. Run `npm test`. If anything is red, fix it first (a new agent should never commit on top of red).
 2. Read `src/storage/state.mjs` — it explains the storage shape and version handling.
 3. Read one command end-to-end (`src/cli/commands/take.mjs` is the most representative).
-4. Look at `test/v2-take.test.mjs` (and `test/concurrent-takes.test.mjs` if present) — they show the multi-agent guarantee in action.
+4. Look at `test/take.test.mjs` (and `test/concurrent-takes.test.mjs` if present) — they show the multi-agent guarantee in action.
 5. Then tackle your task. TDD: write the test, watch it fail, implement, watch it pass.
 
 ## Climier control plane

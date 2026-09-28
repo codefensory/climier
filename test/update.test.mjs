@@ -1,14 +1,14 @@
 /* eslint-disable max-statements -- This update regression case preserves the complete field-normalization contract. */
-// F6 — v2 update: field edits, revision tracking, --if-revision optimistic concurrency.
+// F6 — update: field edits, revision tracking, --if-revision optimistic concurrency.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, importFresh, readState as readRawState, runCli } from "./helpers.mjs";
 
-async function v2Project() {
+async function projectFixture() {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
   const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
   const dir = await createTempProject();
-  await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+  await init({ statePath: dir, positional: [], projectDir: dir });
   await addInit({ statePath: dir, flags: { desc: "auth" }, positional: ["auth"] });
   return dir;
 }
@@ -32,8 +32,8 @@ async function seedTask(dir, id = "T-auth-1", extra = {}) {
 
 // --- revision initialization on creation ----------------------------------
 
-test("add-node: initializes revision = 1 on a new v2 node", async () => {
-  const dir = await v2Project();
+test("add-node: initializes revision = 1 on a new node", async () => {
+  const dir = await projectFixture();
   try {
     await seedTask(dir);
     const s = await readRawState(dir);
@@ -45,7 +45,7 @@ test("add-node: initializes revision = 1 on a new v2 node", async () => {
 
 test("update: changes title and bumps revision to 2", async () => {
   const { default: update } = await importFresh("./cli/commands/update.mjs");
-  const dir = await v2Project();
+  const dir = await projectFixture();
   try {
     await seedTask(dir);
     const before = await readRawState(dir);
@@ -68,7 +68,7 @@ test("update: local bridge applies legacy fields inside the single operation mut
   const { bootstrapBuiltins } = await import("../src/application/operations/builtins.mjs");
   const { mutate: kernelMutate } = await import("../src/kernel/mutate.mjs");
   const { default: update } = await importFresh("./cli/commands/update.mjs");
-  const dir = await v2Project();
+  const dir = await projectFixture();
   const operations = [];
   const mutations = [];
   try {
@@ -109,7 +109,7 @@ test("update: local bridge applies legacy fields inside the single operation mut
 
 test("update: idempotent bridge result retains the current node revision", async () => {
   const { default: update } = await importFresh("./cli/commands/update.mjs");
-  const dir = await v2Project();
+  const dir = await projectFixture();
   try {
     await seedTask(dir);
     const before = await readRawState(dir);
@@ -128,7 +128,7 @@ test("update: idempotent bridge result retains the current node revision", async
 
 test("update: parses --meta JSON and persists it", async () => {
   const { default: update } = await importFresh("./cli/commands/update.mjs");
-  const dir = await v2Project();
+  const dir = await projectFixture();
   try {
     await seedTask(dir);
     const currentRevision = (await readRawState(dir)).nodes["T-auth-1"].revision;
@@ -144,7 +144,7 @@ test("update: parses --meta JSON and persists it", async () => {
 
 test("update: parses --tags CSV and replaces the tag set", async () => {
   const { default: update } = await importFresh("./cli/commands/update.mjs");
-  const dir = await v2Project();
+  const dir = await projectFixture();
   try {
     await seedTask(dir);
     const out = await update({
@@ -158,7 +158,7 @@ test("update: parses --tags CSV and replaces the tag set", async () => {
 
 test("update: bumps revision on every successful mutation", async () => {
   const { default: update } = await importFresh("./cli/commands/update.mjs");
-  const dir = await v2Project();
+  const dir = await projectFixture();
   try {
     await seedTask(dir);
     const before = await readRawState(dir);
@@ -176,7 +176,7 @@ test("update: bumps revision on every successful mutation", async () => {
 
 test("update: --if-revision matching current revision applies and increments", async () => {
   const { default: update } = await importFresh("./cli/commands/update.mjs");
-  const dir = await v2Project();
+  const dir = await projectFixture();
   try {
     await seedTask(dir);
     const currentRevision = (await readRawState(dir)).nodes["T-auth-1"].revision;
@@ -192,7 +192,7 @@ test("update: --if-revision matching current revision applies and increments", a
 
 test("update: --if-revision mismatch returns REVISION_CONFLICT with expected/current", async () => {
   const { default: update } = await importFresh("./cli/commands/update.mjs");
-  const dir = await v2Project();
+  const dir = await projectFixture();
   try {
     await seedTask(dir);
     const originalRevision = (await readRawState(dir)).nodes["T-auth-1"].revision;
@@ -220,7 +220,7 @@ test("update: --if-revision mismatch returns REVISION_CONFLICT with expected/cur
 
 test("update: without --if-revision a stale snapshot still mutates", async () => {
   const { default: update } = await importFresh("./cli/commands/update.mjs");
-  const dir = await v2Project();
+  const dir = await projectFixture();
   try {
     await seedTask(dir);
     const initialRevision = (await readRawState(dir)).nodes["T-auth-1"].revision;
@@ -240,7 +240,7 @@ test("update: without --if-revision a stale snapshot still mutates", async () =>
 
 test("update: missing node returns NODE_NOT_FOUND", async () => {
   const { default: update } = await importFresh("./cli/commands/update.mjs");
-  const dir = await v2Project();
+  const dir = await projectFixture();
   try {
     let caught;
     try {
@@ -280,7 +280,7 @@ test("update: rejects a pre-release state with migration guidance", async () => 
   const { default: update } = await importFresh("./cli/commands/update.mjs");
   const dir = await createTempProject();
   try {
-    // Bootstrap .climier.json + an empty v2 state, then overwrite the
+    // Bootstrap .climier.json + an empty canonical state, then overwrite the
     // state file directly with a v1 shape (writeState now rejects v1).
     const { default: init } = await importFresh("./cli/commands/init.mjs");
     await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
@@ -306,7 +306,7 @@ test("update: rejects a pre-release state with migration guidance", async () => 
 
 // --- CLI dispatch --------------------------------------------------------
 
-test("CLI: v2 update emits REVISION_CONFLICT with structured details", async () => {
+test("CLI: update emits REVISION_CONFLICT with structured details", async () => {
   const dir = await createTempProject();
   try {
     let r = await runCli(["--project", dir, "init"]);
@@ -341,7 +341,7 @@ test("CLI: v2 update emits REVISION_CONFLICT with structured details", async () 
   } finally { await rmTempProject(dir); }
 });
 
-test("CLI: v2 update missing node emits NODE_NOT_FOUND", async () => {
+test("CLI: update missing node emits NODE_NOT_FOUND", async () => {
   const dir = await createTempProject();
   try {
     let r = await runCli(["--project", dir, "init"]);

@@ -1,20 +1,20 @@
 /* eslint-disable max-statements -- This single regression test validates full actor-source precedence and persisted results. */
-// F8 — v2 agent source resolution: --as > CLIMIER_AGENT > MISSING_AGENT.
+// F8 — agent source resolution: --as > CLIMIER_AGENT > MISSING_AGENT.
 //
 // Coverage:
 //   - resolveAgent unit tests (precedence, boolean edge, structured details)
-//   - each v2 mutating command emits MISSING_AGENT when neither source is set
+//   - each mutating command emits MISSING_AGENT when neither source is set
 //   - CLIMIER_AGENT is picked up when --as is absent
 //   - CLI smoke: env var works end-to-end without --as
 //
-// helpers.mjs sets CLIMIER_AGENT to a default so unrelated v2 tests keep
+// helpers.mjs sets CLIMIER_AGENT to a default so unrelated tests keep
 // passing. These tests delete the env var to exercise the missing-agent path.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, importFresh, runCli } from "./helpers.mjs";
 
-function assertV2Error(data, code) {
+function assertStructuredError(data, code) {
   assert.equal(data.ok, false);
   assert.ok(data.error && typeof data.error === "object");
   assert.equal(data.error.code, code);
@@ -32,9 +32,9 @@ function clearAgentEnv(restore) {
   };
 }
 
-async function freshV2(dir) {
+async function freshProject(dir) {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
-  await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+  await init({ statePath: dir, positional: [], projectDir: dir });
 }
 
 // --- pure helper: resolveAgent precedence --------------------------------
@@ -135,7 +135,7 @@ test("contracts/agent: validates a supplied actor without CLI source resolution"
   }
 });
 
-// --- integration: each v2 mutating command requires an agent -----------
+// --- integration: each mutating command requires an agent --------------
 
 for (const [name, buildFlags, positional, register] of [
   ["add-initiative", () => ({ desc: "x" }), ["foo"], false],
@@ -149,7 +149,7 @@ for (const [name, buildFlags, positional, register] of [
     const dir = await createTempProject();
     const restore = clearAgentEnv();
     try {
-      await freshV2(dir);
+      await freshProject(dir);
       if (register) {
         const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
         // Setup passes --as so add-initiative itself doesn't trip the new
@@ -188,11 +188,11 @@ for (const [name, buildFlags, positional, register] of [
   });
 }
 
-test("v2-update: missing agent emits MISSING_AGENT", async () => {
+test("update: missing agent emits MISSING_AGENT", async () => {
   const dir = await createTempProject();
   const restore = clearAgentEnv();
   try {
-    await freshV2(dir);
+    await freshProject(dir);
     const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
     await addInit({ statePath: dir, flags: { desc: "auth", as: "setup" }, positional: ["auth"] });
     const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
@@ -223,7 +223,7 @@ test("add-initiative: CLIMIER_AGENT is accepted when --as is absent", async () =
   const prev = process.env.CLIMIER_AGENT;
   process.env.CLIMIER_AGENT = "env-only-agent";
   try {
-    await freshV2(dir);
+    await freshProject(dir);
     const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
     const out = await addInit({
       statePath: dir,
@@ -243,7 +243,7 @@ test("add-node: CLIMIER_AGENT is recorded in the log when --as is absent", async
   const prev = process.env.CLIMIER_AGENT;
   process.env.CLIMIER_AGENT = "env-only-agent";
   try {
-    await freshV2(dir);
+    await freshProject(dir);
     const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
     await addInit({ statePath: dir, flags: { desc: "auth" }, positional: ["auth"] });
     const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
@@ -313,7 +313,7 @@ test("CLI: missing agent emits MISSING_AGENT", async () => {
     r = await runCli(["--project", dir, "add-initiative", "foo"], { env: { CLIMIER_AGENT: "" } });
     assert.equal(r.code, 1);
     const data = JSON.parse(r.stdout);
-    assertV2Error(data, "MISSING_AGENT");
+    assertStructuredError(data, "MISSING_AGENT");
     assert.equal(data.error.details.command, "add-initiative");
   } finally { await rmTempProject(dir); }
 });

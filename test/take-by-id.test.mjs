@@ -1,4 +1,4 @@
-// `take <id>` claims exactly the requested v2 task.
+// `take <id>` claims exactly the requested task.
 // Filters are accepted but ignored; backlog tasks remain unclaimable.
 //
 // T-plugin-policy-seam-lifecycle / ADR-008 §"Tabla de take": takeover
@@ -20,11 +20,11 @@ import {
   uninstallPolicyFixture,
 } from "./helpers.mjs";
 
-async function v2Project() {
+async function projectFixture() {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
   const { default: addInitiative } = await importFresh("./cli/commands/add-initiative.mjs");
   const dir = await createTempProject();
-  await init({ statePath: dir, flags: { v2: true }, positional: [], projectDir: dir });
+  await init({ statePath: dir, positional: [], projectDir: dir });
   await addInitiative({ statePath: dir, flags: { desc: "Auth" }, positional: ["auth"] });
   return dir;
 }
@@ -75,8 +75,8 @@ async function patchNode(dir, id, patch) {
   await writeCanonicalState(dir, state);
 }
 
-test("take by id: claims the requested ready task and returns the v2 envelope", async () => {
-  const dir = await v2Project();
+test("take by id: claims the requested ready task and returns the structured envelope", async () => {
+  const dir = await projectFixture();
   try {
     await addTask(dir, "T-auth-1");
     const out = await take(dir, "T-auth-1", { as: "agent-a" });
@@ -91,7 +91,7 @@ test("take by id: claims the requested ready task and returns the v2 envelope", 
 });
 
 test("take by id: repeated take by the owner is idempotent", async () => {
-  const dir = await v2Project();
+  const dir = await projectFixture();
   try {
     await addTask(dir, "T-auth-1");
     const first = await take(dir, "T-auth-1", { as: "agent-a" });
@@ -106,7 +106,7 @@ test("take by id: repeated take by the owner is idempotent", async () => {
 });
 
 test("take by id: rejects a task claimed by another agent with ALREADY_CLAIMED", async () => {
-  const dir = await v2Project();
+  const dir = await projectFixture();
   try {
     const { V2_ERROR_CODES } = await importFresh("./contracts/errors.mjs");
     assert.equal(V2_ERROR_CODES.ALREADY_CLAIMED, "ALREADY_CLAIMED");
@@ -124,7 +124,7 @@ test("take by id: rejects a task claimed by another agent with ALREADY_CLAIMED",
 });
 
 test("take by id: rejects an unknown id with NODE_NOT_FOUND", async () => {
-  const dir = await v2Project();
+  const dir = await projectFixture();
   try {
     await assert.rejects(
       take(dir, "T-missing", { as: "agent-a" }),
@@ -134,7 +134,7 @@ test("take by id: rejects an unknown id with NODE_NOT_FOUND", async () => {
 });
 
 test("take by id: rejects a knowledge node with NOT_CLAIMABLE", async () => {
-  const dir = await v2Project();
+  const dir = await projectFixture();
   try {
     const { V2_ERROR_CODES } = await importFresh("./contracts/errors.mjs");
     assert.equal(V2_ERROR_CODES.NOT_CLAIMABLE, "NOT_CLAIMABLE");
@@ -148,7 +148,7 @@ test("take by id: rejects a knowledge node with NOT_CLAIMABLE", async () => {
 });
 
 test("take by id: rejects done, canceled, resolved, and superseded tasks with NOT_READY", async () => {
-  const dir = await v2Project();
+  const dir = await projectFixture();
   try {
     await addTask(dir, "T-ready");
     for (const status of ["done", "canceled", "resolved", "superseded"]) {
@@ -164,7 +164,7 @@ test("take by id: rejects done, canceled, resolved, and superseded tasks with NO
 });
 
 test("take by id: rejects a blocked task with NOT_READY", async () => {
-  const dir = await v2Project();
+  const dir = await projectFixture();
   try {
     await addTask(dir, "T-blocker");
     await addTask(dir, "T-x", { "blocked-by": "T-blocker" });
@@ -177,7 +177,7 @@ test("take by id: rejects a blocked task with NOT_READY", async () => {
 });
 
 test("take by id: backlog tasks remain NOT_READY", async () => {
-  const dir = await v2Project();
+  const dir = await projectFixture();
   try {
     await addTask(dir, "T-ready");
     await addTask(dir, "T-x", { backlog: "true" });
@@ -195,7 +195,7 @@ test("take by id: takeover is policy-driven (task.takeover allow replaces claim 
   // policy seam. We install the policy-fixture plugin (T-plugin-policy-fixture)
   // with applies=true and mode=allow so the seam's allow path replaces
   // the claim and preserves previous_owner in the log entry.
-  const dir = await v2Project();
+  const dir = await projectFixture();
   await installPolicyFixture(dir);
   try {
     await addTask(dir, "T-x");
@@ -244,7 +244,7 @@ test("CLI: take T-x --as agent-x works end to end", async () => {
 });
 
 test("take by id: legacy filters are accepted and ignored", async () => {
-  const dir = await v2Project();
+  const dir = await projectFixture();
   try {
     await addTask(dir, "T-x", { domain: "auth", tags: "backend" });
     const out = await take(dir, "T-x", {
@@ -260,7 +260,7 @@ test("take by id: legacy filters are accepted and ignored", async () => {
 });
 
 test("take by id: missing id throws MISSING_FIELD", async () => {
-  const dir = await v2Project();
+  const dir = await projectFixture();
   try {
     await addTask(dir, "T-x");
     await assert.rejects(
@@ -271,7 +271,7 @@ test("take by id: missing id throws MISSING_FIELD", async () => {
 });
 
 test("take by id: only the first positional argument is used", async () => {
-  const dir = await v2Project();
+  const dir = await projectFixture();
   try {
     await addTask(dir, "T-extra");
     await addTask(dir, "T-x");
@@ -284,7 +284,7 @@ test("take by id: only the first positional argument is used", async () => {
 });
 
 test("take by id: increments the requested node revision", async () => {
-  const dir = await v2Project();
+  const dir = await projectFixture();
   try {
     await addTask(dir, "T-x");
     const before = await readState(dir);
@@ -297,7 +297,7 @@ test("take by id: increments the requested node revision", async () => {
 });
 
 test("take by id: appends a take log entry, never a claim entry", async () => {
-  const dir = await v2Project();
+  const dir = await projectFixture();
   try {
     await addTask(dir, "T-x");
     await take(dir, "T-x", { as: "agent-a" });
