@@ -304,12 +304,29 @@ Solo entrega cuando:
 - todos los cambios de la task estan commiteados en la rama del worktree
 - el commit message termina con `[<task-id>]`
 - dejaste notas `WORKTREE ... status=ready-for-validation` y `EVIDENCE {...}`
+- la nota `EVIDENCE` lleva el array `checks` con el comando exacto y su resultado observado, no vacio
 - la task quedo en estado `submitted`, no `done`
 - no mergeaste la rama al worktree principal ni modificaste `main`
 
 ```bash
 bash .agents/skills/climier-worker/finish-task.sh <id> <tu-agent> "<que shippeaste; que verificaste>"
 ```
+
+`finish-task.sh` deja `checks: []` salvo que le pases `--evidence-file`. El validator lee el `EVIDENCE` primero y una acceptance que pide salida observada no se sostiene con un array vacio, asi que pasá los checks que corriste:
+
+```bash
+cat > /tmp/<task-id>-evidence.json <<'JSON'
+{
+  "files": [{"path": "src/x.mjs", "status": "M"}],
+  "checks": [
+    {"command": "timeout -k 10s 180s node --test test/x.test.mjs", "result": "PASS: 12 tests, 12 pass, 0 fail"}
+  ]
+}
+JSON
+bash .agents/skills/climier-worker/finish-task.sh <id> <tu-agent> "<que shippeaste; que verificaste>" --evidence-file /tmp/<task-id>-evidence.json
+```
+
+Cada entrada de `checks` lleva el comando tal como lo corriste y el resultado observado: exit code, conteo o la salida que lo pruebe. Un "OK" sin numero no sirve como evidencia.
 
 No repitas manualmente `git rev-parse HEAD`, las notas `WORKTREE`/`EVIDENCE` ni `climier submit <id> --note "..."` si `finish-task.sh` corrio bien.
 

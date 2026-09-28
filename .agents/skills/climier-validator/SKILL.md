@@ -146,6 +146,7 @@ When integration-preflight reports verdict `overlap`, do not merge blindly: surf
 - Do not chase style, naming, or architecture preferences unless they violate the task contract or a scoped knowledge node.
 - If validation depends on local dirty changes from another worker or a non-task worktree, report `BLOCKED` instead of guessing.
 - If the task changes are not committed, return `FAIL` for incomplete worker handoff. If uncommitted files are unrelated but make validation ambiguous, return `BLOCKED`.
+- An empty `checks` array in a task whose acceptance demands observed output is a handoff gap, not a convention: rerun the acceptance-critical commands yourself. If your own rerun sustains every bullet, say so in the report and do not fail for the empty array alone; if a bullet is left with no evidence you can reproduce, return `FAIL` naming that bullet.
 - Do not mutate source files, snapshots, task specs, or decisions during validation.
 - Do not implement fixes. Only validation commands and merge commands are allowed.
 
