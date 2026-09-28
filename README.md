@@ -81,9 +81,7 @@ From this repo during development:
 node bin/climier.mjs --help
 ```
 
-Or with Bun — the executable shebang is `#!/usr/bin/env bun`, so running
-`bin/climier.mjs` directly from a clone (or through a symlink to it) uses Bun;
-`node bin/climier.mjs` keeps working:
+Bun remains available as an alternative by invoking it explicitly:
 
 ```bash
 bun bin/climier.mjs --help
