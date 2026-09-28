@@ -1839,6 +1839,30 @@
       "disposition": "keep"
     },
     {
+      "path": "test/comment-policy.test.mjs",
+      "name": "comment checker rejects a file that grows above its baseline",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/comment-policy.test.mjs",
+      "name": "comment checker rejects a newly introduced prohibited pattern",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/comment-policy.test.mjs",
+      "name": "manifest generation only ratchets comment baselines downward",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/comment-policy.test.mjs",
+      "name": "protected lint directives are excluded from the comment baseline",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
       "path": "test/context-contract.test.mjs",
       "name": "context: --project and unknown flags are rejected by the known-flags guard",
       "ordinal": 1,
