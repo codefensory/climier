@@ -98,7 +98,7 @@ export default async function migrate({ flags = {}, projectDir, projectConfig } 
         // Do not create a transient lock file or any other bytes in dry-run.
         projects.push(await readProject(projectId));
       } else {
-        // Lock the explicit storage identity, never the CLIMIER_HOME directory.
+
         projects.push(await withProjectIdLock(projectId, async (lockContext) => {
           const before = await readProject(projectId);
           let migrationLedger = null;

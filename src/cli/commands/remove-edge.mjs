@@ -1,8 +1,4 @@
-// remove-edge: idempotently remove one exact edge triple.
-//
-// This adapter parses the CLI shape and delegates the canonical edge.remove
-// operation to Application Operations. The provider and kernel own exact
-// matching, policy timing, locking, diffing and the no-op persistence rule.
+
 import {
   bootstrapBuiltins,
   executeOperation,

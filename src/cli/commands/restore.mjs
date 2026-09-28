@@ -1,7 +1,6 @@
-// `restore` CLI adapter for the trusted kernel state operation.
-// The kernel owns snapshot validation, locking, pre-restore snapshots, the
+
 // atomic state replacement and the restore log entry. This module maps CLI
-// arguments and projects the established output shape.
+
 import { throwV2 } from "../../contracts/errors.mjs";
 import { resolveAgent } from "../actor.mjs";
 import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
@@ -18,9 +17,7 @@ function policyForRestore({ policy, projectDir, actor }) {
       policy,
       action,
       actor,
-      // The kernel snapshot also contains raw/existence bookkeeping used by
-      // its trusted operation. Keep those internal fields out of the policy
-      // contract used by the command.
+
       snapshot: {
         state: snapshot.state,
         nodes: snapshot.nodes,

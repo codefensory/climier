@@ -1,9 +1,4 @@
-// `update <id>` CLI adapter for the canonical task/gate/knowledge providers.
-//
-// The CLI keeps its historical flags and envelopes. This module parses those
-// flags, selects the canonical update operation, and delegates it through the
-// Application Operations bridge. The provider plan carries compatibility-only
-// fields to the same kernel transaction as typed changes.
+
 import {
   bootstrapBuiltins,
   createOperationBridge,
@@ -21,8 +16,6 @@ const REGISTRY = bootstrapBuiltins();
 
 export const knownFlags = ["title", "body", "initiative", "domain", "tags", "refs", "meta", "definition", "acceptance", "backlog", "purpose", "resolution-mode", "knowledge-type", "mitigation", "scope-domains", "scope-initiatives", "scope-tags", "scope-node-ids", "if-revision", "as"];
 
-// Public flag names are adapter concerns; provider keys are the typed contract.
-// The checker uses this mapping to verify documentation against provider unions.
 export const UPDATE_FLAG_TO_KEY = Object.freeze({
   "resolution-mode": "resolution_mode",
   "knowledge-type": "knowledge_type",
@@ -57,8 +50,7 @@ function parseMeta(raw) {
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     throw new Error("update: --meta must be a JSON object");
   }
-  // Metadata is generic JSON. Historical meta.execution values remain opaque
-  // and are preserved without validation or normalization by the core.
+
   return parsed;
 }
 function parseBacklog(raw) {
@@ -175,11 +167,6 @@ function providerFor(snapshot, id) {
   return REGISTRY.lookup("task.update").provider;
 }
 
-// Every change goes to the provider as-is: the provider owns the contract for
-// its kind and rejects a key that does not belong to it, naming the allowed
-// ones. The adapter no longer keeps a compatibility patch beside the provider,
-// because writing a key the provider never validated is exactly the silent
-// write ADR-038 decision 4 removes.
 async function prepareUpdateProvider(args, id, changes, expectedRevision) {
   const provider = providerFor(args.snapshot, id);
   const current = args.snapshot?.nodes?.[id] || null;

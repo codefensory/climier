@@ -1,5 +1,4 @@
-// `reject <id>` CLI adapter for the canonical task.reject operation.
-// The operation bridge selects the local or remote mutation frontier.
+
 import { createBackendClient, createOperationBridge } from "../../application/operations/index.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
 import { resolveAgent } from "../actor.mjs";

@@ -1,4 +1,4 @@
-// show: return the raw node by id.
+
 import { readState } from "../../storage/state.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
 

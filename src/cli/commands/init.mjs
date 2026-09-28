@@ -1,5 +1,4 @@
-// `init` CLI adapter for the trusted kernel state operations.
-// The kernel owns state inspection, locking, snapshots, policy execution and
+
 // atomic persistence; this module only handles CLI-specific setup and output.
 import { stateFile, ensureProjectMeta } from "../../storage/state.mjs";
 import { resolveAgent } from "../actor.mjs";
@@ -17,8 +16,7 @@ function policyForInit({ policy, projectDir, actor }) {
       policy,
       action,
       actor,
-      // Preserve the legacy policy target shape. The kernel needs a stable
-      // string target id internally, while state has no node id of its own.
+
       target: { ...target, id: null },
       snapshot: {
         state: snapshot.state,
@@ -68,9 +66,7 @@ async function initLocal({ dir, force, flags, pluginId }) {
     policyAction: policyForInit({ policy, projectDir: dir, actor }),
     pluginId,
   });
-  // Plain init can bootstrap using the deterministic fallback project id;
-  // create repo metadata only after the kernel accepts the operation so a
-  // refusal on an existing state remains side-effect free.
+
   if (!force) {await ensureProjectMeta(dir);}
   return {
     ok: true,

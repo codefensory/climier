@@ -1,14 +1,4 @@
-// plugins/data.mjs: data.*.{get,set} host adapters.
-//
-// Per ADR-005 §"API y persistencia" and the V1 host contract:
-//   - Each set requires an agent identity (MISSING_AGENT when empty).
-//   - data.node.set writes only `nodes[id].plugins[<pluginId>].data` and
-//     preserves `meta` and every other plugin's keyspace.
-//   - data.project.set writes only `plugins[<pluginId>].data[key]` and
-//     preserves `nodes[id].plugins` for every node.
-//   - get is read-only and lock-free. data.node.get only returns the
-//     calling plugin's data, never another plugin's.
-//   - Both sets delegate their complete mutation to kernel.mutate. The
+
 //     kernel owns locking, atomic persistence, revisions and redacted logs.
 
 import { readState } from "../storage/state.mjs";

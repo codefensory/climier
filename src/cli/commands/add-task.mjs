@@ -1,8 +1,4 @@
-// add-task: append a new task node to the v2 state.
-//
-// The id is either explicit (positional) or auto-allocated as
-// `T-xxxxxxxx` (8-char random suffix). Required fields:
-// --initiative, --title, --body, --acceptance, --blocked-by.
+
 import { addV2Node, requireFields } from "./internal/create-node.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
 import { resolveAgent } from "../actor.mjs";
@@ -30,8 +26,7 @@ export default async function addTask({ statePath, flags = {}, positional = [], 
       { type: "SUPERSEDES", fromKind: "task" },
     );
   }
-  // Resolve here so MISSING_AGENT surfaces as `add-task:`, not as the
-  // underlying add-node's name (the wrapper delegates through add-node).
+
   resolveAgent(flags, "add-task");
   requireFields(
     "add-task",

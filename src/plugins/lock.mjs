@@ -1,12 +1,3 @@
-// Global plugin lock.
-//
-// Mirrors the spinlock pattern in lock.mjs but is scoped to the global
-// <CLIMIER_HOME>/plugins/ tree, so install/uninstall operations started
-// by Climier are serialized against each other without touching the
-// per-project lock at <state-dir>/.lock.
-//
-// Stale lock files are NOT auto-cleared; the timeout (default 10s) is
-// the documented ceiling of this strategy.
 
 import fs from "node:fs/promises";
 import { pluginsHome, globalPluginLockPath } from "./paths.mjs";
@@ -52,7 +43,7 @@ async function releasePluginLock(lockPath) {
   try {
     await fs.unlink(lockPath);
   } catch {
-    // ignore
+
   }
 }
 
