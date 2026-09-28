@@ -278,7 +278,7 @@ Every command prints a single JSON value to stdout. There is no `--json` flag an
 | `history <id> [--limit N]` | Log entries that reference a node. | no |
 | `search "<query>" [--all]` | Search active knowledge by id/title/body/mitigation/domain/tags/refs/meta. `--all` includes deprecated. | no |
 | `initiatives [--all]` | List registered initiatives with usage counts. `--all` includes zero-node initiatives. | no |
-| `log [--limit N] [--action X] [--agent X] [--task X] [--decision X]` | Show the audit log, filterable. Logs use `node:` (not `task:`/`decision:`). | no |
+| `log [--limit N] [--action X] [--agent X] [--node X]` | Show the audit log, filterable. Logs use `node:` (not `task:`/`decision:`). | no |
 | `take <id> --as <agent>` | Idempotently claim exactly one task. Sets `claim.by`, increments `revision`. | yes |
 | `submit <id> --note "<text>" --as <agent>` | Submit an `in_progress` task for validation; clears the implementation claim. | yes |
 | `accept <id> --as <agent>` | Accept a `submitted` task as `done`; the validator owns this review step. | yes |

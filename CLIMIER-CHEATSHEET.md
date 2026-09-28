@@ -24,7 +24,7 @@ Errors are JSON to stdout with a structured shape: `{ ok: false, error: { code, 
 - `climier history <id> [--limit N]` — log entries that reference a node.
 - `climier search "<query>" [--all]` — search knowledge by id/title/body/mitigation/domain/tags/refs/meta. `--all` includes deprecated.
 - `climier initiatives [--all]` — registered initiatives with usage counts.
-- `climier log [--limit N] [--action X] [--agent X] [--task X] [--decision X]` — raw audit log.
+- `climier log [--limit N] [--action X] [--agent X] [--node X]` — raw audit log.
 - `climier snapshots` — list recoverable snapshots under `<state-dir>/snapshots/`, newest first. Each entry has `id`, `created_at`, `reason` (`force-init` / `corrupt-recovery` / `pre-restore`), `bytes`, and `sha256`. Only complete pairs (raw + metadata) appear.
 
 ## Worker loop (take → submit → accept/reject)

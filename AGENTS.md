@@ -140,7 +140,7 @@ Cycles in the DAG must not crash. The derivation keeps cycle members blocked. Un
 | `history <id> [--limit N]` | `cli/commands/history.mjs` | no | no |
 | `show <id>` | `cli/commands/show.mjs` | no | no |
 | `initiatives [--all]` | `cli/commands/initiatives.mjs` | no | no |
-| `log [--limit N] [--action X] [--agent X] [--task X] [--decision X]` | `cli/commands/log.mjs` | no | no |
+| `log [--limit N] [--action X] [--agent X] [--node X]` | `cli/commands/log.mjs` | no | no |
 | `take <id>` | `cli/commands/take.mjs` | yes | yes |
 | `submit <id> --note "..."` | `cli/commands/submit.mjs` | yes | yes |
 | `accept <id>` | `cli/commands/accept.mjs` | yes | yes |
