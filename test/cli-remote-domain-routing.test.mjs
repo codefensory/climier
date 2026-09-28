@@ -20,7 +20,7 @@ import { bootstrapBuiltins, createBackendClient } from "../src/application/opera
 import { mutate as kernelMutate } from "../src/kernel/mutate.mjs";
 
 const initialState = {
-  version: 4,
+  version: 1,
   revision: 12,
   initiatives: { remote: { desc: "fixture" } },
   nodes: {

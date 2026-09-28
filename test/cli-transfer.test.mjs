@@ -25,7 +25,7 @@ async function withProject(run) {
 
 function payload(title = "remote source") {
   return {
-    version: 4,
+    version: 1,
     revision: 0,
     nodes: { T1: { id: "T1", kind: "resolvable", subkind: "task", title, status: "open" } },
     edges: [],

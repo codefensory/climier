@@ -10,7 +10,7 @@ import reject from "../src/cli/commands/reject.mjs";
 import { createTempProject, readState, rmTempProject, writeCanonicalState, runCli, initExampleProject, installPolicyFixture, uninstallPolicyFixture } from "./helpers.mjs";
 
 const initialState = {
-  version: 4,
+  version: 1,
   revision: 7,
   initiatives: { local: { desc: "sentinel" } },
   nodes: {

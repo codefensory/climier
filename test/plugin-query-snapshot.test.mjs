@@ -36,7 +36,7 @@ const SNAPSHOT_EDGES = [
 
 function snapshotState() {
   return {
-    version: 4,
+    version: 1,
     revision: 17,
     initiatives: {},
     nodes: structuredClone(SNAPSHOT_NODES),

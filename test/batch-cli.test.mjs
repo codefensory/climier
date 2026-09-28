@@ -147,7 +147,7 @@ test("batch CLI requires exactly one input source", async () => {
 });
 
 const sentinelState = {
-  version: 4,
+  version: 1,
   revision: 9,
   initiatives: { local: { desc: "local sentinel" } },
   nodes: {},

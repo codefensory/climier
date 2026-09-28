@@ -6,14 +6,14 @@ import {
   createTempProject,
   rmTempProject,
   readState,
-  writeFencedState,
+  writeCanonicalState,
   stateFilePath,
   importFresh,
 } from "./helpers.mjs";
 
 function baseState() {
   return {
-    version: 5,
+    version: 1,
     revision: 7,
     nodes: {
       T1: { id: "T1", kind: "resolvable", subkind: "task", title: "one", body: "one", acceptance: "one", initiative: "plugin", status: "open", revision: 1 },
@@ -40,7 +40,7 @@ const repair = [
 test("api.core.batch applies a declarative repair with host identity and one log", async () => {
   const dir = await createTempProject();
   try {
-    const seeded = await writeFencedState(dir, baseState());
+    const seeded = await writeCanonicalState(dir, baseState());
     const api = await makeApi(dir);
     const out = await api.core.batch({ if_state_revision: seeded.revision, operations: repair });
 
@@ -66,7 +66,7 @@ test("api.core.batch applies a declarative repair with host identity and one log
 test("api.core.batch rolls back on an operation failure and reports its index/op", async () => {
   const dir = await createTempProject();
   try {
-    const seeded = await writeFencedState(dir, baseState());
+    const seeded = await writeCanonicalState(dir, baseState());
     const before = await fs.readFile(stateFilePath(dir));
     const api = await makeApi(dir);
     await assert.rejects(
@@ -88,7 +88,7 @@ test("api.core.batch rolls back on an operation failure and reports its index/op
 test("api.core.batch rejects stale global CAS before any operation", async () => {
   const dir = await createTempProject();
   try {
-    const seeded = await writeFencedState(dir, baseState());
+    const seeded = await writeCanonicalState(dir, baseState());
     const api = await makeApi(dir);
     await assert.rejects(
       api.core.batch({ if_state_revision: seeded.revision - 1, operations: repair }),
@@ -107,7 +107,7 @@ test("api.core.batch rejects stale global CAS before any operation", async () =>
 test("api.core.batch accepts only the declarative envelope", async () => {
   const dir = await createTempProject();
   try {
-    await writeFencedState(dir, baseState());
+    await writeCanonicalState(dir, baseState());
     const api = await makeApi(dir);
     for (const input of [null, [], {}, { operations: [] }]) {
       await assert.rejects(

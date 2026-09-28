@@ -1553,13 +1553,13 @@
     },
     {
       "path": "test/kernel-mutation-batch.test.mjs",
-      "name": "core batch migrates legacy state before CAS and persists through the fenced commit",
+      "name": "core batch rolls back every draft change when a later operation fails",
       "ordinal": 1,
       "disposition": "keep"
     },
     {
       "path": "test/kernel-mutation-batch.test.mjs",
-      "name": "core batch rolls back every draft change when a later operation fails",
+      "name": "core batch starts from canonical state and persists through the fenced commit",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -1651,121 +1651,73 @@
       "path": "test/kernel-state-operations.test.mjs",
       "name": "kernel ordinary providers reject future state while trusted init keeps version errors recoverable",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "seeds explicit source states and asserts the writer guards that still refuse them",
-      "replacement": "no replacement until the importer lane retires"
+      "disposition": "keep"
     },
     {
       "path": "test/kernel-state-operations.test.mjs",
       "name": "kernel state.init bootstraps an absent state through the kernel",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "seeds explicit source states and asserts the writer guards that still refuse them",
-      "replacement": "no replacement until the importer lane retires"
+      "disposition": "keep"
     },
     {
       "path": "test/kernel-state-operations.test.mjs",
       "name": "kernel state.init recovers corrupt bytes through an existing fenced ledger without policy or actor",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "seeds explicit source states and asserts the writer guards that still refuse them",
-      "replacement": "no replacement until the importer lane retires"
+      "disposition": "keep"
     },
     {
       "path": "test/kernel-state-operations.test.mjs",
       "name": "kernel state.init_force recovers future state by snapshotting raw bytes",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "seeds explicit source states and asserts the writer guards that still refuse them",
-      "replacement": "no replacement until the importer lane retires"
+      "disposition": "keep"
     },
     {
       "path": "test/kernel-state-operations.test.mjs",
       "name": "kernel state.init_force rejects policy before snapshot or write",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "seeds explicit source states and asserts the writer guards that still refuse them",
-      "replacement": "no replacement until the importer lane retires"
+      "disposition": "keep"
     },
     {
       "path": "test/kernel-state-operations.test.mjs",
       "name": "kernel state.init_force snapshots and resets while preserving root plugins",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "seeds explicit source states and asserts the writer guards that still refuse them",
-      "replacement": "no replacement until the importer lane retires"
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-state-operations.test.mjs",
+      "name": "kernel state.restore installs a canonical snapshot through the fenced state path",
+      "ordinal": 1,
+      "disposition": "keep"
     },
     {
       "path": "test/kernel-state-operations.test.mjs",
       "name": "kernel state.restore recovers over future current state, preserving raw pre-restore snapshot",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "seeds explicit source states and asserts the writer guards that still refuse them",
-      "replacement": "no replacement until the importer lane retires"
+      "disposition": "keep"
     },
     {
       "path": "test/kernel-state-operations.test.mjs",
       "name": "kernel state.restore rejects a historical v2 snapshot and points at climier migrate",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "seeds explicit source states and asserts the writer guards that still refuse them",
-      "replacement": "no replacement until the importer lane retires"
+      "disposition": "keep"
     },
     {
       "path": "test/kernel-state-operations.test.mjs",
       "name": "kernel state.restore rejects malformed target without writing or snapshotting",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "seeds explicit source states and asserts the writer guards that still refuse them",
-      "replacement": "no replacement until the importer lane retires"
+      "disposition": "keep"
     },
     {
       "path": "test/kernel-state-operations.test.mjs",
       "name": "kernel state.restore rejects malformed v5 snapshot before policy or pre-snapshot",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "seeds explicit source states and asserts the writer guards that still refuse them",
-      "replacement": "no replacement until the importer lane retires"
-    },
-    {
-      "path": "test/kernel-state-operations.test.mjs",
-      "name": "kernel state.restore replaces a valid v5 snapshot through the fenced state path",
-      "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "seeds explicit source states and asserts the writer guards that still refuse them",
-      "replacement": "no replacement until the importer lane retires"
+      "disposition": "keep"
     },
     {
       "path": "test/kernel-state-operations.test.mjs",
       "name": "kernel state.restore validates before pre-snapshot and restores with one log entry",
       "ordinal": 1,
-      "disposition": "keep",
-      "lane": "raw",
-      "category": "importer-source",
-      "motive": "seeds explicit source states and asserts the writer guards that still refuse them",
-      "replacement": "no replacement until the importer lane retires"
+      "disposition": "keep"
     },
     {
       "path": "test/kernel-takeover-policy-seam.test.mjs",
@@ -8659,7 +8611,7 @@
     },
     {
       "path": "test/v2-adversarial.test.mjs",
-      "name": "init --force on existing state > init --force on an existing legacy v4 state overwrites to an empty canonical state",
+      "name": "init --force on existing state > init --force on an existing canonical state overwrites to an empty canonical state",
       "ordinal": 1,
       "disposition": "keep"
     },

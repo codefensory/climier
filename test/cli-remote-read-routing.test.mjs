@@ -12,7 +12,7 @@ import state from "../src/cli/commands/state.mjs";
 import { createTempProject, rmTempProject, writeCanonicalState, readState, runCli, initExampleProject } from "./helpers.mjs";
 
 const sentinelState = {
-  version: 4,
+  version: 1,
   revision: 9,
   initiatives: { local: { desc: "local sentinel" } },
   nodes: {

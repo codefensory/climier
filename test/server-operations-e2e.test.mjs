@@ -14,7 +14,7 @@ const token = "e2e-test-token-not-a-secret";
 const projectId = "local-server-e2e-project";
 
 const sentinel = {
-  version: 4,
+  version: 1,
   revision: 13,
   initiatives: { local: { desc: "must remain client-local" } },
   nodes: {

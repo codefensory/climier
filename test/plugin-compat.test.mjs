@@ -17,6 +17,11 @@ import {
   fsp_writeFile,
 } from "./plugin-compat-helpers.mjs";
 
+// The raw lane seeds the pre-cut form on purpose: the two `legacy raw updateState`
+// cases exercise the raw writer against a state with no ledger (see
+// test-manifest-declarations.mjs), so they plant the v2 form the raw writer migrates.
+const rawBase = () => ({ ...baseState(), version: 2 });
+
 test("writeCanonicalState preserves `plugins` (root) and `nodes[id].plugins` on round-trip", async () => {
   const dir = await createTempProject();
   try {
@@ -33,7 +38,7 @@ test("writeCanonicalState preserves `plugins` (root) and `nodes[id].plugins` on 
 test("legacy raw updateState preserves `plugins` (root) and `nodes[id].plugins` when a mutator touches a node", async () => {
   const dir = await createTempProject();
   try {
-    const base = baseState();
+    const base = rawBase();
     seedPluginData(base);
     await writeState(dir, base);
     const { updateState } = await importFresh("./storage/state.mjs");
@@ -52,7 +57,7 @@ test("legacy raw updateState preserves `plugins` (root) and `nodes[id].plugins` 
 test("legacy raw updateState preserves `plugins` (root) when a mutator touches an unrelated collection (edges)", async () => {
   const dir = await createTempProject();
   try {
-    const base = baseState();
+    const base = rawBase();
     seedPluginData(base);
     await writeState(dir, base);
     const { updateState } = await importFresh("./storage/state.mjs");

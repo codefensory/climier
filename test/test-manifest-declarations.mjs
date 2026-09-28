@@ -22,7 +22,6 @@ const guard = (motive) => ({ category: "guard", motive, replacement: "keep while
 const mentionOnly = (motive) => ({ category: "mention-only", motive, replacement: "none needed" });
 
 export const rawLaneDeclarations = {
-  "test/kernel-state-operations.test.mjs": importerSource("seeds explicit source states and asserts the writer guards that still refuse them"),
   "test/kernel-mutate-initiative.test.mjs": mentionOnly("names the writers in a test title and a comment; the fixture uses the ledger protocol"),
   "test/kernel/mutation/contract-guards.test.mjs": mentionOnly("names the writers in a comment listing what the module exports"),
   "test/plugin-compat.test.mjs": guard("the two `legacy raw updateState preserves plugins` cases exercise raw updates; `init --force on a state with corrupt JSON (cannot read) does not crash and writes emptyState()` seeds a raw v4 source with no ledger because a ledger changes recovery by rejecting the replacement candidate with CLIMIER_LEDGER_FINGERPRINT_MISMATCH"),

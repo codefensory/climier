@@ -17,7 +17,7 @@ const task = (id, status) => ({
 
 function fixture(replacementStatus) {
   return {
-    version: 2,
+    version: 1,
     initiatives: { "supersession-test": { desc: "CLI supersession fixture" } },
     nodes: {
       replacement: task("replacement", replacementStatus),

@@ -6,7 +6,6 @@ import {
   createTempProject,
   rmTempProject,
   importFresh,
-  writeState,
   writeCanonicalState,
   readState,
   stateFilePath,
@@ -17,7 +16,7 @@ async function snapshotDir(projectDir) {
   return getSnapshotDir(projectDir);
 }
 
-const baseState = () => ({ version: 4, revision: 0, nodes: {}, edges: [], initiatives: {}, log: [] });
+const baseState = () => ({ version: 1, revision: 0, nodes: {}, edges: [], initiatives: {}, log: [] });
 
 test("kernel state.init bootstraps an absent state through the kernel", async () => {
   const dir = await createTempProject();
@@ -42,7 +41,7 @@ test("kernel state.init_force rejects policy before snapshot or write", async ()
     const { initState } = await importFresh("./kernel/state-operations.mjs");
     const original = baseState();
     original.nodes.keep = { id: "keep", kind: "resolvable", subkind: "task", status: "open" };
-    await writeState(dir, original);
+    await writeCanonicalState(dir, original);
     const before = await fs.readFile(stateFilePath(dir), "utf8");
     await assert.rejects(
       () => initState({
@@ -65,7 +64,7 @@ test("kernel state.init_force snapshots and resets while preserving root plugins
     const original = baseState();
     original.plugins = { demo: { enabled: true } };
     original.nodes.keep = { id: "keep", kind: "resolvable", subkind: "task", status: "open" };
-    await writeState(dir, original);
+    await writeCanonicalState(dir, original);
     const out = await initState({ projectDir: dir, force: true, actor: "alice" });
     const state = await readState(dir);
     assert.deepEqual(state.nodes, {});
@@ -127,7 +126,7 @@ test("kernel state.restore rejects a historical v2 snapshot and points at climie
 });
 
 // oxlint-disable-next-line max-statements -- Keep this bounded regression test and its full assertions intact.
-test("kernel state.restore replaces a valid v5 snapshot through the fenced state path", async () => {
+test("kernel state.restore installs a canonical snapshot through the fenced state path", async () => {
   const dir = await createTempProject();
   try {
     const { initState, restoreState } = await importFresh("./kernel/state-operations.mjs");
@@ -135,25 +134,20 @@ test("kernel state.restore replaces a valid v5 snapshot through the fenced state
     const { bootstrapFencedState, readFencedState } = await importFresh("./storage/ledger.mjs");
     const original = baseState();
     original.nodes.keep = { id: "keep", kind: "resolvable", subkind: "task", status: "open" };
-    await writeState(dir, original);
+    await writeCanonicalState(dir, original);
     await bootstrapFencedState(dir);
     const target = await createSnapshot(dir, "force-init");
     const targetRaw = JSON.parse(await fs.readFile(path.join(await snapshotDir(dir), `${target.id}.json`), "utf8"));
-    assert.equal(targetRaw.version, 5);
+    assert.equal(targetRaw.version, 1);
     assert.ok(Number.isInteger(targetRaw.fence_generation));
 
     await initState({ projectDir: dir, force: true, actor: "alice" });
-    // A fenced snapshot is historical once the schema is canonical: it is the
-    // importer's source form, not something restore installs.
-    await assert.rejects(
-      () => restoreState({ projectDir: dir, snapshotId: target.id, actor: "recovery" }),
-      (err) => err.message.includes(target.id)
-        && /canonical v1/.test(err.message)
-        && /climier migrate/.test(err.message),
-    );
+    const restored = await restoreState({ projectDir: dir, snapshotId: target.id, actor: "recovery" });
     const current = await readFencedState(dir);
+    assert.ok(current.nodes.keep);
     assert.equal(current.version, 1);
     assert.ok(Number.isInteger(current.fence_generation));
+    assert.equal(restored.result.snapshot.id, target.id);
   } finally { await rmTempProject(dir); }
 });
 
@@ -162,7 +156,7 @@ test("kernel state.restore rejects malformed v5 snapshot before policy or pre-sn
   try {
     const { restoreState } = await importFresh("./kernel/state-operations.mjs");
     const { bootstrapFencedState } = await importFresh("./storage/ledger.mjs");
-    await writeState(dir, baseState());
+    await writeCanonicalState(dir, baseState());
     await bootstrapFencedState(dir);
     const dirPath = await snapshotDir(dir);
     await fs.mkdir(dirPath, { recursive: true });
@@ -190,7 +184,7 @@ test("kernel state.restore rejects malformed target without writing or snapshott
   const dir = await createTempProject();
   try {
     const { restoreState } = await importFresh("./kernel/state-operations.mjs");
-    await writeState(dir, baseState());
+    await writeCanonicalState(dir, baseState());
     const dirPath = await snapshotDir(dir);
     await fs.mkdir(dirPath, { recursive: true });
     await fs.writeFile(path.join(dirPath, "bad.json"), "not json");
@@ -248,7 +242,7 @@ test("kernel state.init recovers corrupt bytes through an existing fenced ledger
   try {
     const { initState } = await importFresh("./kernel/state-operations.mjs");
     const { bootstrapFencedState, readFencedState, ledgerFile } = await importFresh("./storage/ledger.mjs");
-    await writeState(dir, baseState());
+    await writeCanonicalState(dir, baseState());
     await bootstrapFencedState(dir);
     const ledgerPath = ledgerFile(dir);
     const beforeLedger = JSON.parse(await fs.readFile(ledgerPath, "utf8"));

@@ -5,7 +5,7 @@ import {
   createTempProject,
   rmTempProject,
   importFresh,
-  writeState as writeStateHelper,
+  writeCanonicalState as writeStateHelper,
   readState as readStateHelper,
 } from "./helpers.mjs";
 import { bootstrapFencedState } from "../src/storage/ledger.mjs";
@@ -31,7 +31,7 @@ async function captureError(run) {
 
 async function bootstrap(dir) {
   await writeStateHelper(dir, {
-    version: 2,
+    version: 1,
     nodes: {
       T1: {
         id: "T1",

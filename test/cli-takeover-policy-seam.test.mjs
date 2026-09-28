@@ -5,7 +5,7 @@ import {
   rmTempProject,
   importFresh,
   readState,
-  writeFencedState,
+  writeCanonicalState,
 } from "./helpers.mjs";
 
 const TAKE = "./cli/commands/take.mjs";
@@ -14,8 +14,8 @@ const MUTATE = "./kernel/mutate.mjs";
 
 async function fixture({ policy = { pluginId: "policy-fixture", projectConfig: {} }, decision = "allow" } = {}) {
   const projectDir = await createTempProject();
-  await writeFencedState(projectDir, {
-    version: 5,
+  await writeCanonicalState(projectDir, {
+    version: 1,
     nodes: {
       T1: {
         id: "T1",

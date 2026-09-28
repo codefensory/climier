@@ -42,7 +42,7 @@ export function snapshotDir(dir) {
 
 export function baseState() {
   return {
-    version: 2,
+    version: 1,
     nodes: {
       T1: {
         id: "T1",

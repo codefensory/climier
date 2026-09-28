@@ -21,7 +21,7 @@ const builtInWrites = [
 ];
 
 const localSentinel = {
-  version: 4,
+  version: 1,
   revision: 21,
   initiatives: { local: { desc: "must remain local" } },
   nodes: {

@@ -13,7 +13,7 @@ import reject from "../src/cli/commands/reject.mjs";
 import { createTempProject, readState, rmTempProject, writeCanonicalState, runCli } from "./helpers.mjs";
 
 const sentinelState = {
-  version: 4,
+  version: 1,
   revision: 11,
   initiatives: { local: { desc: "local sentinel" }, remote: { desc: "remote initiative" } },
   nodes: {

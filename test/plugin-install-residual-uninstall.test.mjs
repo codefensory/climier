@@ -14,7 +14,7 @@ test("uninstall: removes installed/<id> and nothing else; project state is untou
   const { default: uninstall } = await importFresh(UNINSTALL_MODULE);
   const projectDir = await createTempProject();
   await writeCanonicalState(projectDir, {
-    version: 2,
+    version: 1,
     nodes: {},
     edges: [],
     initiatives: {},

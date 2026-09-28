@@ -12,11 +12,11 @@ import {
   rmTempProject,
   importFresh,
   readState as readRawState,
-  writeState as writeRawState,
+  writeCanonicalState,
 } from "./helpers.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const baseState = () => ({ version: 2, initiatives: {}, nodes: {}, edges: [], log: [] });
+const baseState = () => ({ version: 1, initiatives: {}, nodes: {}, edges: [], log: [] });
 
 async function bootstrap(dir) {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
@@ -103,7 +103,7 @@ test("context does not project execution or ownership fields", async () => {
   const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
-    await writeRawState(dir, {
+    await writeCanonicalState(dir, {
       ...baseState(),
       nodes: {
         "T-context": {
@@ -134,7 +134,7 @@ test("plugin query context does not project execution or ownership fields", asyn
   const { createQuery } = await importFresh("./plugins/query.mjs");
   const dir = await createTempProject();
   try {
-    await writeRawState(dir, {
+    await writeCanonicalState(dir, {
       ...baseState(),
       nodes: {
         "T-query": {

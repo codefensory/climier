@@ -13,7 +13,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { createTempProject, rmTempProject, importFresh, writeState as writeStateHelper, readState as readStateHelper } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, writeCanonicalState as writeStateHelper, readState as readStateHelper } from "./helpers.mjs";
 import { bootstrapFencedState } from "../src/storage/ledger.mjs";
 
 async function importKernel() {
@@ -26,7 +26,7 @@ async function importKernel() {
 
 async function bootstrap(dir) {
   await writeStateHelper(dir, {
-    version: 2,
+    version: 1,
     nodes: {
       T1: { id: "T1", kind: "resolvable", subkind: "task", title: "T1-title", initiative: "kernel", status: "open", revision: 3 },
       T2: { id: "T2", kind: "resolvable", subkind: "task", title: "T2-title", initiative: "kernel", status: "open", revision: 1 },
@@ -131,7 +131,7 @@ test("kernel.mutate: many concurrent independent mutations on the same project a
     // 6 disjoint nodes; each mutate targets one node. With the old
     // module-level nestedDepth guard only the first mutate would
     // actually run; the other 5 would all throw INVALID_EXECUTION_CONTRACT.
-    const base = { version: 2, nodes: {}, edges: [], initiatives: { kernel: { desc: "kernel", created_at: "2026-01-01T00:00:00.000Z" } }, log: [] };
+    const base = { version: 1, nodes: {}, edges: [], initiatives: { kernel: { desc: "kernel", created_at: "2026-01-01T00:00:00.000Z" } }, log: [] };
     for (let i = 0; i < 6; i += 1) {
       base.nodes[`Tn-${i}`] = { id: `Tn-${i}`, kind: "resolvable", subkind: "task", title: `Tn-${i}-orig`, initiative: "kernel", status: "open", revision: 1 };
     }

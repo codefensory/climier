@@ -5,7 +5,7 @@ import {
   createTempProject,
   rmTempProject,
   importFresh,
-  writeFencedState,
+  writeCanonicalState,
   readState,
 } from "./helpers.mjs";
 import {
@@ -17,7 +17,7 @@ const PLUGIN = "example.plugin";
 
 function baseState() {
   return {
-    version: 5,
+    version: 1,
     revision: 0,
     nodes: {
       T1: {
@@ -56,7 +56,7 @@ async function runMutation(projectDir, provider, action, input) {
 test("kernel.mutate persists node plugin data as a node revisioned, redacted mutation", async () => {
   const dir = await createTempProject();
   try {
-    await writeFencedState(dir, baseState());
+    await writeCanonicalState(dir, baseState());
     const secret = { token: "node-secret" };
     const out = await runMutation(dir, pluginDataNodeSetProvider, "plugin-data-set", {
       id: "T1",
@@ -95,7 +95,7 @@ test("kernel.mutate persists node plugin data as a node revisioned, redacted mut
 test("kernel.mutate persists project plugin data without losing node/root metadata or logging values", async () => {
   const dir = await createTempProject();
   try {
-    await writeFencedState(dir, baseState());
+    await writeCanonicalState(dir, baseState());
     const secret = "project-secret";
     const out = await runMutation(dir, pluginDataProjectSetProvider, "plugin-data-set", {
       key: "token",

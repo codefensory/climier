@@ -6,7 +6,7 @@ import {
   createTempProject,
   rmTempProject,
   readState as readStateHelper,
-  writeState as writeStateHelper,
+  writeCanonicalState as writeStateHelper,
   stateFilePath,
 } from "./helpers.mjs";
 import { createBuiltinOperationRegistry, executeBatch } from "../src/application/operations/index.mjs";
@@ -15,7 +15,7 @@ import { bootstrapFencedState } from "../src/storage/ledger.mjs";
 
 const registry = createBuiltinOperationRegistry();
 
-async function verifyMigratedBatch(dir, readFencedState) {
+async function verifyCanonicalBatch(dir, readFencedState) {
   const out = await executeBatch({
     projectDir: dir,
     actor: "alice",
@@ -26,7 +26,7 @@ async function verifyMigratedBatch(dir, readFencedState) {
   assert.equal(out.revision_before, 8);
   assert.equal(out.revision_after, 9);
   const state = await readFencedState(dir);
-  assert.equal(state.version, 5);
+  assert.equal(state.version, 1);
   assert.equal(state.fence_generation, 1);
   assert.equal(state.nodes.T3.revision, 9);
   assert.equal(state.revision, 9);
@@ -35,7 +35,7 @@ async function verifyMigratedBatch(dir, readFencedState) {
 
 async function bootstrap(dir) {
   await writeStateHelper(dir, {
-    version: 4,
+    version: 1,
     revision: 7,
     nodes: {
       T1: { id: "T1", kind: "resolvable", subkind: "task", title: "one", body: "one", acceptance: "one", initiative: "kernel", status: "open", revision: 3 },
@@ -58,29 +58,29 @@ const repair = [
   { op: "edge.add", input: { from: "T3", to: "T2", type: "BLOCKS" } },
 ];
 
-test("core batch migrates legacy state before CAS and persists through the fenced commit", async () => {
+test("core batch starts from canonical state and persists through the fenced commit", async () => {
   const dir = await createTempProject();
   try {
     await bootstrap(dir);
-    const { readFencedState, bootstrapFencedState: bootstrapMigrationState } = await import("../src/storage/ledger.mjs");
-    await verifyMigratedBatch(dir, readFencedState);
+    const { readFencedState } = await import("../src/storage/ledger.mjs");
+    await verifyCanonicalBatch(dir, readFencedState);
 
     const secondDir = await createTempProject();
     try {
       await bootstrap(secondDir);
-      const fenced = await bootstrapMigrationState(secondDir);
+      const before = await readFencedState(secondDir);
       const second = await executeBatch({
         projectDir: secondDir,
         actor: "alice",
-        if_state_revision: fenced.revision,
+        if_state_revision: before.revision,
         operations: repair,
         source: { registry, mutate },
       });
-      assert.equal(second.revision_before, fenced.revision);
+      assert.equal(second.revision_before, before.revision);
       const committed = await readFencedState(secondDir);
-      assert.equal(committed.version, 5);
-      assert.equal(committed.fence_generation, fenced.fence_generation);
-      assert.equal(committed.revision, fenced.revision + 1);
+      assert.equal(committed.version, 1);
+      assert.equal(committed.fence_generation, before.fence_generation);
+      assert.equal(committed.revision, before.revision + 1);
     } finally {
       await rmTempProject(secondDir);
     }

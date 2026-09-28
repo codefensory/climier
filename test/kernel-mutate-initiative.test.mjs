@@ -10,12 +10,12 @@
 //   - Changing initiatives MUST NOT bump node.revision.
 //   - A mutation that combines a node change and an initiative change
 //     persists both in a single writeState; one log entry covers both.
-//   - The on-disk fixture is fenced v5 (nodes, edges, initiatives, log).
+  //   - The on-disk fixture is canonical v1 with a fenced ledger.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { createTempProject, rmTempProject, importFresh, readState as readStateHelper, writeFencedState, stateExists } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, readState as readStateHelper, writeCanonicalState, stateExists } from "./helpers.mjs";
 
 async function importKernel() {
   return importFresh("./kernel/mutate.mjs");
@@ -42,7 +42,7 @@ function createInitiativeProvider({ name, desc = "", created_at }) {
 
 function bootstrap(dir, mutate) {
   const base = {
-    version: 5,
+    version: 1,
     revision: 0,
     nodes: {
       T1: {
@@ -60,7 +60,7 @@ function bootstrap(dir, mutate) {
     log: [],
   };
   if (typeof mutate === "function") {mutate(base);}
-  return writeFencedState(dir, base);
+  return writeCanonicalState(dir, base);
 }
 
 // ===================================================================

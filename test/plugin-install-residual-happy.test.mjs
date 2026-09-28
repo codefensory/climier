@@ -69,9 +69,9 @@ test("install: descriptor with id != command lands at installed/<id>", async () 
 test("install: never mutates the project state file", async () => {
   const env = await freshEnv();
   const projectDir = await createTempProject();
-  // Seed a v2 state to make sure install does not touch it.
+  // Seed a canonical state to make sure install does not touch it.
   await writeCanonicalState(projectDir, {
-    version: 2,
+    version: 1,
     nodes: {
       "T-existing": {
         id: "T-existing",

@@ -6,12 +6,12 @@ import {
   rmTempProject,
   importFresh,
   readState,
-  writeFencedState,
+  writeCanonicalState,
 } from "./helpers.mjs";
 
 function baseState() {
   return {
-    version: 5,
+    version: 1,
     revision: 0,
     initiatives: { work: { desc: "work", created_at: "2026-01-01T00:00:00.000Z" } },
     nodes: {
@@ -44,7 +44,7 @@ function updateProvider() {
 
 async function setup() {
   const dir = await createTempProject();
-  await writeFencedState(dir, baseState());
+  await writeCanonicalState(dir, baseState());
   return dir;
 }
 

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, importFresh, runCli, writeCanonicalState } from "./helpers.mjs";
 
 function state(nodes) {
-  return { version: 2, nodes, edges: [], initiatives: {}, log: [] };
+  return { version: 1, nodes, edges: [], initiatives: {}, log: [] };
 }
 
 function knowledge(id, overrides = {}) {

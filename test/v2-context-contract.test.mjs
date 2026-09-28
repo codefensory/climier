@@ -5,16 +5,17 @@ import {
   createTempProject,
   rmTempProject,
   importFresh,
-  writeState as writeRawState,
+  readState,
+  writeCanonicalState,
 } from "./helpers.mjs";
 
-const baseState = () => ({ version: 2, nodes: {}, edges: [], initiatives: {}, log: [] });
+const baseState = () => ({ version: 1, nodes: {}, edges: [], initiatives: {}, log: [] });
 
 test("context v2: returns the design doc shape with revision, claim, blocking, knowledge, alerts, allowed_actions", async () => {
   const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
-    await writeRawState(dir, {
+    await writeCanonicalState(dir, {
       ...baseState(),
       nodes: {
         "T-x": {
@@ -27,11 +28,14 @@ test("context v2: returns the design doc shape with revision, claim, blocking, k
         },
       },
     });
+    // The ledger owns the revision when the fixture is planted, so the
+    // projection is checked against the revision that actually landed.
+    const planted = await readState(dir);
     const out = await context({ statePath: dir, positional: ["T-x"], flags: {} });
     // Required top-level fields per the design doc.
     assert.ok(out.node, "node is present");
     assert.equal(out.derived_status, "ready");
-    assert.equal(out.revision, 4);
+    assert.equal(out.revision, planted.nodes["T-x"].revision);
     assert.equal(out.claim, null);
     assert.deepEqual(out.blocking, []);
     assert.deepEqual(out.knowledge, []);
@@ -48,7 +52,7 @@ test("context v2: scope_matches is an array (not a scalar)", async () => {
   const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
-    await writeRawState(dir, {
+    await writeCanonicalState(dir, {
       ...baseState(),
       nodes: {
         "T-auth-1": {
@@ -85,7 +89,7 @@ test("context v2: a knowledge arriving via node_id AND domain -> scope_matches h
   const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
-    await writeRawState(dir, {
+    await writeCanonicalState(dir, {
       ...baseState(),
       nodes: {
         "T-auth-1": {
@@ -172,7 +176,7 @@ test("context v2: tie-break by id when several items share the same top specific
   const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
-    await writeRawState(dir, {
+    await writeCanonicalState(dir, {
       ...baseState(),
       nodes: {
         "T-x": {
@@ -216,7 +220,7 @@ test("context v2: claim is { by, at, stale } when in_progress, null when not", a
   const dir = await createTempProject();
   try {
     const fresh = Date.now();
-    await writeRawState(dir, {
+    await writeCanonicalState(dir, {
       ...baseState(),
       nodes: {
         "T-claimed": {
@@ -253,7 +257,7 @@ test("context v2: claim.stale reflects --staleMs threshold", async () => {
   const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
-    await writeRawState(dir, {
+    await writeCanonicalState(dir, {
       ...baseState(),
       nodes: {
         "T-old": {
@@ -287,7 +291,7 @@ test("context v2: allowed_actions for task ready (no claim) includes claim/updat
   const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
-    await writeRawState(dir, {
+    await writeCanonicalState(dir, {
       ...baseState(),
       nodes: {
         "T-x": {
@@ -314,7 +318,7 @@ test("context v2: allowed_actions for task in_progress owned by --as", async () 
   const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
-    await writeRawState(dir, {
+    await writeCanonicalState(dir, {
       ...baseState(),
       nodes: {
         "T-x": {
@@ -353,7 +357,7 @@ test("context v2: submitted task reports validation actions without claim or rel
   const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
-    await writeRawState(dir, {
+    await writeCanonicalState(dir, {
       ...baseState(),
       nodes: {
         "T-submitted": {
@@ -386,7 +390,7 @@ test("context v2: allowed_actions for task in_progress with --as bob (non-owner)
   const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
-    await writeRawState(dir, {
+    await writeCanonicalState(dir, {
       ...baseState(),
       nodes: {
         "T-x": {
@@ -423,7 +427,7 @@ test("context v2: allowed_actions for task in_progress --as test-agent (non-owne
   const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
-    await writeRawState(dir, {
+    await writeCanonicalState(dir, {
       ...baseState(),
       nodes: {
         "T-x": {
@@ -457,7 +461,7 @@ test("context v2: allowed_actions for task in_progress anonymous (no --as) -> ad
   const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
-    await writeRawState(dir, {
+    await writeCanonicalState(dir, {
       ...baseState(),
       nodes: {
         "T-x": {
@@ -487,7 +491,7 @@ test("context v2: allowed_actions for task done (no --as, anonymous) -> add-note
   const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
-    await writeRawState(dir, {
+    await writeCanonicalState(dir, {
       ...baseState(),
       nodes: {
         "T-x": {
@@ -513,7 +517,7 @@ test("context v2: allowed_actions for task done with --as alice -> reopen + add-
   const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
-    await writeRawState(dir, {
+    await writeCanonicalState(dir, {
       ...baseState(),
       nodes: {
         "T-x": {
@@ -539,7 +543,7 @@ test("context v2: allowed_actions for task done with --as bob (not done_by) -> r
   const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
-    await writeRawState(dir, {
+    await writeCanonicalState(dir, {
       ...baseState(),
       nodes: {
         "T-x": {
@@ -569,7 +573,7 @@ test("context v2: allowed_actions for task canceled", async () => {
   const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
-    await writeRawState(dir, {
+    await writeCanonicalState(dir, {
       ...baseState(),
       nodes: {
         "T-x": {
@@ -595,7 +599,7 @@ test("context v2: allowed_actions for gate open", async () => {
   const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
-    await writeRawState(dir, {
+    await writeCanonicalState(dir, {
       ...baseState(),
       nodes: {
         "G-x": {
@@ -628,7 +632,7 @@ test("context v2: allowed_actions for gate resolved", async () => {
   const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
-    await writeRawState(dir, {
+    await writeCanonicalState(dir, {
       ...baseState(),
       nodes: {
         "G-x": {
@@ -653,7 +657,7 @@ test("context v2: allowed_actions for knowledge active", async () => {
   const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
-    await writeRawState(dir, {
+    await writeCanonicalState(dir, {
       ...baseState(),
       nodes: {
         "K-x": {
@@ -678,7 +682,7 @@ test("context v2: allowed_actions for knowledge deprecated", async () => {
   const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
-    await writeRawState(dir, {
+    await writeCanonicalState(dir, {
       ...baseState(),
       nodes: {
         "K-x": {
@@ -703,7 +707,7 @@ test("context v2: alerts include STALE_CLAIM when claim is stale", async () => {
   const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
-    await writeRawState(dir, {
+    await writeCanonicalState(dir, {
       ...baseState(),
       nodes: {
         "T-x": {
@@ -732,7 +736,7 @@ test("context v2: alerts include SUPERSEDED_BLOCKER when a blocker is superseded
   const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
-    await writeRawState(dir, {
+    await writeCanonicalState(dir, {
       ...baseState(),
       nodes: {
         "T-x": {
@@ -781,7 +785,7 @@ test("context v2: alerts include KNOWLEDGE_DEPRECATED_SOON when matching knowled
   const { default: context } = await importFresh("./cli/commands/context.mjs");
   const dir = await createTempProject();
   try {
-    await writeRawState(dir, {
+    await writeCanonicalState(dir, {
       ...baseState(),
       nodes: {
         "T-x": {

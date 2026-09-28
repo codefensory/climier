@@ -13,7 +13,7 @@ import {
 
 function currentState() {
   return {
-    version: 4,
+    version: 1,
     revision: 16,
     initiatives: {},
     nodes: {
