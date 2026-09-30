@@ -121,6 +121,8 @@ test("CLI: --help prints help and exits 0", async () => {
     assert.match(r.stdout, /take/);
     assert.match(r.stdout, /context/);
     assert.match(r.stdout, /add-gate/);
+    assert.match(r.stdout, /push.*EXPERIMENTAL.*UNSAFE/is);
+    assert.match(r.stdout, /pull.*EXPERIMENTAL.*UNSAFE/is);
     assert.doesNotMatch(r.stdout, /\.agents\/skills/i);
     assert.doesNotMatch(r.stdout, /example fixture/i);
   } finally {
@@ -199,27 +201,6 @@ test("CLI: unknown command returns a structured usage error", async () => {
   }
 });
 
-test("CLI: retired push and pull commands are unknown even with a remote config", async () => {
-  const dir = await createTempProject();
-  try {
-    fs.writeFileSync(path.join(dir, ".climier.json"), JSON.stringify({
-      version: 1,
-      project_id: "remote-project",
-      backend: { type: "remote", protocol: "v2", url: "https://climier.example.test" },
-    }));
-    for (const command of ["push", "pull"]) {
-      const r = await runCli(["--project", dir, command, "--as", "alice"]);
-      assert.equal(r.code, 2, `${command} should be a usage error`);
-      const data = JSON.parse(r.stdout);
-      assert.equal(data.ok, false);
-      assert.equal(data.error.code, "CLI_USAGE_ERROR");
-      assert.equal(data.error.details.command, command);
-    }
-  } finally {
-    await rmTempProject(dir);
-  }
-});
-
 test("CLI: remote auth and link commands are advertised and dispatchable", async () => {
   const dir = await createTempProject();
   try {
@@ -228,8 +209,8 @@ test("CLI: remote auth and link commands are advertised and dispatchable", async
     assert.match(help.stdout, /login/);
     assert.match(help.stdout, /logout/);
     assert.match(help.stdout, /link/);
-    assert.doesNotMatch(help.stdout, /\bpush\b/);
-    assert.doesNotMatch(help.stdout, /\bpull\b/);
+    assert.match(help.stdout, /push.*EXPERIMENTAL.*UNSAFE/is);
+    assert.match(help.stdout, /pull.*EXPERIMENTAL.*UNSAFE/is);
 
     for (const command of ["login", "logout", "link"]) {
       const calls = [];
