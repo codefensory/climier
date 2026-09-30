@@ -132,20 +132,27 @@ async function main() {
     }
 
     const localProject = path.join(root, "local-project");
-    const initialized = await command(climier, ["--project", localProject, "init"], { cwd: root, env: { ...process.env, CLIMIER_HOME: path.join(root, "local-home") } });
+    const clientHome = path.join(root, "client-home");
+    const clientEnv = { ...process.env, CLIMIER_HOME: clientHome };
+    for (const name of Object.keys(clientEnv)) {
+      if (name.startsWith("CLIMIER_") && name !== "CLIMIER_HOME") {delete clientEnv[name];}
+    }
+    await fs.mkdir(localProject, { recursive: true });
+    await fs.writeFile(path.join(localProject, ".climier.json"), `${JSON.stringify({ version: 1, project_id: projectId }, null, 2)}\n`);
+    const initialized = await command(climier, ["--project", localProject, "init"], { cwd: root, env: clientEnv });
     if (initialized.code !== 0) {throw new Error(`installed climier init failed: ${initialized.stderr}`);}
-    const localStatus = await command(climier, ["--project", localProject, "status"], { cwd: root, env: { ...process.env, CLIMIER_HOME: path.join(root, "local-home") } });
+    const localInitiative = await command(climier, ["--project", localProject, "add-initiative", "packed-transfer", "--desc", "packed smoke", "--as", "smoke"], { cwd: root, env: clientEnv });
+    if (localInitiative.code !== 0) {throw new Error(`installed local initiative failed: ${localInitiative.stdout}${localInitiative.stderr}`);}
+    const localTask = await command(climier, ["--project", localProject, "add-task", "T-packed-transfer", "--initiative", "packed-transfer", "--title", "Packed local task", "--body", "seeded before remote link", "--acceptance", "push preserves this task", "--blocked-by", "", "--as", "smoke"], { cwd: root, env: clientEnv });
+    if (localTask.code !== 0) {throw new Error(`installed local task failed: ${localTask.stdout}${localTask.stderr}`);}
+    const localStatus = await command(climier, ["--project", localProject, "status"], { cwd: root, env: clientEnv });
     if (localStatus.code !== 0) {throw new Error(`installed climier status failed: ${localStatus.stderr}`);}
     jsonOutput(localStatus, "installed status");
 
     const dataRoot = path.join(root, "server-data");
     const stateHome = path.join(root, "server-home");
     const launcherHome = path.join(root, "launcher-home");
-    const clientHome = path.join(root, "client-home");
-    const serverProject = path.join(root, "remote-project");
     const configFile = path.join(root, "server.json");
-    await fs.mkdir(serverProject, { recursive: true });
-    await fs.writeFile(path.join(serverProject, ".climier.json"), `${JSON.stringify({ version: 1, project_id: projectId }, null, 2)}\n`);
     await fs.writeFile(configFile, `${JSON.stringify({
       listen: { host: "127.0.0.1", port: 0 },
       dataRoot,
@@ -161,21 +168,39 @@ async function main() {
       throw new Error(`invalid server health: ${JSON.stringify(health)}`);
     }
     const remoteUrl = `http://127.0.0.1:${health.port}`;
-    const clientEnv = { ...process.env, CLIMIER_HOME: clientHome };
-    const linked = await command(climier, ["--project", serverProject, "link", remoteUrl], { cwd: root, env: clientEnv });
+    const linked = await command(climier, ["--project", localProject, "link", remoteUrl], { cwd: root, env: clientEnv });
     if (linked.code !== 0) {throw new Error(`installed climier link failed: ${linked.stderr}`);}
-    const remoteConfig = JSON.parse(await fs.readFile(path.join(serverProject, ".climier.json"), "utf8"));
-    if (remoteConfig.backend?.protocol !== "v2") {
-      throw new Error(`link did not write protocol v2: ${JSON.stringify(remoteConfig)}`);
+    const remoteConfig = JSON.parse(await fs.readFile(path.join(localProject, ".climier.json"), "utf8"));
+    if (remoteConfig.backend?.protocol !== "v2" || remoteConfig.project_id !== projectId) {
+      throw new Error(`link did not write the expected v2 project metadata: ${JSON.stringify(remoteConfig)}`);
     }
     await seedRemoteSession(new URL(remoteUrl).origin, clientHome);
-    const remoteInit = await command(climier, ["--project", serverProject, "init"], { cwd: root, env: clientEnv });
+    const remoteInit = await command(climier, ["--project", localProject, "init"], { cwd: root, env: clientEnv });
     if (remoteInit.code !== 0) {throw new Error(`authorized remote init failed: ${remoteInit.stderr}`);}
-    const remoteStatus = await command(climier, ["--project", serverProject, "status"], { cwd: root, env: clientEnv });
+    const remoteStatus = await command(climier, ["--project", localProject, "status"], { cwd: root, env: clientEnv });
     if (remoteStatus.code !== 0) {throw new Error(`authorized remote status failed: ${remoteStatus.stderr}`);}
     jsonOutput(remoteStatus, "authorized remote status");
+    const pushed = await command(climier, ["--project", localProject, "push", "--as", "smoke"], { cwd: root, env: clientEnv });
+    if (pushed.code !== 0) {throw new Error(`packed push failed: ${pushed.stdout}${pushed.stderr}`);}
+    const pushResult = jsonOutput(pushed, "packed push");
+    if (pushResult.transfer !== "push" || pushResult.project_id !== projectId || pushResult.forced !== false) {
+      throw new Error(`packed push returned an invalid transfer summary: ${JSON.stringify(pushResult)}`);
+    }
+    const remoteTask = await command(climier, ["--project", localProject, "show", "T-packed-transfer"], { cwd: root, env: clientEnv });
+    if (remoteTask.code !== 0 || jsonOutput(remoteTask, "packed remote task").node?.title !== "Packed local task") {
+      throw new Error(`packed push did not publish the local task: ${remoteTask.stdout}${remoteTask.stderr}`);
+    }
+    const pulled = await command(climier, ["--project", localProject, "pull", "--as", "smoke"], { cwd: root, env: clientEnv });
+    if (pulled.code !== 0) {throw new Error(`packed pull failed: ${pulled.stdout}${pulled.stderr}`);}
+    const pullResult = jsonOutput(pulled, "packed pull");
+    if (pullResult.transfer !== "pull" || pullResult.project_id !== projectId || pullResult.forced !== false) {
+      throw new Error(`packed pull returned an invalid transfer summary: ${JSON.stringify(pullResult)}`);
+    }
 
-    const ui = await command(climier, ["--project", localProject, "ui", "--open=false"], { cwd: root, env: { ...process.env, CLIMIER_HOME: path.join(root, "local-home") } });
+    const localMetadata = JSON.parse(await fs.readFile(path.join(localProject, ".climier.json"), "utf8"));
+    delete localMetadata.backend;
+    await fs.writeFile(path.join(localProject, ".climier.json"), `${JSON.stringify(localMetadata, null, 2)}\n`);
+    const ui = await command(climier, ["--project", localProject, "ui", "--open=false"], { cwd: root, env: clientEnv });
     if (ui.code === 0) {throw new Error("installed ui unexpectedly succeeded without the UI subproject");}
     const uiBody = jsonOutput(ui, "installed ui failure");
     if (uiBody.ok !== false || uiBody.error?.code !== "UI_SUBPROJECT_MISSING") {
@@ -184,7 +209,7 @@ async function main() {
     if (/Cannot find (?:package|module)|ERR_MODULE_NOT_FOUND|\n\s+at\s/.test(ui.stdout + ui.stderr)) {
       throw new Error(`installed ui leaked module-resolution failure: ${ui.stdout}${ui.stderr}`);
     }
-    console.log("packed smoke: version, local init/status, authorized server request, and experimental ui failure passed");
+    console.log("packed smoke: version, local init/status, remote init, push/pull transfer, and experimental ui failure passed");
   } finally {
     await stopServer(server);
     await fs.rm(root, { recursive: true, force: true });
