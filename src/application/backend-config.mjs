@@ -71,9 +71,17 @@ function parseLocalBackend(backend) {
   return { type: "local" };
 }
 
+function commandFromArgv(argv) {
+  for (let index = 2; index < argv.length; index++) {
+    const token = argv[index];
+    if (!token.startsWith("--")) {return token;}
+    if (!token.includes("=") && argv[index + 1] !== undefined && !argv[index + 1].startsWith("--")) {index++;}
+  }
+  return null;
+}
+
 function isLinkCommandRelink(config) {
-  const commandIndex = process.argv.findIndex((entry) => entry === "link");
-  return commandIndex !== -1 && typeof config.project_id === "string" && config.project_id.trim();
+  return commandFromArgv(process.argv) === "link" && typeof config.project_id === "string" && config.project_id.trim();
 }
 
 function parseRemoteBackend(backend, config) {

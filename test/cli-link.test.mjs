@@ -22,10 +22,12 @@ test("remote metadata without protocol v2 fails before local state access", asyn
       backend: { type: "remote", url: "https://old.example.test/" },
     }, null, 2) + "\n");
 
-    const result = await runCli(["--project", dir, "status"]);
-    assert.equal(result.code, 1, result.stdout);
-    const out = JSON.parse(result.stdout);
-    assert.equal(out.error.code, "REMOTE_CONFIG_OUTDATED");
+    for (const args of [["status"], ["status", "link"]]) {
+      const result = await runCli(["--project", dir, ...args]);
+      assert.equal(result.code, 1, result.stdout);
+      const out = JSON.parse(result.stdout);
+      assert.equal(out.error.code, "REMOTE_CONFIG_OUTDATED");
+    }
   } finally {
     await rmTempProject(dir);
   }
