@@ -75,9 +75,9 @@ or logs. `logout` removes the local copy; it does not revoke the server hash.
 
 Linking an existing local checkout preserves its project ID but does not upload
 or merge its local DAG. Remote `init` provisions the server-side project; it is
-not a migration. This release has no DAG import, sync, or transfer workflow.
-Changing an origin requires `climier link <new-origin> --replace=true`; it keeps
-the project ID but does not copy data between servers.
+not a migration. Transfers are separate, explicit snapshot operations described
+below. Changing an origin requires `climier link <new-origin> --replace=true`;
+it keeps the project ID but does not copy data between servers.
 
 If a checkout is cloned, preserve its `.climier.json` project ID and run
 `login` on the new machine. A remote v2 config must contain exactly
@@ -86,10 +86,64 @@ If a checkout is cloned, preserve its `.climier.json` project ID and run
 `link <origin> --replace=true` as the explicit relink action.
 
 Only authenticated remote `init` provisions an absent project directory. Reads,
-normal operations, and batch requests never create storage implicitly. Remote
-`init --force`, snapshots, restore, plugins, and local transfer commands are
-unsupported. A linked remote DAG is operated in place; there is no sync or
-DAG-transfer workflow.
+normal operations, batch requests, `push`, and `pull` never create storage
+implicitly. Remote `init --force`, snapshots, restore, and plugins are
+unsupported.
+
+## Manual local / remote transfers
+
+`push` and `pull` are **EXPERIMENTAL / UNSAFE** manual transfers of a complete
+DAG snapshot for the same `project_id`. They require a linked remote v2 backend
+and a valid bearer from `login`. `link` only selects the backend: it does not
+transfer the local DAG. To publish local work for the first time, initialize it
+locally, then link, log in, provision the remote with `init`, and push:
+
+```sh
+# The checkout already has its local DAG and project ID.
+climier link https://climier.example.test
+climier login
+climier init
+climier push --as alice
+```
+
+`init` creates a pristine remote project; it does not import local state. A
+normal first push is accepted only by that pristine destination. `push` never
+provisions an absent project. A non-pristine destination without a confirmed
+transfer baseline fails instead of being overwritten.
+
+For offline work, pull the latest snapshot before selecting local state. Remove
+the `backend` object from `.climier.json` while preserving `project_id`; this
+versioned metadata change makes normal commands use local state. When online
+again, link the origin, log in, and push:
+
+```sh
+climier login
+climier pull --as alice
+# Remove `backend` from .climier.json; keep project_id.
+# Work against the local DAG while offline.
+climier link https://climier.example.test
+climier login
+climier push --as alice
+```
+
+The non-secret transfer baseline is stored outside the checkout at
+`$CLIMIER_HOME/remote-transfer-baselines/` (default `~/.climier`), scoped by
+origin and project ID. It is not copied by git or by `link`. Preserve the same
+`CLIMIER_HOME` to retain the baseline. Without a baseline, pull accepts only an
+absent or pristine local destination; push accepts only a pristine initialized
+remote. With a baseline, CAS compares the destination revision to the last
+confirmed transfer. Conflicts do not mutate either DAG; choose an explicit side
+with `push --force` or `pull --force` only after review.
+
+Both `--force` forms replace the **entire destination DAG**, including claims,
+`in_progress`, plugin data, and its log. The winning snapshot retains its own
+log and adds a `transfer.push` or `transfer.pull` event with the replaced
+revision. That event does not preserve or recover the discarded destination
+log. Back up both sides before force; the feature is experimental and unsafe.
+There is no merge, automatic fallback, journal, or retry. A network timeout may
+be ambiguous: the remote may have committed even though the local baseline was
+not advanced. Inspect the destination or pull before choosing whether to retry
+or use force.
 
 ## Backup, rotation, and recovery
 
@@ -121,13 +175,21 @@ be active.
 
 ## Verification and failure boundaries
 
-Run the packaged two-client smoke with temporary homes; it verifies link,
-interactive login, remote init, mutation/read visibility, distinct project IDs,
-local sentinel isolation, invalid auth, password rotation, outdated config,
-and endpoint failure without local fallback:
+Run the server operations E2E with a real v2 server; it verifies two-client
+isolation, auth/no-fallback, remote provisioning, the offline transfer cycle,
+revision conflicts, both force directions, state/plugin/claim preservation,
+ledger continuity, and an ambiguous dropped transfer response:
 
 ```sh
 timeout -k 10s 180s node --test test/server-operations-e2e.test.mjs
+```
+
+Run the packed-artifact smoke with temporary homes; it installs the package,
+provisions a v2 server, and executes push and pull without the retired
+`CLIMIER_TOKEN`, `CLIMIER_REMOTE_ORIGIN`, or v1 routes:
+
+```sh
+timeout -k 10s 180s npm run smoke:pack
 ```
 
 The full required checks are:
