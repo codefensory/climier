@@ -35,20 +35,17 @@ test("provider allowlists retain kind-specific fields", () => {
   assert.ok(!UPDATE_PATCH_KEYS.task.includes("purpose"));
 });
 
-test("retired remote v1 and transfer CLI surfaces are absent", async () => {
+test("manual transfer CLI is registered while remote v1 remains retired", async () => {
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
   assert.ok(KNOWN_COMMANDS.includes("login"));
   assert.ok(KNOWN_COMMANDS.includes("logout"));
   assert.ok(KNOWN_COMMANDS.includes("link"));
-  assert.ok(!KNOWN_COMMANDS.includes("push"));
-  assert.ok(!KNOWN_COMMANDS.includes("pull"));
-  for (const relative of [
-    "src/cli/commands/push.mjs",
-    "src/cli/commands/pull.mjs",
-    "src/application/operations/remote-v1-manifest.mjs",
-  ]) {
-    await assert.rejects(fs.access(path.join(root, relative)), { code: "ENOENT" });
+  assert.ok(KNOWN_COMMANDS.includes("push"));
+  assert.ok(KNOWN_COMMANDS.includes("pull"));
+  for (const relative of ["src/cli/commands/push.mjs", "src/cli/commands/pull.mjs"]) {
+    await assert.doesNotReject(fs.access(path.join(root, relative)));
   }
+  await assert.rejects(fs.access(path.join(root, "src/application/operations/remote-v1-manifest.mjs")), { code: "ENOENT" });
 });
 
 test("retired surface checker passes the repository sources", async () => {
