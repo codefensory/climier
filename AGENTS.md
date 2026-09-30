@@ -175,7 +175,8 @@ Cycles in the DAG must not crash. The derivation keeps cycle members blocked. Un
 | `state` | `cli/commands/state.mjs` | no (read-only) | no |
 | `restore <id> --as <agent>` | `cli/commands/restore.mjs` | yes (locked; canonical schema-1 snapshot; pre-snapshot) | required |
 | `batch --file <json> --as <agent>` / `batch --stdin --as <agent>` | `cli/commands/batch.mjs` | yes | required |
-| `push --as <agent> [--overwrite=true]` / `pull --as <agent> [--overwrite=true]` | `cli/commands/push.mjs`, `cli/commands/pull.mjs` | yes | required |
+| `link <origin> [--replace=true]` | `cli/commands/link.mjs` | yes | required |
+| `login [--server <origin>]` / `logout [--server <origin>]` | `cli/commands/login.mjs`, `cli/commands/logout.mjs` | yes | required |
 | `migrate [--project <dir>] [--all] [--dry-run]` | `cli/commands/migrate.mjs` | yes unless dry-run | required for import |
 | `ui [--port N] [--open=true\|false]` (experimental) | `cli/commands/ui.mjs` (starts `ui/server/server.mjs`) | no (read-only) | no |
 

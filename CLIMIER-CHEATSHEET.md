@@ -1,6 +1,6 @@
 # climier cheatsheet
 
-Quick reference for agents working in this repository. State shape: canonical schema-1 `{ version: 1, initiatives, nodes, edges, log, fence_generation, revision }` at `~/.climier/projects/<project_id>/tasks.json` (global, machine-local, NOT in the repo). The repo commits only `.climier.json`, which pins the `<project_id>`. Existing projects must be imported before v1 writers use them; see `docs/remote-server.md`.
+Quick reference for agents working in this repository. State shape: canonical schema-1 `{ version: 1, initiatives, nodes, edges, log, fence_generation, revision }` at `~/.climier/projects/<project_id>/tasks.json` (global, machine-local, NOT in the repo). The repo commits only `.climier.json`, which pins the `<project_id>`. Remote v2 setup, TLS, backup, rotation, and recovery are in `docs/remote-server.md`.
 
 Errors are JSON to stdout with a structured shape: `{ ok: false, error: { code, message, details } }`. Branch on `error.code`, not `error.message`.
 
@@ -41,7 +41,8 @@ Errors are JSON to stdout with a structured shape: `{ ok: false, error: { code, 
 - `climier restore <snapshot-id> --as <agent>` — replace the live state with a validated schema-1 snapshot through the recovery path; takes a `pre-restore` snapshot under the lock, appends `{ action: "restore", agent, snapshot_id }`, and returns `{ snapshot }`. Invalid or incomplete targets fail without changing state.
 - `climier state` — read the deterministic current core projection.
 - `climier batch --file <json> --as <agent>` / `--stdin` — execute an atomic group of operations.
-- `climier push --as <agent>` / `pull --as <agent>` — transfer the configured remote DAG; add `--overwrite=true` for explicit replacement.
+- `climier link <origin> [--replace=true]` — record the v2 remote origin while preserving the project ID.
+- `climier login [--server <origin>]` / `logout [--server <origin>]` — authenticate through a TTY and manage the local bearer profile without printing the token.
 - `climier add-note <id> "<text>" --as <agent>` — append a timestamped note (any status, append-only). Use for breadcrumb findings; also use `add-note "<id>" "blocked: ..."` for escalations.
 
 ## Spec edits
