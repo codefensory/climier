@@ -221,9 +221,13 @@ no `--json` flag. JSON is the default.
 
 ## Command reference
 
-`init` creates a canonical schema-1 state with `{ initiatives, nodes, edges, log }` plus the revision-ledger fields. The v1 binary does not read older state forms. Import existing projects first with `climier migrate --all --dry-run` and then `climier migrate --all`, while every writer is stopped; see [`docs/remote-server.md`](docs/remote-server.md) for the ordered import and rollback procedure. `init --force` is only a deliberate reset of a project, never an import mechanism. The creation flow uses `add-task`, `add-gate`, and `add-knowledge`; `add-node` and `add-edge` are low-level escape hatches.
+`init` creates a canonical schema-1 state with `{ initiatives, nodes, edges, log }` plus the revision-ledger fields. Import existing projects first with `climier migrate --all --dry-run` and then `climier migrate --all`, while every writer is stopped; see [`docs/remote-server.md`](docs/remote-server.md) for the storage backup and recovery procedure. `init --force` is only a deliberate reset of a project, never an import mechanism. The creation flow uses `add-task`, `add-gate`, and `add-knowledge`; `add-node` and `add-edge` are low-level escape hatches.
 
 Full reference: `docs/reference.md`.
+
+### Remote v2
+
+A remote checkout uses `backend: { type: "remote", url, protocol: "v2" }`. Run `climier link <origin>` to record the origin, then `climier login` to read a password from a TTY and store the bearer in the local credential profile. The server requires `CLIMIER_SERVER_PASSWORD`, binds only to loopback, and should be reached externally through a trusted TLS reverse proxy. Remote `init` is the only provisioning operation; normal requests never fall back to local state. See [`docs/remote-server.md`](docs/remote-server.md) for rotation, backups, stale-lock recovery, and auth-file recovery.
 
 Canonical `BLOCKS` direction is `{ from: blocker, to: blocked, type: "BLOCKS" }`; blockers are incoming edges to the blocked node.
 
@@ -256,8 +260,9 @@ Canonical `BLOCKS` direction is `{ from: blocker, to: blocked, type: "BLOCKS" }`
 | `restore <snapshot-id> --as <agent>` | Replace the live state with a validated schema-1 snapshot under the recovery path and a pre-restore snapshot. A policy plugin may restrict the actor; invalid or incomplete snapshots fail without mutating state. |
 | `cancel <id> --reason "<text>" --as <agent>` | Terminate a task without resolving from `open`, `in_progress` or `submitted`. |
 | `batch --file <json> --as <agent>` / `batch --stdin --as <agent>` | Execute several operations atomically. |
-| `push --as <agent> [--overwrite=true]` / `pull --as <agent> [--overwrite=true]` | Transfer the local DAG to or from the configured remote project. |
-| `migrate [--all] [--dry-run]` | Inspect or import pre-cut projects; run once during the v1 release window while all writers are stopped. |
+| `link <origin> [--replace=true]` | Record a v2 remote origin while preserving the checkout project ID. |
+| `login [--server <origin>]` / `logout [--server <origin>]` | Authenticate through a TTY and manage the local bearer profile; the token is never printed. |
+| `migrate [--all] [--dry-run]` | Inspect or import pre-cut projects while all writers are stopped. |
 | `deprecate-knowledge <id> --reason "<text>" --as <agent>` | Soft-delete a knowledge node (`status="deprecated"`). |
 | `update <id> ... --as <agent>` | Edit node fields such as title, body, definition, acceptance, domain, backlog, tags, or refs. |
 | `add-note <id> "<text>" --as <agent>` | Append a note thread entry to any node. |
@@ -360,8 +365,8 @@ The v1.0.0 release is the first clean publication. The owner performs the
 external tag and publish; the implementation chain leaves the repository ready
 for those actions:
 
-1. install or link the v1 binary and stop the control plane, UI, workers, and
-   remote server;
+1. install or link the release binary and stop the control plane, UI, workers,
+   and remote server;
 2. review `climier migrate --all --dry-run`, then run `climier migrate --all`;
 3. verify every project with `climier --project <checkout> status` and one
    authorized operation;
