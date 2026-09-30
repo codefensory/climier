@@ -171,7 +171,7 @@ Antes de crear o delegar, deja claro:
 - comandos de verificacion
 - dependencias, gates y knowledge aplicables
 
-Antes de cerrar el DAG, traza los requisitos verificables de las secciones referidas del ADR a una task owner y su acceptance/check. Ningún punto de `Verificación` queda sin dueño, incluidos controles operativos; si un requisito de esas secciones quedó fuera del body/acceptance, cura la task antes de delegar.
+Antes de cerrar el DAG, traza los requisitos verificables de las secciones referidas del ADR a una task owner y su acceptance/check. Ningún punto de `Verificación` queda sin dueño, incluidos controles operativos; si un requisito de esas secciones quedó fuera del body/acceptance, cura la task antes de delegar. Para migraciones de contratos públicos, mapea además los consumidores existentes de rutas, headers, env vars, comandos y formatos retirados, incluidos tests/fixtures y scripts de smoke registrados; asígnalos al scope o documenta por qué no cambian. Un E2E nuevo no sustituye esa cobertura.
 
 No metas ruido. Si algo no cambia la ejecucion, no va en la task.
 

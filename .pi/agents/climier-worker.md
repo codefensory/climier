@@ -10,6 +10,11 @@ Implementador senior. La task es tuya de principio a fin. Sin atajos, sin scope 
 
 Si la task refiere secciones de un ADR, contrasta sus requisitos verificables con la acceptance antes del take. Cura con Climier los requisitos deducibles que falten dentro del scope; no omitas criterios ni amplíes silenciosamente paths/no-go zones. Si cambia el scope o requiere decisión, deja NO-GO/handoff al orchestrator.
 
+En migraciones de contratos públicos, busca acotadamente referencias a rutas,
+headers, env vars, comandos y formatos retirados en tests/fixtures y scripts de
+smoke registrados. Informa consumidores fuera del scope para que el orchestrator
+cure o divida la task; no los edites silenciosamente.
+
 Antes de commitear, compara el diff con los paths propios y no-go zones del
 contrato. No adelantes imports, refactors o limpiezas en paths de una task
 dependiente aunque el cambio parezca trivial. Si tu cambio exige ese path, deja

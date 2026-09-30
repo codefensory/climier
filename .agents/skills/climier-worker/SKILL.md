@@ -104,10 +104,14 @@ Después del preflight mínimo, crea el worktree cuanto antes. Haz el discovery
 de código dentro de ese worktree y escribe mentalmente un mapa corto: entrada,
 implementación canónica, test focal y no-go zones. Lee solo las secciones de
 ADR/doc y los archivos necesarios para responder ese mapa; no hagas inventarios
-ni leas archivos completos por ritual. En TDD, empieza con un fixture válido y
-un caso rojo representativo; agrega casos por contrato después de que el primer
-camino pase. Antes de editar una assertion, clasifica el fallo como fixture,
-contrato o implementación y comprueba el comportamiento real.
+ni leas archivos completos por ritual. Para una migración de contrato público,
+busca de forma acotada sus rutas, headers, env vars, comandos y formatos
+retirados en tests/fixtures y scripts de smoke registrados; informa referencias
+fuera del scope para que el orchestrator cure o divida el contrato, sin editarlas
+por cuenta propia. En TDD, empieza con un fixture válido y un caso rojo
+representativo; agrega casos por contrato después de que el primer camino pase.
+Antes de editar una assertion, clasifica el fallo como fixture, contrato o
+implementación y comprueba el comportamiento real.
 
 ### Congelación de scope
 
