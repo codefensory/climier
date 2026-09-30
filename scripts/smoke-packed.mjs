@@ -10,8 +10,8 @@ import { fileURLToPath } from "node:url";
 
 const execFileAsync = promisify(execFile);
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const token = "smoke-packed-token";
 const projectId = "smoke-packed-project";
+const serverPassword = "smoke-packed-server-password";
 
 async function command(file, args, options = {}) {
   try {
@@ -85,6 +85,24 @@ async function stopServer(child) {
   });
 }
 
+async function seedRemoteSession(origin, clientHome) {
+  const response = await fetch(`${origin}/v2/auth/login`, {
+    method: "POST",
+    headers: { accept: "application/json", "content-type": "application/json", "x-climier-protocol-version": "2" },
+    body: JSON.stringify({ password: serverPassword }),
+  });
+  const body = await response.json();
+  if (!response.ok || body.ok !== true || typeof body.token !== "string" || body.token.length === 0) {
+    throw new Error(`v2 login failed with HTTP ${response.status}`);
+  }
+  await fs.mkdir(clientHome, { recursive: true, mode: 0o700 });
+  if (process.platform !== "win32") {await fs.chmod(clientHome, 0o700);}
+  const profile = { version: 1, sessions: { [origin]: { token: body.token } } };
+  const profileFile = path.join(clientHome, "remote-sessions.json");
+  await fs.writeFile(profileFile, `${JSON.stringify(profile, null, 2)}\n`, { mode: 0o600 });
+  if (process.platform !== "win32") {await fs.chmod(profileFile, 0o600);}
+}
+
 async function main() {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "climier-packed-smoke-"));
   let server;
@@ -123,30 +141,37 @@ async function main() {
     const dataRoot = path.join(root, "server-data");
     const stateHome = path.join(root, "server-home");
     const launcherHome = path.join(root, "launcher-home");
+    const clientHome = path.join(root, "client-home");
     const serverProject = path.join(root, "remote-project");
     const configFile = path.join(root, "server.json");
     await fs.mkdir(serverProject, { recursive: true });
-    await fs.writeFile(path.join(serverProject, ".climier.json"), `${JSON.stringify({ version: 1, project_id: projectId, backend: { type: "remote", url: "http://127.0.0.1:0" } }, null, 2)}\n`);
+    await fs.writeFile(path.join(serverProject, ".climier.json"), `${JSON.stringify({ version: 1, project_id: projectId }, null, 2)}\n`);
     await fs.writeFile(configFile, `${JSON.stringify({
       listen: { host: "127.0.0.1", port: 0 },
       dataRoot,
       stateHome,
-      projectIds: [projectId],
-      credentials: [{ token, projectIds: [projectId] }],
     }, null, 2)}\n`, { mode: 0o600 });
-    server = spawn(serverBin, [configFile], { cwd: root, env: { ...process.env, CLIMIER_HOME: launcherHome }, stdio: ["ignore", "pipe", "pipe"] });
+    server = spawn(serverBin, [configFile], {
+      cwd: root,
+      env: { ...process.env, CLIMIER_HOME: launcherHome, CLIMIER_SERVER_PASSWORD: serverPassword },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
     const health = await waitForHealth(server);
     if (health.ok !== true || health.host !== "127.0.0.1" || !Number.isInteger(health.port)) {
       throw new Error(`invalid server health: ${JSON.stringify(health)}`);
     }
     const remoteUrl = `http://127.0.0.1:${health.port}`;
+    const clientEnv = { ...process.env, CLIMIER_HOME: clientHome };
+    const linked = await command(climier, ["--project", serverProject, "link", remoteUrl], { cwd: root, env: clientEnv });
+    if (linked.code !== 0) {throw new Error(`installed climier link failed: ${linked.stderr}`);}
     const remoteConfig = JSON.parse(await fs.readFile(path.join(serverProject, ".climier.json"), "utf8"));
-    remoteConfig.backend.url = remoteUrl;
-    await fs.writeFile(path.join(serverProject, ".climier.json"), `${JSON.stringify(remoteConfig, null, 2)}\n`);
-    const remoteEnv = { ...process.env, CLIMIER_HOME: path.join(root, "client-home"), CLIMIER_TOKEN: token, CLIMIER_REMOTE_ORIGIN: remoteUrl };
-    const remoteInit = await command(climier, ["--project", serverProject, "init"], { cwd: root, env: remoteEnv });
+    if (remoteConfig.backend?.protocol !== "v2") {
+      throw new Error(`link did not write protocol v2: ${JSON.stringify(remoteConfig)}`);
+    }
+    await seedRemoteSession(new URL(remoteUrl).origin, clientHome);
+    const remoteInit = await command(climier, ["--project", serverProject, "init"], { cwd: root, env: clientEnv });
     if (remoteInit.code !== 0) {throw new Error(`authorized remote init failed: ${remoteInit.stderr}`);}
-    const remoteStatus = await command(climier, ["--project", serverProject, "status"], { cwd: root, env: remoteEnv });
+    const remoteStatus = await command(climier, ["--project", serverProject, "status"], { cwd: root, env: clientEnv });
     if (remoteStatus.code !== 0) {throw new Error(`authorized remote status failed: ${remoteStatus.stderr}`);}
     jsonOutput(remoteStatus, "authorized remote status");
 
