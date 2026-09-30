@@ -1,5 +1,3 @@
-import { timingSafeEqual } from "node:crypto";
-
 function authError(code, message) {
   return Object.assign(new Error(`server auth: ${message}`), { code });
 }
@@ -13,28 +11,6 @@ function bearerToken(authorization) {
     throw authError("AUTH_REQUIRED", "bearer token is required");
   }
   return match[1];
-}
-
-function tokenMatches(candidate, configured) {
-  const a = Buffer.from(candidate, "utf8");
-  const b = Buffer.from(configured, "utf8");
-  return a.length === b.length && timingSafeEqual(a, b);
-}
-
-function credentialForToken(token, credentials) {
-  const matches = credentials.filter((credential) =>
-    credential && typeof credential.token === "string" && tokenMatches(token, credential.token));
-  if (matches.length !== 1) {
-    throw authError("AUTH_INVALID", "bearer token is invalid");
-  }
-  return matches[0];
-}
-
-function assertProjectScope(credential, projectId) {
-  const scopes = Array.isArray(credential.projectIds) ? credential.projectIds : [];
-  if (!scopes.includes(projectId)) {
-    throw authError("PROJECT_SCOPE_DENIED", "token is not authorized for the requested project");
-  }
 }
 
 function assertCatalogAvailable(catalog) {
@@ -51,16 +27,24 @@ function projectResolver(catalog, provision) {
   return resolveProject;
 }
 
+async function assertBearer(authStore, authorization) {
+  if (!authStore || typeof authStore.verifyBearer !== "function") {
+    throw authError("AUTH_STORE_UNAVAILABLE", "server auth store is unavailable");
+  }
+  if (!await authStore.verifyBearer(bearerToken(authorization))) {
+    throw authError("AUTH_INVALID", "bearer token is invalid");
+  }
+}
+
 export async function withAuthorizedProject({
   authorization,
   projectId,
-  credentials = [],
+  authStore,
   catalog,
   openProject,
   provision = false,
 } = {}) {
-  const credential = credentialForToken(bearerToken(authorization), credentials);
-  assertProjectScope(credential, projectId);
+  await assertBearer(authStore, authorization);
   assertCatalogAvailable(catalog);
   if (typeof openProject !== "function") {
     throw authError("PROJECT_OPENER_REQUIRED", "project storage opener is required");

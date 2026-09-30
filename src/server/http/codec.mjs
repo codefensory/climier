@@ -20,7 +20,7 @@ const UNPROCESSABLE_CODES = new Set([
   "INVALID_STATUS",
 ]);
 const NOT_FOUND_CODES = new Set(["OPERATION_NOT_FOUND", "NODE_NOT_FOUND", "INITIATIVE_NOT_FOUND"]);
-const FIXED_ERROR_STATUSES = new Map([["UNKNOWN_PROJECT", 404], ["INVALID_PROJECT_ID", 400]]);
+const FIXED_ERROR_STATUSES = new Map([["UNKNOWN_PROJECT", 404], ["INVALID_PROJECT_ID", 400], ["SERVER_ALREADY_RUNNING", 409]]);
 const FORBIDDEN_CODES = new Set(["PROJECT_SCOPE_DENIED", "POLICY_DENIED"]);
 
 function httpError(code, message, details, status) {
@@ -86,7 +86,7 @@ function send(response, status, body, options) {
 }
 
 function parseProjectPath(pathname, decode, makeHttpError) {
-  const match = /^\/v1\/projects\/([^/]+)(?:\/(.*))?$/.exec(pathname);
+  const match = /^\/v2\/projects\/([^/]+)(?:\/(.*))?$/.exec(pathname);
   if (!match) {
     return null;
   }

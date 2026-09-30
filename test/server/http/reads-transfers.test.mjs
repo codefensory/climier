@@ -104,7 +104,7 @@ test("HTTP status read matches the complete CLI projection and all nine exact fi
       "claimed-by=bob&status=in_progress&as=alice",
     ];
     for (const query of queries) {
-      const response = await fetch(`${baseUrl}/v1/projects/project-a/read/status${query ? `?${query}` : ""}`, { headers: authHeaders() });
+      const response = await fetch(`${baseUrl}/v2/projects/project-a/read/status${query ? `?${query}` : ""}`, { headers: authHeaders() });
       assert.equal(response.status, 200, `${query}: ${JSON.stringify(await response.clone().json())}`);
       const body = await response.json();
       assert.deepEqual(normalizeStatusTimes(body.result), normalizeStatusTimes(await cliStatus(projectDirs[0], query)), query);
@@ -126,7 +126,7 @@ test("HTTP typed read routes match the CLI output from the same state snapshot",
       ["read/state", "state", "", []],
     ];
     for (const [route, command, query, positional] of routes) {
-      const response = await fetch(`${baseUrl}/v1/projects/project-a/${route}${query ? `?${query}` : ""}`, { headers: authHeaders() });
+      const response = await fetch(`${baseUrl}/v2/projects/project-a/${route}${query ? `?${query}` : ""}`, { headers: authHeaders() });
       assert.equal(response.status, 200, `${route}: ${JSON.stringify(await response.clone().json())}`);
       assert.deepEqual((await response.json()).result, await cliCommand(projectDirs[0], command, query, positional), route);
     }
@@ -137,73 +137,26 @@ test("HTTP typed read routes reject unknown, repeated, and invalid query paramet
   await withApi(async ({ baseUrl, projectDirs }) => {
     await writeCanonicalState(projectDirs[0], readApiState());
     for (const query of ["claimedBy=alice", "kind=task&kind=gate", "limit=-1", "stale-ms=nope", "all=maybe", "as=alice&as=bob"]) {
-      const response = await fetch(`${baseUrl}/v1/projects/project-a/read/status?${query}`, { headers: authHeaders() });
+      const response = await fetch(`${baseUrl}/v2/projects/project-a/read/status?${query}`, { headers: authHeaders() });
       assert.equal(response.status, 400, query);
       assert.equal((await response.json()).error.code, "INVALID_QUERY", query);
     }
   });
 });
 
-test("HTTP transfer routes capture and install typed payloads through kernel ports only", async () => {
-  await withApi(async ({ baseUrl, projectDirs }) => {
-    await operation(baseUrl, "project-a", "initiative.create", { name: "source" });
-    await operation(baseUrl, "project-a", "task.create", {
-      id: "T-transfer-source", initiative: "source", title: "Transfer source", body: "payload", acceptance: "copied",
-    });
-    const exported = await fetch(`${baseUrl}/v1/projects/project-a/transfer/export`, {
-      method: "POST", headers: authHeaders({ "content-type": "application/json" }), body: "{}",
-    });
-    assert.equal(exported.status, 200, JSON.stringify(await exported.clone().json()));
-    const payload = (await exported.json()).result;
-    assert.equal(payload.version, 1);
-    assert.equal(payload.nodes["T-transfer-source"].title, "Transfer source");
-    assert.equal(payload.nodes["T-transfer-source"].revision, undefined);
-    assert.equal(hasTransferLogEntry(payload.log, "transfer."), false);
-
-    const incompatiblePayload = { ...payload, version: 4 };
-    const rejected = await fetch(`${baseUrl}/v1/projects/project-b/transfer/import`, {
-      method: "POST",
-      headers: authHeaders({ "content-type": "application/json" }),
-      body: JSON.stringify({ payload: incompatiblePayload, actor: "alice" }),
-    });
-    assert.equal(rejected.status, 400);
-    assert.equal((await rejected.json()).error.code, "INVALID_REQUEST");
-    assert.equal(rejected.headers.get("x-climier-protocol-version"), PROTOCOL_VERSION);
-    assert.equal(PROTOCOL_VERSION, "1");
-
-    const imported = await fetch(`${baseUrl}/v1/projects/project-b/transfer/import`, {
-      method: "POST",
-      headers: authHeaders({ "content-type": "application/json" }),
-      body: JSON.stringify({ payload, actor: "alice" }),
-    });
-    assert.equal(imported.status, 200, JSON.stringify(await imported.clone().json()));
-    const { readState } = await import("../../../src/storage/state.mjs");
-    const installed = await readState(projectDirs[1]);
-    assert.equal(installed.nodes["T-transfer-source"].title, "Transfer source");
-    assert.equal(countTransferLogEntries(installed.log, "transfer.push"), 1);
-    assert.equal(installed.log.at(-1).agent, "alice");
-  });
-});
-
-async function assertTransferPreOpenError(baseUrl, openCount, request) {
-  const { route, headers, body, status, code } = request;
-  const before = openCount();
-  const response = await fetch(`${baseUrl}/v1/projects/project-a/${route}`, { method: "POST", headers, body });
-  assert.equal(response.status, status);
-  assert.equal((await response.json()).error.code, code);
-  if (route.endsWith("import") && status === 400) {
-    assert.equal(openCount(), before);
-  }
-}
-
-test("HTTP transfer routes validate schema and authorization before kernel access", async () => {
+test("HTTP v2 does not expose transfer routes", async () => {
   await withApi(async ({ baseUrl, openCount }) => {
-    for (const request of [
-      { route: "transfer/export", headers: authHeaders({ authorization: "Bearer wrong", "content-type": "application/json" }), body: "{}", status: 401, code: "AUTH_INVALID" },
-      { route: "transfer/import", headers: authHeaders({ "content-type": "application/json" }), body: JSON.stringify({ payload: {}, actor: "alice", sourceProjectDir: "/tmp/private" }), status: 400, code: "INVALID_REQUEST" },
-      { route: "transfer/import", headers: authHeaders({ "content-type": "application/json" }), body: JSON.stringify({ payload: {}, actor: "alice", overwrite: "yes" }), status: 400, code: "INVALID_REQUEST" },
-    ]) {
-      await assertTransferPreOpenError(baseUrl, openCount, request);
+    for (const route of ["transfer/export", "transfer/import"]) {
+      const before = openCount();
+      const response = await fetch(`${baseUrl}/v2/projects/project-a/${route}`, {
+        method: "POST",
+        headers: authHeaders({ "content-type": "application/json" }),
+        body: "{}",
+      });
+      assert.equal(response.status, 404);
+      assert.equal((await response.json()).error.code, "ROUTE_NOT_FOUND");
+      assert.equal(openCount(), before);
+      assert.equal(response.headers.get("x-climier-protocol-version"), PROTOCOL_VERSION);
     }
   });
 });

@@ -13,13 +13,15 @@ async function makeRoot(t) {
   return path.join(tempRoot, "data");
 }
 
-function withProject({ authorization = "Bearer token-a", projectId = "alpha", credentials, catalog, openProject }) {
-  return withAuthorizedProject({ authorization, projectId, credentials, catalog, openProject });
+const authStore = Object.freeze({ async verifyBearer(token) { return token === "token-a"; } });
+
+function withProject({ authorization = "Bearer token-a", projectId = "alpha", catalog, openProject, provision = false }) {
+  return withAuthorizedProject({ authorization, projectId, authStore, catalog, openProject, provision });
 }
 
 test("catalog confines generated storage and keeps distinct project IDs isolated", async (t) => {
   const dataRoot = await makeRoot(t);
-  const catalog = createProjectCatalog({ dataRoot, projectIds: ["alpha", "alpha-other"] });
+  const catalog = createProjectCatalog({ dataRoot });
   const alpha = await catalog.provisionProject("alpha");
   const alphaOther = await catalog.provisionProject("alpha-other");
 
@@ -36,7 +38,7 @@ test("catalog confines generated storage and keeps distinct project IDs isolated
 test("catalog keeps punctuation variants in separate generated directories", async (t) => {
   const dataRoot = await makeRoot(t);
   const projectIds = ["team-a", "team_a", "team.a"];
-  const catalog = createProjectCatalog({ dataRoot, projectIds });
+  const catalog = createProjectCatalog({ dataRoot });
   const storagePaths = await Promise.all(projectIds.map((projectId) => catalog.provisionProject(projectId)));
 
   assert.equal(new Set(storagePaths).size, projectIds.length);
@@ -47,7 +49,7 @@ test("catalog keeps punctuation variants in separate generated directories", asy
 
 test("catalog treats traversal-shaped IDs as opaque keys without escaping the data root", async (t) => {
   const dataRoot = await makeRoot(t);
-  const catalog = createProjectCatalog({ dataRoot, projectIds: ["../outside"] });
+  const catalog = createProjectCatalog({ dataRoot });
 
   const storagePath = await catalog.provisionProject("../outside");
   assert.equal(path.dirname(storagePath), dataRoot);
@@ -55,15 +57,14 @@ test("catalog treats traversal-shaped IDs as opaque keys without escaping the da
   await assert.rejects(fs.access(path.resolve(dataRoot, "..", "outside")));
 });
 
-test("unknown project IDs cannot create or open storage", async (t) => {
+test("unknown project IDs cannot open storage but init provisioning can create them", async (t) => {
   const dataRoot = await makeRoot(t);
-  const catalog = createProjectCatalog({ dataRoot, projectIds: ["alpha"] });
+  const catalog = createProjectCatalog({ dataRoot });
   let opened = false;
 
   await assert.rejects(
     withProject({
       projectId: "unknown",
-      credentials: [{ token: "token-a", projectIds: ["unknown"] }],
       catalog,
       openProject: async () => { opened = true; },
     }),
@@ -71,46 +72,38 @@ test("unknown project IDs cannot create or open storage", async (t) => {
   );
   assert.equal(opened, false);
   await assert.rejects(fs.access(dataRoot));
+
+  const created = await withProject({
+    projectId: "unknown",
+    catalog,
+    provision: true,
+    openProject: async (projectDir) => ({ projectDir }),
+  });
+  assert.equal(path.dirname(created.projectDir), dataRoot);
 });
 
-test("missing bearer token is rejected before catalog or storage access", async (t) => {
+test("missing or invalid bearer token is rejected before catalog or storage access", async (t) => {
   const dataRoot = await makeRoot(t);
-  const catalog = createProjectCatalog({ dataRoot, projectIds: ["alpha"] });
+  const catalog = createProjectCatalog({ dataRoot });
   let opened = false;
 
-  await assert.rejects(
-    withProject({
-      authorization: null,
-      credentials: [{ token: "token-a", projectIds: ["alpha"] }],
-      catalog,
-      openProject: async () => { opened = true; },
-    }),
-    { code: "AUTH_REQUIRED" },
-  );
-  assert.equal(opened, false);
-  await assert.rejects(fs.access(dataRoot));
-});
-
-test("a valid token without the requested project scope cannot open storage", async (t) => {
-  const dataRoot = await makeRoot(t);
-  const catalog = createProjectCatalog({ dataRoot, projectIds: ["alpha"] });
-  let opened = false;
-
-  await assert.rejects(
-    withProject({
-      credentials: [{ token: "token-a", projectIds: ["beta"] }],
-      catalog,
-      openProject: async () => { opened = true; },
-    }),
-    { code: "PROJECT_SCOPE_DENIED" },
-  );
+  for (const authorization of [null, "Bearer wrong"]) {
+    await assert.rejects(
+      withProject({
+        authorization,
+        catalog,
+        openProject: async () => { opened = true; },
+      }),
+      { code: authorization ? "AUTH_INVALID" : "AUTH_REQUIRED" },
+    );
+  }
   assert.equal(opened, false);
   await assert.rejects(fs.access(dataRoot));
 });
 
 test("catalog refuses a provisioned storage path replaced by a symlink", async (t) => {
   const dataRoot = await makeRoot(t);
-  const catalog = createProjectCatalog({ dataRoot, projectIds: ["alpha"] });
+  const catalog = createProjectCatalog({ dataRoot });
   const storageDir = await catalog.provisionProject("alpha");
   const outside = path.join(path.dirname(dataRoot), "outside");
   await fs.mkdir(outside);
@@ -120,7 +113,6 @@ test("catalog refuses a provisioned storage path replaced by a symlink", async (
 
   await assert.rejects(
     withProject({
-      credentials: [{ token: "token-a", projectIds: ["alpha"] }],
       catalog,
       openProject: async () => { opened = true; },
     }),

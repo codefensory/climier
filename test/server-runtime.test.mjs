@@ -20,11 +20,21 @@ function config(root, overrides = {}) {
     listen: { host: "127.0.0.1", port: 0 },
     dataRoot: path.join(root, "catalog"),
     stateHome: path.join(root, "state-home"),
-    projectIds: ["alpha", "../beta"],
-    credentials: [{ token: "runtime-secret", projectIds: ["alpha", "../beta"] }],
     ...overrides,
   };
 }
+
+const authStore = Object.freeze({
+  async login(password) {
+    if (password !== "password") {
+      const error = new Error("invalid password");
+      error.code = "AUTH_INVALID_PASSWORD";
+      throw error;
+    }
+    return "runtime-token";
+  },
+  async verifyBearer(token) { return token === "runtime-token"; },
+});
 
 async function writeConfig(root, value) {
   const file = path.join(root, "server.json");
@@ -45,9 +55,9 @@ async function assertTrustedProjects(runtime, root, stateHome) {
   const betaPath = await runtime.catalog.provisionProject("../beta");
 
   process.env.CLIMIER_HOME = path.join(root, "attacker-controlled-home");
-  const alpha = await runtime.openProject(alphaPath, { projectId: "alpha" });
+  const alpha = await runtime.openProject(alphaPath, { projectId: "alpha", create: true });
   assert.equal(process.env.CLIMIER_HOME, path.resolve(stateHome));
-  const beta = await runtime.openProject(betaPath, { projectId: "../beta" });
+  const beta = await runtime.openProject(betaPath, { projectId: "../beta", create: true });
 
   const alphaMeta = JSON.parse(await fs.readFile(path.join(alpha.projectDir, ".climier.json"), "utf8"));
   const betaMeta = JSON.parse(await fs.readFile(path.join(beta.projectDir, ".climier.json"), "utf8"));
@@ -69,9 +79,9 @@ test("private server config fails closed for malformed or unsafe settings", asyn
     { ...valid, unexpected: true },
     { ...valid, stateHome: "" },
     { ...valid, listen: { host: "127.0.0.1", port: 65_536 } },
-    { ...valid, projectIds: ["alpha", "alpha"] },
-    { ...valid, credentials: [{ token: "secret", projectIds: ["not-configured"] }] },
-    { ...valid, credentials: [{ token: "", projectIds: ["alpha"] }] },
+    { ...valid, listen: { host: "0.0.0.0", port: 0 } },
+    { ...valid, projectIds: ["alpha"] },
+    { ...valid, credentials: [{ token: "secret", projectIds: ["alpha"] }] },
   ];
 
   for (const value of invalid) {
@@ -95,25 +105,28 @@ test("server runtime pins state home and writes trusted hash-safe project metada
   const previousHome = process.env.CLIMIER_HOME;
   t.after(() => restoreClimierHome(previousHome));
 
-  const runtime = createServerRuntime(config(root, { stateHome }));
+  const runtime = createServerRuntime(config(root, { stateHome }), { authStore });
   assert.equal(process.env.CLIMIER_HOME, path.resolve(stateHome));
   await assertTrustedProjects(runtime, root, stateHome);
 });
 
 test("server runtime rejects a project directory with conflicting metadata", async (t) => {
   const root = await makeRoot(t);
-  const runtime = createServerRuntime(config(root));
+  const runtime = createServerRuntime(config(root), { authStore });
   const projectDir = await runtime.catalog.provisionProject("alpha");
   await fs.writeFile(path.join(projectDir, ".climier.json"), JSON.stringify({ version: 1, project_id: "client-controlled" }));
 
-  await assert.rejects(runtime.openProject(projectDir, { projectId: "alpha" }), { code: "UNTRUSTED_PROJECT_METADATA" });
+  await assert.rejects(runtime.openProject(projectDir, { projectId: "alpha", create: true }), { code: "UNTRUSTED_PROJECT_METADATA" });
 });
 
 test("launcher starts the configured server and reports its listening health", async (t) => {
   const root = await makeRoot(t);
   const configPath = await writeConfig(root, config(root));
   const launcher = new URL("../bin/climier-server.mjs", import.meta.url);
-  const child = spawn(process.execPath, [launcher.pathname, configPath], { stdio: ["ignore", "pipe", "pipe"] });
+  const child = spawn(process.execPath, [launcher.pathname, configPath], {
+    stdio: ["ignore", "pipe", "pipe"],
+    env: { ...process.env, CLIMIER_SERVER_PASSWORD: "password" },
+  });
   t.after(() => child.kill("SIGTERM"));
 
   const line = await new Promise((resolve, reject) => {
@@ -151,9 +164,19 @@ test("runtime startup binds state home once and listens on configured address", 
   const previousHome = process.env.CLIMIER_HOME;
   t.after(() => restoreClimierHome(previousHome));
   const file = await writeConfig(root, config(root));
-  const runtime = await startServerRuntime(file);
+  const runtime = await startServerRuntime(file, { password: "password" });
   t.after(() => new Promise((resolve) => runtime.server.close(resolve)));
   assert.equal(runtime.server.listening, true);
   assert.equal(process.env.CLIMIER_HOME, path.resolve(path.join(root, "state-home")));
   assert.equal(runtime.server.address().address, "127.0.0.1");
+});
+
+test("runtime requires password and service lock before listening", async (t) => {
+  const root = await makeRoot(t);
+  const file = await writeConfig(root, config(root));
+  await assert.rejects(startServerRuntime(file, { password: "" }), { code: "SERVER_PASSWORD_REQUIRED" });
+
+  const first = await startServerRuntime(file, { password: "password" });
+  t.after(() => new Promise((resolve) => first.server.close(resolve)));
+  await assert.rejects(startServerRuntime(file, { password: "password" }), { code: "SERVER_ALREADY_RUNNING" });
 });
