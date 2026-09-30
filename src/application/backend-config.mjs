@@ -3,8 +3,11 @@ const CREDENTIAL_KEYS = new Set([
   "credentials", "password", "privatekey", "refreshtoken", "secret", "signingkey", "token",
 ]);
 
-function fail(message) {
-  throw new Error(`backend config: ${message}`);
+function fail(message, code, details) {
+  const error = new Error(`backend config: ${message}`);
+  if (code) {error.code = code;}
+  if (details !== undefined) {error.details = details;}
+  throw error;
 }
 
 function normalizeKey(key) {
@@ -58,7 +61,9 @@ function validateProjectConfig(config) {
 
 function validateBackendShape(backend) {
   if (!backend || typeof backend !== "object" || Array.isArray(backend)) {fail("backend must be an object");}
-  if (Object.keys(backend).some((key) => !["type", "url"].includes(key))) {fail("backend accepts only type and url");}
+  if (Object.keys(backend).some((key) => !["type", "url", "protocol"].includes(key))) {
+    fail("backend accepts only type, url and protocol");
+  }
 }
 
 function parseLocalBackend(backend) {
@@ -66,13 +71,22 @@ function parseLocalBackend(backend) {
   return { type: "local" };
 }
 
-function parseRemoteBackend(backend) {
+function isLinkCommandRelink(config) {
+  const commandIndex = process.argv.findIndex((entry) => entry === "link");
+  return commandIndex !== -1 && typeof config.project_id === "string" && config.project_id.trim();
+}
+
+function parseRemoteBackend(backend, config) {
+  if (isLinkCommandRelink(config)) {return { type: "local" };}
+  if (backend.protocol !== "v2") {
+    fail("remote config must be relinked for protocol v2", "REMOTE_CONFIG_OUTDATED", { expected_protocol: "v2" });
+  }
   if (!Object.hasOwn(backend, "url")) {fail("remote url is required");}
   const parsedUrl = parseRemoteUrl(backend.url);
   if (parsedUrl.insecureRemoteHttp && process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP !== "true") {
     fail("remote url must use HTTPS outside localhost");
   }
-  const result = { type: "remote", url: parsedUrl.url };
+  const result = { type: "remote", url: parsedUrl.url, protocol: "v2" };
   if (parsedUrl.insecureRemoteHttp) {result.insecureRemoteHttp = true;}
   return result;
 }
@@ -85,5 +99,5 @@ export function parseBackendConfig(config = {}) {
   validateBackendShape(backend);
   if (backend.type === "local") {return parseLocalBackend(backend);}
   if (backend.type !== "remote") {fail("unsupported type");}
-  return parseRemoteBackend(backend);
+  return parseRemoteBackend(backend, config);
 }
