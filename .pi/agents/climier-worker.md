@@ -1,6 +1,6 @@
 ---
 description: Ejecuta una task de climier. Toma, crea worktree, implementa, verifica, commitea y entrega para validacion.
-model: axet/gpt-5.6-luna
+model: axet/gpt-6-luna
 thinking: high
 max_turns: 40
 inherit_context: false

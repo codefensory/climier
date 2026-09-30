@@ -1,6 +1,6 @@
 ---
 description: Valida rapido una task de climier. Encuentra worktree submitted, revisa contrato/commits/checks minimos, mergea y acepta solo si PASS.
-model: axet/gpt-5.6-luna
+model: axet/gpt-6-luna
 thinking: medium
 max_turns: 25
 inherit_context: false
