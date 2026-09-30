@@ -1,76 +1,80 @@
-# RFC: experiencia remota de Climier lista para servicio alojado
+# RFC: remote simple para un servidor propio de Climier
 
 - Gate: `G-remote-cloud-service-rfc` · Iniciativa: `remote-cloud-service` · Estado: en review
 - Autor: orchestrator · Fecha: 2026-09-30
 
 ## Problema
 
-El remote actual exige configurar `backend.url` y `project_id` por checkout, además de proporcionar `CLIMIER_TOKEN` y `CLIMIER_REMOTE_ORIGIN` fuera del repo. En el servidor, los proyectos permitidos y los tokens están definidos en un archivo estático; no hay identidad de usuario, membresía de organización ni gestión de proyectos como producto. El estado remoto ya es autoritativo y usa el kernel de Climier, pero la experiencia y el plano de control siguen siendo de operación manual para una instancia en un host.
+El remote actual requiere que cada checkout tenga `backend.url` y `project_id`, mientras cada comando remoto depende de un bearer y un origin-binding configurados manualmente. El servidor además mantiene una lista estática de proyectos y tokens. Eso complica el objetivo inmediato: una persona levanta un servidor Climier en su máquina, lo usa desde varios checkouts y comparte una sola contraseña de acceso con quien confíe.
 
-El usuario aprobó reemplazar esta experiencia, sin compatibilidad con el setup remoto anterior, y conservar el backend local. El objetivo es que una persona se autentique una vez, vincule su checkout a un proyecto y ejecute los comandos CLI contra un DAG compartido. Los secretos y preferencias viven en el perfil local; el DAG y los permisos del proyecto viven en el servicio. La primera topología debe poder alojarse sobre almacenamiento durable, pero no debe presentarse como alta disponibilidad ni como escalado horizontal.
+La decisión explícita del usuario es mantenerlo simple: **un servidor administrado por su operador, una contraseña general configurada al iniciar el servicio, un token para el cliente que inicia sesión, y acceso de ese token a todos los proyectos linkeados a ese servidor**. No se requieren cuentas, organizaciones, roles, membresías, invitaciones, billing ni alta pública. El backend local de Climier se conserva.
 
 ## Propuesta recomendada
 
-- Autenticar usuarios mediante un flujo estándar de device authorization/OIDC: `climier login` inicia la autorización en el navegador y guarda una sesión local administrada por Climier. El servicio alojado usa un issuer operado para Climier; una instalación propia configura su issuer. No implementar autenticación/passwords ni OAuth/OIDC propio.
-- Separar identidad, sesión, autorización, catálogo de proyectos y apertura del DAG. El servicio resuelve en cada request la identidad → membresía/rol → proyecto; la referencia del checkout no concede acceso. El API existente y el kernel server-side siguen ejecutando las operaciones.
-- Guardar en `.climier.json` únicamente el origen no secreto del servicio/perfil y el `project_id` opaco. La sesión se guarda en el perfil privado del usuario, nunca en el checkout; priorizar keychain del sistema y definir una opción portable explícita si no está disponible.
-- Dar un camino inicial concreto: el operador invita o aprovisiona al primer usuario propietario; ese owner crea una organización/proyecto y puede invitar miembros. La creación/linking muestra y confirma servidor, organización y proyecto. Sin membresía o conexión, la CLI falla explícitamente; no muestra un DAG vacío ni cae a local.
-- Mantener el DAG y su ledger en el storage durable por proyecto existente, con un solo servicio writer por `stateHome`. La gestión de cuentas, organizaciones, membresías y catálogo necesita un control-plane durable transaccional separado. Como el runtime raíz es stdlib-only, el ADR debe evaluar store transaccional de filesystem single-instance vs introducir una dependencia/servicio externo. Elegir archivos hoy no implica que el futuro cambio a storage compartido sea transparente: sería una migración que debe conservar atomicidad, lock, ledger/fence y recovery.
-- No importar automáticamente datos/configuración de remote v1 ni mantener su protocolo, tokens estáticos o `push`/`pull`. El nuevo servicio empieza con proyectos nuevos. El CLI nuevo rechaza con error accionable una configuración v1; no manda credenciales ni usa backend local como fallback. Los datos v1 permanecen donde estén hasta que el operador los respalde o elimine; el producto nuevo no ofrece migración. El backend local no cambia.
+- El operador entrega la contraseña general al proceso `climier-server` mediante un mecanismo privado de startup (preferiblemente entorno/secret manager, nunca argumento visible, repo ni log). El servicio rechaza arrancar si falta.
+- `climier login --server <origin>` solicita la contraseña por entrada interactiva segura y la envía una vez por HTTPS. Si es válida, el server emite el bearer token que la CLI guarda fuera del repo, asociado al origin. Los comandos posteriores usan esa sesión. `climier logout` elimina la sesión local. El token autoriza **todos** los project IDs de esa instancia; no existe identidad individual ni ACL por proyecto.
+- `climier project link` crea/selecciona el ID opaco del checkout y guarda en `.climier.json` solo la URL pública del server y el ID no secreto. `climier init` provisiona el DAG remoto. El server genera una ruta hash-safe bajo su `dataRoot` para cada ID válido autenticado; no hace falta mantener `projectIds` manualmente en el config del server.
+- Los comandos built-in operan en el estado server-side existente (state, log, ledger y lock por proyecto). El cliente no mantiene una copia editable ni hace fallback local. Desconexión, contraseña incorrecta o token inválido producen un error explícito.
+- Rotar la contraseña general invalida el acceso de toda la instalación; todos sus clientes vuelven a hacer login. La autenticación identifica el servidor, no a la persona. `--as` continúa siendo texto de auditoría declarado por el cliente, no una identidad verificada. Cualquier persona con la contraseña/token puede acceder a todos los proyectos y declarar cualquier `--as`.
+- Se corta el mecanismo anterior de configuración remota (tokens manuales, `CLIMIER_TOKEN`, `CLIMIER_REMOTE_ORIGIN`, lista estática de credentials/projects y transferencias `push`/`pull`). No se mantiene compatibilidad ni migración automática desde remote v1. La configuración v1 falla con error de relink; no se leen sus secretos y no hay fallback local. Los datos previos quedan intactos en su storage anterior, fuera del servicio nuevo.
+- El primer target alojable es una instancia del server con storage durable en un único host. No promete HA o escalado horizontal. Se conservan el runtime stdlib-only, el kernel, el ledger/fence y el recovery por proyecto; backup y restore del `stateHome` son responsabilidad del operador.
 
-Flujo de usuario propuesto:
+Flujo de uso propuesto:
 
-```text
-climier login [--server <perfil>]
-climier project create <nombre>   # si el usuario tiene permiso
-climier project link              # en un checkout existente
+```sh
+# Una vez en cada equipo
+climier login --server https://climier.example.com
+
+# Una vez en cada checkout nuevo
+climier project link --server https://climier.example.com
+climier init
+
+# Uso normal, igual que en local
 climier status
+climier add-task ...
 ```
 
-La sintaxis final de `create`/`link`, la referencia exacta del servidor en el repo y el manejo de sesión quedan para ADR, pero el target remoto siempre se identifica sin ambigüedad como servidor/organización/proyecto.
+`project link` escribe una referencia server/project reproducible al clonar el repo. La sesión/token permanece en el home del usuario y nunca se commitea. Los nombres de comandos y la persistencia/rotación del token se fijan en ADR, manteniendo este modelo sin cuentas ni scopes por proyecto.
 
 ## Alternativas consideradas
 
 | Opción | Pros | Contras |
 |---|---|---|
-| Mantener bearer tokens estáticos, escondiéndolos tras `login` | Cambio corto; conserva el servidor actual | Mantiene gestión manual; no crea identidad ni membresías; login sería solo una pantalla sobre el modelo viejo. Rechazada. |
-| Identidad/passwords primera parte de Climier | UX propia | Obliga a construir y operar registro, recuperación, verificación, protección contra abuso y credenciales. Mayor riesgo; no recomendada. |
-| Device authorization/OIDC (recomendada) | Login estándar por navegador; CLI no recibe password; soporta issuer gestionado o configurado por self-hosted | Requiere configurar un issuer y fijar expiración, refresh y revocación. No se implementa un protocolo parcial propio. |
-| Access/refresh token en archivo privado local | Portable y stdlib-only | Permisos `0600` reducen lectura por otros usuarios, pero no cifran el token. Preferir keychain; definir fallback explícito. |
-| Archivos por proyecto en volumen durable, instancia única (recomendada inicialmente para DAG) | Reutiliza kernel, ledger, recovery y storage; stdlib-only; se puede alojar en VM/container | Single point of availability; no despliegue horizontal ni failover automático. |
-| Base/servicio transaccional compartido desde el primer release | Prepara HA y control-plane multi-instancia | Requiere dependencia/servicio y migrar contratos de commit/recovery; contradice potencialmente el límite stdlib-only. Decidirlo explícitamente. |
+| Una contraseña general de la instancia → bearer global (recomendada) | UX mínima; un login por máquina; todos los proyectos de esa instalación; sin gestión de cuentas o ACL | Compartir credencial concede acceso total; no hay identidad individual ni revocación por persona/proyecto; `--as` es autodeclarado. Aceptable para el objetivo personal/operador confiable. |
+| Tokens estáticos de configuración compartidos por checkout | Implementación parecida al remote actual | Persiste la fricción de variables/configuración manual y no da un flujo de login. Rechazada. |
+| Cuentas, organizaciones, roles, OIDC y scopes por proyecto | Aislamiento multiusuario y cloud SaaS | Exceso de alcance para el objetivo actual, exige control-plane y ciclos de vida de cuentas. Fuera de alcance. |
+| Estado en DB compartida y server horizontal desde el inicio | Facilita HA/escalado | Cambia el contrato transaccional/ledger y añade infraestructura; no se necesita para alojar la instancia propia inicial. Fuera de alcance. |
 
 ## Alcance
 
 - Dentro:
-  - UX de sesión CLI (`login`/`logout`) y configuración de servidores/perfiles.
-  - Autenticación de usuarios mediante protocolo estándar y autorización por membresía/proyecto.
-  - Crear/vincular proyectos por el servicio; la referencia en el repo no es un secreto ni concede acceso.
-  - DAG remoto autoritativo, sin espejo/cache offline ni fallback local.
-  - Retirar el contrato remoto anterior de credenciales estáticas, `CLIMIER_TOKEN`, `CLIMIER_REMOTE_ORIGIN`, transferencias remotas `push`/`pull`, pruebas y documentación. No ofrecer compatibilidad ni migración automática desde el remote actual.
-  - Mantener intacto el backend local, salvo seams compartidos necesarios y cubiertos por tests.
-  - Servicio alojable sobre storage durable single-instance; documentar backup/restore coordinado del control-plane, state y ledger, y el límite de disponibilidad.
-- Fuera salvo decisión posterior:
-  - Billing, cuotas y panel web completo.
-  - Alta pública abierta; primer owner por invitación/bootstrap del operador.
-  - HA multi-región, escalado horizontal, caché/offline y sincronización de DAGs.
-  - Import/export de datos v1; los datos viejos no se modifican ni borran desde el producto nuevo.
+  - `climier login` / `logout`: pedir la contraseña de la instancia de forma segura, recibir/guardar el token en perfil de usuario por server origin y usarlo en requests posteriores.
+  - Configuración de la contraseña al iniciar el server y endpoint de login/token con verificación segura, rate limiting básico y transporte HTTPS fuera de loopback.
+  - Credencial global para la instancia: una sesión/token tiene acceso a cualquier ID de proyecto de ese server; rotar la contraseña invalida sesiones existentes.
+  - `climier project link`: crear o vincular un ID opaco y persistir URL+ID no secretos en `.climier.json`.
+  - Provisionamiento dinámico y seguro del storage de proyectos sin allowlist estática; paths hash-safe y confinados.
+  - Retirar el contrato remoto v1 por token/env y `push`/`pull`, pruebas y docs; error claro ante config antigua, sin fallback local ni migración.
+  - Mantener local mode, operaciones core, atomicidad state+log y ledger/fence.
+- Fuera:
+  - Cuentas, contraseña por usuario, organizations/teams, roles, memberships, invitaciones, ACL por proyecto, OIDC, billing y UI de administración.
+  - Identidad individual garantizada en el log; el actor `--as` sigue siendo etiqueta de auditoría.
+  - Importar datos/configuración remote v1, compatibilidad con sus tokens o transferencias.
+  - Cache offline, sincronización automática, multi-instancia, HA y storage compartido.
   - Eliminar el backend local.
 
-## Riesgos y preguntas para el ADR
+## Riesgos y preguntas para ADR
 
-- **Issuer y sesión:** elegir issuer inicial, formato de sesión, expiración, refresh/revocación y keychain/fallback local; el ADR debe evitar credenciales persistentes en texto claro por defecto y nunca escribirlas a `.climier.json` o logs.
-- **Control-plane durable:** usuarios/organizaciones/membresías/proyectos requieren fuente de verdad y transacciones concurrentes. Comparar store filesystem single-writer stdlib-only con servicio externo/DB y señalar explícitamente garantías y migración futura.
-- **Aislamiento:** probar acceso entre organizaciones, proyecto no permitido y revocación de una membresía frente a requests nuevos.
-- **Bootstrap:** especificar cómo el operador crea/invita al primer owner, cómo este crea la primera organización/proyecto e invita al equipo, y cómo el servicio alojado configura ese flujo sin alta anónima.
-- **Referencia del checkout:** especificar cómo un clone en otra máquina descubre el servidor y el proyecto sin llevar credenciales, y qué perfil local se necesita para servidores self-hosted.
-- **Fallos:** auth inválida, membresía revocada, proyecto no vinculado o red caída deben producir error inequívoco con servidor/organización/proyecto y fallar cerrado, nunca devolver vacío ni usar local.
-- **Corte remoto v1:** config v1 detectada debe retornar error de configuración/protocolo antes de enviar bearer; el nuevo CLI no abre ni importa storage remoto v1, no instala el legacy backend y no ejecuta transferencias v1. Los datos originales quedan intactos fuera del servicio nuevo.
-- **Storage futuro:** sustituir el store single-instance por uno compartido no es un cambio de adapter trivial; requerirá ADR/migración que conserve state+log atómicos, revisión monotónica, fencing, lock/recovery y aislamiento por tenant.
+- **Secreto global:** una filtración da acceso a todos los DAGs del server. Exigir HTTPS por defecto; contraseña de alta entropía; no aceptar credenciales en URL/argv/log; comparar con constant-time; limitar intentos de login; guardar tokens fuera del repo con permisos privados; documentar que compartir la contraseña comparte control total.
+- **Token emitido:** definir formato, almacenamiento server-side vs firmado, persistencia después de reinicio, expiración y revocación global. Debe ser bearer aleatorio no derivable de la contraseña; rotar la contraseña debe invalidar los anteriores. No necesita identidad por usuario ni CRUD de sesiones.
+- **Almacenamiento local del token:** definir ubicación privada y permisos (y manejo en plataformas soportadas); no agregar dependencia al runtime CLI. El logout debe borrar la sesión asociada solo al server indicado.
+- **Project link/provisioning:** definir si `link` crea un ID nuevo automáticamente o también acepta uno existente; validar tamaño/formato del ID y resolverlo a una ruta hash-safe bajo `dataRoot`; auth siempre antes de crear/abrir storage.
+- **No fallback:** backend remoto configurado con credenciales ausentes, viejas o inválidas nunca debe leer/escribir state local; cubrir reads, writes, init, batch y error de protocolo.
+- **Límite de alojamiento:** una instancia con volumen durable es hostable pero no HA. Backup/restore debe incluir state y revision-ledger juntos; locks stale requieren recovery manual verificado según contrato actual.
+- **Corte v1:** el cliente nuevo no procesa `backend.type=remote` legacy ni sus variables. Error accionable que indique relink/login; no auto-migrar ni borrar los archivos antiguos.
 
 ## ADRs derivados (se completa al aprobar)
 
-- [ ] ADR: autenticación estándar de usuarios y ciclo de vida de sesión CLI.
-- [ ] ADR: organizaciones, membresías, bootstrap, autorización y provisioning de proyectos.
-- [ ] ADR: store transaccional del control-plane, storage del DAG y topología del primer servicio alojado.
-- [ ] ADR: nuevo contrato CLI/config y corte del remote v1 sin compatibilidad.
+- [ ] ADR: contraseña de instancia, emisión/validación/rotación del token y sesión CLI local.
+- [ ] ADR: metadata de proyecto, `project link` y provisioning dinámico confinado.
+- [ ] ADR: corte de contrato remoto v1 (sin compatibilidad), routing y superficies retiradas.
+- [ ] ADR: runbook y pruebas de la instancia single-host con almacenamiento durable.
