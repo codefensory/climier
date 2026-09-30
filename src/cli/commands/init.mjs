@@ -37,16 +37,13 @@ async function initRemote(backendClient, force) {
     error.details = { command: "init", option: "--force" };
     throw error;
   }
-  const result = await backendClient.init();
-  const response = { ok: true, seeded: result?.seeded ?? null, file: null };
   if (backendClient.insecureRemoteHttp === true) {
-    response.warnings = [{
-      kind: "insecure-remote-http",
-      severity: "warning",
-      message: "init: remote HTTP is enabled by CLIMIER_ALLOW_INSECURE_REMOTE_HTTP=true; bearer credentials are sent without transport encryption. Internal trusted networks only.",
-    }];
+    const error = new Error("init: remote origin must use HTTPS outside localhost");
+    error.code = "REMOTE_INSECURE_ORIGIN";
+    throw error;
   }
-  return response;
+  const result = await backendClient.init();
+  return { ok: true, seeded: result?.seeded ?? null, file: null };
 }
 
 async function initLocal({ dir, force, flags, pluginId }) {
