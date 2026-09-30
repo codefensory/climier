@@ -5,6 +5,7 @@ import { createBuiltinOperationRegistry } from "../application/operations/builti
 import { remoteV2Manifest } from "../application/operations/remote-v2-manifest.mjs";
 import { mutate } from "../kernel/mutate.mjs";
 import { createHttpReads } from "./http/reads.mjs";
+import { executeTransferRequest, validateTransferRequest } from "./http/transfers.mjs";
 import * as readModel from "../read-model/index.mjs";
 import { readState } from "../storage/state.mjs";
 import { initState } from "../kernel/state-operations.mjs";
@@ -95,9 +96,14 @@ function isInitRoute(request, route) {
 function matchRequestRoute(request, route) {
   const operationRoute = isOperationRoute(request, route);
   const initRoute = isInitRoute(request, route);
+  const transferRoute = request.method === "GET" && route.route === "transfer/export"
+    ? "transfer/export"
+    : request.method === "POST" && route.route === "transfer/import"
+      ? "transfer/import"
+      : null;
   const read = request.method === "GET" ? reads.matchReadRoute(route.route) : null;
-  if (read || operationRoute || initRoute) {
-    return { operationRoute, initRoute, read };
+  if (read || operationRoute || initRoute || transferRoute) {
+    return { operationRoute, initRoute, transferRoute, read };
   }
   if (route.route.startsWith("transfer/") || route.route.startsWith("files/") || route.route === "snapshot" || route.route === "read/snapshot") {
     throw httpError("ROUTE_NOT_FOUND", "server http: route was not found", undefined, 404);
@@ -113,6 +119,9 @@ async function readRequestInput(request, route, matched) {
   if (matched.initRoute) {
     body = await readJsonBody(request);
     validateInitBody(body);
+  }
+  if (matched.transferRoute === "transfer/import") {
+    body = validateTransferRequest(await readJsonBody(request), httpError);
   }
   const query = matched.read ? reads.parseReadQuery(new URL(request.url || "/", "http://localhost"), matched.read) : null;
   return { body, query };
@@ -167,6 +176,17 @@ async function sendRouteResult({ response, route, matched, body, query, project,
       source: operationSource(dependencies),
       manifest: remoteV2Manifest,
     });
+    send(response, 200, { ok: true, result });
+    return;
+  }
+  if (matched.transferRoute) {
+    const installed = await executeTransferRequest({
+      projectDir: project.projectDir,
+      route: matched.transferRoute,
+      body,
+      httpError,
+    });
+    const result = matched.transferRoute === "transfer/export" ? installed : { revision: installed.revision };
     send(response, 200, { ok: true, result });
     return;
   }
