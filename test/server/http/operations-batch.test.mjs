@@ -7,20 +7,20 @@ import path from "node:path";
 import { createProjectCatalog } from "../../../src/server/catalog/index.mjs";
 import { createRemoteApiServer } from "../../../src/server/http.mjs";
 import { dispatchOperationRequest, validateOperationRequest } from "../../../src/server/http/operations.mjs";
-import { remoteV1Manifest } from "../../../src/application/operations/remote-v1-manifest.mjs";
+import { remoteV2Manifest } from "../../../src/application/operations/remote-v2-manifest.mjs";
 import { bootstrapFencedState } from "../../../src/storage/ledger.mjs";
-import { authHeaders, operation, withApi } from "./fixtures.mjs";
+import { authHeaders, operation, testAuthStore, withApi } from "./fixtures.mjs";
 
 
 async function assertCreatedTaskProjection(baseUrl) {
-  const status = await fetch(`${baseUrl}/v1/projects/project-a/read/status`, { headers: authHeaders() });
+  const status = await fetch(`${baseUrl}/v2/projects/project-a/read/status`, { headers: authHeaders() });
   assert.equal(status.status, 200);
   const statusBody = await status.json();
   assert.equal(statusBody.ok, true);
   assert.equal(statusBody.result.summary.ready, 1);
   assert.deepEqual(statusBody.result.tasks.ready.map((task) => task.id), ["T-remote-1"]);
 
-  const node = await fetch(`${baseUrl}/v1/projects/project-a/read/nodes/T-remote-1`, { headers: authHeaders() });
+  const node = await fetch(`${baseUrl}/v2/projects/project-a/read/nodes/T-remote-1`, { headers: authHeaders() });
   assert.equal(node.status, 200);
   const nodeBody = await node.json();
   assert.equal(nodeBody.result.node.title, "Remote task");
@@ -28,7 +28,7 @@ async function assertCreatedTaskProjection(baseUrl) {
   assert.deepEqual(nodeBody.result.blocking, []);
 }
 
-test("HTTP v1 delegates core operations and read projections through server boundaries", async () => {
+test("HTTP v2 delegates core operations and read projections through server boundaries", async () => {
   await withApi(async ({ baseUrl }) => {
     const createdInitiative = await operation(baseUrl, "project-a", "initiative.create", {
       name: "remote",
@@ -146,7 +146,7 @@ async function assertFailedBatchIsAtomic(baseUrl, projectDir, expectedRevision) 
   assert.deepEqual(Object.keys(unchanged.initiatives), ["batch-remote"]);
 }
 
-test("HTTP v1 executes core.batch through one canonical server mutation", async () => {
+test("HTTP v2 executes core.batch through one canonical server mutation", async () => {
   await withApi(async ({ baseUrl, projectDirs }) => {
     const { readState } = await import("../../../src/storage/state.mjs");
     await bootstrapFencedState(projectDirs[0]);
@@ -179,7 +179,7 @@ test("HTTP v1 executes core.batch through one canonical server mutation", async 
 
 test("HTTP operation module accepts manifest capabilities and receives complete source at dispatch", async () => {
   const request = validateOperationRequest({ operation: "initiative.create", actor: "alice", input: { name: "valid" } }, {
-    manifest: remoteV1Manifest,
+    manifest: remoteV2Manifest,
     httpError,
   });
   const calls = [];
@@ -188,7 +188,7 @@ test("HTTP operation module accepts manifest capabilities and receives complete 
     projectDir: "/trusted/project",
     body: request,
     source,
-    manifest: remoteV1Manifest,
+    manifest: remoteV2Manifest,
     executeOperation: async (args) => { calls.push(args); return { ok: true }; },
     executeBatch: async () => { throw new Error("unexpected batch dispatch"); },
   });
@@ -199,16 +199,16 @@ test("HTTP operation module accepts manifest capabilities and receives complete 
   assert.equal(calls[0].projectDir, "/trusted/project");
 });
 
-test("HTTP v1 dispatches operations with the complete server-owned source", async () => {
+test("HTTP v2 dispatches operations with the complete server-owned source", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "climier-server-operation-source-"));
   try {
-    const catalog = createProjectCatalog({ dataRoot: path.join(root, "catalog"), projectIds: ["project-a"] });
+    const catalog = createProjectCatalog({ dataRoot: path.join(root, "catalog") });
     const projectDir = await catalog.provisionProject("project-a");
     const calls = [];
     const provider = { prepare() {}, apply() {} };
     const server = createRemoteApiServer({
       catalog,
-      credentials: [{ token: "test-token", projectIds: ["project-a"] }],
+      authStore: testAuthStore,
       registry: { lookup(operationId) { calls.push(["lookup", operationId]); return { provider }; } },
       mutate: async (mutation) => { calls.push(["mutate", mutation]); return { marker: "server-mutation" }; },
       selectPolicy: async (context) => { calls.push(["policy", context.projectDir]); return null; },
@@ -232,7 +232,7 @@ test("HTTP v1 dispatches operations with the complete server-owned source", asyn
 });
 
 async function assertInvalidActor(baseUrl) {
-  const invalidActor = await fetch(`${baseUrl}/v1/projects/project-a/operations`, {
+  const invalidActor = await fetch(`${baseUrl}/v2/projects/project-a/operations`, {
     method: "POST",
     headers: authHeaders({ "content-type": "application/json" }),
     body: JSON.stringify({ operation: "core.batch", actor: "", input: { operations: [{ op: "initiative.create", input: { name: "valid" } }] } }),
@@ -241,14 +241,14 @@ async function assertInvalidActor(baseUrl) {
   assert.equal((await invalidActor.json()).error.code, "INVALID_REQUEST");
 }
 
-test("HTTP v1 validates core.batch schema and nested operation inputs before opening storage", async () => {
+test("HTTP v2 validates core.batch schema and nested operation inputs before opening storage", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "climier-server-batch-schema-"));
   try {
-    const catalog = createProjectCatalog({ dataRoot: path.join(root, "catalog"), projectIds: ["project-a"] });
+    const catalog = createProjectCatalog({ dataRoot: path.join(root, "catalog") });
     let openCount = 0;
     const server = createRemoteApiServer({
       catalog,
-      credentials: [{ token: "test-token", projectIds: ["project-a"] }],
+      authStore: testAuthStore,
       async openProject(projectDir) { openCount += 1; return { projectDir }; },
     });
     await new Promise((resolve, reject) => { server.once("error", reject); server.listen(0, "127.0.0.1", resolve); });
@@ -280,9 +280,9 @@ test("HTTP v1 validates core.batch schema and nested operation inputs before ope
   }
 });
 
-test("HTTP v1 validates protocol and auth for core.batch before opening storage", async () => {
+test("HTTP v2 validates protocol and auth for core.batch before opening storage", async () => {
   await withApi(async ({ baseUrl, openCount }) => {
-    const route = `${baseUrl}/v1/projects/project-a/operations`;
+    const route = `${baseUrl}/v2/projects/project-a/operations`;
     const body = JSON.stringify({ operation: "core.batch", actor: "alice", input: { operations: [{ op: "initiative.create", input: { name: "no-open" } }] } });
     for (const { headers, status, code } of [
       { headers: { "content-type": "application/json" }, status: 426, code: "PROTOCOL_VERSION_UNSUPPORTED" },
@@ -297,7 +297,7 @@ test("HTTP v1 validates protocol and auth for core.batch before opening storage"
   });
 });
 
-test("HTTP v1 returns structured errors and exposes no generic file endpoint", async () => {
+test("HTTP v2 returns structured errors and exposes no generic file endpoint", async () => {
   await withApi(async ({ baseUrl }) => {
     const unknownOperation = await operation(baseUrl, "project-a", "filesystem.read", { path: "tasks.json" });
     assert.equal(unknownOperation.status, 404);
@@ -310,7 +310,7 @@ test("HTTP v1 returns structured errors and exposes no generic file endpoint", a
     assert.equal(error.details.name, "bad/name");
 
     for (const endpoint of ["snapshot", "read/snapshot", "files/tasks.json"]) {
-      const response = await fetch(`${baseUrl}/v1/projects/project-a/${endpoint}`, { headers: authHeaders() });
+      const response = await fetch(`${baseUrl}/v2/projects/project-a/${endpoint}`, { headers: authHeaders() });
       assert.equal(response.status, 404);
       assert.equal((await response.json()).error.code, "ROUTE_NOT_FOUND");
     }

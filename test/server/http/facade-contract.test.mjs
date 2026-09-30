@@ -10,11 +10,11 @@ test("HTTP codec keeps path and body decoding contracts and receives the public 
   const codec = createHttpCodec({ protocolVersion: PROTOCOL_VERSION });
   assert.equal(codec.protocolVersion, PROTOCOL_VERSION);
 
-  assert.deepEqual(codec.parseProjectPath("/v1/projects/project-a/read/status"), {
+  assert.deepEqual(codec.parseProjectPath("/v2/projects/project-a/read/status"), {
     projectId: "project-a",
     route: "read/status",
   });
-  assert.throws(() => codec.parseProjectPath("/v1/projects/%E0%A4%A/read/status"), {
+  assert.throws(() => codec.parseProjectPath("/v2/projects/%E0%A4%A/read/status"), {
     code: "INVALID_PROJECT_ID",
     status: 400,
   });
@@ -45,21 +45,32 @@ async function assertOperationResponse(baseUrl) {
 }
 
 async function assertReadResponse(baseUrl) {
-  const readResponse = await fetch(`${baseUrl}/v1/projects/project-a/read/status`, { headers: authHeaders() });
+  const readResponse = await fetch(`${baseUrl}/v2/projects/project-a/read/status`, { headers: authHeaders() });
   const readText = await readResponse.text();
   assert.equal(readResponse.status, 200);
   assertHeaders(readResponse, readText);
   assert.deepEqual(Object.keys(JSON.parse(readText)), ["ok", "result"]);
 }
 
-async function assertTransferResponse(baseUrl) {
-  const transferResponse = await fetch(`${baseUrl}/v1/projects/project-a/transfer/export`, {
-    method: "POST", headers: authHeaders({ "content-type": "application/json" }), body: "{}",
+async function assertLoginResponse(baseUrl) {
+  const loginHeaders = { "x-climier-protocol-version": PROTOCOL_VERSION, "content-type": "application/json" };
+  const loginResponse = await fetch(`${baseUrl}/v2/auth/login`, {
+    method: "POST",
+    headers: loginHeaders,
+    body: JSON.stringify({ password: "password" }),
   });
-  const transferText = await transferResponse.text();
-  assert.equal(transferResponse.status, 200);
-  assertHeaders(transferResponse, transferText);
-  assert.deepEqual(Object.keys(JSON.parse(transferText)), ["ok", "result"]);
+  const loginText = await loginResponse.text();
+  assert.equal(loginResponse.status, 200);
+  assertHeaders(loginResponse, loginText);
+  assert.deepEqual(JSON.parse(loginText), { ok: true, token: "test-token", token_type: "Bearer", expires_in_days: 30 });
+
+  const wrong = await fetch(`${baseUrl}/v2/auth/login`, {
+    method: "POST",
+    headers: loginHeaders,
+    body: JSON.stringify({ password: "wrong" }),
+  });
+  assert.equal(wrong.status, 401);
+  assert.equal((await wrong.json()).error.code, "AUTH_INVALID");
 }
 
 async function assertErrorResponse(baseUrl) {
@@ -78,7 +89,7 @@ async function assertErrorResponse(baseUrl) {
 }
 
 async function assertInitResponses(baseUrl) {
-  const route = `${baseUrl}/v1/projects/catalogued/init`;
+  const route = `${baseUrl}/v2/projects/catalogued/init`;
   const initialized = await fetch(route, {
     method: "POST", headers: authHeaders({ "content-type": "application/json" }), body: "{}",
   });
@@ -99,12 +110,12 @@ async function assertInitResponses(baseUrl) {
 test("HTTP facade exports and response headers/envelopes remain stable", async () => {
   assert.deepEqual(Object.keys(httpServer).toSorted(), ["PROTOCOL_VERSION", "createRemoteApiServer"]);
   assert.equal(typeof createRemoteApiServer, "function");
-  assert.equal(PROTOCOL_VERSION, "1");
+  assert.equal(PROTOCOL_VERSION, "2");
 
   await withApi(async ({ baseUrl }) => {
     await assertOperationResponse(baseUrl);
     await assertReadResponse(baseUrl);
-    await assertTransferResponse(baseUrl);
+    await assertLoginResponse(baseUrl);
     await assertErrorResponse(baseUrl);
   });
 

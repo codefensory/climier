@@ -5,6 +5,8 @@ import path from "node:path";
 import { createProjectCatalog } from "./catalog/index.mjs";
 import { createRemoteApiServer } from "./http.mjs";
 import { loadServerRuntimeConfig, parseServerRuntimeConfig } from "./runtime-config.mjs";
+import { createServerAuthStore } from "./auth/server-auth-store.mjs";
+import { acquireServerServiceLock } from "./service-lock.mjs";
 
 function runtimeError(code, message) {
   return Object.assign(new Error(`server runtime: ${message}`), { code });
@@ -81,58 +83,72 @@ async function initializeProjectMetadata(metadataFile, expectedProjectId) {
   assertMetadataIdentity(metadata, expectedProjectId, "project metadata was replaced during initialization");
 }
 
-async function ensureProjectMetadata(metadataFile, expectedProjectId) {
+async function ensureProjectMetadata(metadataFile, expectedProjectId, { create }) {
   const metadata = await validateMetadataFile(metadataFile);
   if (metadata) {
     assertMetadataIdentity(metadata, expectedProjectId, "project metadata does not match the trusted catalog identity");
     return;
   }
+  if (!create) {
+    throw runtimeError("UNKNOWN_PROJECT", "project metadata is not initialized");
+  }
   await initializeProjectMetadata(metadataFile, expectedProjectId);
 }
 
-function createOpenProject({ catalog, internalIds, pinnedHome }) {
-  return async function openProject(projectDir, { projectId } = {}) {
-    const expectedProjectId = internalIds.get(projectId);
-    if (!expectedProjectId) {
-      throw runtimeError("UNKNOWN_PROJECT", "project is not in the trusted catalog");
-    }
+function createOpenProject({ catalog, pinnedHome }) {
+  return async function openProject(projectDir, { projectId, create = false } = {}) {
     pinnedHome.assertPinned();
-    const trustedDirectory = await catalog.resolveProject(projectId);
+    const trustedDirectory = create ? await catalog.provisionProject(projectId) : await catalog.resolveProject(projectId);
     if (path.resolve(projectDir) !== trustedDirectory) {
       throw runtimeError("UNSAFE_PROJECT_STORAGE", "project opener only accepts catalog-resolved storage");
     }
     const metadataFile = path.join(trustedDirectory, ".climier.json");
-    await ensureProjectMetadata(metadataFile, expectedProjectId);
+    await ensureProjectMetadata(metadataFile, internalProjectId(projectId), { create });
     pinnedHome.assertPinned();
     return Object.freeze({ projectDir: trustedDirectory });
   };
 }
 
-export function createServerRuntime(rawConfig, { serverFactory = createRemoteApiServer } = {}) {
+export function createServerRuntime(rawConfig, { serverFactory = createRemoteApiServer, authStore } = {}) {
   const config = parseServerRuntimeConfig(rawConfig);
   const pinnedHome = pinStateHome(config.stateHome);
-  const catalog = createProjectCatalog({ dataRoot: config.dataRoot, projectIds: config.projectIds });
-  const internalIds = new Map(config.projectIds.map((projectId) => [projectId, internalProjectId(projectId)]));
-  const openProject = createOpenProject({ catalog, internalIds, pinnedHome });
-  const server = serverFactory({ catalog, credentials: config.credentials, openProject });
-  return Object.freeze({ config, catalog, openProject, server, stateHome: pinnedHome.path });
+  const catalog = createProjectCatalog({ dataRoot: config.dataRoot });
+  const openProject = createOpenProject({ catalog, pinnedHome });
+  const server = authStore ? serverFactory({ catalog, authStore, openProject }) : null;
+  return Object.freeze({ config, catalog, openProject, server, stateHome: pinnedHome.path, authStore });
+}
+
+async function preparePrivateDirectory(directory) {
+  await fs.mkdir(directory, { recursive: true, mode: 0o700 });
+  if (process.platform !== "win32") {
+    await fs.chmod(directory, 0o700);
+  }
 }
 
 export async function startServerRuntime(configPath, options = {}) {
   const config = await loadServerRuntimeConfig(configPath);
-  const runtime = createServerRuntime(config, options);
-  process.env.CLIMIER_HOME = runtime.stateHome;
-  await fs.mkdir(runtime.stateHome, { recursive: true, mode: 0o700 });
-  if (process.platform !== "win32") {
-    await fs.chmod(runtime.stateHome, 0o700);
+  process.env.CLIMIER_HOME = path.resolve(config.stateHome);
+  await preparePrivateDirectory(config.stateHome);
+  const serviceLock = await (options.acquireLock || acquireServerServiceLock)(config.stateHome);
+  let runtime;
+  try {
+    await preparePrivateDirectory(config.dataRoot);
+    const authStore = options.authStore || await (options.createAuthStore || createServerAuthStore)({
+      stateHome: config.stateHome,
+      password: options.password ?? process.env.CLIMIER_SERVER_PASSWORD,
+      now: options.now,
+      testHooks: options.authTestHooks,
+    });
+    runtime = createServerRuntime(config, { ...options, authStore });
+    await new Promise((resolve, reject) => {
+      runtime.server.once("error", reject);
+      runtime.server.listen(runtime.config.listen.port, runtime.config.listen.host, resolve);
+    });
+  } catch (error) {
+    await serviceLock.release().catch(() => {});
+    throw error;
   }
-  await fs.mkdir(runtime.config.dataRoot, { recursive: true, mode: 0o700 });
-  if (process.platform !== "win32") {
-    await fs.chmod(runtime.config.dataRoot, 0o700);
-  }
-  await new Promise((resolve, reject) => {
-    runtime.server.once("error", reject);
-    runtime.server.listen(runtime.config.listen.port, runtime.config.listen.host, resolve);
-  });
-  return runtime;
+  const release = async () => { await serviceLock.release(); };
+  runtime.server.once("close", () => { release().catch(() => {}); });
+  return Object.freeze({ ...runtime, serviceLock });
 }

@@ -83,30 +83,20 @@ async function ensureConfinedDirectory(dataRoot, storagePath, { create }) {
   return expectedPath;
 }
 
-export function createProjectCatalog({ dataRoot, projectIds = [] } = {}) {
+export function createProjectCatalog({ dataRoot } = {}) {
   if (typeof dataRoot !== "string" || dataRoot.length === 0) {
     throw contractError("INVALID_DATA_ROOT", "dataRoot must be a non-empty path");
-  }
-  const configuredIds = new Set(projectIds);
-  for (const projectId of configuredIds) {
-    validateProjectId(projectId);
   }
   const rootPath = path.resolve(dataRoot);
   const storagePathFor = (projectId) => path.join(rootPath, projectDirectoryName(projectId));
 
   async function resolveProject(projectId) {
     validateProjectId(projectId);
-    if (!configuredIds.has(projectId)) {
-      throw contractError("UNKNOWN_PROJECT", "project is not in the trusted catalog");
-    }
     return ensureConfinedDirectory(rootPath, storagePathFor(projectId), { create: false });
   }
 
   async function provisionProject(projectId) {
     validateProjectId(projectId);
-    if (!configuredIds.has(projectId)) {
-      throw contractError("UNKNOWN_PROJECT", "project is not in the trusted catalog");
-    }
     return ensureConfinedDirectory(rootPath, storagePathFor(projectId), { create: true });
   }
 
