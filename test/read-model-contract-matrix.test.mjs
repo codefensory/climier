@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { createRemoteApiServer } from "../src/server/http.mjs";
+import { createServerAuthStore } from "../src/server/auth/server-auth-store.mjs";
 import { createProjectCatalog } from "../src/server/catalog/index.mjs";
 import { initState } from "../src/kernel/state-operations.mjs";
 import { writeCanonicalState } from "./helpers.mjs";
@@ -32,8 +33,8 @@ async function source(url) {
   return fs.readFile(url, "utf8");
 }
 
-function authHeaders() {
-  return { authorization: "Bearer test-token", "x-climier-protocol-version": "1" };
+function authHeaders(token) {
+  return { authorization: `Bearer ${token}`, "x-climier-protocol-version": "2" };
 }
 
 async function runCli(projectDir, command, query, positional) {
@@ -83,9 +84,11 @@ async function withParityEnvironment(run) {
   const catalog = createProjectCatalog({ dataRoot: path.join(root, "catalog"), projectIds: ["matrix"] });
   const projectDir = await catalog.provisionProject("matrix");
   await initState({ projectDir });
+  const authStore = await createServerAuthStore({ stateHome: path.join(root, "server-auth"), password: "fixture-password" });
+  const token = await authStore.login("fixture-password");
   const server = createRemoteApiServer({
     catalog,
-    credentials: [{ token: "test-token", projectIds: ["matrix"] }],
+    authStore,
     async openProject(storagePath) { return { projectDir: storagePath }; },
   });
   await new Promise((resolve, reject) => {
@@ -95,7 +98,7 @@ async function withParityEnvironment(run) {
   const baseUrl = `http://127.0.0.1:${server.address().port}`;
   try {
     await writeCanonicalState(projectDir, readModelParity.snapshot);
-    await run({ baseUrl, projectDir });
+    await run({ baseUrl, projectDir, token });
   } finally {
     await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     if (previousHome === undefined) {
@@ -149,10 +152,10 @@ test("pure search projection matches the fixture's active and historical knowled
 });
 
 test("canonical CLI and HTTP read owners match across every view fixture", async () => {
-  await withParityEnvironment(async ({ baseUrl, projectDir }) => {
+  await withParityEnvironment(async ({ baseUrl, projectDir, token }) => {
     for (const entry of canonicalReadMatrix) {
       const query = entry.query ? `?${entry.query}` : "";
-      const response = await fetch(`${baseUrl}/v1/projects/matrix/${entry.route}${query}`, { headers: authHeaders() });
+      const response = await fetch(`${baseUrl}/v2/projects/matrix/${entry.route}${query}`, { headers: authHeaders(token) });
       assert.equal(response.status, 200, `${entry.name}: HTTP ${JSON.stringify(await response.clone().json())}`);
       const http = (await response.json()).result;
       const cli = await runCli(projectDir, entry.command, entry.query, entry.positional);

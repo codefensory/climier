@@ -6,6 +6,8 @@ import path from "node:path";
 import { createServer } from "node:http";
 
 import { createRemoteApiServer } from "../src/server/http.mjs";
+import { createServerAuthStore } from "../src/server/auth/server-auth-store.mjs";
+import { createCredentialStore } from "../src/storage/credential-profile.mjs";
 import { createProjectCatalog } from "../src/server/catalog/index.mjs";
 import { initState } from "../src/kernel/state-operations.mjs";
 import { PUBLIC_CORE_OPS, PUBLIC_GATE_OPS, PUBLIC_KNOWLEDGE_OPS, PUBLIC_TASK_OPS } from "../src/application/operations/builtins.mjs";
@@ -38,7 +40,7 @@ async function createLocalProject(root, projectId) {
   await fs.writeFile(path.join(projectDir, ".climier.json"), JSON.stringify({
     version: 1,
     project_id: projectId,
-    backend: { type: "remote", url: "http://127.0.0.1:1" },
+    backend: { type: "remote", url: "http://127.0.0.1:1", protocol: "v2" },
   }));
   await writeCanonicalState(projectDir, localSentinel);
   return projectDir;
@@ -48,10 +50,12 @@ async function startRemoteApi(root, projectId) {
   const catalog = createProjectCatalog({ dataRoot: path.join(root, "catalog"), projectIds: [projectId] });
   const remoteDir = await catalog.provisionProject(projectId);
   await initState({ projectDir: remoteDir });
+  const authStore = await createServerAuthStore({ stateHome: path.join(root, "server-auth"), password: "fixture-password" });
+  const token = await authStore.login("fixture-password");
   let opens = 0;
   const api = createRemoteApiServer({
     catalog,
-    credentials: [{ token: "write-token", projectIds: [projectId] }],
+    authStore,
     async openProject(projectDirForRequest) {
       opens += 1;
       return { projectDir: projectDirForRequest };
@@ -61,7 +65,7 @@ async function startRemoteApi(root, projectId) {
     api.once("error", reject);
     api.listen(0, "127.0.0.1", resolve);
   });
-  return { remoteDir, api, openCount: () => opens };
+  return { remoteDir, api, token, openCount: () => opens };
 }
 
 async function closeServer(server) {
@@ -70,16 +74,26 @@ async function closeServer(server) {
 
 async function prepareRemoteFixture(root, projectId, home) {
   const projectDir = await createLocalProject(root, projectId);
-  const { remoteDir, api, openCount } = await startRemoteApi(root, projectId);
+  const { remoteDir, api, token, openCount } = await startRemoteApi(root, projectId);
   const apiUrl = `http://127.0.0.1:${api.address().port}`;
   await changeBackendUrl(projectDir, apiUrl);
+  const profile = createCredentialStore({ home });
+  await profile.set(apiUrl, token);
+  const remoteEnv = {
+    ...process.env,
+    CLIMIER_HOME: home,
+    CLIMIER_TOKEN: undefined,
+    CLIMIER_REMOTE_ORIGIN: undefined,
+  };
   return {
     projectDir,
     remoteDir,
     api,
     apiUrl,
+    token,
+    profile,
     openCount,
-    remoteEnv: { CLIMIER_HOME: home, CLIMIER_TOKEN: "write-token", CLIMIER_REMOTE_ORIGIN: apiUrl },
+    remoteEnv,
   };
 }
 
@@ -126,6 +140,7 @@ async function changeBackendUrl(projectDir, url) {
   const file = path.join(projectDir, ".climier.json");
   const config = JSON.parse(await fs.readFile(file, "utf8"));
   config.backend.url = url;
+  config.backend.protocol = "v2";
   await fs.writeFile(file, JSON.stringify(config));
 }
 
@@ -316,8 +331,9 @@ test("remote repeated resolve of a resolved gate fails with INVALID_STATUS", asy
 });
 
 async function checkAuthAndProtocolRejection(fixture, before) {
-  const { projectDir, apiUrl, remoteEnv } = fixture;
-  const unauthorized = await cli(projectDir, "add-initiative", ["unauthorized", "--as", "alice"], { ...remoteEnv, CLIMIER_TOKEN: "invalid-token" });
+  const { projectDir, apiUrl, remoteEnv, profile, token } = fixture;
+  await profile.set(apiUrl, "invalid-token");
+  const unauthorized = await cli(projectDir, "add-initiative", ["unauthorized", "--as", "alice"], remoteEnv);
   assert.notEqual(unauthorized.code, 0);
   assert.equal(unauthorized.body.error.code, "AUTH_INVALID");
   await preserveSentinel(projectDir, before);
@@ -325,16 +341,20 @@ async function checkAuthAndProtocolRejection(fixture, before) {
   const proxy = responseProtocolProxy(apiUrl);
   await new Promise((resolve, reject) => { proxy.once("error", reject); proxy.listen(0, "127.0.0.1", resolve); });
   const proxyUrl = `http://127.0.0.1:${proxy.address().port}`;
-  await changeBackendUrl(projectDir, proxyUrl);
-  const protocol = await cli(projectDir, "add-initiative", ["protocol-error", "--as", "alice"], { ...remoteEnv, CLIMIER_REMOTE_ORIGIN: proxyUrl });
-  assert.notEqual(protocol.code, 0);
-  assert.equal(protocol.body.error.code, "PROTOCOL_VERSION_UNSUPPORTED");
-  await preserveSentinel(projectDir, before);
-  await closeServer(proxy);
+  try {
+    await profile.set(proxyUrl, token);
+    await changeBackendUrl(projectDir, proxyUrl);
+    const protocol = await cli(projectDir, "add-initiative", ["protocol-error", "--as", "alice"], remoteEnv);
+    assert.notEqual(protocol.code, 0);
+    assert.equal(protocol.body.error.code, "PROTOCOL_VERSION_UNSUPPORTED");
+    await preserveSentinel(projectDir, before);
+  } finally {
+    await closeServer(proxy);
+  }
 }
 
 async function checkRemoteValidationAndNetworkRejection(fixture, before, initialRemote) {
-  const { projectDir, remoteDir, api, apiUrl, remoteEnv, openCount } = fixture;
+  const { projectDir, remoteDir, api, apiUrl, remoteEnv, openCount, profile, token } = fixture;
   await changeBackendUrl(projectDir, apiUrl);
   const remoteBeforeRejection = await readState(remoteDir);
   const opensBeforeRejection = openCount();
@@ -346,8 +366,10 @@ async function checkRemoteValidationAndNetworkRejection(fixture, before, initial
   assert.notDeepEqual(remoteBeforeRejection, initialRemote, "valid setup mutation succeeded remotely");
   assert.deepEqual(await readState(remoteDir), remoteBeforeRejection, "rejected remote write has no remote side effect");
 
-  await changeBackendUrl(projectDir, "http://127.0.0.1:1");
-  const unavailable = await cli(projectDir, "add-initiative", ["network-error", "--as", "alice"], { ...remoteEnv, CLIMIER_REMOTE_ORIGIN: "http://127.0.0.1:1" });
+  const unavailableUrl = "http://127.0.0.1:1";
+  await profile.set(unavailableUrl, token);
+  await changeBackendUrl(projectDir, unavailableUrl);
+  const unavailable = await cli(projectDir, "add-initiative", ["network-error", "--as", "alice"], remoteEnv);
   assert.notEqual(unavailable.code, 0);
   assert.equal(unavailable.body.error.code, "REMOTE_REQUEST_FAILED");
   await preserveSentinel(projectDir, before);
