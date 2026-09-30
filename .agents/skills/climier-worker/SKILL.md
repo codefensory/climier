@@ -163,6 +163,8 @@ No hagas rituales de `pwd`, `cd` manual ni rutas copiadas a mano. El script ya r
 
 La preflight es de **lectura**: solo inspecciona el contrato de la task, no muta nada. El unico script que corre la guardia de estado limpio es `start-worktree.sh`; no la invoques a mano.
 
+Si la task refiere secciones de un ADR, contrasta sus requisitos verificables con la acceptance antes del take. Cura via `climier update` cualquier requisito dentro del scope declarado que falte; no lo omitas ni amplíes silenciosamente paths/no-go zones. Si completar el criterio cruza el scope o requiere una decisión, deja NO-GO y handoff al orquestador.
+
 Secuencia fija:
 
 1. corre `climier context <id>` desde el root del proyecto (descubre el proyecto por CWD)

@@ -92,6 +92,7 @@ Verificar: <comando>." \
 ```
 
 - La spec vive en el ADR; el body de la task es puntero + archivos + acceptance. El worker lee esos artefactos, no el proyecto a ciegas.
+- Antes de delegar, traza cada requisito verificable de las secciones del ADR cubiertas por una task hasta una task owner y un check de acceptance. Ningún punto de `Verificación` queda huérfano; controles operativos como rate limits también necesitan cobertura explícita.
 - Una task = un cambio principal + acceptance verificable. "Y ademas" → otra task.
 - Las dependencias del DAG deben ser reales y salir del alcance decidido, no de un plan generado por el onboarding.
 - Dos workers no tocan el mismo modulo a la vez.

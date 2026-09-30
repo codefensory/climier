@@ -96,7 +96,7 @@ Check in this order and stop as soon as a verdict is justified:
 1. Worktree: identify exactly one task worktree and base branch/commit.
 2. Commit state: branch has at least one commit over base, the relevant commit message ends with `[<task-id>]`, and `git status --short` is clean or explicitly justified.
 3. Task state: normal validation requires `submitted`; do not treat `done` or `in_progress` as a submitted handoff. A blocked, canceled, or stale task has no validation transition — return BLOCKED with the reason instead of PASS/FAIL.
-4. Contract: implementation matches `definition`, `acceptance`, scoped knowledge (`climier context` `knowledge[]`), any referenced docs/gates, and the gate's `--rationale` if the task is downstream of one.
+4. Contract: implementation matches `definition`, `acceptance`, scoped knowledge (`climier context` `knowledge[]`), any referenced docs/gates, and the gate's `--rationale` if the task is downstream of one. For a referenced ADR section, compare the in-scope verifiable requirements with acceptance; fail on an implementation omission, and report a task-contract gap for orchestrator correction rather than silently expanding scope.
 5. Scope: diff is minimal and does not rewrite unrelated code, snapshots, generated files, secrets, or config without explicit task scope.
 6. Integration: imports, routes, exports, package boundaries, and runtime entrypoints still line up.
 7. Verification: worker ran the required commands, or you run the smallest missing command needed to validate the claim.
