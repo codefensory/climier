@@ -179,7 +179,10 @@ function malformedRequests(protocolOnly) {
     { label: "invalid read ID path encoding", url: "/v2/projects/project-a/read/show/%E0%A4%A", headers: protocolOnly, status: 400, code: "INVALID_REQUEST" },
     { label: "invalid read query", url: "/v2/projects/project-a/read/status?limit=-1", headers: protocolOnly, status: 400, code: "INVALID_QUERY" },
     { label: "invalid operation schema", url: "/v2/projects/project-a/operations", method: "POST", headers: { ...protocolOnly, "content-type": "application/json" }, body: JSON.stringify({ operation: "initiative.create", actor: "alice", input: { name: "valid", unexpected: true } }), status: 400, code: "INVALID_REQUEST" },
-    { label: "v1 transfer route removed", url: "/v2/projects/project-a/transfer/import", method: "POST", headers: { ...protocolOnly, "content-type": "application/json" }, body: JSON.stringify({ payload: {}, actor: "alice" }), status: 404, code: "ROUTE_NOT_FOUND" },
+    { label: "v1 transfer route removed", url: "/v1/projects/project-a/transfer/import", method: "POST", headers: { ...protocolOnly, "content-type": "application/json" }, body: JSON.stringify({ payload: {}, actor: "alice" }), status: 404, code: "ROUTE_NOT_FOUND" },
+    { label: "invalid transfer payload schema", url: "/v2/projects/project-a/transfer/import", method: "POST", headers: { ...protocolOnly, "content-type": "application/json" }, body: JSON.stringify({ payload: {}, actor: "alice" }), status: 400, code: "INVALID_REQUEST" },
+    { label: "extra transfer request field", url: "/v2/projects/project-a/transfer/import", method: "POST", headers: { ...protocolOnly, "content-type": "application/json" }, body: JSON.stringify({ payload: { version: 1, nodes: {}, edges: [], initiatives: {}, log: [] }, actor: "alice", overwrite: true }), status: 400, code: "INVALID_REQUEST" },
+    { label: "force with expected revision", url: "/v2/projects/project-a/transfer/import", method: "POST", headers: { ...protocolOnly, "content-type": "application/json" }, body: JSON.stringify({ payload: { version: 1, nodes: {}, edges: [], initiatives: {}, log: [] }, actor: "alice", expected_remote_revision: 0, force: true }), status: 400, code: "INVALID_REQUEST" },
     { label: "invalid init schema", url: "/v2/projects/project-a/init", method: "POST", headers: { ...protocolOnly, "content-type": "application/json" }, body: JSON.stringify({ reset: true }), status: 400, code: "REMOTE_UNSUPPORTED_OPERATION" },
   ];
 }
@@ -200,6 +203,46 @@ async function assertHttpRequestValidation(baseUrl, openCount) {
   await assertMalformedRequests(baseUrl, openCount, protocolOnly);
   await assertValidOperationRejectedBeforeOpen(baseUrl, openCount);
 }
+
+test("HTTP transfer routes authenticate and reject unsupported protocol before project access", async () => {
+  await withApi(async ({ baseUrl, openCount }) => {
+    const exportUrl = `${baseUrl}/v2/projects/project-a/transfer/export`;
+    const unauthenticated = await fetch(exportUrl, { headers: { "x-climier-protocol-version": PROTOCOL_VERSION } });
+    assert.equal(unauthenticated.status, 401);
+    assert.equal((await unauthenticated.json()).error.code, "AUTH_REQUIRED");
+    assert.equal(openCount(), 0);
+
+    const invalidBearer = await fetch(exportUrl, { headers: authHeaders({ authorization: "Bearer wrong" }) });
+    assert.equal(invalidBearer.status, 401);
+    assert.equal((await invalidBearer.json()).error.code, "AUTH_INVALID");
+    assert.equal(openCount(), 0);
+
+    const wrongProtocol = await fetch(exportUrl, { headers: authHeaders({ "x-climier-protocol-version": "1" }) });
+    assert.equal(wrongProtocol.status, 426);
+    assert.equal((await wrongProtocol.json()).error.code, "PROTOCOL_VERSION_UNSUPPORTED");
+    assert.equal(openCount(), 0);
+
+    const validPayload = { version: 1, nodes: {}, edges: [], initiatives: {}, log: [] };
+    const unauthorizedImport = await fetch(`${baseUrl}/v2/projects/project-a/transfer/import`, {
+      method: "POST",
+      headers: { "x-climier-protocol-version": PROTOCOL_VERSION, "content-type": "application/json" },
+      body: JSON.stringify({ payload: validPayload, actor: "alice" }),
+    });
+    assert.equal(unauthorizedImport.status, 401);
+    assert.equal((await unauthorizedImport.json()).error.code, "AUTH_REQUIRED");
+    assert.equal(openCount(), 0);
+  });
+});
+
+test("HTTP transfer requires an existing catalog project and never provisions one", async () => {
+  await withInitApi(async ({ baseUrl, dataRoot, openCount }) => {
+    const response = await fetch(`${baseUrl}/v2/projects/not-provisioned/transfer/export`, { headers: authHeaders() });
+    assert.equal(response.status, 404);
+    assert.equal((await response.json()).error.code, "UNKNOWN_PROJECT");
+    assert.equal(openCount(), 0);
+    await assert.rejects(fs.access(dataRoot));
+  });
+});
 
 test("HTTP validates malformed requests before auth and project opening", async () => {
   await withApi(async ({ baseUrl, openCount }) => {

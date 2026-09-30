@@ -5,7 +5,7 @@ import { createHttpReads } from "../../../src/server/http/reads.mjs";
 import { createHttpCodec } from "../../../src/server/http/codec.mjs";
 import { PROTOCOL_VERSION } from "../../../src/server/http.mjs";
 import * as readModel from "../../../src/read-model/index.mjs";
-import { runCli, writeCanonicalState } from "../../helpers.mjs";
+import { readState, runCli, writeCanonicalState } from "../../helpers.mjs";
 import { authHeaders, operation, withApi } from "./fixtures.mjs";
 
 
@@ -13,13 +13,14 @@ function readApiState() {
   return {
     version: 4,
     revision: 41,
+    plugins: { transferFixture: { value: true } },
     initiatives: {
       migration: { desc: "Migration initiative", created_at: "2025-01-01T00:00:00.000Z" },
       empty: { desc: "Unused", created_at: "2025-01-02T00:00:00.000Z" },
     },
     nodes: {
       "T-ready": { id: "T-ready", kind: "resolvable", subkind: "task", title: "Ready API", status: "open", initiative: "migration", domain: "api", revision: 1 },
-      "T-progress": { id: "T-progress", kind: "resolvable", subkind: "task", title: "Progress API", status: "in_progress", initiative: "migration", domain: "api", revision: 2, claim: { by: "alice", at: "2000-01-01T00:00:00.000Z" } },
+      "T-progress": { id: "T-progress", kind: "resolvable", subkind: "task", title: "Progress API", status: "in_progress", initiative: "migration", domain: "api", revision: 2, claim: { by: "alice", at: "2000-01-01T00:00:00.000Z" }, plugins: { transferFixture: { value: 2 } } },
       "T-submitted": { id: "T-submitted", kind: "resolvable", subkind: "task", title: "Submitted API", status: "submitted", initiative: "migration", domain: "api", revision: 3 },
       "T-blocked": { id: "T-blocked", kind: "resolvable", subkind: "task", title: "Blocked Worker", status: "open", initiative: "migration", domain: "worker", revision: 1 },
       "T-backlog": { id: "T-backlog", kind: "resolvable", subkind: "task", title: "Backlog UI", status: "open", initiative: "other", domain: "ui", backlog: true, revision: 1 },
@@ -144,20 +145,88 @@ test("HTTP typed read routes reject unknown, repeated, and invalid query paramet
   });
 });
 
-test("HTTP v2 does not expose transfer routes", async () => {
-  await withApi(async ({ baseUrl, openCount }) => {
-    for (const route of ["transfer/export", "transfer/import"]) {
-      const before = openCount();
-      const response = await fetch(`${baseUrl}/v2/projects/project-a/${route}`, {
-        method: "POST",
-        headers: authHeaders({ "content-type": "application/json" }),
-        body: "{}",
-      });
-      assert.equal(response.status, 404);
-      assert.equal((await response.json()).error.code, "ROUTE_NOT_FOUND");
-      assert.equal(openCount(), before);
-      assert.equal(response.headers.get("x-climier-protocol-version"), PROTOCOL_VERSION);
-    }
+test("HTTP v2 exports a consistent snapshot and imports it with the remote revision", async () => {
+  await withApi(async ({ baseUrl, projectDirs }) => {
+    await writeCanonicalState(projectDirs[0], readApiState());
+    const source = await readState(projectDirs[0]);
+    const destination = await readState(projectDirs[1]);
+
+    const exported = await fetch(`${baseUrl}/v2/projects/project-a/transfer/export`, { headers: authHeaders() });
+    assert.equal(exported.status, 200);
+    assert.equal(exported.headers.get("x-climier-protocol-version"), PROTOCOL_VERSION);
+    const exportBody = await exported.json();
+    assert.equal(exportBody.ok, true);
+    assert.equal(exportBody.result.revision, source.revision);
+    assert.equal(exportBody.result.payload.version, source.version);
+    assert.deepEqual(Object.keys(exportBody.result.payload).sort(), ["edges", "initiatives", "log", "nodes", "plugins", "version"]);
+    assert.equal(Object.hasOwn(exportBody.result.payload, "revision"), false);
+    assert.equal(Object.hasOwn(exportBody.result.payload, "fence_generation"), false);
+    assert.equal(Object.hasOwn(exportBody.result.payload.nodes["T-progress"], "revision"), false);
+    assert.equal(exportBody.result.payload.nodes["T-progress"].claim.by, "alice");
+    assert.deepEqual(exportBody.result.payload.plugins, { transferFixture: { value: true } });
+    assert.deepEqual(exportBody.result.payload.nodes["T-progress"].plugins, { transferFixture: { value: 2 } });
+
+    const imported = await fetch(`${baseUrl}/v2/projects/project-b/transfer/import`, {
+      method: "POST",
+      headers: authHeaders({ "content-type": "application/json" }),
+      body: JSON.stringify({ payload: exportBody.result.payload, actor: "alice" }),
+    });
+    assert.equal(imported.status, 200, JSON.stringify(await imported.clone().json()));
+    const importBody = await imported.json();
+    const firstInstall = await readState(projectDirs[1]);
+    assert.equal(importBody.ok, true);
+    assert.equal(importBody.result.revision, firstInstall.revision);
+    assert.deepEqual(Object.keys(importBody.result), ["revision"]);
+    assert.deepEqual(Object.keys(firstInstall.nodes).sort(), Object.keys(source.nodes).sort());
+    assert.deepEqual(firstInstall.plugins, source.plugins);
+    assert.deepEqual(firstInstall.nodes["T-progress"].plugins, source.nodes["T-progress"].plugins);
+    assert.ok(firstInstall.log.some((entry) => entry.action === "transfer.push" && entry.agent === "alice"));
+
+    const casImport = await fetch(`${baseUrl}/v2/projects/project-b/transfer/import`, {
+      method: "POST",
+      headers: authHeaders({ "content-type": "application/json" }),
+      body: JSON.stringify({
+        payload: exportBody.result.payload,
+        actor: "alice",
+        expected_remote_revision: firstInstall.revision,
+      }),
+    });
+    assert.equal(casImport.status, 200, JSON.stringify(await casImport.clone().json()));
+    const installed = await readState(projectDirs[1]);
+    assert.equal((await casImport.json()).result.revision, installed.revision);
+
+    const stale = await fetch(`${baseUrl}/v2/projects/project-b/transfer/import`, {
+      method: "POST",
+      headers: authHeaders({ "content-type": "application/json" }),
+      body: JSON.stringify({
+        payload: exportBody.result.payload,
+        actor: "alice",
+        expected_remote_revision: destination.revision,
+      }),
+    });
+    assert.equal(stale.status, 409);
+    const staleBody = await stale.json();
+    assert.equal(staleBody.error.code, "TRANSFER_REMOTE_CHANGED");
+    assert.deepEqual(staleBody.error.details, { expected: destination.revision, current: installed.revision });
+
+    const unknownBase = await fetch(`${baseUrl}/v2/projects/project-b/transfer/import`, {
+      method: "POST",
+      headers: authHeaders({ "content-type": "application/json" }),
+      body: JSON.stringify({ payload: exportBody.result.payload, actor: "alice" }),
+    });
+    assert.equal(unknownBase.status, 409);
+    assert.equal((await unknownBase.json()).error.code, "TRANSFER_BASE_UNKNOWN");
+
+    const forced = await fetch(`${baseUrl}/v2/projects/project-b/transfer/import`, {
+      method: "POST",
+      headers: authHeaders({ "content-type": "application/json" }),
+      body: JSON.stringify({ payload: exportBody.result.payload, actor: "alice", force: true }),
+    });
+    assert.equal(forced.status, 200, JSON.stringify(await forced.clone().json()));
+    const forcedBody = await forced.json();
+    assert.ok(forcedBody.result.revision > installed.revision);
+    const forceState = await readState(projectDirs[1]);
+    assert.ok(forceState.log.some((entry) => entry.action === "transfer.push" && entry.agent === "alice"));
   });
 });
 
