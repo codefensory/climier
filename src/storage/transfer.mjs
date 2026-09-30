@@ -1,26 +1,17 @@
 import fs from "node:fs/promises";
 import { validateStateInvariants } from "../contracts/state-invariants.mjs";
+import { prepareLogEntry } from "./log.mjs";
 import { withLock } from "./lock.mjs";
 import { ledgerFile, bootstrapFencedStateUnderLock, readFencedStateUnderLock, replaceFencedStateUnderLock } from "./ledger.mjs";
 import { STATE_SCHEMA_VERSION, stateFile } from "./state.mjs";
 
-export const TRANSFER_PAYLOAD_VERSION = 1;
+export const TRANSFER_PAYLOAD_VERSION = STATE_SCHEMA_VERSION;
 
-function transferError(code, message) {
+function transferError(code, message, details) {
   const error = new Error(message);
   error.code = code;
+  if (details !== undefined) {error.details = details;}
   return error;
-}
-
-function nonEmptyObject(value) {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value) && Object.keys(value).length > 0;
-}
-
-function hasPluginData(state) {
-  if (nonEmptyObject(state.plugins)) {
-    return true;
-  }
-  return Object.values(state.nodes || {}).some((node) => nonEmptyObject(node?.plugins));
 }
 
 function assertTransferableSource(state) {
@@ -31,34 +22,55 @@ function assertTransferableSource(state) {
     throw transferError("CLIMIER_TRANSFER_INVALID_SOURCE", "transfer: source state is not canonical version 1");
   }
   validateStateInvariants(state, "transfer.source");
-  if (hasPluginData(state)
-      || Object.values(state.nodes).some((node) => node?.status === "in_progress"
-        || (node?.claim !== undefined && node.claim !== null && node.claim !== false && node.claim !== ""))) {
-    throw transferError("CLIMIER_TRANSFER_INVALID_SOURCE", "transfer: source has active claims, in-progress work, or plugin data");
-  }
 }
 
 function transferPayload(state) {
-  const nodes = Object.fromEntries(Object.entries(state.nodes).map(([id, node]) => {
-    const { revision: _revision, plugins: _plugins, ...transferNode } = node;
-    return [id, transferNode];
+  const { fence_generation: _fenceGeneration, revision: _revision, ...applicationState } = structuredClone(state);
+  applicationState.nodes = Object.fromEntries(Object.entries(applicationState.nodes).map(([id, node]) => {
+    const { revision: _nodeRevision, ...applicationNode } = node;
+    return [id, applicationNode];
   }));
-  return {
-    version: TRANSFER_PAYLOAD_VERSION,
-    fence_generation: state.fence_generation,
+  return applicationState;
+}
+
+function validateTransferPayload(payload) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)
+      || payload.version !== TRANSFER_PAYLOAD_VERSION
+      || Object.hasOwn(payload, "revision") || Object.hasOwn(payload, "fence_generation")
+      || !payload.nodes || typeof payload.nodes !== "object" || Array.isArray(payload.nodes)
+      || !Array.isArray(payload.edges)
+      || !payload.initiatives || typeof payload.initiatives !== "object" || Array.isArray(payload.initiatives)
+      || !Array.isArray(payload.log)) {
+    throw transferError("CLIMIER_TRANSFER_INVALID_PAYLOAD", "transfer: payload is not a complete application snapshot");
+  }
+  const nodes = Object.fromEntries(Object.entries(payload.nodes).map(([id, node]) => {
+    if (!node || typeof node !== "object" || Array.isArray(node) || Object.hasOwn(node, "revision")) {
+      throw transferError("CLIMIER_TRANSFER_INVALID_PAYLOAD", `transfer: payload node ${id} is invalid or contains a local revision`);
+    }
+    return [id, { ...node, revision: 0 }];
+  }));
+  validateStateInvariants({
+    ...payload,
+    fence_generation: 1,
     revision: 0,
     nodes,
-    edges: structuredClone(state.edges),
-    initiatives: structuredClone(state.initiatives),
-    log: structuredClone(state.log),
-  };
+  }, "transfer.payload");
 }
 
 function isPristine(state) {
+  const knownFields = new Set([
+    "version", "fence_generation", "revision", "nodes", "edges", "initiatives", "log", "plugins",
+  ]);
+  const plugins = state.plugins;
+  const hasPluginData = Object.hasOwn(state, "plugins")
+    && (!plugins || typeof plugins !== "object" || Array.isArray(plugins) || Object.keys(plugins).length > 0);
+  const hasUnknownApplicationData = Object.keys(state).some((field) => !knownFields.has(field));
   return Object.keys(state.nodes).length === 0
     && state.edges.length === 0
     && Object.keys(state.initiatives).length === 0
-    && state.log.length === 0;
+    && state.log.length === 0
+    && !hasPluginData
+    && !hasUnknownApplicationData;
 }
 
 async function exists(file) {
@@ -86,7 +98,35 @@ async function readCanonicalDestinationWithoutLedger(projectDir) {
   return state;
 }
 
+function assertExpectedRevision(current, expectedRevision) {
+  if (current?.revision !== expectedRevision) {
+    throw transferError("CLIMIER_TRANSFER_REVISION_MISMATCH", "transfer: destination revision does not match expected revision", {
+      expected_revision: expectedRevision,
+      current_revision: current?.revision ?? null,
+    });
+  }
+}
 
+function destinationState(payload, current, actor, direction) {
+  const nodes = Object.fromEntries(Object.entries(payload.nodes).map(([id, node]) => [id, { ...node, revision: 0 }]));
+  const replacedRevision = current?.revision ?? null;
+  return {
+    ...structuredClone(payload),
+    revision: 0,
+    fence_generation: current?.fence_generation ?? 1,
+    nodes,
+    log: [
+      ...structuredClone(payload.log),
+      prepareLogEntry({
+        action: `transfer.${direction}`,
+        agent: actor,
+        replaced_revision: replacedRevision,
+      }),
+    ],
+  };
+}
+
+/** Capture the application snapshot and its revision from one locked state read. */
 export async function captureTransferSource(projectDir) {
   return withLock(projectDir, async (lockContext) => {
     const state = await readFencedStateUnderLock(lockContext);
@@ -94,56 +134,47 @@ export async function captureTransferSource(projectDir) {
       throw transferError("CLIMIER_TRANSFER_INVALID_SOURCE", "transfer: source project has no state");
     }
     assertTransferableSource(state);
-    return transferPayload(state);
+    return { payload: transferPayload(state), revision: state.revision };
   });
 }
 
-function parseDestinationState(rawState) {
-  try {
-    return JSON.parse(rawState);
-  } catch (cause) {
-    throw transferError("CLIMIER_TRANSFER_INVALID_DESTINATION", `transfer: destination state is corrupt: ${cause.message}`);
+/** Install a validated snapshot with an optional destination CAS under one lock. */
+export async function installTransferDestination(projectDir, payload, {
+  actor,
+  direction,
+  expectedRevision,
+  force = false,
+} = {}) {
+  validateTransferPayload(payload);
+  if (typeof actor !== "string" || !actor.trim()) {throw new Error("transfer: actor is required");}
+  if (direction !== "push" && direction !== "pull") {throw new Error("transfer: direction must be push or pull");}
+  if (expectedRevision !== undefined && (!Number.isInteger(expectedRevision) || expectedRevision < 0)) {
+    throw new Error("transfer: expectedRevision must be a non-negative integer");
   }
-}
+  if (typeof force !== "boolean") {throw new Error("transfer: force must be boolean");}
 
-async function assertLegacyDestinationReplaceable(lockContext, projectDir, statePath, overwrite) {
-  const rawState = await fs.readFile(statePath, "utf8");
-  const unmigrated = parseDestinationState(rawState);
-  if (unmigrated.version === STATE_SCHEMA_VERSION && Number.isInteger(unmigrated.fence_generation)) {
-    return;
-  }
-  const current = await readCanonicalDestinationWithoutLedger(projectDir);
-  assertDestinationReplaceable(current, overwrite);
-}
-
-function assertDestinationReplaceable(state, overwrite) {
-  if (hasPluginData(state)) {
-    throw transferError("CLIMIER_TRANSFER_PLUGIN_DATA", "transfer: destination plugin data cannot be overwritten");
-  }
-  if (!overwrite && !isPristine(state)) {
-    throw transferError("CLIMIER_TRANSFER_DESTINATION_NOT_PRISTINE", "transfer: destination is not pristine; explicit overwrite is required");
-  }
-}
-
-/** Install a snapshot with create-only or absolute-overwrite semantics under the destination lock. */
-export async function installTransferDestination(projectDir, payload, { overwrite = false } = {}) {
   return withLock(projectDir, async (lockContext) => {
     const statePath = stateFile(projectDir);
     const hasState = await exists(statePath);
     const hasLedger = await exists(ledgerFile(projectDir));
     if (!hasState && !hasLedger) {
-      return bootstrapFencedStateUnderLock(lockContext, payload);
+      if (expectedRevision !== undefined && !force) {assertExpectedRevision(null, expectedRevision);}
+      return bootstrapFencedStateUnderLock(lockContext, destinationState(payload, null, actor, direction));
     }
     if (hasState && !hasLedger) {
-      await assertLegacyDestinationReplaceable(lockContext, projectDir, statePath, overwrite);
+      await readCanonicalDestinationWithoutLedger(projectDir);
     }
     const current = await readFencedStateUnderLock(lockContext);
     if (!current) {
       throw transferError("CLIMIER_TRANSFER_INVALID_DESTINATION", "transfer: destination ledger exists without state");
     }
-    assertDestinationReplaceable(current, overwrite);
-    return replaceFencedStateUnderLock(lockContext, payload);
+    if (!force) {
+      if (expectedRevision !== undefined) {
+        assertExpectedRevision(current, expectedRevision);
+      } else if (!isPristine(current)) {
+        throw transferError("CLIMIER_TRANSFER_DESTINATION_NOT_PRISTINE", "transfer: destination is not pristine; an expected revision or explicit force is required");
+      }
+    }
+    return replaceFencedStateUnderLock(lockContext, destinationState(payload, current, actor, direction));
   });
 }
-
-export { hasPluginData as transferHasPluginData };
