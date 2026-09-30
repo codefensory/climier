@@ -87,26 +87,3 @@ test("restore installs a canonical snapshot and the restored project accepts a m
     assert.equal(state.log.at(-1).action, "add-initiative");
   });
 });
-
-test("push reports canonical v1 numbering in the transfer payload", async () => {
-  await withIsolatedProject(async ({ projectDir }) => {
-    await initState({ projectDir });
-    let received;
-    await dispatchCommand({
-      command: "push",
-      positional: [],
-      flags: { as: "alice" },
-      projectDir,
-      projectConfig: { project_id: "remote-project" },
-      backendClient: {
-        type: "remote",
-        async importTransfer(request) {
-          received = request;
-          return { installed: true };
-        },
-      },
-    });
-
-    assert.equal(received.payload.version, 1);
-  });
-});

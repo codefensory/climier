@@ -170,20 +170,6 @@
       "directives": 0
     },
     {
-      "path": "src/application/operations/remote-v1-manifest.mjs",
-      "comment_lines": 0,
-      "protected_lines": 0,
-      "prohibited": {
-        "provenance": 0,
-        "task_or_adr": 0,
-        "commented_code": 0,
-        "banner": 0,
-        "documentation_mirror": 0,
-        "narration": 0
-      },
-      "directives": 0
-    },
-    {
       "path": "src/cli/actor.mjs",
       "comment_lines": 0,
       "protected_lines": 0,
@@ -495,34 +481,6 @@
       "path": "src/cli/commands/migrate.mjs",
       "comment_lines": 0,
       "protected_lines": 1,
-      "prohibited": {
-        "provenance": 0,
-        "task_or_adr": 0,
-        "commented_code": 0,
-        "banner": 0,
-        "documentation_mirror": 0,
-        "narration": 0
-      },
-      "directives": 0
-    },
-    {
-      "path": "src/cli/commands/pull.mjs",
-      "comment_lines": 0,
-      "protected_lines": 0,
-      "prohibited": {
-        "provenance": 0,
-        "task_or_adr": 0,
-        "commented_code": 0,
-        "banner": 0,
-        "documentation_mirror": 0,
-        "narration": 0
-      },
-      "directives": 0
-    },
-    {
-      "path": "src/cli/commands/push.mjs",
-      "comment_lines": 0,
-      "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
         "task_or_adr": 0,
@@ -2550,20 +2508,6 @@
       "directives": 0
     },
     {
-      "path": "test/cli-transfer.test.mjs",
-      "comment_lines": 0,
-      "protected_lines": 0,
-      "prohibited": {
-        "provenance": 0,
-        "task_or_adr": 0,
-        "commented_code": 0,
-        "banner": 0,
-        "documentation_mirror": 0,
-        "narration": 0
-      },
-      "directives": 0
-    },
-    {
       "path": "test/command-ui.test.mjs",
       "comment_lines": 0,
       "protected_lines": 0,
@@ -2734,20 +2678,6 @@
     {
       "path": "test/fixtures/read-model-parity.mjs",
       "comment_lines": 0,
-      "protected_lines": 0,
-      "prohibited": {
-        "provenance": 0,
-        "task_or_adr": 0,
-        "commented_code": 0,
-        "banner": 0,
-        "documentation_mirror": 0,
-        "narration": 0
-      },
-      "directives": 0
-    },
-    {
-      "path": "test/fixtures/remote-v1-capability-inventory.mjs",
-      "comment_lines": 1,
       "protected_lines": 0,
       "prohibited": {
         "provenance": 0,
@@ -4637,48 +4567,6 @@
     },
     {
       "path": "test/read-model.test.mjs",
-      "comment_lines": 0,
-      "protected_lines": 0,
-      "prohibited": {
-        "provenance": 0,
-        "task_or_adr": 0,
-        "commented_code": 0,
-        "banner": 0,
-        "documentation_mirror": 0,
-        "narration": 0
-      },
-      "directives": 0
-    },
-    {
-      "path": "test/remote-v1-capability-inventory.test.mjs",
-      "comment_lines": 0,
-      "protected_lines": 0,
-      "prohibited": {
-        "provenance": 0,
-        "task_or_adr": 0,
-        "commented_code": 0,
-        "banner": 0,
-        "documentation_mirror": 0,
-        "narration": 0
-      },
-      "directives": 0
-    },
-    {
-      "path": "test/remote-v1-manifest-conformance.test.mjs",
-      "comment_lines": 0,
-      "protected_lines": 0,
-      "prohibited": {
-        "provenance": 0,
-        "task_or_adr": 0,
-        "commented_code": 0,
-        "banner": 0,
-        "documentation_mirror": 0,
-        "narration": 0
-      },
-      "directives": 0
-    },
-    {
-      "path": "test/remote-v1-manifest.test.mjs",
       "comment_lines": 0,
       "protected_lines": 0,
       "prohibited": {

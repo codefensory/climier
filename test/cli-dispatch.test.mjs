@@ -199,6 +199,55 @@ test("CLI: unknown command returns a structured usage error", async () => {
   }
 });
 
+test("CLI: retired push and pull commands are unknown even with a remote config", async () => {
+  const dir = await createTempProject();
+  try {
+    fs.writeFileSync(path.join(dir, ".climier.json"), JSON.stringify({
+      version: 1,
+      project_id: "remote-project",
+      backend: { type: "remote", protocol: "v2", url: "https://climier.example.test" },
+    }));
+    for (const command of ["push", "pull"]) {
+      const r = await runCli(["--project", dir, command, "--as", "alice"]);
+      assert.equal(r.code, 2, `${command} should be a usage error`);
+      const data = JSON.parse(r.stdout);
+      assert.equal(data.ok, false);
+      assert.equal(data.error.code, "CLI_USAGE_ERROR");
+      assert.equal(data.error.details.command, command);
+    }
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("CLI: remote auth and link commands are advertised and dispatchable", async () => {
+  const dir = await createTempProject();
+  try {
+    const help = await runCli(["--project", dir, "--help"]);
+    assert.equal(help.code, 0, help.stderr);
+    assert.match(help.stdout, /login/);
+    assert.match(help.stdout, /logout/);
+    assert.match(help.stdout, /link/);
+    assert.doesNotMatch(help.stdout, /\bpush\b/);
+    assert.doesNotMatch(help.stdout, /\bpull\b/);
+
+    for (const command of ["login", "logout", "link"]) {
+      const calls = [];
+      const result = await runCliInProcess({
+        argv: ["--project", dir, command, ...(command === "link" ? ["https://climier.example.test"] : [])],
+        createBackendClient() { return { type: "local" }; },
+        dispatch: async (context) => { calls.push(context.command); return { ok: true }; },
+        write() {},
+        exit() {},
+      });
+      assert.equal(result, 0);
+      assert.deepEqual(calls, [command]);
+    }
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
 test("CLI: update a task via the bin (edit title + body)", async () => {
   const dir = await createTempProject();
   try {
@@ -344,7 +393,7 @@ test("dispatch: remote project config and injected client reach command dispatch
     const projectConfig = {
       version: 1,
       project_id: "remote/project",
-      backend: { type: "remote", url: "https://climier.example.test" },
+      backend: { type: "remote", protocol: "v2", url: "https://climier.example.test" },
     };
     fs.writeFileSync(path.join(dir, ".climier.json"), JSON.stringify(projectConfig));
     const localCalls = [];

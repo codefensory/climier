@@ -1488,7 +1488,10 @@
       "path": "test/cli-operation-bridge-matrix.test.mjs",
       "name": "init, restore, push, and pull remain owned kernel exceptions",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "remote v1 and transfer CLI surfaces were removed",
+      "replacement": "covered by dispatch and retired-surface checks"
     },
     {
       "path": "test/cli-operation-bridge-matrix.test.mjs",
@@ -1794,31 +1797,46 @@
       "path": "test/cli-transfer.test.mjs",
       "name": "HTTP and CLI adapters import only kernel transfer ports",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "remote v1 and transfer CLI surfaces were removed",
+      "replacement": "covered by dispatch and retired-surface checks"
     },
     {
       "path": "test/cli-transfer.test.mjs",
       "name": "pull does not write locally until remote export succeeds, then installs via kernel",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "remote v1 and transfer CLI surfaces were removed",
+      "replacement": "covered by dispatch and retired-surface checks"
     },
     {
       "path": "test/cli-transfer.test.mjs",
       "name": "push captures locally through kernel and sends one payload without retrying",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "remote v1 and transfer CLI surfaces were removed",
+      "replacement": "covered by dispatch and retired-surface checks"
     },
     {
       "path": "test/cli-transfer.test.mjs",
       "name": "push reports an ambiguous timeout and never retries",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "remote v1 and transfer CLI surfaces were removed",
+      "replacement": "covered by dispatch and retired-surface checks"
     },
     {
       "path": "test/cli-transfer.test.mjs",
       "name": "transfer adapters reject invalid flags and require a remote backend",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "remote v1 and transfer CLI surfaces were removed",
+      "replacement": "covered by dispatch and retired-surface checks"
     },
     {
       "path": "test/command-ui.test.mjs",
@@ -2415,7 +2433,7 @@
     },
     {
       "path": "test/init.test.mjs",
-      "name": "CLI: successful insecure remote HTTP init emits one JSON warning and no stderr",
+      "name": "CLI: insecure remote HTTP init fails before a request",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -2463,13 +2481,13 @@
     },
     {
       "path": "test/init.test.mjs",
-      "name": "init: successful HTTPS and loopback remote init omit warnings",
+      "name": "init: HTTPS and loopback remote init omit warnings",
       "ordinal": 1,
       "disposition": "keep"
     },
     {
       "path": "test/init.test.mjs",
-      "name": "init: successful insecure remote HTTP init returns the ADR warning",
+      "name": "init: insecure remote HTTP is rejected before the request",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -8219,77 +8237,119 @@
       "path": "test/remote-v1-capability-inventory.test.mjs",
       "name": "remote-v1 inventory matches the fixture, manifest, and provider catalog",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "remote v1 and transfer CLI surfaces were removed",
+      "replacement": "covered by dispatch and retired-surface checks"
     },
     {
       "path": "test/remote-v1-manifest-conformance.test.mjs",
       "name": "HTTP v1 allowlist and nested batch surface exactly match manifest fields",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "remote v1 and transfer CLI surfaces were removed",
+      "replacement": "covered by dispatch and retired-surface checks"
     },
     {
       "path": "test/remote-v1-manifest-conformance.test.mjs",
       "name": "remote client advertises exactly manifest operations, keeps batch separate, and fails closed",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "remote v1 and transfer CLI surfaces were removed",
+      "replacement": "covered by dispatch and retired-surface checks"
     },
     {
       "path": "test/remote-v1-manifest-conformance.test.mjs",
       "name": "remote-v1 manifest conforms to the frozen capability inventory and provider catalog",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "remote v1 and transfer CLI surfaces were removed",
+      "replacement": "covered by dispatch and retired-surface checks"
     },
     {
       "path": "test/remote-v1-manifest.test.mjs",
       "name": "backend client isolates an ambient token for an unconfigured project",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "remote v1 and transfer CLI surfaces were removed",
+      "replacement": "covered by dispatch and retired-surface checks"
     },
     {
       "path": "test/remote-v1-manifest.test.mjs",
       "name": "backend client maps all typed reads to v1 routes and preserves filter values",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "remote v1 and transfer CLI surfaces were removed",
+      "replacement": "covered by dispatch and retired-surface checks"
     },
     {
       "path": "test/remote-v1-manifest.test.mjs",
       "name": "backend client propagates structured remote errors without local fallback",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "remote v1 and transfer CLI surfaces were removed",
+      "replacement": "covered by dispatch and retired-surface checks"
     },
     {
       "path": "test/remote-v1-manifest.test.mjs",
       "name": "backend client rejects incompatible protocol and malformed success envelopes",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "remote v1 and transfer CLI surfaces were removed",
+      "replacement": "covered by dispatch and retired-surface checks"
     },
     {
       "path": "test/remote-v1-manifest.test.mjs",
       "name": "backend client uses remote HTTP v1 URL, protocol, bearer auth, actor, and result envelope",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "remote v1 and transfer CLI surfaces were removed",
+      "replacement": "covered by dispatch and retired-surface checks"
     },
     {
       "path": "test/remote-v1-manifest.test.mjs",
       "name": "remote backend executes manifest operations and rejects IDs outside the manifest without local fallback",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "remote v1 and transfer CLI surfaces were removed",
+      "replacement": "covered by dispatch and retired-surface checks"
     },
     {
       "path": "test/remote-v1-manifest.test.mjs",
       "name": "remote-v1 operation manifest omits if_revision as an operation property",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "remote v1 and transfer CLI surfaces were removed",
+      "replacement": "covered by dispatch and retired-surface checks"
     },
     {
       "path": "test/remote-v1-manifest.test.mjs",
       "name": "typed read methods validate required ids and query option types before requesting",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "remote v1 and transfer CLI surfaces were removed",
+      "replacement": "covered by dispatch and retired-surface checks"
     },
     {
       "path": "test/retired-surfaces.test.mjs",
       "name": "provider allowlists retain kind-specific fields",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/retired-surfaces.test.mjs",
+      "name": "retired remote v1 and transfer CLI surfaces are absent",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -10977,7 +11037,10 @@
       "path": "test/v1-restore-transfer.test.mjs",
       "name": "push reports canonical v1 numbering in the transfer payload",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "remote v1 and transfer CLI surfaces were removed",
+      "replacement": "covered by dispatch and retired-surface checks"
     },
     {
       "path": "test/v1-restore-transfer.test.mjs",
@@ -13636,6 +13699,24 @@
     {
       "path": "test/workflow-evidence-preflight.test.mjs",
       "name": "integration-preflight.sh: reports NODE_NOT_FOUND for a nonexistent task",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/cli-operation-bridge-matrix.test.mjs",
+      "name": "init and restore remain owned kernel exceptions",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/cli-dispatch.test.mjs",
+      "name": "CLI: retired push and pull commands are unknown even with a remote config",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/cli-dispatch.test.mjs",
+      "name": "CLI: remote auth and link commands are advertised and dispatchable",
       "ordinal": 1,
       "disposition": "keep"
     }

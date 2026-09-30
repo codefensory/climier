@@ -193,16 +193,6 @@ const exceptions = [
     path: "src/cli/commands/restore.mjs", markers: ["restoreState("],
     tests: ["snapshots-restore.test.mjs", "kernel-state-operations.test.mjs", "cli-remote-write-routing.test.mjs"],
   },
-  {
-    command: "push", owner: "kernel/transfer.mjs:captureTransferSource + remote importTransfer",
-    path: "src/cli/commands/push.mjs", markers: ["captureTransferSource(", "backendClient.importTransfer("],
-    tests: ["cli-transfer.test.mjs", "kernel-transfer.test.mjs", "server/http/reads-transfers.test.mjs"], downstream: "T-rar-032-transfers",
-  },
-  {
-    command: "pull", owner: "remote exportTransfer + kernel/transfer.mjs:installTransferDestination",
-    path: "src/cli/commands/pull.mjs", markers: ["backendClient.exportTransfer(", "installTransferDestination("],
-    tests: ["cli-transfer.test.mjs", "kernel-transfer.test.mjs", "server/http/reads-transfers.test.mjs"], downstream: "T-rar-032-transfers",
-  },
 ];
 
 async function sourceAt(relativePath) {
@@ -249,7 +239,7 @@ test("ordinary write adapters route through the operation bridge", async () => {
   assert.ok(batch.includes("executeBatch("), "batch delegates to the bridge batch operation");
 });
 
-test("init, restore, push, and pull remain owned kernel exceptions", async () => {
+test("init and restore remain owned kernel exceptions", async () => {
   for (const exception of exceptions) {
     const source = await sourceAt(exception.path);
     for (const marker of exception.markers) {
