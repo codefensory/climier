@@ -90,7 +90,7 @@ function createRemoteOperations(request) {
     },
     async importTransfer(options = {}) {
       const body = { payload: options.payload, actor: options.actor };
-      if (options.expected_remote_revision !== undefined) {body.expected_remote_revision = options.expected_remote_revision;}
+      if (options.force !== true && options.expected_remote_revision !== undefined) {body.expected_remote_revision = options.expected_remote_revision;}
       if (options.force !== undefined) {body.force = options.force;}
       return request({ method: "POST", route: "transfer/import", body });
     },

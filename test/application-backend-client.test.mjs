@@ -96,6 +96,12 @@ test("remote client exports and imports transfers through authenticated v2 endpo
       force: false,
       ignored: "must-not-be-sent",
     }), { revision: 14 });
+    assert.deepEqual(await client.importTransfer({
+      payload,
+      actor: "alice",
+      expected_remote_revision: 13,
+      force: true,
+    }), { revision: 14 });
   });
   assert.deepEqual(requests, [
     {
@@ -110,6 +116,13 @@ test("remote client exports and imports transfers through authenticated v2 endpo
       authorization: "Bearer profile-token",
       protocol: "2",
       body: { payload, actor: "alice", expected_remote_revision: 13, force: false },
+    },
+    {
+      method: "POST",
+      url: "/v2/projects/project%2Fopaque/transfer/import",
+      authorization: "Bearer profile-token",
+      protocol: "2",
+      body: { payload, actor: "alice", force: true },
     },
   ]);
 });
