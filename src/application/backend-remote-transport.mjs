@@ -1,4 +1,4 @@
-export const REMOTE_PROTOCOL_VERSION = "1";
+export const REMOTE_PROTOCOL_VERSION = "2";
 
 function clientError(code, message, details) {
   const error = new Error(message);
@@ -9,19 +9,7 @@ function clientError(code, message, details) {
 
 function remoteUrl({ baseUrl, projectId, route }) {
   const base = baseUrl.replace(/\/+$/, "");
-  return `${base}/v1/projects/${encodeURIComponent(projectId)}/${route}`;
-}
-
-function assertTokenOrigin({ token, backend, remoteOrigin, url }) {
-  if (!token) {return;}
-  const expectedOrigin = new URL(backend.url).origin;
-  if (remoteOrigin !== expectedOrigin || new URL(url).origin !== remoteOrigin) {
-    throw clientError(
-      "REMOTE_ORIGIN_NOT_APPROVED",
-      "application.backendClient: CLIMIER_REMOTE_ORIGIN must exactly match the configured backend origin before sending a bearer token",
-      { expected_origin: expectedOrigin },
-    );
-  }
+  return `${base}/v2/projects/${encodeURIComponent(projectId)}/${route}`;
 }
 
 function requestOptions({ method, body, token, signal }) {
@@ -127,10 +115,10 @@ function validateResponse(response, envelope) {
   return responseResult(response, envelope);
 }
 
-export function createRemoteRequest({ backend, projectId, token, remoteOrigin, timeoutMs }) {
+export function createRemoteRequest({ backend, projectId, tokenProvider, timeoutMs }) {
   return async function request({ method, route, body }) {
     const url = remoteUrl({ baseUrl: backend.url, projectId, route });
-    assertTokenOrigin({ token, backend, remoteOrigin, url });
+    const token = await tokenProvider(new URL(backend.url).origin);
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
@@ -142,4 +130,23 @@ export function createRemoteRequest({ backend, projectId, token, remoteOrigin, t
       clearTimeout(timeout);
     }
   };
+}
+
+export async function loginRemote({ origin, password, timeoutMs = 10_000 }) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const url = `${origin.replace(/\/+$/, "")}/v2/auth/login`;
+    const options = requestOptions({ method: "POST", body: { password }, token: null, signal: controller.signal });
+    const response = await fetchResponse(url, options, controller, timeoutMs);
+    const envelope = await parseResponse(response, controller, timeoutMs);
+    validateHttpResponse(response, envelope);
+    validateProtocolVersion(response);
+    if (!envelope || typeof envelope.token !== "string" || !envelope.token) {
+      throw clientError("REMOTE_INVALID_RESPONSE", "application.backendClient: login response did not contain a bearer token", { status: response.status });
+    }
+    return { token: envelope.token, expires_in_days: envelope.expires_in_days };
+  } finally {
+    clearTimeout(timeout);
+  }
 }

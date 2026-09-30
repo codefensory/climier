@@ -1,6 +1,7 @@
 import { parseBackendConfig } from "./backend-config.mjs";
 import { executeBatch, executeOperation } from "./operations/execute.mjs";
-import { remoteV1Manifest } from "./operations/remote-v1-manifest.mjs";
+import { remoteV2Manifest } from "./operations/remote-v2-manifest.mjs";
+import { createCredentialStore } from "../storage/credential-profile.mjs";
 import { createLocalOperationSource } from "./local-operation-source.mjs";
 import { createRemoteReadMethods } from "./backend-remote-reads.mjs";
 import { createRemoteRequest, REMOTE_PROTOCOL_VERSION } from "./backend-remote-transport.mjs";
@@ -22,8 +23,8 @@ function createLocalBackendClient({ projectDir, source }) {
 
 export { REMOTE_PROTOCOL_VERSION };
 const DEFAULT_TIMEOUT_MS = 10_000;
-const REMOTE_OPERATION_IDS = new Set(remoteV1Manifest.operations.map(({ id }) => id));
-const REMOTE_BATCH_OPERATION_IDS = new Set(remoteV1Manifest.batch.eligibleOperationIds);
+const REMOTE_OPERATION_IDS = new Set(remoteV2Manifest.operations.map(({ id }) => id));
+const REMOTE_BATCH_OPERATION_IDS = new Set(remoteV2Manifest.batch.eligibleOperationIds);
 
 function clientError(code, message, details) {
   const error = new Error(message);
@@ -54,7 +55,7 @@ function validateRemoteBatch(operations) {
   }
 }
 
-function createRemoteOperations(request, timeoutMs) {
+function createRemoteOperations(request) {
   return {
     async executeOperation({ actor, operation, input } = {}) {
       validateRemoteOperation(operation);
@@ -69,28 +70,13 @@ function createRemoteOperations(request, timeoutMs) {
     init() {
       return request({ method: "POST", route: "init", body: {} });
     },
-    exportTransfer() {
-      return request({ method: "POST", route: "transfer/export", body: {} });
-    },
-    async importTransfer({ payload, actor, overwrite = false } = {}) {
-      try {
-        return await request({ method: "POST", route: "transfer/import", body: { payload, actor, overwrite } });
-      } catch (error) {
-        if (error.code !== "REMOTE_TIMEOUT") {throw error;}
-        throw clientError(
-          "TRANSFER_OUTCOME_UNKNOWN",
-          "application.backendClient: push timed out after the server may have applied the transfer",
-          { applied: "unknown", timeout_ms: timeoutMs },
-        );
-      }
-    },
   };
 }
 
 function createRemoteTransport(options) {
   const request = createRemoteRequest(options);
   return Object.freeze({
-    ...createRemoteOperations(request, options.timeoutMs),
+    ...createRemoteOperations(request),
     ...createRemoteReadMethods(request),
   });
 }
@@ -104,23 +90,22 @@ function validateBackendClientOptions({ projectDir, timeoutMs }) {
   }
 }
 
-function validateRemoteClientOptions(projectConfig, token) {
+function validateRemoteClientOptions(projectConfig) {
   if (typeof projectConfig.project_id !== "string" || projectConfig.project_id.length === 0) {
     throw clientError("REMOTE_PROJECT_ID_REQUIRED", "application.backendClient: remote backend requires project_id", { field: "project_id" });
   }
-  if (token !== undefined && typeof token !== "string") {
-    throw clientError("INVALID_BACKEND_CLIENT", "application.backendClient: token must be a string", { field: "token" });
-  }
 }
 
-function createSelectedBackendClient({ backend, projectDir, projectConfig, source, token, remoteOrigin, timeoutMs }) {
+function createSelectedBackendClient({ backend, projectDir, projectConfig, source, credentialStore, timeoutMs }) {
   if (backend.type === "local") {return createLocalBackendClient({ projectDir, source });}
-  validateRemoteClientOptions(projectConfig, token);
+  if (backend.insecureRemoteHttp === true) {
+    throw clientError("REMOTE_INSECURE_ORIGIN", "application.backendClient: remote origin must use HTTPS outside localhost");
+  }
+  validateRemoteClientOptions(projectConfig);
   const transport = createRemoteTransport({
     backend,
     projectId: projectConfig.project_id,
-    token: token || null,
-    remoteOrigin,
+    tokenProvider: (origin) => credentialStore.get(origin),
     timeoutMs,
   });
   return Object.freeze({ type: "remote", insecureRemoteHttp: backend.insecureRemoteHttp === true, ...transport });
@@ -131,13 +116,12 @@ export function createBackendClient({
   projectDir,
   projectConfig = {},
   source,
-  token = process.env.CLIMIER_TOKEN,
-  remoteOrigin = process.env.CLIMIER_REMOTE_ORIGIN,
+  credentialStore = createCredentialStore(),
   timeoutMs = DEFAULT_TIMEOUT_MS,
 } = {}) {
   validateBackendClientOptions({ projectDir, timeoutMs });
   const backend = parseBackendConfig(projectConfig);
-  return createSelectedBackendClient({ backend, projectDir, projectConfig, source, token, remoteOrigin, timeoutMs });
+  return createSelectedBackendClient({ backend, projectDir, projectConfig, source, credentialStore, timeoutMs });
 }
 
 export default createBackendClient;
