@@ -10,6 +10,7 @@ import { readState } from "../storage/state.mjs";
 import { initState } from "../kernel/state-operations.mjs";
 import { authorizeAction as authorizeServerAction, loadApplicablePolicy } from "../plugins/policy.mjs";
 import { withAuthorizedProject } from "./auth/project-scope.mjs";
+import { createLoginRateLimiter, loginClientAddress } from "./auth/login-rate-limiter.mjs";
 import { createHttpCodec } from "./http/codec.mjs";
 
 const PROTOCOL_VERSION = "2";
@@ -181,11 +182,15 @@ async function handleLogin(request, response, dependencies) {
   if (!body || typeof body !== "object" || Array.isArray(body) || typeof body.password !== "string" || Object.keys(body).some((key) => key !== "password")) {
     throw httpError("INVALID_REQUEST", "server http: login request requires only password", { field: "password" }, 400);
   }
+  const clientAddress = loginClientAddress(request);
+  dependencies.loginRateLimiter.assertAllowed(clientAddress);
   try {
     const token = await dependencies.authStore.login(body.password);
+    dependencies.loginRateLimiter.recordSuccess(clientAddress);
     send(response, 200, { ok: true, token, token_type: "Bearer", expires_in_days: 30 });
   } catch (error) {
     if (error.code === "AUTH_INVALID_PASSWORD") {
+      dependencies.loginRateLimiter.recordFailure(clientAddress);
       throw httpError("AUTH_INVALID", "server http: password is invalid", undefined, 401);
     }
     throw error;
@@ -221,8 +226,9 @@ export function createRemoteApiServer({
   mutate: mutateKernel = mutate,
   selectPolicy,
   authorizeAction,
+  loginRateLimiter = createLoginRateLimiter(),
 } = {}) {
-  const dependencies = { catalog, authStore, openProject: openProjectDependency, registry, mutateKernel, selectPolicy, authorizeAction };
+  const dependencies = { catalog, authStore, openProject: openProjectDependency, registry, mutateKernel, selectPolicy, authorizeAction, loginRateLimiter };
   validateServerDependencies(dependencies);
   return createServer(async (request, response) => {
     try {
