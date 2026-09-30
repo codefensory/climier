@@ -40,6 +40,8 @@ test("backend client keeps local execution unchanged", async () => {
     },
   });
   assert.equal(await client.executeOperation({ actor: "alice", operation: "task.create", input: {} }), result);
+  assert.equal(client.exportTransfer, undefined);
+  assert.equal(client.importTransfer, undefined);
   assert.deepEqual(calls, ["task.create", "task.create"]);
 });
 
@@ -67,6 +69,64 @@ test("remote client uses protocol v2 and only the profile bearer for its origin"
   }]);
 });
 
+test("remote client exports and imports transfers through authenticated v2 endpoints", async () => {
+  const requests = [];
+  const payload = { version: 1, nodes: {}, edges: [], initiatives: {}, log: [] };
+  await withServer(async (request, response) => {
+    const observed = {
+      method: request.method,
+      url: request.url,
+      authorization: request.headers.authorization,
+      protocol: request.headers["x-climier-protocol-version"],
+    };
+    if (request.method === "POST") {observed.body = await readJson(request);}
+    requests.push(observed);
+    jsonResponse(response, request.method === "GET" ? { payload, revision: 13 } : { revision: 14 });
+  }, async (origin) => {
+    const client = createBackendClient({
+      projectDir: "/project",
+      projectConfig: remoteConfig(origin),
+      credentialStore: { async get() { return "profile-token"; } },
+    });
+    assert.deepEqual(await client.exportTransfer(), { payload, revision: 13 });
+    assert.deepEqual(await client.importTransfer({
+      payload,
+      actor: "alice",
+      expected_remote_revision: 13,
+      force: false,
+      ignored: "must-not-be-sent",
+    }), { revision: 14 });
+    assert.deepEqual(await client.importTransfer({
+      payload,
+      actor: "alice",
+      expected_remote_revision: 13,
+      force: true,
+    }), { revision: 14 });
+  });
+  assert.deepEqual(requests, [
+    {
+      method: "GET",
+      url: "/v2/projects/project%2Fopaque/transfer/export",
+      authorization: "Bearer profile-token",
+      protocol: "2",
+    },
+    {
+      method: "POST",
+      url: "/v2/projects/project%2Fopaque/transfer/import",
+      authorization: "Bearer profile-token",
+      protocol: "2",
+      body: { payload, actor: "alice", expected_remote_revision: 13, force: false },
+    },
+    {
+      method: "POST",
+      url: "/v2/projects/project%2Fopaque/transfer/import",
+      authorization: "Bearer profile-token",
+      protocol: "2",
+      body: { payload, actor: "alice", force: true },
+    },
+  ]);
+});
+
 test("legacy credential environment variables never authenticate remote requests", async () => {
   const previousToken = process.env.CLIMIER_TOKEN;
   const previousOrigin = process.env.CLIMIER_REMOTE_ORIGIN;
@@ -84,6 +144,39 @@ test("legacy credential environment variables never authenticate remote requests
     if (previousToken === undefined) {delete process.env.CLIMIER_TOKEN;} else {process.env.CLIMIER_TOKEN = previousToken;}
     if (previousOrigin === undefined) {delete process.env.CLIMIER_REMOTE_ORIGIN;} else {process.env.CLIMIER_REMOTE_ORIGIN = previousOrigin;}
   }
+});
+
+test("remote transfer methods preserve HTTP, protocol, and timeout errors", async () => {
+  const payload = { version: 1, nodes: {}, edges: [], initiatives: {}, log: [] };
+  let call = 0;
+  await withServer((request, response) => {
+    call += 1;
+    if (call === 1) {
+      response.writeHead(401, { "content-type": "application/json", "x-climier-protocol-version": "2" });
+      response.end(JSON.stringify({ ok: false, error: { code: "AUTH_REQUIRED", message: "login required", details: { profile: "missing" } } }));
+    } else if (call === 2) {
+      response.writeHead(409, { "content-type": "application/json", "x-climier-protocol-version": "2" });
+      response.end(JSON.stringify({ ok: false, error: { code: "TRANSFER_REMOTE_CHANGED", message: "remote changed", details: { expected: 3, current: 4 } } }));
+    } else if (call === 3) {
+      response.writeHead(200, { "content-type": "application/json", "x-climier-protocol-version": "1" });
+      response.end(JSON.stringify({ ok: true, result: { payload, revision: 3 } }));
+    } else if (call === 4) {
+      jsonResponse(response, { payload: [], revision: 3 });
+    }
+  }, async (origin) => {
+    const client = createBackendClient({
+      projectDir: "/project",
+      projectConfig: remoteConfig(origin),
+      credentialStore: { async get() { return "profile-token"; } },
+      timeoutMs: 100,
+    });
+    await assert.rejects(client.exportTransfer(), (error) => error.code === "AUTH_REQUIRED" && error.status === 401 && error.details.profile === "missing");
+    await assert.rejects(client.importTransfer({ payload, actor: "alice" }), (error) => error.code === "TRANSFER_REMOTE_CHANGED" && error.status === 409 && error.details.current === 4);
+    await assert.rejects(client.exportTransfer(), (error) => error.code === "PROTOCOL_VERSION_UNSUPPORTED");
+    await assert.rejects(client.exportTransfer(), (error) => error.code === "REMOTE_INVALID_RESPONSE");
+    await assert.rejects(client.exportTransfer(), (error) => error.code === "REMOTE_TIMEOUT" && error.details.timeout_ms === 100);
+    assert.equal(call, 5, "transfer failures are not retried");
+  });
 });
 
 test("login transport posts the password to the origin endpoint and returns the bearer in memory", async () => {

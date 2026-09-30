@@ -55,6 +55,21 @@ function validateRemoteBatch(operations) {
   }
 }
 
+function isRecord(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function validateTransferExport(result) {
+  if (!isRecord(result) || !isRecord(result.payload) || !Number.isSafeInteger(result.revision) || result.revision < 0) {
+    throw clientError(
+      "REMOTE_INVALID_RESPONSE",
+      "application.backendClient: transfer export response must contain an object payload and non-negative integer revision",
+      { field: "result" },
+    );
+  }
+  return result;
+}
+
 function createRemoteOperations(request) {
   return {
     async executeOperation({ actor, operation, input } = {}) {
@@ -69,6 +84,15 @@ function createRemoteOperations(request) {
     },
     init() {
       return request({ method: "POST", route: "init", body: {} });
+    },
+    async exportTransfer() {
+      return validateTransferExport(await request({ method: "GET", route: "transfer/export" }));
+    },
+    async importTransfer(options = {}) {
+      const body = { payload: options.payload, actor: options.actor };
+      if (options.force !== true && options.expected_remote_revision !== undefined) {body.expected_remote_revision = options.expected_remote_revision;}
+      if (options.force !== undefined) {body.force = options.force;}
+      return request({ method: "POST", route: "transfer/import", body });
     },
   };
 }
