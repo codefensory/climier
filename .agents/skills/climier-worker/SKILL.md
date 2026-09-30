@@ -110,8 +110,12 @@ retirados en tests/fixtures y scripts de smoke registrados; informa referencias
 fuera del scope para que el orchestrator cure o divida el contrato, sin editarlas
 por cuenta propia. En TDD, empieza con un fixture válido y un caso rojo
 representativo; agrega casos por contrato después de que el primer camino pase.
-Antes de editar una assertion, clasifica el fallo como fixture, contrato o
-implementación y comprueba el comportamiento real.
+Para serializadores y requests públicos, prueba también las combinaciones y
+precedencias entre flags/campos que interactúan o son mutuamente excluyentes; no
+basta cubrir cada campo por separado. Si `force` sustituye CAS, verifica que con
+`force=true` se omita `expected_revision` incluso si el caller lo pasó y que sin
+force se conserve. Antes de editar una assertion, clasifica el fallo como
+fixture, contrato o implementación y comprueba el comportamiento real.
 
 ### Congelación de scope
 

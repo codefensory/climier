@@ -59,9 +59,12 @@ validator confirma evidencia, scope y merge antes de habilitar dependientes.
 
 La secuencia saludable es: preflight mínimo → worktree → mapa de archivos y
 contratos → un test rojo representativo → implementación incremental → checks
-focalizados con exit code preservado → suite proporcional → cierre. Ante un
-fallo, clasifica primero fixture, contrato o implementación; no cambies tests
-para hacerlos pasar sin demostrar cuál de esos tres casos aplica. El límite de
+focalizados con exit code preservado → suite proporcional → cierre. Para
+requests/serializadores públicos, acceptance y tests cubren también las
+interacciones y precedencias entre flags/campos, no solo cada caso aislado (por
+ejemplo, `force` omite `expected_revision`). Ante un fallo, clasifica primero
+fixture, contrato o implementación; no cambies tests para hacerlos pasar sin
+demostrar cuál de esos tres casos aplica. El límite de
 turns es un techo, no la unidad de sizing: al checkpoint 20 debe existir un
 caso rojo y una ruta acotada, y una task no cruza simultáneamente kernel,
 registry, adapter, dispatch y fixtures. El límite operativo del worker no se

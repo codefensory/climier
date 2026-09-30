@@ -35,7 +35,10 @@ verifiques desde el worktree principal. Todos los tests deben tener timeout expl
 nombres de tests y no archivos UI. Después del preflight mínimo, entra al
 worktree cuanto antes; usa un mapa corto de archivos/contratos, TDD incremental
 con fixture válido y clasifica cada fallo como fixture, contrato o implementación
-antes de tocar assertions. El límite de 40 turns es un techo, no una licencia
+antes de tocar assertions. Para serializadores/requests públicos, prueba las
+combinaciones y precedencias entre flags/campos que interactúan; por ejemplo,
+`force=true` debe omitir `expected_revision` aunque el caller lo envíe y sin
+force debe conservarlo. El límite de 40 turns es un techo, no una licencia
 para explorar: checkpoint a las 10, primer test rojo e implementación acotada
 antes de 20, y cierre o handoff antes de 30 salvo excepción explícita del
 orchestrator. Si al checkpoint 20 el resultado todavía cruza más de una frontera
