@@ -54,16 +54,16 @@ and forwarded-client-address policy according to the host's security policy.
 The server uses forwarded addresses for login rate limiting only when the peer
 is the local proxy.
 
-## Link and authenticate a checkout
+## Link, authenticate, and provision a checkout
 
-Initialize a checkout once, then link its metadata to the v2 origin. A link
-preserves the existing `project_id`; repeating the same link is safe. Changing
-an origin requires an explicit replacement and does not copy or merge a DAG:
+`link` creates `.climier.json` and a project ID if the checkout has no metadata;
+otherwise it preserves the existing `project_id`. Then log in and run `init`
+while linked to provision that project on the remote server:
 
 ```sh
-climier --project /srv/climier/checkouts/alpha init
 climier --project /srv/climier/checkouts/alpha link https://climier.example.test
 climier --project /srv/climier/checkouts/alpha login
+climier --project /srv/climier/checkouts/alpha init
 ```
 
 `login` reads the password from an interactive TTY without echo, calls
@@ -72,6 +72,12 @@ profile (`~/.climier/remote-sessions.json` by default). The profile directory
 is `0700` and its file is `0600` on POSIX. The password and bearer must not be
 placed in argv, environment variables, stdin, `.climier.json`, command output,
 or logs. `logout` removes the local copy; it does not revoke the server hash.
+
+Linking an existing local checkout preserves its project ID but does not upload
+or merge its local DAG. Remote `init` provisions the server-side project; it is
+not a migration. This release has no DAG import, sync, or transfer workflow.
+Changing an origin requires `climier link <new-origin> --replace=true`; it keeps
+the project ID but does not copy data between servers.
 
 If a checkout is cloned, preserve its `.climier.json` project ID and run
 `login` on the new machine. A remote v2 config must contain exactly
