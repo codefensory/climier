@@ -293,7 +293,7 @@ When you fix a bug, write a test that reproduces it BEFORE the fix. The test goe
 
 ## Non-obvious things that bit us
 
-- **Task corrections use the validation lifecycle.** Workers submit implementation evidence; validators accept or reject it. `reopen` is the administrative rollback from `done` to `open`, while `resolve` is reserved for gates.
+- **Task corrections use the runner lifecycle.** `climierflow` returns implementation and review evidence and owns the task transition; `reopen` is the administrative rollback from `done` to `open`, while `resolve` is reserved for gates.
 - **`status --status DONE` (uppercase) works in `tasks` style filters.** Case-insensitive.
 - **`status --staleMs 0` marks all in_progress as stale.** `staleMs: 0` is valid and means "everything in_progress is stale".
 - **`status` is global by default for in_progress.** `tasks.in_progress` and `summary.in_progress` include every in_progress task in scope, regardless of caller. `--claimed-by <agent>` is the only way to narrow claims; `--as` is an identity tag for `context` and is intentionally not a filter for `status`. Stale-claim alerts follow the same rule.
@@ -371,12 +371,52 @@ binary and the refactor worktree must use the same `CLIMIER_HOME` and project
 metadata.
 
 Each shell-tool invocation is independent: a `cd` from one invocation does not
-carry into the next. Workers and validators must prefix every worktree command
-with `cd <worktree> &&` (or use absolute paths) and verify `pwd` plus the branch
-in that same invocation. Never run worktree tests from the main checkout.
+carry into the next. Every runner worktree command must prefix the path with
+`cd <worktree> &&` (or use absolute paths) and verify `pwd` plus the branch in
+that same invocation. Never run worktree tests from the main checkout.
 Tests must be bounded and targeted. Use the repository core test runner or an
 explicit file list with a timeout; do not use `--test-skip-pattern` as a way to
 exclude files.
+
+## Unified execution protocol
+
+Climier remains the operator's control plane for creating, reading, and curating tasks, gates, knowledge, initiatives, and dependencies. Execution has one entrypoint:
+
+```bash
+climierflow run <task-id>
+```
+
+The runner owns the internal claim, worktree, implementation, review, lifecycle, commit, merge, and cleanup stages. Do not manually delegate or invoke those stages, and do not treat internal worker or validator identities as operator actions.
+
+The terminal result is one JSON object. A completed run has this stable shape:
+
+```json
+{
+  "ok": true,
+  "task_id": "<task-id>",
+  "status": "done",
+  "terminal": true,
+  "result": {
+    "summary": "<result summary>",
+    "commit": "<commit-sha>",
+    "merged": true
+  }
+}
+```
+
+A terminal failure or blocked run uses the same envelope and puts structured recovery information in `error`:
+
+```json
+{
+  "ok": false,
+  "task_id": "<task-id>",
+  "status": "blocked",
+  "terminal": true,
+  "error": { "code": "<code>", "message": "<message>", "details": {} }
+}
+```
+
+Use the runner for execution recovery: `climierflow status` inspects the current run, `climierflow resume <task-id>` continues an interrupted run when a checkpoint is available, and `climierflow restart <task-id>` starts that run again when resuming is not appropriate. Use `climier status`, `context`, `show`, `search`, and the mutation commands separately for DAG management; they are not replacements for `climierflow run`.
 
 ## Task sizing and agent budget
 

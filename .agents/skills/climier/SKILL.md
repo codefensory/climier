@@ -1,105 +1,96 @@
 ---
 name: climier
-description: Use this skill when a climier task, gate, knowledge node, task graph, claim, worker, validator, or other Climier operation is already in scope. Climier coordinates tracked work through a machine-local state file, atomic claims, and a structured error surface.
+description: Use this skill when a Climier task, gate, knowledge node, task graph, claim, or other Climier operation is already in scope. Climier coordinates the DAG through a machine-local state file, atomic mutations, and a structured error surface; `climierflow` owns task execution.
 ---
 
 # climier — graph harness for multi-agent workflows
 
-Climier is the coordination layer for tracked work in this repository. State lives at `~/.climier/projects/<project_id>/tasks.json` (global, machine-local, NOT in the repo and NOT under git's purview). The repo only commits `.climier.json`, which pins the `<project_id>` that resolves to that state file. Storage is a graph of `nodes` (tasks, gates, knowledge) and typed `edges` (`BLOCKS`, `SUPERSEDES`, `DERIVED_FROM`). Workers claim one task at a time with an atomic file lock; the orchestrator reads `status` and delegates via `context` + `take`. Workers submit completed work for independent validator review; only the validator accepts or rejects it.
+Climier is the DAG coordination layer for tracked work in this repository. State lives at `~/.climier/projects/<project_id>/tasks.json` (global, machine-local, NOT in the repo and NOT under git's purview). The repo only commits `.climier.json`, which pins the `<project_id>` that resolves to that state file. Storage is a graph of `nodes` (tasks, gates, knowledge) and typed `edges` (`BLOCKS`, `SUPERSEDES`, `DERIVED_FROM`). Operators use Climier to create, read, and curate that graph. Execution is owned by the single `climierflow run <task-id>` entrypoint; its internal claim, worktree, implementation, review, lifecycle, commit, merge, and cleanup stages are not manual operator actions.
 
 ## When to use this skill
 
-- The user asks you to "work on the next task", "take a task", "what's the next thing".
-- A new agent session opens and you need to orient without prior context.
-- Multiple agents need to work in parallel without stepping on each other.
+- The user asks you to execute the next task or asks "what's the next thing".
+- A new operator session opens and you need to orient without prior context.
+- Multiple executions need DAG coordination without stepping on each other.
 - A task is blocked by an open gate and you need to resolve it.
-- You're acting as an orchestrator (delegating) instead of a worker (executing).
+- You need to create, read, or curate a task, gate, knowledge node, or dependency.
 - The user or principal agent decided to represent the work in Climier.
 
 ## The 7 rules (read first, never violate)
 
-1. **Never edit `~/.climier/projects/<project_id>/tasks.json` by hand.** Use climier commands. The state is owned by the script.
-2. **Take ONE task at a time.** `take` is exclusive. If you need two, submit the first for validation, then take the other.
-3. **Never use `resolve` to close a task.** Tasks follow `take → work → submit → validator accept/reject`; `resolve` is for gates and requires its choice and rationale.
-4. **If you can't finish, `release` and leave a note — never just abandon.** Abandoned claims go stale and block others. There is no `block` command; an escalation is `add-note "blocked: ..."` plus either `release` or a handoff to the orchestrator.
-5. **Identify yourself with `--as <agent-id>` on every mutating command.** Use a stable id (e.g. `claude-auth`, `pi-frontend`).
+1. **Never edit `~/.climier/projects/<project_id>/tasks.json` by hand.** Use Climier commands. The state is owned by the script.
+2. **Run ONE task at a time.** `climierflow run <task-id>` is the exclusive execution entrypoint; do not start a second run for the same task.
+3. **Never use `resolve` to close a task.** `resolve` is for gates and requires its choice and rationale. The runner owns task lifecycle transitions during execution.
+4. **Recover interrupted execution through the runner.** Use `climierflow status`, then `climierflow resume <task-id>` when a checkpoint is available or `climierflow restart <task-id>` when a fresh attempt is required. Do not manually reproduce internal stages.
+5. **Identify yourself with `--as <agent-id>` on every mutating Climier command.** Use a stable id (e.g. `claude-auth`, `pi-frontend`).
 6. **Read the scoped knowledge and gate resolutions that `context` shows you.** They are domain traps the team has already paid for; ignore them at your own risk.
-7. **Run `context <id>` before `take <id>`.** It's a read-only pre-flight: spec + knowledge + blockers + `allowed_actions` + a GO/NO-GO verdict via `derived_status`. Cheaper than discovering the task is blocked (or already taken) after you've claimed it.
+7. **Run `context <id>` before `climierflow run <id>`.** It's a read-only pre-flight: spec + knowledge + blockers + alerts + `allowed_actions` + a GO/NO-GO verdict via `derived_status`.
 
-## The 7 commands you need (worker)
+## Operator commands
 
-`--project .` is the default. From inside a project, you can omit it. Use `--project <path>` only when invoking climier from outside the project root.
+`--project .` is the default. From inside a project, you can omit it. Use `--project <path>` only when invoking Climier from outside the project root.
+
+Use Climier for DAG management and `climierflow` for execution:
 
 ```bash
-# 1. Orient yourself
+# Read the graph and the task contract
 climier status
-
-# 2. Pre-flight: spec + knowledge + blockers + allowed_actions (read-only)
 climier context <id>
+climier show <id>
+climier search "<query>"
 
-# 3. Take ONE task (idempotent — re-running with the same --as is a no-op)
-climier take <id> --as <your-agent-id>
+# Create or curate tasks, gates, knowledge, and notes
+climier add-initiative <name> --as <agent>
+climier add-task <id> ... --as <agent>
+climier add-gate <id> ... --as <agent>
+climier add-knowledge <id> ... --as <agent>
+climier update <id> ... --as <agent>
+climier add-note <id> "..." --as <agent>
+climier resolve <gate-id> --choice "..." --rationale "..." --as <agent>
 
-# 4. Re-read the spec now that you own it (shows the same context with claim + revision)
-climier context <id>
+# Execute one task through the unified runner
+climierflow run <id>
 
-# 5. Submit it for independent validation (REQUIRED: a note describing what you did)
-climier submit <id> --note "what you shipped, in one line" --as <your-agent-id>
-
-# 5b. Required post-worker audit
-#     After every submission, run an independent validator using the
-#     climier-validator skill. The validator accepts or rejects the task and
-#     reports follow-up work to the orchestrator.
-
-# 6a. If you can't finish and want another agent to take it
-climier release <id> --as <your-agent-id>
-
-# 6b. If you need the orchestrator to unblock you
-climier add-note <id> "blocked: <what you need to proceed>" --as <your-agent-id>
-climier release <id> --as <your-agent-id>   # then hand off
-
-# 7. Refine the spec (anytime, except when you own the claim)
-#    Use --body to attach the long-form spec, --definition/--acceptance to
-#    update metadata. Optimistic concurrency via --if-revision N.
-climier update <id> --body "## Spec\n\nThe full design lives in..." --as <your-agent-id>
-
-# 8. Leave a timestamped note (any status, append-only)
-climier add-note <id> "tried approach X, hit Y; switching to Z" --as <your-agent-id>
+# Inspect or recover the runner execution
+climierflow status
+climierflow resume <id>
+climierflow restart <id>
 ```
+
+The runner internally performs claim, worktree, implementation, review, lifecycle, commit, merge, and cleanup. The operator does not call those stages separately.
 
 ## Editing vs. closing: when to use which
 
 `update` and `add-note` are for keeping the spec and the trail alive while work is in progress. Different semantics, different permissions:
 
-- **`update` (any agent)**: edit a node's *spec* (`--title`, `--body`, `--definition`, `--acceptance`, `--domain`, `--backlog`, `--meta`, `--scope-*`, `--tags`, `--refs`, etc.). Bumps `revision`. Add `--if-revision N` to reject the update if the stored revision differs (cheap optimistic concurrency). Common use: orchestrator refining a task before delegating, or any agent cleaning up a stale spec.
-- **`add-note` (any agent)**: append a timestamped `{ts, agent, text}` entry to the node's `notes[]` thread. Any status. Append-only by design. Common use: workers leaving breadcrumb findings during a task; orchestrator adding context for future readers; the user leaving a comment on anything.
+- **`update` (any agent)**: edit a node's *spec* (`--title`, `--body`, `--definition`, `--acceptance`, `--domain`, `--backlog`, `--meta`, `--scope-*`, `--tags`, `--refs`, etc.). Bumps `revision`. Add `--if-revision N` to reject the update if the stored revision differs (cheap optimistic concurrency). Common use: refining a task before execution, or cleaning up a stale spec.
+- **`add-note` (any agent)**: append a timestamped `{ts, agent, text}` entry to the node's `notes[]` thread. Any status. Append-only by design. Common use: recording context for future readers, attaching operator evidence, or leaving a comment on anything.
 
-If a worker discovers the spec is wrong while they're `in_progress`, they can't `update` the claim-protected fields freely (revision will bump under them). The right move is `add-note` with the proposed change, then `release` so the orchestrator can `update` and ask the worker to re-take. The orchestrator can also use `--if-revision` to coordinate concurrent edits without losing changes.
+If the execution contract is wrong, add a note with the proposed change and update it before running or restarting. Use `--if-revision` to coordinate concurrent edits without losing changes; the runner owns claim-protected lifecycle fields.
 
-## The orchestrator view (when you're delegating, not executing)
+## DAG curator view
 
 ```bash
-# Who's holding what, what's blocked, what's stale
+# What's ready, blocked, stale, or gated
 climier status
 
-# Read a task in agent-first shape (the delegation message uses this)
+# Read the task contract before execution
 climier context <id>
 
-# What decisions (gates) are open and blocking tasks
-climier status                       # summary.open_gates
+# Resolve a gate to unblock dependents
+climier resolve <G> --choice "<chosen path>" --rationale "<why>" --as <agent>
 
-# Resolve a gate to unblock dependents (tasks never use resolve)
-climier resolve <G> --choice "<chosen path>" --rationale "<why>" --as orchestrator
+# Correct a completed node when the DAG requires it
+climier reopen <id> --reason "<what's wrong>" --as <agent>
 
-# Reopen an accepted task when a validator or orchestrator finds a defect
-climier reopen <id> --reason "<what's wrong>" --as orchestrator
+# Execute and recover through the single runner entrypoint
+climierflow run <id>
+climierflow status
+climierflow resume <id>
+climierflow restart <id>
 ```
 
-When you delegate, tell the worker the **task id** and their **agent id**:
-> "agent-claude-auth: `climier take T-auth-validate --as claude-auth`. Then `climier context T-auth-validate` to read the spec."
-
-After a worker submits a task, stalls, gets cancelled, or leaves an ambiguous state, run an independent `climier-validator` pass before treating the task as safe for downstream work. The validator must find the task worktree from `WORKTREE` notes or from `git worktree list` entries containing the task id. If it returns `PASS`, it merges the branch with `--no-ff`, accepts the task, and leaves a `VALIDATION PASS ... merged=true` note. If it returns `FAIL`, it rejects the submitted task or creates a follow-up task from its report and assigns a worker to the same worktree/branch. If it returns `BLOCKED`, resolve the missing evidence before continuing.
-
+Do not delegate implementation or validation stages manually. The runner owns those stages and returns the terminal JSON result; Climier remains the source of truth for the DAG and its curation.
 ## Storage
 
 - `<project-root>/.climier.json` — the repo-committed file pinning the `project_id`.
@@ -165,68 +156,54 @@ Branch on `error.code`, not on `error.message`.
 
 The CLI phrases edges from the dependent's point of view: `--blocked-by G-y` means "this node is blocked by G-y". Internally the edge is stored canonically as `from: G-y, to: <this node>, type: BLOCKS`. The `from BLOCKS to` reading is: **to is BLOCKED-BY from**. The CLI never asks for `--blocks` — only `--blocked-by`. `SUPERSEDES` and `DERIVED_FROM` keep the user-supplied direction (the new node is `from`, the older node is `to`).
 
-## The orchestrator loop
+## The operator loop
 
 ```text
-status  → see who has what, what's blocked, what's stale, what gates are open
-context <id> → read a candidate task before delegating
-delegate  → "agent-X, take T-Y, then context T-Y"
-[wait for submit; validator accepts or rejects]
-reopen or release → only on rollback / stuck-claim recovery
-resolve <G> --choice --rationale → unblock downstream via gates
+climier status → see what's ready, blocked, stale, and which gates are open
+climier context <id> → read the task contract, knowledge, blockers, and alerts
+climier update/add-* → curate the DAG when the contract needs changes
+climierflow run <id> → execute the task through the unified runner
+climierflow status → inspect the current execution
+climierflow resume/restart <id> → recover when the runner reports it is applicable
+climier resolve <G> --choice --rationale → unblock downstream via a gate
 ```
 
 ## Common pitfalls
 
-- **Taking a task whose deps aren't resolved.** Symptom: `take: node T is open, not ready` (NOT_READY) or, more commonly, the node just doesn't appear in `status` `ready` bucket. Run `climier context <id>` to see `blocking[]` — every unsatisfied blocker is listed there with kind/status.
-- **`submit` without `--note`.** Climier requires a submission note; write what you shipped and verified, not "ok" or "done". The validator then accepts or rejects the submitted task.
-- **`resolve` on a task.** Tasks do not use `resolve`; submit them and let the validator accept or reject. `resolve` is exclusively for gates with `--choice` + `--rationale`.
-- **Two agents trying to `take` the same task.** One wins, the other gets `ALREADY_CLAIMED`. This is the lock working. Pick another task from `status` `ready` bucket.
-- **Stale claims in `status`.** A claim older than 2h is stale (configurable via `--stale-ms`). Release it and let another worker take it. `context <id>` shows `claim.stale: true` for any task you inspect.
-- **Forgot `--as`.** All mutating commands (`take`, `submit`, `accept`, `reject`, `resolve` for gates, `release`, `reopen`, `cancel`, `update`, `add-note`, `add-task`, `add-gate`, `add-knowledge`, `deprecate-knowledge`) require `--as`. The CLI throws `MISSING_AGENT` with a structured details object.
-- **`update` while a task is `in_progress`.** It's allowed, but the revision bumps under the worker. If you need to coordinate, use `--if-revision N` or leave a note and ask the worker to `release` first.
+- **Running a task whose dependencies are unresolved.** If the node is not `ready`, read `climier context <id>` and inspect `blocking[]` before running it.
+- **Using Climier lifecycle commands as execution steps.** `take`, `submit`, `accept`, and `reject` are internal to the runner for normal execution; invoke `climierflow run <id>` instead.
+- **Using `resolve` on a task.** Tasks do not use `resolve`; it is exclusively for gates with `--choice` and `--rationale`.
+- **Starting duplicate execution.** Check `climierflow status` before starting another attempt for a task.
+- **Recovering without the runner.** Use `climierflow resume <id>` or `climierflow restart <id>` as indicated by the execution state; do not recreate a claim, worktree, review, or merge manually.
+- **Forgetting `--as`.** Mutating Climier commands (`resolve` for gates, `update`, `add-note`, `add-task`, `add-gate`, `add-knowledge`, and similar DAG curation commands) require `--as`. The CLI throws `MISSING_AGENT` with a structured details object.
+- **`update` during an execution.** It is allowed only when the contract needs correction; use `--if-revision N` for optimistic concurrency and let the runner own lifecycle state.
 - **Boolean flags before the command.** `climier --force init` is interpreted as `--force=init` (the parser consumes the next non-flag as the flag's value). Use `climier --force=true init` or put the flag after the command. The same applies to any boolean flag: if a flag is meant as a switch, use `--flag=true` when the command comes right after.
 
-## Recovery (when a worker dies or a claim is stuck)
+## Recovery
 
-A claim can be released when work is handed off or recovered:
+The runner owns execution recovery:
 
-- **Releasing a stuck claim**: use `release` when work cannot continue or must be handed off. Use this when:
-  - The original agent is gone and the claim is stuck.
-  - You need to reassign work mid-flight.
-  - The task is orphaned (`in_progress` with no `claim.by`).
+```bash
+climierflow status
+climierflow resume <id>
+climierflow restart <id>
+```
 
-  ```bash
-  climier release <id> --as <agent>
-  ```
+`status` shows the current attempt and whether a checkpoint is available. `resume` continues an interrupted attempt from its checkpoint. `restart` starts the attempt again when resuming is not appropriate. Use `climier status` and `climier context <id>` to verify the DAG before or after recovery.
 
-  The task returns to `open` (the bucket is `ready` when nothing else blocks it) and another agent can `take` it. `release` is idempotent: running it on an unclaimed task returns `{ released: false, node }` with no state mutation.
-
-- **`reopen` corrects an accepted task or resolved gate.** See "Correcting an accepted task" below.
-
-- **`init --force`**: overwrites a corrupt or stale state file. Use only when you're sure; it deletes the current state and re-creates an empty one.
-
-  ```bash
-  climier init --force   # full reset to empty state
-  ```
-
-- **There is no `block` command.** Escalation is `add-note "blocked: ..."` plus either `release` or a handoff to the orchestrator. The orchestrator can `release` the claim (which clears it); if the claim owner needs to record *why* they are blocked, they leave a note and release.
+`reopen`, `release`, and `cancel` remain explicit administrative Climier operations for correcting or managing the DAG; they are not substitutes for the runner's recovery commands. If the contract itself is wrong, curate it with `update` before restarting.
 
 ## Correcting an accepted task (`reopen`)
 
-When a validator accepts a task as `done` but the work isn't actually finished (missing edge case, broken integration, missed acceptance criterion), the orchestrator rolls it back. The DAG self-corrects — anything that depended on the accepted task re-derives as blocked.
+When a completed task needs correction, the operator reopens the DAG node explicitly and then runs it again through the unified entrypoint. The DAG self-corrects — anything that depended on the task re-derives as blocked.
 
 ```bash
-# Worker shipped T-auth-7 but the integration test is flaky.
-$ climier reopen T-auth-7 --reason "le falta validar el caso de timeout" --as orchestrator
-{ "node": { "id": "T-auth-7", "status": "open", "revision": 4, ... } }
-
-# T-api-12 (blocked by T-auth-7) is now blocked again, even though the worker
-# had already taken and started it. Review the history before unblocking.
-$ climier history T-api-12
+climier reopen T-auth-7 --reason "le falta validar el caso de timeout" --as orchestrator
+climierflow restart T-auth-7
+climier history T-api-12
 ```
 
-`reopen` is an administrative correction after acceptance. The actor is recorded in the audit log; any additional authority rule comes from the configured policy.
+`reopen` is an administrative correction. The actor is recorded in the audit log; any additional authority rule comes from the configured policy.
 
 Same rules apply to gates: reopen rolls a `resolved` gate back to `open` and clears `resolution`.
 
@@ -260,7 +237,7 @@ climier add-task F2.T1 --initiative migration --title "implement Lucia sessions"
   --blocked-by D9
 ```
 
-Tasks stay blocked until `D9` is resolved. When a worker claims one, `context` shows the `Read .decisions/D9.md first.` line in the body — workers read the doc before starting.
+Tasks stay blocked until `D9` is resolved. When the operator reads one with `context`, the body shows the `Read .decisions/D9.md first.` line; `climierflow run <id>` then receives that contract as part of its execution context.
 
 Why a gate, not a task: gates have a `purpose` (`decision`, `approval`, `external-dependency`, `research`) that maps naturally to "research findings + chosen approach", they resolve with a `--choice` + `--rationale` (which discourages trivial research), and the choice becomes a permanent record of *why* we picked one path.
 
@@ -279,14 +256,12 @@ Every command prints a single JSON value to stdout. There is no `--json` flag an
 | `search "<query>" [--all]` | Search active knowledge by id/title/body/mitigation/domain/tags/refs/meta. `--all` includes deprecated. | no |
 | `initiatives [--all]` | List registered initiatives with usage counts. `--all` includes zero-node initiatives. | no |
 | `log [--limit N] [--action X] [--agent X] [--node X]` | Show the audit log, filterable. Logs use `node:` (not `task:`/`decision:`). | no |
-| `take <id> --as <agent>` | Idempotently claim exactly one task. Sets `claim.by`, increments `revision`. | yes |
-| `submit <id> --note "<text>" --as <agent>` | Submit an `in_progress` task for validation; clears the implementation claim. | yes |
-| `accept <id> --as <agent>` | Accept a `submitted` task as `done`; the validator owns this review step. | yes |
-| `reject <id> --reason "<text>" --as <agent>` | Return a `submitted` task to `open` with an audit reason. | yes |
 | `resolve <G> --choice "<text>" --rationale "<text>" --as <agent>` | Resolve a gate; tasks never use this command. | yes |
-| `release <id> --as <agent>` | Free a task's claim without resolving. Idempotent. | yes |
-| `reopen <id> --reason "<text>" --as <agent>` | Roll a `done` task back to `open`; downstream tasks re-block. Also reopens a resolved gate. | yes |
-| `cancel <id> --reason "<text>" --as <agent>` | Terminate a node without resolving (open/in_progress only). | yes |
+| `reopen <id> --reason "<text>" --as <agent>` | Administrative correction: roll a completed task back to `open`, or reopen a resolved gate. | yes |
+| `cancel <id> --reason "<text>" --as <agent>` | Administrative termination of a node; not a substitute for runner recovery. | yes |
+| `climierflow run <id>` | Execute one task through claim, worktree, implementation, review, lifecycle, commit, merge, and cleanup. | no |
+| `climierflow status` | Inspect the current runner execution and available checkpoints. | no |
+| `climierflow resume/restart <id>` | Recover an interrupted execution by resuming or starting a fresh attempt. | no |
 | `update <id> [--title X] [--body "..."] [--definition "..."] [--acceptance "..."] [--domain Y] [--backlog true\|false] [--scope-* ...] [--meta '{...}'] [--if-revision N] --as <agent>` | Edit a node. Bumps `revision`. `--if-revision N` for optimistic concurrency. | yes |
 | `add-note <id> "<text>" --as <agent>` | Append a timestamped note to the node's `notes[]` thread. Any status. Append-only. | yes |
 | `add-task [id] --initiative X --title "..." --body "..." --acceptance "..." --blocked-by A,B [--definition ...] [--domain ...] [--backlog true] --as <agent>` | Add a task. Requires `--body`, `--acceptance` and `--blocked-by` (pass `--blocked-by ""` for none). Omit `id` to auto-allocate (`T-xxxxxxxx`). | yes |
@@ -321,28 +296,26 @@ The convention for return shapes is principled (stable across versions):
 | Command type | Shape | Examples |
 |---|---|---|
 | Read commands | Raw data (object/array) | `status` → `{ summary, tasks, gates, knowledge_count, alerts }`, `context` → `{ node, derived_status, claim, blocking, knowledge, alerts, allowed_actions }`, `show` → `{ type, node }` |
-| Write commands | `{ entity }` envelope | `take` → `{ node, context, freshly_claimed }`, `submit` → `{ task }`, `accept` → `{ task }`, `reject` → `{ task }`, `resolve` (gate) → `{ node, newly_ready }`, `add-task` → `{ task }`, `add-gate` → `{ node }`, `add-knowledge` → `{ node }`, `update` → `{ node }` |
+| DAG write commands | `{ entity }` envelope | `resolve` (gate) → `{ node, newly_ready }`, `add-task` → `{ task }`, `add-gate` → `{ node }`, `add-knowledge` → `{ node }`, `update` → `{ node }` |
 | `init` | `{ ok, seeded, file }` | (not entity-creating) |
+| `climierflow run` | terminal JSON | `{ ok, task_id, status, terminal, result|error }`; success includes `result.summary`, `result.commit`, and `result.merged` |
 
-Agent pattern:
+Operator pattern:
 
 ```bash
-# Read → take the first id
+# Read the DAG and task contract
 id=$(climier status | jq -r '.tasks.ready[0].id')
+climier context "$id"
 
-# Write → check the returned entity
-node_id=$(climier take "$id" --as my-agent | jq -r '.node.id')
+# Execute; the runner owns all internal stages
+climierflow run "$id"
 
-# Error → branch on the code, not the message
-if ! climier take T-auth-7 --as alice >/dev/null 2>&1; then
-  err=$(climier take T-auth-7 --as alice 2>&1 | jq -r '.error.code')
-  case "$err" in
-    NOT_READY) ;;              # blocked, try another
-    ALREADY_CLAIMED) ;;        # someone else has it
-    NODE_NOT_FOUND) ;;         # id doesn't exist
-  esac
-fi
+# If interrupted, inspect and recover through the runner
+climierflow status
+climierflow resume "$id"   # or: climierflow restart "$id"
 ```
+
+Branch on `error.code`, not on the message, in both Climier and runner JSON.
 
 ## If the JSON gets corrupted or out of sync
 
@@ -354,7 +327,7 @@ cp ~/.climier/projects/<project_id>/tasks.json ~/.climier/projects/<project_id>/
 
 # Reset (only if you're sure; this loses log entries)
 climier init --force
-# Then re-take / re-submit the in-progress tasks you need
+# Then inspect the DAG and recover executions through climierflow
 ```
 
 The CLI also auto-recovers a corrupt JSON on `init --force` (or even without `--force` if the existing state is unreadable). Always backup first.
@@ -363,6 +336,6 @@ The CLI also auto-recovers a corrupt JSON on `init --force` (or even without `--
 
 See `examples/` in this skill:
 
-- `examples/worker-flow.md` — end-to-end worker session: status → context → take → submit → validator accept/reject.
-- `examples/orchestrator-delegation.md` — orchestrator reading `status`, delegating to 2 workers, resolving a gate.
-- `examples/concurrent-claims.md` — what happens when 2 agents race for the same task (the file lock).
+- `examples/worker-flow.md` — unified execution session: context → `climierflow run` → terminal JSON → recovery.
+- `examples/orchestrator-delegation.md` — historical DAG curation reference; execution is now delegated only to `climierflow run`.
+- `examples/concurrent-claims.md` — historical claim/concurrency reference; the runner owns claims during execution.

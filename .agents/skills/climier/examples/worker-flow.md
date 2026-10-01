@@ -1,145 +1,110 @@
-# Worker flow — end-to-end
+# Unified task execution — end-to-end
 
-A worker agent starts a session, takes a task, does the work, and submits it for validation.
+Climier is the DAG control plane. `climierflow` is the only operator entrypoint for executing a task. The runner owns claim, worktree, implementation, review, lifecycle, commit, merge, and cleanup internally.
 
 ## Setup
 
 ```bash
 cd ~/Dev/climier
-# (climier is on PATH via `npm link`; tasks.json was created with `climier init`)
+# climier is on PATH; the project's state is managed by Climier
 ```
 
-## 1. Orient
+## 1. Read and curate the DAG
+
+Use Climier for the task contract and its surrounding graph:
 
 ```bash
-$ climier status | jq '{summary, ready_ids: [.tasks.ready[].id], open_gates: [.gates.open[].id]}'
+climier status | jq '{summary, ready_ids: [.tasks.ready[].id], open_gates: [.gates.open[].id]}'
+climier context T-auth-7
+```
+
+`context` is the read-only preflight. Check the task's acceptance, blockers, scoped knowledge, related nodes, and alerts. If the contract needs correction, curate it with Climier before execution:
+
+```bash
+climier update T-auth-7 --acceptance "..." --as <agent>
+climier add-note T-auth-7 "..." --as <agent>
+```
+
+Do not manually claim a task or delegate implementation and review stages.
+
+## 2. Execute through the single entrypoint
+
+```bash
+climierflow run T-auth-7
+```
+
+The command runs the complete internal workflow and returns one terminal JSON object. A successful result has this shape:
+
+```json
 {
-  "summary": { "ready": 2, "in_progress": 0, "blocked": 11, "backlog": 0, "open_gates": 4, "active_knowledge": 6 },
-  "ready_ids": ["T-auth-7", "T-web-3"],
-  "open_gates": ["D1", "D2", "D3", "D4"]
+  "ok": true,
+  "task_id": "T-auth-7",
+  "status": "done",
+  "terminal": true,
+  "result": {
+    "summary": "<result summary>",
+    "commit": "<commit-sha>",
+    "merged": true
+  }
 }
 ```
 
-The worker sees: 2 tasks ready, 4 open gates blocking downstream phases. They pick one of the ready tasks.
+A blocked or failed execution keeps the same top-level contract and exposes structured recovery data:
 
-## 2. Pre-flight check (read-only)
-
-Before taking, run `context` to see the spec, knowledge, blockers, derived status, and a list of allowed actions. It also catches the case where another agent claimed the task between your `status` and now (or where the task has a stale claim that needs orchestrator attention).
-
-```bash
-$ climier context T-auth-7 | jq '{id: .node.id, derived_status, can_claim, blocking: [.blocking[] | select(.satisfied == false) | .node.id], allowed_actions}'
+```json
 {
-  "id": "T-auth-7",
-  "derived_status": "ready",
-  "can_claim": true,
-  "blocking": [],
-  "allowed_actions": ["claim", "update", "add-note", "cancel"]
+  "ok": false,
+  "task_id": "T-auth-7",
+  "status": "blocked",
+  "terminal": true,
+  "error": {
+    "code": "<code>",
+    "message": "<message>",
+    "details": {}
+  }
 }
 ```
 
-No unsatisfied blockers, no stale claim — the worker proceeds. If `can_claim` had been `false`, the worker would either pick another task or stop to investigate.
+The terminal JSON is the execution report. The operator does not run separate lifecycle, commit, merge, or validator commands.
 
-## 3. Take
+## 3. Recover an interrupted execution
 
-```bash
-$ climier take T-auth-7 --as claude-shared | jq '.node | {id, status, claim, revision}'
-{
-  "id": "T-auth-7",
-  "status": "in_progress",
-  "claim": { "by": "claude-shared", "at": "2026-07-19T20:51:14.123Z" },
-  "revision": 2
-}
-```
-
-Now T-auth-7 is `in_progress` and claimed by `claude-shared`. No other agent can take it. `take` is idempotent — re-running with the same `--as` returns the same node with `freshly_claimed: false`.
-
-## 4. Do the work
-
-The worker creates `packages/shared/src/schemas/auth.ts`, defines `Session` and `SessionToken` Zod schemas, exports them. Runs `npm run typecheck` from the root to verify.
-
-## 5. Submit with evidence
-
-After the implementation is committed and the required checks pass, run the
-portable finish helper. It writes the WORKTREE and structured EVIDENCE notes and
-then performs the worker-owned lifecycle transition:
+Inspect the runner, not its internal stages:
 
 ```bash
-$ bash .agents/skills/climier-worker/finish-task.sh T-auth-7 claude-shared "Zod schemas Session/SessionToken added; tsc passes"
-...
-SUBMITTED task=T-auth-7
-COMMIT <commit-sha>
-WORKTREE <worktree-path>
-BRANCH work/T-auth-7-claude-shared
+climierflow status
 ```
 
-The task is now `submitted`, not `done`. The worker never runs `accept` or uses
-`resolve` to close a task. The validator independently checks the evidence and
-accepts only after merging the branch; if checks fail, it rejects the same task
-with a reason and it returns to `open`.
-
-## 6. Re-orient after validation
+If the status reports a resumable checkpoint, continue it:
 
 ```bash
-$ climier status | jq '.tasks.ready[] | {id, title: .title, domain}'
-{
-  "id": "T-web-3",
-  "title": "...",
-  "domain": "web"
-}
-{
-  "id": "T-api-12",
-  "title": "...",
-  "domain": "api"
-}
+climierflow resume T-auth-7
 ```
 
-After the validator accepts T-auth-7, the worker sees T-web-3 and **T-api-12** are now ready (T-api-12 was blocked by T-auth-7). They pick T-api-12 if they have the skills.
-
-## What if the worker gets stuck?
+If the current attempt must start again instead, restart it:
 
 ```bash
-# Option A: leave it for another agent
-$ climier release T-auth-7 --as claude-shared | jq '.released'
-true
-
-# Option B: ask the orchestrator to unblock (then release)
-$ climier add-note T-auth-7 --as claude-shared "blocked: need to confirm field naming with the API team"
-{
-  "node": { "id": "T-auth-7", "notes": [{ "ts": "...", "agent": "claude-shared", "text": "blocked: ..." }] }
-}
-$ climier release T-auth-7 --as claude-shared
+climierflow restart T-auth-7
 ```
 
-In option B, the note stays in the task's `notes[]` thread (visible via `context` and `history`) and the claim is freed. The orchestrator sees the `blocked:` note and helps.
+Use `climier status` and `climier context T-auth-7` to inspect the DAG before or after recovery. Do not recreate the claim, worktree, implementation, review, or merge sequence by hand.
 
-## What if the worker dies mid-task?
+## 4. Gates and knowledge remain Climier concepts
 
-Nothing breaks. The claim stays; the next session sees T-auth-7 as `in_progress` and either:
-- Re-takes from a different agent (after `release` from the original agent's orchestrator, if recoverable).
-- After 2h, `status` flags it as stale and the orchestrator releases it. `climier context <id>` shows `claim.stale: true` for any task you inspect.
-
-## When the task references a research gate
-
-Some tasks are spawned from a research gate. Their `body` starts with "Read .decisions/X first." If you see that in `context`, **read the doc before doing anything else**.
+Create and curate gates and knowledge with Climier. Resolve a gate only through its DAG command:
 
 ```bash
-$ climier context T-api-12 | jq '{id: .node.id, derived_status, body: .node.body}'
-{
-  "id": "T-api-12",
-  "derived_status": "ready",
-  "body": "Read .decisions/D9.md first. Implement session validation per the chosen approach."
-}
+climier add-gate D9 --initiative research --title "investigate auth library" \
+  --body "Read .decisions/D9.md for the findings." \
+  --purpose decision --as <agent>
+climier resolve D9 --choice "use the selected approach" \
+  --rationale "See the decision record." --as <agent>
+climier add-knowledge K-auth --initiative auth --title "Auth constraints" \
+  --body "..." --scope-initiatives auth --as <agent>
 ```
 
-`D9` is the research gate; `.decisions/D9.md` is the file the researcher wrote. Read it:
+A task blocked by an unresolved gate stays blocked in the DAG. Once its contract is ready, execute it with `climierflow run <task-id>`.
 
-```bash
-$ cat .decisions/D9.md
-# D9: Auth library research
-...
-Conclusion: use Lucia. Migration path: ...
-```
+## What is not an operator step
 
-Then proceed with the work. The doc carries the rationale + the chosen path + any pitfalls the researcher flagged. Skipping it is how decisions get re-litigated and work gets re-done.
-
-**No `Read .decisions/...` in the body?** Then the task has no research context — proceed with `context` only.
+Do not use `climier take`, `submit`, `accept`, or `reject` to run a task. Do not launch separate worker or validator agents. Those lifecycle stages and identities are internal to `climierflow`.
