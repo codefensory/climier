@@ -1,11 +1,14 @@
 ---
 name: spec-pipeline
-description: Flujo de specs de climier — RFC (gate research + .decisions/) → review con subagentes rfc-reviewer → ADR(s) (gate decision + .adrs/) → tasks (Technical Spec, --blocked-by el ADR) → ejecución con climierflow. Usar cuando el usuario trae una idea, feature, migración o cambio de arquitectura, o menciona RFC, ADR, spec o propuesta.
+description: Flujo de specs de climier para decisiones reales: RFC (gate research + .decisions/) → review con subagentes rfc-reviewer → ADR(s) (gate decision + .adrs/) → tasks ejecutables. Usar solo cuando el usuario selecciona este flujo o una decision real lo justifica.
 ---
 
 # spec-pipeline — de idea a ejecucion autonoma
 
+Este es un flujo de planificacion opt-in, no un requisito para cada idea, feature o cambio pequeno. Para un cambio pequeno y local sin una decision real, usa la via directa. Selecciona este flujo cuando haya una decision tecnica o de alcance que necesite comparar opciones, dejar una eleccion durable y convertirla en tasks ejecutables, o cuando el usuario pida explicitamente RFC, review, ADR o spec.
+
 ```
+Cuando se selecciona:
 idea → [RFC: gate research + .decisions/<G>.md]
      → [review: N rfc-reviewer en paralelo, notas en el gate]
      → [resolve G-rfc --choice aprobado]

@@ -432,10 +432,17 @@ unrelated changes.
 
 This repository carries the portable agent workflow used by the Climier-based projects:
 
-- `.pi/SYSTEM.md` — operating policy for the principal agent;
+- `.pi/APPEND_SYSTEM.md` — concise routing and policy cues appended to Pi's built-in system prompt;
 - `.pi/agents/rfc-reviewer.md` — RFC/ADR review prompt;
 - `.agents/skills/climier/` — DAG protocol and examples;
-- `.agents/skills/spec-pipeline/` — RFC → review → ADR → tasks pipeline;
+- `.agents/skills/spec-pipeline/` — opt-in RFC → review → ADR → tasks pipeline;
+- `.agents/skills/initiative-execution/` — opt-in initiative coordination through individual runner executions;
 - `CLIMIER-CHEATSHEET.md` — quick command reference.
 
 These files define how this project uses Climier. The project-specific source of truth remains the code, tests and `docs/`; the live Climier state remains outside the repository and is accessed only through the CLI.
+
+### Choosing a workflow
+
+Ordinary small or local work may use the direct path: inspect the relevant files, make the minimal change, and run proportional checks. The controlled workflow is optional; recommend or select it for meaningful risk, cross-module coordination, public contracts, state or concurrency changes, or an explicit user request. Use the planning and initiative skills only when their opt-in triggers apply.
+
+A task already registered for runner execution must use `climierflow run <task-id>`. Do not replace that path with direct implementation or manual lifecycle commands; `climierflow` owns the task's claim, worktree, implementation, review, lifecycle, commit, merge, and cleanup stages.
