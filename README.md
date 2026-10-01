@@ -123,8 +123,9 @@ climier context T-mvp-1
 climierflow run T-mvp-1
 
 # If the run is interrupted, inspect and recover through the runner
-climierflow status
-climierflow resume T-mvp-1   # or: climierflow restart T-mvp-1
+climierflow status T-mvp-1
+climierflow resume T-mvp-1 [--summary TEXT]   # --summary is optional
+climierflow restart T-mvp-1 --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard
 ```
 
 > Full reference: `docs/reference.md`.
@@ -153,8 +154,9 @@ The runner returns the implementation, review, lifecycle, commit, and merge
 result as one terminal JSON object. If the attempt is interrupted:
 
 ```bash
-climierflow status
-climierflow resume T-auth-7   # or: climierflow restart T-auth-7
+climierflow status T-auth-7
+climierflow resume T-auth-7 [--summary TEXT]   # --summary is optional
+climierflow restart T-auth-7 --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard
 ```
 
 ### Human + AI flow
@@ -185,7 +187,7 @@ started with the same runner entrypoint:
 climier status
 climier context T-auth-7
 climierflow run T-auth-7
-climierflow status
+climierflow status T-auth-7
 ```
 
 Use `reopen`, `release`, or `cancel` only when explicitly administering the
@@ -285,10 +287,14 @@ climierflow run <task-id>
 
 The runner owns claim, worktree, implementation, review, lifecycle, commit,
 merge, and cleanup. Inspect or recover an interrupted execution with
-`climierflow status`, `climierflow resume <task-id>`, or
-`climierflow restart <task-id>`. Do not chain `take`, `submit`, `accept`, or
-`reject` as a normal execution sequence; those are runner-owned lifecycle
-operations.
+`climierflow status <task-id>`, `climierflow resume <task-id> [--summary TEXT]`, or
+`climierflow restart <task-id> --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard`.
+`--summary` is optional for `resume`; `restart` requires replacement body and
+acceptance values plus `--confirm-discard`. Do not chain `take`, `submit`,
+`accept`, or `reject` as a normal execution sequence; those are runner-owned
+lifecycle operations. A completed and merged attempt cannot be restarted: the
+runner returns `RESTART_REQUIRES_REVIEW`, so create a new correction task for
+additional work instead of reopening and restarting the completed flow.
 
 ### Mutating
 
@@ -358,17 +364,28 @@ climier status
 Inspect the runner before choosing recovery:
 
 ```bash
-climierflow status
-climierflow resume <id>    # when a checkpoint is available
-climierflow restart <id>  # when the attempt must start again
+climierflow status <task-id>
+climierflow resume <task-id> [--summary TEXT]   # --summary is optional
+climierflow restart <task-id> --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard
 ```
 
 Use `climier release <id> --as <agent>` only for explicit DAG administration after confirming no runner is active.
 
-### A task was marked done but should not have been
+### Additional work after a completed or merged attempt
+
+The runner rejects a restart of a completed and merged attempt with
+`RESTART_REQUIRES_REVIEW`. Do not reopen that task to restart its completed
+flow. Create a new correction task instead, preserving the completed task as
+the audit-of-record:
 
 ```bash
-climier reopen <id> --reason "..." --as orchestrator
+climier add-task T-auth-7-correction \
+  --initiative auth \
+  --title "Correct the completed auth work" \
+  --body "Describe the additional correction." \
+  --acceptance "State the correction's acceptance criteria." \
+  --blocked-by T-auth-7 \
+  --as orchestrator
 ```
 
 ### A task should exist, but not yet be claimable
@@ -384,7 +401,7 @@ climierflow run T-cutover-1
 
 ### `update` fails on `in_progress`, `submitted`, or `done`
 
-That is by design. The spec is frozen while a task is actively owned, awaiting validation, or after it becomes the audit-of-record. Use `add-note`, `release`, or `reopen` instead.
+That is by design. The spec is frozen while a task is actively owned, awaiting validation, or after it becomes the audit-of-record. Use `add-note` or `release` for administration; additional work after a completed or merged attempt belongs in a new correction task, not a reopen-and-restart cycle.
 
 ### Stale lock file
 

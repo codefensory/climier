@@ -379,9 +379,17 @@ Output is `{ edge }`.
 
 The following commands document the state transitions used by the execution
 runtime and remain available for compatibility and administration. They are not
-the normal operator path for executing a task: run `climierflow run <id>` and
-use `climierflow status`, `resume`, or `restart` for recovery. Do not chain
-`take`, `submit`, `accept`, or `reject` by hand.
+the normal operator path for executing a task: run `climierflow run <task-id>` and
+use the runner's recovery forms below. Do not chain `take`, `submit`, `accept`, or
+`reject` by hand.
+
+- `climierflow status <task-id>` inspects the current attempt.
+- `climierflow resume <task-id> [--summary TEXT]` resumes an interrupted attempt; `--summary` is optional.
+- `climierflow restart <task-id> --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard` starts a fresh attempt. Replacement `--body` and `--acceptance` values and `--confirm-discard` are required.
+
+A completed and merged attempt cannot be restarted: the runner returns
+`RESTART_REQUIRES_REVIEW`. Do not reopen that task to restart its completed
+flow; create a new correction task for additional work.
 
 ### `take <id>`
 
@@ -892,8 +900,9 @@ climier add-task T-auth --initiative auth --title "Implement sessions" --body "B
 climier context T-auth
 climier resolve G-auth --choice "Opaque sessions" --rationale "Safer default" --as orchestrator
 climierflow run T-auth
-climierflow status
-climierflow resume T-auth   # or: climierflow restart T-auth
+climierflow status T-auth
+climierflow resume T-auth [--summary TEXT]   # --summary is optional
+climierflow restart T-auth --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard
 climier history T-auth
 climier status --all
 ```

@@ -49,10 +49,15 @@ climierflow run <task-id>
 If execution is interrupted, inspect and recover through the runner:
 
 ```bash
-climierflow status
-climierflow resume <task-id>   # when a checkpoint is available
-climierflow restart <task-id>  # when the attempt must start again
+climierflow status <task-id>
+climierflow resume <task-id> [--summary TEXT]   # --summary is optional
+climierflow restart <task-id> --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard
 ```
+
+Restart requires replacement `--body` and `--acceptance` values plus
+`--confirm-discard`. If an attempt is already completed and merged, restart
+fails with `RESTART_REQUIRES_REVIEW`; do not reopen it to restart the completed
+flow. Create a new correction task instead.
 
 Do not run `take`, `submit`, `accept`, or `reject` as a hand-written execution
 sequence. Those transitions are internal to the runner. Use `reopen`, `release`,
@@ -96,7 +101,7 @@ normal execution goes through `climierflow`:
 | `reject` | Internal runner correction back to `open` |
 | `release` | Explicit administrative claim release |
 | `cancel` | Explicit administrative cancellation |
-| `reopen` | Explicit correction of a completed task |
+| `reopen` | Explicit DAG administration; not runner recovery |
 | `resolve <gate>` | Resolve a gate with a choice and rationale |
 
 ## Common error codes

@@ -14,21 +14,35 @@ graph TD
 
     E -->|Éxito| F[Conservar summary, commit y merged]
     E -->|Bloqueo o fallo| G[Leer error code, message y details]
-    G --> H[climierflow status]
+    G --> H[climierflow status T-auth-7]
     H --> I{Hay checkpoint reanudable}
-    I -->|Sí| J[climierflow resume task-id]
-    I -->|No| K{La task debe comenzar de nuevo}
-    K -->|Sí| L[climierflow restart task-id]
-    K -->|No| M[Curar el DAG o corregir el contrato]
+    I -->|Sí| J[climierflow resume T-auth-7 --summary TEXT opcional]
+    I -->|No| K{La task no completó el intento}
+    K -->|Sí| L[climierflow restart T-auth-7 --body replacement --acceptance replacement --confirm-discard]
+    K -->|No| M[Crear una nueva task de corrección]
     J --> E
     L --> E
     M --> A
 
-    F --> N{Corrección administrativa necesaria}
+    F --> N{¿Corrección administrativa del DAG?}
     N -->|No| O[Flujo completado]
-    N -->|Sí| P[reopen, release o cancel según el caso]
+    N -->|Sí| P[Usar reopen, release o cancel según el estado]
     P --> A
 ```
+
+Las formas concretas de recuperación son:
+
+```bash
+climierflow status <task-id>
+climierflow resume <task-id> [--summary TEXT]
+climierflow restart <task-id> --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard
+```
+
+`--summary` es opcional para `resume`. `restart` exige valores de reemplazo
+para `--body` y `--acceptance`, además de `--confirm-discard`. Si el intento ya
+está completado y mergeado, el runner devuelve `RESTART_REQUIRES_REVIEW`: no se
+debe hacer `reopen` y restart del flujo completado; el trabajo adicional va en
+una nueva task de corrección.
 
 La ejecución normal no se reproduce con secuencias manuales de `take`,
 `submit`, `accept` o `reject`. Esas transiciones pertenecen al runner. Las

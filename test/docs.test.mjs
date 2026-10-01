@@ -10,6 +10,21 @@ const APPEND_PROMPT = path.resolve(import.meta.dirname, "..", ".pi", "APPEND_SYS
 const AGENTS = path.resolve(import.meta.dirname, "..", "AGENTS.md");
 const SPEC_PIPELINE = path.resolve(import.meta.dirname, "..", ".agents", "skills", "spec-pipeline", "SKILL.md");
 const INITIATIVE_EXECUTION = path.resolve(import.meta.dirname, "..", ".agents", "skills", "initiative-execution", "SKILL.md");
+const OPERATIONAL_DOCS = [
+  "AGENTS.md",
+  "README.md",
+  "CLIMIER-CHEATSHEET.md",
+  "docs/agent-execution-flow.md",
+  "docs/reference.md",
+  "docs/climier-ui.md",
+  ".agents/skills/climier/SKILL.md",
+  ".agents/skills/climier/examples/task-execution.md",
+  ".agents/skills/climier/examples/claim-serialization.md",
+  ".agents/skills/climier/examples/dag-curation.md",
+  ".agents/skills/initiative-execution/SKILL.md",
+  "skills/climier/SKILL.md",
+  "skills/climier/references/commands.md",
+].map((relativePath) => path.resolve(import.meta.dirname, "..", relativePath));
 
 const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&");
 
@@ -119,4 +134,48 @@ test("docs: Pi guidance is append-only and workflows are opt-in", async () => {
   ]) {
     assert.match(initiativeExecution, new RegExp(escapeRegExp(snippet)), `initiative-execution should mention ${snippet}`);
   }
+});
+
+test("docs: climierflow recovery syntax matches the installed runner contract", async () => {
+  const entries = await Promise.all(OPERATIONAL_DOCS.map(async (file) => [file, await readFile(file, "utf8")]));
+  const text = entries.map(([, contents]) => contents).join("\n");
+
+  for (const [file, contents] of entries) {
+    for (const line of contents.split(/\r?\n/)) {
+      const statusIndex = line.indexOf("climierflow status");
+      if (statusIndex !== -1) {
+        assert.match(
+          line.slice(statusIndex),
+          /climierflow status (?:<task-id>|T-[A-Za-z0-9._-]+)/,
+          `${file} should pass a task id to climierflow status`,
+        );
+      }
+
+      const resumeIndex = line.indexOf("climierflow resume");
+      if (resumeIndex !== -1) {
+        const command = line.slice(resumeIndex).split("`")[0];
+        assert.match(
+          command,
+          /climierflow resume (?:<task-id>|T-[A-Za-z0-9._-]+)/,
+          `${file} should pass a task id to climierflow resume`,
+        );
+        assert.doesNotMatch(command, /--(?!summary\b)/, `${file} should document no resume flags besides --summary`);
+      }
+
+      const restartIndex = line.indexOf("climierflow restart");
+      if (restartIndex !== -1) {
+        const command = line.slice(restartIndex).split("`")[0];
+        assert.match(
+          command,
+          /climierflow restart (?:<task-id>|T-[A-Za-z0-9._-]+).*--body .*--acceptance .*--confirm-discard/,
+          `${file} should document all required restart inputs`,
+        );
+      }
+    }
+  }
+
+  assert.match(text, /climierflow resume <task-id> \[--summary TEXT\]/);
+  assert.match(text, /RESTART_REQUIRES_REVIEW/);
+  assert.match(text, /new correction task/i);
+  assert.doesNotMatch(text, /climier reopen[^\n]*\n[^\n]*climierflow restart/);
 });

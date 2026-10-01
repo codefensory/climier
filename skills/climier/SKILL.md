@@ -79,15 +79,18 @@ execution sequence. Those lifecycle transitions are owned by the runner.
 Inspect and recover through the runner:
 
 ```bash
-climierflow status
-climierflow resume <task-id>
-climierflow restart <task-id>
+climierflow status <task-id>
+climierflow resume <task-id> [--summary TEXT]
+climierflow restart <task-id> --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard
 ```
 
-Use `resume` when a checkpoint is available. Use `restart` when the attempt
-must start again. Do not recreate a claim, worktree, review, commit, or merge
-sequence manually. Use `reopen`, `release`, and `cancel` only for explicit DAG
-administration, not as replacements for runner recovery.
+`--summary` is optional for `resume`. `restart` requires replacement `--body`
+and `--acceptance` values plus `--confirm-discard`, and applies only to a
+non-completed attempt. Do not recreate a claim, worktree, review, commit, or
+merge sequence manually. Use `reopen`, `release`, and `cancel` only for explicit
+DAG administration, not as replacements for runner recovery. A completed and
+merged attempt returns `RESTART_REQUIRES_REVIEW`; do not reopen it to restart
+the completed flow. Create a new correction task for additional work.
 
 ## Invariants
 
@@ -110,8 +113,8 @@ exception.
 | Symptom | Cause | Fix |
 |---|---|---|
 | Task is not ready | A blocker, open gate, backlog setting, or active run prevents execution | `climier context <id>` and `climier status` |
-| An execution stopped | The runner reported a failure or checkpoint | `climierflow status`, then `resume` or `restart` |
-| A completed task needs correction | The recorded result no longer satisfies its contract | `climier reopen <id> --reason "..." --as <agent>`, then rerun |
+| An execution stopped | The runner reported a failure or checkpoint | `climierflow status <task-id>`, then `climierflow resume <task-id> [--summary TEXT]` or `climierflow restart <task-id> --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard` |
+| A completed or merged task needs correction | The recorded result is already final | Create a new correction task; a restart returns `RESTART_REQUIRES_REVIEW` |
 
 ## When NOT to use climier
 

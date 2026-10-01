@@ -38,7 +38,7 @@ El flujo operativo documentado es:
 climier context <task-id> → climierflow run <task-id> → resultado JSON terminal
 ```
 
-Para recuperación, el operador consulta `climierflow status` y usa `climierflow resume <task-id>` o `climierflow restart <task-id>` cuando corresponda. El runner oculta sus etapas internas: claim, worktree, implementación, revisión, lifecycle, commit, merge y limpieza.
+Para recuperación, el operador consulta `climierflow status <task-id>` y usa `climierflow resume <task-id> [--summary TEXT]` (`--summary` es opcional) o `climierflow restart <task-id> --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard` cuando corresponda. Restart exige esos valores de reemplazo y la confirmación explícita. Si el intento ya terminó y fue mergeado, devuelve `RESTART_REQUIRES_REVIEW`: no se debe hacer `reopen` y restart del flujo completado; se crea una nueva task de corrección. El runner oculta sus etapas internas: claim, worktree, implementación, revisión, lifecycle, commit, merge y limpieza.
 
 Climier sigue siendo el lugar para crear, leer y curar tasks, gates, knowledge, initiatives y dependencias. La UI puede mostrar:
 
@@ -408,8 +408,9 @@ Cada paso tendrá una explicación:
 - `climier context`: leer specification, blockers, knowledge y alerts;
 - `climierflow run`: ejecutar la task con todas sus etapas internas encapsuladas;
 - resultado JSON terminal: mostrar éxito, bloqueo o error, commit y merge cuando existan;
-- `climierflow status`: inspeccionar el intento actual;
-- `climierflow resume` / `restart`: recuperar la ejecución cuando el estado lo indique.
+- `climierflow status <task-id>`: inspeccionar el intento actual;
+- `climierflow resume <task-id> [--summary TEXT]`: recuperar desde un checkpoint (`--summary` es opcional);
+- `climierflow restart <task-id> --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard`: comenzar otra vez solo cuando el intento no esté completado.
 
 El resultado terminal conserva un JSON estable. En éxito:
 
@@ -535,7 +536,7 @@ Toda mutación desde la UI debe:
 ### Fase 3: ejecución y curación — A BACKLOG
 
 - invocar `climierflow run <task-id>` desde la UI;
-- mostrar el resultado JSON terminal y el estado de `climierflow status`;
+- mostrar el resultado JSON terminal y el estado de `climierflow status <task-id>`;
 - ofrecer `resume` y `restart` cuando la ejecución lo permita;
 - curar tasks, gates y knowledge mediante comandos reales de Climier;
 - edición segura con revision conflict.

@@ -21,7 +21,7 @@ Climier is the DAG coordination layer for tracked work in this repository. State
 1. **Never edit `~/.climier/projects/<project_id>/tasks.json` by hand.** Use Climier commands. The state is owned by the script.
 2. **Run ONE task at a time.** `climierflow run <task-id>` is the exclusive execution entrypoint; do not start a second run for the same task.
 3. **Never use `resolve` to close a task.** `resolve` is for gates and requires its choice and rationale. The runner owns task lifecycle transitions during execution.
-4. **Recover interrupted execution through the runner.** Use `climierflow status`, then `climierflow resume <task-id>` when a checkpoint is available or `climierflow restart <task-id>` when a fresh attempt is required. Do not manually reproduce internal stages.
+4. **Recover interrupted execution through the runner.** Use `climierflow status <task-id>`, then `climierflow resume <task-id> [--summary TEXT]` when a checkpoint is available or `climierflow restart <task-id> --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard` when a fresh attempt is required. `--summary` is optional; restart requires the replacement values and discard confirmation. Do not manually reproduce internal stages.
 5. **Identify yourself with `--as <agent-id>` on every mutating Climier command.** Use a stable id (e.g. `claude-auth`, `pi-frontend`).
 6. **Read the scoped knowledge and gate resolutions that `context` shows you.** They are domain traps the team has already paid for; ignore them at your own risk.
 7. **Run `context <id>` before `climierflow run <id>`.** It's a read-only pre-flight: spec + knowledge + blockers + alerts + `allowed_actions` + a GO/NO-GO verdict via `derived_status`.
@@ -52,9 +52,9 @@ climier resolve <gate-id> --choice "..." --rationale "..." --as <agent>
 climierflow run <id>
 
 # Inspect or recover the runner execution
-climierflow status
-climierflow resume <id>
-climierflow restart <id>
+climierflow status <task-id>
+climierflow resume <task-id> [--summary TEXT]
+climierflow restart <task-id> --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard
 ```
 
 The runner internally performs claim, worktree, implementation, review, lifecycle, commit, merge, and cleanup. The operator does not call those stages separately.
@@ -80,14 +80,14 @@ climier context <id>
 # Resolve a gate to unblock dependents
 climier resolve <G> --choice "<chosen path>" --rationale "<why>" --as <agent>
 
-# Correct a completed node when the DAG requires it
+# Administrative DAG correction when needed (not runner recovery)
 climier reopen <id> --reason "<what's wrong>" --as <agent>
 
 # Execute and recover through the single runner entrypoint
-climierflow run <id>
-climierflow status
-climierflow resume <id>
-climierflow restart <id>
+climierflow run <task-id>
+climierflow status <task-id>
+climierflow resume <task-id> [--summary TEXT]
+climierflow restart <task-id> --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard
 ```
 
 Do not delegate implementation or validation stages manually. The runner owns those stages and returns the terminal JSON result; Climier remains the source of truth for the DAG and its curation.
@@ -162,9 +162,10 @@ The CLI phrases edges from the dependent's point of view: `--blocked-by G-y` mea
 climier status → see what's ready, blocked, stale, and which gates are open
 climier context <id> → read the task contract, knowledge, blockers, and alerts
 climier update/add-* → curate the DAG when the contract needs changes
-climierflow run <id> → execute the task through the unified runner
-climierflow status → inspect the current execution
-climierflow resume/restart <id> → recover when the runner reports it is applicable
+climierflow run <task-id> → execute the task through the unified runner
+climierflow status <task-id> → inspect the current execution
+climierflow resume <task-id> [--summary TEXT] → recover from a checkpoint (`--summary` is optional)
+climierflow restart <task-id> --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard → start a fresh non-completed attempt
 climier resolve <G> --choice --rationale → unblock downstream via a gate
 ```
 
@@ -173,8 +174,8 @@ climier resolve <G> --choice --rationale → unblock downstream via a gate
 - **Running a task whose dependencies are unresolved.** If the node is not `ready`, read `climier context <id>` and inspect `blocking[]` before running it.
 - **Using Climier lifecycle commands as execution steps.** `take`, `submit`, `accept`, and `reject` are internal to the runner for normal execution; invoke `climierflow run <id>` instead.
 - **Using `resolve` on a task.** Tasks do not use `resolve`; it is exclusively for gates with `--choice` and `--rationale`.
-- **Starting duplicate execution.** Check `climierflow status` before starting another attempt for a task.
-- **Recovering without the runner.** Use `climierflow resume <id>` or `climierflow restart <id>` as indicated by the execution state; do not recreate a claim, worktree, review, or merge manually.
+- **Starting duplicate execution.** Check `climierflow status <task-id>` before starting another attempt for a task.
+- **Recovering without the runner.** Use `climierflow resume <task-id> [--summary TEXT]` or `climierflow restart <task-id> --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard` as indicated by the execution state; do not recreate a claim, worktree, review, or merge manually.
 - **Forgetting `--as`.** Mutating Climier commands (`resolve` for gates, `update`, `add-note`, `add-task`, `add-gate`, `add-knowledge`, and similar DAG curation commands) require `--as`. The CLI throws `MISSING_AGENT` with a structured details object.
 - **`update` during an execution.** It is allowed only when the contract needs correction; use `--if-revision N` for optimistic concurrency and let the runner own lifecycle state.
 - **Boolean flags before the command.** `climier --force init` is interpreted as `--force=init` (the parser consumes the next non-flag as the flag's value). Use `climier --force=true init` or put the flag after the command. The same applies to any boolean flag: if a flag is meant as a switch, use `--flag=true` when the command comes right after.
@@ -184,36 +185,48 @@ climier resolve <G> --choice --rationale → unblock downstream via a gate
 The runner owns execution recovery:
 
 ```bash
-climierflow status
-climierflow resume <id>
-climierflow restart <id>
+climierflow status <task-id>
+climierflow resume <task-id> [--summary TEXT]
+climierflow restart <task-id> --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard
 ```
 
-`status` shows the current attempt and whether a checkpoint is available. `resume` continues an interrupted attempt from its checkpoint. `restart` starts the attempt again when resuming is not appropriate. Use `climier status` and `climier context <id>` to verify the DAG before or after recovery.
+`status` requires the task id. `resume` continues an interrupted attempt from
+its checkpoint and accepts only the optional `--summary TEXT` flag. `restart`
+requires replacement `--body` and `--acceptance` values plus
+`--confirm-discard`; use it only when the current attempt is not completed. Use
+`climier status` and `climier context <task-id>` to verify the DAG before or
+after recovery.
 
-If a runner commit is incomplete after a passing review, inspect `climierflow status <id>` and confirm the reviewed tree is still exact and retained. Do not commit or merge manually. Resume once with the runner's recovery command using the exact summary format it requests; if that still fails, stop at `manual_review` and ask the Flow owner to reconcile the prompt and parser. Do not repeat the same resume or restart and discard the reviewed tree.
+If a runner commit is incomplete after a passing review, inspect
+`climierflow status <task-id>` and confirm the reviewed tree is still exact and
+retained. Do not commit or merge manually. Resume once with
+`climierflow resume <task-id> [--summary TEXT]`; if that still fails, stop at
+`manual_review` and ask the Flow owner to reconcile the prompt and parser. Do
+not repeat the same resume or restart and discard the reviewed tree.
 
-`reopen`, `release`, and `cancel` remain explicit administrative Climier operations for correcting or managing the DAG; they are not substitutes for the runner's recovery commands. If the contract itself is wrong, curate it with `update` before restarting.
+`reopen`, `release`, and `cancel` remain explicit administrative Climier
+operations for correcting or managing the DAG; they are not substitutes for
+the runner's recovery commands. If the contract itself is wrong, curate it
+with `update` before a non-completed attempt is restarted.
 
-## Correcting an accepted task (`reopen`)
+## Correcting work after completion
 
-When a completed task needs correction, the operator reopens the DAG node explicitly and then runs it again through the unified entrypoint. The DAG self-corrects — anything that depended on the task re-derives as blocked.
+A completed and merged attempt cannot be restarted. The runner rejects it with
+`RESTART_REQUIRES_REVIEW`; do not reopen the task to restart its completed flow.
+For additional work, preserve the completed task as the audit-of-record and
+create a new correction task instead:
 
 ```bash
-climier reopen T-auth-7 --reason "le falta validar el caso de timeout" --as orchestrator
-climierflow restart T-auth-7
-climier history T-api-12
+climier add-task T-auth-7-v2 --initiative auth \
+  --title "Correct the completed auth work" \
+  --body "Describe the additional correction." \
+  --acceptance "State the correction's acceptance criteria." \
+  --blocked-by T-auth-7 --as orchestrator
 ```
 
-`reopen` is an administrative correction. The actor is recorded in the audit log; any additional authority rule comes from the configured policy.
-
-Same rules apply to gates: reopen rolls a `resolved` gate back to `open` and clears `resolution`.
-
-When to use `reopen` vs creating a new task:
-- **`reopen`** (default): the original task is incomplete; correcting it is "finishing the work", not a different piece of work. The DAG stays clean.
-- **New task** (e.g. `T-auth-7-v2`): the correction is structurally different from the original — a rewrite, a migration, a new approach. Not a retry.
-
-Prefer `reopen`. The DAG is the system's view of reality; don't create a sibling task that leaves dependents unblocked on a foundation that isn't actually done.
+`reopen` remains available for explicit DAG administration, including gate
+corrections; it is not a preparation step for restarting a completed runner
+flow. Any task contract correction should be curated before a new execution.
 
 ## Research pattern (use gates, not tasks, for investigations)
 
@@ -259,11 +272,12 @@ Every command prints a single JSON value to stdout. There is no `--json` flag an
 | `initiatives [--all]` | List registered initiatives with usage counts. `--all` includes zero-node initiatives. | no |
 | `log [--limit N] [--action X] [--agent X] [--node X]` | Show the audit log, filterable. Logs use `node:` (not `task:`/`decision:`). | no |
 | `resolve <G> --choice "<text>" --rationale "<text>" --as <agent>` | Resolve a gate; tasks never use this command. | yes |
-| `reopen <id> --reason "<text>" --as <agent>` | Administrative correction: roll a completed task back to `open`, or reopen a resolved gate. | yes |
+| `reopen <id> --reason "<text>" --as <agent>` | Administrative correction of a task or resolved gate; not runner recovery. | yes |
 | `cancel <id> --reason "<text>" --as <agent>` | Administrative termination of a node; not a substitute for runner recovery. | yes |
-| `climierflow run <id>` | Execute one task through claim, worktree, implementation, review, lifecycle, commit, merge, and cleanup. | no |
-| `climierflow status` | Inspect the current runner execution and available checkpoints. | no |
-| `climierflow resume/restart <id>` | Recover an interrupted execution by resuming or starting a fresh attempt. | no |
+| `climierflow run <task-id>` | Execute one task through claim, worktree, implementation, review, lifecycle, commit, merge, and cleanup. | no |
+| `climierflow status <task-id>` | Inspect the current runner execution and available checkpoints. | no |
+| `climierflow resume <task-id> [--summary TEXT]` | Recover an interrupted execution from a checkpoint; `--summary` is optional. | no |
+| `climierflow restart <task-id> --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard` | Start a fresh non-completed attempt with required replacement values. | no |
 | `update <id> [--title X] [--body "..."] [--definition "..."] [--acceptance "..."] [--domain Y] [--backlog true\|false] [--scope-* ...] [--meta '{...}'] [--if-revision N] --as <agent>` | Edit a node. Bumps `revision`. `--if-revision N` for optimistic concurrency. | yes |
 | `add-note <id> "<text>" --as <agent>` | Append a timestamped note to the node's `notes[]` thread. Any status. Append-only. | yes |
 | `add-task [id] --initiative X --title "..." --body "..." --acceptance "..." --blocked-by A,B [--definition ...] [--domain ...] [--backlog true] --as <agent>` | Add a task. Requires `--body`, `--acceptance` and `--blocked-by` (pass `--blocked-by ""` for none). Omit `id` to auto-allocate (`T-xxxxxxxx`). | yes |
@@ -313,8 +327,9 @@ climier context "$id"
 climierflow run "$id"
 
 # If interrupted, inspect and recover through the runner
-climierflow status
-climierflow resume "$id"   # or: climierflow restart "$id"
+climierflow status <task-id>
+climierflow resume <task-id> [--summary TEXT]
+climierflow restart <task-id> --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard
 ```
 
 Branch on `error.code`, not on the message, in both Climier and runner JSON.

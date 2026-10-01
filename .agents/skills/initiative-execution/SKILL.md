@@ -22,10 +22,17 @@ Each task gets its own runner invocation and terminal result. Do not treat a non
 If an execution is interrupted, inspect the runner and use its recovery commands:
 
 ```bash
-climierflow status
-climierflow resume <task-id>
+climierflow status <task-id>
+climierflow resume <task-id> [--summary TEXT]
 # or, when a fresh attempt is required:
-climierflow restart <task-id>
+climierflow restart <task-id> --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard
 ```
 
-Follow the runner’s reported checkpoint and recovery state. Do not recreate claims, worktrees, lifecycle transitions, reviews, commits, or merges by hand. Read `.agents/skills/climier/SKILL.md` for the canonical DAG and runner contract.
+`--summary` is optional for `resume`. `restart` requires replacement `--body`
+and `--acceptance` values plus `--confirm-discard`; the current contract values
+must be replaced explicitly. A completed and merged attempt returns
+`RESTART_REQUIRES_REVIEW`; do not reopen it to restart the completed flow. Create
+a new correction task for additional work. Follow the runner’s reported
+checkpoint and recovery state. Do not recreate claims, worktrees, lifecycle
+transitions, reviews, commits, or merges by hand. Read
+`.agents/skills/climier/SKILL.md` for the canonical DAG and runner contract.

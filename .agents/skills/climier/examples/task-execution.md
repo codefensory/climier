@@ -72,22 +72,28 @@ The terminal JSON is the execution report. The operator does not run separate li
 Inspect the runner, not its internal stages:
 
 ```bash
-climierflow status
+climierflow status T-auth-7
 ```
 
 If the status reports a resumable checkpoint, continue it:
 
 ```bash
-climierflow resume T-auth-7
+climierflow resume T-auth-7 [--summary TEXT]
 ```
 
-If the current attempt must start again instead, restart it:
+If the current, non-completed attempt must start again instead, restart it with replacement contract values:
 
 ```bash
-climierflow restart T-auth-7
+climierflow restart T-auth-7 --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard
 ```
 
-Use `climier status` and `climier context T-auth-7` to inspect the DAG before or after recovery. Do not recreate the claim, worktree, implementation, review, or merge sequence by hand.
+`--summary` is optional for `resume`; `restart` requires `--body`,
+`--acceptance`, and `--confirm-discard`. A completed and merged attempt is not
+restartable: the runner returns `RESTART_REQUIRES_REVIEW`. Do not reopen it to
+restart the completed flow; create a new correction task for additional work.
+Use `climier status` and `climier context T-auth-7` to inspect the DAG before or
+after recovery. Do not recreate the claim, worktree, implementation, review, or
+merge sequence by hand.
 
 ## 4. Gates and knowledge remain Climier concepts
 

@@ -54,12 +54,19 @@ Tasks blocked by the gate become ready only after the gate is resolved. Start ea
 Inspect an interrupted run through the runner:
 
 ```bash
-climierflow status
-climierflow resume <id>
-climierflow restart <id>
+climierflow status <task-id>
+climierflow resume <task-id> [--summary TEXT]
+climierflow restart <task-id> --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard
 ```
 
-Use `reopen`, `release`, and `cancel` only for explicit DAG administration. They are not substitutes for the runner's execution or recovery commands. Use `climier status` and `climier context <id>` to verify the graph before or after recovery.
+`--summary` is optional for `resume`. `restart` requires replacement
+`--body` and `--acceptance` values plus `--confirm-discard`, and applies only to
+a non-completed attempt. A completed and merged attempt returns
+`RESTART_REQUIRES_REVIEW`; do not reopen and restart it. Create a new correction
+task for additional work. Use `reopen`, `release`, and `cancel` only for
+explicit DAG administration. They are not substitutes for the runner's
+execution or recovery commands. Use `climier status` and `climier context <id>`
+to verify the graph before or after recovery.
 
 ## Adding work while a run is active
 

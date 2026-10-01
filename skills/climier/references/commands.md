@@ -23,10 +23,15 @@ All commands print JSON to stdout. `--as <agent>` tags identity in the audit log
 
 | Command | Purpose |
 |---|---|
-| `climierflow run <id>` | Execute one task through claim, worktree, implementation, review, lifecycle, commit, merge, and cleanup |
-| `climierflow status` | Inspect the current execution and available checkpoints |
-| `climierflow resume <id>` | Continue an interrupted execution from a checkpoint |
-| `climierflow restart <id>` | Start the task execution again |
+| `climierflow run <task-id>` | Execute one task through claim, worktree, implementation, review, lifecycle, commit, merge, and cleanup |
+| `climierflow status <task-id>` | Inspect the current execution and available checkpoints |
+| `climierflow resume <task-id> [--summary TEXT]` | Continue an interrupted execution from a checkpoint; `--summary` is optional |
+| `climierflow restart <task-id> --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard` | Start a fresh non-completed attempt with required replacement values |
+
+`restart` requires replacement `--body` and `--acceptance` values plus
+`--confirm-discard`. A completed and merged attempt returns
+`RESTART_REQUIRES_REVIEW`; create a new correction task instead of reopening and
+restarting the completed flow.
 
 Do not chain `take`, `submit`, `accept`, or `reject` manually. The runner owns
 those lifecycle transitions.
@@ -37,7 +42,7 @@ those lifecycle transitions.
 |---|---|
 | `init [--force]` | Create or deliberately reset `.climier.json` and live state |
 | `resolve <id> --choice "..." --rationale "..." --as <agent>` | Resolve an open gate |
-| `reopen <id> --reason "..." --as <agent>` | Correct a completed task or resolved gate |
+| `reopen <id> --reason "..." --as <agent>` | Administrative correction of a task or resolved gate; not runner recovery |
 | `release <id> --as <agent>` | Administrative claim release |
 | `cancel <id> --reason "..." --as <agent>` | Administrative node cancellation |
 | `restore <snapshot-id> --as orchestrator\|recovery` | Replace live state with a validated snapshot |

@@ -415,7 +415,13 @@ A terminal failure or blocked run uses the same envelope and puts structured rec
 }
 ```
 
-Use the runner for execution recovery: `climierflow status` inspects the current run, `climierflow resume <task-id>` continues an interrupted run when a checkpoint is available, and `climierflow restart <task-id>` starts that run again when resuming is not appropriate. Use `climier status`, `context`, `show`, `search`, and the mutation commands separately for DAG management; they are not replacements for `climierflow run`.
+Use the runner for execution recovery:
+
+- `climierflow status <task-id>` inspects that task's current run;
+- `climierflow resume <task-id> [--summary TEXT]` continues an interrupted run when a checkpoint is available (`--summary` is optional);
+- `climierflow restart <task-id> --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard` starts a fresh attempt when resuming is not appropriate.
+
+Restart requires replacement body and acceptance values plus explicit discard confirmation. If the attempt is already completed and merged, the runner rejects restart with `RESTART_REQUIRES_REVIEW`; do not reopen and restart that flow. Create a new correction task for additional work. Use `climier status`, `context`, `show`, `search`, and the mutation commands separately for DAG management; they are not replacements for `climierflow run`.
 
 ## Task sizing and agent budget
 
