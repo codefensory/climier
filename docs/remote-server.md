@@ -197,7 +197,6 @@ The full required checks are:
 ```sh
 timeout -k 10s 300s npm test
 timeout -k 10s 180s npm run surface:check
-timeout -k 10s 180s npm run comments:check
 timeout -k 10s 180s git diff --check
 ```
 

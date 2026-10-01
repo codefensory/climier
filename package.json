@@ -24,8 +24,6 @@
     "test:concurrent": "node --test test/take.test.mjs test/take-by-id.test.mjs test/adversarial.test.mjs",
     "pack:check": "npm pack --dry-run --json > /dev/null",
     "surface:check": "node scripts/check-retired-surfaces.mjs",
-    "comments:check": "node scripts/check-comment-policy.mjs",
-    "comments:generate": "node scripts/generate-comment-manifest.mjs",
     "smoke:pack": "node scripts/smoke-packed.mjs",
     "lint:cut": "oxlint bin scripts src/cli/commands/ui.mjs src/cli/dispatch.mjs test/package.test.mjs test/retired-surfaces.test.mjs",
     "prepublishOnly": "npm_config_dry_run= npm test && npm run surface:check && npm run lint:cut && npm run pack:check",

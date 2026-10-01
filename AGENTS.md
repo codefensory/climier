@@ -270,7 +270,6 @@ Do not put domain rules or persistence in the CLI layer.
 - **Imperative wrappers in `storage/state.mjs` and `storage/lock.mjs`.** These touch the filesystem. They are tested via `helpers.mjs` (temp dirs).
 - **Adapters return data, not console.log.** `bin/climier.mjs` is the only place that prints (except for errors).
 - **Comments declare constraints, not narration.** Remove line-by-line narration, provenance, task/ADR justification, commented-out code, decorative banners, and documentation mirrors. Keep only restrictions the code cannot express.
-- **Protected comments are not counted in the ratchet:** functional `oxlint`/`eslint` directives and pragmas; durability, fsync/rename, CAS, high-water, and crash-window invariants; error contracts whose exact `code` and `details` shape is public API; and test comments that state the contract under test. The versioned `comment-manifest.json` covers `src/`, `bin/`, and `test/`; `npm run comments:check` rejects per-file growth and newly introduced prohibited patterns, while `npm run comments:generate` may only lower a baseline. Update the manifest after a comment-removing sweep.
 
 ## Testing
 

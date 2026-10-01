@@ -836,55 +836,163 @@
     },
     {
       "path": "test/application-backend-client.test.mjs",
-      "name": "backend client allows opt-in remote HTTP only with exact origin binding",
+      "name": "backend client keeps local execution unchanged",
       "ordinal": 1,
       "disposition": "keep"
     },
     {
       "path": "test/application-backend-client.test.mjs",
-      "name": "backend client defaults to local and preserves operation dependencies and result",
+      "name": "legacy credential environment variables never authenticate remote requests",
       "ordinal": 1,
       "disposition": "keep"
     },
     {
       "path": "test/application-backend-client.test.mjs",
-      "name": "backend client exposes typed transfer export and import requests",
+      "name": "login transport posts the password to the origin endpoint and returns the bearer in memory",
       "ordinal": 1,
       "disposition": "keep"
     },
     {
       "path": "test/application-backend-client.test.mjs",
-      "name": "backend client initializes the configured remote project through the typed init endpoint",
+      "name": "remote client exports and imports transfers through authenticated v2 endpoints",
       "ordinal": 1,
       "disposition": "keep"
     },
     {
       "path": "test/application-backend-client.test.mjs",
-      "name": "backend client maps an ambiguous timed-out push without retrying",
+      "name": "remote client uses protocol v2 and only the profile bearer for its origin",
       "ordinal": 1,
       "disposition": "keep"
     },
     {
       "path": "test/application-backend-client.test.mjs",
-      "name": "backend client refuses to send a bearer token when origin binding is absent or differs",
+      "name": "remote failures never fall back to local execution",
       "ordinal": 1,
       "disposition": "keep"
     },
     {
       "path": "test/application-backend-client.test.mjs",
-      "name": "backend client rejects remote HTTP with missing or inexact opt-in and never requests",
+      "name": "remote transfer methods preserve HTTP, protocol, and timeout errors",
       "ordinal": 1,
       "disposition": "keep"
     },
     {
-      "path": "test/application-backend-client.test.mjs",
-      "name": "backend client reports network failures without invoking local execution",
+      "path": "test/application-manual-transfer.test.mjs",
+      "name": "baseline scopes use the configured origin and project id independently",
       "ordinal": 1,
       "disposition": "keep"
     },
     {
-      "path": "test/application-backend-client.test.mjs",
-      "name": "backend client times out remote requests and never falls back locally",
+      "path": "test/application-manual-transfer.test.mjs",
+      "name": "confirmed pull with a baseline write failure reports the installed local revision",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/application-manual-transfer.test.mjs",
+      "name": "confirmed transfer with a baseline write failure reports the changed side and revision",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/application-manual-transfer.test.mjs",
+      "name": "explicit remote HTTP and auth/protocol errors are preserved without fallback or ambiguity",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/application-manual-transfer.test.mjs",
+      "name": "explicit remote HTTP and auth/protocol errors are preserved without fallback or ambiguity > PROTOCOL_VERSION_UNSUPPORTED",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/application-manual-transfer.test.mjs",
+      "name": "explicit remote HTTP and auth/protocol errors are preserved without fallback or ambiguity > REMOTE_UNAUTHORIZED",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/application-manual-transfer.test.mjs",
+      "name": "explicit remote HTTP and auth/protocol errors are preserved without fallback or ambiguity > TRANSFER_REMOTE_CHANGED",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/application-manual-transfer.test.mjs",
+      "name": "first manual pull installs the remote snapshot and persists the confirmed baseline",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/application-manual-transfer.test.mjs",
+      "name": "first manual push imports the local snapshot and persists the confirmed baseline",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/application-manual-transfer.test.mjs",
+      "name": "force pull omits local CAS while replacing the destination and recording the new baseline",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/application-manual-transfer.test.mjs",
+      "name": "force push omits expected remote revision and updates baseline only after confirmation",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/application-manual-transfer.test.mjs",
+      "name": "manual pull then offline local work and push uses and advances the shared baseline",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/application-manual-transfer.test.mjs",
+      "name": "pull maps a non-pristine destination without baseline to TRANSFER_BASE_UNKNOWN",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/application-manual-transfer.test.mjs",
+      "name": "pull maps stale local CAS to TRANSFER_LOCAL_CHANGED without advancing the baseline",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/application-manual-transfer.test.mjs",
+      "name": "pull rejects a local write racing with the remote export",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/application-manual-transfer.test.mjs",
+      "name": "push timeout and network failures report ambiguous outcomes without advancing baseline",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/application-manual-transfer.test.mjs",
+      "name": "push timeout and network failures report ambiguous outcomes without advancing baseline > REMOTE_REQUEST_FAILED",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/application-manual-transfer.test.mjs",
+      "name": "push timeout and network failures report ambiguous outcomes without advancing baseline > REMOTE_TIMEOUT",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/application-manual-transfer.test.mjs",
+      "name": "push uses the last confirmed remote revision for remote CAS and preserves structured conflicts",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/application-manual-transfer.test.mjs",
+      "name": "service rejects non-remote, incomplete and invalid transfer requests before I/O",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -1083,6 +1191,12 @@
     {
       "path": "test/backend-config.test.mjs",
       "name": "backend config rejects malformed or insecure remote URLs",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/backend-config.test.mjs",
+      "name": "backend config rejects remote config without protocol v2 as outdated",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -1300,6 +1414,12 @@
     },
     {
       "path": "test/cli-dispatch.test.mjs",
+      "name": "CLI: remote auth and link commands are advertised and dispatchable",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/cli-dispatch.test.mjs",
       "name": "CLI: resolve on a ready task is rejected without mutation",
       "ordinal": 1,
       "disposition": "keep"
@@ -1443,6 +1563,126 @@
       "move_from": "test/v2.test.mjs"
     },
     {
+      "path": "test/cli-link.test.mjs",
+      "name": "link can relink outdated remote metadata without reading remote or local state",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/cli-link.test.mjs",
+      "name": "link only changes project metadata and leaves local state bytes untouched",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/cli-link.test.mjs",
+      "name": "link preserves the existing project id and is idempotent for the same origin",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/cli-link.test.mjs",
+      "name": "link requires replace to change a remote origin",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/cli-link.test.mjs",
+      "name": "link writes remote v2 metadata and generates an id when metadata is missing",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/cli-link.test.mjs",
+      "name": "remote metadata without protocol v2 fails before local state access",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/cli-login.test.mjs",
+      "name": "login does not report success when profile persistence fails",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/cli-login.test.mjs",
+      "name": "login rejects plaintext non-loopback origins before reading or requesting",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/cli-login.test.mjs",
+      "name": "login requires an interactive TTY before making a request",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/cli-login.test.mjs",
+      "name": "login resolves the linked checkout origin when --server is omitted",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/cli-login.test.mjs",
+      "name": "login stores the bearer by origin and never returns it",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/cli-logout.test.mjs",
+      "name": "logout removes only the selected origin session",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/cli-logout.test.mjs",
+      "name": "logout resolves the linked origin and is idempotent",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/cli-manual-transfer.test.mjs",
+      "name": "help marks manual push/pull experimental and unsafe and warns about destructive force",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/cli-manual-transfer.test.mjs",
+      "name": "invalid project metadata fails before creating a backend client",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/cli-manual-transfer.test.mjs",
+      "name": "manual transfer rejects local backend and keeps remote failures structured without fallback",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/cli-manual-transfer.test.mjs",
+      "name": "push and pull are registered remote commands that return only the transfer summary",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/cli-manual-transfer.test.mjs",
+      "name": "push/pull require --as, reject positional arguments and require bare --force",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/cli-manual-transfer.test.mjs",
+      "name": "registered transfer commands preserve the retired v1 boundary",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/cli-manual-transfer.test.mjs",
+      "name": "transfer conflicts retain codes/details and explain both force choices",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
       "path": "test/cli-operation-bridge-boundary.test.mjs",
       "name": "batch shares the already-selected local backend instead of rebuilding its source",
       "ordinal": 1,
@@ -1481,6 +1721,12 @@
     {
       "path": "test/cli-operation-bridge-boundary.test.mjs",
       "name": "remote dispatch does not load a local source",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/cli-operation-bridge-matrix.test.mjs",
+      "name": "init and restore remain owned kernel exceptions",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -1860,25 +2106,37 @@
       "path": "test/comment-policy.test.mjs",
       "name": "comment checker rejects a file that grows above its baseline",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "The heuristic comment-policy checker and ratchet were retired.",
+      "coverage_removed": true
     },
     {
       "path": "test/comment-policy.test.mjs",
       "name": "comment checker rejects a newly introduced prohibited pattern",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "The heuristic comment-policy checker and ratchet were retired.",
+      "coverage_removed": true
     },
     {
       "path": "test/comment-policy.test.mjs",
       "name": "manifest generation only ratchets comment baselines downward",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "The heuristic comment-policy generator and ratchet were retired.",
+      "coverage_removed": true
     },
     {
       "path": "test/comment-policy.test.mjs",
       "name": "protected lint directives are excluded from the comment baseline",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "The heuristic comment-policy checker and ratchet were retired.",
+      "coverage_removed": true
     },
     {
       "path": "test/context-contract.test.mjs",
@@ -2457,7 +2715,19 @@
     },
     {
       "path": "test/init.test.mjs",
+      "name": "init: HTTPS and loopback remote init omit warnings",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/init.test.mjs",
       "name": "init: ignores unknown flags and still creates an empty canonical v1 state",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/init.test.mjs",
+      "name": "init: insecure remote HTTP is rejected before the request",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -2476,18 +2746,6 @@
     {
       "path": "test/init.test.mjs",
       "name": "init: remote init preserves local sentinels and omits the server path",
-      "ordinal": 1,
-      "disposition": "keep"
-    },
-    {
-      "path": "test/init.test.mjs",
-      "name": "init: HTTPS and loopback remote init omit warnings",
-      "ordinal": 1,
-      "disposition": "keep"
-    },
-    {
-      "path": "test/init.test.mjs",
-      "name": "init: insecure remote HTTP is rejected before the request",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -3753,7 +4011,7 @@
     },
     {
       "path": "test/kernel-transfer.test.mjs",
-      "name": "kernel source capture returns transferable state without adding an audit event",
+      "name": "kernel source capture returns a complete transferable state and its consistent revision",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -3766,6 +4024,12 @@
     {
       "path": "test/kernel-transfer.test.mjs",
       "name": "kernel transfer accepts pristine initialized destination but create-only conflict preserves it > non-pristine conflict",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-transfer.test.mjs",
+      "name": "kernel transfer accepts pristine initialized destination but create-only conflict preserves it > plugin data is not pristine",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -3789,19 +4053,19 @@
     },
     {
       "path": "test/kernel-transfer.test.mjs",
-      "name": "kernel transfer overwrite is absolute, rejects plugin destinations, and rebases local revisions",
+      "name": "kernel transfer expected revision mismatch preserves destination state and ledger",
       "ordinal": 1,
       "disposition": "keep"
     },
     {
       "path": "test/kernel-transfer.test.mjs",
-      "name": "kernel transfer overwrite is absolute, rejects plugin destinations, and rebases local revisions > absolute overwrite",
+      "name": "kernel transfer expected-revision race permits one atomic install",
       "ordinal": 1,
       "disposition": "keep"
     },
     {
       "path": "test/kernel-transfer.test.mjs",
-      "name": "kernel transfer overwrite is absolute, rejects plugin destinations, and rebases local revisions > plugin data rejected even on overwrite",
+      "name": "kernel transfer force is absolute, replaces plugin destinations, and rebases local revisions",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -3825,6 +4089,12 @@
     },
     {
       "path": "test/kernel-transfer.test.mjs",
+      "name": "kernel transfer preserves claims, in-progress tasks, and root and node plugin data",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/kernel-transfer.test.mjs",
       "name": "kernel transfer recovery delegates to fenced ledger before source capture",
       "ordinal": 1,
       "disposition": "keep"
@@ -3832,36 +4102,6 @@
     {
       "path": "test/kernel-transfer.test.mjs",
       "name": "kernel transfer rejects a fenced source whose state regressed from its ledger",
-      "ordinal": 1,
-      "disposition": "keep"
-    },
-    {
-      "path": "test/kernel-transfer.test.mjs",
-      "name": "kernel transfer rejects source claims, in-progress tasks, and plugin data",
-      "ordinal": 1,
-      "disposition": "keep"
-    },
-    {
-      "path": "test/kernel-transfer.test.mjs",
-      "name": "kernel transfer rejects source claims, in-progress tasks, and plugin data > claim",
-      "ordinal": 1,
-      "disposition": "keep"
-    },
-    {
-      "path": "test/kernel-transfer.test.mjs",
-      "name": "kernel transfer rejects source claims, in-progress tasks, and plugin data > in_progress",
-      "ordinal": 1,
-      "disposition": "keep"
-    },
-    {
-      "path": "test/kernel-transfer.test.mjs",
-      "name": "kernel transfer rejects source claims, in-progress tasks, and plugin data > node plugin data",
-      "ordinal": 1,
-      "disposition": "keep"
-    },
-    {
-      "path": "test/kernel-transfer.test.mjs",
-      "name": "kernel transfer rejects source claims, in-progress tasks, and plugin data > root plugin data",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -4524,6 +4764,12 @@
     {
       "path": "test/migrate.test.mjs",
       "name": "project-id lock contends with the writer lock for the same storage project",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/package.test.mjs",
+      "name": "package: every published bin entry uses the portable Node shebang",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -8343,13 +8589,13 @@
     },
     {
       "path": "test/retired-surfaces.test.mjs",
-      "name": "provider allowlists retain kind-specific fields",
+      "name": "manual transfer CLI is registered while remote v1 remains retired",
       "ordinal": 1,
       "disposition": "keep"
     },
     {
       "path": "test/retired-surfaces.test.mjs",
-      "name": "retired remote v1 and transfer CLI surfaces are absent",
+      "name": "provider allowlists retain kind-specific fields",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -8401,8 +8647,50 @@
       "move_from": "test/v2-search.test.mjs"
     },
     {
-      "path": "test/server-catalog.test.mjs",
-      "name": "a valid token without the requested project scope cannot open storage",
+      "path": "test/server-auth-store.test.mjs",
+      "name": "auth file writes are serialized under concurrent logins",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server-auth-store.test.mjs",
+      "name": "auth store requires a configured password",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server-auth-store.test.mjs",
+      "name": "bearers expire after thirty days",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server-auth-store.test.mjs",
+      "name": "corrupt auth file fails closed",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server-auth-store.test.mjs",
+      "name": "crash before rename leaves the previous auth file usable and new token invalid",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server-auth-store.test.mjs",
+      "name": "each login returns a different bearer and bearers survive restart",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server-auth-store.test.mjs",
+      "name": "login rejects incorrect passwords and stores only token hashes",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server-auth-store.test.mjs",
+      "name": "password rotation persists a new verifier and revokes all sessions",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -8432,19 +8720,31 @@
     },
     {
       "path": "test/server-catalog.test.mjs",
-      "name": "missing bearer token is rejected before catalog or storage access",
+      "name": "missing or invalid bearer token is rejected before catalog or storage access",
       "ordinal": 1,
       "disposition": "keep"
     },
     {
       "path": "test/server-catalog.test.mjs",
-      "name": "unknown project IDs cannot create or open storage",
+      "name": "unknown project IDs cannot open storage but init provisioning can create them",
       "ordinal": 1,
       "disposition": "keep"
     },
     {
       "path": "test/server-operations-e2e.test.mjs",
-      "name": "server launcher is exposed by the package and local two-client E2E keeps client state isolated",
+      "name": "v2 remote E2E links and logs in two clients, isolates project IDs, and fails closed",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server-operations-e2e.test.mjs",
+      "name": "v2 transfer E2E bootstraps, supports offline work, detects divergence, and makes force replacement visible",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server-operations-e2e.test.mjs",
+      "name": "v2 transfer E2E never provisions via push and leaves baselines unchanged on failure or ambiguous timeout",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -8457,6 +8757,12 @@
     {
       "path": "test/server-runtime.test.mjs",
       "name": "private server config fails closed for malformed or unsafe settings",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server-runtime.test.mjs",
+      "name": "runtime requires password and service lock before listening",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -8475,6 +8781,24 @@
     {
       "path": "test/server-runtime.test.mjs",
       "name": "server runtime rejects a project directory with conflicting metadata",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server-service-lock.test.mjs",
+      "name": "service lock rejects two concurrent holders and preserves the first lock",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server-service-lock.test.mjs",
+      "name": "service lock release removes the lock and allows a new holder",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server-service-lock.test.mjs",
+      "name": "stale service lock fails closed and is not auto-removed",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -8498,13 +8822,31 @@
     },
     {
       "path": "test/server/http/auth-validation.test.mjs",
-      "name": "HTTP v1 authenticates before storage access and isolates projects",
+      "name": "HTTP transfer requires an existing catalog project and never provisions one",
       "ordinal": 1,
       "disposition": "keep"
     },
     {
       "path": "test/server/http/auth-validation.test.mjs",
-      "name": "HTTP v1 rejects protocol mismatches before opening a project",
+      "name": "HTTP transfer routes authenticate and reject unsupported protocol before project access",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server/http/auth-validation.test.mjs",
+      "name": "HTTP v1 routes are not accepted by the v2 server",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server/http/auth-validation.test.mjs",
+      "name": "HTTP v2 authenticates before storage access and isolates projects",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server/http/auth-validation.test.mjs",
+      "name": "HTTP v2 rejects protocol mismatches before opening a project",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -8527,6 +8869,30 @@
       "disposition": "keep"
     },
     {
+      "path": "test/server/http/login-rate-limit.test.mjs",
+      "name": "forwarded identity is trusted only from loopback peers",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server/http/login-rate-limit.test.mjs",
+      "name": "login failures are isolated per forwarded client and success resets the counter",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server/http/login-rate-limit.test.mjs",
+      "name": "login rate limit locks an address after five failures and expires after fifteen minutes",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server/http/login-rate-limit.test.mjs",
+      "name": "malformed forwarded input falls back to the loopback peer and cannot evade a lock",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
       "path": "test/server/http/operations-batch.test.mjs",
       "name": "HTTP gate.create accepts canonical edge inputs and rejects fields before storage",
       "ordinal": 1,
@@ -8540,37 +8906,37 @@
     },
     {
       "path": "test/server/http/operations-batch.test.mjs",
-      "name": "HTTP v1 delegates core operations and read projections through server boundaries",
+      "name": "HTTP v2 delegates core operations and read projections through server boundaries",
       "ordinal": 1,
       "disposition": "keep"
     },
     {
       "path": "test/server/http/operations-batch.test.mjs",
-      "name": "HTTP v1 dispatches operations with the complete server-owned source",
+      "name": "HTTP v2 dispatches operations with the complete server-owned source",
       "ordinal": 1,
       "disposition": "keep"
     },
     {
       "path": "test/server/http/operations-batch.test.mjs",
-      "name": "HTTP v1 executes core.batch through one canonical server mutation",
+      "name": "HTTP v2 executes core.batch through one canonical server mutation",
       "ordinal": 1,
       "disposition": "keep"
     },
     {
       "path": "test/server/http/operations-batch.test.mjs",
-      "name": "HTTP v1 returns structured errors and exposes no generic file endpoint",
+      "name": "HTTP v2 returns structured errors and exposes no generic file endpoint",
       "ordinal": 1,
       "disposition": "keep"
     },
     {
       "path": "test/server/http/operations-batch.test.mjs",
-      "name": "HTTP v1 validates core.batch schema and nested operation inputs before opening storage",
+      "name": "HTTP v2 validates core.batch schema and nested operation inputs before opening storage",
       "ordinal": 1,
       "disposition": "keep"
     },
     {
       "path": "test/server/http/operations-batch.test.mjs",
-      "name": "HTTP v1 validates protocol and auth for core.batch before opening storage",
+      "name": "HTTP v2 validates protocol and auth for core.batch before opening storage",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -8594,18 +8960,6 @@
     },
     {
       "path": "test/server/http/reads-transfers.test.mjs",
-      "name": "HTTP transfer routes capture and install typed payloads through kernel ports only",
-      "ordinal": 1,
-      "disposition": "keep"
-    },
-    {
-      "path": "test/server/http/reads-transfers.test.mjs",
-      "name": "HTTP transfer routes validate schema and authorization before kernel access",
-      "ordinal": 1,
-      "disposition": "keep"
-    },
-    {
-      "path": "test/server/http/reads-transfers.test.mjs",
       "name": "HTTP typed read routes match the CLI output from the same state snapshot",
       "ordinal": 1,
       "disposition": "keep"
@@ -8613,6 +8967,12 @@
     {
       "path": "test/server/http/reads-transfers.test.mjs",
       "name": "HTTP typed read routes reject unknown, repeated, and invalid query parameters",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server/http/reads-transfers.test.mjs",
+      "name": "HTTP v2 exports a consistent snapshot and imports it with the remote revision",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -10302,6 +10662,42 @@
     {
       "path": "test/storage-paths.test.mjs",
       "name": "storage paths resolve projects, metadata, and CLIMIER_HOME",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/storage-remote-transfer-baseline.test.mjs",
+      "name": "baseline identifiers never become path components",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/storage-remote-transfer-baseline.test.mjs",
+      "name": "baseline writes are private, atomic, and contain no credentials",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/storage-remote-transfer-baseline.test.mjs",
+      "name": "corrupt or unknown-version baselines fail loud and are never silently overwritten",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/storage-remote-transfer-baseline.test.mjs",
+      "name": "remote transfer baseline store defaults to CLIMIER_HOME and isolates homes",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/storage-remote-transfer-baseline.test.mjs",
+      "name": "remote transfer baselines are isolated by origin and project id",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/storage-remote-transfer-baseline.test.mjs",
+      "name": "remote transfer baselines require the exact schema and non-negative integer revisions",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -13699,24 +14095,6 @@
     {
       "path": "test/workflow-evidence-preflight.test.mjs",
       "name": "integration-preflight.sh: reports NODE_NOT_FOUND for a nonexistent task",
-      "ordinal": 1,
-      "disposition": "keep"
-    },
-    {
-      "path": "test/cli-operation-bridge-matrix.test.mjs",
-      "name": "init and restore remain owned kernel exceptions",
-      "ordinal": 1,
-      "disposition": "keep"
-    },
-    {
-      "path": "test/cli-dispatch.test.mjs",
-      "name": "CLI: retired push and pull commands are unknown even with a remote config",
-      "ordinal": 1,
-      "disposition": "keep"
-    },
-    {
-      "path": "test/cli-dispatch.test.mjs",
-      "name": "CLI: remote auth and link commands are advertised and dispatchable",
       "ordinal": 1,
       "disposition": "keep"
     }
