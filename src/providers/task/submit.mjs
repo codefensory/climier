@@ -1,5 +1,5 @@
 
-// Submission is the worker-owned transition from in_progress to submitted.
+// Submission is the transition from in_progress to submitted.
 // The provider validates against the fresh snapshot and applies only through
 // the transaction draft; locking, persistence, revisions and audit logging
 // remain kernel responsibilities.
