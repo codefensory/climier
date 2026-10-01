@@ -3,4 +3,3 @@ node_modules/
 .agents/tasks/
 ui/node_modules/
 ui/dist/
-.zcode/plans/

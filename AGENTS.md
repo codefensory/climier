@@ -433,12 +433,8 @@ unrelated changes.
 This repository carries the portable agent workflow used by the Climier-based projects:
 
 - `.pi/SYSTEM.md` — operating policy for the principal agent;
-- `.pi/agents/climier-worker.md` — worker prompt;
-- `.pi/agents/climier-validator.md` — independent validator prompt;
 - `.pi/agents/rfc-reviewer.md` — RFC/ADR review prompt;
-- `.agents/skills/climier/` — protocol and examples;
-- `.agents/skills/climier-worker/` — worktree, context and finish helpers;
-- `.agents/skills/climier-validator/` — validation and merge contract;
+- `.agents/skills/climier/` — DAG protocol and examples;
 - `.agents/skills/spec-pipeline/` — RFC → review → ADR → tasks pipeline;
 - `CLIMIER-CHEATSHEET.md` — quick command reference.
 

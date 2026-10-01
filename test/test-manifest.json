@@ -13970,133 +13970,199 @@
       "path": "test/worker-start-scripts.test.mjs",
       "name": "start-worktree.sh: aborts with NO-GO when the worker-guard shim reports a dirty worktree",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "legacy-workflow",
+      "reason": "the local worker and validator scripts were retired; these script-specific cases are no longer a repository contract",
+      "coverage_removed": true
     },
     {
       "path": "test/worker-start-scripts.test.mjs",
       "name": "start-worktree.sh: calls worker-guard.sh exactly once per invocation",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "legacy-workflow",
+      "reason": "the local worker and validator scripts were retired; these script-specific cases are no longer a repository contract",
+      "coverage_removed": true
     },
     {
       "path": "test/worker-start-scripts.test.mjs",
       "name": "start-worktree.sh: rejects when the branch already exists (before take)",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "legacy-workflow",
+      "reason": "the local worker and validator scripts were retired; these script-specific cases are no longer a repository contract",
+      "coverage_removed": true
     },
     {
       "path": "test/worker-start-scripts.test.mjs",
       "name": "start-worktree.sh: rejects when the worktree path already exists (before take)",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "legacy-workflow",
+      "reason": "the local worker and validator scripts were retired; these script-specific cases are no longer a repository contract",
+      "coverage_removed": true
     },
     {
       "path": "test/worker-start-scripts.test.mjs",
       "name": "start-worktree.sh: releases the claim when git worktree add fails after take",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "legacy-workflow",
+      "reason": "the local worker and validator scripts were retired; these script-specific cases are no longer a repository contract",
+      "coverage_removed": true
     },
     {
       "path": "test/worker-start-scripts.test.mjs",
       "name": "start-worktree.sh: requires two positional args",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "legacy-workflow",
+      "reason": "the local worker and validator scripts were retired; these script-specific cases are no longer a repository contract",
+      "coverage_removed": true
     },
     {
       "path": "test/worker-start-scripts.test.mjs",
       "name": "start-worktree.sh: takes, creates worktree, writes WORKTREE note with base_ref and base_sha",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "legacy-workflow",
+      "reason": "the local worker and validator scripts were retired; these script-specific cases are no longer a repository contract",
+      "coverage_removed": true
     },
     {
       "path": "test/worker-start-scripts.test.mjs",
       "name": "worker-guard.sh: fails non-zero when a tracked file is modified",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "legacy-workflow",
+      "reason": "the local worker and validator scripts were retired; these script-specific cases are no longer a repository contract",
+      "coverage_removed": true
     },
     {
       "path": "test/worker-start-scripts.test.mjs",
       "name": "worker-guard.sh: fails non-zero when the worktree is dirty",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "legacy-workflow",
+      "reason": "the local worker and validator scripts were retired; these script-specific cases are no longer a repository contract",
+      "coverage_removed": true
     },
     {
       "path": "test/worker-start-scripts.test.mjs",
       "name": "worker-guard.sh: prints project_root from the main worktree",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "legacy-workflow",
+      "reason": "the local worker and validator scripts were retired; these script-specific cases are no longer a repository contract",
+      "coverage_removed": true
     },
     {
       "path": "test/workflow-evidence-preflight.test.mjs",
       "name": "finish-task.sh: --evidence-file merges caller JSON with auto-detected fields",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "legacy-workflow",
+      "reason": "the local worker and validator scripts were retired; these script-specific cases are no longer a repository contract",
+      "coverage_removed": true
     },
     {
       "path": "test/workflow-evidence-preflight.test.mjs",
       "name": "finish-task.sh: emits WORKTREE + EVIDENCE notes with required fields",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "legacy-workflow",
+      "reason": "the local worker and validator scripts were retired; these script-specific cases are no longer a repository contract",
+      "coverage_removed": true
     },
     {
       "path": "test/workflow-evidence-preflight.test.mjs",
       "name": "finish-task.sh: EVIDENCE leaves checks empty and does not leak commit body",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "legacy-workflow",
+      "reason": "the local worker and validator scripts were retired; these script-specific cases are no longer a repository contract",
+      "coverage_removed": true
     },
     {
       "path": "test/workflow-evidence-preflight.test.mjs",
       "name": "finish-task.sh: submits the task after recording evidence",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "legacy-workflow",
+      "reason": "the local worker and validator scripts were retired; these script-specific cases are no longer a repository contract",
+      "coverage_removed": true
     },
     {
       "path": "test/workflow-evidence-preflight.test.mjs",
       "name": "integration-preflight.sh: --note-text parses EVIDENCE without touching climier",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "legacy-workflow",
+      "reason": "the local worker and validator scripts were retired; these script-specific cases are no longer a repository contract",
+      "coverage_removed": true
     },
     {
       "path": "test/workflow-evidence-preflight.test.mjs",
       "name": "integration-preflight.sh: detects overlap when main advances after finish",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "legacy-workflow",
+      "reason": "the local worker and validator scripts were retired; these script-specific cases are no longer a repository contract",
+      "coverage_removed": true
     },
     {
       "path": "test/workflow-evidence-preflight.test.mjs",
       "name": "integration-preflight.sh: legacy WORKTREE note degrades with explicit reason",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "legacy-workflow",
+      "reason": "the local worker and validator scripts were retired; these script-specific cases are no longer a repository contract",
+      "coverage_removed": true
     },
     {
       "path": "test/workflow-evidence-preflight.test.mjs",
       "name": "integration-preflight.sh: never mutates git state (read-only invariant)",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "legacy-workflow",
+      "reason": "the local worker and validator scripts were retired; these script-specific cases are no longer a repository contract",
+      "coverage_removed": true
     },
     {
       "path": "test/workflow-evidence-preflight.test.mjs",
       "name": "integration-preflight.sh: parses EVIDENCE JSON and reports clean state",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "legacy-workflow",
+      "reason": "the local worker and validator scripts were retired; these script-specific cases are no longer a repository contract",
+      "coverage_removed": true
     },
     {
       "path": "test/workflow-evidence-preflight.test.mjs",
       "name": "integration-preflight.sh: refuses malformed EVIDENCE JSON (exit 2)",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "legacy-workflow",
+      "reason": "the local worker and validator scripts were retired; these script-specific cases are no longer a repository contract",
+      "coverage_removed": true
     },
     {
       "path": "test/workflow-evidence-preflight.test.mjs",
       "name": "integration-preflight.sh: reports a structured context error when state is missing",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "legacy-workflow",
+      "reason": "the local worker and validator scripts were retired; these script-specific cases are no longer a repository contract",
+      "coverage_removed": true
     },
     {
       "path": "test/workflow-evidence-preflight.test.mjs",
       "name": "integration-preflight.sh: reports NODE_NOT_FOUND for a nonexistent task",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "delete",
+      "category": "legacy-workflow",
+      "reason": "the local worker and validator scripts were retired; these script-specific cases are no longer a repository contract",
+      "coverage_removed": true
     }
   ]
 }
