@@ -120,7 +120,7 @@ migration path.
 
 The CLI surface is a single set of commands. `init` always creates the schema above.
 
-`take <id>` requires an explicit task id and records the active claim. A takeover records the previous claimant in the log. `submit` releases the implementation claim and records submission metadata; `accept` moves a submitted task to accepted `done`, while `reject` reopens it.
+The runner records the implementation claim and submission metadata atomically. Its internal lifecycle moves accepted work to `done` and returns rejected work to `open`; operators use `climierflow run` rather than reproducing those transitions manually.
 
 Canonical `BLOCKS` direction is `{ from: blocker, to: blocked, type: "BLOCKS" }`; blockers are incoming edges to the blocked node.
 
@@ -192,7 +192,7 @@ Cycles in the DAG must not crash. The derivation keeps cycle members blocked. Un
    migration and tests; never silently accept an unknown form or use
    `init --force` as a conversion shortcut.
 6. **Multi-agent safety.** Any new state mutation must enter through the kernel mutation frontier (or an explicitly documented setup/recovery path) and be serialized by `withLock`. Any new "log" must be committed with the state change it describes. If you split them, a concurrent op can interleave and the log will lie.
-7. **Task validation lifecycle.** `submit` hands an implementation to validation; `accept` records the validated task as `done`, and `reject` returns it to `open` with a reason. `resolve` is reserved for gates; `release`, `reopen`, and `cancel` remain administrative lifecycle operations.
+7. **Task lifecycle.** `climierflow` owns implementation, review, submission, and acceptance transitions. `resolve` is reserved for gates; `release`, `reopen`, and `cancel` remain administrative lifecycle operations.
 8. **No boolean flags before the command.** The CLI parser treats `--force init` as `--force=init`. New boolean flags must be used as `--flag=true` or after the command. Document any new boolean flag with this caveat.
 9. **English only in code, but the CLI output tolerates any UTF-8.** Titles, bodies, notes, and any free-text field can be in any language. Don't filter or escape based on locale.
 
@@ -297,7 +297,7 @@ When you fix a bug, write a test that reproduces it BEFORE the fix. The test goe
 - **`status --staleMs 0` marks all in_progress as stale.** `staleMs: 0` is valid and means "everything in_progress is stale".
 - **`status` is global by default for in_progress.** `tasks.in_progress` and `summary.in_progress` include every in_progress task in scope, regardless of caller. `--claimed-by <agent>` is the only way to narrow claims; `--as` is an identity tag for `context` and is intentionally not a filter for `status`. Stale-claim alerts follow the same rule.
 - **`init --force` is destructive reset behavior**, not migration. It must never be used to convert a pre-cut project; import with `migrate` after stopping every writer.
-- **`add-task --blocked-by NONEXISTENT` fails** with a clear error. The validator only runs when the state file exists (so empty projects can still bootstrap).
+- **`add-task --blocked-by NONEXISTENT` fails** with a clear error. State validation only runs when the state file exists (so empty projects can still bootstrap).
 - **The state file is owned by the script.** `writeState` validates the schema. Don't write to the file from outside the CLI — even tests should go through `updateState`/`writeState` (or write valid schemas).
 - **`status` returns an empty `tasks` / `gates` shape for an empty state, never throws.** New code that consumes `status` should preserve this.
 
@@ -385,7 +385,7 @@ Climier remains the operator's control plane for creating, reading, and curating
 climierflow run <task-id>
 ```
 
-The runner owns the internal claim, worktree, implementation, review, lifecycle, commit, merge, and cleanup stages. Do not manually delegate or invoke those stages, and do not treat internal worker or validator identities as operator actions.
+The runner owns the internal claim, worktree, implementation, review, lifecycle, commit, merge, and cleanup stages. Do not manually delegate or invoke those stages; they are not operator actions.
 
 The terminal result is one JSON object. A completed run has this stable shape:
 

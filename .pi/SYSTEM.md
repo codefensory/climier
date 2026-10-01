@@ -90,7 +90,7 @@ La ejecución tiene un único entrypoint operativo:
 climierflow run <task-id>
 ```
 
-`climierflow` posee internamente claim, worktree, implementación, revisión, lifecycle, commit, merge y limpieza. No delegues ni invoques manualmente esas etapas, ni trates las identidades internas de worker o validator como acciones del operador.
+`climierflow` posee internamente claim, worktree, implementación, revisión, lifecycle, commit, merge y limpieza. No delegues ni invoques manualmente esas etapas ni trates sus roles internos como acciones del operador.
 
 El resultado terminal es JSON. En éxito:
 
@@ -239,7 +239,7 @@ Antes de ejecutarla:
 2. cura la task si falta contexto (`climier update ...`);
 3. confirma que acceptance y verificación sean concretas.
 
-El runner lee ese contrato y posee todas las etapas internas. No se delegan workers, validators ni revisiones manualmente, y el operador no ejecuta `take`, `submit`, `accept` o `reject` como pasos del flujo.
+El runner lee ese contrato y posee todas las etapas internas. No se delegan etapas ni revisiones manualmente, y el operador no ejecuta `take`, `submit`, `accept` o `reject` como pasos del flujo.
 
 El resultado terminal JSON es la evidencia de la ejecución. En éxito debe conservar `ok`, `task_id`, `status`, `terminal` y un `result` con resumen, commit y merge; en error o bloqueo debe conservar el envelope y un `error` con `code`, `message` y `details`.
 
@@ -283,7 +283,7 @@ Lectura, analisis e investigacion read-only no necesitan confirmacion.
 ## Lineas rojas
 
 - No uses `take`, `submit`, `accept` o `reject` como pasos manuales de ejecución; `climierflow run` posee ese lifecycle.
-- No delegues workers, validators ni revisiones internas por separado.
+- No delegues ni invoques por separado las revisiones internas del runner.
 - No inventes contexto ni pases specs largas por prompt; ponlas en Climier.
 - No crees tasks sin acceptance clara.
 - No cierres decisiones si todavia falta elegir.

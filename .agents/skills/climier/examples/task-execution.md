@@ -6,7 +6,7 @@ Climier is the DAG control plane. `climierflow` is the only operator entrypoint 
 
 ```bash
 cd ~/Dev/climier
-# climier is on PATH; the project's state is managed by Climier
+# climier and climierflow are on PATH; project state is managed by Climier
 ```
 
 ## 1. Read and curate the DAG
@@ -25,7 +25,7 @@ climier update T-auth-7 --acceptance "..." --as <agent>
 climier add-note T-auth-7 "..." --as <agent>
 ```
 
-Do not manually claim a task or delegate implementation and review stages.
+Do not reproduce the runner's internal lifecycle by hand.
 
 ## 2. Execute through the single entrypoint
 
@@ -65,7 +65,7 @@ A blocked or failed execution keeps the same top-level contract and exposes stru
 }
 ```
 
-The terminal JSON is the execution report. The operator does not run separate lifecycle, commit, merge, or validator commands.
+The terminal JSON is the execution report. The operator does not run separate lifecycle, commit, merge, or review commands.
 
 ## 3. Recover an interrupted execution
 
@@ -107,4 +107,4 @@ A task blocked by an unresolved gate stays blocked in the DAG. Once its contract
 
 ## What is not an operator step
 
-Do not use `climier take`, `submit`, `accept`, or `reject` to run a task. Do not launch separate worker or validator agents. Those lifecycle stages and identities are internal to `climierflow`.
+Do not invoke `take`, `submit`, `accept`, or `reject` as a hand-written execution sequence. Those lifecycle transitions are internal to `climierflow`; use the runner and inspect its terminal result or recovery status.

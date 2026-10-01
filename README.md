@@ -2,7 +2,7 @@
 
 JSON-first task DAG CLI for coordinating work across agents, sessions, or humans.
 
-`climier` keeps one shared source of truth for what is **ready**, **blocked**, **in_progress**, **submitted**, **backlog**, **done**, **canceled**, **resolved**, or **deprecated**. It works just as well for one person across multiple AI sessions as it does for a full orchestrator-and-workers setup.
+`climier` keeps one shared source of truth for what is **ready**, **blocked**, **in_progress**, **submitted**, **backlog**, **done**, **canceled**, **resolved**, or **deprecated**. It works for one person across multiple AI sessions and for coordinated multi-agent projects.
 
 If your work has dependencies, decision gates, recovery needs, or parallel actors touching the same repo, `climier` gives that state a home.
 
@@ -22,7 +22,7 @@ Ad-hoc coordination breaks fast:
 - **tasks** form a DAG
 - **gates** are DAG nodes too, so open choices (decisions, approvals, external deps, research) can block work
 - **knowledge** holds reusable facts scoped to domains, initiatives, tags, or specific nodes
-- **take** is atomic: two agents racing for the same task cannot both win
+- **task execution** runs through `climierflow`, which owns the claim and lifecycle stages
 - every mutation lands in an append-only audit log
 
 ## What climier is
@@ -31,10 +31,9 @@ At heart, `climier` is a small state machine around a project DAG:
 
 - create tasks, gates, knowledge, and initiatives
 - derive what is ready or blocked from dependencies
-- take one task at a time, atomically
-- submit task implementations and accept them after validation, so only accepted work unblocks dependents
-- keep backlog separate from claimable work
-- recover from stale or wrong state with `release`, `reopen`, and `cancel`
+- execute a ready task through `climierflow run <task-id>`
+- keep backlog separate from executable work
+- recover from stale or wrong state with the runner or explicit DAG administration
 
 It is a CLI, JSON-first, stdlib-only, and meant to be scriptable.
 
@@ -46,11 +45,11 @@ You are working solo, but not from one continuous thread. Maybe you bounce betwe
 
 ### 2. One human + one or more AI agents
 
-Use `climier` as the contract between you and coding agents. Workers take tasks, add evidence and submit them; validators accept or reject them; agents escalate when stuck.
+Use `climier` as the graph contract and `climierflow` as the execution entrypoint. The runner records implementation and review evidence, reports a terminal result, and exposes explicit recovery when needed.
 
-### 3. Orchestrator + workers
+### 3. Coordinated multi-agent projects
 
-This is the classic multi-agent case: one coordinator delegates from `ready`, workers `take -> work -> submit`, and independent validators `accept` or `reject` before dependents proceed.
+Several tasks can be represented in the DAG with real dependencies. Operators inspect `status` and `context`, resolve gates with Climier, and start each ready task through `climierflow run <task-id>`.
 
 ### 4. Migrations and long-running refactors
 
@@ -116,16 +115,16 @@ climier add-task T-mvp-1 \
   --blocked-by "" \
   --as orchestrator
 
-# 4. See what is ready
+# 4. See what is ready and inspect the task contract
 climier status
-
-# 5. Pre-flight + take from this session
 climier context T-mvp-1
-climier take T-mvp-1 --as session-api
 
-# 6. Submit implementation evidence; a validator accepts it after review
-climier submit T-mvp-1 --note "Scaffolded service and added /health" --as session-api
-climier accept T-mvp-1 --as validator-api
+# 5. Execute through the unified runner
+climierflow run T-mvp-1
+
+# If the run is interrupted, inspect and recover through the runner
+climierflow status
+climierflow resume T-mvp-1   # or: climierflow restart T-mvp-1
 ```
 
 > Full reference: `docs/reference.md`.
@@ -147,14 +146,20 @@ Important invariants: `ready` and `blocked` are derived from dependencies and ar
 ```bash
 climier status
 climier context T-auth-7
-climier take T-auth-7 --as chatgpt-session-3
-# do the work
-climier submit T-auth-7 --note "Implemented endpoint and added smoke test" --as chatgpt-session-3
-# independent validator review
-climier accept T-auth-7 --as validator-auth
+climierflow run T-auth-7
+```
+
+The runner returns the implementation, review, lifecycle, commit, and merge
+result as one terminal JSON object. If the attempt is interrupted:
+
+```bash
+climierflow status
+climierflow resume T-auth-7   # or: climierflow restart T-auth-7
 ```
 
 ### Human + AI flow
+
+Curate the graph with Climier and execute the ready task through the runner:
 
 ```bash
 climier add-task T-auth-8 \
@@ -162,31 +167,29 @@ climier add-task T-auth-8 \
   --title "Move auth middleware" \
   --body "Move middleware from service A to service B." \
   --acceptance "Same contract; staging smoke green." \
-  --blocked-by T-auth-7,G-auth-1
+  --blocked-by T-auth-7,G-auth-1 --as orchestrator
 
 climier context T-auth-8
-climier take T-auth-8 --as claude-auth
 climier add-note T-auth-8 "Need confirmation about token shape" --as claude-auth
-climier release T-auth-8 --as claude-auth
-climier resolve G-auth-1 --choice "Keep JWT shape stable" --rationale "Avoids client breakage" --as orchestrator
+climier resolve G-auth-1 --choice "Keep JWT shape stable" \
+  --rationale "Avoids client breakage" --as orchestrator
+climierflow run T-auth-8
 ```
 
-### Orchestrator + workers flow
+### Coordinated DAG flow
 
-This is a **use case**, not the definition of the tool.
+This is a **use case**, not a second execution protocol. Each ready task is
+started with the same runner entrypoint:
 
 ```bash
 climier status
 climier context T-auth-7
-climier take T-auth-7 --as worker-api
-# ...worker ships...
-climier submit T-auth-7 --note "Implemented endpoint and verified staging smoke" --as worker-api
-# validator merges/reviews, then accepts or rejects the same task
-climier accept T-auth-7 --as validator-api
-climier resolve G-auth-2 --choice "Keep Supabase JWT for now" --rationale "Fastest migration path; revisit later" --as orchestrator
-climier release T-auth-9 --as orchestrator
-climier reopen T-auth-7 --reason "Acceptance missed the timeout case" --as orchestrator
+climierflow run T-auth-7
+climierflow status
 ```
+
+Use `reopen`, `release`, or `cancel` only when explicitly administering the
+DAG; do not reproduce the runner's internal lifecycle by hand.
 
 ## How state is stored
 
@@ -272,17 +275,32 @@ Canonical `BLOCKS` direction is `{ from: blocker, to: blocked, type: "BLOCKS" }`
 | `snapshots` | List recoverable snapshots captured under `<state-dir>/snapshots/`, newest first. Each entry carries `id`, `created_at`, `reason` (`force-init`, `corrupt-recovery`, `pre-restore`), `bytes`, and `sha256`. Only complete pairs (raw + metadata) appear; orphans are excluded. |
 | `ui [--port N] [--open=true\|false]` | Start the local read-only web UI (board, node context, activity) and open it in the browser. **Experimental**: it is a local subproject with separate dependencies and is excluded from the published tarball. If it is not installed, the command returns an actionable error. |
 
+### Execution and recovery
+
+Task execution has one entrypoint:
+
+```bash
+climierflow run <task-id>
+```
+
+The runner owns claim, worktree, implementation, review, lifecycle, commit,
+merge, and cleanup. Inspect or recover an interrupted execution with
+`climierflow status`, `climierflow resume <task-id>`, or
+`climierflow restart <task-id>`. Do not chain `take`, `submit`, `accept`, or
+`reject` as a normal execution sequence; those are runner-owned lifecycle
+operations.
+
 ### Mutating
 
 | Command | Purpose |
 |---|---|
 | `init [--force]` | Create `.climier.json` and the project's live state. |
-| `take <id> --as <agent>` | Idempotently claim the explicit ready task; the id is required. |
-| `submit <id> --note "..." --as <agent>` | Submit an `in_progress` task for validation; clears its implementation claim and never unblocks dependents. |
-| `accept <id> --as <agent>` | Accept a `submitted` task as `done`; this transition can unblock dependents. |
-| `reject <id> --reason "..." --as <agent>` | Return a `submitted` task to `open` with an audit reason. |
-| `release <id> --as <agent>` | Free an `in_progress` implementation claim. Policy may constrain who can perform the transition. |
-| `resolve <id> --choice "<text>" --rationale "<text>" --as <agent>` | Resolve an open gate. `resolve` is not a task lifecycle command; workers submit tasks and validators accept or reject them. |
+| `take <id> --as <agent>` | Runner-owned claim operation retained for compatibility and recovery tooling. |
+| `submit <id> --note "..." --as <agent>` | Runner-owned handoff of implementation evidence. |
+| `accept <id> --as <agent>` | Runner-owned transition of submitted work to `done`. |
+| `reject <id> --reason "..." --as <agent>` | Runner-owned correction of submitted work back to `open`. |
+| `release <id> --as <agent>` | Explicit administrative claim release. |
+| `resolve <id> --choice "<text>" --rationale "<text>" --as <agent>` | Resolve an open gate. |
 | `reopen <id> --reason "<text>" --as <agent>` | Roll a `done` task back to `open` for correction, subject to policy. |
 | `restore <snapshot-id> --as <agent>` | Replace the live state with a validated schema-1 snapshot under the recovery path and a pre-restore snapshot. A policy plugin may restrict the actor; invalid or incomplete snapshots fail without mutating state. |
 | `cancel <id> --reason "<text>" --as <agent>` | Terminate a task without resolving from `open`, `in_progress` or `submitted`. |
@@ -295,7 +313,7 @@ Canonical `BLOCKS` direction is `{ from: blocker, to: blocked, type: "BLOCKS" }`
 | `update <id> ... --as <agent>` | Edit node fields such as title, body, definition, acceptance, domain, backlog, tags, or refs. |
 | `add-note <id> "<text>" --as <agent>` | Append a note thread entry to any node. |
 
-For `take`, claims are serialized under the project lock; takeover behavior is subject to policy.
+The runner serializes claims under the project lock. Use the lifecycle commands directly only for compatibility or explicit administration, not as the normal task execution path.
 
 ### Add to the DAG
 
@@ -326,20 +344,26 @@ A cycle or an unknown dependency keeps a task blocked. The CLI stays defensive.
 
 ## Troubleshooting
 
-### `take: node X is not ready` (`NOT_READY`)
+### A task is not ready (`NOT_READY`)
 
-The task is blocked, already claimed, in backlog, or gated by an open gate. Run:
+The task is blocked, already in progress, in backlog, or gated by an open gate. Inspect it with:
 
 ```bash
 climier context <id>
 climier status
 ```
 
-### A stale claim is blocking progress
+### An execution is interrupted or stale
+
+Inspect the runner before choosing recovery:
 
 ```bash
-climier release <id> --as orchestrator
+climierflow status
+climierflow resume <id>    # when a checkpoint is available
+climierflow restart <id>  # when the attempt must start again
 ```
+
+Use `climier release <id> --as <agent>` only for explicit DAG administration after confirming no runner is active.
 
 ### A task was marked done but should not have been
 
@@ -349,13 +373,13 @@ climier reopen <id> --reason "..." --as orchestrator
 
 ### A task should exist, but not yet be claimable
 
-Create it, mark it as backlog, then take it later when it is no longer blocked:
+Create it, mark it as backlog, then execute it through the runner when it is no longer blocked:
 
 ```bash
 climier add-task T-cutover-1 --initiative migration --title "Cut over traffic" --body "..." --acceptance "..." --blocked-by "" --as orchestrator
 climier update T-cutover-1 --backlog true --as orchestrator
 # later, when blockers are clear:
-climier take T-cutover-1 --as orchestrator
+climierflow run T-cutover-1
 ```
 
 ### `update` fails on `in_progress`, `submitted`, or `done`
@@ -393,8 +417,8 @@ The v1.0.0 release is the first clean publication. The owner performs the
 external tag and publish; the implementation chain leaves the repository ready
 for those actions:
 
-1. install or link the release binary and stop the control plane, UI, workers,
-   and remote server;
+1. install or link the release binary and stop the control plane, UI, all
+   runner executions, and the remote server;
 2. review `climier migrate --all --dry-run`, then run `climier migrate --all`;
 3. verify every project with `climier --project <checkout> status` and one
    authorized operation;
@@ -407,8 +431,8 @@ for those actions:
    pack check on Node 20 and 24. A local green run does not substitute for it;
 7. create tag `v1.0.0` on the commit CI verified and run `npm publish` only
    after the checks and the import rehearsal pass. `npm publish` needs an
-   authenticated registry session; the tag and the publish are the owner's
-   actions, never a worker's.
+   authenticated registry session; the tag and the publish are the release
+   owner's actions.
 
 The complete server shutdown, import, stale-lock recovery, and rollback
 procedure is in [`docs/remote-server.md`](docs/remote-server.md).

@@ -1,6 +1,6 @@
 ---
 name: spec-pipeline
-description: Flujo de specs de climier — RFC (gate research + .decisions/) → review con subagentes rfc-reviewer → ADR(s) (gate decision + .adrs/) → tasks (Technical Spec, --blocked-by el ADR) → workers. Usar cuando el usuario trae una idea, feature, migracion o cambio de arquitectura, o menciona RFC, ADR, spec o propuesta.
+description: Flujo de specs de climier — RFC (gate research + .decisions/) → review con subagentes rfc-reviewer → ADR(s) (gate decision + .adrs/) → tasks (Technical Spec, --blocked-by el ADR) → ejecución con climierflow. Usar cuando el usuario trae una idea, feature, migración o cambio de arquitectura, o menciona RFC, ADR, spec o propuesta.
 ---
 
 # spec-pipeline — de idea a ejecucion autonoma
@@ -13,7 +13,7 @@ idea → [RFC: gate research + .decisions/<G>.md]
      → [resolve G-adrN cuando este listo para ejecutarse]
      → [onboarding breve opcional para mejorar tasks]
      → [tasks: --blocked-by G-adrN, body = puntero al ADR]
-     → worker → validator → merge
+     → `climierflow run <task-id>` → resultado terminal
 ```
 
 Regla madre: el contenido largo vive en docs commiteados; climier guarda punteros, estado y trazabilidad. Nada de specs largas en bodies ni en prompts.
@@ -91,12 +91,12 @@ Verificar: <comando>." \
   --blocked-by <G-adrN> --as orchestrator
 ```
 
-- La spec vive en el ADR; el body de la task es puntero + archivos + acceptance. El worker lee esos artefactos, no el proyecto a ciegas.
+- La spec vive en el ADR; el body de la task es puntero + archivos + acceptance. `climierflow` recibe ese contrato y ejecuta la task con el contexto del DAG.
 - Antes de delegar, traza cada requisito verificable de las secciones del ADR cubiertas por una task hasta una task owner y un check de acceptance. Ningún punto de `Verificación` queda huérfano; controles operativos como rate limits también necesitan cobertura explícita.
 - Para migraciones de contratos públicos, busca referencias existentes a rutas, headers, env vars, comandos y formatos retirados, incluyendo tests/fixtures y scripts de smoke registrados. Asigna su migración a un scope/acceptance o deja explícito por qué no cambian; un E2E nuevo no sustituye esa cobertura.
 - Una task = un cambio principal + acceptance verificable. "Y ademas" → otra task.
 - Las dependencias del DAG deben ser reales y salir del alcance decidido, no de un plan generado por el onboarding.
-- Dos workers no tocan el mismo modulo a la vez.
+- Las ejecuciones deben respetar el scope de paths y las dependencias del DAG; no se solapan cambios incompatibles.
 
 ## Knowledge
 

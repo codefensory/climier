@@ -1,51 +1,65 @@
 # climier — command reference (condensed)
 
-Source of truth: the climier repository (`README.md` and `docs/reference.md`).
+Source of truth: the repository `README.md` and `docs/reference.md`.
 All commands print JSON to stdout. `--as <agent>` tags identity in the audit log.
 
 ## Read-only
 
 | Command | Purpose |
 |---|---|
-| `status [--initiative X] [--kind task\|gate\|knowledge] [--status X] [--claimed-by X] [--stale-ms N] [--limit N] [--all]` | Full view: summary, alerts, in-progress, ready, backlog, blocked, open gates, knowledge, stale claims |
-| `context <id>` | Agent-first view: spec, blockers, informing edges, scoped knowledge, allowed actions |
+| `status [--initiative X] [--kind task\|gate\|knowledge] [--status X] [--claimed-by X] [--stale-ms N] [--limit N] [--all]` | Full view: summary, alerts, in-progress, ready, backlog, blocked, open gates, knowledge, and stale claims |
+| `context <id>` | Agent-first view: spec, blockers, informing edges, scoped knowledge, and allowed actions |
 | `search "<q>" [--all]` | Substring search over active knowledge (`--all` includes deprecated) |
 | `history <id> [--limit N]` | Audit entries referencing a node |
 | `show <id>` | Raw node JSON |
-| `initiatives` | Registered + unregistered initiative values |
-| `log [--limit N] [--action X] [--agent X] [--task X] [--decision X]` | Audit log |
-| `snapshots` | Recoverable snapshots (id, reason, bytes, sha256) |
-| `ui [--port N] [--open=bool]` | Local read-only web UI (needs `npm install` in `ui/` once) |
+| `initiatives` | Registered and unregistered initiative values |
+| `log [--limit N] [--action X] [--agent X] [--node X]` | Audit log |
+| `snapshots` | Recoverable snapshots |
+| `ui [--port N] [--open=bool]` | Local read-only web UI |
 
-## Mutating
+## Execution and recovery
+
+`climierflow` is the only task execution entrypoint:
 
 | Command | Purpose |
 |---|---|
-| `init [--force]` | Create `.climier.json` + live state |
-| `take <id> --as <agent>` | Atomic, idempotent claim of a ready task |
-| `submit <id> --note "..." --as <agent>` | in_progress → submitted (awaiting validation; clears claim; never unblocks) |
-| `accept <id> --as <agent>` | submitted → done (unblocks dependents) |
-| `reject <id> --reason "..." --as <agent>` | submitted → open |
-| `release <id> --as <agent>` | Free an in_progress claim |
-| `reopen <id> --reason "..." --as <agent>` | done → open (policy-constrained) |
-| `cancel <id> --reason "..." --as <agent>` | Terminate from open/in_progress/submitted |
-| `resolve <id> --choice "..." --rationale "..." --as <agent>` | Resolve an open gate (not a task lifecycle op) |
+| `climierflow run <id>` | Execute one task through claim, worktree, implementation, review, lifecycle, commit, merge, and cleanup |
+| `climierflow status` | Inspect the current execution and available checkpoints |
+| `climierflow resume <id>` | Continue an interrupted execution from a checkpoint |
+| `climierflow restart <id>` | Start the task execution again |
+
+Do not chain `take`, `submit`, `accept`, or `reject` manually. The runner owns
+those lifecycle transitions.
+
+## DAG curation and administration
+
+| Command | Purpose |
+|---|---|
+| `init [--force]` | Create or deliberately reset `.climier.json` and live state |
+| `resolve <id> --choice "..." --rationale "..." --as <agent>` | Resolve an open gate |
+| `reopen <id> --reason "..." --as <agent>` | Correct a completed task or resolved gate |
+| `release <id> --as <agent>` | Administrative claim release |
+| `cancel <id> --reason "..." --as <agent>` | Administrative node cancellation |
 | `restore <snapshot-id> --as orchestrator\|recovery` | Replace live state with a validated snapshot |
-| `update <id> ... --as <agent>` | Edit title/body/acceptance/domain/backlog/tags/refs |
+| `update <id> ... --as <agent>` | Edit task, gate, or knowledge fields |
 | `add-note <id> "..." --as <agent>` | Append to a node's note thread |
 | `deprecate-knowledge <id> --reason "..." --as <agent>` | Soft-delete knowledge |
+
+The lifecycle commands `take`, `submit`, `accept`, and `reject` remain public
+state operations for compatibility and recovery tooling, but they are not the
+normal operator path for executing a task.
 
 ## DAG construction
 
 | Command | Purpose |
 |---|---|
-| `add-initiative <name> [--desc "..."]` | Register an initiative |
-| `add-task [id] --initiative X --title --body --acceptance --blocked-by A,B` | Append task (auto id `T-xxxxxxxx`); for backlog, add then `update <id> --backlog true` |
-| `add-gate [id] --initiative X --title --body --purpose decision\|approval\|external-dependency\|research [--supersedes OLD]` | Append gate |
-| `add-knowledge [id] --initiative X --title --body [--scope-domains X] [--scope-initiatives X] [--scope-tags X] [--scope-node-ids X]` | Scoped durable fact (any `--scope-*` satisfies scope) |
+| `add-initiative <name> [--desc "..."] --as <agent>` | Register an initiative |
+| `add-task [id] --initiative X --title --body --acceptance --blocked-by A,B` | Append a task |
+| `add-gate [id] --initiative X --title --body --purpose decision\|approval\|external-dependency\|research [--supersedes OLD]` | Append a gate |
+| `add-knowledge [id] --initiative X --title --body [--scope-domains X] [--scope-initiatives X] [--scope-tags X] [--scope-node-ids X]` | Add scoped durable knowledge |
 | `add-node` / `add-edge <from> <to> --type BLOCKS\|SUPERSEDES\|DERIVED_FROM` | Low-level escape hatches |
 
-Canonical BLOCKS direction: `{from: blocker, to: blocked}`.
+Canonical `BLOCKS` direction: `{from: blocker, to: blocked}`.
 
 ## Statuses
 

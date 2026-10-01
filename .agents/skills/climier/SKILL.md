@@ -191,7 +191,7 @@ climierflow restart <id>
 
 `status` shows the current attempt and whether a checkpoint is available. `resume` continues an interrupted attempt from its checkpoint. `restart` starts the attempt again when resuming is not appropriate. Use `climier status` and `climier context <id>` to verify the DAG before or after recovery.
 
-If `VALIDATOR_COMMIT_INCOMPLETE` follows a Validator PASS, inspect `climierflow status <id>` and confirm the reviewed tree is still exact and retained. Do not commit or merge manually. In the current Flow installation, the commit prompt requests `Task verdict: PASS.` but the parser accepts only `Task verdict: PASS` without punctuation; after the first error, use one `climierflow resume <id> --summary "...end with exactly Task verdict: PASS, without punctuation..."`. If that still fails, stop at `manual_review` and ask the Flow owner to reconcile the prompt and parser; do not repeat the same resume or restart and discard the reviewed tree.
+If a runner commit is incomplete after a passing review, inspect `climierflow status <id>` and confirm the reviewed tree is still exact and retained. Do not commit or merge manually. Resume once with the runner's recovery command using the exact summary format it requests; if that still fails, stop at `manual_review` and ask the Flow owner to reconcile the prompt and parser. Do not repeat the same resume or restart and discard the reviewed tree.
 
 `reopen`, `release`, and `cancel` remain explicit administrative Climier operations for correcting or managing the DAG; they are not substitutes for the runner's recovery commands. If the contract itself is wrong, curate it with `update` before restarting.
 
@@ -338,6 +338,6 @@ The CLI also auto-recovers a corrupt JSON on `init --force` (or even without `--
 
 See `examples/` in this skill:
 
-- `examples/worker-flow.md` — unified execution session: context → `climierflow run` → terminal JSON → recovery.
-- `examples/orchestrator-delegation.md` — historical DAG curation reference; execution is now delegated only to `climierflow run`.
-- `examples/concurrent-claims.md` — historical claim/concurrency reference; the runner owns claims during execution.
+- `examples/task-execution.md` — unified execution session: context → `climierflow run` → terminal JSON → recovery.
+- `examples/dag-curation.md` — graph curation and gate resolution without manual execution stages.
+- `examples/claim-serialization.md` — lock and claim behavior owned by the runner.

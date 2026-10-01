@@ -19,8 +19,8 @@ suggest `init --force`, which can erase the project.
 ### Migration before first use
 
 1. Link or install this v1 binary and verify it can read the project metadata.
-2. Stop every writer sharing the state home: the control plane, the UI, workers,
-   and any remote server instance.
+2. Stop every writer sharing the state home: the control plane, the UI, all
+   runner executions, and any remote server instance.
 3. Run `climier migrate --all --dry-run` and review every project report.
 4. Run `climier migrate --all`; the importer writes a complete per-project
    backup before changing state.

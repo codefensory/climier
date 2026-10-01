@@ -375,7 +375,13 @@ Required:
 
 Output is `{ edge }`.
 
-## Lifecycle commands
+## Lifecycle commands (runner-owned)
+
+The following commands document the state transitions used by the execution
+runtime and remain available for compatibility and administration. They are not
+the normal operator path for executing a task: run `climierflow run <id>` and
+use `climierflow status`, `resume`, or `restart` for recovery. Do not chain
+`take`, `submit`, `accept`, or `reject` by hand.
 
 ### `take <id>`
 
@@ -461,8 +467,8 @@ Rules:
 
 ### `resolve <id>`
 
-Resolves an open gate. It is not a task lifecycle command; workers submit tasks
-and validators accept or reject them.
+Resolves an open gate. It is a DAG curation command, not a task execution
+step; task lifecycle transitions belong to `climierflow`.
 
 Required:
 
@@ -809,8 +815,9 @@ convert an existing project. For a pre-cut project, use the ordered import in
 The importer is a one-time release operation for projects written before the
 schema-1 cut. `--dry-run` reports each project's detected form without writing;
 `--all` scans every project under `CLIMIER_HOME`. For a real import, stop the
-control plane, UI, workers, and remote server first, then run the dry-run and
-`climier migrate --all`. The importer backs up each project before changing it.
+control plane, UI, all runner executions, and remote server first, then run the
+dry-run and `climier migrate --all`. The importer backs up each project before
+changing it.
 Verify every project with `climier --project <checkout> status` before restarting
 writers. See [`docs/remote-server.md`](remote-server.md) for rollback and stale
 lock recovery.
@@ -884,9 +891,9 @@ climier add-gate G-auth --initiative auth --title "Choose session model" --body 
 climier add-task T-auth --initiative auth --title "Implement sessions" --body "Build it" --acceptance "Works" --blocked-by G-auth --as alice
 climier context T-auth
 climier resolve G-auth --choice "Opaque sessions" --rationale "Safer default" --as orchestrator
-climier take T-auth --as alice
-climier submit T-auth --note "Implemented and tested" --as alice
-climier accept T-auth --as validator-auth
+climierflow run T-auth
+climierflow status
+climierflow resume T-auth   # or: climierflow restart T-auth
 climier history T-auth
-climier status --all --as alice
+climier status --all
 ```
