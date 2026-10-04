@@ -182,21 +182,42 @@ D0 T-ts-infra      typescript+ts-morph+tsconfig + baseline budget   (dep: C)
    T-ts-types-<boundary>  strict por project refs             (paralelo, tabla arriba)
 E  T-ts-strict     gate strict global + verificación adversarial
    T-ts-server     Bun.serve (resuelve REMOTE_* HTTP)
+F  T-ts-version    inyección de versión en build time (binario)
+   T-ts-binary     bun build --compile por plataforma + CI release
+   T-ts-plugins-bin verificar loader de plugins en binario
 ```
 
 Acceptance por task: **un comando copiable + salida esperada**. A partir de Fase A
 el comando es `bun test`; el gate de tipos es `bunx tsc -b`. Verificación
 adversarial: mutar un literal de error y confirmar que el drift test falla.
 
-## Decisiones resueltas / pendientes
+## Decisiones aprobadas (2026-10-03)
 
-Resueltas: (1) piso de runtime = **Bun-only, sin Node**; (2) ciclo
-`application ↔ plugins` = **se rompe extrayendo el wiring**; (3) runner de test =
-**`bun test`** (tests siguen con API `node:test`, ejecutada nativamente por Bun,
-salvo el runner custom y el collector TAP que se reescriben).
+1. **Bun-only, sin Node.** Runtime, toolchain (install/test/run/package) y servidor.
+   Se suelta `engines.node`; se adopta `engines.bun`. Runner de test = **`bun test`**
+   (los tests conservan la API `node:test`, ejecutada nativamente por Bun; solo se
+   reescriben el runner custom y el collector TAP).
+2. **Distribución por binario** vía `bun build --compile` por plataforma. Ya no se
+   publican fuentes `.mjs`/`.ts` como artefacto principal. Versión **2.0.0** (break
+   de runtime limpio).
+3. **`/ui` fuera de alcance por completo.** No se toca ningún archivo de `ui/` ni
+   el comando `src/cli/commands/ui.mjs`; queda tal cual, excluido del DAG.
+4. **Arquitectura acíclica**: se rompe `application ↔ plugins` extrayendo el wiring
+   de policy a la raíz de composición; un solo productor de `OperationSource` y de
+   registry.
 
-Pendientes: major version bump (`2.0.0`) y política de publicación npm de fuentes
-`.ts`; si `ui/` pasa a `bun run` (su `dev:api` hoy es `node server/server.mjs`).
+### Riesgos específicos del binario (nuevos)
+
+- **Lectura de versión**: `src/cli/dispatch.mjs` lee `package.json` con
+  `readFileSync(new URL("../../package.json", import.meta.url))`. En un binario
+  compilado esa ruta no existe → la versión debe **inyectarse en build time**.
+- **Loader de plugins**: el host hace `import(fileUrl)` dinámico de `.mjs` externos.
+  Debe verificarse que un binario compilado puede importar plugins externos del
+  filesystem; si no, el plugin loader necesita un fallback documentado.
+- **Comando `ui` en binario**: `src/cli/commands/ui.mjs` resuelve `UI_DIR` relativo a
+  su propio archivo; en un binario compilado esa ruta no existe. Al estar `/ui` fuera
+  de alcance, el comando debe devolver un error accionable en modo compilado (no se
+  modifica el subproyecto).
 
 ## ADRs derivados (se completa al aprobar)
 
