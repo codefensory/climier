@@ -27,10 +27,14 @@ function isLoopbackHost(host) {
   return host === "::1" || host === "0:0:0:0:0:0:0:1";
 }
 
+function hasValidListenShape(listen) {
+  return hasOnlyKeys(listen, LISTEN_FIELDS)
+    && typeof listen.host === "string" && listen.host.length > 0
+    && Number.isInteger(listen.port) && listen.port >= 0 && listen.port <= 65_535;
+}
+
 function validateListenConfig(listen) {
-  if (!hasOnlyKeys(listen, LISTEN_FIELDS)
-      || typeof listen.host !== "string" || listen.host.length === 0
-      || !Number.isInteger(listen.port) || listen.port < 0 || listen.port > 65_535) {
+  if (!hasValidListenShape(listen)) {
     throw invalid("expected only listen { host, port }, dataRoot, and stateHome");
   }
   if (!isLoopbackHost(listen.host)) {

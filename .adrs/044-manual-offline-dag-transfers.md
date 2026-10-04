@@ -57,7 +57,7 @@ El cliente persiste un registro no secreto por origin + project ID bajo `CLIMIER
 - El wire v2 es `GET /v2/projects/:id/transfer/export` (sin body) y `POST /v2/projects/:id/transfer/import`. Export responde con `{ payload, revision }`, leídos bajo el mismo lock; import recibe `{ payload, actor, expected_remote_revision?, force? }`. Sin force, una expected revision se valida por CAS; si se omite, solo se admite un destino prístino. Force no lleva expected revision y omite solo esa precondición.
 - Export remoto devuelve snapshot + revisión desde una lectura consistente bajo lock. Import aplica validación y CAS bajo el lock del destino, con una publicación state+log atómica; la respuesta incluye la nueva revisión remota.
 - La instalación agrega un evento `transfer.push` o `transfer.pull` con actor `--as` y la revisión destino reemplazada. En force, el evento nuevo es parte del log que gana; el log remoto/local anterior se pierde y no se conserva una copia de recuperación.
-- El formato wire pertenece a `/v2`; el bearer se obtiene solo del perfil de login. No se leen `CLIMIER_TOKEN`/`CLIMIER_REMOTE_ORIGIN` ni se implementan rutas v1.
+- El formato wire pertenece a `/v2`; el bearer se obtiene solo del perfil de login asociado al origin configurado. No se leen credenciales manuales ni se implementan rutas v1.
 
 ## Consecuencias
 

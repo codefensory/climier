@@ -5,7 +5,7 @@
 
 ## Contexto
 
-El remote actual tiene tokens estáticos con scopes, una allowlist de IDs en config de servidor y origin-binding/env manual en el cliente. El RFC aprobado fija otro objetivo: una persona opera una instancia propia, proporciona una contraseña general al levantarla y hace login desde sus equipos. Cada login obtiene un token con acceso a todos los DAGs de esa instancia. No hay cuentas, organizaciones, ACL por proyecto ni soporte del mecanismo remote anterior. Véase [RFC](../.decisions/G-remote-single-server-rfc.md).
+El remote actual tiene tokens estáticos con scopes y una allowlist de IDs en config de servidor. El RFC aprobado fija otro objetivo: una persona opera una instancia propia, proporciona una contraseña general al levantarla y hace login desde sus equipos. Cada login obtiene un token con acceso a todos los DAGs de esa instancia. No hay cuentas, organizaciones, ACL por proyecto ni soporte del mecanismo remote anterior. Véase [RFC](../.decisions/G-remote-single-server-rfc.md).
 
 El server ya es autoridad del estado y opera un DAG por project ID mediante kernel, locks y revision ledger. La persistencia por archivos soporta una instancia en un host con volumen durable, no HA ni escalado horizontal.
 
@@ -28,7 +28,7 @@ El server ya es autoridad del estado y opera un DAG por project ID mediante kern
 
 - `climier login [--server <origin>]` resuelve el server del checkout actual si se omite `--server`; si no hay checkout linkeado, exige el origin explícito. Solicita el password por TTY sin eco y lo envía por HTTPS. No admite contraseña en argv, env, URL ni stdin en v1. Sin TTY falla antes del request con `INTERACTIVE_LOGIN_REQUIRED`.
 - Tras autenticarse, el cliente persiste solo el bearer de esa sesión, indexado por origin, en un perfil local fuera del repo (por defecto bajo `~/.climier/`, permisos `0700`/`0600` en POSIX). La escritura falla en voz alta; no se informa login exitoso si el token no quedó guardado. No hay nuevas dependencias de runtime. `climier logout [--server <origin>]` borra el token local; no lo revoca en servidor.
-- Remote usa exclusivamente el bearer del perfil. Se dejan de leer `CLIMIER_TOKEN` y `CLIMIER_REMOTE_ORIGIN`; las credenciales no se copian a `.climier.json`. Errores de auth, red o protocolo nunca leen/escriben el DAG local como fallback.
+- Remote usa exclusivamente el bearer del perfil local asociado al origin configurado; las credenciales no se copian a `.climier.json`. Errores de auth, red o protocolo nunca leen/escriben el DAG local como fallback.
 - El prompt y la entrada secreta usan el TTY sin eco; el password no aparece en argv, env, stdin, stdout, stderr ni logs. El resultado del comando sigue siendo un único JSON en stdout y nunca incluye el token.
 
 ### 3. Link de checkout y datos de proyecto

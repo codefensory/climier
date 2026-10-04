@@ -43,7 +43,6 @@ async function writePrivateConfig(file, value) {
 function clientEnvironment(home) {
   const env = { ...process.env, CLIMIER_HOME: home };
   delete env.CLIMIER_TOKEN;
-  delete env.CLIMIER_REMOTE_ORIGIN;
   return env;
 }
 
@@ -538,7 +537,7 @@ test("v2 remote E2E links and logs in two clients, isolates project IDs, and fai
 
   await stopChild(first.child);
   const serviceLock = path.join(root, "server-home", ".server.lock");
-  await fs.rm(serviceLock, { force: true });
+  await assert.rejects(fs.access(serviceLock), { code: "ENOENT" }, "normal SIGTERM should release the service lock");
   assert.equal(first.child.exitCode, 0);
   const second = await startConfiguredServer(root, "rotated-password", t, first.health.port);
   const staleToken = await cli(clientA.projectDir, "show", ["T-remote-e2e"], clientA.env);

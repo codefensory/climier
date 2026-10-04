@@ -53,6 +53,22 @@ test("link writes remote v2 metadata and generates an id when metadata is missin
   }
 });
 
+test("link stores only public metadata for an opted-in remote HTTP origin", async () => {
+  const dir = await createTempProject();
+  try {
+    await fs.writeFile(path.join(dir, ".climier.json"), JSON.stringify({ version: 1, project_id: "kept-id" }, null, 2) + "\n");
+    const result = await runCli(["--project", dir, "link", "http://remote.example.test:43127"], {
+      env: { CLIMIER_ALLOW_INSECURE_REMOTE_HTTP: "true" },
+    });
+    assert.equal(result.code, 0, result.stdout);
+    const publicBackend = { type: "remote", url: "http://remote.example.test:43127/", protocol: "v2" };
+    assert.deepEqual(JSON.parse(result.stdout).project.backend, publicBackend);
+    assert.deepEqual((await readMeta(dir)).backend, publicBackend);
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
 test("link preserves the existing project id and is idempotent for the same origin", async () => {
   const dir = await createTempProject();
   try {

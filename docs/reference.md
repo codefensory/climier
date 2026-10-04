@@ -36,7 +36,7 @@ in `details.cause`; opaque failures are exposed as `CLI_INTERNAL_ERROR`. Help
 and version remain the only intentional plain-text outputs and exit 0. There is
 no `--json` switch because JSON is already the default.
 
-Remote v2 never sends credentials over non-loopback plaintext HTTP. The server binds only to loopback and external clients use an HTTPS reverse proxy. A successful remote `init` has the same JSON result shape as local initialization; remote failures never fall back to local state.
+Remote v2 requires HTTPS for non-loopback origins by default. An explicit `CLIMIER_ALLOW_INSECURE_REMOTE_HTTP=true` opt-in permits HTTP on a trusted private network; the destination is read from `.climier.json` and bearers remain scoped to their saved origin. The server continues to bind to loopback by default; this client opt-in does not change its listener. HTTP sends credentials without TLS and should be used only when the network path is trusted. A successful remote `init` has the same JSON result shape as local initialization, plus a warning for opted-in HTTP; remote failures never fall back to local state.
 
 If you only need the quickstart, use `README.md`. If you need the actual contract, use this file.
 
@@ -852,8 +852,8 @@ marker fails with `REMOTE_CONFIG_OUTDATED` before auth or local state I/O.
 `init` may provision an absent remote project, while reads and writes never
 create storage implicitly. The server requires `CLIMIER_SERVER_PASSWORD`,
 loopback binding, a service-lifetime lock, and a durable auth file; see
-[`docs/remote-server.md`](remote-server.md) for TLS proxy, backup, rotation,
-and stale-lock recovery.
+[`docs/remote-server.md`](remote-server.md) for TLS, private-network HTTP,
+backup, rotation, and stale-lock recovery.
 
 ## Low-level semantics worth knowing
 

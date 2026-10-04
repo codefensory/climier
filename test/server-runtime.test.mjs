@@ -80,6 +80,7 @@ test("private server config fails closed for malformed or unsafe settings", asyn
     { ...valid, stateHome: "" },
     { ...valid, listen: { host: "127.0.0.1", port: 65_536 } },
     { ...valid, listen: { host: "0.0.0.0", port: 0 } },
+    { ...valid, listen: { host: "192.0.2.10", port: 0 } },
     { ...valid, projectIds: ["alpha"] },
     { ...valid, credentials: [{ token: "secret", projectIds: ["alpha"] }] },
   ];

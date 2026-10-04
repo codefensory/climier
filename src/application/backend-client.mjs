@@ -122,9 +122,6 @@ function validateRemoteClientOptions(projectConfig) {
 
 function createSelectedBackendClient({ backend, projectDir, projectConfig, source, credentialStore, timeoutMs }) {
   if (backend.type === "local") {return createLocalBackendClient({ projectDir, source });}
-  if (backend.insecureRemoteHttp === true) {
-    throw clientError("REMOTE_INSECURE_ORIGIN", "application.backendClient: remote origin must use HTTPS outside localhost");
-  }
   validateRemoteClientOptions(projectConfig);
   const transport = createRemoteTransport({
     backend,

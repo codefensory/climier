@@ -232,7 +232,7 @@ Full reference: `docs/reference.md`.
 
 ### Remote v2
 
-A remote checkout uses `backend: { type: "remote", url, protocol: "v2" }`. Run `climier link <origin>`, `climier login`, then `climier init` to provision its server-side project. Login reads the password from a TTY and stores the bearer in the local credential profile. Linking does not upload an existing local DAG; use the explicit experimental `push`/`pull` commands for complete manual transfers. The server requires `CLIMIER_SERVER_PASSWORD`, binds only to loopback, and should be reached externally through a trusted TLS reverse proxy. Normal requests never fall back to local state. See [`docs/remote-server.md`](docs/remote-server.md) for transfer workflows, rotation, backups, stale-lock recovery, and auth-file recovery.
+A remote checkout uses `backend: { type: "remote", url, protocol: "v2" }`. Run `climier link <origin>`, `climier login`, then `climier init` to provision its server-side project. Login reads the password from a TTY and stores the bearer in the local credential profile by origin. Linking does not upload an existing local DAG; use the explicit experimental `push`/`pull` commands for complete manual transfers. The server requires `CLIMIER_SERVER_PASSWORD` and binds to loopback by default; use a trusted TLS reverse proxy for normal remote access. For a trusted private network, clients may opt into HTTP with `CLIMIER_ALLOW_INSECURE_REMOTE_HTTP=true`; this does not change the server's listener or protect credentials in transit. Normal requests never fall back to local state. See [`docs/remote-server.md`](docs/remote-server.md) for transfer workflows, rotation, backups, stale-lock recovery, and auth-file recovery.
 
 ### Manual offline transfers
 

@@ -61,21 +61,31 @@ test("init: remote init preserves local sentinels and omits the server path", as
   }
 });
 
-test("init: insecure remote HTTP is rejected before the request", async () => {
+test("init: insecure remote HTTP returns a warning after successful provisioning", async () => {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
   const dir = await createTempProject();
   let requests = 0;
   try {
-    await assert.rejects(init({
+    const result = await init({
       statePath: dir,
       projectDir: dir,
       backendClient: {
         type: "remote",
         insecureRemoteHttp: true,
-        async init() { requests += 1; },
+        async init() { requests += 1; return { seeded: null }; },
       },
-    }), { code: "REMOTE_INSECURE_ORIGIN" });
-    assert.equal(requests, 0);
+    });
+    assert.equal(requests, 1);
+    assert.deepEqual(result, {
+      ok: true,
+      seeded: null,
+      file: null,
+      warnings: [{
+        kind: "insecure-remote-http",
+        severity: "warning",
+        message: "init: remote HTTP is enabled by CLIMIER_ALLOW_INSECURE_REMOTE_HTTP=true; bearer credentials are sent without transport encryption. Internal trusted networks only.",
+      }],
+    });
   } finally {
     await rmTempProject(dir);
   }
@@ -93,7 +103,7 @@ async function runInsecureRemoteInit(dir, client) {
   return { status, output, errors };
 }
 
-test("CLI: insecure remote HTTP init fails before a request", async () => {
+test("CLI: insecure remote HTTP init returns the warning in its JSON envelope", async () => {
   const dir = await createTempProject();
   try {
     await fs.writeFile(path.join(dir, ".climier.json"), JSON.stringify({
@@ -103,12 +113,16 @@ test("CLI: insecure remote HTTP init fails before a request", async () => {
     const result = await runInsecureRemoteInit(dir, {
       type: "remote",
       insecureRemoteHttp: true,
-      async init() { throw new Error("must not request"); },
+      async init() { return { seeded: null }; },
     });
-    assert.equal(result.status, 1);
+    assert.equal(result.status, 0);
     assert.equal(result.output.length, 1);
-    assert.equal(JSON.parse(result.output[0]).error.code, "REMOTE_INSECURE_ORIGIN");
-    assert.equal(result.errors.at(-1), 1);
+    assert.deepEqual(JSON.parse(result.output[0]).warnings, [{
+      kind: "insecure-remote-http",
+      severity: "warning",
+      message: "init: remote HTTP is enabled by CLIMIER_ALLOW_INSECURE_REMOTE_HTTP=true; bearer credentials are sent without transport encryption. Internal trusted networks only.",
+    }]);
+    assert.deepEqual(result.errors, []);
   } finally {
     await rmTempProject(dir);
   }

@@ -246,5 +246,5 @@ test("registered transfer commands preserve the retired v1 boundary", async (t) 
   assert.equal(result, 0);
   assert.match(output[0], /login/);
   assert.match(output[0], /remote v2/);
-  assert.doesNotMatch(output[0], /CLIMIER_TOKEN|CLIMIER_REMOTE_ORIGIN|\/v1/);
+  assert.doesNotMatch(output[0], /CLIMIER_TOKEN|\/v1/);
 });

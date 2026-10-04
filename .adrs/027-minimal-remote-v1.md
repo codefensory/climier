@@ -17,8 +17,8 @@ Este ADR complementa, no borra, los ADR-022 a ADR-026. Cuando difiera de su cont
 
 - Sin `backend` en `.climier.json`, el CLI conserva el backend local.
 - Con `backend: { type: "remote", url }`, el cliente usa solo la API HTTP(S) tipada. Auth, red, protocolo o errores del servidor nunca autorizan una lectura o escritura local como fallback.
-- El cliente toma la credencial de `CLIMIER_TOKEN` u otra variable/proveedor de secretos explícitamente configurado por el operador. Climier no carga archivos `.env` por sí mismo y `.climier.json` nunca contiene tokens, userinfo ni secretos.
-- Antes de adjuntar el bearer, el cliente exige una binding de origen aprobada por el operador fuera del checkout: `CLIMIER_REMOTE_ORIGIN` debe ser exactamente igual a `new URL(backend.url).origin`. Si falta o no coincide, falla sin request autenticado. Un cambio de URL en `.climier.json` no puede redirigir el token; el operador aprueba el origen nuevo explícitamente. La variable solo contiene un origen, no un secreto, y no se versiona.
+- El cliente toma el bearer del perfil local privado, indexado por el origin remoto. Climier no carga archivos `.env` por sí mismo y `.climier.json` nunca contiene tokens, userinfo ni secretos.
+- El destino se toma de `backend.url` en `.climier.json`; el cliente solo recupera el bearer asociado a ese mismo origin. Cambiar el destino no transfiere ni reutiliza credenciales de otro origin.
 - El servidor acepta `Authorization: Bearer <token>`. Su configuración privada asocia cada token con los `projectIds` que puede usar. `--as` sigue siendo identidad de auditoría; no es autenticación.
 - El servidor solo atiende un `project_id` ya presente en su catálogo confiable. El token debe tener scope de ese proyecto antes de que el servidor cree o abra un directorio, state, ledger o lock.
 
@@ -100,7 +100,7 @@ La aceptación de release sigue un orden verificable: cada tarea ejecuta su suit
 - **ADR-024:** todas las mutaciones built-in y batch pasan por el bridge; plugin APIs/commands siguen no soportados remotamente.
 - **ADR-025:** su protocolo completo de transfer ID, journal, status, retry y CAS de overwrite se difiere. V1 usa el contrato básico de esta decisión.
 - **ADR-026:** E2E local y runbook son acceptance automatizable; Tailscale es un smoke manual temporal al final, no requisito de infraestructura ni artefacto versionado.
-- **ADR-028:** HTTPS sigue siendo obligatorio por defecto fuera de loopback. Como excepción interna explícita y no persistida, `CLIMIER_ALLOW_INSECURE_REMOTE_HTTP=true` permite HTTP remoto no-loopback bajo el contrato, controles y warning de bootstrap de ADR-028; no rebaja origin binding, auth ni fail-closed.
+- **ADR-028:** HTTPS sigue siendo obligatorio por defecto fuera de loopback. Como excepción interna explícita y no persistida, `CLIMIER_ALLOW_INSECURE_REMOTE_HTTP=true` permite HTTP remoto no-loopback bajo el contrato, controles y warning de bootstrap de ADR-028; no altera el perfil de credenciales por origin, auth ni fail-closed.
 
 ## Plan de implementación
 
@@ -119,7 +119,7 @@ La aceptación de release sigue un orden verificable: cada tarea ejecuta su suit
 
 ## Verificación
 
-- Cada lectura y mutación remota deja intacto un state local sentinel tanto en éxito como en 401, error de protocolo y endpoint caído. Un cambio de `backend.url` sin actualizar la binding de origen del operador falla antes de enviar el bearer al nuevo origen.
+- Cada lectura y mutación remota deja intacto un state local sentinel tanto en éxito como en 401, error de protocolo y endpoint caído. Un cambio de `backend.url` usa únicamente la credencial guardada para el nuevo origin; si no existe sesión para ese origin, el request falla sin bearer.
 - El servidor rechaza auth/scope inválidos antes de abrir/provisionar storage y nunca revela paths.
 - `init` remoto no crea state local; `init --force` remoto falla antes de I/O local.
 - Todas las operaciones built-in y `core.batch` conservan sus envelopes CLI y se ejecutan por kernel server-side.

@@ -10,12 +10,24 @@ if (!configPath || process.argv.length !== 3) {
     const runtime = await startServerRuntime(configPath);
     const address = runtime.server.address();
     process.stdout.write(`${JSON.stringify({ ok: true, host: address.address, port: address.port })}\n`);
-    const shutdown = () => runtime.server.close(() => process.exit(0));
-    process.once("SIGINT", shutdown);
-    process.once("SIGTERM", shutdown);
+    let shuttingDown = false;
+    const shutdown = (exitCode = 0) => {
+      if (shuttingDown) {return;}
+      shuttingDown = true;
+      runtime.server.close((error) => {
+        if (error) {
+          process.stderr.write(`${error.message}\n`);
+          process.exitCode = 1;
+        } else {
+          process.exitCode = exitCode;
+        }
+      });
+    };
+    process.once("SIGINT", () => shutdown());
+    process.once("SIGTERM", () => shutdown());
     process.once("uncaughtException", (error) => {
       process.stderr.write(`${error.message}\n`);
-      shutdown();
+      shutdown(1);
     });
   } catch (error) {
     process.stderr.write(`${error.message}\n`);

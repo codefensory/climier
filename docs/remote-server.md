@@ -31,6 +31,11 @@ listener, legacy `credentials`/`projectIds` fields, or corrupt auth file fails
 before the listener accepts requests. Keep `dataRoot`, `stateHome`, and the
 configuration directory owned by the service account.
 
+The API body limit defaults to 1,048,576 bytes. For large snapshot transfers,
+set `CLIMIER_SERVER_MAX_BODY_BYTES` in the private service environment to an
+integer from 1 through 33,554,432, sized to the expected DAG. The cap remains
+bounded; invalid values prevent the server from starting.
+
 The first start creates `stateHome/remote-auth.json` with a password verifier
 and bearer hashes. On POSIX, the directory is `0700` and the auth file is
 `0600`; bearer tokens are never stored in clear text. A password change replaces
@@ -39,20 +44,28 @@ client must log in again after rotation.
 
 ## TLS and network boundary
 
-The Climier server intentionally listens only on loopback. For access from
-another host, put a trusted reverse proxy on the same host, terminate TLS
-there, and forward only the Climier API to `127.0.0.1:<port>`:
+HTTPS is the default and recommended for every remote origin. The server binds
+to loopback by default; for TLS, put a trusted reverse proxy on the same host
+and forward only the Climier API to `127.0.0.1:<port>`:
 
 ```text
-client -- HTTPS --> trusted proxy -- loopback HTTP --> climier-server
+client -- HTTPS --> trusted TLS proxy -- loopback HTTP --> climier-server
 ```
 
-The client rejects an HTTP origin that is not loopback. Do not enable a plaintext
-remote listener, add an insecure HTTP environment switch, or expose the Node
-listener directly. Configure the proxy's certificate, firewall, access logs,
-and forwarded-client-address policy according to the host's security policy.
-The server uses forwarded addresses for login rate limiting only when the peer
-is the local proxy.
+The server continues to bind to loopback; the client HTTP opt-in does not
+change its listener. If remote clients need access, expose the service through
+an operator-managed proxy or tunnel and restrict that network path. For large
+snapshots, the private service environment can also contain
+`CLIMIER_SERVER_MAX_BODY_BYTES=16777216` (16 MiB); choose the smallest cap that
+fits the transfer.
+
+Each client command using a remote HTTP backend requires the exact opt-in
+`CLIMIER_ALLOW_INSECURE_REMOTE_HTTP=true`. The destination comes from that
+checkout's `.climier.json`, and bearer sessions remain indexed by origin in the
+local credential profile, so different projects can use different servers.
+Successful remote HTTP `init` includes a warning in its JSON result. This mode
+sends the login password and bearer over HTTP; use it only when the entire
+network path is trusted. HTTPS remains the safe default.
 
 ## Link, authenticate, and provision a checkout
 
@@ -71,7 +84,11 @@ climier --project /srv/climier/checkouts/alpha init
 profile (`~/.climier/remote-sessions.json` by default). The profile directory
 is `0700` and its file is `0600` on POSIX. The password and bearer must not be
 placed in argv, environment variables, stdin, `.climier.json`, command output,
-or logs. `logout` removes the local copy; it does not revoke the server hash.
+or logs. For a remote HTTP origin, run each command with
+`CLIMIER_ALLOW_INSECURE_REMOTE_HTTP=true`; the same opt-in is required for each
+later command against that checkout. The project-specific destination remains
+in `.climier.json` and sessions are indexed by origin in the local profile.
+`logout` removes the local copy; it does not revoke the server hash.
 
 Linking an existing local checkout preserves its project ID but does not upload
 or merge its local DAG. Remote `init` provisions the server-side project; it is
@@ -186,7 +203,7 @@ timeout -k 10s 180s node --test test/server-operations-e2e.test.mjs
 
 Run the packed-artifact smoke with temporary homes; it installs the package,
 provisions a v2 server, and executes push and pull without the retired
-`CLIMIER_TOKEN`, `CLIMIER_REMOTE_ORIGIN`, or v1 routes:
+`CLIMIER_TOKEN` or v1 routes:
 
 ```sh
 timeout -k 10s 180s npm run smoke:pack

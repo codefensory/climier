@@ -5,7 +5,7 @@
 
 ## Problema
 
-El remote actual requiere que cada checkout tenga `backend.url` y `project_id`, mientras cada comando remoto depende de un bearer y un origin-binding configurados manualmente. El servidor además mantiene una lista estática de proyectos y tokens. Eso complica el objetivo inmediato: una persona levanta un servidor Climier en su máquina, lo usa desde varios checkouts y comparte una sola contraseña de acceso con quien confíe.
+El remote actual requiere que cada checkout tenga `backend.url` y `project_id`, mientras cada comando remoto depende de un bearer configurado manualmente. El servidor además mantiene una lista estática de proyectos y tokens. Eso complica el objetivo inmediato: una persona levanta un servidor Climier en su máquina, lo usa desde varios checkouts y comparte una sola contraseña de acceso con quien confíe.
 
 La decisión explícita del usuario es mantenerlo simple: **un servidor administrado por su operador, una contraseña general configurada al iniciar el servicio y un token que el login entrega para acceder a todos los proyectos linkeados a ese servidor**. No se requieren cuentas, organizaciones, roles, membresías, invitaciones, billing ni alta pública. El backend local de Climier se conserva.
 
@@ -18,7 +18,7 @@ La decisión explícita del usuario es mantenerlo simple: **un servidor administ
 - Los comandos built-in operan en el estado server-side existente (state, log, ledger y lock por proyecto). El cliente no mantiene una copia editable ni hace fallback local. Desconexión, password incorrecta, credencial ausente o token inválido producen un error explícito.
 - El bearer autoriza **todos** los project IDs de esa instancia. La autenticación identifica el servidor, no a la persona. `--as` continúa siendo texto de auditoría declarado por el cliente, no una identidad verificada. Cualquier persona con la contraseña puede obtener el bearer con acceso total y cualquier poseedor del bearer puede acceder a todos los DAGs y declarar cualquier `--as`.
 - La protección de login bloquea 5 fallos consecutivos desde una dirección de red durante 15 minutos; un login correcto limpia el contador. El servidor usa la dirección del socket (no confía en `X-Forwarded-For` sin configuración explícita). HTTPS es obligatorio fuera de loopback.
-- Se corta el mecanismo anterior de configuración remota (tokens manuales, `CLIMIER_TOKEN`, `CLIMIER_REMOTE_ORIGIN`, lista estática de credentials/projects y transferencias `push`/`pull`). No se mantiene compatibilidad ni migración automática desde remote v1. La configuración v1 falla con error que pide volver a linkear; no se leen sus secretos y no hay fallback local. Los datos previos quedan intactos en su storage anterior, fuera del servicio nuevo.
+- Se corta el mecanismo anterior de configuración remota (tokens manuales, `CLIMIER_TOKEN`, lista estática de credentials/projects y transferencias `push`/`pull`). No se mantiene compatibilidad ni migración automática desde remote v1. La configuración v1 falla con error que pide volver a linkear; no se leen sus secretos y no hay fallback local. Los datos previos quedan intactos en su storage anterior, fuera del servicio nuevo.
 - El primer target alojable es una instancia del server con storage durable en un único host. No promete HA o escalado horizontal. Se conservan el runtime stdlib-only, el kernel, el ledger/fence y el recovery por proyecto; backup y restore del `stateHome` son responsabilidad del operador.
 
 Flujo de uso propuesto:

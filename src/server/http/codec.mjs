@@ -1,4 +1,14 @@
-const MAX_BODY_BYTES = 1024 * 1024;
+const DEFAULT_MAX_BODY_BYTES = 1024 * 1024;
+const MAX_CONFIGURED_BODY_BYTES = 32 * 1024 * 1024;
+
+function resolveMaxBodyBytes(value) {
+  if (value === undefined) {return DEFAULT_MAX_BODY_BYTES;}
+  const parsed = typeof value === "string" && /^\d+$/.test(value) ? Number(value) : value;
+  if (!Number.isSafeInteger(parsed) || parsed < 1 || parsed > MAX_CONFIGURED_BODY_BYTES) {
+    throw new TypeError(`server http codec: max body bytes must be an integer between 1 and ${MAX_CONFIGURED_BODY_BYTES}`);
+  }
+  return parsed;
+}
 
 const CONFLICT_CODES = new Set([
   "ID_CONFLICT",
@@ -99,7 +109,7 @@ function parseProjectPath(pathname, decode, makeHttpError) {
   return { projectId, route: match[2] || "" };
 }
 
-async function readJsonBody(request, makeHttpError) {
+async function readJsonBody(request, makeHttpError, maxBodyBytes) {
   const contentType = String(request.headers["content-type"] || "").toLowerCase().split(";")[0].trim();
   if (!contentType.includes("application/json")) {
     throw makeHttpError("UNSUPPORTED_MEDIA_TYPE", "server http: Content-Type must be application/json", undefined, 415);
@@ -108,8 +118,8 @@ async function readJsonBody(request, makeHttpError) {
   let size = 0;
   for await (const chunk of request) {
     size += chunk.length;
-    if (size > MAX_BODY_BYTES) {
-      throw makeHttpError("REQUEST_TOO_LARGE", `server http: request body exceeds ${MAX_BODY_BYTES} bytes`, undefined, 413);
+    if (size > maxBodyBytes) {
+      throw makeHttpError("REQUEST_TOO_LARGE", `server http: request body exceeds ${maxBodyBytes} bytes`, undefined, 413);
     }
     chunks.push(chunk);
   }
@@ -155,7 +165,11 @@ function readRoute(route, makeHttpError) {
   return null;
 }
 
-export function createHttpCodec({ protocolVersion }) {
+export function createHttpCodec(options = {}) {
+  const { protocolVersion } = options;
+  const maxBodyBytes = resolveMaxBodyBytes(
+    Object.hasOwn(options, "maxBodyBytes") ? options.maxBodyBytes : process.env.CLIMIER_SERVER_MAX_BODY_BYTES,
+  );
   if (typeof protocolVersion !== "string" || protocolVersion.length === 0) {
     throw new TypeError("server http codec: protocolVersion is required");
   }
@@ -167,7 +181,7 @@ export function createHttpCodec({ protocolVersion }) {
     jsonError,
     send: (response, status, body, headers = {}) => send(response, status, body, { headers, protocolVersion }),
     parseProjectPath: (pathname) => parseProjectPath(pathname, decodeURIComponent, httpError),
-    readJsonBody: (request) => readJsonBody(request, httpError),
+    readJsonBody: (request) => readJsonBody(request, httpError, maxBodyBytes),
     readRoute: (route) => readRoute(route, httpError),
   };
 }

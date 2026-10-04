@@ -7,9 +7,9 @@
 
 ADR-027 exige HTTPS para un backend remoto fuera de loopback porque el cliente puede enviar un bearer. Esa es la postura correcta por defecto y sigue siendo el contrato de producto.
 
-Para pruebas y operación exclusivamente internas, un operador puede tener una red deliberadamente confiable donde quiere conectar el cliente directamente a un listener HTTP remoto, sin desplegar TLS, Tailscale Serve o un túnel SSH. La validación actual rechaza esa URL antes de cualquier request.
+Para pruebas y operación exclusivamente internas, un operador puede tener una red deliberadamente confiable donde quiere conectar el cliente directamente a un listener HTTP remoto, sin desplegar TLS o un túnel SSH. La validación actual rechaza esa URL antes de cualquier request.
 
-La excepción no debe quedar grabada en `.climier.json`, desactivar autenticación, debilitar la aprobación de origen, cambiar el servidor ni introducir ruido en los resultados JSON que consumen agentes.
+La excepción no debe quedar grabada en `.climier.json`, desactivar autenticación ni introducir ruido en los resultados JSON que consumen agentes. El origin destino sigue definido por `backend.url` en el checkout; los bearers permanecen indexados por origin en el perfil local para admitir proyectos enlazados a servidores distintos.
 
 ## Decisión
 
@@ -27,18 +27,17 @@ Un cliente permite `http:` remoto no-loopback únicamente si el operador exporta
 CLIMIER_ALLOW_INSECURE_REMOTE_HTTP=true
 ```
 
-La variable es una excepción interna, no una capacidad de producto ni una recomendación de despliegue. Su presencia no prueba que la red sea segura: el operador asume que la confidencialidad e integridad de transporte son responsabilidad de su red privada, firewall o túnel externo.
+La variable es una excepción interna, no una capacidad de producto ni una recomendación de despliegue. Su presencia no prueba que la red sea segura: el operador asume la confidencialidad e integridad del transporte y limita el acceso a una red privada confiable.
 
-El servidor no requiere cambio de modo. La excepción ocurre solamente en la admisión de configuración del cliente: el servidor ya opera HTTP tras loopback, un proxy TLS o una red privada y no puede determinar de modo fiable si TLS terminó antes de recibir el request.
+El servidor conserva el bind loopback y no requiere cambios para habilitar el cliente HTTP. Si la aplicación necesita acceso remoto, la exposición de red es responsabilidad del operador; HTTPS detrás de un proxy confiable permanece como la alternativa recomendada.
 
 ### Controles que siguen obligatorios
 
 Con o sin la excepción:
 
-- Si hay bearer, `CLIMIER_REMOTE_ORIGIN` debe coincidir exactamente con `new URL(backend.url).origin` antes de enviar el token. Para este modo, el origin será `http://<host>[:port]`.
+- El cliente obtiene el origin exclusivamente de `backend.url` en `.climier.json`; no hay una aprobación global de origin por variable de entorno. El perfil local entrega el bearer indexado para ese origin, lo que permite que distintos checkouts usen servidores distintos.
 - `CLIMIER_TOKEN` continúa fuera del checkout y `.climier.json`.
 - Auth bearer, scope por proyecto, catálogo server-side, aislamiento de paths, API tipada, ledger/fence y rechazo sin fallback local permanecen sin cambio.
-- Ausencia o discordancia de la aprobación de origin sigue fallando antes de emitir una request autenticada.
 
 ### Warning de bootstrap, no de cada comando
 
@@ -58,7 +57,7 @@ Cuando `climier init` usa un backend remoto `http:` no-loopback permitido por el
 }
 ```
 
-- El warning se muestra solo cuando `init` remoto plaintext termina exitosamente. Si init encuentra state existente, auth inválida, origin no aprobado, fallo de red o protocolo, conserva sin campos adicionales el envelope de error actual.
+- El warning se muestra solo cuando `init` remoto plaintext termina exitosamente. Si init encuentra state existente, auth inválida, fallo de red o protocolo, conserva sin campos adicionales el envelope de error actual.
 - Otros comandos no cambian su envelope ni emiten warnings repetidos; los agentes conservan resultados sin ruido adicional.
 - El warning no reemplaza ningún error: origin no aprobado, auth inválida, fallo de red y protocolo siguen siendo fail-closed.
 
@@ -66,19 +65,19 @@ Cuando `climier init` usa un backend remoto `http:` no-loopback permitido por el
 
 - A favor: habilita pruebas y uso interno sobre una red explícitamente confiable sin obligar a desplegar TLS para cada entorno efímero.
 - A favor: la excepción es visible, reversible y no queda versionada en el checkout; eliminar la variable devuelve el rechazo seguro predeterminado.
-- A favor: preserva origin binding, auth/scope, catálogo, transporte tipado y ausencia de fallback local.
-- En contra / deuda: un bearer puede viajar sin cifrado ni protección contra modificación si la red no cumple la confianza asumida. Tailscale, una red privada o el origin binding no sustituyen TLS por sí mismos.
+- A favor: los tokens siguen separados por origin en el perfil local, y cada checkout elige su endpoint mediante `.climier.json` sin una variable global que limite el trabajo a un solo servidor.
+- En contra / deuda: contraseña y bearer viajan sin TLS de aplicación; una red privada no sustituye la validación TLS del origin. El operador debe confiar en la red y restringir el acceso al servicio.
 - En contra / deuda: el warning de `init` no prueba que operadores posteriores comprendan el riesgo; la documentación debe mantener HTTPS como ruta recomendada.
-- Fuera: HTTP plaintext como configuración de producto, un flag en `.climier.json`, relajación de origin binding, servidor TLS integrado, autoevaluación de topología/red, y cambios a UI/plugins/sync/transferencias.
+- Fuera: HTTP plaintext como configuración de producto, un flag en `.climier.json`, cambios al bind del servidor, servidor TLS integrado, autoevaluación de topología/red, y cambios a UI/plugins/sync/transferencias.
 
 ## Plan de implementación
 
-1. **Admisión de configuración y client context** — archivos: `src/application/backend-config.mjs`, `src/application/backend-client.mjs`, `test/backend-config.test.mjs`, `test/application-backend-client.test.mjs`.
-   - Permitir HTTP no-loopback solo bajo la variable exacta; conservar binding de origin antes del bearer y exponer el contexto inseguro sin secretos.
+1. **Admisión de configuración y credenciales** — archivos: `src/application/backend-config.mjs`, `src/application/backend-client.mjs`, `src/storage/credential-profile.mjs`, `test/backend-config.test.mjs`, `test/application-backend-client.test.mjs`.
+   - Permitir HTTP no-loopback solo bajo la variable exacta; usar el origin del project config y mantener cada bearer indexado por origin.
 2. **Warning limitado a init** — archivos: `src/cli/commands/init.mjs`, sus pruebas y las pruebas JSON/CLI necesarias.
    - Añadir el warning JSON únicamente para init remoto plaintext habilitado, sin alterar envelopes de otros comandos ni stderr.
-3. **Documentación y hardening de seguimiento** — archivos: `docs/remote-server.md`, documentación de output aplicable y tests de regresión.
-   - Documentar threat model, activación, reversión y que HTTPS sigue siendo recomendado; crear backlog para definir si el modo puede evolucionar fuera de uso interno.
+3. **Documentación y límite operativo** — archivos: `docs/remote-server.md`, `docs/reference.md` y documentación de output aplicable.
+   - Mantener intacto el bind loopback del servidor; documentar que el opt-in afecta solo al cliente, el threat model y que HTTPS sigue siendo recomendado.
 
 ## Onboarding breve para crear tasks
 
@@ -86,9 +85,10 @@ Cuando `climier init` usa un backend remoto `http:` no-loopback permitido por el
 
 ## Verificación
 
-- Sin `CLIMIER_ALLOW_INSECURE_REMOTE_HTTP=true`, una URL `http:` no-loopback se rechaza como hoy; loopback sigue funcionando.
-- Con el opt-in exacto, la misma URL se acepta, pero un bearer sin `CLIMIER_REMOTE_ORIGIN` exacto sigue retornando `REMOTE_ORIGIN_NOT_APPROVED` sin request.
-- Con token y origin HTTP exactos, el transporte realiza una única request autorizada a una URL HTTP no-loopback y conserva el no-fallback local ante auth/red/protocolo.
+- Sin `CLIMIER_ALLOW_INSECURE_REMOTE_HTTP=true`, una URL `http:` no-loopback se rechaza; loopback sigue funcionando.
+- Con el opt-in, la URL de `.climier.json` se usa y el perfil proporciona solo el bearer guardado para ese origin, sin una variable global adicional; dos checkouts con origins distintos conservan sesiones aisladas.
+- El servidor mantiene el bind loopback; el opt-in no cambia la configuración del listener.
+- El transporte realiza una única request autorizada a una URL HTTP no-loopback y conserva el no-fallback local ante auth/red/protocolo.
 - `init` remoto plaintext exitoso responde con el warning JSON estructurado; init HTTPS, init loopback e init local no lo incluyen. Errores de init plaintext conservan el envelope de error actual, sin warnings aditivos.
 - Una variable ausente o con cualquier valor distinto de `true` sigue rechazando HTTP no-loopback.
 - Todos los stdout de CLI siguen siendo un solo JSON válido y stderr queda vacío; `npm test` y `git diff --check` pasan.

@@ -29,6 +29,25 @@ test("HTTP codec keeps path and body decoding contracts and receives the public 
   });
 });
 
+test("HTTP codec accepts a bounded operator body limit for large manual transfers", async () => {
+  const previous = process.env.CLIMIER_SERVER_MAX_BODY_BYTES;
+  process.env.CLIMIER_SERVER_MAX_BODY_BYTES = String(2 * 1024 * 1024);
+  try {
+    const codec = createHttpCodec({ protocolVersion: PROTOCOL_VERSION });
+    const payload = "x".repeat(1024 * 1024 + 100);
+    const body = Buffer.from(JSON.stringify({ payload }));
+    const request = {
+      headers: { "content-type": "application/json" },
+      async *[Symbol.asyncIterator]() { yield body; },
+    };
+    assert.equal((await codec.readJsonBody(request)).payload.length, payload.length);
+    process.env.CLIMIER_SERVER_MAX_BODY_BYTES = String(32 * 1024 * 1024 + 1);
+    assert.throws(() => createHttpCodec({ protocolVersion: PROTOCOL_VERSION }), /max body bytes must be an integer/);
+  } finally {
+    if (previous === undefined) {delete process.env.CLIMIER_SERVER_MAX_BODY_BYTES;} else {process.env.CLIMIER_SERVER_MAX_BODY_BYTES = previous;}
+  }
+});
+
 function assertHeaders(response, bodyText) {
   assert.equal(response.headers.get("content-type"), "application/json; charset=utf-8");
   assert.equal(response.headers.get("content-length"), String(Buffer.byteLength(bodyText)));

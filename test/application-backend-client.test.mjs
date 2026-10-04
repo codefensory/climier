@@ -28,6 +28,18 @@ function jsonResponse(response, result) {
   response.end(JSON.stringify({ ok: true, result }));
 }
 
+async function withInsecureRemoteHttp(run) {
+  const previousAllow = process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP;
+  const previousFetch = globalThis.fetch;
+  process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP = "true";
+  try {
+    await run();
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousAllow === undefined) {delete process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP;} else {process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP = previousAllow;}
+  }
+}
+
 test("backend client keeps local execution unchanged", async () => {
   const calls = [];
   const result = { diff: { created: [] } };
@@ -127,11 +139,36 @@ test("remote client exports and imports transfers through authenticated v2 endpo
   ]);
 });
 
-test("legacy credential environment variables never authenticate remote requests", async () => {
+test("HTTP remote clients use each project's configured origin and matching profile bearer", async () => {
+  await withInsecureRemoteHttp(async () => {
+    const origins = ["http://remote-one.example.test:43128", "http://remote-two.example.test:43128"];
+    const sessions = new Map(origins.map((origin, index) => [origin, `profile-token-${index + 1}`]));
+    const requests = [];
+    globalThis.fetch = async (url, options) => {
+      requests.push({ url: String(url), authorization: options.headers.authorization });
+      return new Response(JSON.stringify({ ok: true, result: { ready: [] } }), {
+        status: 200,
+        headers: { "content-type": "application/json", "x-climier-protocol-version": "2" },
+      });
+    };
+    for (const origin of origins) {
+      const client = createBackendClient({
+        projectDir: "/project",
+        projectConfig: remoteConfig(origin),
+        credentialStore: { async get(value) { return sessions.get(value) ?? null; } },
+      });
+      assert.deepEqual(await client.readStatus(), { ready: [] });
+    }
+    assert.deepEqual(requests, origins.map((origin, index) => ({
+      url: `${origin}/v2/projects/project%2Fopaque/read/status`,
+      authorization: `Bearer profile-token-${index + 1}`,
+    })));
+  });
+});
+
+test("legacy token environment variable never authenticates remote requests", async () => {
   const previousToken = process.env.CLIMIER_TOKEN;
-  const previousOrigin = process.env.CLIMIER_REMOTE_ORIGIN;
   process.env.CLIMIER_TOKEN = "legacy-secret";
-  process.env.CLIMIER_REMOTE_ORIGIN = "https://legacy.example";
   try {
     await withServer((request, response) => {
       assert.equal(request.headers.authorization, undefined);
@@ -142,7 +179,6 @@ test("legacy credential environment variables never authenticate remote requests
     });
   } finally {
     if (previousToken === undefined) {delete process.env.CLIMIER_TOKEN;} else {process.env.CLIMIER_TOKEN = previousToken;}
-    if (previousOrigin === undefined) {delete process.env.CLIMIER_REMOTE_ORIGIN;} else {process.env.CLIMIER_REMOTE_ORIGIN = previousOrigin;}
   }
 });
 

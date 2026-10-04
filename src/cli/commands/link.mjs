@@ -50,7 +50,8 @@ async function readMetadata(file) {
 }
 
 function normalizedRemoteBackend(origin) {
-  return parseBackendConfig({ backend: { type: "remote", url: origin, protocol: "v2" } });
+  const { type, url, protocol } = parseBackendConfig({ backend: { type: "remote", url: origin, protocol: "v2" } });
+  return { type, url, protocol };
 }
 
 function currentRemoteOrigin(meta) {

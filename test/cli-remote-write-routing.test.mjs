@@ -83,7 +83,6 @@ async function prepareRemoteFixture(root, projectId, home) {
     ...process.env,
     CLIMIER_HOME: home,
     CLIMIER_TOKEN: undefined,
-    CLIMIER_REMOTE_ORIGIN: undefined,
   };
   return {
     projectDir,
