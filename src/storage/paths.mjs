@@ -1,4 +1,4 @@
-// Resolve project paths and global climier storage.
+
 import os from "node:os";
 import path from "node:path";
 

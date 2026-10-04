@@ -48,9 +48,11 @@ src/
     task/, gate/, knowledge/, core/     # prepare/apply providers and read semantics
     plugin-data/                       # Typed plugin-scoped state providers
   read-model/                          # Pure status, blocking, knowledge, and informing projections
-  storage/                             # Project metadata, state, lock, snapshots, and log primitives
-    paths.mjs, state.mjs                # Project resolution and v3 state migration/read/write
+  storage/                             # Project metadata, canonical state, ledger, locks, snapshots, and logs
+    paths.mjs, state.mjs                # Project resolution and schema-1 state guards/read helpers
     lock.mjs, log.mjs                   # Locking and log primitives
+    ledger/                              # Revision fence, migration, recovery, and atomic commits
+  server/                              # Authenticated remote HTTP runtime and typed API projections
   plugins/                             # Plugin host, discovery, policy, and compatibility adapters
   cli/
     actor.mjs                          # CLI actor resolution from flags/environment
@@ -92,11 +94,14 @@ frontier in a command or plugin.
 
 ### The state shape
 
-The repository uses a single state schema:
+The repository uses one canonical schema-1 state plus its revision fence and
+ledger:
 
 ```js
 {
-  version: 3,
+  version: 1,
+  fence_generation: 1,
+  revision: 0,
   initiatives: { "auth-migration": { desc, created_at } },
   nodes: { "T-auth-1": { id, kind, subkind, title, status, ... } },
   edges: [{ from, to, type }],
@@ -104,11 +109,18 @@ The repository uses a single state schema:
 }
 ```
 
+Every writer also maintains `revision-ledger.json` beside the state. The ledger,
+lock, state, and log are committed atomically. Projects written before this
+cut must go through `climier migrate --all --dry-run` and `climier migrate
+--all` with every writer stopped; the import and rollback order is in
+`docs/remote-server.md`. `init --force` is a deliberate reset only, never a
+migration path.
+
 `status: "ready"` and `"blocked"` are **derived** from the DAG. They are NOT persisted. Persisted statuses on tasks are `open` (default), `in_progress`, `submitted`, `done`, `canceled`. `submitted` is waiting for validation and never satisfies `BLOCKS`; only `done` and `archived` do. `done` means implementation accepted. Gates additionally use `resolved` / `superseded`. Knowledge uses `active` / `deprecated`.
 
 The CLI surface is a single set of commands. `init` always creates the schema above.
 
-`take <id>` requires an explicit task id and records the active claim. A takeover records the previous claimant in the log. `submit` releases the implementation claim and records submission metadata; `accept` moves a submitted task to accepted `done`, while `reject` reopens it.
+The runner records the implementation claim and submission metadata atomically. Its internal lifecycle moves accepted work to `done` and returns rejected work to `open`; operators use `climierflow run` rather than reproducing those transitions manually.
 
 Canonical `BLOCKS` direction is `{ from: blocker, to: blocked, type: "BLOCKS" }`; blockers are incoming edges to the blocked node.
 
@@ -140,7 +152,7 @@ Cycles in the DAG must not crash. The derivation keeps cycle members blocked. Un
 | `history <id> [--limit N]` | `cli/commands/history.mjs` | no | no |
 | `show <id>` | `cli/commands/show.mjs` | no | no |
 | `initiatives [--all]` | `cli/commands/initiatives.mjs` | no | no |
-| `log [--limit N] [--action X] [--agent X] [--task X] [--decision X]` | `cli/commands/log.mjs` | no | no |
+| `log [--limit N] [--action X] [--agent X] [--node X]` | `cli/commands/log.mjs` | no | no |
 | `take <id>` | `cli/commands/take.mjs` | yes | yes |
 | `submit <id> --note "..."` | `cli/commands/submit.mjs` | yes | yes |
 | `accept <id>` | `cli/commands/accept.mjs` | yes | yes |
@@ -152,15 +164,21 @@ Cycles in the DAG must not crash. The derivation keeps cycle members blocked. Un
 | `update <id> [--title X] [--body "..."] [--definition "..."] [--acceptance "..."] [--domain Y] [--tags ...] [--backlog true\|false] [--if-revision N]` | `cli/commands/update.mjs` | yes | required (any value) |
 | `add-note <id> "<text>"` | `cli/commands/add-note.mjs` | yes | required (any value) |
 | `add-initiative <name> [--desc "..."]` | `cli/commands/add-initiative.mjs` | yes | required |
-| `add-task [id] --initiative X --title "..." --body "..." --acceptance "..." --blocked-by A,B [--backlog true]` | `cli/commands/add-task.mjs` | yes | required |
+| `add-task [id] --initiative X --title "..." --body "..." --acceptance "..." --blocked-by A,B` | `cli/commands/add-task.mjs` | yes | required |
 | `add-gate [id] --initiative X --title "..." --body "..." --purpose decision\|approval\|external-dependency\|research [--supersedes OLD]` | `cli/commands/add-gate.mjs` | yes | required |
 | `add-knowledge [id] --initiative X --title "..." --body "..." [--scope-domains X] [--scope-initiatives X] [--scope-tags X] [--scope-node-ids X] [--supersedes OLD]` | `cli/commands/add-knowledge.mjs` | yes | required |
 | `deprecate-knowledge <id> --reason "<text>"` | `cli/commands/deprecate-knowledge.mjs` | yes | required |
 | `add-node <id> --kind resolvable\|knowledge --title "..." [--subkind task\|gate] [--blocked-by A,B] [--derived-from A,B] [--refs a,b] [--meta '{...}']` | `cli/commands/add-node.mjs` | yes | required |
 | `add-edge <from> <to> --type BLOCKS\|SUPERSEDES\|DERIVED_FROM` | `cli/commands/add-edge.mjs` | yes | required |
+| `remove-edge <from> <to> --type BLOCKS\|SUPERSEDES\|DERIVED_FROM` | `cli/commands/remove-edge.mjs` | yes | required |
 | `snapshots` | `cli/commands/snapshots.mjs` | no (read-only) | no |
-| `restore <id> --as orchestrator\|recovery` | `cli/commands/restore.mjs` | yes (locked; accepts v2/v3 snapshots, normalizes v2 to v3; pre-snapshot) | yes (orchestrator\|recovery only) |
-| `ui [--port N] [--open=true\|false]` | `cli/commands/ui.mjs` (starts `ui/server/server.mjs`) | no (read-only) | no |
+| `state` | `cli/commands/state.mjs` | no (read-only) | no |
+| `restore <id> --as <agent>` | `cli/commands/restore.mjs` | yes (locked; canonical schema-1 snapshot; pre-snapshot) | required |
+| `batch --file <json> --as <agent>` / `batch --stdin --as <agent>` | `cli/commands/batch.mjs` | yes | required |
+| `link <origin> [--replace=true]` | `cli/commands/link.mjs` | yes | required |
+| `login [--server <origin>]` / `logout [--server <origin>]` | `cli/commands/login.mjs`, `cli/commands/logout.mjs` | yes | required |
+| `migrate [--project <dir>] [--all] [--dry-run]` | `cli/commands/migrate.mjs` | yes unless dry-run | required for import |
+| `ui [--port N] [--open=true\|false]` (experimental) | `cli/commands/ui.mjs` (starts `ui/server/server.mjs`) | no (read-only) | no |
 
 ## Hard rules for contributing
 
@@ -168,9 +186,13 @@ Cycles in the DAG must not crash. The derivation keeps cycle members blocked. Un
 2. **TDD strict.** Write the failing test first, then make it pass. The test suite is the spec. Exception: the `ui/` subproject does not require TDD nor changes to `test/`; it does require verification proportional to the blast radius, explicit (named command, observed output, or manual check), and documented in the commit body, the PR description, or a `climier add-note`. The TDD rule still applies to everything outside `ui/`.
 3. **No silent failures.** Every error path either throws with a clear message or has a tested behavior. If you find yourself "handling" an error by logging and continuing, write a test that documents the behavior, or change the code to fail loud.
 4. **Schema validation on write.** `writeState` rejects states missing `nodes`/`edges`/`initiatives`/`log`. Don't relax this without a test that says why.
-5. **Versioning.** The state has `version: 3`; `readState` migrates compatible v2 snapshots to v3. Additive optional fields that an older compatible CLI can safely preserve and ignore do not require a version bump. Bump the version and add a migration in `readState` when a change removes or reinterprets existing data, makes a field required for correct behavior, changes core semantics, or otherwise means an older CLI cannot safely read and write the state. Document the compatibility decision and never silently accept unknown future versions.
+5. **Versioning.** The canonical state schema is 1 and the reader rejects older
+   or unknown forms. Migration is an explicit, one-time import command, not an
+   implicit read/write conversion. Any future schema change needs an explicit
+   migration and tests; never silently accept an unknown form or use
+   `init --force` as a conversion shortcut.
 6. **Multi-agent safety.** Any new state mutation must enter through the kernel mutation frontier (or an explicitly documented setup/recovery path) and be serialized by `withLock`. Any new "log" must be committed with the state change it describes. If you split them, a concurrent op can interleave and the log will lie.
-7. **Task validation lifecycle.** `submit` hands an implementation to validation; `accept` records the validated task as `done`, and `reject` returns it to `open` with a reason. `resolve` is reserved for gates; `release`, `reopen`, and `cancel` remain administrative lifecycle operations.
+7. **Task lifecycle.** `climierflow` owns implementation, review, submission, and acceptance transitions. `resolve` is reserved for gates; `release`, `reopen`, and `cancel` remain administrative lifecycle operations.
 8. **No boolean flags before the command.** The CLI parser treats `--force init` as `--force=init`. New boolean flags must be used as `--flag=true` or after the command. Document any new boolean flag with this caveat.
 9. **English only in code, but the CLI output tolerates any UTF-8.** Titles, bodies, notes, and any free-text field can be in any language. Don't filter or escape based on locale.
 
@@ -247,13 +269,13 @@ Do not put domain rules or persistence in the CLI layer.
 - **Pure projections live in `read-model/` and pure domain semantics live in `providers/`.** No I/O or side effects. Test them with literal snapshots, no temp dirs.
 - **Imperative wrappers in `storage/state.mjs` and `storage/lock.mjs`.** These touch the filesystem. They are tested via `helpers.mjs` (temp dirs).
 - **Adapters return data, not console.log.** `bin/climier.mjs` is the only place that prints (except for errors).
+- **Comments declare constraints, not narration.** Remove line-by-line narration, provenance, task/ADR justification, commented-out code, decorative banners, and documentation mirrors. Keep only restrictions the code cannot express.
 
 ## Testing
 
-- `npm test` runs the CLI/core suite and skips `ui-*` tests.
-- `npm run test:ui` runs the UI test suite in isolation.
-- For changes limited to `/ui`, do not run the full Climier CLI suite by default. Run `npm run test:ui` and, when the change affects the frontend build, `(cd ui && npm run build)`.
-- UI and CLI tests are separate by design, but `ui/server/` consumes CLI state and read-only helpers. If a change crosses that boundary or changes a shared CLI contract, run the relevant targeted CLI tests too; use `npm test` when the blast radius warrants it.
+- `npm test` runs the whole suite; there is no separate UI suite to skip.
+- For changes limited to `/ui`, the subproject's own checks are enough: `(cd ui && npm run build)` and any manual check you document. The root suite still applies to everything outside `/ui`.
+- `ui/server/` consumes CLI state and read-only helpers. If a change crosses that boundary or changes a shared CLI contract, run the relevant targeted CLI tests too; use `npm test` when the blast radius warrants it. The UI is experimental and carries no root test suite.
 - `npm run test:concurrent` runs the multi-agent race tests in isolation.
 - Each test uses a temp dir (see `helpers.mjs`) so tests don't interfere.
 - `importFresh()` re-imports modules fresh between tests (defeats the module cache); use it when you need clean state.
@@ -270,12 +292,12 @@ When you fix a bug, write a test that reproduces it BEFORE the fix. The test goe
 
 ## Non-obvious things that bit us
 
-- **Task corrections use the validation lifecycle.** Workers submit implementation evidence; validators accept or reject it. `reopen` is the administrative rollback from `done` to `open`, while `resolve` is reserved for gates.
+- **Task corrections use the runner lifecycle.** `climierflow` returns implementation and review evidence and owns the task transition; `reopen` is the administrative rollback from `done` to `open`, while `resolve` is reserved for gates.
 - **`status --status DONE` (uppercase) works in `tasks` style filters.** Case-insensitive.
 - **`status --staleMs 0` marks all in_progress as stale.** `staleMs: 0` is valid and means "everything in_progress is stale".
 - **`status` is global by default for in_progress.** `tasks.in_progress` and `summary.in_progress` include every in_progress task in scope, regardless of caller. `--claimed-by <agent>` is the only way to narrow claims; `--as` is an identity tag for `context` and is intentionally not a filter for `status`. Stale-claim alerts follow the same rule.
-- **`init --force` auto-recovers a corrupt state file** even without `--force`, but `--force` is still needed to overwrite a *valid* state.
-- **`add-task --blocked-by NONEXISTENT` fails** with a clear error. The validator only runs when the state file exists (so empty projects can still bootstrap).
+- **`init --force` is destructive reset behavior**, not migration. It must never be used to convert a pre-cut project; import with `migrate` after stopping every writer.
+- **`add-task --blocked-by NONEXISTENT` fails** with a clear error. State validation only runs when the state file exists (so empty projects can still bootstrap).
 - **The state file is owned by the script.** `writeState` validates the schema. Don't write to the file from outside the CLI — even tests should go through `updateState`/`writeState` (or write valid schemas).
 - **`status` returns an empty `tasks` / `gates` shape for an empty state, never throws.** New code that consumes `status` should preserve this.
 
@@ -289,7 +311,7 @@ npm test
 node --test test/status.test.mjs
 
 # Run a single test by name
-node --test --test-name-pattern="take.*same agent" test/v2-take.test.mjs
+node --test --test-name-pattern="take.*same agent" test/take.test.mjs
 
 # Watch mode
 npm run test:watch
@@ -324,7 +346,7 @@ When you add a new command, pick whichever shape fits the data. **Do not** add a
 1. Run `npm test`. If anything is red, fix it first (a new agent should never commit on top of red).
 2. Read `src/storage/state.mjs` — it explains the storage shape and version handling.
 3. Read one command end-to-end (`src/cli/commands/take.mjs` is the most representative).
-4. Look at `test/v2-take.test.mjs` (and `test/concurrent-takes.test.mjs` if present) — they show the multi-agent guarantee in action.
+4. Look at `test/take.test.mjs` (and `test/concurrent-takes.test.mjs` if present) — they show the multi-agent guarantee in action.
 5. Then tackle your task. TDD: write the test, watch it fail, implement, watch it pass.
 
 ## Climier control plane
@@ -348,12 +370,58 @@ binary and the refactor worktree must use the same `CLIMIER_HOME` and project
 metadata.
 
 Each shell-tool invocation is independent: a `cd` from one invocation does not
-carry into the next. Workers and validators must prefix every worktree command
-with `cd <worktree> &&` (or use absolute paths) and verify `pwd` plus the branch
-in that same invocation. Never run worktree tests from the main checkout.
+carry into the next. Every runner worktree command must prefix the path with
+`cd <worktree> &&` (or use absolute paths) and verify `pwd` plus the branch in
+that same invocation. Never run worktree tests from the main checkout.
 Tests must be bounded and targeted. Use the repository core test runner or an
 explicit file list with a timeout; do not use `--test-skip-pattern` as a way to
 exclude files.
+
+## Unified execution protocol
+
+Climier remains the operator's control plane for creating, reading, and curating tasks, gates, knowledge, initiatives, and dependencies. Execution has one entrypoint:
+
+```bash
+climierflow run <task-id>
+```
+
+The runner owns the internal claim, worktree, implementation, review, lifecycle, commit, merge, and cleanup stages. Do not manually delegate or invoke those stages; they are not operator actions.
+
+The terminal result is one JSON object. A completed run has this stable shape:
+
+```json
+{
+  "ok": true,
+  "task_id": "<task-id>",
+  "status": "done",
+  "terminal": true,
+  "result": {
+    "summary": "<result summary>",
+    "commit": "<commit-sha>",
+    "merged": true
+  }
+}
+```
+
+A terminal failure or blocked run uses the same envelope and puts structured recovery information in `error`:
+
+```json
+{
+  "ok": false,
+  "task_id": "<task-id>",
+  "status": "blocked",
+  "terminal": true,
+  "error": { "code": "<code>", "message": "<message>", "details": {} }
+}
+```
+
+Use the runner for execution recovery:
+
+- `climierflow status <task-id>` inspects that task's current run;
+- `climierflow resume <task-id> [--summary TEXT]` continues an interrupted run when a checkpoint is available (`--summary` is optional);
+- `climierflow restart <task-id> --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard` starts a fresh attempt when resuming is not appropriate.
+
+Restart requires replacement body and acceptance values plus explicit discard confirmation. If the attempt is already completed and merged, the runner rejects restart with `RESTART_REQUIRES_REVIEW`; do not reopen and restart that flow. Create a new correction task for additional work. Use `climier status`, `context`, `show`, `search`, and the mutation commands separately for DAG management; they are not replacements for `climierflow run`.
 
 ## Task sizing and agent budget
 
@@ -370,14 +438,17 @@ unrelated changes.
 
 This repository carries the portable agent workflow used by the Climier-based projects:
 
-- `.pi/SYSTEM.md` — operating policy for the principal agent;
-- `.pi/agents/climier-worker.md` — worker prompt;
-- `.pi/agents/climier-validator.md` — independent validator prompt;
+- `.pi/APPEND_SYSTEM.md` — concise routing and policy cues appended to Pi's built-in system prompt;
 - `.pi/agents/rfc-reviewer.md` — RFC/ADR review prompt;
-- `.agents/skills/climier/` — protocol and examples;
-- `.agents/skills/climier-worker/` — worktree, context and finish helpers;
-- `.agents/skills/climier-validator/` — validation and merge contract;
-- `.agents/skills/spec-pipeline/` — RFC → review → ADR → tasks pipeline;
+- `.agents/skills/climier/` — DAG protocol and examples;
+- `.agents/skills/spec-pipeline/` — opt-in RFC → review → ADR → tasks pipeline;
+- `.agents/skills/initiative-execution/` — opt-in initiative coordination through individual runner executions;
 - `CLIMIER-CHEATSHEET.md` — quick command reference.
 
 These files define how this project uses Climier. The project-specific source of truth remains the code, tests and `docs/`; the live Climier state remains outside the repository and is accessed only through the CLI.
+
+### Choosing a workflow
+
+Ordinary small or local work may use the direct path: inspect the relevant files, make the minimal change, and run proportional checks. The controlled workflow is optional; recommend or select it for meaningful risk, cross-module coordination, public contracts, state or concurrency changes, or an explicit user request. Use the planning and initiative skills only when their opt-in triggers apply.
+
+A task already registered for runner execution must use `climierflow run <task-id>`. Do not replace that path with direct implementation or manual lifecycle commands; `climierflow` owns the task's claim, worktree, implementation, review, lifecycle, commit, merge, and cleanup stages.

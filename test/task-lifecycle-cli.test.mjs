@@ -7,6 +7,11 @@ import {
 } from "./helpers.mjs";
 import { HELP_TEXT } from "../src/cli/dispatch.mjs";
 import { RESERVED_NAMESPACES } from "../src/cli/commands/reserved-namespaces.mjs";
+import resolve from "../src/cli/commands/resolve.mjs";
+import reopen from "../src/cli/commands/reopen.mjs";
+import cancel from "../src/cli/commands/cancel.mjs";
+import { bootstrapBuiltins } from "../src/application/operations/index.mjs";
+import { mutate as kernelMutate } from "../src/kernel/mutate.mjs";
 
 async function seedTask(dir, id = "T-lifecycle") {
   let result = await runCli(["--project", dir, "init"]);
@@ -24,6 +29,67 @@ async function seedTask(dir, id = "T-lifecycle") {
 async function jsonCommand(dir, ...args) {
   const result = await runCli(["--project", dir, ...args]);
   return { result, data: JSON.parse(result.stdout) };
+}
+
+async function submitAndAccept(dir, id) {
+  let out = await jsonCommand(dir, "take", id, "--as", "worker");
+  assert.equal(out.result.code, 0, out.result.stderr);
+  out = await jsonCommand(dir, "submit", id, "--note", "handoff", "--as", "worker");
+  assert.equal(out.result.code, 0, out.result.stderr);
+  out = await jsonCommand(dir, "accept", id, "--as", "validator");
+  assert.equal(out.result.code, 0, out.result.stderr);
+  assert.equal(out.data.node.status, "done");
+  assert.ok(Array.isArray(out.data.newly_ready));
+}
+
+async function addAndSubmitRejectTask(dir) {
+  let out = await jsonCommand(dir, "add-task", "T-reject",
+    "--initiative", "workflow", "--title", "Reject task", "--body", "body",
+    "--acceptance", "acceptance", "--blocked-by", "");
+  assert.equal(out.result.code, 0, out.result.stderr);
+  out = await jsonCommand(dir, "take", "T-reject", "--as", "worker");
+  assert.equal(out.result.code, 0, out.result.stderr);
+  out = await jsonCommand(dir, "submit", "T-reject", "--note", "handoff", "--as", "worker");
+  assert.equal(out.result.code, 0, out.result.stderr);
+  return jsonCommand(dir, "reject", "T-reject", "--as", "validator");
+}
+
+function createLifecycleOperationSource(operations) {
+  return {
+    registry: bootstrapBuiltins(),
+    mutate(args) {
+      operations.push(args.request.action);
+      return kernelMutate(args);
+    },
+    selectPolicy: async () => null,
+  };
+}
+
+async function prepareReopenCancelProject(dir) {
+  let result = await runCli(["--project", dir, "init"]);
+  assert.equal(result.code, 0, result.stderr);
+  result = await runCli(["--project", dir, "add-initiative", "workflow", "--desc", "Workflow"]);
+  assert.equal(result.code, 0, result.stderr);
+  for (const [id, title] of [["T-reopen", "Reopen"], ["T-cancel", "Cancel"]]) {
+    result = await runCli(["--project", dir, "add-task", id, "--initiative", "workflow", "--title", title, "--body", "body", "--acceptance", "accepted", "--blocked-by", ""]);
+    assert.equal(result.code, 0, result.stderr);
+  }
+  for (const id of ["G-reopen", "G-cancel"]) {
+    result = await runCli(["--project", dir, "add-gate", id, "--initiative", "workflow", "--title", id, "--body", "body", "--purpose", "decision"]);
+    assert.equal(result.code, 0, result.stderr);
+  }
+}
+
+async function seedReopenCancelStates(dir) {
+  for (const args of [
+    ["resolve", "G-reopen", "--choice", "yes", "--rationale", "accepted", "--as", "validator"],
+    ["take", "T-reopen", "--as", "worker"],
+    ["submit", "T-reopen", "--note", "handoff", "--as", "worker"],
+    ["accept", "T-reopen", "--as", "validator"],
+    ["take", "T-cancel", "--as", "worker"],
+  ]) {
+    await runCli(["--project", dir, ...args]);
+  }
 }
 
 test("CLI lifecycle commands are reserved and documented", () => {
@@ -54,28 +120,70 @@ test("CLI accept and reject validate required fields and preserve JSON errors", 
   const dir = await createTempProject();
   try {
     await seedTask(dir, "T-accept");
-    let out = await jsonCommand(dir, "take", "T-accept", "--as", "worker");
-    assert.equal(out.result.code, 0, out.result.stderr);
-    out = await jsonCommand(dir, "submit", "T-accept", "--note", "handoff", "--as", "worker");
-    assert.equal(out.result.code, 0, out.result.stderr);
-    out = await jsonCommand(dir, "accept", "T-accept", "--as", "validator");
-    assert.equal(out.result.code, 0, out.result.stderr);
-    assert.equal(out.data.node.status, "done");
-    assert.ok(Array.isArray(out.data.newly_ready));
-
-    out = await jsonCommand(dir, "add-task", "T-reject",
-      "--initiative", "workflow", "--title", "Reject task", "--body", "body",
-      "--acceptance", "acceptance", "--blocked-by", "");
-    assert.equal(out.result.code, 0, out.result.stderr);
-    out = await jsonCommand(dir, "take", "T-reject", "--as", "worker");
-    assert.equal(out.result.code, 0, out.result.stderr);
-    out = await jsonCommand(dir, "submit", "T-reject", "--note", "handoff", "--as", "worker");
-    assert.equal(out.result.code, 0, out.result.stderr);
-    out = await jsonCommand(dir, "reject", "T-reject", "--as", "validator");
+    await submitAndAccept(dir, "T-accept");
+    const out = await addAndSubmitRejectTask(dir);
     assert.equal(out.result.code, 1);
     assert.equal(out.data.ok, false);
     assert.equal(out.data.error.code, "MISSING_FIELD");
     assert.match(out.data.error.message, /reject/);
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("CLI resolve delegates its gate operation through Application Operations", async () => {
+  const dir = await createTempProject();
+  const operations = [];
+  const source = createLifecycleOperationSource(operations);
+  try {
+    let result = await runCli(["--project", dir, "init"]);
+    assert.equal(result.code, 0, result.stderr);
+    result = await runCli(["--project", dir, "add-initiative", "workflow", "--desc", "Workflow"]);
+    assert.equal(result.code, 0, result.stderr);
+    result = await runCli(["--project", dir, "add-gate", "G-resolve", "--initiative", "workflow", "--title", "Decision", "--body", "body", "--purpose", "decision"]);
+    assert.equal(result.code, 0, result.stderr);
+
+    const out = await resolve({
+      projectDir: dir,
+      statePath: dir,
+      source,
+      positional: ["G-resolve"],
+      flags: { choice: "yes", rationale: "accepted", as: "operator" },
+    });
+    assert.equal(out.node.status, "resolved");
+    await assert.rejects(
+      resolve({
+        projectDir: dir,
+        statePath: dir,
+        source,
+        positional: ["G-resolve"],
+        flags: { choice: "yes", rationale: "accepted", as: "operator" },
+      }),
+      (error) => error.code === "INVALID_STATUS",
+    );
+    assert.deepEqual(operations, ["gate.resolve", "gate.resolve"]);
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("CLI reopen and cancel delegate task and gate lifecycle through Application Operations", async () => {
+  const dir = await createTempProject();
+  const operations = [];
+  const source = createLifecycleOperationSource(operations);
+  try {
+    await prepareReopenCancelProject(dir);
+    await seedReopenCancelStates(dir);
+
+    const reopenedTask = await reopen({ projectDir: dir, statePath: dir, source, positional: ["T-reopen"], flags: { reason: "retry", as: "operator" } });
+    const reopenedGate = await reopen({ projectDir: dir, statePath: dir, source, positional: ["G-reopen"], flags: { reason: "retry", as: "operator" } });
+    const canceledTask = await cancel({ projectDir: dir, statePath: dir, source, positional: ["T-cancel"], flags: { reason: "stop", as: "operator" } });
+    const canceledGate = await cancel({ projectDir: dir, statePath: dir, source, positional: ["G-cancel"], flags: { reason: "stop", as: "operator" } });
+    assert.equal(reopenedTask.node.status, "open");
+    assert.equal(reopenedGate.node.status, "open");
+    assert.equal(canceledTask.node.status, "canceled");
+    assert.equal(canceledGate.node.status, "canceled");
+    assert.deepEqual(operations, ["task.reopen", "task.reopen", "task.cancel", "task.cancel"]);
   } finally {
     await rmTempProject(dir);
   }
@@ -87,7 +195,7 @@ test("CLI resolve rejects tasks without mutating them; accept is the done transi
     await seedTask(dir, "T-resolve");
     let out = await jsonCommand(dir, "take", "T-resolve", "--as", "worker");
     assert.equal(out.result.code, 0, out.result.stderr);
-    out = await jsonCommand(dir, "resolve", "T-resolve", "--note", "done", "--as", "worker");
+    out = await jsonCommand(dir, "resolve", "T-resolve", "--choice", "done", "--rationale", "not a gate", "--as", "worker");
     assert.equal(out.result.code, 1);
     assert.equal(out.data.ok, false);
     assert.equal(out.data.error.code, "INVALID_EXECUTION_CONTRACT");

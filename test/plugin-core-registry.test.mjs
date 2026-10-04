@@ -2,12 +2,11 @@
 // `buildRegistry(providers)` compatibility facade and the built-in
 // bootstrap owned by `src/application/operations/builtins.mjs`.
 //
-// T-graph-kernel-registry · plan §B6A + ADR-012 §§1–3: the registry
-// replaces the legacy `handler` table from ADR-006 with a typed entry
+
 // shape `{ id, kind, provider: { prepare, apply } }`. The builder
 // detects operation-id collisions deterministically and returns an
 // immutable registry object; Application Operations bootstraps the
-// built-in providers task / gate / knowledge that §B4 already validated.
+
 //
 // Pure: no filesystem, no lock, no state, no log, no policy, no
 // command, no adapter, no CLI, no UI. The tests build literal
@@ -40,6 +39,41 @@ async function importRegistry() {
   return importFresh(REGISTRY_MODULE);
 }
 
+function assertRegistryMaps(reg) {
+  const maps = [reg.entries, reg.providers, reg.byKind];
+  assert.ok(maps.every((map) => map instanceof Map));
+  assert.ok(Array.isArray(reg.ops) && Object.isFrozen(reg.ops));
+  assert.throws(() => reg.entries.set("x", 1), /read only/i);
+  assert.throws(() => reg.entries.delete("task.create"), /read only/i);
+  assert.throws(() => reg.entries.clear(), /read only/i);
+  assert.throws(() => reg.providers.set("x", 1), /read only/i);
+  assert.throws(() => reg.byKind.set("x", 1), /read only/i);
+  assert.equal(reg.entries.size, 4);
+  assert.equal(reg.providers.get("task.create"), reg.lookup("task.create").provider);
+}
+
+function assertRegistryLookups(reg) {
+  assert.equal(typeof reg.has, "function");
+  assert.equal(typeof reg.get, "function");
+  assert.equal(typeof reg.lookup, "function");
+  assert.equal(reg.has("task.create"), true);
+  assert.equal(reg.has("not.an.op"), false);
+  assert.equal(reg.get("task.create").kind, "task");
+  const looked = reg.lookup("task.create");
+  assert.ok(looked, "lookup returns entry");
+  assert.equal(looked.id, "task.create");
+  assert.equal(looked.kind, "task");
+  assert.equal(looked.provider.prepare, reg.providers.get("task.create").prepare);
+}
+
+function assertRegistryGroups(reg) {
+  const tasks = reg.byKind.get("task");
+  assert.ok(Array.isArray(tasks));
+  assert.deepEqual([...tasks].toSorted(), ["task.create", "task.take"]);
+  assert.equal(reg.byKind.get("knowledge").length, 1);
+  assert.deepEqual([...reg.ops].toSorted(), ["gate.create", "knowledge.create", "task.create", "task.take"]);
+}
+
 test("buildRegistry: returns a frozen registry with entries, providers, ops, byKind, has, get, lookup", async () => {
   const mod = await importRegistry();
   const reg = mod.buildRegistry([
@@ -48,69 +82,27 @@ test("buildRegistry: returns a frozen registry with entries, providers, ops, byK
     makeEntry("gate.create", "gate"),
     makeEntry("knowledge.create", "knowledge"),
   ]);
-
   assert.equal(typeof reg, "object", "registry is an object");
   assert.ok(Object.isFrozen(reg), "registry itself is frozen");
-
-  // shape
-  assert.ok(reg.entries instanceof Map, "entries is a Map");
-  assert.ok(reg.providers instanceof Map, "providers is a Map");
-  assert.ok(Array.isArray(reg.ops), "ops is an array");
-  assert.ok(reg.byKind instanceof Map, "byKind is a Map");
-  assert.ok(Object.isFrozen(reg.ops), "ops is frozen");
-
-  // The Maps guard mutating ops via a Proxy. Object.isFrozen cannot
-  // see through the Proxy, so we assert immutability by attempting
-  // mutating ops and observing throws.
-  assert.throws(() => reg.entries.set("x", 1), /read only/i);
-  assert.throws(() => reg.entries.delete("task.create"), /read only/i);
-  assert.throws(() => reg.entries.clear(), /read only/i);
-  assert.throws(() => reg.providers.set("x", 1), /read only/i);
-  assert.throws(() => reg.byKind.set("x", 1), /read only/i);
-  // read access still works
-  assert.equal(reg.entries.size, 4);
-  assert.equal(reg.providers.get("task.create") === reg.lookup("task.create").provider, true);
-
-  // maps frozen by mutation contract (see assertion block above);
-  // these duplicate checks below stay here for documentation.
-  assert.throws(() => reg.entries.set("x", 1), /read only/i);
-  assert.throws(() => reg.providers.set("x", 1), /read only/i);
-
-  // helpers
-  assert.equal(typeof reg.has, "function", "has is a function");
-  assert.equal(typeof reg.get, "function", "get is a function");
-  assert.equal(typeof reg.lookup, "function", "lookup is a function");
-
-  // happy paths
-  assert.equal(reg.has("task.create"), true);
-  assert.equal(reg.has("not.an.op"), false);
-  assert.equal(reg.get("task.create").kind, "task");
-  const looked = reg.lookup("task.create");
-  // Verify the registry exposes the same provider we passed in.
-  // We pass *one* provider object up front and assert reference
-  // equality so accidental cloning surfaces as a regression.
-  assert.ok(looked, "lookup returns entry");
-  assert.equal(looked.id, "task.create");
-  assert.equal(looked.kind, "task");
-  assert.equal(looked.provider.prepare, reg.providers.get("task.create").prepare);
-
-  // byKind grouping
-  const tasks = reg.byKind.get("task");
-  assert.ok(Array.isArray(tasks), "byKind.get(task) is an array");
-  assert.deepEqual(
-    [...tasks].sort(),
-    ["task.create", "task.take"],
-  );
-  assert.equal(reg.byKind.get("knowledge").length, 1);
-
-  // ops
-  assert.deepEqual([...reg.ops].sort(), [
-    "gate.create",
-    "knowledge.create",
-    "task.create",
-    "task.take",
-  ]);
+  assertRegistryMaps(reg);
+  assertRegistryLookups(reg);
+  assertRegistryGroups(reg);
 });
+
+function assertDuplicateRegistryError(error, { id, firstIndex, secondIndex }) {
+  assert.equal(typeof error, "object", "error is an object");
+  assert.ok(error && typeof error === "object", "error is an object");
+  assert.equal(typeof error.code, "string");
+  assert.equal(error.code, "REGISTRY_DUPLICATE_ID");
+  assert.equal(typeof error.message, "string");
+  assert.ok(error.message.includes(id), "message mentions duplicate id");
+  assert.ok(error.details, "error carries details");
+  assert.equal(typeof error.details, "object");
+  assert.deepEqual(Object.keys(error.details).toSorted(), ["first_index", "id", "second_index"]);
+  assert.equal(error.details.id, id);
+  assert.equal(error.details.first_index, firstIndex);
+  assert.equal(error.details.second_index, secondIndex);
+}
 
 test("buildRegistry: rejects duplicate operation ids deterministically with structured error", async () => {
   const mod = await importRegistry();
@@ -127,16 +119,11 @@ test("buildRegistry: rejects duplicate operation ids deterministically with stru
   assert.ok(firstThrew, "expected duplicate id to throw");
 
   // shape of the structured error — must be deterministic.
-  const err = firstThrew;
-  assert.equal(typeof err, "object", "error is an object");
-  assert.ok(err && typeof err === "object", "error is an object");
-  assert.equal(err.code, "REGISTRY_DUPLICATE_ID");
-  assert.equal(typeof err.message, "string");
-  assert.ok(err.message.includes("task.create"), "message mentions duplicate id");
-  assert.ok(err.details, "error carries details");
-  assert.equal(err.details.id, "task.create");
-  assert.equal(err.details.first_index, 0);
-  assert.equal(err.details.second_index, 2);
+  assertDuplicateRegistryError(firstThrew, {
+    id: "task.create",
+    firstIndex: 0,
+    secondIndex: 2,
+  });
 
   // Determinism: a second call with the same colliding input throws an
   // error with the same shape and indices — the builder must not
@@ -151,7 +138,14 @@ test("buildRegistry: rejects duplicate operation ids deterministically with stru
     secondThrew = err2;
   }
   assert.ok(secondThrew, "second duplicate id throws");
-  assert.equal(secondThrew.code, "REGISTRY_DUPLICATE_ID");
+  assertDuplicateRegistryError(secondThrew, {
+    id: "a.b",
+    firstIndex: 0,
+    secondIndex: 1,
+  });
+  assert.equal(secondThrew.code, firstThrew.code);
+  assert.ok(secondThrew.details);
+  assert.equal(secondThrew.details.id, "a.b");
   assert.equal(secondThrew.details.first_index, 0);
   assert.equal(secondThrew.details.second_index, 1);
 });
@@ -252,14 +246,39 @@ test("buildRegistry: rejects non-object entries", async () => {
   assert.equal(thrown.code, "REGISTRY_INVALID_ENTRY");
 });
 
+function assertBuiltinIds(reg, expectedIds) {
+  for (const id of expectedIds) {
+    assert.ok(reg.has(id), `bootstrapBuiltins registers ${id}`);
+  }
+  assert.ok(Object.isFrozen(reg), "bootstrap registry is frozen");
+  assert.equal(reg.ops.length, expectedIds.length, "all expected ids present, no extras");
+  assert.equal(new Set(reg.ops).size, expectedIds.length, "operation ids are unique");
+}
+
+function assertBuiltinEntryShape(reg, expectedIds) {
+  for (const id of expectedIds) {
+    const entry = reg.get(id);
+    assert.deepEqual(Object.keys(entry).toSorted(), ["id", "kind", "provider"], `${id} has only canonical entry fields`);
+    assert.equal(entry.id, id);
+    assert.ok(["task", "gate", "knowledge", "core"].includes(entry.kind), `${id} kind ∈ ADR-012 + core kinds`);
+    assert.deepEqual(Object.keys(entry.provider).toSorted(), ["apply", "prepare"], `${id} provider has only prepare/apply`);
+    assert.equal(typeof entry.provider, "object");
+    assert.equal(typeof entry.provider.prepare, "function", `${id} provider.prepare is fn`);
+    assert.equal(typeof entry.provider.apply, "function", `${id} provider.apply is fn`);
+  }
+}
+
+function assertBuiltinKinds(reg) {
+  assert.equal(reg.byKind.get("task").length, 9, "task has 9 ops");
+  assert.equal(reg.byKind.get("gate").length, 5, "gate has 5 ops");
+  assert.equal(reg.byKind.get("knowledge").length, 3, "knowledge has 3 ops");
+  assert.equal(reg.byKind.get("core").length, 4, "core has 4 ops");
+}
+
 test("bootstrapBuiltins: includes all ADR-012 task / gate / knowledge operation ids, frozen, no persistence", async () => {
   const mod = await importRegistry();
   const reg = mod.bootstrapBuiltins();
 
-  // ADR-012 §2 operation IDs that the built-in core covers, plus
-  // the core-resident operations added by
-  // T-graph-kernel-provider-core-ops (edge.add, note.add) and
-  // T-graph-kernel-provider-core-initiative (initiative.create).
   const expectedIds = [
     "task.create",
     "task.update",
@@ -283,17 +302,12 @@ test("bootstrapBuiltins: includes all ADR-012 task / gate / knowledge operation 
     "note.add",
     "initiative.create",
   ];
-  for (const id of expectedIds) {
-    assert.ok(reg.has(id), `bootstrapBuiltins registers ${id}`);
-  }
-  assert.ok(Object.isFrozen(reg), "bootstrap registry is frozen");
-  assert.equal(reg.ops.length, expectedIds.length, "all 21 expected ids present, no extras");
+  assertBuiltinIds(reg, expectedIds);
 
   // bootstrap must NOT expose plan-derived actions that are not part
-  // of the public core surface (task.takeover, state.restore, etc.).
+
   // edge.add, note.add and initiative.create ARE public surface since
-  // T-graph-kernel-provider-core-ops /
-  // T-graph-kernel-provider-core-initiative, so they are intentionally
+
   // not listed here.
   for (const forbidden of [
     "task.takeover",
@@ -303,29 +317,15 @@ test("bootstrapBuiltins: includes all ADR-012 task / gate / knowledge operation 
     assert.equal(reg.has(forbidden), false, `bootstrap does not expose ${forbidden}`);
   }
 
-  // Each entry exposes `{ id, kind, provider: { prepare, apply } }`
-  // pointing to a real provider (no handlers/argv).
-  for (const id of expectedIds) {
-    const entry = reg.get(id);
-    assert.deepEqual(Object.keys(entry).sort(), ["id", "kind", "provider"], `${id} has only canonical entry fields`);
-    assert.equal(entry.id, id);
-    assert.ok(["task", "gate", "knowledge", "core"].includes(entry.kind), `${id} kind ∈ ADR-012 + core kinds`);
-    assert.deepEqual(Object.keys(entry.provider).sort(), ["apply", "prepare"], `${id} provider has only prepare/apply`);
-    assert.equal(typeof entry.provider, "object");
-    assert.equal(typeof entry.provider.prepare, "function", `${id} provider.prepare is fn`);
-    assert.equal(typeof entry.provider.apply, "function", `${id} provider.apply is fn`);
-  }
+  // Each entry exposes its canonical typed provider pair.
+  assertBuiltinEntryShape(reg, expectedIds);
 
-  // byKind grouping: 9 task + 5 gate + 3 knowledge + 4 core
-  // (edge.add + edge.remove + note.add + initiative.create).
-  assert.equal(reg.byKind.get("task").length, 9, "task has 9 ops");
-  assert.equal(reg.byKind.get("gate").length, 5, "gate has 5 ops");
-  assert.equal(reg.byKind.get("knowledge").length, 3, "knowledge has 3 ops");
-  assert.equal(reg.byKind.get("core").length, 4, "core has 4 ops");
+  assertBuiltinKinds(reg);
 
   // bootstrap is callable any number of times and is deterministic.
   const reg2 = mod.bootstrapBuiltins();
-  assert.deepEqual([...reg.ops].sort(), [...reg2.ops].sort(), "bootstrap is deterministic");
+  assert.deepEqual([...reg.ops].toSorted(), [...reg2.ops].toSorted(), "bootstrap is deterministic");
+  assert.deepEqual(reg.ops, reg2.ops, "bootstrap preserves stable registration order");
 });
 
 test("bootstrapBuiltins: provider references are the frozen built-in objects (no argv, no handlers)", async () => {
@@ -340,8 +340,7 @@ test("bootstrapBuiltins: provider references are the frozen built-in objects (no
   for (const id of reg.ops) {
     const provider = reg.get(id).provider;
     assert.ok(Object.isFrozen(provider), `${id} provider is frozen`);
-    // The provider's prepare takes a *named* argument shape (`{ snapshot,
-    // input, request }`); it does NOT take `(argv)` like a legacy
+
     // `handler`. Assert the function has 0 declared parameters (only
     // destructured args) by checking `prepare.length <= 1`.
     assert.ok(provider.prepare.length <= 1, `${id} provider.prepare is not argv-style`);
@@ -349,7 +348,7 @@ test("bootstrapBuiltins: provider references are the frozen built-in objects (no
   }
 });
 
-test("application built-ins own the catalog while plugin registry remains a compatibility facade", async () => {
+async function assertCanonicalRegistryFacade() {
   const builtins = await importFresh(BUILTINS_MODULE);
   const facade = await importRegistry();
   assert.equal(typeof builtins.createBuiltinOperationRegistry, "function");
@@ -362,7 +361,6 @@ test("application built-ins own the catalog while plugin registry remains a comp
     facade.bootstrapBuiltins().ops,
     builtins.bootstrapBuiltins().ops,
   );
-
   const fs = await import("node:fs/promises");
   const url = await import("node:url");
   const fileUrl = new url.URL(REGISTRY_MODULE, import.meta.url);
@@ -371,66 +369,54 @@ test("application built-ins own the catalog while plugin registry remains a comp
   assert.doesNotMatch(registrySrc, /providers\//);
   assert.doesNotMatch(registrySrc, /TASK_OPERATION_IDS|collectBuiltins/);
   assert.match(registrySrc, /application\/operations\/builtins\.mjs/);
+}
+
+test("application built-ins own the catalog while plugin registry remains a compatibility facade", async () => {
+  await assertCanonicalRegistryFacade();
 });
 
-test("bootstrapBuiltins: never touches filesystem / lock / state / log / adapter / CLI / UI", async () => {
-  const mod = await importRegistry();
-  // Static assertion: the compatibility facade must not import any of
-  // those surfaces for its buildRegistry/bootstrapBuiltins path. We
-  // probe the source string after import to keep this test fast and
-  // pure. (Legacy ADR-006 compat shims still depend on commands/*
-  // for the V2 adapter; B6B / B3 will replace those. The B6A core
-  // builder path remains command-free.)
+async function readRegistrySource() {
   const fs = await import("node:fs/promises");
   const path = await import("node:path");
   const url = await import("node:url");
   const fileUrl = new url.URL(REGISTRY_MODULE, import.meta.url);
-  const srcPath = fileUrl.fileURLToPath
-    ? fileUrl.fileURLToPath()
+  const srcPath = url.fileURLToPath
+    ? url.fileURLToPath(fileUrl)
     : fileUrl.pathname.replace(/^\/([A-Za-z]:)/, "$1");
   const repoRoot = path.resolve(path.dirname(srcPath), "../..");
-  const registrySrc = await fs.readFile(
-    path.resolve(repoRoot, "src/plugins/core-registry.mjs"),
-    "utf8",
-  );
+  return fs.readFile(path.resolve(repoRoot, "src/plugins/core-registry.mjs"), "utf8");
+}
 
-  // 1. The compatibility facade must not import legacy mutating surfaces.
-  // Its public entries are provider pairs, never command handlers.
-  const forbiddenInBuilder = [
-    "../commands/",
-    "./commands/",
-    "../../commands/",
-    "../plugin-core-adapter",
-    "./plugin-core-adapter",
-    "../bin/climier",
-    "./bin/climier",
-    "../../bin/climier",
-    "../../lock.mjs",
-    "../storage/lock.mjs",
-    "../../state.mjs",
-    "../state.mjs",
-    "../../log.mjs",
-    "../storage/log.mjs",
-    "../../plugin-api.mjs",
-    "../plugin-api.mjs",
-    "../../plugin-dispatch.mjs",
-    "../plugin-dispatch.mjs",
+function assertRegistryImportsAreClean(registrySrc) {
+  const forbiddenImports = [
+    "../commands/", "./commands/", "../../commands/",
+    "../plugin-core-adapter", "./plugin-core-adapter",
+    "../bin/climier", "./bin/climier", "../../bin/climier",
+    "../../lock.mjs", "../storage/lock.mjs", "../../state.mjs",
+    "../state.mjs", "../../log.mjs", "../storage/log.mjs",
+    "../../plugin-api.mjs", "../plugin-api.mjs",
+    "../../plugin-dispatch.mjs", "../plugin-dispatch.mjs",
   ];
-  for (const token of forbiddenInBuilder) {
-    assert.ok(
-      !registrySrc.includes(token),
-      `registry does not import ${token}`,
-    );
+  for (const token of forbiddenImports) {
+    assert.ok(!registrySrc.includes(token));
   }
-
-  // 2. The module only re-exports the canonical APIs; the catalog and
-  // generic implementation live under Application Operations.
   assert.equal(registrySrc.includes("export function buildRegistry"), false);
   assert.equal(registrySrc.includes("export function bootstrapBuiltins"), false);
-  assert.ok(registrySrc.includes("application/operations/registry.mjs"));
-  assert.ok(registrySrc.includes("application/operations/builtins.mjs"));
-  assert.equal(mod.CORE_REGISTRY, undefined);
-  assert.equal(mod.SUPPORTED_OPS, undefined);
   assert.equal(registrySrc.includes("handler:"), false);
   assert.equal(registrySrc.includes("LEGACY_"), false);
+  assert.ok(registrySrc.includes("application/operations/registry.mjs"));
+  assert.ok(registrySrc.includes("application/operations/builtins.mjs"));
+  assert.equal(modHasRegistryArtifacts(registrySrc), false);
+}
+
+function modHasRegistryArtifacts(registrySrc) {
+  return registrySrc.includes("handler:") || registrySrc.includes("LEGACY_");
+}
+
+test("bootstrapBuiltins: never touches filesystem / lock / state / log / adapter / CLI / UI", async () => {
+  const mod = await importRegistry();
+  const registrySrc = await readRegistrySource();
+  assertRegistryImportsAreClean(registrySrc);
+  assert.equal(mod.CORE_REGISTRY, undefined);
+  assert.equal(mod.SUPPORTED_OPS, undefined);
 });

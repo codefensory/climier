@@ -16,8 +16,8 @@
 #     aceptable porque vive fuera del home real.
 #
 # El helper funciona tanto si el proyecto trae .climier.json copiado como si
-# no trae metadata. Los protocolos worker y validator de climier prohíben
-# invocar init/init --force o mutaciones de smoke fuera de este helper.
+# no trae metadata. El protocolo operativo de este repo prohíbe invocar
+# init/init --force o mutaciones de smoke fuera de este helper.
 
 set -euo pipefail
 
@@ -26,8 +26,8 @@ usage() {
 Usage: bash .agents/skills/climier/smoke-sandbox.sh -- <command> [args...]
 
 Isolates the wrapped command by exporting CLIMIER_HOME to a private temp dir.
-Required by climier worker and validator protocols for any mutating smoke
-that targets a temporary project (init, init --force, ...).
+Required for any mutating smoke that targets a temporary project
+(init, init --force, ...).
 EOF
 }
 

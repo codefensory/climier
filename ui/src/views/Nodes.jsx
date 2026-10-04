@@ -56,7 +56,7 @@ const STATUS_OPTIONS = [
 ];
 
 // Order used when sorting by status. Bucket meaning wins over alphabet:
-// a worker scanning the table sees work flow from "ready → in progress →
+// an operator scanning the table sees work flow from "ready → in progress →
 // submitted → blocked → backlog → done → archived" without further interpretation.
 const STATUS_ORDER = {
   ready: 0,

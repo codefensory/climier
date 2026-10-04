@@ -1,127 +1,114 @@
-// `take <id>` CLI adapter for the canonical task.take provider.
-// The kernel owns locking, state, revisions and logs; this module only maps
-// CLI flags to the typed provider request and projects the legacy envelope.
+
+import { bootstrapBuiltins, executeOperation } from "../../application/operations/index.mjs";
 import { mutate } from "../../kernel/mutate.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
 import { resolveAgent } from "../actor.mjs";
 import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
-import { PolicyDenied } from "../../plugins/errors.mjs";
 import { taskTakeProvider } from "../../providers/task/take.mjs";
 import { statusOfV2 } from "../../providers/task/derivation.mjs";
+import { executeRemoteTask, requireRemoteTask, throwMissingRemoteNode } from "./internal/task-routing.mjs";
 
-export const knownFlags = ["as", "initiative", "domain", "tag"];
+const REGISTRY = bootstrapBuiltins();
 
-const TAKEOVER_ABSTAIN = "POLICY_TAKEOVER_ABSTAIN";
+export const knownFlags = ["as"];
 
-function takeoverAbstained(id, owner) {
-  const error = new Error(`take: node ${id} is claimed by ${owner}`);
-  error.code = TAKEOVER_ABSTAIN;
-  error.details = { id, owner };
-  return error;
+function hasReadinessContext(error, args) {
+  return Boolean(error && error.code === "NOT_READY" && args && args.snapshot && args.input);
 }
 
-const taskTakeAdapterProvider = Object.freeze({
-  async prepare(args) {
-    try {
-      return await taskTakeProvider.prepare(args);
-    } catch (error) {
-      // The provider reports its domain failure as soon as it sees the open
-      // node. Project the derived status expected by the CLI contract for
-      // blocked and backlog tasks without adding persistence to the adapter.
-      if (error && error.code === "NOT_READY" && args && args.snapshot && args.input) {
-        const status = statusOfV2(args.snapshot.state || args.snapshot, args.input.id);
-        if (status !== "unknown" && error.details && error.details.status !== status) {
-          throwV2("NOT_READY", `take: node ${args.input.id} is ${status}, not ready`, {
-            id: args.input.id,
-            status,
-          });
-        }
-      }
-      throw error;
+function restoreHistoricalReadiness(error, args) {
+  if (!hasReadinessContext(error, args)) {
+    return;
+  }
+  const status = statusOfV2(args.snapshot.state || args.snapshot, args.input.id);
+  if (status !== "unknown" && error.details && error.details.status !== status) {
+    throwV2("NOT_READY", `take: node ${args.input.id} is ${status}, not ready`, {
+      id: args.input.id,
+      status,
+    });
+  }
+}
+
+async function prepareCliTake(args, snapshotNode) {
+  try {
+    const plan = await taskTakeProvider.prepare(args);
+    const node = args.snapshot?.nodes?.[args.input?.id];
+    if (node) {
+      snapshotNode.value = node;
     }
-  },
-  apply: taskTakeProvider.apply,
-});
+    return plan;
+  } catch (error) {
 
-function policyForTake({ policy, projectDir, agent, id, snapshotNode }) {
+    restoreHistoricalReadiness(error, args);
+    throw error;
+  }
+}
+
+function withCliTakeProvider(source, snapshotNode) {
+  const provider = Object.freeze({
+    prepare: (args) => prepareCliTake(args, snapshotNode),
+    apply: taskTakeProvider.apply,
+  });
   return {
-    action: "task.take",
-    pluginId: policy && policy.pluginId ? policy.pluginId : null,
-    async decide({ snapshot, target }) {
-      // Keep the complete snapshot node for the legacy `{ node }` projection,
-      // including when kernel.mutate detects an idempotent operation.
-      if (snapshot && snapshot.nodes && snapshot.nodes[id]) {
-        snapshotNode.value = snapshot.nodes[id];
-      }
-
-      const takeover = target && target.takeover === true;
-      // A same-actor take is idempotent and must not invoke a policy seam.
-      if (!takeover && target && target.status === "in_progress") {
-        return { decision: "abstain" };
-      }
-      // Without an applicable policy, the core still refuses a takeover:
-      // only an explicit policy allow may replace another actor's claim.
-      if (!policy) {
-        if (takeover) {
-          throw takeoverAbstained(id, target.previous_owner);
-        }
-        return { decision: "abstain" };
-      }
-
-      const action = takeover ? "task.takeover" : "task.take";
-      const decision = await authorizeAction({
-        policy,
-        action,
-        actor: agent,
-        target,
-        snapshot,
-        projectDir,
-        projectConfig: policy.projectConfig || {},
-      });
-      if (decision.decision === "deny") {
-        // Throw here rather than returning deny so takeover errors retain
-        // their dynamic policy action; kernel request.action is the legacy
-        // log action (`take`).
-        throw new PolicyDenied(
-          policy.pluginId || "(unknown)",
-          action,
-          agent,
-          decision.reason || "denied by policy",
-        );
-      }
-      if (takeover && decision.decision === "abstain") {
-        throw takeoverAbstained(id, target.previous_owner);
-      }
-      return decision;
+    ...source,
+    registry: {
+      ...source.registry,
+      lookup(id) {
+        const entry = source.registry.lookup(id);
+        return id === "task.take" && entry ? { ...entry, provider } : entry;
+      },
     },
   };
 }
 
-export default async function take({ positional = [], flags = {}, projectDir, statePath, pluginId }) {
-  const id = positional[0];
-  if (!id) throwV2("MISSING_FIELD", "take: node id required", { field: "id" });
-  const agent = resolveAgent(flags, "take");
-  const dir = projectDir || statePath;
-  const policy = await loadApplicablePolicy({ projectDir: dir });
-  const snapshotNode = { value: null };
+function takeSource(source, snapshotNode, pluginId) {
+  const operationSource = source || {
+    registry: REGISTRY,
+    mutate,
+    loadApplicablePolicy,
+    authorizeAction,
+  };
+  const originalAuthorize = operationSource.authorizeAction || authorizeAction;
+  return {
+    ...withCliTakeProvider(operationSource, snapshotNode),
+    pluginId: operationSource.pluginId || pluginId,
+    async authorizeAction(args) {
 
-  const input = { id, actor: agent };
-  let mutation;
-  try {
-    mutation = await mutate({
-      projectDir: dir,
-      request: { action: "take", actor: agent, input },
-      provider: taskTakeAdapterProvider,
-      policyAction: policyForTake({ policy, projectDir: dir, agent, id, snapshotNode }),
-      pluginId,
-    });
-  } catch (error) {
-    if (error && error.code === TAKEOVER_ABSTAIN) {
-      throwV2("ALREADY_CLAIMED", error.message, error.details);
-    }
-    throw error;
+      if (args.target?.status === "in_progress" && !args.target.takeover) {
+        return { decision: "abstain" };
+      }
+      return originalAuthorize(args);
+    },
+  };
+}
+
+async function takeRemotely({ backendClient, id, agent }) {
+  if (backendClient && backendClient.type === "remote") {
+    await requireRemoteTask(backendClient, id, "take");
   }
+  const remote = await executeRemoteTask({
+    backendClient, actor: agent, operation: "task.take", command: "take", id, input: { id },
+  });
+  if (!remote) {
+    return null;
+  }
+  const node = remote.node;
+  if (!node) {
+    throwMissingRemoteNode("take", id);
+  }
+  return {
+    node,
+    context: { derived_status: node.status, revision: node.revision, claim: node.claim || null, blocking: [], knowledge: [] },
+    freshly_claimed: remote.mutation.result ? remote.mutation.result.freshly_claimed === true : false,
+  };
+}
 
+async function takeLocally({ id, agent, dir, source, pluginId }) {
+  const snapshotNode = { value: null };
+  const mutation = await executeOperation({
+    projectDir: dir, actor: agent, operation: "task.take", input: { id, actor: agent },
+    policyActionFromPlan: true, source: takeSource(source, snapshotNode, pluginId),
+  });
   const updated = mutation.diff.updated.find((entry) => entry.id === id);
   const node = updated ? updated.node : snapshotNode.value;
   if (!node) {
@@ -129,13 +116,21 @@ export default async function take({ positional = [], flags = {}, projectDir, st
   }
   return {
     node,
-    context: {
-      derived_status: node.status,
-      revision: node.revision,
-      claim: node.claim || null,
-      blocking: [],
-      knowledge: [],
-    },
+    context: { derived_status: node.status, revision: node.revision, claim: node.claim || null, blocking: [], knowledge: [] },
     freshly_claimed: mutation.result ? mutation.result.freshly_claimed === true : false,
   };
+}
+
+export default async function take({ positional = [], flags = {}, projectDir, statePath, pluginId, backendClient, source } = {}) {
+  const id = positional[0];
+  if (!id) {
+    throwV2("MISSING_FIELD", "take: node id required", { field: "id" });
+  }
+  const agent = resolveAgent(flags, "take");
+  const dir = projectDir || statePath;
+  const remote = await takeRemotely({ backendClient, id, agent });
+  if (remote) {
+    return remote;
+  }
+  return takeLocally({ id, agent, dir, source, pluginId });
 }

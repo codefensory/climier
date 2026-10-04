@@ -1,9 +1,8 @@
-// src/providers/task/update.mjs — pure provider for `task.update`.
-//
-// ADR-011 §§1, 2, 3 + ADR-012 §3:
+
+
 //   - `prepare` is read-only. It validates the target exists, is a
-//     task (kind=resolvable/subkind=task), that the input carries an
-//     `if_revision` precondition (ADR-011 §4: every agent-facing op
+
+
 //     that may modify a node requires if_revision), and that the
 //     patch does not carry `revision` or unknown top-level keys.
 //   - `apply` uses only tx.updateNode for the patch fields and
@@ -21,13 +20,13 @@ const LOG_ACTION = "update";
 const TASK_KIND = "resolvable";
 const TASK_SUBKIND = "task";
 
-// ALLOWED_PATCH_KEYS — the canonical set of patch fields the task
+
 // provider accepts. Mirrors the public `update` CLI surface (its scalar
 // and array fields) plus
 // `blocked_by` (which is encoded as edges, not a node field). Any key
 // outside this set is rejected in prepare so the provider can never
 // silently widen the public contract.
-const ALLOWED_PATCH_KEYS = new Set([
+export const ALLOWED_PATCH_KEYS = new Set([
   "title",
   "body",
   "acceptance",
@@ -38,6 +37,12 @@ const ALLOWED_PATCH_KEYS = new Set([
   "tags",
   "refs",
   "blocked_by",
+
+  "backlog",
+  // meta is typed on gate and knowledge, accepted on create for all three
+  // kinds and indexed by search, so retiring it here would leave a field
+  // writable on create, searchable and not editable.
+  "meta",
 ]);
 
 function asNonEmptyString(value) {
@@ -48,12 +53,10 @@ function readSnapshotNodes(snapshot) {
   return snapshot && snapshot.nodes && typeof snapshot.nodes === "object" ? snapshot.nodes : {};
 }
 
-function readSnapshotEdges(snapshot) {
-  return Array.isArray(snapshot && snapshot.edges) ? snapshot.edges : [];
-}
-
 function normalizeBlockers(raw) {
-  if (raw === undefined || raw === null) return [];
+  if (raw === undefined || raw === null) {
+    return [];
+  }
   if (typeof raw === "string") {
     return raw
       .split(",")
@@ -71,52 +74,54 @@ function normalizeBlockers(raw) {
 }
 
 function dedupeAndSort(ids) {
-  return Array.from(new Set(ids)).sort();
+  return Array.from(new Set(ids)).toSorted();
 }
 
-function validateInputShape(input) {
-  if (input === null || typeof input !== "object" || Array.isArray(input)) {
-    throwV2(
-      "INVALID_EXECUTION_CONTRACT",
-      `${OP}: input must be an object`,
-      { field: "input" },
-    );
-  }
-  if (!asNonEmptyString(input.id)) {
-    throwV2("MISSING_FIELD", `${OP}: --id required`, { field: "id" });
-  }
+function validateChanges(input) {
   if (input.changes === null || typeof input.changes !== "object" || Array.isArray(input.changes)) {
-    throwV2(
-      "MISSING_FIELD",
-      `${OP}: input.changes must be a non-empty object`,
-      { field: "changes" },
-    );
+    throwV2("MISSING_FIELD", `${OP}: input.changes must be a non-empty object`, { field: "changes" });
   }
   if (Object.keys(input.changes).length === 0) {
     throwV2("MISSING_FIELD", `${OP}: input.changes is empty`, { field: "changes" });
   }
+  const { backlog, meta } = input.changes;
+  if (backlog !== undefined && typeof backlog !== "boolean") {
+    throwV2("INVALID_EXECUTION_CONTRACT", `${OP}: changes.backlog must be a boolean`, { field: "changes.backlog", value: backlog });
+  }
+  if (meta !== undefined && (meta === null || typeof meta !== "object" || Array.isArray(meta))) {
+    throwV2("INVALID_EXECUTION_CONTRACT", `${OP}: changes.meta must be an object`, { field: "changes.meta" });
+  }
+  if ("revision" in input.changes) {
+    throwV2("INVALID_EXECUTION_CONTRACT", `${OP}: input.changes must not carry 'revision' (the kernel increments revision once per apply)`, {
+      field: "changes.revision",
+    });
+  }
+}
+
+function validateRevisionInput(input) {
   if (input.if_revision === undefined || input.if_revision === null) {
-    throwV2(
-      "MISSING_FIELD",
-      `${OP}: input.if_revision required (ADR-011 §4 — every agent-facing op that mutates a node must declare its precondition)`,
-      { field: "if_revision" },
-    );
+    throwV2("MISSING_FIELD", `${OP}: input.if_revision required (ADR-011 §4 — every agent-facing op that mutates a node must declare its precondition)`, {
+      field: "if_revision",
+    });
   }
   const expected = Number(input.if_revision);
   if (!Number.isInteger(expected) || expected < 1) {
-    throwV2(
-      "INVALID_EXECUTION_CONTRACT",
-      `${OP}: input.if_revision must be a positive integer`,
-      { field: "if_revision", value: input.if_revision },
-    );
+    throwV2("INVALID_EXECUTION_CONTRACT", `${OP}: input.if_revision must be a positive integer`, {
+      field: "if_revision",
+      value: input.if_revision,
+    });
   }
-  if ("revision" in input.changes) {
-    throwV2(
-      "INVALID_EXECUTION_CONTRACT",
-      `${OP}: input.changes must not carry 'revision' (the kernel increments revision once per apply)`,
-      { field: "changes.revision" },
-    );
+}
+
+function validateInputShape(input) {
+  if (input === null || typeof input !== "object" || Array.isArray(input)) {
+    throwV2("INVALID_EXECUTION_CONTRACT", `${OP}: input must be an object`, { field: "input" });
   }
+  if (!asNonEmptyString(input.id)) {
+    throwV2("MISSING_FIELD", `${OP}: --id required`, { field: "id" });
+  }
+  validateChanges(input);
+  validateRevisionInput(input);
 }
 
 function validatePatchKeys(changes) {
@@ -124,8 +129,8 @@ function validatePatchKeys(changes) {
     if (!ALLOWED_PATCH_KEYS.has(key)) {
       throwV2(
         "INVALID_EXECUTION_CONTRACT",
-        `${OP}: changes.${key} is not a valid patch key (allowed: ${Array.from(ALLOWED_PATCH_KEYS).sort().join(", ")})`,
-        { field: `changes.${key}`, allowed: Array.from(ALLOWED_PATCH_KEYS).sort() },
+        `${OP}: changes.${key} is not a valid patch key (allowed: ${Array.from(ALLOWED_PATCH_KEYS).toSorted().join(", ")})`,
+        { field: `changes.${key}`, allowed: Array.from(ALLOWED_PATCH_KEYS).toSorted() },
       );
     }
   }
@@ -167,61 +172,6 @@ function validateRevisionPrecondition(input, snapshot) {
 // validateBlockersForUpdate — the same shape used in create, applied
 // to the `changes.blocked_by` field. Self-edges and missing/duplicate
 // blockers are rejected here so apply only handles the happy path.
-function validateBlockersForUpdate(blockers, selfId, snapshot) {
-  const nodes = readSnapshotNodes(snapshot);
-  const edges = readSnapshotEdges(snapshot);
-
-  for (const blockerId of blockers) {
-    if (blockerId === selfId) {
-      throwV2(
-        "SELF_EDGE",
-        `${OP}: edge ${blockerId} -> ${selfId} is a self-edge`,
-        { from: blockerId, to: selfId, type: "BLOCKS" },
-      );
-    }
-    const blocker = nodes[blockerId];
-    if (!blocker) {
-      throwV2(
-        "INVALID_EDGE_TARGET",
-        `${OP}: edge BLOCKS ${blockerId} -> ${selfId} references missing node '${blockerId}'`,
-        { from: blockerId, to: selfId, type: "BLOCKS", missing: blockerId },
-      );
-    }
-    if (blocker.kind !== TASK_KIND || blocker.subkind !== TASK_SUBKIND) {
-      throwV2(
-        "INVALID_EDGE_KIND",
-        `${OP}: BLOCKS requires both ends to be resolvable tasks (got ${blocker.kind}/${blocker.subkind || "?"} -> task)`,
-        {
-          from: blockerId,
-          to: selfId,
-          type: "BLOCKS",
-          fromKind: blocker.kind,
-          toKind: TASK_KIND,
-          fromSubkind: blocker.subkind || null,
-          toSubkind: TASK_SUBKIND,
-        },
-      );
-    }
-  }
-  for (const blockerId of blockers) {
-    const edge = blocksEdge(blockerId, selfId);
-    const collision = edges.find(
-      (e) => e.from === edge.from && e.to === edge.to && e.type === edge.type,
-    );
-    if (collision) {
-      throwV2(
-        "DUPLICATE_EDGE",
-        `${OP}: edge BLOCKS ${edge.from} -> ${edge.to} already exists`,
-        {
-          from: edge.from,
-          to: edge.to,
-          type: edge.type,
-          existing: { ...collision },
-        },
-      );
-    }
-  }
-}
 
 // buildNodePatch — returns the patch object that updateNode will
 // receive. It strips `blocked_by` (encoded as edges) and normalizes
@@ -229,25 +179,22 @@ function validateBlockersForUpdate(blockers, selfId, snapshot) {
 function buildNodePatch(changes) {
   const patch = {};
   for (const [key, value] of Object.entries(changes)) {
-    if (key === "blocked_by") continue;
+    if (key === "blocked_by") {
+      continue;
+    }
     patch[key] = value;
   }
   return Object.freeze(patch);
 }
 
-// ===================================================================
-// Provider
-// ===================================================================
+
 
 /**
- * Pure `prepare` for task.update.
  *
  * Contract:
- *   - read-only: never mutates the snapshot, never reads the filesystem;
  *   - validates id, kind/subkind, the patch shape, every patch key
  *     against the public allow-list, that `if_revision` matches the
  *     snapshot, that the new blockers (when present) are valid against
- *     the snapshot, and that no `revision` field leaked into the patch;
  *   - returns a frozen plan carrying the normalized patch, the
  *     pre-sorted blocker list, and the precondition map the kernel
  *     will validate under the lock.
@@ -261,10 +208,7 @@ async function prepare({ snapshot, input, request }) {
   validateTarget(input, snapshot);
   validateRevisionPrecondition(input, snapshot);
   validatePatchKeys(input.changes);
-  // Resolve and dedupe the new blockers here so apply can use the
-  // canonical sorted list. Structural validation (self / missing /
-  // kind / duplicate) is delegated to `tx.addEdge` at apply time so
-  // the draft state — not the snapshot — is the authoritative view.
+  // Resolve blockers here; tx.addEdge validates graph edges in the draft.
   const hasNewBlockers = Object.prototype.hasOwnProperty.call(input.changes, "blocked_by");
   const newBlockers = hasNewBlockers ? dedupeAndSort(normalizeBlockers(input.changes.blocked_by)) : [];
   const patch = buildNodePatch(input.changes);
@@ -285,12 +229,9 @@ async function prepare({ snapshot, input, request }) {
 }
 
 /**
- * Pure `apply` for task.update.
  *
  * Contract:
  *   - mutates the tx draft only (tx.updateNode for the patch fields
- *     and one tx.addEdge per new BLOCKS edge);
- *   - never writes or increments `revision`;
  *   - returns `{ result, effects }` with the projected node shape and
  *     the deterministic added_edges list.
  *
@@ -318,7 +259,7 @@ async function apply({ tx, plan, input, request, snapshot }) {
     const edge = blocksEdge(blockerId, plan.target.id);
     // tx.addEdge validates self-edge / missing / kind / duplicate
     // against the draft (snapshot + adds so far) and throws the
-    // canonical v2 error codes. The provider does not duplicate
+
     // those checks here.
     const persisted = tx.addEdge(edge);
     addedEdges.push(persisted);

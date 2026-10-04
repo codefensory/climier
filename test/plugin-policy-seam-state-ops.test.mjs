@@ -1,6 +1,6 @@
-// T-plugin-policy-seam-state-ops — focal matrix for the state-ops seam.
+
 //
-// ADR-008 §"`restore` e `init --force`" + plan §3.6 / §4.5:
+
 //
 //   restore:  resolve actor → read target (raw + meta) → withLock →
 //             validate target (no side effects) →
@@ -21,7 +21,7 @@
 //     uses the canonical action `state.init_force`.
 //   - `init` without `--force` is bootstrap: no actor required, no
 //     policy invoked (not even with a deny policy installed). Same for
-//     the corrupt-recovery path.
+
 //
 // Every test runs against an isolated CLIMIER_HOME and a per-test temp
 // project dir, mirroring test/plugin-policy-seam-lifecycle.test.mjs.
@@ -43,6 +43,10 @@ import {
 
 const PROJECT_ID = "seam-state-ops-project";
 
+function restoreEntry(log) {
+  return log.find((entry) => entry.action === "restore");
+}
+
 async function withFreshEnv(body) {
   const home = await fs.mkdtemp(path.join(os.tmpdir(), "climier-seam-state-ops-"));
   const projectDir = await createTempProject();
@@ -52,15 +56,21 @@ async function withFreshEnv(body) {
   };
   process.env.CLIMIER_HOME = home;
   // Actor identity must be explicit through --as in every dispatch so
-  // the MISSING_AGENT cases are reproducible.
+
   delete process.env.CLIMIER_AGENT;
   try {
     return await body({ home, projectDir });
   } finally {
-    if (prev.CLIMIER_HOME === undefined) delete process.env.CLIMIER_HOME;
-    else process.env.CLIMIER_HOME = prev.CLIMIER_HOME;
-    if (prev.CLIMIER_AGENT === undefined) delete process.env.CLIMIER_AGENT;
-    else process.env.CLIMIER_AGENT = prev.CLIMIER_AGENT;
+    if (prev.CLIMIER_HOME === undefined) {
+      delete process.env.CLIMIER_HOME;
+    } else {
+      process.env.CLIMIER_HOME = prev.CLIMIER_HOME;
+    }
+    if (prev.CLIMIER_AGENT === undefined) {
+      delete process.env.CLIMIER_AGENT;
+    } else {
+      process.env.CLIMIER_AGENT = prev.CLIMIER_AGENT;
+    }
     await fs.rm(home, { recursive: true, force: true });
     await rmTempProject(projectDir);
   }
@@ -74,7 +84,9 @@ async function cli(args) {
         `stdout: ${result.stdout}\nstderr: ${result.stderr}`,
     );
   }
-  if (!result.stdout.trim()) return null;
+  if (!result.stdout.trim()) {
+    return null;
+  }
   return JSON.parse(result.stdout);
 }
 
@@ -88,7 +100,9 @@ async function cliFail(args) {
 
 async function writeClimierJson(projectDir, mode) {
   const value = { version: 1, project_id: PROJECT_ID };
-  if (mode !== undefined) value.plugins = { "policy-fixture": { mode } };
+  if (mode !== undefined) {
+    value.plugins = { "policy-fixture": { mode } };
+  }
   await fs.writeFile(
     path.join(projectDir, ".climier.json"),
     JSON.stringify(value, null, 2) + "\n",
@@ -119,9 +133,16 @@ async function reasons(projectDir) {
   return (await snapshots(projectDir)).map((s) => s.reason);
 }
 
+async function assertNoPreRestoreSnapshot(projectDir) {
+  assert.equal((await reasons(projectDir)).includes("pre-restore"), false);
+}
+
+async function assertPolicyDidNotRun(home) {
+  assert.equal(await recorded(home), null);
+}
+
 // seedSnapshotWithSentinel — produce a restorable snapshot that carries
-// the Sentinel node, then leave the live state empty. The `init --force`
-// used to create it runs with NO policy installed (abstain → defaults
+
 // core) and an explicit actor.
 async function seedSnapshotWithSentinel(projectDir, mode) {
   await initAndSeed({ projectDir });
@@ -139,14 +160,14 @@ async function recorded(home) {
     const raw = await fs.readFile(path.join(home, "policy-fixture-state.json"), "utf8");
     return JSON.parse(raw);
   } catch (err) {
-    if (err && err.code === "ENOENT") return null;
+    if (err && err.code === "ENOENT") {
+      return null;
+    }
     throw err;
   }
 }
 
-// ===========================================================================
 // restore
-// ===========================================================================
 
 test("seam-restore: a plain agent restores when no policy is installed (no role hatch left)", async () => {
   await withFreshEnv(async ({ projectDir }) => {
@@ -156,7 +177,7 @@ test("seam-restore: a plain agent restores when no policy is installed (no role 
     const s = await readState(projectDir);
     assert.ok(s.nodes.Sentinel, "Sentinel must be back after restore");
     assert.ok((await reasons(projectDir)).includes("pre-restore"));
-    const entry = s.log.find((e) => e.action === "restore");
+    const entry = restoreEntry(s.log);
     assert.equal(entry.agent, "alice");
     assert.equal(entry.snapshot_id, id);
   });
@@ -167,7 +188,7 @@ test("seam-restore: missing actor fails with MISSING_AGENT and creates no pre-re
     const id = await seedSnapshotWithSentinel(projectDir);
     const err = await cliFail(["--project", projectDir, "restore", id]);
     assert.equal(err.code, "MISSING_AGENT");
-    assert.equal((await reasons(projectDir)).includes("pre-restore"), false);
+    await assertNoPreRestoreSnapshot(projectDir);
     const s = await readState(projectDir);
     assert.deepEqual(s.nodes, {});
   });
@@ -211,7 +232,7 @@ test("seam-restore: policy deny returns POLICY_DENIED, leaves state intact and n
       assert.equal(err.code, "POLICY_DENIED");
       const s = await readState(projectDir);
       assert.deepEqual(s.nodes, {}, "denied restore must not bring Sentinel back");
-      assert.equal(s.log.find((e) => e.action === "restore"), undefined);
+      assert.equal(restoreEntry(s.log), undefined);
       assert.deepEqual(await reasons(projectDir), before);
     } finally { await uninstallPolicyFixture(projectDir); }
   });
@@ -241,7 +262,7 @@ test("seam-restore: an unknown target fails before the seam and creates no pre-r
         "--project", projectDir, "restore", "20260101T000000000Z-force-init-deadbeef", "--as", "alice",
       ]);
       assert.equal(err.code, "NODE_NOT_FOUND");
-      assert.equal((await reasons(projectDir)).includes("pre-restore"), false);
+      await assertNoPreRestoreSnapshot(projectDir);
       // Target validation runs before authorizeAction: the policy is
       // never consulted for a target that does not exist.
       assert.equal(await recorded(home), null);
@@ -249,9 +270,7 @@ test("seam-restore: an unknown target fails before the seam and creates no pre-r
   });
 });
 
-// ===========================================================================
 // init --force
-// ===========================================================================
 
 test("seam-init-force: init --force without an actor fails with MISSING_AGENT and does not wipe state", async () => {
   await withFreshEnv(async ({ projectDir }) => {
@@ -342,9 +361,7 @@ test("seam-init-force: policy throw returns POLICY_ERROR and preserves state", a
   });
 });
 
-// ===========================================================================
 // init without --force stays out of the seam (bootstrap)
-// ===========================================================================
 
 test("seam-init: plain init needs no actor and never invokes the policy (deny installed)", async () => {
   await withFreshEnv(async ({ projectDir, home }) => {
@@ -370,7 +387,7 @@ test("seam-init: corrupt-recovery (no --force) needs no actor and never invokes 
       const s = await readState(projectDir);
       assert.deepEqual(s.nodes, {});
       assert.deepEqual(await reasons(projectDir), ["corrupt-recovery"]);
-      assert.equal(await recorded(home), null);
+      await assertPolicyDidNotRun(home);
     } finally { await uninstallPolicyFixture(projectDir); }
   });
 });

@@ -1,15 +1,14 @@
 // test/provider-core-note.test.mjs — pure unit tests for the
-// `note.add` core provider (T-graph-kernel-provider-core-ops).
+
 //
 // Scope:
 //   - prepare is read-only; validates target existence, non-empty
 //     text, and matching if_revision (single-CAS);
 //   - apply appends one note (with agent from request.actor, ISO
 //     timestamp) via tx.updateNode only and never touches revision
-//     or any external surface;
+
 //   - plan exposes if_revision so kernel.mutate can validate the CAS
-//     under the lock;
-//   - structured errors carry the canonical v2 codes
+
 //     (MISSING_FIELD, NODE_NOT_FOUND, REVISION_CONFLICT,
 //     INVALID_EXECUTION_CONTRACT).
 //
@@ -34,7 +33,9 @@ function makeSnapshot({ nodes = {}, edges = [], initiatives = { foo: { desc: "x"
 
 function makeRequest({ input, action = "note.add", actor = ACTOR, if_revision } = {}) {
   const request = { action, actor, input };
-  if (if_revision !== undefined) request.if_revision = if_revision;
+  if (if_revision !== undefined) {
+    request.if_revision = if_revision;
+  }
   return request;
 }
 
@@ -54,7 +55,7 @@ function makeTaskNode(id, { revision = 1, notes = [] } = {}) {
 // makeTxStub — captures updateNode calls and serves a draft whose
 // nodes mirror the seed. Mirrors src/kernel/transaction.mjs#updateNode
 // so the provider's apply is exercised end-to-end without touching
-// the real tx layer.
+
 function makeTxStub({ initialNodes = {} } = {}) {
   const nodes = {};
   for (const [id, node] of Object.entries(initialNodes)) {
@@ -177,34 +178,37 @@ test("note.add: prepare returns frozen plan with target, if_revision, policyActi
   assert.ok(Object.isFrozen(plan.note), "plan.note must be frozen");
 });
 
-test("note.add: apply appends note via tx.updateNode using request.actor and never carries revision", async () => {
+async function prepareNoteApply({ initialNodes, input, request }) {
   const { noteAddProvider } = await importNoteProvider();
-  const initialNodes = { "T-x": makeTaskNode("T-x", { revision: 4 }) };
   const snapshot = makeSnapshot({ nodes: initialNodes });
-  const input = { id: "T-x", text: "world", if_revision: 4 };
-  const request = makeRequest({ input });
   const plan = await noteAddProvider.prepare({ snapshot, input, request });
+  return { noteAddProvider, plan, snapshot };
+}
 
-  const tx = makeTxStub({ initialNodes });
-  const result = await noteAddProvider.apply({
-    tx,
-    plan,
-    input,
-    request,
-    snapshot,
-  });
-
+function assertNotePatch(tx, actor, text) {
   assert.equal(tx.calls.updateNode.length, 1, "apply calls tx.updateNode exactly once");
   assert.equal(tx.calls.view, 0, "apply must not call tx.view");
   const call = tx.calls.updateNode[0];
   assert.equal(call.id, "T-x");
   assert.ok(Array.isArray(call.patch.notes), "patch.notes must be an array");
   assert.equal(call.patch.notes.length, 1, "patch.notes must carry exactly one new note");
-  assert.equal(call.patch.notes[0].agent, ACTOR, "agent must come from request.actor");
-  assert.equal(call.patch.notes[0].text, "world");
+  assert.equal(call.patch.notes[0].agent, actor, "agent must come from request.actor");
+  assert.equal(call.patch.notes[0].text, text);
   assert.match(call.patch.notes[0].ts, /^\d{4}-\d{2}-\d{2}T/);
   assert.equal(call.patch.notes[0].revision, undefined, "note must never carry revision");
   assert.equal(Object.prototype.hasOwnProperty.call(call.patch, "revision"), false, "patch must not carry revision");
+}
+
+test("note.add: apply appends note via tx.updateNode using request.actor and never carries revision", async () => {
+  const initialNodes = { "T-x": makeTaskNode("T-x", { revision: 4 }) };
+  const input = { id: "T-x", text: "world", if_revision: 4 };
+  const request = makeRequest({ input });
+  const { noteAddProvider, plan, snapshot } = await prepareNoteApply({ initialNodes, input, request });
+
+  const tx = makeTxStub({ initialNodes });
+  const result = await noteAddProvider.apply({ tx, plan, input, request, snapshot });
+
+  assertNotePatch(tx, ACTOR, "world");
   assert.equal(result.effects, null);
   assert.equal(result.result.id, "T-x");
   assert.equal(result.result.notes_count, 1);

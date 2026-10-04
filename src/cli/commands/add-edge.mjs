@@ -1,33 +1,78 @@
-// add-edge: append a new edge to the v2 state.
-//
-// This handler is a thin adapter
-// over the kernel mutation frontier (`kernel.mutate` + the `edge.add`
-// provider). The adapter parses argv, resolves the policy outside
-// the lock, and hands control to the kernel, which owns the lock,
-// the snapshot read, the precondition check, the policy authorize,
-// the draft mutation, the diff/revision computation and the single
-// atomic state + log write. The handler itself no longer imports
-// withLock, updateState, appendWithContext or edit `revision`
-// directly; the only mutating call is `kernel.mutate`.
-//
-// Errors (`SELF_EDGE`, `INVALID_EDGE_TARGET`, `INVALID_EDGE_TYPE`,
-// `MISSING_FIELD`, `POLICY_DENIED`, `REVISION_CONFLICT`,
-// `INVALID_EXECUTION_CONTRACT`, …) propagate verbatim from the
-// provider / kernel so existing consumers and tests keep their
-// structured error envelopes.
 
+// atomic state + log write. The adapter delegates the operation to
+
+import { bootstrapBuiltins, executeOperation } from "../../application/operations/index.mjs";
 import { mutate } from "../../kernel/mutate.mjs";
 import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
 import { resolveAgent } from "../actor.mjs";
-import { edgeAddProvider } from "../../providers/core/edge.mjs";
+import { executeRemoteDomain } from "./internal/domain-routing.mjs";
+
+const REGISTRY = bootstrapBuiltins();
+
+function withCliProvider(source) {
+  return {
+    ...source,
+    registry: {
+      ...source.registry,
+      lookup(id) {
+        const entry = source.registry.lookup(id);
+        if (id !== POLICY_ACTION || !entry) {return entry;}
+        return {
+          ...entry,
+          provider: {
+            ...entry.provider,
+            async prepare(args) {
+              const plan = await entry.provider.prepare(args);
+              args.request.action = LOG_ACTION;
+              return { ...plan, logAction: LOG_ACTION };
+            },
+          },
+        };
+      },
+    },
+  };
+}
 
 export const knownFlags = ["type", "as"];
 
 const POLICY_ACTION = "edge.add";
 const LOG_ACTION = "add-edge";
 
-export default async function addEdge({ statePath, positional, flags, pluginId }) {
+function edgePolicyAction(policy, projectDir) {
+  if (!policy) {return undefined;}
+  return {
+    action: POLICY_ACTION,
+    pluginId: policy.pluginId || null,
+    decide: async ({ snapshot, target, request, action }) => authorizeAction({
+      policy,
+      action,
+      actor: request.actor,
+      target,
+      snapshot,
+      projectDir,
+      projectConfig: policy.projectConfig || {},
+    }),
+  };
+}
+
+function edgeSource(source, policy, projectDir, pluginId) {
+  return withCliProvider(source || {
+    registry: REGISTRY,
+    mutate,
+    selectPolicy: async () => policy,
+    policyAction: edgePolicyAction(policy, projectDir),
+    authorizeAction,
+    pluginId,
+  });
+}
+
+async function addRemoteEdge(backendClient, agent, input) {
+  const mutation = await executeRemoteDomain({ backendClient, actor: agent, operation: "edge.add", input, command: "add-edge" });
+  return mutation.result;
+}
+
+function validateEdgeArgs(positional, flags) {
   const [from, to] = positional;
   if (!from || !to) {
     throwV2("MISSING_FIELD", "add-edge: from and to ids required", { field: "from,to" });
@@ -35,60 +80,26 @@ export default async function addEdge({ statePath, positional, flags, pluginId }
   if (!flags.type) {
     throwV2("MISSING_FIELD", "add-edge: --type required", { field: "type" });
   }
-  const projectDir = statePath;
+  return { from, to, type: flags.type };
+}
 
-  // Resolve the agent before building the request so the seam sees the real
-  // caller. MISSING_AGENT still surfaces after data validation but before the
-  // kernel opens the lock.
-  const agent = resolveAgent(flags, "add-edge");
-
-  // ADR-008 §"Seam por handler": policy
-  // selection runs OUTSIDE the lock; the authorize step runs INSIDE
-  // the lock via `policyAction.decide` against the snapshot the
-  // kernel reads under the same lock.
+async function addLocalEdge({ projectDir, agent, input, source, pluginId }) {
   const policy = await loadApplicablePolicy({ projectDir });
-
-  const input = {
-    from,
-    to,
-    // The provider normalizes the type to the canonical uppercase
-    // whitelist, so the adapter passes the raw flag value as-is.
-    type: flags.type,
-  };
-
-  // policyAction is the in-lock authorize step the kernel evaluates
-  // against the fresh snapshot + plan. With no applicable policy the
-  // seam is inert (defaults core: allow/abstain both proceed).
-  const policyAction = policy
-    ? {
-        action: POLICY_ACTION,
-        pluginId: policy.pluginId,
-        decide: async ({ snapshot, target, request, action }) => {
-          const decision = await authorizeAction({
-            policy,
-            action,
-            actor: agent,
-            target,
-            snapshot,
-            projectDir,
-            projectConfig: policy.projectConfig || {},
-          });
-          return decision;
-        },
-      }
-    : null;
-
-  const result = await mutate({
+  const result = await executeOperation({
     projectDir,
-    request: { action: LOG_ACTION, actor: agent, input },
-    provider: edgeAddProvider,
-    policyAction,
-    pluginId,
+    actor: agent,
+    operation: POLICY_ACTION,
+    input,
+    source: edgeSource(source, policy, projectDir, pluginId),
   });
-
-  // The provider's apply returns `{ result: { edge } }`. Project the
-  // legacy `{ edge }` envelope so existing callers and tests keep
-  // working without churn.
   const edge = result.result && result.result.edge ? result.result.edge : null;
   return { edge };
+}
+
+export default async function addEdge({ statePath, projectDir: suppliedProjectDir, positional = [], flags = {}, pluginId, backendClient, source }) {
+  const input = validateEdgeArgs(positional, flags);
+  const projectDir = suppliedProjectDir || statePath;
+  const agent = resolveAgent(flags, "add-edge");
+  if (backendClient?.type === "remote") {return addRemoteEdge(backendClient, agent, input);}
+  return addLocalEdge({ projectDir, agent, input, source, pluginId });
 }

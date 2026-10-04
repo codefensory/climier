@@ -1,52 +1,9 @@
-// add-node: low-level escape hatch for creating v2 nodes.
-//
-// The handler is a thin adapter
-// over the kernel mutation frontier (`kernel.mutate` + the relevant
-// create provider). The adapter parses argv, resolves the policy
-// outside the lock, and hands control to the kernel, which owns the
-// lock, the snapshot read, the precondition check, the policy
-// authorize, the draft mutation, the diff/revision computation and
-// the single atomic state + log write. The handler itself never
-// imports withLock, updateState, appendWithContext, or edits
-// `revision` directly; the only mutating call is `kernel.mutate`.
-//
-// Provider routing:
-//   - kind=resolvable + subkind=task  → taskCreateProvider
-//   - kind=resolvable + subkind=gate  → gateCreateProvider
-//   - kind=knowledge                  → knowledgeCreateProvider
-//
-// Internal capability (ADR-008 §"Capacidad interna"):
-//   addNodeInternal({ allowUnregisteredInitiative: true }) sets
-//   `allow_unregistered_initiative: true` on the provider input so
-//   recovery / migration tooling can seed nodes before the matching
-//   initiative exists. The flag is NOT in `knownFlags`, so the CLI
-//   surface rejects it as unknown. The flag IS forwarded by
-//   `addNodeInternal` (src/cli/commands/internal/create-node.mjs) which is the only
-//   sanctioned caller.
-//
-// Defaults:
-//   add-node is a low-level adapter; the public contract accepts a
-//   minimal flag set (title + initiative + edges). The strict built-in
-//   providers require body / acceptance / purpose, so the adapter fills
-//   those with non-empty placeholders derived from the title when the
-//   caller omits them. The high-level wrappers `add-task`, `add-gate`
-//   and `add-knowledge` enforce their own required-field contract via
-//   `requireFields` before reaching this handler.
-//
-// Errors (`MISSING_FIELD`, `INVALID_ID`, `ID_CONFLICT`,
-// `INITIATIVE_NOT_FOUND`, `REVISION_CONFLICT`, `POLICY_DENIED`,
-// `INVALID_EXECUTION_CONTRACT`, `INVALID_EDGE_KIND`,
-// `INVALID_EDGE_TARGET`, `DUPLICATE_EDGE`, `SELF_EDGE`, …) propagate
-// verbatim from the provider / kernel so existing consumers and tests
-// keep their structured error envelopes.
 
-import { mutate } from "../../kernel/mutate.mjs";
-import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
+import { createBackendClient } from "../../application/backend-client.mjs";
+import { createOperationBridge, executeOperation } from "../../application/operations/index.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
 import { resolveAgent } from "../actor.mjs";
-import { taskCreateProvider } from "../../providers/task/create.mjs";
-import { gateCreateProvider } from "../../providers/gate/create.mjs";
-import { createProvider as knowledgeCreateProviderFactory } from "../../providers/knowledge/create.mjs";
+import { executeRemoteDomain, nodeFromMutation } from "./internal/domain-routing.mjs";
 
 export const knownFlags = [
   "kind",
@@ -79,38 +36,33 @@ export const knownFlags = [
 ];
 
 function csv(raw) {
-  if (!raw || raw === true) return [];
+  if (!raw || raw === true) {return [];}
   return String(raw).split(",").map((x) => x.trim()).filter(Boolean);
 }
 
-// refs — the strict built-in providers expect a CSV string (or array of
-// strings) and wrap each target as `{ type: "external", target }` inside
-// `buildNode`. The adapter forwards the raw flag value so the provider
-// owns the normalisation.
 function refs(raw) {
   return raw;
 }
 
 function parseMeta(raw) {
-  if (raw === undefined) return undefined;
-  if (raw === true) throw new Error("add-node: --meta requires a JSON object value");
+  if (raw === undefined) {return undefined;}
+  if (raw === true) {throw new Error("add-node: --meta requires a JSON object value");}
   let parsed;
   try {
     parsed = JSON.parse(String(raw));
   } catch (err) {
-    throw new Error(`add-node: --meta must be valid JSON (${err.message})`);
+    throw new Error(`add-node: --meta must be valid JSON (${err.message})`, { cause: err });
   }
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     throw new Error("add-node: --meta must be a JSON object");
   }
-  // Metadata is generic JSON. In particular, historical meta.execution
-  // values are opaque and must survive create/update without core semantics.
+
   return parsed;
 }
 
 function parseBacklog(raw) {
-  if (raw === undefined) return undefined;
-  if (raw === true) throw new Error("add-node: --backlog requires a value (true or false)");
+  if (raw === undefined) {return undefined;}
+  if (raw === true) {throw new Error("add-node: --backlog requires a value (true or false)");}
   const value = String(raw).toLowerCase();
   if (value !== "true" && value !== "false") {
     throw new Error(`add-node: --backlog must be 'true' or 'false' (got '${raw}')`);
@@ -122,119 +74,108 @@ function optionalString(value) {
   return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
-// nonEmptyString — returns the value when it's a non-empty string,
-// otherwise the supplied default. Used to default body/acceptance/
-// purpose to non-empty placeholders before delegating to the strict
-// built-in providers (the providers reject empty strings as
-// MISSING_FIELD; the wrappers enforce richer requirements before
-// reaching this handler).
 function nonEmptyString(value, fallback) {
   return typeof value === "string" && value.length > 0 ? value : fallback;
 }
 
-function policyAdapter(policy, projectDir, actor) {
-  if (!policy) return null;
+function withLegacyCreateLogAction(source, command, input) {
+  let action = "add-node";
+  if (command === "add-task") {action = "add-task";}
+  else if (input.supersedes) {action = "supersede";}
   return {
-    pluginId: policy.pluginId,
-    decide: async ({ snapshot, target, request, action }) => {
-      const decision = await authorizeAction({
-        policy,
-        action,
-        actor,
-        target,
-        snapshot,
-        projectDir,
-        projectConfig: policy.projectConfig || {},
-      });
-      return decision;
+    ...source,
+    mutate(mutation) {
+      mutation.request.action = action;
+      return source.mutate(mutation);
     },
   };
 }
 
-function pickProviderAndInput(id, kind, subkind, flags, { allowUnregistered }) {
-  if (kind === "resolvable" && subkind === "task") {
-    const title = flags.title;
-    const input = {
-      id,
-      title,
-      body: nonEmptyString(flags.body, title),
-      acceptance: nonEmptyString(flags.acceptance, "(acceptance TBD)"),
-      status: optionalString(flags.status),
-      initiative: optionalString(flags.initiative),
-      domain: optionalString(flags.domain),
-      tags: csv(flags.tags),
-      refs: refs(flags.refs),
-      definition: optionalString(flags.definition),
-      blocked_by: typeof flags["blocked-by"] === "string" ? flags["blocked-by"] : "",
-      derived_from: typeof flags["derived-from"] === "string" ? flags["derived-from"] : "",
-      backlog: parseBacklog(flags.backlog) === true,
-      allow_unregistered_initiative: allowUnregistered === true,
-      // The task input includes meta, which the task provider preserves on
-      // the created node.
-      meta: parseMeta(flags.meta),
-    };
-    return { provider: taskCreateProvider, input, policyActionName: "task.create" };
-  }
-  if (kind === "resolvable" && subkind === "gate") {
-    const title = flags.title;
-    const status = optionalString(flags.status);
-    // The gate provider requires a complete (choice, rationale) pair
-    // when choice is provided OR when status='resolved'. The low-level
-    // add-node adapter defaults both when missing so the public CLI
-    // escape hatch stays usable without forcing callers to spell out
-    // every half of a resolution. Defaults are derived from the title
-    // so the persisted node never carries a literal placeholder that
-    // could be mistaken for a real decision.
-    const choice = optionalString(flags.choice)
-      || (status === "resolved" ? title : undefined);
-    const rationale = optionalString(flags.rationale)
-      || (choice ? "(rationale TBD)" : undefined);
-    const input = {
-      id,
-      initiative: optionalString(flags.initiative),
-      title,
-      body: nonEmptyString(flags.body, title),
-      purpose: nonEmptyString(flags.purpose, "decision"),
-      resolution_mode: optionalString(flags["resolution-mode"]),
-      status,
-      domain: optionalString(flags.domain),
-      tags: csv(flags.tags),
-      refs: refs(flags.refs),
-      meta: parseMeta(flags.meta),
-      definition: optionalString(flags.definition),
-      acceptance: optionalString(flags.acceptance),
-      choice,
-      rationale,
-      blocked_by: csv(flags["blocked-by"]),
-      derived_from: csv(flags["derived-from"]),
-      supersedes: optionalString(flags.supersedes),
-      backlog: parseBacklog(flags.backlog) === true,
-      allow_unregistered_initiative: allowUnregistered === true,
-    };
-    return { provider: gateCreateProvider, input, policyActionName: "gate.create" };
-  }
-  // knowledge
+async function bridgeClientForCreate(client, { projectDir, source, pluginId, command, input }) {
+  if (client.type !== "local" || typeof client.executeOperation !== "function") {return client;}
+  const operationSource = source ?? (client.operationSource ? await client.operationSource : null);
+  if (!operationSource) {return client;}
+  const selectedSource = withLegacyCreateLogAction({ ...operationSource, pluginId }, command, input);
+  return {
+    type: "local",
+    executeOperation({ actor, operation, input: operationInput }) {
+      return executeOperation({ projectDir, actor, operation, input: operationInput, source: selectedSource });
+    },
+    executeBatch(args) {
+      return client.executeBatch(args);
+    },
+  };
+}
+
+function taskInput(id, flags, allowUnregistered) {
   const title = flags.title;
-  // The strict knowledge provider rejects empty scopes. The low-level
-  // add-node adapter is a documented escape hatch and historically
-  // tolerated an unscoped knowledge node; the wrapper `add-knowledge`
-  // still enforces the contract via `requireFields` before reaching
-  // this handler. Default to a single placeholder tag when the
-  // caller omits every scope-* flag so the node can still be created
-  // (e.g. for low-level edge-validation scenarios).
+  return {
+    id,
+    title,
+    body: nonEmptyString(flags.body, title),
+    acceptance: nonEmptyString(flags.acceptance, "(acceptance TBD)"),
+    status: optionalString(flags.status),
+    initiative: optionalString(flags.initiative),
+    domain: optionalString(flags.domain),
+    tags: csv(flags.tags),
+    refs: refs(flags.refs),
+    definition: optionalString(flags.definition),
+    blocked_by: typeof flags["blocked-by"] === "string" ? flags["blocked-by"] : "",
+    derived_from: typeof flags["derived-from"] === "string" ? flags["derived-from"] : "",
+    backlog: parseBacklog(flags.backlog) === true,
+    allow_unregistered_initiative: allowUnregistered === true,
+
+    meta: parseMeta(flags.meta),
+  };
+}
+
+function gateInput(id, flags, allowUnregistered) {
+  const title = flags.title;
+  const status = optionalString(flags.status);
+
+  const choice = optionalString(flags.choice)
+    || (status === "resolved" ? title : undefined);
+  const rationale = optionalString(flags.rationale)
+    || (choice ? "(rationale TBD)" : undefined);
+  return {
+    id,
+    initiative: optionalString(flags.initiative),
+    title,
+    body: nonEmptyString(flags.body, title),
+    purpose: nonEmptyString(flags.purpose, "decision"),
+    resolution_mode: optionalString(flags["resolution-mode"]),
+    status,
+    domain: optionalString(flags.domain),
+    tags: csv(flags.tags),
+    refs: refs(flags.refs),
+    meta: parseMeta(flags.meta),
+    definition: optionalString(flags.definition),
+    acceptance: optionalString(flags.acceptance),
+    choice,
+    rationale,
+    blocked_by: csv(flags["blocked-by"]),
+    derived_from: csv(flags["derived-from"]),
+    supersedes: optionalString(flags.supersedes),
+    backlog: parseBacklog(flags.backlog) === true,
+    allow_unregistered_initiative: allowUnregistered === true,
+  };
+}
+
+function knowledgeInput(id, flags, allowUnregistered) {
+  const title = flags.title;
+
   const scope = {
     domains: csv(flags["scope-domains"]),
     initiatives: csv(flags["scope-initiatives"]),
     tags: csv(flags["scope-tags"]),
     node_ids: csv(flags["scope-node-ids"]),
   };
-  const scopeHasAny =
-    scope.domains.length > 0
+  const scopeHasAny = scope.domains.length > 0
     || scope.initiatives.length > 0
     || scope.tags.length > 0
     || scope.node_ids.length > 0;
-  if (!scopeHasAny) scope.tags = ["(uncategorized)"];
-  const input = {
+  if (!scopeHasAny) {scope.tags = ["(uncategorized)"];}
+  return {
     id,
     initiative: optionalString(flags.initiative),
     title,
@@ -250,92 +191,129 @@ function pickProviderAndInput(id, kind, subkind, flags, { allowUnregistered }) {
     supersedes: optionalString(flags.supersedes),
     allow_unregistered_initiative: allowUnregistered === true,
   };
-  return {
-    provider: knowledgeCreateProviderFactory(),
-    input,
-    policyActionName: "knowledge.create",
-  };
 }
 
-export default async function addNode({ statePath, flags, positional, pluginId }) {
-  const [id] = positional;
-  if (!id) throwV2("MISSING_FIELD", "add-node: node id required", { field: "id" });
-  if (!flags.kind) throwV2("MISSING_FIELD", "add-node: --kind required", { field: "kind" });
-  if (!flags.title) throwV2("MISSING_FIELD", "add-node: --title required", { field: "title" });
-  const projectDir = statePath;
+function pickOperationAndInput(id, nodeType, flags, allowUnregistered) {
+  if (nodeType.kind === "resolvable" && nodeType.subkind === "task") {
+    return { operation: "task.create", input: taskInput(id, flags, allowUnregistered) };
+  }
+  if (nodeType.kind === "resolvable" && nodeType.subkind === "gate") {
+    return { operation: "gate.create", input: gateInput(id, flags, allowUnregistered) };
+  }
+  return { operation: "knowledge.create", input: knowledgeInput(id, flags, allowUnregistered) };
+}
+
+function validateRequiredNodeFields(id, flags) {
+  if (!id) {throwV2("MISSING_FIELD", "add-node: node id required", { field: "id" });}
+  if (!flags.kind) {throwV2("MISSING_FIELD", "add-node: --kind required", { field: "kind" });}
+  if (!flags.title) {throwV2("MISSING_FIELD", "add-node: --title required", { field: "title" });}
+}
+
+function validateNodeType(flags) {
   const kind = String(flags.kind);
   const subkind = flags.subkind ? String(flags.subkind) : undefined;
-
-  if (kind === "resolvable") {
-    if (!subkind || !["task", "gate"].includes(subkind)) {
-      throwV2("MISSING_FIELD", "add-node: resolvable nodes require --subkind task|gate", { field: "subkind" });
-    }
-  } else if (kind !== "knowledge") {
+  if (kind === "resolvable" && (!subkind || !["task", "gate"].includes(subkind))) {
+    throwV2("MISSING_FIELD", "add-node: resolvable nodes require --subkind task|gate", { field: "subkind" });
+  }
+  if (kind !== "resolvable" && kind !== "knowledge") {
     throw new Error(`add-node: --kind must be 'resolvable' or 'knowledge' (got '${kind}')`);
   }
+  return { kind, subkind };
+}
 
-  // Reject --supersedes on task subkind early so MISSING_FIELD /
-  // INVALID_EDGE_KIND surface before the kernel opens the lock.
-  if (flags.supersedes !== undefined && subkind === "task") {
-    throwV2(
-      "INVALID_EDGE_KIND",
-      "add-node: --supersedes is only valid for gates and knowledge",
-      { from: id, to: String(flags.supersedes).trim(), type: "SUPERSEDES", fromKind: "task" },
-    );
-  }
-
-  // Resolve the agent after data validation but before the seam, so
-  // MISSING_AGENT surfaces after MISSING_FIELD / INVALID_EDGE_KIND.
-  const agent = resolveAgent(flags, "add-node");
-
-  // Internal capability flag (only settable by `addNodeInternal` in
-  // src/cli/commands/internal/create-node.mjs, which is the sole sanctioned caller).
-  const allowUnregistered =
-    flags["allow-unregistered-initiative"] === true ||
-    flags["allow-unregistered-initiative"] === "true";
-
-  // Public path: kernel adapter. The strict built-in providers own
-  // validation; this handler never falls back to a local withLock
-  // path. pickProviderAndInput defaults empty body/acceptance/purpose
-  // to non-empty placeholders derived from the title.
-  const { provider, input, policyActionName } = pickProviderAndInput(
-    id,
-    kind,
-    subkind,
-    flags,
-    { allowUnregistered },
+function validateSupersedes(id, subkind, flags) {
+  if (flags.supersedes === undefined || subkind !== "task") {return;}
+  throwV2(
+    "INVALID_EDGE_KIND",
+    "add-node: --supersedes is only valid for gates and knowledge",
+    { from: id, to: String(flags.supersedes).trim(), type: "SUPERSEDES", fromKind: "task" },
   );
+}
 
-  // Load policy outside the lock (ADR-008 §"Seam por handler").
-  const policy = await loadApplicablePolicy({ projectDir });
+function validateNodeRequest(id, flags) {
+  validateRequiredNodeFields(id, flags);
+  const nodeType = validateNodeType(flags);
+  validateSupersedes(id, nodeType.subkind, flags);
+  return nodeType;
+}
 
-  // Log action matches the legacy surface: `add-node` for plain
-  // creates, `supersede` when the new node replaces an existing one.
-  const logAction = input.supersedes ? "supersede" : "add-node";
-
-  const policyAction = policy
-    ? { ...policyAdapter(policy, projectDir, agent), action: policyActionName }
-    : null;
-
-  const result = await mutate({
-    projectDir,
-    request: { action: logAction, actor: agent, input },
-    provider,
-    policyAction,
-    pluginId,
-  });
-
-  // Map the kernel response to the legacy `{ node }` envelope. The
-  // diff carries the persisted node (with revision assigned); if the
-  // provider also returned a `node` in `result`, prefer that for
-  // projection consistency with the gate provider's contract.
-  let node = null;
+function nodeFromOperation(result) {
   if (Array.isArray(result.diff.created) && result.diff.created.length > 0) {
-    node = result.diff.created[0].node;
-  } else if (result.result && result.result.node) {
-    node = result.result.node;
-  } else if (result.result && typeof result.result.id === "string") {
-    node = result.result;
+    return result.diff.created[0].node;
   }
-  return { node };
+  if (result.result && result.result.node) {return result.result.node;}
+  if (result.result && typeof result.result.id === "string") {return result.result;}
+  return null;
+}
+
+function completeRemoteKnowledgeInput(remoteInput) {
+  delete remoteInput.derived_from;
+  if (remoteInput.refs === undefined) {remoteInput.refs = [];}
+  const scope = remoteInput.scope;
+  if (scope && !scope.domains.length && !scope.initiatives.length && !scope.tags.length && !scope.node_ids.length) {
+    scope.tags = ["(uncategorized)"];
+  }
+}
+
+function completeRemoteResolvableInput(remoteInput, subkind) {
+  if (remoteInput.tags === undefined) {remoteInput.tags = [];}
+  if (remoteInput.refs === undefined) {remoteInput.refs = [];}
+  if (remoteInput.blocked_by === undefined) {remoteInput.blocked_by = [];}
+  if (remoteInput.derived_from === undefined) {remoteInput.derived_from = [];}
+  if (subkind === "gate" && remoteInput.resolution_mode === undefined) {delete remoteInput.resolution_mode;}
+}
+
+function completeRemoteInput(remoteInput, kind, subkind) {
+  if (kind === "knowledge") {completeRemoteKnowledgeInput(remoteInput);}
+  if (remoteInput.meta === undefined) {delete remoteInput.meta;}
+  if (kind === "resolvable") {completeRemoteResolvableInput(remoteInput, subkind);}
+  return remoteInput;
+}
+
+function validateRemoteNodeRequest(kind, subkind, flags, allowUnregistered) {
+  if (allowUnregistered) {throwV2("REMOTE_UNSUPPORTED_OPERATION", "add-node: internal initiative bypass is not supported remotely");}
+  if (kind === "resolvable" && subkind === "gate" && flags["resolution-mode"] !== undefined) {
+    throwV2("REMOTE_UNSUPPORTED_OPERATION", "add-node: remote gate creation does not support --resolution-mode", { command: "add-node", field: "resolution-mode" });
+  }
+}
+
+async function createRemoteNode({ backendClient, agent, operation, input, kind, subkind, flags, id, allowUnregistered }) {
+  validateRemoteNodeRequest(kind, subkind, flags, allowUnregistered);
+  const remoteInput = { ...input };
+  delete remoteInput.allow_unregistered_initiative;
+  completeRemoteInput(remoteInput, kind, subkind);
+  const mutation = await executeRemoteDomain({ backendClient, actor: agent, operation, input: remoteInput, command: "add-node" });
+  return { node: nodeFromMutation(mutation, id, "created") || mutation.result?.node || null };
+}
+
+async function createLocalNode({ projectDir, agent, operation, input, backendClient, source, pluginId, createCommand }) {
+  const client = backendClient || createBackendClient({ projectDir, source });
+  const routedClient = await bridgeClientForCreate(client, {
+    projectDir,
+    source,
+    pluginId,
+    command: createCommand,
+    input,
+  });
+  const result = await createOperationBridge({ backendClient: routedClient }).executeOperation({
+    projectDir,
+    actor: agent,
+    operation,
+    input,
+  });
+  return { node: nodeFromOperation(result) };
+}
+
+export default async function addNode({ statePath, projectDir: suppliedProjectDir, flags = {}, positional = [], pluginId, backendClient, source, createCommand = "add-node" }) {
+  const [id] = positional;
+  const nodeType = validateNodeRequest(id, flags);
+  const projectDir = suppliedProjectDir || statePath;
+  const agent = resolveAgent(flags, "add-node");
+  const allowUnregistered = flags["allow-unregistered-initiative"] === true
+    || flags["allow-unregistered-initiative"] === "true";
+  const { operation, input } = pickOperationAndInput(id, nodeType, flags, allowUnregistered);
+  if (backendClient?.type === "remote") {
+    return createRemoteNode({ backendClient, agent, operation, input, kind: nodeType.kind, subkind: nodeType.subkind, flags, id, allowUnregistered });
+  }
+  return createLocalNode({ projectDir, agent, operation, input, backendClient, source, pluginId, createCommand });
 }

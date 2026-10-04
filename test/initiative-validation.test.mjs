@@ -1,5 +1,5 @@
 // Initiative validation: --initiative must refer to a registered initiative
-// on every write (add-task, add-gate, add-knowledge). Prevents silent
+
 // typo-driven orphan initiatives.
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -39,8 +39,6 @@ test("assertInitiativeRegistered: empty state hints at add-initiative", async ()
     assert.match(err.message, /no initiatives registered/);
   }
 });
-
-// --- add-task ---
 
 test("add-task: fails when --initiative is not registered", async () => {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
@@ -117,8 +115,6 @@ test("add-task: succeeds when --initiative is registered", async () => {
   }
 });
 
-// --- add-gate (replaces v1 add-decision) ---
-
 test("add-gate: fails when --initiative is not registered", async () => {
   const { default: init } = await importFresh("./cli/commands/init.mjs");
   const { default: addGate } = await importFresh("./cli/commands/add-gate.mjs");
@@ -156,8 +152,6 @@ test("add-gate: succeeds when --initiative is registered", async () => {
     await rmTempProject(dir);
   }
 });
-
-// --- add-knowledge (replaces v1 add-gotcha) ---
 
 test("add-knowledge: fails when --initiative is not registered", async () => {
   const { default: init } = await importFresh("./cli/commands/init.mjs");

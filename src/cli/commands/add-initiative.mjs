@@ -1,32 +1,25 @@
-// add-initiative: register an initiative with description.
-// Duplicate names are rejected with ID_CONFLICT; initiatives must be
-// registered before nodes reference them.
-//
-// This command is an adapter only. The initiative provider owns domain
-// validation and the kernel owns locking, revision/diff handling, logging and
-// persistence. The historical `add-initiative` action is retained in the
-// request so the persisted audit stream remains compatible.
+
+import { bootstrapBuiltins, executeOperation } from "../../application/operations/index.mjs";
 import { mutate } from "../../kernel/mutate.mjs";
 import { initiativeCreateProvider } from "../../providers/core/initiative.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
 import { resolveAgent } from "../actor.mjs";
 import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
+import { executeRemoteDomain } from "./internal/domain-routing.mjs";
 
-// ADR-008 §"initiative.create":
-//   - policy selection happens outside the kernel lock;
-//   - authorization happens inside the kernel lock against its fresh snapshot;
-//   - deny means no state file, mutation or log entry.
-//
-// The kernel uses request.action to build its audit entry, while the built-in
-// initiative provider needs the canonical operation id to opt into bootstrap.
-// Restore the legacy CLI action after prepare so bootstrap remains explicit and
-// the persisted audit contract stays `add-initiative` without a second write.
 const cliInitiativeProvider = Object.freeze({
   ...initiativeCreateProvider,
   async prepare(args) {
     const plan = await initiativeCreateProvider.prepare(args);
     args.request.action = "add-initiative";
-    return plan;
+    return {
+      ...plan,
+      target: {
+        ...plan.target,
+        desc: typeof args.input.desc === "string" ? args.input.desc : "",
+        already_registered: Boolean(args.snapshot.initiatives?.[args.input.name]),
+      },
+    };
   },
 });
 
@@ -51,56 +44,76 @@ function validateName(name) {
   }
 }
 
-export default async function addInitiative({ statePath, flags = {}, positional, pluginId }) {
-  const [name] = positional;
-  validateName(name);
-  // Agent resolution sits at the end of the validation chain so the caller
-  // sees bad-data errors (MISSING_FIELD / INVALID_NAME) before identity
-  // errors.
-  const as = resolveAgent(flags, "add-initiative");
-  const projectDir = statePath;
-  const desc = typeof flags.desc === "string" ? flags.desc : "";
-  const policy = await loadApplicablePolicy({ projectDir });
+function initiativePolicyAction(policy, projectDir, name, desc) {
+  if (!policy) {return null;}
+  return {
+    action: "initiative.create",
+    pluginId: policy.pluginId || null,
+    decide: async ({ snapshot, target, request, action }) => authorizeAction({
+      policy,
+      action,
+      actor: request.actor,
+      target: { ...target, desc, already_registered: Boolean(snapshot.initiatives?.[name]) },
+      snapshot,
+      projectDir,
+      projectConfig: policy.projectConfig || {},
+    }),
+  };
+}
 
-  const policyAction = policy
-    ? {
-        action: "initiative.create",
-        pluginId: policy.pluginId || null,
-        decide: async ({ snapshot, target, request, action }) => authorizeAction({
-          policy,
-          action,
-          actor: request.actor,
-          target: {
-            ...target,
-            desc,
-            already_registered: Boolean(snapshot.initiatives && snapshot.initiatives[name]),
-          },
-          snapshot,
-          projectDir,
-          projectConfig: policy.projectConfig || {},
-        }),
-      }
-    : null;
+function initiativeEnvelopeData(name, desc, initiative) {
+  return { initiative: { name, desc: initiative?.desc ?? desc, ...(initiative?.created_at ? { created_at: initiative.created_at } : {}) } };
+}
 
-  const result = await mutate({
-    projectDir,
-    request: {
-      action: "initiative.create",
-      actor: as,
-      input: { name, desc },
-    },
-    provider: cliInitiativeProvider,
-    policyAction,
-    pluginId,
-  });
+async function createRemoteInitiative(backendClient, actor, name, desc) {
+  const mutation = await executeRemoteDomain({ backendClient, actor, operation: "initiative.create", input: { name, desc }, command: "add-initiative" });
+  const created = mutation.diff?.initiatives?.created?.find((entry) => entry.name === name);
+  const initiative = created ? created.initiative : mutation.result;
+  const responseDesc = initiative?.desc ?? desc;
+  return initiativeEnvelopeData(name, responseDesc, initiative);
+}
 
+function initiativeEnvelope(result, name, _desc) {
   const created = result.diff.initiatives.created.find((entry) => entry.name === name);
   const initiative = created ? created.initiative : result.result;
+  return initiativeEnvelopeData(name, initiative.desc, initiative);
+}
+
+export default async function addInitiative({ statePath, projectDir: suppliedProjectDir, flags = {}, positional = [], pluginId, backendClient, source }) {
+  const [name] = positional;
+  validateName(name);
+
+  const actor = resolveAgent(flags, "add-initiative");
+  const projectDir = suppliedProjectDir || statePath;
+  const desc = typeof flags.desc === "string" ? flags.desc : "";
+  if (backendClient?.type === "remote") {return createRemoteInitiative(backendClient, actor, name, desc);}
+  const policy = await loadApplicablePolicy({ projectDir });
+  const result = await executeOperation({
+    projectDir,
+    actor,
+    operation: "initiative.create",
+    input: { name, desc },
+    source: withCliProvider(source || {
+      registry: bootstrapBuiltins(),
+      mutate,
+      selectPolicy: async () => policy,
+      policyAction: initiativePolicyAction(policy, projectDir, name, desc),
+      authorizeAction,
+      pluginId,
+    }, "initiative.create", cliInitiativeProvider),
+  });
+  return initiativeEnvelope(result, name, desc);
+}
+
+function withCliProvider(source, operation, provider) {
   return {
-    initiative: {
-      name,
-      desc: initiative.desc,
-      ...(initiative.created_at ? { created_at: initiative.created_at } : {}),
+    ...source,
+    registry: {
+      ...source.registry,
+      lookup(id) {
+        const entry = source.registry.lookup(id);
+        return id === operation && entry ? { ...entry, provider } : entry;
+      },
     },
   };
 }

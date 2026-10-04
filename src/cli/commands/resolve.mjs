@@ -1,112 +1,116 @@
-// `resolve <id>` CLI adapter for gate.resolve.
-// The kernel owns locking, state, revisions and logs; this module only maps
-// CLI flags to the typed gate provider and projects the command envelope.
+
+import { bootstrapBuiltins, executeOperation } from "../../application/operations/index.mjs";
 import { mutate } from "../../kernel/mutate.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
 import { resolveAgent } from "../actor.mjs";
 import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
-import { prepareGateResolve, applyGateResolve } from "../../providers/gate/lifecycle.mjs";
+import { gateResolveProvider } from "../../providers/gate/lifecycle.mjs";
+import { executeRemoteDomain, nodeFromMutation } from "./internal/domain-routing.mjs";
+
+const REGISTRY = bootstrapBuiltins();
 
 export const knownFlags = ["as", "note", "choice", "rationale"];
 
-function gateSnapshot(snapshot, id) {
-  // add-node historically omitted resolution_mode while the CLI still
-  // treated such gates as choice gates. Keep that legacy default at the
-  // adapter boundary; the gate provider remains strict for typed callers.
-  const node = snapshot.nodes[id];
-  if (!node || (node.resolution_mode && node.status !== "resolved")) return snapshot;
+function validateGateTarget(node, id) {
+  if (node && (node.kind !== "resolvable" || node.subkind !== "gate")) {
+    throwV2(
+      "INVALID_EXECUTION_CONTRACT",
+      `resolve: node ${id} is not a gate (kind=${node.kind}, subkind=${node.subkind || "undefined"})`,
+      { id, kind: node.kind, subkind: node.subkind || null },
+    );
+  }
+}
+
+async function prepareCliResolve(args, id, resolvedNode, provider) {
+  const node = args.snapshot.nodes[id];
+  resolvedNode.value = node || null;
+  validateGateTarget(node, id);
+  return provider.prepare(args);
+}
+
+function sourceWithCliProvider(source, id, resolvedNode) {
   return {
-    ...snapshot,
-    nodes: {
-      ...snapshot.nodes,
-      [id]: {
-        ...node,
-        resolution_mode: node && node.resolution_mode ? node.resolution_mode : "choice",
-        // The historical CLI handler did not reject a repeated resolve. Let
-        // the typed provider validate the shape while retaining that legacy
-        // behavior at this compatibility boundary.
-        ...(node && node.status === "resolved" ? { status: "open" } : {}),
+    ...source,
+    registry: {
+      lookup(operation) {
+        const entry = source.registry.lookup(operation);
+        if (operation !== "gate.resolve" || !entry) {
+          return entry;
+        }
+        const provider = entry.provider || entry;
+        return {
+          ...entry,
+          provider: {
+            prepare: (args) => prepareCliResolve(args, id, resolvedNode, provider),
+            apply: provider.apply,
+          },
+        };
       },
     },
   };
 }
 
-const gateResolveAdapterProvider = Object.freeze({
-  async prepare(args) {
-    const node = args.snapshot.nodes[args.input.id];
-    if (node && (node.kind !== "resolvable" || node.subkind !== "gate")) {
-      throwV2(
-        "INVALID_EXECUTION_CONTRACT",
-        `resolve: node ${args.input.id} is not a gate (kind=${node.kind}, subkind=${node.subkind || "undefined"})`,
-        { id: args.input.id, kind: node.kind, subkind: node.subkind || null },
-      );
-    }
-    const prepared = await prepareGateResolve({ ...args, snapshot: gateSnapshot(args.snapshot, args.input.id) });
-    const status = args.snapshot.nodes[args.input.id]?.status;
-    return status === undefined ? prepared : { ...prepared, target: { ...prepared.target, status } };
-  },
-  apply: applyGateResolve,
-});
+function resolveRemoteNode(mutation, id) {
+  const node = nodeFromMutation(mutation, id) || mutation.result?.node || null;
+  if (!node) {
+    throwV2("INVALID_EXECUTION_CONTRACT", `resolve: remote operation did not return node ${id}`, { id });
+  }
+  return { node, newly_ready: mutation.effects?.newly_ready || [] };
+}
 
-function policyAction({ policy, projectDir, agent }) {
+async function resolveRemotely({ backendClient, agent, id, input }) {
+  if (backendClient?.type !== "remote") {
+    return null;
+  }
+  const mutation = await executeRemoteDomain({ backendClient, actor: agent, operation: "gate.resolve", input, command: "resolve" });
+  return resolveRemoteNode(mutation, id);
+}
+
+function createResolveSource(suppliedSource, policy, pluginId) {
+  return suppliedSource || {
+    registry: REGISTRY, mutate, selectPolicy: async () => policy, authorizeAction, pluginId,
+  };
+}
+
+function cliResolveSource({ suppliedSource, policy, pluginId, id, resolvedNode }) {
+  return sourceWithCliProvider(createResolveSource(suppliedSource, policy, pluginId), id, resolvedNode);
+}
+
+async function resolveLocally({ dir, agent, id, input, pluginId, suppliedSource }) {
+  const policy = suppliedSource ? null : await loadApplicablePolicy({ projectDir: dir });
+  const resolvedNode = { value: null };
+  const source = cliResolveSource({ suppliedSource, policy, pluginId, id, resolvedNode });
+  const mutation = await executeOperation({
+    projectDir: dir, actor: agent, operation: "gate.resolve", input, source, policyActionFromPlan: true,
+  });
+  return projectLocalResolve(mutation, id, resolvedNode);
+}
+
+function projectLocalResolve(mutation, id, resolvedNode) {
+  const updated = mutation.diff.updated.find((entry) => entry.id === id);
+  const node = updated?.node || (resolvedNode.value?.status === "resolved" ? resolvedNode.value : null);
+  if (!node) {
+    throwV2("INVALID_EXECUTION_CONTRACT", `resolve: kernel did not return node ${id}`, { id });
+  }
   return {
-    action: "gate.resolve",
-    pluginId: policy && policy.pluginId ? policy.pluginId : null,
-    async decide({ snapshot, target }) {
-      if (!policy) return { decision: "abstain" };
-      return authorizeAction({
-        policy,
-        action: "gate.resolve",
-        actor: agent,
-        target,
-        snapshot,
-        projectDir,
-        projectConfig: policy.projectConfig || {},
-      });
-    },
+    node,
+    newly_ready: mutation.effects && Array.isArray(mutation.effects.newly_ready) ? mutation.effects.newly_ready : [],
   };
 }
 
 export default async function resolve({
-  statePath,
-  projectDir,
-  flags = {},
-  positional = [],
-  pluginId,
+  statePath, projectDir, flags = {}, positional = [], pluginId, backendClient, source: suppliedSource,
 }) {
   const id = positional[0];
-  if (!id) throwV2("MISSING_FIELD", "resolve: node id required", { field: "id" });
+  if (!id) {
+    throwV2("MISSING_FIELD", "resolve: node id required", { field: "id" });
+  }
   const agent = resolveAgent(flags, "resolve");
   const dir = projectDir || statePath;
-  const policy = await loadApplicablePolicy({ projectDir: dir });
-
-  const input = {
-    id,
-    note: flags.note,
-    choice: flags.choice,
-    rationale: flags.rationale,
-    actor: agent,
-  };
-
-  const mutation = await mutate({
-    projectDir: dir,
-    request: { action: "resolve", actor: agent, input },
-    provider: {
-      prepare: gateResolveAdapterProvider.prepare,
-      apply: gateResolveAdapterProvider.apply,
-    },
-    policyAction: policyAction({ policy, projectDir: dir, agent }),
-    pluginId,
-  });
-
-  const updated = mutation.diff.updated.find((entry) => entry.id === id);
-  if (!updated || !updated.node) {
-    throwV2("INVALID_EXECUTION_CONTRACT", `resolve: kernel did not return node ${id}`, { id });
+  const input = { id, note: flags.note, choice: flags.choice, rationale: flags.rationale, actor: agent };
+  const remote = await resolveRemotely({ backendClient, agent, id, input });
+  if (remote) {
+    return remote;
   }
-  return {
-    node: updated.node,
-    newly_ready: mutation.effects && Array.isArray(mutation.effects.newly_ready)
-      ? mutation.effects.newly_ready
-      : [],
-  };
+  return resolveLocally({ dir, agent, id, input, pluginId, suppliedSource });
 }

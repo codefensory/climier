@@ -11,85 +11,175 @@ function isIdentifierPart(character) {
   return Boolean(character) && (character === "_" || character === "$" || IDENTIFIER.test(character));
 }
 
+function skipWhitespace(source, index, line) {
+  while (index < source.length && /\s/u.test(source[index])) {
+    if (source[index] === "\n") {
+      line += 1;
+    }
+    index += 1;
+  }
+  return { index, line };
+}
+
+function skipLineComment(source, index) {
+  while (index < source.length && source[index] !== "\n") {
+    index += 1;
+  }
+  return index;
+}
+
+function skipBlockComment(source, index, line) {
+  while (index < source.length && !(source[index] === "*" && source[index + 1] === "/")) {
+    if (source[index] === "\n") {
+      line += 1;
+    }
+    index += 1;
+  }
+  return { index: index + 2, line };
+}
+
+function readQuotedString(source, index, line) {
+  const quote = source[index];
+  const start = index;
+  index += 1;
+  while (index < source.length) {
+    if (source[index] === "\\") {
+      index += 2;
+      continue;
+    }
+    if (source[index] === "\n") {
+      line += 1;
+    }
+    if (source[index] === quote) {
+      index += 1;
+      break;
+    }
+    index += 1;
+  }
+  return {
+    token: { type: "string", value: source.slice(start + 1, index - 1), line },
+    index,
+    line,
+  };
+}
+
+function skipTemplate(source, index, line) {
+  index += 1;
+  while (index < source.length) {
+    if (source[index] === "\\") {
+      index += 2;
+      continue;
+    }
+    if (source[index] === "\n") {
+      line += 1;
+    }
+    if (source[index] === "`") {
+      index += 1;
+      break;
+    }
+    index += 1;
+  }
+  return { index, line };
+}
+
+function readIdentifier(source, index, line) {
+  const start = index;
+  while (isIdentifierPart(source[index])) {
+    index += 1;
+  }
+  return {
+    token: { type: "identifier", value: source.slice(start, index), line },
+    index,
+  };
+}
+
+function readComment(source, index, line) {
+  if (source[index] !== "/") {
+    return undefined;
+  }
+  if (source[index + 1] === "/") {
+    return { index: skipLineComment(source, index + 2), line, token: undefined };
+  }
+  if (source[index + 1] === "*") {
+    return { ...skipBlockComment(source, index + 2, line), token: undefined };
+  }
+  return undefined;
+}
+
+function readLiteral(source, index, line) {
+  if (source[index] === "'" || source[index] === '"') {
+    return readQuotedString(source, index, line);
+  }
+  return { ...skipTemplate(source, index, line), token: undefined };
+}
+
+function nextToken(source, index, line) {
+  const character = source[index];
+  if (/\s/u.test(character)) {
+    return { ...skipWhitespace(source, index, line), token: undefined };
+  }
+  const comment = readComment(source, index, line);
+  if (comment !== undefined) {
+    return comment;
+  }
+  if (character === "'" || character === '"' || character === "`") {
+    return readLiteral(source, index, line);
+  }
+  if (isIdentifierStart(character)) {
+    return readIdentifier(source, index, line);
+  }
+  return { token: { type: "punctuation", value: character, line }, index: index + 1, line };
+}
+
 function tokenize(source) {
   const tokens = [];
   let index = 0;
   let line = 1;
 
   while (index < source.length) {
-    const character = source[index];
-    if (/\s/u.test(character)) {
-      if (character === "\n") line += 1;
-      index += 1;
-      continue;
+    const result = nextToken(source, index, line);
+    if (result.token !== undefined) {
+      tokens.push(result.token);
     }
-
-    if (character === "/" && source[index + 1] === "/") {
-      index += 2;
-      while (index < source.length && source[index] !== "\n") index += 1;
-      continue;
-    }
-
-    if (character === "/" && source[index + 1] === "*") {
-      index += 2;
-      while (index < source.length && !(source[index] === "*" && source[index + 1] === "/")) {
-        if (source[index] === "\n") line += 1;
-        index += 1;
-      }
-      index += 2;
-      continue;
-    }
-
-    if (character === "'" || character === '"') {
-      const quote = character;
-      const start = index;
-      index += 1;
-      while (index < source.length) {
-        if (source[index] === "\\") {
-          index += 2;
-          continue;
-        }
-        if (source[index] === "\n") line += 1;
-        if (source[index] === quote) {
-          index += 1;
-          break;
-        }
-        index += 1;
-      }
-      tokens.push({ type: "string", value: source.slice(start + 1, index - 1), line });
-      continue;
-    }
-
-    if (character === "`") {
-      index += 1;
-      while (index < source.length) {
-        if (source[index] === "\\") {
-          index += 2;
-          continue;
-        }
-        if (source[index] === "\n") line += 1;
-        if (source[index] === "`") {
-          index += 1;
-          break;
-        }
-        index += 1;
-      }
-      continue;
-    }
-
-    if (isIdentifierStart(character)) {
-      const start = index;
-      index += 1;
-      while (isIdentifierPart(source[index])) index += 1;
-      tokens.push({ type: "identifier", value: source.slice(start, index), line });
-      continue;
-    }
-
-    tokens.push({ type: "punctuation", value: character, line });
-    index += 1;
+    index = result.index;
+    line = result.line;
   }
 
   return tokens;
+}
+
+function isImportOrExport(token) {
+  return token.type === "identifier" && (token.value === "import" || token.value === "export");
+}
+
+function dynamicImportSpecifier(tokens, index) {
+  const specifier = tokens[index + 2];
+  return specifier?.type === "string" ? specifier.value : undefined;
+}
+
+function declarationImportSpecifier(tokens, index) {
+  for (let cursor = index + 1; cursor < tokens.length; cursor += 1) {
+    if (tokens[cursor].value === ";") {
+      break;
+    }
+    if (tokens[cursor].value === "from") {
+      const specifier = tokens[cursor + 1];
+      return specifier?.type === "string" ? specifier.value : undefined;
+    }
+  }
+  return undefined;
+}
+
+function importSpecifier(tokens, index) {
+  const token = tokens[index];
+  const next = tokens[index + 1];
+  if (token.value === "import" && next?.value === "(") {
+    return dynamicImportSpecifier(tokens, index);
+  }
+  if (token.value === "import" && next?.type === "string") {
+    return next.value;
+  }
+  return declarationImportSpecifier(tokens, index);
 }
 
 export function relativeImportSpecifiers(source) {
@@ -97,27 +187,12 @@ export function relativeImportSpecifiers(source) {
   const specifiers = [];
 
   for (let index = 0; index < tokens.length; index += 1) {
-    const token = tokens[index];
-    if (token.type !== "identifier" || (token.value !== "import" && token.value !== "export")) continue;
-
-    const next = tokens[index + 1];
-    if (token.value === "import" && next?.value === "(") {
-      const specifier = tokens[index + 2];
-      if (specifier?.type === "string") specifiers.push(specifier.value);
+    if (!isImportOrExport(tokens[index])) {
       continue;
     }
-
-    if (token.value === "import" && next?.type === "string") {
-      specifiers.push(next.value);
-      continue;
-    }
-
-    for (let cursor = index + 1; cursor < tokens.length; cursor += 1) {
-      if (tokens[cursor].value === ";") break;
-      if (tokens[cursor].value !== "from") continue;
-      const specifier = tokens[cursor + 1];
-      if (specifier?.type === "string") specifiers.push(specifier.value);
-      break;
+    const specifier = importSpecifier(tokens, index);
+    if (specifier !== undefined) {
+      specifiers.push(specifier);
     }
   }
 
@@ -129,10 +204,13 @@ async function sourceFiles(directory) {
   const files = [];
   for (const entry of entries) {
     const entryPath = path.join(directory, entry.name);
-    if (entry.isDirectory()) files.push(...await sourceFiles(entryPath));
-    else if (entry.isFile() && entry.name.endsWith(".mjs")) files.push(entryPath);
+    if (entry.isDirectory()) {
+      files.push(...await sourceFiles(entryPath));
+    } else if (entry.isFile() && entry.name.endsWith(".mjs")) {
+      files.push(entryPath);
+    }
   }
-  return files.sort();
+  return files.toSorted();
 }
 
 export async function collectRelativeImports(directory) {
@@ -140,7 +218,9 @@ export async function collectRelativeImports(directory) {
   let sourceRoot = sourceDirectory;
   while (path.basename(sourceRoot) !== "src") {
     const parent = path.dirname(sourceRoot);
-    if (parent === sourceRoot) throw new Error(`collectRelativeImports: ${directory} is not under src`);
+    if (parent === sourceRoot) {
+      throw new Error(`collectRelativeImports: ${directory} is not under src`);
+    }
     sourceRoot = parent;
   }
   const files = await sourceFiles(sourceDirectory);

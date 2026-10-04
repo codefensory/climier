@@ -1,5 +1,5 @@
-// Canonical task.reject provider tests (ADR-015/016).
-// The provider owns only the submitted -> open transition; persistence and
+
+
 // audit entry construction remain kernel responsibilities.
 
 import test from "node:test";
@@ -47,8 +47,8 @@ test("task.reject prepares only submitted tasks and carries reason to the atomic
   assert.equal(plan.reason, "needs changes");
 });
 
-test("task.reject reopens the same task, clears claim and submission metadata, and unlocks no descendant", async () => {
-  const snapshot = state(
+function submittedTaskState() {
+  return state(
     {
       blocker: task("blocker", "done"),
       submitted: task("submitted", "submitted", {
@@ -65,20 +65,19 @@ test("task.reject reopens the same task, clears claim and submission metadata, a
       { from: "submitted", to: "descendant", type: "BLOCKS" },
     ],
   );
-  const input = { id: "submitted", reason: "needs changes" };
-  const plan = await taskRejectProvider.prepare({
-    snapshot,
-    input,
-    request: { actor: "validator" },
-  });
+}
+
+async function applyRejection(snapshot, input) {
+  const plan = await taskRejectProvider.prepare({ snapshot, input, request: { actor: "validator" } });
   const tx = createTransaction(snapshot);
-  const out = await taskRejectProvider.apply({
-    tx,
-    plan,
-    input,
-    request: { actor: "validator" },
-    snapshot,
-  });
+  const out = await taskRejectProvider.apply({ tx, plan, input, request: { actor: "validator" }, snapshot });
+  return { tx, out };
+}
+
+test("task.reject reopens the same task, clears claim and submission metadata, and unlocks no descendant", async () => {
+  const snapshot = submittedTaskState();
+  const input = { id: "submitted", reason: "needs changes" };
+  const { tx, out } = await applyRejection(snapshot, input);
 
   const rejected = tx.getNode("submitted");
   assert.equal(rejected.status, "open");

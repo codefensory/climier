@@ -36,15 +36,19 @@ in `details.cause`; opaque failures are exposed as `CLI_INTERNAL_ERROR`. Help
 and version remain the only intentional plain-text outputs and exit 0. There is
 no `--json` switch because JSON is already the default.
 
+Remote v2 never sends credentials over non-loopback plaintext HTTP. The server binds only to loopback and external clients use an HTTPS reverse proxy. A successful remote `init` has the same JSON result shape as local initialization; remote failures never fall back to local state.
+
 If you only need the quickstart, use `README.md`. If you need the actual contract, use this file.
 
 ## State shape
 
-`init` creates a `version: 3` state with this shape. Compatible v2 states are normalized to v3 on read/write:
+`init` creates the canonical schema-1 state with this shape. The reader accepts only this form. Existing projects must be imported with `climier migrate` during the release window; never use `init --force` as an import operation:
 
 ```js
 {
-  version: 3,
+  version: 1,
+  fence_generation: 1,
+  revision: 0,
   initiatives: {
     "auth": { desc: "Auth migration", created_at: "2026-01-01T00:00:00.000Z" }
   },
@@ -62,7 +66,9 @@ If you only need the quickstart, use `README.md`. If you need the actual contrac
 
 The required top-level collections are:
 
-- `version: 3`
+- `version: 1`
+- `fence_generation`
+- `revision`
 - `nodes`
 - `edges`
 - `initiatives`
@@ -187,6 +193,15 @@ A `BLOCKS` edge is satisfied only when the blocker is satisfied:
 
 Backlog tasks are a separate pool. They stay `backlog`, not `ready`, until they are edited out of backlog via `update --backlog false`.
 
+## Local web UI (experimental)
+
+`climier ui [--port N] [--open=true|false]` starts the local read-only board and
+opens it in the browser. It is experimental: it lives in the `ui/` subproject
+with its own dependencies, reads the schema-1 state through the CLI's own
+derivation functions, and is not included in the published tarball. A missing
+subproject or dependency produces an actionable error. The CLI surface and
+JSON contract do not depend on it.
+
 ## Agent identity
 
 Every mutating command needs an agent identity.
@@ -236,13 +251,11 @@ Important: `--blocked-by` is required so dependency intent is explicit. If there
 
 Optional flags:
 
-- `--definition`
 - `--domain`
 - `--tags a,b`
 - `--refs a,b`
 - `--meta '{"x":1}'`
 - `--derived-from A,B`
-- `--backlog true`
 - `--as <agent>`
 
 Notes:
@@ -346,7 +359,6 @@ Optional:
 - `--blocked-by A,B`
 - `--derived-from A,B`
 - `--supersedes OLD`
-- `--allow-unregistered-initiative=true`
 - `--as <agent>`
 
 Output is `{ node }`.
@@ -363,7 +375,21 @@ Required:
 
 Output is `{ edge }`.
 
-## Lifecycle commands
+## Lifecycle commands (runner-owned)
+
+The following commands document the state transitions used by the execution
+runtime and remain available for compatibility and administration. They are not
+the normal operator path for executing a task: run `climierflow run <task-id>` and
+use the runner's recovery forms below. Do not chain `take`, `submit`, `accept`, or
+`reject` by hand.
+
+- `climierflow status <task-id>` inspects the current attempt.
+- `climierflow resume <task-id> [--summary TEXT]` resumes an interrupted attempt; `--summary` is optional.
+- `climierflow restart <task-id> --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard` starts a fresh attempt. Replacement `--body` and `--acceptance` values and `--confirm-discard` are required.
+
+A completed and merged attempt cannot be restarted: the runner returns
+`RESTART_REQUIRES_REVIEW`. Do not reopen that task to restart its completed
+flow; create a new correction task for additional work.
 
 ### `take <id>`
 
@@ -372,7 +398,6 @@ Output is `{ edge }`.
 Accepted flags:
 
 - `--as <agent>`
-- legacy but ignored: `--initiative`, `--domain`, `--tag`
 
 Rules:
 
@@ -450,23 +475,19 @@ Rules:
 
 ### `resolve <id>`
 
-Closes a resolvable node as a compatibility/manual bypass.
+Resolves an open gate. It is a DAG curation command, not a task execution
+step; task lifecycle transitions belong to `climierflow`.
 
-For tasks:
+Required:
 
-- required: `--note`
-- remains available for `open` / `in_progress -> done`; workers and automated flows use `submit` instead
-- sets `status = "done"`
-- stores `done_by`, `done_at`, `note`
-- clears claim
+- `--choice "..."`
+- `--rationale "..."`
+- `--as <agent>`
 
-For gates:
-
-- required: `--choice`
-- required: `--rationale`
-- no claim required
-- sets `status = "resolved"`
-- stores `resolution: { choice, rationale }`
+A second resolve of an already resolved gate fails. To correct an accepted
+decision, use `reopen` first and then resolve it again with explicit choice and
+rationale. The operation stores `resolution: { choice, rationale }` and computes
+newly ready dependents.
 
 Output shape:
 
@@ -738,7 +759,7 @@ Output shape:
 An entry matches when the id appears in:
 
 - `entry.node`
-- whole-token matches inside `entry.note`
+- whole-token matches inside the entry's `note` text
 
 ### `initiatives`
 
@@ -780,44 +801,66 @@ No flags.
 
 ### `restore <snapshot-id>`
 
-Replace the live state with a validated snapshot. v2 snapshots are normalized to v3 before persistence. Authority is restricted to `orchestrator` / `recovery` — no per-agent restore.
-
-Requires:
-
-- `--as orchestrator|recovery`
+Replace the live state with a validated schema-1 snapshot. The operation runs
+through the recovery path under the project lock and takes a pre-restore
+snapshot before changing the live state. A policy plugin may restrict the
+actor; callers must use the actor permitted by the active policy.
 
 Behavior:
 
-- Validates the snapshot exists as a complete pair (`<id>.json` + `<id>.meta.json`); metadata id matches the filename; metadata parses.
-- Validates the raw bytes parse as a v2 or v3 JSON state and carry every required collection (`nodes`, `edges`, `initiatives`, `log`). v2 is normalized to v3; v1, future versions, missing fields, or unparseable raw → fail with `INVALID_STATUS` without mutating state.
-- All target validation runs BEFORE the pre-restore snapshot, so a bad target leaves no trace in `<state-dir>/snapshots/`.
-- Under `withLock`:
-  - asserts the current state file exists (no current state to displace → fail)
-  - calls `createSnapshot(projectDir, "pre-restore")` (raw + metadata, same `tmp+rename` discipline as `init --force`)
-  - writes the validated, normalized v3 state to the state path via `tmp+rename`
-  - appends `{ ts, agent, action: "restore", snapshot_id }` to the restored log (the entry lands in the state we just wrote, not the displaced one)
-- Returns `{ snapshot: <metadata> }`.
+- validates a complete snapshot pair and its metadata before changing anything;
+- validates the canonical schema-1 collections and ledger fields;
+- takes the pre-restore snapshot, writes the validated state atomically, and
+  appends the restore event to the restored log;
+- returns `{ snapshot: <metadata> }` and leaves state untouched on invalid input.
 
-Output shape:
+Use `init --force` only for an intentional reset of the project, never to
+convert an existing project. For a pre-cut project, use the ordered import in
+[`docs/remote-server.md`](remote-server.md).
 
-```js
-{ snapshot: { id, created_at, reason, bytes, sha256 } }
-```
+### `migrate [--all] [--dry-run]`
 
-Error codes:
+The importer is a one-time release operation for projects written before the
+schema-1 cut. `--dry-run` reports each project's detected form without writing;
+`--all` scans every project under `CLIMIER_HOME`. For a real import, stop the
+control plane, UI, all runner executions, and remote server first, then run the
+dry-run and `climier migrate --all`. The importer backs up each project before
+changing it.
+Verify every project with `climier --project <checkout> status` before restarting
+writers. See [`docs/remote-server.md`](remote-server.md) for rollback and stale
+lock recovery.
 
-- `MISSING_AGENT` — `--as` missing or empty
-- `NOT_OWNER` — `--as` is some agent other than `orchestrator` or `recovery`
-- `MISSING_FIELD` — no snapshot id passed positionally
-- `NODE_NOT_FOUND` — target absent, incomplete pair, corrupt metadata, or `meta.id` does not match filename
-- `INVALID_STATUS` — raw is unparseable, not an object, missing version, v1, future version, or missing a required collection; or current state file is missing (no pre-restore snapshot possible)
+### `state`
+
+Returns the deterministic current core projection. It is read-only and does not
+inspect historical snapshots.
+
+### `batch` and edge removal
+
+`batch --file <json>` or `batch --stdin` applies an authorized group of
+operations atomically. Remote v2 has no DAG transfer commands: the linked
+server-side project is the only source of truth. The low-level `remove-edge
+<from> <to> --type ...` operation is idempotent and removes only one exact edge.
+
+### Remote v2 authentication
+
+`link <origin> [--replace=true]` records `backend.protocol: "v2"` and preserves
+the checkout project ID. `login [--server <origin>]` reads a password from a
+TTY without echo and stores only the origin-indexed bearer in the local
+credential profile; `logout` removes that local entry. A config without the v2
+marker fails with `REMOTE_CONFIG_OUTDATED` before auth or local state I/O.
+`init` may provision an absent remote project, while reads and writes never
+create storage implicitly. The server requires `CLIMIER_SERVER_PASSWORD`,
+loopback binding, a service-lifetime lock, and a durable auth file; see
+[`docs/remote-server.md`](remote-server.md) for TLS proxy, backup, rotation,
+and stale-lock recovery.
 
 ## Low-level semantics worth knowing
 
 - every created node starts at `revision: 1`
 - mutating lifecycle commands bump `revision`
 - state mutation and log append happen under the same lock
-- `show`, `context`, `search`, `take`, `update`, lifecycle commands are version-aware
+- `show`, `context`, `search`, `take`, `update`, and lifecycle commands require the canonical schema-1 state
 - `add-node` and `add-edge` are the raw escape hatches; prefer `add-task [id]`, `add-gate [id]`, and `add-knowledge [id]`
 
 ## Structured errors
@@ -846,7 +889,6 @@ Important codes you will actually hit:
 - `ALREADY_CLAIMED`
 - `NOT_OWNER`
 - `INVALID_STATUS`
-- `STATE_V1_UNSUPPORTED` — a `version: 1` state file was found. v1 is no longer supported. The error `details.migration_steps` explains how to back up and recreate the project; `details.hint` points at `climier init --force` as the path to overwrite a v1 state file (after backup).
 
 ## Minimal flow
 
@@ -857,9 +899,10 @@ climier add-gate G-auth --initiative auth --title "Choose session model" --body 
 climier add-task T-auth --initiative auth --title "Implement sessions" --body "Build it" --acceptance "Works" --blocked-by G-auth --as alice
 climier context T-auth
 climier resolve G-auth --choice "Opaque sessions" --rationale "Safer default" --as orchestrator
-climier take T-auth --as alice
-climier submit T-auth --note "Implemented and tested" --as alice
-climier accept T-auth --as validator-auth
+climierflow run T-auth
+climierflow status T-auth
+climierflow resume T-auth [--summary TEXT]   # --summary is optional
+climierflow restart T-auth --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard
 climier history T-auth
-climier status --all --as alice
+climier status --all
 ```

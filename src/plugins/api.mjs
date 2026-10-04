@@ -1,53 +1,26 @@
-// plugins/api.mjs: assemble the host API surface.
-//
-// Per ADR-021 §Decision 6, the public host surface is Plugin API v3. The
-// nested core operation adapter retains its own version for its operation
-// contract; `api.version` is the compatibility marker for the whole API.
-//   api = {
-//     runtime: { project_dir, agent, dataDir },
-//     query:   { node, context, status, history },
-//     data:    { node: { get, set }, project: { get, set } },
-//     core:    { version: 2, run({ op, input }), batch({ if_state_revision, operations }) },
-//   }
-//
-// The dispatch layer invokes createApi({ projectDir, agent, pluginId })
-// once per plugin invocation. The handler receives `api` and uses it.
-//
-// V1 constraints enforced here:
-//   - projectDir and pluginId are required non-empty strings.
-//   - agent may be the empty string (anonymous dispatch is not a V1
-//     invariant), but data.*.set will throw MISSING_AGENT when it is.
-//   - api.runtime projects the resolved identity and the plugin-owned runtime
-//     directory. The directory is created before createApi returns; its
-//     contents are opaque to the host. It exists so handlers can read
-//     project_dir, agent and dataDir without touching argv or env vars
-//     themselves.
-//
-// api.core is the host surface for individual core actions. It is created
-// unconditionally — V1 hosts may call `api.core?.version`, while the host
-// defined by ADR-006 always imports this adapter. runtime.agent is captured
-// into the core surface so `core.run` can fix flags.as on every call
-// regardless of what the plugin passes in input.
 
 import { createQuery } from "./query.mjs";
 import { createData } from "./data.mjs";
 import { createCore } from "./core-adapter.mjs";
 import { createRuntime } from "./runtime.mjs";
+import { assertLocalBackend } from "./remote-guard.mjs";
 
-export function createApi({ projectDir, agent, pluginId }) {
+export function createApi({ projectDir, agent, pluginId, backendClient }) {
+  assertLocalBackend(backendClient, "createApi");
   if (typeof projectDir !== "string" || !projectDir) {
     throw new Error("createApi: projectDir required");
   }
   if (typeof pluginId !== "string" || !pluginId) {
     throw new Error("createApi: pluginId required");
   }
-  const runtime = createRuntime({ projectDir, agent, pluginId });
-  const query = createQuery({ projectDir, agent: runtime.agent, pluginId });
-  const data = createData({ projectDir, agent: runtime.agent, pluginId });
+  const runtime = createRuntime({ projectDir, agent, pluginId, backendClient });
+  const query = createQuery({ projectDir, agent: runtime.agent, pluginId, backendClient });
+  const data = createData({ projectDir, agent: runtime.agent, pluginId, backendClient });
   const core = createCore({
     projectDir,
     agent: runtime.agent,
     pluginId,
+    backendClient,
   });
-  return { version: 3, runtime, query, data, core };
+  return { version: 1, runtime, query, data, core };
 }

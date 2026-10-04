@@ -1,9 +1,8 @@
-// src/providers/task/reopen.mjs — pure provider for `task.reopen`.
-//
-// ADR-011 §§1–4:
+
+
 //   - `prepare` is read-only. Validates input + target + status=done
 //     and the required `reason`.
-//   - `apply` uses tx.updateNode to roll back the terminal task to
+
 //     `open`, clearing claim and all submission, acceptance, and
 //     completion metadata. Never writes revision.
 //   - Imports nothing from filesystem, lock, state, log, policy,
@@ -28,7 +27,7 @@ function asNonEmptyString(value) {
 // input.actor. Both shapes remain accepted for compatibility, but
 // request.actor wins when both are present:
 // the adapter is the canonical source of truth for agent identity
-// in plugin-issued calls (ADR-006 §API y compatibilidad).
+
 function resolveActor(input, request) {
   return (
     asNonEmptyString(request && request.actor) ||
@@ -85,7 +84,6 @@ function validateTarget(input, snapshot) {
 }
 
 /**
- * Pure `prepare` for task.reopen.
  *
  * @param {{ snapshot: object, input: object, request: object }} args
  * @returns {object} frozen plan
@@ -108,14 +106,7 @@ async function prepare({ snapshot, input, request }) {
   });
 }
 
-/**
- * Pure `apply` for task.reopen. Clears all terminal-task lifecycle
- * metadata (`claim`, `submitted_*`, `accepted_*`, `done_*`, `note`,
- * `resolution`).
- *
- * @param {{ tx: object, plan: object, input: object, request: object, snapshot: object }} args
- * @returns {Promise<{ result: object, effects: null }>}
- */
+
 async function apply({ tx, plan, input, request, snapshot }) {
   void input;
   void request;

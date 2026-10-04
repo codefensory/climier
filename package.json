@@ -14,20 +14,29 @@
   ],
   "type": "module",
   "bin": {
-    "climier": "./bin/climier.mjs"
+    "climier": "./bin/climier.mjs",
+    "climier-server": "./bin/climier-server.mjs"
   },
   "main": "bin/climier.mjs",
   "scripts": {
     "test": "node test/run-core-tests.mjs",
-    "test:ui": "node --test test/ui-*.test.mjs",
     "test:watch": "node --test --watch test/",
-    "test:concurrent": "node --test test/v2-take.test.mjs test/v2-take-by-id.test.mjs test/v2-adversarial.test.mjs",
-    "pack:check": "npm pack --dry-run --json > /dev/null"
+    "test:concurrent": "node --test test/take.test.mjs test/take-by-id.test.mjs test/adversarial.test.mjs",
+    "pack:check": "npm pack --dry-run --json > /dev/null",
+    "surface:check": "node scripts/check-retired-surfaces.mjs",
+    "smoke:pack": "node scripts/smoke-packed.mjs",
+    "lint:cut": "oxlint bin scripts src/cli/commands/ui.mjs src/cli/dispatch.mjs test/package.test.mjs test/retired-surfaces.test.mjs",
+    "prepublishOnly": "npm_config_dry_run= npm test && npm run surface:check && npm run lint:cut && npm run pack:check",
+    "lint": "oxlint src bin test"
+  },
+  "devDependencies": {
+    "oxlint": "^1.85.0"
   },
   "files": [
     "bin",
     "src",
     "README.md",
+    "docs/reference.md",
     "CHANGELOG.md",
     "LICENSE"
   ],

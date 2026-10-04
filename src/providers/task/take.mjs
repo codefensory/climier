@@ -1,8 +1,7 @@
-// src/providers/task/take.mjs — pure provider for `task.take` / `task.takeover`.
-//
-// ADR-011 §§1–4:
-//   - `prepare` is read-only. It classifies the action (task.take vs
-//     task.takeover), validates the target is a task in a claimable
+
+
+
+
 //     state, and detects the same-actor idempotent short-circuit.
 //   - `apply` mutates the in-memory tx draft only: tx.updateNode to
 //     install the new claim and `in_progress` status. The takeover
@@ -10,7 +9,7 @@
 //     surface it in the log; the provider never writes the log
 //     directly. Revision is never written.
 //   - Imports nothing from filesystem, lock, state, log, policy,
-//     commands, registry, adapters, CLI or UI. Only the v2 error
+
 //     helpers are used.
 
 import { throwV2 } from "../../contracts/errors.mjs";
@@ -32,7 +31,7 @@ function asNonEmptyString(value) {
 // input.actor. Both shapes remain accepted for compatibility, but
 // request.actor wins when both are present:
 // the adapter is the canonical source of truth for agent identity
-// in plugin-issued calls (ADR-006 §API y compatibilidad).
+
 function resolveActor(input, request) {
   return (
     asNonEmptyString(request && request.actor) ||
@@ -56,11 +55,17 @@ function validateInputShape(input, request) {
   if (!actor) {
     throwV2("MISSING_FIELD", `${OP}: input.actor required`, { field: "actor" });
   }
+  validateClaimTimestamp(input);
+  return actor;
+}
+
+function validateClaimTimestamp(input) {
   const at = input.at === undefined ? new Date().toISOString() : input.at;
   if (typeof at !== "string" || at.length === 0) {
-    throwV2("INVALID_EXECUTION_CONTRACT", `${OP}: input.at must be an ISO string when present`, { field: "at" });
+    throwV2("INVALID_EXECUTION_CONTRACT", `${OP}: input.at must be an ISO string when present`, {
+      field: "at",
+    });
   }
-  return actor;
 }
 
 function validateTarget(input, snapshot) {
@@ -85,59 +90,43 @@ function validateTarget(input, snapshot) {
 
 // classifyAction — runs against the snapshot (read-only). Returns a
 // frozen descriptor consumed by prepare/apply. The semantic matrix
-// matches the take contract (ADR-008 §"Tabla de take"):
-//
+
 //   status        | claim.by    | action         | takeover | idempotent
 //   --------------|-------------|----------------|----------|------------
-//   in_progress   | same actor  | task.take      | false    | true
-//   in_progress   | other actor | task.takeover  | true     | false
-//   open          | n/a         | task.take      | false    | false
+
+
+
 //   open + blocked deps         | NOT_READY
 //   any other status            | NOT_READY
+function actionForExistingClaim(actor, owner) {
+  if (owner === actor) {
+    return Object.freeze({ action: "task.take", takeover: false, idempotent: true, previous_owner: null });
+  }
+  if (owner) {
+    return Object.freeze({ action: "task.takeover", takeover: true, idempotent: false, previous_owner: owner });
+  }
+  return null;
+}
+
 function classifyAction(node, actor, snapshot) {
   const status = node.status || "open";
-  const owner = node.claim && node.claim.by ? node.claim.by : null;
-
-  if (status === "in_progress" && owner === actor) {
-    return Object.freeze({
-      action: "task.take",
-      takeover: false,
-      idempotent: true,
-      previous_owner: null,
-    });
-  }
-  if (status === "in_progress" && owner && owner !== actor) {
-    return Object.freeze({
-      action: "task.takeover",
-      takeover: true,
-      idempotent: false,
-      previous_owner: owner,
-    });
+  if (status === "in_progress") {
+    const owner = node.claim && node.claim.by ? node.claim.by : null;
+    const claimedAction = actionForExistingClaim(actor, owner);
+    if (claimedAction) {
+      return claimedAction;
+    }
   }
   if (status !== "open") {
-    throwV2(
-      "NOT_READY",
-      `${OP}: task '${node.id}' is '${status}', not ready`,
-      { id: node.id, status },
-    );
+    throwV2("NOT_READY", `${OP}: task '${node.id}' is '${status}', not ready`, { id: node.id, status });
   }
   if (!isTaskReady(snapshot, node.id)) {
-    throwV2(
-      "NOT_READY",
-      `${OP}: task '${node.id}' is blocked by unfinished deps`,
-      { id: node.id, status },
-    );
+    throwV2("NOT_READY", `${OP}: task '${node.id}' is blocked by unfinished deps`, { id: node.id, status });
   }
-  return Object.freeze({
-    action: "task.take",
-    takeover: false,
-    idempotent: false,
-    previous_owner: null,
-  });
+  return Object.freeze({ action: "task.take", takeover: false, idempotent: false, previous_owner: null });
 }
 
 /**
- * Pure `prepare` for task.take / task.takeover.
  *
  * @param {{ snapshot: object, input: object, request: object }} args
  * @returns {object} frozen plan
@@ -168,12 +157,7 @@ async function prepare({ snapshot, input, request }) {
   });
 }
 
-/**
- * Pure `apply` for task.take / task.takeover.
- *
- * @param {{ tx: object, plan: object, input: object, request: object, snapshot: object }} args
- * @returns {Promise<{ result: object, effects: null }>}
- */
+
 async function apply({ tx, plan, input, request, snapshot }) {
   void input;
   void request;
@@ -186,7 +170,7 @@ async function apply({ tx, plan, input, request, snapshot }) {
     );
   }
   if (plan.idempotent) {
-    // Same actor already holds the claim. ADR-008 §"Tabla de take":
+
     // idempotent, no mutation. The kernel diff will see no change and
     // skip both the write and the log append.
     const existing = tx.getNode(plan.target.id);

@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 
 import {
   collectRelativeImports,
@@ -59,6 +60,61 @@ test("boundary matcher detects every prohibited direction", () => {
     });
     assert.equal(violations.length, 3, `${boundary.name} should detect all of its forbidden roots`);
   }
+});
+
+test("HTTP modules do not import storage", async () => {
+  const imports = await collectRelativeImports("src/server/http");
+  assert.ok(imports.length > 0, "HTTP modules should have imports to inspect");
+  assert.deepEqual(findBoundaryViolations(imports, {
+    sourceRoot: "server/http",
+    forbiddenRoots: ["storage"],
+  }), []);
+});
+
+test("HTTP transfers delegate through kernel transfer ports", async () => {
+  const imports = await collectRelativeImports("src/server/http");
+  const transferImports = imports.filter(({ sourceFile }) => sourceFile === "server/http/transfers.mjs");
+  assert.ok(transferImports.some(({ targetFile }) => targetFile === "kernel/transfer.mjs"));
+  const source = await readFile("src/server/http/transfers.mjs", "utf8");
+  assert.match(source, /captureTransferSource\(/);
+  assert.match(source, /installTransferDestination\(/);
+});
+
+test("HTTP facade remains the only HTTP module allowed to read storage", async () => {
+  const source = await readFile("src/server/http.mjs", "utf8");
+  assert.match(source, /from "\.\.\/storage\/state\.mjs"/);
+});
+
+test("HTTP extracted modules do not open projects", async () => {
+  for (const file of [
+    "src/server/http/codec.mjs",
+    "src/server/http/operations.mjs",
+    "src/server/http/reads.mjs",
+    "src/server/http/transfers.mjs",
+  ]) {
+    const source = await readFile(file, "utf8");
+    assert.doesNotMatch(source, /\b(?:openProject|provisionProject|withAuthorizedProject)\b/, file);
+    assert.doesNotMatch(source, /from ["'][^"']*catalog\//, file);
+  }
+});
+
+test("HTTP protocol version is defined once in the public facade", async () => {
+  const files = [
+    "src/server/http.mjs",
+    "src/server/http/codec.mjs",
+    "src/server/http/operations.mjs",
+    "src/server/http/reads.mjs",
+    "src/server/http/transfers.mjs",
+  ];
+  const sources = await Promise.all(files.map((file) => readFile(file, "utf8")));
+  const definitions = [];
+  for (const [index, source] of sources.entries()) {
+    const definitionCount = [...source.matchAll(/\b(?:const|let|var)\s+PROTOCOL_VERSION\s*=/g)].length;
+    definitions.push(...Array(definitionCount).fill(files[index]));
+  }
+
+  assert.deepEqual(definitions, ["src/server/http.mjs"]);
+  assert.match(sources[0], /createHttpCodec\(\{ protocolVersion: PROTOCOL_VERSION \}\)/);
 });
 
 test("scanner recognizes canonical inward dependencies", async () => {

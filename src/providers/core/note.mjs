@@ -1,11 +1,9 @@
 // src/providers/core/note.mjs — pure provider for `note.add`.
-//
 // Provides the graph kernel's note-only operation, mirroring the public
 // `add-note` CLI contract while running through `kernel.mutate`.
-//
-// Contract (ADR-011 §1):
+
 //   - `prepare` is read-only. It validates the target id, the text
-//     payload, and the `if_revision` precondition (ADR-011 §4 — every
+
 //     agent-facing op that mutates a node requires if_revision). The
 //     plan carries `{ target, if_revision, policyAction, logAction,
 //     note }`.
@@ -38,11 +36,15 @@ function asNonEmptyString(value) {
 // precondition is the canonical contract —
 // ADR-011 §4). The CAS is REQUIRED by ADR-011 §4; callers must declare
 // their precondition.
-function resolveIfRevision(input, request) {
+function requestIfRevision(request) {
   const req = request && request.if_revision;
   if (req && typeof req === "object" && !Array.isArray(req) && Number.isInteger(req.value)) {
     return req.value;
   }
+  return null;
+}
+
+function inputIfRevision(input) {
   const raw = input && input.if_revision;
   if (raw === undefined || raw === null) {
     throwV2(
@@ -60,6 +62,10 @@ function resolveIfRevision(input, request) {
     );
   }
   return n;
+}
+
+function resolveIfRevision(input, request) {
+  return requestIfRevision(request) ?? inputIfRevision(input);
 }
 
 function readSnapshotNodes(snapshot) {
@@ -128,7 +134,6 @@ function validateRequestActor(request) {
  *
  * Contract:
  *   - read-only: never mutates the snapshot, never reaches outside
- *     the provided arguments;
  *   - validates id, text and if_revision; resolves the target node
  *     and checks the CAS precondition;
  *   - returns a frozen plan: `{ target, if_revision, policyAction,
@@ -176,11 +181,8 @@ async function prepare({ snapshot, input, request }) {
  * Pure `apply` for note.add.
  *
  * Contract:
- *   - mutates the tx draft only via exactly one `tx.updateNode`;
  *   - reads the existing notes array via `tx.getNode` so the patch
- *     can append without losing history;
  *   - never writes `revision` (the kernel diff assigns it once per
- *     node per apply);
  *   - returns `{ result, effects }` with the projected notes_count
  *     for the caller.
  *

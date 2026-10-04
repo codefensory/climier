@@ -12,7 +12,7 @@ const packageVersion = JSON.parse(
 ).version;
 
 async function seedV2Project(dir) {
-  // Seed a v2 project with one initiative and one ready task.
+
   let r = await runCli(["--project", dir, "init"]);
   assert.equal(r.code, 0, r.stderr);
   r = await runCli(["--project", dir, "add-initiative", "migration", "--desc", "x"]);
@@ -35,9 +35,9 @@ test("contract: every read command outputs valid JSON to stdout", async () => {
       ["show", "T-"],
     ]) {
       const r = await runCli(["--project", dir, ...cmd]);
-      // Some reads may legitimately 0-out (history might be empty if id is wrong); only fail on parse error.
+
       if (r.code !== 0) {
-        // Allow JSON-shaped errors.
+
         assert.doesNotThrow(() => JSON.parse(r.stdout), `${cmd.join(" ")} stdout not JSON: ${r.stdout.slice(0, 100)}`);
       } else {
         assert.doesNotThrow(() => JSON.parse(r.stdout), `${cmd.join(" ")} stdout not JSON: ${r.stdout.slice(0, 100)}`);
@@ -48,56 +48,37 @@ test("contract: every read command outputs valid JSON to stdout", async () => {
   }
 });
 
+async function assertCliJsonOutput(result, command) {
+  assert.equal(result.code, 0, result.stderr);
+  assert.doesNotThrow(() => JSON.parse(result.stdout), `${command} stdout not JSON: ${result.stdout.slice(0, 100)}`);
+}
+
+async function assertSuccessfulWrite(dir, args, command) {
+  const result = await runCli(["--project", dir, ...args]);
+  await assertCliJsonOutput(result, command);
+}
+
 test("contract: every write command outputs valid JSON to stdout", async () => {
   const dir = await createTempProject();
   try {
     await seedV2Project(dir);
-    // add-initiative (idempotent re-run on a different name)
-    let r = await runCli(["--project", dir, "add-initiative", "spike", "--desc", "x"]);
-    assert.equal(r.code, 0, r.stderr);
-    assert.doesNotThrow(() => JSON.parse(r.stdout), `add-initiative stdout not JSON: ${r.stdout.slice(0, 100)}`);
-    // add-task with explicit id
-    r = await runCli(["--project", dir, "add-task", "T-second", "--initiative", "migration", "--title", "x", "--body", "b", "--acceptance", "a", "--blocked-by", ""]);
-    assert.equal(r.code, 0, r.stderr);
-    assert.doesNotThrow(() => JSON.parse(r.stdout), `add-task stdout not JSON: ${r.stdout.slice(0, 100)}`);
-    // take (claim-like)
-    r = await runCli(["--project", dir, "take", "T-second", "--as", "alice"]);
-    assert.equal(r.code, 0, r.stderr);
-    assert.doesNotThrow(() => JSON.parse(r.stdout), `take stdout not JSON: ${r.stdout.slice(0, 100)}`);
-    // submit + accept (done-like)
-    r = await runCli(["--project", dir, "submit", "T-second", "--note", "shipped", "--as", "alice"]);
-    assert.equal(r.code, 0, r.stderr);
-    assert.doesNotThrow(() => JSON.parse(r.stdout), `submit stdout not JSON: ${r.stdout.slice(0, 100)}`);
-    r = await runCli(["--project", dir, "accept", "T-second", "--as", "alice"]);
-    assert.equal(r.code, 0, r.stderr);
-    assert.doesNotThrow(() => JSON.parse(r.stdout), `accept stdout not JSON: ${r.stdout.slice(0, 100)}`);
-    // reopen
-    r = await runCli(["--project", dir, "reopen", "T-second", "--reason", "recheck", "--as", "alice"]);
-    assert.equal(r.code, 0, r.stderr);
-    assert.doesNotThrow(() => JSON.parse(r.stdout), `reopen stdout not JSON: ${r.stdout.slice(0, 100)}`);
-    // add-gate
-    r = await runCli(["--project", dir, "add-gate", "G-x", "--initiative", "migration", "--title", "g", "--body", "b", "--purpose", "decision"]);
-    assert.equal(r.code, 0, r.stderr);
-    assert.doesNotThrow(() => JSON.parse(r.stdout), `add-gate stdout not JSON: ${r.stdout.slice(0, 100)}`);
-    // resolve a gate
-    r = await runCli(["--project", dir, "resolve", "G-x", "--choice", "raw", "--rationale", "yes", "--as", "alice"]);
-    assert.equal(r.code, 0, r.stderr);
-    assert.doesNotThrow(() => JSON.parse(r.stdout), `resolve-gate stdout not JSON: ${r.stdout.slice(0, 100)}`);
-    // add-knowledge
-    r = await runCli(["--project", dir, "add-knowledge", "K-x", "--initiative", "migration", "--title", "k", "--body", "b", "--scope-domains", "db"]);
-    assert.equal(r.code, 0, r.stderr);
-    assert.doesNotThrow(() => JSON.parse(r.stdout), `add-knowledge stdout not JSON: ${r.stdout.slice(0, 100)}`);
-    // deprecate-knowledge
-    r = await runCli(["--project", dir, "deprecate-knowledge", "K-x", "--reason", "outdated", "--as", "alice"]);
-    assert.equal(r.code, 0, r.stderr);
-    assert.doesNotThrow(() => JSON.parse(r.stdout), `deprecate-knowledge stdout not JSON: ${r.stdout.slice(0, 100)}`);
-    // init (re-init a fresh dir)
+    await assertSuccessfulWrite(dir, ["add-initiative", "spike", "--desc", "x"], "add-initiative");
+    await assertSuccessfulWrite(dir, ["add-task", "T-second", "--initiative", "migration", "--title", "x", "--body", "b", "--acceptance", "a", "--blocked-by", ""], "add-task");
+    await assertSuccessfulWrite(dir, ["take", "T-second", "--as", "alice"], "take");
+    await assertSuccessfulWrite(dir, ["submit", "T-second", "--note", "shipped", "--as", "alice"], "submit");
+    await assertSuccessfulWrite(dir, ["accept", "T-second", "--as", "alice"], "accept");
+    await assertSuccessfulWrite(dir, ["reopen", "T-second", "--reason", "recheck", "--as", "alice"], "reopen");
+    await assertSuccessfulWrite(dir, ["add-gate", "G-x", "--initiative", "migration", "--title", "g", "--body", "b", "--purpose", "decision"], "add-gate");
+    await assertSuccessfulWrite(dir, ["resolve", "G-x", "--choice", "raw", "--rationale", "yes", "--as", "alice"], "resolve-gate");
+    await assertSuccessfulWrite(dir, ["add-knowledge", "K-x", "--initiative", "migration", "--title", "k", "--body", "b", "--scope-domains", "db"], "add-knowledge");
+    await assertSuccessfulWrite(dir, ["deprecate-knowledge", "K-x", "--reason", "outdated", "--as", "alice"], "deprecate-knowledge");
+
     const dir2 = await createTempProject();
     try {
-      r = await runCli(["--project", dir2, "init"]);
-      assert.equal(r.code, 0, r.stderr);
-      assert.doesNotThrow(() => JSON.parse(r.stdout), `init stdout not JSON: ${r.stdout.slice(0, 100)}`);
-    } finally { await rmTempProject(dir2); }
+      await assertSuccessfulWrite(dir2, ["init"], "init");
+    } finally {
+      await rmTempProject(dir2);
+    }
   } finally {
     await rmTempProject(dir);
   }
@@ -125,7 +106,8 @@ test("contract: unknown command is JSON to stdout with ok:false", async () => {
     assert.notEqual(r.code, 0);
     const data = JSON.parse(r.stdout);
     assert.equal(data.ok, false);
-    assert.match(data.error, /unknown command/i);
+    assert.equal(data.error.code, "CLI_USAGE_ERROR");
+    assert.equal(data.error.details.command, "nosuchcmd");
     assert.equal(r.stderr.trim(), "");
   } finally {
     await rmTempProject(dir);
@@ -139,7 +121,8 @@ test("contract: no command given is JSON to stdout with ok:false", async () => {
     assert.notEqual(r.code, 0);
     const data = JSON.parse(r.stdout);
     assert.equal(data.ok, false);
-    assert.match(data.error, /no command/i);
+    assert.equal(data.error.code, "CLI_USAGE_ERROR");
+    assert.equal(data.error.details.command, null);
     assert.equal(r.stderr.trim(), "");
   } finally {
     await rmTempProject(dir);
@@ -158,7 +141,8 @@ test("contract: --json flag is gone (no longer a global flag)", async () => {
     assert.notEqual(r.code, 0);
     const data = JSON.parse(r.stdout);
     assert.equal(data.ok, false);
-    assert.match(data.error, /unknown flag --json|no command given/i);
+    assert.equal(data.error.code, "CLI_USAGE_ERROR");
+    assert.equal(data.error.details.command, null);
   } finally {
     await rmTempProject(dir);
   }
@@ -172,7 +156,9 @@ test("contract: unknown flag is JSON to stdout (not stderr)", async () => {
     assert.notEqual(r.code, 0);
     const data = JSON.parse(r.stdout);
     assert.equal(data.ok, false);
-    assert.match(data.error, /unknown flag --banana/);
+    assert.equal(data.error.code, "CLI_USAGE_ERROR");
+    assert.equal(data.error.details.command, "take");
+    assert.equal(data.error.details.flag, "banana");
     assert.equal(r.stderr.trim(), "");
   } finally {
     await rmTempProject(dir);

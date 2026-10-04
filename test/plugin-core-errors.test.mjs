@@ -1,8 +1,7 @@
-// T-plugin-core-foundation — `src/plugin-errors.mjs` PLUGIN_CORE_*
+
 // additions and the central `wrapCoreError` helper.
 //
-// ADR-006 §"Errores" defines two errors and one wrapper for the core
-// V2 plugin surface. They live next to the existing PLUGIN_* family
+
 // in `src/plugin-errors.mjs`. The tests below are intentionally
 // table-driven so the contract of each class stays obvious in diff
 // review. The tests are read-only imports of the module under test.
@@ -166,12 +165,10 @@ test("plugin-core-errors: isPluginCoreError does NOT reject PLUGIN_CORE_* errors
   });
   // Both predicates must agree on the same object: a true here means
   // isPluginError's PLUGIN_ prefix is broad enough; a false here means
-  // we quietly broke dispatch's rewrap guard rail.
+
   assert.equal(isPluginError(invalid), isPluginCoreError(invalid));
   assert.equal(isPluginError(action), isPluginCoreError(action));
 });
-
-// ---- PLUGIN_CORE_* codes are isolated from the core v2 error list ---
 
 test("plugin-core-errors: PLUGIN_CORE_* codes are not exported via V2_ERROR_CODES", async () => {
   const errorsMod = await importFresh("../src/contracts/errors.mjs");
@@ -214,8 +211,8 @@ test("plugin-core-errors: table covers every PLUGIN_CORE_* class+helper", async 
     );
     assert.ok(err instanceof mod.PluginError, `${f.name}: must extend PluginError`);
   }
-  // The wrapper is exported.
+
   assert.equal(typeof mod.wrapCoreError, "function");
-  // The narrow predicate is exported.
+
   assert.equal(typeof mod.isPluginCoreError, "function");
 });

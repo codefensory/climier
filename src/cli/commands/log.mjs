@@ -1,20 +1,26 @@
-// log: read and filter the append-only log.
+
+import { projectLogView } from "../../read-model/index.mjs";
 import { readState } from "../../storage/state.mjs";
 
-export const knownFlags = ["limit", "action", "agent", "task", "decision"];
+export const knownFlags = ["limit", "action", "agent", "node"];
 
-export default async function log({ statePath, flags }) {
-  const projectDir = statePath;
-  const s = await readState(projectDir);
-  if (!s) return [];
-  let entries = s.log || [];
-  if (flags.action) entries = entries.filter((e) => e.action === flags.action);
-  if (flags.agent) entries = entries.filter((e) => e.agent === flags.agent);
-  if (flags.task) entries = entries.filter((e) => e.task === flags.task);
-  if (flags.decision) entries = entries.filter((e) => e.decision === flags.decision);
-  if (flags.limit) {
-    const n = parseInt(flags.limit, 10);
-    if (Number.isFinite(n) && n > 0) entries = entries.slice(-n);
-  }
-  return entries;
+async function readRemoteLog(flags, backendClient) {
+  const limit = flags.limit ? Number.parseInt(flags.limit, 10) : undefined;
+  return backendClient.readLog({
+    limit: Number.isFinite(limit) && limit > 0 ? limit : undefined,
+    action: flags.action || undefined,
+    agent: flags.agent || undefined,
+    node: flags.node || undefined,
+  });
+}
+
+async function readLocalLog(statePath, flags) {
+  const snapshot = await readState(statePath);
+  if (!snapshot) {return [];}
+  return projectLogView({ snapshot, filters: flags });
+}
+
+export default async function log({ statePath, flags, backendClient }) {
+  if (backendClient?.type === "remote") {return readRemoteLog(flags, backendClient);}
+  return readLocalLog(statePath, flags);
 }

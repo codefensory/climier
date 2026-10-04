@@ -1,0 +1,40 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "ignorePatterns": ["/ui/"],
+  "plugins": ["typescript", "unicorn", "oxc"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error"
+  },
+  "options": {
+    "reportUnusedDisableDirectives": "error"
+  },
+  "rules": {
+    "complexity": ["error", { "max": 8 }],
+    "max-depth": ["error", { "max": 3 }],
+    "max-lines": [
+      "error",
+      { "max": 350, "skipBlankLines": true, "skipComments": true }
+    ],
+    "max-lines-per-function": [
+      "error",
+      { "max": 40, "skipBlankLines": true, "skipComments": true }
+    ],
+    "max-statements": ["error", { "max": 20 }],
+    "max-params": ["error", { "max": 4 }],
+    "max-nested-callbacks": ["error", { "max": 2 }],
+    "no-nested-ternary": "error",
+    "no-else-return": ["error", { "allowElseIf": false }],
+    "curly": ["error", "all"],
+    "eqeqeq": ["error", "always"],
+    "no-implicit-coercion": "error",
+    "prefer-const": "error",
+    "object-shorthand": ["error", "always"],
+    "unicorn/no-array-reduce": [
+      "error",
+      { "allowSimpleOperations": true }
+    ],
+    "unicorn/consistent-function-scoping": "error",
+    "unicorn/filename-case": ["error", { "case": "kebabCase" }]
+  }
+}

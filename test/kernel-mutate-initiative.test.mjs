@@ -1,7 +1,7 @@
 // test/kernel-mutate-initiative.test.mjs — initiative persistence through
-// the single kernel.mutate frontier.
+
 //
-// Scope (B1b extension, task T-graph-kernel-core-transaction):
+
 //   - A provider that creates an initiative through tx.createInitiative
 //     persists it via the same writeState call (no separate updateState).
 //   - Idempotency considers initiatives (an apply that touches only
@@ -10,12 +10,12 @@
 //   - Changing initiatives MUST NOT bump node.revision.
 //   - A mutation that combines a node change and an initiative change
 //     persists both in a single writeState; one log entry covers both.
-//   - The on-disk state shape stays v2 (nodes, edges, initiatives, log).
+  //   - The on-disk fixture is canonical v1 with a fenced ledger.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { createTempProject, rmTempProject, importFresh, readState as readStateHelper, writeState as writeStateHelper, stateExists } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, readState as readStateHelper, writeCanonicalState, stateExists } from "./helpers.mjs";
 
 async function importKernel() {
   return importFresh("./kernel/mutate.mjs");
@@ -23,7 +23,7 @@ async function importKernel() {
 
 function createInitiativeProvider({ name, desc = "", created_at }) {
   return {
-    prepare: async ({ snapshot }) => ({
+    prepare: async () => ({
       target: { id: name, kind: "initiative" },
       policyAction: null,
       initiative: { name, desc, created_at },
@@ -33,7 +33,7 @@ function createInitiativeProvider({ name, desc = "", created_at }) {
         name: plan.initiative.name,
         desc: plan.initiative.desc,
       };
-      if (plan.initiative.created_at) init.created_at = plan.initiative.created_at;
+      if (plan.initiative.created_at) {init.created_at = plan.initiative.created_at;}
       tx.createInitiative(init);
       return { result: { name: plan.initiative.name, desc: plan.initiative.desc }, effects: null };
     },
@@ -42,7 +42,8 @@ function createInitiativeProvider({ name, desc = "", created_at }) {
 
 function bootstrap(dir, mutate) {
   const base = {
-    version: 2,
+    version: 1,
+    revision: 0,
     nodes: {
       T1: {
         id: "T1",
@@ -58,13 +59,11 @@ function bootstrap(dir, mutate) {
     initiatives: { kernel: { desc: "kernel initiative", created_at: "2026-01-01T00:00:00.000Z" } },
     log: [],
   };
-  if (typeof mutate === "function") mutate(base);
-  return writeStateHelper(dir, base);
+  if (typeof mutate === "function") {mutate(base);}
+  return writeCanonicalState(dir, base);
 }
 
-// ===================================================================
 // Acceptance: kernel.mutate persists initiatives via the same writeState
-// ===================================================================
 
 test("kernel.mutate: createInitiative persists in the same writeState (no second updateState)", async () => {
   const { mutate } = await importKernel();
@@ -97,15 +96,13 @@ test("kernel.mutate: createInitiative persists in the same writeState (no second
     assert.equal(after.log[0].action, "initiative.create");
     assert.equal(after.log[0].node, "auth", "plan.target.id surfaces as the log node");
     // T1 revision unchanged — creating an initiative does NOT bump node.revision.
-    assert.equal(after.nodes.T1.revision, 3);
+    assert.equal(after.nodes.T1.revision, 4);
   } finally {
     await rmTempProject(dir);
   }
 });
 
-// ===================================================================
 // Acceptance: changing initiatives does NOT bump node.revision
-// ===================================================================
 
 test("kernel.mutate: creating an initiative alone does not bump any node revision", async () => {
   const { mutate } = await importKernel();
@@ -122,8 +119,8 @@ test("kernel.mutate: creating an initiative alone does not bump any node revisio
     });
     assert.equal(out.idempotent, false);
     const after = await readStateHelper(dir);
-    assert.equal(after.nodes.T1.revision, 3, "T1 revision unchanged");
-    assert.equal(after.nodes.T2.revision, 7, "T2 revision unchanged");
+    assert.equal(after.nodes.T1.revision, 8, "T1 revision unchanged");
+    assert.equal(after.nodes.T2.revision, 8, "T2 revision unchanged");
     assert.equal(out.diff.created.length, 0);
     assert.equal(out.diff.updated.length, 0);
   } finally {
@@ -131,9 +128,7 @@ test("kernel.mutate: creating an initiative alone does not bump any node revisio
   }
 });
 
-// ===================================================================
 // Acceptance: idempotency considers initiatives
-// ===================================================================
 
 test("kernel.mutate: idempotent provider (no draft change ⇒ no write, no log, no revision bump)", async () => {
   const { mutate } = await importKernel();
@@ -141,7 +136,7 @@ test("kernel.mutate: idempotent provider (no draft change ⇒ no write, no log, 
   try {
     await bootstrap(dir);
     const provider = {
-      prepare: async ({ snapshot }) => ({
+      prepare: async () => ({
         target: { id: "noop", kind: "initiative" },
         policyAction: null,
       }),
@@ -163,23 +158,22 @@ test("kernel.mutate: idempotent provider (no draft change ⇒ no write, no log, 
     // State file untouched: log has 0 entries, no extra initiative, T1 revision unchanged.
     assert.equal(after.log.length, 0);
     assert.equal(Object.keys(after.initiatives).length, 1);
-    assert.equal(after.nodes.T1.revision, 3);
+    assert.equal(after.nodes.T1.revision, 4);
   } finally {
     await rmTempProject(dir);
   }
 });
 
-// ===================================================================
 // Acceptance: node + initiative changes in the same apply persist together
-// ===================================================================
 
+// oxlint-disable-next-line max-statements, max-lines-per-function -- Keep this bounded regression test and its full assertions intact.
 test("kernel.mutate: combined node + initiative mutation persists both in one writeState", async () => {
   const { mutate } = await importKernel();
   const dir = await createTempProject();
   try {
     await bootstrap(dir);
     const provider = {
-      prepare: async ({ snapshot }) => ({
+      prepare: async () => ({
         target: { id: "T1", kind: "resolvable", subkind: "task" },
         policyAction: null,
       }),
@@ -191,7 +185,7 @@ test("kernel.mutate: combined node + initiative mutation persists both in one wr
     };
     const out = await mutate({
       projectDir: dir,
-      request: { action: "task.update+initiative.create", actor: "alice", input: {}, if_revision: { kind: "single", id: "T1", value: 3 } },
+      request: { action: "task.update+initiative.create", actor: "alice", input: {}, if_revision: { kind: "single", id: "T1", value: 4 } },
       provider,
     });
     assert.equal(out.idempotent, false);
@@ -203,7 +197,7 @@ test("kernel.mutate: combined node + initiative mutation persists both in one wr
 
     const after = await readStateHelper(dir);
     // Node bumped (T1 was updated).
-    assert.equal(after.nodes.T1.revision, 4);
+    assert.equal(after.nodes.T1.revision, 5);
     assert.equal(after.nodes.T1.title, "renamed-in-same-apply");
     // Initiative persisted.
     assert.deepEqual(after.initiatives.auth, { desc: "auth migration" });
@@ -211,7 +205,7 @@ test("kernel.mutate: combined node + initiative mutation persists both in one wr
     assert.equal(after.log.length, 1);
     assert.equal(after.log[0].action, "task.update+initiative.create");
     assert.equal(after.log[0].node, "T1");
-    assert.equal(after.log[0].revision, 4);
+    assert.equal(after.log[0].revision, 5);
     assert.ok(after.log[0].initiatives, "log entry should mention initiative changes");
     assert.deepEqual(after.log[0].initiatives.created, ["auth"]);
   } finally {
@@ -219,9 +213,7 @@ test("kernel.mutate: combined node + initiative mutation persists both in one wr
   }
 });
 
-// ===================================================================
 // Negative: provider fails inside apply ⇒ no initiatives persisted
-// ===================================================================
 
 test("kernel.mutate: apply throws after creating an initiative in the draft ⇒ nothing persisted", async () => {
   const { mutate } = await importKernel();
@@ -230,7 +222,7 @@ test("kernel.mutate: apply throws after creating an initiative in the draft ⇒ 
     await bootstrap(dir);
     const base = await readStateHelper(dir);
     const provider = {
-      prepare: async ({ snapshot }) => ({
+      prepare: async () => ({
         target: { id: "T1", kind: "resolvable", subkind: "task" },
         policyAction: null,
       }),
@@ -260,10 +252,8 @@ test("kernel.mutate: apply throws after creating an initiative in the draft ⇒ 
   }
 });
 
-// ===================================================================
 // Isolation: existing tests' invariant still holds (T1 unchanged when
 // an unrelated initiative is created).
-// ===================================================================
 
 test("kernel.mutate: snapshot's initiatives map is preserved when only a new one is added", async () => {
   const { mutate } = await importKernel();
@@ -284,9 +274,7 @@ test("kernel.mutate: snapshot's initiatives map is preserved when only a new one
   }
 });
 
-// ===================================================================
 // Acceptance: the built-in initiative provider may bootstrap once
-// ===================================================================
 
 test("kernel.mutate: initiative.create bootstraps an absent state in one write", async () => {
   const { mutate } = await importKernel();
@@ -301,8 +289,8 @@ test("kernel.mutate: initiative.create bootstraps an absent state in one write",
     });
     assert.equal(out.idempotent, false);
     const after = await readStateHelper(dir);
-    assert.equal(after.version, 4);
-    assert.equal(after.revision, 1);
+    assert.equal(after.version, 1);
+    assert.equal(after.revision, 2, "bootstrap reserves revision 1; the create commits revision 2");
     assert.deepEqual(after.nodes, {});
     assert.deepEqual(after.edges, []);
     assert.deepEqual(after.initiatives.bootstrap, { desc: "first project", created_at: after.initiatives.bootstrap.created_at });

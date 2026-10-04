@@ -1,15 +1,14 @@
 // B2 — pure primitives for graph edges.
 //
-// ADR-011 §§2–3 + ADR-012 §3 + plan §B2:
+
 // `src/kernel/edges.mjs` owns EDGE_TYPES, existingEdge, blocksEdge and
-// validateEdge. These are the structural primitives the kernel and v2 facade
+
 // share. No filesystem, no locks, no providers, no state mutation.
 //
 // Conventions:
-//   - pure-function tests; import the module fresh per case for isolation;
+
 //   - one focused assertion per test (code + details where relevant);
 //   - errors come from src/contracts/errors.mjs (throwV2); message and code must be
-//     preserved so existing v2 consumers keep working.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -27,7 +26,7 @@ const knowledgeNode = (id) => ({ id, kind: "knowledge", title: id });
 
 test("EDGE_TYPES: lists BLOCKS, SUPERSEDES, DERIVED_FROM only", async () => {
   const { EDGE_TYPES } = await importFresh("../src/kernel/edges.mjs");
-  assert.deepEqual([...EDGE_TYPES].sort(), ["BLOCKS", "DERIVED_FROM", "SUPERSEDES"]);
+  assert.deepEqual([...EDGE_TYPES].toSorted(), ["BLOCKS", "DERIVED_FROM", "SUPERSEDES"]);
 });
 
 test("EDGE_TYPES: omits deprecated informational/conflict types (INFORMS, RELATES_TO, CONFLICTS_WITH)", async () => {
@@ -96,7 +95,7 @@ test("blocksEdge: produces the canonical BLOCKS edge shape", async () => {
 test("blocksEdge: direction is 'blocker BLOCKS blocked' (first arg is the blocker)", async () => {
   const { blocksEdge } = await importFresh("../src/kernel/edges.mjs");
   const edge = blocksEdge("G-x", "T-y");
-  // B is the blocked (dependent) node. Edge reads "G-x BLOCKS T-y".
+
   assert.equal(edge.from, "G-x");
   assert.equal(edge.to, "T-y");
   assert.equal(edge.type, "BLOCKS");
@@ -251,14 +250,14 @@ test("validateEdge: handles missing state.nodes field defensively", async () => 
 
 test("validateEdge: BLOCKS direction is preserved — from=blocker, to=blocked (both ends required to be resolvable)", async () => {
   const { validateEdge } = await importFresh("../src/kernel/edges.mjs");
-  // The original BLOCKS direction is from-blocker to-blocked; reversing the
+
   // ends changes which side the validation looks at. Both must be resolvable.
   const state = makeState({ A: resolvableTask("A"), B: resolvableGate("B") });
-  // A (task) BLOCKS B (gate): valid (both resolvable).
+
   assert.doesNotThrow(() =>
     validateEdge(state, { from: "A", to: "B", type: "BLOCKS" }, "cmd"),
   );
-  // B (gate) BLOCKS A (task): also valid (both resolvable).
+
   assert.doesNotThrow(() =>
     validateEdge(state, { from: "B", to: "A", type: "BLOCKS" }, "cmd"),
   );

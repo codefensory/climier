@@ -1,9 +1,7 @@
 // src/providers/core/initiative.mjs — pure provider for `initiative.create`.
-//
 // Provides the graph kernel's initiative-only operation, mirroring the
 // public `add-initiative` CLI contract while running through `kernel.mutate`.
-//
-// Contract (ADR-011 §1):
+
 //   - `prepare` is read-only. It validates the input shape, the
 //     canonical `name` (`^[A-Za-z0-9_-]+$`, matching the
 //     add-initiative whitelist), the optional `desc`, and rejects
@@ -37,11 +35,30 @@ function asNonEmptyString(value) {
 }
 
 function readSnapshotInitiatives(snapshot) {
-  // initiatives: { name -> { desc?, created_at? } }. The v2 schema
-  // keeps it as a plain object; defensively handle a partial snapshot.
+
   return snapshot && snapshot.initiatives && typeof snapshot.initiatives === "object" && !Array.isArray(snapshot.initiatives)
     ? snapshot.initiatives
     : {};
+}
+
+function validateName(name) {
+  if (!NAME_PATTERN.test(name)) {
+    throwV2(
+      "INVALID_NAME",
+      `${OP}: name '${name}' is invalid (must match ${NAME_PATTERN})`,
+      { name, pattern: NAME_PATTERN.source },
+    );
+  }
+}
+
+function validateDesc(desc) {
+  if (desc !== undefined && desc !== null && typeof desc !== "string") {
+    throwV2(
+      "INVALID_EXECUTION_CONTRACT",
+      `${OP}: --desc must be a string when present`,
+      { field: "desc" },
+    );
+  }
 }
 
 function validateInputShape(input) {
@@ -56,24 +73,12 @@ function validateInputShape(input) {
   if (!name) {
     throwV2("MISSING_FIELD", `${OP}: --name required (e.g. --name auth-migration)`, { field: "name" });
   }
-  if (!NAME_PATTERN.test(name)) {
-    throwV2(
-      "INVALID_NAME",
-      `${OP}: name '${name}' is invalid (must match ${NAME_PATTERN})`,
-      { name, pattern: NAME_PATTERN.source },
-    );
-  }
+  validateName(name);
   // desc is optional. When present it must be a string; missing desc is
   // normalized to "" while the provider keeps the input strictly typed
   // so the kernel diff stays unambiguous (an absent desc and an empty
   // desc are different states).
-  if (input.desc !== undefined && input.desc !== null && typeof input.desc !== "string") {
-    throwV2(
-      "INVALID_EXECUTION_CONTRACT",
-      `${OP}: --desc must be a string when present`,
-      { field: "desc" },
-    );
-  }
+  validateDesc(input.desc);
   return { name };
 }
 
@@ -101,9 +106,7 @@ function validateNoConflict(name, snapshot) {
  *
  * Contract:
  *   - read-only: never mutates the snapshot, never reaches outside
- *     the provided arguments;
  *   - validates input shape, name pattern, optional desc type, and
- *     rejects names already registered in the snapshot;
  *   - returns a frozen plan: `{ target, policyAction, logAction,
  *     initiative }`. `target.id` is the initiative name so the
  *     kernel can build a log entry without learning the initiative
@@ -141,7 +144,7 @@ async function prepare({ snapshot, input, request }) {
     target: Object.freeze({
       id: name,
       // `kind` is a registry-internal marker for `initiative.create`
-      // (no v2 node has `kind === "initiative"`); kernel.mutate
+
       // reads only `target.id` for the log entry, but downstream
       // consumers (audit / inspector tools) may inspect `kind` to
       // distinguish initiative operations from resolvable/knowledge
@@ -158,9 +161,6 @@ async function prepare({ snapshot, input, request }) {
  * Pure `apply` for initiative.create.
  *
  * Contract:
- *   - mutates the tx draft only via exactly one `tx.createInitiative`;
- *   - reads no clock, no filesystem, no lock, no state, no log;
- *   - never writes `revision` (the kernel diff owns it);
  *   - returns `{ result, effects }` with the persisted initiative
  *     shape projected for the caller.
  *
@@ -201,9 +201,7 @@ async function apply({ tx, plan, input, request, snapshot }) {
   };
 }
 
-// This is the only built-in provider allowed to initialize a missing v2
-// state. kernel.mutate checks this explicit capability together with the
-// operation id; other providers retain the run-init-first failure.
+
 export const initiativeCreateProvider = Object.freeze({
   prepare,
   apply,

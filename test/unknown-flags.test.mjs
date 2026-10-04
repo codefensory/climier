@@ -15,15 +15,18 @@ async function seedV2(dir) {
   return JSON.parse(r.stdout).node.id;
 }
 
-test("CLI: take --banana exits non-zero with JSON error on stdout", async () => {
+test("CLI: take --banana returns a structured usage error", async () => {
   const dir = await createTempProject();
   try {
     const id = await seedV2(dir);
     const r = await runCli(["--project", dir, "take", id, "--as", "alice", "--banana", "split"]);
-    assert.notEqual(r.code, 0);
+    assert.equal(r.code, 2);
     const data = JSON.parse(r.stdout);
     assert.equal(data.ok, false);
-    assert.match(data.error, /unknown flag --banana/);
+    assert.equal(data.error.code, "CLI_USAGE_ERROR");
+    assert.equal(data.error.details.command, "take");
+    assert.equal(data.error.details.flag, "banana");
+    assert.deepEqual(data.error.details.valid_flags, ["as"]);
     assert.equal(r.stderr.trim(), "");
   } finally {
     await rmTempProject(dir);
@@ -40,7 +43,9 @@ test("CLI: resolve --foo exits non-zero with JSON error on stdout", async () => 
     assert.notEqual(r.code, 0);
     const data = JSON.parse(r.stdout);
     assert.equal(data.ok, false);
-    assert.match(data.error, /unknown flag --foo/);
+    assert.equal(data.error.code, "CLI_USAGE_ERROR");
+    assert.equal(data.error.details.command, "resolve");
+    assert.equal(data.error.details.flag, "foo");
   } finally {
     await rmTempProject(dir);
   }
@@ -54,7 +59,9 @@ test("CLI: status --watch exits non-zero with JSON error on stdout", async () =>
     assert.notEqual(r.code, 0);
     const data = JSON.parse(r.stdout);
     assert.equal(data.ok, false);
-    assert.match(data.error, /unknown flag --watch/);
+    assert.equal(data.error.code, "CLI_USAGE_ERROR");
+    assert.equal(data.error.details.command, "status");
+    assert.equal(data.error.details.flag, "watch");
   } finally {
     await rmTempProject(dir);
   }
@@ -68,20 +75,24 @@ test("CLI: update --color exits non-zero with JSON error on stdout", async () =>
     assert.notEqual(r.code, 0);
     const data = JSON.parse(r.stdout);
     assert.equal(data.ok, false);
-    assert.match(data.error, /unknown flag --color/);
+    assert.equal(data.error.code, "CLI_USAGE_ERROR");
+    assert.equal(data.error.details.command, "update");
+    assert.equal(data.error.details.flag, "color");
   } finally {
     await rmTempProject(dir);
   }
 });
 
-test("CLI: error message lists the valid flags for the command", async () => {
+test("CLI: unknown flag details list valid flags for the command", async () => {
   const dir = await createTempProject();
   try {
     const id = await seedV2(dir);
     const r = await runCli(["--project", dir, "take", id, "--banana"]);
-    assert.notEqual(r.code, 0);
+    assert.equal(r.code, 2);
     const data = JSON.parse(r.stdout);
-    assert.match(data.error, /valid flags: --as/);
+    assert.equal(data.error.code, "CLI_USAGE_ERROR");
+    assert.equal(data.error.details.command, "take");
+    assert.deepEqual(data.error.details.valid_flags, ["as"]);
   } finally {
     await rmTempProject(dir);
   }

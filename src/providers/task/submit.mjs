@@ -1,6 +1,5 @@
-// src/providers/task/submit.mjs — pure provider for `task.submit`.
-//
-// Submission is the worker-owned transition from in_progress to submitted.
+
+// Submission is the transition from in_progress to submitted.
 // The provider validates against the fresh snapshot and applies only through
 // the transaction draft; locking, persistence, revisions and audit logging
 // remain kernel responsibilities.
@@ -43,14 +42,48 @@ function validateInputShape(input, request) {
   if (!asNonEmptyString(input.note)) {
     throwV2("MISSING_FIELD", `${OP}: --note required`, { field: "note" });
   }
-  if (input.submitted_at !== undefined && !asNonEmptyString(input.submitted_at)) {
-    throwV2(
-      "INVALID_EXECUTION_CONTRACT",
-      `${OP}: input.submitted_at must be a non-empty string when present`,
-      { field: "submitted_at" },
-    );
-  }
+  validateSubmittedAt(input);
   return actor;
+}
+
+function validateSubmittedAt(input) {
+  if (input.submitted_at !== undefined && !asNonEmptyString(input.submitted_at)) {
+    throwV2("INVALID_EXECUTION_CONTRACT", `${OP}: input.submitted_at must be a non-empty string when present`, {
+      field: "submitted_at",
+    });
+  }
+}
+
+function validateTaskNode(input, node) {
+  if (node.kind !== TASK_KIND || node.subkind !== TASK_SUBKIND) {
+    throwV2("INVALID_EXECUTION_CONTRACT", `${OP}: node '${input.id}' is not a task (got ${node.kind}/${node.subkind || "?"})`, {
+      id: input.id,
+      kind: node.kind,
+      subkind: node.subkind || null,
+    });
+  }
+}
+
+function validateSubmitStatus(input, node) {
+  const status = node.status || "open";
+  if (status !== REQUIRED_STATUS) {
+    throwV2("INVALID_STATUS", `${OP}: task '${input.id}' cannot be submitted from status '${status}'`, {
+      id: input.id,
+      current: status,
+      allowed: [REQUIRED_STATUS],
+    });
+  }
+}
+
+function validateSubmitOwner(input, node, actor) {
+  const owner = node.claim && asNonEmptyString(node.claim.by);
+  if (!owner || owner !== actor) {
+    throwV2("NOT_OWNER", `${OP}: actor '${actor}' does not own task '${input.id}'`, {
+      id: input.id,
+      actor,
+      owner: owner || null,
+    });
+  }
 }
 
 function validateTarget(input, snapshot, actor) {
@@ -58,34 +91,13 @@ function validateTarget(input, snapshot, actor) {
   if (!node) {
     throwV2("NODE_NOT_FOUND", `${OP}: task '${input.id}' not found`, { id: input.id });
   }
-  if (node.kind !== TASK_KIND || node.subkind !== TASK_SUBKIND) {
-    throwV2(
-      "INVALID_EXECUTION_CONTRACT",
-      `${OP}: node '${input.id}' is not a task (got ${node.kind}/${node.subkind || "?"})`,
-      { id: input.id, kind: node.kind, subkind: node.subkind || null },
-    );
-  }
-  const status = node.status || "open";
-  if (status !== REQUIRED_STATUS) {
-    throwV2(
-      "INVALID_STATUS",
-      `${OP}: task '${input.id}' cannot be submitted from status '${status}'`,
-      { id: input.id, current: status, allowed: [REQUIRED_STATUS] },
-    );
-  }
-  const owner = node.claim && asNonEmptyString(node.claim.by);
-  if (!owner || owner !== actor) {
-    throwV2(
-      "NOT_OWNER",
-      `${OP}: actor '${actor}' does not own task '${input.id}'`,
-      { id: input.id, actor, owner: owner || null },
-    );
-  }
+  validateTaskNode(input, node);
+  validateSubmitStatus(input, node);
+  validateSubmitOwner(input, node, actor);
   return node;
 }
 
 /**
- * Pure `prepare` for task.submit.
  *
  * @param {{ snapshot: object, input: object, request: object }} args
  * @returns {object} frozen plan
@@ -114,7 +126,6 @@ async function prepare({ snapshot, input, request }) {
 }
 
 /**
- * Pure `apply` for task.submit. Submission deliberately has no readiness
  * effect: only a later acceptance can satisfy BLOCKS edges.
  *
  * @param {{ tx: object, plan: object }} args

@@ -1,5 +1,4 @@
 // Stable kernel mutation façade.
-//
 // The façade owns only the public entry point, the project lock and the
 // async-chain re-entrancy guard. The mutation algorithm lives in
 // ./mutation/execute.mjs. Pure helper exports below are retained for
@@ -46,11 +45,57 @@ function currentNestedDepth() {
   return typeof store === "number" ? store : 0;
 }
 
-/**
- * Stable kernel mutation API. All reads, provider callbacks and persistence
- * run through one project lock and are delegated to the execution coordinator.
- */
-export async function mutate({ projectDir, request, provider, policyAction, pluginId, stateOperation, batch }) {
+
+function takeoverAbstainError(args) {
+  const error = new Error(`take: task '${args.target.id}' is already claimed`);
+  error.code = "POLICY_TAKEOVER_ABSTAIN";
+  error.details = { id: args.target.id, owner: args.target.previous_owner || null };
+  return error;
+}
+
+function policyDecision(policyAction, selectedAction, args) {
+  if (typeof policyAction.decide !== "function") {return { decision: "abstain" };}
+  return policyAction.decide({ ...args, action: selectedAction });
+}
+
+function wrapPrepare(request, provider, selectAction) {
+  return {
+    ...provider,
+    async prepare(args) {
+      const plan = await provider.prepare(args);
+      if (plan && plan.policyAction && typeof plan.policyAction.action === "string" && plan.policyAction.action.length > 0) {
+        selectAction(plan.policyAction.action);
+      }
+      if (plan && typeof plan.logAction === "string" && plan.logAction.length > 0) {request.action = plan.logAction;}
+      return plan;
+    },
+  };
+}
+
+function wrapPolicyAction(policyAction, getAction) {
+  return {
+    ...policyAction,
+    get action() { return getAction(); },
+    async decide(args) {
+      const selectedAction = getAction();
+      const decision = policyAction ? await policyDecision(policyAction, selectedAction, args) : { decision: "abstain" };
+      if (selectedAction === "task.takeover" && decision && decision.decision === "abstain") {throw takeoverAbstainError(args);}
+      return decision;
+    },
+  };
+}
+
+function selectPolicyAndAuditFromPlan({ request, provider, policyAction }) {
+  let selectedAction = request.action;
+  const wrappedProvider = wrapPrepare(request, provider, (action) => { selectedAction = action; });
+  const wrappedPolicyAction = wrapPolicyAction(policyAction, () => selectedAction);
+  return { provider: wrappedProvider, policyAction: wrappedPolicyAction };
+}
+
+export async function mutate({ projectDir, request, provider, policyAction, policyActionFromPlan, pluginId, stateOperation, batch }) {
+  if (policyActionFromPlan === true) {
+    ({ provider, policyAction } = selectPolicyAndAuditFromPlan({ request, provider, policyAction }));
+  }
   const commandName = validateMutationArguments({ request, provider, stateOperation, batch });
   const parentDepth = currentNestedDepth();
   if (parentDepth > 0) {
@@ -62,8 +107,9 @@ export async function mutate({ projectDir, request, provider, policyAction, plug
   }
 
   return nestedDepthStorage.run(parentDepth + 1, () =>
-    withLock(projectDir, () => executeMutation({
+    withLock(projectDir, (lockContext) => executeMutation({
       projectDir,
+      lockContext,
       request,
       provider,
       policyAction,
@@ -74,7 +120,7 @@ export async function mutate({ projectDir, request, provider, policyAction, plug
   );
 }
 
-export const __kernelInternals = Object.freeze({
+const kernelInternals = Object.freeze({
   commandLabel,
   operationLabel,
   executeMutation,
@@ -96,3 +142,5 @@ export const __kernelInternals = Object.freeze({
   normalizeLogFields,
   buildLogEntry,
 });
+
+export { kernelInternals as "__kernelInternals" };

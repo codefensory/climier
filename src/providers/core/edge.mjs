@@ -1,9 +1,7 @@
 // src/providers/core/edge.mjs — pure provider for `edge.add`.
-//
 // Provides the graph kernel's edge-only operation, mirroring the public
 // `add-edge` CLI contract while running through `kernel.mutate`.
-//
-// Contract (ADR-011 §1):
+
 //   - `prepare` is read-only. It validates the input shape, normalizes
 //     the edge type to the canonical uppercase whitelist, validates
 //     both endpoints against the snapshot, rejects self-edges and
@@ -112,10 +110,8 @@ function validateNoSnapshotDuplicate(from, to, type, snapshot) {
  *
  * Contract:
  *   - read-only: never mutates the snapshot, never reaches outside the
- *     provided arguments;
  *   - validates input shape, normalizes type to uppercase, validates
  *     endpoints against the snapshot, rejects self-edges and
- *     duplicates already present in the snapshot;
  *   - returns a frozen plan: `{ target, policyAction, logAction,
  *     edge }`. `target.id` is the BLOCKS `to` endpoint so
  *     `kernel.mutate` can build its log entry without learning about
@@ -159,8 +155,6 @@ async function prepare({ snapshot, input, request }) {
  * Pure `apply` for edge.add.
  *
  * Contract:
- *   - mutates the tx draft only via exactly one `tx.addEdge`;
- *   - never writes revision, never calls fs/lock/state/log/handler;
  *   - returns `{ result, effects }` with the persisted edge shape.
  *
  * @param {{ tx: object, plan: object, input: object, request: object, snapshot: object }} args
@@ -244,7 +238,9 @@ async function applyRemove({ tx, plan, input, request, snapshot }) {
       { field: "tx" },
     );
   }
-  if (plan.removed) tx.removeEdge(plan.edge);
+  if (plan.removed) {
+    tx.removeEdge(plan.edge);
+  }
   return {
     result: Object.freeze({
       edge: Object.freeze({ from: plan.edge.from, to: plan.edge.to, type: plan.edge.type }),

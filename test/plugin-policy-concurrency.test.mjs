@@ -1,16 +1,15 @@
-// T-plugin-policy-migration-tests — concurrency matrix for the policy seam.
+
 //
-// ADR-008 §"Seam por handler" requires the seam's authorize() to run
+
 // INSIDE the handler's withLock block, so the lock is held for the
 // full duration of the policy decision. Concurrent takes against the
 // same CLIMIER_HOME / project state exercise:
 //
-//   1. Free take race           → two processes take the same task
+
 //                                  concurrently; one wins the original
-//                                  `task.take`, the other sees an
+
 //                                  in_progress claim and turns into a
-//                                  `task.takeover`. With mode=allow,
-//                                  the takeover succeeds and the final
+
 //                                  owner is the second process.
 //   2. Takeover deny            → second process gets POLICY_DENIED,
 //                                  no state mutation, no log entry.
@@ -43,8 +42,6 @@ import {
   runCli,
   readState,
   installPolicyFixture,
-  uninstallPolicyFixture,
-  stateFilePath,
 } from "./helpers.mjs";
 
 const REPO_ROOT = path.resolve(".");
@@ -64,10 +61,17 @@ async function withFreshEnv(body) {
   try {
     return await body({ home, projectDir });
   } finally {
-    if (prev.CLIMIER_HOME === undefined) delete process.env.CLIMIER_HOME;
-    else process.env.CLIMIER_HOME = prev.CLIMIER_HOME;
-    if (prev.CLIMIER_AGENT === undefined) process.env.CLIMIER_AGENT = prev.CLIMIER_AGENT;
-    else process.env.CLIMIER_AGENT = prev.CLIMIER_AGENT;
+    if (prev.CLIMIER_HOME === undefined) {
+      delete process.env.CLIMIER_HOME;
+    } else {
+      process.env.CLIMIER_HOME = prev.CLIMIER_HOME;
+    }
+    if (prev.CLIMIER_AGENT === undefined) {
+      delete process.env.CLIMIER_AGENT;
+    } else {
+      process.env.CLIMIER_AGENT = prev.CLIMIER_AGENT;
+    }
+
     await fs.rm(home, { recursive: true, force: true });
     await rmTempProject(projectDir);
   }
@@ -83,14 +87,16 @@ async function cli(args) {
         `stderr: ${result.stderr}`,
     );
   }
-  if (!result.stdout.trim()) return null;
+  if (!result.stdout.trim()) {
+    return null;
+  }
   return JSON.parse(result.stdout);
 }
 
 async function writeClimierJson(projectDir, mode, extra = {}) {
   // project_id MUST be pinned before init so the state file lands in
   // <CLIMIER_HOME>/projects/<project_id>/tasks.json and both children
-  // resolve to the same path (same as plugin-policy-seam-* helpers).
+
   const value = {
     version: 1,
     project_id: "policy-concurrency-project",
@@ -114,7 +120,7 @@ function spawnCli(args, { env } = {}) {
     let proc;
     try {
       proc = spawn("node", [BIN, ...args], {
-        env: { ...process.env, ...(env || {}), NO_COLOR: "1" },
+        env: { ...process.env, ...env, NO_COLOR: "1" },
       });
     } catch (err) {
       reject(err);
@@ -143,9 +149,127 @@ async function bootstrap(projectDir, mode, extra = {}) {
   await installPolicyFixture(projectDir);
 }
 
-// ===========================================================================
-// 1. Free take race: one wins task.take, the other transitions to task.takeover
-// ===========================================================================
+function isConcurrentTaskTake(entry) {
+  return entry.action === "take" && entry.node === "T-conc-1";
+}
+
+function hasPreviousOwner(entry) {
+  return Boolean(entry.previous_owner);
+}
+
+function isBobEntry(entry) {
+  return entry.agent === "bob";
+}
+
+function isFreeTake(entry) {
+  return !entry.previous_owner;
+}
+
+function assertBobDidNotMutate(state, previousState, message) {
+  assert.equal(state.nodes["T-conc-1"].claim.by, "alice");
+  assert.equal(
+    state.nodes["T-conc-1"].revision,
+    previousState.nodes["T-conc-1"].revision,
+    message,
+  );
+  assertNoBobLogEntries(state);
+}
+
+function assertNoBobLogEntries(state) {
+  const bobLogEntries = state.log.filter(isBobEntry);
+  assert.equal(bobLogEntries.length, 0, `no log entry should be added for bob; got ${JSON.stringify(bobLogEntries)}`);
+}
+
+function contentionTakeArgs(projectDir, index) {
+  return [
+    "--project", projectDir, "--as", `agent-${index}`,
+    "take", "T-conc-1",
+  ];
+}
+
+function spawnContentionTake(projectDir, index) {
+  return spawnCli(contentionTakeArgs(projectDir, index));
+}
+
+async function spawnContendingChildren(projectDir, fanout) {
+  const results = [];
+  for (let index = 0; index < fanout; index++) {
+    results.push(spawnContentionTake(projectDir, index));
+  }
+  return Promise.all(results);
+}
+
+function assertTakeoverChain(takeEntries) {
+  const withPreviousOwner = takeEntries.filter(hasPreviousOwner);
+  assert.equal(withPreviousOwner.length, 1, "expected exactly one takeover");
+  const takeoverEntry = withPreviousOwner[0];
+  const firstEntry = takeEntries.find((entry) => entry !== takeoverEntry);
+  assert.equal(firstEntry.previous_owner, undefined, "first take must not carry previous_owner");
+  assert.equal(takeoverEntry.previous_owner, firstEntry.agent, "takeover previous_owner must equal the first take's agent");
+  return takeoverEntry;
+}
+
+function assertIntactLogEntries(takeEntries) {
+  for (const entry of takeEntries) {
+    assert.equal(typeof entry.ts, "string");
+    assert.equal(typeof entry.action, "string");
+    assert.equal(typeof entry.agent, "string");
+    assert.equal(typeof entry.node, "string");
+  }
+}
+
+function assertSuccessfulChildProcesses(results) {
+  for (const result of results) {
+    assert.equal(result.code, 0, `child failed\nstdout: ${result.stdout}\nstderr: ${result.stderr}`);
+  }
+}
+
+function assertContentionSnapshot(state, fanout) {
+  assert.ok(state.nodes["T-conc-1"].claim, "claim must exist");
+  assert.equal(typeof state.nodes["T-conc-1"].claim.by, "string");
+  assert.equal(state.nodes["T-conc-1"].status, "in_progress");
+  const takeEntries = state.log.filter(isConcurrentTaskTake);
+  assert.equal(takeEntries.length, fanout, `expected ${fanout} take entries; got ${takeEntries.length}`);
+  const freeTake = takeEntries.find(isFreeTake);
+  assert.ok(freeTake, "exactly one free take must exist");
+  const takeovers = takeEntries.filter(hasPreviousOwner);
+  assert.equal(takeovers.length, fanout - 1);
+  for (let i = 0; i < takeovers.length; i++) {
+    const previousAgents = [freeTake.agent];
+    for (let priorIndex = 0; priorIndex < i; priorIndex++) {
+      previousAgents.push(takeovers[priorIndex].agent);
+    }
+    assert.ok(
+      previousAgents.includes(takeovers[i].previous_owner),
+      `takeover ${i} previous_owner=${takeovers[i].previous_owner} must be an earlier taker; candidates=${JSON.stringify(previousAgents)}`,
+    );
+  }
+  assert.equal(state.nodes["T-conc-1"].claim.by, takeEntries.at(-1).agent);
+  assertIntactLogEntries(takeEntries);
+}
+
+function assertSlowTakeResults(results, timings) {
+  const { aliceRes, bobRes } = results;
+  const { aliceElapsed, bobElapsed, slowMs } = timings;
+  assert.ok(
+    aliceElapsed >= slowMs,
+    `alice must have slept ≥${slowMs}ms; elapsed=${aliceElapsed}ms`,
+  );
+  assert.equal(aliceRes.code, 0, `alice failed\nstdout: ${aliceRes.stdout}\nstderr: ${aliceRes.stderr}`);
+  assert.equal(bobRes.code, 0, `bob failed\nstdout: ${bobRes.stdout}\nstderr: ${bobRes.stderr}`);
+  assert.ok(
+    bobElapsed >= slowMs - 30,
+    `bob must have waited at least until alice's seam returned (≈${slowMs - 30}ms); elapsed=${bobElapsed}ms`,
+  );
+}
+
+async function assertSlowTakeState(projectDir) {
+  const state = await readState(projectDir);
+  const claimEntries = state.log.filter(isConcurrentTaskTake);
+  assert.equal(claimEntries.length, 2);
+  const takeoverEntry = assertTakeoverChain(claimEntries);
+  assert.equal(state.nodes["T-conc-1"].claim.by, takeoverEntry.agent);
+}
 
 test("policy-concurrency: two concurrent takes — one wins task.take, the other sees task.takeover and (with allow) wins the claim", async () => {
   await withFreshEnv(async ({ projectDir }) => {
@@ -166,34 +290,24 @@ test("policy-concurrency: two concurrent takes — one wins task.take, the other
     ]);
 
     // Both processes must finish — one is the original task.take winner,
-    // the other is a task.takeover that the policy authorised.
+
     assert.equal(aliceRes.code, 0, `alice failed\nstdout: ${aliceRes.stdout}\nstderr: ${aliceRes.stderr}`);
     assert.equal(bobRes.code, 0, `bob failed\nstdout: ${bobRes.stdout}\nstderr: ${bobRes.stderr}`);
 
     // State integrity: exactly one claim owner per node.
     const s = await readState(projectDir);
-    const claimEntries = s.log.filter((e) => e.action === "take" && e.node === "T-conc-1");
+    const claimEntries = s.log.filter(isConcurrentTaskTake);
     assert.equal(claimEntries.length, 2, `expected 2 take entries, got ${claimEntries.length}`);
     assert.equal(s.nodes["T-conc-1"].claim.by === "alice" || s.nodes["T-conc-1"].claim.by === "bob", true);
     assert.equal(s.nodes["T-conc-1"].status, "in_progress");
 
-    // previous_owner is set on the second take entry (takeover), never on
-    // the first (free take). Exactly one entry has previous_owner set.
-    const withPrev = claimEntries.filter((e) => e.previous_owner);
-    assert.equal(withPrev.length, 1, `expected exactly 1 takeover entry with previous_owner, got ${withPrev.length}`);
-    const takeoverEntry = withPrev[0];
-    const firstEntry = claimEntries.find((e) => e !== takeoverEntry);
-    assert.equal(firstEntry.previous_owner, undefined, "first take must not carry previous_owner");
-    assert.equal(takeoverEntry.previous_owner, firstEntry.agent, "takeover previous_owner must equal the first take's agent");
-
-    // Final owner is the second process (the one that did the takeover).
+    // previous_owner records the single takeover and final owner.
+    const takeoverEntry = assertTakeoverChain(claimEntries);
     assert.equal(s.nodes["T-conc-1"].claim.by, takeoverEntry.agent);
   });
 });
 
-// ===========================================================================
 // 2. Takeover deny — second process gets POLICY_DENIED, no log entry
-// ===========================================================================
 
 test("policy-concurrency: takeover with policy deny returns POLICY_DENIED with no state mutation and no log entry", async () => {
   await withFreshEnv(async ({ projectDir }) => {
@@ -225,19 +339,15 @@ test("policy-concurrency: takeover with policy deny returns POLICY_DENIED with n
       "revision must not change when deny short-circuits",
     );
 
-    const takeEntries = after.log.filter((e) => e.action === "take" && e.node === "T-conc-1");
+    const takeEntries = after.log.filter(isConcurrentTaskTake);
     assert.equal(takeEntries.length, 1, `expected 1 take entry (alice's), got ${takeEntries.length}`);
-
     // The deny decision MUST NOT add a success log entry. The only log
     // entry added during the deny should be a single 'take' from alice.
-    const bobLogEntries = after.log.filter((e) => e.agent === "bob");
-    assert.equal(bobLogEntries.length, 0, `deny must not add any log entry for bob; got ${JSON.stringify(bobLogEntries)}`);
+    assertNoBobLogEntries(after);
   });
 });
 
-// ===========================================================================
 // 3. Takeover abstain — second process gets ALREADY_CLAIMED, no log entry
-// ===========================================================================
 
 test("policy-concurrency: takeover with policy abstain returns ALREADY_CLAIMED with no state mutation and no log entry", async () => {
   await withFreshEnv(async ({ projectDir }) => {
@@ -259,19 +369,14 @@ test("policy-concurrency: takeover with policy abstain returns ALREADY_CLAIMED w
     assert.equal(body.error.details.owner, "alice");
 
     const after = await readState(projectDir);
-    assert.equal(after.nodes["T-conc-1"].claim.by, "alice");
-    assert.equal(after.nodes["T-conc-1"].revision, before.nodes["T-conc-1"].revision);
+    assertBobDidNotMutate(after, before, "revision must not change when abstain short-circuits");
 
-    const takeEntries = after.log.filter((e) => e.action === "take" && e.node === "T-conc-1");
+    const takeEntries = after.log.filter(isConcurrentTaskTake);
     assert.equal(takeEntries.length, 1);
-    const bobLogEntries = after.log.filter((e) => e.agent === "bob");
-    assert.equal(bobLogEntries.length, 0, `abstain must not add any log entry for bob; got ${JSON.stringify(bobLogEntries)}`);
   });
 });
 
-// ===========================================================================
 // 4. Slow policy under lock — lock is held during authorizeAction sleep
-// ===========================================================================
 
 test("policy-concurrency: a slow policy under the lock delays a concurrent take until the seam returns", async () => {
   await withFreshEnv(async ({ projectDir }) => {
@@ -303,111 +408,37 @@ test("policy-concurrency: a slow policy under the lock delays a concurrent take 
     const aliceElapsed = Date.now() - aliceStart;
     const bobElapsed = Date.now() - bobStart;
 
-    // Alice must have slept at least slowMs (the seam held the lock for
-    // that long).
-    assert.ok(
-      aliceElapsed >= slowMs,
-      `alice must have slept ≥${slowMs}ms; elapsed=${aliceElapsed}ms`,
+    // Assert elapsed time and owner transition to prove the lock spans the seam.
+    assertSlowTakeResults(
+      { aliceRes, bobRes },
+      { aliceElapsed, bobElapsed, slowMs },
     );
-
-    // Bob must have arrived AFTER alice was well into her sleep. With
-    // policy=allow, bob will succeed as a takeover and end up as the
-    // final owner.
-    assert.equal(aliceRes.code, 0, `alice failed\nstdout: ${aliceRes.stdout}\nstderr: ${aliceRes.stderr}`);
-    assert.equal(bobRes.code, 0, `bob failed\nstdout: ${bobRes.stdout}\nstderr: ${bobRes.stderr}`);
-    assert.ok(
-      bobElapsed >= slowMs - 30,
-      `bob must have waited at least until alice's seam returned (≈${slowMs - 30}ms); elapsed=${bobElapsed}ms`,
-    );
-
-    const s = await readState(projectDir);
-    const claimEntries = s.log.filter((e) => e.action === "take" && e.node === "T-conc-1");
-    assert.equal(claimEntries.length, 2);
-    const withPrev = claimEntries.filter((e) => e.previous_owner);
-    assert.equal(withPrev.length, 1, `expected exactly 1 takeover entry; got ${withPrev.length}`);
-    assert.equal(s.nodes["T-conc-1"].claim.by, withPrev[0].agent);
-    assert.equal(withPrev[0].previous_owner, claimEntries.find((e) => e !== withPrev[0]).agent);
+    await assertSlowTakeState(projectDir);
   });
 });
 
-// ===========================================================================
 // 5. State integrity — interleaving-free under contention
-// ===========================================================================
 
 test("policy-concurrency: state file remains coherent under contention (no torn writes, exactly one claim owner)", async () => {
   await withFreshEnv(async ({ projectDir }) => {
     await bootstrap(projectDir, "allow");
 
     const FANOUT = 6;
-    const args = Array.from({ length: FANOUT }, (_, i) => ([
-      "--project", projectDir, "--as", `agent-${i}`,
-      "take", "T-conc-1",
-    ]));
-    const results = await Promise.all(args.map((a) => spawnCli(a)));
+    const results = await spawnContendingChildren(projectDir, FANOUT);
 
     // Exactly one process sees status=ready (free take winner); all the
     // others see status=in_progress (takeovers). With policy=allow, all
     // succeed; the final owner is whichever child won the last lock.
-    for (const r of results) {
-      assert.equal(r.code, 0, `child failed\nstdout: ${r.stdout}\nstderr: ${r.stderr}`);
-    }
+    assertSuccessfulChildProcesses(results);
 
     const s = await readState(projectDir);
-    // Exactly one claim owner.
-    assert.ok(s.nodes["T-conc-1"].claim, "claim must exist");
-    assert.equal(typeof s.nodes["T-conc-1"].claim.by, "string");
-    assert.equal(s.nodes["T-conc-1"].status, "in_progress");
-
-    // Log has exactly FANOUT take entries (one per child).
-    const takeEntries = s.log.filter((e) => e.action === "take" && e.node === "T-conc-1");
-    assert.equal(
-      takeEntries.length,
-      FANOUT,
-      `expected ${FANOUT} take entries; got ${takeEntries.length}`,
-    );
-
-    // Exactly one take has no previous_owner (the first/free take); the
-    // rest are takeovers and each one's previous_owner equals the owner
-    // recorded immediately before it.
-    const freeTake = takeEntries.find((e) => !e.previous_owner);
-    assert.ok(freeTake, "exactly one free take must exist");
-    const takeovers = takeEntries.filter((e) => e.previous_owner);
-    assert.equal(takeovers.length, FANOUT - 1);
-    for (let i = 0; i < takeovers.length; i++) {
-      const prev = takeovers[i].previous_owner;
-      // The previous owner must be either the free-take agent or an
-      // earlier takeover (chain integrity — no skip-over entries).
-      const candidates = [
-        freeTake.agent,
-        ...takeovers.slice(0, i).map((e) => e.agent),
-      ];
-      assert.ok(
-        candidates.includes(prev),
-        `takeover ${i} previous_owner=${prev} must be an earlier taker; candidates=${JSON.stringify(candidates)}`,
-      );
-    }
-
-    // Final owner equals the last takeover (or the free take when
-    // FANOUT === 1).
-    const lastEntry = takeEntries.at(-1);
-    assert.equal(s.nodes["T-conc-1"].claim.by, lastEntry.agent);
-
-    // No interleaving inside any log entry (torn-write detection): each
-    // entry has exactly one ts, action, agent, node.
-    for (const e of takeEntries) {
-      assert.equal(typeof e.ts, "string");
-      assert.equal(typeof e.action, "string");
-      assert.equal(typeof e.agent, "string");
-      assert.equal(typeof e.node, "string");
-    }
+    assertContentionSnapshot(s, FANOUT);
   });
 });
 
-// ===========================================================================
 // 6. Concurrency contract for the seam itself (no policy installed →
 //    ALREADY_CLAIMED, the seam must observe the in_progress claim and
 //    refuse the takeover with no log entry).
-// ===========================================================================
 
 test("policy-concurrency: no policy installed → takeover attempt gets ALREADY_CLAIMED with no log entry", async () => {
   await withFreshEnv(async ({ projectDir }) => {
@@ -444,13 +475,6 @@ test("policy-concurrency: no policy installed → takeover attempt gets ALREADY_
     assert.equal(body.error.details.owner, "alice");
 
     const after = await readState(projectDir);
-    assert.equal(after.nodes["T-conc-1"].claim.by, "alice");
-    assert.equal(
-      after.nodes["T-conc-1"].revision,
-      before.nodes["T-conc-1"].revision,
-      "revision must not change when ALREADY_CLAIMED short-circuits",
-    );
-    const bobLogEntries = after.log.filter((e) => e.agent === "bob");
-    assert.equal(bobLogEntries.length, 0, `abstain must not add any log entry for bob; got ${JSON.stringify(bobLogEntries)}`);
+    assertBobDidNotMutate(after, before, "revision must not change when ALREADY_CLAIMED short-circuits");
   });
 });

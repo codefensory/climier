@@ -1,7 +1,7 @@
 // test/kernel-transaction-initiative.test.mjs — typed initiative primitives
 // for the kernel draft.
 //
-// Scope (B1b extension, task T-graph-kernel-core-transaction):
+
 //   - createTransaction exposes `getInitiative` and `createInitiative` and
 //     reflects the snapshot's initiatives into the draft.
 //   - The draft is isolated: caller mutations on snapshot / draft / view
@@ -18,8 +18,8 @@ import { fileURLToPath } from "node:url";
 
 import { createTransaction } from "../src/kernel/transaction.mjs";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const SRC_FILE = path.resolve(__dirname, "..", "src", "kernel", "transaction.mjs");
+const currentDir = path.dirname(fileURLToPath(import.meta.url));
+const SRC_FILE = path.resolve(currentDir, "..", "src", "kernel", "transaction.mjs");
 
 function baseSnapshot() {
   return {

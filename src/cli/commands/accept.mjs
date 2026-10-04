@@ -1,36 +1,34 @@
-// `accept <id>` CLI adapter for the canonical task.accept operation.
-// Application Operations selects the provider from the built-in registry; the
-// kernel remains the sole mutation frontier for locking, revisions and logs.
-import { bootstrapBuiltins, executeOperation } from "../../application/operations/index.mjs";
-import { mutate } from "../../kernel/mutate.mjs";
+
+import { createBackendClient, createOperationBridge } from "../../application/operations/index.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
 import { resolveAgent } from "../actor.mjs";
-import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
-
-const REGISTRY = bootstrapBuiltins();
+import { executeRemoteTask, throwMissingRemoteNode } from "./internal/task-routing.mjs";
 
 export const knownFlags = ["as"];
 
-export default async function accept({ statePath, projectDir, flags = {}, positional = [] } = {}) {
-  const id = positional[0];
-  if (!id) throwV2("MISSING_FIELD", "accept: node id required", { field: "id" });
-  const agent = resolveAgent(flags, "accept");
-  const dir = projectDir || statePath;
-  const policy = await loadApplicablePolicy({ projectDir: dir });
-
-  const mutation = await executeOperation({
+async function acceptRemote({ backendClient, dir, agent, id }) {
+  const remote = await executeRemoteTask({
+    backendClient,
     projectDir: dir,
     actor: agent,
     operation: "task.accept",
+    command: "accept",
+    id,
     input: { id, actor: agent },
-    source: {
-      registry: REGISTRY,
-      mutate,
-      selectPolicy: async () => policy,
-      authorizeAction,
-    },
+    inspectTarget: true,
   });
+  if (!remote) {return null;}
+  if (!remote.node) {throwMissingRemoteNode("accept", id);}
+  return { node: remote.node, newly_ready: remote.mutation.effects?.newly_ready || [] };
+}
 
+async function acceptLocal({ backendClient, projectConfig, source, dir, agent, id }) {
+  const selectedClient = backendClient || createBackendClient({ projectDir: dir, projectConfig, source });
+  const mutation = await createOperationBridge({ backendClient: selectedClient }).executeOperation({
+    actor: agent,
+    operation: "task.accept",
+    input: { id, actor: agent },
+  });
   const updated = mutation.diff.updated.find((entry) => entry.id === id);
   if (!updated || !updated.node) {
     throwV2("INVALID_EXECUTION_CONTRACT", `accept: kernel did not return node ${id}`, { id });
@@ -41,4 +39,13 @@ export default async function accept({ statePath, projectDir, flags = {}, positi
       ? mutation.effects.newly_ready
       : [],
   };
+}
+
+export default async function accept({ statePath, projectDir, projectConfig, source, flags = {}, positional = [], backendClient } = {}) {
+  const id = positional[0];
+  if (!id) {throwV2("MISSING_FIELD", "accept: node id required", { field: "id" });}
+  const agent = resolveAgent(flags, "accept");
+  const dir = projectDir || statePath;
+  return (await acceptRemote({ backendClient, dir, agent, id }))
+    || acceptLocal({ backendClient, projectConfig, source, dir, agent, id });
 }

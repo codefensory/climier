@@ -5,7 +5,6 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-const BIN = path.resolve(process.cwd(), "bin", "climier.mjs");
 const HELPERS = path.resolve(process.cwd(), "test", "helpers.mjs");
 
 // These tests guard the helpers.mjs contract: tests must NEVER write to or
@@ -16,7 +15,7 @@ test("npm test refuses to use the real ~/.climier", () => {
   const real = path.join(os.homedir(), ".climier");
   // Spawn `npm test --silent` with CLIMIER_HOME pointed at the real home.
   // The script must exit non-zero and emit a clear error.
-  // We use a portable guard: a child `node` process that imports helpers
+
   // and verifies the throw happens.
   const probe = `
     try {
@@ -77,5 +76,5 @@ test("helpers.mjs cleans up auto-created CLIMIER_HOME on exit", () => {
     encoding: "utf8",
   });
   assert.equal(r.status, 0, `stderr=${r.stderr}`);
-  // We can't directly observe cleanup, but the file shouldn't throw.
+
 });

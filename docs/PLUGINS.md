@@ -1,6 +1,6 @@
-# Plugins V3
+# Plugins V1
 
-How to author, install, and verify a Climier Plugin API v3 plugin.
+How to author, install, and verify a Climier Plugin API v1 plugin.
 
 This guide is the public reference for plugin authors. The compatibility
 contract is fixed by ADR-021 (`.adrs/021-plugin-foundation-public-api.md`);
@@ -20,7 +20,7 @@ Every plugin declares its identity in its `package.json` under the
     "id": "example.audit",
     "command": "audit",
     "entry": "./climier.mjs",
-    "api": 3
+    "api": 1
   }
 }
 ```
@@ -30,7 +30,7 @@ Every plugin declares its identity in its `package.json` under the
 | `id` | Plugin identity. Must match `^[A-Za-z0-9][A-Za-z0-9._-]*$`. Unique across installed plugins. Persisted as the key for plugin data and the argument of `climier uninstall <id>`. |
 | `command` | CLI namespace. Cannot collide with a reserved core namespace (see §6). |
 | `entry` | Path, relative to the package root, to the ESM entrypoint that exports `default.commands`. |
-| `api` | Required numeric Plugin API major. The current host supports exactly `3`; another value fails with `PLUGIN_API_INCOMPATIBLE` before the entrypoint is imported. |
+| `api` | Required numeric Plugin API major. The current host supports exactly `1`; another value fails with `PLUGIN_API_INCOMPATIBLE` before the entrypoint is imported. If the descriptor is incompatible, update the plugin descriptor to `api: 1`, rebuild the plugin, and reinstall it. |
 
 The npm package name (`package.json#name`) is only the install source;
 it does not identify data and does not drive `uninstall`.
@@ -65,18 +65,18 @@ Each handler receives:
 - `args`: an array of strings — the original CLI tokens with the
   namespace and subcommand removed, in their original order. Flags are
   still present in the array; the plugin parses them itself.
-- `api`: the Plugin API v3 host surface (see §3).
+- `api`: the Plugin API v1 host surface (see §3).
 
 The handler's return value is serialised to stdout as JSON. Thrown
 errors are wrapped into the structured envelope (see §6).
 
-## 3. Plugin API v3 surface
+## 3. Plugin API v1 surface
 
-ADR-021 §Decision 6 defines the public surface. The host guarantees
-`api.version === 3` and exposes only the following namespaces:
+ADR-038 §Decision 9 defines the public surface. The host guarantees
+`api.version === 1` and exposes only the following namespaces:
 
 ```js
-api.version       // 3 — compatibility marker for the complete host API
+api.version       // 1 — compatibility marker for the complete host API
 
 api.runtime
   .project_dir   // string — --project value, or process.cwd()
@@ -274,8 +274,9 @@ or use `npm test` for the full core suite.
 
 ## 8. Limitations (V1, by design)
 
-- No hooks, events, workers, UI, permissions, secrets, or DAG/lifecycle
-  semantics. A real need for any of these promotes `T-plugin-v2-rfc-backlog`.
+- No hooks, events, execution orchestration, UI, permissions, secrets, or
+  DAG/lifecycle semantics. A real need for any of these promotes
+  `T-plugin-v2-rfc-backlog`.
 - Plugin code runs with the user's permissions. There is no sandboxing,
   no timeout, no signing, and no protection against side effects
   triggered by `import`-time code.
@@ -420,12 +421,12 @@ new lock; it runs on the handler's critical path (ADR-008
 
 ### 9.5 Lifecycle and policy
 
-The core task lifecycle is explicit: a worker takes a ready task, submits
-its implementation, and a validator accepts or rejects that submission.
-`submitted` is not terminal and never satisfies a `BLOCKS` edge; only
-`accept` moves a task to `done`. `reject` returns it to `open` with an audit
-reason. `resolve` is exclusively the gate operation and requires a gate
-choice and rationale.
+The core task lifecycle is explicit and runner-owned. `climierflow` claims a
+ready task, records implementation and review evidence, and applies the
+submission/acceptance transition. `submitted` is not terminal and never
+satisfies a `BLOCKS` edge; only the accepted transition moves a task to `done`.
+A rejected result returns it to `open` with an audit reason. `resolve` is
+exclusively the gate operation and requires a gate choice and rationale.
 
 Policy plugins may allow, deny, or abstain on the canonical actions listed in
 §9.2. With no applicable policy, or when a policy abstains, the core applies

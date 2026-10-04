@@ -1,17 +1,20 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fsp from "node:fs/promises";
+import path from "node:path";
 
 import {
   createTempProject,
   rmTempProject,
   runCli,
-  writeState,
+  stateFilePath,
+  writeCanonicalState,
 } from "./helpers.mjs";
 
 function currentState() {
   return {
-    version: 4,
-    revision: 17,
+    version: 1,
+    revision: 16,
     initiatives: {},
     nodes: {
       "T-z": {
@@ -48,7 +51,7 @@ function currentState() {
 test("CLI state returns the deterministic current core projection without plugin namespaces", async () => {
   const dir = await createTempProject();
   try {
-    await writeState(dir, currentState());
+    await writeCanonicalState(dir, currentState());
 
     const result = await runCli(["--project", dir, "state"]);
     assert.equal(result.code, 0, result.stderr);
@@ -74,7 +77,10 @@ test("CLI state is a current-state read, separate from historical snapshots", as
   try {
     let result = await runCli(["--project", dir, "init"]);
     assert.equal(result.code, 0, result.stderr);
-    await writeState(dir, currentState());
+    await writeCanonicalState(dir, currentState());
+
+    const before = JSON.parse((await runCli(["--project", dir, "state"])).stdout);
+    assert.deepEqual(Object.keys(before.nodes), ["G-open", "T-z"]);
 
     result = await runCli(["--project", dir, "init", "--force", "--as", "setup"]);
     assert.equal(result.code, 0, `${result.stderr}\n${result.stdout}`);
@@ -82,13 +88,18 @@ test("CLI state is a current-state read, separate from historical snapshots", as
     const state = await runCli(["--project", dir, "state"]);
     assert.equal(state.code, 0, state.stderr);
     const output = JSON.parse(state.stdout);
-    assert.equal(output.revision, 18);
+    assert.ok(output.revision > before.revision, "force-init advances the live revision monotonically");
     assert.deepEqual(output.nodes, {});
 
     const snapshots = await runCli(["--project", dir, "snapshots"]);
     assert.equal(snapshots.code, 0, snapshots.stderr);
     const historical = JSON.parse(snapshots.stdout);
     assert.ok(historical.snapshots.length > 0);
+    const newest = await fsp.readFile(
+      path.join(path.dirname(stateFilePath(dir)), "snapshots", `${historical.snapshots[0].id}.json`),
+      "utf8"
+    );
+    assert.ok(newest.includes("T-z"), "the live read must not consume the snapshot history");
   } finally {
     await rmTempProject(dir);
   }

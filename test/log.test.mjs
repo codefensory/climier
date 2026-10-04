@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, importFresh } from "./helpers.mjs";
 
 test("append adds an entry with ts, agent, action", async () => {
-  const { append, readState } = await importFresh("./storage/log.mjs");
+  const { append } = await importFresh("./storage/log.mjs");
   const { readState: rs } = await importFresh("./storage/state.mjs");
   const dir = await createTempProject();
   try {
@@ -31,6 +31,26 @@ test("append adds multiple entries in order", async () => {
     assert.equal(s.log.length, 2);
     assert.equal(s.log[0].action, "claim");
     assert.equal(s.log[1].action, "done");
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("append commits to the ledger without rebasing node revisions", async () => {
+  const { append } = await importFresh("./storage/log.mjs");
+  const { bootstrapFencedState, readFencedState, commitFencedStateUnderLock } = await importFresh("./storage/ledger.mjs");
+  const { withLock } = await import("../src/storage/lock.mjs");
+  const dir = await createTempProject();
+  try {
+    const before = await bootstrapFencedState(dir);
+    const seeded = { ...before, nodes: { T1: { id: "T1", kind: "resolvable", subkind: "task", title: "keep", status: "open", revision: before.revision + 1 } }, revision: before.revision + 1 };
+    await withLock(dir, (lockContext) => commitFencedStateUnderLock(lockContext, seeded));
+    const committed = await readFencedState(dir);
+    await append(dir, { agent: "a", action: "ledger-append", task: "T1" });
+    const after = await readFencedState(dir);
+    assert.equal(after.log.at(-1).action, "ledger-append");
+    assert.equal(after.nodes.T1.revision, committed.nodes.T1.revision);
+    assert.equal(after.revision, committed.revision + 1);
   } finally {
     await rmTempProject(dir);
   }

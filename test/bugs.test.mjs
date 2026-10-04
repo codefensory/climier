@@ -3,12 +3,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createTempProject, rmTempProject, importFresh, runCli, readState, stateFilePath} from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh } from "./helpers.mjs";
 
-// v1 bug #1 (block) — deleted: v1 block command no longer exists.
-// v1 bug #2 (graph --initiative) — deleted: v1 graph command no longer exists; v2 status supports --initiative.
-
-// BUG #3: withLock used to assume a pre-existing state directory.
 test("bug: withLock creates the state directory if missing", async () => {
   const { withLock } = await importFresh("./storage/lock.mjs");
   const os = await import("node:os");
@@ -42,7 +38,6 @@ test("bug: corrupted state file produces a clear error, not a SyntaxError stack"
   }
 });
 
-// BUG #5 (coverage gap that revealed a bug): add-task with a non-existent --depends-on
 // should warn or fail, not silently create a task stuck forever.
 // v2 equivalent: add-task --blocked-by=NONEXISTENT must fail edge validation.
 test("bug: add-task rejects --blocked-by pointing to non-existent id", async () => {

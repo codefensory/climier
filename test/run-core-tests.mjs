@@ -11,13 +11,13 @@ async function testFiles(directory) {
   const files = [];
   for (const entry of entries) {
     const entryPath = path.join(directory, entry.name);
-    if (entry.isDirectory()) files.push(...await testFiles(entryPath));
-    else if (entry.isFile() && entry.name.endsWith(".test.mjs") && !entry.name.startsWith("ui-")) files.push(entryPath);
+    if (entry.isDirectory()) {files.push(...await testFiles(entryPath));}
+    else if (entry.isFile() && entry.name.endsWith(".test.mjs")) {files.push(entryPath);}
   }
   return files;
 }
 
-const files = (await testFiles(testDir)).sort();
+const files = (await testFiles(testDir)).toSorted();
 
 const child = spawn(process.execPath, ["--test", ...files], { stdio: "inherit" });
 let timedOut = false;

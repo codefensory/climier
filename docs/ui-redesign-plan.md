@@ -189,7 +189,7 @@ Sin charts de tendencia: el snapshot no tiene series temporales.
 ## 6. Plan de implementación
 
 ### Fase 0 — Baseline
-- Decidir el estado del worktree actual (commit/descartar) y versionar el reemplazo de `DESIGN.md`. No iniciar workers hasta dejar el worktree limpio.
+- Decidir el estado del worktree actual (commit/descartar) y versionar el reemplazo de `DESIGN.md`. No iniciar ejecuciones hasta dejar el worktree limpio.
 - Acceptance: `git status --short` limpio.
 
 ### Fase 1 — Corregir el contrato de lectura

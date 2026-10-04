@@ -1,21 +1,22 @@
+/* eslint-disable complexity, max-depth, max-lines-per-function, max-statements -- This dependency-free fixture intentionally mirrors a complete host policy protocol. */
 // T-plugin-policy-fixture — V2-policy fixture.
 //
 // Reusable plugin entry that exercises the policy contract from
-// ADR-007 §"Discovery global" and §"Contrato de autorización".
+
 // The fixture has zero runtime dependencies so `climier install
 // ./test/fixtures/plugins/policy-fixture` works offline
-// (mirrors ADR-006 plan §8 risk #4 for the V2 fixtures).
+
 //
 //   default.commands
 //     applies-check        Reports what applies(projectConfig) returns
 //                        given the current .climier.json (read raw by
-//                        the subcommand; the foundation's
+
 //                        readProjectConfig will do the same).
 //     authorize-check <action>
 //                        Synthesizes a policy context and reports
 //                        what authorize returns (or throws) and
 //                        which actor/action/target/projectConfig
-//                        it received. The projectConfig is frozen
+
 //                        before being passed, mirroring what the
 //                        foundation will do per plan §3.3.
 //     recorded            Returns the last invocation recorded by
@@ -31,21 +32,21 @@
 //     authorize(ctx)
 //                        Reads mode from the namespace
 //                        plugins["policy-fixture"].mode:
-//                          allow   -> { decision: "allow" }
+
 //                          deny    -> { decision: "deny", reason }
 //                          abstain -> { decision: "abstain" }
 //                          slow    -> sleep
 //                                      plugins["policy-fixture"].slowMs
 //                                      (default 50), then
 //                                      { decision: "allow" }
-//                          throw   -> throws POLICY_ERROR_FIXTURE
+
 //                        Each invocation is recorded under
 //                        CLIMIER_HOME/policy-fixture-state.json so
 //                        downstream tests can audit what the seam
 //                        observed without re-reading .climier.json.
 //
 // The plugin only reads its own namespace (`plugins["policy-fixture"]`)
-// per ADR-007 §"Discovery global": "El plugin solo lee su propio
+
 // namespace". Other plugins' namespaces do not affect applies/authorize.
 
 import fs from "node:fs/promises";
@@ -56,16 +57,16 @@ const PLUGIN_ID = "policy-fixture";
 // parseArgs: split forwarded tokens into {flags, positional}. Mirrors
 // the host's bin parser so the fixture can pick the first positional
 // even when the user forwarded flags like `--project`/`--as`. Boolean
-// flags (`--all`, `--force`, `--no-color`) are treated as no-value;
+
 // everything else consumes the next token when present.
 function parseArgs(tokens) {
   const flags = {};
   const positional = [];
   const BOOLEAN_FLAGS = new Set(["all", "force", "no-color"]);
-  if (!Array.isArray(tokens)) return { flags, positional };
+  if (!Array.isArray(tokens)) {return { flags, positional };}
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i];
-    if (typeof t !== "string" || !t) continue;
+    if (typeof t !== "string" || !t) {continue;}
     if (t.startsWith("--")) {
       const eq = t.indexOf("=");
       let key, val;
@@ -100,21 +101,21 @@ async function readRawConfig(projectDir) {
     const raw = await fs.readFile(metaPath, "utf8");
     return JSON.parse(raw);
   } catch (err) {
-    if (err && err.code === "ENOENT") return {};
+    if (err && err.code === "ENOENT") {return {};}
     throw err;
   }
 }
 
 // applyNamespace: returns the policy-fixture namespace entry from
-// the raw projectConfig, or null when missing. Defensive: non-object
+
 // configs or non-object namespaces return null rather than throwing,
 // so a malformed harness cannot take down the test.
 function applyNamespace(projectConfig) {
-  if (!projectConfig || typeof projectConfig !== "object") return null;
+  if (!projectConfig || typeof projectConfig !== "object") {return null;}
   const plugins = projectConfig.plugins;
-  if (!plugins || typeof plugins !== "object") return null;
+  if (!plugins || typeof plugins !== "object") {return null;}
   const ns = plugins[PLUGIN_ID];
-  if (!ns || typeof ns !== "object") return null;
+  if (!ns || typeof ns !== "object") {return null;}
   return ns;
 }
 
@@ -125,7 +126,7 @@ function applyNamespace(projectConfig) {
 // recording failure must not mask the actual decision.
 async function recordLast(ctx, mode) {
   const home = process.env.CLIMIER_HOME;
-  if (!home) return;
+  if (!home) {return;}
   const stateFile = path.join(home, "policy-fixture-state.json");
   const ns = applyNamespace(ctx && ctx.projectConfig);
   const recorded = {
@@ -175,9 +176,9 @@ async function recordLast(ctx, mode) {
 //   malformed namespace (non-object) -> true (defensive)
 export async function applies(projectConfig) {
   const ns = applyNamespace(projectConfig);
-  if (ns === null) return true;
-  if (ns.applies === true) return true;
-  if (ns.applies === false) return false;
+  if (ns === null) {return true;}
+  if (ns.applies === true) {return true;}
+  if (ns.applies === false) {return false;}
   return true;
 }
 
@@ -189,12 +190,12 @@ export async function applies(projectConfig) {
 //   or throws (mapped to POLICY_ERROR by the seam).
 //
 // Modes (driven by .climier.json plugins["policy-fixture"].mode):
-//   allow | deny | abstain | throw | slow
+
 //
 // Slow mode sleeps ctx.projectConfig.plugins["policy-fixture"].slowMs
 // (default 50ms) then returns { decision: "allow" }. The lock-holding
 // concurrency tests verify the seam holds withLock throughout the
-// sleep (ADR-008 §"Seam por handler").
+
 export async function authorize(ctx) {
   const ns = applyNamespace(ctx && ctx.projectConfig);
   const mode = ns && typeof ns.mode === "string" ? ns.mode : "allow";
@@ -202,7 +203,7 @@ export async function authorize(ctx) {
   // Record BEFORE deciding so a throw still leaves a trace.
   await recordLast(ctx || {}, mode);
 
-  if (mode === "allow") return { decision: "allow" };
+  if (mode === "allow") {return { decision: "allow" };}
 
   if (mode === "deny") {
     const reason =
@@ -212,7 +213,7 @@ export async function authorize(ctx) {
     return { decision: "deny", reason };
   }
 
-  if (mode === "abstain") return { decision: "abstain" };
+  if (mode === "abstain") {return { decision: "abstain" };}
 
   if (mode === "slow") {
     const slowMs =
@@ -228,7 +229,7 @@ export async function authorize(ctx) {
   }
 
   // Unknown mode -> throw (mirrors what POLICY_ERROR expects from the
-  // seam per ADR-007 §"Errores"). This is intentionally not "abstain"
+
   // so a typo in the harness surfaces immediately.
   const err = new Error(`policy-fixture: unknown mode '${mode}'`);
   err.code = "POLICY_ERROR_FIXTURE";
@@ -277,7 +278,7 @@ export default {
     // authorize-check <action>: synthesizes a context and calls
     // authorize(); returns the decision (or error) and the
     // actor/action/target/projectConfig-keys the fixture received.
-    // The freeze + snapshot shape mirror what the foundation will
+
     // pass so the fixture sees a contract-compatible input.
     async "authorize-check"(args, api) {
       const config = await readRawConfig(api.runtime.project_dir);
@@ -346,13 +347,13 @@ export default {
     // passed to the policy without re-reading .climier.json.
     async "recorded"(_args, _api) {
       const home = process.env.CLIMIER_HOME;
-      if (!home) return { command: "recorded", recorded: null };
+      if (!home) {return { command: "recorded", recorded: null };}
       const file = path.join(home, "policy-fixture-state.json");
       try {
         const raw = await fs.readFile(file, "utf8");
         return { command: "recorded", recorded: JSON.parse(raw) };
       } catch (err) {
-        if (err && err.code === "ENOENT") return { command: "recorded", recorded: null };
+        if (err && err.code === "ENOENT") {return { command: "recorded", recorded: null };}
         throw err;
       }
     },

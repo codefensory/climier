@@ -4,19 +4,18 @@
 //   - The helper requires `--` and a command; bad invocations exit 64.
 //   - It propagates stdout/stderr/exit unchanged.
 //   - It forces CLIMIER_HOME to a private temp dir under /tmp, even when
-//     the caller exports CLIMIER_HOME. The real ~/.climier is never touched.
+
 //   - It cleans up the sandbox on EXIT and on TERM/HUP/INT.
 //   - It works with a project that has .climier.json and with one that does not.
 //
 // These tests use real subprocesses (no mocking) because the helper is a shell
 // script that mutates the filesystem and traps signals. The project root is
-// the current worktree; CLIMIER_HOME is overridden with a sentinel tmpdir so
+
 // nothing leaks to the real ~/.climier. TMPDIR is also pinned to a private
 // dir (PRIVATE_TMPDIR) so the helper's `mktemp -d "${TMPDIR:-/tmp}/..."`
 // drops sandboxes inside this test process, and so our cleanup assertions
 // never collide with /tmp/climier-smoke-* sandboxes created by sibling test
 // files — notably state-resilience-regression.test.mjs, which also wraps
-// the helper and runs in parallel under `npm test`.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -41,7 +40,7 @@ function sentinelEnv() {
   // Force CLIMIER_HOME to a known safe temp dir. The helper must override
   // this; if anything leaks through, the assertion below catches it.
   // Force TMPDIR so the helper's sandboxes land in PRIVATE_TMPDIR, not in
-  // the global /tmp where other test files also drop climier-smoke-*.
+
   return {
     ...process.env,
     CLIMIER_HOME: SENTINEL_HOME,
@@ -54,7 +53,6 @@ function listSmokeSandboxes() {
   return fs.readdirSync(PRIVATE_TMPDIR).filter((n) => n.startsWith("climier-smoke-"));
 }
 
-// The helper uses `mktemp -d "${TMPDIR:-/tmp}/climier-smoke-XXXXXX"`, so
 // every sandbox home it produces is exactly
 // `<PRIVATE_TMPDIR>/climier-smoke-<rand>/home`.
 function privateSmokeHomeRe() {
@@ -132,7 +130,7 @@ test("smoke-sandbox.sh: forces CLIMIER_HOME to a private temp dir", async () => 
   const home = homeLine.slice("HOME=".length);
   assert.match(home, privateSmokeHomeRe());
   // Sentinel CLIMIER_HOME was overridden; the wrapped command observed
-  // the helper's CLIMIER_HOME.
+
   assert.notEqual(home, SENTINEL_HOME);
   // Umask inside the sandbox is 0077.
   assert.match(r.stdout, /UMASK=0077/);
@@ -150,10 +148,12 @@ test("smoke-sandbox.sh: does not touch the real ~/.climier", async () => {
     try {
       entries = fs.readdirSync(sentinelProjects);
     } catch (e) {
-      if (e.code !== "ENOENT") throw e;
+      if (e.code !== "ENOENT") {
+        throw e;
+      }
     }
     assert.equal(entries.length, 0, `sentinel home leaked: ${entries.join(",")}`);
-    // The temp project got a .climier.json (proves init ran successfully).
+
     assert.ok(fs.existsSync(path.join(tmp, ".climier.json")));
   } finally {
     await rmTempProject(tmp);
@@ -163,7 +163,7 @@ test("smoke-sandbox.sh: does not touch the real ~/.climier", async () => {
 test("smoke-sandbox.sh: cleans up sandbox on EXIT", async () => {
   const before = new Set(listSmokeSandboxes());
   await runHelper(["true"]);
-  // Allow rm -rf to settle.
+
   await new Promise((r) => setTimeout(r, 50));
   const leftover = listSmokeSandboxes().filter((n) => !before.has(n));
   assert.equal(leftover.length, 0, `leftover sandboxes: ${leftover.join(",")}`);
@@ -183,7 +183,9 @@ test("smoke-sandbox.sh: cleans up sandbox on TERM", async () => {
   for (let i = 0; i < 100 && !appeared; i++) {
     await new Promise((r) => setTimeout(r, 20));
     const now = listSmokeSandboxes().filter((n) => !before.has(n));
-    if (now.length > 0) appeared = now;
+    if (now.length > 0) {
+      appeared = now;
+    }
   }
   assert.ok(appeared, "sandbox dir should appear during run");
   // Kill the whole process group so the inner sleep also terminates.

@@ -1,5 +1,5 @@
 // test/provider-gate-lifecycle.test.mjs — pure tests for the gate lifecycle
-// providers (plan §B4-gate-lifecycle, ADR-011 §§1–4, ADR-012 §3).
+
 //
 // Every test runs against literal state objects and the real kernel
 // transaction. No temp dirs, no filesystem, no lock, no CLI.
@@ -15,52 +15,60 @@ import {
 } from "../src/providers/gate/index.mjs";
 import { createTransaction } from "../src/kernel/transaction.mjs";
 
+function baseNodes() {
+  return {
+    T1: {
+      id: "T1", kind: "resolvable", subkind: "task", title: "Blocker",
+      initiative: "work", status: "done", resolution_mode: "labor", revision: 1,
+    },
+    "G-A": {
+      id: "G-A", kind: "resolvable", subkind: "gate", title: "Gate A", body: "B",
+      initiative: "work", status: "open", resolution_mode: "choice", purpose: "decision",
+      revision: 2,
+    },
+    "G-B": {
+      id: "G-B", kind: "resolvable", subkind: "gate", title: "Gate B", body: "B",
+      initiative: "work", status: "resolved", resolution_mode: "choice", purpose: "decision",
+      resolution: { choice: "yes", rationale: "ok" },
+      revision: 3,
+    },
+    "G-LABOR": {
+      id: "G-LABOR", kind: "resolvable", subkind: "gate", title: "Gate Labor",
+      body: "B", initiative: "work", status: "open", resolution_mode: "labor",
+      purpose: "approval", revision: 1,
+    },
+    "T-DEP": {
+      id: "T-DEP", kind: "resolvable", subkind: "task", title: "Dependent",
+      initiative: "work", status: "open", resolution_mode: "labor", revision: 1,
+    },
+    "T-MULTI": {
+      id: "T-MULTI", kind: "resolvable", subkind: "task", title: "Multi-blocked",
+      initiative: "work", status: "open", resolution_mode: "labor", revision: 1,
+    },
+    "K-A": {
+      id: "K-A", kind: "knowledge", title: "K", initiative: "work",
+      status: "active", knowledge_type: "warning", revision: 1,
+    },
+  };
+}
+
+function baseEdges() {
+  return [
+    // Gate A blocks dependent; dependent becomes ready only when A resolves.
+    { from: "G-A", to: "T-DEP", type: "BLOCKS" },
+
+    // blocked by Gate A only and flips with it.
+    { from: "G-A", to: "T-MULTI", type: "BLOCKS" },
+    { from: "T1", to: "T-MULTI", type: "BLOCKS" },
+  ];
+}
+
 function baseSnapshot() {
   return {
     version: 2,
     initiatives: { work: { desc: "work", created_at: "2026-01-01T00:00:00.000Z" } },
-    nodes: {
-      T1: {
-        id: "T1", kind: "resolvable", subkind: "task", title: "Blocker",
-        initiative: "work", status: "done", resolution_mode: "labor", revision: 1,
-      },
-      "G-A": {
-        id: "G-A", kind: "resolvable", subkind: "gate", title: "Gate A", body: "B",
-        initiative: "work", status: "open", resolution_mode: "choice", purpose: "decision",
-        revision: 2,
-      },
-      "G-B": {
-        id: "G-B", kind: "resolvable", subkind: "gate", title: "Gate B", body: "B",
-        initiative: "work", status: "resolved", resolution_mode: "choice", purpose: "decision",
-        resolution: { choice: "yes", rationale: "ok" },
-        revision: 3,
-      },
-      "G-LABOR": {
-        id: "G-LABOR", kind: "resolvable", subkind: "gate", title: "Gate Labor",
-        body: "B", initiative: "work", status: "open", resolution_mode: "labor",
-        purpose: "approval", revision: 1,
-      },
-      "T-DEP": {
-        id: "T-DEP", kind: "resolvable", subkind: "task", title: "Dependent",
-        initiative: "work", status: "open", resolution_mode: "labor", revision: 1,
-      },
-      "T-MULTI": {
-        id: "T-MULTI", kind: "resolvable", subkind: "task", title: "Multi-blocked",
-        initiative: "work", status: "open", resolution_mode: "labor", revision: 1,
-      },
-      "K-A": {
-        id: "K-A", kind: "knowledge", title: "K", initiative: "work",
-        status: "active", knowledge_type: "warning", revision: 1,
-      },
-    },
-    edges: [
-      // Gate A blocks dependent; dependent becomes ready only when A resolves.
-      { from: "G-A", to: "T-DEP", type: "BLOCKS" },
-      // T-MULTI is also blocked by T1 (which is already done), so it stays
-      // blocked by Gate A only and flips with it.
-      { from: "G-A", to: "T-MULTI", type: "BLOCKS" },
-      { from: "T1", to: "T-MULTI", type: "BLOCKS" },
-    ],
+    nodes: baseNodes(),
+    edges: baseEdges(),
     log: [],
   };
 }
@@ -149,9 +157,8 @@ test("gate.resolve prepares target/policy/log/affected and applies status=resolv
   assert.deepEqual(view.nodes["G-A"].resolution, { choice: "yes", rationale: "approved" });
   assert.equal("revision" in view.nodes["G-A"], false);
   assert.deepEqual(result.resolution, { choice: "yes", rationale: "approved" });
-  // T-DEP is blocked only by G-A. T-MULTI is also blocked by already-done
-  // T1, so G-A is its sole remaining unsatisfied blocker → both flip.
-  assert.deepEqual(effects.newly_ready.sort(), ["T-DEP", "T-MULTI"]);
+
+  assert.deepEqual(effects.newly_ready.toSorted(), ["T-DEP", "T-MULTI"]);
   assert.deepEqual(effects.affected, ["G-A"]);
   // Isolation: snapshot untouched, apply never assigns revision.
   assert.deepEqual(snapshot, before);
@@ -159,8 +166,7 @@ test("gate.resolve prepares target/policy/log/affected and applies status=resolv
 
 test("gate.resolve is a no-op for already-ready tasks and surfaces dependents", async () => {
   // Same fixture as the previous test: T1 is done, so resolving G-A flips
-  // both T-DEP and T-MULTI to ready. This second test pins the rule that
-  // resolve is idempotent over tasks that were already ready (none here).
+
   const snapshot = baseSnapshot();
   const { effects } = await runResolve(snapshot, {
     id: "G-A",
@@ -168,7 +174,7 @@ test("gate.resolve is a no-op for already-ready tasks and surfaces dependents", 
     rationale: "approved",
     if_revisions: { "G-A": 2 },
   });
-  assert.deepEqual(effects.newly_ready.sort(), ["T-DEP", "T-MULTI"]);
+  assert.deepEqual(effects.newly_ready.toSorted(), ["T-DEP", "T-MULTI"]);
 });
 
 test("gate.reopen prepares reopen payload and applies status=open + cleared resolution", async () => {
@@ -186,7 +192,7 @@ test("gate.reopen prepares reopen payload and applies status=open + cleared reso
   assert.deepEqual(plan.logFields, { reason: "revisit" });
   assert.equal(plan.reason, "revisit");
   assert.equal(view.nodes["G-B"].status, "open");
-  // The patch carries `resolution: null` so the next persist clears it.
+
   assert.equal(view.nodes["G-B"].resolution, null);
   // Reopen reports nothing new to re-block for this fixture (G-B had no
   // dependents in base snapshot). The dependent re-block path is covered
@@ -209,9 +215,8 @@ test("resolve -> reopen round trip re-blocks dependents", async () => {
     reason: "revisit",
   });
   assert.equal(reopened.view.nodes["G-A"].status, "open");
-  // T1 (done) is not in this reopened graph, so T-MULTI is blocked by
-  // G-A only → it re-blocks. T-DEP was blocked only by G-A → re-blocks.
-  assert.deepEqual(reopened.effects.newly_blocked.sort(), ["T-DEP", "T-MULTI"]);
+
+  assert.deepEqual(reopened.effects.newly_blocked.toSorted(), ["T-DEP", "T-MULTI"]);
 });
 
 test("gate.cancel prepares cancel payload and applies status=canceled", async () => {
@@ -229,9 +234,9 @@ test("gate.cancel prepares cancel payload and applies status=canceled", async ()
   assert.deepEqual(plan.logFields, { reason: "scope dropped" });
   assert.equal(plan.reason, "scope dropped");
   assert.equal(view.nodes["G-A"].status, "canceled");
-  // G-A was already open + unsatisfied, so canceling it does not flip
+
   // any dependents here (wasReady=false → blocked; isReady=false → still
-  // blocked). Newly_blocked from cancel only fires when a previously
+
   // ready dependent loses its only satisfied blocker, but cancel from
   // open/in_progress cannot reach that state because the gate was
   // already unsatisfied. That asymmetry is the contract.
@@ -283,7 +288,7 @@ test("prepare is read-only and never mutates the snapshot", async () => {
 
 test("lifecycle providers never write revision into the draft", async () => {
   const snapshot = baseSnapshot();
-  // resolve
+
   let plan = await gateResolveProvider.prepare({
     snapshot,
     input: { id: "G-A", choice: "yes", rationale: "ok", if_revisions: { "G-A": 2 } },

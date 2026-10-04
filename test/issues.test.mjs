@@ -1,0 +1,246 @@
+// Audit fixes for the issues found in the audit round — see AGENTS.md.
+// Each test exercises one issue and one fix path; minimal scaffolding.
+//
+// Issue 1: cancel / resolve / deprecate-knowledge on v1 state must NOT be
+//   reported as "unknown command"; they need stubs that throw a clear
+//   "not supported here" error. release/reopen keep working because their
+//   modules already exist.
+// Issue 2: add-node and add-edge must call resolveAgent BEFORE updateState
+//   so a missing agent leaves no orphan state / no orphan log entry.
+// Issue 3: "Available:" error string + HELP_TEXT must list cancel, resolve,
+
+// Issue 4: AGENTS.md description must reflect the full set of lifecycle
+//   commands (take/update/status/release/resolve/reopen/cancel/deprecate-knowledge/
+
+// Issue 5: add-decision and add-gotcha must throw a clear
+
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs/promises";
+import path from "node:path";
+import {
+  createTempProject,
+  rmTempProject,
+  importFresh,
+  runCli,
+  readState,
+} from "./helpers.mjs";
+
+function clearAgentEnv() {
+  const prev = process.env.CLIMIER_AGENT;
+  delete process.env.CLIMIER_AGENT;
+  return () => {
+    if (prev === undefined) {delete process.env.CLIMIER_AGENT;}
+    else {process.env.CLIMIER_AGENT = prev;}
+  };
+}
+
+async function freshProject(dir) {
+  const { default: init } = await importFresh("./cli/commands/init.mjs");
+  await init({ statePath: dir, positional: [], projectDir: dir });
+}
+
+//
+
+// surface (cancel / resolve / deprecate-knowledge) is all that is left.
+
+// Issue 2: resolveAgent must run BEFORE updateState in add-node / add-edge.
+
+test("Issue 2: add-node with missing agent does NOT mutate state (no orphan log entry)", async () => {
+  const dir = await createTempProject();
+  const restore = clearAgentEnv();
+  try {
+    await freshProject(dir);
+    const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
+    await addInit({ statePath: dir, flags: { desc: "auth", as: "setup" }, positional: ["auth"] });
+
+    const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
+    let caught;
+    try {
+      await addNode({
+        statePath: dir,
+        projectDir: dir,
+        positional: ["T-orphan"],
+        flags: { kind: "resolvable", subkind: "task", title: "t", initiative: "auth" },
+      });
+    } catch (e) { caught = e; }
+    assert.ok(caught, "should have thrown MISSING_AGENT");
+    assert.equal(caught.code, "MISSING_AGENT");
+
+    // Critical assertion: state file must NOT contain the new node.
+    const s = await readState(dir);
+    assert.equal(s.nodes["T-orphan"], undefined, "node must not be created");
+
+    // closes the parity-slice gap). The failed add-node MUST NOT add
+    // any further entries — so the log should contain exactly one
+
+    assert.equal(s.log.length, 1, `log should contain exactly the add-initiative bootstrap entry, got ${JSON.stringify(s.log)}`);
+    assert.equal(s.log[0].action, "add-initiative");
+    assert.equal(s.log[0].node, "auth");
+  } finally { restore(); await rmTempProject(dir); }
+});
+
+// eslint-disable-next-line max-statements, max-lines-per-function -- Keep setup, rejection, and persisted-state assertions together for this atomicity contract.
+test("Issue 2: add-edge with missing agent does NOT mutate state", async () => {
+  const dir = await createTempProject();
+  const restore = clearAgentEnv();
+  try {
+    await freshProject(dir);
+    const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
+    await addInit({ statePath: dir, flags: { desc: "auth", as: "setup" }, positional: ["auth"] });
+    const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
+    await addNode({
+      statePath: dir,
+      positional: ["T-a"],
+      flags: { kind: "resolvable", subkind: "task", title: "a", initiative: "auth", as: "setup" },
+    });
+    await addNode({
+      statePath: dir,
+      positional: ["G-b"],
+      flags: { kind: "resolvable", subkind: "gate", title: "b", initiative: "auth", as: "setup" },
+    });
+
+    const before = await readState(dir);
+    const beforeEdges = before.edges.length;
+    // After init + add-initiative + 2 add-node setup calls we expect
+    // exactly 3 log entries: add-initiative (parity-slice close,
+
+    assert.equal(before.log.length, 3, `expected 3 setup log entries (add-initiative + 2 add-node), got ${JSON.stringify(before.log)}`);
+    assert.equal(before.log[0].action, "add-initiative");
+    assert.equal(before.log[1].action, "add-node");
+    assert.equal(before.log[2].action, "add-node");
+
+    const { default: addEdge } = await importFresh("./cli/commands/add-edge.mjs");
+    let caught;
+    try {
+      await addEdge({
+        statePath: dir,
+        projectDir: dir,
+        positional: ["T-a", "G-b"],
+        flags: { type: "BLOCKS" },
+      });
+    } catch (e) { caught = e; }
+    assert.ok(caught, "should have thrown MISSING_AGENT");
+    assert.equal(caught.code, "MISSING_AGENT");
+
+    const after = await readState(dir);
+    assert.equal(after.edges.length, beforeEdges, `edge must not be added (before=${beforeEdges} after=${after.edges.length})`);
+    assert.equal(after.log.length, before.log.length, `no new log entry (before=${before.log.length} after=${after.log.length})`);
+  } finally { restore(); await rmTempProject(dir); }
+});
+
+// Issue 3: "Available:" error string and HELP_TEXT completeness.
+
+test("Issue 3: 'Available:' error string lists cancel, resolve, history", async () => {
+  const dir = await createTempProject();
+  try {
+    // No init — no command on a bare project should produce the help-shaped error.
+    const out = await runCli(["--project", dir]);
+    assert.equal(out.code, 2, `expected exit 2, got ${out.code}: stdout=${out.stdout}`);
+    const data = JSON.parse(out.stdout);
+    assert.equal(data.ok, false);
+    assert.equal(data.error.code, "CLI_USAGE_ERROR");
+    assert.equal(data.error.details.command, null);
+    for (const cmd of ["cancel", "resolve", "history"]) {
+      assert.ok(data.error.details.valid_commands.includes(cmd), `valid command list missing '${cmd}'`);
+    }
+  } finally { await rmTempProject(dir); }
+});
+
+test("Issue 3: HELP_TEXT lists cancel and resolve", async () => {
+  const out = await runCli(["--help"]);
+  assert.equal(out.code, 0);
+  assert.match(out.stdout, /\bcancel\b/);
+  assert.match(out.stdout, /\bresolve\b/);
+});
+
+// Issue 4: AGENTS.md description reflects the current scope.
+
+test("Issue 4: AGENTS.md mentions the lifecycle commands beyond the original six", async () => {
+  const text = await fs.readFile(
+    path.resolve(import.meta.dirname, "..", "AGENTS.md"),
+    "utf8",
+  );
+
+  // surface is described. Verify the table covers the commands added
+  // beyond the original six (the pre-refactor 'scope (...)' sentinel was
+
+  const section = text.match(/## Commands[\s\S]*?(?=\n## |\s*$)/);
+  assert.ok(section, "AGENTS.md must have a '## Commands' section");
+  const commands = section[0];
+  for (const cmd of ["cancel", "resolve", "release", "reopen", "take", "update", "deprecate-knowledge"]) {
+    assert.match(commands, new RegExp(`\\b${cmd}\\b`),
+      `AGENTS.md Commands table should mention '${cmd}'`);
+  }
+});
+
+// Issue 5: add-decision / add-gotcha must be rejected with a clear error.
+
+test("Issue 5: add-decision throws a clear unknown-command error (no silent mutation)", async () => {
+  const dir = await createTempProject();
+  try {
+    await freshProject(dir);
+    const out = await runCli(["--project", dir, "add-decision", "D1", "--title", "pick", "--initiative", "x"]);
+    // The pre-refactor command no longer exists; the CLI must reject the
+    // call (unknown command) and must not write anything to the state.
+    assert.notEqual(out.code, 0, `expected non-zero exit, got ${out.code}: stdout=${out.stdout}`);
+    const data = JSON.parse(out.stdout);
+    assert.equal(data.ok, false);
+    const msg = typeof data.error === "string" ? data.error : data.error.message;
+    assert.match(msg, /unknown command|not (a|found)/i, `got: ${msg}`);
+    // The state file must NOT have a `decisions` collection written.
+    const s = await readState(dir);
+    assert.equal(s.decisions, undefined, `decisions collection must not be written to the state`);
+    assert.equal(s.log.length, 0, `log should be empty`);
+  } finally { await rmTempProject(dir); }
+});
+
+test("Issue 5: add-gotcha throws a clear unknown-command error (no silent mutation)", async () => {
+  const dir = await createTempProject();
+  try {
+    await freshProject(dir);
+    const out = await runCli([
+      "--project", dir, "add-gotcha", "G1",
+      "--title", "trap", "--applies-to", "domain:db",
+    ]);
+    assert.notEqual(out.code, 0, `expected non-zero exit, got ${out.code}: stdout=${out.stdout}`);
+    const data = JSON.parse(out.stdout);
+    assert.equal(data.ok, false);
+    const msg = typeof data.error === "string" ? data.error : data.error.message;
+    assert.match(msg, /unknown command|not (a|found)/i, `got: ${msg}`);
+    const s = await readState(dir);
+    assert.equal(s.gotchas, undefined, `gotchas collection must not be written to the state`);
+    assert.equal(s.log.length, 0, `log should be empty`);
+  } finally { await rmTempProject(dir); }
+});
+
+test("Issue 5: add-decision is rejected as unknown command", async () => {
+  // Replaces the v1 regression test: v1 commands no longer exist.
+  const dir = await createTempProject();
+  try {
+    await freshProject(dir);
+    const out = await runCli(["--project", dir, "add-decision", "D1", "--title", "pick", "--initiative", "auth"]);
+    assert.notEqual(out.code, 0);
+    const data = JSON.parse(out.stdout);
+    assert.equal(data.ok, false);
+    assert.equal(data.error.code, "CLI_USAGE_ERROR");
+    assert.equal(data.error.details.command, "add-decision");
+  } finally { await rmTempProject(dir); }
+});
+
+test("Issue 5: add-gotcha is rejected as unknown command", async () => {
+  // Replaces the v1 regression test: v1 commands no longer exist.
+  const dir = await createTempProject();
+  try {
+    await freshProject(dir);
+    const out = await runCli([
+      "--project", dir, "add-gotcha", "G1",
+      "--title", "trap", "--applies-to", "domain:db",
+    ]);
+    assert.notEqual(out.code, 0);
+    const data = JSON.parse(out.stdout);
+    assert.equal(data.ok, false);
+    assert.equal(data.error.code, "CLI_USAGE_ERROR");
+    assert.equal(data.error.details.command, "add-gotcha");
+  } finally { await rmTempProject(dir); }
+});

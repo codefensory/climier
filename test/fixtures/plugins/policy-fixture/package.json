@@ -8,6 +8,6 @@
     "id": "policy-fixture",
     "command": "policy",
     "entry": "./climier.mjs",
-    "api": 3
+    "api": 1
   }
 }

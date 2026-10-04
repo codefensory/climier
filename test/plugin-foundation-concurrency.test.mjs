@@ -22,10 +22,18 @@ async function withFreshEnv(body) {
   try {
     return await body({ projectDir });
   } finally {
-    if (previousHome === undefined) delete process.env.CLIMIER_HOME;
-    else process.env.CLIMIER_HOME = previousHome;
-    if (previousAgent === undefined) delete process.env.CLIMIER_AGENT;
-    else process.env.CLIMIER_AGENT = previousAgent;
+    if (previousHome === undefined) {
+      delete process.env.CLIMIER_HOME;
+    }
+    else {
+      process.env.CLIMIER_HOME = previousHome;
+    }
+    if (previousAgent === undefined) {
+      delete process.env.CLIMIER_AGENT;
+    }
+    else {
+      process.env.CLIMIER_AGENT = previousAgent;
+    }
     await fs.rm(home, { recursive: true, force: true });
     await rmTempProject(projectDir);
   }
@@ -37,11 +45,8 @@ async function cli(args) {
   return result.stdout.trim() ? JSON.parse(result.stdout) : null;
 }
 
-function spawnCli(args) {
+function collectSpawnResult(child) {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [BIN, ...args], {
-      env: { ...process.env, NO_COLOR: "1" },
-    });
     let stdout = "";
     let stderr = "";
     const timer = setTimeout(() => child.kill("SIGTERM"), 30_000);
@@ -58,9 +63,15 @@ function spawnCli(args) {
   });
 }
 
-test("plugin foundation: concurrent API data writers preserve every project key and attribution", async () => {
-  await withFreshEnv(async ({ projectDir }) => {
-    await cli(["--project", projectDir, "init"]);
+function spawnCli(args) {
+  const child = spawn(process.execPath, [BIN, ...args], {
+    env: { ...process.env, NO_COLOR: "1" },
+  });
+  return collectSpawnResult(child);
+}
+
+async function runConcurrentFoundationWriters({ projectDir }) {
+  await cli(["--project", projectDir, "init"]);
     await cli([
       "--project", projectDir, "--as", "seed", "add-initiative", "plugin-foundation",
     ]);
@@ -92,9 +103,10 @@ test("plugin foundation: concurrent API data writers preserve every project key 
       (entry) => entry.action === "plugin-data-set" && entry.plugin_id === FIXTURE_ID && entry.scope === "project",
     );
     assert.equal(writes.length, count);
-    for (const entry of writes) {
-      assert.equal(typeof entry.agent, "string");
-      assert.equal("value" in entry, false);
-    }
-  });
-});
+  for (const entry of writes) {
+    assert.equal(typeof entry.agent, "string");
+    assert.equal("value" in entry, false);
+  }
+}
+
+test("plugin foundation: concurrent API data writers preserve every project key and attribution", () => withFreshEnv(runConcurrentFoundationWriters));

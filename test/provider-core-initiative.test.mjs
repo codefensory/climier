@@ -1,17 +1,17 @@
 // test/provider-core-initiative.test.mjs — pure unit tests for the
 // `initiative.create` core provider
-// (T-graph-kernel-provider-core-initiative).
+
 //
 // Scope:
 //   - prepare is read-only; validates input shape, the canonical
 //     `name` shape (mirrors the legacy add-initiative contract —
 //     `^[A-Za-z0-9_-]+$`), optional `desc`, and rejects duplicates
-//     already present in the snapshot;
+
 //   - apply only touches tx.createInitiative (no fs/lock/state/log/
-//     handler / argv / revision);
+
 //   - plan carries `{ target, policyAction, logAction, initiative }`
 //     and `target.id` is the initiative name (so kernel.mutate can
-//     build the log entry without learning the initiative domain).
+
 //
 // Pure: no filesystem, no lock, no state, no log, no policy, no
 // command, no adapter, no CLI, no UI. Snapshots and tx stubs are
@@ -42,6 +42,40 @@ const NAME_PATTERN = /^[A-Za-z0-9_-]+$/;
 // structural validation that src/kernel/transaction.mjs#createInitiative
 // already does, so the provider's happy path is exercised end-to-end
 // without touching the real tx layer.
+function assertInputObject(input) {
+  if (input === null || input === undefined || typeof input !== "object" || Array.isArray(input)) {
+    const err = new Error("txStub: input must be an object");
+    err.code = "MISSING_FIELD";
+    throw err;
+  }
+}
+
+function initiativeName(value) {
+  const name = typeof value === "string" && value.length > 0 ? value : null;
+  if (!name) {
+    const err = new Error("txStub: requires non-empty 'name'");
+    err.code = "MISSING_FIELD";
+    throw err;
+  }
+  return name;
+}
+
+function assertInitiativeName(name) {
+  if (!NAME_PATTERN.test(name)) {
+    const err = new Error("txStub: initiative name must use the canonical identifier pattern");
+    err.code = "INVALID_NAME";
+    throw err;
+  }
+}
+
+function assertInitiativeAvailable(draft, name) {
+  if (Object.prototype.hasOwnProperty.call(draft, name)) {
+    const err = new Error(`txStub: initiative '${name}' already exists in the draft or snapshot`);
+    err.code = "ID_CONFLICT";
+    throw err;
+  }
+}
+
 function makeTxStub({ initiatives = {} } = {}) {
   const draft = {};
   for (const [name, init] of Object.entries(initiatives)) {
@@ -52,25 +86,17 @@ function makeTxStub({ initiatives = {} } = {}) {
     draft,
     createInitiative(input) {
       this.calls.createInitiative += 1;
-      if (input == null || typeof input !== "object" || Array.isArray(input)) {
-        const err = new Error("txStub: input must be an object");
-        err.code = "MISSING_FIELD";
-        throw err;
-      }
-      const name = typeof input.name === "string" && input.name.length > 0 ? input.name : null;
-      if (!name) {
-        const err = new Error("txStub: requires non-empty 'name'");
-        err.code = "MISSING_FIELD";
-        throw err;
-      }
-      if (Object.prototype.hasOwnProperty.call(this.draft, name)) {
-        const err = new Error(`txStub: initiative '${name}' already exists in the draft or snapshot`);
-        err.code = "ID_CONFLICT";
-        throw err;
-      }
+      assertInputObject(input);
+      const name = initiativeName(input.name);
+      assertInitiativeName(name);
+      assertInitiativeAvailable(this.draft, name);
       const stored = {};
-      if (typeof input.desc === "string") stored.desc = input.desc;
-      if (typeof input.created_at === "string") stored.created_at = input.created_at;
+      if (typeof input.desc === "string") {
+        stored.desc = input.desc;
+      }
+      if (typeof input.created_at === "string") {
+        stored.created_at = input.created_at;
+      }
       this.draft[name] = stored;
       return { ...stored };
     },
@@ -134,7 +160,7 @@ test("initiative.create: prepare validates name presence and pattern", async () 
     "MISSING_FIELD",
   );
   // Non-conforming characters are rejected with INVALID_NAME; the
-  // pattern matches the legacy add-initiative whitelist.
+
   for (const bad of ["has space", "with.dot", "with/slash", "with$dollar"]) {
     await expectCode(
       () =>
@@ -270,7 +296,7 @@ test("initiative.create: plan is consumable end-to-end by kernel.mutate (no seco
   // Pure provider contract smoke: a synthesized plan consumed by the
   // stub tx exercises the same code path as the kernel without
   // needing to spin up a temp project. Validates that apply mirrors
-  // the kernel's expectation that `tx.createInitiative` is the only
+
   // mutating call and that the plan shape matches what the kernel
   // passes through.
   const { initiativeCreateProvider } = await importInitiativeProvider();
@@ -279,7 +305,6 @@ test("initiative.create: plan is consumable end-to-end by kernel.mutate (no seco
   const request = makeRequest({ input });
   const plan = await initiativeCreateProvider.prepare({ snapshot, input, request });
 
-  // The kernel validates plan.target.id (non-empty string) and passes
   // plan through unchanged. Replicate those minimal expectations here.
   assert.equal(typeof plan.target.id, "string");
   assert.ok(plan.target.id.length > 0);

@@ -10,7 +10,7 @@ import {
   rmTempProject,
   runCli,
   stateFilePath,
-  writeState,
+  writeCanonicalState,
 } from "./helpers.mjs";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
@@ -28,10 +28,16 @@ async function withFreshEnv(body) {
   try {
     return await body({ home, projectDir });
   } finally {
-    if (previousHome === undefined) delete process.env.CLIMIER_HOME;
-    else process.env.CLIMIER_HOME = previousHome;
-    if (previousAgent === undefined) delete process.env.CLIMIER_AGENT;
-    else process.env.CLIMIER_AGENT = previousAgent;
+    if (previousHome === undefined) {
+      delete process.env.CLIMIER_HOME;
+    } else {
+      process.env.CLIMIER_HOME = previousHome;
+    }
+    if (previousAgent === undefined) {
+      delete process.env.CLIMIER_AGENT;
+    } else {
+      process.env.CLIMIER_AGENT = previousAgent;
+    }
     await fs.rm(home, { recursive: true, force: true });
     await rmTempProject(projectDir);
   }
@@ -70,17 +76,17 @@ async function seed(projectDir) {
     "other.plugin": { data: { hidden: "other-node-secret" } },
     [FIXTURE_ID]: { data: { visible: "fixture-node" } },
   };
-  await writeState(projectDir, state);
+  await writeCanonicalState(projectDir, state);
 }
 
-test("plugin-foundation fixture is public-api-only and exercises the complete acceptance flow", async () => {
+async function assertFixtureContract() {
   const packageJson = JSON.parse(await fs.readFile(path.join(FIXTURE_DIR, "package.json"), "utf8"));
   assert.equal(packageJson.type, "module");
   assert.deepEqual(packageJson.climier, {
     id: FIXTURE_ID,
     command: FIXTURE_COMMAND,
     entry: "./climier.mjs",
-    api: 3,
+    api: 1,
   });
   for (const key of ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"]) {
     assert.equal(key in packageJson, false, `fixture must not declare ${key}`);
@@ -88,138 +94,169 @@ test("plugin-foundation fixture is public-api-only and exercises the complete ac
   const entrypoint = await fs.readFile(path.join(FIXTURE_DIR, "climier.mjs"), "utf8");
   assert.doesNotMatch(entrypoint, /(?:from|import)\s*["'][^"']*src\//);
 
-  await withFreshEnv(async ({ home, projectDir }) => {
-    await seed(projectDir);
-    const installed = await cli(["--project", projectDir, "install", FIXTURE_DIR]);
-    assert.equal(installed.plugin.id, FIXTURE_ID);
+}
 
-    const snapshot = await cli([
-      "--project", projectDir, "--as", "acceptance", FIXTURE_COMMAND, "snapshot",
-    ]);
-    assert.equal(snapshot.command, "snapshot");
-    assert.deepEqual(Object.keys(snapshot.snapshot.plugins), [FIXTURE_ID]);
-    assert.equal(snapshot.snapshot.plugins["other.plugin"], undefined);
-    assert.equal(snapshot.snapshot.nodes["T-pf-target"].plugins["other.plugin"], undefined);
-    assert.equal(snapshot.snapshot.derived["T-pf-target"], "ready");
+async function assertInstallAndSnapshot(projectDir) {
+  const installed = await cli(["--project", projectDir, "install", FIXTURE_DIR]);
+  assert.equal(installed.plugin.id, FIXTURE_ID);
 
-    const value = { secret: "not-a-log-value", nested: [true, null, 3] };
-    await cli([
-      "--project", projectDir, "--as", "acceptance", FIXTURE_COMMAND, "data-set",
-      "T-pf-target", "result", JSON.stringify(value),
-    ]);
-    const data = await cli([
-      "--project", projectDir, "--as", "acceptance", FIXTURE_COMMAND, "data-get",
-      "T-pf-target", "result",
-    ]);
-    assert.deepEqual(data.node, value);
-    assert.deepEqual(data.project, value);
-    const afterSet = await readState(projectDir);
-    assert.deepEqual(afterSet.nodes["T-pf-target"].plugins[FIXTURE_ID].data.result, value);
-    assert.deepEqual(afterSet.plugins[FIXTURE_ID].data.result, value);
-    assert.ok(afterSet.log.some((entry) => entry.action === "plugin-data-set"));
-    assert.equal(afterSet.log.some((entry) => JSON.stringify(entry).includes(value.secret)), false);
+  const snapshot = await cli([
+    "--project", projectDir, "--as", "acceptance", FIXTURE_COMMAND, "snapshot",
+  ]);
+  assert.equal(snapshot.command, "snapshot");
+  assert.deepEqual(Object.keys(snapshot.snapshot.plugins), [FIXTURE_ID]);
+  assert.equal(snapshot.snapshot.plugins["other.plugin"], undefined);
+  assert.equal(snapshot.snapshot.nodes["T-pf-target"].plugins["other.plugin"], undefined);
+  assert.equal(snapshot.snapshot.derived["T-pf-target"], "ready");
+}
 
-    const deleted = await cli([
-      "--project", projectDir, "--as", "acceptance", FIXTURE_COMMAND, "data-delete",
-      "T-pf-target", "result",
-    ]);
-    assert.deepEqual(deleted.node, { removed: true });
-    assert.deepEqual(deleted.project, { removed: true });
-    const deletedAgain = await cli([
-      "--project", projectDir, "--as", "acceptance", FIXTURE_COMMAND, "data-delete",
-      "T-pf-target", "result",
-    ]);
-    assert.deepEqual(deletedAgain.node, { removed: false });
-    assert.deepEqual(deletedAgain.project, { removed: false });
-    const afterDelete = await cli([
-      "--project", projectDir, "--as", "acceptance", FIXTURE_COMMAND, "data-get",
-      "T-pf-target", "result",
-    ]);
-    assert.equal(afterDelete.node, null);
-    assert.equal(afterDelete.project, null);
+async function assertDataSet(projectDir) {
+  const value = { secret: "not-a-log-value", nested: [true, null, 3] };
+  await cli([
+    "--project", projectDir, "--as", "acceptance", FIXTURE_COMMAND, "data-set",
+    "T-pf-target", "result", JSON.stringify(value),
+  ]);
+  const data = await cli([
+    "--project", projectDir, "--as", "acceptance", FIXTURE_COMMAND, "data-get",
+    "T-pf-target", "result",
+  ]);
+  assert.deepEqual(data.node, value);
+  assert.deepEqual(data.project, value);
+  const afterSet = await readState(projectDir);
+  assert.deepEqual(afterSet.nodes["T-pf-target"].plugins[FIXTURE_ID].data.result, value);
+  assert.deepEqual(afterSet.plugins[FIXTURE_ID].data.result, value);
+  assert.ok(afterSet.log.some((entry) => entry.action === "plugin-data-set"));
+  assert.equal(afterSet.log.some((entry) => JSON.stringify(entry).includes(value.secret)), false);
+}
 
-    await cli([
-      "--project", projectDir, "--as", "acceptance", FIXTURE_COMMAND, "runtime-write", "restart-marker",
-    ]);
-    const runtime = await cli([
-      "--project", projectDir, "--as", "acceptance", FIXTURE_COMMAND, "runtime-read",
-    ]);
-    assert.equal(runtime.marker, "restart-marker");
-    assert.match(runtime.dataDir, new RegExp(`${FIXTURE_ID.replace(".", "\\.")}$`));
-    assert.ok((await fs.stat(runtime.dataDir)).isDirectory());
+async function assertDataDelete(projectDir) {
+  const deleted = await cli([
+    "--project", projectDir, "--as", "acceptance", FIXTURE_COMMAND, "data-delete",
+    "T-pf-target", "result",
+  ]);
+  assert.deepEqual(deleted.node, { removed: true });
+  assert.deepEqual(deleted.project, { removed: true });
+  const deletedAgain = await cli([
+    "--project", projectDir, "--as", "acceptance", FIXTURE_COMMAND, "data-delete",
+    "T-pf-target", "result",
+  ]);
+  assert.deepEqual(deletedAgain.node, { removed: false });
+  assert.deepEqual(deletedAgain.project, { removed: false });
+  const afterDelete = await cli([
+    "--project", projectDir, "--as", "acceptance", FIXTURE_COMMAND, "data-get",
+    "T-pf-target", "result",
+  ]);
+  assert.equal(afterDelete.node, null);
+  assert.equal(afterDelete.project, null);
+}
 
-    const beforeShell = (await cli(["--project", projectDir, "state"])).revision;
-    // The public shell path is deliberately state -> batch -> state. The
-    // revision read from state is the batch CAS and the next state proves
-    // the repair was one atomic commit.
-    const beforeState = await cli(["--project", projectDir, "state"]);
-    const batchFile = path.join(projectDir, "acceptance-batch.json");
-    await fs.writeFile(batchFile, JSON.stringify({
-      if_state_revision: beforeState.revision,
-      operations: [
-        { op: "task.create", input: {
-          id: "T-pf-shell-a", initiative: "plugin-foundation", title: "shell a",
-          body: "a", acceptance: "a",
-        } },
-        { op: "task.create", input: {
-          id: "T-pf-shell-b", initiative: "plugin-foundation", title: "shell b",
-          body: "b", acceptance: "b",
-        } },
-        { op: "edge.add", input: { from: "T-pf-shell-a", to: "T-pf-shell-b", type: "BLOCKS" } },
-      ],
-    }), "utf8");
-    const shellBatch = await cli([
-      "--project", projectDir, "batch", "--file", batchFile, "--as", "shell",
-    ]);
-    assert.equal(shellBatch.ok, true);
-    const afterShell = await cli(["--project", projectDir, "state"]);
-    assert.equal(afterShell.revision, beforeState.revision + 1);
-    assert.equal(afterShell.derived["T-pf-shell-b"], "blocked");
-    assert.equal(afterShell.nodes["T-pf-shell-a"].id, "T-pf-shell-a");
-    assert.equal(beforeShell, beforeState.revision);
+async function assertRuntime(projectDir) {
+  await cli([
+    "--project", projectDir, "--as", "acceptance", FIXTURE_COMMAND, "runtime-write", "restart-marker",
+  ]);
+  const runtime = await cli([
+    "--project", projectDir, "--as", "acceptance", FIXTURE_COMMAND, "runtime-read",
+  ]);
+  assert.equal(runtime.marker, "restart-marker");
+  assert.match(runtime.dataDir, new RegExp(`${FIXTURE_ID.replace(".", "\\.")}$`));
+  assert.ok((await fs.stat(runtime.dataDir)).isDirectory());
+}
 
-    const repair = await cli([
-      "--project", projectDir, "--as", "acceptance", FIXTURE_COMMAND, "repair",
-    ]);
-    assert.equal(repair.command, "repair");
-    assert.equal(repair.batch.ok, true);
-    assert.equal(repair.batch.results.length, 3);
-    assert.equal(repair.batch.revision_after, repair.batch.revision_before + 1);
+async function assertShellBatch(projectDir) {
+  const beforeShell = (await cli(["--project", projectDir, "state"])).revision;
+  // The public shell path is deliberately state -> batch -> state. The
+  // revision read from state is the batch CAS and the next state proves
+  // the repair was one atomic commit.
+  const beforeState = await cli(["--project", projectDir, "state"]);
+  const batchFile = path.join(projectDir, "acceptance-batch.json");
+  await fs.writeFile(batchFile, JSON.stringify({
+    if_state_revision: beforeState.revision,
+    operations: [
+      { op: "task.create", input: {
+        id: "T-pf-shell-a", initiative: "plugin-foundation", title: "shell a",
+        body: "a", acceptance: "a",
+      } },
+      { op: "task.create", input: {
+        id: "T-pf-shell-b", initiative: "plugin-foundation", title: "shell b",
+        body: "b", acceptance: "b",
+      } },
+      { op: "edge.add", input: { from: "T-pf-shell-a", to: "T-pf-shell-b", type: "BLOCKS" } },
+    ],
+  }), "utf8");
+  const shellBatch = await cli([
+    "--project", projectDir, "batch", "--file", batchFile, "--as", "shell",
+  ]);
+  assert.equal(shellBatch.ok, true);
+  const afterShell = await cli(["--project", projectDir, "state"]);
+  assert.equal(afterShell.revision, beforeState.revision + 1);
+  assert.equal(afterShell.derived["T-pf-shell-b"], "blocked");
+  assert.equal(afterShell.nodes["T-pf-shell-a"].id, "T-pf-shell-a");
+  assert.equal(beforeShell, beforeState.revision);
+}
 
-    const rollback = await cli([
-      "--project", projectDir, "--as", "acceptance", FIXTURE_COMMAND, "rollback",
-    ]);
-    assert.equal(rollback.error.code, "BATCH_OPERATION_FAILED");
-    assert.equal(rollback.error.details.operation_index, 1);
-    const rollbackState = await readState(projectDir);
-    assert.equal(rollbackState.nodes["T-pf-rollback"], undefined);
+async function assertRepairAndRollback(projectDir) {
+  const repair = await cli([
+    "--project", projectDir, "--as", "acceptance", FIXTURE_COMMAND, "repair",
+  ]);
+  assert.equal(repair.command, "repair");
+  assert.equal(repair.batch.ok, true);
+  assert.equal(repair.batch.results.length, 3);
+  assert.equal(repair.batch.revision_after, repair.batch.revision_before + 1);
 
-    const staleCas = await cli([
-      "--project", projectDir, "--as", "acceptance", FIXTURE_COMMAND, "cas",
-    ]);
-    assert.equal(staleCas.error.code, "STATE_REVISION_CONFLICT");
+  const rollback = await cli([
+    "--project", projectDir, "--as", "acceptance", FIXTURE_COMMAND, "rollback",
+  ]);
+  assert.equal(rollback.error.code, "BATCH_OPERATION_FAILED");
+  assert.equal(rollback.error.details.operation_index, 1);
+  const rollbackState = await readState(projectDir);
+  assert.equal(rollbackState.nodes["T-pf-rollback"], undefined);
+}
 
-    const apiCycle = await cli([
-      "--project", projectDir, "--as", "acceptance", FIXTURE_COMMAND, "api-cycle",
-    ]);
-    assert.equal(apiCycle.error.code, "CYCLE_DETECTED");
-    const batchCycle = await cli([
-      "--project", projectDir, "--as", "acceptance", FIXTURE_COMMAND, "batch-cycle",
-    ]);
-    assert.equal(batchCycle.error.code, "BATCH_OPERATION_FAILED");
-    assert.equal(batchCycle.error.details.cause.code, "CYCLE_DETECTED");
+async function assertCycleErrors(projectDir) {
+  const staleCas = await cli([
+    "--project", projectDir, "--as", "acceptance", FIXTURE_COMMAND, "cas",
+  ]);
+  assert.equal(staleCas.error.code, "STATE_REVISION_CONFLICT");
 
-    const cliCycle = await cliFailure([
-      "--project", projectDir, "--as", "shell", "add-edge",
-      "T-pf-shell-b", "T-pf-shell-a", "--type", "BLOCKS",
-    ]);
-    assert.equal(cliCycle.error.code, "CYCLE_DETECTED");
+  const apiCycle = await cli([
+    "--project", projectDir, "--as", "acceptance", FIXTURE_COMMAND, "api-cycle",
+  ]);
+  assert.equal(apiCycle.error.code, "CYCLE_DETECTED");
+  const batchCycle = await cli([
+    "--project", projectDir, "--as", "acceptance", FIXTURE_COMMAND, "batch-cycle",
+  ]);
+  assert.equal(batchCycle.error.code, "BATCH_OPERATION_FAILED");
+  assert.equal(batchCycle.error.details.cause.code, "CYCLE_DETECTED");
 
-    const finalState = await readState(projectDir);
-    assert.equal(finalState.nodes["T-pf-shell-a"].id, "T-pf-shell-a");
-    assert.equal(finalState.nodes["T-pf-rollback"], undefined);
-    assert.equal(finalState.nodes["T-pf-target"].plugins["other.plugin"].data.hidden, "other-node-secret");
-    assert.ok(finalState.log.every((entry) => !JSON.stringify(entry).includes("not-a-log-value")));
-    assert.equal(stateFilePath(projectDir).startsWith(path.join(home, "projects")), true);
-  });
+  const cliCycle = await cliFailure([
+    "--project", projectDir, "--as", "shell", "add-edge",
+    "T-pf-shell-b", "T-pf-shell-a", "--type", "BLOCKS",
+  ]);
+  assert.equal(cliCycle.error.code, "CYCLE_DETECTED");
+}
+
+async function assertFinalState(home, projectDir) {
+  const finalState = await readState(projectDir);
+  assert.equal(finalState.nodes["T-pf-shell-a"].id, "T-pf-shell-a");
+  assert.equal(finalState.nodes["T-pf-rollback"], undefined);
+  assert.equal(finalState.nodes["T-pf-target"].plugins["other.plugin"].data.hidden, "other-node-secret");
+  assert.ok(finalState.log.every((entry) => !JSON.stringify(entry).includes("not-a-log-value")));
+  assert.equal(stateFilePath(projectDir).startsWith(path.join(home, "projects")), true);
+}
+
+async function runFoundationAcceptance({ home, projectDir }) {
+  await seed(projectDir);
+  await assertInstallAndSnapshot(projectDir);
+  await assertDataSet(projectDir);
+  await assertDataDelete(projectDir);
+  await assertRuntime(projectDir);
+  await assertShellBatch(projectDir);
+  await assertRepairAndRollback(projectDir);
+  await assertCycleErrors(projectDir);
+  await assertFinalState(home, projectDir);
+}
+
+test("plugin-foundation fixture is public-api-only and exercises the complete acceptance flow", async () => {
+  await assertFixtureContract();
+  await withFreshEnv(runFoundationAcceptance);
 });

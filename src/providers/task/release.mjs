@@ -1,6 +1,5 @@
-// src/providers/task/release.mjs — pure provider for `task.release`.
-//
-// ADR-011 §§1–4:
+
+
 //   - `prepare` is read-only. Validates input + target, and detects
 //     the no-claim idempotent short-circuit (the kernel diff will
 //     see no change and skip the write + log).
@@ -28,7 +27,7 @@ function asNonEmptyString(value) {
 // input.actor. Both shapes remain accepted for compatibility, but
 // request.actor wins when both are present:
 // the adapter is the canonical source of truth for agent identity
-// in plugin-issued calls (ADR-006 §API y compatibilidad).
+
 function resolveActor(input, request) {
   return (
     asNonEmptyString(request && request.actor) ||
@@ -82,7 +81,6 @@ function validateTarget(input, snapshot) {
 }
 
 /**
- * Pure `prepare` for task.release.
  *
  * @param {{ snapshot: object, input: object, request: object }} args
  * @returns {object} frozen plan
@@ -91,7 +89,7 @@ async function prepare({ snapshot, input, request }) {
   validateInputShape(input, request);
   validateTarget(input, snapshot);
   const node = readSnapshotNodes(snapshot)[input.id];
-  const hasClaim = !!(node.claim && node.claim.by);
+  const hasClaim = Boolean(node.claim && node.claim.by);
   return Object.freeze({
     target: Object.freeze({
       id: input.id,
@@ -109,7 +107,6 @@ async function prepare({ snapshot, input, request }) {
 }
 
 /**
- * Pure `apply` for task.release. Idempotent when there is no claim
  * to release — kernel diff catches the no-op and skips write/log.
  *
  * @param {{ tx: object, plan: object, input: object, request: object, snapshot: object }} args

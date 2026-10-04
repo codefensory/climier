@@ -3,12 +3,13 @@ import crypto from "node:crypto";
 import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { withLock, assertActiveLockContext, getActiveLockContext } from "./lock.mjs";
 import { climierHome, projectMetaFile } from "./paths.mjs";
 import { validateStateInvariants } from "../contracts/state-invariants.mjs";
 
 function readProjectMetaSync(projectDir) {
   const file = projectMetaFile(projectDir);
-  if (!fsSync.existsSync(file)) return null;
+  if (!fsSync.existsSync(file)) { return null; }
   let meta;
   try {
     meta = JSON.parse(fsSync.readFileSync(file, "utf8"));
@@ -18,9 +19,7 @@ function readProjectMetaSync(projectDir) {
     wrapped.cause = err;
     throw wrapped;
   }
-  if (!meta || typeof meta !== "object" || typeof meta.project_id !== "string" || !meta.project_id.trim()) {
-    throw new Error(`state: project metadata at ${file} is invalid (missing non-empty 'project_id')`);
-  }
+  if (!meta || typeof meta !== "object" || typeof meta.project_id !== "string" || !meta.project_id.trim()) { throw new Error(`state: project metadata at ${file} is invalid (missing non-empty 'project_id')`); }
   return meta;
 }
 
@@ -34,12 +33,12 @@ function defaultProjectId(projectDir) {
 
 export function stateFile(projectDir) {
   const meta = readProjectMetaSync(projectDir);
-  return globalStateFile(meta ? meta.project_id : defaultProjectId(projectDir));
+  return globalStateFile(meta?.project_id || defaultProjectId(projectDir));
 }
 
 export async function ensureProjectMeta(projectDir) {
   const existing = readProjectMetaSync(projectDir);
-  if (existing) return existing;
+  if (existing) { return existing; }
   const file = projectMetaFile(projectDir);
   const meta = {
     version: 1,
@@ -50,23 +49,46 @@ export async function ensureProjectMeta(projectDir) {
   return meta;
 }
 
-const CURRENT_STATE_VERSION = 4;
-const LEGACY_STATE_VERSION = 2;
-const PREVIOUS_STATE_VERSION = 3;
+export const STATE_SCHEMA_VERSION = 1;
+const CLASSIFIABLE_NONCANONICAL_VERSIONS = new Set([2, 3, 4, 5]);
+const FENCED_LEGACY_VERSION = 5;
 
-// v1 is no longer supported. v2 and v3 remain readable through this narrow
-// migration because their collections and node representation are compatible
-// with v4. The returned object is new, and migration never mutates its input.
-export function migrateState(state) {
-  if (state && (state.version === LEGACY_STATE_VERSION || state.version === PREVIOUS_STATE_VERSION)) {
-    return { ...state, version: CURRENT_STATE_VERSION, revision: 0 };
+export function isFencedStateVersion(version) {
+  return version === STATE_SCHEMA_VERSION;
+}
+
+export function isFencedState(state) {
+  return isFencedStateVersion(state?.version);
+}
+
+export function classifyStateShape(state) {
+  if (!state || typeof state !== "object" || Array.isArray(state)) { return { kind: "invalid" }; }
+  if (!Object.prototype.hasOwnProperty.call(state, "nodes")
+      && ["tasks", "decisions", "gotchas"].some((field) => Object.prototype.hasOwnProperty.call(state, field))) {
+    return { kind: "pre-release" };
   }
-  return state;
+  if (!Number.isInteger(state.version)
+      || (state.version > STATE_SCHEMA_VERSION && !CLASSIFIABLE_NONCANONICAL_VERSIONS.has(state.version))) {
+    return { kind: "incompatible" };
+  }
+  if (state.version === STATE_SCHEMA_VERSION) {
+    if (!Object.prototype.hasOwnProperty.call(state, "nodes")
+        && ["tasks", "decisions", "gotchas"].some((field) => Object.prototype.hasOwnProperty.call(state, field))) {
+      return { kind: "pre-release" };
+    }
+    const missing = ["nodes", "edges", "initiatives", "log"].filter((field) => !Object.prototype.hasOwnProperty.call(state, field));
+    if (missing.length > 0) { return { kind: "incomplete", missing }; }
+    if (!Number.isInteger(state.fence_generation)) { return { kind: "noncanonical", reason: "fence_generation is missing or invalid" }; }
+    return { kind: "canonical" };
+  }
+  if (state.version === FENCED_LEGACY_VERSION) { return { kind: "fenced-legacy" }; }
+  return { kind: "legacy" };
 }
 
 export function emptyState() {
   return {
-    version: CURRENT_STATE_VERSION,
+    version: STATE_SCHEMA_VERSION,
+    fence_generation: 1,
     nodes: {},
     edges: [],
     initiatives: {},
@@ -75,123 +97,189 @@ export function emptyState() {
   };
 }
 
-export function isV2State(state) {
-  return !!state && (state.version === LEGACY_STATE_VERSION || state.version === PREVIOUS_STATE_VERSION || state.version === CURRENT_STATE_VERSION);
+const READABLE_STATE_KINDS = new Set(["canonical"]);
+
+
+// for migrate detection, but never grants those forms read acceptance.
+export function assertReadableState(state, commandName) {
+  if (!state) { return; }
+  const shape = classifyStateShape(state);
+  if (READABLE_STATE_KINDS.has(shape.kind)) { return; }
+  const error = new Error(`${commandName}: state is not readable (${shape.kind})`);
+  error.code = "CLIMIER_STATE_NOT_READABLE";
+  error.details = { kind: shape.kind, version: state.version };
+  throw error;
 }
 
-export function isV3State(state) {
-  return !!state && (state.version === PREVIOUS_STATE_VERSION || state.version === CURRENT_STATE_VERSION);
+async function readMissingState(projectDir) {
+  const { ledgerFile, readFencedState } = await import("./ledger.mjs");
+  try { await fs.access(ledgerFile(projectDir)); }
+  catch (error) { if (error.code === "ENOENT") { return null; } throw error; }
+  return readFencedState(projectDir);
 }
 
-export function assertStateVersion(state, version, commandName) {
-  if (!state) return;
-  if (state.version === version || (version === LEGACY_STATE_VERSION && state.version === CURRENT_STATE_VERSION)) return;
-  throw new Error(`${commandName}: state version ${state.version} is not supported by this command (expected version ${version})`);
+function stateShapeError(code, message, details) {
+  const error = new Error(message);
+  error.code = code;
+  error.details = details;
+  return error;
+}
+
+async function parseStateFile(projectDir, file, raw) {
+  const state = JSON.parse(raw);
+  const shape = classifyStateShape(state);
+  if (shape.kind === "invalid") {
+    throw stateShapeError("CLIMIER_INVALID_STATE_FORMAT", `state: file at ${file} is not a JSON object`, { file });
+  }
+  if (shape.kind === "pre-release") {
+    throw stateShapeError("PRE_RELEASE_STATE_UNSUPPORTED", `state: pre-release state at ${file} has tasks/decisions/gotchas without nodes; run climier migrate`, {
+      file, version: state.version, hint: "Run climier migrate to import this pre-release state.",
+    });
+  }
+  if (shape.kind === "legacy" || shape.kind === "fenced-legacy") {
+    throw stateShapeError("CLIMIER_INCOMPATIBLE_VERSION", `state: file at ${file} is not a canonical version ${STATE_SCHEMA_VERSION} state; run climier migrate`, {
+      file, version: state.version, hint: "Run climier migrate to import this state.",
+    });
+  }
+  if (shape.kind === "incompatible") { rejectFutureWritableVersion(state, file); }
+  if (shape.kind === "incomplete") {
+    throw stateShapeError("CLIMIER_INCOMPLETE_STATE", `state: canonical version 1 file at ${file} is incomplete (missing ${shape.missing.join(", ")})`, {
+      file, missing: shape.missing,
+    });
+  }
+  if (shape.kind === "noncanonical") {
+    throw stateShapeError("CLIMIER_NONCANONICAL_STATE", `state: version 1 file at ${file} is not canonical (${shape.reason}); run climier migrate`, {
+      file, version: STATE_SCHEMA_VERSION, reason: shape.reason, hint: "Run climier migrate to create a canonical state.",
+    });
+  }
+  if (shape.kind === "canonical") {
+    const { ledgerFile, readFencedState } = await import("./ledger.mjs");
+    try { await fs.access(ledgerFile(projectDir)); }
+    catch (error) {
+      if (error.code === "ENOENT") {
+        throw stateShapeError("CLIMIER_NONCANONICAL_STATE", `state: version 1 file at ${file} is not canonical (revision-ledger.json is missing); run climier migrate`, {
+          file, version: STATE_SCHEMA_VERSION, reason: "revision-ledger.json is missing", hint: "Run climier migrate to create a canonical state.",
+        });
+      }
+      throw error;
+    }
+    return readFencedState(projectDir);
+  }
+  throw stateShapeError("CLIMIER_INCOMPATIBLE_VERSION", `state: file at ${file} is not a canonical version ${STATE_SCHEMA_VERSION} state; run climier migrate`, { file, version: state.version, hint: "Run climier migrate to import this state." });
 }
 
 export async function readState(projectDir) {
+  const file = stateFile(projectDir);
+  let raw;
   try {
-    const raw = await fs.readFile(stateFile(projectDir), "utf8");
-    const state = JSON.parse(raw);
-    // v1 states are no longer supported. Surface a structured error so the
-    // caller (CLI entry or init) can guide the user through manual
-    // migration. The migration path is documented in the message and
-    // details: backup, export, init --force, recreate nodes.
-    if (state && typeof state === "object" && state.version === 1) {
-      const migrationSteps = [
-        "1. Backup the existing tasks.json file.",
-        "2. Export any nodes you want to keep (the v1 schema uses tasks/decisions/gotchas; recreate them with add-task/add-gate/add-knowledge).",
-        "3. Run `climier init --force` to recreate the project state in v3.",
-        "4. Recreate each node with add-initiative / add-task / add-gate / add-knowledge (see `climier --help` for the v3 surface).",
-      ];
-      const wrapped = new Error(
-        `state: file at ${stateFile(projectDir)} has version 1; this version of climier no longer supports the v1 schema. ` +
-        `To migrate, follow these steps:\n${migrationSteps.join("\n")}`,
-      );
-      wrapped.code = "STATE_V1_UNSUPPORTED";
-      wrapped.details = {
-        file: stateFile(projectDir),
-        version: 1,
-        migration_steps: migrationSteps,
-        hint: "Run `climier init --force` to overwrite the v1 state with a fresh v3 state (this will erase the v1 data).",
-      };
-      throw wrapped;
-    }
-    // Forward-compatibility: surface a clear error if a future version is found.
-    if (state && typeof state === "object" && "version" in state && state.version > CURRENT_STATE_VERSION) {
-      const wrapped = new Error(`state: file at ${stateFile(projectDir)} has version ${state.version} but this climier only understands version ${CURRENT_STATE_VERSION}`);
-      wrapped.code = "CLIMIER_INCOMPATIBLE_VERSION";
-      throw wrapped;
-    }
-    const migrated = migrateState(state);
-    if (migrated && typeof migrated === "object") validateStateInvariants(migrated, "state.read");
-    return migrated;
-  } catch (err) {
-    if (err.code === "ENOENT") return null;
-    if (err instanceof SyntaxError) {
-      const wrapped = new Error(`state: file at ${stateFile(projectDir)} is corrupt or not valid JSON: ${err.message}`);
+    raw = await fs.readFile(file, "utf8");
+  } catch (error) {
+    if (error.code === "ENOENT") { return readMissingState(projectDir); }
+    throw error;
+  }
+  try {
+    return await parseStateFile(projectDir, file, raw);
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      const wrapped = new Error(`state: file at ${file} is corrupt or not valid JSON: ${error.message}`);
       wrapped.code = "CLIMIER_CORRUPT_STATE";
-      wrapped.cause = err;
+      wrapped.cause = error;
       throw wrapped;
     }
-    throw err;
+    throw error;
   }
 }
 
-// Atomic update: read, mutate, write to tmp, rename. Never partial.
-export async function updateState(projectDir, mutator) {
-  const file = stateFile(projectDir);
-  await fs.mkdir(path.dirname(file), { recursive: true });
-  let state;
+function ledgerRequired(message) {
+  const error = new Error(message);
+  error.code = "CLIMIER_LEDGER_REQUIRED";
+  return error;
+}
+
+function hasFenceMarker(state) {
+  return state?.version === FENCED_LEGACY_VERSION || Number.isInteger(state?.fence_generation);
+}
+
+async function assertUnledgeredWriteAllowed(lockContext, projectDir, targetState) {
+  assertActiveLockContext(lockContext, projectDir);
+  const { statePath } = getActiveLockContext(lockContext);
+  const ledgerPath = path.join(path.dirname(statePath), "revision-ledger.json");
   try {
-    const raw = await fs.readFile(file, "utf8");
-    state = JSON.parse(raw);
-  } catch (err) {
-    if (err.code !== "ENOENT") throw err;
-    state = emptyState();
+    await fs.access(ledgerPath);
+    throw ledgerRequired("state: revision-ledger projects require the fenced ledger commit API");
+  } catch (error) {
+    if (error.code !== "ENOENT") { throw error; }
   }
-  // Keep updateState on the same version boundary as readState. This path
-  // reads directly because it is the low-level mutator used by bootstrap and
-  // older callers, so it must apply the v2→v3 normalization itself.
-  if (state && typeof state === "object" && state.version === 1) {
-    const wrapped = new Error(
-      `state: file at ${file} has version 1; this version of climier no longer supports the v1 schema. ` +
-      `Run \`climier init --force\` to overwrite the v1 state with a fresh v3 state.`,
-    );
-    wrapped.code = "STATE_V1_UNSUPPORTED";
-    wrapped.details = { file, version: 1, hint: "Run `climier init --force` to overwrite the v1 state." };
-    throw wrapped;
+
+  let existing;
+  try {
+    existing = JSON.parse(await fs.readFile(statePath, "utf8"));
+  } catch (error) { if (error.code !== "ENOENT" && !(error instanceof SyntaxError)) { throw error; } }
+  if (hasFenceMarker(existing) || hasFenceMarker(targetState)) { throw ledgerRequired("state: canonical states require the revision ledger commit API"); }
+}
+
+function rejectUnsupportedWriteVersion(state, file) {
+  if (state?.version === STATE_SCHEMA_VERSION) {
+    if (classifyStateShape(state).kind === "pre-release") {
+      throw stateShapeError("PRE_RELEASE_STATE_UNSUPPORTED", `state: ${file} holds a pre-canonical state (tasks/decisions/gotchas without nodes); run climier migrate`, {
+        file, hint: "Run climier migrate to import this state.",
+      });
+    }
+    throw ledgerRequired("state: canonical states require the revision ledger commit API");
   }
-  if (state && typeof state === "object" && "version" in state && state.version > CURRENT_STATE_VERSION) {
-    const wrapped = new Error(`state: file at ${file} has version ${state.version} but this climier only understands version ${CURRENT_STATE_VERSION}`);
-    wrapped.code = "CLIMIER_INCOMPATIBLE_VERSION";
-    throw wrapped;
+  if (!Number.isInteger(state?.version) || (state.version > STATE_SCHEMA_VERSION && !CLASSIFIABLE_NONCANONICAL_VERSIONS.has(state.version))) { rejectFutureWritableVersion(state, file); }
+}
+
+async function readStateForUpdate(file) {
+  try { return JSON.parse(await fs.readFile(file, "utf8")); }
+  catch (error) {
+    if (error.code !== "ENOENT") { throw error; }
+    return { version: STATE_SCHEMA_VERSION, nodes: {}, edges: [], initiatives: {}, log: [], revision: 0 };
   }
-  state = migrateState(state);
-  if (state && typeof state === "object") validateStateInvariants(state, "state.update");
-  const next = mutator({ ...state });
-  if (next === undefined) {
-    // mutator mutated in-place; we wrote the spread so the outer state is stale.
-    // To be safe, re-read after writing via mutator that returns the new state.
-    throw new Error("updateState mutator must return the new state object");
+}
+
+function rejectFutureWritableVersion(state, file) {
+  const error = new Error(`state: file at ${file} has version ${state?.version} but this climier only understands schema version ${STATE_SCHEMA_VERSION}; run climier migrate`);
+  error.code = "CLIMIER_INCOMPATIBLE_VERSION";
+  throw error;
+}
+
+function assertWritableStateVersion(state, file) {
+  if (!state || typeof state !== "object") { return; }
+  if (state.version === STATE_SCHEMA_VERSION) { throw new Error("state.update: version 1 state requires the canonical ledger write API"); }
+  if (state.version > STATE_SCHEMA_VERSION && !CLASSIFIABLE_NONCANONICAL_VERSIONS.has(state.version)) { rejectFutureWritableVersion(state, file); }
+  if (!Number.isInteger(state.version)) { rejectFutureWritableVersion(state, file); }
+  if (CLASSIFIABLE_NONCANONICAL_VERSIONS.has(state.version)) {
+    throw stateShapeError("CLIMIER_INCOMPATIBLE_VERSION", `state: file at ${file} has legacy version ${state.version}; run climier migrate`, {
+      file, version: state.version, hint: "Run climier migrate to import this state.",
+    });
   }
-  const tmp = file + ".tmp-" + process.pid + "-" + Date.now();
-  await fs.writeFile(tmp, JSON.stringify(next, null, 2) + "\n", "utf8");
+}
+
+async function persistUpdatedState(file, lockContext, projectDir, state) {
+  await assertUnledgeredWriteAllowed(lockContext, projectDir, state);
+  const tmp = `${file}.tmp-${process.pid}-${Date.now()}`;
+  await fs.writeFile(tmp, `${JSON.stringify(state, null, 2)}\n`, "utf8");
   await fs.rename(tmp, file);
+}
+
+async function updateStateUnderLock(projectDir, lockContext, mutator) {
+  const file = stateFile(projectDir);
+  await assertUnledgeredWriteAllowed(lockContext, projectDir);
+  await fs.mkdir(path.dirname(file), { recursive: true });
+  let state = await readStateForUpdate(file);
+  assertWritableStateVersion(state, file);
+  state = { ...state, version: 4, revision: Number.isInteger(state.revision) ? state.revision : 0 };
+  if (state && typeof state === "object") { validateStateInvariants(state, "state.update"); }
+  const next = mutator({ ...state });
+  if (next === undefined) { throw new Error("updateState mutator must return the new state object"); }
+  await persistUpdatedState(file, lockContext, projectDir, next);
   return next;
 }
 
-// =====================================================================
-// Snapshot primitives (ADR-004 §§Snapshots/Plan 1)
-//
-// A snapshot lives under `<state-dir>/snapshots/` and is an immutable
-// raw copy of the state file at the moment of capture, plus a sibling
-// metadata file with id/created_at/reason/bytes/sha256. Creation is
-// always paired with temp+rename so a partial pair never appears as
-// "complete" in `listSnapshots`. The caller is expected to hold
-// `withLock(projectDir)` for the lifetime of the mutation; we do not
-// take the lock here so the primitive stays composable.
-// =====================================================================
+export async function updateState(projectDir, mutator) {
+  return withLock(projectDir, (lockContext) => updateStateUnderLock(projectDir, lockContext, mutator));
+}
 
 const VALID_SNAPSHOT_REASONS = new Set(["force-init", "corrupt-recovery", "pre-restore"]);
 
@@ -199,15 +287,10 @@ function snapshotDir(projectDir) {
   return path.join(path.dirname(stateFile(projectDir)), "snapshots");
 }
 
-// Public accessor for the snapshot directory of a project. Exported so
-// commands (notably `restore`) can compose against the same layout the
-// primitives write into without recomputing the path.
 export { snapshotDir };
 
 function buildSnapshotId(reason) {
-  // toISOString() returns `YYYY-MM-DDTHH:mm:ss.SSSZ`. Strip the dashes,
-  // colons and dot so the id prefix is a sortable UTC timestamp with
-  // millisecond precision (matches the ADR format).
+
   const iso = new Date().toISOString();
   const ts = iso.replace(/[-:.]/g, "");
   const random = crypto.randomBytes(4).toString("hex");
@@ -221,44 +304,62 @@ async function tryChmod(target, mode) {
   try {
     await fs.chmod(target, mode);
   } catch {
-    // ignored by design
+
   }
 }
 
+async function writeSnapshotPair(raw, metadata, dir) {
+  const finalRawPath = path.join(dir, `${metadata.id}.json`);
+  const finalMetaPath = path.join(dir, `${metadata.id}.meta.json`);
+  const tmpRawPath = `${finalRawPath}.tmp-${process.pid}-${Date.now()}`;
+  const tmpMetaPath = `${finalMetaPath}.tmp-${process.pid}-${Date.now()}`;
+  await fs.writeFile(tmpRawPath, raw);
+  await tryChmod(tmpRawPath, 0o600);
+  await fs.writeFile(tmpMetaPath, `${JSON.stringify(metadata, null, 2)}\n`, "utf8");
+  await tryChmod(tmpMetaPath, 0o600);
+  await fs.rename(tmpRawPath, finalRawPath);
+  await fs.rename(tmpMetaPath, finalMetaPath);
+}
+
 export async function createSnapshot(projectDir, reason) {
-  if (!VALID_SNAPSHOT_REASONS.has(reason)) {
-    const allowed = [...VALID_SNAPSHOT_REASONS].join(", ");
-    throw new Error(`createSnapshot: invalid reason '${reason}' (allowed: ${allowed})`);
-  }
+  if (!VALID_SNAPSHOT_REASONS.has(reason)) { throw new Error(`createSnapshot: invalid reason '${reason}' (allowed: ${[...VALID_SNAPSHOT_REASONS].join(", ")})`); }
   const statePath = stateFile(projectDir);
-  // Read raw bytes (may include non-JSON content for corrupt-recovery;
-  // we never parse the state file here, by design).
+
   const raw = await fs.readFile(statePath);
   const dir = snapshotDir(projectDir);
   await fs.mkdir(dir, { recursive: true });
   await tryChmod(dir, 0o700);
-  const sha256 = crypto.createHash("sha256").update(raw).digest("hex");
-  const id = buildSnapshotId(reason);
-  const finalRawPath = path.join(dir, `${id}.json`);
-  const finalMetaPath = path.join(dir, `${id}.meta.json`);
-  const tmpRawPath = `${finalRawPath}.tmp-${process.pid}-${Date.now()}`;
-  const tmpMetaPath = `${finalMetaPath}.tmp-${process.pid}-${Date.now()}`;
   const metadata = {
-    id,
+    id: buildSnapshotId(reason),
     created_at: new Date().toISOString(),
     reason,
     bytes: raw.length,
-    sha256,
+    sha256: crypto.createHash("sha256").update(raw).digest("hex"),
   };
-  // Write raw first, then metadata. Both use temp+rename so a crash
-  // mid-write never leaves a half-written file at the final path.
-  await fs.writeFile(tmpRawPath, raw);
-  await tryChmod(tmpRawPath, 0o600);
-  await fs.writeFile(tmpMetaPath, JSON.stringify(metadata, null, 2) + "\n", "utf8");
-  await tryChmod(tmpMetaPath, 0o600);
-  await fs.rename(tmpRawPath, finalRawPath);
-  await fs.rename(tmpMetaPath, finalMetaPath);
+  await writeSnapshotPair(raw, metadata, dir);
   return metadata;
+}
+
+async function readSnapshotMetadata(dir, name) {
+  if (!name.endsWith(".meta.json")) { return null; }
+  const id = name.slice(0, -".meta.json".length);
+  try {
+    await fs.access(path.join(dir, `${id}.json`));
+  } catch {
+    return null;
+  }
+  let metadata;
+  try {
+    metadata = JSON.parse(await fs.readFile(path.join(dir, `${id}.meta.json`), "utf8"));
+  } catch {
+    return null;
+  }
+  return metadata && typeof metadata === "object" && metadata.id === id ? metadata : null;
+}
+
+function newestFirst(first, second) {
+  if (first.id < second.id) { return 1; }
+  return first.id > second.id ? -1 : 0;
 }
 
 export async function listSnapshots(projectDir) {
@@ -266,63 +367,29 @@ export async function listSnapshots(projectDir) {
   let entries;
   try {
     entries = await fs.readdir(dir);
-  } catch (err) {
-    if (err.code === "ENOENT") return [];
-    throw err;
+  } catch (error) {
+    if (error.code === "ENOENT") { return []; }
+    throw error;
   }
   const result = [];
   for (const name of entries) {
-    // We anchor on the metadata file: a metadata file without its raw
-    // pair is incomplete, and an orphan raw file has no metadata to
-    // describe it. The primitive surfaces only complete pairs.
-    if (!name.endsWith(".meta.json")) continue;
-    const id = name.slice(0, -".meta.json".length);
-    const rawPath = path.join(dir, `${id}.json`);
-    const metaPath = path.join(dir, `${id}.meta.json`);
-    try {
-      await fs.access(rawPath);
-    } catch {
-      continue;
-    }
-    let meta;
-    try {
-      meta = JSON.parse(await fs.readFile(metaPath, "utf8"));
-    } catch {
-      continue;
-    }
-    // Mismatched id (tampered metadata) is treated as incomplete.
-    if (!meta || typeof meta !== "object" || meta.id !== id) continue;
-    result.push(meta);
+    // Only complete snapshot pairs with matching metadata ids are surfaced.
+    const metadata = await readSnapshotMetadata(dir, name);
+    if (metadata) { result.push(metadata); }
   }
-  // Sort descending: ids are timestamp-prefixed, so lexicographic order
-  // matches creation order. Newest first matches the ADR §Snapshots
-  // listing contract.
-  result.sort((a, b) => (a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
-  return result;
+  // Timestamp-prefixed ids sort in creation order, newest first.
+  return result.toSorted(newestFirst);
 }
 
-// writeState validates and persists the current v4 schema. v2/v3 objects are
-// accepted as compatibility inputs and normalized before they reach disk;
-// v1 and future versions are never written.
-export async function writeState(projectDir, state) {
-  if (!state || typeof state !== "object") {
-    throw new Error("writeState: invalid state (not an object)");
-  }
-  if (state.version === 1) {
-    throw new Error(
-      "writeState: invalid state (version 1 is no longer supported; this build of climier only writes v4 states)",
-    );
-  }
-  state = migrateState(state);
-  if (state.version !== CURRENT_STATE_VERSION) {
-    throw new Error(`writeState: invalid state (version ${state.version} is not supported; expected version ${CURRENT_STATE_VERSION})`);
-  }
+async function writeStateUnderLock(projectDir, lockContext, state) {
+  if (!state || typeof state !== "object") { throw new Error("writeState: invalid state (not an object)"); }
+  await assertUnledgeredWriteAllowed(lockContext, projectDir, state);
+  rejectUnsupportedWriteVersion(state, stateFile(projectDir));
+  state = { ...state, version: 4, revision: Number.isInteger(state.revision) ? state.revision : 0 };
+  if (state.version !== 4) { throw new Error(`writeState: invalid state (version ${state.version} is not supported; expected version 4)`); }
   validateStateInvariants(state, "writeState");
-  const required = ["nodes", "edges", "initiatives", "log"];
-  for (const k of required) {
-    if (!(k in state)) {
-      throw new Error(`writeState: invalid state (missing '${k}' collection)`);
-    }
+  for (const key of ["nodes", "edges", "initiatives", "log"]) {
+    if (!(key in state)) { throw new Error(`writeState: invalid state (missing '${key}' collection)`); }
   }
   const file = stateFile(projectDir);
   await fs.mkdir(path.dirname(file), { recursive: true });
@@ -331,22 +398,14 @@ export async function writeState(projectDir, state) {
   await fs.rename(tmp, file);
 }
 
-// Validate that an initiative name is registered in state.initiatives.
-// Throws with a clear error listing valid names (or the bootstrap hint)
-// if not. Used by add-task / add-decision / add-gotcha to prevent silent
-// typo-driven orphan initiatives (the "qa" / "research" case in real
-// projects: an agent writes --initiative=qa and it just sticks).
-// ponytail: this is the only place initiative registration is enforced.
-// Validation lives here (state.mjs) not in dag.mjs because it's a state
-// concern, not a derivation. The helper is pure; callers pass the state
-// they already loaded.
+export async function writeState(projectDir, state) {
+  return withLock(projectDir, (lockContext) => writeStateUnderLock(projectDir, lockContext, state));
+}
+
+// Validate initiative registration to prevent typo-driven orphans. This pure
+// state helper is the single enforcement point; callers pass their snapshot.
 export function assertInitiativeRegistered(state, name, commandName) {
-  if (name === true) {
-    // CLI parser quirk: `--initiative` with no value becomes boolean true.
-    // The required-only flag checks (e.g. add-task's) catch this earlier
-    // for required fields, but for optional ones we surface a clear error.
-    throw new Error(`${commandName}: --initiative requires a value`);
-  }
+  if (name === true) { throw new Error(`${commandName}: --initiative requires a value`); }
   if (
     state &&
     state.initiatives &&
@@ -355,7 +414,7 @@ export function assertInitiativeRegistered(state, name, commandName) {
     return;
   }
   const valid =
-    state && state.initiatives ? Object.keys(state.initiatives).sort() : [];
+    state && state.initiatives ? Object.keys(state.initiatives).toSorted() : [];
   const hint =
     valid.length > 0
       ? `valid initiatives: ${valid.join(", ")}`

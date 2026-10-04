@@ -15,11 +15,13 @@ function inputObject(input) {
 
 function keyFrom(input) {
   const key = nonEmpty(input.key);
-  if (!key) throwV2("MISSING_FIELD", `${OP}: key is required`, { field: "key" });
+  if (!key) {
+    throwV2("MISSING_FIELD", `${OP}: key is required`, { field: "key" });
+  }
   return key;
 }
 
-async function prepare({ snapshot, input, request, pluginId }) {
+async function prepare({ input, request, pluginId }) {
   const source = inputObject(input);
   const key = keyFrom(source);
   const value = validateValue(source, OP);

@@ -39,7 +39,7 @@ function request(input, actor = ACTOR) {
   return { action: "task.submit", actor, input };
 }
 
-function input(overrides = {}) {
+function makeSubmitInput(overrides = {}) {
   return { id: "T-submit", note: "Implementation is ready for validation", submitted_at: SUBMITTED_AT, ...overrides };
 }
 
@@ -70,7 +70,7 @@ async function expectCode(fn, code) {
 
 test("task.submit prepare: validates the in_progress owner and freezes the plan", async () => {
   const snapshotValue = snapshot();
-  const submitInput = input();
+  const submitInput = makeSubmitInput();
   const plan = await taskSubmitProvider.prepare({
     snapshot: snapshotValue,
     input: submitInput,
@@ -93,7 +93,7 @@ test("task.submit prepare: validates the in_progress owner and freezes the plan"
 
 test("task.submit prepare: rejects every status except in_progress", async () => {
   for (const status of ["open", "submitted", "done", "canceled"]) {
-    const submitInput = input();
+    const submitInput = makeSubmitInput();
     await expectCode(
       () => taskSubmitProvider.prepare({ snapshot: snapshot({ status }), input: submitInput, request: request(submitInput) }),
       "INVALID_STATUS",
@@ -102,7 +102,7 @@ test("task.submit prepare: rejects every status except in_progress", async () =>
 });
 
 test("task.submit prepare: rejects a task without a claim or with another owner", async () => {
-  const submitInput = input();
+  const submitInput = makeSubmitInput();
   await expectCode(
     () => taskSubmitProvider.prepare({ snapshot: snapshot({ claim: null }), input: submitInput, request: request(submitInput) }),
     "NOT_OWNER",
@@ -121,22 +121,22 @@ test("task.submit prepare: rejects a task without a claim or with another owner"
 test("task.submit prepare: requires id, actor, and delivery note", async () => {
   const snapshotValue = snapshot();
   await expectCode(
-    () => taskSubmitProvider.prepare({ snapshot: snapshotValue, input: input({ id: "" }), request: request(input({ id: "" })) }),
+    () => taskSubmitProvider.prepare({ snapshot: snapshotValue, input: makeSubmitInput({ id: "" }), request: request(makeSubmitInput({ id: "" })) }),
     "MISSING_FIELD",
   );
   await expectCode(
-    () => taskSubmitProvider.prepare({ snapshot: snapshotValue, input: input({ note: "" }), request: request(input({ note: "" })) }),
+    () => taskSubmitProvider.prepare({ snapshot: snapshotValue, input: makeSubmitInput({ note: "" }), request: request(makeSubmitInput({ note: "" })) }),
     "MISSING_FIELD",
   );
   await expectCode(
-    () => taskSubmitProvider.prepare({ snapshot: snapshotValue, input: input(), request: request(input(), "") }),
+    () => taskSubmitProvider.prepare({ snapshot: snapshotValue, input: makeSubmitInput(), request: request(makeSubmitInput(), "") }),
     "MISSING_FIELD",
   );
 });
 
 test("task.submit apply: changes status, clears claim, and stores submission metadata", async () => {
   const snapshotValue = snapshot();
-  const submitInput = input();
+  const submitInput = makeSubmitInput();
   const plan = await taskSubmitProvider.prepare({
     snapshot: snapshotValue,
     input: submitInput,
@@ -174,7 +174,7 @@ test("task.submit apply: changes status, clears claim, and stores submission met
 
 test("task.submit apply: never reports newly ready dependents", async () => {
   const snapshotValue = snapshot();
-  const submitInput = input();
+  const submitInput = makeSubmitInput();
   const plan = await taskSubmitProvider.prepare({
     snapshot: snapshotValue,
     input: submitInput,

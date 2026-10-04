@@ -1,69 +1,111 @@
-// `release <id>` CLI adapter for the canonical task.release provider.
-// The kernel owns locking, state, revisions and logs; this module only maps
-// CLI flags to the typed provider request and projects the legacy envelope.
-import { mutate } from "../../kernel/mutate.mjs";
+
+import { createBackendClient, createOperationBridge } from "../../application/operations/index.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
 import { resolveAgent } from "../actor.mjs";
-import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
 import { PolicyDenied } from "../../plugins/errors.mjs";
-import { taskReleaseProvider } from "../../providers/task/release.mjs";
+import { executeRemoteTask, requireRemoteTask, throwMissingRemoteNode } from "./internal/task-routing.mjs";
 
 export const knownFlags = ["as"];
 
-function policyForRelease({ policy, projectDir, agent, id, snapshotNode }) {
-  return {
-    action: "task.release",
-    pluginId: policy && policy.pluginId ? policy.pluginId : null,
-    async decide({ snapshot, target }) {
-      // Keep the complete snapshot node for the legacy `{ node }` projection,
-      // including when kernel.mutate detects an idempotent operation.
-      if (snapshot && snapshot.nodes && snapshot.nodes[id]) {
-        snapshotNode.value = snapshot.nodes[id];
-      }
-      // A task with no claim is idempotent and must not invoke a policy seam.
-      if (!target || target.had_claim !== true) return { decision: "abstain" };
-      if (!policy) return { decision: "abstain" };
+function isLocalBackendWithSource(backendClient) {
+  return backendClient?.type === "local" && backendClient.operationSource !== undefined;
+}
 
-      const decision = await authorizeAction({
-        policy,
-        action: "task.release",
-        actor: agent,
-        target,
-        snapshot,
-        projectDir,
-        projectConfig: policy.projectConfig || {},
-      });
-      if (decision.decision === "deny") {
-        throw new PolicyDenied(
-          policy.pluginId || "(unknown)",
-          "task.release",
-          agent,
-          decision.reason || "denied by policy",
-        );
-      }
-      return decision;
+function hasMutableRegistry(operationSource) {
+  return Boolean(operationSource?.registry && typeof operationSource.mutate === "function");
+}
+
+function releaseRegistryLookup(operationSource, id, snapshotNode, operation) {
+  const entry = operationSource.registry.lookup(operation);
+  if (operation !== "task.release" || !entry) {
+    return entry;
+  }
+  const provider = entry.provider || entry;
+  return {
+    ...entry,
+    provider: {
+      ...provider,
+      async prepare(args) {
+        snapshotNode.value = args.snapshot?.nodes?.[id] || null;
+        return provider.prepare(args);
+      },
     },
   };
 }
 
-export default async function release({ statePath, flags = {}, positional = [], projectDir, pluginId }) {
-  const id = positional[0];
-  if (!id) throwV2("MISSING_FIELD", "release: node id required", { field: "id" });
-  const dir = projectDir || statePath;
-  const agent = resolveAgent(flags, "release");
-  const policy = await loadApplicablePolicy({ projectDir: dir });
-  const snapshotNode = { value: null };
+async function authorizeRelease(operationSource, args) {
+  if (args.action !== "task.release" || args.target?.had_claim !== true) {
+    return { decision: "abstain" };
+  }
+  const decision = await operationSource.authorizeAction(args);
+  if (decision.decision === "deny") {
+    throw new PolicyDenied(
+      args.policy.pluginId || "(unknown)",
+      "task.release",
+      args.actor,
+      decision.reason || "denied by policy",
+    );
+  }
+  return decision;
+}
 
-  const mutation = await mutate({
-    projectDir: dir,
-    request: { action: "release", actor: agent, input: { id, actor: agent } },
-    provider: taskReleaseProvider,
-    policyAction: policyForRelease({ policy, projectDir: dir, agent, id, snapshotNode }),
-    pluginId,
+async function localReleaseBackend({ backendClient, projectDir, projectConfig, source, pluginId, id, snapshotNode }) {
+  if (!isLocalBackendWithSource(backendClient)) {
+    return backendClient;
+  }
+  const operationSource = source || await backendClient.operationSource;
+  if (!hasMutableRegistry(operationSource)) {
+    return backendClient;
+  }
+
+  const registry = {
+    ...operationSource.registry,
+    lookup: (operation) => releaseRegistryLookup(operationSource, id, snapshotNode, operation),
+  };
+  const releaseSource = {
+    ...operationSource,
+    registry,
+    mutate(args) {
+      return operationSource.mutate({ ...args, request: { ...args.request, action: "release" } });
+    },
+    authorizeAction: (args) => authorizeRelease(operationSource, args),
+    ...(pluginId ? { pluginId } : {}),
+  };
+  return createBackendClient({ projectDir, projectConfig, source: releaseSource });
+}
+
+async function releaseRemote({ backendClient, agent, id }) {
+  if (backendClient && backendClient.type === "remote") {
+    await requireRemoteTask(backendClient, id, "release");
+  }
+  const remote = await executeRemoteTask({
+    backendClient,
+    actor: agent,
+    operation: "task.release",
+    command: "release",
+    id,
+    input: { id },
   });
+  if (!remote) {
+    return null;
+  }
+  if (!remote.node) {
+    throwMissingRemoteNode("release", id);
+  }
+  return { released: remote.mutation.result?.released === true, node: remote.node };
+}
 
+async function releaseLocally({ backendClient, dir, projectConfig, source, pluginId, agent, id }) {
+  const snapshotNode = { value: null };
+  const selectedClient = backendClient || createBackendClient({ projectDir: dir, projectConfig, source });
+  const bridgeClient = await localReleaseBackend({ backendClient: selectedClient, projectDir: dir, projectConfig, source, pluginId, id, snapshotNode });
+  const mutation = await createOperationBridge({ backendClient: bridgeClient }).executeOperation({
+    actor: agent,
+    operation: "task.release",
+    input: { id, actor: agent },
+  });
   const updated = mutation.diff.updated.find((entry) => entry.id === id);
-  const node = updated ? updated.node : snapshotNode.value;
+  const node = updated ? updated.node : snapshotNode.value || mutation.result?.node || null;
   if (!node) {
     throwV2("INVALID_EXECUTION_CONTRACT", `release: kernel did not return node ${id}`, { id });
   }
@@ -71,4 +113,18 @@ export default async function release({ statePath, flags = {}, positional = [], 
     released: mutation.result ? mutation.result.released === true : false,
     node,
   };
+}
+
+export default async function release({ statePath, flags = {}, positional = [], projectDir, projectConfig, pluginId, backendClient, source }) {
+  const id = positional[0];
+  if (!id) {
+    throwV2("MISSING_FIELD", "release: node id required", { field: "id" });
+  }
+  const dir = projectDir || statePath;
+  const agent = resolveAgent(flags, "release");
+  const remote = await releaseRemote({ backendClient, agent, id });
+  if (remote) {
+    return remote;
+  }
+  return releaseLocally({ backendClient, dir, projectConfig, source, pluginId, agent, id });
 }

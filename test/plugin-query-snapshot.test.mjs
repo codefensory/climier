@@ -5,46 +5,42 @@ import {
   createTempProject,
   rmTempProject,
   importFresh,
-  writeState,
+  writeCanonicalState,
 } from "./helpers.mjs";
+
+const SNAPSHOT_NODES = {
+  "T-z": {
+    id: "T-z",
+    kind: "resolvable",
+    subkind: "task",
+    status: "open",
+    plugins: {
+      "plugin.a": { data: { node: "a" } },
+      "plugin.b": { data: { secret: "b" } },
+    },
+  },
+  "T-a": {
+    id: "T-a",
+    kind: "resolvable",
+    subkind: "task",
+    status: "done",
+    plugins: { "plugin.a": { data: { node: "a2" } } },
+  },
+  "G-open": { id: "G-open", kind: "resolvable", subkind: "gate", status: "open" },
+};
+const SNAPSHOT_EDGES = [
+  { from: "T-z", to: "T-a", type: "DERIVED_FROM" },
+  { from: "G-open", to: "T-z", type: "BLOCKS" },
+  { from: "T-a", to: "T-z", type: "SUPERSEDES" },
+];
 
 function snapshotState() {
   return {
-    version: 4,
+    version: 1,
     revision: 17,
     initiatives: {},
-    nodes: {
-      "T-z": {
-        id: "T-z",
-        kind: "resolvable",
-        subkind: "task",
-        status: "open",
-        plugins: {
-          "plugin.a": { data: { node: "a" } },
-          "plugin.b": { data: { secret: "b" } },
-        },
-      },
-      "T-a": {
-        id: "T-a",
-        kind: "resolvable",
-        subkind: "task",
-        status: "done",
-        plugins: {
-          "plugin.a": { data: { node: "a2" } },
-        },
-      },
-      "G-open": {
-        id: "G-open",
-        kind: "resolvable",
-        subkind: "gate",
-        status: "open",
-      },
-    },
-    edges: [
-      { from: "T-z", to: "T-a", type: "DERIVED_FROM" },
-      { from: "G-open", to: "T-z", type: "BLOCKS" },
-      { from: "T-a", to: "T-z", type: "SUPERSEDES" },
-    ],
+    nodes: structuredClone(SNAPSHOT_NODES),
+    edges: structuredClone(SNAPSHOT_EDGES),
     plugins: {
       "plugin.b": { data: { secret: "project-b" }, meta: { private: true } },
       "plugin.a": { data: { project: "a" }, meta: { private: false } },
@@ -86,7 +82,7 @@ test("read-model projectSnapshot creates a deterministic core lifecycle projecti
 test("api.query.snapshot reads one coherent state and exposes only the caller namespace", async () => {
   const dir = await createTempProject();
   try {
-    await writeState(dir, snapshotState());
+    await writeCanonicalState(dir, { ...snapshotState(), revision: 16 });
     const { createApi } = await importFresh("./plugins/api.mjs");
     const api = createApi({ projectDir: dir, agent: "alice", pluginId: "plugin.a" });
     assert.equal(typeof api.query.snapshot, "function");

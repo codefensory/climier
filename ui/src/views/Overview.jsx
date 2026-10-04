@@ -235,8 +235,8 @@ export function readyTasks(derived, nodes, limit = WORK_LIMIT) {
 }
 
 // Submitted tasks from the explicit lifecycle pool. They are intentionally
-// separate from ready/blocked work: submitted means a worker handed the task
-// to an independent validator, not that it is available to claim.
+// separate from ready/blocked work: submitted means the implementation is
+// waiting for acceptance, not that it is available to claim.
 export function submittedTasks(derived, nodes, limit = WORK_LIMIT) {
   return (derived && derived.submitted || [])
     .map((id) => (nodes || {})[id])

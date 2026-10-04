@@ -1,36 +1,8 @@
-// src/providers/gate/create.mjs — gate.create provider (ADR-011 §§1-5,
-// ADR-012 §3).
-//
-// Pure domain semantics for creating a gate, including the multi-node
-// supersede path that rewrites the superseded gate's incoming BLOCKS edges.
-//
-// Contract (ADR-011 §1):
-//   prepare({ snapshot, input, request }) -> plan   // read-only
-//   apply({ tx, plan })                   -> { result, effects }
-//
-// The provider owns domain validation only. It never touches the
-// filesystem, the lock, the persisted state, the log, policy, commands,
-// the registry, adapters, the CLI or the UI, and it NEVER writes or
-// increments `revision` (the kernel assigns revisions once per apply).
-//
-// prepare declares, for the kernel:
-//   - target        : { id, kind, subkind } of the node being created
-//   - policyAction  : { action: "gate.create" } (fresh-snapshot authorize)
-//   - logAction     : core log action used by the CLI surface
-//                     ("add-node" for a plain create, "supersede" when the
-//                     new gate replaces an existing one)
-//   - affected      : ids of EXISTING nodes this operation modifies
-//   - if_revisions  : kernel precondition shape for `affected`
-//
-// Supersede semantics:
-//   - the superseded gate moves to status "superseded";
-//   - a SUPERSEDES edge new -> old is added;
-//   - every incoming BLOCKS edge of the old gate (blocker -> old) is
-//     rewritten to point at the new gate (blocker -> new), atomically;
-//   - outgoing BLOCKS edges (old -> dependent) are left untouched: graph
-//     derivation resolves them through the SUPERSEDES chain;
-//   - a rewrite whose destination edge already exists collapses into the
-//     existing edge instead of producing a duplicate.
+
+// prepare validates read-only and declares authorization, logging, and CAS;
+// apply mutates only the in-memory draft, leaving revisions to the kernel.
+// Superseding rewrites incoming BLOCKS edges atomically and collapses duplicate
+// destinations; outgoing BLOCKS edges resolve through the supersedence chain.
 
 import { throwV2 } from "../../contracts/errors.mjs";
 import { blocksEdge, validateEdge } from "../../kernel/edges.mjs";
@@ -38,9 +10,8 @@ import { blocksEdge, validateEdge } from "../../kernel/edges.mjs";
 const COMMAND = "gate.create";
 const ID_RE = /^[A-Za-z0-9_.-]+$/;
 
-// Persisted gate statuses accepted at creation. `open` is the default; the
-// remaining values exist so trusted internals (imports, migrations) can seed
-// an already-decided or retired gate without a second mutation.
+// Accepted persisted statuses; open is default, while trusted imports may
+// seed a decided or retired gate.
 export const GATE_STATUSES = Object.freeze(["open", "resolved", "superseded", "canceled", "archived"]);
 
 export const GATE_CREATE_POLICY_ACTION = "gate.create";
@@ -72,7 +43,9 @@ function requiredString(input, field) {
 
 function optionalString(input, field) {
   const value = input[field];
-  if (value === undefined || value === null) return undefined;
+  if (value === undefined || value === null) {
+    return undefined;
+  }
   if (typeof value !== "string") {
     throwV2("MISSING_FIELD", `${COMMAND}: '${field}' must be a string`, { field });
   }
@@ -83,7 +56,9 @@ function optionalString(input, field) {
 // responsible for turning CLI CSV flags into this shape.
 function stringList(input, field) {
   const value = input[field];
-  if (value === undefined || value === null) return [];
+  if (value === undefined || value === null) {
+    return [];
+  }
   if (!Array.isArray(value)) {
     throwV2("MISSING_FIELD", `${COMMAND}: '${field}' must be an array of strings`, { field });
   }
@@ -110,7 +85,9 @@ function validateInitiative(snapshot, input) {
   const allowUnregistered = input.allow_unregistered_initiative === true;
   const initiative = optionalString(input, "initiative");
   if (!initiative) {
-    if (allowUnregistered) return undefined;
+    if (allowUnregistered) {
+      return undefined;
+    }
     throwV2("MISSING_FIELD", `${COMMAND}: 'initiative' is required`, { field: "initiative" });
   }
   const initiatives = asPlainObject(snapshot) && asPlainObject(snapshot.initiatives) ? snapshot.initiatives : {};
@@ -118,7 +95,7 @@ function validateInitiative(snapshot, input) {
   if (!registered && !allowUnregistered) {
     throwV2("INITIATIVE_NOT_FOUND", `${COMMAND}: initiative '${initiative}' is not registered`, {
       initiative,
-      existing: Object.keys(initiatives).sort(),
+      existing: Object.keys(initiatives).toSorted(),
     });
   }
   return initiative;
@@ -126,7 +103,9 @@ function validateInitiative(snapshot, input) {
 
 function validateStatus(input) {
   const status = optionalString(input, "status");
-  if (status === undefined) return "open";
+  if (status === undefined) {
+    return "open";
+  }
   if (!GATE_STATUSES.includes(status)) {
     throwV2("INVALID_STATUS", `${COMMAND}: status '${status}' is not valid for a gate`, {
       status,
@@ -136,12 +115,21 @@ function validateStatus(input) {
   return status;
 }
 
-// choice/rationale are the gate's decision payload. They are only
-// applicable when the gate resolves by choice, they travel together, and a
-// gate seeded as `resolved` must carry both.
+// choice/rationale are the gate's decision payload. They apply only to choice
+// resolution, travel together, and are required for gates seeded as resolved.
 function validateResolution(input, { resolutionMode, status }) {
   const choice = optionalString(input, "choice");
   const rationale = optionalString(input, "rationale");
+  validateResolutionMode(choice, rationale, resolutionMode);
+  validateResolutionPair(choice, rationale);
+  validateResolvedStatus(status, choice);
+  if (!choice) {
+    return undefined;
+  }
+  return { choice, rationale };
+}
+
+function validateResolutionMode(choice, rationale, resolutionMode) {
   if ((choice || rationale) && resolutionMode !== "choice") {
     throwV2(
       "INVALID_EXECUTION_CONTRACT",
@@ -149,20 +137,24 @@ function validateResolution(input, { resolutionMode, status }) {
       { field: choice ? "choice" : "rationale", resolution_mode: resolutionMode },
     );
   }
+}
+
+function validateResolutionPair(choice, rationale) {
   if (choice && !rationale) {
     throwV2("MISSING_FIELD", `${COMMAND}: 'rationale' is required when 'choice' is provided`, { field: "rationale" });
   }
   if (rationale && !choice) {
     throwV2("MISSING_FIELD", `${COMMAND}: 'choice' is required when 'rationale' is provided`, { field: "choice" });
   }
+}
+
+function validateResolvedStatus(status, choice) {
   if (status === "resolved" && !choice) {
     throwV2("MISSING_FIELD", `${COMMAND}: a gate created as 'resolved' requires 'choice' and 'rationale'`, {
       field: "choice",
       status,
     });
   }
-  if (!choice) return undefined;
-  return { choice, rationale };
 }
 
 function buildNode(input, { id, initiative, status }) {
@@ -175,39 +167,33 @@ function buildNode(input, { id, initiative, status }) {
   const node = {
     id,
     kind: "resolvable",
-    title: requiredString(input, "title"),
-    body: requiredString(input, "body"),
-    refs,
-    meta,
-    initiative,
-    domain: optionalString(input, "domain"),
-    tags: stringList(input, "tags"),
-    status,
-    subkind: "gate",
-    resolution_mode: resolutionMode,
-    purpose: requiredString(input, "purpose"),
-    definition: optionalString(input, "definition"),
+    title: requiredString(input, "title"), body: requiredString(input, "body"), refs, meta,
+    initiative, domain: optionalString(input, "domain"), tags: stringList(input, "tags"),
+    status, subkind: "gate", resolution_mode: resolutionMode,
+    purpose: requiredString(input, "purpose"), definition: optionalString(input, "definition"),
     acceptance: optionalString(input, "acceptance"),
   };
-  if (input.backlog === true) node.backlog = true;
+  if (input.backlog === true) {
+    node.backlog = true;
+  }
   const resolution = validateResolution(input, { resolutionMode, status });
-  if (resolution) node.resolution = resolution;
+  if (resolution) {
+    node.resolution = resolution;
+  }
   return node;
 }
 
 function validateSupersedes(snapshot, input, { id, workingState }) {
   const raw = input.supersedes;
-  if (raw === undefined || raw === null) return null;
-  if (typeof raw !== "string" || !raw.trim()) {
-    throwV2("MISSING_FIELD", `${COMMAND}: 'supersedes' must be a non-empty node id`, { field: "supersedes" });
+  if (raw === undefined || raw === null) {
+    return null;
   }
-  const target = raw.trim();
+  const target = requireSupersedesTarget(raw);
   const edge = { from: id, to: target, type: "SUPERSEDES" };
   if (target === id) {
     throwV2("SELF_EDGE", `${COMMAND}: edge ${id} -> ${target} is a self-edge`, edge);
   }
-  // Structural validation first (missing target -> INVALID_EDGE_TARGET,
-  // cross-kind -> INVALID_EDGE_KIND), then the gate-specific subkind rule.
+
   validateEdge(workingState, edge, COMMAND);
   const targetNode = snapshotNodes(snapshot)[target];
   if (targetNode.subkind !== "gate") {
@@ -220,78 +206,68 @@ function validateSupersedes(snapshot, input, { id, workingState }) {
   return target;
 }
 
+function requireSupersedesTarget(raw) {
+  if (typeof raw !== "string" || !raw.trim()) {
+    throwV2("MISSING_FIELD", `${COMMAND}: 'supersedes' must be a non-empty node id`, { field: "supersedes" });
+  }
+  return raw.trim();
+}
+
 // if_revisions is the agent-facing precondition map `{ id: revision }`.
-// Every existing node this operation modifies must be covered; declaring a
-// revision for a node the operation does not touch is a contract error.
-//
-// Auto-derive the superseded-node CAS:
-//   When supersedes targets an existing gate, the operation must run
-//   under a CAS so a concurrent writer cannot sneak in between the
-//   snapshot read and the status flip. The snapshot supplies the only
-//   safe revision for the single-writer flow, so we derive it here.
-//   Callers that pass an explicit if_revisions still get the strict
-//   CAS check.
+// Every modified node needs a matching CAS revision. If callers omit the
+// map, derive it from the snapshot so concurrent writes still conflict.
 function validatePreconditions(snapshot, input, affected) {
   const raw = input.if_revisions;
-  const nodes = snapshotNodes(snapshot);
   if (raw !== undefined && raw !== null && !asPlainObject(raw)) {
     throwV2("INVALID_EXECUTION_CONTRACT", `${COMMAND}: 'if_revisions' must be an object`, { field: "if_revisions" });
   }
-  const hasExplicit = raw !== undefined && raw !== null;
-  if (hasExplicit) {
-    for (const [nodeId, expected] of Object.entries(raw)) {
-      if (!affected.includes(nodeId)) {
-        throwV2(
-          "INVALID_EXECUTION_CONTRACT",
-          `${COMMAND}: if_revisions declares '${nodeId}' but the operation does not modify it`,
-          { field: "if_revisions", id: nodeId, affected: [...affected] },
-        );
-      }
-      if (!Number.isInteger(expected)) {
-        throwV2("INVALID_EXECUTION_CONTRACT", `${COMMAND}: if_revisions['${nodeId}'] must be an integer`, {
-          field: "if_revisions",
-          id: nodeId,
-          value: expected,
-        });
-      }
-    }
-    for (const nodeId of affected) {
-      if (!Object.prototype.hasOwnProperty.call(raw, nodeId)) {
-        throwV2(
-          "MISSING_FIELD",
-          `${COMMAND}: if_revisions['${nodeId}'] is required because the operation modifies that node`,
-          { field: "if_revisions", id: nodeId },
-        );
-      }
-      const current = nodes[nodeId] && Number.isInteger(nodes[nodeId].revision) ? nodes[nodeId].revision : null;
-      if (current !== raw[nodeId]) {
-        throwV2("REVISION_CONFLICT", `${COMMAND}: node ${nodeId} changed since revision ${raw[nodeId]}`, {
-          id: nodeId,
-          expected: raw[nodeId],
-          current,
-        });
-      }
-    }
-    if (affected.length === 0) return { kind: "none" };
-    return { kind: "multi", values: { ...raw } };
+  if (raw !== undefined && raw !== null) {
+    return validateExplicitPreconditions(snapshotNodes(snapshot), raw, affected);
   }
-  if (affected.length === 0) return { kind: "none" };
-  // Auto-derive: take the current revision of every affected node from
-  // the snapshot. The kernel still enforces CAS, so a concurrent
-  // writer that bumps the revision between snapshot and apply will
-  // be detected as REVISION_CONFLICT. Callers that need to fail fast
-  // against a known revision can still pass if_revisions explicitly.
+  return derivePreconditions(snapshotNodes(snapshot), affected);
+}
+
+function validateExplicitPreconditions(nodes, raw, affected) {
+  for (const [id, expected] of Object.entries(raw)) {
+    validateDeclaredRevision(id, expected, affected);
+  }
+  for (const id of affected) {
+    validateExpectedRevision(nodes, raw, id);
+  }
+  return affected.length === 0 ? { kind: "none" } : { kind: "multi", values: { ...raw } };
+}
+
+function validateDeclaredRevision(id, expected, affected) {
+  if (!affected.includes(id)) {
+    throwV2("INVALID_EXECUTION_CONTRACT", `${COMMAND}: if_revisions declares '${id}' but the operation does not modify it`, { field: "if_revisions", id, affected: [...affected] });
+  }
+  if (!Number.isInteger(expected)) {
+    throwV2("INVALID_EXECUTION_CONTRACT", `${COMMAND}: if_revisions['${id}'] must be an integer`, { field: "if_revisions", id, value: expected });
+  }
+}
+
+function validateExpectedRevision(nodes, raw, id) {
+  if (!Object.prototype.hasOwnProperty.call(raw, id)) {
+    throwV2("MISSING_FIELD", `${COMMAND}: if_revisions['${id}'] is required because the operation modifies that node`, { field: "if_revisions", id });
+  }
+  const expected = raw[id];
+  const current = nodes[id] && Number.isInteger(nodes[id].revision) ? nodes[id].revision : null;
+  if (current !== expected) {
+    throwV2("REVISION_CONFLICT", `${COMMAND}: node ${id} changed since revision ${expected}`, { id, expected, current });
+  }
+}
+
+function derivePreconditions(nodes, affected) {
+  if (affected.length === 0) {
+    return { kind: "none" };
+  }
   const derived = {};
-  for (const nodeId of affected) {
-    const current = nodes[nodeId] && Number.isInteger(nodes[nodeId].revision) ? nodes[nodeId].revision : null;
+  for (const id of affected) {
+    const current = nodes[id] && Number.isInteger(nodes[id].revision) ? nodes[id].revision : null;
     if (current === null) {
-      throwV2(
-        "REVISION_CONFLICT",
-        `${COMMAND}: cannot derive if_revisions for '${nodeId}' (missing or non-integer revision in snapshot)`,
-        { id: nodeId, current },
-      );
+      throwV2("REVISION_CONFLICT", `${COMMAND}: cannot derive if_revisions for '${id}' (missing or non-integer revision in snapshot)`, { id, current });
     }
-    derived[nodeId] = current;
+    derived[id] = current;
   }
   return { kind: "multi", values: derived };
 }
@@ -308,24 +284,34 @@ function planEdges(snapshot, input, { id, workingState, supersedes }) {
     known.add(key);
     edges.push(edge);
   };
-  if (supersedes) push({ from: id, to: supersedes, type: "SUPERSEDES" });
-  for (const blocker of stringList(input, "blocked_by")) push(blocksEdge(blocker, id));
-  for (const source of stringList(input, "derived_from")) push({ from: id, to: source, type: "DERIVED_FROM" });
+  if (supersedes) {
+    push({ from: id, to: supersedes, type: "SUPERSEDES" });
+  }
+  for (const blocker of stringList(input, "blocked_by")) {
+    push(blocksEdge(blocker, id));
+  }
+  for (const source of stringList(input, "derived_from")) {
+    push({ from: id, to: source, type: "DERIVED_FROM" });
+  }
   return { edges, known };
 }
 
-// Incoming BLOCKS edges of the superseded gate move to the new gate. A
-// rewrite whose destination already exists (snapshot edge or planned edge)
-// collapses: the stale edge is removed and no duplicate is added.
+
 function planRewrites(snapshot, { id, supersedes, known }) {
   const rewrites = [];
-  if (!supersedes) return rewrites;
+  if (!supersedes) {
+    return rewrites;
+  }
   for (const edge of snapshotEdges(snapshot)) {
-    if (edge.type !== "BLOCKS" || edge.to !== supersedes) continue;
+    if (edge.type !== "BLOCKS" || edge.to !== supersedes) {
+      continue;
+    }
     const remove = { from: edge.from, to: edge.to, type: "BLOCKS" };
     const add = { from: edge.from, to: id, type: "BLOCKS" };
     const collapsed = edge.from === id || known.has(edgeKey(add));
-    if (!collapsed) known.add(edgeKey(add));
+    if (!collapsed) {
+      known.add(edgeKey(add));
+    }
     rewrites.push({ remove, add, collapsed });
   }
   return rewrites;
@@ -357,7 +343,7 @@ export async function prepare({ snapshot, input }) {
   const status = validateStatus(payload);
   const node = buildNode(payload, { id, initiative, status });
 
-  // Structural edge validation needs a state where the new node exists.
+
   const workingState = { ...snapshot, nodes: { ...nodes, [id]: node } };
   const supersedes = validateSupersedes(snapshot, payload, { id, workingState });
   const { edges, known } = planEdges(snapshot, payload, { id, workingState, supersedes });
@@ -367,16 +353,10 @@ export async function prepare({ snapshot, input }) {
   const preconditions = validatePreconditions(snapshot, payload, affected);
 
   return {
-    target: { id, kind: "resolvable", subkind: "gate" },
-    policyAction: { action: GATE_CREATE_POLICY_ACTION },
+    target: { id, kind: "resolvable", subkind: "gate" }, policyAction: { action: GATE_CREATE_POLICY_ACTION },
     logAction: supersedes ? GATE_SUPERSEDE_LOG_ACTION : GATE_CREATE_LOG_ACTION,
     logNote: supersedes ? `${id} supersedes ${supersedes}` : id,
-    node,
-    edges,
-    rewrites,
-    supersedes,
-    affected,
-    if_revisions: preconditions,
+    node, edges, rewrites, supersedes, affected, if_revisions: preconditions,
   };
 }
 
@@ -391,11 +371,17 @@ export async function apply({ tx, plan }) {
   }
   // Remove every stale blocker edge before adding the rewritten ones so a
   // rewrite can never collide with the edge it replaces.
-  for (const rewrite of plan.rewrites) tx.removeEdge(rewrite.remove);
   for (const rewrite of plan.rewrites) {
-    if (!rewrite.collapsed) tx.addEdge(rewrite.add);
+    tx.removeEdge(rewrite.remove);
   }
-  for (const edge of plan.edges) tx.addEdge(edge);
+  for (const rewrite of plan.rewrites) {
+    if (!rewrite.collapsed) {
+      tx.addEdge(rewrite.add);
+    }
+  }
+  for (const edge of plan.edges) {
+    tx.addEdge(edge);
+  }
 
   const rewritten = plan.rewrites
     .filter((rewrite) => !rewrite.collapsed)

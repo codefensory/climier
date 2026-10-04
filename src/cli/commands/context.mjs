@@ -1,36 +1,6 @@
-// `context`: agent-first view of a v2 node, shaped per the design doc.
-//
-// Output shape:
-//   { node, derived_status, revision, claim, blocking, knowledge, alerts,
-//     allowed_actions, ... }
-//
-// `scope_matches` (per knowledge item) is an array — a single knowledge can
-// arrive via multiple scopes (node_id + domain + tag + initiative) and the
-// caller ranks them by specificity.
-//
-// `allowed_actions` is computed from (kind, derived_status, claim, agent).
-//
-// ADR-009 §"Contexto y documentación": `allowed_actions` describes the
-// actions the node's state permits. It MUST NOT project ownership
-// (claim.by vs actor), actor roles (`isOrchestrator`), or hatch-shaped
-// commands like `"release --as orchestrator"`. The only actor signal
-// reflected here is whether the caller identified themselves with
-// `--as` / `CLIMIER_AGENT`; mutating actions that record the actor
-// (claim, resolve, release, reopen, cancel, supersede) are surfaced
-// when an actor is present, otherwise only read-shaped actions
-// (add-note, update) remain. Plugins that authorise takeovers do so
-// dynamically and are not projected here.
-//
-// `claim` is `{ by, at, stale }` when the node is currently claimed (either
-// via the take command's structured claim or via legacy claimed_by/claimed_at),
-// else `null`.
-import { readState, assertStateVersion } from "../../storage/state.mjs";
-import {
-  blockingForNode,
-  informingForNode,
-  knowledgeForNode,
-  statusOf,
-} from "../../read-model/index.mjs";
+
+import { readState, assertReadableState } from "../../storage/state.mjs";
+import { projectContextView } from "../../read-model/index.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
 
 export const knownFlags = ["as", "staleMs"];
@@ -38,7 +8,7 @@ export const knownFlags = ["as", "staleMs"];
 const DEFAULT_STALE_MS = 2 * 60 * 60 * 1000;
 
 function parseStaleMs(flags) {
-  if (flags.staleMs === undefined || flags.staleMs === true) return DEFAULT_STALE_MS;
+  if (flags.staleMs === undefined || flags.staleMs === true) {return DEFAULT_STALE_MS;}
   const n = Number(flags.staleMs);
   if (!Number.isFinite(n) || n < 0) {
     throw new Error(`context: --staleMs must be a non-negative number (got '${flags.staleMs}')`);
@@ -46,170 +16,36 @@ function parseStaleMs(flags) {
   return n;
 }
 
-// Coerce a `claim.at` / `claimed_at` value to an epoch-ms number, regardless
-// of whether it's stored as a number or an ISO string.
-function parseAtMs(at) {
-  if (at == null) return null;
-  if (typeof at === "number") return at;
-  if (typeof at === "string") {
-    const ms = Date.parse(at);
-    return Number.isFinite(ms) ? ms : null;
-  }
-  return null;
+function contextAgent(flags) {
+  return flags.as && flags.as !== true ? String(flags.as) : undefined;
 }
 
-function buildClaim(node, staleMs) {
-  // The take command writes a structured claim object. Tests and older code
-  // may write flat claimed_by + claimed_at (number). Handle either.
-  if (node.claim && typeof node.claim === "object" && node.claim.by) {
-    const atMs = parseAtMs(node.claim.at);
-    return {
-      by: node.claim.by,
-      at: node.claim.at ?? null,
-      stale: atMs !== null && Date.now() - atMs > staleMs,
-    };
-  }
-  if (node.claimed_by && node.claimed_at !== undefined) {
-    const atMs = parseAtMs(node.claimed_at);
-    return {
-      by: node.claimed_by,
-      at: node.claimed_at ?? null,
-      stale: atMs !== null && Date.now() - atMs > staleMs,
-    };
-  }
-  return null;
+async function readRemoteContext(id, flags, backendClient) {
+  return backendClient.readContext({ id, as: contextAgent(flags), staleMs: parseStaleMs(flags) });
 }
 
-function buildAlerts(id, blocking, knowledge, claim) {
-  const alerts = [];
-  if (claim && claim.stale) {
-    alerts.push({
-      kind: "STALE_CLAIM",
-      node_id: id,
-      claimed_by: claim.by,
-      message: `${id} claimed by ${claim.by} is stale`,
-    });
-  }
-  for (const blocker of blocking) {
-    const bn = blocker.node;
-    if (bn && bn.status === "superseded") {
-      alerts.push({
-        kind: "SUPERSEDED_BLOCKER",
-        node_id: id,
-        blocker_id: bn.id,
-        superseded_by: bn.superseded_by || null,
-        message: `blocker ${bn.id} is superseded${bn.superseded_by ? ` by ${bn.superseded_by}` : ""}`,
-      });
-    }
-  }
-  for (const k of knowledge) {
-    if (k.status === "deprecated") {
-      alerts.push({
-        kind: "KNOWLEDGE_DEPRECATED_SOON",
-        node_id: id,
-        knowledge_id: k.id,
-        message: `matching knowledge ${k.id} is deprecated`,
-      });
-    }
-  }
-  return alerts;
+async function readLocalContext(statePath, id, flags) {
+  const snapshot = await readState(statePath);
+  if (!snapshot) {throw new Error("context: state file missing");}
+  assertReadableState(snapshot, "context");
+  const view = projectContextView({
+    snapshot,
+    id,
+    agent: contextAgent(flags),
+    staleMs: parseStaleMs(flags),
+    now: Date.now(),
+  });
+  if (!view) {throwV2("NODE_NOT_FOUND", `context: node ${id} not found`, { id });}
+  return view;
 }
 
-function allowedActions(node, derivedStatus, claim, agent) {
-  // ADR-009 §"Contexto y documentación": allowed_actions describes the
-  // actions the node's state permits. It does not project ownership,
-  // roles, or hatch-shaped commands. The only actor signal here is
-  // whether the caller identified themselves (`--as` / `CLIMIER_AGENT`);
-  // mutating actions that record an actor are surfaced when an actor
-  // is present, otherwise only read-shaped actions remain.
-  const actions = [];
-  if (!node) return actions;
-  const isAnonymous = !agent;
-  const claimer = claim && claim.by;
-
-  if (node.kind === "resolvable" && node.subkind === "task") {
-    if (derivedStatus === "ready") {
-      // claim records the actor; only surface it for identified callers.
-      if (!isAnonymous) actions.push("claim");
-      actions.push("update", "add-note", "cancel");
-    } else if (derivedStatus === "in_progress") {
-      // submit and release record the actor. With --as, surface both
-      // state-valid actions; ownership is not projected here and remains a
-      // provider/policy check at execution time.
-      if (!isAnonymous) {
-        actions.push("submit", "release", "add-note", "update");
-      } else {
-        actions.push("add-note");
-      }
-    } else if (derivedStatus === "submitted") {
-      // Submission transfers the task to the validation queue. Accept and
-      // reject record an actor, so anonymous contexts only expose notes.
-      if (!isAnonymous) actions.push("accept", "reject");
-      actions.push("add-note");
-    } else if (derivedStatus === "done") {
-      // reopen records the actor; ADR-009 makes `done_by` irrelevant,
-      // so any identified caller can reopen.
-      actions.push("add-note");
-      if (!isAnonymous) actions.push("reopen");
-    } else if (derivedStatus === "canceled") {
-      actions.push("add-note", "update");
-    }
-  } else if (node.kind === "resolvable" && node.subkind === "gate") {
-    if (derivedStatus === "open") {
-      // ponytail: list the required flags inline so the agent doesn't have to
-      // read the source to learn that gate-resolve needs --choice AND --rationale.
-      actions.push("resolve --choice <X> --rationale <Y>", "add-note", "supersede");
-      if (!isAnonymous) actions.push("cancel");
-    } else if (derivedStatus === "resolved") {
-      actions.push("reopen", "supersede");
-    } else if (derivedStatus === "superseded") {
-      actions.push("add-note");
-    }
-  } else if (node.kind === "knowledge") {
-    const kstatus = node.status || "active";
-    if (kstatus === "active") {
-      actions.push("update", "add-note", "deprecate-knowledge");
-    } else if (kstatus === "deprecated") {
-      actions.push("update", "add-note");
-    }
-  }
-  // `claimer` is preserved for callers that still want the audit-only
-  // signal via the `claim` field; allowed_actions itself must never
-  // differentiate by ownership.
-  void claimer;
-  return actions;
+async function readContext({ statePath, id, flags, backendClient }) {
+  if (backendClient?.type === "remote") {return readRemoteContext(id, flags, backendClient);}
+  return readLocalContext(statePath, id, flags);
 }
 
-export default async function context({ statePath, positional, flags }) {
+export default async function context({ statePath, positional, flags, backendClient }) {
   const [id] = positional;
-  if (!id) throwV2("MISSING_FIELD", "context: node id required", { field: "id" });
-  const projectDir = statePath;
-  const s = await readState(projectDir);
-  if (!s) throw new Error("context: state file missing");
-  assertStateVersion(s, 2, "context");
-  const node = s.nodes[id];
-  if (!node) throwV2("NODE_NOT_FOUND", `context: node ${id} not found`, { id });
-
-  const staleMs = parseStaleMs(flags);
-  const claim = buildClaim(node, staleMs);
-  const blocking = blockingForNode(s, id);
-  const informing = informingForNode(s, id);
-  const knowledge = knowledgeForNode(s, id);
-  const alerts = buildAlerts(id, blocking, knowledge, claim);
-  const derived_status = statusOf({ snapshot: s, id });
-  const agent = flags.as && flags.as !== true ? String(flags.as) : null;
-  const allowed_actions = allowedActions(node, derived_status, claim, agent);
-
-  return {
-    node,
-    derived_status,
-    can_claim: derived_status === "ready" && node.kind === "resolvable" && node.subkind === "task",
-    revision: node.revision || 1,
-    claim,
-    blocking,
-    knowledge,
-    informing, // retained for callers that still expect it (existing tests).
-    alerts,
-    allowed_actions,
-  };
+  if (!id) {throwV2("MISSING_FIELD", "context: node id required", { field: "id" });}
+  return readContext({ statePath, id, flags, backendClient });
 }
