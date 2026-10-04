@@ -1,6 +1,6 @@
 # RFC: TypeScript + Bun-native migration (v2, post-review)
 
-- Gate: `G-ts-bun-migration` · Iniciativa: `ts-bun-migration` · Estado: en review (v2)
+- Gate: `G-ts-bun-migration` · Iniciativa: `ts-bun-migration` · Estado: aprobado
 - Autor: orchestrator + asistente · Fecha: 2026-10-03
 - v1: reviews `reviewer-producto`, `reviewer-arquitectura`, `reviewer-ejecucion` en el gate.
 
@@ -32,7 +32,8 @@ Cuatro fases, cada una green-to-green, sin big-bang:
 - **Fase B — Arquitectura acíclica.** Romper `application → plugins`; un solo
   productor de `OperationSource` y de registry. Todavía `.mjs`.
 - **Fase C — Sintaxis.** `.mjs → .ts` con un codemod determinista y un inventario
-  completo de referencias (no "~12 strings").
+  completo de referencias (no "~12 strings"); `src/cli/commands/ui.mjs` queda
+  explícitamente excluido.
 - **Fase D — Tipos.** Type-kernel en `contracts/`, codegen por reflexión, drift
   ratchet, project references, `strict` por boundary.
 
@@ -175,7 +176,7 @@ export interface PluginModule { default: { commands: Record<string, PluginComman
 A  T-ts-toolchain  Bun runtime/toolchain (fuentes .mjs)      (serial, base)
    T-ts-harness    de-Node del arnés / runner / manifest     (dep: toolchain)
 B  T-ts-cycle      romper application→plugins; 1 source/registry   (dep: A)
-C  T-ts-sweep      codemod .mjs→.ts + inventario completo     (dep: B)
+C  T-ts-sweep      codemod .mjs→.ts + inventario (excepto comando ui) (dep: B)
 D0 T-ts-infra      typescript+ts-morph+tsconfig + baseline budget   (dep: C)
    T-ts-contracts  type-kernel (errors+domain+operations)     (dep: D0)
    T-ts-gen        gen-types + drift ratchet                  (dep: contracts)
@@ -200,8 +201,14 @@ adversarial: mutar un literal de error y confirmar que el drift test falla.
 2. **Distribución por binario** vía `bun build --compile` por plataforma. Ya no se
    publican fuentes `.mjs`/`.ts` como artefacto principal. Versión **2.0.0** (break
    de runtime limpio).
-3. **`/ui` fuera de alcance por completo.** No se toca ningún archivo de `ui/` ni
-   el comando `src/cli/commands/ui.mjs`; queda tal cual, excluido del DAG.
+3. **`/ui` queda completamente fuera de alcance, sin garantía de continuidad.**
+   Ninguna tarea modifica `ui/**` ni `src/cli/commands/ui.mjs`; no hay criterios
+   de aceptación ni trabajo de compatibilidad para la UI en esta iniciativa.
+   `ui/server/server.mjs` importa módulos `.mjs` de `src/` y `ui/package.json`
+   lo ejecuta con Node. Al renombrar esos módulos a `.ts`, la UI y `dev:api`
+   pueden dejar de funcionar. Ese efecto se acepta y se difiere a una iniciativa
+   separada; `T-ts-sweep` debe dejar `src/cli/commands/ui.mjs` sin cambios y sin
+   renombrar.
 4. **Arquitectura acíclica**: se rompe `application ↔ plugins` extrayendo el wiring
    de policy a la raíz de composición; un solo productor de `OperationSource` y de
    registry.
@@ -215,11 +222,12 @@ adversarial: mutar un literal de error y confirmar que el drift test falla.
   Debe verificarse que un binario compilado puede importar plugins externos del
   filesystem; si no, el plugin loader necesita un fallback documentado.
 - **Comando `ui` en binario**: `src/cli/commands/ui.mjs` resuelve `UI_DIR` relativo a
-  su propio archivo; en un binario compilado esa ruta no existe. Al estar `/ui` fuera
-  de alcance, el comando debe devolver un error accionable en modo compilado (no se
-  modifica el subproyecto).
+  su propio archivo; en un binario compilado esa ruta puede no existir. Como el
+  comando y el subproyecto están fuera de alcance, esta iniciativa no adapta ni
+  garantiza `climier ui` en modo compilado; se acepta como limitación para una
+  iniciativa futura.
 
-## ADRs derivados (se completa al aprobar)
+## ADRs derivados (pendientes de crear tras la aprobación)
 
 - [ ] ADR-NNN: Bun como runtime único y publicación de fuentes `.ts` → `.adrs/NNN-*.md`
 - [ ] ADR-NNN: Arquitectura acíclica con `application` sin `plugins` → `.adrs/NNN-*.md`
