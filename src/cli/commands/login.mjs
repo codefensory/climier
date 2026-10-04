@@ -41,8 +41,8 @@ export async function readPasswordFromTty() {
     input.destroy();
     throw loginError("INTERACTIVE_LOGIN_REQUIRED", "an interactive TTY is required");
   }
-  fs.writeSync(fd, "Password: ");
   input.setRawMode(true);
+  fs.writeSync(fd, "Password: ");
   input.resume();
   try {
     return await new Promise((resolve, reject) => {
