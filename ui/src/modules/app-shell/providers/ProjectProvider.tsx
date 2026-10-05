@@ -1,5 +1,5 @@
 import { useSearchParams } from "@solidjs/router";
-import { createContext, createEffect, createMemo, createSignal, onCleanup, useContext, type Accessor, type JSX } from "solid-js";
+import { createContext, createEffect, createMemo, createSignal, onCleanup, untrack, useContext, type Accessor, type JSX } from "solid-js";
 import { backoffDelay, consumeSse, useRuntime, useSession, waitForBackoff, type ProjectSummary, type RuntimeMode } from "../../core";
 
 export type ProjectStatus = "loading" | "ready" | "empty" | "unknown" | "uninitialized" | "error";
@@ -117,9 +117,20 @@ export function ProjectProvider(props: { children: JSX.Element; mode?: RuntimeMo
       setConnection("live");
       setErrorMessage(null);
       setLastUpdated(Date.now());
-      setProjects((current) => current.map((project) => project.project_id === id
-        ? { ...project, revision: readRevision(result.snapshot) ?? project.revision, node_count: readNodeCount(result.snapshot) ?? project.node_count }
-        : project));
+      const revision = readRevision(result.snapshot);
+      const nodeCount = readNodeCount(result.snapshot);
+      setProjects((current) => {
+        let changed = false;
+        const next = current.map((project) => {
+          if (project.project_id !== id) return project;
+          const nextRevision = revision ?? project.revision;
+          const nextNodeCount = nodeCount ?? project.node_count;
+          if (nextRevision === project.revision && nextNodeCount === project.node_count) return project;
+          changed = true;
+          return { ...project, revision: nextRevision, node_count: nextNodeCount };
+        });
+        return changed ? next : current;
+      });
     } catch (error) {
       if (run !== activeRun || activeAbort?.signal.aborted || isUnauthorized(error)) return;
       if (isStateUninitialized(error)) {
@@ -206,16 +217,17 @@ export function ProjectProvider(props: { children: JSX.Element; mode?: RuntimeMo
 
   createEffect(() => {
     const id = selectedId();
-    const list = projects();
+    const catalog = catalogStatus();
+    const list = untrack(projects);
     if (!id) {
       stopStream();
-      if (catalogStatus() === "empty") setProjectStatus("empty");
+      if (catalog === "empty") setProjectStatus("empty");
       return;
     }
     if (!list.some((project) => project.project_id === id)) {
       stopStream();
       setSnapshot(null);
-      setProjectStatus(catalogStatus() === "loading" ? "loading" : "unknown");
+      setProjectStatus(catalog === "loading" ? "loading" : "unknown");
       setConnection("offline");
       return;
     }
