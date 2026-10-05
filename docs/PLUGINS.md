@@ -421,12 +421,12 @@ new lock; it runs on the handler's critical path (ADR-008
 
 ### 9.5 Lifecycle and policy
 
-The core task lifecycle is explicit and runner-owned. `climierflow` claims a
-ready task, records implementation and review evidence, and applies the
-submission/acceptance transition. `submitted` is not terminal and never
-satisfies a `BLOCKS` edge; only the accepted transition moves a task to `done`.
-A rejected result returns it to `open` with an audit reason. `resolve` is
-exclusively the gate operation and requires a gate choice and rationale.
+The core task lifecycle is explicit. `take` claims a ready task, `submit`
+records its handoff for review, and `accept` or `reject` records the review
+outcome. `submitted` is not terminal and never satisfies a `BLOCKS` edge; only
+acceptance moves a task to `done`. Rejection returns it to `open` with an audit
+reason. `resolve` is exclusively the gate operation and requires a gate choice
+and rationale.
 
 Policy plugins may allow, deny, or abstain on the canonical actions listed in
 §9.2. With no applicable policy, or when a policy abstains, the core applies

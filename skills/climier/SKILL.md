@@ -1,19 +1,19 @@
 ---
 name: climier
-description: Operate climier, the JSON-first task DAG CLI for creating, reading, and curating tasks, gates, knowledge, and dependencies. Use climierflow as the single entrypoint for task execution and recovery.
+description: Operate climier, the JSON-first task DAG CLI for creating, reading, and curating tasks, gates, knowledge, dependencies, and task lifecycle state.
 ---
 
 # climier — JSON-first task DAG CLI
 
-## What it is (and is NOT)
+## What it is
 
-Climier stores workflow state: tasks form a DAG, gates are resolvable nodes that
-block tasks, and knowledge holds scoped durable facts. Mutations are recorded in
-an append-only audit log.
+Climier stores shared workflow state: tasks form a DAG, gates are resolvable
+nodes that block tasks, and knowledge holds scoped durable facts. Mutations are
+recorded in an append-only audit log.
 
-Climier is the DAG control plane, not the task executor. Use `climier` to read
-or curate graph state and use `climierflow` to execute a task. The runner owns
-claim, worktree, implementation, review, lifecycle, commit, merge, and cleanup.
+Use Climier to inspect and curate the graph and to record task ownership and
+review outcomes. Its lifecycle commands are `take`, `submit`, `accept`, and
+`reject`; its administrative commands include `release`, `reopen`, and `cancel`.
 
 ## Install
 
@@ -36,9 +36,9 @@ Run commands from the project root so the project resolves.
 - `~/.climier/projects/<project-id>/tasks.json` — live mutable state (never
   commit). Override home with `$CLIMIER_HOME` for isolated experiments.
 
-## Curate the DAG
+## Inspect and curate the DAG
 
-Use the read-only views before changing or executing work:
+Use the read-only views before changing state:
 
 ```bash
 climier status
@@ -47,10 +47,10 @@ climier show <id>
 climier history <id>
 ```
 
-`context` is the task preflight. Read its acceptance, blockers, related nodes,
-scoped knowledge, alerts, and allowed actions. Curate gates, tasks, knowledge,
-and notes with the corresponding Climier commands. If a task contract needs
-correction, update it before execution.
+`context` shows the node contract, blockers, related nodes, scoped knowledge,
+alerts, and available actions. Curate gates, tasks, knowledge, and notes with
+the corresponding Climier commands. Correct a task contract before claiming
+it.
 
 ```bash
 climier update <id> --acceptance "..." --as <agent>
@@ -58,39 +58,21 @@ climier add-note <id> "..." --as <agent>
 climier resolve <gate-id> --choice "..." --rationale "..." --as <agent>
 ```
 
-## Execute through the single entrypoint
+## Record task lifecycle
 
-Once the task is ready and its contract is sufficient, run:
-
-```bash
-climierflow run <task-id>
-```
-
-The terminal result is one JSON object. A successful run includes `ok`,
-`task_id`, `status`, `terminal`, and a `result` with summary, commit, and merge
-information. A failed or blocked run keeps the same envelope and includes a
-structured `error` with `code`, `message`, and `details`.
-
-Do not invoke `take`, `submit`, `accept`, or `reject` as a hand-written task
-execution sequence. Those lifecycle transitions are owned by the runner.
-
-## Recovery
-
-Inspect and recover through the runner:
+A common lifecycle is:
 
 ```bash
-climierflow status <task-id>
-climierflow resume <task-id> [--summary TEXT]
-climierflow restart <task-id> --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard
+climier take <task-id> --as <agent>
+# Perform the work, recording relevant progress with add-note.
+climier submit <task-id> --note "Implementation complete" --as <agent>
+# A reviewer records the outcome:
+climier accept <task-id> --as <reviewer>
 ```
 
-`--summary` is optional for `resume`. `restart` requires replacement `--body`
-and `--acceptance` values plus `--confirm-discard`, and applies only to a
-non-completed attempt. Do not recreate a claim, worktree, review, commit, or
-merge sequence manually. Use `reopen`, `release`, and `cancel` only for explicit
-DAG administration, not as replacements for runner recovery. A completed and
-merged attempt returns `RESTART_REQUIRES_REVIEW`; do not reopen it to restart
-the completed flow. Create a new correction task for additional work.
+Use `reject <task-id> --reason "..." --as <reviewer>` to return submitted
+work to `open`. A `submitted` task does not satisfy dependencies; only `done`
+or `archived` blockers do. Claims are serialized under the project lock.
 
 ## Invariants
 
@@ -98,8 +80,7 @@ the completed flow. Create a new correction task for additional work.
 - Only blockers in `done` or `archived` satisfy dependencies.
 - A cycle or unknown dependency keeps a task blocked; the CLI stays defensive.
 - Gates block through `BLOCKS` edges until `resolve --choice --rationale`.
-- The runner's terminal JSON is the execution evidence; inspect it before
-  deciding whether recovery is needed.
+- Every mutation and its audit entry are committed together.
 
 ## Output contract
 
@@ -112,17 +93,15 @@ exception.
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| Task is not ready | A blocker, open gate, backlog setting, or active run prevents execution | `climier context <id>` and `climier status` |
-| An execution stopped | The runner reported a failure or checkpoint | `climierflow status <task-id>`, then `climierflow resume <task-id> [--summary TEXT]` or `climierflow restart <task-id> --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard` |
-| A completed or merged task needs correction | The recorded result is already final | Create a new correction task; a restart returns `RESTART_REQUIRES_REVIEW` |
+| Task is not ready | A blocker, open gate, or backlog setting prevents a claim | `climier context <id>` and `climier status` |
+| A task is already claimed | Another actor owns it | Inspect `context`; use `release` only for explicit administration |
+| Submitted work needs changes | A reviewer rejected the submission | Read the rejection in the audit history, address it, and submit again |
 
 ## When NOT to use climier
 
 - Single linear work with no dependencies, decisions, or coordination needs — a
   todo list is enough.
 - Secrets or large blobs — tasks hold short text; point at files instead.
-- Manual lifecycle orchestration — use `climierflow run` and its recovery
-  commands instead.
 
 Full command reference: [`references/commands.md`](./references/commands.md).
 Upstream docs: the repository's `README.md` and `docs/reference.md`.

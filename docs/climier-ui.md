@@ -22,7 +22,7 @@ La experiencia principal combinará:
 2. un grafo DAG de dependencias;
 3. un panel de detalle para cada node;
 4. comentarios, referencias, knowledge e historial;
-5. una explicación visible de cómo se ejecuta una task mediante el entrypoint único `climierflow run <task-id>` y cómo se recupera una ejecución.
+5. una explicación visible del ciclo de vida de una task: claim, trabajo, submission, aceptación o rechazo.
 
 La UI no es una consola exclusiva del orquestador. Su propósito es que una persona pueda entender qué está pasando en su proyecto y, al mismo tiempo, familiarizarse con el vocabulario y el protocolo de Climier.
 
@@ -32,24 +32,16 @@ La UI no es una consola exclusiva del orquestador. Su propósito es que una pers
 
 La inspección de `~/Dev/vegsport` mostró que Climier se usa como capa de coordinación de agentes, no como funcionalidad runtime de la aplicación.
 
-El flujo operativo documentado es:
+El operador consulta el DAG y registra los cambios del ciclo de vida con los comandos de Climier. Un flujo habitual es revisar `context`, reclamar una task lista con `take`, registrar avances con `add-note`, y entregar el trabajo mediante `submit`. La revisión se registra con `accept` o `reject`.
 
-```text
-climier context <task-id> → climierflow run <task-id> → resultado JSON terminal
-```
+Climier es el lugar para crear, leer y curar tasks, gates, knowledge, initiatives y dependencias. La UI puede mostrar:
 
-Para recuperación, el operador consulta `climierflow status <task-id>` y usa `climierflow resume <task-id> [--summary TEXT]` (`--summary` es opcional) o `climierflow restart <task-id> --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard` cuando corresponda. Restart exige esos valores de reemplazo y la confirmación explícita. Si el intento ya terminó y fue mergeado, devuelve `RESTART_REQUIRES_REVIEW`: no se debe hacer `reopen` y restart del flujo completado; se crea una nueva task de corrección. El runner oculta sus etapas internas: claim, worktree, implementación, revisión, lifecycle, commit, merge y limpieza.
-
-Climier sigue siendo el lugar para crear, leer y curar tasks, gates, knowledge, initiatives y dependencias. La UI puede mostrar:
-
-- estado y resultado de la ejecución;
-- historial y evidencia registrada por el runner;
-- gates revisadas mediante el DAG de Climier;
+- estado actual de cada task y cambios recientes;
+- historial y notas asociadas a cada node;
+- gates resueltas mediante el DAG de Climier;
 - `reopen`, `release` y `cancel` como administración explícita del DAG;
 - knowledge asociado por initiative o domain;
 - decisiones y RFCs referenciadas desde `body` y notas.
-
-La UI no requiere que el operador conozca ni invoque roles internos del runner.
 
 En la fotografía consultada había aproximadamente:
 
@@ -75,7 +67,7 @@ Hallazgos relevantes para la UI:
 - El tablero activo puede estar casi vacío aunque exista mucho historial. Por eso el historial no puede ser una pantalla secundaria inexistente.
 - Las notas son parte importante del sistema de coordinación: no son solamente comentarios informales.
 - Las referencias estructuradas (`refs`) todavía se usan poco en Vegsport; muchos documentos se mencionan dentro de `body` o notas.
-- La UI representa el trabajo registrado en Climier y debe dirigir la ejecución de tasks a `climierflow run <task-id>`, no a una secuencia manual de agentes o comandos internos.
+- La UI representa el trabajo registrado en Climier y debe exponer únicamente las operaciones del DAG que el CLI admite.
 - En el modelo actual, `ready` y `blocked` son estados derivados del DAG. No deben tratarse como valores que el usuario pueda editar libremente.
 
 ## 3. Objetivos
@@ -138,7 +130,7 @@ Este estado se calcula porque G-auth-1 todavía está open.
 
 ### 4.3 Proyección fiel del estado
 
-La UI no debe inventar estados ni permitir movimientos que el modelo de Climier no permite. La ejecución debe invocar `climierflow run <task-id>`; las acciones de curación y administración deben corresponder a comandos reales de Climier (`resolve`, `reopen`, `release`, `cancel`, `add-note`, etc.). No debe exponer como acciones del operador las etapas internas del runner.
+La UI no debe inventar estados ni permitir movimientos que el modelo de Climier no permite. Las acciones de curación y administración deben corresponder a comandos reales de Climier (`take`, `submit`, `accept`, `reject`, `resolve`, `reopen`, `release`, `cancel`, `add-note`, etc.).
 
 ### 4.4 Progresive disclosure
 
@@ -296,7 +288,8 @@ La UI no debe mostrar `priority`, `effort` o `skills` como campos de primera cla
 
 No se permitirá arrastrar libremente una tarjeta entre columnas. Las acciones disponibles dependerán del estado real y de los permisos:
 
-- ejecutar la task con `climierflow run <task-id>`;
+- `Take` cuando la task esté lista;
+- `Submit` al terminar el trabajo;
 - `Add note`;
 - `Release`;
 - `Resolve`;
@@ -307,7 +300,7 @@ No se permitirá arrastrar libremente una tarjeta entre columnas. Las acciones d
 Un modo avanzado puede mostrar el comando equivalente:
 
 ```bash
-climierflow run T-auth-7
+climier take T-auth-7 --as <agent>
 ```
 
 ## 9. Panel de detalle del node
@@ -370,7 +363,7 @@ La UI muestra las notes como texto libre y no depende de convenciones de agentes
 Historial del node usando `history <id>`:
 
 - add-node;
-- eventos de ejecución internos del runner (claim/lifecycle);
+- eventos del ciclo de vida registrados en el log (claim y cambios de estado);
 - resolve;
 - release;
 - reopen;
@@ -395,42 +388,26 @@ Las referencias detectadas automáticamente deben distinguirse de las referencia
 
 ## 10. Familiarización con la ejecución y Climier
 
-La UI debe enseñar el protocolo, no sólo mostrar datos. Debe separar la curación del DAG en Climier de la ejecución encapsulada por `climierflow`.
+La UI debe enseñar el modelo, no sólo mostrar datos. Debe explicar cómo se conectan la curación del DAG y el ciclo de vida de las tasks.
 
 ### Flujo visible
 
 ```text
-climier context <task-id> → climierflow run <task-id> → resultado JSON terminal
+climier context <task-id> → climier take <task-id> → climier submit <task-id> → climier accept|reject <task-id>
 ```
 
 Cada paso tendrá una explicación:
 
 - `climier context`: leer specification, blockers, knowledge y alerts;
-- `climierflow run`: ejecutar la task con todas sus etapas internas encapsuladas;
-- resultado JSON terminal: mostrar éxito, bloqueo o error, commit y merge cuando existan;
-- `climierflow status <task-id>`: inspeccionar el intento actual;
-- `climierflow resume <task-id> [--summary TEXT]`: recuperar desde un checkpoint (`--summary` es opcional);
-- `climierflow restart <task-id> --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard`: comenzar otra vez solo cuando el intento no esté completado.
+- `climier take`: registrar quién es responsable de una task lista;
+- `climier submit`: entregar el trabajo para revisión con una nota de auditoría;
+- `climier accept` / `climier reject`: registrar el resultado de la revisión.
 
-El resultado terminal conserva un JSON estable. En éxito:
+La UI puede ofrecer enlaces y ayuda para los comandos de Climier que crean o curan tasks, gates, knowledge y dependencias. Las transiciones ejecutadas se reflejan en el estado y en el log del proyecto.
 
-```json
-{
-  "ok": true,
-  "task_id": "<task-id>",
-  "status": "done",
-  "terminal": true,
-  "result": { "summary": "<result summary>", "commit": "<commit-sha>", "merged": true }
-}
-```
+### Metadata de actividad
 
-En error o bloqueo, el mismo envelope contiene `error: { "code", "message", "details" }`.
-
-La UI puede ofrecer enlaces a `climier` para crear o curar tasks, gates, knowledge y dependencias. No debe pedir al operador que invoque roles o etapas internas.
-
-### Metadata de ejecución
-
-La información de worktree, branch, commit y resultado se puede mostrar en una sección técnica colapsada, sin convertir identidades internas del runner en acciones ni conceptos necesarios para el operador.
+Las notas, claims, timestamps y resultados del ciclo de vida se pueden mostrar en una sección técnica colapsada, manteniendo visibles los datos que ayudan a entender el estado del node.
 
 ### Glosario contextual
 
@@ -533,18 +510,17 @@ Toda mutación desde la UI debe:
 
 ### Fase 2: actividad — IMPLEMENTADO (falta search global e impacto downstream dedicado en Nodes / Gates)
 
-### Fase 3: ejecución y curación — A BACKLOG
+### Fase 3: ciclo de vida y curación — A BACKLOG
 
-- invocar `climierflow run <task-id>` desde la UI;
-- mostrar el resultado JSON terminal y el estado de `climierflow status <task-id>`;
-- ofrecer `resume` y `restart` cuando la ejecución lo permita;
+- exponer las operaciones reales de ciclo de vida de Climier;
+- mostrar cambios de estado y entradas del log;
 - curar tasks, gates y knowledge mediante comandos reales de Climier;
 - edición segura con revision conflict.
 
 ### Fase 4: colaboración avanzada — A BACKLOG
 
 - actualizaciones en vivo;
-- metadata técnica del runner (worktree, branch, commit y resultado);
+- metadata técnica disponible en las notas e historial del node;
 - notes con tipos y severidad estructurados;
 - permisos para múltiples usuarios;
 - modalidad remota, si existe una necesidad real.
@@ -594,8 +570,8 @@ Toda mutación desde la UI debe:
 ### Aprendizaje
 
 - Un usuario nuevo puede explicar qué significa `Gate`, `Knowledge`, `BLOCKS` y `derived status` después de usar el glosario.
-- El flujo `climierflow run <task-id>` está visible y documentado junto con `status`, `resume` y `restart` para recuperación.
-- La UI permite abrir el comando único y el resultado JSON terminal sin exigir conocimiento de roles internos.
+- El ciclo de vida de una task y sus comandos de Climier están explicados junto al estado y el historial.
+- La UI permite inspeccionar las operaciones disponibles sin exponer mecanismos externos.
 
 ## 17. Métricas propuestas
 

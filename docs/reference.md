@@ -375,21 +375,17 @@ Required:
 
 Output is `{ edge }`.
 
-## Lifecycle commands (runner-owned)
+## Lifecycle commands
 
-The following commands document the state transitions used by the execution
-runtime and remain available for compatibility and administration. They are not
-the normal operator path for executing a task: run `climierflow run <task-id>` and
-use the runner's recovery forms below. Do not chain `take`, `submit`, `accept`, or
-`reject` by hand.
+These commands record task ownership and review outcomes:
 
-- `climierflow status <task-id>` inspects the current attempt.
-- `climierflow resume <task-id> [--summary TEXT]` resumes an interrupted attempt; `--summary` is optional.
-- `climierflow restart <task-id> --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard` starts a fresh attempt. Replacement `--body` and `--acceptance` values and `--confirm-discard` are required.
+- `take <id> --as <agent>` claims a ready task.
+- `submit <id> --note "..." --as <agent>` records an owned task's handoff for review.
+- `accept <id> --as <agent>` transitions submitted work to `done`.
+- `reject <id> --reason "..." --as <agent>` returns submitted work to `open`.
 
-A completed and merged attempt cannot be restarted: the runner returns
-`RESTART_REQUIRES_REVIEW`. Do not reopen that task to restart its completed
-flow; create a new correction task for additional work.
+Use `release`, `reopen`, and `cancel` for explicit administration. Claims are
+serialized under the project lock.
 
 ### `take <id>`
 
@@ -475,8 +471,7 @@ Rules:
 
 ### `resolve <id>`
 
-Resolves an open gate. It is a DAG curation command, not a task execution
-step; task lifecycle transitions belong to `climierflow`.
+Resolves an open gate as part of DAG curation; it is not a task lifecycle transition.
 
 Required:
 
@@ -822,8 +817,8 @@ convert an existing project. For a pre-cut project, use the ordered import in
 
 The importer is a one-time release operation for projects written before the
 schema-1 cut. `--dry-run` reports each project's detected form without writing;
-`--all` scans every project under `CLIMIER_HOME`. For a real import, stop the
-control plane, UI, all runner executions, and remote server first, then run the
+`--all` scans every project under `CLIMIER_HOME`. For a real import, stop all
+writers, the UI, and the remote server first, then run the
 dry-run and `climier migrate --all`. The importer backs up each project before
 changing it.
 Verify every project with `climier --project <checkout> status` before restarting
@@ -899,10 +894,9 @@ climier add-gate G-auth --initiative auth --title "Choose session model" --body 
 climier add-task T-auth --initiative auth --title "Implement sessions" --body "Build it" --acceptance "Works" --blocked-by G-auth --as alice
 climier context T-auth
 climier resolve G-auth --choice "Opaque sessions" --rationale "Safer default" --as orchestrator
-climierflow run T-auth
-climierflow status T-auth
-climierflow resume T-auth [--summary TEXT]   # --summary is optional
-climierflow restart T-auth --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard
+climier take T-auth --as implementer
+climier submit T-auth --note "Implementation complete" --as implementer
+climier accept T-auth --as reviewer
 climier history T-auth
 climier status --all
 ```

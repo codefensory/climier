@@ -102,7 +102,7 @@ function equivalentCommand(node, derived) {
   if (node.kind === "knowledge") return null;
   if (node.subkind === "gate") return `climier context ${id}   # read blockers, knowledge, allowed actions`;
   if (node.status === "in_progress") return `climier add-note ${id} "..." --as <agent>`;
-  if (derived === "submitted") return `climierflow status ${id}   # execution awaiting runner completion`;
+  if (derived === "submitted") return `climier context ${id}   # submitted work awaiting review`;
   if (derived === "ready") return `climier take ${id} --as <agent>`;
   if (derived === "blocked") return `climier context ${id}   # see which blocker gates it`;
   if (node.status === "done") return `climier reopen ${id} --reason "..." --as <agent>`;

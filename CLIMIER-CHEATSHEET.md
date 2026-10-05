@@ -36,32 +36,19 @@ Errors are JSON to stdout with a structured shape:
 - `climier log [--limit N] [--action X] [--agent X] [--node X]` — raw audit log.
 - `climier snapshots` — list recoverable snapshots under `<state-dir>/snapshots/`.
 
-## Execute and recover
+## Task lifecycle
 
-`climierflow` is the only task execution entrypoint. It owns claim,
-worktree, implementation, review, lifecycle, commit, merge, and cleanup:
+Use the task lifecycle commands to record ownership and review state:
 
 ```bash
 climier context <task-id>
-climierflow run <task-id>
+climier take <task-id> --as <agent>
+climier submit <task-id> --note "Implementation complete" --as <agent>
+climier accept <task-id> --as <reviewer>
 ```
 
-If execution is interrupted, inspect and recover through the runner:
-
-```bash
-climierflow status <task-id>
-climierflow resume <task-id> [--summary TEXT]   # --summary is optional
-climierflow restart <task-id> --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard
-```
-
-Restart requires replacement `--body` and `--acceptance` values plus
-`--confirm-discard`. If an attempt is already completed and merged, restart
-fails with `RESTART_REQUIRES_REVIEW`; do not reopen it to restart the completed
-flow. Create a new correction task instead.
-
-Do not run `take`, `submit`, `accept`, or `reject` as a hand-written execution
-sequence. Those transitions are internal to the runner. Use `reopen`, `release`,
-and `cancel` only for explicit DAG administration.
+Use `reject` to return submitted work to `open`. Use `reopen`, `release`, and
+`cancel` for explicit DAG administration.
 
 ## Spec edits
 
@@ -88,27 +75,24 @@ CLI phrases edges from the dependent's point of view: `--blocked-by G-y` means
 `from: G-y, to: <this node>, type: BLOCKS` — **to is BLOCKED-BY from**.
 `SUPERSEDES` and `DERIVED_FROM` keep the user-supplied direction.
 
-## Runner-owned lifecycle reference
-
-The CLI retains lifecycle operations for compatibility and administration, but
-normal execution goes through `climierflow`:
+## Task lifecycle reference
 
 | Operation | State effect |
 |---|---|
-| `take` | Internal runner claim of a ready task |
-| `submit` | Internal runner handoff of implementation evidence |
-| `accept` | Internal runner transition to accepted `done` |
-| `reject` | Internal runner correction back to `open` |
-| `release` | Explicit administrative claim release |
-| `cancel` | Explicit administrative cancellation |
-| `reopen` | Explicit DAG administration; not runner recovery |
+| `take` | Claim a ready task |
+| `submit` | Hand owned work off for review, with an audit note |
+| `accept` | Transition submitted work to `done` |
+| `reject` | Return submitted work to `open` with a reason |
+| `release` | Explicitly release an active claim |
+| `cancel` | Explicitly cancel a task |
+| `reopen` | Reopen an accepted task or resolved gate for correction |
 | `resolve <gate>` | Resolve a gate with a choice and rationale |
 
 ## Common error codes
 
 - `NODE_NOT_FOUND` — id doesn't exist.
 - `NOT_READY` — a task cannot start because it is blocked or unavailable.
-- `ALREADY_CLAIMED` — a runner execution already owns the task.
+- `ALREADY_CLAIMED` — another actor currently owns the task.
 - `INVALID_STATUS` — a transition is not allowed from the current status.
 - `MISSING_FIELD` / `MISSING_AGENT` — required flag absent.
 - `REVISION_CONFLICT` — `update --if-revision N` found a newer revision.

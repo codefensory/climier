@@ -17,24 +17,20 @@ All commands print JSON to stdout. `--as <agent>` tags identity in the audit log
 | `snapshots` | Recoverable snapshots |
 | `ui [--port N] [--open=bool]` | Local read-only web UI |
 
-## Execution and recovery
-
-`climierflow` is the only task execution entrypoint:
+## Task lifecycle
 
 | Command | Purpose |
 |---|---|
-| `climierflow run <task-id>` | Execute one task through claim, worktree, implementation, review, lifecycle, commit, merge, and cleanup |
-| `climierflow status <task-id>` | Inspect the current execution and available checkpoints |
-| `climierflow resume <task-id> [--summary TEXT]` | Continue an interrupted execution from a checkpoint; `--summary` is optional |
-| `climierflow restart <task-id> --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard` | Start a fresh non-completed attempt with required replacement values |
+| `take <task-id> --as <agent>` | Claim a ready task |
+| `submit <task-id> --note "..." --as <agent>` | Submit owned work for review with an audit note |
+| `accept <task-id> --as <agent>` | Transition submitted work to `done` |
+| `reject <task-id> --reason "..." --as <agent>` | Return submitted work to `open` with a reason |
+| `release <task-id> --as <agent>` | Release an active claim |
+| `reopen <task-id> --reason "..." --as <agent>` | Reopen a task or resolved gate for correction |
+| `cancel <task-id> --reason "..." --as <agent>` | Cancel a node |
 
-`restart` requires replacement `--body` and `--acceptance` values plus
-`--confirm-discard`. A completed and merged attempt returns
-`RESTART_REQUIRES_REVIEW`; create a new correction task instead of reopening and
-restarting the completed flow.
-
-Do not chain `take`, `submit`, `accept`, or `reject` manually. The runner owns
-those lifecycle transitions.
+`submitted` work does not satisfy dependencies. Only `done` and `archived`
+blockers unblock downstream tasks.
 
 ## DAG curation and administration
 
@@ -42,7 +38,7 @@ those lifecycle transitions.
 |---|---|
 | `init [--force]` | Create or deliberately reset `.climier.json` and live state |
 | `resolve <id> --choice "..." --rationale "..." --as <agent>` | Resolve an open gate |
-| `reopen <id> --reason "..." --as <agent>` | Administrative correction of a task or resolved gate; not runner recovery |
+| `reopen <id> --reason "..." --as <agent>` | Reopen a task or resolved gate for correction |
 | `release <id> --as <agent>` | Administrative claim release |
 | `cancel <id> --reason "..." --as <agent>` | Administrative node cancellation |
 | `restore <snapshot-id> --as orchestrator\|recovery` | Replace live state with a validated snapshot |
@@ -50,9 +46,8 @@ those lifecycle transitions.
 | `add-note <id> "..." --as <agent>` | Append to a node's note thread |
 | `deprecate-knowledge <id> --reason "..." --as <agent>` | Soft-delete knowledge |
 
-The lifecycle commands `take`, `submit`, `accept`, and `reject` remain public
-state operations for compatibility and recovery tooling, but they are not the
-normal operator path for executing a task.
+The lifecycle commands `take`, `submit`, `accept`, and `reject` record ownership
+and review state in the project DAG.
 
 ## DAG construction
 
