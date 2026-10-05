@@ -36,6 +36,44 @@ export function stateFile(projectDir) {
   return globalStateFile(meta?.project_id || defaultProjectId(projectDir));
 }
 
+/** State path for a project known only by its id (the storage dir name). */
+export function stateFileForProjectId(projectId) {
+  return globalStateFile(projectId);
+}
+
+/** Project ids with a state or a ledger in the project storage root, sorted. */
+export async function listProjectIds() {
+  const projectsDir = path.join(climierHome(), "projects");
+  let entries;
+  try {
+    entries = await fs.readdir(projectsDir, { withFileTypes: true });
+  } catch (error) {
+    if (error.code === "ENOENT") { return []; }
+    throw error;
+  }
+  const ids = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory()) { continue; }
+    const dir = path.join(projectsDir, entry.name);
+    if (await hasAny(path.join(dir, "tasks.json"), path.join(dir, "revision-ledger.json"))) {
+      ids.push(entry.name);
+    }
+  }
+  return ids.toSorted();
+}
+
+async function hasAny(...files) {
+  for (const file of files) {
+    try {
+      await fs.access(file);
+      return true;
+    } catch (error) {
+      if (error.code !== "ENOENT") { throw error; }
+    }
+  }
+  return false;
+}
+
 export async function ensureProjectMeta(projectDir) {
   const existing = readProjectMetaSync(projectDir);
   if (existing) { return existing; }

@@ -136,7 +136,7 @@ climier accept T-mvp-1 --as reviewer
 
 ## Web UI
 
-`ui/` is the standalone SolidJS + Vite + Tailwind frontend. Its dependencies stay in the UI subproject; the root CLI remains stdlib-only. The server serves the built SPA from `ui/dist`, and `climier ui` starts a local read-only loopback server without Express. The same bundle serves both: the local adapter answers the same `/v1` read contract (catalog, login, snapshot with `ETag`, nodes, activity, SSE) for the local DAG, and the client falls back to the login gate only when the origin requires a bearer.
+`ui/` is the standalone SolidJS + Vite + Tailwind frontend. Its dependencies stay in the UI subproject; the root CLI remains stdlib-only. The server serves the built SPA from `ui/dist`, and `climier ui` starts a local read-only loopback server without Express. The same bundle serves both: the local adapter answers the same `/v1` read contract (catalog, login, snapshot with `ETag`, nodes, activity, SSE) for every project in the local storage root, and the client falls back to the login gate only when the origin requires a bearer.
 
 Build the reproducible UI bundle with Bun:
 

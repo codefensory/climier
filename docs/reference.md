@@ -202,14 +202,21 @@ derivation functions, and is not included in the published tarball. A missing
 subproject or dependency produces an actionable error. The CLI surface and
 JSON contract do not depend on it.
 
-The local adapter answers the same `/v1` read contract as the hosted server —
-`GET /v1/projects` (the single local project), `POST /v1/auth/login`,
+The local adapter answers the same `/v1` read contract as the hosted server
+for **every project in the local storage root** (`$CLIMIER_HOME/projects`):
+`GET /v1/projects` (the catalog), `POST /v1/auth/login`,
 `GET /v1/projects/:id/ui/{snapshot,nodes,activity}` with `ETag`/`304`, and the
 `/ui/events` SSE stream — but without bearer auth or the remote catalog. The
 same `ui/dist` bundle serves the remote DAG on the server and the local DAG on
 loopback; the browser client probes `/v1/projects` once and treats a `200`
 (open) response as authenticated, so the login gate only appears when the
 server requires a bearer.
+
+`climier ui` is launched from a project root (`--project`) and starts the
+loopback server; the launch project only identifies the process (and the token
+label). The catalog reads every local project by id, lock-safe and without a
+project root. A project whose state is unreadable stays in the catalog with
+neutral counters; opening it surfaces the real error.
 
 ## Agent identity
 

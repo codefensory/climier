@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { initState } from "../src/kernel/state-operations.mjs";
+import { runCli } from "./cli-harness.mjs";
 import uiCommand, { startLocalUiServer } from "../src/cli/commands/ui.mjs";
 
 async function makeProject(t, projectId = "local-project") {
@@ -95,6 +96,57 @@ test("climier ui exposes the hosted read contract locally: catalog, login, ETag 
   assert.equal(events.status, 200);
   assert.equal(events.headers.get("content-type"), "text/event-stream");
   controller.abort();
+});
+
+test("climier ui catalog lists every local project, not only the launch project", async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "climier-ui-catalog-"));
+  const home = path.join(root, "home");
+  const uiRoot = path.join(root, "dist");
+  await fs.mkdir(uiRoot, { recursive: true });
+  await fs.writeFile(path.join(uiRoot, "index.html"), "<!doctype html><main>local UI</main>\n");
+  const projectA = path.join(root, "project-a");
+  const projectB = path.join(root, "project-b");
+  for (const [dir, id] of [[projectA, "proj-a"], [projectB, "proj-b"]]) {
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(path.join(dir, ".climier.json"), `${JSON.stringify({ version: 1, project_id: id })}\n`);
+  }
+  await fs.mkdir(path.join(home, "projects", "stray"), { recursive: true });
+  await fs.writeFile(path.join(home, "projects", "stray", "notes.txt"), "x");
+
+  const previousHome = process.env.CLIMIER_HOME;
+  process.env.CLIMIER_HOME = home;
+  t.after(async () => {
+    if (previousHome === undefined) delete process.env.CLIMIER_HOME;
+    else process.env.CLIMIER_HOME = previousHome;
+    await fs.rm(root, { recursive: true, force: true });
+  });
+
+  await initState({ projectDir: projectA });
+  await initState({ projectDir: projectB });
+  const registered = await runCli(["--project", projectB, "add-initiative", "demo", "--as", "e2e"]);
+  assert.equal(registered.code, 0, registered.stdout);
+  const created = await runCli([
+    "--project", projectB, "add-task", "T-b", "--initiative", "demo",
+    "--title", "Catalog", "--body", "b", "--acceptance", "b", "--blocked-by", "", "--as", "e2e",
+  ]);
+  assert.equal(created.code, 0, created.stdout);
+
+  const started = await startLocalUiServer({ projectDir: projectA, uiRoot, port: 0 });
+  t.after(() => closeServer(started.server));
+
+  const catalog = await (await fetch(`${started.url}/v1/projects`)).json();
+  const projects = Object.fromEntries(catalog.projects.map((project) => [project.project_id, project]));
+  assert.deepEqual(Object.keys(projects).toSorted(), ["proj-a", "proj-b"]);
+  assert.equal(projects["proj-a"].node_count, 0);
+  assert.equal(projects["proj-b"].node_count, 1);
+
+  const other = await (await fetch(`${started.url}/v1/projects/proj-b/ui/snapshot`)).json();
+  assert.deepEqual(Object.keys(other.result.nodes), ["T-b"]);
+  const launching = await (await fetch(`${started.url}/v1/projects/proj-a/ui/snapshot`)).json();
+  assert.deepEqual(Object.keys(launching.result.nodes), []);
+
+  const unknown = await fetch(`${started.url}/v1/projects/not-a-project/ui/snapshot`);
+  assert.equal(unknown.status, 404);
 });
 
 test("uiCommand starts the stdlib local server and reports the loopback URL", async (t) => {

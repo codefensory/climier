@@ -3,8 +3,8 @@
 
 import fs from "node:fs/promises";
 import path from "node:path";
-import { stateFile } from "./state.mjs";
-import { withLock, withCurrentProjectLock, assertActiveLockContext, getActiveLockContext } from "./lock.mjs";
+import { stateFile, stateFileForProjectId } from "./state.mjs";
+import { withLock, withCurrentProjectLock, withProjectIdLock, assertActiveLockContext, getActiveLockContext } from "./lock.mjs";
 import {
   assertValidLedger,
   recoverUnderActiveLock as recoverUnderActiveLockProtocol,
@@ -16,6 +16,11 @@ import { replaceUnderActiveLock } from "./ledger/replace.mjs";
 
 export function ledgerFile(projectDir) {
   return path.join(path.dirname(stateFile(projectDir)), "revision-ledger.json");
+}
+
+/** Ledger path for a project known only by its id (the storage dir name). */
+export function ledgerFileForProjectId(projectId) {
+  return path.join(path.dirname(stateFileForProjectId(projectId)), "revision-ledger.json");
 }
 
 function runRecoveryProtocol(lockContext, candidate, opts) {
@@ -103,8 +108,8 @@ async function finishLedgerRead(lockContext, ledger, paths, opts) {
 
 export async function readFencedStateUnderLock(lockContext, opts = {}) {
   assertActiveLockContext(lockContext, opts.projectDir);
-  const { projectDir, statePath } = getActiveLockContext(lockContext);
-  const ledgerPath = ledgerFile(projectDir);
+  const { statePath } = getActiveLockContext(lockContext);
+  const ledgerPath = path.join(path.dirname(statePath), "revision-ledger.json");
   const [hasState, hasLedger] = await Promise.all([fileExists(statePath), fileExists(ledgerPath)]);
   if (!hasState && !hasLedger) {
     return null;
@@ -127,6 +132,20 @@ export async function readFencedStateUnderLock(lockContext, opts = {}) {
 /** Read a v5 state only when its durable project ledger agrees with it. */
 export async function readFencedState(projectDir, opts = {}) {
   return withCurrentProjectLock(projectDir, (lockContext) => readFencedStateUnderLock(lockContext, opts), opts.lockOptions);
+}
+
+/**
+ * Read a project's canonical state by id, without a project root. Used by
+ * read-only surfaces that enumerate the local storage (the loopback UI
+ * catalog). Returns null when the project has neither state nor ledger, and
+ * never creates the project directory.
+ */
+export async function readStateByProjectId(projectId) {
+  const statePath = stateFileForProjectId(projectId);
+  const ledgerPath = ledgerFileForProjectId(projectId);
+  const [hasState, hasLedger] = await Promise.all([fileExists(statePath), fileExists(ledgerPath)]);
+  if (!hasState && !hasLedger) { return null; }
+  return withProjectIdLock(projectId, (lockContext) => readFencedStateUnderLock(lockContext));
 }
 
 /** Commit a candidate under the active lock, preserving the public facade. */

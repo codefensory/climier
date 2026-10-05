@@ -8,8 +8,9 @@ import { createHttpCodec } from "../../server/http/codec.mjs";
 import { createStaticHandler } from "../../server/http/static.mjs";
 import { createUiApi } from "../../server/http/ui-api.mjs";
 import { createUiEvents } from "../../server/http/ui-events.mjs";
-import { ledgerFile } from "../../storage/ledger.mjs";
-import { readState, stateFile } from "../../storage/state.mjs";
+import { ledgerFileForProjectId, readStateByProjectId } from "../../storage/ledger.mjs";
+import { climierHome } from "../../storage/paths.mjs";
+import { listProjectIds, readState, stateFile, stateFileForProjectId } from "../../storage/state.mjs";
 
 export const knownFlags = ["port", "open"];
 
@@ -45,44 +46,66 @@ function routeNotFound() {
   return httpError("ROUTE_NOT_FOUND", "server http: route was not found", undefined, 404);
 }
 
-function createLocalUiApi({ projectDir, projectId, projectName, clock }) {
+function localProjectRef(projectId) {
+  return { id: projectId, name: projectId, projectDir: path.join(climierHome(), "projects", projectId) };
+}
+
+async function resolveLocalProject(projectId) {
+  if (typeof projectId !== "string" || projectId.length === 0) {
+    return null;
+  }
+  return (await listProjectIds()).includes(projectId) ? localProjectRef(projectId) : null;
+}
+
+function createLocalUiApi({ clock }) {
   return createUiApi({
     authorize: async () => {},
-    getProject: async (requestedProjectId) => requestedProjectId === projectId
-      ? { id: projectId, name: projectName, projectDir }
-      : null,
-    readSnapshot: () => readState(projectDir),
+    getProject: (projectId) => resolveLocalProject(projectId),
+    readSnapshot: (project) => readStateByProjectId(project.id),
     clock,
   });
 }
 
-function createLocalUiEvents({ projectDir, projectId, projectName }) {
+function createLocalUiEvents() {
   return createUiEvents({
     authorize: async () => {},
-    getProject: async (requestedProjectId) => requestedProjectId === projectId
-      ? { id: projectId, name: projectName, projectDir }
-      : null,
-    readSnapshot: () => readState(projectDir),
-    resolveLedger: () => ledgerFile(projectDir),
+    getProject: (projectId) => resolveLocalProject(projectId),
+    readSnapshot: (project) => readStateByProjectId(project.id),
+    resolveLedger: ({ projectId }) => ledgerFileForProjectId(projectId),
     protocolVersion: PROTOCOL_VERSION,
   });
 }
 
-// Same shape the hosted catalog returns, derived from the single local project the command resolved.
-async function localProjectSummary({ projectDir, projectId, projectName }) {
-  const state = await readState(projectDir);
-  if (!state) {
-    return { project_id: projectId, name: projectName, revision: 0, node_count: 0, updated_at: null };
+// Same shape the hosted catalog returns. Unreadable states stay in the catalog with
+// neutral counters so one bad project cannot blank the whole board; the snapshot
+// request for that project surfaces the real error.
+async function localProjectSummary(projectId) {
+  let updatedAt = null;
+  try {
+    updatedAt = fsSync.statSync(stateFileForProjectId(projectId)).mtime.toISOString();
+  } catch {
+    // A ledger-only project has no state file yet.
+  }
+  let state = null;
+  try {
+    state = await readStateByProjectId(projectId);
+  } catch {
+    // Surfaced when the node/snapshot route reads this project.
   }
   return {
     project_id: projectId,
-    name: projectName,
-    revision: Number.isInteger(state.revision) ? state.revision : 0,
-    node_count: state.nodes && typeof state.nodes === "object" && !Array.isArray(state.nodes)
+    name: projectId,
+    revision: state && Number.isInteger(state.revision) ? state.revision : 0,
+    node_count: state && state.nodes && typeof state.nodes === "object" && !Array.isArray(state.nodes)
       ? Object.keys(state.nodes).length
       : 0,
-    updated_at: fsSync.statSync(stateFile(projectDir)).mtime.toISOString(),
+    updated_at: updatedAt,
   };
+}
+
+async function listLocalProjectSummaries() {
+  const ids = await listProjectIds();
+  return Promise.all(ids.map((projectId) => localProjectSummary(projectId)));
 }
 
 async function handleHealth(request, response) {
@@ -94,7 +117,7 @@ async function handleHealth(request, response) {
   return true;
 }
 
-async function handleLocalUiApi(request, response, { uiApi, uiEvents, projectDir, projectId, projectName }) {
+async function handleLocalUiApi(request, response, { uiApi, uiEvents, projectId }) {
   const url = new URL(request.url || "/", "http://localhost");
   if (url.pathname === "/v1/auth/login") {
     if (request.method !== "POST") {
@@ -108,7 +131,7 @@ async function handleLocalUiApi(request, response, { uiApi, uiEvents, projectDir
     if (request.method !== "GET") {
       throw routeNotFound();
     }
-    send(response, 200, { projects: [await localProjectSummary({ projectDir, projectId, projectName })] });
+    send(response, 200, { projects: await listLocalProjectSummaries() });
     return;
   }
   if (request.method !== "GET") {
@@ -151,11 +174,10 @@ export function createLocalUiServer({ projectDir, uiRoot = UI_ROOT, indexFile = 
     throw new TypeError("ui: projectDir is required");
   }
   const projectId = localProjectId(projectDir);
-  const projectName = projectId;
   const staticHandler = createStaticHandler({ root: uiRoot, indexFile });
-  const uiApi = createLocalUiApi({ projectDir, projectId, projectName, clock });
-  const uiEvents = createLocalUiEvents({ projectDir, projectId, projectName });
-  const dependencies = { uiApi, uiEvents, projectDir, projectId, projectName };
+  const uiApi = createLocalUiApi({ clock });
+  const uiEvents = createLocalUiEvents();
+  const dependencies = { uiApi, uiEvents, projectId };
 
   return createServer(async (request, response) => {
     try {

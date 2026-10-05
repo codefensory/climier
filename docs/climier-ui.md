@@ -445,7 +445,7 @@ Implementado: `climier ui --project <dir>` arranca un server loopback stdlib y s
 
 - El server escucha en `127.0.0.1` por defecto.
 - Sirve `index.html` y assets con MIME, cache y fallback SPA; `/v1/*` queda reservado para la API y no recibe HTML.
-- El adaptador local responde el mismo contrato de lectura que el server hosteado: `GET /v1/projects` (el proyecto local), `POST /v1/auth/login`, `/v1/projects/:id/ui/snapshot` (con `ETag`/`304`), `/ui/nodes/:node`, `/ui/activity` y el stream SSE `/ui/events`, sin bearer ni catálogo remoto.
+- El adaptador local responde el mismo contrato de lectura que el server hosteado para **todos los proyectos del storage local**: `GET /v1/projects` (catálogo de `$CLIMIER_HOME/projects`), `POST /v1/auth/login`, `/v1/projects/:id/ui/snapshot` (con `ETag`/`304`), `/ui/nodes/:node`, `/ui/activity` y el stream SSE `/ui/events`, sin bearer ni catálogo remoto. El proyecto desde el que se lanza el comando sólo identifica el proceso; el catálogo lee cada proyecto por id.
 - El server remoto sirve la misma SPA en el origen de `/v1` y protege esas lecturas con autenticación. El cliente prueba `/v1/projects` una vez y trata un `200` (abierto) como autenticado: el login sólo aparece cuando el server exige bearer.
 - Las mutaciones siguen fuera de la UI; cualquier futura acción debe pasar por las operaciones y el lock de Climier.
 - El estado permanece en `CLIMIER_HOME`.
