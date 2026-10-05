@@ -24,7 +24,7 @@ set -euo pipefail
 ROOT=$(git rev-parse --show-toplevel)
 cd "$ROOT"
 
-usage() { sed -n '3,20p' "$0" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '3,/^set -euo/p' "$0" | sed 's/^# \{0,1\}//; /^set -euo/d'; }
 
 CHECK=0
 case "${1:-}" in
