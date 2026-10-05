@@ -1,5 +1,6 @@
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
+import solid from "vite-plugin-solid";
 import storybookTest from "@storybook/addon-vitest/vitest-plugin";
 
 /**
@@ -37,6 +38,19 @@ export default defineConfig({
         plugins: storybookPlugins,
         test: {
           name: "storybook",
+          browser: {
+            enabled: true,
+            provider: playwright(),
+            headless: true,
+            instances: [{ browser: "chromium" }],
+          },
+        },
+      },
+      {
+        plugins: [solid()],
+        test: {
+          name: "unit",
+          include: ["src/**/*.test.@(ts|tsx)"],
           browser: {
             enabled: true,
             provider: playwright(),

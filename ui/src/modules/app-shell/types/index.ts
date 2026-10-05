@@ -13,17 +13,13 @@ export type NavSection = {
   items: NavItem[];
 };
 
-/** Proyecto del workspace. */
+/** A project from the authenticated server catalog, with presentation tokens for the switcher. */
 export type Project = {
+  projectId: string;
   label: string;
-  /** Fondo del chip, normalmente `var(--color-tone-*-bg)`. */
   background: string;
-  /** Color de la letra del chip. */
   textColor: string;
-  /** Letra mostrada cuando no es la entrada "todos los proyectos". */
   initial: string;
-  /** Entrada agregada "All projects": muestra un icono en vez de una letra. */
-  all?: boolean;
 };
 
 /** Mapa de nombre semántico → asset de Hugeicons, usado por la navegación. */

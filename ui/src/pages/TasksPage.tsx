@@ -8,18 +8,22 @@
  *
  * La página coloca la toolbar en la cabecera compartida y el board en la columna común del PageFrame.
  */
-import { useNavigate } from "@solidjs/router";
+import { useLocation, useNavigate } from "@solidjs/router";
 import { createMemo } from "solid-js";
-import { filterTasks, gates as allGates, TaskBoardContainer, tasks as allTasks, TasksToolbar, useTasksUrl } from "../modules/tasks";
-import type { Task } from "../modules/tasks";
+import { useProjectData } from "../modules/app-shell";
+import { filterTasks, projectBoard, TaskBoardContainer, TasksToolbar, useTasksUrl } from "../modules/tasks";
+import type { ClimierSnapshot, Task } from "../modules/tasks";
 import { PageFrame } from "./PageFrame";
 
 export function TasksPage() {
   const board = useTasksUrl();
+  const location = useLocation();
   const navigate = useNavigate();
+  const projectData = useProjectData();
+  const projected = createMemo(() => projectBoard(projectData.snapshot() as ClimierSnapshot));
 
-  const filteredTasks = createMemo(() => filterTasks(allTasks, board.filterTree()));
-  const filteredGates = createMemo(() => filterTasks(allGates, board.filterTree()));
+  const filteredTasks = createMemo(() => filterTasks(projected().tasks, board.filterTree()));
+  const filteredGates = createMemo(() => filterTasks(projected().gates, board.filterTree()));
   const scopeCounts = createMemo(() => {
     const tasks = filteredTasks();
     const gates = filteredGates();
@@ -40,7 +44,7 @@ export function TasksPage() {
    * La navegación vive acá y no en la fila: los componentes del board son presentacionales y las
    * stories los montan sin router, así que un `useNavigate()` adentro de `TaskListRow` los rompería.
    */
-  const openTask = (task: Task) => navigate(`/tasks/${task.id}`);
+  const openTask = (task: Task) => navigate(`/tasks/${encodeURIComponent(task.id)}${location.search}`);
 
   return (
     <PageFrame header={<TasksToolbar view={board.view()} onView={board.setView} scope={board.scope()} scopeCounts={scopeCounts()} onScope={board.setScope} sort={board.sort()} onSort={board.setSort} group={board.group()} onGroup={board.setGroup} filterTree={board.filterTree()} onFilterTree={board.setFilterTree} />}>

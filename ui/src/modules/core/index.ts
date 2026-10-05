@@ -20,3 +20,16 @@ export { tint } from "./utils/color";
 
 export { BREAKPOINTS } from "./breakpoints";
 export { useMediaQuery } from "./primitives/useMediaQuery";
+
+export { backoffDelay, waitForBackoff } from "./http/backoff";
+export type { BackoffOptions } from "./http/backoff";
+export { createHttpClient, HttpError } from "./http/client";
+export type { FetchLike, HttpClientOptions, StorageLike } from "./http/client";
+export { createSseParser, consumeSse } from "./http/sse";
+export type { SseMessage } from "./http/sse";
+export { AUTH_STORAGE_KEY, PROTOCOL_HEADER, PROTOCOL_VERSION } from "./http/protocol";
+export type { ProjectSummary, SnapshotResponse } from "./http/protocol";
+export { RuntimeProvider, useRuntime } from "./providers/RuntimeProvider";
+export type { RuntimeController, RuntimeMode } from "./providers/RuntimeProvider";
+export { SessionProvider, useSession } from "./providers/SessionProvider";
+export type { SessionController } from "./providers/SessionProvider";

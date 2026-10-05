@@ -1,9 +1,10 @@
 import SecurityCheckIcon from "@hugeicons/core-free-icons/SecurityCheckIcon";
-import { useNavigate } from "@solidjs/router";
-import { For, Show } from "solid-js";
+import { useLocation, useNavigate } from "@solidjs/router";
+import { createMemo, For, Show } from "solid-js";
 import { HugeIcon } from "../modules/core";
-import { encodeFilterTree, formatUpdatedAt, gates as allGates, groupProgress, snapshot, StatusGlyph, tasks as allTasks } from "../modules/tasks";
-import type { FilterGroup } from "../modules/tasks";
+import { useProjectData } from "../modules/app-shell";
+import { encodeFilterTree, formatUpdatedAt, groupProgress, projectBoard, StatusGlyph } from "../modules/tasks";
+import type { ClimierSnapshot, FilterGroup } from "../modules/tasks";
 import { PageFrame } from "./PageFrame";
 
 type InitiativeRow = {
@@ -20,11 +21,12 @@ type InitiativeRow = {
 const SETTLED = new Set(["done", "canceled", "archived"]);
 
 /** Resumen por iniciativa, derivado del board (tasks + gates). */
-function initiativeRows(): InitiativeRow[] {
+function initiativeRows(snapshot: ClimierSnapshot): InitiativeRow[] {
+  const board = projectBoard(snapshot);
   return Object.keys(snapshot.initiatives)
     .map((name) => {
-      const tasks = allTasks.filter((task) => task.initiative === name);
-      const gates = allGates.filter((gate) => gate.initiative === name);
+      const tasks = board.tasks.filter((task) => task.initiative === name);
+      const gates = board.gates.filter((gate) => gate.initiative === name);
       const updatedAt = [...tasks, ...gates].map((task) => task.updatedAt).filter(Boolean).sort().at(-1) ?? "";
       return {
         name,
@@ -48,10 +50,13 @@ function initiativeRows(): InitiativeRow[] {
  * recargable. No hay una segunda ruta de filtrado: se reutiliza la que el board ya entiende.
  */
 export function InitiativesPage() {
+  const location = useLocation();
   const navigate = useNavigate();
-  const rows = initiativeRows();
-  const openTaskCount = rows.reduce((total, row) => total + row.open, 0);
-  const blockedTaskCount = rows.reduce((total, row) => total + row.blocked, 0);
+  const projectData = useProjectData();
+  const currentSnapshot = () => projectData.snapshot() as ClimierSnapshot;
+  const rows = createMemo(() => initiativeRows(currentSnapshot()));
+  const openTaskCount = createMemo(() => rows().reduce((total, row) => total + row.open, 0));
+  const blockedTaskCount = createMemo(() => rows().reduce((total, row) => total + row.blocked, 0));
 
   const openInitiative = (initiative: string) => {
     const tree: FilterGroup = {
@@ -60,12 +65,14 @@ export function InitiativesPage() {
       conditions: [{ id: "initiative-1", join: "and", field: "initiative", operator: "is", values: [initiative] }],
       groups: [],
     };
-    navigate(`/tasks?filter=${encodeURIComponent(encodeFilterTree(tree) ?? "")}`);
+    const search = new URLSearchParams(location.search);
+    search.set("filter", encodeFilterTree(tree) ?? "");
+    navigate(`/tasks?${search.toString()}`);
   };
 
   return (
     <PageFrame>
-      <p class="mb-5 text-[14px] text-muted">{rows.length} initiatives · {openTaskCount} open tasks · {blockedTaskCount} blocked</p>
+      <p class="mb-5 text-[14px] text-muted">{rows().length} initiatives · {openTaskCount()} open tasks · {blockedTaskCount()} blocked</p>
       <div class="overflow-hidden rounded-[10px] border border-line bg-white">
           <div class="hidden min-h-[38px] grid-cols-[minmax(0,1fr)_88px_72px_112px] items-center gap-3 border-b border-hairline px-4 min-[640px]:grid min-[1024px]:grid-cols-[minmax(0,1fr)_88px_72px_76px_112px]">
             <span class="text-[11px] font-medium text-muted">Initiative</span>
@@ -75,7 +82,7 @@ export function InitiativesPage() {
             <span class="text-right text-[11px] font-medium text-muted">Progress</span>
           </div>
           <div class="divide-y divide-hairline">
-            <For each={rows}>{(row) => (
+            <For each={rows()}>{(row) => (
               <div
                 data-testid="initiative-card"
                 data-initiative={row.name}

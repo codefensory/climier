@@ -1,7 +1,8 @@
 import { createMemo, For, Show } from "solid-js";
 import { BREAKPOINTS, useMediaQuery } from "../modules/core";
-import { GroupHeader, KnowledgeEgoPanel, KnowledgeRow, KnowledgesToolbar, groupKnowledgeRecords, knowledgeRegistrySummary, projectKnowledgeRegistry, snapshot, useKnowledgesUrl } from "../modules/tasks";
-import type { KnowledgeStatusOption } from "../modules/tasks";
+import { useProjectData } from "../modules/app-shell";
+import { GroupHeader, KnowledgeEgoPanel, KnowledgeRow, KnowledgesToolbar, groupKnowledgeRecords, knowledgeRegistrySummary, projectKnowledgeRegistry, useKnowledgesUrl } from "../modules/tasks";
+import type { ClimierSnapshot, KnowledgeStatusOption } from "../modules/tasks";
 import { PageFrame } from "./PageFrame";
 
 const STATUS_ORDER = ["active", "superseded", "deprecated"];
@@ -10,8 +11,10 @@ const STATUS_LABELS: Record<string, string> = { active: "Active", superseded: "S
 export function KnowledgesPage() {
   const url = useKnowledgesUrl();
   const overlay = useMediaQuery(BREAKPOINTS.registryOverlay);
-  const registry = createMemo(() => projectKnowledgeRegistry(snapshot));
-  const summary = createMemo(() => knowledgeRegistrySummary(snapshot, registry()));
+  const projectData = useProjectData();
+  const currentSnapshot = () => projectData.snapshot() as ClimierSnapshot;
+  const registry = createMemo(() => projectKnowledgeRegistry(currentSnapshot()));
+  const summary = createMemo(() => knowledgeRegistrySummary(currentSnapshot(), registry()));
   const queryMatches = createMemo(() => {
     const query = url.query().trim().toLocaleLowerCase();
     return registry().filter((knowledge) => !query || knowledge.title.toLocaleLowerCase().includes(query) || knowledge.id.toLocaleLowerCase().includes(query));

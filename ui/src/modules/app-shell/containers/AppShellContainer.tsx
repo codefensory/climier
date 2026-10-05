@@ -3,34 +3,25 @@ import { For, Show } from "solid-js";
 import type { JSX } from "solid-js";
 import { Portal } from "solid-js/web";
 import climierLogo from "../../../assets/climier-logo.png";
-import { HugeIcon } from "../../core";
+import { HugeIcon, useSession } from "../../core";
 import { NavGlyph } from "../components/NavGlyph";
 import { ProjectIcon } from "../components/ProjectIcon";
 import { ShowSidebarButton } from "../components/ShowSidebarButton";
 import { SidebarControlIcon } from "../components/SidebarControlIcon";
 import { SidebarHeading } from "../components/SidebarHeading";
 import { SidebarRow } from "../components/SidebarRow";
-import { appNavigation, sections } from "../data/navigation";
+import { appNavigation } from "../data/navigation";
 import { Button } from "../../ui";
+import { useProjectData } from "../providers/ProjectProvider";
 import { useShell } from "../providers/ShellProvider";
 
 export type AppShellContainerProps = {
-  /** Los `<main>` con el contenido de las vistas, que va después del breadcrumb. */
   children: JSX.Element;
 };
 
-/**
- * Chrome de la aplicación: sidebar, switcher de proyecto, menú de proyectos y breadcrumb.
- *
- * Es el único lugar donde el estado del shell se lee en un scope reactivo; los componentes que
- * renderiza reciben valores planos. El contenido de las vistas entra por `children`, así que el
- * shell no sabe nada de tasks, proyectos ni settings.
- */
 export function AppShellContainer(props: AppShellContainerProps) {
   const {
     activeView,
-    activeItem,
-    settingsOpen,
     sidebarCollapsed,
     drawerOpen,
     selectedProject,
@@ -40,112 +31,82 @@ export function AppShellContainer(props: AppShellContainerProps) {
     isCompact,
     shellHidden,
     selectView,
-    selectBottomNavItem,
-    selectSettingsItem,
-    backToApp,
     selectProject,
-    closeProjectsMenu,
     toggleProjectsMenu,
     hideSidebar,
     showSidebar,
   } = useShell();
+  const projectData = useProjectData();
+  const session = useSession();
 
   return (
     <div data-testid="dashboard-layout" class="min-h-screen w-full overflow-hidden bg-canvas font-sans text-ink">
       <div class="flex min-h-screen w-full">
-        <div classList={{ "app-sidebar-wrap": true, "app-sidebar-collapsed": sidebarCollapsed(), "settings-nav-active": settingsOpen(), "drawer-open": drawerOpen() }}>
+        <div classList={{ "app-sidebar-wrap": true, "app-sidebar-collapsed": sidebarCollapsed(), "drawer-open": drawerOpen() }}>
           <div class="sidebar-nav-track">
-          <aside data-testid="app-sidebar" aria-label="App sidebar" aria-hidden={shellHidden() || settingsOpen()} inert={shellHidden() || settingsOpen()} class="app-sidebar flex h-screen w-[248px] shrink-0 flex-col overflow-hidden px-3 pt-2 pb-2 antialiased">
-            <header data-testid="app-brand" class="flex h-9 items-center gap-2 pl-[5px] pr-0">
-              <img src={climierLogo} alt="Climier" class="h-[26px] w-auto shrink-0" />
-              <span class="min-w-0 flex-1" aria-hidden="true" />
-              <Button variant="icon" data-testid="app-sidebar-toggle" aria-label={isCompact() ? "Close navigation" : "Hide sidebar"} onClick={hideSidebar}>
-                <SidebarControlIcon />
-              </Button>
-            </header>
-            <button type="button" aria-label="Search, Command K or slash" class="mt-3 flex h-9 w-full items-center gap-2 rounded-[10px] bg-chip px-2.5 text-left text-[14px] leading-5 text-muted transition-colors hover:bg-pressed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink">
-              <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></svg>
-              <span class="flex-1">Search</span>
-              <span class="flex items-center gap-1" aria-hidden="true"><kbd class="rounded-[5px] bg-white px-1.5 py-0.5 text-[11px] leading-4 text-faint">⌘ K</kbd><kbd class="rounded-[5px] bg-white px-1.5 py-0.5 text-[11px] leading-4 text-faint">/</kbd></span>
-            </button>
-            <button type="button" data-project-trigger aria-label={`Select project, ${selectedProject().label}`} aria-haspopup="menu" aria-expanded={projectsMenuOpen()} onClick={toggleProjectsMenu} class="mt-3 flex h-10 w-full items-center gap-2 rounded-[10px] border border-line bg-white px-2.5 text-left shadow-[0_1px_3px_rgb(0_0_0_/_6%)] transition-colors hover:bg-white/70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink">
-              <ProjectIcon background={selectedProject().background} textColor={selectedProject().textColor} initial={selectedProject().initial} large all={selectedProject().all} />
-              <span class="min-w-0 flex-1 truncate text-[14px] leading-5 font-medium text-ink">{selectedProject().label}</span>
-              <svg class="h-4 w-4 shrink-0 text-faint" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7 15 5 5 5-5" /><path d="m7 9 5-5 5 5" /></svg>
-            </button>
-            <nav aria-label="Main navigation" class="mt-3 flex min-h-0 flex-1 flex-col">
-              <SidebarRow nav label="Home" active={!settingsOpen() && activeView() === "Home"} onSelect={() => selectView("Home")} icon={<NavGlyph name="home" />} />
-              <div class="mt-3">
-                <SidebarHeading>Workspace</SidebarHeading>
-                <div class="space-y-0">
-                  <For each={appNavigation.slice(1, 5)}>{(item) => <SidebarRow nav label={item.label} active={!settingsOpen() && activeView() === item.label} onSelect={() => selectView(item.label)} icon={<NavGlyph name={item.icon} />} />}</For>
+            <aside data-testid="app-sidebar" aria-label="App sidebar" aria-hidden={shellHidden()} inert={shellHidden()} class="app-sidebar flex h-screen w-[248px] shrink-0 flex-col overflow-hidden px-3 pt-2 pb-2 antialiased">
+              <header data-testid="app-brand" class="flex h-9 items-center gap-2 pl-[5px] pr-0">
+                <img src={climierLogo} alt="Climier" class="h-[26px] w-auto shrink-0" />
+                <span class="min-w-0 flex-1" aria-hidden="true" />
+                <Button variant="icon" data-testid="app-sidebar-toggle" aria-label={isCompact() ? "Close navigation" : "Hide sidebar"} onClick={hideSidebar}><SidebarControlIcon /></Button>
+              </header>
+              <button type="button" aria-label="Search, Command K or slash" class="mt-3 flex h-9 w-full items-center gap-2 rounded-[10px] bg-chip px-2.5 text-left text-[14px] leading-5 text-muted transition-colors hover:bg-pressed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink">
+                <svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></svg>
+                <span class="flex-1">Search</span>
+                <span class="flex items-center gap-1" aria-hidden="true"><kbd class="rounded-[5px] bg-white px-1.5 py-0.5 text-[11px] leading-4 text-faint">⌘ K</kbd><kbd class="rounded-[5px] bg-white px-1.5 py-0.5 text-[11px] leading-4 text-faint">/</kbd></span>
+              </button>
+              <button type="button" data-project-trigger aria-label={`Select project, ${selectedProject().label}`} aria-haspopup="menu" aria-expanded={projectsMenuOpen()} onClick={toggleProjectsMenu} class="mt-3 flex h-10 w-full items-center gap-2 rounded-[10px] border border-line bg-white px-2.5 text-left shadow-[0_1px_3px_rgb(0_0_0_/_6%)] transition-colors hover:bg-white/70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink">
+                <ProjectIcon background={selectedProject().background} textColor={selectedProject().textColor} initial={selectedProject().initial} large />
+                <span class="min-w-0 flex-1 truncate text-[14px] leading-5 font-medium text-ink">{selectedProject().label}</span>
+                <svg class="h-4 w-4 shrink-0 text-faint" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7 15 5 5 5-5" /><path d="m7 9 5-5 5 5" /></svg>
+              </button>
+              <nav aria-label="Main navigation" class="mt-3 flex min-h-0 flex-1 flex-col">
+                <SidebarRow nav label="Home" active={activeView() === "Home"} onSelect={() => selectView("Home")} icon={<NavGlyph name="home" />} />
+                <div class="mt-3">
+                  <SidebarHeading>Workspace</SidebarHeading>
+                  <div class="space-y-0"><For each={appNavigation.slice(1)}>{(item) => <SidebarRow nav label={item.label} active={activeView() === item.label} onSelect={() => selectView(item.label)} icon={<NavGlyph name={item.icon} />} />}</For></div>
                 </div>
-              </div>
-              <div class="mt-auto border-t border-line pt-2">
-                <div class="space-y-1">
-                  <For each={appNavigation.slice(5)}>{(item) => <SidebarRow nav label={item.label} active={settingsOpen() ? item.label === "Settings" : activeView() === item.label} onSelect={() => selectBottomNavItem(item)} icon={<NavGlyph name={item.icon} />} />}</For>
+                <div class="mt-auto border-t border-line pt-2">
+                  <Button variant="ghost" class="w-full justify-start px-2.5 text-muted" data-testid="logout" onClick={session.logout}>Log out</Button>
                 </div>
-              </div>
-            </nav>
-            <Portal>
-              <div id="projects-menu" data-project-menu data-popup-surface data-open={projectsMenuOpen() ? "true" : "false"} role="menu" aria-label="Projects" aria-hidden={!projectsMenuOpen()} inert={!projectsMenuOpen()} style={{ left: `${projectsMenuPosition().left}px`, top: `${projectsMenuPosition().top}px` }} classList={{ "fixed z-[100] w-[224px] rounded-[14px] border border-line bg-white px-2 py-[6px] shadow-[0_8px_24px_rgb(0_0_0_/_10%)] origin-top-left": true, "visible pointer-events-auto translate-y-0 opacity-100": projectsMenuOpen(), "invisible pointer-events-none -translate-y-[5px] opacity-0": !projectsMenuOpen() }}>
-                <For each={availableProjects}>{(project) => (
-                  <button type="button" role="menuitemradio" aria-checked={selectedProject().label === project.label} onClick={[selectProject, project]} class="flex h-9 w-full items-center gap-2.5 rounded-[10px] px-2 text-left text-[14px] leading-5 text-muted transition-colors hover:bg-canvas hover:text-ink focus-visible:bg-canvas focus-visible:outline-2 focus-visible:outline-ink">
-                    <ProjectIcon background={project.background} textColor={project.textColor} initial={project.initial} all={project.all} />
-                    <span class="truncate">{project.label}</span>
-                    <span class="ml-auto flex h-4 w-4 shrink-0 items-center justify-center text-faint" aria-hidden="true"><Show when={selectedProject().label === project.label}><svg class="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3.5 8.5 3 3 6-7" /></svg></Show></span>
-                  </button>
-                )}</For>
-                <div class="my-1.5 border-t border-line" />
-                <button type="button" role="menuitem" onClick={closeProjectsMenu} class="flex h-9 w-full items-center gap-2.5 rounded-[10px] px-2 text-left text-[14px] leading-5 font-medium text-ink transition-colors hover:bg-canvas focus-visible:bg-canvas focus-visible:outline-2 focus-visible:outline-ink">
-                  <span class="flex h-5 w-5 shrink-0 items-center justify-center" aria-hidden="true"><svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg></span>
-                  <span>Add new project</span>
-                </button>
-              </div>
-            </Portal>
-          </aside>
-          <aside data-testid="settings-sidebar" aria-label="Settings" aria-hidden={!settingsOpen() || shellHidden()} inert={!settingsOpen() || shellHidden()} class="settings-sidebar h-screen w-[248px] shrink-0 overflow-y-auto px-3 py-2">
-            <button type="button" onClick={backToApp} class="flex h-9 w-full items-center gap-[9px] px-[5px] text-left text-[14px] text-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ink">
-              <NavGlyph name="back" />
-              Back to app
-            </button>
-            <nav aria-label="Settings" class="mt-[6px]">
-              <For each={sections}>{(section, index) => (
-                <section classList={{ "mt-2 border-t border-line pt-2": index() > 0 }}>
-                  <SidebarHeading>{section.title}</SidebarHeading>
-                  <For each={section.items}>{(item) => (
-                    <SidebarRow label={item.label} dataItem={item.label} active={activeItem() === item.label} onSelect={() => selectSettingsItem(item.label)} icon={<NavGlyph name={item.icon} />} />
+              </nav>
+              <Portal>
+                <div id="projects-menu" data-project-menu data-popup-surface data-open={projectsMenuOpen() ? "true" : "false"} role="menu" aria-label="Projects" aria-hidden={!projectsMenuOpen()} inert={!projectsMenuOpen()} style={{ left: `${projectsMenuPosition().left}px`, top: `${projectsMenuPosition().top}px` }} classList={{ "fixed z-[100] w-[224px] rounded-[14px] border border-line bg-white px-2 py-[6px] shadow-[0_8px_24px_rgb(0_0_0_/_10%)] origin-top-left": true, "visible pointer-events-auto translate-y-0 opacity-100": projectsMenuOpen(), "invisible pointer-events-none -translate-y-[5px] opacity-0": !projectsMenuOpen() }}>
+                  <For each={availableProjects()}>{(project) => (
+                    <button type="button" role="menuitemradio" aria-checked={selectedProject().projectId === project.projectId} onClick={[selectProject, project]} class="flex h-9 w-full items-center gap-2.5 rounded-[10px] px-2 text-left text-[14px] leading-5 text-muted transition-colors hover:bg-canvas hover:text-ink focus-visible:bg-canvas focus-visible:outline-2 focus-visible:outline-ink">
+                      <ProjectIcon background={project.background} textColor={project.textColor} initial={project.initial} />
+                      <span class="truncate">{project.label}</span>
+                      <span class="ml-auto flex h-4 w-4 shrink-0 items-center justify-center text-faint" aria-hidden="true"><Show when={selectedProject().projectId === project.projectId}><span>✓</span></Show></span>
+                    </button>
                   )}</For>
-                </section>
-              )}</For>
-            </nav>
-          </aside>
+                </div>
+              </Portal>
+            </aside>
           </div>
         </div>
         <div classList={{ "main-content-frame": true, "drawer-content-shift": isCompact() && drawerOpen() }}>
           <div data-testid="tasks-breadcrumb" class="tasks-shell-breadcrumb flex h-9 items-center gap-3 px-4">
             <ShowSidebarButton visible={shellHidden} onShow={showSidebar} />
             <nav aria-label="Breadcrumb" class="flex min-w-0 flex-1 items-center gap-2 text-[13px]">
-              <Show when={settingsOpen()} fallback={
-                <Show when={activeView() === "Tasks"} fallback={<span class="truncate font-medium text-ink">{activeView()}</span>}>
-                  <>
-                    <span class="flex shrink-0 items-center gap-1.5 text-muted"><HugeIcon icon={Task01Icon} class="h-4 w-4 shrink-0" />Tasks</span>
-                    <span class="shrink-0 text-ghost" aria-hidden="true">/</span>
-                    <button type="button" data-project-trigger aria-label={`Select project, ${selectedProject().label}`} aria-haspopup="menu" aria-expanded={projectsMenuOpen()} aria-controls="projects-menu" onClick={toggleProjectsMenu} class="flex min-w-0 items-center gap-1.5 rounded-[6px] text-left font-medium text-ink transition-colors hover:text-muted focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ink">
-                      <ProjectIcon background={selectedProject().background} textColor={selectedProject().textColor} initial={selectedProject().initial} />
-                      <span class="truncate">{selectedProject().label}</span>
-                      <svg class="h-4 w-4 shrink-0 text-faint" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7 15 5 5 5-5" /><path d="m7 9 5-5 5 5" /></svg>
-                    </button>
-                  </>
-                </Show>
-              }>
-                <span class="shrink-0 text-muted">Settings</span>
+              <Show when={activeView() === "Tasks"} fallback={<span class="truncate font-medium text-ink">{activeView()}</span>}>
+                <span class="flex shrink-0 items-center gap-1.5 text-muted"><HugeIcon icon={Task01Icon} class="h-4 w-4 shrink-0" />Tasks</span>
                 <span class="shrink-0 text-ghost" aria-hidden="true">/</span>
-                <span class="truncate font-medium text-ink">{activeItem()}</span>
+                <button type="button" data-project-trigger aria-label={`Select project, ${selectedProject().label}`} aria-haspopup="menu" aria-expanded={projectsMenuOpen()} aria-controls="projects-menu" onClick={toggleProjectsMenu} class="flex min-w-0 items-center gap-1.5 rounded-[6px] text-left font-medium text-ink transition-colors hover:text-muted focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ink">
+                  <ProjectIcon background={selectedProject().background} textColor={selectedProject().textColor} initial={selectedProject().initial} />
+                  <span class="truncate">{selectedProject().label}</span>
+                  <svg class="h-4 w-4 shrink-0 text-faint" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7 15 5 5 5-5" /><path d="m7 9 5-5 5 5" /></svg>
+                </button>
               </Show>
             </nav>
+            <Show when={projectData.connection() !== "live"}>
+              <div data-testid="live-status" role="status" class="flex shrink-0 items-center gap-2 text-[12px] text-tone-amber-ink">
+                <span>{projectData.connection() === "offline" ? "Offline" : "Stale"}</span>
+                <Show when={projectData.lastUpdated()}>{(updated) => <span class="text-faint">Updated {new Date(updated()).toLocaleTimeString()}</span>}</Show>
+                <button type="button" class="font-medium underline underline-offset-2" onClick={projectData.retry}>Retry</button>
+              </div>
+            </Show>
           </div>
-        {props.children}
+          {props.children}
         </div>
       </div>
     </div>

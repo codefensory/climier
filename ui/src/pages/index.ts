@@ -8,17 +8,17 @@
  */
 import type { Component } from "solid-js";
 import { isGateDetailPath, isTaskDetailPath, navPaths, viewForPath } from "../modules/app-shell";
-import { AccountPage } from "./AccountPage";
 import { HomePage } from "./HomePage";
 import { InitiativesPage } from "./InitiativesPage";
 import { GatesPage } from "./GatesPage";
 import { KnowledgesPage } from "./KnowledgesPage";
+import { LoginPage } from "./LoginPage";
 import { PageFrame } from "./PageFrame";
 import { PlaceholderPage } from "./PlaceholderPage";
 import { ProjectsPage } from "./ProjectsPage";
 import { TaskDetailPage } from "./TaskDetailPage";
 import { TasksPage } from "./TasksPage";
-import { SettingsPage } from "./SettingsPage";
+import { ProjectStatePage } from "./ProjectStatePage";
 
 export type WorkspacePage = {
   component: Component;
@@ -30,9 +30,7 @@ const pages: Record<string, WorkspacePage> = {
   Initiatives: { component: InitiativesPage },
   Gates: { component: GatesPage },
   Knowledges: { component: KnowledgesPage },
-  // Projects es alcanzable sólo si algo setea `activeView("Projects")`: hoy nada lo hace.
   Projects: { component: ProjectsPage },
-  Account: { component: AccountPage },
 };
 
 /** Vistas sin contenido propio y cualquier vista desconocida. */
@@ -75,4 +73,4 @@ export const workspaceRoutes: { path: string; component: Component }[] = [
   { path: "/gates/:id", component: TaskDetailPage },
 ];
 
-export { AccountPage, GatesPage, HomePage, InitiativesPage, KnowledgesPage, PageFrame, PlaceholderPage, ProjectsPage, SettingsPage, TaskDetailPage, TasksPage };
+export { GatesPage, HomePage, InitiativesPage, KnowledgesPage, LoginPage, PageFrame, PlaceholderPage, ProjectStatePage, ProjectsPage, TaskDetailPage, TasksPage };

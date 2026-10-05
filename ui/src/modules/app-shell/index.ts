@@ -11,6 +11,8 @@ export { AppShellContainer } from "./containers/AppShellContainer";
 export type { AppShellContainerProps } from "./containers/AppShellContainer";
 
 export { ShellProvider, useShell } from "./providers/ShellProvider";
+export { ProjectProvider, useProjectData } from "./providers/ProjectProvider";
+export type { ConnectionStatus, ProjectDataController, ProjectStatus } from "./providers/ProjectProvider";
 export { useShellController } from "./controllers/useShellController";
 export type { ShellController, ShellProjectIdentity } from "./controllers/useShellController";
 
@@ -33,7 +35,5 @@ export type { SidebarHeadingProps } from "./components/SidebarHeading";
 export { SidebarRow } from "./components/SidebarRow";
 export type { SidebarRowProps } from "./components/SidebarRow";
 
-export { appNavigation, isGateDetailPath, isTaskDetailPath, navIconAssets, navPaths, pathForView, sections, SETTINGS_PANEL_PARAM, viewForPath } from "./data/navigation";
-export { projects } from "./data/projects";
-
+export { appNavigation, isGateDetailPath, isTaskDetailPath, navIconAssets, navPaths, pathForView, viewForPath } from "./data/navigation";
 export type { NavIconAssets, NavItem, NavSection, Project } from "./types";

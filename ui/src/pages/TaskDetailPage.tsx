@@ -3,8 +3,9 @@ import { useLocation, useNavigate, useParams } from "@solidjs/router";
 import { createMemo, createSignal, Show } from "solid-js";
 import { HugeIcon } from "../modules/core";
 import { isGateDetailPath } from "../modules/app-shell";
-import { localAuthor, projectGateRegistry, snapshot, TaskDetailView, TaskNotFound, taskDetailById } from "../modules/tasks";
-import type { TaskActivityEntry } from "../modules/tasks";
+import { useProjectData } from "../modules/app-shell";
+import { localAuthor, projectGateRegistry, projectTaskDetail, TaskDetailView, TaskNotFound } from "../modules/tasks";
+import type { ClimierSnapshot, TaskActivityEntry } from "../modules/tasks";
 import { PageFrame } from "./PageFrame";
 
 export type TaskDetailPageProps = {
@@ -29,14 +30,16 @@ export function TaskDetailPage(props: TaskDetailPageProps = {}) {
   const params = useParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const registry = createMemo(() => projectGateRegistry(snapshot));
+  const projectData = useProjectData();
+  const currentSnapshot = () => projectData.snapshot() as ClimierSnapshot;
+  const registry = createMemo(() => projectGateRegistry(currentSnapshot()));
   const gateContext = () => isGateDetailPath(location.pathname);
   const gateForId = () => registry().find((gate) => gate.id === (props.taskId ?? params.id ?? ""));
   const gateInfo = {
     get record() { return gateForId()!; },
     get resolutionMode() {
       const gate = gateForId();
-      return gate ? snapshot.nodes[gate.id]?.resolution_mode ?? "" : "";
+      return gate ? currentSnapshot().nodes[gate.id]?.resolution_mode ?? "" : "";
     },
   };
   const [comments, setComments] = createSignal<TaskActivityEntry[]>([]);
@@ -45,7 +48,7 @@ export function TaskDetailPage(props: TaskDetailPageProps = {}) {
 
   const detail = () => {
     if (gateContext() && !gateForId()) return null;
-    const base = taskDetailById(id());
+    const base = projectTaskDetail(currentSnapshot(), id());
     if (!base) return null;
     return { ...base, activity: [...base.activity, ...comments()] };
   };
@@ -57,9 +60,9 @@ export function TaskDetailPage(props: TaskDetailPageProps = {}) {
     ]);
   };
 
-  const backToList = () => navigate(gateContext() ? `/gates${location.search}` : "/tasks");
+  const backToList = () => navigate(`${gateContext() ? "/gates" : "/tasks"}${location.search}`);
   const openNode = (nodeId: string, kind: "task" | "gate") => {
-    navigate(`/${kind === "gate" ? "gates" : "tasks"}/${encodeURIComponent(nodeId)}`);
+    navigate(`/${kind === "gate" ? "gates" : "tasks"}/${encodeURIComponent(nodeId)}${location.search}`);
     document.querySelector<HTMLElement>(".main-content-view")?.scrollTo(0, 0);
   };
 

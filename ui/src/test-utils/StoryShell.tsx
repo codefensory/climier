@@ -1,6 +1,8 @@
 import { HashRouter, Route } from "@solidjs/router";
 import type { JSX } from "solid-js";
-import { ShellProvider } from "../modules/app-shell";
+import { ProjectProvider, ShellProvider } from "../modules/app-shell";
+import { RuntimeProvider, SessionProvider } from "../modules/core";
+import { snapshot as fixtureSnapshot } from "../modules/tasks/data/source";
 
 /**
  * Deja la URL en un estado conocido.
@@ -46,7 +48,15 @@ export type StoryShellProps = {
 export function StoryShell(props: StoryShellProps) {
   resetStoryUrl(props.path ?? "/");
 
-  const Page = () => (props.shell ? <ShellProvider>{props.children}</ShellProvider> : props.children);
+  const Page = () => (
+    <RuntimeProvider mode="fixture" fixtureSnapshot={fixtureSnapshot}>
+      <SessionProvider>
+        <ProjectProvider mode="fixture" fixtureSnapshot={fixtureSnapshot}>
+          {props.shell ? <ShellProvider>{props.children}</ShellProvider> : props.children}
+        </ProjectProvider>
+      </SessionProvider>
+    </RuntimeProvider>
+  );
 
   return (
     <HashRouter>

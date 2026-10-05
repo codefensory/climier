@@ -1,5 +1,5 @@
 import { createContext, useContext, type JSX } from "solid-js";
-import { useShellController, type ShellController, type ShellProjectIdentity } from "../controllers/useShellController";
+import { useShellController, type ShellController } from "../controllers/useShellController";
 
 /**
  * El contexto no tiene valor por defecto a propósito: un default silencioso haría que un
@@ -13,8 +13,8 @@ const ShellContext = createContext<ShellController>();
  * Se instancia **una sola vez** acá, no en cada consumidor: el controlador crea signals y
  * listeners de `document`, y duplicarlo duplicaría esos efectos.
  */
-export function ShellProvider(props: { children: JSX.Element; projectIdentity?: ShellProjectIdentity }) {
-  const shell = useShellController(props.projectIdentity);
+export function ShellProvider(props: { children: JSX.Element }) {
+  const shell = useShellController();
   return <ShellContext.Provider value={shell}>{props.children}</ShellContext.Provider>;
 }
 

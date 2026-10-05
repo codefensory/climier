@@ -1,8 +1,9 @@
 import { useLocation, useNavigate } from "@solidjs/router";
 import { createMemo, For, Show } from "solid-js";
 import { BREAKPOINTS, useMediaQuery } from "../modules/core";
-import { GateEgoPanel, GateRow, GatesToolbar, GroupHeader, gateThreadCount, groupGateRecords, projectGateRegistry, snapshot, statusLabel, useGatesUrl } from "../modules/tasks";
-import type { BoardStatus, GateStatusOption } from "../modules/tasks";
+import { useProjectData } from "../modules/app-shell";
+import { GateEgoPanel, GateRow, GatesToolbar, GroupHeader, gateThreadCount, groupGateRecords, projectGateRegistry, statusLabel, useGatesUrl } from "../modules/tasks";
+import type { BoardStatus, ClimierSnapshot, GateStatusOption } from "../modules/tasks";
 import { PageFrame } from "./PageFrame";
 
 const GATE_STATUS_ORDER: BoardStatus[] = ["open", "resolved", "superseded", "canceled"];
@@ -12,7 +13,9 @@ export function GatesPage() {
   const overlay = useMediaQuery(BREAKPOINTS.registryOverlay);
   const location = useLocation();
   const navigate = useNavigate();
-  const registry = createMemo(() => projectGateRegistry(snapshot));
+  const projectData = useProjectData();
+  const currentSnapshot = () => projectData.snapshot() as ClimierSnapshot;
+  const registry = createMemo(() => projectGateRegistry(currentSnapshot()));
   const queryMatches = createMemo(() => {
     const query = url.query().trim().toLocaleLowerCase();
     return registry().filter((gate) => !query || gate.title.toLocaleLowerCase().includes(query) || gate.id.toLocaleLowerCase().includes(query));
@@ -30,7 +33,7 @@ export function GatesPage() {
   const groups = createMemo(() => groupGateRecords(visibleGates(), url.group()));
   const selectedGate = createMemo(() => registry().find((gate) => gate.id === url.selection()));
   const uniqueDownstreamTasks = createMemo(() => new Set(visibleGates().flatMap((gate) => gate.impactedTasks.map((task) => task.id))).size);
-  const threads = createMemo(() => gateThreadCount(snapshot, new Set(visibleGates().map((gate) => gate.id))));
+  const threads = createMemo(() => gateThreadCount(currentSnapshot(), new Set(visibleGates().map((gate) => gate.id))));
 
   const gateDetailHref = (id: string) => `/gates/${encodeURIComponent(id)}${location.search}`;
   const openGate = (id: string) => navigate(gateDetailHref(id));
