@@ -23,7 +23,7 @@ const log = [
 const snapshot = { ...readModelParity.snapshot, log };
 
 function authHeaders(token) {
-  return { authorization: `Bearer ${token}`, "x-climier-protocol-version": "2" };
+  return { authorization: `Bearer ${token}`, "x-climier-protocol-version": "1" };
 }
 
 async function withLogProject(run) {
@@ -84,7 +84,7 @@ test("log CLI and HTTP use the same pure filter, order, limit, and array project
       { query: "agent=alice&limit=2", filters: { agent: "alice", limit: 2 }, expected: [log[3], log[4]] },
     ];
     for (const entry of cases) {
-      const response = await fetch(`${baseUrl}/v2/projects/log-parity/read/log${entry.query ? `?${entry.query}` : ""}`, { headers: authHeaders(token) });
+      const response = await fetch(`${baseUrl}/v1/projects/log-parity/read/log${entry.query ? `?${entry.query}` : ""}`, { headers: authHeaders(token) });
       assert.equal(response.status, 200, JSON.stringify(await response.clone().json()));
       const http = (await response.json()).result;
       assert.ok(Array.isArray(http));
@@ -97,7 +97,7 @@ test("log CLI and HTTP use the same pure filter, order, limit, and array project
 test("history matches the canonical node reference and ignores the pre-canonical fields", async () => {
 
   await withLogProject(async ({ baseUrl, projectDir, token }) => {
-    const http = await (await fetch(`${baseUrl}/v2/projects/log-parity/read/history/T-one`, { headers: authHeaders(token) })).json();
+    const http = await (await fetch(`${baseUrl}/v1/projects/log-parity/read/history/T-one`, { headers: authHeaders(token) })).json();
     const entries = http.result.entries;
     assert.ok(Array.isArray(entries));
     assert.deepEqual(entries.map((entry) => entry.ts), ["2025-01-04T00:00:00.000Z"]);

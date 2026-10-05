@@ -41,7 +41,7 @@ async function withLoginServer(run) {
 }
 
 async function login(baseUrl, password, headers = {}) {
-  return fetch(`${baseUrl}/v2/auth/login`, {
+  return fetch(`${baseUrl}/v1/auth/login`, {
     method: "POST",
     headers: {
       "x-climier-protocol-version": PROTOCOL_VERSION,

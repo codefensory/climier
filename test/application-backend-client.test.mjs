@@ -24,7 +24,7 @@ function remoteConfig(origin) {
 }
 
 function jsonResponse(response, result) {
-  response.writeHead(200, { "content-type": "application/json", "x-climier-protocol-version": "2" });
+  response.writeHead(200, { "content-type": "application/json", "x-climier-protocol-version": "1" });
   response.end(JSON.stringify({ ok: true, result }));
 }
 
@@ -57,7 +57,7 @@ test("backend client keeps local execution unchanged", async () => {
   assert.deepEqual(calls, ["task.create", "task.create"]);
 });
 
-test("remote client uses protocol v2 and only the profile bearer for its origin", async () => {
+test("remote client uses protocol v1 and only the profile bearer for its origin", async () => {
   const requests = [];
   await withServer(async (request, response) => {
     requests.push({ url: request.url, authorization: request.headers.authorization, protocol: request.headers["x-climier-protocol-version"], body: await readJson(request) });
@@ -72,16 +72,16 @@ test("remote client uses protocol v2 and only the profile bearer for its origin"
     assert.deepEqual(await client.executeOperation({ actor: "alice", operation: "task.create", input: { id: "T1" } }), { accepted: true });
     assert.deepEqual(lookedUp, [origin]);
   });
-  assert.equal(REMOTE_PROTOCOL_VERSION, "2");
+  assert.equal(REMOTE_PROTOCOL_VERSION, "1");
   assert.deepEqual(requests, [{
-    url: "/v2/projects/project%2Fopaque/operations",
+    url: "/v1/projects/project%2Fopaque/operations",
     authorization: "Bearer profile-token",
-    protocol: "2",
+    protocol: "1",
     body: { operation: "task.create", actor: "alice", input: { id: "T1" } },
   }]);
 });
 
-test("remote client exports and imports transfers through authenticated v2 endpoints", async () => {
+test("remote client exports and imports transfers through authenticated v1 endpoints", async () => {
   const requests = [];
   const payload = { version: 1, nodes: {}, edges: [], initiatives: {}, log: [] };
   await withServer(async (request, response) => {
@@ -118,22 +118,22 @@ test("remote client exports and imports transfers through authenticated v2 endpo
   assert.deepEqual(requests, [
     {
       method: "GET",
-      url: "/v2/projects/project%2Fopaque/transfer/export",
+      url: "/v1/projects/project%2Fopaque/transfer/export",
       authorization: "Bearer profile-token",
-      protocol: "2",
+      protocol: "1",
     },
     {
       method: "POST",
-      url: "/v2/projects/project%2Fopaque/transfer/import",
+      url: "/v1/projects/project%2Fopaque/transfer/import",
       authorization: "Bearer profile-token",
-      protocol: "2",
+      protocol: "1",
       body: { payload, actor: "alice", expected_remote_revision: 13, force: false },
     },
     {
       method: "POST",
-      url: "/v2/projects/project%2Fopaque/transfer/import",
+      url: "/v1/projects/project%2Fopaque/transfer/import",
       authorization: "Bearer profile-token",
-      protocol: "2",
+      protocol: "1",
       body: { payload, actor: "alice", force: true },
     },
   ]);
@@ -148,7 +148,7 @@ test("HTTP remote clients use each project's configured origin and matching prof
       requests.push({ url: String(url), authorization: options.headers.authorization });
       return new Response(JSON.stringify({ ok: true, result: { ready: [] } }), {
         status: 200,
-        headers: { "content-type": "application/json", "x-climier-protocol-version": "2" },
+        headers: { "content-type": "application/json", "x-climier-protocol-version": "1" },
       });
     };
     for (const origin of origins) {
@@ -160,9 +160,27 @@ test("HTTP remote clients use each project's configured origin and matching prof
       assert.deepEqual(await client.readStatus(), { ready: [] });
     }
     assert.deepEqual(requests, origins.map((origin, index) => ({
-      url: `${origin}/v2/projects/project%2Fopaque/read/status`,
+      url: `${origin}/v1/projects/project%2Fopaque/read/status`,
       authorization: `Bearer profile-token-${index + 1}`,
     })));
+  });
+});
+
+test("remote clients validate the response protocol before status or body, including errors", async () => {
+  await withInsecureRemoteHttp(async () => {
+    const client = createBackendClient({
+      projectDir: "/project",
+      projectConfig: remoteConfig("http://remote.example.test"),
+      credentialStore: { async get() { return "profile-token"; } },
+    });
+    for (const protocol of [null, "2"]) {
+      globalThis.fetch = async () => new Response("not-json", {
+        status: 401,
+        headers: protocol === null ? {} : { "x-climier-protocol-version": protocol },
+      });
+      await assert.rejects(client.readStatus(), (error) => error.code === "PROTOCOL_VERSION_UNSUPPORTED");
+      await assert.rejects(loginRemote({ origin: "http://remote.example.test", password: "private-password" }), (error) => error.code === "PROTOCOL_VERSION_UNSUPPORTED");
+    }
   });
 });
 
@@ -188,13 +206,13 @@ test("remote transfer methods preserve HTTP, protocol, and timeout errors", asyn
   await withServer((request, response) => {
     call += 1;
     if (call === 1) {
-      response.writeHead(401, { "content-type": "application/json", "x-climier-protocol-version": "2" });
+      response.writeHead(401, { "content-type": "application/json", "x-climier-protocol-version": "1" });
       response.end(JSON.stringify({ ok: false, error: { code: "AUTH_REQUIRED", message: "login required", details: { profile: "missing" } } }));
     } else if (call === 2) {
-      response.writeHead(409, { "content-type": "application/json", "x-climier-protocol-version": "2" });
+      response.writeHead(409, { "content-type": "application/json", "x-climier-protocol-version": "1" });
       response.end(JSON.stringify({ ok: false, error: { code: "TRANSFER_REMOTE_CHANGED", message: "remote changed", details: { expected: 3, current: 4 } } }));
     } else if (call === 3) {
-      response.writeHead(200, { "content-type": "application/json", "x-climier-protocol-version": "1" });
+      response.writeHead(200, { "content-type": "application/json", "x-climier-protocol-version": "2" });
       response.end(JSON.stringify({ ok: true, result: { payload, revision: 3 } }));
     } else if (call === 4) {
       jsonResponse(response, { payload: [], revision: 3 });
@@ -219,12 +237,12 @@ test("login transport posts the password to the origin endpoint and returns the 
   let observed;
   await withServer(async (request, response) => {
     observed = { url: request.url, protocol: request.headers["x-climier-protocol-version"], body: await readJson(request) };
-    response.writeHead(200, { "content-type": "application/json", "x-climier-protocol-version": "2" });
+    response.writeHead(200, { "content-type": "application/json", "x-climier-protocol-version": "1" });
     response.end(JSON.stringify({ ok: true, token: "new-token", token_type: "Bearer", expires_in_days: 30 }));
   }, async (origin) => {
     assert.deepEqual(await loginRemote({ origin, password: "private-password" }), { token: "new-token", expires_in_days: 30 });
   });
-  assert.deepEqual(observed, { url: "/v2/auth/login", protocol: "2", body: { password: "private-password" } });
+  assert.deepEqual(observed, { url: "/v1/auth/login", protocol: "1", body: { password: "private-password" } });
 });
 
 test("remote failures never fall back to local execution", async () => {

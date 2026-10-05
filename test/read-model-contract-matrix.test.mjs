@@ -34,7 +34,7 @@ async function source(url) {
 }
 
 function authHeaders(token) {
-  return { authorization: `Bearer ${token}`, "x-climier-protocol-version": "2" };
+  return { authorization: `Bearer ${token}`, "x-climier-protocol-version": "1" };
 }
 
 async function runCli(projectDir, command, query, positional) {
@@ -155,7 +155,7 @@ test("canonical CLI and HTTP read owners match across every view fixture", async
   await withParityEnvironment(async ({ baseUrl, projectDir, token }) => {
     for (const entry of canonicalReadMatrix) {
       const query = entry.query ? `?${entry.query}` : "";
-      const response = await fetch(`${baseUrl}/v2/projects/matrix/${entry.route}${query}`, { headers: authHeaders(token) });
+      const response = await fetch(`${baseUrl}/v1/projects/matrix/${entry.route}${query}`, { headers: authHeaders(token) });
       assert.equal(response.status, 200, `${entry.name}: HTTP ${JSON.stringify(await response.clone().json())}`);
       const http = (await response.json()).result;
       const cli = await runCli(projectDir, entry.command, entry.query, entry.positional);

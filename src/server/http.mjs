@@ -2,7 +2,7 @@ import { createServer } from "node:http";
 
 import { dispatchOperationRequest, validateOperationRequest } from "./http/operations.mjs";
 import { createBuiltinOperationRegistry } from "../application/operations/builtins.mjs";
-import { remoteV2Manifest } from "../application/operations/remote-v2-manifest.mjs";
+import { remoteV1Manifest } from "../application/operations/remote-v1-manifest.mjs";
 import { mutate } from "../kernel/mutate.mjs";
 import { createHttpReads } from "./http/reads.mjs";
 import { executeTransferRequest, validateTransferRequest } from "./http/transfers.mjs";
@@ -14,7 +14,7 @@ import { withAuthorizedProject } from "./auth/project-scope.mjs";
 import { createLoginRateLimiter, loginClientAddress } from "./auth/login-rate-limiter.mjs";
 import { createHttpCodec } from "./http/codec.mjs";
 
-const PROTOCOL_VERSION = "2";
+const PROTOCOL_VERSION = "1";
 const { httpError, errorStatus, jsonError, send, parseProjectPath, readJsonBody } = createHttpCodec({ protocolVersion: PROTOCOL_VERSION });
 const reads = createHttpReads({
   httpError,
@@ -55,14 +55,14 @@ function assertProtocol(request) {
 }
 
 function resolveRoute(request, url) {
-  if (url.pathname === "/v2/auth/login") {
+  if (url.pathname === "/v1/auth/login") {
     assertProtocol(request);
     if (request.method !== "POST") {
       throw httpError("ROUTE_NOT_FOUND", "server http: route was not found", undefined, 404);
     }
     return { login: true };
   }
-  if (!url.pathname.startsWith("/v2/")) {
+  if (!url.pathname.startsWith("/v1/")) {
     throw httpError("ROUTE_NOT_FOUND", "server http: route was not found", undefined, 404);
   }
   assertProtocol(request);
@@ -114,7 +114,7 @@ function matchRequestRoute(request, route) {
 async function readRequestInput(request, route, matched) {
   let body = null;
   if (matched.operationRoute) {
-    body = validateOperationRequest(await readJsonBody(request), { manifest: remoteV2Manifest, httpError });
+    body = validateOperationRequest(await readJsonBody(request), { manifest: remoteV1Manifest, httpError });
   }
   if (matched.initRoute) {
     body = await readJsonBody(request);
@@ -174,7 +174,7 @@ async function sendRouteResult({ response, route, matched, body, query, project,
       projectDir: project.projectDir,
       body,
       source: operationSource(dependencies),
-      manifest: remoteV2Manifest,
+      manifest: remoteV1Manifest,
     });
     send(response, 200, { ok: true, result });
     return;

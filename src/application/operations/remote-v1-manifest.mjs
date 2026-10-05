@@ -22,8 +22,8 @@ const operations = Object.freeze([
   Object.freeze({ id: "initiative.create", httpFields: Object.freeze(["name", "desc"]), batch: true }),
 ]);
 
-export const remoteV2Manifest = Object.freeze({
-  version: 2,
+export const remoteV1Manifest = Object.freeze({
+  version: 1,
   operations,
   batch: Object.freeze({
     id: "core.batch",

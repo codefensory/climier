@@ -1,4 +1,4 @@
-export const REMOTE_PROTOCOL_VERSION = "2";
+export const REMOTE_PROTOCOL_VERSION = "1";
 
 function clientError(code, message, details) {
   const error = new Error(message);
@@ -9,7 +9,7 @@ function clientError(code, message, details) {
 
 function remoteUrl({ baseUrl, projectId, route }) {
   const base = baseUrl.replace(/\/+$/, "");
-  return `${base}/v2/projects/${encodeURIComponent(projectId)}/${route}`;
+  return `${base}/v1/projects/${encodeURIComponent(projectId)}/${route}`;
 }
 
 function requestOptions({ method, body, token, signal }) {
@@ -99,8 +99,8 @@ function validateProtocolVersion(response) {
 }
 
 function responseResult(response, envelope) {
-  validateHttpResponse(response, envelope);
   validateProtocolVersion(response);
+  validateHttpResponse(response, envelope);
   if (!envelope || typeof envelope !== "object" || envelope.ok !== true || !Object.hasOwn(envelope, "result")) {
     throw clientError(
       "REMOTE_INVALID_RESPONSE",
@@ -124,6 +124,7 @@ export function createRemoteRequest({ backend, projectId, tokenProvider, timeout
     try {
       const options = requestOptions({ method, body, token, signal: controller.signal });
       const response = await fetchResponse(url, options, controller, timeoutMs);
+      validateProtocolVersion(response);
       const envelope = await parseResponse(response, controller, timeoutMs);
       return validateResponse(response, envelope);
     } finally {
@@ -136,12 +137,12 @@ export async function loginRemote({ origin, password, timeoutMs = 10_000 }) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const url = `${origin.replace(/\/+$/, "")}/v2/auth/login`;
+    const url = `${origin.replace(/\/+$/, "")}/v1/auth/login`;
     const options = requestOptions({ method: "POST", body: { password }, token: null, signal: controller.signal });
     const response = await fetchResponse(url, options, controller, timeoutMs);
+    validateProtocolVersion(response);
     const envelope = await parseResponse(response, controller, timeoutMs);
     validateHttpResponse(response, envelope);
-    validateProtocolVersion(response);
     if (!envelope || typeof envelope.token !== "string" || !envelope.token) {
       throw clientError("REMOTE_INVALID_RESPONSE", "application.backendClient: login response did not contain a bearer token", { status: response.status });
     }

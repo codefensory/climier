@@ -1,6 +1,6 @@
 import { parseBackendConfig } from "./backend-config.mjs";
 import { executeBatch, executeOperation } from "./operations/execute.mjs";
-import { remoteV2Manifest } from "./operations/remote-v2-manifest.mjs";
+import { remoteV1Manifest } from "./operations/remote-v1-manifest.mjs";
 import { createCredentialStore } from "../storage/credential-profile.mjs";
 import { createLocalOperationSource } from "./local-operation-source.mjs";
 import { createRemoteReadMethods } from "./backend-remote-reads.mjs";
@@ -23,8 +23,8 @@ function createLocalBackendClient({ projectDir, source }) {
 
 export { REMOTE_PROTOCOL_VERSION };
 const DEFAULT_TIMEOUT_MS = 10_000;
-const REMOTE_OPERATION_IDS = new Set(remoteV2Manifest.operations.map(({ id }) => id));
-const REMOTE_BATCH_OPERATION_IDS = new Set(remoteV2Manifest.batch.eligibleOperationIds);
+const REMOTE_OPERATION_IDS = new Set(remoteV1Manifest.operations.map(({ id }) => id));
+const REMOTE_BATCH_OPERATION_IDS = new Set(remoteV1Manifest.batch.eligibleOperationIds);
 
 function clientError(code, message, details) {
   const error = new Error(message);

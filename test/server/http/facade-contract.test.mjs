@@ -10,11 +10,11 @@ test("HTTP codec keeps path and body decoding contracts and receives the public 
   const codec = createHttpCodec({ protocolVersion: PROTOCOL_VERSION });
   assert.equal(codec.protocolVersion, PROTOCOL_VERSION);
 
-  assert.deepEqual(codec.parseProjectPath("/v2/projects/project-a/read/status"), {
+  assert.deepEqual(codec.parseProjectPath("/v1/projects/project-a/read/status"), {
     projectId: "project-a",
     route: "read/status",
   });
-  assert.throws(() => codec.parseProjectPath("/v2/projects/%E0%A4%A/read/status"), {
+  assert.throws(() => codec.parseProjectPath("/v1/projects/%E0%A4%A/read/status"), {
     code: "INVALID_PROJECT_ID",
     status: 400,
   });
@@ -64,7 +64,7 @@ async function assertOperationResponse(baseUrl) {
 }
 
 async function assertReadResponse(baseUrl) {
-  const readResponse = await fetch(`${baseUrl}/v2/projects/project-a/read/status`, { headers: authHeaders() });
+  const readResponse = await fetch(`${baseUrl}/v1/projects/project-a/read/status`, { headers: authHeaders() });
   const readText = await readResponse.text();
   assert.equal(readResponse.status, 200);
   assertHeaders(readResponse, readText);
@@ -72,8 +72,21 @@ async function assertReadResponse(baseUrl) {
 }
 
 async function assertLoginResponse(baseUrl) {
+  for (const protocol of [undefined, "2"]) {
+    const headers = { "content-type": "application/json" };
+    if (protocol !== undefined) {headers["x-climier-protocol-version"] = protocol;}
+    const rejected = await fetch(`${baseUrl}/v1/auth/login`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ password: "password" }),
+    });
+    assert.equal(rejected.status, 426);
+    assert.equal(rejected.headers.get("x-climier-protocol-version"), PROTOCOL_VERSION);
+    assert.equal((await rejected.json()).error.code, "PROTOCOL_VERSION_UNSUPPORTED");
+  }
+
   const loginHeaders = { "x-climier-protocol-version": PROTOCOL_VERSION, "content-type": "application/json" };
-  const loginResponse = await fetch(`${baseUrl}/v2/auth/login`, {
+  const loginResponse = await fetch(`${baseUrl}/v1/auth/login`, {
     method: "POST",
     headers: loginHeaders,
     body: JSON.stringify({ password: "password" }),
@@ -83,13 +96,23 @@ async function assertLoginResponse(baseUrl) {
   assertHeaders(loginResponse, loginText);
   assert.deepEqual(JSON.parse(loginText), { ok: true, token: "test-token", token_type: "Bearer", expires_in_days: 30 });
 
-  const wrong = await fetch(`${baseUrl}/v2/auth/login`, {
+  const wrong = await fetch(`${baseUrl}/v1/auth/login`, {
     method: "POST",
     headers: loginHeaders,
     body: JSON.stringify({ password: "wrong" }),
   });
   assert.equal(wrong.status, 401);
+  assert.equal(wrong.headers.get("x-climier-protocol-version"), PROTOCOL_VERSION);
   assert.equal((await wrong.json()).error.code, "AUTH_INVALID");
+
+  const retired = await fetch(`${baseUrl}/v2/auth/login`, {
+    method: "POST",
+    headers: loginHeaders,
+    body: JSON.stringify({ password: "password" }),
+  });
+  assert.equal(retired.status, 404);
+  assert.equal(retired.headers.get("x-climier-protocol-version"), PROTOCOL_VERSION);
+  assert.equal((await retired.json()).error.code, "ROUTE_NOT_FOUND");
 }
 
 async function assertErrorResponse(baseUrl) {
@@ -108,7 +131,7 @@ async function assertErrorResponse(baseUrl) {
 }
 
 async function assertInitResponses(baseUrl) {
-  const route = `${baseUrl}/v2/projects/catalogued/init`;
+  const route = `${baseUrl}/v1/projects/catalogued/init`;
   const initialized = await fetch(route, {
     method: "POST", headers: authHeaders({ "content-type": "application/json" }), body: "{}",
   });
@@ -129,7 +152,7 @@ async function assertInitResponses(baseUrl) {
 test("HTTP facade exports and response headers/envelopes remain stable", async () => {
   assert.deepEqual(Object.keys(httpServer).toSorted(), ["PROTOCOL_VERSION", "createRemoteApiServer"]);
   assert.equal(typeof createRemoteApiServer, "function");
-  assert.equal(PROTOCOL_VERSION, "2");
+  assert.equal(PROTOCOL_VERSION, "1");
 
   await withApi(async ({ baseUrl }) => {
     await assertOperationResponse(baseUrl);

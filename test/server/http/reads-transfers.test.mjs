@@ -105,7 +105,7 @@ test("HTTP status read matches the complete CLI projection and all nine exact fi
       "claimed-by=bob&status=in_progress&as=alice",
     ];
     for (const query of queries) {
-      const response = await fetch(`${baseUrl}/v2/projects/project-a/read/status${query ? `?${query}` : ""}`, { headers: authHeaders() });
+      const response = await fetch(`${baseUrl}/v1/projects/project-a/read/status${query ? `?${query}` : ""}`, { headers: authHeaders() });
       assert.equal(response.status, 200, `${query}: ${JSON.stringify(await response.clone().json())}`);
       const body = await response.json();
       assert.deepEqual(normalizeStatusTimes(body.result), normalizeStatusTimes(await cliStatus(projectDirs[0], query)), query);
@@ -127,7 +127,7 @@ test("HTTP typed read routes match the CLI output from the same state snapshot",
       ["read/state", "state", "", []],
     ];
     for (const [route, command, query, positional] of routes) {
-      const response = await fetch(`${baseUrl}/v2/projects/project-a/${route}${query ? `?${query}` : ""}`, { headers: authHeaders() });
+      const response = await fetch(`${baseUrl}/v1/projects/project-a/${route}${query ? `?${query}` : ""}`, { headers: authHeaders() });
       assert.equal(response.status, 200, `${route}: ${JSON.stringify(await response.clone().json())}`);
       assert.deepEqual((await response.json()).result, await cliCommand(projectDirs[0], command, query, positional), route);
     }
@@ -138,20 +138,20 @@ test("HTTP typed read routes reject unknown, repeated, and invalid query paramet
   await withApi(async ({ baseUrl, projectDirs }) => {
     await writeCanonicalState(projectDirs[0], readApiState());
     for (const query of ["claimedBy=alice", "kind=task&kind=gate", "limit=-1", "stale-ms=nope", "all=maybe", "as=alice&as=bob"]) {
-      const response = await fetch(`${baseUrl}/v2/projects/project-a/read/status?${query}`, { headers: authHeaders() });
+      const response = await fetch(`${baseUrl}/v1/projects/project-a/read/status?${query}`, { headers: authHeaders() });
       assert.equal(response.status, 400, query);
       assert.equal((await response.json()).error.code, "INVALID_QUERY", query);
     }
   });
 });
 
-test("HTTP v2 exports a consistent snapshot and imports it with the remote revision", async () => {
+test("HTTP v1 exports a consistent snapshot and imports it with the remote revision", async () => {
   await withApi(async ({ baseUrl, projectDirs }) => {
     await writeCanonicalState(projectDirs[0], readApiState());
     const source = await readState(projectDirs[0]);
     const destination = await readState(projectDirs[1]);
 
-    const exported = await fetch(`${baseUrl}/v2/projects/project-a/transfer/export`, { headers: authHeaders() });
+    const exported = await fetch(`${baseUrl}/v1/projects/project-a/transfer/export`, { headers: authHeaders() });
     assert.equal(exported.status, 200);
     assert.equal(exported.headers.get("x-climier-protocol-version"), PROTOCOL_VERSION);
     const exportBody = await exported.json();
@@ -166,7 +166,7 @@ test("HTTP v2 exports a consistent snapshot and imports it with the remote revis
     assert.deepEqual(exportBody.result.payload.plugins, { transferFixture: { value: true } });
     assert.deepEqual(exportBody.result.payload.nodes["T-progress"].plugins, { transferFixture: { value: 2 } });
 
-    const imported = await fetch(`${baseUrl}/v2/projects/project-b/transfer/import`, {
+    const imported = await fetch(`${baseUrl}/v1/projects/project-b/transfer/import`, {
       method: "POST",
       headers: authHeaders({ "content-type": "application/json" }),
       body: JSON.stringify({ payload: exportBody.result.payload, actor: "alice" }),
@@ -182,7 +182,7 @@ test("HTTP v2 exports a consistent snapshot and imports it with the remote revis
     assert.deepEqual(firstInstall.nodes["T-progress"].plugins, source.nodes["T-progress"].plugins);
     assert.ok(firstInstall.log.some((entry) => entry.action === "transfer.push" && entry.agent === "alice"));
 
-    const casImport = await fetch(`${baseUrl}/v2/projects/project-b/transfer/import`, {
+    const casImport = await fetch(`${baseUrl}/v1/projects/project-b/transfer/import`, {
       method: "POST",
       headers: authHeaders({ "content-type": "application/json" }),
       body: JSON.stringify({
@@ -195,7 +195,7 @@ test("HTTP v2 exports a consistent snapshot and imports it with the remote revis
     const installed = await readState(projectDirs[1]);
     assert.equal((await casImport.json()).result.revision, installed.revision);
 
-    const stale = await fetch(`${baseUrl}/v2/projects/project-b/transfer/import`, {
+    const stale = await fetch(`${baseUrl}/v1/projects/project-b/transfer/import`, {
       method: "POST",
       headers: authHeaders({ "content-type": "application/json" }),
       body: JSON.stringify({
@@ -209,7 +209,7 @@ test("HTTP v2 exports a consistent snapshot and imports it with the remote revis
     assert.equal(staleBody.error.code, "TRANSFER_REMOTE_CHANGED");
     assert.deepEqual(staleBody.error.details, { expected: destination.revision, current: installed.revision });
 
-    const unknownBase = await fetch(`${baseUrl}/v2/projects/project-b/transfer/import`, {
+    const unknownBase = await fetch(`${baseUrl}/v1/projects/project-b/transfer/import`, {
       method: "POST",
       headers: authHeaders({ "content-type": "application/json" }),
       body: JSON.stringify({ payload: exportBody.result.payload, actor: "alice" }),
@@ -217,7 +217,7 @@ test("HTTP v2 exports a consistent snapshot and imports it with the remote revis
     assert.equal(unknownBase.status, 409);
     assert.equal((await unknownBase.json()).error.code, "TRANSFER_BASE_UNKNOWN");
 
-    const forced = await fetch(`${baseUrl}/v2/projects/project-b/transfer/import`, {
+    const forced = await fetch(`${baseUrl}/v1/projects/project-b/transfer/import`, {
       method: "POST",
       headers: authHeaders({ "content-type": "application/json" }),
       body: JSON.stringify({ payload: exportBody.result.payload, actor: "alice", force: true }),

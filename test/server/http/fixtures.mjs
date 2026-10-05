@@ -97,14 +97,14 @@ export async function withInitApi(run) {
 export function authHeaders(extra = {}) {
   return {
     authorization: "Bearer test-token",
-    "x-climier-protocol-version": "2",
+    "x-climier-protocol-version": "1",
     ...extra,
   };
 }
 
 export async function operation(baseUrl, projectId, operationId, input) {
   const actor = "alice";
-  return fetch(`${baseUrl}/v2/projects/${encodeURIComponent(projectId)}/operations`, {
+  return fetch(`${baseUrl}/v1/projects/${encodeURIComponent(projectId)}/operations`, {
     method: "POST",
     headers: authHeaders({ "content-type": "application/json" }),
     body: JSON.stringify({ operation: operationId, input, actor }),

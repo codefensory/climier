@@ -96,7 +96,7 @@ function send(response, status, body, options) {
 }
 
 function parseProjectPath(pathname, decode, makeHttpError) {
-  const match = /^\/v2\/projects\/([^/]+)(?:\/(.*))?$/.exec(pathname);
+  const match = /^\/v1\/projects\/([^/]+)(?:\/(.*))?$/.exec(pathname);
   if (!match) {
     return null;
   }
