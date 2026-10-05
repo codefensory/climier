@@ -192,6 +192,48 @@ verify that the recorded PID and service are gone, back up `stateHome`, remove
 only that lock, and restart. Never auto-delete a lock while another process may
 be active.
 
+## Live cutover from the retired wire
+
+Cutting a linked deployment over to Remote v1 is a manual, single-window
+operation; no runner or task performs it. It assumes one host serving the API
+under a service manager and one or more linked checkouts.
+
+Preflight, over an administrative channel rather than client metadata:
+
+- Inventory the process and listener that answer the origin; when a reverse
+  proxy is in front, confirm it has no upstream or alias for the retired
+  routes. Never infer the server from `.climier.json`.
+- Record the deployed server revision, the stable CLI revision, and whether the
+  server worktree carries local patches.
+- Stop every writer and record hashes of `tasks.json`, `revision-ledger.json`,
+  `stateHome/remote-auth.json`, and the catalog metadata.
+
+Window:
+
+1. Back up the server code path, the private config directory (`dataRoot`,
+   `stateHome`, `server.json`, and the service environment), and the exact
+   `.climier.json` of each active checkout.
+2. Stop the server and confirm the service lock is released.
+3. Deploy the v1 server, preserving any deployment-only patch, and leave it
+   stopped.
+4. Update the stable CLI to the same revision.
+5. Clean each checkout with `link <configured-url>`; `link` is metadata-only and
+   must reach its adapter without selecting a backend.
+6. Start the server and confirm the health line, a protocol header of `1` on
+   every response, `426` when that header is absent or different, and `404` for
+   the retired routes.
+7. Run `login` only if the origin or credentials changed, then only read-only
+   commands; re-read the step-0 hashes and require them to be unchanged.
+
+Rollback: stop the writers, restore the backed-up server code and private
+config, restore the exact `.climier.json` (a retired-wire CLI rejects metadata
+without `backend.protocol`), and compare the state hashes again. Never restore
+or migrate the DAG as part of the rollback, and never run `init`, `push`, or
+`pull` on the active project during the cutover. A deployment that listens on a
+private-network address instead of loopback needs an explicit, reviewed opt-in
+in the server code; keep that patch versioned rather than uncommitted in the
+deployment worktree.
+
 ## Verification and failure boundaries
 
 Run the server operations E2E with an isolated Remote v1 server; it verifies
