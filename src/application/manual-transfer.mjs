@@ -35,10 +35,7 @@ function validateRequest(request) {
 
   const backend = parseBackendConfig(request.projectConfig);
   if (backend.type !== "remote") {
-    throw transferError("REMOTE_BACKEND_REQUIRED", "transfer: manual transfer requires a remote v2 backend");
-  }
-  if (backend.protocol !== "v2") {
-    throw transferError("REMOTE_CONFIG_OUTDATED", "transfer: manual transfer requires remote protocol v2", { expected_protocol: "v2" });
+    throw transferError("REMOTE_BACKEND_REQUIRED", "transfer: manual transfer requires a remote backend");
   }
   if (!isRecord(request.backendClient) || request.backendClient.type !== "remote") {
     throw transferError("REMOTE_BACKEND_REQUIRED", "transfer: a remote backend client is required");

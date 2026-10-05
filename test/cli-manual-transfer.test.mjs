@@ -11,7 +11,7 @@ import { createTempProject, rmTempProject, writeCanonicalState } from "./helpers
 const remoteConfig = (projectId) => ({
   version: 1,
   project_id: projectId,
-  backend: { type: "remote", protocol: "v2", url: "https://transfer.example.test/api/" },
+  backend: { type: "remote", url: "https://transfer.example.test/api/" },
 });
 
 const emptyState = () => ({ version: 1, initiatives: {}, nodes: {}, edges: [], log: [] });

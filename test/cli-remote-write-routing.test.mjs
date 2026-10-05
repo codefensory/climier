@@ -40,7 +40,7 @@ async function createLocalProject(root, projectId) {
   await fs.writeFile(path.join(projectDir, ".climier.json"), JSON.stringify({
     version: 1,
     project_id: projectId,
-    backend: { type: "remote", url: "http://127.0.0.1:1", protocol: "v2" },
+    backend: { type: "remote", url: "http://127.0.0.1:1" },
   }));
   await writeCanonicalState(projectDir, localSentinel);
   return projectDir;
@@ -139,7 +139,6 @@ async function changeBackendUrl(projectDir, url) {
   const file = path.join(projectDir, ".climier.json");
   const config = JSON.parse(await fs.readFile(file, "utf8"));
   config.backend.url = url;
-  config.backend.protocol = "v2";
   await fs.writeFile(file, JSON.stringify(config));
 }
 

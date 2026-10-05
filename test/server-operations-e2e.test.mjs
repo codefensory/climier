@@ -182,7 +182,7 @@ async function linkClient(client, origin) {
   const result = await cli(client.projectDir, "link", [origin], client.env);
   assert.equal(result.code, 0, `link: ${JSON.stringify(result.body)}`);
   const metadata = JSON.parse(await fs.readFile(path.join(client.projectDir, ".climier.json"), "utf8"));
-  assert.equal(metadata.backend.protocol, "v2");
+  assert.equal(metadata.backend.protocol, undefined);
   assert.equal(metadata.backend.url, new URL(origin).toString());
   return metadata;
 }
@@ -555,11 +555,11 @@ test("v2 remote E2E links and logs in two clients, isolates project IDs, and fai
   const v1State = await writeSentinel(v1Client);
   const outdated = await cli(v1Client.projectDir, "status", [], v1Client.env);
   assert.notEqual(outdated.code, 0);
-  assert.equal(outdated.body.error.code, "REMOTE_CONFIG_OUTDATED");
+  assert.equal(outdated.body.error.code, "AUTH_REQUIRED");
   assert.deepEqual(await readSentinel(v1State), sentinel);
 
   const unavailableClient = await makeClient(root, "client-unavailable");
-  const unavailableMeta = { version: 1, project_id: metadataA.project_id, backend: { type: "remote", url: "http://127.0.0.1:1", protocol: "v2" } };
+  const unavailableMeta = { version: 1, project_id: metadataA.project_id, backend: { type: "remote", url: "http://127.0.0.1:1" } };
   await fs.writeFile(path.join(unavailableClient.projectDir, ".climier.json"), `${JSON.stringify(unavailableMeta, null, 2)}\n`);
   const unavailableState = await writeSentinel(unavailableClient);
   const unavailable = await cli(unavailableClient.projectDir, "add-initiative", ["offline-must-not-fallback", "--as", "bob"], unavailableClient.env);

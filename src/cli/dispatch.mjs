@@ -319,7 +319,9 @@ async function executeParsedCli({ parsed, context, source, backendClientFactory,
     if (noCommandResponse !== null) {
       return noCommandResponse;
     }
-    await addBackendContext(context, { source, backendClientFactory });
+    if (parsed.command !== "link") {
+      await addBackendContext(context, { source, backendClientFactory });
+    }
     const result = await dispatchCommandFn(context);
     if (result !== undefined) {
       write(formatOutput(result));

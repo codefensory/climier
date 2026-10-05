@@ -59,10 +59,21 @@ function validateProjectConfig(config) {
   if (hasCredentialField(config)) {fail("credentials must be provided outside .climier.json");}
 }
 
+function outdatedRemoteConfig(backend) {
+  const configuredUrl = typeof backend.url === "string" ? backend.url : String(backend.url ?? "<missing>");
+  const cleanupCommand = `climier link ${configuredUrl}`;
+  fail(
+    `remote metadata at backend.url ${configuredUrl} contains removed backend.protocol; run ${cleanupCommand} to clean .climier.json without contacting the remote`,
+    "REMOTE_CONFIG_OUTDATED",
+    { configured_url: configuredUrl, cleanup: cleanupCommand },
+  );
+}
+
 function validateBackendShape(backend) {
   if (!backend || typeof backend !== "object" || Array.isArray(backend)) {fail("backend must be an object");}
-  if (Object.keys(backend).some((key) => !["type", "url", "protocol"].includes(key))) {
-    fail("backend accepts only type, url and protocol");
+  if (Object.hasOwn(backend, "protocol")) {outdatedRemoteConfig(backend);}
+  if (Object.keys(backend).some((key) => !["type", "url"].includes(key))) {
+    fail("backend accepts only type and url");
   }
 }
 
@@ -71,32 +82,24 @@ function parseLocalBackend(backend) {
   return { type: "local" };
 }
 
-function isLinkCommandRelink(config, command) {
-  return command === "link" && typeof config.project_id === "string" && config.project_id.trim();
-}
-
-function parseRemoteBackend(backend, config, command) {
-  if (isLinkCommandRelink(config, command)) {return { type: "local" };}
-  if (backend.protocol !== "v2") {
-    fail("remote config must be relinked for protocol v2", "REMOTE_CONFIG_OUTDATED", { expected_protocol: "v2" });
-  }
+function parseRemoteBackend(backend) {
   if (!Object.hasOwn(backend, "url")) {fail("remote url is required");}
   const parsedUrl = parseRemoteUrl(backend.url);
   if (parsedUrl.insecureRemoteHttp && process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP !== "true") {
-    fail("remote url must use HTTPS outside localhost");
+    fail("remote url must use HTTPS outside localhost; set CLIMIER_ALLOW_INSECURE_REMOTE_HTTP=true to allow HTTP non-loopback");
   }
-  const result = { type: "remote", url: parsedUrl.url, protocol: "v2" };
+  const result = { type: "remote", url: parsedUrl.url };
   if (parsedUrl.insecureRemoteHttp) {result.insecureRemoteHttp = true;}
   return result;
 }
 
 /** Parse backend selection from project metadata without exposing credentials. */
-export function parseBackendConfig(config = {}, { command } = {}) {
+export function parseBackendConfig(config = {}) {
   validateProjectConfig(config);
   if (!Object.hasOwn(config, "backend")) {return { type: "local" };}
   const backend = config.backend;
   validateBackendShape(backend);
   if (backend.type === "local") {return parseLocalBackend(backend);}
   if (backend.type !== "remote") {fail("unsupported type");}
-  return parseRemoteBackend(backend, config, command);
+  return parseRemoteBackend(backend);
 }

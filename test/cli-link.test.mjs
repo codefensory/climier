@@ -13,27 +13,30 @@ async function runLink(dir, args = []) {
   return runCli(["--project", dir, "link", ...args]);
 }
 
-test("remote metadata without protocol v2 fails before local state access", async () => {
+test("remote metadata with any protocol marker fails before local state access and shows the cleanup URL", async () => {
   const dir = await createTempProject();
   try {
     await fs.writeFile(path.join(dir, ".climier.json"), JSON.stringify({
       version: 1,
       project_id: "legacy-id",
-      backend: { type: "remote", url: "https://old.example.test/" },
+      backend: { type: "remote", protocol: "v2", url: "https://old.example.test/base" },
     }, null, 2) + "\n");
 
-    for (const args of [["status"], ["status", "link"]]) {
+    for (const args of [["status"], ["context", "T1"], ["push", "--as", "alice"]]) {
       const result = await runCli(["--project", dir, ...args]);
       assert.equal(result.code, 1, result.stdout);
       const out = JSON.parse(result.stdout);
       assert.equal(out.error.code, "REMOTE_CONFIG_OUTDATED");
+      assert.match(out.error.message, /https:\/\/old\.example\.test\/base/);
+      assert.match(out.error.message, /climier link https:\/\/old\.example\.test\/base/);
     }
+    await assert.rejects(fs.access(stateFilePath(dir)), { code: "ENOENT" });
   } finally {
     await rmTempProject(dir);
   }
 });
 
-test("link writes remote v2 metadata and generates an id when metadata is missing", async () => {
+test("link writes remote metadata without a protocol marker and generates an id when metadata is missing", async () => {
   const dir = await createTempProject();
   try {
     const result = await runLink(dir, ["https://climier.example.test"]);
@@ -41,13 +44,13 @@ test("link writes remote v2 metadata and generates an id when metadata is missin
     assert.deepEqual(JSON.parse(result.stdout), {
       project: {
         project_id: (await readMeta(dir)).project_id,
-        backend: { type: "remote", url: "https://climier.example.test/", protocol: "v2" },
+        backend: { type: "remote", url: "https://climier.example.test/" },
       },
     });
     const meta = await readMeta(dir);
     assert.equal(meta.version, 1);
     assert.match(meta.project_id, /^[A-Za-z0-9_-]{22}$/);
-    assert.deepEqual(meta.backend, { type: "remote", url: "https://climier.example.test/", protocol: "v2" });
+    assert.deepEqual(meta.backend, { type: "remote", url: "https://climier.example.test/" });
   } finally {
     await rmTempProject(dir);
   }
@@ -61,7 +64,7 @@ test("link stores only public metadata for an opted-in remote HTTP origin", asyn
       env: { CLIMIER_ALLOW_INSECURE_REMOTE_HTTP: "true" },
     });
     assert.equal(result.code, 0, result.stdout);
-    const publicBackend = { type: "remote", url: "http://remote.example.test:43127/", protocol: "v2" };
+    const publicBackend = { type: "remote", url: "http://remote.example.test:43127/" };
     assert.deepEqual(JSON.parse(result.stdout).project.backend, publicBackend);
     assert.deepEqual((await readMeta(dir)).backend, publicBackend);
   } finally {
@@ -69,7 +72,7 @@ test("link stores only public metadata for an opted-in remote HTTP origin", asyn
   }
 });
 
-test("link preserves the existing project id and is idempotent for the same origin", async () => {
+test("link preserves the existing project id and is idempotent for the same normalized URL", async () => {
   const dir = await createTempProject();
   try {
     await fs.writeFile(path.join(dir, ".climier.json"), JSON.stringify({ version: 1, project_id: "kept-id" }, null, 2) + "\n");
@@ -86,13 +89,14 @@ test("link preserves the existing project id and is idempotent for the same orig
   }
 });
 
-test("link can relink outdated remote metadata without reading remote or local state", async () => {
+test("link relinks old metadata-only state without backend access and preserves unrelated metadata", async () => {
   const dir = await createTempProject();
   try {
     await fs.writeFile(path.join(dir, ".climier.json"), JSON.stringify({
       version: 1,
       project_id: "legacy-id",
-      backend: { type: "remote", url: "https://old.example.test/" },
+      label: "keep me",
+      backend: { type: "remote", protocol: "v2", url: "https://old.example.test/" },
     }, null, 2) + "\n");
 
     const result = await runLink(dir, ["https://old.example.test"]);
@@ -100,20 +104,21 @@ test("link can relink outdated remote metadata without reading remote or local s
     assert.deepEqual(await readMeta(dir), {
       version: 1,
       project_id: "legacy-id",
-      backend: { type: "remote", url: "https://old.example.test/", protocol: "v2" },
+      label: "keep me",
+      backend: { type: "remote", url: "https://old.example.test/" },
     });
   } finally {
     await rmTempProject(dir);
   }
 });
 
-test("link requires replace to change a remote origin", async () => {
+test("link requires replace to change a remote URL", async () => {
   const dir = await createTempProject();
   try {
     await fs.writeFile(path.join(dir, ".climier.json"), JSON.stringify({
       version: 1,
       project_id: "kept-id",
-      backend: { type: "remote", url: "https://old.example.test/", protocol: "v2" },
+      backend: { type: "remote", url: "https://old.example.test/" },
     }, null, 2) + "\n");
 
     let result = await runLink(dir, ["https://new.example.test"]);
@@ -126,7 +131,7 @@ test("link requires replace to change a remote origin", async () => {
     assert.deepEqual(await readMeta(dir), {
       version: 1,
       project_id: "kept-id",
-      backend: { type: "remote", url: "https://new.example.test/", protocol: "v2" },
+      backend: { type: "remote", url: "https://new.example.test/" },
     });
   } finally {
     await rmTempProject(dir);

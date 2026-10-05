@@ -13,7 +13,7 @@ import { pullManualTransfer, pushManualTransfer } from "../src/application/manua
 function projectConfig(projectId) {
   return {
     project_id: projectId,
-    backend: { type: "remote", url: "https://transfer.example.test/api/", protocol: "v2" },
+    backend: { type: "remote", url: "https://transfer.example.test/api/" },
   };
 }
 

@@ -374,7 +374,7 @@ test("dispatch: remote project config and injected client reach command dispatch
     const projectConfig = {
       version: 1,
       project_id: "remote/project",
-      backend: { type: "remote", protocol: "v2", url: "https://climier.example.test" },
+      backend: { type: "remote", url: "https://climier.example.test" },
     };
     fs.writeFileSync(path.join(dir, ".climier.json"), JSON.stringify(projectConfig));
     const localCalls = [];
@@ -393,6 +393,41 @@ test("dispatch: remote project config and injected client reach command dispatch
     assert.equal(dispatched.flags.as, "alice");
     assert.deepEqual(dispatched.positional, ["T1"]);
     assert.deepEqual(localCalls, []);
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("dispatch: link repairs legacy metadata before backend selection without touching state", async () => {
+  const dir = await createTempProject();
+  try {
+    fs.writeFileSync(path.join(dir, ".climier.json"), JSON.stringify({
+      version: 1,
+      project_id: "legacy-id",
+      label: "preserve",
+      backend: { type: "remote", protocol: "v2", url: "https://climier.example.test/base" },
+    }, null, 2) + "\n");
+    const output = [];
+    const exitCodes = [];
+    const result = await runCliInProcess({
+      argv: ["--project", dir, "link", "https://climier.example.test/base"],
+      createBackendClient() { throw new Error("link must not select a backend"); },
+      write: (value) => output.push(value),
+      exit: (code) => exitCodes.push(code),
+    });
+    assert.equal(result, 0);
+    assert.deepEqual(exitCodes, []);
+    assert.deepEqual(JSON.parse(output[0]).project, {
+      project_id: "legacy-id",
+      backend: { type: "remote", url: "https://climier.example.test/base" },
+    });
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(dir, ".climier.json"), "utf8")), {
+      version: 1,
+      project_id: "legacy-id",
+      label: "preserve",
+      backend: { type: "remote", url: "https://climier.example.test/base" },
+    });
+    assert.equal(fs.existsSync(path.join(dir, "state.json")), false);
   } finally {
     await rmTempProject(dir);
   }

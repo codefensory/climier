@@ -20,7 +20,7 @@ async function readJson(request) {
 }
 
 function remoteConfig(origin) {
-  return { project_id: "project/opaque", backend: { type: "remote", url: origin, protocol: "v2" } };
+  return { project_id: "project/opaque", backend: { type: "remote", url: origin } };
 }
 
 function jsonResponse(response, result) {
