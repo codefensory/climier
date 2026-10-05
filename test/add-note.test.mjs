@@ -41,6 +41,20 @@ test("add-note: appends a note to an open task and returns the node envelope", a
   }
 });
 
+test("add-note: preserves multiline Markdown source verbatim", async () => {
+  const { default: addNote } = await importFresh("./cli/commands/add-note.mjs");
+  const dir = await createTempProject();
+  const markdown = "### Verification\n\n- `npm test` — passed.\n\n### Follow-up\n- Keep the report concise.";
+  try {
+    await seedTask()(dir);
+    const out = await addNote({ statePath: dir, flags: { as: "alice" }, positional: ["T1", markdown] });
+    assert.equal(out.node.notes[0].text, markdown);
+    assert.equal((await readState(dir)).nodes.T1.notes[0].text, markdown);
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
 test("add-note: multiple notes accumulate on the same node", async () => {
   const { default: addNote } = await importFresh("./cli/commands/add-note.mjs");
   const dir = await createTempProject();

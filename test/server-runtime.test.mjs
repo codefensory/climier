@@ -3,9 +3,10 @@ import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 
-import { loadServerRuntimeConfig } from "../src/server/runtime-config.mjs";
+import { loadServerRuntimeConfig, parseServerRuntimeConfig } from "../src/server/runtime-config.mjs";
 import { createServerRuntime, startServerRuntime } from "../src/server/runtime.mjs";
 import { stateFile } from "../src/storage/state.mjs";
 
@@ -78,6 +79,7 @@ test("private server config fails closed for malformed or unsafe settings", asyn
   const invalid = [
     { ...valid, unexpected: true },
     { ...valid, stateHome: "" },
+    { ...valid, uiRoot: "relative/ui/dist" },
     { ...valid, listen: { host: "127.0.0.1", port: 65_536 } },
     { ...valid, listen: { host: "0.0.0.0", port: 0 } },
     { ...valid, listen: { host: "192.0.2.10", port: 0 } },
@@ -98,6 +100,28 @@ test("private server config fails closed for malformed or unsafe settings", asyn
     await fs.chmod(exposed, 0o644);
     await assert.rejects(loadServerRuntimeConfig(exposed), { code: "INVALID_SERVER_CONFIG" });
   }
+
+  const explicitUiRoot = path.join(root, "ui", "dist");
+  const parsed = parseServerRuntimeConfig({ ...valid, uiRoot: explicitUiRoot });
+  assert.equal(parsed.uiRoot, explicitUiRoot);
+});
+
+test("server runtime resolves the packaged UI root and passes it to the server factory", async (t) => {
+  const root = await makeRoot(t);
+  let received;
+  const server = {};
+  const runtime = createServerRuntime(config(root), {
+    authStore,
+    serverFactory(options) {
+      received = options;
+      return server;
+    },
+  });
+  const packageUiRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "ui", "dist");
+
+  assert.equal(runtime.server, server);
+  assert.equal(runtime.config.uiRoot, packageUiRoot);
+  assert.equal(received.uiRoot, packageUiRoot);
 });
 
 test("server runtime pins state home and writes trusted hash-safe project metadata", async (t) => {
@@ -158,6 +182,51 @@ test("launcher starts the configured server and reports its listening health", a
   assert.ok(Number.isInteger(health.port) && health.port > 0);
   child.kill("SIGTERM");
   await new Promise((resolve) => child.once("exit", resolve));
+});
+
+test("runtime serves the configured UI root through the remote server", async (t) => {
+  const root = await makeRoot(t);
+  const uiRoot = path.join(root, "ui", "dist");
+  await fs.mkdir(path.join(uiRoot, "assets"), { recursive: true });
+  await fs.writeFile(path.join(uiRoot, "index.html"), "<!doctype html><main>runtime SPA</main>\n");
+  await fs.writeFile(path.join(uiRoot, "assets", "app-123.js"), "console.log('runtime');\n");
+  const file = await writeConfig(root, config(root, { uiRoot }));
+  const runtime = await startServerRuntime(file, { password: "password" });
+  t.after(() => new Promise((resolve) => runtime.server.close(resolve)));
+
+  const baseUrl = `http://127.0.0.1:${runtime.server.address().port}`;
+  const html = await fetch(`${baseUrl}/`);
+  assert.equal(html.status, 200);
+  assert.equal(html.headers.get("cache-control"), "no-cache");
+  assert.equal(await html.text(), "<!doctype html><main>runtime SPA</main>\n");
+
+  const asset = await fetch(`${baseUrl}/assets/app-123.js`);
+  assert.equal(asset.status, 200);
+  assert.equal(asset.headers.get("cache-control"), "public, max-age=31536000, immutable");
+  assert.equal(await asset.text(), "console.log('runtime');\n");
+});
+
+test("runtime reports a missing UI build without absorbing the API", async (t) => {
+  const root = await makeRoot(t);
+  const file = await writeConfig(root, config(root, { uiRoot: path.join(root, "missing-ui", "dist") }));
+  const runtime = await startServerRuntime(file, { password: "password" });
+  t.after(() => new Promise((resolve) => runtime.server.close(resolve)));
+  const baseUrl = `http://127.0.0.1:${runtime.server.address().port}`;
+
+  const missingBuild = await fetch(`${baseUrl}/`);
+  assert.equal(missingBuild.status, 503);
+  assert.equal(missingBuild.headers.get("content-type"), "text/plain; charset=utf-8");
+  assert.match(await missingBuild.text(), /UI build is not available/u);
+
+  const apiUnknown = await fetch(`${baseUrl}/v1/not-a-route`, {
+    headers: { "x-climier-protocol-version": "1" },
+  });
+  assert.equal(apiUnknown.status, 404);
+  assert.equal(apiUnknown.headers.get("content-type"), "application/json; charset=utf-8");
+  assert.deepEqual(await apiUnknown.json(), {
+    ok: false,
+    error: { code: "ROUTE_NOT_FOUND", message: "server http: route was not found" },
+  });
 });
 
 test("runtime startup binds state home once and listens on configured address", async (t) => {

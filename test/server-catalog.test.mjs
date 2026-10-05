@@ -5,6 +5,7 @@ import path from "node:path";
 import test from "node:test";
 
 import { createProjectCatalog } from "../src/server/catalog/index.mjs";
+import { createServerRuntime } from "../src/server/runtime.mjs";
 import { withAuthorizedProject } from "../src/server/auth/project-scope.mjs";
 
 async function makeRoot(t) {
@@ -119,4 +120,62 @@ test("catalog refuses a provisioned storage path replaced by a symlink", async (
     { code: "UNSAFE_PROJECT_STORAGE" },
   );
   assert.equal(opened, false);
+});
+
+test("provisionProject writes the source project ID and optional name to catalog metadata", async (t) => {
+  const dataRoot = await makeRoot(t);
+  const catalog = createProjectCatalog({ dataRoot });
+  const projectDir = await catalog.provisionProject("alpha", { name: "Alpha" });
+
+  assert.deepEqual(JSON.parse(await fs.readFile(path.join(projectDir, ".climier.json"), "utf8")), {
+    version: 1,
+    project_id: path.basename(projectDir),
+    source_project_id: "alpha",
+    name: "Alpha",
+  });
+});
+
+test("listProjects returns only real directories with valid indexed metadata", async (t) => {
+  const dataRoot = await makeRoot(t);
+  const catalog = createProjectCatalog({ dataRoot });
+  const alphaDir = await catalog.provisionProject("alpha");
+  await catalog.provisionProject("beta");
+
+  await fs.mkdir(path.join(dataRoot, "unindexed"));
+  await fs.writeFile(path.join(dataRoot, "unindexed", ".climier.json"), JSON.stringify({
+    version: 1,
+    project_id: "unindexed",
+  }));
+  await fs.mkdir(path.join(dataRoot, "not-a-directory-file"));
+  await fs.writeFile(path.join(dataRoot, "not-a-directory-file", ".climier.json"), "not json");
+
+  const projects = await catalog.listProjects();
+  assert.deepEqual(projects.map(({ source_project_id: sourceId }) => sourceId), ["alpha", "beta"]);
+  assert.equal(projects[0].projectDir, alphaDir);
+  assert.equal(projects[0].name, null);
+});
+
+test("openProject upgrades legacy catalog metadata once and preserves it on repeated opens", async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "climier-server-catalog-runtime-"));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const dataRoot = path.join(root, "data");
+  const runtime = createServerRuntime({
+    listen: { host: "127.0.0.1", port: 0 },
+    dataRoot,
+    stateHome: path.join(root, "state-home"),
+  });
+  const projectDir = await runtime.catalog.provisionProject("legacy");
+  const metadataFile = path.join(projectDir, ".climier.json");
+  await fs.writeFile(metadataFile, JSON.stringify({ version: 1, project_id: path.basename(projectDir) }));
+
+  await runtime.openProject(projectDir, { projectId: "legacy" });
+  const upgraded = await fs.readFile(metadataFile, "utf8");
+  assert.deepEqual(JSON.parse(upgraded), {
+    version: 1,
+    project_id: path.basename(projectDir),
+    source_project_id: "legacy",
+  });
+
+  await runtime.openProject(projectDir, { projectId: "legacy" });
+  assert.equal(await fs.readFile(metadataFile, "utf8"), upgraded);
 });

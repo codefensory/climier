@@ -1,4 +1,4 @@
-// Tests for .agents/skills/climier/smoke-sandbox.sh.
+// Tests for scripts/smoke-sandbox.sh.
 //
 // Goals:
 //   - The helper requires `--` and a command; bad invocations exit 64.
@@ -27,7 +27,7 @@ import path from "node:path";
 import { createTempProject, rmTempProject, BIN } from "./helpers.mjs";
 
 const ROOT = path.resolve(process.cwd());
-const HELPER = path.join(ROOT, ".agents/skills/climier", "smoke-sandbox.sh");
+const HELPER = path.join(ROOT, "scripts", "smoke-sandbox.sh");
 const SENTINEL_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "climier-sandbox-sentinel-"));
 // Private TMPDIR so the helper's `mktemp -d "${TMPDIR:-/tmp}/climier-smoke-XXXXXX"`
 // creates sandboxes inside this test process, and so listSmokeSandboxes()

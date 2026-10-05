@@ -1,0 +1,297 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap");
+@import "tailwindcss";
+@import "./tokens.css";
+@import "./icons.css";
+
+.settings-sidebar,
+.app-sidebar {
+  font-family: "Inter", sans-serif;
+}
+
+.app-sidebar-wrap {
+  flex: none;
+  width: 248px;
+  overflow: hidden;
+  background: transparent;
+  transition: width 240ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+[data-testid="dashboard-layout"] {
+  background-image: radial-gradient(circle, var(--color-dot) 1px, transparent 1.2px);
+  background-size: 26px 26px;
+}
+
+.app-sidebar-wrap,
+.app-sidebar,
+.settings-sidebar,
+.main-content-frame {
+  background-color: transparent;
+  background-image: none;
+}
+
+.sidebar-nav-track {
+  position: relative;
+  width: 248px;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.sidebar-nav-track > aside {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 248px;
+  transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.settings-nav-active [data-testid="app-sidebar"] {
+  transform: translateX(-100%);
+}
+
+.sidebar-nav-track > [data-testid="settings-sidebar"] {
+  transform: translateX(100%);
+}
+
+.settings-nav-active .sidebar-nav-track > [data-testid="settings-sidebar"] {
+  transform: translateX(0);
+}
+
+.app-sidebar-collapsed {
+  width: 0;
+}
+
+.app-sidebar-collapsed > .sidebar-nav-track {
+  visibility: hidden;
+}
+
+.main-content-frame {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 100vh;
+  background-color: transparent;
+  transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.tasks-shell-breadcrumb {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  left: 8px;
+  z-index: 1;
+}
+
+.main-content-view {
+  position: absolute;
+  inset: 44px 8px 8px;
+  overflow: auto;
+  border: 1px solid var(--color-line);
+  border-radius: 16px;
+  background: var(--color-surface);
+  scrollbar-gutter: stable;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 140ms ease, visibility 140ms;
+}
+
+.main-content-visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+@media (max-width: 1279px) {
+  .registry-detail-overlay {
+    position: fixed;
+    inset: 44px 8px 8px;
+    z-index: 20;
+    overflow-y: auto;
+    border: 0;
+    border-radius: 16px;
+    background: var(--color-surface);
+    pointer-events: none;
+    transform: translateX(100%);
+    transition: transform 240ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .registry-detail-overlay-open {
+    pointer-events: auto;
+    transform: translateX(0);
+  }
+
+  .main-content-view:has(.registry-detail-overlay-open) {
+    overflow: hidden;
+  }
+
+  .main-content-view:has(.registry-detail-overlay-open) > :first-child {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .main-content-view:has(.registry-detail-overlay-open) [inert] {
+    overflow: hidden;
+  }
+}
+
+.page-frame-inset {
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+@media (min-width: 640px) {
+  .page-frame-inset {
+    padding-left: 48px;
+    padding-right: 48px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .page-frame-inset {
+    padding-left: 56px;
+    padding-right: 56px;
+  }
+}
+
+.task-detail-content > article {
+  max-width: 960px;
+  margin-left: 0;
+  margin-right: 0;
+  padding-bottom: 0;
+}
+
+@media (max-width: 639px) {
+  [data-testid="tasks-view-switch"] {
+    display: none;
+  }
+
+  [data-testid="tasks-toolbar"] > div:nth-child(2) {
+    display: contents;
+  }
+
+  .tasks-content [data-testid="tasks-kanban-view"] {
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    margin-left: 0;
+    margin-right: 0;
+    flex-direction: column;
+    overflow-x: hidden;
+    overflow-y: visible;
+  }
+
+  .tasks-content [data-testid="kanban-column"] {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    flex-shrink: 1;
+  }
+
+  .tasks-content [data-testid="kanban-column"] > div:last-child {
+    min-height: auto;
+    flex: initial;
+    overflow-y: visible;
+  }
+
+  [data-testid="tasks-list-view"] {
+    border-width: 0;
+    border-radius: 0;
+  }
+}
+
+@media (max-width: 1023px) {
+  .app-sidebar-wrap,
+  .app-sidebar-collapsed {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 70;
+    width: 248px;
+    height: 100vh;
+    transform: translateX(-100%);
+    transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+    box-shadow: none;
+  }
+
+  .app-sidebar-wrap.drawer-open {
+    transform: translateX(0);
+  }
+
+  .main-content-frame.drawer-content-shift {
+    transform: translateX(248px);
+  }
+
+  .sidebar-nav-track,
+  .app-sidebar-wrap > .sidebar-nav-track {
+    height: 100vh;
+  }
+
+  .app-sidebar-collapsed > .sidebar-nav-track {
+    visibility: visible;
+  }
+
+  .main-content-frame {
+    width: 100%;
+  }
+
+}
+
+
+[data-testid="tasks-kanban-view"] {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-scrollbar) transparent;
+}
+
+[data-testid="tasks-kanban-view"]::-webkit-scrollbar {
+  height: 6px;
+}
+
+[data-testid="tasks-kanban-view"]::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+[data-testid="tasks-kanban-view"]::-webkit-scrollbar-thumb {
+  background: var(--color-scrollbar);
+  border-radius: 9999px;
+}
+
+[data-testid="tasks-kanban-view"]::-webkit-scrollbar-thumb:hover {
+  background: var(--color-scrollbar-strong);
+}
+
+[data-testid="tasks-kanban-view"]::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+[data-popup-surface] {
+  transition-property: opacity, translate, visibility;
+  transition-duration: 200ms;
+  transition-timing-function: cubic-bezier(0.4, 0, 1, 1);
+}
+
+[data-popup-surface][data-open="true"] {
+  transition-duration: 160ms;
+  transition-timing-function: cubic-bezier(0, 0, 0.2, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-nav-track > aside,
+  .app-sidebar-wrap,
+  .main-content-frame,
+  .main-content-view,
+  .registry-detail-overlay {
+    transition-duration: 0.01ms;
+  }
+
+  [data-popup-surface] {
+    transition: none;
+  }
+}
+
+:root {
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}

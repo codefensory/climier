@@ -2104,19 +2104,19 @@
     },
     {
       "path": "test/command-ui.test.mjs",
-      "name": "ui reads state before optional UI code and preserves a corrupt-state error",
+      "name": "ui keeps corrupt-state errors before starting the local server",
       "ordinal": 1,
       "disposition": "keep"
     },
     {
       "path": "test/command-ui.test.mjs",
-      "name": "ui subproject detection accepts the server entry and express dependency",
+      "name": "climier ui serves the local SPA and UI projections without Express or bearer auth",
       "ordinal": 1,
       "disposition": "keep"
     },
     {
       "path": "test/command-ui.test.mjs",
-      "name": "ui subproject detection gives an actionable experimental feature error",
+      "name": "uiCommand starts the stdlib local server and reports the loopback URL",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -8533,7 +8533,7 @@
     },
     {
       "path": "test/read-consumer-boundaries.test.mjs",
-      "name": "UI server consumes the read model instead of the v2 facade",
+      "name": "UI API consumes the UI read model instead of the v2 facade",
       "ordinal": 1,
       "disposition": "keep"
     },

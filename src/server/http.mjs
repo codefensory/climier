@@ -1,4 +1,5 @@
 import { createServer } from "node:http";
+import fs from "node:fs/promises";
 
 import { dispatchOperationRequest, validateOperationRequest } from "./http/operations.mjs";
 import { createBuiltinOperationRegistry } from "../application/operations/builtins.mjs";
@@ -7,12 +8,16 @@ import { mutate } from "../kernel/mutate.mjs";
 import { createHttpReads } from "./http/reads.mjs";
 import { executeTransferRequest, validateTransferRequest } from "./http/transfers.mjs";
 import * as readModel from "../read-model/index.mjs";
-import { readState } from "../storage/state.mjs";
+import { ledgerFile } from "../storage/ledger.mjs";
+import { readState, stateFile } from "../storage/state.mjs";
 import { initState } from "../kernel/state-operations.mjs";
 import { authorizeAction as authorizeServerAction, loadApplicablePolicy } from "../plugins/policy.mjs";
 import { withAuthorizedProject } from "./auth/project-scope.mjs";
 import { createLoginRateLimiter, loginClientAddress } from "./auth/login-rate-limiter.mjs";
 import { createHttpCodec } from "./http/codec.mjs";
+import { createStaticHandler } from "./http/static.mjs";
+import { createUiApi } from "./http/ui-api.mjs";
+import { createUiEvents } from "./http/ui-events.mjs";
 
 const PROTOCOL_VERSION = "1";
 const { httpError, errorStatus, jsonError, send, parseProjectPath, readJsonBody } = createHttpCodec({ protocolVersion: PROTOCOL_VERSION });
@@ -25,8 +30,9 @@ const reads = createHttpReads({
 });
 
 function validateServerDependencies({ catalog, openProject, registry, mutateKernel, authStore }) {
-  if (!catalog || typeof catalog.resolveProject !== "function" || typeof catalog.provisionProject !== "function") {
-    throw new TypeError("server http: catalog with resolveProject and provisionProject is required");
+  if (!catalog || typeof catalog.resolveProject !== "function"
+      || typeof catalog.provisionProject !== "function" || typeof catalog.listProjects !== "function") {
+    throw new TypeError("server http: catalog with resolveProject, provisionProject, and listProjects is required");
   }
   if (typeof openProject !== "function") {
     throw new TypeError("server http: openProject must be a function");
@@ -40,6 +46,76 @@ function validateServerDependencies({ catalog, openProject, registry, mutateKern
   if (!authStore || typeof authStore.verifyBearer !== "function" || typeof authStore.login !== "function") {
     throw new TypeError("server http: authStore with login and verifyBearer is required");
   }
+}
+
+async function authorizeUiRequest(request, authStore) {
+  const authorization = request?.headers?.authorization;
+  if (typeof authorization !== "string") {
+    throw httpError("AUTH_REQUIRED", "server auth: bearer token is required", undefined, 401);
+  }
+  const match = /^Bearer ([^\s]+)$/i.exec(authorization);
+  if (!match) {
+    throw httpError("AUTH_REQUIRED", "server auth: bearer token is required", undefined, 401);
+  }
+  if (!await authStore.verifyBearer(match[1])) {
+    throw httpError("AUTH_INVALID", "server auth: bearer token is invalid", undefined, 401);
+  }
+}
+
+async function listProjectSummary(project) {
+  const snapshot = await readState(project.projectDir);
+  if (!snapshot) {
+    return {
+      project_id: project.source_project_id,
+      name: project.name ?? null,
+      revision: 0,
+      node_count: 0,
+      updated_at: null,
+    };
+  }
+  const stateInfo = await fs.stat(stateFile(project.projectDir));
+  return {
+    project_id: project.source_project_id,
+    name: project.name ?? null,
+    revision: Number.isInteger(snapshot.revision) ? snapshot.revision : 0,
+    node_count: snapshot.nodes && typeof snapshot.nodes === "object" && !Array.isArray(snapshot.nodes)
+      ? Object.keys(snapshot.nodes).length
+      : 0,
+    updated_at: stateInfo.mtime.toISOString(),
+  };
+}
+
+async function listProjectSummaries(dependencies) {
+  const projects = await dependencies.catalog.listProjects();
+  return Promise.all(projects.map((project) => listProjectSummary(project)));
+}
+
+async function getUiProject(projectId, dependencies) {
+  const projectDir = await dependencies.catalog.resolveProject(projectId);
+  const project = await dependencies.openProject(projectDir, { projectId });
+  if (!project || typeof project.projectDir !== "string") {
+    throw httpError("PROJECT_OPEN_FAILED", "server http: project opener did not return a projectDir", undefined, 500);
+  }
+  return { ...project, id: projectId, name: project.name || projectId };
+}
+
+function createRemoteUiApi(dependencies) {
+  return createUiApi({
+    authorize: (request) => authorizeUiRequest(request, dependencies.authStore),
+    getProject: (projectId) => getUiProject(projectId, dependencies),
+    readSnapshot: ({ projectDir }) => readState(projectDir),
+    clock: Date.now,
+  });
+}
+
+function createRemoteUiEvents(dependencies) {
+  return createUiEvents({
+    authorize: (request) => authorizeUiRequest(request, dependencies.authStore),
+    getProject: (projectId) => getUiProject(projectId, dependencies),
+    readSnapshot: ({ projectDir }) => readState(projectDir),
+    resolveLedger: ({ projectDir }) => ledgerFile(projectDir),
+    protocolVersion: PROTOCOL_VERSION,
+  });
 }
 
 function assertProtocol(request) {
@@ -61,6 +137,13 @@ function resolveRoute(request, url) {
       throw httpError("ROUTE_NOT_FOUND", "server http: route was not found", undefined, 404);
     }
     return { login: true };
+  }
+  if (url.pathname === "/v1/projects") {
+    assertProtocol(request);
+    if (request.method !== "GET") {
+      throw httpError("ROUTE_NOT_FOUND", "server http: route was not found", undefined, 404);
+    }
+    return { projects: true, route: "projects" };
   }
   if (!url.pathname.startsWith("/v1/")) {
     throw httpError("ROUTE_NOT_FOUND", "server http: route was not found", undefined, 404);
@@ -93,7 +176,8 @@ function isInitRoute(request, route) {
   return request.method === "POST" && route.route === "init";
 }
 
-function matchRequestRoute(request, route) {
+function matchRequestRoute(request, route, uiApi, uiEvents) {
+  const projectsRoute = route.projects === true;
   const operationRoute = isOperationRoute(request, route);
   const initRoute = isInitRoute(request, route);
   const transferRoute = request.method === "GET" && route.route === "transfer/export"
@@ -102,8 +186,10 @@ function matchRequestRoute(request, route) {
       ? "transfer/import"
       : null;
   const read = request.method === "GET" ? reads.matchReadRoute(route.route) : null;
-  if (read || operationRoute || initRoute || transferRoute) {
-    return { operationRoute, initRoute, transferRoute, read };
+  const events = request.method === "GET" ? uiEvents.matchRoute(route.route) : null;
+  const ui = request.method === "GET" ? uiApi.matchRoute(route.route) : null;
+  if (projectsRoute || read || events || ui || operationRoute || initRoute || transferRoute) {
+    return { projectsRoute, operationRoute, initRoute, transferRoute, read, events, ui };
   }
   if (route.route.startsWith("transfer/") || route.route.startsWith("files/") || route.route === "snapshot" || route.route === "read/snapshot") {
     throw httpError("ROUTE_NOT_FOUND", "server http: route was not found", undefined, 404);
@@ -111,7 +197,7 @@ function matchRequestRoute(request, route) {
   throw httpError("ROUTE_NOT_FOUND", "server http: route was not found", undefined, 404);
 }
 
-async function readRequestInput(request, route, matched) {
+async function readRequestInput(request, route, matched, uiApi) {
   let body = null;
   if (matched.operationRoute) {
     body = validateOperationRequest(await readJsonBody(request), { manifest: remoteV1Manifest, httpError });
@@ -123,7 +209,12 @@ async function readRequestInput(request, route, matched) {
   if (matched.transferRoute === "transfer/import") {
     body = validateTransferRequest(await readJsonBody(request), httpError);
   }
-  const query = matched.read ? reads.parseReadQuery(new URL(request.url || "/", "http://localhost"), matched.read) : null;
+  const url = new URL(request.url || "/", "http://localhost");
+  const query = matched.read
+    ? reads.parseReadQuery(url, matched.read)
+    : matched.ui
+      ? uiApi.parseQuery(url, matched.ui)
+      : null;
   return { body, query };
 }
 
@@ -163,7 +254,47 @@ function operationSource(dependencies) {
   };
 }
 
-async function sendRouteResult({ response, route, matched, body, query, project, dependencies }) {
+async function sendRouteResult({ response, route, matched, body, query, project, dependencies, request }) {
+  if (matched.projectsRoute) {
+    await authorizeUiRequest(request, dependencies.authStore);
+    send(response, 200, { projects: await listProjectSummaries(dependencies) });
+    return;
+  }
+  if (matched.events) {
+    await dependencies.uiEvents.handle({ response, request, projectId: route.projectId });
+    return;
+  }
+  if (matched.ui) {
+    if (matched.ui.kind === "snapshot") {
+      const result = await dependencies.uiApi.readSnapshotResponse({
+        request,
+        projectId: route.projectId,
+      });
+      if (result.status === 304) {
+        response.writeHead(304, {
+          ...result.headers,
+          "content-length": "0",
+          "x-climier-protocol-version": PROTOCOL_VERSION,
+        });
+        response.end();
+      } else {
+        response.writeHead(result.status, {
+          ...result.headers,
+          "x-climier-protocol-version": PROTOCOL_VERSION,
+        });
+        response.end(result.body);
+      }
+      return;
+    }
+    const result = await dependencies.uiApi.read({
+      request,
+      projectId: route.projectId,
+      route: matched.ui,
+      query,
+    });
+    send(response, 200, { ok: true, result });
+    return;
+  }
   if (matched.initRoute) {
     const result = await handleInit(project.projectDir);
     send(response, 200, { ok: true, result });
@@ -224,10 +355,12 @@ async function handleRequest(request, response, dependencies) {
     await handleLogin(request, response, dependencies);
     return;
   }
-  const matched = matchRequestRoute(request, route);
-  const { body, query } = await readRequestInput(request, route, matched);
-  const project = await openAuthorizedProject(request, route, matched.initRoute, dependencies);
-  await sendRouteResult({ response, route, matched, body, query, project, dependencies });
+  const matched = matchRequestRoute(request, route, dependencies.uiApi, dependencies.uiEvents);
+  const { body, query } = await readRequestInput(request, route, matched, dependencies.uiApi);
+  const project = matched.projectsRoute || matched.ui || matched.events
+    ? null
+    : await openAuthorizedProject(request, route, matched.initRoute, dependencies);
+  await sendRouteResult({ response, route, matched, body, query, project, dependencies, request });
 }
 
 function sendRequestError(response, error) {
@@ -247,16 +380,31 @@ export function createRemoteApiServer({
   selectPolicy,
   authorizeAction,
   loginRateLimiter = createLoginRateLimiter(),
+  uiRoot,
+  indexFile = "index.html",
 } = {}) {
   const dependencies = { catalog, authStore, openProject: openProjectDependency, registry, mutateKernel, selectPolicy, authorizeAction, loginRateLimiter };
   validateServerDependencies(dependencies);
-  return createServer(async (request, response) => {
+  dependencies.uiApi = createRemoteUiApi(dependencies);
+  dependencies.uiEvents = createRemoteUiEvents(dependencies);
+  const staticHandler = uiRoot === undefined ? null : createStaticHandler({ root: uiRoot, indexFile });
+  const server = createServer(async (request, response) => {
     try {
+      if (staticHandler && await staticHandler(request, response)) {
+        return;
+      }
       await handleRequest(request, response, dependencies);
     } catch (error) {
       sendRequestError(response, error);
     }
   });
+  const closeServer = server.close.bind(server);
+  server.close = (...args) => {
+    void dependencies.uiEvents.close();
+    return closeServer(...args);
+  };
+  server.once("close", () => { void dependencies.uiEvents.close(); });
+  return server;
 }
 
 export { PROTOCOL_VERSION };

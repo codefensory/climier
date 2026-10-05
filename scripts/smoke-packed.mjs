@@ -85,6 +85,40 @@ async function stopServer(child) {
   });
 }
 
+async function startPackedUi(climier, projectDir, env, cwd) {
+  const child = spawn(climier, ["--project", projectDir, "ui", "--open=false", "--port", "0"], {
+    cwd,
+    env,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  let stdout = "";
+  let stderr = "";
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      child.kill("SIGTERM");
+      finish(() => reject(new Error(`installed ui startup timed out: ${stderr}`)));
+    }, 10_000);
+    const finish = (callback) => {
+      clearTimeout(timer);
+      callback();
+    };
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk;
+      try {
+        const result = JSON.parse(stdout);
+        finish(() => resolve({ child, result }));
+      } catch {
+        // Wait for the rest of the JSON output.
+      }
+    });
+    child.stderr.on("data", (chunk) => { stderr += chunk; });
+    child.once("error", (error) => finish(() => reject(error)));
+    child.once("exit", (code) => finish(() => reject(new Error(`installed ui exited before startup (${code}): ${stdout}${stderr}`))));
+  });
+}
+
 async function seedRemoteSession(origin, clientHome) {
   const response = await fetch(`${origin}/v1/auth/login`, {
     method: "POST",
@@ -106,6 +140,7 @@ async function seedRemoteSession(origin, clientHome) {
 async function main() {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "climier-packed-smoke-"));
   let server;
+  let uiChild;
   try {
     const destination = path.join(root, "pack");
     const prefix = path.join(root, "prefix");
@@ -205,17 +240,22 @@ async function main() {
     const localMetadata = JSON.parse(await fs.readFile(path.join(localProject, ".climier.json"), "utf8"));
     delete localMetadata.backend;
     await fs.writeFile(path.join(localProject, ".climier.json"), `${JSON.stringify(localMetadata, null, 2)}\n`);
-    const ui = await command(climier, ["--project", localProject, "ui", "--open=false"], { cwd: root, env: clientEnv });
-    if (ui.code === 0) {throw new Error("installed ui unexpectedly succeeded without the UI subproject");}
-    const uiBody = jsonOutput(ui, "installed ui failure");
-    if (uiBody.ok !== false || uiBody.error?.code !== "UI_SUBPROJECT_MISSING") {
-      throw new Error(`installed ui did not return actionable envelope: ${JSON.stringify(uiBody)}`);
+    const startedUi = await startPackedUi(climier, localProject, clientEnv, root);
+    uiChild = startedUi.child;
+    if (startedUi.result.ui?.read_only !== true || typeof startedUi.result.ui.url !== "string") {
+      throw new Error(`installed ui returned an invalid startup envelope: ${JSON.stringify(startedUi.result)}`);
     }
-    if (/Cannot find (?:package|module)|ERR_MODULE_NOT_FOUND|\n\s+at\s/.test(ui.stdout + ui.stderr)) {
-      throw new Error(`installed ui leaked module-resolution failure: ${ui.stdout}${ui.stderr}`);
+    const uiResponse = await fetch(startedUi.result.ui.url);
+    if (!uiResponse.ok || !uiResponse.headers.get("content-type")?.startsWith("text/html")) {
+      throw new Error(`installed ui did not serve its packaged SPA: HTTP ${uiResponse.status}`);
     }
-    console.log("packed smoke: version, local init/status, Remote v1 init, push/pull transfer, and experimental ui failure passed");
+    const uiHtml = await uiResponse.text();
+    if (!/<!doctype html>/i.test(uiHtml) || !/assets\//.test(uiHtml)) {
+      throw new Error(`installed ui served an unexpected entry document: ${uiHtml.slice(0, 300)}`);
+    }
+    console.log("packed smoke: version, local init/status, Remote v1 init, push/pull transfer, and packaged UI startup passed");
   } finally {
+    await stopServer(uiChild);
     await stopServer(server);
     await fs.rm(root, { recursive: true, force: true });
   }

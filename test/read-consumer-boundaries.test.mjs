@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 
 const files = {
   pluginQuery: new URL("../src/plugins/query.mjs", import.meta.url),
-  uiServer: new URL("../ui/server/server.mjs", import.meta.url),
+  uiApi: new URL("../src/server/http/ui-api.mjs", import.meta.url),
 };
 
 async function source(url) {
@@ -18,8 +18,8 @@ test("plugin query consumes the read model instead of command or v2 facades", as
   assert.doesNotMatch(text, /from ["']\.\/v2\.mjs["']/);
 });
 
-test("UI server consumes the read model instead of the v2 facade", async () => {
-  const text = await source(files.uiServer);
-  assert.match(text, /from ["']\.\.\/\.\.\/src\/read-model\/index\.mjs["']/);
-  assert.doesNotMatch(text, /from ["']\.\.\/\.\.\/src\/v2\.mjs["']/);
+test("UI API consumes the UI read model instead of the v2 facade", async () => {
+  const text = await source(files.uiApi);
+  assert.match(text, /from ["']\.\.\/\.\.\/read-model\/ui\.mjs["']/);
+  assert.doesNotMatch(text, /from ["']\.\.\/\.\.\/v2\.mjs["']/);
 });

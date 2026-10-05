@@ -88,12 +88,18 @@ bun bin/climier.mjs --help
 
 ## Agent skill
 
-An [agent skill](https://skills.sh) for operating climier lives in
-[`skills/climier/`](./skills/climier/). Install it for your coding agent with:
+A portable [agent skill](https://skills.sh) for operating the climier DAG lives
+in [`skills/climier/`](./skills/climier/). Install it for your coding agent with:
 
 ```bash
 npx skills add codefensory/climier
 ```
+
+In Pi, install it from a git source with `pi install git:<repo-url>` or link it
+into `~/.agents/skills/`. Task execution is a separate skill
+(`climier-flow`, sourced from the climier-flow repository), and the project-local
+`spec-pipeline` skill (RFC → review → ADR) is intentionally not distributed: it
+writes `.decisions/` and `.adrs/` and belongs to the repository that adopts it.
 
 ## Quickstart
 
@@ -127,6 +133,23 @@ climier accept T-mvp-1 --as reviewer
 ```
 
 > Full reference: `docs/reference.md`.
+
+## Web UI
+
+`ui/` is the standalone SolidJS + Vite + Tailwind frontend. Its dependencies stay in the UI subproject; the root CLI remains stdlib-only. The server serves the built SPA from `ui/dist`, and `climier ui` starts a local read-only loopback server without Express. The same bundle serves both: the local adapter answers the same `/v1` read contract (catalog, login, snapshot with `ETag`, nodes, activity, SSE) for every project in the local storage root, and the client falls back to the login gate only when the origin requires a bearer.
+
+Build the reproducible UI bundle with Bun:
+
+```bash
+cd ui
+bun install --frozen-lockfile
+bun run typecheck
+bun run build
+```
+
+The build writes `ui/dist/index.html` and hashed assets. `ui/dist` is included in the published package; generated `ui/node_modules`, `ui/dist`, Storybook output, and local harness output are ignored by git.
+
+See [`docs/climier-ui.md`](docs/climier-ui.md) for the UI model, local server, and hosted API contract.
 
 ## Core concepts
 

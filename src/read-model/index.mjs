@@ -8,6 +8,7 @@ import { projectInitiativesView } from "./initiatives.mjs";
 import { projectSearchView } from "./search.mjs";
 import { projectContextView } from "./context.mjs";
 import { projectSnapshot } from "./snapshot.mjs";
+import { projectUiActivity, projectUiNode, projectUiSnapshot } from "./ui.mjs";
 
 function filterLogEntries(entries, filters) {
   let current = entries;
@@ -55,6 +56,9 @@ export {
   projectSearchView,
   projectContextView,
   projectSnapshot,
+  projectUiSnapshot,
+  projectUiNode,
+  projectUiActivity,
   deriveV2,
   isSatisfiedV2,
   gateProjection,

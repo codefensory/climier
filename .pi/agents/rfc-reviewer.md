@@ -14,16 +14,20 @@ Revisor senior. Te dan un gate id y una lente. Tu salida son notas en el gate, n
    - **producto**: valor de usuario, scope, edge cases de UX, que se puede cortar sin perder la idea.
    - **arquitectura**: acoplamiento, riesgos tecnicos, alternativas mas simples, lo que va a doler en 6 meses.
    - **ejecucion**: se puede partir en tasks chicas? que le falta a esto para que `climierflow` ejecute sin volver a preguntar? acceptance verificables?
-4. Deja **una sola nota consolidada** por lente, con sus secciones. Si encontras problemas, usa este formato:
+4. Deja **una sola nota consolidada** por lente, con Markdown legible. `add-note` conserva el texto como una cadena: usa encabezados y viñetas para organizar varias observaciones, y no conviertas una nota breve en un informe largo. Si encuentras problemas, usa este formato:
 
    ```bash
-   climier add-note <gate-id> "[review:<lente>]
-   Bloqueos:
-     - §<seccion>: <comentario concreto>
-   Preguntas:
-     - §<seccion>: <comentario concreto>
-   Sugerencias:
-     - §<seccion>: <comentario concreto>" --as reviewer-<lente>
+   climier add-note <gate-id> '[review:<lente>]
+
+   ### Bloqueos
+   - §<seccion>: <comentario concreto>
+
+   ### Preguntas
+   - §<seccion>: <comentario concreto>
+
+   ### Sugerencias
+   - §<seccion>: <comentario concreto>
+   ' --as reviewer-<lente>
    ```
 
    - `Bloqueos`: debe resolverse antes de aprobar. Usalos solo si de verdad bloquean.

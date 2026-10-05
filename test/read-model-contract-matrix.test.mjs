@@ -26,7 +26,7 @@ const consumerSources = {
   http: new URL("../src/server/http.mjs", import.meta.url),
   httpReads: new URL("../src/server/http/reads.mjs", import.meta.url),
   plugin: new URL("../src/plugins/query.mjs", import.meta.url),
-  ui: new URL("../ui/server/server.mjs", import.meta.url),
+  uiApi: new URL("../src/server/http/ui-api.mjs", import.meta.url),
 };
 
 async function source(url) {
@@ -170,7 +170,7 @@ test("canonical CLI and HTTP read owners match across every view fixture", async
 
 // oxlint-disable-next-line max-statements -- this contract inventory intentionally asserts each read adapter
 test("read consumers delegate canonical views and retain adapter-specific shapes", async () => {
-  const [status, context, search, initiatives, log, http, httpReads, plugin, ui] = await Promise.all(
+  const [status, context, search, initiatives, log, http, httpReads, plugin, uiApi] = await Promise.all(
     Object.values(consumerSources).map(source),
   );
 
@@ -204,8 +204,8 @@ test("read consumers delegate canonical views and retain adapter-specific shapes
   assert.match(plugin, /show: state file missing/);
   assert.match(plugin, /query\.context: node \$\{id\} not found/);
 
-  assert.match(ui, /derive\(\{ snapshot: state \}\)/, "UI shares canonical graph derivation");
-  assert.match(ui, /function detectStaleClaims\(/, "UI stale-claim projection keeps its DTO semantics");
-  assert.match(ui, /function summaryOf\(/, "UI summary remains UI-specific");
-  assert.match(ui, /open_decisions/);
+  assert.match(uiApi, /projectUiSnapshot/);
+  assert.match(uiApi, /projectUiNode/);
+  assert.match(uiApi, /projectUiActivity/);
+  assert.doesNotMatch(uiApi, /function (detectStaleClaims|summaryOf)\(/, "UI projections remain owned by the read model");
 });

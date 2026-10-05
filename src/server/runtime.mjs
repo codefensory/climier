@@ -1,12 +1,15 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { createProjectCatalog } from "./catalog/index.mjs";
 import { createRemoteApiServer } from "./http.mjs";
 import { loadServerRuntimeConfig, parseServerRuntimeConfig } from "./runtime-config.mjs";
 import { createServerAuthStore } from "./auth/server-auth-store.mjs";
 import { acquireServerServiceLock } from "./service-lock.mjs";
+
+const DEFAULT_UI_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "ui", "dist");
 
 function runtimeError(code, message) {
   return Object.assign(new Error(`server runtime: ${message}`), { code });
@@ -57,11 +60,11 @@ function assertMetadataIdentity(metadata, expectedProjectId, message) {
   }
 }
 
-async function createMetadataFile(metadataFile, expectedProjectId) {
+async function createMetadataFile(metadataFile, expectedProjectId, sourceProjectId) {
   try {
     const handle = await fs.open(metadataFile, "wx", 0o600);
     try {
-      await handle.writeFile(`${JSON.stringify({ version: 1, project_id: expectedProjectId }, null, 2)}\n`, "utf8");
+      await handle.writeFile(`${JSON.stringify({ version: 1, project_id: expectedProjectId, source_project_id: sourceProjectId }, null, 2)}\n`, "utf8");
     } finally {
       await handle.close();
     }
@@ -72,8 +75,8 @@ async function createMetadataFile(metadataFile, expectedProjectId) {
   }
 }
 
-async function initializeProjectMetadata(metadataFile, expectedProjectId) {
-  await createMetadataFile(metadataFile, expectedProjectId);
+async function initializeProjectMetadata(metadataFile, expectedProjectId, sourceProjectId) {
+  await createMetadataFile(metadataFile, expectedProjectId, sourceProjectId);
   let metadata;
   try {
     metadata = JSON.parse(await fs.readFile(metadataFile, "utf8"));
@@ -81,18 +84,35 @@ async function initializeProjectMetadata(metadataFile, expectedProjectId) {
     throw runtimeError("UNTRUSTED_PROJECT_METADATA", "project metadata could not be initialized safely");
   }
   assertMetadataIdentity(metadata, expectedProjectId, "project metadata was replaced during initialization");
+  if (metadata.source_project_id !== sourceProjectId) {
+    throw runtimeError("UNTRUSTED_PROJECT_METADATA", "project metadata does not match the trusted source project identity");
+  }
 }
 
-async function ensureProjectMetadata(metadataFile, expectedProjectId, { create }) {
+async function upgradeProjectMetadata(metadataFile, metadata, sourceProjectId) {
+  const upgraded = { ...metadata, source_project_id: sourceProjectId };
+  const temporaryFile = `${metadataFile}.tmp-${process.pid}-${randomUUID()}`;
+  await fs.writeFile(temporaryFile, `${JSON.stringify(upgraded, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
+  await fs.rename(temporaryFile, metadataFile);
+}
+
+async function ensureProjectMetadata(metadataFile, expectedProjectId, { create, sourceProjectId }) {
   const metadata = await validateMetadataFile(metadataFile);
   if (metadata) {
     assertMetadataIdentity(metadata, expectedProjectId, "project metadata does not match the trusted catalog identity");
+    if (metadata.source_project_id === undefined) {
+      await upgradeProjectMetadata(metadataFile, metadata, sourceProjectId);
+      return;
+    }
+    if (metadata.source_project_id !== sourceProjectId) {
+      throw runtimeError("UNTRUSTED_PROJECT_METADATA", "project metadata does not match the trusted source project identity");
+    }
     return;
   }
   if (!create) {
     throw runtimeError("UNKNOWN_PROJECT", "project metadata is not initialized");
   }
-  await initializeProjectMetadata(metadataFile, expectedProjectId);
+  await initializeProjectMetadata(metadataFile, expectedProjectId, sourceProjectId);
 }
 
 function createOpenProject({ catalog, pinnedHome }) {
@@ -103,18 +123,19 @@ function createOpenProject({ catalog, pinnedHome }) {
       throw runtimeError("UNSAFE_PROJECT_STORAGE", "project opener only accepts catalog-resolved storage");
     }
     const metadataFile = path.join(trustedDirectory, ".climier.json");
-    await ensureProjectMetadata(metadataFile, internalProjectId(projectId), { create });
+    await ensureProjectMetadata(metadataFile, internalProjectId(projectId), { create, sourceProjectId: projectId });
     pinnedHome.assertPinned();
     return Object.freeze({ projectDir: trustedDirectory });
   };
 }
 
 export function createServerRuntime(rawConfig, { serverFactory = createRemoteApiServer, authStore } = {}) {
-  const config = parseServerRuntimeConfig(rawConfig);
+  const parsedConfig = parseServerRuntimeConfig(rawConfig);
+  const config = Object.freeze({ ...parsedConfig, uiRoot: parsedConfig.uiRoot ?? DEFAULT_UI_ROOT });
   const pinnedHome = pinStateHome(config.stateHome);
   const catalog = createProjectCatalog({ dataRoot: config.dataRoot });
   const openProject = createOpenProject({ catalog, pinnedHome });
-  const server = authStore ? serverFactory({ catalog, authStore, openProject }) : null;
+  const server = authStore ? serverFactory({ catalog, authStore, openProject, uiRoot: config.uiRoot }) : null;
   return Object.freeze({ config, catalog, openProject, server, stateHome: pinnedHome.path, authStore });
 }
 

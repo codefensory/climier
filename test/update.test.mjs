@@ -306,6 +306,24 @@ test("update: rejects a pre-release state with migration guidance", async () => 
 
 // --- CLI dispatch --------------------------------------------------------
 
+test("CLI: preserves Markdown in task fields and appended notes verbatim", async () => {
+  const dir = await projectFixture();
+  try {
+    await seedTask(dir);
+    const body = "## Goal\n\nShip the session boundary.\n\n## Constraints\n- Keep the public API stable.";
+    const acceptance = "- [ ] Existing tests pass.\n- [ ] New behavior has regression coverage.";
+    const note = "### Verification\n- `npm test` — passed.";
+    const updated = await runCli(["--project", dir, "update", "T-auth-1", "--body", body, "--acceptance", acceptance, "--as", "alice"]);
+    assert.equal(updated.code, 0, updated.stdout);
+    assert.equal(JSON.parse(updated.stdout).node.body, body);
+    assert.equal(JSON.parse(updated.stdout).node.acceptance, acceptance);
+
+    const added = await runCli(["--project", dir, "add-note", "T-auth-1", note, "--as", "alice"]);
+    assert.equal(added.code, 0, added.stdout);
+    assert.equal(JSON.parse(added.stdout).node.notes.at(-1).text, note);
+  } finally { await rmTempProject(dir); }
+});
+
 test("CLI: update emits REVISION_CONFLICT with structured details", async () => {
   const dir = await createTempProject();
   try {
