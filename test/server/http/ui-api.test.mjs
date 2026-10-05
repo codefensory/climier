@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { randomBytes } from "node:crypto";
 import http from "node:http";
 import { brotliDecompressSync, gunzipSync } from "node:zlib";
 import { test } from "node:test";
@@ -94,6 +95,42 @@ test("UI snapshot uses revision ETags, 304, and cached negotiated compression", 
     assert.equal(brResponse.status, 200);
     assert.equal(brResponse.headers["content-encoding"], "br");
     assert.deepEqual(brotliDecompressSync(brResponse.body), plain);
+  });
+});
+
+test("UI snapshot brotli stays interactive on a multi-megabyte body", async () => {
+  await withApi(async ({ baseUrl, projectDirs }) => {
+    // Incompressible bodies reproduce the real snapshot cost: brotli's default
+    // quality (11) spends seconds on them, and the revision cache makes every
+    // post-mutation refresh pay it again.
+    const nodes = {};
+    for (let index = 0; index < 400; index += 1) {
+      let body = "";
+      while (body.length < 6_000) {
+        body += `${randomBytes(3).toString("base64")} `;
+      }
+      nodes[`T-${index}`] = {
+        id: `T-${index}`,
+        kind: "resolvable",
+        subkind: "task",
+        title: `Task ${index} ${randomBytes(4).toString("hex")}`,
+        body: body.slice(0, 6_000),
+        status: "open",
+        initiative: "alpha",
+      };
+    }
+    await writeCanonicalState(projectDirs[0], { ...state(), nodes, edges: [] });
+
+    const route = `${baseUrl}/v1/projects/project-a/ui/snapshot`;
+    const plain = (await rawGet(route, authHeaders({ "accept-encoding": "identity" }))).body;
+    assert.ok(plain.byteLength > 2_000_000, `expected a multi-megabyte body, got ${plain.byteLength}`);
+
+    const started = Date.now();
+    const brResponse = await rawGet(route, authHeaders({ "accept-encoding": "br" }));
+    const elapsed = Date.now() - started;
+    assert.equal(brResponse.headers["content-encoding"], "br");
+    assert.deepEqual(brotliDecompressSync(brResponse.body), plain);
+    assert.ok(elapsed < 2_500, `brotli compression took ${elapsed}ms`);
   });
 });
 

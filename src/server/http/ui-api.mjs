@@ -1,4 +1,4 @@
-import { brotliCompress, gzip } from "node:zlib";
+import { brotliCompress, constants as zlibConstants, gzip } from "node:zlib";
 import { promisify } from "node:util";
 
 import {
@@ -9,6 +9,7 @@ import {
 
 const compressBrotli = promisify(brotliCompress);
 const compressGzip = promisify(gzip);
+const BROTLI_QUALITY = 5;
 
 const UI_ROUTES = [
   ["snapshot", /^ui\/snapshot$/, []],
@@ -153,7 +154,10 @@ function matchesEtag(value, etag) {
 }
 
 async function compressBody(body, encoding) {
-  if (encoding === "br") return compressBrotli(body);
+  // Node's brotli default quality (11) spends seconds on multi-megabyte snapshots, and
+  // the revision cache re-pays it after every mutation. Quality 5 keeps the response
+  // interactive for roughly 10% larger bodies.
+  if (encoding === "br") return compressBrotli(body, { params: { [zlibConstants.BROTLI_PARAM_QUALITY]: BROTLI_QUALITY } });
   if (encoding === "gzip") return compressGzip(body);
   return body;
 }
