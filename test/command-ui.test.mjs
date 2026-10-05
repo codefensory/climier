@@ -3,23 +3,78 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import uiCommand, { assertUiSubproject } from "../src/cli/commands/ui.mjs";
 
-test("ui subproject detection gives an actionable experimental feature error", async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "climier-ui-detection-"));
-  assert.throws(
-    () => assertUiSubproject(root),
-    (error) => {
-      assert.equal(error.code, "UI_SUBPROJECT_MISSING");
-      assert.match(error.message, /experimental UI is unavailable/);
-      assert.match(error.message, /npm install/);
-      assert.deepEqual(error.details.missing, ["ui/server/server.mjs", "ui/node_modules/express"]);
-      return true;
-    },
-  );
+import { initState } from "../src/kernel/state-operations.mjs";
+import uiCommand, { startLocalUiServer } from "../src/cli/commands/ui.mjs";
+
+async function makeProject(t, projectId = "local-project") {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "climier-ui-local-"));
+  const home = path.join(root, "home");
+  const uiRoot = path.join(root, "dist");
+  await fs.mkdir(uiRoot, { recursive: true });
+  await fs.writeFile(path.join(root, ".climier.json"), `${JSON.stringify({ version: 1, project_id: projectId })}\n`);
+  await fs.writeFile(path.join(uiRoot, "index.html"), "<!doctype html><main>local UI</main>\n");
+  await fs.mkdir(path.join(uiRoot, "assets"));
+  await fs.writeFile(path.join(uiRoot, "assets", "app.js"), "console.log('local');\n");
+
+  const previousHome = process.env.CLIMIER_HOME;
+  process.env.CLIMIER_HOME = home;
+  await initState({ projectDir: root });
+  t.after(async () => {
+    if (previousHome === undefined) delete process.env.CLIMIER_HOME;
+    else process.env.CLIMIER_HOME = previousHome;
+    await fs.rm(root, { recursive: true, force: true });
+  });
+  return { root, uiRoot, projectId };
+}
+
+async function closeServer(server) {
+  if (!server.listening) return;
+  await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+}
+
+test("climier ui serves the local SPA and UI projections without Express or bearer auth", async (t) => {
+  const { root, uiRoot, projectId } = await makeProject(t);
+  const started = await startLocalUiServer({ projectDir: root, uiRoot, port: 0 });
+  t.after(() => closeServer(started.server));
+
+  const entry = await fetch(`${started.url}/`);
+  assert.equal(entry.status, 200);
+  assert.equal(entry.headers.get("content-type"), "text/html; charset=utf-8");
+  assert.equal(await entry.text(), "<!doctype html><main>local UI</main>\n");
+
+  const health = await fetch(`${started.url}/api/health`);
+  assert.equal(health.status, 200);
+  assert.deepEqual(await health.json(), { ok: true });
+
+  const snapshot = await fetch(`${started.url}/v1/projects/${projectId}/ui/snapshot`);
+  assert.equal(snapshot.status, 200);
+  assert.equal(snapshot.headers.get("x-climier-protocol-version"), "1");
+  const body = await snapshot.json();
+  assert.equal(body.ok, true);
+  assert.deepEqual(body.result.project, {
+    id: projectId,
+    name: projectId,
+    revision: 1,
+    generated_at: body.result.project.generated_at,
+  });
+  assert.deepEqual(body.result.nodes, {});
 });
 
-test("ui reads state before optional UI code and preserves a corrupt-state error", async () => {
+test("uiCommand starts the stdlib local server and reports the loopback URL", async (t) => {
+  const { root, uiRoot } = await makeProject(t, "command-project");
+  const result = await uiCommand({ projectDir: root, flags: { open: false, port: 0 }, uiRoot });
+  assert.match(result.ui.url, /^http:\/\/127\.0\.0\.1:\d+$/);
+  assert.equal(result.ui.project, root);
+  assert.equal(result.ui.read_only, true);
+
+  const response = await fetch(`${result.ui.url}/api/health`);
+  assert.equal(response.status, 200);
+  await closeServer(result.server);
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+});
+
+test("ui keeps corrupt-state errors before starting the local server", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "climier-ui-state-"));
   const home = path.join(root, "home");
   await fs.writeFile(path.join(root, ".climier.json"), `${JSON.stringify({ version: 1, project_id: "ui-state-project" })}\n`);
@@ -33,15 +88,8 @@ test("ui reads state before optional UI code and preserves a corrupt-state error
       (error) => error.code === "CLIMIER_CORRUPT_STATE",
     );
   } finally {
-    if (oldHome === undefined) {delete process.env.CLIMIER_HOME;}
-    else {process.env.CLIMIER_HOME = oldHome;}
+    if (oldHome === undefined) delete process.env.CLIMIER_HOME;
+    else process.env.CLIMIER_HOME = oldHome;
+    await fs.rm(root, { recursive: true, force: true });
   }
-});
-
-test("ui subproject detection accepts the server entry and express dependency", async () => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "climier-ui-detection-"));
-  await fs.mkdir(path.join(root, "server"), { recursive: true });
-  await fs.mkdir(path.join(root, "node_modules", "express"), { recursive: true });
-  await fs.writeFile(path.join(root, "server", "server.mjs"), "export {};\n");
-  assert.doesNotThrow(() => assertUiSubproject(root));
 });
