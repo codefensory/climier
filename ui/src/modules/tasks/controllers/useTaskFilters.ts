@@ -1,4 +1,4 @@
-import { createEffect, createSignal, onCleanup, onMount } from "solid-js";
+import { createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import { defaultFilterCondition, filterFields } from "../data/filters";
 import type { ClimierSnapshot } from "../data/climier/contract";
 import type { FilterCondition, FilterField, FilterGroup, FilterMenuKind, FilterMenuSnapshot, FilterMenuState, FilterOption } from "../types";
@@ -47,7 +47,12 @@ export type UseTaskFiltersOptions = {
 export function useTaskFilters(options: UseTaskFiltersOptions) {
   const tree = options.tree;
   const setTree = options.setTree;
-  const fields = () => filterFields(options.snapshot());
+  /**
+   * El vocabulario memoizado: `filterFields` recorre las tasks del board (agentes con claim y tags
+   * presentes). Como accessor común, cada lectura del render lo reconstruía entero (~10 veces por
+   * render con un filtro activo), y eso re-proyectaba el board completo cada vez.
+   */
+  const fields = createMemo(() => filterFields(options.snapshot()));
   const [panelPosition, setPanelPosition] = createSignal({ left: 0, top: 0 });
   const [menuState, setMenuState] = createSignal<FilterMenuState | null>(null);
   const [menuOpen, setMenuOpen] = createSignal(false);

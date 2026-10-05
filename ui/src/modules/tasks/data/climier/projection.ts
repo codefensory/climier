@@ -261,11 +261,25 @@ export function taskFromNode(snapshot: ClimierSnapshot, node: ClimierNode): Task
   };
 }
 
+/**
+ * Caché de la proyección de tasks por identidad de snapshot.
+ *
+ * El board, `claimedAgents` y `boardTags` proyectan el mismo snapshot, y sin caché cada uno volvía a
+ * proyectar las N tasks (dos escaneos del array de edges y un regex sobre body/notes por task). El
+ * provider reemplaza el objeto snapshot en cada refresh, así que la clave invalida sola y no puede
+ * devolver vocabulario de un proyecto anterior.
+ */
+const taskCache = new WeakMap<ClimierSnapshot, Task[]>();
+
 /** Todas las tasks del snapshot (incluye done/canceled/archived). */
 export function projectTasks(snapshot: ClimierSnapshot): Task[] {
-  return Object.values(nodesOf(snapshot))
+  const cached = taskCache.get(snapshot);
+  if (cached) return cached;
+  const tasks = Object.values(nodesOf(snapshot))
     .filter((node) => node.kind === "resolvable" && node.subkind === "task")
     .map((node) => taskFromNode(snapshot, node));
+  taskCache.set(snapshot, tasks);
+  return tasks;
 }
 
 /** Sólo las gates **pendientes** (`open`), que son las que se muestran en el board. */
