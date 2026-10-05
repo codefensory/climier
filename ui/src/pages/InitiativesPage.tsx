@@ -1,6 +1,6 @@
 import SecurityCheckIcon from "@hugeicons/core-free-icons/SecurityCheckIcon";
 import { useLocation, useNavigate } from "@solidjs/router";
-import { createMemo, For, Show } from "solid-js";
+import { createMemo, createSignal, For, Show } from "solid-js";
 import { HugeIcon } from "../modules/core";
 import { useProjectData } from "../modules/app-shell";
 import { encodeFilterTree, formatUpdatedAt, groupProgress, projectBoard, StatusGlyph } from "../modules/tasks";
@@ -59,8 +59,11 @@ export function InitiativesPage() {
   const projectData = useProjectData();
   const currentSnapshot = () => projectData.snapshot() as ClimierSnapshot;
   const rows = createMemo(() => initiativeRows(currentSnapshot()));
-  const openTaskCount = createMemo(() => rows().reduce((total, row) => total + row.open, 0));
-  const blockedTaskCount = createMemo(() => rows().reduce((total, row) => total + row.blocked, 0));
+  const [showCompleted, setShowCompleted] = createSignal(false);
+  const completedRows = createMemo(() => rows().filter((row) => row.progress >= 100));
+  const visibleRows = createMemo(() => showCompleted() ? rows() : rows().filter((row) => row.progress < 100));
+  const openTaskCount = createMemo(() => visibleRows().reduce((total, row) => total + row.open, 0));
+  const blockedTaskCount = createMemo(() => visibleRows().reduce((total, row) => total + row.blocked, 0));
 
   const openInitiative = (initiative: string) => {
     const tree: FilterGroup = {
@@ -76,7 +79,7 @@ export function InitiativesPage() {
 
   return (
     <PageFrame>
-      <p class="mb-5 text-[14px] text-muted">{rows().length} initiatives · {openTaskCount()} open tasks · {blockedTaskCount()} blocked</p>
+      <p class="mb-5 text-[14px] text-muted">{visibleRows().length} initiatives · {openTaskCount()} open tasks · {blockedTaskCount()} blocked</p>
       <div class="overflow-hidden rounded-[10px] border border-line bg-white">
           <div class="hidden min-h-[38px] grid-cols-[minmax(0,1fr)_88px_72px_112px] items-center gap-3 border-b border-hairline px-4 min-[640px]:grid min-[1024px]:grid-cols-[minmax(0,1fr)_88px_72px_76px_112px]">
             <span class="text-[11px] font-medium text-muted">Initiative</span>
@@ -86,7 +89,7 @@ export function InitiativesPage() {
             <span class="text-right text-[11px] font-medium text-muted">Progress</span>
           </div>
           <div class="divide-y divide-hairline">
-            <For each={rows()}>{(row) => (
+            <For each={visibleRows()}>{(row) => (
               <div
                 data-testid="initiative-card"
                 data-initiative={row.name}
@@ -146,6 +149,21 @@ export function InitiativesPage() {
               </div>
             )}</For>
           </div>
+          <Show when={completedRows().length > 0}>
+            <div class="flex flex-wrap items-center justify-between gap-2 border-t border-hairline px-4 py-3">
+              <Show when={visibleRows().length === 0}>
+                <p class="text-[12px] text-muted">All initiatives are complete.</p>
+              </Show>
+              <button
+                type="button"
+                aria-expanded={showCompleted()}
+                onClick={() => setShowCompleted((visible) => !visible)}
+                class="rounded-[10px] px-2 py-1 text-[12px] text-muted transition-colors hover:bg-raised hover:text-ink focus-visible:outline-2 focus-visible:outline-ink"
+              >
+                {showCompleted() ? "Show less" : `Show ${completedRows().length} completed`}
+              </button>
+            </div>
+          </Show>
       </div>
     </PageFrame>
   );
