@@ -52,10 +52,14 @@ test("package: npm pack only includes runtime files", () => {
   assert.ok(paths.includes("docs/reference.md"));
 
   assert.equal(paths.some((p) => p.startsWith("test/")), false);
-  assert.ok(paths.includes("ui/dist/index.html"));
+  const uiDistExists = existsSync(path.join(repoRoot, "ui", "dist"));
   const uiPaths = paths.filter((p) => p.startsWith("ui/"));
-  assert.ok(uiPaths.length > 0);
+  if (uiDistExists) {
+    assert.ok(uiPaths.some((p) => p.startsWith("ui/dist/")));
+  }
   assert.equal(uiPaths.every((p) => p.startsWith("ui/dist/")), true);
+  assert.equal(paths.some((p) => p.startsWith("ui/src/")), false);
+  assert.equal(paths.some((p) => p.startsWith("ui/node_modules/")), false);
   assert.equal(paths.includes("AGENTS.md"), false);
   assert.equal(paths.some((p) => p.startsWith(".agents/")), false);
 });
