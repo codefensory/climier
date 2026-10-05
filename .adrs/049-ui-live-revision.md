@@ -1,6 +1,6 @@
 # ADR-049: actualización en vivo por revisión (SSE + ETag)
 
-- Gate: `G-ui-adr-live-revision` · Deriva de: `G-ui-hosted-rfc` · Estado: borrador
+- Gate: `G-ui-adr-live-revision` · Deriva de: `G-ui-hosted-rfc` · Estado: aprobado
 - Fecha: 2026-10-05
 
 ## Contexto

@@ -1,6 +1,6 @@
 # ADR-050: índice multi-proyecto, sesión de navegador y retiro de settings/accounts
 
-- Gate: `G-ui-adr-projects-session` · Deriva de: `G-ui-hosted-rfc` · Estado: borrador
+- Gate: `G-ui-adr-projects-session` · Deriva de: `G-ui-hosted-rfc` · Estado: aprobado
 - Fecha: 2026-10-05
 
 ## Contexto

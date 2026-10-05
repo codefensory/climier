@@ -1,6 +1,6 @@
 # ADR-047: hosting de la SPA por el server y reemplazo de la UI experimental
 
-- Gate: `G-ui-adr-hosting` · Deriva de: `G-ui-hosted-rfc` · Estado: borrador
+- Gate: `G-ui-adr-hosting` · Deriva de: `G-ui-hosted-rfc` · Estado: aprobado
 - Fecha: 2026-10-05
 
 ## Contexto

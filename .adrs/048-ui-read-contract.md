@@ -1,6 +1,6 @@
 # ADR-048: contrato de lectura de UI y proyección server-side
 
-- Gate: `G-ui-adr-read-contract` · Deriva de: `G-ui-hosted-rfc` · Estado: borrador
+- Gate: `G-ui-adr-read-contract` · Deriva de: `G-ui-hosted-rfc` · Estado: aprobado
 - Fecha: 2026-10-05
 
 ## Contexto

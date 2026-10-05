@@ -1,6 +1,6 @@
 # RFC: reemplazar la UI experimental por climier-ui hosteada por el climier server
 
-- Gate: `G-ui-hosted-rfc` · Iniciativa: `hosted-ui` · Estado: borrador | en review | aprobado
+- Gate: `G-ui-hosted-rfc` · Iniciativa: `hosted-ui` · Estado: aprobado
 - Autor: orchestrator, con dirección del usuario · Fecha: 2026-10-05
 
 ## Problema
