@@ -120,7 +120,7 @@ migration path.
 
 The CLI surface is a single set of commands. `init` always creates the schema above.
 
-The runner records the implementation claim and submission metadata atomically. Its internal lifecycle moves accepted work to `done` and returns rejected work to `open`; operators use `climierflow run` rather than reproducing those transitions manually.
+The runner records the implementation claim and submission metadata atomically. Its internal lifecycle moves accepted work to `done` and returns rejected work to `open`; Pi agents invoke it only through the `climier_flow` extension tool, never by running Flow shell commands or reproducing lifecycle transitions manually.
 
 Canonical `BLOCKS` direction is `{ from: blocker, to: blocked, type: "BLOCKS" }`; blockers are incoming edges to the blocked node.
 
@@ -379,49 +379,20 @@ exclude files.
 
 ## Unified execution protocol
 
-Climier remains the operator's control plane for creating, reading, and curating tasks, gates, knowledge, initiatives, and dependencies. Execution has one entrypoint:
+Climier remains the control plane for creating, reading, and curating tasks, gates, knowledge, initiatives, and dependencies. In Pi, all Flow operations go through the `climier_flow` extension tool; do not invoke the Flow executable from shell or manually perform its internal stages.
 
-```bash
-climierflow run <task-id>
-```
-
-The runner owns the internal claim, worktree, implementation, review, lifecycle, commit, merge, and cleanup stages. Do not manually delegate or invoke those stages; they are not operator actions.
-
-The terminal result is one JSON object. A completed run has this stable shape:
+Before a run, inspect the graph and task contract with `climier status` and `climier context <task-id>`. Then call the `climier_flow` tool with one of these argument objects:
 
 ```json
-{
-  "ok": true,
-  "task_id": "<task-id>",
-  "status": "done",
-  "terminal": true,
-  "result": {
-    "summary": "<result summary>",
-    "commit": "<commit-sha>",
-    "merged": true
-  }
-}
+{ "action": "run", "task_id": "<task-id>" }
+{ "action": "resume", "task_id": "<task-id>", "summary": "<optional checkpoint context>" }
+{ "action": "status", "task_id": "<task-id>" }
+{ "action": "list" }
 ```
 
-A terminal failure or blocked run uses the same envelope and puts structured recovery information in `error`:
+`run` and `resume` launch in the background; their tool result confirms launch, while the Pi widget tracks active progress. `run` defaults to Pi's current directory; pass optional `repo` only when targeting another checkout. `status` reads the saved execution report; `list` lists saved runs globally and is not a substitute for DAG readiness (`climier status`). The runner owns claim, worktree, implementation, review, lifecycle, commit, merge, and cleanup.
 
-```json
-{
-  "ok": false,
-  "task_id": "<task-id>",
-  "status": "blocked",
-  "terminal": true,
-  "error": { "code": "<code>", "message": "<message>", "details": {} }
-}
-```
-
-Use the runner for execution recovery:
-
-- `climierflow status <task-id>` inspects that task's current run;
-- `climierflow resume <task-id> [--summary TEXT]` continues an interrupted run when a checkpoint is available (`--summary` is optional);
-- `climierflow restart <task-id> --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard` starts a fresh attempt when resuming is not appropriate.
-
-Restart requires replacement body and acceptance values plus explicit discard confirmation. If the attempt is already completed and merged, the runner rejects restart with `RESTART_REQUIRES_REVIEW`; do not reopen and restart that flow. Create a new correction task for additional work. Use `climier status`, `context`, `show`, `search`, and the mutation commands separately for DAG management; they are not replacements for `climierflow run`.
+The Pi Flow tool does not expose `restart`. Do not fall back to a shell command. If an interrupted, non-completed run requires a fresh attempt, explain that limitation and ask for Flow tool support. A completed and merged task must not be restarted; create a new correction task instead. DAG curation remains separate and uses `climier` commands.
 
 ## Task sizing and agent budget
 
@@ -443,7 +414,7 @@ This repository carries the portable agent workflow used by the Climier-based pr
 - `.agents/skills/climier/` — DAG protocol and examples;
 - `.agents/skills/spec-pipeline/` — opt-in RFC → review → ADR → tasks pipeline;
 - `.agents/skills/initiative-execution/` — opt-in initiative coordination through individual runner executions;
-- `CLIMIER-CHEATSHEET.md` — quick command reference.
+- `CLIMIER-CHEATSHEET.md` — quick Climier and Pi Flow tool reference.
 
 These files define how this project uses Climier. The project-specific source of truth remains the code, tests and `docs/`; the live Climier state remains outside the repository and is accessed only through the CLI.
 
@@ -451,4 +422,4 @@ These files define how this project uses Climier. The project-specific source of
 
 Ordinary small or local work may use the direct path: inspect the relevant files, make the minimal change, and run proportional checks. The controlled workflow is optional; recommend or select it for meaningful risk, cross-module coordination, public contracts, state or concurrency changes, or an explicit user request. Use the planning and initiative skills only when their opt-in triggers apply.
 
-A task already registered for runner execution must use `climierflow run <task-id>`. Do not replace that path with direct implementation or manual lifecycle commands; `climierflow` owns the task's claim, worktree, implementation, review, lifecycle, commit, merge, and cleanup stages.
+A task already registered for runner execution must use the Pi `climier_flow` tool with `action: "run"`. Do not replace that path with direct implementation, shell invocation of Flow, or manual lifecycle commands; the runner owns the task's claim, worktree, implementation, review, lifecycle, commit, merge, and cleanup stages.

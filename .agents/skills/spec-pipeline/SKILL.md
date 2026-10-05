@@ -1,6 +1,6 @@
 ---
 name: spec-pipeline
-description: Flujo de specs de climier para decisiones reales: RFC (gate research + .decisions/) → review con subagentes rfc-reviewer → ADR(s) (gate decision + .adrs/) → tasks ejecutables. Usar solo cuando el usuario selecciona este flujo o una decision real lo justifica.
+description: "Flujo de specs de climier para decisiones reales: RFC (gate research + .decisions/) → review con subagentes rfc-reviewer → ADR(s) (gate decision + .adrs/) → tasks ejecutables. Usar solo cuando el usuario selecciona este flujo o una decision real lo justifica."
 ---
 
 # spec-pipeline — de idea a ejecucion autonoma
@@ -16,7 +16,7 @@ idea → [RFC: gate research + .decisions/<G>.md]
      → [resolve G-adrN cuando este listo para ejecutarse]
      → [onboarding breve opcional para mejorar tasks]
      → [tasks: --blocked-by G-adrN, body = puntero al ADR]
-     → `climierflow run <task-id>` → resultado terminal
+     → Pi tool `climier_flow` (`action: "run"`, `task_id`) → ejecución en segundo plano
 ```
 
 Regla madre: el contenido largo vive en docs commiteados; climier guarda punteros, estado y trazabilidad. Nada de specs largas en bodies ni en prompts.
@@ -94,7 +94,7 @@ Verificar: <comando>." \
   --blocked-by <G-adrN> --as orchestrator
 ```
 
-- La spec vive en el ADR; el body de la task es puntero + archivos + acceptance. `climierflow` recibe ese contrato y ejecuta la task con el contexto del DAG.
+- La spec vive en el ADR; el body de la task es puntero + archivos + acceptance. El runner recibe ese contrato y ejecuta la task con el contexto del DAG, iniciado en Pi mediante `climier_flow` (`action: "run"`).
 - Antes de delegar, traza cada requisito verificable de las secciones del ADR cubiertas por una task hasta una task owner y un check de acceptance. Ningún punto de `Verificación` queda huérfano; controles operativos como rate limits también necesitan cobertura explícita.
 - Para migraciones de contratos públicos, busca referencias existentes a rutas, headers, env vars, comandos y formatos retirados, incluyendo tests/fixtures y scripts de smoke registrados. Asigna su migración a un scope/acceptance o deja explícito por qué no cambian; un E2E nuevo no sustituye esa cobertura.
 - Una task = un cambio principal + acceptance verificable. "Y ademas" → otra task.

@@ -1,6 +1,6 @@
 # Claim serialization and runner ownership
 
-Climier stores task claims under a file lock next to the state file at `~/.climier/projects/<project_id>/.lock`. The runner owns claim transitions during `climierflow run`; operators do not coordinate execution by racing lifecycle commands.
+Climier stores task claims under a file lock next to the state file at `~/.climier/projects/<project_id>/.lock`. The runner owns claim transitions; Pi starts it through the `climier_flow` extension tool, and operators do not coordinate execution by racing lifecycle commands.
 
 ## What the runner guarantees
 
@@ -10,22 +10,23 @@ The same lock protects state, revision, and audit-log updates. This prevents two
 
 ## How to inspect an execution
 
-Use the runner and the read-only DAG projections:
+Use the Pi tool for saved runner state and Climier for the DAG projections:
+
+```json
+{ "action": "status", "task_id": "T-auth-7" }
+```
 
 ```bash
-climierflow status T-auth-7
 climier context T-auth-7
 climier status
 ```
 
-If the runner exposes a resumable checkpoint, continue it with
-`climierflow resume T-auth-7 [--summary TEXT]`; `--summary` is optional. If the
-non-completed attempt must start over, use
-`climierflow restart T-auth-7 --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard`.
-Restart requires all three recovery inputs. A completed and merged attempt
-returns `RESTART_REQUIRES_REVIEW`; create a new correction task rather than
-reopening and restarting it. Do not recreate the claim, worktree, or lifecycle
-by hand.
+If the report exposes a resumable checkpoint, continue with the tool action
+`resume`, passing `task_id: "T-auth-7"` and an optional `summary`. The Pi tool
+does not expose restart; do not use shell as a fallback. Ask for tool support
+if a non-completed attempt must start over. A completed and merged attempt
+cannot be restarted; create a new correction task rather than reopening it. Do
+not recreate the claim, worktree, or lifecycle by hand.
 
 ## If a lock is stale
 
@@ -34,7 +35,8 @@ by hand.
 ```bash
 rm ~/.climier/projects/<project_id>/.lock
 climier status
-climierflow status <task-id>
 ```
+
+Then inspect the saved execution with the Pi `climier_flow` tool using `action: "status"` and the task id.
 
 The lock lives next to the state file inside `~/.climier/projects/<project_id>/`, not inside the repository. Cross-machine coordination requires a real lock service; the file-lock strategy is for local project coordination.

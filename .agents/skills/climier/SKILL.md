@@ -1,11 +1,11 @@
 ---
 name: climier
-description: Use this skill when a Climier task, gate, knowledge node, task graph, claim, or other Climier operation is already in scope. Climier coordinates the DAG through a machine-local state file, atomic mutations, and a structured error surface; `climierflow` owns task execution.
+description: Use this skill when a Climier task, gate, knowledge node, task graph, claim, or other Climier operation is already in scope. Climier coordinates the DAG through a machine-local state file, atomic mutations, and a structured error surface; in Pi, task execution uses the `climier_flow` extension tool.
 ---
 
 # climier — graph harness for multi-agent workflows
 
-Climier is the DAG coordination layer for tracked work in this repository. State lives at `~/.climier/projects/<project_id>/tasks.json` (global, machine-local, NOT in the repo and NOT under git's purview). The repo only commits `.climier.json`, which pins the `<project_id>` that resolves to that state file. Storage is a graph of `nodes` (tasks, gates, knowledge) and typed `edges` (`BLOCKS`, `SUPERSEDES`, `DERIVED_FROM`). Operators use Climier to create, read, and curate that graph. Execution is owned by the single `climierflow run <task-id>` entrypoint; its internal claim, worktree, implementation, review, lifecycle, commit, merge, and cleanup stages are not manual operator actions.
+Climier is the DAG coordination layer for tracked work in this repository. State lives at `~/.climier/projects/<project_id>/tasks.json` (global, machine-local, NOT in the repo and NOT under git's purview). The repo only commits `.climier.json`, which pins the `<project_id>` that resolves to that state file. Storage is a graph of `nodes` (tasks, gates, knowledge) and typed `edges` (`BLOCKS`, `SUPERSEDES`, `DERIVED_FROM`). Operators use Climier to create, read, and curate that graph. In Pi, execution is launched through the `climier_flow` extension tool; its internal claim, worktree, implementation, review, lifecycle, commit, merge, and cleanup stages are not manual operator actions.
 
 ## When to use this skill
 
@@ -19,18 +19,18 @@ Climier is the DAG coordination layer for tracked work in this repository. State
 ## The 7 rules (read first, never violate)
 
 1. **Never edit `~/.climier/projects/<project_id>/tasks.json` by hand.** Use Climier commands. The state is owned by the script.
-2. **Run ONE task at a time.** `climierflow run <task-id>` is the exclusive execution entrypoint; do not start a second run for the same task.
+2. **Run ONE task at a time.** In Pi, call `climier_flow` with `action: "run"`; do not start a second run for the same task.
 3. **Never use `resolve` to close a task.** `resolve` is for gates and requires its choice and rationale. The runner owns task lifecycle transitions during execution.
-4. **Recover interrupted execution through the runner.** Use `climierflow status <task-id>`, then `climierflow resume <task-id> [--summary TEXT]` when a checkpoint is available or `climierflow restart <task-id> --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard` when a fresh attempt is required. `--summary` is optional; restart requires the replacement values and discard confirmation. Do not manually reproduce internal stages.
+4. **Recover interrupted execution through the Pi tool.** Call `climier_flow` with `action: "status"`, then `action: "resume"` with the optional `summary` when a checkpoint is available. The tool does not expose restart; do not fall back to shell. Ask for tool support if a non-completed attempt must be restarted. Do not manually reproduce internal stages.
 5. **Identify yourself with `--as <agent-id>` on every mutating Climier command.** Use a stable id (e.g. `claude-auth`, `pi-frontend`).
 6. **Read the scoped knowledge and gate resolutions that `context` shows you.** They are domain traps the team has already paid for; ignore them at your own risk.
-7. **Run `context <id>` before `climierflow run <id>`.** It's a read-only pre-flight: spec + knowledge + blockers + alerts + `allowed_actions` + a GO/NO-GO verdict via `derived_status`.
+7. **Run `context <id>` before calling `climier_flow` with `action: "run"`.** It's a read-only pre-flight: spec + knowledge + blockers + alerts + `allowed_actions` + a GO/NO-GO verdict via `derived_status`.
 
 ## Operator commands
 
 `--project .` is the default. From inside a project, you can omit it. Use `--project <path>` only when invoking Climier from outside the project root.
 
-Use Climier for DAG management and `climierflow` for execution:
+Use Climier for DAG management and the Pi `climier_flow` extension tool for execution. In the tool-call examples below, `climier_flow` is the tool name and the JSON object is its arguments:
 
 ```bash
 # Read the graph and the task contract
@@ -47,17 +47,18 @@ climier add-knowledge <id> ... --as <agent>
 climier update <id> ... --as <agent>
 climier add-note <id> "..." --as <agent>
 climier resolve <gate-id> --choice "..." --rationale "..." --as <agent>
-
-# Execute one task through the unified runner
-climierflow run <id>
-
-# Inspect or recover the runner execution
-climierflow status <task-id>
-climierflow resume <task-id> [--summary TEXT]
-climierflow restart <task-id> --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard
 ```
 
-The runner internally performs claim, worktree, implementation, review, lifecycle, commit, merge, and cleanup. The operator does not call those stages separately.
+Call the Pi tool `climier_flow` once per task with one of these argument objects (run/resume launch in the background):
+
+```json
+{ "action": "run", "task_id": "<id>" }
+{ "action": "status", "task_id": "<task-id>" }
+{ "action": "resume", "task_id": "<task-id>", "summary": "<optional checkpoint context>" }
+{ "action": "list" }
+```
+
+The tool's `status` and `list` actions read saved run manifests; `list` is global and does not show DAG readiness. `run` and `resume` return a launch confirmation, while the live widget shows progress. `run` uses Pi's current directory by default; pass the optional `repo` argument to target a different checkout. The runner internally performs claim, worktree, implementation, review, lifecycle, commit, merge, and cleanup. The operator does not call those stages separately.
 
 ## Editing vs. closing: when to use which
 
@@ -82,15 +83,10 @@ climier resolve <G> --choice "<chosen path>" --rationale "<why>" --as <agent>
 
 # Administrative DAG correction when needed (not runner recovery)
 climier reopen <id> --reason "<what's wrong>" --as <agent>
-
-# Execute and recover through the single runner entrypoint
-climierflow run <task-id>
-climierflow status <task-id>
-climierflow resume <task-id> [--summary TEXT]
-climierflow restart <task-id> --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard
 ```
 
-Do not delegate implementation or validation stages manually. The runner owns those stages and returns the terminal JSON result; Climier remains the source of truth for the DAG and its curation.
+Use the Pi `climier_flow` tool for execution and recovery, as mapped above; never use shell Flow commands. The extension does not expose restart. Do not delegate implementation or validation stages manually. The runner owns those stages; Climier remains the source of truth for the DAG and its curation.
+
 ## Storage
 
 - `<project-root>/.climier.json` — the repo-committed file pinning the `project_id`.
@@ -162,52 +158,42 @@ The CLI phrases edges from the dependent's point of view: `--blocked-by G-y` mea
 climier status → see what's ready, blocked, stale, and which gates are open
 climier context <id> → read the task contract, knowledge, blockers, and alerts
 climier update/add-* → curate the DAG when the contract needs changes
-climierflow run <task-id> → execute the task through the unified runner
-climierflow status <task-id> → inspect the current execution
-climierflow resume <task-id> [--summary TEXT] → recover from a checkpoint (`--summary` is optional)
-climierflow restart <task-id> --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard → start a fresh non-completed attempt
+climier_flow(action: "run", task_id: <id>) → launch one task through the runner
+climier_flow(action: "status", task_id: <id>) → inspect its saved run report
+climier_flow(action: "resume", task_id: <id>, summary?: <text>) → continue a checkpoint
+climier_flow(action: "list") → list saved runs globally
 climier resolve <G> --choice --rationale → unblock downstream via a gate
 ```
 
 ## Common pitfalls
 
 - **Running a task whose dependencies are unresolved.** If the node is not `ready`, read `climier context <id>` and inspect `blocking[]` before running it.
-- **Using Climier lifecycle commands as execution steps.** `take`, `submit`, `accept`, and `reject` are internal to the runner for normal execution; invoke `climierflow run <id>` instead.
+- **Using Climier lifecycle commands as execution steps.** `take`, `submit`, `accept`, and `reject` are internal to the runner for normal execution; invoke the Pi `climier_flow` tool with `action: "run"` instead.
 - **Using `resolve` on a task.** Tasks do not use `resolve`; it is exclusively for gates with `--choice` and `--rationale`.
-- **Starting duplicate execution.** Check `climierflow status <task-id>` before starting another attempt for a task.
-- **Recovering without the runner.** Use `climierflow resume <task-id> [--summary TEXT]` or `climierflow restart <task-id> --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard` as indicated by the execution state; do not recreate a claim, worktree, review, or merge manually.
+- **Starting duplicate execution.** Call `climier_flow` with `action: "status"` before starting another attempt for a task.
+- **Recovering without the runner.** Use `climier_flow` with `action: "resume"` when a checkpoint is resumable; restart is not exposed by the Pi Flow tool, so do not invoke it through shell. Never recreate a claim, worktree, review, or merge manually.
 - **Forgetting `--as`.** Mutating Climier commands (`resolve` for gates, `update`, `add-note`, `add-task`, `add-gate`, `add-knowledge`, and similar DAG curation commands) require `--as`. The CLI throws `MISSING_AGENT` with a structured details object.
 - **`update` during an execution.** It is allowed only when the contract needs correction; use `--if-revision N` for optimistic concurrency and let the runner own lifecycle state.
 - **Boolean flags before the command.** `climier --force init` is interpreted as `--force=init` (the parser consumes the next non-flag as the flag's value). Use `climier --force=true init` or put the flag after the command. The same applies to any boolean flag: if a flag is meant as a switch, use `--flag=true` when the command comes right after.
 
 ## Recovery
 
-The runner owns execution recovery:
+The Pi extension tool owns Flow interaction:
 
-```bash
-climierflow status <task-id>
-climierflow resume <task-id> [--summary TEXT]
-climierflow restart <task-id> --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard
+```json
+{ "action": "status", "task_id": "<task-id>" }
+{ "action": "resume", "task_id": "<task-id>", "summary": "<optional checkpoint context>" }
 ```
 
-`status` requires the task id. `resume` continues an interrupted attempt from
-its checkpoint and accepts only the optional `--summary TEXT` flag. `restart`
-requires replacement `--body` and `--acceptance` values plus
-`--confirm-discard`; use it only when the current attempt is not completed. Use
-`climier status` and `climier context <task-id>` to verify the DAG before or
-after recovery.
-
-If a runner commit is incomplete after a passing review, inspect
-`climierflow status <task-id>` and confirm the reviewed tree is still exact and
-retained. Do not commit or merge manually. Resume once with
-`climierflow resume <task-id> [--summary TEXT]`; if that still fails, stop at
-`manual_review` and ask the Flow owner to reconcile the prompt and parser. Do
-not repeat the same resume or restart and discard the reviewed tree.
-
-`reopen`, `release`, and `cancel` remain explicit administrative Climier
-operations for correcting or managing the DAG; they are not substitutes for
-the runner's recovery commands. If the contract itself is wrong, curate it
-with `update` before a non-completed attempt is restarted.
+Check `climier status` and `climier context <task-id>` before and after recovery.
+If a runner commit is incomplete after passing review, use the tool's `status`
+report to inspect the checkpoint; do not commit or merge manually. Resume once
+when the report indicates it is safe. If it still fails, stop at `manual_review`
+and ask the Flow owner to reconcile the prompt and parser. Do not repeat the same
+resume. Restart is not available through this Pi tool; do not invoke it through
+shell. `reopen`, `release`, and `cancel` are explicit DAG-administration actions,
+not runner recovery. If the task contract is wrong, curate it with `update` and
+request Flow tool support if the attempt needs a fresh start.
 
 ## Correcting work after completion
 
@@ -252,7 +238,7 @@ climier add-task F2.T1 --initiative migration --title "implement Lucia sessions"
   --blocked-by D9
 ```
 
-Tasks stay blocked until `D9` is resolved. When the operator reads one with `context`, the body shows the `Read .decisions/D9.md first.` line; `climierflow run <id>` then receives that contract as part of its execution context.
+Tasks stay blocked until `D9` is resolved. When the operator reads one with `context`, the body shows the `Read .decisions/D9.md first.` line; the Pi `climier_flow` run action then starts the runner with that task contract.
 
 Why a gate, not a task: gates have a `purpose` (`decision`, `approval`, `external-dependency`, `research`) that maps naturally to "research findings + chosen approach", they resolve with a `--choice` + `--rationale` (which discourages trivial research), and the choice becomes a permanent record of *why* we picked one path.
 
@@ -274,10 +260,10 @@ Every command prints a single JSON value to stdout. There is no `--json` flag an
 | `resolve <G> --choice "<text>" --rationale "<text>" --as <agent>` | Resolve a gate; tasks never use this command. | yes |
 | `reopen <id> --reason "<text>" --as <agent>` | Administrative correction of a task or resolved gate; not runner recovery. | yes |
 | `cancel <id> --reason "<text>" --as <agent>` | Administrative termination of a node; not a substitute for runner recovery. | yes |
-| `climierflow run <task-id>` | Execute one task through claim, worktree, implementation, review, lifecycle, commit, merge, and cleanup. | no |
-| `climierflow status <task-id>` | Inspect the current runner execution and available checkpoints. | no |
-| `climierflow resume <task-id> [--summary TEXT]` | Recover an interrupted execution from a checkpoint; `--summary` is optional. | no |
-| `climierflow restart <task-id> --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard` | Start a fresh non-completed attempt with required replacement values. | no |
+| Pi tool `climier_flow` with `action: "run"`, `task_id` | Launch one task; the runner owns claim, worktree, implementation, review, lifecycle, commit, merge, and cleanup. | no |
+| Pi tool `climier_flow` with `action: "status"`, `task_id` | Inspect the saved runner report for a task. | no |
+| Pi tool `climier_flow` with `action: "resume"`, `task_id`, optional `summary` | Resume a checkpointed execution. | no |
+| Pi tool `climier_flow` with `action: "list"` | List saved executions globally. | no |
 | `update <id> [--title X] [--body "..."] [--definition "..."] [--acceptance "..."] [--domain Y] [--backlog true\|false] [--scope-* ...] [--meta '{...}'] [--if-revision N] --as <agent>` | Edit a node. Bumps `revision`. `--if-revision N` for optimistic concurrency. | yes |
 | `add-note <id> "<text>" --as <agent>` | Append a timestamped note to the node's `notes[]` thread. Any status. Append-only. | yes |
 | `add-task [id] --initiative X --title "..." --body "..." --acceptance "..." --blocked-by A,B [--definition ...] [--domain ...] [--backlog true] --as <agent>` | Add a task. Requires `--body`, `--acceptance` and `--blocked-by` (pass `--blocked-by ""` for none). Omit `id` to auto-allocate (`T-xxxxxxxx`). | yes |
@@ -314,7 +300,7 @@ The convention for return shapes is principled (stable across versions):
 | Read commands | Raw data (object/array) | `status` → `{ summary, tasks, gates, knowledge_count, alerts }`, `context` → `{ node, derived_status, claim, blocking, knowledge, alerts, allowed_actions }`, `show` → `{ type, node }` |
 | DAG write commands | `{ entity }` envelope | `resolve` (gate) → `{ node, newly_ready }`, `add-task` → `{ task }`, `add-gate` → `{ node }`, `add-knowledge` → `{ node }`, `update` → `{ node }` |
 | `init` | `{ ok, seeded, file }` | (not entity-creating) |
-| `climierflow run` | terminal JSON | `{ ok, task_id, status, terminal, result|error }`; success includes `result.summary`, `result.commit`, and `result.merged` |
+| Pi Flow tool `run` / `resume` | Launch confirmation | Background run; inspect progress in the widget or use the tool's `status` action for the saved report |
 
 Operator pattern:
 
@@ -323,16 +309,16 @@ Operator pattern:
 id=$(climier status | jq -r '.tasks.ready[0].id')
 climier context "$id"
 
-# Execute; the runner owns all internal stages
-climierflow run "$id"
-
-# If interrupted, inspect and recover through the runner
-climierflow status <task-id>
-climierflow resume <task-id> [--summary TEXT]
-climierflow restart <task-id> --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard
+# In Pi, invoke the extension tool with these arguments:
+{ "action": "run", "task_id": "<id>" }
+{ "action": "status", "task_id": "<task-id>" }
+{ "action": "resume", "task_id": "<task-id>", "summary": "<optional>" }
+{ "action": "list" }
 ```
 
-Branch on `error.code`, not on the message, in both Climier and runner JSON.
+The run/resume tool response only confirms background launch; use the widget
+or the `status` action to inspect progress. Branch on `error.code`, not on the
+message, in Climier errors. The extension does not expose restart.
 
 ## If the JSON gets corrupted or out of sync
 
@@ -344,7 +330,7 @@ cp ~/.climier/projects/<project_id>/tasks.json ~/.climier/projects/<project_id>/
 
 # Reset (only if you're sure; this loses log entries)
 climier init --force
-# Then inspect the DAG and recover executions through climierflow
+# Then inspect the DAG and use the Pi climier_flow tool's status/resume actions
 ```
 
 The CLI also auto-recovers a corrupt JSON on `init --force` (or even without `--force` if the existing state is unreadable). Always backup first.
@@ -353,6 +339,6 @@ The CLI also auto-recovers a corrupt JSON on `init --force` (or even without `--
 
 See `examples/` in this skill:
 
-- `examples/task-execution.md` — unified execution session: context → `climierflow run` → terminal JSON → recovery.
+- `examples/task-execution.md` — unified execution session: context → Pi Flow tool → background progress and recovery.
 - `examples/dag-curation.md` — graph curation and gate resolution without manual execution stages.
 - `examples/claim-serialization.md` — lock and claim behavior owned by the runner.

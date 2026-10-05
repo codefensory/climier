@@ -1,13 +1,6 @@
 # Unified task execution — end-to-end
 
-Climier is the DAG control plane. `climierflow` is the only operator entrypoint for executing a task. The runner owns claim, worktree, implementation, review, lifecycle, commit, merge, and cleanup internally.
-
-## Setup
-
-```bash
-cd ~/Dev/climier
-# climier and climierflow are on PATH; project state is managed by Climier
-```
+Climier is the DAG control plane. In Pi, invoke execution and recovery through the `climier_flow` extension tool. The runner owns claim, worktree, implementation, review, lifecycle, commit, merge, and cleanup internally.
 
 ## 1. Read and curate the DAG
 
@@ -27,73 +20,34 @@ climier add-note T-auth-7 "..." --as <agent>
 
 Do not reproduce the runner's internal lifecycle by hand.
 
-## 2. Execute through the single entrypoint
+## 2. Execute through the Pi extension tool
 
-```bash
-climierflow run T-auth-7
-```
-
-The command runs the complete internal workflow and returns one terminal JSON object. A successful result has this shape:
+Call the `climier_flow` tool with:
 
 ```json
-{
-  "ok": true,
-  "task_id": "T-auth-7",
-  "status": "done",
-  "terminal": true,
-  "result": {
-    "summary": "<result summary>",
-    "commit": "<commit-sha>",
-    "merged": true
-  }
-}
+{ "action": "run", "task_id": "T-auth-7" }
 ```
 
-A blocked or failed execution keeps the same top-level contract and exposes structured recovery data:
+This launches the complete workflow in the background. The immediate tool result confirms launch; the Pi widget tracks active progress. Use the tool's `status` action to inspect a saved run report:
 
 ```json
-{
-  "ok": false,
-  "task_id": "T-auth-7",
-  "status": "blocked",
-  "terminal": true,
-  "error": {
-    "code": "<code>",
-    "message": "<message>",
-    "details": {}
-  }
-}
+{ "action": "status", "task_id": "T-auth-7" }
 ```
 
-The terminal JSON is the execution report. The operator does not run separate lifecycle, commit, merge, or review commands.
+The extension's status/list actions read run manifests. They are not DAG views: use `climier status` and `climier context` for readiness, blockers, and task contracts.
 
 ## 3. Recover an interrupted execution
 
-Inspect the runner, not its internal stages:
+Inspect the report with the tool, then resume only when its checkpoint indicates that is safe:
 
-```bash
-climierflow status T-auth-7
+```json
+{ "action": "status", "task_id": "T-auth-7" }
+{ "action": "resume", "task_id": "T-auth-7", "summary": "<optional checkpoint context>" }
 ```
 
-If the status reports a resumable checkpoint, continue it:
+`summary` is optional. The current Pi Flow tool does not expose `restart`; do not invoke Flow through shell as a fallback. If a non-completed attempt needs a fresh start, explain the tool limitation and ask for that capability. A completed and merged task must not be restarted; create a new correction task instead.
 
-```bash
-climierflow resume T-auth-7 [--summary TEXT]
-```
-
-If the current, non-completed attempt must start again instead, restart it with replacement contract values:
-
-```bash
-climierflow restart T-auth-7 --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard
-```
-
-`--summary` is optional for `resume`; `restart` requires `--body`,
-`--acceptance`, and `--confirm-discard`. A completed and merged attempt is not
-restartable: the runner returns `RESTART_REQUIRES_REVIEW`. Do not reopen it to
-restart the completed flow; create a new correction task for additional work.
-Use `climier status` and `climier context T-auth-7` to inspect the DAG before or
-after recovery. Do not recreate the claim, worktree, implementation, review, or
-merge sequence by hand.
+Do not recreate the claim, worktree, implementation, review, or merge sequence by hand.
 
 ## 4. Gates and knowledge remain Climier concepts
 
@@ -109,8 +63,8 @@ climier add-knowledge K-auth --initiative auth --title "Auth constraints" \
   --body "..." --scope-initiatives auth --as <agent>
 ```
 
-A task blocked by an unresolved gate stays blocked in the DAG. Once its contract is ready, execute it with `climierflow run <task-id>`.
+A task blocked by an unresolved gate stays blocked in the DAG. Once its contract is ready, invoke `climier_flow` with `action: "run"` and the task id.
 
 ## What is not an operator step
 
-Do not invoke `take`, `submit`, `accept`, or `reject` as a hand-written execution sequence. Those lifecycle transitions are internal to `climierflow`; use the runner and inspect its terminal result or recovery status.
+Do not invoke `take`, `submit`, `accept`, or `reject` as a hand-written execution sequence. Those lifecycle transitions are internal to the runner; use the Pi Flow tool and inspect its saved status report.

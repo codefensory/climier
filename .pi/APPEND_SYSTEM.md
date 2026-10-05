@@ -8,4 +8,4 @@ Pi 0.99.1 appends this file to its built-in system prompt. Keep this file append
 - Use `.agents/skills/climier/SKILL.md` for the DAG and runner contract.
 - Use `.agents/skills/spec-pipeline/SKILL.md` only when a real decision warrants RFC/review/ADR planning.
 - Use `.agents/skills/initiative-execution/SKILL.md` only when initiative-wide coordination is explicitly selected.
-- A task already registered for runner execution must use `climierflow run <task-id>`; do not reproduce its lifecycle stages manually.
+- In Pi, use `climier_flow` with `action: "run"`, `"resume"`, `"status"`, or `"list"`; never invoke Flow through shell. Read `.agents/skills/climier/SKILL.md` for argument mapping and the restart limitation.

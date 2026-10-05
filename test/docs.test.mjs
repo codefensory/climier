@@ -101,7 +101,9 @@ test("docs: Pi guidance is append-only and workflows are opt-in", async () => {
     "built-in system prompt",
     ".agents/skills/spec-pipeline/SKILL.md",
     ".agents/skills/initiative-execution/SKILL.md",
-    "climierflow run <task-id>",
+    "climier_flow",
+    'action: "run"',
+    "never invoke Flow through shell",
   ]) {
     assert.match(appendPrompt, new RegExp(escapeRegExp(snippet)), `APPEND_SYSTEM.md should mention ${snippet}`);
   }
@@ -111,7 +113,8 @@ test("docs: Pi guidance is append-only and workflows are opt-in", async () => {
     "direct path",
     "controlled workflow is optional",
     "task already registered",
-    "climierflow run <task-id>",
+    "climier_flow",
+    "do not invoke the Flow executable from shell",
   ]) {
     assert.match(agents, new RegExp(escapeRegExp(snippet)), `AGENTS.md should mention ${snippet}`);
   }
@@ -122,11 +125,9 @@ test("docs: Pi guidance is append-only and workflows are opt-in", async () => {
 
   for (const snippet of [
     "opt-in",
-    "one `climierflow run <task-id>` per task",
-    "terminal",
-    "climierflow status",
-    "climierflow resume",
-    "climierflow restart",
+    "climier_flow",
+    "background",
+    "does not expose restart",
   ]) {
     assert.match(initiativeExecution, new RegExp(escapeRegExp(snippet)), `initiative-execution should mention ${snippet}`);
   }

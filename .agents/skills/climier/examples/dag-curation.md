@@ -1,14 +1,15 @@
 # DAG curation and task execution
 
-Climier is the control plane for project state. The operator reads and curates the graph with `climier`, then executes a ready task only through `climierflow`.
+Climier is the control plane for project state. In Pi, read and curate the graph with `climier`, then execute a ready task through the `climier_flow` extension tool.
 
 ## The operator loop
 
 ```bash
 climier status
 climier context <id>
-climierflow run <id>
 ```
+
+Then call the Pi tool `climier_flow` with `{ "action": "run", "task_id": "<id>" }`.
 
 Use `context` before execution to inspect acceptance, blockers, scoped knowledge, related nodes, alerts, and allowed actions. If the contract is incomplete, correct it before starting the runner:
 
@@ -27,8 +28,9 @@ A gate is ready to resolve when the decision has enough evidence and the chosen 
 climier resolve G-auth --choice "opaque sessions" \
   --rationale "Keeps the client contract stable." --as <agent>
 climier status
-climierflow run T-auth
 ```
+
+Then call `climier_flow` with `{ "action": "run", "task_id": "T-auth" }`.
 
 Do not resolve a task with `resolve`; that command is for gates.
 
@@ -47,26 +49,23 @@ climier resolve G-ui-transport --choice "use node:http" \
   --as <agent>
 ```
 
-Tasks blocked by the gate become ready only after the gate is resolved. Start each ready task with `climierflow run <task-id>`.
+Tasks blocked by the gate become ready only after the gate is resolved. Start each ready task with the Pi tool `climier_flow`, action `run`.
 
 ## Recovery and administration
 
-Inspect an interrupted run through the runner:
+Inspect and recover an interrupted run through the Pi tool `climier_flow`:
 
-```bash
-climierflow status <task-id>
-climierflow resume <task-id> [--summary TEXT]
-climierflow restart <task-id> --body "<replacement body>" --acceptance "<replacement acceptance>" --confirm-discard
+```json
+{ "action": "status", "task_id": "<task-id>" }
+{ "action": "resume", "task_id": "<task-id>", "summary": "<optional checkpoint context>" }
 ```
 
-`--summary` is optional for `resume`. `restart` requires replacement
-`--body` and `--acceptance` values plus `--confirm-discard`, and applies only to
-a non-completed attempt. A completed and merged attempt returns
-`RESTART_REQUIRES_REVIEW`; do not reopen and restart it. Create a new correction
-task for additional work. Use `reopen`, `release`, and `cancel` only for
-explicit DAG administration. They are not substitutes for the runner's
-execution or recovery commands. Use `climier status` and `climier context <id>`
-to verify the graph before or after recovery.
+The tool does not expose restart; do not use a shell command as a fallback. If
+a non-completed attempt requires a fresh start, explain the limitation and ask
+for tool support. A completed and merged attempt cannot be restarted; create a
+new correction task. Use `reopen`, `release`, and `cancel` only for explicit
+DAG administration. Use `climier status` and `climier context <id>` to verify
+the graph before or after recovery.
 
 ## Adding work while a run is active
 
@@ -82,4 +81,4 @@ climier add-task T-web-99 \
 climier status
 ```
 
-The new node remains governed by its dependencies. When it is ready, invoke `climierflow run T-web-99`.
+The new node remains governed by its dependencies. When it is ready, call `climier_flow` with `{ "action": "run", "task_id": "T-web-99" }`.
