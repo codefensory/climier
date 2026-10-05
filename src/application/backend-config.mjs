@@ -71,21 +71,12 @@ function parseLocalBackend(backend) {
   return { type: "local" };
 }
 
-function commandFromArgv(argv) {
-  for (let index = 2; index < argv.length; index++) {
-    const token = argv[index];
-    if (!token.startsWith("--")) {return token;}
-    if (!token.includes("=") && argv[index + 1] !== undefined && !argv[index + 1].startsWith("--")) {index++;}
-  }
-  return null;
+function isLinkCommandRelink(config, command) {
+  return command === "link" && typeof config.project_id === "string" && config.project_id.trim();
 }
 
-function isLinkCommandRelink(config) {
-  return commandFromArgv(process.argv) === "link" && typeof config.project_id === "string" && config.project_id.trim();
-}
-
-function parseRemoteBackend(backend, config) {
-  if (isLinkCommandRelink(config)) {return { type: "local" };}
+function parseRemoteBackend(backend, config, command) {
+  if (isLinkCommandRelink(config, command)) {return { type: "local" };}
   if (backend.protocol !== "v2") {
     fail("remote config must be relinked for protocol v2", "REMOTE_CONFIG_OUTDATED", { expected_protocol: "v2" });
   }
@@ -100,12 +91,12 @@ function parseRemoteBackend(backend, config) {
 }
 
 /** Parse backend selection from project metadata without exposing credentials. */
-export function parseBackendConfig(config = {}) {
+export function parseBackendConfig(config = {}, { command } = {}) {
   validateProjectConfig(config);
   if (!Object.hasOwn(config, "backend")) {return { type: "local" };}
   const backend = config.backend;
   validateBackendShape(backend);
   if (backend.type === "local") {return parseLocalBackend(backend);}
   if (backend.type !== "remote") {fail("unsupported type");}
-  return parseRemoteBackend(backend, config);
+  return parseRemoteBackend(backend, config, command);
 }

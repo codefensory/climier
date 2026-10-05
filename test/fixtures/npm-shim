@@ -1,0 +1,57 @@
+#!/bin/sh
+# Test-only npm stand-in for plugin install fixtures.
+#
+# The install command shells out to `npm install --prefix <staging> <source>`
+# and then reads <staging>/node_modules/<basename>. Real npm costs two extra
+# node processes (~250ms) per fixture and the suite installs >100 of them.
+# This shim implements exactly that one local-directory resolution and exits
+# non-zero with a clear message for anything else, so a future install change
+# cannot silently pass against a shim that no longer models it.
+#
+# An operator-provided CLIMIER_NPM_CMD always wins (test/helpers.mjs only sets
+# this shim as the default). Tests that cover npm failures inject their own
+# command.
+
+case "$1" in
+  --version)
+    [ "$#" -eq 1 ] || { echo "npm-shim: --version takes no arguments: $*" >&2; exit 64; }
+    echo "10.0.0-climier-test-shim"
+    ;;
+  install)
+    shift
+    prefix=""
+    source=""
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        --prefix)
+          [ "$#" -ge 2 ] || { echo "npm-shim: --prefix needs a value" >&2; exit 64; }
+          prefix="$2"
+          shift 2
+          ;;
+        --no-audit|--no-fund)
+          shift
+          ;;
+        --*)
+          echo "npm-shim: unsupported flag $1" >&2
+          exit 64
+          ;;
+        *)
+          [ -z "$source" ] || { echo "npm-shim: multiple sources are not supported: $source $1" >&2; exit 64; }
+          source="$1"
+          shift
+          ;;
+      esac
+    done
+    [ -n "$prefix" ] || { echo "npm-shim: --prefix is required" >&2; exit 64; }
+    [ -n "$source" ] || { echo "npm-shim: a local directory source is required" >&2; exit 64; }
+    [ -d "$source" ] || { echo "npm-shim: only local directory sources are supported: $source" >&2; exit 64; }
+    mkdir -p "$prefix/node_modules" || exit 1
+    base=$(basename "$source")
+    absolute=$(cd "$source" && pwd) || exit 1
+    ln -s "$absolute" "$prefix/node_modules/$base" || exit 1
+    ;;
+  *)
+    echo "npm-shim: unsupported npm invocation: $*" >&2
+    exit 64
+    ;;
+esac

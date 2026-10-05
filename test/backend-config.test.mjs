@@ -140,3 +140,22 @@ test("backend config rejects invalid config shapes and extra backend fields", ()
     assert.throws(() => parseBackendConfig(config), /backend config:/);
   }
 });
+
+test("backend config relinks outdated remote metadata only when the caller injects the link command", () => {
+  const outdated = {
+    version: 1,
+    project_id: "legacy-id",
+    backend: { type: "remote", url: "https://old.example.test/" },
+  };
+  assert.deepEqual(parseBackendConfig(outdated, { command: "link" }), { type: "local" });
+  for (const options of [{ command: "status" }, {}]) {
+    assert.throws(
+      () => parseBackendConfig(outdated, options),
+      (error) => error.code === "REMOTE_CONFIG_OUTDATED",
+    );
+  }
+  assert.throws(
+    () => parseBackendConfig({ backend: { type: "remote", url: "https://climier.example.test" } }),
+    (error) => error.code === "REMOTE_CONFIG_OUTDATED",
+  );
+});

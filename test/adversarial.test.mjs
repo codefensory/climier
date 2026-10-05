@@ -22,6 +22,7 @@ import {
   rmTempProject,
   importFresh,
   runCli,
+  runCliSpawn,
   writeCanonicalState as writeCanonicalState,
   readState as readRawState,
   installPolicyFixture,
@@ -445,8 +446,8 @@ describe("concurrency: two operations on the same node serialize cleanly", () =>
     const dir = await projectFixture();
     try {
       await addTaskNode(dir, "T-a");
-      const a = runCli(["--project", dir, "take", "T-a", "--as", "alice"]);
-      const b = runCli(["--project", dir, "take", "T-a", "--as", "bob"]);
+      const a = runCliSpawn(["--project", dir, "take", "T-a", "--as", "alice"]);
+      const b = runCliSpawn(["--project", dir, "take", "T-a", "--as", "bob"]);
       const [ra, rb] = await Promise.all([a, b]);
       const codes = [ra.code, rb.code].toSorted();
       assert.deepEqual(codes, [0, 1], `expected one 0 and one 1; got A=${ra.code} B=${rb.code}; A stdout=${ra.stdout} B stdout=${rb.stdout}`);
@@ -469,8 +470,8 @@ describe("concurrency: two operations on the same node serialize cleanly", () =>
     const dir = await projectFixture();
     try {
       await addTaskNode(dir, "T-a");
-      const a = runCli(["--project", dir, "update", "T-a", "--title", "from alice", "--as", "alice"]);
-      const b = runCli(["--project", dir, "update", "T-a", "--title", "from bob", "--as", "bob"]);
+      const a = runCliSpawn(["--project", dir, "update", "T-a", "--title", "from alice", "--as", "alice"]);
+      const b = runCliSpawn(["--project", dir, "update", "T-a", "--title", "from bob", "--as", "bob"]);
       await Promise.all([a, b]);
       const s = await readRawState(dir);
       // Both updates apply (last-write-wins); the node tracks the global high-water.
@@ -490,8 +491,8 @@ describe("concurrency: two operations on the same node serialize cleanly", () =>
     try {
       await addTaskNode(dir, "T-a");
       await takeNode(dir, "T-a", "alice");
-      const a = runCli(["--project", dir, "resolve", "T-a", "--note", "from alice", "--as", "alice"]);
-      const b = runCli(["--project", dir, "resolve", "T-a", "--note", "from bob", "--as", "bob"]);
+      const a = runCliSpawn(["--project", dir, "resolve", "T-a", "--note", "from alice", "--as", "alice"]);
+      const b = runCliSpawn(["--project", dir, "resolve", "T-a", "--note", "from bob", "--as", "bob"]);
       const [ra, rb] = await Promise.all([a, b]);
       assert.equal(ra.code, 1);
       assert.equal(rb.code, 1);
@@ -507,8 +508,8 @@ describe("concurrency: two operations on the same node serialize cleanly", () =>
     try {
       await addTaskNode(dir, "T-a");
       await addTaskNode(dir, "T-b");
-      const a = runCli(["--project", dir, "add-edge", "T-a", "T-b", "--type", "BLOCKS", "--as", "alice"]);
-      const b = runCli(["--project", dir, "add-edge", "T-a", "T-b", "--type", "BLOCKS", "--as", "alice"]);
+      const a = runCliSpawn(["--project", dir, "add-edge", "T-a", "T-b", "--type", "BLOCKS", "--as", "alice"]);
+      const b = runCliSpawn(["--project", dir, "add-edge", "T-a", "T-b", "--type", "BLOCKS", "--as", "alice"]);
       const [ra, rb] = await Promise.all([a, b]);
       const codes = [ra.code, rb.code].toSorted();
       assert.deepEqual(codes, [0, 1], `expected one 0 and one 1; got A=${ra.code} B=${rb.code}; A stdout=${ra.stdout} B stdout=${rb.stdout}`);
