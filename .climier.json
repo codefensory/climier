@@ -3,7 +3,6 @@
   "project_id": "b4e2c579bbb81669",
   "backend": {
     "type": "remote",
-    "url": "http://100.127.228.54:43127/",
-    "protocol": "v2"
+    "url": "http://100.127.228.54:43127/"
   }
 }
