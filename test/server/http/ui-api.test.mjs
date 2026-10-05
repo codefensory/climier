@@ -1,10 +1,27 @@
 import assert from "node:assert/strict";
+import http from "node:http";
+import { brotliDecompressSync, gunzipSync } from "node:zlib";
 import { test } from "node:test";
 
 import { authHeaders, withApi, withInitApi } from "./fixtures.mjs";
 import { createProjectCatalog } from "../../../src/server/catalog/index.mjs";
 import { createUiApi } from "../../../src/server/http/ui-api.mjs";
 import { readState, writeCanonicalState } from "../../helpers.mjs";
+
+function rawGet(url, headers) {
+  return new Promise((resolve, reject) => {
+    const request = http.get(url, { headers }, (response) => {
+      const chunks = [];
+      response.on("data", (chunk) => chunks.push(chunk));
+      response.on("end", () => resolve({
+        status: response.statusCode,
+        headers: response.headers,
+        body: Buffer.concat(chunks),
+      }));
+    });
+    request.on("error", reject);
+  });
+}
 
 function state() {
   return {
@@ -48,6 +65,35 @@ test("UI HTTP endpoints authenticate, project, and return the pure projections",
     const activityBody = await activityResponse.json();
     assert.deepEqual(activityBody.result.entries.map((entry) => entry.node_id), ["task"]);
     assert.equal(activityBody.result.total, 1);
+  });
+});
+
+test("UI snapshot uses revision ETags, 304, and cached negotiated compression", async () => {
+  await withApi(async ({ baseUrl, projectDirs }) => {
+    await writeCanonicalState(projectDirs[0], state());
+    const route = `${baseUrl}/v1/projects/project-a/ui/snapshot`;
+    const revision = (await readState(projectDirs[0])).revision;
+
+    const plainResponse = await rawGet(route, authHeaders({ "accept-encoding": "identity" }));
+    assert.equal(plainResponse.status, 200);
+    assert.equal(plainResponse.headers.etag, `"${revision}"`);
+    assert.equal(plainResponse.headers["content-encoding"], undefined);
+    const plain = plainResponse.body;
+
+    const notModified = await rawGet(route, authHeaders({ "accept-encoding": "identity", "if-none-match": `"${revision}"` }));
+    assert.equal(notModified.status, 304);
+    assert.equal(notModified.body.byteLength, 0);
+    assert.equal(notModified.headers["content-length"], "0");
+
+    const gzipResponse = await rawGet(route, authHeaders({ "accept-encoding": "gzip" }));
+    assert.equal(gzipResponse.status, 200);
+    assert.equal(gzipResponse.headers["content-encoding"], "gzip");
+    assert.deepEqual(gunzipSync(gzipResponse.body), plain);
+
+    const brResponse = await rawGet(route, authHeaders({ "accept-encoding": "br" }));
+    assert.equal(brResponse.status, 200);
+    assert.equal(brResponse.headers["content-encoding"], "br");
+    assert.deepEqual(brotliDecompressSync(brResponse.body), plain);
   });
 });
 

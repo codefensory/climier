@@ -1,8 +1,14 @@
+import { brotliCompress, gzip } from "node:zlib";
+import { promisify } from "node:util";
+
 import {
   projectUiActivity,
   projectUiNode,
   projectUiSnapshot,
 } from "../../read-model/ui.mjs";
+
+const compressBrotli = promisify(brotliCompress);
+const compressGzip = promisify(gzip);
 
 const UI_ROUTES = [
   ["snapshot", /^ui\/snapshot$/, []],
@@ -99,13 +105,83 @@ function routeProject(project, projectId) {
   return { id: projectId, name: projectId, value: project };
 }
 
+function parseAcceptEncoding(value) {
+  const result = new Map();
+  if (typeof value !== "string") return result;
+  for (const item of value.split(",")) {
+    const [rawName, ...parameters] = item.trim().toLowerCase().split(";");
+    const name = rawName.trim();
+    if (!name) continue;
+    let quality = 1;
+    for (const parameter of parameters) {
+      const [key, rawValue] = parameter.trim().split("=", 2);
+      if (key === "q") {
+        const parsed = Number(rawValue);
+        quality = Number.isFinite(parsed) ? Math.max(0, Math.min(1, parsed)) : 0;
+      }
+    }
+    result.set(name, quality);
+  }
+  return result;
+}
+
+function encodingQuality(encodings, name) {
+  return encodings.get(name) ?? encodings.get("*") ?? 0;
+}
+
+function selectContentEncoding(value) {
+  const encodings = parseAcceptEncoding(value);
+  const candidates = [
+    ["br", encodingQuality(encodings, "br")],
+    ["gzip", encodingQuality(encodings, "gzip")],
+  ];
+  candidates.sort((left, right) => right[1] - left[1]);
+  return candidates[0][1] > 0 ? candidates[0][0] : null;
+}
+
+function headerValue(request, name) {
+  const value = request?.headers?.[name];
+  return Array.isArray(value) ? value.join(",") : value;
+}
+
+function matchesEtag(value, etag) {
+  if (typeof value !== "string") return false;
+  return value.split(",").some((candidate) => {
+    const normalized = candidate.trim();
+    return normalized === "*" || normalized === etag || normalized === `W/${etag}`;
+  });
+}
+
+async function compressBody(body, encoding) {
+  if (encoding === "br") return compressBrotli(body);
+  if (encoding === "gzip") return compressGzip(body);
+  return body;
+}
+
+async function cachedCompressedBody(cache, encoding) {
+  const cached = cache.compressed.get(encoding);
+  if (cached) return cached instanceof Promise ? cached : cached;
+  const pending = compressBody(cache.body, encoding);
+  cache.compressed.set(encoding, pending);
+  try {
+    const body = await pending;
+    cache.compressed.set(encoding, body);
+    return body;
+  } catch (error) {
+    if (cache.compressed.get(encoding) === pending) cache.compressed.delete(encoding);
+    throw error;
+  }
+}
+
 export function createUiApi({ getProject, authorize, readSnapshot, clock = Date.now } = {}) {
   requireDependencies({ getProject, authorize, readSnapshot });
   if (typeof clock !== "function") {
     throw new TypeError("server http ui: clock must be a function");
   }
 
-  async function read({ request, projectId, route, query = {}, now } = {}) {
+  let snapshotCache;
+
+  async function load({ request, projectId, now } = {}) {
     await authorize(request, { projectId });
     const project = await getProject(projectId, { request });
     if (!project) {
@@ -116,8 +192,12 @@ export function createUiApi({ getProject, authorize, readSnapshot, clock = Date.
     if (!snapshot) {
       throw uiError("STATE_NOT_INITIALIZED", "server http: project state is not initialized", undefined, 409);
     }
+    return { resolvedProject, snapshot, now: now ?? clock() };
+  }
+
+  function projectResult({ snapshot, resolvedProject, route, query, now }) {
     const view = route?.kind === "snapshot"
-      ? projectUiSnapshot({ snapshot, project: resolvedProject, now: now ?? clock() })
+      ? projectUiSnapshot({ snapshot, project: resolvedProject, now })
       : route?.kind === "node"
         ? projectUiNode({ snapshot, id: route.id })
         : route?.kind === "activity"
@@ -132,10 +212,55 @@ export function createUiApi({ getProject, authorize, readSnapshot, clock = Date.
     return view;
   }
 
+  async function read({ request, projectId, route, query = {}, now } = {}) {
+    const loaded = await load({ request, projectId, now });
+    return projectResult({ ...loaded, route, query });
+  }
+
+  async function readSnapshotResponse({ request, projectId, now } = {}) {
+    const loaded = await load({ request, projectId, now });
+    const result = projectResult({ ...loaded, route: { kind: "snapshot" }, query: {} });
+    const revision = result.project.revision;
+    const etag = `"${revision}"`;
+    const baseHeaders = {
+      etag,
+      vary: "Accept-Encoding",
+      "cache-control": "no-store",
+    };
+    if (matchesEtag(headerValue(request, "if-none-match"), etag)) {
+      return { status: 304, headers: baseHeaders, body: null };
+    }
+
+    if (!snapshotCache || snapshotCache.projectId !== projectId || snapshotCache.revision !== revision) {
+      snapshotCache = {
+        projectId,
+        revision,
+        body: Buffer.from(JSON.stringify({ ok: true, result })),
+        compressed: new Map(),
+      };
+    }
+    const encoding = selectContentEncoding(headerValue(request, "accept-encoding"));
+    let body = snapshotCache.body;
+    if (encoding) {
+      body = await cachedCompressedBody(snapshotCache, encoding);
+    }
+    return {
+      status: 200,
+      headers: {
+        ...baseHeaders,
+        ...(encoding ? { "content-encoding": encoding } : {}),
+        "content-type": "application/json; charset=utf-8",
+        "content-length": String(body.byteLength),
+      },
+      body,
+    };
+  }
+
   return Object.freeze({
     matchRoute: (route) => matchUiRoute(route),
     parseQuery: (url, route) => parseUiQuery(url, route),
     read,
+    readSnapshotResponse,
     projectUiResult: read,
   });
 }

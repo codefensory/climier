@@ -7,6 +7,7 @@ import { mutate } from "../kernel/mutate.mjs";
 import { createHttpReads } from "./http/reads.mjs";
 import { executeTransferRequest, validateTransferRequest } from "./http/transfers.mjs";
 import * as readModel from "../read-model/index.mjs";
+import { ledgerFile } from "../storage/ledger.mjs";
 import { readState } from "../storage/state.mjs";
 import { initState } from "../kernel/state-operations.mjs";
 import { authorizeAction as authorizeServerAction, loadApplicablePolicy } from "../plugins/policy.mjs";
@@ -15,6 +16,7 @@ import { createLoginRateLimiter, loginClientAddress } from "./auth/login-rate-li
 import { createHttpCodec } from "./http/codec.mjs";
 import { createStaticHandler } from "./http/static.mjs";
 import { createUiApi } from "./http/ui-api.mjs";
+import { createUiEvents } from "./http/ui-events.mjs";
 
 const PROTOCOL_VERSION = "1";
 const { httpError, errorStatus, jsonError, send, parseProjectPath, readJsonBody } = createHttpCodec({ protocolVersion: PROTOCOL_VERSION });
@@ -76,6 +78,16 @@ function createRemoteUiApi(dependencies) {
   });
 }
 
+function createRemoteUiEvents(dependencies) {
+  return createUiEvents({
+    authorize: (request) => authorizeUiRequest(request, dependencies.authStore),
+    getProject: (projectId) => getUiProject(projectId, dependencies),
+    readSnapshot: ({ projectDir }) => readState(projectDir),
+    resolveLedger: ({ projectDir }) => ledgerFile(projectDir),
+    protocolVersion: PROTOCOL_VERSION,
+  });
+}
+
 function assertProtocol(request) {
   const version = request.headers["x-climier-protocol-version"];
   if (version !== PROTOCOL_VERSION) {
@@ -127,7 +139,7 @@ function isInitRoute(request, route) {
   return request.method === "POST" && route.route === "init";
 }
 
-function matchRequestRoute(request, route, uiApi) {
+function matchRequestRoute(request, route, uiApi, uiEvents) {
   const operationRoute = isOperationRoute(request, route);
   const initRoute = isInitRoute(request, route);
   const transferRoute = request.method === "GET" && route.route === "transfer/export"
@@ -136,9 +148,10 @@ function matchRequestRoute(request, route, uiApi) {
       ? "transfer/import"
       : null;
   const read = request.method === "GET" ? reads.matchReadRoute(route.route) : null;
+  const events = request.method === "GET" ? uiEvents.matchRoute(route.route) : null;
   const ui = request.method === "GET" ? uiApi.matchRoute(route.route) : null;
-  if (read || ui || operationRoute || initRoute || transferRoute) {
-    return { operationRoute, initRoute, transferRoute, read, ui };
+  if (read || events || ui || operationRoute || initRoute || transferRoute) {
+    return { operationRoute, initRoute, transferRoute, read, events, ui };
   }
   if (route.route.startsWith("transfer/") || route.route.startsWith("files/") || route.route === "snapshot" || route.route === "read/snapshot") {
     throw httpError("ROUTE_NOT_FOUND", "server http: route was not found", undefined, 404);
@@ -204,7 +217,32 @@ function operationSource(dependencies) {
 }
 
 async function sendRouteResult({ response, route, matched, body, query, project, dependencies, request }) {
+  if (matched.events) {
+    await dependencies.uiEvents.handle({ response, request, projectId: route.projectId });
+    return;
+  }
   if (matched.ui) {
+    if (matched.ui.kind === "snapshot") {
+      const result = await dependencies.uiApi.readSnapshotResponse({
+        request,
+        projectId: route.projectId,
+      });
+      if (result.status === 304) {
+        response.writeHead(304, {
+          ...result.headers,
+          "content-length": "0",
+          "x-climier-protocol-version": PROTOCOL_VERSION,
+        });
+        response.end();
+      } else {
+        response.writeHead(result.status, {
+          ...result.headers,
+          "x-climier-protocol-version": PROTOCOL_VERSION,
+        });
+        response.end(result.body);
+      }
+      return;
+    }
     const result = await dependencies.uiApi.read({
       request,
       projectId: route.projectId,
@@ -274,9 +312,9 @@ async function handleRequest(request, response, dependencies) {
     await handleLogin(request, response, dependencies);
     return;
   }
-  const matched = matchRequestRoute(request, route, dependencies.uiApi);
+  const matched = matchRequestRoute(request, route, dependencies.uiApi, dependencies.uiEvents);
   const { body, query } = await readRequestInput(request, route, matched, dependencies.uiApi);
-  const project = matched.ui ? null : await openAuthorizedProject(request, route, matched.initRoute, dependencies);
+  const project = matched.ui || matched.events ? null : await openAuthorizedProject(request, route, matched.initRoute, dependencies);
   await sendRouteResult({ response, route, matched, body, query, project, dependencies, request });
 }
 
@@ -303,8 +341,9 @@ export function createRemoteApiServer({
   const dependencies = { catalog, authStore, openProject: openProjectDependency, registry, mutateKernel, selectPolicy, authorizeAction, loginRateLimiter };
   validateServerDependencies(dependencies);
   dependencies.uiApi = createRemoteUiApi(dependencies);
+  dependencies.uiEvents = createRemoteUiEvents(dependencies);
   const staticHandler = uiRoot === undefined ? null : createStaticHandler({ root: uiRoot, indexFile });
-  return createServer(async (request, response) => {
+  const server = createServer(async (request, response) => {
     try {
       if (staticHandler && await staticHandler(request, response)) {
         return;
@@ -314,6 +353,13 @@ export function createRemoteApiServer({
       sendRequestError(response, error);
     }
   });
+  const closeServer = server.close.bind(server);
+  server.close = (...args) => {
+    void dependencies.uiEvents.close();
+    return closeServer(...args);
+  };
+  server.once("close", () => { void dependencies.uiEvents.close(); });
+  return server;
 }
 
 export { PROTOCOL_VERSION };
