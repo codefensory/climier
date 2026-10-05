@@ -6,6 +6,7 @@ import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { BIN, runCli } from "./cli-harness.mjs";
 import { withLock } from "../src/storage/lock.mjs";
 import {
   bootstrapFencedStateUnderLock,
@@ -15,7 +16,16 @@ import {
 
 const testDirectory = path.dirname(fileURLToPath(import.meta.url));
 const SRC_DIR = path.resolve(testDirectory, "..", "src");
-const BIN = path.resolve(testDirectory, "..", "bin", "climier.mjs");
+
+// Plugin install fixtures go through the product's install command, which
+// shells out to npm for one local-directory resolution. Real npm costs two
+// extra node processes (~250ms) per install and the suite installs >100
+// fixtures; the shim keeps that near zero. Tests that cover npm failures
+// inject their own CLIMIER_NPM_CMD, and an operator-provided value always
+// wins.
+if (!process.env.CLIMIER_NPM_CMD && process.platform !== "win32") {
+  process.env.CLIMIER_NPM_CMD = path.join(testDirectory, "fixtures", "npm-shim");
+}
 
 if (!process.env.CLIMIER_HOME) {
   process.env.CLIMIER_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "climier-home-"));
@@ -224,39 +234,10 @@ export async function initExampleProject(dir, { force = false } = {}) {
   return r;
 }
 
-// Run the CLI as a child process. Returns { stdout, stderr, code }.
-// A child without an explicit project cwd must not inherit the checkout's
-// .climier.json, which may select a developer-specific remote backend.
-import { spawn } from "node:child_process";
-export function runCli(args, { cwd, env } = {}) {
-  const ownsCwd = cwd === undefined;
-  const childCwd = cwd ?? fs.mkdtempSync(path.join(os.tmpdir(), "climier-cli-test-"));
-  return new Promise((resolve, reject) => {
-    const proc = spawn("node", [BIN, ...args], {
-      cwd: childCwd,
-      env: { ...process.env, ...env, NO_COLOR: "1" },
-    });
-    let stdout = "";
-    let stderr = "";
-    const cleanup = () => {
-      if (ownsCwd) {
-        fs.rmSync(childCwd, { recursive: true, force: true });
-      }
-    };
-    proc.stdout.on("data", (d) => (stdout += d.toString()));
-    proc.stderr.on("data", (d) => (stderr += d.toString()));
-    proc.once("error", (error) => {
-      cleanup();
-      reject(error);
-    });
-    proc.once("close", (code) => {
-      cleanup();
-      resolve({ stdout, stderr, code });
-    });
-  });
-}
+// The CLI harness (in-process by default, runCliSpawn for process isolation)
+// lives in cli-harness.mjs and is re-exported here for the test corpus.
 
-export async function importFresh(modulePath) {
+export function importFresh(modulePath) {
   const url = new URL(modulePath, `file://${SRC_DIR}/`).href;
   return import(`${url}?t=${Date.now()}-${Math.random()}`);
 }
@@ -449,3 +430,4 @@ export async function uninstallPolicyFixture(projectDir, options = {}) {
 }
 
 export { SRC_DIR, BIN, POLICY_FIXTURE_DIR };
+export { runCli, runCliInProcess, runCliSpawn } from "./cli-harness.mjs";

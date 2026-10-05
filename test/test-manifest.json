@@ -842,7 +842,13 @@
     },
     {
       "path": "test/application-backend-client.test.mjs",
-      "name": "legacy credential environment variables never authenticate remote requests",
+      "name": "HTTP remote clients use each project's configured origin and matching profile bearer",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/application-backend-client.test.mjs",
+      "name": "legacy token environment variable never authenticates remote requests",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -1197,6 +1203,12 @@
     {
       "path": "test/backend-config.test.mjs",
       "name": "backend config rejects remote config without protocol v2 as outdated",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/backend-config.test.mjs",
+      "name": "backend config relinks outdated remote metadata only when the caller injects the link command",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -1583,6 +1595,12 @@
     {
       "path": "test/cli-link.test.mjs",
       "name": "link requires replace to change a remote origin",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/cli-link.test.mjs",
+      "name": "link stores only public metadata for an opted-in remote HTTP origin",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -2319,18 +2337,94 @@
       "disposition": "keep"
     },
     {
+      "path": "test/core-test-plan.test.mjs",
+      "name": "isolation helpers match the Node version gate",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/core-test-plan.test.mjs",
+      "name": "listTestFiles discovers nested test files and ignores other modules",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/core-test-plan.test.mjs",
+      "name": "loadDurationTable resolves keys against the root and rejects unusable tables",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/core-test-plan.test.mjs",
+      "name": "partitionShards estimates unknown files from size in the table's unit",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/core-test-plan.test.mjs",
+      "name": "partitionShards keeps a single shard for one worker or one file",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/core-test-plan.test.mjs",
+      "name": "partitionShards spreads the heaviest measured files across shards",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/credential-profile.test.mjs",
+      "name": "credential profile accepts remote HTTP origins only with the exact insecure opt-in",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/credential-profile.test.mjs",
+      "name": "credential profile rejects remote HTTP origins without the opt-in",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/credential-profile.test.mjs",
+      "name": "credential profile with an HTTP session remains readable for HTTPS when opt-in is absent",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/docs.test.mjs",
+      "name": "docs: Pi guidance is append-only and workflows are opt-in",
+      "ordinal": 1,
+      "disposition": "delete",
+      "category": "removed-documentation-test",
+      "reason": "documentation tests were removed by request",
+      "coverage_removed": true
+    },
+    {
+      "path": "test/docs.test.mjs",
+      "name": "docs: public surfaces describe only Climier-owned functionality",
+      "ordinal": 1,
+      "disposition": "delete",
+      "category": "removed-documentation-test",
+      "reason": "documentation tests were removed by request",
+      "coverage_removed": true
+    },
+    {
       "path": "test/docs.test.mjs",
       "name": "docs: README links to the dedicated reference documentation",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/v2-docs.test.mjs"
+      "disposition": "delete",
+      "category": "removed-documentation-test",
+      "reason": "documentation tests were removed by request",
+      "coverage_removed": true
     },
     {
       "path": "test/docs.test.mjs",
       "name": "docs: reference.md exists and covers the implemented surface",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/v2-docs.test.mjs"
+      "disposition": "delete",
+      "category": "removed-documentation-test",
+      "reason": "documentation tests were removed by request",
+      "coverage_removed": true
     },
     {
       "path": "test/edge-remove.test.mjs",
@@ -2660,6 +2754,36 @@
       "move_from": "test/v2-execution-contract.test.mjs"
     },
     {
+      "path": "test/helpers-in-process.test.mjs",
+      "name": "in-process and spawn harnesses agree on exit codes and envelopes",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/helpers-in-process.test.mjs",
+      "name": "in-process runCli restores cwd and env after a failed call",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/helpers-in-process.test.mjs",
+      "name": "in-process runCli restores cwd and env around a successful call",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/helpers-in-process.test.mjs",
+      "name": "runCli defaults to the in-process harness and runCliSpawn stays opt-in",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/helpers-in-process.test.mjs",
+      "name": "runCliSpawn keeps cwd and env semantics for the isolation path",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
       "path": "test/helpers-safety.test.mjs",
       "name": "helpers.mjs allows CLIMIER_HOME when it points at a temp dir",
       "ordinal": 1,
@@ -2691,7 +2815,7 @@
     },
     {
       "path": "test/init.test.mjs",
-      "name": "CLI: insecure remote HTTP init fails before a request",
+      "name": "CLI: insecure remote HTTP init returns the warning in its JSON envelope",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -2727,7 +2851,7 @@
     },
     {
       "path": "test/init.test.mjs",
-      "name": "init: insecure remote HTTP is rejected before the request",
+      "name": "init: insecure remote HTTP returns a warning after successful provisioning",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -4764,6 +4888,24 @@
     {
       "path": "test/migrate.test.mjs",
       "name": "project-id lock contends with the writer lock for the same storage project",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/npm-shim.test.mjs",
+      "name": "npm-shim answers --version without spawning npm",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/npm-shim.test.mjs",
+      "name": "npm-shim fails loudly for unsupported invocations",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/npm-shim.test.mjs",
+      "name": "npm-shim resolves a local directory into node_modules/<basename>",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -8858,6 +9000,12 @@
     },
     {
       "path": "test/server/http/facade-contract.test.mjs",
+      "name": "HTTP codec accepts a bounded operator body limit for large manual transfers",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server/http/facade-contract.test.mjs",
       "name": "HTTP codec keeps path and body decoding contracts and receives the public protocol version",
       "ordinal": 1,
       "disposition": "keep"
@@ -12431,15 +12579,19 @@
       "path": "test/v2-docs.test.mjs",
       "name": "docs: README links to the dedicated reference documentation",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/v2-docs.test.mjs"
+      "disposition": "delete",
+      "category": "removed-documentation-test",
+      "reason": "documentation tests were removed by request",
+      "coverage_removed": true
     },
     {
       "path": "test/v2-docs.test.mjs",
       "name": "docs: reference.md exists and covers the implemented surface",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/v2-docs.test.mjs"
+      "disposition": "delete",
+      "category": "removed-documentation-test",
+      "reason": "documentation tests were removed by request",
+      "coverage_removed": true
     },
     {
       "path": "test/v2-edges.test.mjs",

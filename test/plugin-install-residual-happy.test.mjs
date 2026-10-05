@@ -105,6 +105,7 @@ test("install: never mutates the project state file", async () => {
 // and uninstall (ADR-038 decision 1). The fixture path is the same one the
 // programmatic cases use.
 test("CLI: install rejects --as as an unknown flag and installs without it", async () => {
+  const projectDir = await createTempProject();
   const fixtureDir = await fs.mkdtemp(path.join(os.tmpdir(), "climier-plugin-fixture-"));
   try {
     await createFixturePackage(fixtureDir, {
@@ -116,17 +117,20 @@ test("CLI: install rejects --as as an unknown flag and installs without it", asy
     });
     const spec = fixtureDir + "/flagcheck-plugin";
 
-    const refused = await runCli(["install", spec, "--as", "alice"], { env: { CLIMIER_HOME: process.env.CLIMIER_HOME } });
+    // The project is explicit so the checkout's own .climier.json (which may
+    // be remote-linked) cannot select the backend for this assertion.
+    const refused = await runCli(["--project", projectDir, "install", spec, "--as", "alice"], { env: { CLIMIER_HOME: process.env.CLIMIER_HOME } });
     assert.equal(refused.code, 2, `install --as must be a usage error: ${refused.stdout}${refused.stderr}`);
     const data = JSON.parse(refused.stdout);
     assert.equal(data.error.code, "CLI_USAGE_ERROR");
     assert.equal(data.error.details.flag, "as");
     assert.deepEqual(data.error.details.valid_flags, []);
 
-    const installed = await runCli(["install", spec], { env: { CLIMIER_HOME: process.env.CLIMIER_HOME } });
+    const installed = await runCli(["--project", projectDir, "install", spec], { env: { CLIMIER_HOME: process.env.CLIMIER_HOME } });
     assert.equal(installed.code, 0, `install must work without the actor flag: ${installed.stdout}${installed.stderr}`);
     assert.equal(JSON.parse(installed.stdout).plugin.id, "cli.flagcheck");
   } finally {
+    await rmTempProject(projectDir);
     await fs.rm(fixtureDir, { recursive: true, force: true });
   }
 });

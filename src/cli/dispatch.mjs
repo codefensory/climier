@@ -281,7 +281,12 @@ function writeNoCommandResponse(command, write, exit) {
 
 async function addBackendContext(context, { source, backendClientFactory }) {
   const projectConfig = readProjectConfig(context.projectDir);
-  const backendClient = backendClientFactory({ projectDir: context.projectDir, projectConfig, source });
+  const backendClient = backendClientFactory({
+    projectDir: context.projectDir,
+    projectConfig,
+    source,
+    command: context.command,
+  });
   let selectedSource = source;
   if (backendClient?.type === "local") {
     selectedSource ??= await backendClient.operationSource;

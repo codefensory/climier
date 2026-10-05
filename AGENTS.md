@@ -60,7 +60,7 @@ src/
     commands/                           # One CLI adapter per command; parses flags and maps envelopes
   contracts/                           # Error contracts and compatibility-only public facades
  test/
-  helpers.mjs                          # createTempProject, rmTempProject, runCli, importFresh
+  helpers.mjs                          # createTempProject, rmTempProject, runCli/runCliSpawn, importFresh
   *.test.mjs                            # Tests, one per module/feature
 ```
 
@@ -279,7 +279,25 @@ Do not put domain rules or persistence in the CLI layer.
 - `npm run test:concurrent` runs the multi-agent race tests in isolation.
 - Each test uses a temp dir (see `helpers.mjs`) so tests don't interfere.
 - `importFresh()` re-imports modules fresh between tests (defeats the module cache); use it when you need clean state.
-- For CLI end-to-end tests, use `runCli(args, { cwd })` which spawns the real `bin/climier.mjs`.
+- For CLI end-to-end tests, use `runCli(args, { cwd, env })`. It runs the real
+  dispatch pipeline **in-process** (capturing stdout/exit, applying and
+  restoring `cwd`/`env`), which keeps the suite fast; the returned shape is
+  `{ stdout, stderr, code }`. Use `runCliSpawn` when the test needs real
+  process isolation: parallel writers (`Promise.all` over CLI calls), stdin
+  consumers (`batch --stdin`), or anything that observes process identity.
+- Plugin install tests resolve local fixture directories through
+  `test/fixtures/npm-shim` (`CLIMIER_NPM_CMD`), a strict test-only npm
+  stand-in. Real npm costs two extra node processes per install; npm failure
+  paths inject their own command, and an operator-set `CLIMIER_NPM_CMD`
+  always wins.
+- `npm test` partitions the suite into in-process shards
+  (`test/run-core-tests.mjs` + `test/core-test-plan.mjs`) balanced by
+  `test/test-durations.json`, a generated per-file timing table. Regenerate
+  it with `node test/generate-test-durations.mjs` after large test changes;
+  files missing from the table fall back to a size estimate, so a stale
+  table only degrades balance. Node < 22.8 (the CI matrix includes 20) runs
+  one process-isolated runner; `CLIMIER_TEST_ISOLATION=process` forces that
+  path and `CLIMIER_TEST_WORKERS=N` overrides the shard count.
 - For unit tests of derivation logic, import the command file (or its helpers) and pass literal state objects — no filesystem needed.
 
 ### Test file naming

@@ -10,7 +10,28 @@ import { createTempProject, rmTempProject, runCli } from "./helpers.mjs";
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
 
+const privateHomes = new WeakMap();
+
+// `migrate --all` sweeps every project under CLIMIER_HOME. In-process shards
+// share one home, so this file must never see another file's projects (or
+// their stale locks, which would burn the 10s lock timeout per sweep). Give
+// each test its own home and restore it when the test finishes.
+async function ensurePrivateHome(t) {
+  if (privateHomes.has(t)) {return privateHomes.get(t);}
+  const home = await fs.mkdtemp(path.join(os.tmpdir(), "climier-olds-home-"));
+  privateHomes.set(t, home);
+  const previous = process.env.CLIMIER_HOME;
+  process.env.CLIMIER_HOME = home;
+  t.after(async () => {
+    if (previous === undefined) {delete process.env.CLIMIER_HOME;}
+    else {process.env.CLIMIER_HOME = previous;}
+    await fs.rm(home, { recursive: true, force: true });
+  });
+  return home;
+}
+
 async function createLegacyProject(t, { version = 4, preRelease = false, id } = {}) {
+  await ensurePrivateHome(t);
   const projectDir = await createTempProject();
   t.after(() => rmTempProject(projectDir));
   const projectId = id || `old-forms-${path.basename(projectDir)}`;
@@ -87,7 +108,12 @@ test("legacy migration backs up source and reports old migration_pending while c
       source_high_water_revision: 6, fence_revision: 7, fence_generation: 1 },
   }, null, 2);
   await fs.writeFile(old.ledgerPath, oldLedger);
-  const result = await runCli(["migrate", "--all"], { env: { CLIMIER_HOME: process.env.CLIMIER_HOME } });
+  // `migrate --all` rejects --project, so it resolves the project root from
+  // cwd. Run from a neutral directory so the checkout's own remote-linked
+  // .climier.json cannot veto the sweep with REMOTE_UNSUPPORTED_OPERATION.
+  const neutralCwd = await createTempProject();
+  t.after(() => rmTempProject(neutralCwd));
+  const result = await runCli(["migrate", "--all"], { cwd: neutralCwd, env: { CLIMIER_HOME: process.env.CLIMIER_HOME } });
   assert.notEqual(result.code, 0, result.stdout);
   assert.match(result.stdout, new RegExp(old.projectId));
   assert.equal(await fs.readFile(old.statePath, "utf8"), `${JSON.stringify(old.source, null, 2)}\n`);

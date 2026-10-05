@@ -137,11 +137,12 @@ export function createBackendClient({
   projectDir,
   projectConfig = {},
   source,
+  command,
   credentialStore = createCredentialStore(),
   timeoutMs = DEFAULT_TIMEOUT_MS,
 } = {}) {
   validateBackendClientOptions({ projectDir, timeoutMs });
-  const backend = parseBackendConfig(projectConfig);
+  const backend = parseBackendConfig(projectConfig, { command });
   return createSelectedBackendClient({ backend, projectDir, projectConfig, source, credentialStore, timeoutMs });
 }
 
