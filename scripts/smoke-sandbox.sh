@@ -2,7 +2,7 @@
 # smoke-sandbox.sh — aísla smokes mutantes de climier del CLIMIER_HOME real.
 #
 # Usage:
-#   bash .agents/skills/climier/smoke-sandbox.sh -- <command> [args...]
+#   bash scripts/smoke-sandbox.sh -- <command> [args...]
 #
 # Comportamiento:
 #   - exige `--` como primer argumento antes del comando a ejecutar.
@@ -23,7 +23,7 @@ set -euo pipefail
 
 usage() {
   cat >&2 <<'EOF'
-Usage: bash .agents/skills/climier/smoke-sandbox.sh -- <command> [args...]
+Usage: bash scripts/smoke-sandbox.sh -- <command> [args...]
 
 Isolates the wrapped command by exporting CLIMIER_HOME to a private temp dir.
 Required for any mutating smoke that targets a temporary project

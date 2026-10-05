@@ -21,7 +21,7 @@
 //        data persists across uninstall/reinstall
 //
 // Isolation: per-test temp CLIMIER_HOME under os.tmpdir() + temp project
-// dir (mirrors .agents/skills/climier/smoke-sandbox.sh). The bin runs in
+// dir (mirrors scripts/smoke-sandbox.sh). The bin runs in
 // a fresh child process for each runCli call, so plugin dispatch and
 // ESM module caching behave like production.
 

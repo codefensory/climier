@@ -21,6 +21,15 @@ idea → [RFC: gate research + .decisions/<G>.md]
 
 Regla madre: el contenido largo vive en docs commiteados; climier guarda punteros, estado y trazabilidad. Nada de specs largas en bodies ni en prompts.
 
+## 0. Iniciativa
+
+`add-gate` y `add-task` fallan con `INITIATIVE_NOT_FOUND` si `<init>` no esta registrada, y `add-initiative` no es idempotente (repetir el nombre da `ID_CONFLICT`). Antes de empezar, verifica y crea una sola vez:
+
+```bash
+climier initiatives --all   # ya existe <init>?
+climier add-initiative <init> --desc "<alcance>" --as orchestrator
+```
+
 ## 1. RFC
 
 ```bash

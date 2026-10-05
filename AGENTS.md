@@ -404,13 +404,15 @@ Before a run, inspect the graph and task contract with `climier status` and `cli
 ```json
 { "action": "run", "task_id": "<task-id>" }
 { "action": "resume", "task_id": "<task-id>", "summary": "<optional checkpoint context>" }
+{ "action": "restart", "task_id": "<task-id>", "body": "<replacement body>", "acceptance": "<replacement acceptance>" }
+{ "action": "cancel", "task_id": "<task-id>" }
 { "action": "status", "task_id": "<task-id>" }
 { "action": "list" }
 ```
 
-`run` and `resume` launch in the background; their tool result confirms launch, while the Pi widget tracks active progress. `run` defaults to Pi's current directory; pass optional `repo` only when targeting another checkout. `status` reads the saved execution report; `list` lists saved runs globally and is not a substitute for DAG readiness (`climier status`). The runner owns claim, worktree, implementation, review, lifecycle, commit, merge, and cleanup.
+`run`, `resume`, and `restart` launch in the background; their tool result confirms launch, while the Pi widget tracks active progress. `restart` requires `body` and `acceptance` and asks for confirmation before discarding the owned workspace. `cancel` stops the running runner and kills its active node/FX harness. `run` defaults to Pi's current directory; pass optional `repo` only when targeting another checkout. `status` reads the saved execution report; `list` lists saved runs globally and is not a substitute for DAG readiness (`climier status`). The runner owns claim, worktree, implementation, review, lifecycle, commit, merge, and cleanup.
 
-The Pi Flow tool does not expose `restart`. Do not fall back to a shell command. If an interrupted, non-completed run requires a fresh attempt, explain that limitation and ask for Flow tool support. A completed and merged task must not be restarted; create a new correction task instead. DAG curation remains separate and uses `climier` commands.
+Do not fall back to a shell command for Flow. A completed and merged task must not be restarted; create a new correction task instead. DAG curation remains separate and uses `climier` commands. Before building a graph, register its initiative once with `climier add-initiative <name> --as <agent>`; `add-task`/`add-gate`/`add-knowledge` fail with `INITIATIVE_NOT_FOUND` otherwise, and `add-initiative` is not idempotent (`ID_CONFLICT`).
 
 ## Task sizing and agent budget
 
@@ -427,11 +429,13 @@ unrelated changes.
 
 This repository carries the portable agent workflow used by the Climier-based projects:
 
-- `.pi/APPEND_SYSTEM.md` — concise routing and policy cues appended to Pi's built-in system prompt;
-- `.pi/agents/rfc-reviewer.md` — RFC/ADR review prompt;
-- `.agents/skills/climier/` — DAG protocol and examples;
-- `.agents/skills/spec-pipeline/` — opt-in RFC → review → ADR → tasks pipeline;
-- `.agents/skills/initiative-execution/` — opt-in initiative coordination through individual runner executions;
+- Global portable skills (installed under `~/.agents/skills/`):
+  - `climier` — DAG CLI usage; sourced from this repository (`skills/climier/`).
+  - `climier-flow` — task execution through the `climier_flow` tool; sourced from the climier-flow repository (`skills/climier-flow/`).
+  - `initiative-execution` — opt-in initiative coordination; sourced from the climier-flow repository.
+- `.agents/skills/spec-pipeline/` — opt-in RFC → review → ADR → tasks pipeline; stays project-local because it writes `.decisions/` and `.adrs/`.
+- `.pi/agents/rfc-reviewer.md` — RFC/ADR review prompt used by the spec pipeline.
+- `.pi/APPEND_SYSTEM.md` — project routing and policy cues appended to Pi's built-in system prompt.
 - `CLIMIER-CHEATSHEET.md` — quick Climier and Pi Flow tool reference.
 
 These files define how this project uses Climier. The project-specific source of truth remains the code, tests and `docs/`; the live Climier state remains outside the repository and is accessed only through the CLI.

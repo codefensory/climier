@@ -88,12 +88,18 @@ bun bin/climier.mjs --help
 
 ## Agent skill
 
-An [agent skill](https://skills.sh) for operating climier lives in
-[`skills/climier/`](./skills/climier/). Install it for your coding agent with:
+A portable [agent skill](https://skills.sh) for operating the climier DAG lives
+in [`skills/climier/`](./skills/climier/). Install it for your coding agent with:
 
 ```bash
 npx skills add codefensory/climier
 ```
+
+In Pi, install it from a git source with `pi install git:<repo-url>` or link it
+into `~/.agents/skills/`. Task execution is a separate skill
+(`climier-flow`, sourced from the climier-flow repository), and the project-local
+`spec-pipeline` skill (RFC → review → ADR) is intentionally not distributed: it
+writes `.decisions/` and `.adrs/` and belongs to the repository that adopts it.
 
 ## Quickstart
 

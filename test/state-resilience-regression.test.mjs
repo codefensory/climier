@@ -5,7 +5,7 @@
 // copied the same `project_id` ran `init --force` against a real,
 // shared CLIMIER_HOME and clobbered the live state with no backup. The
 // mitigation has two parts that we exercise here:
-//   - `.agents/skills/climier/smoke-sandbox.sh` forces a private
+//   - `scripts/smoke-sandbox.sh` forces a private
 //     CLIMIER_HOME per smoke run, so a copied `project_id` cannot
 //     touch the caller's home.
 //   - The `init --force` path takes a `force-init` snapshot under
@@ -45,7 +45,7 @@ import { spawn } from "node:child_process";
 
 const ROOT = path.resolve(process.cwd());
 const BIN = path.join(ROOT, "bin", "climier.mjs");
-const HELPER = path.join(ROOT, ".agents/skills/climier", "smoke-sandbox.sh");
+const HELPER = path.join(ROOT, "scripts", "smoke-sandbox.sh");
 
 function mkTempDir(prefix) {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
