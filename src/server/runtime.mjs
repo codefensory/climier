@@ -1,12 +1,15 @@
 import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { createProjectCatalog } from "./catalog/index.mjs";
 import { createRemoteApiServer } from "./http.mjs";
 import { loadServerRuntimeConfig, parseServerRuntimeConfig } from "./runtime-config.mjs";
 import { createServerAuthStore } from "./auth/server-auth-store.mjs";
 import { acquireServerServiceLock } from "./service-lock.mjs";
+
+const DEFAULT_UI_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "ui", "dist");
 
 function runtimeError(code, message) {
   return Object.assign(new Error(`server runtime: ${message}`), { code });
@@ -127,11 +130,12 @@ function createOpenProject({ catalog, pinnedHome }) {
 }
 
 export function createServerRuntime(rawConfig, { serverFactory = createRemoteApiServer, authStore } = {}) {
-  const config = parseServerRuntimeConfig(rawConfig);
+  const parsedConfig = parseServerRuntimeConfig(rawConfig);
+  const config = Object.freeze({ ...parsedConfig, uiRoot: parsedConfig.uiRoot ?? DEFAULT_UI_ROOT });
   const pinnedHome = pinStateHome(config.stateHome);
   const catalog = createProjectCatalog({ dataRoot: config.dataRoot });
   const openProject = createOpenProject({ catalog, pinnedHome });
-  const server = authStore ? serverFactory({ catalog, authStore, openProject }) : null;
+  const server = authStore ? serverFactory({ catalog, authStore, openProject, uiRoot: config.uiRoot }) : null;
   return Object.freeze({ config, catalog, openProject, server, stateHome: pinnedHome.path, authStore });
 }
 

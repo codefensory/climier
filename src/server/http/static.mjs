@@ -3,6 +3,7 @@ import path from "node:path";
 
 const CACHE_CONTROL_ASSET = "public, max-age=31536000, immutable";
 const CACHE_CONTROL_HTML = "no-cache";
+const MISSING_BUILD_MESSAGE = "Climier UI build is not available. Run `npm run build` in ui/ and restart the server.\n";
 
 const CONTENT_TYPES = new Map([
   [".avif", "image/avif"],
@@ -63,6 +64,15 @@ function notFound(response) {
     "content-length": "0",
   });
   response.end();
+}
+
+function missingBuild(response, method) {
+  response.writeHead(503, {
+    "cache-control": "no-store",
+    "content-length": String(Buffer.byteLength(MISSING_BUILD_MESSAGE)),
+    "content-type": "text/plain; charset=utf-8",
+  });
+  response.end(method === "HEAD" ? undefined : MISSING_BUILD_MESSAGE);
 }
 
 async function resolveFile(candidate, root) {
@@ -143,7 +153,11 @@ export function createStaticHandler({ root, indexFile = "index.html" } = {}) {
     try {
       realRoot = await fs.realpath(configuredRoot);
     } catch {
-      notFound(response);
+      if (pathname === "/") {
+        missingBuild(response, request.method);
+      } else {
+        notFound(response);
+      }
       return true;
     }
 
@@ -163,7 +177,11 @@ export function createStaticHandler({ root, indexFile = "index.html" } = {}) {
     if (!file) {
       const fallback = await resolveFile(path.join(realRoot, indexRelative), realRoot);
       if (fallback.kind !== "file") {
-        notFound(response);
+        if (pathname === "/" && fallback.kind === "missing") {
+          missingBuild(response, request.method);
+        } else {
+          notFound(response);
+        }
         return true;
       }
       file = fallback.path;

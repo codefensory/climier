@@ -3,7 +3,7 @@ import { constants as fsConstants } from "node:fs";
 import net from "node:net";
 import path from "node:path";
 
-const CONFIG_FIELDS = new Set(["listen", "dataRoot", "stateHome"]);
+const CONFIG_FIELDS = new Set(["listen", "dataRoot", "stateHome", "uiRoot"]);
 const LISTEN_FIELDS = new Set(["host", "port"]);
 
 function invalid(message, cause) {
@@ -35,7 +35,7 @@ function hasValidListenShape(listen) {
 
 function validateListenConfig(listen) {
   if (!hasValidListenShape(listen)) {
-    throw invalid("expected only listen { host, port }, dataRoot, and stateHome");
+    throw invalid("expected only listen { host, port }, dataRoot, stateHome, and uiRoot");
   }
   if (!isLoopbackHost(listen.host)) {
     throw invalid("listen.host must be loopback");
@@ -48,6 +48,9 @@ function validatePaths(config) {
       throw invalid(`${key} must be an absolute path`);
     }
   }
+  if (config.uiRoot !== undefined && (typeof config.uiRoot !== "string" || !path.isAbsolute(config.uiRoot))) {
+    throw invalid("uiRoot must be an absolute path");
+  }
 }
 
 function normalizeConfig(config) {
@@ -55,12 +58,13 @@ function normalizeConfig(config) {
     listen: Object.freeze({ ...config.listen }),
     dataRoot: path.resolve(config.dataRoot),
     stateHome: path.resolve(config.stateHome),
+    uiRoot: config.uiRoot === undefined ? undefined : path.resolve(config.uiRoot),
   });
 }
 
 function validateConfig(config) {
   if (!hasOnlyKeys(config, CONFIG_FIELDS)) {
-    throw invalid("expected only listen { host, port }, dataRoot, and stateHome; projectIds and credentials are no longer supported");
+    throw invalid("expected only listen { host, port }, dataRoot, stateHome, and uiRoot; projectIds and credentials are no longer supported");
   }
   validateListenConfig(config.listen);
   validatePaths(config);
