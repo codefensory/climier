@@ -60,6 +60,14 @@ bun install --frozen-lockfile
 bun run build
 ```
 
+When the service host has no build toolchain, `scripts/deploy-hosted-ui.sh`
+builds `ui/dist` locally, merges the deployment base into the current commit,
+pushes it to the remote checkout over SSH, ships the bundle, restarts the
+service and verifies the served asset byte for byte against the local build.
+Configure host, path, service and origin in a gitignored `.deploy.env` (copy
+`scripts/deploy-hosted-ui.env.example`); `--check` reports drift without
+changing anything.
+
 The SPA authenticates with the same `POST /v1/auth/login` password; it lists
 projects with `GET /v1/projects` and reads one project with
 `/v1/projects/:id/ui/snapshot`, `/ui/nodes/:nodeId`, `/ui/activity`, and the
