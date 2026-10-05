@@ -61,6 +61,42 @@ test("climier ui serves the local SPA and UI projections without Express or bear
   assert.deepEqual(body.result.nodes, {});
 });
 
+test("climier ui exposes the hosted read contract locally: catalog, login, ETag and SSE", async (t) => {
+  const { root, uiRoot, projectId } = await makeProject(t, "contract-project");
+  const started = await startLocalUiServer({ projectDir: root, uiRoot, port: 0 });
+  t.after(() => closeServer(started.server));
+
+  const catalog = await fetch(`${started.url}/v1/projects`);
+  assert.equal(catalog.status, 200);
+  const projects = (await catalog.json()).projects;
+  assert.deepEqual(projects.map((project) => project.project_id), [projectId]);
+  assert.equal(projects[0].revision, 1);
+  assert.equal(projects[0].node_count, 0);
+
+  const login = await fetch(`${started.url}/v1/auth/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ password: "anything" }),
+  });
+  assert.equal(login.status, 200);
+  const session = await login.json();
+  assert.equal(session.ok, true);
+  assert.equal(session.token_type, "Bearer");
+
+  const snapshot = await fetch(`${started.url}/v1/projects/${projectId}/ui/snapshot`);
+  assert.equal(snapshot.headers.get("etag"), '"1"');
+  const cached = await fetch(`${started.url}/v1/projects/${projectId}/ui/snapshot`, {
+    headers: { "if-none-match": '"1"' },
+  });
+  assert.equal(cached.status, 304);
+
+  const controller = new AbortController();
+  const events = await fetch(`${started.url}/v1/projects/${projectId}/ui/events`, { signal: controller.signal });
+  assert.equal(events.status, 200);
+  assert.equal(events.headers.get("content-type"), "text/event-stream");
+  controller.abort();
+});
+
 test("uiCommand starts the stdlib local server and reports the loopback URL", async (t) => {
   const { root, uiRoot } = await makeProject(t, "command-project");
   const result = await uiCommand({ projectDir: root, flags: { open: false, port: 0 }, uiRoot });

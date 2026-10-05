@@ -7,6 +7,8 @@ import { fileURLToPath } from "node:url";
 import { createHttpCodec } from "../../server/http/codec.mjs";
 import { createStaticHandler } from "../../server/http/static.mjs";
 import { createUiApi } from "../../server/http/ui-api.mjs";
+import { createUiEvents } from "../../server/http/ui-events.mjs";
+import { ledgerFile } from "../../storage/ledger.mjs";
 import { readState, stateFile } from "../../storage/state.mjs";
 
 export const knownFlags = ["port", "open"];
@@ -54,6 +56,35 @@ function createLocalUiApi({ projectDir, projectId, projectName, clock }) {
   });
 }
 
+function createLocalUiEvents({ projectDir, projectId, projectName }) {
+  return createUiEvents({
+    authorize: async () => {},
+    getProject: async (requestedProjectId) => requestedProjectId === projectId
+      ? { id: projectId, name: projectName, projectDir }
+      : null,
+    readSnapshot: () => readState(projectDir),
+    resolveLedger: () => ledgerFile(projectDir),
+    protocolVersion: PROTOCOL_VERSION,
+  });
+}
+
+// Same shape the hosted catalog returns, derived from the single local project the command resolved.
+async function localProjectSummary({ projectDir, projectId, projectName }) {
+  const state = await readState(projectDir);
+  if (!state) {
+    return { project_id: projectId, name: projectName, revision: 0, node_count: 0, updated_at: null };
+  }
+  return {
+    project_id: projectId,
+    name: projectName,
+    revision: Number.isInteger(state.revision) ? state.revision : 0,
+    node_count: state.nodes && typeof state.nodes === "object" && !Array.isArray(state.nodes)
+      ? Object.keys(state.nodes).length
+      : 0,
+    updated_at: fsSync.statSync(stateFile(projectDir)).mtime.toISOString(),
+  };
+}
+
 async function handleHealth(request, response) {
   const pathname = requestPath(request);
   if (request.method !== "GET" || (pathname !== "/health" && pathname !== "/api/health")) {
@@ -63,18 +94,47 @@ async function handleHealth(request, response) {
   return true;
 }
 
-async function handleLocalUiApi(request, response, { uiApi }) {
+async function handleLocalUiApi(request, response, { uiApi, uiEvents, projectDir, projectId, projectName }) {
+  const url = new URL(request.url || "/", "http://localhost");
+  if (url.pathname === "/v1/auth/login") {
+    if (request.method !== "POST") {
+      throw routeNotFound();
+    }
+    // Loopback-only adapter: the hosted contract is answered without credentials.
+    send(response, 200, { ok: true, token: `local-${projectId}`, token_type: "Bearer", expires_in_days: 30 });
+    return;
+  }
+  if (url.pathname === "/v1/projects") {
+    if (request.method !== "GET") {
+      throw routeNotFound();
+    }
+    send(response, 200, { projects: [await localProjectSummary({ projectDir, projectId, projectName })] });
+    return;
+  }
   if (request.method !== "GET") {
     throw routeNotFound();
   }
-  const url = new URL(request.url || "/", "http://localhost");
   const parsed = parseProjectPath(url.pathname);
   if (!parsed) {
     throw routeNotFound();
   }
+  if (uiEvents.matchRoute(parsed.route)) {
+    await uiEvents.handle({ request, response, projectId: parsed.projectId });
+    return;
+  }
   const route = uiApi.matchRoute(parsed.route);
   if (!route) {
     throw routeNotFound();
+  }
+  if (route.kind === "snapshot") {
+    const result = await uiApi.readSnapshotResponse({ request, projectId: parsed.projectId });
+    response.writeHead(result.status, {
+      ...result.headers,
+      ...(result.status === 304 ? { "content-length": "0" } : {}),
+      "x-climier-protocol-version": PROTOCOL_VERSION,
+    });
+    response.end(result.body ?? undefined);
+    return;
   }
   const query = uiApi.parseQuery(url, route);
   const result = await uiApi.read({
@@ -94,7 +154,8 @@ export function createLocalUiServer({ projectDir, uiRoot = UI_ROOT, indexFile = 
   const projectName = projectId;
   const staticHandler = createStaticHandler({ root: uiRoot, indexFile });
   const uiApi = createLocalUiApi({ projectDir, projectId, projectName, clock });
-  const dependencies = { uiApi };
+  const uiEvents = createLocalUiEvents({ projectDir, projectId, projectName });
+  const dependencies = { uiApi, uiEvents, projectDir, projectId, projectName };
 
   return createServer(async (request, response) => {
     try {

@@ -13,7 +13,7 @@ function emptyStorage(): StorageLike {
 const meta = {
   title: "Pages/LoginPage",
   component: LoginPage,
-  render: () => <SessionProvider storage={emptyStorage()}><LoginPage /></SessionProvider>,
+  render: () => <SessionProvider storage={emptyStorage()} probe={false}><LoginPage /></SessionProvider>,
   parameters: { layout: "fullscreen" },
 } satisfies Meta<typeof LoginPage>;
 

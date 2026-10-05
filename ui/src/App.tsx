@@ -21,7 +21,8 @@ function App(props: AppProps = {}) {
 }
 
 function RootLayout(props: RouteSectionProps) {
-  return <SessionProvider><AuthenticatedLayout>{props.children}</AuthenticatedLayout></SessionProvider>;
+  const runtime = useRuntime();
+  return <SessionProvider probe={runtime.mode !== "fixture"}><AuthenticatedLayout>{props.children}</AuthenticatedLayout></SessionProvider>;
 }
 
 function AuthenticatedLayout(props: { children?: JSX.Element }) {

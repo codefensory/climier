@@ -202,6 +202,15 @@ derivation functions, and is not included in the published tarball. A missing
 subproject or dependency produces an actionable error. The CLI surface and
 JSON contract do not depend on it.
 
+The local adapter answers the same `/v1` read contract as the hosted server —
+`GET /v1/projects` (the single local project), `POST /v1/auth/login`,
+`GET /v1/projects/:id/ui/{snapshot,nodes,activity}` with `ETag`/`304`, and the
+`/ui/events` SSE stream — but without bearer auth or the remote catalog. The
+same `ui/dist` bundle serves the remote DAG on the server and the local DAG on
+loopback; the browser client probes `/v1/projects` once and treats a `200`
+(open) response as authenticated, so the login gate only appears when the
+server requires a bearer.
+
 ## Agent identity
 
 Every mutating command needs an agent identity.

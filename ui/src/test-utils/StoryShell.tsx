@@ -50,7 +50,7 @@ export function StoryShell(props: StoryShellProps) {
 
   const Page = () => (
     <RuntimeProvider mode="fixture" fixtureSnapshot={fixtureSnapshot}>
-      <SessionProvider>
+      <SessionProvider probe={false}>
         <ProjectProvider mode="fixture" fixtureSnapshot={fixtureSnapshot}>
           {props.shell ? <ShellProvider>{props.children}</ShellProvider> : props.children}
         </ProjectProvider>
