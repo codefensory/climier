@@ -5,6 +5,7 @@ import { isSurfaceOpen, must } from "../../../test-utils/story";
 
 import { useTaskFilters } from "../controllers/useTaskFilters";
 import { emptyFilterTree } from "../data/filters";
+import { snapshot } from "../data/source";
 import { makeCondition, makeFilterTree } from "../data/fixtures";
 import { FilterPanel } from "./FilterPanel";
 import type { FilterGroup } from "../types";
@@ -46,7 +47,7 @@ const Host = (props: { tree?: FilterGroup; note?: string }) => {
   const [open, setOpen] = createSignal(false);
   // El árbol es controlado: en la app es la URL, acá un signal local. Mismo contrato, distinto dueño.
   const [tree, setTree] = createSignal<FilterGroup>(props.tree ?? emptyFilterTree());
-  const filters = useTaskFilters({ isOpen: open, setOpen, tree, setTree });
+  const filters = useTaskFilters({ isOpen: open, setOpen, tree, setTree, snapshot: () => snapshot });
   return (
     <div class="bg-white p-4">
       {props.note && <p class="mb-3 text-[12px] text-muted">{props.note}</p>}

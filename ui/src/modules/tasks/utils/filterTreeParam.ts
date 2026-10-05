@@ -1,4 +1,5 @@
 import { emptyFilterTree, filterFields } from "../data/filters";
+import type { ClimierSnapshot } from "../data/climier/contract";
 import type { FilterCondition, FilterField, FilterGroup, FilterJoin } from "../types";
 
 /**
@@ -21,16 +22,14 @@ import type { FilterCondition, FilterField, FilterGroup, FilterJoin } from "../t
  *
  * ### Lo que llega en la URL es entrada de usuario
  *
- * Cualquiera puede escribir `#/tasks?filter=basura`, así que el decodificador **valida**: campo y operador
- * tienen que existir en `filterFields` (si no, `fieldFor()` explotaría al renderizar) y una condición
- * inválida se descarta sola. Un JSON roto devuelve el árbol vacío en vez de tirar.
+ * Cualquiera puede escribir `#/tasks?filter=basura`, así que el decodificador **valida** contra el snapshot
+ * activo: campo, operador y valores tienen que existir en `filterFields(snapshot)` (si no, `fieldFor()` explotaría
+ * al renderizar). Una condición inválida se descarta sola. Un JSON roto devuelve el árbol vacío en vez de tirar.
  */
 type WireCondition = { f: FilterField; o: string; v: string[]; j?: FilterJoin };
 type WireGroup = { j?: FilterJoin; c: WireCondition[]; g: WireGroup[] };
 
 const isJoin = (value: unknown): value is FilterJoin => value === "and" || value === "or";
-const isField = (value: unknown): value is FilterField => filterFields().some((field) => field.id === value);
-const operatorsOf = (field: FilterField) => filterFields().find((item) => item.id === field)!.operators.map((operator) => operator.value);
 
 /** Sólo se escribe lo que no es el default: `join: "and"` es la ausencia de la clave. */
 function toWire(group: FilterGroup): WireGroup {
@@ -52,8 +51,20 @@ export function encodeFilterTree(tree: FilterGroup): string | undefined {
   return JSON.stringify(toWire(tree));
 }
 
-export function decodeFilterTree(param: string | undefined): FilterGroup {
+export function decodeFilterTree(param: string | undefined, snapshot: ClimierSnapshot): FilterGroup {
   if (!param) return emptyFilterTree();
+
+  const fields = filterFields(snapshot);
+  const fieldFor = (field: FilterField) => fields.find((item) => item.id === field);
+  const isField = (value: unknown): value is FilterField => fields.some((field) => field.id === value);
+  const operatorsOf = (field: FilterField) => fieldFor(field)?.operators.map((operator) => operator.value) ?? [];
+  const valuesOf = (field: FilterField, values: unknown): string[] => {
+    if (!Array.isArray(values)) return [];
+    const options = fieldFor(field)?.options ?? [];
+    return values
+      .filter((value): value is string => typeof value === "string")
+      .filter((value) => options.some((option) => option.value === value));
+  };
 
   let wire: unknown;
   try {
@@ -70,12 +81,14 @@ export function decodeFilterTree(param: string | undefined): FilterGroup {
     const { f, o, v, j } = raw as Partial<WireCondition>;
     if (!isField(f)) return undefined;
     if (typeof o !== "string" || !operatorsOf(f).includes(o)) return undefined;
+    const values = valuesOf(f, v);
+    if (Array.isArray(v) && v.length > 0 && values.length === 0) return undefined;
     return {
       id: nextId(),
       join: isJoin(j) ? j : "and",
       field: f,
       operator: o,
-      values: Array.isArray(v) ? v.filter((value): value is string => typeof value === "string") : [],
+      values,
     };
   };
 

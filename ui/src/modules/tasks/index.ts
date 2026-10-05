@@ -119,7 +119,6 @@ export type { KnowledgeAxis, KnowledgeAxisCoverage, KnowledgeGroupMode, Knowledg
 export { taskTag, tagStyles } from "./data/tags";
 export { blockedGateTaskCount, gateThreadCount, groupGateRecords, projectGateRegistry } from "./data/gates";
 export type { GateGroupMode, GateRecord, GateRegistryGroup, GateRelation } from "./data/gates";
-export { gates, snapshot, taskById, taskDetailById, tasks } from "./data/tasks";
 export { groupFields, sortFields } from "./data/sorting";
 export { defaultFilterCondition, emptyFilterTree, filterFields } from "./data/filters";
 

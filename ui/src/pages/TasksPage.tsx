@@ -16,11 +16,12 @@ import type { ClimierSnapshot, Task } from "../modules/tasks";
 import { PageFrame } from "./PageFrame";
 
 export function TasksPage() {
-  const board = useTasksUrl();
   const location = useLocation();
   const navigate = useNavigate();
   const projectData = useProjectData();
-  const projected = createMemo(() => projectBoard(projectData.snapshot() as ClimierSnapshot));
+  const currentSnapshot = () => projectData.snapshot() as ClimierSnapshot;
+  const board = useTasksUrl(currentSnapshot);
+  const projected = createMemo(() => projectBoard(currentSnapshot()));
 
   const filteredTasks = createMemo(() => filterTasks(projected().tasks, board.filterTree()));
   const filteredGates = createMemo(() => filterTasks(projected().gates, board.filterTree()));
@@ -47,7 +48,7 @@ export function TasksPage() {
   const openTask = (task: Task) => navigate(`/tasks/${encodeURIComponent(task.id)}${location.search}`);
 
   return (
-    <PageFrame header={<TasksToolbar view={board.view()} onView={board.setView} scope={board.scope()} scopeCounts={scopeCounts()} onScope={board.setScope} sort={board.sort()} onSort={board.setSort} group={board.group()} onGroup={board.setGroup} filterTree={board.filterTree()} onFilterTree={board.setFilterTree} />}>
+    <PageFrame header={<TasksToolbar view={board.view()} onView={board.setView} scope={board.scope()} scopeCounts={scopeCounts()} onScope={board.setScope} sort={board.sort()} onSort={board.setSort} group={board.group()} onGroup={board.setGroup} filterTree={board.filterTree()} onFilterTree={board.setFilterTree} snapshot={currentSnapshot()} />}>
       <div class="tasks-content">
         <TaskBoardContainer tasks={visibleTasks()} gates={visibleGates()} view={board.view()} sort={board.sort()} group={board.group()} onOpenTask={openTask} />
       </div>

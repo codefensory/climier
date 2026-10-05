@@ -3,18 +3,18 @@ import type { JSX } from "solid-js";
 import { Show } from "solid-js";
 import { AppShellContainer, ProjectProvider, ShellProvider, useProjectData } from "./modules/app-shell";
 import { RuntimeProvider, SessionProvider, useRuntime, useSession } from "./modules/core";
-import { snapshot as fixtureSnapshot } from "./modules/tasks/data/source";
 import { LoginPage, PlaceholderPage, ProjectStatePage, workspaceRoutes } from "./pages";
 
 const routeDefs = [...workspaceRoutes.map((page) => <Route path={page.path} component={page.component} />), <Route path="*" component={PlaceholderPage} />];
 
 export type AppProps = {
   mode?: "live" | "fixture";
+  fixtureSnapshot?: unknown;
 };
 
 function App(props: AppProps = {}) {
   return (
-    <RuntimeProvider mode={props.mode ?? "live"} fixtureSnapshot={fixtureSnapshot}>
+    <RuntimeProvider mode={props.mode ?? "live"} fixtureSnapshot={props.fixtureSnapshot}>
       <HashRouter root={RootLayout}>{routeDefs}</HashRouter>
     </RuntimeProvider>
   );

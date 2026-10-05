@@ -1,6 +1,7 @@
 import { createMemo, createSignal } from "solid-js";
 import { emptyFilterTree } from "../data/filters";
-import { gates, tasks } from "../data/tasks";
+import { snapshot } from "../data/source";
+import { projectBoard } from "../data/climier/projection";
 import { filterTasks } from "../utils/filterTasks";
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
 import { expect, userEvent, waitFor } from "storybook/test";
@@ -8,6 +9,8 @@ import { isSurfaceOpen, must } from "../../../test-utils/story";
 
 import { TasksToolbar } from "./TasksToolbar";
 import type { FilterGroup, TaskGroupBy, TaskScope, TaskSort, TaskView } from "../types";
+
+const { gates, tasks } = projectBoard(snapshot);
 
 /**
  * La toolbar completa.
@@ -68,7 +71,7 @@ const Host = (props: { view?: TaskView; scope?: TaskScope; sort?: TaskSort; grou
   });
   return (
     <div class="bg-white">
-      <TasksToolbar view={view()} onView={setView} scope={scope()} scopeCounts={scopeCounts()} onScope={setScope} sort={sort()} onSort={setSort} group={group()} onGroup={setGroup} filterTree={tree()} onFilterTree={setTree} />
+      <TasksToolbar view={view()} onView={setView} scope={scope()} scopeCounts={scopeCounts()} onScope={setScope} sort={sort()} onSort={setSort} group={group()} onGroup={setGroup} filterTree={tree()} onFilterTree={setTree} snapshot={snapshot} />
     </div>
   );
 };

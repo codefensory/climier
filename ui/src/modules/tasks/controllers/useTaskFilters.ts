@@ -1,5 +1,6 @@
 import { createEffect, createSignal, onCleanup, onMount } from "solid-js";
 import { defaultFilterCondition, filterFields } from "../data/filters";
+import type { ClimierSnapshot } from "../data/climier/contract";
 import type { FilterCondition, FilterField, FilterGroup, FilterMenuKind, FilterMenuSnapshot, FilterMenuState, FilterOption } from "../types";
 
 export type TaskFiltersController = ReturnType<typeof useTaskFilters>;
@@ -20,6 +21,7 @@ export type UseTaskFiltersOptions = {
    */
   tree: () => FilterGroup;
   setTree: (next: FilterGroup | ((previous: FilterGroup) => FilterGroup)) => void;
+  snapshot: () => ClimierSnapshot;
 };
 
 /**
@@ -45,6 +47,7 @@ export type UseTaskFiltersOptions = {
 export function useTaskFilters(options: UseTaskFiltersOptions) {
   const tree = options.tree;
   const setTree = options.setTree;
+  const fields = () => filterFields(options.snapshot());
   const [panelPosition, setPanelPosition] = createSignal({ left: 0, top: 0 });
   const [menuState, setMenuState] = createSignal<FilterMenuState | null>(null);
   const [menuOpen, setMenuOpen] = createSignal(false);
@@ -98,7 +101,7 @@ export function useTaskFilters(options: UseTaskFiltersOptions) {
    * `fieldFor` confía en que el campo existe: `FilterCondition.field` es una unión cerrada y el único
    * lugar que la escribe es el menú de campos, que ofrece exactamente esa unión.
    */
-  const fieldFor = (condition: FilterCondition) => filterFields().find((field) => field.id === condition.field)!;
+  const fieldFor = (condition: FilterCondition) => fields().find((field) => field.id === condition.field)!;
   const selectedValues = (condition: FilterCondition) => fieldFor(condition).options.filter((option) => condition.values.includes(option.value));
 
   // ── Menú de opciones de una fila ───────────────────────────────────────────────────────────
@@ -117,7 +120,7 @@ export function useTaskFilters(options: UseTaskFiltersOptions) {
     const state = menuState();
     const condition = menuCondition();
     if (!state || !condition) return [];
-    if (state.kind === "field") return filterFields().map((field) => ({ value: field.id, label: field.label }));
+    if (state.kind === "field") return fields().map((field) => ({ value: field.id, label: field.label }));
     if (state.kind === "operator") return fieldFor(condition).operators.map((operator) => ({ value: operator.value, label: operator.label }));
     return fieldFor(condition).options;
   };
@@ -134,7 +137,7 @@ export function useTaskFilters(options: UseTaskFiltersOptions) {
     const condition = menuCondition();
     if (!state || !condition) return;
     if (state.kind === "field") {
-      const nextField = filterFields().find((field) => field.id === option.value)!;
+      const nextField = fields().find((field) => field.id === option.value)!;
       closeOptionMenu();
       updateCondition(condition.id, (current) => ({ ...current, field: nextField.id as FilterField, operator: nextField.operators[0].value, values: nextField.options.length ? [nextField.options[0].value] : [] }));
     } else if (state.kind === "operator") {
@@ -231,7 +234,7 @@ export function useTaskFilters(options: UseTaskFiltersOptions) {
 
   return {
     // árbol
-    tree, conditionCount, fieldFor, selectedValues, addCondition, removeCondition, addGroup,
+    tree, conditionCount, fields, fieldFor, selectedValues, addCondition, removeCondition, addGroup,
     updateCondition, toggleConditionJoin, toggleGroupJoin, clearAll, removeGroup,
     // menú de opciones
     menuOpen, menuPosition, openPicker, chooseOption, closeOptionMenu,

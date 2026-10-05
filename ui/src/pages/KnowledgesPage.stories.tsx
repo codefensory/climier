@@ -1,8 +1,9 @@
 import { createSignal } from "solid-js";
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
 import { expect, userEvent, waitFor } from "storybook/test";
-import { KnowledgeEgoPanel, KnowledgeRow, KnowledgesToolbar, projectKnowledgeRegistry, snapshot } from "../modules/tasks";
+import { KnowledgeEgoPanel, KnowledgeRow, KnowledgesToolbar, projectKnowledgeRegistry } from "../modules/tasks";
 import type { KnowledgeGroupMode } from "../modules/tasks";
+import { snapshot } from "../modules/tasks/data/source";
 import { StoryShell } from "../test-utils/StoryShell";
 import { must } from "../test-utils/story";
 import { KnowledgesPage } from "./KnowledgesPage";

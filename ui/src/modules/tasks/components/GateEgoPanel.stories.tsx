@@ -7,7 +7,7 @@ import { GateEgoPanel } from "./GateEgoPanel";
 import { TaskDetailView } from "./TaskDetailView";
 import { projectGateRegistry } from "../data/gates";
 import type { GateRecord, GateRelation } from "../data/gates";
-import { snapshot } from "../data/tasks";
+import { snapshot } from "../data/source";
 import type { GateEgoPanelProps } from "./GateEgoPanel";
 import type { Task, TaskStatus } from "../types";
 

@@ -3,7 +3,7 @@ import Rocket01Icon from "@hugeicons/core-free-icons/Rocket01Icon";
 import Task01Icon from "@hugeicons/core-free-icons/Task01Icon";
 import UserIcon from "@hugeicons/core-free-icons/UserIcon";
 import { boardTags, claimedAgents } from "./climier/projection";
-import { snapshot } from "./source";
+import type { ClimierSnapshot } from "./climier/contract";
 import { statusOrder } from "./statuses";
 import type { BoardStatus, FilterCondition, FilterFieldDef, FilterGroup, FilterOption } from "../types";
 
@@ -21,25 +21,22 @@ const statusOptions: FilterOption[] = [
   { value: "archived", label: "Archived", status: "archived" },
 ];
 
-const claimOptions: FilterOption[] = [
-  { value: "Unassigned", label: "Unassigned" },
-  ...claimedAgents(snapshot).map((agent) => ({ value: agent, label: agent })),
-];
-
-const tagOptions: FilterOption[] = boardTags(snapshot).map((tag) => ({ value: tag, label: tag, chip: true }));
-
-const initiativeOptions: FilterOption[] = Object.keys(snapshot.initiatives)
-  .sort()
-  .map((initiative) => ({ value: initiative, label: initiative }));
-
 /**
  * Los campos filtrables con sus operadores y opciones.
  *
- * Es una **función** y no una constante porque las opciones salen del vocabulario del snapshot
- * (agentes con claim, tags e initiatives presentes). Con la lista hardcodeada, un filtro por una
- * initiative nueva no tendría opción.
+ * Las opciones que dependen de datos del proyecto se calculan desde el snapshot recibido en cada
+ * lectura. Así cambiar `?project=` no puede dejar el vocabulario del proyecto anterior en el menú.
  */
-export function filterFields(): FilterFieldDef[] {
+export function filterFields(snapshot: ClimierSnapshot): FilterFieldDef[] {
+  const claimOptions: FilterOption[] = [
+    { value: "Unassigned", label: "Unassigned" },
+    ...claimedAgents(snapshot).map((agent) => ({ value: agent, label: agent })),
+  ];
+  const tagOptions: FilterOption[] = boardTags(snapshot).map((tag) => ({ value: tag, label: tag, chip: true }));
+  const initiativeOptions: FilterOption[] = Object.keys(snapshot.initiatives)
+    .sort()
+    .map((initiative) => ({ value: initiative, label: initiative }));
+
   return [
     { id: "status", label: "Status", icon: Task01Icon, operators: TEXT_OPERATORS, options: statusOptions },
     { id: "claimed", label: "Claimed", icon: UserIcon, operators: TEXT_OPERATORS, options: claimOptions },

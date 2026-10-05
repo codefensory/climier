@@ -1,11 +1,14 @@
 import { createSignal } from "solid-js";
 import { emptyFilterTree } from "../data/filters";
-import { gates, tasks } from "../data/tasks";
+import { snapshot } from "../data/source";
+import { projectBoard } from "../data/climier/projection";
 import { filterTasks } from "../utils/filterTasks";
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
 import { TaskBoardContainer } from "../containers/TaskBoardContainer";
 import { TasksToolbar } from "../components/TasksToolbar";
 import type { FilterGroup, TaskGroupBy, TaskScope, TaskSort, TaskView } from "../types";
+
+const { gates, tasks } = projectBoard(snapshot);
 
 /**
  * Toolbar + board: lo que en la app es la vista de tareas.
@@ -50,7 +53,7 @@ const Host = (props: { view?: TaskView; scope?: TaskScope; sort?: TaskSort; grou
   const scopedGates = () => scope() === "closed" ? [] : filteredGates();
   return (
     <>
-      <TasksToolbar view={view()} onView={setView} scope={scope()} scopeCounts={counts()} onScope={setScope} sort={sort()} onSort={setSort} group={group()} onGroup={setGroup} filterTree={tree()} onFilterTree={setTree} />
+      <TasksToolbar view={view()} onView={setView} scope={scope()} scopeCounts={counts()} onScope={setScope} sort={sort()} onSort={setSort} group={group()} onGroup={setGroup} filterTree={tree()} onFilterTree={setTree} snapshot={snapshot} />
       <div class="tasks-content px-4 pt-4">
         <TaskBoardContainer tasks={scopedTasks()} gates={scopedGates()} view={view()} sort={sort()} group={group()} />
       </div>

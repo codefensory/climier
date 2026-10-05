@@ -1,6 +1,7 @@
 import { useSearchParams } from "@solidjs/router";
 import { createMemo } from "solid-js";
 import { groupFields, sortFields } from "../data/sorting";
+import type { ClimierSnapshot } from "../data/climier/contract";
 import { decodeFilterTree, encodeFilterTree } from "../utils/filterTreeParam";
 import type { FilterGroup, TaskGroupBy, TaskScope, TaskSort, TaskSortKey, TaskView } from "../types";
 
@@ -37,7 +38,7 @@ import type { FilterGroup, TaskGroupBy, TaskScope, TaskSort, TaskSortKey, TaskVi
  * distintos y el `<For>` de las condiciones recrearía las filas en cada acceso — y el árbol se lee muchas
  * veces por render (el contador del badge, el panel, los conectores).
  */
-export function useTasksUrl() {
+export function useTasksUrl(snapshot: () => ClimierSnapshot) {
   const [query, setSearchParams] = useSearchParams();
 
   /** Sólo se trabaja con params de una sola aparición (`?view=a&view=b` se ignora). */
@@ -47,7 +48,7 @@ export function useTasksUrl() {
   const scope = createMemo<TaskScope>(() => decodeScope(one(query.scope)));
   const sort = createMemo<TaskSort>(() => decodeSort(one(query.sort)));
   const group = createMemo<TaskGroupBy>(() => decodeGroup(one(query.group)));
-  const filterTree = createMemo<FilterGroup>(() => decodeFilterTree(one(query.filter)));
+  const filterTree = createMemo<FilterGroup>(() => decodeFilterTree(one(query.filter), snapshot()));
 
   const setView = (next: TaskView) => setSearchParams({ view: next === "list" ? null : next }, { replace: true });
 

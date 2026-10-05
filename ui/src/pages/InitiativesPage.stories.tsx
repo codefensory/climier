@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
 import { expect, userEvent, waitFor } from "storybook/test";
 import { decodeFilterTree } from "../modules/tasks";
+import { snapshot } from "../modules/tasks/data/source";
 import { StoryShell } from "../test-utils/StoryShell";
 import { must } from "../test-utils/story";
 import { InitiativesPage } from "./InitiativesPage";
@@ -45,7 +46,7 @@ export const OpensFilteredTasks: Story = {
     await waitFor(() => expect(window.location.hash).toContain("/tasks?filter="));
 
     const raw = decodeURIComponent(window.location.hash.split("filter=")[1] ?? "");
-    const tree = decodeFilterTree(raw);
+    const tree = decodeFilterTree(raw, snapshot);
     await expect(tree.conditions.length).toBe(1);
     await expect(tree.conditions[0].field).toBe("initiative");
     await expect(tree.conditions[0].values[0]).toBe(name);

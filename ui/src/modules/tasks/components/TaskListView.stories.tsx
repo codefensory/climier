@@ -1,9 +1,12 @@
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
 import { expect, waitFor } from "storybook/test";
 import { makeTask } from "../data/fixtures";
-import { gates, tasks } from "../data/tasks";
+import { snapshot } from "../data/source";
+import { projectBoard } from "../data/climier/projection";
 import { TaskListView } from "./TaskListView";
 import type { TaskListViewProps } from "./TaskListView";
+
+const { gates, tasks } = projectBoard(snapshot);
 
 /**
  * Vista de lista completa: agrupa, ordena y compone las filas, con las gates abiertas en una sección

@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
 import { expect, userEvent, waitFor } from "storybook/test";
 import App from "./App";
+import { snapshot } from "./modules/tasks/data/source";
 import { sidebarItem } from "./test-utils/story";
 import { resetStoryUrl } from "./test-utils/StoryShell";
 
@@ -11,7 +12,7 @@ const cleanUrl = async () => {
 
 const meta = {
   component: App,
-  render: () => <App mode="fixture" />,
+  render: () => <App mode="fixture" fixtureSnapshot={snapshot} />,
   loaders: [cleanUrl],
   parameters: { layout: "fullscreen" },
 } satisfies Meta<typeof App>;

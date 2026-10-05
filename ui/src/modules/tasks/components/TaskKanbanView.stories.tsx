@@ -1,9 +1,12 @@
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
 import { expect, waitFor } from "storybook/test";
-import { gates, tasks } from "../data/tasks";
+import { snapshot } from "../data/source";
+import { projectBoard } from "../data/climier/projection";
 import { makeTask } from "../data/fixtures";
 import { TaskKanbanView } from "./TaskKanbanView";
 import type { TaskKanbanViewProps } from "./TaskKanbanView";
+
+const { gates, tasks } = projectBoard(snapshot);
 
 /**
  * Vista kanban: una columna por grupo, con scroll horizontal, y las gates abiertas en una fila

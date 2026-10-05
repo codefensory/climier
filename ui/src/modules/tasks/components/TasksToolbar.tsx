@@ -5,6 +5,7 @@ import { GroupMenu } from "./GroupMenu";
 import { Button } from "../../ui";
 import { SortMenu } from "./SortMenu";
 import { TasksViewSwitch } from "./TasksViewSwitch";
+import type { ClimierSnapshot } from "../data/climier/contract";
 import type { FilterGroup, TaskGroupBy, TaskScope, TaskScopeCounts, TaskSort, TaskView } from "../types";
 
 export type TasksToolbarProps = {
@@ -25,6 +26,8 @@ export type TasksToolbarProps = {
    */
   filterTree: FilterGroup;
   onFilterTree: (next: FilterGroup | ((previous: FilterGroup) => FilterGroup)) => void;
+  /** Snapshot del proyecto seleccionado, fuente del vocabulario dinámico de filtros. */
+  snapshot: ClimierSnapshot;
 };
 
 /** Cuál de los tres menús está abierto. `null` = ninguno. */
@@ -56,6 +59,7 @@ export function TasksToolbar(props: TasksToolbarProps) {
     setOpen: (open) => setOpenMenu(open ? "filter" : null),
     tree: () => props.filterTree,
     setTree: props.onFilterTree,
+    snapshot: () => props.snapshot,
   });
 
   return (

@@ -7,7 +7,6 @@ import UserIcon from "@hugeicons/core-free-icons/UserIcon";
 import { For, Show, type JSX } from "solid-js";
 import { HugeIcon } from "../../core";
 import { Button, MenuOption, PopoverSurface } from "../../ui";
-import { filterFields } from "../data/filters";
 import { FilterOptionContent } from "./FilterOptionContent";
 import type { TaskFiltersController } from "../controllers/useTaskFilters";
 import type { FilterCondition, FilterGroup, FilterJoin, FilterOption } from "../types";
@@ -91,7 +90,7 @@ export function FilterPanel(props: FilterPanelProps) {
         {renderGroup(filters.tree())}
       </PopoverSurface>
       <PopoverSurface variant="menuFit" open={filters.menuOpen()} left={filters.menuPosition().left} top={filters.menuPosition().top} role="listbox" label={filters.renderedMenuKind() === "field" ? "Filter field" : filters.renderedMenuKind() === "operator" ? "Filter operator" : "Filter value"} filterOptionMenu>
-        <For each={filters.renderedMenuOptions()}>{(option: FilterOption) => <MenuOption selected={filters.renderedMenuSelected(option)} onSelect={() => filters.chooseOption(option)} leading={<Show when={filters.renderedMenuKind() === "field"}><HugeIcon icon={filterFields().find((item) => item.id === option.value)?.icon ?? Task01Icon} class="h-3.5 w-3.5 shrink-0 text-muted" /></Show>} label={<FilterOptionContent option={option} />} />}</For>
+        <For each={filters.renderedMenuOptions()}>{(option: FilterOption) => <MenuOption selected={filters.renderedMenuSelected(option)} onSelect={() => filters.chooseOption(option)} leading={<Show when={filters.renderedMenuKind() === "field"}><HugeIcon icon={filters.fields().find((item) => item.id === option.value)?.icon ?? Task01Icon} class="h-3.5 w-3.5 shrink-0 text-muted" /></Show>} label={<FilterOptionContent option={option} />} />}</For>
       </PopoverSurface>
     </>
   );
