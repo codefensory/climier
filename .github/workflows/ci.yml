@@ -12,6 +12,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+      - run: npm test
+      - run: npm run surface:check
+
+  package:
+    strategy:
+      matrix:
+        node-version: [20, 24]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.2
@@ -22,7 +35,5 @@ jobs:
         working-directory: ui
       - run: bun run build
         working-directory: ui
-      - run: npm test
-      - run: npm run surface:check
       - run: npm run smoke:pack
       - run: npm run pack:check
