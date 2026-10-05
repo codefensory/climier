@@ -1,4 +1,5 @@
 import { createServer } from "node:http";
+import fs from "node:fs/promises";
 
 import { dispatchOperationRequest, validateOperationRequest } from "./http/operations.mjs";
 import { createBuiltinOperationRegistry } from "../application/operations/builtins.mjs";
@@ -8,7 +9,7 @@ import { createHttpReads } from "./http/reads.mjs";
 import { executeTransferRequest, validateTransferRequest } from "./http/transfers.mjs";
 import * as readModel from "../read-model/index.mjs";
 import { ledgerFile } from "../storage/ledger.mjs";
-import { readState } from "../storage/state.mjs";
+import { readState, stateFile } from "../storage/state.mjs";
 import { initState } from "../kernel/state-operations.mjs";
 import { authorizeAction as authorizeServerAction, loadApplicablePolicy } from "../plugins/policy.mjs";
 import { withAuthorizedProject } from "./auth/project-scope.mjs";
@@ -29,8 +30,9 @@ const reads = createHttpReads({
 });
 
 function validateServerDependencies({ catalog, openProject, registry, mutateKernel, authStore }) {
-  if (!catalog || typeof catalog.resolveProject !== "function" || typeof catalog.provisionProject !== "function") {
-    throw new TypeError("server http: catalog with resolveProject and provisionProject is required");
+  if (!catalog || typeof catalog.resolveProject !== "function"
+      || typeof catalog.provisionProject !== "function" || typeof catalog.listProjects !== "function") {
+    throw new TypeError("server http: catalog with resolveProject, provisionProject, and listProjects is required");
   }
   if (typeof openProject !== "function") {
     throw new TypeError("server http: openProject must be a function");
@@ -58,6 +60,34 @@ async function authorizeUiRequest(request, authStore) {
   if (!await authStore.verifyBearer(match[1])) {
     throw httpError("AUTH_INVALID", "server auth: bearer token is invalid", undefined, 401);
   }
+}
+
+async function listProjectSummary(project) {
+  const snapshot = await readState(project.projectDir);
+  if (!snapshot) {
+    return {
+      project_id: project.source_project_id,
+      name: project.name ?? null,
+      revision: 0,
+      node_count: 0,
+      updated_at: null,
+    };
+  }
+  const stateInfo = await fs.stat(stateFile(project.projectDir));
+  return {
+    project_id: project.source_project_id,
+    name: project.name ?? null,
+    revision: Number.isInteger(snapshot.revision) ? snapshot.revision : 0,
+    node_count: snapshot.nodes && typeof snapshot.nodes === "object" && !Array.isArray(snapshot.nodes)
+      ? Object.keys(snapshot.nodes).length
+      : 0,
+    updated_at: stateInfo.mtime.toISOString(),
+  };
+}
+
+async function listProjectSummaries(dependencies) {
+  const projects = await dependencies.catalog.listProjects();
+  return Promise.all(projects.map((project) => listProjectSummary(project)));
 }
 
 async function getUiProject(projectId, dependencies) {
@@ -108,6 +138,13 @@ function resolveRoute(request, url) {
     }
     return { login: true };
   }
+  if (url.pathname === "/v1/projects") {
+    assertProtocol(request);
+    if (request.method !== "GET") {
+      throw httpError("ROUTE_NOT_FOUND", "server http: route was not found", undefined, 404);
+    }
+    return { projects: true, route: "projects" };
+  }
   if (!url.pathname.startsWith("/v1/")) {
     throw httpError("ROUTE_NOT_FOUND", "server http: route was not found", undefined, 404);
   }
@@ -140,6 +177,7 @@ function isInitRoute(request, route) {
 }
 
 function matchRequestRoute(request, route, uiApi, uiEvents) {
+  const projectsRoute = route.projects === true;
   const operationRoute = isOperationRoute(request, route);
   const initRoute = isInitRoute(request, route);
   const transferRoute = request.method === "GET" && route.route === "transfer/export"
@@ -150,8 +188,8 @@ function matchRequestRoute(request, route, uiApi, uiEvents) {
   const read = request.method === "GET" ? reads.matchReadRoute(route.route) : null;
   const events = request.method === "GET" ? uiEvents.matchRoute(route.route) : null;
   const ui = request.method === "GET" ? uiApi.matchRoute(route.route) : null;
-  if (read || events || ui || operationRoute || initRoute || transferRoute) {
-    return { operationRoute, initRoute, transferRoute, read, events, ui };
+  if (projectsRoute || read || events || ui || operationRoute || initRoute || transferRoute) {
+    return { projectsRoute, operationRoute, initRoute, transferRoute, read, events, ui };
   }
   if (route.route.startsWith("transfer/") || route.route.startsWith("files/") || route.route === "snapshot" || route.route === "read/snapshot") {
     throw httpError("ROUTE_NOT_FOUND", "server http: route was not found", undefined, 404);
@@ -217,6 +255,11 @@ function operationSource(dependencies) {
 }
 
 async function sendRouteResult({ response, route, matched, body, query, project, dependencies, request }) {
+  if (matched.projectsRoute) {
+    await authorizeUiRequest(request, dependencies.authStore);
+    send(response, 200, { projects: await listProjectSummaries(dependencies) });
+    return;
+  }
   if (matched.events) {
     await dependencies.uiEvents.handle({ response, request, projectId: route.projectId });
     return;
@@ -314,7 +357,9 @@ async function handleRequest(request, response, dependencies) {
   }
   const matched = matchRequestRoute(request, route, dependencies.uiApi, dependencies.uiEvents);
   const { body, query } = await readRequestInput(request, route, matched, dependencies.uiApi);
-  const project = matched.ui || matched.events ? null : await openAuthorizedProject(request, route, matched.initRoute, dependencies);
+  const project = matched.projectsRoute || matched.ui || matched.events
+    ? null
+    : await openAuthorizedProject(request, route, matched.initRoute, dependencies);
   await sendRouteResult({ response, route, matched, body, query, project, dependencies, request });
 }
 
