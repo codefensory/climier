@@ -149,6 +149,48 @@ test("climier ui catalog lists every local project, not only the launch project"
   assert.equal(unknown.status, 404);
 });
 
+test("climier ui keeps an unreadable project in the catalog and fails when it is opened", async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "climier-ui-broken-"));
+  const home = path.join(root, "home");
+  const uiRoot = path.join(root, "dist");
+  await fs.mkdir(uiRoot, { recursive: true });
+  await fs.writeFile(path.join(uiRoot, "index.html"), "<!doctype html><main>local UI</main>\n");
+  const project = path.join(root, "project-a");
+  await fs.mkdir(project, { recursive: true });
+  await fs.writeFile(path.join(project, ".climier.json"), `${JSON.stringify({ version: 1, project_id: "proj-a" })}\n`);
+  await fs.mkdir(path.join(home, "projects", "legacy"), { recursive: true });
+  await fs.writeFile(
+    path.join(home, "projects", "legacy", "tasks.json"),
+    `${JSON.stringify({ version: 3, nodes: {}, edges: [], initiatives: {}, log: [] })}\n`,
+  );
+
+  const previousHome = process.env.CLIMIER_HOME;
+  process.env.CLIMIER_HOME = home;
+  t.after(async () => {
+    if (previousHome === undefined) delete process.env.CLIMIER_HOME;
+    else process.env.CLIMIER_HOME = previousHome;
+    await fs.rm(root, { recursive: true, force: true });
+  });
+  await initState({ projectDir: project });
+
+  const started = await startLocalUiServer({ projectDir: project, uiRoot, port: 0 });
+  t.after(() => closeServer(started.server));
+
+  const catalog = await (await fetch(`${started.url}/v1/projects`)).json();
+  const legacy = catalog.projects.find((entry) => entry.project_id === "legacy");
+  assert.deepEqual(legacy, {
+    project_id: "legacy",
+    name: "legacy",
+    revision: 0,
+    node_count: 0,
+    updated_at: legacy.updated_at,
+  });
+
+  const opened = await fetch(`${started.url}/v1/projects/legacy/ui/snapshot`);
+  assert.equal(opened.status, 400);
+  assert.equal((await opened.json()).error.code, "CLIMIER_LEDGER_MISSING");
+});
+
 test("uiCommand starts the stdlib local server and reports the loopback URL", async (t) => {
   const { root, uiRoot } = await makeProject(t, "command-project");
   const result = await uiCommand({ projectDir: root, flags: { open: false, port: 0 }, uiRoot });
