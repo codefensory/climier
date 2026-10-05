@@ -13,6 +13,7 @@ import { authorizeAction as authorizeServerAction, loadApplicablePolicy } from "
 import { withAuthorizedProject } from "./auth/project-scope.mjs";
 import { createLoginRateLimiter, loginClientAddress } from "./auth/login-rate-limiter.mjs";
 import { createHttpCodec } from "./http/codec.mjs";
+import { createStaticHandler } from "./http/static.mjs";
 
 const PROTOCOL_VERSION = "1";
 const { httpError, errorStatus, jsonError, send, parseProjectPath, readJsonBody } = createHttpCodec({ protocolVersion: PROTOCOL_VERSION });
@@ -247,11 +248,17 @@ export function createRemoteApiServer({
   selectPolicy,
   authorizeAction,
   loginRateLimiter = createLoginRateLimiter(),
+  uiRoot,
+  indexFile = "index.html",
 } = {}) {
   const dependencies = { catalog, authStore, openProject: openProjectDependency, registry, mutateKernel, selectPolicy, authorizeAction, loginRateLimiter };
   validateServerDependencies(dependencies);
+  const staticHandler = uiRoot === undefined ? null : createStaticHandler({ root: uiRoot, indexFile });
   return createServer(async (request, response) => {
     try {
+      if (staticHandler && await staticHandler(request, response)) {
+        return;
+      }
       await handleRequest(request, response, dependencies);
     } catch (error) {
       sendRequestError(response, error);
