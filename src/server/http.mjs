@@ -14,6 +14,7 @@ import { withAuthorizedProject } from "./auth/project-scope.mjs";
 import { createLoginRateLimiter, loginClientAddress } from "./auth/login-rate-limiter.mjs";
 import { createHttpCodec } from "./http/codec.mjs";
 import { createStaticHandler } from "./http/static.mjs";
+import { createUiApi } from "./http/ui-api.mjs";
 
 const PROTOCOL_VERSION = "1";
 const { httpError, errorStatus, jsonError, send, parseProjectPath, readJsonBody } = createHttpCodec({ protocolVersion: PROTOCOL_VERSION });
@@ -41,6 +42,38 @@ function validateServerDependencies({ catalog, openProject, registry, mutateKern
   if (!authStore || typeof authStore.verifyBearer !== "function" || typeof authStore.login !== "function") {
     throw new TypeError("server http: authStore with login and verifyBearer is required");
   }
+}
+
+async function authorizeUiRequest(request, authStore) {
+  const authorization = request?.headers?.authorization;
+  if (typeof authorization !== "string") {
+    throw httpError("AUTH_REQUIRED", "server auth: bearer token is required", undefined, 401);
+  }
+  const match = /^Bearer ([^\s]+)$/i.exec(authorization);
+  if (!match) {
+    throw httpError("AUTH_REQUIRED", "server auth: bearer token is required", undefined, 401);
+  }
+  if (!await authStore.verifyBearer(match[1])) {
+    throw httpError("AUTH_INVALID", "server auth: bearer token is invalid", undefined, 401);
+  }
+}
+
+async function getUiProject(projectId, dependencies) {
+  const projectDir = await dependencies.catalog.resolveProject(projectId);
+  const project = await dependencies.openProject(projectDir, { projectId });
+  if (!project || typeof project.projectDir !== "string") {
+    throw httpError("PROJECT_OPEN_FAILED", "server http: project opener did not return a projectDir", undefined, 500);
+  }
+  return { ...project, id: projectId, name: project.name || projectId };
+}
+
+function createRemoteUiApi(dependencies) {
+  return createUiApi({
+    authorize: (request) => authorizeUiRequest(request, dependencies.authStore),
+    getProject: (projectId) => getUiProject(projectId, dependencies),
+    readSnapshot: ({ projectDir }) => readState(projectDir),
+    clock: Date.now,
+  });
 }
 
 function assertProtocol(request) {
@@ -94,7 +127,7 @@ function isInitRoute(request, route) {
   return request.method === "POST" && route.route === "init";
 }
 
-function matchRequestRoute(request, route) {
+function matchRequestRoute(request, route, uiApi) {
   const operationRoute = isOperationRoute(request, route);
   const initRoute = isInitRoute(request, route);
   const transferRoute = request.method === "GET" && route.route === "transfer/export"
@@ -103,8 +136,9 @@ function matchRequestRoute(request, route) {
       ? "transfer/import"
       : null;
   const read = request.method === "GET" ? reads.matchReadRoute(route.route) : null;
-  if (read || operationRoute || initRoute || transferRoute) {
-    return { operationRoute, initRoute, transferRoute, read };
+  const ui = request.method === "GET" ? uiApi.matchRoute(route.route) : null;
+  if (read || ui || operationRoute || initRoute || transferRoute) {
+    return { operationRoute, initRoute, transferRoute, read, ui };
   }
   if (route.route.startsWith("transfer/") || route.route.startsWith("files/") || route.route === "snapshot" || route.route === "read/snapshot") {
     throw httpError("ROUTE_NOT_FOUND", "server http: route was not found", undefined, 404);
@@ -112,7 +146,7 @@ function matchRequestRoute(request, route) {
   throw httpError("ROUTE_NOT_FOUND", "server http: route was not found", undefined, 404);
 }
 
-async function readRequestInput(request, route, matched) {
+async function readRequestInput(request, route, matched, uiApi) {
   let body = null;
   if (matched.operationRoute) {
     body = validateOperationRequest(await readJsonBody(request), { manifest: remoteV1Manifest, httpError });
@@ -124,7 +158,12 @@ async function readRequestInput(request, route, matched) {
   if (matched.transferRoute === "transfer/import") {
     body = validateTransferRequest(await readJsonBody(request), httpError);
   }
-  const query = matched.read ? reads.parseReadQuery(new URL(request.url || "/", "http://localhost"), matched.read) : null;
+  const url = new URL(request.url || "/", "http://localhost");
+  const query = matched.read
+    ? reads.parseReadQuery(url, matched.read)
+    : matched.ui
+      ? uiApi.parseQuery(url, matched.ui)
+      : null;
   return { body, query };
 }
 
@@ -164,7 +203,17 @@ function operationSource(dependencies) {
   };
 }
 
-async function sendRouteResult({ response, route, matched, body, query, project, dependencies }) {
+async function sendRouteResult({ response, route, matched, body, query, project, dependencies, request }) {
+  if (matched.ui) {
+    const result = await dependencies.uiApi.read({
+      request,
+      projectId: route.projectId,
+      route: matched.ui,
+      query,
+    });
+    send(response, 200, { ok: true, result });
+    return;
+  }
   if (matched.initRoute) {
     const result = await handleInit(project.projectDir);
     send(response, 200, { ok: true, result });
@@ -225,10 +274,10 @@ async function handleRequest(request, response, dependencies) {
     await handleLogin(request, response, dependencies);
     return;
   }
-  const matched = matchRequestRoute(request, route);
-  const { body, query } = await readRequestInput(request, route, matched);
-  const project = await openAuthorizedProject(request, route, matched.initRoute, dependencies);
-  await sendRouteResult({ response, route, matched, body, query, project, dependencies });
+  const matched = matchRequestRoute(request, route, dependencies.uiApi);
+  const { body, query } = await readRequestInput(request, route, matched, dependencies.uiApi);
+  const project = matched.ui ? null : await openAuthorizedProject(request, route, matched.initRoute, dependencies);
+  await sendRouteResult({ response, route, matched, body, query, project, dependencies, request });
 }
 
 function sendRequestError(response, error) {
@@ -253,6 +302,7 @@ export function createRemoteApiServer({
 } = {}) {
   const dependencies = { catalog, authStore, openProject: openProjectDependency, registry, mutateKernel, selectPolicy, authorizeAction, loginRateLimiter };
   validateServerDependencies(dependencies);
+  dependencies.uiApi = createRemoteUiApi(dependencies);
   const staticHandler = uiRoot === undefined ? null : createStaticHandler({ root: uiRoot, indexFile });
   return createServer(async (request, response) => {
     try {
