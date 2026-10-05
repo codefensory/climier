@@ -42,6 +42,30 @@ and bearer hashes. On POSIX, the directory is `0700` and the auth file is
 the verifier and clears all sessions before the server listens again. Every
 client must log in again after rotation.
 
+## Serving the web UI
+
+The server also serves the built Solid UI at the origin root (non-`/v1`
+`GET`/`HEAD`) with SPA fallback, immutable caching for `/assets/*`, and
+`no-cache` for `index.html`. `/v1/*` keeps its JSON contract and never returns
+`index.html`.
+
+The root defaults to `<package>/ui/dist`; set `uiRoot` to an absolute path in
+the server JSON to override it. If the build is missing, `/` answers `503` with
+a short hint and the API keeps working. Build the bundle before starting the
+service:
+
+```sh
+cd ui
+bun install --frozen-lockfile
+bun run build
+```
+
+The SPA authenticates with the same `POST /v1/auth/login` password; it lists
+projects with `GET /v1/projects` and reads one project with
+`/v1/projects/:id/ui/snapshot`, `/ui/nodes/:nodeId`, `/ui/activity`, and the
+`/ui/events` SSE stream (revision notifications; the client revalidates the
+snapshot with `ETag`).
+
 ## TLS and network boundary
 
 HTTPS is the default and recommended for every remote origin. The server binds
