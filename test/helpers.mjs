@@ -225,18 +225,34 @@ export async function initExampleProject(dir, { force = false } = {}) {
 }
 
 // Run the CLI as a child process. Returns { stdout, stderr, code }.
+// A child without an explicit project cwd must not inherit the checkout's
+// .climier.json, which may select a developer-specific remote backend.
 import { spawn } from "node:child_process";
 export function runCli(args, { cwd, env } = {}) {
-  return new Promise((resolve) => {
+  const ownsCwd = cwd === undefined;
+  const childCwd = cwd ?? fs.mkdtempSync(path.join(os.tmpdir(), "climier-cli-test-"));
+  return new Promise((resolve, reject) => {
     const proc = spawn("node", [BIN, ...args], {
-      cwd,
+      cwd: childCwd,
       env: { ...process.env, ...env, NO_COLOR: "1" },
     });
     let stdout = "";
     let stderr = "";
+    const cleanup = () => {
+      if (ownsCwd) {
+        fs.rmSync(childCwd, { recursive: true, force: true });
+      }
+    };
     proc.stdout.on("data", (d) => (stdout += d.toString()));
     proc.stderr.on("data", (d) => (stderr += d.toString()));
-    proc.on("close", (code) => resolve({ stdout, stderr, code }));
+    proc.once("error", (error) => {
+      cleanup();
+      reject(error);
+    });
+    proc.once("close", (code) => {
+      cleanup();
+      resolve({ stdout, stderr, code });
+    });
   });
 }
 
