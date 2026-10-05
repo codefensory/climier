@@ -43,7 +43,8 @@ function GroupGlyph(props: { glyph: TaskGroupGlyph }) {
  * Cabecera de un grupo: glyph, título, cuántas tasks y el progreso del grupo.
  *
  * El progreso **ya viene calculado** en `group.progress` (ver `groupProgress()`): es el avance
- * promedio de las tasks no cerradas del grupo, no de todas. `GroupHeader` sólo lo dibuja.
+ * promedio del trabajo vigente del grupo (lo terminado cuenta, lo cancelado no). `GroupHeader` sólo
+ * lo dibuja.
  *
  * Fondo y borde inferior salen del mismo `color` del grupo con `tint()` a distinta intensidad.
  */

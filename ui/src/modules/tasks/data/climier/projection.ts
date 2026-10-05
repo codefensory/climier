@@ -195,19 +195,21 @@ export function taskProgress(status: BoardStatus): number {
   }
 }
 
-const SETTLED = new Set<BoardStatus>(["done", "canceled", "archived"]);
+/** Trabajo descartado: ni hecho ni en juego, así que no entra en el progreso. */
+const DROPPED = new Set<BoardStatus>(["canceled"]);
 
 /**
- * Progreso de un grupo.
+ * Progreso de un grupo: avance del **trabajo vigente**.
  *
- * Se calcula **sólo sobre las tasks que no están cerradas** (`done`/`canceled`/`archived`), que
- * es el pedido de producto: el promedio de avance de lo que todavía está en juego. Un grupo sin
- * trabajo abierto se considera terminado (100%).
+ * Promedia el `progress` de las tasks no canceladas, así que lo terminado cuenta (una `done`
+ * aporta 100) en vez de ignorarse: contar únicamente lo abierto hacía que una iniciativa con 89
+ * `done` y una `open` mostrara 0%. Las canceladas quedan fuera porque no son trabajo hecho ni
+ * trabajo en juego. Un grupo vacío o sin trabajo vigente queda en 0.
  */
 export function groupProgress(tasks: Task[]): number {
-  const open = tasks.filter((task) => !SETTLED.has(task.status));
-  if (!open.length) return tasks.length ? 100 : 0;
-  return Math.round(open.reduce((total, task) => total + task.progress, 0) / open.length);
+  const live = tasks.filter((task) => !DROPPED.has(task.status));
+  if (!live.length) return 0;
+  return Math.round(live.reduce((total, task) => total + task.progress, 0) / live.length);
 }
 
 // ─── Proyección de nodos ────────────────────────────────────────────────────────────────────

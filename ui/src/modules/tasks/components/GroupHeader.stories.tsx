@@ -12,8 +12,8 @@ import type { TaskGroupView } from "../types";
  * Fondo y borde inferior salen del **mismo** `color` del grupo con `tint()` a 7% y 15%: un token por
  * grupo, dos intensidades.
  *
- * El progreso **ya viene calculado** en `group.progress` (avance promedio de las tasks no cerradas,
- * ver `groupProgress()` en la proyección); el header sólo lo dibuja.
+ * El progreso **ya viene calculado** en `group.progress` (avance promedio del trabajo vigente, ver
+ * `groupProgress()` en la proyección); el header sólo lo dibuja.
  */
 const meta = {
   title: "Tasks/GroupHeader",

@@ -15,6 +15,8 @@ type InitiativeRow = {
   blocked: number;
   gates: number;
   updated: string;
+  /** ISO del último cambio; `updated` es la versión formateada y esto lo que ordena. */
+  updatedAt: string;
   progress: number;
 };
 
@@ -36,10 +38,12 @@ function initiativeRows(snapshot: ClimierSnapshot): InitiativeRow[] {
         blocked: tasks.filter((task) => task.status === "blocked").length,
         gates: gates.length,
         updated: formatUpdatedAt(updatedAt),
+        updatedAt,
         progress: groupProgress([...tasks, ...gates]),
       };
     })
-    .sort((left, right) => right.total - left.total || left.name.localeCompare(right.name));
+    // Orden por `Updated` descendente: lo último que se movió arriba. Sin actividad (`""`) al final.
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt) || right.total - left.total || left.name.localeCompare(right.name));
 }
 
 /**
@@ -86,6 +90,7 @@ export function InitiativesPage() {
               <div
                 data-testid="initiative-card"
                 data-initiative={row.name}
+                data-progress={row.progress}
                 tabindex="0"
                 role="button"
                 onClick={() => openInitiative(row.name)}

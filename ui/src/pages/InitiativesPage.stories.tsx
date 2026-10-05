@@ -52,3 +52,25 @@ export const OpensFilteredTasks: Story = {
     await expect(tree.conditions[0].values[0]).toBe(name);
   },
 };
+
+/**
+ * Progreso y orden por `Updated`.
+ *
+ * `platform` tiene 2 tasks `done` sobre 5 vigentes más una gate abierta: mostraba 0% cuando el
+ * progreso sólo miraba lo abierto, y ahora aporta 33%. `growth` sigue en 0% (nada terminado) y va
+ * última por ser la menos reciente; `checkout` abre la lista por ser la que se movió al final.
+ */
+export const ProgressAndUpdatedOrder: Story = {
+  render: () => <Host />,
+  play: async () => {
+    const cards = [...document.querySelectorAll<HTMLElement>('[data-testid="initiative-card"]')];
+    const names = cards.map((card) => card.getAttribute("data-initiative"));
+    await expect(names[0]).toBe("checkout");
+    await expect(names.at(-1)).toBe("growth");
+
+    const progressOf = (name: string) =>
+      must(cards.find((card) => card.getAttribute("data-initiative") === name) ?? null, `la tarjeta "${name}"`).getAttribute("data-progress");
+    await expect(progressOf("platform")).toBe("33");
+    await expect(progressOf("growth")).toBe("0");
+  },
+};

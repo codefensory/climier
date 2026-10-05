@@ -14,8 +14,8 @@ import type { BoardStatus, Task, TaskGroupBy, TaskGroupView, TaskSort, TaskStatu
  * elemento JSX en los datos se instancia una sola vez y no es reutilizable. El JSX lo arma
  * `GroupGlyph` en `GroupHeader`.
  *
- * El progreso de cada grupo lo calcula `groupProgress()` sobre las tasks **no cerradas** (ver la
- * proyección): es el avance de lo que todavía está en juego.
+ * El progreso de cada grupo lo calcula `groupProgress()` sobre el trabajo vigente (ver la
+ * proyección): lo terminado cuenta y lo cancelado queda fuera.
  */
 export function taskGroups(items: Task[], groupBy: TaskGroupBy, sort: TaskSort): TaskGroupView[] {
   if (groupBy === "status") {
