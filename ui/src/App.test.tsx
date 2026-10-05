@@ -21,5 +21,11 @@ describe("live project app shell", () => {
     expect(host.querySelector('[data-testid="dashboard-layout"]')).not.toBeNull();
     expect(host.querySelector('[data-project-trigger]')).not.toBeNull();
     expect(host.querySelector('[data-testid="login-page"]')).toBeNull();
+
+    const content = host.querySelector<HTMLElement>('main[data-testid="main-content"]');
+    expect(content?.classList.contains("main-content-view")).toBe(true);
+    expect(content?.classList.contains("main-content-visible")).toBe(true);
+    expect(content?.parentElement?.classList.contains("main-content-frame")).toBe(true);
+    expect(content?.previousElementSibling?.getAttribute("data-testid")).toBe("tasks-breadcrumb");
   });
 });

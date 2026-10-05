@@ -106,7 +106,9 @@ export function AppShellContainer(props: AppShellContainerProps) {
               </div>
             </Show>
           </div>
-          {props.children}
+          <main data-testid="main-content" class="main-content-view main-content-visible">
+            {props.children}
+          </main>
         </div>
       </div>
     </div>
