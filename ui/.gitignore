@@ -1,0 +1,11 @@
+node_modules
+dist
+*.local
+.DS_Store
+.ui-bridge/
+storybook-static
+*storybook.log
+
+# Salidas del arnés de DOM y de los servidores de desarrollo (ver .agents/skills/climier-ui)
+/dom/
+/.logs/

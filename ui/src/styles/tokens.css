@@ -1,0 +1,70 @@
+/**
+ * Design tokens de climier-ui.
+ *
+ * Regla de este archivo: **un token por valor**. Si dos usos comparten el mismo hex, comparten
+ * el token; el literal no se repite nunca. No hay alias con `var()`.
+ *
+ * Al estar en `@theme`, cada token sirve para dos consumidores:
+ *   1. Utilidades de Tailwind  →  `text-ink`, `border-line`, `bg-canvas`
+ *   2. CSS/JS en runtime       →  `var(--color-ink)`
+ *
+ * El segundo caso es necesario porque SVG (`stroke=`) y `style={{}}` inline no aceptan clases.
+ *
+ * Nota de dominio: los status "ready", "submitted", "blocked" y "done" **reutilizan** el color
+ * de su tono (`faint`, `tone-blue-ink`, `tone-mauve-ink`, `tone-green-ink`) en lugar de declarar
+ * un token propio. El mapeo status→token vive en el módulo `tasks`, que es donde pertenece el
+ * vocabulario de dominio.
+ */
+
+/* ── Tipografía ─────────────────────────────────────────────────────────── */
+@theme {
+  --font-sans: "DM Sans", sans-serif;
+  --font-display: "Manrope", sans-serif;
+}
+
+/* ── Color ──────────────────────────────────────────────────────────────── */
+@theme {
+  /* Texto */
+  --color-ink: #111111; /* texto principal */
+  --color-ink-soft: #333333; /* texto secundario fuerte */
+  --color-muted: #737373; /* texto secundario */
+  --color-faint: #8a8a8a; /* texto terciario, metadatos, status "ready" */
+  --color-ghost: #d4d4d4; /* decorativo, casi invisible (p. ej. "/" del hint de búsqueda) */
+
+  /* Superficies, de más claro a más oscuro */
+  --color-surface: #ffffff; /* fondo de tarjetas y paneles */
+  --color-raised: #fafafa; /* superficie elevada dentro de una tarjeta */
+  --color-canvas: #f6f6f6; /* fondo de la app (bajo la grilla de puntos) */
+  --color-sunken: #f8f8f8; /* bloque hundido / placeholder de avatar */
+  --color-subtle: #f4f4f4; /* chip y botón en reposo */
+  --color-skeleton: #f1f1f1; /* barras de esqueleto de carga */
+  --color-hairline: #f0f0f0; /* línea más tenue: borde, divisor y riel de progreso */
+  --color-chip: #eeeeee; /* fondo neutro (chip "All projects", botón de búsqueda, expandido) */
+  --color-separator: #ececec; /* separador interno entre segmentos */
+  --color-pressed: #eaeaea; /* fondo en hover de una fila de navegación */
+
+  /* Líneas */
+  --color-line: #e6e6e6; /* borde base */
+  --color-line-strong: #d8d8d8; /* borde en hover */
+
+  /* Fondo de la app */
+  --color-dot: #d9dee4; /* punto de la grilla del canvas */
+
+  /* Scrollbars del tablero kanban */
+  --color-scrollbar: #dcdcdc;
+  --color-scrollbar-strong: #c8c8c8;
+
+  /* Dominio: tonos. Cada tono es un par fondo/texto, compartido por labels, proyectos y status. */
+  --color-tone-green-bg: #ecf2e5;
+  --color-tone-green-ink: #667557; /* también status "done" */
+  --color-tone-blue-bg: #eaeff6;
+  --color-tone-blue-ink: #60738d; /* también status "submitted" */
+  --color-tone-amber-bg: #f4eee8;
+  --color-tone-amber-ink: #8c6850;
+  --color-tone-mauve-bg: #f4ebee;
+  --color-tone-mauve-ink: #8d6270; /* también status "blocked" */
+
+  /* Dominio: valores propios que no comparten tono */
+  --color-status-backlog: #b4b4b4;
+  --color-status-progress: #c08a3e;
+}

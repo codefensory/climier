@@ -37,6 +37,7 @@
     "src",
     "README.md",
     "docs/reference.md",
+    "ui/dist",
     "CHANGELOG.md",
     "LICENSE"
   ],

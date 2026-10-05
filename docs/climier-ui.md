@@ -4,11 +4,11 @@
 
 ## Decisiones tomadas
 
-1. **Stack:** frontend Solid + Tailwind; backend Node.js + Express. Todo vive en la carpeta `ui/` como subproyecto con su propio `package.json` (el CLI raíz sigue stdlib-only; `climier ui` importa `ui/server/server.mjs`, que resuelve sus deps desde `ui/node_modules`).
-2. **Comando:** `climier ui [--port N] [--open=true|false]` levanta el server en localhost (127.0.0.1:7373 por defecto), imprime el JSON del contrato y queda vivo sirviendo. Abre el navegador por defecto (desactivable con `--open=false`). Buildea `ui/dist` on demand si falta.
-3. **Lecturas:** el server Node lee el state file con `readState` del propio CLI y deriva con `deriveV2` / `knowledgeForNode` / `blockingForNode` (cero drift de lógica). El snapshot se expone como endpoint `GET /api/snapshot`; no se crea un comando CLI `snapshot` por ahora. El browser nunca toca `tasks.json`.
-4. **Sin mutaciones por ahora:** Fase 3 (acciones) e identidad del humano van a backlog. La UI es read-only y lo declara en la interfaz.
-5. **Sin testing de la UI por ahora** (decisión explícita). La suite existente del CLI (`npm test`) se mantiene verde.
+1. **Stack:** frontend SolidJS + Vite + Tailwind en un subproyecto autocontenido. `ui/` mantiene su `package.json`, `bun.lock`, Storybook y fuentes; el CLI raíz sigue stdlib-only y no incorpora Express.
+2. **Hosting:** `ui/dist` es una SPA estática. El server remoto la sirve con un handler stdlib en el mismo origen que `/v1`; `climier ui [--port N] [--open=true|false]` usa el mismo handler en loopback para el proyecto local.
+3. **Lecturas:** el server lee el state file con `readState` y proyecta el modelo mediante `src/read-model/`. En remoto, el contrato de UI está bajo `/v1/projects/:id/ui/`; el adaptador local expone la misma proyección sin bearer ni catálogo remoto. El browser nunca toca `tasks.json`.
+4. **Sin mutaciones por ahora:** las acciones y la identidad del humano siguen en backlog. La UI es read-only y lo declara en la interfaz.
+5. **Build y verificación:** el build reproducible usa `bun install --frozen-lockfile`, `bun run typecheck` y `bun run build`; la suite del CLI (`npm test`) se mantiene verde.
 
 ## 1. Resumen
 
@@ -439,20 +439,22 @@ No se debe mostrar todo el log en el tablero. El log debe tener:
 
 ## 12. Arquitectura técnica propuesta
 
-### 13.1 UI local
+### 13.1 UI local y hosting
 
-Implementado: `climier ui --project <dir>` arranca el server Express local (`ui/server/server.mjs`) y abre la página (`ui/dist` generado por Vite; frontend Solid + Tailwind en `ui/src/`).
+Implementado: `climier ui --project <dir>` arranca un server loopback stdlib y sirve la SPA compilada desde `ui/dist` (`ui/src/` contiene el frontend SolidJS + Tailwind). Si falta el build, el comando ejecuta el script `build` del subproyecto.
 
 - El server escucha en `127.0.0.1` por defecto.
-- Lecturas: `GET /api/snapshot`, `GET /api/node/:id`, `GET /api/activity`, `GET /api/search`. El server es el único lector del state file (importa `readState` y las funciones puras de derivación del propio CLI).
-- Mutaciones (futuras, en backlog): mediante los comandos de Climier o funciones que respeten `withLock`, `updateState` y `append`.
+- Sirve `index.html` y assets con MIME, cache y fallback SPA; `/v1/*` queda reservado para la API y no recibe HTML.
+- La proyección local de lectura usa rutas `/v1/projects/:id/ui/snapshot`, `/v1/projects/:id/ui/nodes/:node` y `/v1/projects/:id/ui/activity` sin bearer ni catálogo remoto.
+- El server remoto sirve la misma SPA en el origen de `/v1` y protege esas lecturas con autenticación.
+- Las mutaciones siguen fuera de la UI; cualquier futura acción debe pasar por las operaciones y el lock de Climier.
 - El estado permanece en `CLIMIER_HOME`.
 
-Una UI remota requeriría resolver autenticación, almacenamiento compartido, control de acceso y exposición segura de notas. No forma parte del MVP.
+El modo remoto resuelve autenticación, almacenamiento compartido y control de acceso en el server. La UI no expone el state file al browser.
 
 ### 13.2 Snapshot de lectura
 
-Implementado como endpoint del server (`GET /api/snapshot`), no como comando CLI. Shape real:
+Implementado como `GET /v1/projects/:id/ui/snapshot` en el server remoto y como la misma ruta en el adaptador local; no es un comando CLI. Shape real:
 
 ```js
 {
@@ -497,16 +499,18 @@ Toda mutación desde la UI debe:
 
 ## 14. Roadmap
 
-### MVP: lectura y aprendizaje — IMPLEMENTADO (sin testing por decisión)
+### MVP: lectura y aprendizaje — IMPLEMENTADO
 
-- [x] servidor/UI local (`climier ui`, Express + Solid + Tailwind en `ui/`);
+- [x] SPA local (`climier ui`, SolidJS + Vite + Tailwind en `ui/`);
+- [x] hosting estático stdlib en el mismo origen que la API;
 - [x] Overview;
 - [x] Board con `ready`, `in_progress`, `blocked`, `backlog` + fila `Gates`;
 - [x] filtros por initiative, kind y status;
 - [x] panel de detalle (spec, blockers, dependents, knowledge, notes, history, refs);
 - [x] Nodes / Gates / Knowledge / Activity con filtros y paginación;
 - [x] glosario contextual vía explicaciones inline;
-- [x] snapshot como endpoint `/api/snapshot` (reutiliza la derivación del CLI).
+- [x] snapshot y detalle de nodes bajo `/v1/projects/:id/ui/`, reutilizando la derivación del CLI;
+- [x] typecheck y build reproducibles con Bun.
 
 ### Fase 2: actividad — IMPLEMENTADO (falta search global e impacto downstream dedicado en Nodes / Gates)
 
@@ -598,9 +602,11 @@ Estas métricas deben validarse con usuarios antes de fijarlas como contrato:
 - `~/Dev/vegsport/AGENTS.md`: uso de Climier en el monorepo.
 - `~/Dev/vegsport/CLIMIER-CHEATSHEET.md`: workflow y vocabulario usado por agents.
 
-### Implementación de la UI (nueva)
+### Implementación de la UI (integrada)
 
-- `ui/server/server.mjs`: server Express local, API `/api/snapshot|node|activity|search`, static de `ui/dist`.
-- `ui/src/`: frontend Solid + Tailwind (vistas Overview, Board, Nodes, Gates, Knowledge, Activity, NodeDetail).
-- `src/commands/ui.mjs`: comando `climier ui` (deps check, build on demand, arranque y open browser).
-- `src/v2.mjs` / `src/storage/state.mjs`: funciones puras reutilizadas por el server (`deriveV2`, `knowledgeForNode`, `blockingForNode`, `readState`).
+- `ui/package.json` + `ui/bun.lock`: subproyecto SolidJS + Vite + Tailwind + Storybook, sin Express.
+- `ui/src/`: frontend y proyección de lectura (Overview, Board, Nodes, Gates, Knowledge, Activity y detalle de nodes).
+- `src/server/http/static.mjs`: handler stdlib para `ui/dist`, MIME, cache, fallback SPA y confinamiento de paths.
+- `src/server/http/ui-api.mjs`: proyección HTTP de snapshot, nodes y activity.
+- `src/cli/commands/ui.mjs`: comando local read-only sobre el handler estático y la proyección compartida.
+- `src/read-model/ui.mjs` / `src/storage/state.mjs`: derivación y lectura del state usadas por el server.

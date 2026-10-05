@@ -1,0 +1,1 @@
+# ui/.gitignore keeps local builds out of source control; publish ui/dist via the root package whitelist.

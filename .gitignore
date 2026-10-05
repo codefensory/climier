@@ -3,3 +3,7 @@ node_modules/
 .agents/tasks/
 ui/node_modules/
 ui/dist/
+ui/storybook-static/
+ui/.ui-bridge/
+ui/dom/
+ui/.logs/

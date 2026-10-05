@@ -134,6 +134,23 @@ climier accept T-mvp-1 --as reviewer
 
 > Full reference: `docs/reference.md`.
 
+## Web UI
+
+`ui/` is the standalone SolidJS + Vite + Tailwind frontend. Its dependencies stay in the UI subproject; the root CLI remains stdlib-only. The server serves the built SPA from `ui/dist`, and `climier ui` starts a local read-only loopback server without Express.
+
+Build the reproducible UI bundle with Bun:
+
+```bash
+cd ui
+bun install --frozen-lockfile
+bun run typecheck
+bun run build
+```
+
+The build writes `ui/dist/index.html` and hashed assets. `ui/dist` is included in the published package; generated `ui/node_modules`, `ui/dist`, Storybook output, and local harness output are ignored by git.
+
+See [`docs/climier-ui.md`](docs/climier-ui.md) for the UI model, local server, and hosted API contract.
+
 ## Core concepts
 
 - **Task** — a unit of work (`subkind: "task"`). Persisted statuses: `open`, `in_progress`, `submitted`, `done`, `canceled`. `submitted` waits for validation; `done` means accepted. Derived statuses: `ready`, `blocked`, `backlog`.
