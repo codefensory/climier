@@ -7,3 +7,5 @@ ui/storybook-static/
 ui/.ui-bridge/
 ui/dom/
 ui/.logs/
+
+.deploy.env
