@@ -54,7 +54,7 @@ test("login does not report success when profile persistence fails", async () =>
 test("login resolves the linked checkout origin when --server is omitted", async () => {
   let requested;
   await login({
-    projectConfig: { project_id: "p", backend: { type: "remote", url: "https://remote.example/base", protocol: "v2" } },
+    projectConfig: { project_id: "p", backend: { type: "remote", url: "https://remote.example/base" } },
     readPassword: async () => "secret",
     requestLogin: async (value) => { requested = value; return { token: "token" }; },
     credentialStore: { async set() {} },

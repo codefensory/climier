@@ -3,6 +3,14 @@
 - Gate: `G-remote-single-server-adr` · Deriva de: `G-remote-single-server-rfc` · Estado: borrador
 - Fecha: 2026-09-30
 
+## Nota de vigencia del wire
+
+ADR-045 supersede la numeración y el routing del wire descritos en este ADR:
+las menciones históricas a v2 y `/v2` quedan reemplazadas por Remote v1, con
+`/v1` y `X-Climier-Protocol-Version: 1`. Esta actualización no cambia las
+decisiones de autenticación, bearer, aislamiento, loopback, lock, rotación,
+backups ni recovery documentadas aquí.
+
 ## Contexto
 
 El remote actual tiene tokens estáticos con scopes y una allowlist de IDs en config de servidor. El RFC aprobado fija otro objetivo: una persona opera una instancia propia, proporciona una contraseña general al levantarla y hace login desde sus equipos. Cada login obtiene un token con acceso a todos los DAGs de esa instancia. No hay cuentas, organizaciones, ACL por proyecto ni soporte del mecanismo remote anterior. Véase [RFC](../.decisions/G-remote-single-server-rfc.md).

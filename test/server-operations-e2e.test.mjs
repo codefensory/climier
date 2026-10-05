@@ -266,7 +266,7 @@ function remoteStateDirectory(root, projectId) {
   return path.join(root, "server-home", "projects", internalId);
 }
 
-test("v2 transfer E2E bootstraps, supports offline work, detects divergence, and makes force replacement visible", async (t) => {
+test("v1 transfer E2E bootstraps, supports offline work, detects divergence, and makes force replacement visible", async (t) => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "climier-server-transfer-e2e-"));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
 
@@ -396,7 +396,7 @@ test("v2 transfer E2E bootstraps, supports offline work, detects divergence, and
   assert.equal(remoteLedger.high_water_revision, remoteState.revision);
 });
 
-test("v2 transfer E2E never provisions via push and leaves baselines unchanged on failure or ambiguous timeout", async (t) => {
+test("v1 transfer E2E never provisions via push and leaves baselines unchanged on failure or ambiguous timeout", async (t) => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "climier-server-transfer-failures-"));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   const server = await startConfiguredServer(root, password, t);
@@ -471,7 +471,7 @@ test("v2 transfer E2E never provisions via push and leaves baselines unchanged o
   assert.ok(appliedDespiteTimeout.log.some((entry) => entry.action === "transfer.push"));
 });
 
-test("v2 remote E2E links and logs in two clients, isolates project IDs, and fails closed", async (t) => {
+test("v1 remote E2E links and logs in two clients, isolates project IDs, and fails closed", async (t) => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "climier-server-ops-e2e-"));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
 
@@ -549,14 +549,14 @@ test("v2 remote E2E links and logs in two clients, isolates project IDs, and fai
   const afterRotation = await cli(clientA.projectDir, "show", ["T-remote-e2e"], clientA.env);
   assert.equal(afterRotation.code, 0, `rotated login: ${JSON.stringify(afterRotation.body)}`);
 
-  const v1Client = await makeClient(root, "client-v1");
-  const v1Meta = { version: 1, project_id: metadataA.project_id, backend: { type: "remote", url: second.url } };
-  await fs.writeFile(path.join(v1Client.projectDir, ".climier.json"), `${JSON.stringify(v1Meta, null, 2)}\n`);
-  const v1State = await writeSentinel(v1Client);
-  const outdated = await cli(v1Client.projectDir, "status", [], v1Client.env);
-  assert.notEqual(outdated.code, 0);
-  assert.equal(outdated.body.error.code, "AUTH_REQUIRED");
-  assert.deepEqual(await readSentinel(v1State), sentinel);
+  const cleanClient = await makeClient(root, "client-clean");
+  const cleanMeta = { version: 1, project_id: metadataA.project_id, backend: { type: "remote", url: second.url } };
+  await fs.writeFile(path.join(cleanClient.projectDir, ".climier.json"), `${JSON.stringify(cleanMeta, null, 2)}\n`);
+  const cleanState = await writeSentinel(cleanClient);
+  const unauthenticated = await cli(cleanClient.projectDir, "status", [], cleanClient.env);
+  assert.notEqual(unauthenticated.code, 0);
+  assert.equal(unauthenticated.body.error.code, "AUTH_REQUIRED");
+  assert.deepEqual(await readSentinel(cleanState), sentinel);
 
   const unavailableClient = await makeClient(root, "client-unavailable");
   const unavailableMeta = { version: 1, project_id: metadataA.project_id, backend: { type: "remote", url: "http://127.0.0.1:1" } };

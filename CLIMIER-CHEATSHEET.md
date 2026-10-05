@@ -4,7 +4,7 @@ Quick reference for agents and operators working in this repository. State shape
 canonical schema-1 `{ version: 1, initiatives, nodes, edges, log, fence_generation, revision }`
 at `~/.climier/projects/<project_id>/tasks.json` (global, machine-local, NOT in the
 repo). The repo commits only `.climier.json`, which pins the `<project_id>`.
-Remote v2 setup, TLS, backup, rotation, and recovery are in
+Remote v1 setup, TLS, backup, rotation, and recovery are in
 `docs/remote-server.md`.
 
 Errors are JSON to stdout with a structured shape:

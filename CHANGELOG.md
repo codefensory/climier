@@ -5,6 +5,11 @@ Keep a Changelog.
 
 ## [Unreleased]
 
+- Cut the first supported remote wire as Remote v1 (`/v1` with protocol header
+  `1`), with two-client E2E coverage and a packed-artifact smoke.
+- Remote checkout metadata now stores only backend type and URL; manual
+  `push`/`pull` transfers remain explicit and fail closed without fallback.
+
 ## [1.0.0] - 2026-09-28
 
 This is the first clean Climier release. It is the first version intended for

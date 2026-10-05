@@ -23,7 +23,7 @@ test("logout removes only the selected origin session", async () => {
 test("logout resolves the linked origin and is idempotent", async () => {
   const calls = [];
   const result = await logout({
-    projectConfig: { project_id: "p", backend: { type: "remote", url: "https://remote.example/base", protocol: "v2" } },
+    projectConfig: { project_id: "p", backend: { type: "remote", url: "https://remote.example/base" } },
     credentialStore: { async delete(origin) { calls.push(origin); return false; } },
   });
   assert.deepEqual(calls, ["https://remote.example"]);

@@ -86,14 +86,14 @@ async function stopServer(child) {
 }
 
 async function seedRemoteSession(origin, clientHome) {
-  const response = await fetch(`${origin}/v2/auth/login`, {
+  const response = await fetch(`${origin}/v1/auth/login`, {
     method: "POST",
-    headers: { accept: "application/json", "content-type": "application/json", "x-climier-protocol-version": "2" },
+    headers: { accept: "application/json", "content-type": "application/json", "x-climier-protocol-version": "1" },
     body: JSON.stringify({ password: serverPassword }),
   });
   const body = await response.json();
   if (!response.ok || body.ok !== true || typeof body.token !== "string" || body.token.length === 0) {
-    throw new Error(`v2 login failed with HTTP ${response.status}`);
+    throw new Error(`v1 login failed with HTTP ${response.status}`);
   }
   await fs.mkdir(clientHome, { recursive: true, mode: 0o700 });
   if (process.platform !== "win32") {await fs.chmod(clientHome, 0o700);}
@@ -171,8 +171,13 @@ async function main() {
     const linked = await command(climier, ["--project", localProject, "link", remoteUrl], { cwd: root, env: clientEnv });
     if (linked.code !== 0) {throw new Error(`installed climier link failed: ${linked.stderr}`);}
     const remoteConfig = JSON.parse(await fs.readFile(path.join(localProject, ".climier.json"), "utf8"));
-    if (remoteConfig.backend?.protocol !== "v2" || remoteConfig.project_id !== projectId) {
-      throw new Error(`link did not write the expected v2 project metadata: ${JSON.stringify(remoteConfig)}`);
+    if (
+      remoteConfig.backend?.type !== "remote" ||
+      remoteConfig.backend?.url !== new URL(remoteUrl).toString() ||
+      remoteConfig.backend?.protocol !== undefined ||
+      remoteConfig.project_id !== projectId
+    ) {
+      throw new Error(`link did not write the expected v1 project metadata without a protocol marker: ${JSON.stringify(remoteConfig)}`);
     }
     await seedRemoteSession(new URL(remoteUrl).origin, clientHome);
     const remoteInit = await command(climier, ["--project", localProject, "init"], { cwd: root, env: clientEnv });
@@ -209,7 +214,7 @@ async function main() {
     if (/Cannot find (?:package|module)|ERR_MODULE_NOT_FOUND|\n\s+at\s/.test(ui.stdout + ui.stderr)) {
       throw new Error(`installed ui leaked module-resolution failure: ${ui.stdout}${ui.stderr}`);
     }
-    console.log("packed smoke: version, local init/status, remote init, push/pull transfer, and experimental ui failure passed");
+    console.log("packed smoke: version, local init/status, Remote v1 init, push/pull transfer, and experimental ui failure passed");
   } finally {
     await stopServer(server);
     await fs.rm(root, { recursive: true, force: true });

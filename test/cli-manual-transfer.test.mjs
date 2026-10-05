@@ -234,7 +234,7 @@ test("help marks manual push/pull experimental and unsafe and warns about destru
   assert.match(output[0], /backup/i);
 });
 
-test("registered transfer commands preserve the retired v1 boundary", async (t) => {
+test("registered transfer commands advertise the current Remote v1 boundary", async (t) => {
   const f = await fixture(t);
   const output = [];
   const codes = [];
@@ -245,6 +245,7 @@ test("registered transfer commands preserve the retired v1 boundary", async (t) 
   });
   assert.equal(result, 0);
   assert.match(output[0], /login/);
-  assert.match(output[0], /remote v2/);
-  assert.doesNotMatch(output[0], /CLIMIER_TOKEN|\/v1/);
+  assert.match(output[0], /Remote v1/);
+  assert.match(output[0], /\/v1/);
+  assert.doesNotMatch(output[0], /CLIMIER_TOKEN|remote v2/);
 });

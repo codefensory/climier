@@ -1,6 +1,6 @@
 # Operating a Climier remote server
 
-This runbook covers the protocol v2 single-host deployment. The server is the
+This runbook covers the Remote v1 single-host deployment. The server is the
 only source of truth for a linked remote project; the repository checkout
 contains only its project ID and the server origin. Node.js 20 or newer and no
 runtime packages beyond Node's standard library are required.
@@ -80,8 +80,9 @@ climier --project /srv/climier/checkouts/alpha init
 ```
 
 `login` reads the password from an interactive TTY without echo, calls
-`POST /v2/auth/login`, and stores only the bearer for that origin in the local
-profile (`~/.climier/remote-sessions.json` by default). The profile directory
+`POST /v1/auth/login` with `X-Climier-Protocol-Version: 1`, and stores only the
+bearer for that origin in the local profile (`~/.climier/remote-sessions.json`
+by default). The profile directory
 is `0700` and its file is `0600` on POSIX. The password and bearer must not be
 placed in argv, environment variables, stdin, `.climier.json`, command output,
 or logs. For a remote HTTP origin, run each command with
@@ -97,10 +98,11 @@ below. Changing an origin requires `climier link <new-origin> --replace=true`;
 it keeps the project ID but does not copy data between servers.
 
 If a checkout is cloned, preserve its `.climier.json` project ID and run
-`login` on the new machine. A remote v2 config must contain exactly
-`backend.protocol: "v2"`. An older remote config fails with
-`REMOTE_CONFIG_OUTDATED` before authentication or local state I/O; run
-`link <origin> --replace=true` as the explicit relink action.
+`login` on the new machine. The canonical remote metadata contains only the
+backend type and complete URL. A checkout carrying a retired protocol marker
+fails with `REMOTE_CONFIG_OUTDATED` before authentication or local state I/O;
+run `link <configured-origin>` to clean it, using `--replace=true` only when
+changing the URL.
 
 Only authenticated remote `init` provisions an absent project directory. Reads,
 normal operations, batch requests, `push`, and `pull` never create storage
@@ -110,7 +112,7 @@ unsupported.
 ## Manual local / remote transfers
 
 `push` and `pull` are **EXPERIMENTAL / UNSAFE** manual transfers of a complete
-DAG snapshot for the same `project_id`. They require a linked remote v2 backend
+DAG snapshot for the same `project_id`. They require a linked Remote v1 backend
 and a valid bearer from `login`. `link` only selects the backend: it does not
 transfer the local DAG. To publish local work for the first time, initialize it
 locally, then link, log in, provision the remote with `init`, and push:
@@ -192,18 +194,18 @@ be active.
 
 ## Verification and failure boundaries
 
-Run the server operations E2E with a real v2 server; it verifies two-client
-isolation, auth/no-fallback, remote provisioning, the offline transfer cycle,
-revision conflicts, both force directions, state/plugin/claim preservation,
-ledger continuity, and an ambiguous dropped transfer response:
+Run the server operations E2E with an isolated Remote v1 server; it verifies
+two-client isolation, auth/no-fallback, remote provisioning, the offline
+transfer cycle, revision conflicts, both force directions, state/plugin/claim
+preservation, ledger continuity, and an ambiguous dropped transfer response:
 
 ```sh
 timeout -k 10s 180s node --test test/server-operations-e2e.test.mjs
 ```
 
 Run the packed-artifact smoke with temporary homes; it installs the package,
-provisions a v2 server, and executes push and pull without the retired
-`CLIMIER_TOKEN` or v1 routes:
+provisions a Remote v1 server, and executes push and pull without the retired
+`CLIMIER_TOKEN` or legacy route fallback:
 
 ```sh
 timeout -k 10s 180s npm run smoke:pack

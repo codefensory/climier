@@ -3,6 +3,14 @@
 - Gate: `G-remote-offline-transfers-adr` · Deriva de: `G-remote-offline-transfers-rfc` · Reemplaza: la exclusión de `push`/`pull` de ADR-043 · Estado: aprobado
 - Fecha: 2026-09-30
 
+## Nota de vigencia del wire
+
+ADR-045 supersede únicamente la versión y el prefijo de rutas del wire de
+transferencias descritos aquí: el contrato vigente es Remote v1, con `/v1` y
+`X-Climier-Protocol-Version: 1`. Se mantienen sin cambios las decisiones de
+`push`/`pull` explícitos, CAS, baseline, `--force`, no-fallback, preservación de
+claims/plugin data y ledger del destino.
+
 ## Contexto
 
 ADR-043 estableció login v2 y el server como única fuente mientras un checkout selecciona backend remoto, pero excluyó transferencias. El usuario requiere alternar explícitamente entre el backend local y remoto: trabajar local cuando no hay conexión y enviar ese DAG al mismo `project_id` más tarde; también descargar el DAG remoto para continuar offline. No pidió fallback automático, merge ni resolución de dependencias.

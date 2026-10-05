@@ -36,7 +36,7 @@ in `details.cause`; opaque failures are exposed as `CLI_INTERNAL_ERROR`. Help
 and version remain the only intentional plain-text outputs and exit 0. There is
 no `--json` switch because JSON is already the default.
 
-Remote v2 requires HTTPS for non-loopback origins by default. An explicit `CLIMIER_ALLOW_INSECURE_REMOTE_HTTP=true` opt-in permits HTTP on a trusted private network; the destination is read from `.climier.json` and bearers remain scoped to their saved origin. The server continues to bind to loopback by default; this client opt-in does not change its listener. HTTP sends credentials without TLS and should be used only when the network path is trusted. A successful remote `init` has the same JSON result shape as local initialization, plus a warning for opted-in HTTP; remote failures never fall back to local state.
+Remote v1 requires HTTPS for non-loopback origins by default. An explicit `CLIMIER_ALLOW_INSECURE_REMOTE_HTTP=true` opt-in permits HTTP on a trusted private network; the destination is read from `.climier.json` and bearers remain scoped to their saved origin. The server continues to bind to loopback by default; this client opt-in does not change its listener. HTTP sends credentials without TLS and should be used only when the network path is trusted. A successful remote `init` has the same JSON result shape as local initialization, plus a warning for opted-in HTTP; remote failures never fall back to local state.
 
 If you only need the quickstart, use `README.md`. If you need the actual contract, use this file.
 
@@ -833,22 +833,24 @@ inspect historical snapshots.
 ### `batch` and edge removal
 
 `batch --file <json>` or `batch --stdin` applies an authorized group of
-operations atomically. Remote v2 has no DAG transfer commands: the linked
-server-side project is the only source of truth. The low-level `remove-edge
-<from> <to> --type ...` operation is idempotent and removes only one exact edge.
+operations atomically. Remote v1 also supports the explicit `push` and `pull`
+DAG transfer commands; the linked server-side project remains authoritative for
+normal operations. The low-level `remove-edge <from> <to> --type ...` operation
+is idempotent and removes only one exact edge.
 
-### Remote v2 authentication
+### Remote v1 authentication
 
-`link <origin> [--replace=true]` records `backend.protocol: "v2"` and preserves
-the checkout project ID. `login [--server <origin>]` reads a password from a
-TTY without echo and stores only the origin-indexed bearer in the local
-credential profile; `logout` removes that local entry. A config without the v2
-marker fails with `REMOTE_CONFIG_OUTDATED` before auth or local state I/O.
-`init` may provision an absent remote project, while reads and writes never
-create storage implicitly. The server requires `CLIMIER_SERVER_PASSWORD`,
-loopback binding, a service-lifetime lock, and a durable auth file; see
+`link <origin> [--replace=true]` records the remote type and complete URL while
+preserving the checkout project ID. `login [--server <origin>]` reads a password
+from a TTY without echo and stores only the origin-indexed bearer in the local
+credential profile; `logout` removes that local entry. A checkout with a retired
+protocol marker fails with `REMOTE_CONFIG_OUTDATED` before auth or local state
+I/O; relink it to the configured URL to clean the metadata. `init` may provision
+an absent remote project, while reads and writes never create storage implicitly.
+The server requires `CLIMIER_SERVER_PASSWORD`, loopback binding, a
+service-lifetime lock, and a durable auth file; see
 [`docs/remote-server.md`](remote-server.md) for TLS, private-network HTTP,
-backup, rotation, and stale-lock recovery.
+backup, rotation, transfers, and stale-lock recovery.
 
 ## Low-level semantics worth knowing
 

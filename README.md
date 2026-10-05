@@ -214,9 +214,9 @@ no `--json` flag. JSON is the default.
 
 Full reference: `docs/reference.md`.
 
-### Remote v2
+### Remote v1
 
-A remote checkout uses `backend: { type: "remote", url, protocol: "v2" }`. Run `climier link <origin>`, `climier login`, then `climier init` to provision its server-side project. Login reads the password from a TTY and stores the bearer in the local credential profile by origin. Linking does not upload an existing local DAG; use the explicit experimental `push`/`pull` commands for complete manual transfers. The server requires `CLIMIER_SERVER_PASSWORD` and binds to loopback by default; use a trusted TLS reverse proxy for normal remote access. For a trusted private network, clients may opt into HTTP with `CLIMIER_ALLOW_INSECURE_REMOTE_HTTP=true`; this does not change the server's listener or protect credentials in transit. Normal requests never fall back to local state. See [`docs/remote-server.md`](docs/remote-server.md) for transfer workflows, rotation, backups, stale-lock recovery, and auth-file recovery.
+A remote checkout uses `backend: { type: "remote", url }` and the Remote v1 HTTP contract (`/v1` with `X-Climier-Protocol-Version: 1`). Run `climier link <origin>`, `climier login`, then `climier init` to provision its server-side project. Login reads the password from a TTY and stores the bearer in the local credential profile by origin. Linking does not upload an existing local DAG; use the explicit experimental `push`/`pull` commands for complete manual transfers. The server requires `CLIMIER_SERVER_PASSWORD` and binds to loopback by default; use a trusted TLS reverse proxy for normal remote access. For a trusted private network, clients may opt into HTTP with `CLIMIER_ALLOW_INSECURE_REMOTE_HTTP=true`; this does not change the server's listener or protect credentials in transit. Normal requests never fall back to local state. See [`docs/remote-server.md`](docs/remote-server.md) for transfer workflows, rotation, backups, stale-lock recovery, and auth-file recovery.
 
 ### Manual offline transfers
 
@@ -241,7 +241,7 @@ climier login
 climier push --as alice
 ```
 
-The transfer baseline is local machine state under `$CLIMIER_HOME/remote-transfer-baselines/` (default `~/.climier`), not repository metadata; changing or committing `.climier.json` selects a backend but does not move that baseline. Without a confirmed baseline, push accepts only a pristine initialized remote. Transfers require a valid v2 login and never fall back to local state. There is no automatic sync, merge, retry, journal, or conflict resolution. A conflict requires an explicit choice of local or remote state.
+The transfer baseline is local machine state under `$CLIMIER_HOME/remote-transfer-baselines/` (default `~/.climier`), not repository metadata; changing or committing `.climier.json` selects a backend but does not move that baseline. Without a confirmed baseline, push accepts only a pristine initialized remote. Transfers require a valid Remote v1 login and never fall back to local state. There is no automatic sync, merge, retry, journal, or conflict resolution. A conflict requires an explicit choice of local or remote state.
 
 `push --force` and `pull --force` are **EXPERIMENTAL / UNSAFE**: each replaces the complete destination DAG, including claims, `in_progress`, plugin data, and the destination log. The winner keeps its source log plus a new transfer event naming the replaced revision; the discarded destination log is not retained or recoverable from that event. Back up both sides before force. A timeout can be ambiguous: the server may have applied a transfer although the local baseline was not updated, so inspect or pull before deciding what to do next.
 
@@ -287,7 +287,7 @@ Claims are serialized under the project lock. `release`, `reopen`, and
 | `restore <snapshot-id> --as <agent>` | Replace the live state with a validated schema-1 snapshot under the recovery path and a pre-restore snapshot. A policy plugin may restrict the actor; invalid or incomplete snapshots fail without mutating state. |
 | `cancel <id> --reason "<text>" --as <agent>` | Terminate a task without resolving from `open`, `in_progress` or `submitted`. |
 | `batch --file <json> --as <agent>` / `batch --stdin --as <agent>` | Execute several operations atomically. |
-| `link <origin> [--replace=true]` | Select a v2 remote origin while preserving the checkout project ID; does not copy a DAG. |
+| `link <origin> [--replace=true]` | Select a Remote v1 origin while preserving the checkout project ID; does not copy a DAG. |
 | `login [--server <origin>]` / `logout [--server <origin>]` | Authenticate through a TTY and manage the local bearer profile; the token is never printed. |
 | `push --as <agent>` / `pull --as <agent>` | **EXPERIMENTAL / UNSAFE** complete manual DAG transfers. `--force` replaces the entire destination; back up first. |
 | `migrate [--all] [--dry-run]` | Inspect or import pre-cut projects while all writers are stopped. |
