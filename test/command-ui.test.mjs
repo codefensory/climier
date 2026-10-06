@@ -193,7 +193,7 @@ test("climier ui keeps an unreadable project in the catalog and fails when it is
 
 test("uiCommand starts the stdlib local server and reports the loopback URL", async (t) => {
   const { root, uiRoot } = await makeProject(t, "command-project");
-  const result = await uiCommand({ projectDir: root, flags: { open: false, port: 0 }, uiRoot });
+  const result = await uiCommand({ projectDir: root, flags: { open: false, port: "0" }, uiRoot });
   assert.match(result.ui.url, /^http:\/\/127\.0\.0\.1:\d+$/);
   assert.equal(result.ui.project, root);
   assert.equal(result.ui.read_only, true);
