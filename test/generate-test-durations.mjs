@@ -21,7 +21,7 @@ import {
   loadDurationTable,
   partitionShards,
   supportsInProcessIsolation,
-} from "./core-test-plan.mjs";
+} from "./core-test-plan.ts";
 
 const testDir = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(testDir, "..");
