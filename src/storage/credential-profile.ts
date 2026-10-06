@@ -15,19 +15,11 @@ function profileError(message: string, cause?: unknown): Error {
   return codedError("CREDENTIAL_PROFILE_ERROR", `credential store: ${message}`, undefined, cause);
 }
 
-function isLoopbackHost(host) {
-  return host === "localhost" || host.endsWith(".localhost") || host === "[::1]" || /^127(?:\.\d{1,3}){3}$/.test(host);
-}
-
 function hasAllowedProtocol(url) {
   return (url.protocol === "https:" || url.protocol === "http:") && !url.username && !url.password;
 }
 
-function permitsHttpOrigin(url, allowInsecureRemoteHttp) {
-  return url.protocol !== "http:" || isLoopbackHost(url.hostname.toLowerCase()) || allowInsecureRemoteHttp;
-}
-
-function normalizeOrigin(value, { allowInsecureRemoteHttp = process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP === "true" } = {}) {
+function normalizeOrigin(value) {
   let url;
   try { url = new URL(value); } catch (rawCaughtValue: unknown) {
   {
@@ -35,9 +27,6 @@ function normalizeOrigin(value, { allowInsecureRemoteHttp = process.env.CLIMIER_
   }}
   if (!hasAllowedProtocol(url)) {
     throw profileError("origin must be an absolute HTTP(S) URL without credentials");
-  }
-  if (!permitsHttpOrigin(url, allowInsecureRemoteHttp)) {
-    throw profileError("origin must use HTTPS outside localhost");
   }
   return url.origin;
 }
@@ -47,7 +36,7 @@ function isRecord(value) {
 }
 
 function hasValidSession(origin, session) {
-  return normalizeOrigin(origin, { allowInsecureRemoteHttp: true }) === origin
+  return normalizeOrigin(origin) === origin
     && isRecord(session) && typeof session.token === "string" && session.token.length > 0;
 }
 

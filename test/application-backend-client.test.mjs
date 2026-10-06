@@ -29,14 +29,11 @@ function jsonResponse(response, result) {
 }
 
 async function withInsecureRemoteHttp(run) {
-  const previousAllow = process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP;
   const previousFetch = globalThis.fetch;
-  process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP = "true";
   try {
     await run();
   } finally {
     globalThis.fetch = previousFetch;
-    if (previousAllow === undefined) {delete process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP;} else {process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP = previousAllow;}
   }
 }
 
