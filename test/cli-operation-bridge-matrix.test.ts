@@ -206,6 +206,23 @@ async function sourceAt(relativePath) {
   return await fs.readFile(path.resolve(TEST_DIR, "..", relativePath), "utf8");
 }
 
+async function resolveTestFile(relativePath: string): Promise<string> {
+  const stem = relativePath.replace(/\.test\.(?:mjs|ts)$/, "");
+  for (const extension of ["ts", "mjs"] as const) {
+    const candidate = `${stem}.test.${extension}`;
+    try {
+      await fs.access(path.resolve(TEST_DIR, candidate));
+      return candidate;
+    } catch (error) {
+      if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+        continue;
+      }
+      throw error;
+    }
+  }
+  assert.fail(`test suite does not exist as .test.ts or .test.mjs: ${relativePath}`);
+}
+
 function assertTestFiles(files) {
   for (const file of files) {
     assert.match(file, /\.test\.(?:mjs|ts)$/, `test owner is a focused test file: ${file}`);
@@ -227,7 +244,7 @@ test("write matrix covers every registered operation and documents local/remote 
     }
     assertTestFiles([row.local, row.remote]);
     for (const file of [row.local, row.remote, ...(row.http ? [row.http] : [])]) {
-      await fs.access(path.resolve(TEST_DIR, file));
+      await resolveTestFile(file);
     }
   }
 });
@@ -254,7 +271,7 @@ test("init and restore remain owned kernel exceptions", async () => {
     }
     assertTestFiles(exception.tests);
     for (const file of exception.tests) {
-      await fs.access(path.resolve(TEST_DIR, file));
+      await resolveTestFile(file);
     }
     if (exception.downstream) {
       assert.equal(exception.downstream, "T-rar-032-transfers");
