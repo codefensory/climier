@@ -93,7 +93,7 @@ function validateConfig(config, {
   return normalizeConfig(config);
 }
 
-export function parseServerRuntimeConfig(value, options) {
+export function parseServerRuntimeConfig(value, options = {}) {
   return validateConfig(value, options);
 }
 
