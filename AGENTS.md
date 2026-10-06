@@ -9,7 +9,7 @@ This file tells you how the code is organized, the rules you must follow, and th
 - A Node CLI. No runtime dependencies, stdlib only.
 - ESM modules (`"type": "module"` in `package.json`).
 - Tests run with `node --test` (stdlib).
-- Entry point: `bin/climier.mjs`. Library code: `src/`. Tests: `test/`.
+- Entry point: `bin/climier.ts`. Library code: `src/`. Tests: `test/`.
 - The CLI resolves a project root (CWD by default, `--project <dir>` to override), reads `<project>/.climier.json`, and then operates on the matching live state file under `~/.climier/projects/<project-id>/tasks.json`.
 
 ## Architecture
@@ -20,18 +20,24 @@ providers own domain semantics; the kernel owns the mutation transaction; and
 storage owns persistence. The canonical dependency direction is:
 
 ```text
-CLI / Plugins -> application/operations -> providers -> kernel -> storage
+adapters (cli/, plugins/, server/) -> application/operations -> providers -> kernel -> storage
 ```
 
-`read-model/` is a pure transversal module. `kernel/`, `providers/`, and
-`read-model/` must not import adapters (`cli/` or `plugins`). `providers/` and
-`read-model/` must not import `storage/`. The kernel must not know about
-application or adapters.
+Adapters also consume `providers/` and the pure `read-model/` projections
+directly, and every mutation enters through the `kernel/mutate.ts` facade
+(`plugins/` and `server/` included). Both shapes are approved: ADR-013 §5 lets
+the plugin host consume kernel, providers and read-model, ADR-032 keeps server
+transfers on the kernel port, and the enforcement table in
+`test/architecture/import-boundaries.test.mjs` declares those five edges as
+normative allowed roots. `read-model/` is a pure transversal module. `kernel/`,
+`providers/`, and `read-model/` must not import adapters (`cli/`, `plugins/`, or
+`server`). `providers/` and `read-model/` must not import `storage/`. The kernel
+must not know about application or adapters.
 
 ### Source layout
 
 ```
-bin/climier.mjs                       # Thin executable wrapper around cli/dispatch.mjs
+bin/climier.ts                       # Thin executable wrapper around cli/dispatch.mjs
 src/
   application/operations/              # Registry, built-in catalog, and shared operation composition
     index.mjs                          # Public Application Operations boundary
@@ -78,7 +84,7 @@ Boundary rules:
   storage, locks, logs, or the registry.
 - `kernel/mutation/` owns the single locked mutation pipeline: fresh snapshot,
   preconditions/policy, provider plan, draft validation, diff/revisions, and
-  atomic state-plus-log commit. `kernel/mutate.mjs` remains the stable facade.
+  atomic state-plus-log commit. `kernel/mutate.ts` remains the stable facade.
 - `read-model/` composes graph and provider semantics into read-only views; it
   has no argv, filesystem, mutation, or logging concerns.
 - `plugins/` is the host/adapter boundary. Plugin core actions consume the
@@ -126,12 +132,12 @@ Canonical `BLOCKS` direction is `{ from: blocker, to: blocked, type: "BLOCKS" }`
 
 ### The two non-obvious invariants
 
-1. **Atomicity: every mutating operation enters through `kernel/mutate.mjs` and its `withLock` → atomic state write pipeline.** Two agents in parallel can't corrupt the file. The `withLock` lock file lives next to the active state file (`~/.climier/projects/<project-id>/.lock`), is created with `fs.openSync(..., 'wx')` (fails on EEXIST), and is re-acquired in a spin loop with a 10s default timeout. Stale lock files (process died) are NOT auto-cleared — that is documented as the known ceiling of the file-lock strategy.
+1. **Atomicity: every mutating operation enters through `kernel/mutate.ts` and its `withLock` → atomic state write pipeline.** Two agents in parallel can't corrupt the file. The `withLock` lock file lives next to the active state file (`~/.climier/projects/<project-id>/.lock`), is created with `fs.openSync(..., 'wx')` (fails on EEXIST), and is re-acquired in a spin loop with a 10s default timeout. Stale lock files (process died) are NOT auto-cleared — that is documented as the known ceiling of the file-lock strategy.
 2. **Logging is part of the mutation.** The kernel mutation coordinator builds the log entry and commits the state plus log atomically in one locked write. Do not split state and log persistence across locks or reimplement either concern in an adapter/provider.
 
 ### Derived state and the DAG
 
-Read derivation lives in `src/read-model/index.mjs`, which composes graph
+Read derivation lives in `src/read-model/index.ts`, which composes graph
 traversal with task, gate, and knowledge provider semantics. The pure provider
 helpers in `src/providers/` compute lifecycle/readiness rules; the CLI
 `status` and `context` adapters only load a snapshot and shape their output.
@@ -145,39 +151,39 @@ Cycles in the DAG must not crash. The derivation keeps cycle members blocked. Un
 
 | Command | File | Mutates? | Needs `--as`? |
 |---|---|---|---|
-| `init [--force]` | `cli/commands/init.mjs` | yes (creates/overwrites state) | no |
-| `status [--initiative X] [--kind task\|gate\|knowledge] [--status X] [--domain X] [--claimed-by X] [--stale-ms N] [--limit N] [--all]` | `cli/commands/status.mjs` | no | no |
-| `context <id>` | `cli/commands/context.mjs` | no | no |
-| `search "<query>" [--all]` | `cli/commands/search.mjs` | no | no |
-| `history <id> [--limit N]` | `cli/commands/history.mjs` | no | no |
-| `show <id>` | `cli/commands/show.mjs` | no | no |
-| `initiatives [--all]` | `cli/commands/initiatives.mjs` | no | no |
-| `log [--limit N] [--action X] [--agent X] [--node X]` | `cli/commands/log.mjs` | no | no |
-| `take <id>` | `cli/commands/take.mjs` | yes | yes |
-| `submit <id> --note "..."` | `cli/commands/submit.mjs` | yes | yes |
-| `accept <id>` | `cli/commands/accept.mjs` | yes | yes |
-| `reject <id> --reason "..."` | `cli/commands/reject.mjs` | yes | yes |
-| `release <id>` | `cli/commands/release.mjs` | yes | yes |
-| `resolve <id> --choice "<x>" --rationale "<y>"` (gate only) | `cli/commands/resolve.mjs` | yes | yes |
-| `reopen <id> --reason "<text>"` | `cli/commands/reopen.mjs` | yes | yes |
-| `cancel <id> --reason "<text>"` | `cli/commands/cancel.mjs` | yes | yes |
-| `update <id> [--title X] [--body "..."] [--definition "..."] [--acceptance "..."] [--domain Y] [--tags ...] [--backlog true\|false] [--if-revision N]` | `cli/commands/update.mjs` | yes | required (any value) |
-| `add-note <id> "<text>"` | `cli/commands/add-note.mjs` | yes | required (any value) |
-| `add-initiative <name> [--desc "..."]` | `cli/commands/add-initiative.mjs` | yes | required |
-| `add-task [id] --initiative X --title "..." --body "..." --acceptance "..." --blocked-by A,B` | `cli/commands/add-task.mjs` | yes | required |
-| `add-gate [id] --initiative X --title "..." --body "..." --purpose decision\|approval\|external-dependency\|research [--supersedes OLD]` | `cli/commands/add-gate.mjs` | yes | required |
-| `add-knowledge [id] --initiative X --title "..." --body "..." [--scope-domains X] [--scope-initiatives X] [--scope-tags X] [--scope-node-ids X] [--supersedes OLD]` | `cli/commands/add-knowledge.mjs` | yes | required |
-| `deprecate-knowledge <id> --reason "<text>"` | `cli/commands/deprecate-knowledge.mjs` | yes | required |
-| `add-node <id> --kind resolvable\|knowledge --title "..." [--subkind task\|gate] [--blocked-by A,B] [--derived-from A,B] [--refs a,b] [--meta '{...}']` | `cli/commands/add-node.mjs` | yes | required |
-| `add-edge <from> <to> --type BLOCKS\|SUPERSEDES\|DERIVED_FROM` | `cli/commands/add-edge.mjs` | yes | required |
-| `remove-edge <from> <to> --type BLOCKS\|SUPERSEDES\|DERIVED_FROM` | `cli/commands/remove-edge.mjs` | yes | required |
-| `snapshots` | `cli/commands/snapshots.mjs` | no (read-only) | no |
-| `state` | `cli/commands/state.mjs` | no (read-only) | no |
-| `restore <id> --as <agent>` | `cli/commands/restore.mjs` | yes (locked; canonical schema-1 snapshot; pre-snapshot) | required |
-| `batch --file <json> --as <agent>` / `batch --stdin --as <agent>` | `cli/commands/batch.mjs` | yes | required |
-| `link <origin> [--replace=true]` | `cli/commands/link.mjs` | yes | required |
-| `login [--server <origin>]` / `logout [--server <origin>]` | `cli/commands/login.mjs`, `cli/commands/logout.mjs` | yes | required |
-| `migrate [--project <dir>] [--all] [--dry-run]` | `cli/commands/migrate.mjs` | yes unless dry-run | required for import |
+| `init [--force]` | `cli/commands/init.ts` | yes (creates/overwrites state) | no |
+| `status [--initiative X] [--kind task\|gate\|knowledge] [--status X] [--domain X] [--claimed-by X] [--stale-ms N] [--limit N] [--all]` | `cli/commands/status.ts` | no | no |
+| `context <id>` | `cli/commands/context.ts` | no | no |
+| `search "<query>" [--all]` | `cli/commands/search.ts` | no | no |
+| `history <id> [--limit N]` | `cli/commands/history.ts` | no | no |
+| `show <id>` | `cli/commands/show.ts` | no | no |
+| `initiatives [--all]` | `cli/commands/initiatives.ts` | no | no |
+| `log [--limit N] [--action X] [--agent X] [--node X]` | `cli/commands/log.ts` | no | no |
+| `take <id>` | `cli/commands/take.ts` | yes | yes |
+| `submit <id> --note "..."` | `cli/commands/submit.ts` | yes | yes |
+| `accept <id>` | `cli/commands/accept.ts` | yes | yes |
+| `reject <id> --reason "..."` | `cli/commands/reject.ts` | yes | yes |
+| `release <id>` | `cli/commands/release.ts` | yes | yes |
+| `resolve <id> --choice "<x>" --rationale "<y>"` (gate only) | `cli/commands/resolve.ts` | yes | yes |
+| `reopen <id> --reason "<text>"` | `cli/commands/reopen.ts` | yes | yes |
+| `cancel <id> --reason "<text>"` | `cli/commands/cancel.ts` | yes | yes |
+| `update <id> [--title X] [--body "..."] [--definition "..."] [--acceptance "..."] [--domain Y] [--tags ...] [--backlog true\|false] [--if-revision N]` | `cli/commands/update.ts` | yes | required (any value) |
+| `add-note <id> "<text>"` | `cli/commands/add-note.ts` | yes | required (any value) |
+| `add-initiative <name> [--desc "..."]` | `cli/commands/add-initiative.ts` | yes | required |
+| `add-task [id] --initiative X --title "..." --body "..." --acceptance "..." --blocked-by A,B` | `cli/commands/add-task.ts` | yes | required |
+| `add-gate [id] --initiative X --title "..." --body "..." --purpose decision\|approval\|external-dependency\|research [--supersedes OLD]` | `cli/commands/add-gate.ts` | yes | required |
+| `add-knowledge [id] --initiative X --title "..." --body "..." [--scope-domains X] [--scope-initiatives X] [--scope-tags X] [--scope-node-ids X] [--supersedes OLD]` | `cli/commands/add-knowledge.ts` | yes | required |
+| `deprecate-knowledge <id> --reason "<text>"` | `cli/commands/deprecate-knowledge.ts` | yes | required |
+| `add-node <id> --kind resolvable\|knowledge --title "..." [--subkind task\|gate] [--blocked-by A,B] [--derived-from A,B] [--refs a,b] [--meta '{...}']` | `cli/commands/add-node.ts` | yes | required |
+| `add-edge <from> <to> --type BLOCKS\|SUPERSEDES\|DERIVED_FROM` | `cli/commands/add-edge.ts` | yes | required |
+| `remove-edge <from> <to> --type BLOCKS\|SUPERSEDES\|DERIVED_FROM` | `cli/commands/remove-edge.ts` | yes | required |
+| `snapshots` | `cli/commands/snapshots.ts` | no (read-only) | no |
+| `state` | `cli/commands/state.ts` | no (read-only) | no |
+| `restore <id> --as <agent>` | `cli/commands/restore.ts` | yes (locked; canonical schema-1 snapshot; pre-snapshot) | required |
+| `batch --file <json> --as <agent>` / `batch --stdin --as <agent>` | `cli/commands/batch.ts` | yes | required |
+| `link <origin> [--replace=true]` | `cli/commands/link.ts` | yes | required |
+| `login [--server <origin>]` / `logout [--server <origin>]` | `cli/commands/login.ts`, `cli/commands/logout.ts` | yes | required |
+| `migrate [--project <dir>] [--all] [--dry-run]` | `cli/commands/migrate.ts` | yes unless dry-run | required for import |
 | `ui [--port N] [--open=true\|false]` (experimental) | `cli/commands/ui.mjs` (starts `ui/server/server.mjs`) | no (read-only) | no |
 
 ## Hard rules for contributing
@@ -212,12 +218,12 @@ Do not put domain rules or persistence in the CLI layer.
    draft. Providers must not import `cli/`, `plugins/`, `storage/`, locks, or
    logging.
 3. **Register the operation.** Add its canonical `<domain>.<verb>` id and
-   provider to `src/application/operations/builtins.mjs` (and the matching
+   provider to `src/application/operations/builtins.ts` (and the matching
    public operation list when applicable). The immutable registry is process
    configuration, not project state; do not create a second registry.
 4. **Preserve the mutation frontier.** Hosts call
    `executeOperation({ projectDir, actor, operation, input, source })`, which
-   looks up the provider and delegates once to `kernel/mutate.mjs`. The kernel
+   looks up the provider and delegates once to `kernel/mutate.ts`. The kernel
    owns locking, policy timing, revisions, diffs, validation, and the atomic
    state-plus-log write.
 5. **Run the proportional provider, registry, and integration tests**, then
@@ -230,14 +236,14 @@ Do not put domain rules or persistence in the CLI layer.
    state, and one edge case.
 2. **Implement `src/cli/commands/<name>.mjs`.** Export the async command
    adapter and its `knownFlags`. Parse positional arguments and flags, resolve
-   the actor with `src/cli/actor.mjs`, normalize only CLI-specific input, and
+   the actor with `src/cli/actor.ts`, normalize only CLI-specific input, and
    invoke the canonical Application Operation or read-model projection.
 3. **Keep the adapter thin.** It may preserve a legacy CLI envelope or error
    classification, but must not acquire locks, write state/logs, assign
    revisions, or duplicate provider semantics. Mutations must enter through
    the kernel mutation frontier.
-4. **Wire it through `src/cli/dispatch.mjs`** and update the help text exposed
-   by the dispatch adapter. `bin/climier.mjs` remains a thin executable
+4. **Wire it through `src/cli/dispatch.ts`** and update the help text exposed
+   by the dispatch adapter. `bin/climier.ts` remains a thin executable
    wrapper; there is no separate printer map because the CLI is JSON-only.
 5. **Document the command** in the Quick reference table above and README when
    the public surface changes. Add integration coverage when it crosses
@@ -247,7 +253,7 @@ Do not put domain rules or persistence in the CLI layer.
 
 ## How to add a new field to the state
 
-1. **Update `emptyState()` in `src/storage/state.mjs`** if the field is required for new states.
+1. **Update `emptyState()` in `src/storage/state.ts`** if the field is required for new states.
 2. **Update `writeState` validation** if the field is required for all writes (most fields are optional, so this is rare).
 3. **Add tests for the new field's behavior.** If it's a derived field, test it via `derive` or `statusOf`. If it's persisted, test via the command that sets it.
 
@@ -267,8 +273,8 @@ Do not put domain rules or persistence in the CLI layer.
 - **Positional args for things, flags for options.** `climier take T1 --as alice` not `--id T1 --agent alice`.
 - **CSV in flag values.** `--tags "ts,sql"` not `--tag ts --tag sql`. Trim and filter empty strings.
 - **Pure projections live in `read-model/` and pure domain semantics live in `providers/`.** No I/O or side effects. Test them with literal snapshots, no temp dirs.
-- **Imperative wrappers in `storage/state.mjs` and `storage/lock.mjs`.** These touch the filesystem. They are tested via `helpers.mjs` (temp dirs).
-- **Adapters return data, not console.log.** `bin/climier.mjs` is the only place that prints (except for errors).
+- **Imperative wrappers in `storage/state.ts` and `storage/lock.ts`.** These touch the filesystem. They are tested via `helpers.mjs` (temp dirs).
+- **Adapters return data, not console.log.** `bin/climier.ts` is the only place that prints (except for errors).
 - **Comments declare constraints, not narration.** Remove line-by-line narration, provenance, task/ADR justification, commented-out code, decorative banners, and documentation mirrors. Keep only restrictions the code cannot express.
 
 ## Testing
@@ -335,8 +341,8 @@ node --test --test-name-pattern="take.*same agent" test/take.test.mjs
 npm run test:watch
 
 # Local code smoke (not DAG coordination)
-node bin/climier.mjs --project /tmp/testproj init
-node bin/climier.mjs --project /tmp/testproj status
+node bin/climier.ts --project /tmp/testproj init
+node bin/climier.ts --project /tmp/testproj status
 ```
 
 ## Output contract
@@ -362,8 +368,8 @@ When you add a new command, pick whichever shape fits the data. **Do not** add a
 ## What to do if you don't know where to start
 
 1. Run `npm test`. If anything is red, fix it first (a new agent should never commit on top of red).
-2. Read `src/storage/state.mjs` — it explains the storage shape and version handling.
-3. Read one command end-to-end (`src/cli/commands/take.mjs` is the most representative).
+2. Read `src/storage/state.ts` — it explains the storage shape and version handling.
+3. Read one command end-to-end (`src/cli/commands/take.ts` is the most representative).
 4. Look at `test/take.test.mjs` (and `test/concurrent-takes.test.mjs` if present) — they show the multi-agent guarantee in action.
 5. Then tackle your task. TDD: write the test, watch it fail, implement, watch it pass.
 
@@ -379,7 +385,7 @@ climier context <task-id>
 climier add-note <id> "..." --as <agent>
 ```
 
-Never use `node bin/climier.mjs` for coordination (`status`, `context`, `take`,
+Never use `node bin/climier.ts` for coordination (`status`, `context`, `take`,
 `update`, `add-note`, `resolve` for gates, `release`, or any other DAG
 operation). The
 local worktree CLI may be invoked only to verify the code being developed, for

@@ -12,7 +12,7 @@ import {
 } from "./helpers.mjs";
 
 async function snapshotDir(projectDir) {
-  const { snapshotDir: getSnapshotDir } = await importFresh("./storage/state.mjs");
+  const { snapshotDir: getSnapshotDir } = await importFresh("./storage/state.ts");
   return getSnapshotDir(projectDir);
 }
 
@@ -21,7 +21,7 @@ const baseState = () => ({ version: 1, revision: 0, nodes: {}, edges: [], initia
 test("kernel state.init bootstraps an absent state through the kernel", async () => {
   const dir = await createTempProject();
   try {
-    const { initState } = await importFresh("./kernel/state-operations.mjs");
+    const { initState } = await importFresh("./kernel/state-operations.ts");
     const out = await initState({ projectDir: dir });
     assert.equal(out.result.seeded, null);
     const state = await readState(dir);
@@ -38,7 +38,7 @@ test("kernel state.init bootstraps an absent state through the kernel", async ()
 test("kernel state.init_force rejects policy before snapshot or write", async () => {
   const dir = await createTempProject();
   try {
-    const { initState } = await importFresh("./kernel/state-operations.mjs");
+    const { initState } = await importFresh("./kernel/state-operations.ts");
     const original = baseState();
     original.nodes.keep = { id: "keep", kind: "resolvable", subkind: "task", status: "open" };
     await writeCanonicalState(dir, original);
@@ -60,7 +60,7 @@ test("kernel state.init_force rejects policy before snapshot or write", async ()
 test("kernel state.init_force snapshots and resets while preserving root plugins", async () => {
   const dir = await createTempProject();
   try {
-    const { initState } = await importFresh("./kernel/state-operations.mjs");
+    const { initState } = await importFresh("./kernel/state-operations.ts");
     const original = baseState();
     original.plugins = { demo: { enabled: true } };
     original.nodes.keep = { id: "keep", kind: "resolvable", subkind: "task", status: "open" };
@@ -78,12 +78,12 @@ test("kernel state.init_force snapshots and resets while preserving root plugins
 test("kernel state.restore validates before pre-snapshot and restores with one log entry", async () => {
   const dir = await createTempProject();
   try {
-    const { initState, restoreState } = await importFresh("./kernel/state-operations.mjs");
+    const { initState, restoreState } = await importFresh("./kernel/state-operations.ts");
     const original = baseState();
     original.nodes.keep = { id: "keep", kind: "resolvable", subkind: "task", status: "open" };
     await initState({ projectDir: dir });
     await writeCanonicalState(dir, original);
-    const { createSnapshot } = await importFresh("./storage/state.mjs");
+    const { createSnapshot } = await importFresh("./storage/state.ts");
     const target = await createSnapshot(dir, "force-init");
     await initState({ projectDir: dir, force: true, actor: "alice" });
     const out = await restoreState({ projectDir: dir, snapshotId: target.id, actor: "recovery" });
@@ -100,8 +100,8 @@ test("kernel state.restore validates before pre-snapshot and restores with one l
 test("kernel state.restore rejects a historical v2 snapshot and points at climier migrate", async () => {
   const dir = await createTempProject();
   try {
-    const { restoreState } = await importFresh("./kernel/state-operations.mjs");
-    const { createSnapshot } = await importFresh("./storage/state.mjs");
+    const { restoreState } = await importFresh("./kernel/state-operations.ts");
+    const { createSnapshot } = await importFresh("./storage/state.ts");
     const legacy = {
       version: 2,
       nodes: { legacy: { id: "legacy", kind: "resolvable", subkind: "task", status: "open" } },
@@ -128,9 +128,9 @@ test("kernel state.restore rejects a historical v2 snapshot and points at climie
 test("kernel state.restore installs a canonical snapshot through the fenced state path", async () => {
   const dir = await createTempProject();
   try {
-    const { initState, restoreState } = await importFresh("./kernel/state-operations.mjs");
-    const { createSnapshot } = await importFresh("./storage/state.mjs");
-    const { bootstrapFencedState, readFencedState } = await importFresh("./storage/ledger.mjs");
+    const { initState, restoreState } = await importFresh("./kernel/state-operations.ts");
+    const { createSnapshot } = await importFresh("./storage/state.ts");
+    const { bootstrapFencedState, readFencedState } = await importFresh("./storage/ledger.ts");
     const original = baseState();
     original.nodes.keep = { id: "keep", kind: "resolvable", subkind: "task", status: "open" };
     await writeCanonicalState(dir, original);
@@ -153,8 +153,8 @@ test("kernel state.restore installs a canonical snapshot through the fenced stat
 test("kernel state.restore rejects malformed v5 snapshot before policy or pre-snapshot", async () => {
   const dir = await createTempProject();
   try {
-    const { restoreState } = await importFresh("./kernel/state-operations.mjs");
-    const { bootstrapFencedState } = await importFresh("./storage/ledger.mjs");
+    const { restoreState } = await importFresh("./kernel/state-operations.ts");
+    const { bootstrapFencedState } = await importFresh("./storage/ledger.ts");
     await writeCanonicalState(dir, baseState());
     await bootstrapFencedState(dir);
     const dirPath = await snapshotDir(dir);
@@ -182,7 +182,7 @@ test("kernel state.restore rejects malformed v5 snapshot before policy or pre-sn
 test("kernel state.restore rejects malformed target without writing or snapshotting", async () => {
   const dir = await createTempProject();
   try {
-    const { restoreState } = await importFresh("./kernel/state-operations.mjs");
+    const { restoreState } = await importFresh("./kernel/state-operations.ts");
     await writeCanonicalState(dir, baseState());
     const dirPath = await snapshotDir(dir);
     await fs.mkdir(dirPath, { recursive: true });
@@ -191,7 +191,7 @@ test("kernel state.restore rejects malformed target without writing or snapshott
     const before = await fs.readFile(stateFilePath(dir), "utf8");
     await assert.rejects(() => restoreState({ projectDir: dir, snapshotId: "bad", actor: "alice" }), (err) => err.code === "INVALID_STATUS");
     assert.equal(await fs.readFile(stateFilePath(dir), "utf8"), before);
-    assert.deepEqual(await fs.readdir(dirPath), ["bad.json", "bad.meta.json"]);
+    assert.deepEqual((await fs.readdir(dirPath)).toSorted(), ["bad.json", "bad.meta.json"]);
   } finally { await rmTempProject(dir); }
 });
 
@@ -199,7 +199,7 @@ test("kernel state.init_force recovers future state by snapshotting raw bytes", 
   const version = 6;
   const dir = await createTempProject();
   try {
-    const { initState } = await importFresh("./kernel/state-operations.mjs");
+    const { initState } = await importFresh("./kernel/state-operations.ts");
     const raw = JSON.stringify({ version, nodes: {}, edges: [], initiatives: {}, log: [] });
     await fs.mkdir(path.dirname(stateFilePath(dir)), { recursive: true });
     await fs.writeFile(stateFilePath(dir), raw, "utf8");
@@ -217,8 +217,8 @@ test("kernel state.restore recovers over future current state, preserving raw pr
   const version = 6;
   const dir = await createTempProject();
   try {
-    const { initState, restoreState } = await importFresh("./kernel/state-operations.mjs");
-    const { createSnapshot, listSnapshots } = await importFresh("./storage/state.mjs");
+    const { initState, restoreState } = await importFresh("./kernel/state-operations.ts");
+    const { createSnapshot, listSnapshots } = await importFresh("./storage/state.ts");
     await initState({ projectDir: dir });
     const target = await createSnapshot(dir, "force-init");
     const raw = JSON.stringify({ version, nodes: {}, edges: [], initiatives: {}, log: [] });
@@ -239,8 +239,8 @@ test("kernel state.restore recovers over future current state, preserving raw pr
 test("kernel state.init recovers corrupt bytes through an existing fenced ledger without policy or actor", async () => {
   const dir = await createTempProject();
   try {
-    const { initState } = await importFresh("./kernel/state-operations.mjs");
-    const { bootstrapFencedState, readFencedState, ledgerFile } = await importFresh("./storage/ledger.mjs");
+    const { initState } = await importFresh("./kernel/state-operations.ts");
+    const { bootstrapFencedState, readFencedState, ledgerFile } = await importFresh("./storage/ledger.ts");
     await writeCanonicalState(dir, baseState());
     await bootstrapFencedState(dir);
     const ledgerPath = ledgerFile(dir);
@@ -272,8 +272,8 @@ test("kernel ordinary providers reject future state while trusted init keeps ver
   const version = 6;
   const dir = await createTempProject();
   try {
-    const { mutate } = await importFresh("./kernel/mutate.mjs");
-    const { initState } = await importFresh("./kernel/state-operations.mjs");
+    const { mutate } = await importFresh("./kernel/mutate.ts");
+    const { initState } = await importFresh("./kernel/state-operations.ts");
     const raw = JSON.stringify({ version, nodes: {}, edges: [], initiatives: {}, log: [] });
     await fs.mkdir(path.dirname(stateFilePath(dir)), { recursive: true });
     await fs.writeFile(stateFilePath(dir), raw, "utf8");

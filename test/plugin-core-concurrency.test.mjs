@@ -39,7 +39,7 @@ const FIXTURE_ID = "example.core";
 
 // installed dir name = descriptor.command, uninstall arg = descriptor.id.
 const FIXTURE_NAMESPACE = "core";
-const BIN = path.join(REPO_ROOT, "bin", "climier.mjs");
+const BIN = path.join(REPO_ROOT, "bin", "climier.ts");
 const PLUGIN_COUNT = 10;
 const CLI_COUNT = 10;
 
@@ -97,7 +97,7 @@ function spawnCli(args, { env } = {}) {
     let stderr = "";
     let proc;
     try {
-      proc = spawn("node", [BIN, ...args], {
+      proc = spawn(process.execPath, [BIN, ...args], {
         env: { ...process.env, ...env, NO_COLOR: "1" },
       });
     } catch (err) {

@@ -1,4 +1,6 @@
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
+import { expect, userEvent, waitFor } from "storybook/test";
+import { must } from "../../../test-utils/story";
 import { makeGate, makeTask, makeTaskDetail } from "../data/fixtures";
 import { gatePurposeLabel } from "../data/gatePurposes";
 import { statusLabel } from "../data/statuses";
@@ -103,13 +105,15 @@ function fanOutDetail(gate: GateRecord) {
   const dependents = [...gate.downstreamGates, ...gate.impactedTasks].map((node) => ({ id: node.id, title: node.title, kind: node.kind, status: node.status, edgeType: node.edgeType ?? "BLOCKS" as const }));
   return makeTaskDetail({
     task: gate.task,
-    body: [gate.context, "Keep the session state intact while credentials renew across shared surfaces."],
+    body: [gate.context, "Keep the session state intact while credentials renew across shared surfaces."].join("\n\n"),
     initiative: gate.initiative,
     blockers,
     dependents,
     refs: [{ id: "docs/session-refresh.md::explicit", name: "session-refresh.md", source: "explicit", kind: "doc" }],
-    notes: [{ id: "fanout-note", agent: "platform-reviewer", text: "Check recovery behavior after the refresh token expires.", at: "2026-10-05T10:00:00.000Z" }],
-    activity: [{ id: "fanout-created", kind: "created", author: "orchestrator", text: "created the gate", at: "1d" }],
+    activity: [
+      { id: "fanout-created", kind: "created", author: "orchestrator", text: "created the gate", at: "1d" },
+      { id: "fanout-note", kind: "comment", author: "platform-reviewer", text: "commented", at: "5h", comment: "Check recovery behavior after the refresh token expires." },
+    ],
   }, {
     id: gate.id,
     kind: "gate",
@@ -206,12 +210,24 @@ export const FourTaskNoDownstreamGate: Story = {
   },
 };
 
-/** Same 30 mixed-status tasks, grouped on the full gate detail page. */
+/**
+ * Same 30 mixed-status tasks, grouped on the full gate detail page.
+ *
+ * Los grupos de `done`/`canceled` se colapsan: el `play` verifica que el marcador nativo del
+ * `<details>` esté oculto y que el grupo se pueda expandir con un click.
+ */
 export const GateDetailFanOut30: Story = {
   args: { gate: makeFanOutGate(30) },
   render: (args) => {
     const gate = args.gate ?? makeFanOutGate(30);
     return <DetailFrame><TaskDetailView detail={fanOutDetail(gate)} gateInfo={{ record: gate, resolutionMode: "choice" }} /></DetailFrame>;
+  },
+  play: async () => {
+    await waitFor(() => expect(document.querySelector("details > summary")).not.toBeNull());
+    const summary = must(document.querySelector<HTMLElement>("details > summary"), "el summary de un grupo colapsado");
+    await expect(getComputedStyle(summary).display).toBe("block");
+    await userEvent.click(summary);
+    await waitFor(() => expect(summary.closest("details")?.hasAttribute("open")).toBe(true));
   },
 };
 

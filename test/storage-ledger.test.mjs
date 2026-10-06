@@ -3,15 +3,15 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { createTempProject, rmTempProject } from "./helpers.mjs";
-import { stateFile } from "../src/storage/state.mjs";
-import { withLock } from "../src/storage/lock.mjs";
+import { stateFile } from "../src/storage/state.ts";
+import { withLock } from "../src/storage/lock.ts";
 import {
   bootstrapFencedState,
   bootstrapFencedStateUnderLock,
   ledgerFile,
   readFencedState,
   readFencedStateUnderLock,
-} from "../src/storage/ledger.mjs";
+} from "../src/storage/ledger.ts";
 
 async function createProjectForTest(t) {
   const projectDir = await createTempProject();

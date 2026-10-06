@@ -1,13 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { createTransaction } from "../src/kernel/transaction.mjs";
+import { createTransaction } from "../src/kernel/transaction.ts";
 import {
   pluginDataNodeSetProvider,
   pluginDataProjectSetProvider,
   pluginDataNodeDeleteProvider,
   pluginDataProjectDeleteProvider,
-} from "../src/providers/plugin-data/index.mjs";
+} from "../src/providers/plugin-data/index.ts";
 
 const PLUGIN = "example.audit";
 

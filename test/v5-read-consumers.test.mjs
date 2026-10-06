@@ -52,7 +52,7 @@ async function withFencedProject(run) {
 
 test("local show reads a canonical v1 node without exposing fence metadata", async () => {
   await withFencedProject(async (dir) => {
-    const { default: show } = await importFresh("./cli/commands/show.mjs");
+    const { default: show } = await importFresh("./cli/commands/show.ts");
     const result = await show({ statePath: dir, positional: ["T1"], flags: {} });
 
     assert.equal(result.type, "task");
@@ -63,8 +63,8 @@ test("local show reads a canonical v1 node without exposing fence metadata", asy
 
 test("local context and search read canonical v1 node collections", async () => {
   await withFencedProject(async (dir) => {
-    const { default: context } = await importFresh("./cli/commands/context.mjs");
-    const { default: search } = await importFresh("./cli/commands/search.mjs");
+    const { default: context } = await importFresh("./cli/commands/context.ts");
+    const { default: search } = await importFresh("./cli/commands/search.ts");
     const contextResult = await context({ statePath: dir, positional: ["T1"], flags: {} });
     const searchResult = await search({ statePath: dir, positional: ["needle"], flags: {} });
 
@@ -78,7 +78,7 @@ test("local context and search read canonical v1 node collections", async () => 
 
 test("plugin query reads canonical v1 nodes and projects no fence or ledger fields", async () => {
   await withFencedProject(async (dir) => {
-    const { createQuery } = await importFresh("../src/plugins/query.mjs");
+    const { createQuery } = await importFresh("../src/plugins/query.ts");
     const query = createQuery({ projectDir: dir, agent: "alice", pluginId: "plugin.a" });
     const [node, context, snapshot, status, history] = await Promise.all([
       query.node("T1"),
@@ -108,22 +108,22 @@ test("read consumers reject legacy state versions with a migration hint", async 
     const reads = [
       async (version) => {
         await writeState(dir, compatibleState(version));
-        const { default: show } = await importFresh("./cli/commands/show.mjs");
+        const { default: show } = await importFresh("./cli/commands/show.ts");
         return show({ statePath: dir, positional: ["T1"], flags: {} });
       },
         async (version) => {
         await writeState(dir, compatibleState(version));
-        const { default: context } = await importFresh("./cli/commands/context.mjs");
+        const { default: context } = await importFresh("./cli/commands/context.ts");
         return context({ statePath: dir, positional: ["T1"], flags: {} });
       },
       async (version) => {
         await writeState(dir, compatibleState(version));
-        const { default: search } = await importFresh("./cli/commands/search.mjs");
+        const { default: search } = await importFresh("./cli/commands/search.ts");
         return search({ statePath: dir, positional: ["needle"], flags: {} });
       },
       async (version) => {
         await writeState(dir, compatibleState(version));
-        const { createQuery } = await importFresh("../src/plugins/query.mjs");
+        const { createQuery } = await importFresh("../src/plugins/query.ts");
         return createQuery({ projectDir: dir, agent: "alice", pluginId: "plugin.a" }).node("T1");
       },
     ];
@@ -146,10 +146,10 @@ test("read consumers reject future state versions", async () => {
   const dir = await createTempProject();
   try {
     await writeState(dir, compatibleState(6));
-    const { default: show } = await importFresh("./cli/commands/show.mjs");
-    const { default: context } = await importFresh("./cli/commands/context.mjs");
-    const { default: search } = await importFresh("./cli/commands/search.mjs");
-    const { createQuery } = await importFresh("../src/plugins/query.mjs");
+    const { default: show } = await importFresh("./cli/commands/show.ts");
+    const { default: context } = await importFresh("./cli/commands/context.ts");
+    const { default: search } = await importFresh("./cli/commands/search.ts");
+    const { createQuery } = await importFresh("../src/plugins/query.ts");
     const query = createQuery({ projectDir: dir, agent: "alice", pluginId: "plugin.a" });
     const reads = [
       () => show({ statePath: dir, positional: ["T1"], flags: {} }),

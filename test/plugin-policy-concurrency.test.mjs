@@ -45,7 +45,7 @@ import {
 } from "./helpers.mjs";
 
 const REPO_ROOT = path.resolve(".");
-const BIN = path.join(REPO_ROOT, "bin", "climier.mjs");
+const BIN = path.join(REPO_ROOT, "bin", "climier.ts");
 
 // ---- Per-test environment -------------------------------------------
 
@@ -119,7 +119,7 @@ function spawnCli(args, { env } = {}) {
     let stderr = "";
     let proc;
     try {
-      proc = spawn("node", [BIN, ...args], {
+      proc = spawn(process.execPath, [BIN, ...args], {
         env: { ...process.env, ...env, NO_COLOR: "1" },
       });
     } catch (err) {

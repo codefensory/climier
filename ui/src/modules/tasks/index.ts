@@ -182,7 +182,6 @@ export type {
   TaskGroupGlyph,
   TaskGroupView,
   TaskKnowledge,
-  TaskNote,
   TaskReference,
   TaskReferenceKind,
   TaskSort,

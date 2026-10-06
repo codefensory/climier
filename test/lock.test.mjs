@@ -4,10 +4,10 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { createTempProject, rmTempProject, importFresh, lockFilePath, writeCanonicalState } from "./helpers.mjs";
-import { commitFencedStateUnderLock, readFencedStateUnderLock } from "../src/storage/ledger.mjs";
+import { commitFencedStateUnderLock, readFencedStateUnderLock } from "../src/storage/ledger.ts";
 
 test("withLock acquires and releases on success", async () => {
-  const { withLock } = await importFresh("./storage/lock.mjs");
+  const { withLock } = await importFresh("./storage/lock.ts");
   const dir = await createTempProject();
   try {
     let ran = false;
@@ -55,7 +55,7 @@ async function assertNestedProjectLockIsDistinct(withLock, projectA, projectB, c
 }
 
 test("withLock reuses only the live same-project capability in nested async scope", async () => {
-  const { withLock, assertActiveLockContext } = await importFresh("./storage/lock.mjs");
+  const { withLock, assertActiveLockContext } = await importFresh("./storage/lock.ts");
   const dir = await createTempProject();
   const other = await createTempProject();
   try {
@@ -76,7 +76,7 @@ test("withLock reuses only the live same-project capability in nested async scop
 });
 
 test("withLock preserves active project capabilities across nested A-to-B-to-A scopes", async () => {
-  const { withLock } = await importFresh("./storage/lock.mjs");
+  const { withLock } = await importFresh("./storage/lock.ts");
   const projectA = await createTempProject();
   const projectB = await createTempProject();
   try {
@@ -90,7 +90,7 @@ test("withLock preserves active project capabilities across nested A-to-B-to-A s
 });
 
 test("withLock blocks concurrent acquires; second waits then succeeds", async () => {
-  const { withLock } = await importFresh("./storage/lock.mjs");
+  const { withLock } = await importFresh("./storage/lock.ts");
   const dir = await createTempProject();
   try {
     const order = [];
@@ -112,7 +112,7 @@ test("withLock blocks concurrent acquires; second waits then succeeds", async ()
 });
 
 test("withLock releases on mutator error (no deadlock)", async () => {
-  const { withLock } = await importFresh("./storage/lock.mjs");
+  const { withLock } = await importFresh("./storage/lock.ts");
   const dir = await createTempProject();
   try {
     await assert.rejects(
@@ -131,7 +131,7 @@ test("withLock releases on mutator error (no deadlock)", async () => {
 });
 
 test("withLock does not auto-clear an old lock file", async () => {
-  const { withLock } = await importFresh("./storage/lock.mjs");
+  const { withLock } = await importFresh("./storage/lock.ts");
   const dir = await createTempProject();
   try {
     const lockPath = lockFilePath(dir);
@@ -147,7 +147,7 @@ test("withLock does not auto-clear an old lock file", async () => {
 });
 
 test("stale lock recovery requires verified manual removal before schema-1 operation resumes", async () => {
-  const { withLock } = await import("../src/storage/lock.mjs");
+  const { withLock } = await import("../src/storage/lock.ts");
   const dir = await createTempProject();
   try {
     await writeCanonicalState(dir, { version: 1, nodes: {}, edges: [], initiatives: {}, log: [] });
@@ -183,7 +183,7 @@ test("stale lock recovery requires verified manual removal before schema-1 opera
 });
 
 test("withLock times out if holder never releases", async () => {
-  const { withLock } = await importFresh("./storage/lock.mjs");
+  const { withLock } = await importFresh("./storage/lock.ts");
   const dir = await createTempProject();
   try {
     const lockPath = lockFilePath(dir);

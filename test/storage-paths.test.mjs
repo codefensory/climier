@@ -7,7 +7,7 @@ import {
   climierHome,
   projectMetaFile,
   resolveProject,
-} from "../src/storage/paths.mjs";
+} from "../src/storage/paths.ts";
 
 test("storage paths resolve projects, metadata, and CLIMIER_HOME", () => {
   const previousHome = process.env.CLIMIER_HOME;

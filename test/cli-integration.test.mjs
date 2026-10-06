@@ -4,8 +4,8 @@ import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, importFresh, readState as readRawState, runCli, writeFencedState } from "./helpers.mjs";
 
 test("init: creates an empty canonical state by default", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
-  const { readState } = await importFresh("./storage/state.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
+  const { readState } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, positional: [], projectDir: dir });
@@ -22,10 +22,10 @@ test("init: creates an empty canonical state by default", async () => {
 });
 
 test("add-node: creates a task node and show returns it", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
-  const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
-  const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
-  const { default: show } = await importFresh("./cli/commands/show.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
+  const { default: addInit } = await importFresh("./cli/commands/add-initiative.ts");
+  const { default: addNode } = await importFresh("./cli/commands/add-node.ts");
+  const { default: show } = await importFresh("./cli/commands/show.ts");
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, positional: [], projectDir: dir });
@@ -57,9 +57,9 @@ test("add-node: creates a task node and show returns it", async () => {
 });
 
 test("add-node: can create typed edges in the same call", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
-  const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
-  const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
+  const { default: addInit } = await importFresh("./cli/commands/add-initiative.ts");
+  const { default: addNode } = await importFresh("./cli/commands/add-node.ts");
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, positional: [], projectDir: dir });
@@ -112,10 +112,10 @@ test("add-node: can create typed edges in the same call", async () => {
 });
 
 test("add-node: stores refs as external targets", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
-  const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
-  const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
-  const { default: context } = await importFresh("./cli/commands/context.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
+  const { default: addInit } = await importFresh("./cli/commands/add-initiative.ts");
+  const { default: addNode } = await importFresh("./cli/commands/add-node.ts");
+  const { default: context } = await importFresh("./cli/commands/context.ts");
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, positional: [], projectDir: dir });
@@ -176,10 +176,10 @@ test("CLI: add-node --refs persists refs", async () => {
 });
 
 test("add-node: stores meta from JSON", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
-  const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
-  const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
-  const { default: context } = await importFresh("./cli/commands/context.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
+  const { default: addInit } = await importFresh("./cli/commands/add-initiative.ts");
+  const { default: addNode } = await importFresh("./cli/commands/add-node.ts");
+  const { default: context } = await importFresh("./cli/commands/context.ts");
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, positional: [], projectDir: dir });
@@ -240,11 +240,11 @@ test("CLI: add-node --meta persists metadata", async () => {
 });
 
 test("add-note: appends notes to a node", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
-  const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
-  const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
-  const { default: addNote } = await importFresh("./cli/commands/add-note.mjs");
-  const { default: context } = await importFresh("./cli/commands/context.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
+  const { default: addInit } = await importFresh("./cli/commands/add-initiative.ts");
+  const { default: addNode } = await importFresh("./cli/commands/add-node.ts");
+  const { default: addNote } = await importFresh("./cli/commands/add-note.ts");
+  const { default: context } = await importFresh("./cli/commands/context.ts");
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, positional: [], projectDir: dir });
@@ -304,10 +304,10 @@ test("CLI: add-note works on a node", async () => {
 });
 
 test("add-edge: BLOCKS cannot target knowledge", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
-  const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
-  const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
-  const { default: addEdge } = await importFresh("./cli/commands/add-edge.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
+  const { default: addInit } = await importFresh("./cli/commands/add-initiative.ts");
+  const { default: addNode } = await importFresh("./cli/commands/add-node.ts");
+  const { default: addEdge } = await importFresh("./cli/commands/add-edge.ts");
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, positional: [], projectDir: dir });
@@ -344,7 +344,7 @@ test("add-edge: BLOCKS cannot target knowledge", async () => {
 });
 
 test("context: returns blockers, informing edges, and scoped knowledge for a task", async () => {
-  const { default: context } = await importFresh("./cli/commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.ts");
   const dir = await createTempProject();
   try {
     await writeFencedState(dir, {

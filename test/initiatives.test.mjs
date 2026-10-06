@@ -29,7 +29,7 @@ function assertV2Error(data, code) {
 // --- emptyState / writeState schema -------------------------------------
 
 test("emptyState() seeds initiatives: {} on a fresh canonical state", async () => {
-  const { emptyState } = await importFresh("./storage/state.mjs");
+  const { emptyState } = await importFresh("./storage/state.ts");
   const s = emptyState();
   assert.equal(s.version, 1);
   assert.equal(s.revision, 0);
@@ -41,7 +41,7 @@ test("emptyState() seeds initiatives: {} on a fresh canonical state", async () =
 });
 
 test("writeState: rejects a state missing initiatives", async () => {
-  const { writeState } = await importFresh("./storage/state.mjs");
+  const { writeState } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
   try {
     await assert.rejects(
@@ -54,7 +54,7 @@ test("writeState: rejects a state missing initiatives", async () => {
 });
 
 test("writeState: accepts a state with empty initiatives", async () => {
-  const { writeState, readState } = await importFresh("./storage/state.mjs");
+  const { writeState, readState } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
   try {
     await writeCanonicalState(dir, { nodes: {}, edges: [], log: [], initiatives: {} });
@@ -68,9 +68,9 @@ test("writeState: accepts a state with empty initiatives", async () => {
 // --- add-initiative: registration path ---------------------------------------------
 
 test("add-initiative : registers a new initiative with desc and created_at", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
-  const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
-  const { readState } = await importFresh("./storage/state.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
+  const { default: addInit } = await importFresh("./cli/commands/add-initiative.ts");
+  const { readState } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, positional: [], projectDir: dir });
@@ -90,8 +90,8 @@ test("add-initiative : registers a new initiative with desc and created_at", asy
 });
 
 test("add-initiative : rejects duplicate name with ID_CONFLICT", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
-  const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
+  const { default: addInit } = await importFresh("./cli/commands/add-initiative.ts");
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, positional: [], projectDir: dir });
@@ -106,8 +106,8 @@ test("add-initiative : rejects duplicate name with ID_CONFLICT", async () => {
 });
 
 test("add-initiative : rejects bad name characters", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
-  const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
+  const { default: addInit } = await importFresh("./cli/commands/add-initiative.ts");
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, positional: [], projectDir: dir });
@@ -124,8 +124,8 @@ test("add-initiative : rejects bad name characters", async () => {
 });
 
 test("add-initiative : missing name emits MISSING_FIELD", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
-  const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
+  const { default: addInit } = await importFresh("./cli/commands/add-initiative.ts");
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, positional: [], projectDir: dir });
@@ -173,12 +173,12 @@ test("CLI: add-initiative duplicate emits ID_CONFLICT", async () => {
 });
 
 test("initiatives : lists only initiatives with at least one live node by default", async () => {
-  const { default: initiatives } = await importFresh("./cli/commands/initiatives.mjs");
-  const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
-  const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
+  const { default: initiatives } = await importFresh("./cli/commands/initiatives.ts");
+  const { default: addInit } = await importFresh("./cli/commands/add-initiative.ts");
+  const { default: addNode } = await importFresh("./cli/commands/add-node.ts");
   const dir = await createTempProject();
   try {
-    const { default: init } = await importFresh("./cli/commands/init.mjs");
+    const { default: init } = await importFresh("./cli/commands/init.ts");
     await init({ statePath: dir, positional: [], projectDir: dir });
     await addInit({ statePath: dir, flags: { desc: "x" }, positional: ["a"] });
     await addInit({ statePath: dir, flags: { desc: "y" }, positional: ["b"] });
@@ -203,11 +203,11 @@ test("initiatives : lists only initiatives with at least one live node by defaul
 });
 
 test("initiatives : --all surfaces every registered initiative, even empty ones", async () => {
-  const { default: initiatives } = await importFresh("./cli/commands/initiatives.mjs");
-  const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
+  const { default: initiatives } = await importFresh("./cli/commands/initiatives.ts");
+  const { default: addInit } = await importFresh("./cli/commands/add-initiative.ts");
   const dir = await createTempProject();
   try {
-    const { default: init } = await importFresh("./cli/commands/init.mjs");
+    const { default: init } = await importFresh("./cli/commands/init.ts");
     await init({ statePath: dir, positional: [], projectDir: dir });
     await addInit({ statePath: dir, flags: { desc: "" }, positional: ["a"] });
     await addInit({ statePath: dir, flags: { desc: "" }, positional: ["b"] });
@@ -220,12 +220,12 @@ test("initiatives : --all surfaces every registered initiative, even empty ones"
 });
 
 test("initiatives : counts both resolvable and knowledge nodes", async () => {
-  const { default: initiatives } = await importFresh("./cli/commands/initiatives.mjs");
-  const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
-  const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
+  const { default: initiatives } = await importFresh("./cli/commands/initiatives.ts");
+  const { default: addInit } = await importFresh("./cli/commands/add-initiative.ts");
+  const { default: addNode } = await importFresh("./cli/commands/add-node.ts");
   const dir = await createTempProject();
   try {
-    const { default: init } = await importFresh("./cli/commands/init.mjs");
+    const { default: init } = await importFresh("./cli/commands/init.ts");
     await init({ statePath: dir, positional: [], projectDir: dir });
     await addInit({ statePath: dir, flags: { desc: "" }, positional: ["a"] });
     await addNode({
@@ -256,8 +256,8 @@ test("initiatives : counts both resolvable and knowledge nodes", async () => {
 // --- add-node: mandatory initiative ------------------------------
 
 test("add-node : missing --initiative emits MISSING_FIELD with field=initiative", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
-  const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
+  const { default: addNode } = await importFresh("./cli/commands/add-node.ts");
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, positional: [], projectDir: dir });
@@ -275,8 +275,8 @@ test("add-node : missing --initiative emits MISSING_FIELD with field=initiative"
 });
 
 test("add-node : unregistered initiative emits INITIATIVE_NOT_FOUND with details", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
-  const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
+  const { default: addNode } = await importFresh("./cli/commands/add-node.ts");
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, positional: [], projectDir: dir });
@@ -306,9 +306,9 @@ test("add-node : unregistered initiative emits INITIATIVE_NOT_FOUND with details
 // addNodeInternal, the only sanctioned caller of the flag).
 
 test("add-node : registered initiative is accepted with no INITIATIVE_NOT_FOUND", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
-  const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
-  const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
+  const { default: addInit } = await importFresh("./cli/commands/add-initiative.ts");
+  const { default: addNode } = await importFresh("./cli/commands/add-node.ts");
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, positional: [], projectDir: dir });
@@ -330,8 +330,8 @@ test("add-node : registered initiative is accepted with no INITIATIVE_NOT_FOUND"
 });
 
 test("add-node : knowledge nodes also require --initiative", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
-  const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
+  const { default: addNode } = await importFresh("./cli/commands/add-node.ts");
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, positional: [], projectDir: dir });
@@ -409,9 +409,9 @@ test("CLI: add-node --initiative registered works end-to-end", async () => {
 //     because the workflow pre-registered the initiative. This avoids an
 //     unrelated test churn. Confirm explicitly:
 test("existing test data with --initiative 'auth-migration' is fine if registered", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
-  const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
-  const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
+  const { default: addInit } = await importFresh("./cli/commands/add-initiative.ts");
+  const { default: addNode } = await importFresh("./cli/commands/add-node.ts");
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, positional: [], projectDir: dir });

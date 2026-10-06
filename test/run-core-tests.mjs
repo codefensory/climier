@@ -18,18 +18,22 @@ const timeoutMs = Number(process.env.CLIMIER_TEST_TIMEOUT_MS || 180_000);
 // In-process shards pay the test-runner bootstrap and the module graph once
 // per shard instead of once per file (~100ms each). Sharding keeps the files
 // parallel across CPUs while removing ~190 process bootstraps per run.
-// Node < 22.8 has no in-process isolation flag and keeps the process-isolated
-// path. CLIMIER_TEST_ISOLATION=process forces that path for debugging
-// isolation-sensitive failures.
-const supportsShards = supportsInProcessIsolation();
-const isolation = process.env.CLIMIER_TEST_ISOLATION === "process" || !supportsShards
-  ? "process"
-  : "none";
+// Bun owns test isolation and does not accept Node's test-runner flags; its
+// shards use `bun test <files>` directly. Node < 22.8 has no in-process
+// isolation flag and keeps the process-isolated path. CLIMIER_TEST_ISOLATION=process
+// forces that path for debugging isolation-sensitive failures.
+const isBun = Boolean(process.versions.bun);
+const supportsShards = isBun || supportsInProcessIsolation();
+const isolation = isBun
+  ? "none"
+  : process.env.CLIMIER_TEST_ISOLATION === "process" || !supportsShards
+    ? "process"
+    : "none";
 const workerCount = Math.max(
   1,
   Number(process.env.CLIMIER_TEST_WORKERS || os.availableParallelism() - 1) || 1,
 );
-const isolationArgs = supportsShards ? inProcessIsolationArgs(isolation) : [];
+const isolationArgs = isBun ? [] : supportsShards ? inProcessIsolationArgs(isolation) : [];
 
 const files = await listTestFiles(testDir);
 const durationTable = await loadDurationTable(path.join(testDir, "test-durations.json"), { rootDir });
@@ -45,8 +49,10 @@ function spawnRunner(shardFiles, { inheritsOutput, label }) {
   // In-process isolation shares process.env and cwd between test files. Keep
   // each shard's files sequential; the outer runner already parallelizes
   // independent shards.
-  const concurrencyArgs = isolation === "none" ? ["--test-concurrency=1"] : [];
-  const args = ["--test", ...concurrencyArgs, ...isolationArgs, ...shardFiles];
+  const concurrencyArgs = isBun ? [] : isolation === "none" ? ["--test-concurrency=1"] : [];
+  const args = isBun
+    ? ["test", ...shardFiles]
+    : ["--test", ...concurrencyArgs, ...isolationArgs, ...shardFiles];
   const child = spawn(process.execPath, args, {
     stdio: inheritsOutput ? "inherit" : ["ignore", "pipe", "pipe"],
   });

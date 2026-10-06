@@ -4,9 +4,9 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { createProjectCatalog } from "../../../src/server/catalog/index.mjs";
-import { createRemoteApiServer, PROTOCOL_VERSION } from "../../../src/server/http.mjs";
-import { createLoginRateLimiter, loginClientAddress } from "../../../src/server/auth/login-rate-limiter.mjs";
+import { createProjectCatalog } from "../../../src/server/catalog/index.ts";
+import { createRemoteApiServer, PROTOCOL_VERSION } from "../../../src/server/http.ts";
+import { createLoginRateLimiter, loginClientAddress } from "../../../src/server/auth/login-rate-limiter.ts";
 
 function authStore() {
   return Object.freeze({

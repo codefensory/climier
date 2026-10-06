@@ -4,8 +4,8 @@ import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, importFresh } from "./helpers.mjs";
 
 test("append adds an entry with ts, agent, action", async () => {
-  const { append } = await importFresh("./storage/log.mjs");
-  const { readState: rs } = await importFresh("./storage/state.mjs");
+  const { append } = await importFresh("./storage/log.ts");
+  const { readState: rs } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
   try {
     await append(dir, { agent: "agent-1", action: "claim", task: "T1" });
@@ -21,8 +21,8 @@ test("append adds an entry with ts, agent, action", async () => {
 });
 
 test("append adds multiple entries in order", async () => {
-  const { append } = await importFresh("./storage/log.mjs");
-  const { readState } = await importFresh("./storage/state.mjs");
+  const { append } = await importFresh("./storage/log.ts");
+  const { readState } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
   try {
     await append(dir, { agent: "a", action: "claim", task: "T1" });
@@ -37,9 +37,9 @@ test("append adds multiple entries in order", async () => {
 });
 
 test("append commits to the ledger without rebasing node revisions", async () => {
-  const { append } = await importFresh("./storage/log.mjs");
-  const { bootstrapFencedState, readFencedState, commitFencedStateUnderLock } = await importFresh("./storage/ledger.mjs");
-  const { withLock } = await import("../src/storage/lock.mjs");
+  const { append } = await importFresh("./storage/log.ts");
+  const { bootstrapFencedState, readFencedState, commitFencedStateUnderLock } = await importFresh("./storage/ledger.ts");
+  const { withLock } = await import("../src/storage/lock.ts");
   const dir = await createTempProject();
   try {
     const before = await bootstrapFencedState(dir);
@@ -57,8 +57,8 @@ test("append commits to the ledger without rebasing node revisions", async () =>
 });
 
 test("append accepts a note field", async () => {
-  const { append } = await importFresh("./storage/log.mjs");
-  const { readState } = await importFresh("./storage/state.mjs");
+  const { append } = await importFresh("./storage/log.ts");
+  const { readState } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
   try {
     await append(dir, { agent: "a", action: "done", task: "T1", note: "all good" });

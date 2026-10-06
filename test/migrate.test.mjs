@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { withLock, withProjectIdLock } from "../src/storage/lock.mjs";
+import { withLock, withProjectIdLock } from "../src/storage/lock.ts";
 import { runCli } from "./helpers.mjs";
 
 async function makeHome() {

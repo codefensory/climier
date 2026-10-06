@@ -1,4 +1,4 @@
-// Unknown flag rejection at the CLI level. Validation lives in bin/climier.mjs,
+// Unknown flag rejection at the CLI level. Validation lives in bin/climier.ts,
 // so these tests run via the real CLI to exercise the dispatch path.
 // Errors are JSON to stdout, not stderr.
 import { test } from "node:test";

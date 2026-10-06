@@ -5,12 +5,12 @@ import os from "node:os";
 import { createRequire } from "node:module";
 import { stateFilePath } from "./helpers.mjs";
 
-export const PLUGIN_MODULE = "../src/plugins/paths.mjs";
-export const LOCK_MODULE = "../src/plugins/lock.mjs";
-export const DESCRIPTOR_MODULE = "../src/plugins/descriptor.mjs";
-export const RESERVED_MODULE = "../src/cli/commands/reserved-namespaces.mjs";
-export const INSTALL_MODULE = "../src/cli/commands/install.mjs";
-export const UNINSTALL_MODULE = "../src/cli/commands/uninstall.mjs";
+export const PLUGIN_MODULE = "../src/plugins/paths.ts";
+export const LOCK_MODULE = "../src/plugins/lock.ts";
+export const DESCRIPTOR_MODULE = "../src/plugins/descriptor.ts";
+export const RESERVED_MODULE = "../src/cli/commands/reserved-namespaces.ts";
+export const INSTALL_MODULE = "../src/cli/commands/install.ts";
+export const UNINSTALL_MODULE = "../src/cli/commands/uninstall.ts";
 
 export async function freshEnv(prefix = "climier-plugin-test") {
   const home = await fs.mkdtemp(path.join(os.tmpdir(), prefix + "-"));

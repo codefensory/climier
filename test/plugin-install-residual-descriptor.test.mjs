@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
+import { pathToFileURL } from "node:url";
 import { importFresh } from "./helpers.mjs";
 import { requireTestModule as require } from "./plugin-install-test-helpers.mjs";
 import { captureError as capture } from "./plugin-install-test-helpers.mjs";
@@ -88,7 +89,13 @@ test("plugin-descriptor: importEntry rejects entry that cannot be resolved with 
   try {
     await assert.rejects(
       importEntry(path.join(dir, "missing.mjs")),
-      (err) => err.code === "PLUGIN_LOAD_FAILED",
+      (err) => {
+        assert.equal(err.code, "PLUGIN_LOAD_FAILED");
+        assert.equal(err.details.entry, path.join(dir, "missing.mjs"));
+        assert.equal(err.details.entry_url, pathToFileURL(path.join(dir, "missing.mjs")).href);
+        assert.match(err.details.cause, /missing|cannot find|not found/i);
+        return true;
+      },
     );
   } finally {
     await fs.rm(dir, { recursive: true, force: true });

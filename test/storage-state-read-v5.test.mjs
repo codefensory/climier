@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import test from "node:test";
 import { createTempProject, rmTempProject } from "./helpers.mjs";
-import { readState, stateFile } from "../src/storage/state.mjs";
-import { bootstrapFencedState, ledgerFile, readFencedState } from "../src/storage/ledger.mjs";
+import { readState, stateFile } from "../src/storage/state.ts";
+import { bootstrapFencedState, ledgerFile, readFencedState } from "../src/storage/ledger.ts";
 
 function legacyState(version) {
   return {
@@ -38,8 +38,8 @@ function nextCandidate(current) {
 }
 
 async function interruptedCommit(projectDir, candidate) {
-  const { withLock } = await import("../src/storage/lock.mjs");
-  const { commitFencedStateUnderLock } = await import("../src/storage/ledger.mjs");
+  const { withLock } = await import("../src/storage/lock.ts");
+  const { commitFencedStateUnderLock } = await import("../src/storage/ledger.ts");
   return withLock(projectDir, (lockContext) => commitFencedStateUnderLock(lockContext, candidate, { faultAt: "after-pending" }));
 }
 

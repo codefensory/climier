@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 
 import { importFresh } from "./helpers.mjs";
 
-const REGISTRY_MODULE = "../src/application/operations/registry.mjs";
-const INDEX_MODULE = "../src/application/operations/index.mjs";
-const TASK_PROVIDER_MODULE = "../src/providers/task/index.mjs";
+const REGISTRY_MODULE = "../src/application/operations/registry.ts";
+const INDEX_MODULE = "../src/application/operations/index.ts";
+const TASK_PROVIDER_MODULE = "../src/providers/task/index.ts";
 
 function provider() {
   return Object.freeze({
@@ -44,7 +44,7 @@ test("application operation registry is exported from the boundary and is adapte
 });
 
 test("built-in registry publishes edge.remove with its provider", async () => {
-  const { createBuiltinOperationRegistry, PUBLIC_CORE_OPS } = await importFresh("../src/application/operations/builtins.mjs");
+  const { createBuiltinOperationRegistry, PUBLIC_CORE_OPS } = await importFresh("../src/application/operations/builtins.ts");
   const reg = createBuiltinOperationRegistry();
   assert.ok(PUBLIC_CORE_OPS.includes("edge.remove"));
   const operationEntry = reg.lookup("edge.remove");
@@ -55,7 +55,7 @@ test("built-in registry publishes edge.remove with its provider", async () => {
 });
 
 test("built-in registry publishes task submission lifecycle operations and their providers", async () => {
-  const { createBuiltinOperationRegistry, PUBLIC_TASK_OPS } = await importFresh("../src/application/operations/builtins.mjs");
+  const { createBuiltinOperationRegistry, PUBLIC_TASK_OPS } = await importFresh("../src/application/operations/builtins.ts");
   const reg = createBuiltinOperationRegistry();
   for (const id of ["task.submit", "task.accept", "task.reject"]) {
     assert.ok(PUBLIC_TASK_OPS.includes(id), `${id} is a public task operation`);

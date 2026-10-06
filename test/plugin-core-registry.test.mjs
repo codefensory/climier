@@ -1,6 +1,6 @@
 // test/plugin-core-registry.test.mjs — pure unit tests for the
 // `buildRegistry(providers)` compatibility facade and the built-in
-// bootstrap owned by `src/application/operations/builtins.mjs`.
+// bootstrap owned by `src/application/operations/builtins.ts`.
 //
 
 // shape `{ id, kind, provider: { prepare, apply } }`. The builder
@@ -18,8 +18,8 @@ import assert from "node:assert/strict";
 
 import { importFresh } from "./helpers.mjs";
 
-const REGISTRY_MODULE = "../src/plugins/core-registry.mjs";
-const BUILTINS_MODULE = "../src/application/operations/builtins.mjs";
+const REGISTRY_MODULE = "../src/plugins/core-registry.ts";
+const BUILTINS_MODULE = "../src/application/operations/builtins.ts";
 
 // makeProvider — minimal `{ prepare, apply }` stub. Tests use the
 // returned references to verify the registry exposes the same
@@ -368,7 +368,7 @@ async function assertCanonicalRegistryFacade() {
   const registrySrc = await fs.readFile(srcPath, "utf8");
   assert.doesNotMatch(registrySrc, /providers\//);
   assert.doesNotMatch(registrySrc, /TASK_OPERATION_IDS|collectBuiltins/);
-  assert.match(registrySrc, /application\/operations\/builtins\.mjs/);
+  assert.match(registrySrc, /application\/operations\/builtins\.ts/);
 }
 
 test("application built-ins own the catalog while plugin registry remains a compatibility facade", async () => {
@@ -384,7 +384,7 @@ async function readRegistrySource() {
     ? url.fileURLToPath(fileUrl)
     : fileUrl.pathname.replace(/^\/([A-Za-z]:)/, "$1");
   const repoRoot = path.resolve(path.dirname(srcPath), "../..");
-  return fs.readFile(path.resolve(repoRoot, "src/plugins/core-registry.mjs"), "utf8");
+  return fs.readFile(path.resolve(repoRoot, "src/plugins/core-registry.ts"), "utf8");
 }
 
 function assertRegistryImportsAreClean(registrySrc) {
@@ -392,8 +392,8 @@ function assertRegistryImportsAreClean(registrySrc) {
     "../commands/", "./commands/", "../../commands/",
     "../plugin-core-adapter", "./plugin-core-adapter",
     "../bin/climier", "./bin/climier", "../../bin/climier",
-    "../../lock.mjs", "../storage/lock.mjs", "../../state.mjs",
-    "../state.mjs", "../../log.mjs", "../storage/log.mjs",
+    "../../lock.mjs", "../storage/lock.ts", "../../state.mjs",
+    "../state.mjs", "../../log.mjs", "../storage/log.ts",
     "../../plugin-api.mjs", "../plugin-api.mjs",
     "../../plugin-dispatch.mjs", "../plugin-dispatch.mjs",
   ];
@@ -404,8 +404,8 @@ function assertRegistryImportsAreClean(registrySrc) {
   assert.equal(registrySrc.includes("export function bootstrapBuiltins"), false);
   assert.equal(registrySrc.includes("handler:"), false);
   assert.equal(registrySrc.includes("LEGACY_"), false);
-  assert.ok(registrySrc.includes("application/operations/registry.mjs"));
-  assert.ok(registrySrc.includes("application/operations/builtins.mjs"));
+  assert.ok(registrySrc.includes("application/operations/registry.ts"));
+  assert.ok(registrySrc.includes("application/operations/builtins.ts"));
   assert.equal(modHasRegistryArtifacts(registrySrc), false);
 }
 

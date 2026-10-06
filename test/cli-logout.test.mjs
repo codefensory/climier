@@ -4,8 +4,8 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import logout from "../src/cli/commands/logout.mjs";
-import { createCredentialStore } from "../src/storage/credential-profile.mjs";
+import logout from "../src/cli/commands/logout.ts";
+import { createCredentialStore } from "../src/storage/credential-profile.ts";
 
 test("logout removes only the selected origin session", async () => {
   const home = await fs.mkdtemp(path.join(os.tmpdir(), "climier-logout-"));

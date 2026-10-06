@@ -1,6 +1,7 @@
 node_modules/
 *.log
 .agents/tasks/
+dist/
 ui/node_modules/
 ui/dist/
 ui/storybook-static/

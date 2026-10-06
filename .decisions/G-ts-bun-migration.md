@@ -35,7 +35,7 @@ Cuatro fases, cada una green-to-green, sin big-bang:
   completo de referencias (no "~12 strings"); `src/cli/commands/ui.mjs` queda
   explícitamente excluido.
 - **Fase D — Tipos.** Type-kernel en `contracts/`, codegen por reflexión, drift
-  ratchet, project references, `strict` por boundary.
+  ratchet y `strict` en el type-check consolidado.
 
 ## Correcciones a v1 (evidencia del repo)
 
@@ -51,7 +51,8 @@ Cuatro fases, cada una green-to-green, sin big-bang:
   `selectPolicy: async () => policy`; la rama `source.kernel.mutate` es dead code.
 - **Ciclo**: `src/application/local-operation-source.mjs:6` → `../plugins/policy.mjs`
   y `src/plugins/core-adapter.mjs:6` / `core-registry.mjs:5` → `../application/operations/*`.
-  `tsc -b` exige grafo acíclico: el ciclo se rompe en Fase B.
+  El ciclo se rompe en Fase B; el type-check consolidado posterior ya no depende
+  de project references.
 - **Rename**: los filtros/literales `.mjs` en `test/architecture/import-graph.mjs:209`,
   `scripts/check-retired-surfaces.mjs:25`, `test/contracts-layout.test.mjs` y
   `test/architecture/import-boundaries.test.mjs` **no son imports** → entran al inventario.
@@ -72,7 +73,7 @@ cli          -> todos
 
 Regla dura: **`application` no importa `plugins`**. El wiring de policy se inyecta
 desde la raíz de composición (`cli/`, `server/`), no se importa. Esto preserva
-`tsc -b` por boundary y los boundaries ya testeados.
+los boundaries ya testeados.
 
 ## Contratos a formalizar (resueltos)
 
@@ -151,24 +152,18 @@ export interface PluginModule { default: { commands: Record<string, PluginComman
 2. **Drift ratchet + baseline con dueño.** El baseline de `any`/`as any`/
    `@ts-expect-error` lo captura la task que agrega `typescript` + `tsconfig`
    (Fase D.0), **antes** de crear `type-budget.mjs`.
-3. **Project references** siguiendo el DAG de arriba (acyclic tras Fase B).
+3. **Type-check consolidado** con un único `tsconfig.json`; el grafo de imports
+   y sus fronteras se verifican en `test/architecture/import-boundaries.test.mjs`.
 4. **Green-to-green** por coexistencia `.ts`/`.mjs` bajo Bun.
 5. **Codemod + inventario.** `grep -rn "\.mjs"` con dueño por archivo; los
    literales de `test/` van a una task con paths de `test/` exclusivos.
 
-## Ownership de la rama paralela (Fase D)
+## Alcance actual del type-check (Fase D)
 
-| boundary | dirs | tsconfig | depende de |
-|---|---|---|---|
-| contracts | `src/contracts` | `tsconfig.contracts.json` | — |
-| storage | `src/storage` | `tsconfig.storage.json` | contracts |
-| kernel | `src/kernel` | `tsconfig.kernel.json` | contracts, storage |
-| providers | `src/providers` | `tsconfig.providers.json` | contracts, kernel |
-| read-model | `src/read-model` | `tsconfig.read-model.json` | contracts, kernel, providers |
-| application | `src/application` | `tsconfig.application.json` | +storage |
-| plugins | `src/plugins` | `tsconfig.plugins.json` | contracts, application, storage |
-| server | `src/server` | `tsconfig.server.json` | contracts, application, plugins, storage |
-| cli | `src/cli`, `bin` | `tsconfig.cli.json` | todos |
+El único `tsconfig.json` incluye `src/contracts`, `src/storage`, `src/kernel`,
+`src/providers`, `src/read-model`, `src/application` y `src/plugins`. `src/server`,
+`src/cli` y `bin` quedan fuera hasta `T-ts-types-server`, `T-ts-types-cli` y
+`T-ts-types-entry`.
 
 ## DAG de ejecución
 
@@ -180,7 +175,7 @@ C  T-ts-sweep      codemod .mjs→.ts + inventario (excepto comando ui) (dep: B)
 D0 T-ts-infra      typescript+ts-morph+tsconfig + baseline budget   (dep: C)
    T-ts-contracts  type-kernel (errors+domain+operations)     (dep: D0)
    T-ts-gen        gen-types + drift ratchet                  (dep: contracts)
-   T-ts-types-<boundary>  strict por project refs             (paralelo, tabla arriba)
+   T-ts-types-<boundary>  strict en el type-check consolidado (paralelo)
 E  T-ts-strict     gate strict global + verificación adversarial
    T-ts-server     Bun.serve (resuelve REMOTE_* HTTP)
 F  T-ts-version    inyección de versión en build time (binario)
@@ -189,8 +184,13 @@ F  T-ts-version    inyección de versión en build time (binario)
 ```
 
 Acceptance por task: **un comando copiable + salida esperada**. A partir de Fase A
-el comando es `bun test`; el gate de tipos es `bunx tsc -b`. Verificación
+el comando es `bun test`; el gate de tipos es `bun run typecheck`. Verificación
 adversarial: mutar un literal de error y confirmar que el drift test falla.
+
+El type-check usa un único `tsconfig.json` para las boundaries tipadas. El
+enforcement de fronteras de imports vive en
+`test/architecture/import-boundaries.test.mjs`, no en el grafo de tsconfig;
+ver `K-ts-boundary-enforcement`.
 
 ## Decisiones aprobadas (2026-10-03)
 

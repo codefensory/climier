@@ -4,9 +4,9 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { initState } from "../src/kernel/state-operations.mjs";
+import { initState } from "../src/kernel/state-operations.ts";
 import { runCli } from "./cli-harness.mjs";
-import uiCommand, { startLocalUiServer } from "../src/cli/commands/ui.mjs";
+import uiCommand, { startLocalUiServer } from "../src/cli/commands/ui.ts";
 
 async function makeProject(t, projectId = "local-project") {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "climier-ui-local-"));

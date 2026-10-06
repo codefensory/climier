@@ -26,7 +26,7 @@ function baseState() {
 }
 
 async function makeApi(dir) {
-  const { createApi } = await importFresh("../src/plugins/api.mjs");
+  const { createApi } = await importFresh("../src/plugins/api.ts");
   return createApi({ projectDir: dir, agent: "plugin-agent", pluginId: "example.batch" });
 }
 

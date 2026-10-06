@@ -206,7 +206,7 @@ test("kernel.mutate: policyAction.decide runs against the FRESH snapshot under t
 
 test("kernel.mutate: policy receives fenced semantic snapshots without fence_generation for single and batch", async () => {
   const { mutate } = await importKernel();
-  const { readFencedState } = await import("../../../src/storage/ledger.mjs");
+  const { readFencedState } = await import("../../../src/storage/ledger.ts");
   const dir = await createTempProject();
   try {
     const initial = await setupFencedPolicyProject(dir, mutate, readFencedState);

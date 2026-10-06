@@ -9,9 +9,9 @@ import {
   writeCanonicalState as writeStateHelper,
   stateFilePath,
 } from "./helpers.mjs";
-import { createBuiltinOperationRegistry, executeBatch } from "../src/application/operations/index.mjs";
-import { mutate } from "../src/kernel/mutate.mjs";
-import { bootstrapFencedState } from "../src/storage/ledger.mjs";
+import { createBuiltinOperationRegistry, executeBatch } from "../src/application/operations/index.ts";
+import { mutate } from "../src/kernel/mutate.ts";
+import { bootstrapFencedState } from "../src/storage/ledger.ts";
 
 const registry = createBuiltinOperationRegistry();
 
@@ -62,7 +62,7 @@ test("core batch starts from canonical state and persists through the fenced com
   const dir = await createTempProject();
   try {
     await bootstrap(dir);
-    const { readFencedState } = await import("../src/storage/ledger.mjs");
+    const { readFencedState } = await import("../src/storage/ledger.ts");
     await verifyCanonicalBatch(dir, readFencedState);
 
     const secondDir = await createTempProject();

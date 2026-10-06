@@ -11,7 +11,7 @@ test("add-edge: CLI call writes add-edge log entry without plugin_id", async () 
     await initProject(dir);
     await seedOpenTask(dir, "T-a");
     await seedOpenTask(dir, "T-b");
-    const { default: addEdge } = await importFresh("./cli/commands/add-edge.mjs");
+    const { default: addEdge } = await importFresh("./cli/commands/add-edge.ts");
     await addEdge({ statePath: dir, flags: { as: "alice", type: "BLOCKS" }, positional: ["T-a", "T-b"] });
     const s = await readState(dir);
     const entry = lastLog(s);
@@ -29,7 +29,7 @@ test("add-edge: ctx.pluginId propagates to the log entry as plugin_id", async ()
     await initProject(dir);
     await seedOpenTask(dir, "T-a");
     await seedOpenTask(dir, "T-b");
-    const { default: addEdge } = await importFresh("./cli/commands/add-edge.mjs");
+    const { default: addEdge } = await importFresh("./cli/commands/add-edge.ts");
     await addEdge({
       statePath: dir,
       flags: { as: "alice", type: "BLOCKS" },
@@ -50,7 +50,7 @@ test("take: CLI call writes take log entry without plugin_id", async () => {
   try {
     await initProject(dir);
     await seedOpenTask(dir, "T-take-1");
-    const { default: take } = await importFresh("./cli/commands/take.mjs");
+    const { default: take } = await importFresh("./cli/commands/take.ts");
     await take({ statePath: dir, flags: { as: "alice" }, positional: ["T-take-1"], projectDir: dir });
     const s = await readState(dir);
     const entry = lastLog(s);
@@ -67,7 +67,7 @@ test("take: ctx.pluginId propagates to the log entry as plugin_id", async () => 
   try {
     await initProject(dir);
     await seedOpenTask(dir, "T-take-2");
-    const { default: take } = await importFresh("./cli/commands/take.mjs");
+    const { default: take } = await importFresh("./cli/commands/take.ts");
     await take({
       statePath: dir,
       flags: { as: "alice" },

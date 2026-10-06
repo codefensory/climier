@@ -9,7 +9,7 @@ import { RESERVED_MODULE } from "./plugin-install-test-helpers.mjs";
 test("reserved-namespaces: list contains every core CLI command and is unique", () => {
   const { RESERVED_NAMESPACES, assertNoReservedCollision } = require(RESERVED_MODULE);
   assert.ok(Array.isArray(RESERVED_NAMESPACES));
-  // Every core command from bin/climier.mjs HELP_TEXT must be present so
+  // Every core command from bin/climier.ts HELP_TEXT must be present so
 
   const required = [
     "status", "context", "take", "resolve", "release", "cancel", "reopen",

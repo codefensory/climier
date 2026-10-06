@@ -65,7 +65,7 @@ test("kernel.mutate: throws when state file is missing (provider kernel does not
   const dir = await createTempProject();
   try {
     // Bootstrap metadata only — no tasks.json yet.
-    const { ensureProjectMeta } = await importFresh("./storage/state.mjs");
+    const { ensureProjectMeta } = await importFresh("./storage/state.ts");
     await ensureProjectMeta(dir);
     let caught;
     try {
@@ -85,12 +85,12 @@ test("kernel.mutate: source file does not import providers/registry/adapter/bin/
   const fpath = await import("node:path");
   const { fileURLToPath } = await import("node:url");
   const testDirectory = fpath.dirname(fileURLToPath(import.meta.url));
-  const src = await fsp.readFile(fpath.resolve(testDirectory, "..", "..", "..", "src", "kernel", "mutate.mjs"), "utf8");
+  const src = await fsp.readFile(fpath.resolve(testDirectory, "..", "..", "..", "src", "kernel", "mutate.ts"), "utf8");
   // Forbidden patterns: anything that would couple the kernel to
   // providers, registry, adapter, bin, UI, or std modules that are not
-  // allowed. The plan's B1b explicitly grants `src/storage/state.mjs`,
+  // allowed. The plan's B1b explicitly grants `src/storage/state.ts`,
   // `src/lock.mjs`, and `src/log.mjs` (atomicity primitives + log
-  // shaping) and `src/kernel/transaction.mjs` (the existing draft) is
+  // shaping) and `src/kernel/transaction.ts` (the existing draft) is
 
   const forbiddenPatterns = [
     /from\s+["'](node:fs|fs|fs\/promises|path|child_process|crypto|os|stream|util|events)["']/,
@@ -101,18 +101,18 @@ test("kernel.mutate: source file does not import providers/registry/adapter/bin/
   // Allowed relative imports — see the task body / ADR-011 §1: the
   // kernel must compose the existing allowed seams.
   const allowedRelative = new Set([
-    "../contracts/errors.mjs", // throwV2 for structured errors
-    "../storage/state.mjs", // readState + writeState (atomic)
-    "../storage/lock.mjs",          // withLock (single-mutation frontier)
-    "../storage/log.mjs",           // prepareLogEntry (canonical log shape)
-    "./transaction.mjs",    // createTransaction (the existing draft)
-    "./mutation/request.mjs", // extracted request/provider/plan contracts
-    "./mutation/preconditions.mjs", // extracted CAS precondition contracts
-    "./mutation/execute.mjs", // mutation execution coordinator
-    "./mutation/diff.mjs", // snapshot-vs-draft diff
-    "./mutation/revisions.mjs", // pure revision assignment and lookup
-    "./mutation/validation.mjs", // final draft and log-field validation
-    "./mutation/log-entry.mjs", // pure mutation log construction
+    "../contracts/errors.ts", // throwV2 for structured errors
+    "../storage/state.ts", // readState + writeState (atomic)
+    "../storage/lock.ts",          // withLock (single-mutation frontier)
+    "../storage/log.ts",           // prepareLogEntry (canonical log shape)
+    "./transaction.ts",    // createTransaction (the existing draft)
+    "./mutation/request.ts", // extracted request/provider/plan contracts
+    "./mutation/preconditions.ts", // extracted CAS precondition contracts
+    "./mutation/execute.ts", // mutation execution coordinator
+    "./mutation/diff.ts", // snapshot-vs-draft diff
+    "./mutation/revisions.ts", // pure revision assignment and lookup
+    "./mutation/validation.ts", // final draft and log-field validation
+    "./mutation/log-entry.ts", // pure mutation log construction
   ]);
   const allRelative = [...src.matchAll(/from\s+["'](\.\.?\/[^"']+)["']/g)].map((m) => m[1]);
   for (const rel of allRelative) {

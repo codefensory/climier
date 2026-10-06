@@ -4,8 +4,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { createTempProject, rmTempProject } from "./helpers.mjs";
-import { stateFile } from "../src/storage/state.mjs";
-import { withLock, assertActiveLockContext } from "../src/storage/lock.mjs";
+import { stateFile } from "../src/storage/state.ts";
+import { withLock, assertActiveLockContext } from "../src/storage/lock.ts";
 import {
   bootstrapFencedState,
   bootstrapFencedStateUnderLock,
@@ -13,7 +13,8 @@ import {
   ledgerFile,
   readFencedState,
   readFencedStateUnderLock,
-} from "../src/storage/ledger.mjs";
+} from "../src/storage/ledger.ts";
+import { syncDirectory } from "../src/storage/ledger/stages.ts";
 
 
 async function withProject(fn) {
@@ -24,6 +25,12 @@ async function withProject(fn) {
     await rmTempProject(projectDir);
   }
 }
+
+test("directory sync is skipped on Windows, where directory handles cannot be fsynced", async () => {
+  await withProject(async (projectDir) => {
+    await assert.doesNotReject(syncDirectory(path.join(projectDir, "missing"), "win32"));
+  });
+});
 
 function rejectAfterTimeout(message) {
   return new Promise((_, reject) => setTimeout(() => reject(new Error(message)), 1000));

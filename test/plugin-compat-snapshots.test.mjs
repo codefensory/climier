@@ -24,7 +24,7 @@ test("createSnapshot preserves `plugins` and `nodes[id].plugins` in raw bytes", 
     const base = await seedPluginFixture(dir);
     seedPluginData(base);
     await writeCanonicalState(dir, base);
-    const { createSnapshot } = await importFresh("./storage/state.mjs");
+    const { createSnapshot } = await importFresh("./storage/state.ts");
     const meta = await createSnapshot(dir, "force-init");
     const rawBytes = await fs.readFile(
       path.join(snapshotDir(dir), `${meta.id}.json`),
@@ -43,7 +43,7 @@ test("listSnapshots is unaffected by plugin data (metadata contract unchanged)",
     const base = await seedPluginFixture(dir);
     seedPluginData(base);
     await writeCanonicalState(dir, base);
-    const { createSnapshot, listSnapshots } = await importFresh("./storage/state.mjs");
+    const { createSnapshot, listSnapshots } = await importFresh("./storage/state.ts");
     const meta = await createSnapshot(dir, "force-init");
     const snaps = await listSnapshots(dir);
     assert.equal(snaps.length, 1);
@@ -64,8 +64,8 @@ test("restore preserves `plugins` and `nodes[id].plugins` from the snapshot raw 
     const base = baseState();
     seedPluginData(base);
     await writeCanonicalState(dir, base);
-    const { createSnapshot } = await importFresh("./storage/state.mjs");
-    const { default: restore } = await importFresh("./cli/commands/restore.mjs");
+    const { createSnapshot } = await importFresh("./storage/state.ts");
+    const { default: restore } = await importFresh("./cli/commands/restore.ts");
     const meta = await createSnapshot(dir, "force-init");
     await writeCanonicalState(dir, { nodes: {}, edges: [], initiatives: {}, log: [] });
     const out = await restore({
@@ -88,9 +88,9 @@ test("end-to-end: snapshot with plugin data survives restore, then take/submit/a
     const base = baseState();
     seedPluginData(base);
     await writeCanonicalState(dir, base);
-    const { createSnapshot } = await importFresh("./storage/state.mjs");
-    const { default: restore } = await importFresh("./cli/commands/restore.mjs");
-    const { default: take } = await importFresh("./cli/commands/take.mjs");
+    const { createSnapshot } = await importFresh("./storage/state.ts");
+    const { default: restore } = await importFresh("./cli/commands/restore.ts");
+    const { default: take } = await importFresh("./cli/commands/take.ts");
     const meta = await createSnapshot(dir, "force-init");
     await writeCanonicalState(dir, { nodes: {}, edges: [], initiatives: {}, log: [] });
     await restore({

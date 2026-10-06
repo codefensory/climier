@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { isSatisfiedV2, isTaskReady } from "../src/providers/task/derivation.mjs";
+import { isSatisfiedV2, isTaskReady } from "../src/providers/task/derivation.ts";
 
 function state(nodes, edges = []) {
   return { version: 2, initiatives: {}, nodes, edges, log: [] };

@@ -7,9 +7,9 @@ import {
   isCurrent,
   isSatisfied,
   supersededBy,
-} from "../src/providers/gate/semantics.mjs";
-import { gateUpdateProvider } from "../src/providers/gate/index.mjs";
-import { createTransaction } from "../src/kernel/transaction.mjs";
+} from "../src/providers/gate/semantics.ts";
+import { gateUpdateProvider } from "../src/providers/gate/index.ts";
+import { createTransaction } from "../src/kernel/transaction.ts";
 
 function snapshot() {
   return {

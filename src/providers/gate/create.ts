@@ -1,0 +1,415 @@
+
+// prepare validates read-only and declares authorization, logging, and CAS;
+// apply mutates only the in-memory draft, leaving revisions to the kernel.
+// Superseding rewrites incoming BLOCKS edges atomically and collapses duplicate
+// destinations; outgoing BLOCKS edges resolve through the supersedence chain.
+
+import { throwV2, type ErrorCode } from "../../contracts/errors.ts";
+import { blocksEdge, validateEdge } from "../../kernel/edges.ts";
+
+const COMMAND = "gate.create";
+const ID_RE = /^[A-Za-z0-9_.-]+$/;
+
+// Accepted persisted statuses; open is default, while trusted imports may
+// seed a decided or retired gate.
+export const GATE_STATUSES = Object.freeze(["open", "resolved", "superseded", "canceled", "archived"]);
+
+export const GATE_CREATE_POLICY_ACTION = "gate.create";
+export const GATE_CREATE_LOG_ACTION = "add-node";
+export const GATE_SUPERSEDE_LOG_ACTION = "supersede";
+
+type PlannedEdge = { from: string; to: string; type: string };
+type GateNode = Record<string, unknown> & {
+  backlog?: boolean;
+  resolution?: { choice: string; rationale: string | undefined };
+};
+type EdgeRewrite = { remove: PlannedEdge; add: PlannedEdge; collapsed: boolean };
+
+function edgeKey(edge) {
+  return `${edge.from}|${edge.to}|${edge.type}`;
+}
+
+function asPlainObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function requireInput(input) {
+  if (!asPlainObject(input)) {
+    throwV2("MISSING_FIELD", `${COMMAND}: input must be an object`, { field: "input" });
+  }
+  return input;
+}
+
+function requiredString(input, field) {
+  const value = input[field];
+  if (typeof value !== "string" || !value.trim()) {
+    throwV2("MISSING_FIELD", `${COMMAND}: '${field}' is required`, { field });
+  }
+  return value;
+}
+
+function optionalString(input, field) {
+  const value = input[field];
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (typeof value !== "string") {
+    throwV2("MISSING_FIELD", `${COMMAND}: '${field}' must be a string`, { field });
+  }
+  return value.trim() ? value : undefined;
+}
+
+// Typed list input: an array of non-empty strings. The adapter is
+// responsible for turning CLI CSV flags into this shape.
+function stringList(input, field) {
+  const value = input[field];
+  if (value === undefined || value === null) {
+    return [];
+  }
+  if (!Array.isArray(value)) {
+    throwV2("MISSING_FIELD", `${COMMAND}: '${field}' must be an array of strings`, { field });
+  }
+  return value.map((entry, index) => {
+    if (typeof entry !== "string" || !entry.trim()) {
+      throwV2("MISSING_FIELD", `${COMMAND}: '${field}[${index}]' must be a non-empty string`, {
+        field,
+        index,
+      });
+    }
+    return entry.trim();
+  });
+}
+
+function snapshotNodes(snapshot) {
+  return asPlainObject(snapshot) && asPlainObject(snapshot.nodes) ? snapshot.nodes : {};
+}
+
+function snapshotEdges(snapshot) {
+  return asPlainObject(snapshot) && Array.isArray(snapshot.edges) ? snapshot.edges : [];
+}
+
+function validateInitiative(snapshot, input) {
+  const allowUnregistered = input.allow_unregistered_initiative === true;
+  const initiative = optionalString(input, "initiative");
+  if (!initiative) {
+    if (allowUnregistered) {
+      return undefined;
+    }
+    throwV2("MISSING_FIELD", `${COMMAND}: 'initiative' is required`, { field: "initiative" });
+  }
+  const initiatives = asPlainObject(snapshot) && asPlainObject(snapshot.initiatives) ? snapshot.initiatives : {};
+  const registered = Object.prototype.hasOwnProperty.call(initiatives, initiative);
+  if (!registered && !allowUnregistered) {
+    throwV2("INITIATIVE_NOT_FOUND", `${COMMAND}: initiative '${initiative}' is not registered`, {
+      initiative,
+      existing: Object.keys(initiatives).toSorted(),
+    });
+  }
+  return initiative;
+}
+
+function validateStatus(input) {
+  const status = optionalString(input, "status");
+  if (status === undefined) {
+    return "open";
+  }
+  if (!GATE_STATUSES.includes(status)) {
+    throwV2("INVALID_STATUS", `${COMMAND}: status '${status}' is not valid for a gate`, {
+      status,
+      allowed: [...GATE_STATUSES],
+    });
+  }
+  return status;
+}
+
+// choice/rationale are the gate's decision payload. They apply only to choice
+// resolution, travel together, and are required for gates seeded as resolved.
+function validateResolution(input, { resolutionMode, status }) {
+  const choice = optionalString(input, "choice");
+  const rationale = optionalString(input, "rationale");
+  validateResolutionMode(choice, rationale, resolutionMode);
+  validateResolutionPair(choice, rationale);
+  validateResolvedStatus(status, choice);
+  if (!choice) {
+    return undefined;
+  }
+  return { choice, rationale };
+}
+
+function validateResolutionMode(choice, rationale, resolutionMode) {
+  if ((choice || rationale) && resolutionMode !== "choice") {
+    throwV2(
+      "INVALID_EXECUTION_CONTRACT",
+      `${COMMAND}: choice/rationale are only applicable to gates with resolution_mode 'choice' (got '${resolutionMode}')`,
+      { field: choice ? "choice" : "rationale", resolution_mode: resolutionMode },
+    );
+  }
+}
+
+function validateResolutionPair(choice, rationale) {
+  if (choice && !rationale) {
+    throwV2("MISSING_FIELD", `${COMMAND}: 'rationale' is required when 'choice' is provided`, { field: "rationale" });
+  }
+  if (rationale && !choice) {
+    throwV2("MISSING_FIELD", `${COMMAND}: 'choice' is required when 'rationale' is provided`, { field: "choice" });
+  }
+}
+
+function validateResolvedStatus(status, choice) {
+  if (status === "resolved" && !choice) {
+    throwV2("MISSING_FIELD", `${COMMAND}: a gate created as 'resolved' requires 'choice' and 'rationale'`, {
+      field: "choice",
+      status,
+    });
+  }
+}
+
+function buildNode(input, { id, initiative, status }) {
+  const refs = stringList(input, "refs").map((target) => ({ type: "external", target }));
+  const meta = input.meta === undefined || input.meta === null ? undefined : input.meta;
+  if (meta !== undefined && !asPlainObject(meta)) {
+    throwV2("MISSING_FIELD", `${COMMAND}: 'meta' must be an object`, { field: "meta" });
+  }
+  const resolutionMode = optionalString(input, "resolution_mode") || "choice";
+  const node: GateNode = {
+    id,
+    kind: "resolvable",
+    title: requiredString(input, "title"), body: requiredString(input, "body"), refs, meta,
+    initiative, domain: optionalString(input, "domain"), tags: stringList(input, "tags"),
+    status, subkind: "gate", resolution_mode: resolutionMode,
+    purpose: requiredString(input, "purpose"), definition: optionalString(input, "definition"),
+    acceptance: optionalString(input, "acceptance"),
+  };
+  if (input.backlog === true) {
+    node.backlog = true;
+  }
+  const resolution = validateResolution(input, { resolutionMode, status });
+  if (resolution) {
+    node.resolution = resolution;
+  }
+  return node;
+}
+
+function validateSupersedes(snapshot, input, { id, workingState }) {
+  const raw = input.supersedes;
+  if (raw === undefined || raw === null) {
+    return null;
+  }
+  const target = requireSupersedesTarget(raw);
+  const edge = { from: id, to: target, type: "SUPERSEDES" };
+  if (target === id) {
+    throwV2("SELF_EDGE", `${COMMAND}: edge ${id} -> ${target} is a self-edge`, edge);
+  }
+
+  validateEdge(workingState, edge, COMMAND);
+  const targetNode = snapshotNodes(snapshot)[target];
+  if (targetNode.subkind !== "gate") {
+    throwV2(
+      "INVALID_EDGE_KIND",
+      `${COMMAND}: SUPERSEDES requires gate -> gate (got gate -> ${targetNode.subkind || targetNode.kind})`,
+      { from: id, to: target, type: "SUPERSEDES", fromKind: "gate", toKind: targetNode.subkind || targetNode.kind },
+    );
+  }
+  return target;
+}
+
+function requireSupersedesTarget(raw) {
+  if (typeof raw !== "string" || !raw.trim()) {
+    throwV2("MISSING_FIELD", `${COMMAND}: 'supersedes' must be a non-empty node id`, { field: "supersedes" });
+  }
+  return raw.trim();
+}
+
+// if_revisions is the agent-facing precondition map `{ id: revision }`.
+// Every modified node needs a matching CAS revision. If callers omit the
+// map, derive it from the snapshot so concurrent writes still conflict.
+function validatePreconditions(snapshot, input, affected) {
+  const raw = input.if_revisions;
+  if (raw !== undefined && raw !== null && !asPlainObject(raw)) {
+    throwV2("INVALID_EXECUTION_CONTRACT", `${COMMAND}: 'if_revisions' must be an object`, { field: "if_revisions" });
+  }
+  if (raw !== undefined && raw !== null) {
+    return validateExplicitPreconditions(snapshotNodes(snapshot), raw, affected);
+  }
+  return derivePreconditions(snapshotNodes(snapshot), affected);
+}
+
+function validateExplicitPreconditions(nodes, raw, affected) {
+  for (const [id, expected] of Object.entries(raw)) {
+    validateDeclaredRevision(id, expected, affected);
+  }
+  for (const id of affected) {
+    validateExpectedRevision(nodes, raw, id);
+  }
+  return affected.length === 0 ? { kind: "none" } : { kind: "multi", values: { ...raw } };
+}
+
+function validateDeclaredRevision(id, expected, affected) {
+  if (!affected.includes(id)) {
+    throwV2("INVALID_EXECUTION_CONTRACT", `${COMMAND}: if_revisions declares '${id}' but the operation does not modify it`, { field: "if_revisions", id, affected: [...affected] });
+  }
+  if (!Number.isInteger(expected)) {
+    throwV2("INVALID_EXECUTION_CONTRACT", `${COMMAND}: if_revisions['${id}'] must be an integer`, { field: "if_revisions", id, value: expected });
+  }
+}
+
+function validateExpectedRevision(nodes, raw, id) {
+  if (!Object.prototype.hasOwnProperty.call(raw, id)) {
+    throwV2("MISSING_FIELD", `${COMMAND}: if_revisions['${id}'] is required because the operation modifies that node`, { field: "if_revisions", id });
+  }
+  const expected = raw[id];
+  const current = nodes[id] && Number.isInteger(nodes[id].revision) ? nodes[id].revision : null;
+  if (current !== expected) {
+    throwV2("REVISION_CONFLICT", `${COMMAND}: node ${id} changed since revision ${expected}`, { id, expected, current });
+  }
+}
+
+function derivePreconditions(nodes, affected) {
+  if (affected.length === 0) {
+    return { kind: "none" };
+  }
+  const derived = {};
+  for (const id of affected) {
+    const current = nodes[id] && Number.isInteger(nodes[id].revision) ? nodes[id].revision : null;
+    if (current === null) {
+      throwV2("REVISION_CONFLICT", `${COMMAND}: cannot derive if_revisions for '${id}' (missing or non-integer revision in snapshot)`, { id, current });
+    }
+    derived[id] = current;
+  }
+  return { kind: "multi", values: derived };
+}
+
+function planEdges(snapshot, input, { id, workingState, supersedes }) {
+  const known = new Set(snapshotEdges(snapshot).map((edge) => edgeKey(edge)));
+  const edges: PlannedEdge[] = [];
+  const push = (edge: PlannedEdge) => {
+    const key = edgeKey(edge);
+    if (known.has(key)) {
+      throwV2("DUPLICATE_EDGE", `${COMMAND}: edge ${edge.type} ${edge.from} -> ${edge.to} already exists`, edge);
+    }
+    validateEdge(workingState, edge, COMMAND);
+    known.add(key);
+    edges.push(edge);
+  };
+  if (supersedes) {
+    push({ from: id, to: supersedes, type: "SUPERSEDES" });
+  }
+  for (const blocker of stringList(input, "blocked_by")) {
+    push(blocksEdge(blocker, id));
+  }
+  for (const source of stringList(input, "derived_from")) {
+    push({ from: id, to: source, type: "DERIVED_FROM" });
+  }
+  return { edges, known };
+}
+
+
+function planRewrites(snapshot, { id, supersedes, known }) {
+  const rewrites: EdgeRewrite[] = [];
+  if (!supersedes) {
+    return rewrites;
+  }
+  for (const edge of snapshotEdges(snapshot)) {
+    if (edge.type !== "BLOCKS" || edge.to !== supersedes) {
+      continue;
+    }
+    const remove = { from: edge.from, to: edge.to, type: "BLOCKS" };
+    const add = { from: edge.from, to: id, type: "BLOCKS" };
+    const collapsed = edge.from === id || known.has(edgeKey(add));
+    if (!collapsed) {
+      known.add(edgeKey(add));
+    }
+    rewrites.push({ remove, add, collapsed });
+  }
+  return rewrites;
+}
+
+/**
+ * prepare — read-only. Validates the gate domain against the snapshot and
+ * returns the immutable plan the kernel will authorize and apply.
+ */
+export async function prepare({ snapshot, input }) {
+  const payload = requireInput(input);
+  const rawId = payload.id;
+  if (typeof rawId !== "string" || !rawId.trim()) {
+    throwV2("MISSING_FIELD", `${COMMAND}: 'id' is required`, { field: "id" });
+  }
+  const id = rawId.trim();
+  if (!ID_RE.test(id)) {
+    throwV2("INVALID_ID" as ErrorCode, `${COMMAND}: id '${id}' is invalid (must match ${ID_RE})`, {
+      id,
+      pattern: ID_RE.source,
+    });
+  }
+  const nodes = snapshotNodes(snapshot);
+  if (Object.prototype.hasOwnProperty.call(nodes, id)) {
+    throwV2("ID_CONFLICT", `${COMMAND}: ${id} already exists`, { id });
+  }
+
+  const initiative = validateInitiative(snapshot, payload);
+  const status = validateStatus(payload);
+  const node = buildNode(payload, { id, initiative, status });
+
+
+  const workingState = { ...snapshot, nodes: { ...nodes, [id]: node } };
+  const supersedes = validateSupersedes(snapshot, payload, { id, workingState });
+  const { edges, known } = planEdges(snapshot, payload, { id, workingState, supersedes });
+  const rewrites = planRewrites(snapshot, { id, supersedes, known });
+
+  const affected = supersedes ? [supersedes] : [];
+  const preconditions = validatePreconditions(snapshot, payload, affected);
+
+  return {
+    target: { id, kind: "resolvable", subkind: "gate" }, policyAction: { action: GATE_CREATE_POLICY_ACTION },
+    logAction: supersedes ? GATE_SUPERSEDE_LOG_ACTION : GATE_CREATE_LOG_ACTION,
+    logNote: supersedes ? `${id} supersedes ${supersedes}` : id,
+    node, edges, rewrites, supersedes, affected, if_revisions: preconditions,
+  };
+}
+
+/**
+ * apply — mutates the draft transaction only and returns
+ * `{ result, effects }`. Never assigns or increments `revision`.
+ */
+export async function apply({ tx, plan }) {
+  tx.createNode(plan.node);
+  if (plan.supersedes) {
+    tx.updateNode(plan.supersedes, { status: "superseded" });
+  }
+  // Remove every stale blocker edge before adding the rewritten ones so a
+  // rewrite can never collide with the edge it replaces.
+  for (const rewrite of plan.rewrites) {
+    tx.removeEdge(rewrite.remove);
+  }
+  for (const rewrite of plan.rewrites) {
+    if (!rewrite.collapsed) {
+      tx.addEdge(rewrite.add);
+    }
+  }
+  for (const edge of plan.edges) {
+    tx.addEdge(edge);
+  }
+
+  const rewritten = plan.rewrites
+    .filter((rewrite) => !rewrite.collapsed)
+    .map((rewrite) => ({ blocker: rewrite.remove.from, from: rewrite.remove.to, to: rewrite.add.to }));
+  const collapsed = plan.rewrites
+    .filter((rewrite) => rewrite.collapsed)
+    .map((rewrite) => ({ blocker: rewrite.remove.from, from: rewrite.remove.to, to: rewrite.add.to }));
+
+  return {
+    result: {
+      node: tx.getNode(plan.target.id),
+      superseded: plan.supersedes ? tx.getNode(plan.supersedes) : null,
+      edges: plan.edges.map((edge) => ({ ...edge })),
+    },
+    effects: {
+      superseded: plan.supersedes || null,
+      blockers_rewritten: rewritten,
+      blockers_collapsed: collapsed,
+      affected: [...plan.affected],
+    },
+  };
+}
+
+export const gateCreateProvider = Object.freeze({ prepare, apply });

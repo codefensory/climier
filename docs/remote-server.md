@@ -18,18 +18,21 @@ account. It contains no password, bearer, project allowlist, or project data:
 }
 ```
 
-`listen.host` must be loopback. Set the password through the service manager or
-private environment file, never as a command argument and never in JSON:
+This example uses loopback, but `listen.host` is an operator choice: Climier
+accepts any non-empty host string and leaves binding and network exposure to the
+operating system and the operator. Set the password through the service manager
+or private environment file, never as a command argument and never in JSON:
 
 ```sh
 export CLIMIER_SERVER_PASSWORD='<high-entropy-password>'
-node /path/to/climier/bin/climier-server.mjs /srv/climier/private/server.json
+/path/to/climier-server /srv/climier/private/server.json
 ```
 
-The launcher prints one JSON health line. A missing password, non-loopback
-listener, legacy `credentials`/`projectIds` fields, or corrupt auth file fails
-before the listener accepts requests. Keep `dataRoot`, `stateHome`, and the
-configuration directory owned by the service account.
+The launcher prints one JSON health line. A missing password, malformed listener,
+legacy `credentials`/`projectIds` fields, or corrupt auth file fails before the
+listener accepts requests. An address rejected by the operating system fails at
+bind time. Keep `dataRoot`, `stateHome`, and the configuration directory owned
+by the service account.
 
 The API body limit defaults to 1,048,576 bytes. For large snapshot transfers,
 set `CLIMIER_SERVER_MAX_BODY_BYTES` in the private service environment to an
@@ -60,13 +63,57 @@ bun install --frozen-lockfile
 bun run build
 ```
 
-When the service host has no build toolchain, `scripts/deploy-hosted-ui.sh`
-builds `ui/dist` locally, merges the deployment base into the current commit,
-pushes it to the remote checkout over SSH, ships the bundle, restarts the
-service and verifies the served asset byte for byte against the local build.
-Configure host, path, service and origin in a gitignored `.deploy.env` (copy
-`scripts/deploy-hosted-ui.env.example`); `--check` reports drift without
-changing anything.
+### Deploy the compiled server and UI
+
+The supported deployment procedure ships a compiled server binary and the
+static UI bundle; the host does not need Bun, Node.js, a checkout, or UI
+runtime dependencies. The old out-of-tree deployment patch is retired: the
+operator controls the listener address through `listen.host`, and the service
+runs the binary built from the repository revision being deployed.
+
+Prepare the host once with a private `server.json`, a systemd unit, and an
+absolute deployment root. The unit's `ExecStart` must point at the deployed
+binary and config, for example:
+
+```ini
+[Service]
+ExecStart=/srv/climier/climier-server /srv/climier/server.json
+```
+
+Set `uiRoot` in that config to the path where the script will install the UI.
+The script defaults to `/srv/climier/ui/dist` when the remote root is
+`/srv/climier`; it updates and validates this field before restarting:
+
+```json
+{
+  "listen": { "host": "100.64.0.10", "port": 43127 },
+  "dataRoot": "/srv/climier/data",
+  "stateHome": "/srv/climier/state",
+  "uiRoot": "/srv/climier/ui/dist"
+}
+```
+
+Copy `scripts/deploy-server.env.example` to the gitignored `.deploy.env` and
+set the SSH destination, Bun target, systemd unit, and origin. Supported
+binary targets include `linux-x64`, `linux-arm64`, `darwin-x64`,
+`darwin-arm64`, and `windows-x64`; the target must match the service host.
+Then run:
+
+```sh
+scripts/deploy-server.sh
+scripts/deploy-server.sh --check
+```
+
+A deployment runs `bun run build:binary --target "$CLIMIER_DEPLOY_TARGET"`,
+builds `ui/dist`, copies the binary and bundle over SSH, ensures the remote
+`server.json` has the explicit absolute `uiRoot`, restarts the unit, and
+checks the service health URL plus the hashed UI asset byte for byte. `--check`
+only reads local build artifacts and remote state; it reports drift without
+copying files, changing `server.json`, or restarting the service. If the
+origin is only reachable from the server, set `CLIMIER_DEPLOY_HEALTH_URL` and
+`CLIMIER_DEPLOY_URL` to URLs that the host can access. Do not run the real
+production deployment from an implementation task; use `bash -n`, `--help`,
+and `--check` with a test host or missing configuration for local validation.
 
 The SPA authenticates with the same `POST /v1/auth/login` password; it lists
 projects with `GET /v1/projects` and reads one project with
@@ -76,28 +123,26 @@ snapshot with `ETag`).
 
 ## TLS and network boundary
 
-HTTPS is the default and recommended for every remote origin. The server binds
-to loopback by default; for TLS, put a trusted reverse proxy on the same host
-and forward only the Climier API to `127.0.0.1:<port>`:
+HTTPS is the default and recommended transport for every remote origin. Climier
+does not enforce a listener address or transport topology: the operator chooses
+whether to bind loopback, an interface, a wildcard, or another host accepted by
+the operating system, and is responsible for TLS, a private overlay, firewall,
+and proxy policy. For TLS on the same host, a trusted reverse proxy can forward
+to a loopback upstream:
 
 ```text
 client -- HTTPS --> trusted TLS proxy -- loopback HTTP --> climier-server
 ```
 
-The server continues to bind to loopback; the client HTTP opt-in does not
-change its listener. If remote clients need access, expose the service through
-an operator-managed proxy or tunnel and restrict that network path. For large
-snapshots, the private service environment can also contain
-`CLIMIER_SERVER_MAX_BODY_BYTES=16777216` (16 MiB); choose the smallest cap that
-fits the transfer.
-
-Each client command using a remote HTTP backend requires the exact opt-in
-`CLIMIER_ALLOW_INSECURE_REMOTE_HTTP=true`. The destination comes from that
-checkout's `.climier.json`, and bearer sessions remain indexed by origin in the
-local credential profile, so different projects can use different servers.
-Successful remote HTTP `init` includes a warning in its JSON result. This mode
-sends the login password and bearer over HTTP; use it only when the entire
-network path is trusted. HTTPS remains the safe default.
+If remote clients connect directly over HTTP, the login password and bearer are
+sent without transport encryption. Successful `login`, `link`, and remote
+`init` commands add a `warnings` field with kind `insecure-remote-http`,
+severity `warning`, and the configured origin when HTTP is non-loopback. Use
+`--no-warnings` before or after a command to suppress that non-blocking field.
+The destination still comes from `.climier.json`, and bearer sessions remain
+indexed by origin. For large snapshots, the private service environment can
+also contain `CLIMIER_SERVER_MAX_BODY_BYTES=16777216` (16 MiB); choose the
+smallest cap that fits the transfer.
 
 ## Link, authenticate, and provision a checkout
 
@@ -117,11 +162,11 @@ bearer for that origin in the local profile (`~/.climier/remote-sessions.json`
 by default). The profile directory
 is `0700` and its file is `0600` on POSIX. The password and bearer must not be
 placed in argv, environment variables, stdin, `.climier.json`, command output,
-or logs. For a remote HTTP origin, run each command with
-`CLIMIER_ALLOW_INSECURE_REMOTE_HTTP=true`; the same opt-in is required for each
-later command against that checkout. The project-specific destination remains
-in `.climier.json` and sessions are indexed by origin in the local profile.
-`logout` removes the local copy; it does not revoke the server hash.
+or logs. For a remote HTTP origin, successful `login` reports the transport
+warning described above; pass `--no-warnings` when that field is not wanted.
+The project-specific destination remains in `.climier.json` and sessions are
+indexed by origin in the local profile. `logout` removes the local copy; it does
+not revoke the server hash.
 
 Linking an existing local checkout preserves its project ID but does not upload
 or merge its local DAG. Remote `init` provisions the server-side project; it is
@@ -262,9 +307,9 @@ config, restore the exact `.climier.json` (a retired-wire CLI rejects metadata
 without `backend.protocol`), and compare the state hashes again. Never restore
 or migrate the DAG as part of the rollback, and never run `init`, `push`, or
 `pull` on the active project during the cutover. A deployment that listens on a
-private-network address instead of loopback needs an explicit, reviewed opt-in
-in the server code; keep that patch versioned rather than uncommitted in the
-deployment worktree.
+private-network address is an operator choice; review its TLS, overlay,
+firewall, and proxy configuration and keep deployment configuration versioned
+rather than relying on an uncommitted worktree patch.
 
 ## Verification and failure boundaries
 

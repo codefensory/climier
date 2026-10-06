@@ -139,7 +139,7 @@ test("smoke-sandbox.sh: forces CLIMIER_HOME to a private temp dir", async () => 
 test("smoke-sandbox.sh: does not touch the real ~/.climier", async () => {
   const tmp = await createTempProject();
   try {
-    const r = await runHelper(["node", BIN, "--project", tmp, "init"]);
+    const r = await runHelper([process.execPath, BIN, "--project", tmp, "init"]);
     assert.equal(r.code, 0, `init failed; stdout=${r.stdout} stderr=${r.stderr}`);
     // Real ~/.climier is untouched: no tasks.json was created under the
     // sentinel home either, because the helper redirects CLIMIER_HOME.
@@ -173,21 +173,26 @@ test("smoke-sandbox.sh: cleans up sandbox on TERM", async () => {
   const before = new Set(listSmokeSandboxes());
   // detached:true puts the helper in its own process group so we can
   // deliver TERM to the whole group and not leave the inner sleep running.
-  const proc = spawn("bash", [HELPER, "--", "sleep", "5"], {
-    cwd: ROOT,
-    env: sentinelEnv(),
-    detached: true,
-  });
-  // Wait for the sandbox dir to appear (umask 077 makes it owned by us).
+  const proc = spawn(
+    "bash",
+    [HELPER, "--", "bash", "-c", 'touch "$CLIMIER_HOME/ready"; exec sleep 5'],
+    {
+      cwd: ROOT,
+      env: sentinelEnv(),
+      detached: true,
+    },
+  );
+  // Wait until the wrapped command starts; the sandbox directory appears
+  // before the helper installs its signal trap.
   let appeared = null;
   for (let i = 0; i < 100 && !appeared; i++) {
     await new Promise((r) => setTimeout(r, 20));
     const now = listSmokeSandboxes().filter((n) => !before.has(n));
-    if (now.length > 0) {
+    if (now.length > 0 && fs.existsSync(path.join(PRIVATE_TMPDIR, now[0], "home", "ready"))) {
       appeared = now;
     }
   }
-  assert.ok(appeared, "sandbox dir should appear during run");
+  assert.ok(appeared, "wrapped command should start inside the sandbox");
   // Kill the whole process group so the inner sleep also terminates.
   process.kill(-proc.pid, "SIGTERM");
   await new Promise((resolve) => proc.on("close", () => resolve()));
@@ -206,7 +211,7 @@ test("smoke-sandbox.sh: works with a project that preserves .climier.json", asyn
       JSON.stringify({ project_id: metaId }) + "\n",
       "utf8",
     );
-    const r = await runHelper(["node", BIN, "--project", tmp, "init"]);
+    const r = await runHelper([process.execPath, BIN, "--project", tmp, "init"]);
     assert.equal(r.code, 0, `init failed; stdout=${r.stdout} stderr=${r.stderr}`);
     // .climier.json is preserved (init does not overwrite by default).
     const meta = JSON.parse(await fsp.readFile(path.join(tmp, ".climier.json"), "utf8"));
@@ -222,7 +227,7 @@ test("smoke-sandbox.sh: works with a project that has no metadata", async () => 
     // No .climier.json. The CLI derives a project_id from the path; the
     // helper must still isolate CLIMIER_HOME so init does not touch the
     // real home.
-    const r = await runHelper(["node", BIN, "--project", tmp, "init"]);
+    const r = await runHelper([process.execPath, BIN, "--project", tmp, "init"]);
     assert.equal(r.code, 0, `init failed; stdout=${r.stdout} stderr=${r.stderr}`);
     // init writes .climier.json even when starting without metadata.
     assert.ok(fs.existsSync(path.join(tmp, ".climier.json")));

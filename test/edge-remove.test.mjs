@@ -67,7 +67,7 @@ test("api.core exposes edge.remove and preserves global revision on an absent re
   const dir = await createTempProject();
   try {
     await setupProject(dir);
-    const { createCore } = await importFresh("../src/plugins/core-adapter.mjs");
+    const { createCore } = await importFresh("../src/plugins/core-adapter.ts");
     const api = createCore({ projectDir: dir, agent: "tester", pluginId: "edge.test" });
     await api.run({
       op: "edge.add",

@@ -1,6 +1,11 @@
 # RFC: primer contrato Remote v1 y metadata sin marcador de protocolo
 
-- Gate: `G-remote-v1-cut-rfc` · Iniciativa: `remote-cloud-service` · Estado: aprobado
+> **Histórico / reemplazado en boundary de red:** este RFC conserva el plan del
+> corte del wire y la metadata para trazabilidad. Sus referencias a loopback y
+> al opt-in HTTP son históricas; ADR-051 y ADR-052 definen el contrato vigente:
+> el operador decide bind/transport y el cliente emite warnings no bloqueantes.
+
+- Gate: `G-remote-v1-cut-rfc` · Iniciativa: `remote-cloud-service` · Estado: histórico / reemplazado
 - Autor: orchestrator · Fecha: 2026-10-05
 
 ## Problema

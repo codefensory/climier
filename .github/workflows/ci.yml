@@ -3,38 +3,108 @@ name: ci
 on:
   push:
     branches: [main]
+    tags: ["v*"]
   pull_request:
+
+permissions:
+  contents: read
 
 jobs:
   test:
-    strategy:
-      matrix:
-        node-version: [20, 24]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node-version }}
-      - run: npm test
-      - run: npm run surface:check
-
-  package:
-    strategy:
-      matrix:
-        node-version: [20, 24]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.2
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node-version }}
       - run: bun install --frozen-lockfile
-        working-directory: ui
-      - run: bun run build
-        working-directory: ui
-      - run: npm run smoke:pack
-      - run: npm run pack:check
+      - run: bun run typecheck
+      - run: bun scripts/type-budget.ts
+      - run: bun run test
+      - run: bun run surface:check
+      - run: bun run smoke:pack
+      - run: bun run pack:check
+
+  binaries:
+    name: binary (${{ matrix.name }})
+    needs: test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x64
+            os: ubuntu-latest
+            target: bun-linux-x64
+            extension: ""
+          - name: linux-arm64
+            os: ubuntu-24.04-arm
+            target: bun-linux-arm64
+            extension: ""
+          - name: darwin-x64
+            os: macos-15-intel
+            target: bun-darwin-x64
+            extension: ""
+          - name: darwin-arm64
+            os: macos-14
+            target: bun-darwin-arm64
+            extension: ""
+          - name: windows-x64
+            os: windows-latest
+            target: bun-windows-x64
+            extension: ".exe"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - run: bun install --frozen-lockfile
+      - name: Build binaries
+        run: bun run build:binary -- --target "${{ matrix.target }}" --output-dir dist
+      - name: Smoke test CLI
+        shell: bash
+        run: |
+          suffix="${{ matrix.extension }}"
+          cli="dist/climier-${{ matrix.name }}$suffix"
+          server="dist/climier-server-${{ matrix.name }}$suffix"
+          test -f "$server"
+          "$cli" --version
+          project="$RUNNER_TEMP/climier-binary-smoke"
+          plugin_home="$RUNNER_TEMP/climier-binary-plugin-home"
+          plugin_dir="$plugin_home/plugins/installed/binary-smoke"
+          rm -rf "$project" "$plugin_home"
+          mkdir -p "$plugin_dir"
+          cat > "$plugin_dir/package.json" <<'EOF'
+          {"name":"binary-smoke","version":"1.0.0","type":"module","climier":{"id":"binary-smoke","command":"binary-smoke","entry":"./climier.mjs","api":1}}
+          EOF
+          cat > "$plugin_dir/climier.mjs" <<'EOF'
+          export default { commands: { probe: (args, api) => ({ loaded: true, args, project: api.runtime.project_dir }) } };
+          EOF
+          CLIMIER_HOME="$plugin_home" "$cli" --project "$project" init
+          CLIMIER_HOME="$plugin_home" "$cli" --project "$project" status
+          output=$(CLIMIER_HOME="$plugin_home" "$cli" --project "$project" --as binary-smoke binary-smoke probe --external)
+          echo "$output"
+          echo "$output" | grep -Eq '"loaded"[[:space:]]*:[[:space:]]*true'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: climier-${{ matrix.name }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: publish release artifacts
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: binaries
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes

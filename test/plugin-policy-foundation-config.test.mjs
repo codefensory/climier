@@ -5,8 +5,8 @@ import path from "node:path";
 import { importFresh } from "./helpers.mjs";
 import { policyFixture, withEnv, writePlugin } from "./plugin-policy-foundation-helpers.mjs";
 
-const LOADER_MODULE = "../src/plugins/loader.mjs";
-const POLICY_MODULE = "../src/plugins/policy.mjs";
+const LOADER_MODULE = "../src/plugins/loader.ts";
+const POLICY_MODULE = "../src/plugins/policy.ts";
 
 test("policy-foundation: readProjectConfig returns {} when .climier.json is missing", async () => {
   await withEnv(async (env) => {

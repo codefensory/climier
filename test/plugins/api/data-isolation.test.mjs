@@ -318,7 +318,7 @@ test("data.set takes the project lock (concurrent set + take both succeed withou
     await seedState(dir);
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
     const [{ default: takeCmd }] = await Promise.all([
-      importFresh("./cli/commands/take.mjs"),
+      importFresh("./cli/commands/take.ts"),
       Promise.resolve(),
     ]);
     const [, setResult] = await Promise.all([
@@ -342,7 +342,7 @@ test("createApi rejects calls to data.*.set without agent identity (agent must b
   const dir = await createTempProject();
   try {
     await seedState(dir);
-    const { createApi } = await importFresh("./plugins/api.mjs");
+    const { createApi } = await importFresh("./plugins/api.ts");
     const api = createApi({ projectDir: dir, agent: "", pluginId: "example.audit" });
     await assert.rejects(
       api.data.node.set("T1", { a: 1 }),
@@ -360,7 +360,7 @@ test("createApi rejects calls to data.*.set without agent identity (agent must b
 test("createApi accepts pluginId that matches the V1 regex shape", async () => {
   const dir = await createTempProject();
   try {
-    const { createApi } = await importFresh("./plugins/api.mjs");
+    const { createApi } = await importFresh("./plugins/api.ts");
     assert.ok(createApi({ projectDir: dir, agent: "x", pluginId: "example.audit" }));
     assert.ok(createApi({ projectDir: dir, agent: "x", pluginId: "a" }));
     assert.throws(() => createApi({ projectDir: dir, agent: "x", pluginId: "" }));

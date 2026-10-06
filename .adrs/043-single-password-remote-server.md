@@ -8,8 +8,17 @@
 ADR-045 supersede la numeración y el routing del wire descritos en este ADR:
 las menciones históricas a v2 y `/v2` quedan reemplazadas por Remote v1, con
 `/v1` y `X-Climier-Protocol-Version: 1`. Esta actualización no cambia las
-decisiones de autenticación, bearer, aislamiento, loopback, lock, rotación,
+decisiones de autenticación, bearer, aislamiento, lock, rotación,
 backups ni recovery documentadas aquí.
+
+## Enmienda posterior: listener sin política de red
+
+ADR-051 enmienda exclusivamente la cláusula de esta decisión que decía que el
+listener solo podía bindear a loopback. La política vigente acepta cualquier
+`listen.host` no vacío que el sistema operativo pueda bindear; la dirección, el
+transporte, TLS y la exposición de red son responsabilidad del operador. Las
+decisiones de password, bearer, aislamiento, lock, rotación, backups y recovery
+de este ADR siguen vigentes.
 
 ## Contexto
 

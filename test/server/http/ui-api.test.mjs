@@ -5,8 +5,8 @@ import { brotliDecompressSync, gunzipSync } from "node:zlib";
 import { test } from "node:test";
 
 import { authHeaders, withApi, withInitApi } from "./fixtures.mjs";
-import { createProjectCatalog } from "../../../src/server/catalog/index.mjs";
-import { createUiApi } from "../../../src/server/http/ui-api.mjs";
+import { createProjectCatalog } from "../../../src/server/catalog/index.ts";
+import { createUiApi } from "../../../src/server/http/ui-api.ts";
 import { readState, writeCanonicalState } from "../../helpers.mjs";
 
 function rawGet(url, headers) {

@@ -4,8 +4,8 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { stateFile } from "../src/storage/state.mjs";
-import { ledgerFile } from "../src/storage/ledger.mjs";
+import { stateFile } from "../src/storage/state.ts";
+import { ledgerFile } from "../src/storage/ledger.ts";
 import { createTempProject, rmTempProject, runCli } from "./helpers.mjs";
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
@@ -130,8 +130,8 @@ test("SIGKILL at each bootstrap publication boundary resumes to a readable consi
   for (const checkpoint of crashPoints) {
     const fixture = await createLegacyProject(t, { version: 4 });
     const childCode = `
-      import { withProjectIdLock } from ${JSON.stringify(path.join(repoRoot, "src/storage/lock.mjs"))};
-      import { migrateProjectUnderLock } from ${JSON.stringify(path.join(repoRoot, "src/storage/migrate.mjs"))};
+      import { withProjectIdLock } from ${JSON.stringify(path.join(repoRoot, "src/storage/lock.ts"))};
+      import { migrateProjectUnderLock } from ${JSON.stringify(path.join(repoRoot, "src/storage/migrate.ts"))};
       const id = ${JSON.stringify(fixture.projectId)};
       await withProjectIdLock(id, (lock) => migrateProjectUnderLock(lock, id, {
         onCheckpoint: async (point) => { if (point === ${JSON.stringify(checkpoint)}) { process.stdout.write("CHECKPOINT\\n"); await new Promise(() => {}); } },

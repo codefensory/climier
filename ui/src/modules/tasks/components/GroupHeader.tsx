@@ -1,3 +1,4 @@
+import ArrowRight01Icon from "@hugeicons/core-free-icons/ArrowRight01Icon";
 import Rocket01Icon from "@hugeicons/core-free-icons/Rocket01Icon";
 import SecurityCheckIcon from "@hugeicons/core-free-icons/SecurityCheckIcon";
 import Task01Icon from "@hugeicons/core-free-icons/Task01Icon";
@@ -9,7 +10,16 @@ import { taskTag } from "../data/tags";
 import { StatusGlyph } from "./StatusGlyph";
 import type { TaskGroupGlyph, TaskGroupView } from "../types";
 
-export type GroupHeaderProps = { group: TaskGroupView };
+export type GroupHeaderProps = {
+  group: TaskGroupView;
+  /**
+   * El grupo vive dentro de un `<details class="group">`: antepone un chevron que rota al abrir.
+   *
+   * El marcador nativo del `<summary>` se oculta en el consumidor (`list-none`), porque el triángulo
+   * del navegador queda fuera del padding de la fila y desalineado.
+   */
+  collapsible?: boolean;
+};
 
 /**
  * Guard de tipo del discriminante.
@@ -51,6 +61,9 @@ function GroupGlyph(props: { glyph: TaskGroupGlyph }) {
 export function GroupHeader(props: GroupHeaderProps) {
   return (
     <div class="flex min-h-[40px] items-center gap-2.5 border-b border-hairline px-4 py-2" style={{ "background-color": tint(props.group.color, 7), "border-bottom-color": tint(props.group.color, 15) }}>
+      <Show when={props.collapsible}>
+        <HugeIcon icon={ArrowRight01Icon} class="disclosure-chevron h-3.5 w-3.5 shrink-0 text-muted transition-transform" strokeWidth="1.8" />
+      </Show>
       <GroupGlyph glyph={props.group.glyph} />
       <Show when={!props.group.identityChip}><span class="text-[13px] font-medium text-ink">{props.group.label}</span></Show>
       <span class="shrink-0 text-[11px] text-faint">{props.group.count ?? props.group.tasks.length}</span>

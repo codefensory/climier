@@ -22,7 +22,7 @@ test("add-task preserves root plugins and existing per-node plugins", async () =
     const base = await seedPluginFixture(dir);
     seedPluginData(base);
     await writeCanonicalState(dir, base);
-    const { default: addTask } = await importFresh("./cli/commands/add-task.mjs");
+    const { default: addTask } = await importFresh("./cli/commands/add-task.ts");
     await addTask({
       statePath: dir,
       projectDir: dir,
@@ -51,7 +51,7 @@ test("add-gate preserves root plugins", async () => {
     const base = await seedPluginFixture(dir);
     seedPluginData(base);
     await writeCanonicalState(dir, base);
-    const { default: addGate } = await importFresh("./cli/commands/add-gate.mjs");
+    const { default: addGate } = await importFresh("./cli/commands/add-gate.ts");
     await addGate({
       statePath: dir,
       projectDir: dir,
@@ -77,7 +77,7 @@ test("add-knowledge preserves root plugins", async () => {
     const base = await seedPluginFixture(dir);
     seedPluginData(base);
     await writeCanonicalState(dir, base);
-    const { default: addKnowledge } = await importFresh("./cli/commands/add-knowledge.mjs");
+    const { default: addKnowledge } = await importFresh("./cli/commands/add-knowledge.ts");
     await addKnowledge({
       statePath: dir,
       projectDir: dir,
@@ -103,7 +103,7 @@ test("update preserves root plugins and per-node plugins", async () => {
     const base = await seedPluginFixture(dir);
     seedPluginData(base);
     await writeCanonicalState(dir, base);
-    const { default: update } = await importFresh("./cli/commands/update.mjs");
+    const { default: update } = await importFresh("./cli/commands/update.ts");
     await update({
       statePath: dir,
       projectDir: dir,
@@ -127,7 +127,7 @@ test("take preserves root plugins and per-node plugins", async () => {
     const base = await seedPluginFixture(dir);
     seedPluginData(base);
     await writeCanonicalState(dir, base);
-    const { default: take } = await importFresh("./cli/commands/take.mjs");
+    const { default: take } = await importFresh("./cli/commands/take.ts");
     await take({
       positional: ["T1"],
       flags: { as: "tester" },
@@ -149,7 +149,7 @@ test("submit + accept (task) preserves root plugins and per-node plugins", async
     const base = await seedPluginFixture(dir);
     seedPluginData(base);
     await writeCanonicalState(dir, base);
-    const { default: take } = await importFresh("./cli/commands/take.mjs");
+    const { default: take } = await importFresh("./cli/commands/take.ts");
     await take({
       positional: ["T1"],
       flags: { as: "tester" },
@@ -186,7 +186,7 @@ test("resolve (gate) preserves root plugins", async () => {
     });
     seedPluginData(base);
     await writeCanonicalState(dir, base);
-    const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
+    const { default: resolve } = await importFresh("./cli/commands/resolve.ts");
     await resolve({
       statePath: dir,
       projectDir: dir,
@@ -207,7 +207,7 @@ test("reopen preserves root plugins and per-node plugins", async () => {
     const base = await seedPluginFixture(dir);
     seedPluginData(base);
     await writeCanonicalState(dir, base);
-    const { default: take } = await importFresh("./cli/commands/take.mjs");
+    const { default: take } = await importFresh("./cli/commands/take.ts");
     await take({
       positional: ["T1"],
       flags: { as: "tester" },
@@ -215,7 +215,7 @@ test("reopen preserves root plugins and per-node plugins", async () => {
       statePath: dir,
     });
     await submitAcceptTask(dir);
-    const { default: reopen } = await importFresh("./cli/commands/reopen.mjs");
+    const { default: reopen } = await importFresh("./cli/commands/reopen.ts");
     await reopen({
       statePath: dir,
       projectDir: dir,
@@ -236,14 +236,14 @@ test("release preserves root plugins and per-node plugins", async () => {
     const base = await seedPluginFixture(dir);
     seedPluginData(base);
     await writeCanonicalState(dir, base);
-    const { default: take } = await importFresh("./cli/commands/take.mjs");
+    const { default: take } = await importFresh("./cli/commands/take.ts");
     await take({
       positional: ["T1"],
       flags: { as: "tester" },
       projectDir: dir,
       statePath: dir,
     });
-    const { default: release } = await importFresh("./cli/commands/release.mjs");
+    const { default: release } = await importFresh("./cli/commands/release.ts");
     await release({
       statePath: dir,
       projectDir: dir,
@@ -271,7 +271,7 @@ test("cancel preserves root plugins and per-node plugins", async () => {
     // covers the seam allow branch alongside the default core path.
     // The preservation contract is independent of the authority rule
     // and is exercised separately elsewhere.
-    const { default: cancel } = await importFresh("./cli/commands/cancel.mjs");
+    const { default: cancel } = await importFresh("./cli/commands/cancel.ts");
     await cancel({
       statePath: dir,
       projectDir: dir,

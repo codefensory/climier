@@ -7,8 +7,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { gateCreateProvider, gateProviders, GATE_PROVIDER_KIND } from "../src/providers/gate/index.mjs";
-import { createTransaction } from "../src/kernel/transaction.mjs";
+import { gateCreateProvider, gateProviders, GATE_PROVIDER_KIND } from "../src/providers/gate/index.ts";
+import { createTransaction } from "../src/kernel/transaction.ts";
 
 function baseSnapshot() {
   return {

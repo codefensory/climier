@@ -26,7 +26,7 @@ test("npm test refuses to use the real ~/.climier", () => {
       process.exit(1);
     }
   `;
-  const r = spawnSync("node", ["--input-type=module", "-e", probe], {
+  const r = spawnSync(process.execPath, ["--input-type=module", "-e", probe], {
     env: { ...process.env, CLIMIER_HOME: real },
     encoding: "utf8",
   });
@@ -41,7 +41,7 @@ test("helpers.mjs allows CLIMIER_HOME when it points at a temp dir", () => {
     await import(${JSON.stringify(HELPERS)});
     process.exit(0);
   `;
-  const r = spawnSync("node", ["--input-type=module", "-e", probe], {
+  const r = spawnSync(process.execPath, ["--input-type=module", "-e", probe], {
     env: { ...process.env, CLIMIER_HOME: tmp },
     encoding: "utf8",
   });
@@ -56,7 +56,7 @@ test("helpers.mjs auto-creates a temp CLIMIER_HOME when none is set", () => {
     await import(${JSON.stringify(HELPERS)});
     process.stdout.write("HOME=" + process.env.CLIMIER_HOME);
   `;
-  const r = spawnSync("node", ["--input-type=module", "-e", probe], {
+  const r = spawnSync(process.execPath, ["--input-type=module", "-e", probe], {
     env,
     encoding: "utf8",
   });
@@ -71,7 +71,7 @@ test("helpers.mjs cleans up auto-created CLIMIER_HOME on exit", () => {
     await import(${JSON.stringify(HELPERS)});
     // process.exit fires 'exit' handlers; temp home should be gone.
   `;
-  const r = spawnSync("node", ["--input-type=module", "-e", probe], {
+  const r = spawnSync(process.execPath, ["--input-type=module", "-e", probe], {
     env,
     encoding: "utf8",
   });

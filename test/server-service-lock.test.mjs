@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { acquireServerServiceLock } from "../src/server/service-lock.mjs";
+import { acquireServerServiceLock } from "../src/server/service-lock.ts";
 
 async function tempStateHome() {
   return fs.mkdtemp(path.join(os.tmpdir(), "climier-server-lock-"));

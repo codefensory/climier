@@ -1,5 +1,9 @@
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
+
+const isBun = Boolean(process.versions.bun);
 
 export function parseTapTestNames(tap, filePath) {
   const rows = [];
@@ -43,6 +47,24 @@ export function parseTapTestNames(tap, filePath) {
   return rows;
 }
 
+function decodeXml(value) {
+  return value
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
+}
+
+export function parseJunitTestNames(xml, filePath) {
+  const rows = [];
+  for (const match of xml.matchAll(/<testcase\b(?:[^>\"]|\"[^\"]*\")*>/g)) {
+    const name = match[0].match(/\bname=\"([^\"]*)\"/)?.[1];
+    if (name) rows.push({ path: filePath, name: decodeXml(name) });
+  }
+  return rows;
+}
+
 export async function collectTestNames({ rootDir, testDir, timeoutMs = 180_000 } = {}) {
   const files = await findTestFiles(testDir);
   const rowsByFile = new Map();
@@ -51,8 +73,10 @@ export async function collectTestNames({ rootDir, testDir, timeoutMs = 180_000 }
     while (nextFile < files.length) {
       const file = files[nextFile++];
       const relativePath = path.relative(rootDir, file).split(path.sep).join("/");
-      const tap = await runTap(file, timeoutMs);
-      rowsByFile.set(relativePath, parseTapTestNames(tap, relativePath));
+      const report = await runTap(file, timeoutMs);
+      rowsByFile.set(relativePath, isBun
+        ? parseJunitTestNames(report, relativePath)
+        : parseTapTestNames(report, relativePath));
     }
   });
   await Promise.all(workers);
@@ -66,18 +90,28 @@ async function findTestFiles(directory) {
   for (const entry of entries) {
     const entryPath = path.join(directory, entry.name);
     if (entry.isDirectory()) files.push(...await findTestFiles(entryPath));
-    else if (entry.isFile() && entry.name.endsWith(".test.mjs") && !entry.name.startsWith("ui-")) files.push(entryPath);
+    else if (entry.isFile()
+      && (entry.name.endsWith(".test.mjs") || entry.name.endsWith(".test.ts"))
+      && !entry.name.startsWith("ui-")) files.push(entryPath);
   }
   return files.toSorted();
 }
 
-function runTap(file, timeoutMs) {
+async function runTap(file, timeoutMs) {
+  const reportDir = isBun ? await mkdtemp(path.join(os.tmpdir(), "climier-manifest-")) : null;
+  const reportPath = reportDir ? path.join(reportDir, "report.xml") : null;
+  const args = isBun
+    ? ["test", "--reporter=junit", `--reporter-outfile=${reportPath}`, file]
+    : ["--test", "--test-reporter=tap", file];
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, ["--test", "--test-reporter=tap", file], { stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn(process.execPath, args, { stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
     let timedOut = false;
     let killTimer;
+    const cleanup = async () => {
+      if (reportDir) await rm(reportDir, { recursive: true, force: true });
+    };
     const timer = setTimeout(() => {
       timedOut = true;
       child.kill("SIGTERM");
@@ -87,17 +121,31 @@ function runTap(file, timeoutMs) {
     timer.unref();
     child.stdout.setEncoding("utf8").on("data", (chunk) => { stdout += chunk; });
     child.stderr.setEncoding("utf8").on("data", (chunk) => { stderr += chunk; });
-    child.once("error", (error) => {
+    child.once("error", async (error) => {
       clearTimeout(timer);
       clearTimeout(killTimer);
+      await cleanup();
       reject(error);
     });
-    child.once("close", (code, signal) => {
+    child.once("close", async (code, signal) => {
       clearTimeout(timer);
       clearTimeout(killTimer);
-      if (timedOut) return reject(new Error(`manifest collector timed out for ${file}`));
-      if (code !== 0) return reject(new Error(`manifest collector failed for ${file} (${signal ?? code}): ${stderr || stdout}`));
-      resolve(stdout);
+      if (timedOut) {
+        await cleanup();
+        return reject(new Error(`manifest collector timed out for ${file}`));
+      }
+      if (code !== 0) {
+        await cleanup();
+        return reject(new Error(`manifest collector failed for ${file} (${signal ?? code}): ${stderr || stdout}`));
+      }
+      try {
+        const report = reportPath ? await readFile(reportPath, "utf8") : stdout;
+        await cleanup();
+        resolve(report);
+      } catch (error) {
+        await cleanup();
+        reject(error);
+      }
     });
   });
 }

@@ -4,7 +4,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { validateManifest } from "./test-manifest-checker.mjs";
-import { parseTapTestNames } from "./test-manifest-collector.mjs";
+import { collectTestNames, parseJunitTestNames, parseTapTestNames } from "./test-manifest-collector.mjs";
 import { findRawWriterFiles } from "./test-manifest-lanes.mjs";
 import { buildManifestRows } from "./test-manifest-rows.mjs";
 
@@ -17,6 +17,8 @@ function rawDeclaration() {
 const RAW_FILE = "test/raw.test.mjs";
 const MOVE_SOURCE = "test/old.test.mjs";
 const MOVE_DESTINATION = "test/new.test.mjs";
+const TS_MOVE_SOURCE = "test/renamed-suite.test.mjs";
+const TS_MOVE_DESTINATION = "test/renamed-suite.test.ts";
 
 function moveManifest(destinationNames = ["first", "second"], sourceNames = ["first", "second"]) {
   return {
@@ -95,12 +97,14 @@ test("test manifest lane scan finds the files that write state outside the canon
   try {
     await writeFile(path.join(dir, "raw-writer.test.mjs"), "await writeState(dir, state);\n");
     await writeFile(path.join(dir, "legacy-mutator.test.mjs"), "await updateState(dir, (state) => state);\n");
+    await writeFile(path.join(dir, "typescript-mutator.test.ts"), "await updateState(dir, (state) => state);\n");
     await writeFile(path.join(dir, "canonical.test.mjs"), "await writeCanonicalState(dir, state);\n");
     await writeFile(path.join(dir, "notes.md"), "writeState(dir, state)\n");
 
     assert.deepEqual(await findRawWriterFiles(dir), [
       "legacy-mutator.test.mjs",
       "raw-writer.test.mjs",
+      "typescript-mutator.test.ts",
     ]);
   } finally {
     await rm(dir, { recursive: true, force: true });
@@ -141,6 +145,16 @@ test("test manifest checker rejects a move with a different name multiset", () =
       { path: MOVE_DESTINATION, name: "first" },
       { path: MOVE_DESTINATION, name: "third" },
     ]),
+    /move from test\/old\.test\.mjs must preserve the runtime name multiset/,
+  );
+});
+
+test("test manifest checker rejects a move whose ordinals differ", () => {
+  const manifest = moveManifest();
+  manifest.tests[0].ordinal = 2;
+
+  assert.throws(
+    () => validateManifest(manifest, movedRuntime),
     /move from test\/old\.test\.mjs must preserve the runtime name multiset/,
   );
 });
@@ -232,6 +246,22 @@ test("test manifest checker rejects stale manifest rows", () => {
   );
 });
 
+test("manifest collector discovers TypeScript test suites", async () => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "climier-manifest-ts-"));
+  try {
+    await writeFile(path.join(dir, "renamed.test.ts"), [
+      'import { test } from "node:test";',
+      'test("TypeScript suite case", () => {});',
+    ].join("\n"));
+
+    assert.deepEqual(await collectTestNames({ rootDir: dir, testDir: dir }), [
+      { path: "renamed.test.ts", name: "TypeScript suite case" },
+    ]);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("TAP collector builds full names from runtime nesting and indentation", () => {
   const tap = [
     "TAP version 13",
@@ -252,8 +282,67 @@ test("TAP collector builds full names from runtime nesting and indentation", () 
   ]);
 });
 
+test("JUnit collector reads Bun test names and decodes XML entities", () => {
+  const junit = [
+    '<testsuite file="test/runtime.test.mjs">',
+    '  <testcase name="runtime &amp; captured" file="test/runtime.test.mjs" />',
+    '</testsuite>',
+  ].join("\n");
+  assert.deepEqual(parseJunitTestNames(junit, "test/runtime.test.mjs"), [
+    { path: "test/runtime.test.mjs", name: "runtime & captured" },
+  ]);
+});
+
 const interpolatedTitle = `runtime interpolated title ${"captured"}`;
 test(`collector sees ${interpolatedTitle}`, () => {});
+
+test("manifest rows: a .test.mjs to .test.ts move preserves ordinals, lanes and deletes", () => {
+  const names = ["duplicate", "duplicate", "second"];
+  const sourceRows = names.map((name, index) => ({
+    path: TS_MOVE_SOURCE,
+    name,
+    ordinal: names.slice(0, index + 1).filter((item) => item === name).length,
+    disposition: "move",
+    move_from: TS_MOVE_SOURCE,
+    lane: "raw",
+    category: "lane-legacy",
+    motive: "preserve the migration inventory",
+    replacement: "writeCanonicalState",
+  }));
+  const destinationRows = sourceRows.map((row) => ({ ...row, path: TS_MOVE_DESTINATION }));
+  const retired = {
+    path: "test/retired.test.mjs",
+    name: "retired case",
+    ordinal: 1,
+    disposition: "delete",
+    category: "raw-lane",
+    reason: "the behavior was removed",
+    coverage_removed: true,
+  };
+  const rawLaneDeclarations = {
+    [TS_MOVE_SOURCE]: { category: "lane-legacy", motive: "preserve the migration inventory", replacement: "writeCanonicalState" },
+    [TS_MOVE_DESTINATION]: { category: "lane-legacy", motive: "preserve the migration inventory", replacement: "writeCanonicalState" },
+  };
+  const tests = buildManifestRows({
+    rows: names.map((name) => ({ path: TS_MOVE_DESTINATION, name })),
+    previous: [...sourceRows, ...destinationRows, retired],
+    declarations: {},
+  });
+
+  assert.equal(validateManifest({ version: 1, base_sha: SHA, tests }, names.map((name) => ({
+    path: TS_MOVE_DESTINATION,
+    name,
+  })), {
+    rawWriterFiles: Object.keys(rawLaneDeclarations),
+    rawLaneDeclarations,
+  }), true);
+  assert.deepEqual(
+    tests.filter((row) => row.path === TS_MOVE_DESTINATION).map(({ name, ordinal, disposition, lane, category }) => ({ name, ordinal, disposition, lane, category })),
+    sourceRows.map(({ name, ordinal, disposition, lane, category }) => ({ name, ordinal, disposition, lane, category })),
+  );
+  assert.equal(tests.filter((row) => row.path === TS_MOVE_SOURCE && row.disposition === "move").length, names.length);
+  assert.deepEqual(tests.find((row) => row.path === retired.path), retired);
+});
 
 test("manifest rows: a move keeps the source rows when the file is gone", () => {
   const previous = {

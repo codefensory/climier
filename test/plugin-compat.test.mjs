@@ -35,7 +35,7 @@ test("writeCanonicalState preserves `plugins` (root) and `nodes[id].plugins` on 
 test("init on a fresh project writes emptyState() without `plugins` (plugins is optional)", async () => {
   const dir = await createTempProject();
   try {
-    const { default: init } = await importFresh("./cli/commands/init.mjs");
+    const { default: init } = await importFresh("./cli/commands/init.ts");
     const out = await init({ statePath: dir, flags: {}, projectDir: dir });
     assert.equal(out.ok, true);
     const after = await readState(dir);
@@ -53,7 +53,7 @@ test("init --force preserves root `plugins` (nodes are wiped, root plugins survi
     const base = await seedPluginFixture(dir);
     seedPluginData(base);
     await writeCanonicalState(dir, base);
-    const { default: init } = await importFresh("./cli/commands/init.mjs");
+    const { default: init } = await importFresh("./cli/commands/init.ts");
     const out = await init({ statePath: dir, flags: { force: true }, projectDir: dir });
     assert.equal(out.ok, true);
     const after = await readState(dir);
@@ -71,7 +71,7 @@ test("init --force on a state WITHOUT plugins writes emptyState() unchanged", as
   const dir = await createTempProject();
   try {
     await seedPluginFixture(dir);
-    const { default: init } = await importFresh("./cli/commands/init.mjs");
+    const { default: init } = await importFresh("./cli/commands/init.ts");
     await init({ statePath: dir, flags: { force: true }, projectDir: dir });
     const after = await readState(dir);
     assert.equal(after.plugins, undefined);
@@ -87,7 +87,7 @@ test("init --force on a state with corrupt JSON (cannot read) does not crash and
     await writeState(dir, { version: 4, nodes: {}, edges: [], initiatives: {}, log: [] });
     // Corrupt the state file directly.
     await fsp_writeFile(stateFilePath(dir), "{ not valid json");
-    const { default: init } = await importFresh("./cli/commands/init.mjs");
+    const { default: init } = await importFresh("./cli/commands/init.ts");
     // Should not throw; init --force is allowed on a corrupt state file.
     const out = await init({ statePath: dir, flags: { force: true }, projectDir: dir });
     assert.equal(out.ok, true);

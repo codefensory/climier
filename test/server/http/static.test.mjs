@@ -5,8 +5,8 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { createProjectCatalog } from "../../../src/server/catalog/index.mjs";
-import { createRemoteApiServer, PROTOCOL_VERSION } from "../../../src/server/http.mjs";
+import { createProjectCatalog } from "../../../src/server/catalog/index.ts";
+import { createRemoteApiServer, PROTOCOL_VERSION } from "../../../src/server/http.ts";
 import { testAuthStore } from "./fixtures.mjs";
 
 async function makeRoot(t) {

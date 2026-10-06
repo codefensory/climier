@@ -16,10 +16,10 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { createTransaction } from "../src/kernel/transaction.mjs";
+import { createTransaction } from "../src/kernel/transaction.ts";
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
-const SRC_FILE = path.resolve(currentDir, "..", "src", "kernel", "transaction.mjs");
+const SRC_FILE = path.resolve(currentDir, "..", "src", "kernel", "transaction.ts");
 
 function baseSnapshot() {
   return {
@@ -176,6 +176,6 @@ test("forbidden imports: transaction.mjs imports only pure contracts", async () 
   // Whitelist remains narrow: errors and the shared pure invariant contract.
   const relativeImports = [...src.matchAll(/from\s+["'](\.\.?\/[^"']+)["']/g)].map((m) => m[1]);
   for (const imp of relativeImports) {
-    assert.ok(["../contracts/errors.mjs", "../contracts/state-invariants.mjs"].includes(imp), `transaction.mjs must only import pure contracts; got ${imp}`);
+    assert.ok(["../contracts/errors.ts", "../contracts/state-invariants.ts"].includes(imp), `transaction.mjs must only import pure contracts; got ${imp}`);
   }
 });

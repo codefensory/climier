@@ -4,10 +4,10 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { createTempProject, rmTempProject, stateExists, stateFilePath, importFresh, runCli } from "./helpers.mjs";
-import { runCli as runCliInProcess } from "../src/cli/dispatch.mjs";
+import { runCli as runCliInProcess } from "../src/cli/dispatch.ts";
 
 test("init: creates empty canonical v1 state and ledger when none exists", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
   const dir = await createTempProject();
   try {
     assert.equal(await stateExists(dir), false);
@@ -17,7 +17,7 @@ test("init: creates empty canonical v1 state and ledger when none exists", async
     const meta = JSON.parse(await fs.readFile(path.join(dir, ".climier.json"), "utf8"));
     assert.match(meta.project_id, /\S/);
     assert.equal(stateFilePath(dir).startsWith(path.join(process.env.CLIMIER_HOME, "projects")), true);
-    const { readState } = await importFresh("./storage/state.mjs");
+    const { readState } = await importFresh("./storage/state.ts");
     const s = await readState(dir);
     assert.equal(s.version, 1);
     assert.equal(s.fence_generation, 1);
@@ -36,7 +36,7 @@ test("init: creates empty canonical v1 state and ledger when none exists", async
 });
 
 test("init: remote init preserves local sentinels and omits the server path", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
   const dir = await createTempProject();
   const metaPath = path.join(dir, ".climier.json");
   const meta = JSON.stringify({ project_id: "remote-project", backend: { type: "remote", url: "https://climier.example.test" } });
@@ -62,13 +62,14 @@ test("init: remote init preserves local sentinels and omits the server path", as
 });
 
 test("init: insecure remote HTTP returns a warning after successful provisioning", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
   const dir = await createTempProject();
   let requests = 0;
   try {
     const result = await init({
       statePath: dir,
       projectDir: dir,
+      projectConfig: { backend: { type: "remote", url: "http://remote.example.test:43127/path" } },
       backendClient: {
         type: "remote",
         insecureRemoteHttp: true,
@@ -83,7 +84,7 @@ test("init: insecure remote HTTP returns a warning after successful provisioning
       warnings: [{
         kind: "insecure-remote-http",
         severity: "warning",
-        message: "init: remote HTTP is enabled by CLIMIER_ALLOW_INSECURE_REMOTE_HTTP=true; bearer credentials are sent without transport encryption. Internal trusted networks only.",
+        message: "init: http://remote.example.test:43127 is not HTTPS; the login password and bearer travel without transport encryption.",
       }],
     });
   } finally {
@@ -91,11 +92,11 @@ test("init: insecure remote HTTP returns a warning after successful provisioning
   }
 });
 
-async function runInsecureRemoteInit(dir, client) {
+async function runInsecureRemoteInit(dir, client, args = ["init"]) {
   const output = [];
   const errors = [];
   const status = await runCliInProcess({
-    argv: ["--project", dir, "init"],
+    argv: ["--project", dir, ...args],
     createBackendClient: () => client,
     write: (value) => output.push(value),
     exit: (code) => errors.push(code),
@@ -120,7 +121,7 @@ test("CLI: insecure remote HTTP init returns the warning in its JSON envelope", 
     assert.deepEqual(JSON.parse(result.output[0]).warnings, [{
       kind: "insecure-remote-http",
       severity: "warning",
-      message: "init: remote HTTP is enabled by CLIMIER_ALLOW_INSECURE_REMOTE_HTTP=true; bearer credentials are sent without transport encryption. Internal trusted networks only.",
+      message: "init: http://internal.example.test is not HTTPS; the login password and bearer travel without transport encryption.",
     }]);
     assert.deepEqual(result.errors, []);
   } finally {
@@ -128,17 +129,39 @@ test("CLI: insecure remote HTTP init returns the warning in its JSON envelope", 
   }
 });
 
+test("CLI: init --no-warnings works before and after the command", async () => {
+  for (const args of [["--no-warnings", "init"], ["init", "--no-warnings"]]) {
+    const dir = await createTempProject();
+    try {
+      await fs.writeFile(path.join(dir, ".climier.json"), JSON.stringify({
+        project_id: "remote-project",
+        backend: { type: "remote", url: "http://internal.example.test" },
+      }));
+      const result = await runInsecureRemoteInit(dir, {
+        type: "remote",
+        insecureRemoteHttp: true,
+        async init() { return { seeded: null }; },
+      }, args);
+      assert.equal(result.status, 0);
+      assert.equal(Object.hasOwn(JSON.parse(result.output[0]), "warnings"), false);
+    } finally {
+      await rmTempProject(dir);
+    }
+  }
+});
+
 test("init: HTTPS and loopback remote init omit warnings", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
   const dir = await createTempProject();
   try {
-    for (const insecureRemoteHttp of [false, undefined]) {
+    for (const url of ["https://remote.example.test/path", "http://localhost:43127/path", "http://127.0.0.1:43127/path"]) {
       const result = await init({
         statePath: dir,
         projectDir: dir,
+        projectConfig: { backend: { type: "remote", url } },
         backendClient: {
           type: "remote",
-          insecureRemoteHttp,
+          insecureRemoteHttp: url.startsWith("http://") && !url.includes("localhost") && !url.includes("127.0.0.1"),
           async init() { return { seeded: null }; },
         },
       });
@@ -150,7 +173,7 @@ test("init: HTTPS and loopback remote init omit warnings", async () => {
 });
 
 test("init: remote errors preserve local sentinels and force fails before filesystem access", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
   const dir = await createTempProject();
   const metaPath = path.join(dir, ".climier.json");
   const meta = JSON.stringify({ project_id: "remote-project", backend: { type: "remote", url: "https://climier.example.test" } });
@@ -190,7 +213,7 @@ test("init: remote errors preserve local sentinels and force fails before filesy
 });
 
 test("init: fails if state already exists (no overwrite)", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
@@ -201,8 +224,8 @@ test("init: fails if state already exists (no overwrite)", async () => {
 });
 
 test("init: ignores unknown flags and still creates an empty canonical v1 state", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
-  const { readState } = await importFresh("./storage/state.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
+  const { readState } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, flags: { seed: "migration" }, positional: [], projectDir: dir });
@@ -218,7 +241,7 @@ test("init: ignores unknown flags and still creates an empty canonical v1 state"
 });
 
 test("init: refuses to overwrite an existing valid state without --force", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
@@ -237,8 +260,8 @@ test("init: refuses to overwrite an existing valid state without --force", async
 });
 
 test("init: --force replaces an existing canonical v1 state and preserves ledger high-water", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
-  const { readState } = await importFresh("./storage/state.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
+  const { readState } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });

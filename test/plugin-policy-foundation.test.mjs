@@ -6,8 +6,8 @@ import path from "node:path";
 import { importFresh } from "./helpers.mjs";
 import { commandOnlyFixture, policyFailureForField, policyFixture, withEnv, writePlugin } from "./plugin-policy-foundation-helpers.mjs";
 
-const DESCRIPTOR_MODULE = "../src/plugins/descriptor.mjs";
-const LOADER_MODULE = "../src/plugins/loader.mjs";
+const DESCRIPTOR_MODULE = "../src/plugins/descriptor.ts";
+const LOADER_MODULE = "../src/plugins/loader.ts";
 
 test("policy-foundation: importEntry accepts plugins with valid default.policy alongside commands", async () => {
   await withEnv(async () => {

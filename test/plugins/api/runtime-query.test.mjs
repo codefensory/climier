@@ -33,7 +33,7 @@ test("createApi: api.core.version is 1 and api.core.run is a function", async ()
 });
 
 test("resolveRuntime: parses --project and --as from argv and returns { project_dir, agent }", async () => {
-  const { resolveRuntime } = await importFresh("./plugins/runtime.mjs");
+  const { resolveRuntime } = await importFresh("./plugins/runtime.ts");
   const out = resolveRuntime(["--project", "/tmp/example", "--as", "alice"]);
   assert.equal(out.project_dir, "/tmp/example");
   assert.equal(out.agent, "alice");
@@ -43,7 +43,7 @@ test("resolveRuntime: --as falls back to CLIMIER_AGENT when missing", async () =
   const prev = process.env.CLIMIER_AGENT;
   process.env.CLIMIER_AGENT = "env-agent";
   try {
-    const { resolveRuntime } = await importFresh("./plugins/runtime.mjs");
+    const { resolveRuntime } = await importFresh("./plugins/runtime.ts");
     const out = resolveRuntime(["--project", "/tmp/example"]);
     assert.equal(out.project_dir, "/tmp/example");
     assert.equal(out.agent, "env-agent");
@@ -60,7 +60,7 @@ test("resolveRuntime: --as flag takes precedence over CLIMIER_AGENT", async () =
   const prev = process.env.CLIMIER_AGENT;
   process.env.CLIMIER_AGENT = "env-agent";
   try {
-    const { resolveRuntime } = await importFresh("./plugins/runtime.mjs");
+    const { resolveRuntime } = await importFresh("./plugins/runtime.ts");
     const out = resolveRuntime(["--project", "/tmp/x", "--as", "alice"]);
     assert.equal(out.agent, "alice");
   } finally {
@@ -73,28 +73,28 @@ test("resolveRuntime: --as flag takes precedence over CLIMIER_AGENT", async () =
 });
 
 test("resolveRuntime: --project defaults to CWD when missing", async () => {
-  const { resolveRuntime } = await importFresh("./plugins/runtime.mjs");
+  const { resolveRuntime } = await importFresh("./plugins/runtime.ts");
   const out = resolveRuntime(["--as", "alice"]);
   assert.equal(out.project_dir, process.cwd());
   assert.equal(out.agent, "alice");
 });
 
 test("resolveRuntime: supports --as=<value> and --project=<value> (equals form)", async () => {
-  const { resolveRuntime } = await importFresh("./plugins/runtime.mjs");
+  const { resolveRuntime } = await importFresh("./plugins/runtime.ts");
   const out = resolveRuntime(["--project=/tmp/x", "--as=alice"]);
   assert.equal(out.project_dir, "/tmp/x");
   assert.equal(out.agent, "alice");
 });
 
 test("resolveRuntime: ignores unknown flags (passes them through without breaking project_dir/agent)", async () => {
-  const { resolveRuntime } = await importFresh("./plugins/runtime.mjs");
+  const { resolveRuntime } = await importFresh("./plugins/runtime.ts");
   const out = resolveRuntime(["--my-flag", "value", "--project", "/tmp/x", "--as", "alice"]);
   assert.equal(out.project_dir, "/tmp/x");
   assert.equal(out.agent, "alice");
 });
 
 test("createApi: requires projectDir and pluginId", async () => {
-  const { createApi } = await importFresh("./plugins/api.mjs");
+  const { createApi } = await importFresh("./plugins/api.ts");
   assert.throws(() => createApi({ projectDir: "", agent: "x", pluginId: "p" }), /projectDir/);
   assert.throws(() => createApi({ projectDir: "/tmp", agent: "x", pluginId: "" }), /pluginId/);
 });
@@ -140,7 +140,7 @@ test("createApi: runtime.dataDir is keyed by project id and plugin id", async ()
     const metadata = JSON.stringify({ version: 1, project_id: "stable-runtime-project" });
     await fs.writeFile(path.join(first, ".climier.json"), `${metadata}\n`, "utf8");
     await fs.writeFile(path.join(second, ".climier.json"), `${metadata}\n`, "utf8");
-    const { createApi } = await importFresh("./plugins/api.mjs");
+    const { createApi } = await importFresh("./plugins/api.ts");
 
     const firstPlugin = createApi({ projectDir: first, agent: "alice", pluginId: "plugin.a" });
     const secondPlugin = createApi({ projectDir: second, agent: "bob", pluginId: "plugin.a" });
@@ -157,7 +157,7 @@ test("createApi: runtime.dataDir is keyed by project id and plugin id", async ()
 test("createApi: rejects traversal plugin ids before creating a runtime data directory", async () => {
   const dir = await createTempProject();
   try {
-    const { createApi } = await importFresh("./plugins/api.mjs");
+    const { createApi } = await importFresh("./plugins/api.ts");
     await assert.rejects(
       async () => createApi({ projectDir: dir, agent: "alice", pluginId: "../escape" }),
       (err) => err && err.code === "PLUGIN_INVALID_DESCRIPTOR",

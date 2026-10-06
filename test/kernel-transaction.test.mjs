@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { createTransaction } from "../src/kernel/transaction.mjs";
+import { createTransaction } from "../src/kernel/transaction.ts";
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const SRC_DIR = path.resolve(currentDir, "..", "src");
@@ -24,7 +24,7 @@ function baseSnapshot() {
 }
 
 async function assertNoForbiddenImports() {
-  const src = await readFile(path.join(SRC_DIR, "kernel", "transaction.mjs"), "utf8");
+  const src = await readFile(path.join(SRC_DIR, "kernel", "transaction.ts"), "utf8");
   const forbidden = [
     /\bfs\b\s*from\s+["']node:fs/,
     /\bfs\/promises\b\s*from\s+["']node:fs\/promises/,
@@ -40,11 +40,11 @@ async function assertNoForbiddenImports() {
       `kernel/transaction.mjs must not import forbidden module (pattern: ${pattern})`,
     );
   }
-  assert.match(src, /from\s+["']\.\.\/contracts\/errors\.mjs["']/, "kernel/transaction.mjs must import throwV2 from ../contracts/errors.mjs"); assert.match(src, /from\s+["']\.\.\/contracts\/state-invariants\.mjs["']/, "kernel/transaction.mjs must import shared state invariants");
+  assert.match(src, /from\s+["']\.\.\/contracts\/errors\.ts["']/, "kernel/transaction.mjs must import throwV2 from ../contracts/errors.mjs"); assert.match(src, /from\s+["']\.\.\/contracts\/state-invariants\.ts["']/, "kernel/transaction.mjs must import shared state invariants");
   const relativeImports = [...src.matchAll(/from\s+["'](\.\.?\/[^"']+)["']/g)].map((m) => m[1]);
   for (const imp of relativeImports) {
     assert.ok(
-      ["../contracts/errors.mjs", "../contracts/state-invariants.mjs"].includes(imp),
+      ["../contracts/errors.ts", "../contracts/state-invariants.ts"].includes(imp),
       `kernel/transaction.mjs must only import pure contracts; got ${imp}`,
     );
   }

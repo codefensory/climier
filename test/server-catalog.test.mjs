@@ -4,9 +4,9 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { createProjectCatalog } from "../src/server/catalog/index.mjs";
-import { createServerRuntime } from "../src/server/runtime.mjs";
-import { withAuthorizedProject } from "../src/server/auth/project-scope.mjs";
+import { createProjectCatalog } from "../src/server/catalog/index.ts";
+import { createServerRuntime } from "../src/server/runtime.ts";
+import { withAuthorizedProject } from "../src/server/auth/project-scope.ts";
 
 async function makeRoot(t) {
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "climier-server-catalog-"));

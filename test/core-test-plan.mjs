@@ -23,7 +23,7 @@ export async function listTestFiles(directory) {
   for (const entry of entries) {
     const entryPath = path.join(directory, entry.name);
     if (entry.isDirectory()) {files.push(...await listTestFiles(entryPath));}
-    else if (entry.isFile() && entry.name.endsWith(".test.mjs")) {files.push(entryPath);}
+    else if (entry.isFile() && (entry.name.endsWith(".test.mjs") || entry.name.endsWith(".test.ts"))) {files.push(entryPath);}
   }
   return files.toSorted();
 }

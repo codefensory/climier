@@ -19,9 +19,9 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const baseState = () => ({ version: 1, initiatives: {}, nodes: {}, edges: [], log: [] });
 
 async function bootstrap(dir) {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
   await init({ statePath: dir, projectDir: dir, positional: [] });
-  const { default: addInitiative } = await importFresh("./cli/commands/add-initiative.mjs");
+  const { default: addInitiative } = await importFresh("./cli/commands/add-initiative.ts");
   await addInitiative({
     statePath: dir,
     projectDir: dir,
@@ -31,7 +31,7 @@ async function bootstrap(dir) {
 }
 
 async function addTask(dir, id, extraFlags = {}) {
-  const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
+  const { default: addNode } = await importFresh("./cli/commands/add-node.ts");
   return addNode({
     statePath: dir,
     projectDir: dir,
@@ -80,7 +80,7 @@ test("add-node preserves malformed meta.execution as opaque metadata", async () 
 });
 
 test("update preserves malformed meta.execution as opaque metadata", async () => {
-  const { default: update } = await importFresh("./cli/commands/update.mjs");
+  const { default: update } = await importFresh("./cli/commands/update.ts");
   const dir = await createTempProject();
   try {
     await bootstrap(dir);
@@ -100,7 +100,7 @@ test("update preserves malformed meta.execution as opaque metadata", async () =>
 });
 
 test("context does not project execution or ownership fields", async () => {
-  const { default: context } = await importFresh("./cli/commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.ts");
   const dir = await createTempProject();
   try {
     await writeCanonicalState(dir, {
@@ -131,7 +131,7 @@ test("context does not project execution or ownership fields", async () => {
 });
 
 test("plugin query context does not project execution or ownership fields", async () => {
-  const { createQuery } = await importFresh("./plugins/query.mjs");
+  const { createQuery } = await importFresh("./plugins/query.ts");
   const dir = await createTempProject();
   try {
     await writeCanonicalState(dir, {

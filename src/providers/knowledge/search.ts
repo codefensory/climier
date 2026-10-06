@@ -1,0 +1,127 @@
+// src/providers/knowledge/search.ts — pure knowledge search helper for
+// the knowledge provider.
+// Implements case-insensitive substring matching across
+
+
+// are truncated to 200 chars. It operates on a snapshot rather than
+// reading state from the filesystem.
+// Pure: no fs, no lock, no state, no log, no policy, no commands, no
+// registry, no adapter, no CLI, no UI. This is the canonical provider
+
+
+const SNIPPET_LIMIT = 200;
+
+type SearchNode = Record<string, unknown> & { id: string; kind?: string };
+type SearchSnapshot = { nodes?: Record<string, SearchNode> };
+type CollectedMatch = { node: SearchNode; matchedFields: string[] };
+type SearchResult = {
+  id: string;
+  kind: "knowledge";
+  title: unknown;
+  initiative: unknown;
+  domain: unknown;
+  status: unknown;
+  matched_fields: string[];
+  snippet: string;
+};
+
+function asArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function normalizeQuery(query) {
+  return typeof query === "string" ? query.trim().toLowerCase() : "";
+}
+
+function searchableFields(node: SearchNode): Array<[string, unknown]> {
+  return [
+    ["id", node.id],
+    ["title", node.title],
+    ["body", node.body],
+    ["mitigation", node.mitigation],
+    ["domain", node.domain],
+    ["tags", asArray(node.tags)],
+    ["refs", asArray(node.refs).map((ref) => ref && ref.target)],
+    ["meta", node.meta],
+  ];
+}
+
+function includes(value, query) {
+  if (value === null || value === undefined) {
+    return false;
+  }
+  const text = typeof value === "string" ? value : JSON.stringify(value);
+  return text ? text.toLowerCase().includes(query) : false;
+}
+
+function collectMatches(snapshot: SearchSnapshot | undefined, query: string): CollectedMatch[] {
+  const nodes = snapshot && snapshot.nodes && typeof snapshot.nodes === "object" ? snapshot.nodes : {};
+  const out: CollectedMatch[] = [];
+  for (const node of Object.values(nodes)) {
+    if (!node || node.kind !== "knowledge") {
+      continue;
+    }
+    const matchedFields = searchableFields(node)
+      .filter(([, value]) => includes(value, query))
+      .map(([field]) => field);
+    if (matchedFields.length === 0) {
+      continue;
+    }
+    out.push({ node, matchedFields });
+  }
+  return out;
+}
+
+function projectMatch({ node, matchedFields }: CollectedMatch): SearchResult {
+  return {
+    id: node.id,
+    kind: "knowledge",
+    title: node.title,
+    initiative: node.initiative,
+    domain: node.domain,
+    status: node.status || "active",
+    matched_fields: matchedFields,
+    snippet: String(node.body || "").slice(0, SNIPPET_LIMIT),
+  };
+}
+
+function compareIds(a, b) {
+  if (a.id < b.id) {
+    return -1;
+  }
+  if (a.id > b.id) {
+    return 1;
+  }
+  return 0;
+}
+
+function projectMatches(collected: CollectedMatch[], includeDeprecated: boolean): SearchResult[] {
+  const projected: SearchResult[] = [];
+  for (const item of collected) {
+    const status = (item.node && item.node.status) || "active";
+    if (!includeDeprecated && status !== "active") {
+      continue;
+    }
+    projected.push(projectMatch(item));
+  }
+  return projected.toSorted(compareIds);
+}
+
+/**
+ * Search the snapshot for knowledge nodes matching `query`.
+ *
+ * @param {object} args
+ * @param {string} args.query - Substring (case-insensitive). Empty/whitespace → no matches.
+ * @returns {{ matches: object[], count: number }} Matches in deterministic id order.
+ */
+export function searchKnowledge(
+  { snapshot, query, all = false }: { snapshot?: SearchSnapshot; query?: string; all?: boolean } = {},
+) {
+  const normalizedQuery = normalizeQuery(query);
+  if (!normalizedQuery) {
+    return { matches: [], count: 0 };
+  }
+  const collected = collectMatches(snapshot, normalizedQuery);
+  const matches = projectMatches(collected, all === true);
+  return { matches, count: matches.length };
+}

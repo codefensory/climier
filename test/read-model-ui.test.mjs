@@ -5,7 +5,7 @@ import {
   projectUiActivity,
   projectUiNode,
   projectUiSnapshot,
-} from "../src/read-model/ui.mjs";
+} from "../src/read-model/ui.ts";
 
 const NOW = Date.parse("2026-01-02T03:04:05.000Z");
 

@@ -1,14 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import status from "../src/cli/commands/status.mjs";
-import context from "../src/cli/commands/context.mjs";
-import show from "../src/cli/commands/show.mjs";
-import history from "../src/cli/commands/history.mjs";
-import search from "../src/cli/commands/search.mjs";
-import initiatives from "../src/cli/commands/initiatives.mjs";
-import log from "../src/cli/commands/log.mjs";
-import state from "../src/cli/commands/state.mjs";
+import status from "../src/cli/commands/status.ts";
+import context from "../src/cli/commands/context.ts";
+import show from "../src/cli/commands/show.ts";
+import history from "../src/cli/commands/history.ts";
+import search from "../src/cli/commands/search.ts";
+import initiatives from "../src/cli/commands/initiatives.ts";
+import log from "../src/cli/commands/log.ts";
+import state from "../src/cli/commands/state.ts";
 import { createTempProject, rmTempProject, writeCanonicalState, readState, runCli, initExampleProject } from "./helpers.mjs";
 
 const sentinelState = {

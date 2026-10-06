@@ -4,12 +4,12 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { createRemoteApiServer } from "../src/server/http.mjs";
-import { createServerAuthStore } from "../src/server/auth/server-auth-store.mjs";
-import { createProjectCatalog } from "../src/server/catalog/index.mjs";
-import { initState } from "../src/kernel/state-operations.mjs";
+import { createRemoteApiServer } from "../src/server/http.ts";
+import { createServerAuthStore } from "../src/server/auth/server-auth-store.ts";
+import { createProjectCatalog } from "../src/server/catalog/index.ts";
+import { initState } from "../src/kernel/state-operations.ts";
 import { writeCanonicalState } from "./helpers.mjs";
-import { projectInitiativesView, projectSearchView } from "../src/read-model/index.mjs";
+import { projectInitiativesView, projectSearchView } from "../src/read-model/index.ts";
 import { readModelParity } from "./fixtures/read-model-parity.mjs";
 
 const canonicalReadMatrix = [
@@ -18,15 +18,15 @@ const canonicalReadMatrix = [
 ];
 
 const consumerSources = {
-  status: new URL("../src/cli/commands/status.mjs", import.meta.url),
-  context: new URL("../src/cli/commands/context.mjs", import.meta.url),
-  search: new URL("../src/cli/commands/search.mjs", import.meta.url),
-  initiatives: new URL("../src/cli/commands/initiatives.mjs", import.meta.url),
-  log: new URL("../src/cli/commands/log.mjs", import.meta.url),
-  http: new URL("../src/server/http.mjs", import.meta.url),
-  httpReads: new URL("../src/server/http/reads.mjs", import.meta.url),
-  plugin: new URL("../src/plugins/query.mjs", import.meta.url),
-  uiApi: new URL("../src/server/http/ui-api.mjs", import.meta.url),
+  status: new URL("../src/cli/commands/status.ts", import.meta.url),
+  context: new URL("../src/cli/commands/context.ts", import.meta.url),
+  search: new URL("../src/cli/commands/search.ts", import.meta.url),
+  initiatives: new URL("../src/cli/commands/initiatives.ts", import.meta.url),
+  log: new URL("../src/cli/commands/log.ts", import.meta.url),
+  http: new URL("../src/server/http.ts", import.meta.url),
+  httpReads: new URL("../src/server/http/reads.ts", import.meta.url),
+  plugin: new URL("../src/plugins/query.ts", import.meta.url),
+  uiApi: new URL("../src/server/http/ui-api.ts", import.meta.url),
 };
 
 async function source(url) {
@@ -53,7 +53,7 @@ async function runCli(projectDir, command, query, positional) {
   }
   const { spawn } = await import("node:child_process");
   const { fileURLToPath } = await import("node:url");
-  const cli = fileURLToPath(new URL("../bin/climier.mjs", import.meta.url));
+  const cli = fileURLToPath(new URL("../bin/climier.ts", import.meta.url));
   const { code, stdout, stderr } = await new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [cli, ...args], { cwd: projectDir });
     let out = "";

@@ -6,7 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createTempProject, rmTempProject, runCli, initExampleProject } from "./helpers.mjs";
-import * as dispatchModule from "../src/cli/dispatch.mjs";
+import * as dispatchModule from "../src/cli/dispatch.ts";
 const { runCli: runCliInProcess } = dispatchModule;
 
 for (const retiredExport of ["parseArgs", "dispatch", "main"]) {
@@ -123,6 +123,7 @@ test("CLI: --help prints help and exits 0", async () => {
     assert.match(r.stdout, /add-gate/);
     assert.match(r.stdout, /push.*EXPERIMENTAL.*UNSAFE/is);
     assert.match(r.stdout, /pull.*EXPERIMENTAL.*UNSAFE/is);
+    assert.match(r.stdout, /--no-warnings/);
     assert.doesNotMatch(r.stdout, /\.agents\/skills/i);
     assert.doesNotMatch(r.stdout, /example fixture/i);
   } finally {

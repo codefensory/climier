@@ -8,12 +8,12 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { createRemoteTransferBaselineStore } from "../src/storage/remote-transfer-baseline.mjs";
+import { createRemoteTransferBaselineStore } from "../src/storage/remote-transfer-baseline.ts";
 import { runCli, writeCanonicalState } from "./helpers.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const cliLauncher = path.join(repoRoot, "bin", "climier.mjs");
-const serverLauncher = path.join(repoRoot, "bin", "climier-server.mjs");
+const cliLauncher = path.join(repoRoot, "bin", "climier.ts");
+const serverLauncher = path.join(repoRoot, "bin", "climier-server.ts");
 const password = "remote-e2e-password";
 
 const sentinel = {

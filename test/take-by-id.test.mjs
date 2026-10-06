@@ -18,8 +18,8 @@ import {
 } from "./helpers.mjs";
 
 async function projectFixture() {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
-  const { default: addInitiative } = await importFresh("./cli/commands/add-initiative.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
+  const { default: addInitiative } = await importFresh("./cli/commands/add-initiative.ts");
   const dir = await createTempProject();
   await init({ statePath: dir, positional: [], projectDir: dir });
   await addInitiative({ statePath: dir, flags: { desc: "Auth" }, positional: ["auth"] });
@@ -27,7 +27,7 @@ async function projectFixture() {
 }
 
 async function addTask(dir, id, extra = {}) {
-  const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
+  const { default: addNode } = await importFresh("./cli/commands/add-node.ts");
   return addNode({
     statePath: dir,
     positional: [id],
@@ -43,7 +43,7 @@ async function addTask(dir, id, extra = {}) {
 }
 
 async function addKnowledge(dir, id) {
-  const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
+  const { default: addNode } = await importFresh("./cli/commands/add-node.ts");
   return addNode({
     statePath: dir,
     positional: [id],
@@ -57,7 +57,7 @@ async function addKnowledge(dir, id) {
 }
 
 async function take(dir, id, flags = { as: "agent-a" }, extraPositional = []) {
-  const { default: takeCommand } = await importFresh("./cli/commands/take.mjs");
+  const { default: takeCommand } = await importFresh("./cli/commands/take.ts");
   return takeCommand({
     statePath: dir,
     projectDir: dir,
@@ -105,7 +105,7 @@ test("take by id: repeated take by the owner is idempotent", async () => {
 test("take by id: rejects a task claimed by another agent with ALREADY_CLAIMED", async () => {
   const dir = await projectFixture();
   try {
-    const { V2_ERROR_CODES } = await importFresh("./contracts/errors.mjs");
+    const { V2_ERROR_CODES } = await importFresh("./contracts/errors.ts");
     assert.equal(V2_ERROR_CODES.ALREADY_CLAIMED, "ALREADY_CLAIMED");
     await addTask(dir, "T-auth-1");
     await patchNode(dir, "T-auth-1", {
@@ -133,7 +133,7 @@ test("take by id: rejects an unknown id with NODE_NOT_FOUND", async () => {
 test("take by id: rejects a knowledge node with NOT_CLAIMABLE", async () => {
   const dir = await projectFixture();
   try {
-    const { V2_ERROR_CODES } = await importFresh("./contracts/errors.mjs");
+    const { V2_ERROR_CODES } = await importFresh("./contracts/errors.ts");
     assert.equal(V2_ERROR_CODES.NOT_CLAIMABLE, "NOT_CLAIMABLE");
     await addKnowledge(dir, "K-auth-ttl");
 

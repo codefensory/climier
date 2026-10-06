@@ -5,6 +5,11 @@ Keep a Changelog.
 
 ## [Unreleased]
 
+- **Breaking:** removed `CLIMIER_ALLOW_INSECURE_REMOTE_HTTP` and
+  `CLIMIER_SERVER_ALLOW_TAILSCALE_HTTP`. Remote HTTP is no longer gated by an
+  environment variable, and listener binding is the operator's responsibility;
+  `login`, `link`, and remote `init` emit a structured transport warning that
+  can be suppressed with `--no-warnings`.
 - Cut the first supported remote wire as Remote v1 (`/v1` with protocol header
   `1`), with two-client E2E coverage and a packed-artifact smoke.
 - Remote checkout metadata now stores only backend type and URL; manual

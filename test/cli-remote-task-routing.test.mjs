@@ -1,15 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import addTask from "../src/cli/commands/add-task.mjs";
-import update from "../src/cli/commands/update.mjs";
-import take from "../src/cli/commands/take.mjs";
-import release from "../src/cli/commands/release.mjs";
-import reopen from "../src/cli/commands/reopen.mjs";
-import cancel from "../src/cli/commands/cancel.mjs";
-import submit from "../src/cli/commands/submit.mjs";
-import accept from "../src/cli/commands/accept.mjs";
-import reject from "../src/cli/commands/reject.mjs";
+import addTask from "../src/cli/commands/add-task.ts";
+import update from "../src/cli/commands/update.ts";
+import take from "../src/cli/commands/take.ts";
+import release from "../src/cli/commands/release.ts";
+import reopen from "../src/cli/commands/reopen.ts";
+import cancel from "../src/cli/commands/cancel.ts";
+import submit from "../src/cli/commands/submit.ts";
+import accept from "../src/cli/commands/accept.ts";
+import reject from "../src/cli/commands/reject.ts";
 import { createTempProject, readState, rmTempProject, writeCanonicalState, runCli } from "./helpers.mjs";
 
 const sentinelState = {

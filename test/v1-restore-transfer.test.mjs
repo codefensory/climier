@@ -3,10 +3,10 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { dispatchCommand } from "../src/cli/dispatch.mjs";
-import { initState } from "../src/kernel/state-operations.mjs";
-import { readFencedState } from "../src/storage/ledger.mjs";
-import { snapshotDir } from "../src/storage/state.mjs";
+import { dispatchCommand } from "../src/cli/dispatch.ts";
+import { initState } from "../src/kernel/state-operations.ts";
+import { readFencedState } from "../src/storage/ledger.ts";
+import { snapshotDir } from "../src/storage/state.ts";
 
 async function withIsolatedProject(run) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "climier-v1-restore-transfer-"));

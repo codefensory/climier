@@ -8,16 +8,16 @@
 //
 // Each test uses importKernel() (= importFresh) so the AsyncLocalStorage
 // instance is fresh per test, preserving the existing test reset
-// contract documented in src/kernel/mutate.mjs.
+// contract documented in src/kernel/mutate.ts.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { createTempProject, rmTempProject, importFresh, writeCanonicalState as writeStateHelper, readState as readStateHelper } from "./helpers.mjs";
-import { bootstrapFencedState } from "../src/storage/ledger.mjs";
+import { bootstrapFencedState } from "../src/storage/ledger.ts";
 
 async function importKernel() {
-  return importFresh("./kernel/mutate.mjs");
+  return importFresh("./kernel/mutate.ts");
 }
 
 // Fixture: two independent nodes in the same project

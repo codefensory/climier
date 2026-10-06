@@ -3,11 +3,11 @@
 import { importFresh } from "../helpers.mjs";
 
 export async function importProviders() {
-  return importFresh("providers/knowledge/index.mjs");
+  return importFresh("providers/knowledge/index.ts");
 }
 
 export async function importKernel() {
-  return importFresh("kernel/mutate.mjs");
+  return importFresh("kernel/mutate.ts");
 }
 
 export function emptySnapshot(extra = {}) {

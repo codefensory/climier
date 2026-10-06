@@ -25,7 +25,7 @@ import { importFresh } from "./helpers.mjs";
 const ACTOR = "codex-worker";
 
 async function importInitiativeProvider() {
-  return importFresh("../src/providers/core/initiative.mjs");
+  return importFresh("../src/providers/core/initiative.ts");
 }
 
 function makeSnapshot({ nodes = {}, edges = [], initiatives = {}, log = [] } = {}) {
@@ -39,7 +39,7 @@ function makeRequest({ input, action = "initiative.create", actor = ACTOR } = {}
 const NAME_PATTERN = /^[A-Za-z0-9_-]+$/;
 
 // makeTxStub — captures createInitiative invocations and enforces the
-// structural validation that src/kernel/transaction.mjs#createInitiative
+// structural validation that src/kernel/transaction.ts#createInitiative
 // already does, so the provider's happy path is exercised end-to-end
 // without touching the real tx layer.
 function assertInputObject(input) {

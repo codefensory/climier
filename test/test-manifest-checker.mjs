@@ -16,7 +16,8 @@ function countByFileAndName(rows) {
 function countByName(rows) {
   const counts = new Map();
   for (const row of rows) {
-    counts.set(row.name, (counts.get(row.name) ?? 0) + 1);
+    const identity = JSON.stringify([row.name, row.ordinal]);
+    counts.set(identity, (counts.get(identity) ?? 0) + 1);
   }
   return counts;
 }
@@ -38,7 +39,7 @@ function assertMoveNameMultisets(manifest) {
     assert.deepEqual(
       countByName(sourceRows),
       countByName(destinationRows),
-      `move from ${sourcePath} must preserve the runtime name multiset`,
+      `move from ${sourcePath} must preserve the runtime name multiset and ordinals`,
     );
   }
 }

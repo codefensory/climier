@@ -13,12 +13,12 @@ test("plugin-core-adapter: createCore returns { version: 1, run } with run being
 
 test("plugin-core-adapter: routes execution through Application Operations", async () => {
   const source = await helpers.fsModule.readFile(
-    helpers.pathModule.resolve(helpers.pathModule.dirname(new URL(import.meta.url).pathname), "../src/plugins/core-adapter.mjs"),
+    helpers.pathModule.resolve(helpers.pathModule.dirname(new URL(import.meta.url).pathname), "../src/plugins/core-adapter.ts"),
     "utf8",
   );
-  assert.match(source, /from ["']\.\.\/application\/operations\/index\.mjs["']/);
+  assert.match(source, /from ["']\.\.\/application\/operations\/index\.ts["']/);
   assert.match(source, /executeOperation\(/);
-  assert.doesNotMatch(source, /from ["']\.\/core-registry\.mjs["']/);
+  assert.doesNotMatch(source, /from ["']\.\/core-registry\.ts["']/);
   assert.doesNotMatch(source, /mutate\(\{/);
   assert.doesNotMatch(source, /REG\.lookup\(/);
 });

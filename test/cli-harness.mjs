@@ -1,5 +1,5 @@
 // CLI harness for tests: run the real dispatch pipeline in-process by
-// default, or spawn bin/climier.mjs when a test needs process isolation.
+// default, or spawn bin/climier.ts when a test needs process isolation.
 
 import { spawn } from "node:child_process";
 import fs from "node:fs";
@@ -8,7 +8,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const testDirectory = path.dirname(fileURLToPath(import.meta.url));
-export const BIN = path.resolve(testDirectory, "..", "bin", "climier.mjs");
+export const BIN = path.resolve(testDirectory, "..", "bin", "climier.ts");
 
 // The suite issues thousands of CLI calls, and one spawned node per call costs
 // ~50ms of startup plus the dispatch module graph. Capturing write/exit keeps
@@ -16,7 +16,7 @@ export const BIN = path.resolve(testDirectory, "..", "bin", "climier.mjs");
 let dispatchModulePromise;
 
 function loadDispatch() {
-  dispatchModulePromise ??= import("../src/cli/dispatch.mjs");
+  dispatchModulePromise ??= import("../src/cli/dispatch.ts");
   return dispatchModulePromise;
 }
 
@@ -90,7 +90,7 @@ export function runCliSpawn(args, { cwd, env } = {}) {
   const ownsCwd = cwd === undefined;
   const childCwd = cwd ?? fs.mkdtempSync(path.join(os.tmpdir(), "climier-cli-test-"));
   return new Promise((resolve) => {
-    const proc = spawn("node", [BIN, ...args], {
+    const proc = spawn(process.execPath, [BIN, ...args], {
       cwd: childCwd,
       env: { ...process.env, ...env, NO_COLOR: "1" },
     });

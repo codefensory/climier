@@ -49,7 +49,7 @@ async function setup() {
 }
 
 test("kernel mutation increments global state revision exactly once for an effective commit", async () => {
-  const { mutate } = await importFresh("./kernel/mutate.mjs");
+  const { mutate } = await importFresh("./kernel/mutate.ts");
   const dir = await setup();
   try {
     const out = await mutate({
@@ -67,7 +67,7 @@ test("kernel mutation increments global state revision exactly once for an effec
 });
 
 test("kernel mutation leaves global revision unchanged for a no-op", async () => {
-  const { mutate } = await importFresh("./kernel/mutate.mjs");
+  const { mutate } = await importFresh("./kernel/mutate.ts");
   const dir = await setup();
   try {
     const out = await mutate({
@@ -86,7 +86,7 @@ test("kernel mutation leaves global revision unchanged for a no-op", async () =>
 });
 
 test("kernel mutation rejects stale global CAS before policy/apply and does not persist", async () => {
-  const { mutate } = await importFresh("./kernel/mutate.mjs");
+  const { mutate } = await importFresh("./kernel/mutate.ts");
   const dir = await setup();
   try {
     let policyCalls = 0;
@@ -116,7 +116,7 @@ test("kernel mutation rejects stale global CAS before policy/apply and does not 
 });
 
 test("application operations projects if_state_revision onto the kernel request", async () => {
-  const { executeOperation } = await importFresh("./application/operations/execute.mjs");
+  const { executeOperation } = await importFresh("./application/operations/execute.ts");
   let captured;
   const provider = { prepare() {}, apply() {} };
   await executeOperation({

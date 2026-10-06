@@ -101,7 +101,7 @@ test("seam-add-initiative: initiative.create with no policy installed succeeds a
     // auto-create the state via updateState and register the
     // initiative. The seam receives an emptyState() snapshot so a
     // plugin that only inspects shape sees a valid input.
-    const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
+    const { default: addInit } = await importFresh("./cli/commands/add-initiative.ts");
     const out = await addInit({
       statePath: projectDir,
       flags: { desc: "the big move", as: "setup" },
@@ -130,7 +130,7 @@ test("seam-add-initiative: policy deny short-circuits BEFORE updateState (no sta
         project_id: "seam-lifecycle-project",
         plugins: { "policy-fixture": { mode: "deny", reason: "no bootstrap" } },
       });
-      const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
+      const { default: addInit } = await importFresh("./cli/commands/add-initiative.ts");
       let caught;
       try {
         await addInit({
@@ -158,7 +158,7 @@ test("seam-add-initiative: policy allow registers the initiative and writes a lo
         project_id: "seam-lifecycle-project",
         plugins: { "policy-fixture": { mode: "allow" } },
       });
-      const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
+      const { default: addInit } = await importFresh("./cli/commands/add-initiative.ts");
       const out = await addInit({
         statePath: projectDir,
         flags: { desc: "allowed", as: "setup" },
@@ -183,7 +183,7 @@ test("seam-add-initiative: pluginId null (CLI path) does NOT add plugin_id to th
     // plugin_id into the log entry — the seam contract from
 
     // plugin_id when ctx.pluginId is not a non-empty string.
-    const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
+    const { default: addInit } = await importFresh("./cli/commands/add-initiative.ts");
     await addInit({
       statePath: projectDir,
       flags: { desc: "cli", as: "setup" },
@@ -213,7 +213,7 @@ test("seam-add-initiative: policy allow with ctx.pluginId writes plugin_id to th
         project_id: "seam-lifecycle-project",
         plugins: { "policy-fixture": { mode: "allow" } },
       });
-      const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
+      const { default: addInit } = await importFresh("./cli/commands/add-initiative.ts");
       await addInit({
         statePath: projectDir,
         flags: { desc: "audit", as: "setup" },
@@ -237,7 +237,7 @@ test("seam-add-initiative: policy abstain (allow-and-decline) registers the init
         project_id: "seam-lifecycle-project",
         plugins: { "policy-fixture": { mode: "abstain" } },
       });
-      const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
+      const { default: addInit } = await importFresh("./cli/commands/add-initiative.ts");
       const out = await addInit({
         statePath: projectDir,
         flags: { desc: "abstain", as: "setup" },
@@ -256,7 +256,7 @@ test("seam-add-initiative: deny-after-existing-state does not remove the previou
     // (with canonical project_id) BEFORE addInit so the state path
     // stays stable for the rest of the test.
     await baseClimierJson(projectDir);
-    const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
+    const { default: addInit } = await importFresh("./cli/commands/add-initiative.ts");
     await addInit({
       statePath: projectDir,
       flags: { desc: "first", as: "setup" },

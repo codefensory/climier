@@ -22,7 +22,7 @@
 // plugin-policy-seam-lifecycle.
 
 import { test } from "node:test";
-import { deriveV2 } from "../src/providers/task/derivation.mjs";
+import { deriveV2 } from "../src/providers/task/derivation.ts";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -38,8 +38,8 @@ import {
 } from "./helpers.mjs";
 
 async function projectFixture() {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
-  const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
+  const { default: addInit } = await importFresh("./cli/commands/add-initiative.ts");
   const dir = await createTempProject();
   await init({ statePath: dir, positional: [], projectDir: dir });
   await addInit({ statePath: dir, flags: { desc: "auth" }, positional: ["auth"] });
@@ -47,7 +47,7 @@ async function projectFixture() {
 }
 
 async function addTask(dir, id, extra = {}) {
-  const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
+  const { default: addNode } = await importFresh("./cli/commands/add-node.ts");
   return addNode({
     statePath: dir,
     positional: [id],
@@ -64,7 +64,7 @@ async function addTask(dir, id, extra = {}) {
 }
 
 async function addGate(dir, id, extra = {}) {
-  const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
+  const { default: addNode } = await importFresh("./cli/commands/add-node.ts");
   return addNode({
     statePath: dir,
     positional: [id],
@@ -80,13 +80,13 @@ async function addGate(dir, id, extra = {}) {
 }
 
 async function take(dir, as, id = "T-auth-1") {
-  const { default: takeCmd } = await importFresh("./cli/commands/take.mjs");
+  const { default: takeCmd } = await importFresh("./cli/commands/take.ts");
   return takeCmd({ statePath: dir, flags: { as }, positional: [id], projectDir: dir });
 }
 
 async function submitAccept(dir, id = "T-auth-1", as = "alice", note = "shipped") {
-  const { default: submit } = await importFresh("./cli/commands/submit.mjs");
-  const { default: accept } = await importFresh("./cli/commands/accept.mjs");
+  const { default: submit } = await importFresh("./cli/commands/submit.ts");
+  const { default: accept } = await importFresh("./cli/commands/accept.ts");
   await submit({ statePath: dir, flags: { as, note }, positional: [id], projectDir: dir });
   return accept({ statePath: dir, flags: { as }, positional: [id], projectDir: dir });
 }
@@ -100,7 +100,7 @@ async function patchNode(dir, id, patch) {
 // === take ===============================================================
 
 test("take: submitted task cannot be taken", async () => {
-  const { default: takeCmd } = await importFresh("./cli/commands/take.mjs");
+  const { default: takeCmd } = await importFresh("./cli/commands/take.ts");
   const dir = await projectFixture();
   try {
     await addTask(dir, "T-auth-1");
@@ -119,7 +119,7 @@ test("take: submitted task cannot be taken", async () => {
 // === release ============================================================
 
 test("release: claim owner releases; returns released=true, claim=null, status=open, revision bumped", async () => {
-  const { default: release } = await importFresh("./cli/commands/release.mjs");
+  const { default: release } = await importFresh("./cli/commands/release.ts");
   const dir = await projectFixture();
   try {
     await addTask(dir, "T-auth-1");
@@ -150,7 +150,7 @@ test("release: any actor may release another agent's claim with no policy (defau
   // actor against the claim owner. Without a policy plugin, any actor
 
   // deny the action.
-  const { default: release } = await importFresh("./cli/commands/release.mjs");
+  const { default: release } = await importFresh("./cli/commands/release.ts");
   const dir = await projectFixture();
   try {
     await addTask(dir, "T-auth-1");
@@ -174,7 +174,7 @@ test("release: any actor may release another agent's claim with no policy (defau
 test("release: any agent may release another agent's claim when policy allow applies", async () => {
 
   // orchestrator/recovery bypass is replaced by a policy seam allow.
-  const { default: release } = await importFresh("./cli/commands/release.mjs");
+  const { default: release } = await importFresh("./cli/commands/release.ts");
   const dir = await projectFixture();
   await installPolicyFixture(dir);
   try {
@@ -197,7 +197,7 @@ test("release: any agent may release another agent's claim when policy allow app
 test("release: a policy-allow actor can release any agent's claim (ex-recovery role equivalent)", async () => {
 
   // recovery-bypass path is replaced by a policy seam allow.
-  const { default: release } = await importFresh("./cli/commands/release.mjs");
+  const { default: release } = await importFresh("./cli/commands/release.ts");
   const dir = await projectFixture();
   await installPolicyFixture(dir);
   try {
@@ -216,7 +216,7 @@ test("release: a policy-allow actor can release any agent's claim (ex-recovery r
 });
 
 test("release: idempotent — a task with no claim returns released=false without mutating", async () => {
-  const { default: release } = await importFresh("./cli/commands/release.mjs");
+  const { default: release } = await importFresh("./cli/commands/release.ts");
   const dir = await projectFixture();
   try {
     await addTask(dir, "T-auth-1");
@@ -236,7 +236,7 @@ test("release: idempotent — a task with no claim returns released=false withou
 });
 
 test("release: idempotent — re-releasing a previously-released task is still released=false", async () => {
-  const { default: release } = await importFresh("./cli/commands/release.mjs");
+  const { default: release } = await importFresh("./cli/commands/release.ts");
   const dir = await projectFixture();
   try {
     await addTask(dir, "T-auth-1");
@@ -254,7 +254,7 @@ test("release: idempotent — re-releasing a previously-released task is still r
 });
 
 test("release: submitted task cannot be released", async () => {
-  const { default: release } = await importFresh("./cli/commands/release.mjs");
+  const { default: release } = await importFresh("./cli/commands/release.ts");
   const dir = await projectFixture();
   try {
     await addTask(dir, "T-auth-1");
@@ -272,7 +272,7 @@ test("release: submitted task cannot be released", async () => {
 });
 
 test("release: missing node returns NODE_NOT_FOUND", async () => {
-  const { default: release } = await importFresh("./cli/commands/release.mjs");
+  const { default: release } = await importFresh("./cli/commands/release.ts");
   const dir = await projectFixture();
   try {
     let caught;
@@ -290,7 +290,7 @@ test("release: missing node returns NODE_NOT_FOUND", async () => {
 });
 
 test("release: missing --as returns MISSING_AGENT", async () => {
-  const { default: release } = await importFresh("./cli/commands/release.mjs");
+  const { default: release } = await importFresh("./cli/commands/release.ts");
   const dir = await projectFixture();
   const prev = process.env.CLIMIER_AGENT;
   delete process.env.CLIMIER_AGENT;
@@ -314,7 +314,7 @@ test("release: missing --as returns MISSING_AGENT", async () => {
 // === resolve ============================================================
 
 async function resolve(dir, flags, positional) {
-  const { default: resolveCommand } = await importFresh("./cli/commands/resolve.mjs");
+  const { default: resolveCommand } = await importFresh("./cli/commands/resolve.ts");
   return resolveCommand({ statePath: dir, projectDir: dir, flags, positional });
 }
 
@@ -415,7 +415,7 @@ test("resolve: missing node returns NODE_NOT_FOUND", async () => {
 
 // eslint-disable-next-line max-statements -- One lifecycle test pins the complete reopened entity and atomic audit log.
 test("reopen: original done_by can reopen a done task; status -> open, claim cleared, done_* removed", async () => {
-  const { default: reopen } = await importFresh("./cli/commands/reopen.mjs");
+  const { default: reopen } = await importFresh("./cli/commands/reopen.ts");
   const dir = await projectFixture();
   try {
     await addTask(dir, "T-auth-1");
@@ -455,7 +455,7 @@ test("reopen: original done_by can reopen a done task; status -> open, claim cle
 test("reopen: any agent may reopen a done task when policy allow applies", async () => {
 
   // orchestrator-reopen bypass is replaced by a policy seam allow.
-  const { default: reopen } = await importFresh("./cli/commands/reopen.mjs");
+  const { default: reopen } = await importFresh("./cli/commands/reopen.ts");
   const dir = await projectFixture();
   await installPolicyFixture(dir);
   try {
@@ -481,7 +481,7 @@ test("reopen: any actor may reopen a done task with no policy (defaults core)", 
   // actor against done_by. Without a policy plugin, any actor with
 
   // done_at / note are cleared exactly as before.
-  const { default: reopen } = await importFresh("./cli/commands/reopen.mjs");
+  const { default: reopen } = await importFresh("./cli/commands/reopen.ts");
   const dir = await projectFixture();
   try {
     await addTask(dir, "T-auth-1");
@@ -506,7 +506,7 @@ test("reopen: any actor may reopen a done task with no policy (defaults core)", 
 });
 
 test("reopen: re-blocks downstream tasks (DAG consequence)", async () => {
-  const { default: reopen } = await importFresh("./cli/commands/reopen.mjs");
+  const { default: reopen } = await importFresh("./cli/commands/reopen.ts");
   const dir = await projectFixture();
   try {
     await addTask(dir, "T-blocker");
@@ -530,7 +530,7 @@ test("reopen: re-blocks downstream tasks (DAG consequence)", async () => {
 });
 
 test("reopen: missing --reason returns MISSING_FIELD", async () => {
-  const { default: reopen } = await importFresh("./cli/commands/reopen.mjs");
+  const { default: reopen } = await importFresh("./cli/commands/reopen.ts");
   const dir = await projectFixture();
   try {
     await addTask(dir, "T-auth-1");
@@ -552,7 +552,7 @@ test("reopen: missing --reason returns MISSING_FIELD", async () => {
 });
 
 test("reopen: not-done node returns INVALID_STATUS", async () => {
-  const { default: reopen } = await importFresh("./cli/commands/reopen.mjs");
+  const { default: reopen } = await importFresh("./cli/commands/reopen.ts");
   const dir = await projectFixture();
   try {
     await addTask(dir, "T-auth-1");
@@ -571,7 +571,7 @@ test("reopen: not-done node returns INVALID_STATUS", async () => {
 });
 
 test("reopen: missing node returns NODE_NOT_FOUND", async () => {
-  const { default: reopen } = await importFresh("./cli/commands/reopen.mjs");
+  const { default: reopen } = await importFresh("./cli/commands/reopen.ts");
   const dir = await projectFixture();
   try {
     let caught;
@@ -590,7 +590,7 @@ test("reopen: missing node returns NODE_NOT_FOUND", async () => {
 // === cancel =============================================================
 
 test("cancel: in_progress + claim owner => status=canceled, claim cleared, log appended", async () => {
-  const { default: cancel } = await importFresh("./cli/commands/cancel.mjs");
+  const { default: cancel } = await importFresh("./cli/commands/cancel.ts");
   const dir = await projectFixture();
   try {
     await addTask(dir, "T-auth-1");
@@ -617,7 +617,7 @@ test("cancel: open + policy-allow actor => canceled (no claim required)", async 
 
   // orchestrator-bypass on an unclaimed node is replaced by a policy
   // seam allow.
-  const { default: cancel } = await importFresh("./cli/commands/cancel.mjs");
+  const { default: cancel } = await importFresh("./cli/commands/cancel.ts");
   const dir = await projectFixture();
   await installPolicyFixture(dir);
   try {
@@ -639,7 +639,7 @@ test("cancel: any actor may cancel an open task with no policy (defaults core)",
 
   // to be the claim owner. Without a policy plugin, any actor with --as
   // may cancel an open node.
-  const { default: cancel } = await importFresh("./cli/commands/cancel.mjs");
+  const { default: cancel } = await importFresh("./cli/commands/cancel.ts");
   const dir = await projectFixture();
   try {
     await addTask(dir, "T-auth-1");
@@ -663,7 +663,7 @@ test("cancel: any actor may cancel an in_progress task with no policy (defaults 
   // to be the claim owner. Without a policy plugin, any actor with --as
   // may cancel an in_progress node, including a third party that never
 
-  const { default: cancel } = await importFresh("./cli/commands/cancel.mjs");
+  const { default: cancel } = await importFresh("./cli/commands/cancel.ts");
   const dir = await projectFixture();
   try {
     await addTask(dir, "T-auth-1");
@@ -683,7 +683,7 @@ test("cancel: any actor may cancel an in_progress task with no policy (defaults 
 });
 
 test("cancel: submitted task becomes canceled and remains an unsatisfied blocker", async () => {
-  const { default: cancel } = await importFresh("./cli/commands/cancel.mjs");
+  const { default: cancel } = await importFresh("./cli/commands/cancel.ts");
   const dir = await projectFixture();
   try {
     await addTask(dir, "T-auth-1");
@@ -710,7 +710,7 @@ test("cancel: submitted task becomes canceled and remains an unsatisfied blocker
 });
 
 test("cancel: done task returns INVALID_STATUS (cannot cancel terminal)", async () => {
-  const { default: cancel } = await importFresh("./cli/commands/cancel.mjs");
+  const { default: cancel } = await importFresh("./cli/commands/cancel.ts");
   const dir = await projectFixture();
   try {
     await addTask(dir, "T-auth-1");
@@ -731,7 +731,7 @@ test("cancel: done task returns INVALID_STATUS (cannot cancel terminal)", async 
 });
 
 test("cancel: missing --reason returns MISSING_FIELD", async () => {
-  const { default: cancel } = await importFresh("./cli/commands/cancel.mjs");
+  const { default: cancel } = await importFresh("./cli/commands/cancel.ts");
   const dir = await projectFixture();
   try {
     await addTask(dir, "T-auth-1");
@@ -746,7 +746,7 @@ test("cancel: missing --reason returns MISSING_FIELD", async () => {
 });
 
 test("cancel: missing node returns NODE_NOT_FOUND", async () => {
-  const { default: cancel } = await importFresh("./cli/commands/cancel.mjs");
+  const { default: cancel } = await importFresh("./cli/commands/cancel.ts");
   const dir = await projectFixture();
   try {
     let caught;
@@ -775,7 +775,7 @@ async function seedV1State(dir, state) {
     projectId = undefined;
   }
   if (!projectId) {
-    const { default: init } = await importFresh("./cli/commands/init.mjs");
+    const { default: init } = await importFresh("./cli/commands/init.ts");
     await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
     projectId = JSON.parse(await fs.readFile(metaPath, "utf8")).project_id;
   }

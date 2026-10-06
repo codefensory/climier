@@ -8,9 +8,9 @@ import {
   writeCanonicalState,
 } from "./helpers.mjs";
 
-const TAKE = "./cli/commands/take.mjs";
-const BUILTINS = "./application/operations/builtins.mjs";
-const MUTATE = "./kernel/mutate.mjs";
+const TAKE = "./cli/commands/take.ts";
+const BUILTINS = "./application/operations/builtins.ts";
+const MUTATE = "./kernel/mutate.ts";
 
 async function fixture({ policy = { pluginId: "policy-fixture", projectConfig: {} }, decision = "allow" } = {}) {
   const projectDir = await createTempProject();

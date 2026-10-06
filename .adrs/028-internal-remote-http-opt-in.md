@@ -1,6 +1,12 @@
-# ADR-028: HTTP interno remoto con opt-in explícito
+# ADR-028: HTTP interno remoto con opt-in explícito (SUPERSEDED)
 
-- Gate: `G-rb-internal-http-transport` · Deriva de: `G-rb-minimal-v1` · Estado: aprobado
+> Estado: **superseded por ADR-052**
+> (`.adrs/052-remote-transport-warnings.md`). El gate que la contiene es
+> `G-rb-internal-http-transport`. Se conserva solo como trazabilidad: el opt-in
+> `CLIMIER_ALLOW_INSECURE_REMOTE_HTTP` ya no existe y `http:` no-loopback se
+> acepta con un warning.
+
+- Gate: `G-rb-internal-http-transport` · Deriva de: `G-rb-minimal-v1` · Estado: superseded
 - Fecha: 2026-09-25
 
 ## Contexto

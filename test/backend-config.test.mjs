@@ -1,17 +1,21 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { parseBackendConfig } from "../src/application/backend-config.mjs";
+import { parseBackendConfig } from "../src/application/backend-config.ts";
 
 test("backend config defaults to local and accepts explicit local config", () => {
   assert.deepEqual(parseBackendConfig({ version: 1, project_id: "demo" }), { type: "local" });
   assert.deepEqual(parseBackendConfig({ backend: { type: "local" } }), { type: "local" });
 });
 
-test("backend config accepts a credential-free remote URL without a protocol marker", () => {
+test("backend config accepts credential-free HTTP and HTTPS origins", () => {
   assert.deepEqual(
     parseBackendConfig({ backend: { type: "remote", url: "https://climier.example.test" } }),
     { type: "remote", url: "https://climier.example.test/" },
+  );
+  assert.deepEqual(
+    parseBackendConfig({ backend: { type: "remote", url: "http://climier.example.test" } }),
+    { type: "remote", url: "http://climier.example.test/", insecureRemoteHttp: true },
   );
   assert.deepEqual(
     parseBackendConfig({ backend: { type: "remote", url: "http://localhost:4312" } }),
@@ -39,86 +43,28 @@ test("backend config rejects any legacy protocol marker with a copyable relink",
   }
 });
 
-test("backend config rejects malformed or insecure remote URLs", () => {
-  const previous = process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP;
-  delete process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP;
-  try {
-    for (const url of ["", "/relative", "ftp://climier.example.test", "http://climier.example.test"]) {
-      assert.throws(
-        () => parseBackendConfig({ backend: { type: "remote", url } }),
-        /backend config: remote url/,
-      );
-    }
-  } finally {
-    if (previous === undefined) {
-      delete process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP;
-    } else {
-      process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP = previous;
-    }
+test("backend config rejects malformed remote URLs", () => {
+  for (const url of ["", "/relative", "ftp://climier.example.test"]) {
+    assert.throws(
+      () => parseBackendConfig({ backend: { type: "remote", url } }),
+      /backend config: remote url/,
+    );
   }
 });
 
-test("backend config permits remote HTTP only with the exact operator opt-in", () => {
-  const previous = process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP;
-  try {
-    for (const value of [undefined, "false", "TRUE", "true ", "1"]) {
-      if (value === undefined) {
-        delete process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP;
-      } else {
-        process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP = value;
-      }
-      assert.throws(
-        () => parseBackendConfig({ backend: { type: "remote", url: "http://climier.example.test" } }),
-        /backend config: remote url must use HTTPS outside localhost/,
-      );
-    }
-
-    process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP = "true";
-    assert.deepEqual(
-      parseBackendConfig({ backend: { type: "remote", url: "http://climier.example.test" } }),
-      { type: "remote", url: "http://climier.example.test/", insecureRemoteHttp: true },
-    );
-  } finally {
-    if (previous === undefined) {
-      delete process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP;
-    } else {
-      process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP = previous;
-    }
-  }
-});
-
-test("backend config keeps loopback HTTP independent of the opt-in", () => {
-  const previous = process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP;
-  delete process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP;
-  try {
-    assert.deepEqual(
-      parseBackendConfig({ backend: { type: "remote", url: "http://localhost:4312" } }),
-      { type: "remote", url: "http://localhost:4312/" },
-    );
-  } finally {
-    if (previous === undefined) {
-      delete process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP;
-    } else {
-      process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP = previous;
-    }
-  }
-});
-
-test("backend config keeps HTTPS remote config outside the insecure exception", () => {
-  const previous = process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP;
-  process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP = "true";
-  try {
-    assert.deepEqual(
-      parseBackendConfig({ backend: { type: "remote", url: "https://climier.example.test" } }),
-      { type: "remote", url: "https://climier.example.test/" },
-    );
-  } finally {
-    if (previous === undefined) {
-      delete process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP;
-    } else {
-      process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP = previous;
-    }
-  }
+test("backend config marks only non-loopback HTTP as insecure", () => {
+  assert.deepEqual(
+    parseBackendConfig({ backend: { type: "remote", url: "http://climier.example.test" } }),
+    { type: "remote", url: "http://climier.example.test/", insecureRemoteHttp: true },
+  );
+  assert.deepEqual(
+    parseBackendConfig({ backend: { type: "remote", url: "http://localhost:4312" } }),
+    { type: "remote", url: "http://localhost:4312/" },
+  );
+  assert.deepEqual(
+    parseBackendConfig({ backend: { type: "remote", url: "https://climier.example.test" } }),
+    { type: "remote", url: "https://climier.example.test/" },
+  );
 });
 
 test("backend config rejects credentials in metadata and remote URLs", () => {

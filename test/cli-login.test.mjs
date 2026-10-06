@@ -4,8 +4,8 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import login from "../src/cli/commands/login.mjs";
-import { createCredentialStore } from "../src/storage/credential-profile.mjs";
+import login from "../src/cli/commands/login.ts";
+import { createCredentialStore } from "../src/storage/credential-profile.ts";
 
 test("login requires an interactive TTY before making a request", async () => {
   let requested = false;
@@ -62,21 +62,40 @@ test("login resolves the linked checkout origin when --server is omitted", async
   assert.equal(requested.origin, "https://remote.example");
 });
 
-test("login rejects plaintext non-loopback origins before reading or requesting", async () => {
-  let read = false;
-  let requested = false;
-  const previous = process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP;
-  delete process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP;
-  try {
-    await assert.rejects(login({
-      flags: { server: "http://remote.example" },
-      readPassword: async () => { read = true; return "secret"; },
-      requestLogin: async () => { requested = true; },
-    }), (error) => error.code === "CLI_USAGE_ERROR");
-    assert.equal(read, false);
-    assert.equal(requested, false);
-  } finally {
-    if (previous === undefined) {delete process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP;}
-    else {process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP = previous;}
+test("login warns for plaintext non-loopback origins without an opt-in", async () => {
+  let requested;
+  const result = await login({
+    flags: { server: "http://remote.example/path" },
+    readPassword: async () => "secret",
+    requestLogin: async (options) => { requested = options; return { token: "token" }; },
+    credentialStore: { async set() {} },
+  });
+  assert.deepEqual(requested, { origin: "http://remote.example", password: "secret" });
+  assert.deepEqual(result, {
+    session: { origin: "http://remote.example" },
+    warnings: [{
+      kind: "insecure-remote-http",
+      severity: "warning",
+      message: "login: http://remote.example is not HTTPS; the login password and bearer travel without transport encryption.",
+    }],
+  });
+});
+
+test("login omits warnings for HTTPS and loopback HTTP, and supports --no-warnings", async () => {
+  for (const server of ["https://remote.example/path", "http://localhost:43127/path", "http://127.0.0.1:43127/path"]) {
+    const result = await login({
+      flags: { server },
+      readPassword: async () => "secret",
+      requestLogin: async () => ({ token: "token" }),
+      credentialStore: { async set() {} },
+    });
+    assert.equal(Object.hasOwn(result, "warnings"), false, server);
   }
+  const suppressed = await login({
+    flags: { server: "http://remote.example/path", "no-warnings": true },
+    readPassword: async () => "secret",
+    requestLogin: async () => ({ token: "token" }),
+    credentialStore: { async set() {} },
+  });
+  assert.equal(Object.hasOwn(suppressed, "warnings"), false);
 });

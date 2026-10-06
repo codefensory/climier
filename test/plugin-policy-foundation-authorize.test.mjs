@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { importFresh } from "./helpers.mjs";
 import { withEnv } from "./plugin-policy-foundation-helpers.mjs";
 
-const POLICY_MODULE = "../src/plugins/policy.mjs";
-const ERRORS_MODULE = "../src/plugins/errors.mjs";
+const POLICY_MODULE = "../src/plugins/policy.ts";
+const ERRORS_MODULE = "../src/plugins/errors.ts";
 
 test("policy-foundation: authorizeAction returns decision=allow when policy.authorize allows", async () => {
   await withEnv(async () => {

@@ -6,7 +6,7 @@ import { importFresh, writeCanonicalState } from "../../helpers.mjs";
 // exported by name, not as default; helpers.mjs's importFresh returns
 
 export async function importKernel() {
-  return importFresh("./kernel/mutate.mjs");
+  return importFresh("./kernel/mutate.ts");
 }
 
 // Fixture providers

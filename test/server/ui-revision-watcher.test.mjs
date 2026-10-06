@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
-import { createRevisionWatcher } from "../../src/server/ui/revision-watcher.mjs";
+import { createRevisionWatcher } from "../../src/server/ui/revision-watcher.ts";
 
 async function waitFor(predicate, timeout = 1000) {
   const deadline = Date.now() + timeout;

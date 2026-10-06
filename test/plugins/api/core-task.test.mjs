@@ -36,8 +36,8 @@ test("api.core.run: task.create dispatches through the kernel with actor fixed f
   // anymore and `input.as` cannot substitute the actor.
   const dir = await createTempProject();
   try {
-    const { default: init } = await importFresh("./cli/commands/init.mjs");
-    const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
+    const { default: init } = await importFresh("./cli/commands/init.ts");
+    const { default: addInit } = await importFresh("./cli/commands/add-initiative.ts");
     await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
     await addInit({ statePath: dir, flags: { desc: "plugin-platform" }, positional: ["plugin-platform"] });
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
@@ -66,8 +66,8 @@ test("api.core.run: input.as is dropped even though the handler call is made on 
 
   const dir = await createTempProject();
   try {
-    const { default: init } = await importFresh("./cli/commands/init.mjs");
-    const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
+    const { default: init } = await importFresh("./cli/commands/init.ts");
+    const { default: addInit } = await importFresh("./cli/commands/add-initiative.ts");
     await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
     await addInit({ statePath: dir, flags: { desc: "plugin-platform" }, positional: ["plugin-platform"] });
 

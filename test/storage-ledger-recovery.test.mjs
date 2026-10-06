@@ -4,15 +4,15 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { createTempProject, rmTempProject } from "./helpers.mjs";
-import { stateFile } from "../src/storage/state.mjs";
-import { withLock } from "../src/storage/lock.mjs";
+import { stateFile } from "../src/storage/state.ts";
+import { withLock } from "../src/storage/lock.ts";
 import {
   bootstrapFencedState,
   commitFencedStateUnderLock,
   ledgerFile,
   readFencedState,
   recoverFencedStateUnderLock,
-} from "../src/storage/ledger.mjs";
+} from "../src/storage/ledger.ts";
 
 function canonicalState(revision = 10, fenceGeneration = 1) {
   return {

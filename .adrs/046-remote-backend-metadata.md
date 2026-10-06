@@ -28,7 +28,15 @@ El metadata del checkout ya está configurado contra un servidor en uso. Hay que
 3. **Limpieza explícita:** `climier link <mismo-URL>` es idempotente sin `--replace=true`; “mismo” significa la URL normalizada completa, incluido su base path, no solo el origin (scheme/host/port). Reemplaza solo el objeto `backend` por `{type: "remote", url}` y conserva `version`, `project_id` y propiedades top-level ajenas. No crea backend client ni contacta al server; solo lee/escribe `.climier.json`, sin cambiar DAGs, ledgers, perfiles de credenciales ni datos remotos. Cambiar cualquier parte de la URL normalizada requiere `--replace=true` según el contrato de `link` vigente. `dispatch` debe enviar `link` al adapter metadata-only antes de `addBackendContext`; quitar del parser el bypass basado en `process.argv`.
 4. **Configuración nueva:** `link <origin>` genera un ID solo cuando falta, conserva uno existente y nunca escribe `backend.protocol`. El `type` no se elimina: la versión se retira, no la discriminación local/remota.
 5. **Transferencias:** `src/application/manual-transfer.mjs` acepta la selección por `backend.type === "remote"`; deja de inspeccionar `backend.protocol`. Compatibilidad de wire y auth se valida en el backend client/handshake Remote v1, no en metadata. Auth, fallo de protocolo o red siguen fallando sin fallback local.
-6. **Seguridad/credenciales:** se conserva la validación de HTTP(S), el rechazo de userinfo/query/secrets y el opt-in explícito actual para HTTP no-loopback. El error de relink indica que HTTP no-loopback requiere `CLIMIER_ALLOW_INSECURE_REMOTE_HTTP=true`. El perfil bearer sigue indexado por origin. Al cambiar a un port-forward, se debe enlazar `http://127.0.0.1:<puerto>` y volver a hacer login para ese origin; `ssh-agent` no cifra requests HTTP directas, solo el tráfico que efectivamente cruza el túnel. `link` nunca transporta tokens.
+6. **Seguridad/credenciales — histórica / reemplazada por ADR-052:** se
+   conserva el rechazo de userinfo/query/secrets y el perfil bearer indexado por
+   origin. La antigua validación de HTTP no-loopback y su opt-in ya no son el
+   contrato vigente: `http:` se acepta y `login`, `link` e `init` remoto emiten
+   el warning de transporte definido por ADR-052, suprimible con
+   `--no-warnings`. Al cambiar a un port-forward, se debe enlazar
+   `http://127.0.0.1:<puerto>` y volver a hacer login para ese origin;
+   `ssh-agent` no cifra requests HTTP directas, solo el tráfico que
+   efectivamente cruza el túnel. `link` nunca transporta tokens.
 7. **Activación/rollback del checkout activo:** limpiar el `.climier.json` de este repo es parte del corte live de ADR-045, no de un merge de código intermedio. Durante la ventana, actualizar primero el CLI estable separado para que sea v1, ejecutar `link` con la URL completa ya configurada y después cambiar el server según ADR-045. Antes del corte respaldar el archivo exacto; si se vuelve a bins v2, restaurar esa copia porque el CLI v2 rechaza metadata sin `backend.protocol`. Conservar el mismo `CLIMIER_HOME` y el state remoto; no editar esta metadata activa desde un task que el CLI estable v2 todavía necesite finalizar.
 
 ## Consecuencias

@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
-import { append } from "../src/storage/log.mjs";
-import { checkStateRevision } from "../src/kernel/mutation/preconditions.mjs";
-import { stateFile } from "../src/storage/state.mjs";
-import { ledgerFile } from "../src/storage/ledger.mjs";
+import { append } from "../src/storage/log.ts";
+import { checkStateRevision } from "../src/kernel/mutation/preconditions.ts";
+import { stateFile } from "../src/storage/state.ts";
+import { ledgerFile } from "../src/storage/ledger.ts";
 import { createTempProject, rmTempProject, runCli, writeFencedState } from "./helpers.mjs";
 
 async function createFencedProject(t) {

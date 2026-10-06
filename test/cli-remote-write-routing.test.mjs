@@ -5,13 +5,13 @@ import os from "node:os";
 import path from "node:path";
 import { createServer } from "node:http";
 
-import { createRemoteApiServer } from "../src/server/http.mjs";
-import { createServerAuthStore } from "../src/server/auth/server-auth-store.mjs";
-import { createCredentialStore } from "../src/storage/credential-profile.mjs";
-import { createProjectCatalog } from "../src/server/catalog/index.mjs";
-import { initState } from "../src/kernel/state-operations.mjs";
-import { PUBLIC_CORE_OPS, PUBLIC_GATE_OPS, PUBLIC_KNOWLEDGE_OPS, PUBLIC_TASK_OPS } from "../src/application/operations/builtins.mjs";
-import { HELP_TEXT } from "../src/cli/dispatch.mjs";
+import { createRemoteApiServer } from "../src/server/http.ts";
+import { createServerAuthStore } from "../src/server/auth/server-auth-store.ts";
+import { createCredentialStore } from "../src/storage/credential-profile.ts";
+import { createProjectCatalog } from "../src/server/catalog/index.ts";
+import { initState } from "../src/kernel/state-operations.ts";
+import { PUBLIC_CORE_OPS, PUBLIC_GATE_OPS, PUBLIC_KNOWLEDGE_OPS, PUBLIC_TASK_OPS } from "../src/application/operations/builtins.ts";
+import { HELP_TEXT } from "../src/cli/dispatch.ts";
 import { readState, runCli, writeCanonicalState } from "./helpers.mjs";
 
 const builtInWrites = [

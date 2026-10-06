@@ -5,8 +5,8 @@ import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, importFresh, readState as readRawState, runCli } from "./helpers.mjs";
 
 async function projectFixture() {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
-  const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
+  const { default: addInit } = await importFresh("./cli/commands/add-initiative.ts");
   const dir = await createTempProject();
   await init({ statePath: dir, positional: [], projectDir: dir });
   await addInit({ statePath: dir, flags: { desc: "auth" }, positional: ["auth"] });
@@ -14,7 +14,7 @@ async function projectFixture() {
 }
 
 async function seedTask(dir, id = "T-auth-1", extra = {}) {
-  const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
+  const { default: addNode } = await importFresh("./cli/commands/add-node.ts");
   return addNode({
     statePath: dir,
     positional: [id],
@@ -44,7 +44,7 @@ test("add-node: initializes revision = 1 on a new node", async () => {
 // --- happy path: field edits bump the revision --------------------------
 
 test("update: changes title and bumps revision to 2", async () => {
-  const { default: update } = await importFresh("./cli/commands/update.mjs");
+  const { default: update } = await importFresh("./cli/commands/update.ts");
   const dir = await projectFixture();
   try {
     await seedTask(dir);
@@ -65,9 +65,9 @@ test("update: changes title and bumps revision to 2", async () => {
 });
 
 test("update: the typed patch reaches the node through one canonical operation and one kernel mutation", async () => {
-  const { bootstrapBuiltins } = await import("../src/application/operations/builtins.mjs");
-  const { mutate: kernelMutate } = await import("../src/kernel/mutate.mjs");
-  const { default: update } = await importFresh("./cli/commands/update.mjs");
+  const { bootstrapBuiltins } = await import("../src/application/operations/builtins.ts");
+  const { mutate: kernelMutate } = await import("../src/kernel/mutate.ts");
+  const { default: update } = await importFresh("./cli/commands/update.ts");
   const dir = await projectFixture();
   const operations = [];
   const mutations = [];
@@ -108,7 +108,7 @@ test("update: the typed patch reaches the node through one canonical operation a
 });
 
 test("update: idempotent bridge result retains the current node revision", async () => {
-  const { default: update } = await importFresh("./cli/commands/update.mjs");
+  const { default: update } = await importFresh("./cli/commands/update.ts");
   const dir = await projectFixture();
   try {
     await seedTask(dir);
@@ -127,7 +127,7 @@ test("update: idempotent bridge result retains the current node revision", async
 });
 
 test("update: parses --meta JSON and persists it", async () => {
-  const { default: update } = await importFresh("./cli/commands/update.mjs");
+  const { default: update } = await importFresh("./cli/commands/update.ts");
   const dir = await projectFixture();
   try {
     await seedTask(dir);
@@ -143,7 +143,7 @@ test("update: parses --meta JSON and persists it", async () => {
 });
 
 test("update: parses --tags CSV and replaces the tag set", async () => {
-  const { default: update } = await importFresh("./cli/commands/update.mjs");
+  const { default: update } = await importFresh("./cli/commands/update.ts");
   const dir = await projectFixture();
   try {
     await seedTask(dir);
@@ -157,7 +157,7 @@ test("update: parses --tags CSV and replaces the tag set", async () => {
 });
 
 test("update: bumps revision on every successful mutation", async () => {
-  const { default: update } = await importFresh("./cli/commands/update.mjs");
+  const { default: update } = await importFresh("./cli/commands/update.ts");
   const dir = await projectFixture();
   try {
     await seedTask(dir);
@@ -175,7 +175,7 @@ test("update: bumps revision on every successful mutation", async () => {
 // --- --if-revision optimistic concurrency --------------------------------
 
 test("update: --if-revision matching current revision applies and increments", async () => {
-  const { default: update } = await importFresh("./cli/commands/update.mjs");
+  const { default: update } = await importFresh("./cli/commands/update.ts");
   const dir = await projectFixture();
   try {
     await seedTask(dir);
@@ -191,7 +191,7 @@ test("update: --if-revision matching current revision applies and increments", a
 });
 
 test("update: --if-revision mismatch returns REVISION_CONFLICT with expected/current", async () => {
-  const { default: update } = await importFresh("./cli/commands/update.mjs");
+  const { default: update } = await importFresh("./cli/commands/update.ts");
   const dir = await projectFixture();
   try {
     await seedTask(dir);
@@ -219,7 +219,7 @@ test("update: --if-revision mismatch returns REVISION_CONFLICT with expected/cur
 });
 
 test("update: without --if-revision a stale snapshot still mutates", async () => {
-  const { default: update } = await importFresh("./cli/commands/update.mjs");
+  const { default: update } = await importFresh("./cli/commands/update.ts");
   const dir = await projectFixture();
   try {
     await seedTask(dir);
@@ -239,7 +239,7 @@ test("update: without --if-revision a stale snapshot still mutates", async () =>
 // --- error cases ---------------------------------------------------------
 
 test("update: missing node returns NODE_NOT_FOUND", async () => {
-  const { default: update } = await importFresh("./cli/commands/update.mjs");
+  const { default: update } = await importFresh("./cli/commands/update.ts");
   const dir = await projectFixture();
   try {
     let caught;
@@ -253,10 +253,10 @@ test("update: missing node returns NODE_NOT_FOUND", async () => {
 });
 
 test("update: rejects update on a future state with the public incompatibility code", async () => {
-  const { default: update } = await importFresh("./cli/commands/update.mjs");
+  const { default: update } = await importFresh("./cli/commands/update.ts");
   const dir = await createTempProject();
   try {
-    const { default: init } = await importFresh("./cli/commands/init.mjs");
+    const { default: init } = await importFresh("./cli/commands/init.ts");
     await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
     const fs = await import("node:fs/promises");
     const path = await import("node:path");
@@ -277,12 +277,12 @@ test("update: rejects update on a future state with the public incompatibility c
 });
 
 test("update: rejects a pre-release state with migration guidance", async () => {
-  const { default: update } = await importFresh("./cli/commands/update.mjs");
+  const { default: update } = await importFresh("./cli/commands/update.ts");
   const dir = await createTempProject();
   try {
     // Bootstrap .climier.json + an empty canonical state, then overwrite the
 
-    const { default: init } = await importFresh("./cli/commands/init.mjs");
+    const { default: init } = await importFresh("./cli/commands/init.ts");
     await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
     const fs = await import("node:fs/promises");
     const path = await import("node:path");

@@ -1,6 +1,9 @@
 import ArrowLeft01Icon from "@hugeicons/core-free-icons/ArrowLeft01Icon";
-import { For, Show } from "solid-js";
+import EyeIcon from "@hugeicons/core-free-icons/EyeIcon";
+import SourceCodeIcon from "@hugeicons/core-free-icons/SourceCodeIcon";
+import { createSignal, For, Show } from "solid-js";
 import { HugeIcon } from "../../core";
+import { Button, Markdown } from "../../ui";
 import { statusLabel } from "../data/statuses";
 import { gatePurposeLabel } from "../data/gatePurposes";
 import type { GateRecord, GateRelation } from "../data/gates";
@@ -62,7 +65,26 @@ function gateRelationMeta(node: GateRelation): string {
   return node.kind === "gate" && node.purpose ? `${status} · ${gatePurposeLabel(node.purpose)}` : status;
 }
 
-function GateDetailArticle(props: TaskDetailViewProps & { gateInfo: { record: GateRecord; resolutionMode: string } }) {
+/**
+ * Switch render/crudo del contenido del detalle.
+ *
+ * `aria-pressed` y no `role="tablist"`: no hay paneles asociados, sólo el modo elegido. Comparte la
+ * receta `segment` con el switch List/Kanban, así que el indicador no se anima — se mueve por estado.
+ */
+function ContentModeSwitch(props: { raw: boolean; onChange: (raw: boolean) => void }) {
+  return (
+    <div data-testid="content-mode-switch" class="flex shrink-0 items-center gap-[3px] rounded-[10px] bg-subtle p-[3px]">
+      <Button variant="segment" state={props.raw ? "idle" : "active"} aria-pressed={!props.raw} onClick={() => props.onChange(false)}>
+        <HugeIcon icon={EyeIcon} class="h-4 w-4" />Markdown
+      </Button>
+      <Button variant="segment" state={props.raw ? "active" : "idle"} aria-pressed={props.raw} onClick={() => props.onChange(true)}>
+        <HugeIcon icon={SourceCodeIcon} class="h-4 w-4" />Raw
+      </Button>
+    </div>
+  );
+}
+
+function GateDetailArticle(props: TaskDetailViewProps & { gateInfo: { record: GateRecord; resolutionMode: string }; raw: boolean; onRawChange: (raw: boolean) => void }) {
   const task = () => props.detail.task;
   const gate = () => props.gateInfo.record;
   const downstreamGroups = () => taskGroups(gate().impactedTasks, "status", { key: "updated", dir: "desc" }).filter((group) => group.tasks.length > 0);
@@ -72,16 +94,21 @@ function GateDetailArticle(props: TaskDetailViewProps & { gateInfo: { record: Ga
   return (
     <article class="mx-auto w-full max-w-[640px] pb-4 md:max-w-[880px]">
       <header>
-        <div class="flex flex-wrap items-center gap-2">
-          <span class="rounded-[5px] bg-tone-amber-bg px-2 py-[2px] text-[11px] font-medium tracking-wide text-tone-amber-ink uppercase">Gate{gate().purpose ? ` · ${gatePurposeLabel(gate().purpose)}` : ""}</span>
-          <h1 class="text-[24px] leading-8 font-semibold tracking-[-0.02em] text-ink">{task().title}</h1>
-        </div>
-        <div class="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[12px] leading-4 text-faint">
-          <span class="inline-flex items-center gap-1.5"><StatusGlyph status={task().status} class="h-3.5 w-3.5" />{statusLabel(task().status)}</span>
-          <span aria-hidden="true">·</span>
-          <span class="tabular-nums">{task().id}</span>
-          <span aria-hidden="true">·</span>
-          <span>Last activity {formatUpdatedAt(task().updatedAt)}</span>
+        <div class="flex items-start justify-between gap-4">
+          <div class="min-w-0">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="rounded-[5px] bg-tone-amber-bg px-2 py-[2px] text-[11px] font-medium tracking-wide text-tone-amber-ink uppercase">Gate{gate().purpose ? ` · ${gatePurposeLabel(gate().purpose)}` : ""}</span>
+              <h1 class="text-[24px] leading-8 font-semibold tracking-[-0.02em] text-ink">{task().title}</h1>
+            </div>
+            <div class="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[12px] leading-4 text-faint">
+              <span class="inline-flex items-center gap-1.5"><StatusGlyph status={task().status} class="h-3.5 w-3.5" />{statusLabel(task().status)}</span>
+              <span aria-hidden="true">·</span>
+              <span class="tabular-nums">{task().id}</span>
+              <span aria-hidden="true">·</span>
+              <span>Last activity {formatUpdatedAt(task().updatedAt)}</span>
+            </div>
+          </div>
+          <ContentModeSwitch raw={props.raw} onChange={props.onRawChange} />
         </div>
       </header>
 
@@ -136,8 +163,8 @@ function GateDetailArticle(props: TaskDetailViewProps & { gateInfo: { record: Ga
                         <ul class="flex flex-col gap-2 p-2"><For each={group.tasks}>{(node) => <NodeRow id={node.id} title={node.title} status={node.status} kind={node.kind} meta={gateRelationMeta(node)} onOpenNode={props.onOpenNode} />}</For></ul>
                       </>
                     }>
-                      <details>
-                        <summary class="cursor-pointer"><GroupHeader group={group} /></summary>
+                      <details class="group">
+                        <summary class="disclosure-summary cursor-pointer"><GroupHeader group={group} collapsible /></summary>
                         <ul class="flex flex-col gap-2 p-2"><For each={group.tasks}>{(node) => <NodeRow id={node.id} title={node.title} status={node.status} kind={node.kind} meta={gateRelationMeta(node)} onOpenNode={props.onOpenNode} />}</For></ul>
                       </details>
                     </Show>
@@ -149,8 +176,8 @@ function GateDetailArticle(props: TaskDetailViewProps & { gateInfo: { record: Ga
 
           <section class="mt-8">
             <h2 class="text-[13px] leading-5 font-medium text-ink">Background</h2>
-            <Show when={props.detail.body.length > 0} fallback={<p class="mt-3 text-[12px] leading-4 text-faint">No background recorded.</p>}>
-              <div class="mt-3 space-y-4 text-[14px] leading-[22px] text-ink-soft"><For each={props.detail.body}>{(paragraph) => <p>{paragraph}</p>}</For></div>
+            <Show when={props.detail.body.trim().length > 0} fallback={<p class="mt-3 text-[12px] leading-4 text-faint">No background recorded.</p>}>
+              <Markdown source={props.detail.body} raw={props.raw} class="mt-3 text-[14px] leading-[22px] text-ink-soft" />
             </Show>
           </section>
 
@@ -161,10 +188,10 @@ function GateDetailArticle(props: TaskDetailViewProps & { gateInfo: { record: Ga
             </section>
           </Show>
 
-          <section class="mt-8 border-t border-hairline pt-6">
+          <section data-testid="task-activity" class="mt-8 border-t border-hairline pt-6">
             <h2 class="text-[13px] leading-5 font-medium text-ink">Activity · {props.detail.activity.length}</h2>
             <Show when={props.detail.activity.length > 0} fallback={<p class="mt-3 text-[12px] leading-4 text-faint">No activity yet.</p>}>
-              <div class="mt-4"><TaskActivityFeed activity={props.detail.activity} /></div>
+              <div class="mt-4"><TaskActivityFeed activity={props.detail.activity} raw={props.raw} /></div>
             </Show>
             <div class="mt-6"><TaskCommentComposer onSubmit={props.onSubmitComment} /></div>
           </section>
@@ -185,11 +212,12 @@ function GateDetailArticle(props: TaskDetailViewProps & { gateInfo: { record: Ga
  * snapshot es trabajo de la página, que es la que tiene el router.
  *
  * Las secciones son las del modelo de climier: **Specification** (body + acceptance),
- * **Blocking**, **Dependents**, **Knowledge**, **Activity/Notes** y **References**. La columna
- * derecha queda para propiedades y referencias; el resto se lee como una página.
+ * **Blocking**, **Dependents**, **Knowledge**, **Activity** (hilo único con las notas) y **References**.
+ * La columna derecha queda para propiedades y referencias; el resto se lee como una página.
  */
 export function TaskDetailView(props: TaskDetailViewProps) {
-  if (props.gateInfo) return <GateDetailArticle {...props} gateInfo={props.gateInfo} />;
+  const [raw, setRaw] = createSignal(false);
+  if (props.gateInfo) return <GateDetailArticle {...props} gateInfo={props.gateInfo} raw={raw()} onRawChange={setRaw} />;
   const task = () => props.detail.task;
   return (
     <article class="mx-auto w-full max-w-[640px] pb-4 md:max-w-[880px]">
@@ -200,35 +228,40 @@ export function TaskDetailView(props: TaskDetailViewProps) {
         </button>
       </Show>
       <header classList={{ "mt-6": props.onBack !== undefined }}>
-        <div class="flex flex-wrap items-center gap-2">
-          <Show when={task().kind === "gate"}>
-            <span class="rounded-[5px] bg-tone-amber-bg px-2 py-[2px] text-[11px] font-medium tracking-wide text-tone-amber-ink uppercase">Gate{task().purpose ? ` · ${task().purpose}` : ""}</span>
-          </Show>
-          <h1 class="text-[24px] leading-8 font-semibold tracking-[-0.02em] text-ink">{task().title}</h1>
-        </div>
-        <div class="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[12px] leading-4 text-faint">
-          <span class="inline-flex items-center gap-1.5">
-            <StatusGlyph status={task().status} class="h-3.5 w-3.5" />
-            {statusLabel(task().status)}
-          </span>
-          <span aria-hidden="true">·</span>
-          <span class="tabular-nums">{task().id}</span>
-          <span aria-hidden="true">·</span>
-          <span>Last activity {formatUpdatedAt(task().updatedAt)}</span>
+        <div class="flex items-start justify-between gap-4">
+          <div class="min-w-0">
+            <div class="flex flex-wrap items-center gap-2">
+              <Show when={task().kind === "gate"}>
+                <span class="rounded-[5px] bg-tone-amber-bg px-2 py-[2px] text-[11px] font-medium tracking-wide text-tone-amber-ink uppercase">Gate{task().purpose ? ` · ${task().purpose}` : ""}</span>
+              </Show>
+              <h1 class="text-[24px] leading-8 font-semibold tracking-[-0.02em] text-ink">{task().title}</h1>
+            </div>
+            <div class="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[12px] leading-4 text-faint">
+              <span class="inline-flex items-center gap-1.5">
+                <StatusGlyph status={task().status} class="h-3.5 w-3.5" />
+                {statusLabel(task().status)}
+              </span>
+              <span aria-hidden="true">·</span>
+              <span class="tabular-nums">{task().id}</span>
+              <span aria-hidden="true">·</span>
+              <span>Last activity {formatUpdatedAt(task().updatedAt)}</span>
+            </div>
+          </div>
+          <ContentModeSwitch raw={raw()} onChange={setRaw} />
         </div>
       </header>
       <div class="mt-8 grid grid-cols-1 gap-10 md:grid-cols-[minmax(0,1fr)_240px]">
         <div class="min-w-0">
-          <Show when={props.detail.body.length > 0}>
-            <div class="space-y-4 text-[14px] leading-[22px] text-ink-soft">
-              <For each={props.detail.body}>{(paragraph) => <p>{paragraph}</p>}</For>
-            </div>
+          <Show when={props.detail.body.trim().length > 0}>
+            <Markdown source={props.detail.body} raw={raw()} class="text-[14px] leading-[22px] text-ink-soft" />
           </Show>
 
           <Show when={props.detail.acceptance}>
             <section class="mt-8">
               <h2 class="text-[13px] leading-5 font-medium text-ink">Acceptance</h2>
-              <p class="mt-3 rounded-[10px] border border-line bg-raised px-3 py-2 text-[13px] leading-5 text-ink-soft">{props.detail.acceptance}</p>
+              <div class="mt-3 rounded-[10px] border border-line bg-raised px-3 py-2">
+                <Markdown source={props.detail.acceptance ?? ""} raw={raw()} class="text-[13px] leading-5 text-ink-soft" />
+              </div>
             </section>
           </Show>
 
@@ -260,7 +293,7 @@ export function TaskDetailView(props: TaskDetailViewProps) {
                       <span class="rounded-[5px] bg-subtle px-1.5 py-[1px] text-[10px] font-medium tracking-wide text-muted uppercase">{item.knowledgeType}</span>
                       <span class="truncate text-[13px] leading-5 text-ink">{item.title}</span>
                     </div>
-                    <p class="mt-1.5 text-[12px] leading-[18px] text-muted">{item.body}</p>
+                    <Markdown source={item.body} raw={raw()} class="mt-1.5 text-[12px] leading-[18px] text-muted" />
                     <p class="mt-1.5 text-[11px] leading-4 text-faint">Applies by {item.scopeMatches.join(", ")}{item.status === "deprecated" ? " · deprecated" : ""}</p>
                   </li>
                 )}</For>
@@ -268,9 +301,11 @@ export function TaskDetailView(props: TaskDetailViewProps) {
             </section>
           </Show>
 
-          <section class="mt-10 border-t border-hairline pt-6">
-            <h2 class="text-[13px] leading-5 font-medium text-ink">Activity</h2>
-            <div class="mt-4"><TaskActivityFeed activity={props.detail.activity} /></div>
+          <section data-testid="task-activity" class="mt-10 border-t border-hairline pt-6">
+            <h2 class="text-[13px] leading-5 font-medium text-ink">Activity · {props.detail.activity.length}</h2>
+            <Show when={props.detail.activity.length > 0} fallback={<p class="mt-3 text-[12px] leading-4 text-faint">No activity yet.</p>}>
+              <div class="mt-4"><TaskActivityFeed activity={props.detail.activity} raw={raw()} /></div>
+            </Show>
             <div class="mt-6"><TaskCommentComposer onSubmit={props.onSubmitComment} /></div>
           </section>
         </div>

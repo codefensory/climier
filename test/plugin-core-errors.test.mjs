@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 
 import { importFresh } from "./helpers.mjs";
 
-const ERRORS_MODULE = "../src/plugins/errors.mjs";
+const ERRORS_MODULE = "../src/plugins/errors.ts";
 
 // ---- PluginCoreInvalidOperation -------------------------------------
 
@@ -171,7 +171,7 @@ test("plugin-core-errors: isPluginCoreError does NOT reject PLUGIN_CORE_* errors
 });
 
 test("plugin-core-errors: PLUGIN_CORE_* codes are not exported via V2_ERROR_CODES", async () => {
-  const errorsMod = await importFresh("../src/contracts/errors.mjs");
+  const errorsMod = await importFresh("../src/contracts/errors.ts");
   const set = new Set(Object.values(errorsMod.V2_ERROR_CODES));
   assert.equal(set.has("PLUGIN_CORE_INVALID_OPERATION"), false);
   assert.equal(set.has("PLUGIN_CORE_ACTION_FAILED"), false);

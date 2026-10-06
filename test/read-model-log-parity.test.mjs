@@ -4,11 +4,11 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { projectLogView } from "../src/read-model/index.mjs";
-import { createRemoteApiServer } from "../src/server/http.mjs";
-import { createServerAuthStore } from "../src/server/auth/server-auth-store.mjs";
-import { createProjectCatalog } from "../src/server/catalog/index.mjs";
-import { initState } from "../src/kernel/state-operations.mjs";
+import { projectLogView } from "../src/read-model/index.ts";
+import { createRemoteApiServer } from "../src/server/http.ts";
+import { createServerAuthStore } from "../src/server/auth/server-auth-store.ts";
+import { createProjectCatalog } from "../src/server/catalog/index.ts";
+import { initState } from "../src/kernel/state-operations.ts";
 import { runCli, writeCanonicalState } from "./helpers.mjs";
 import { readModelParity } from "./fixtures/read-model-parity.mjs";
 

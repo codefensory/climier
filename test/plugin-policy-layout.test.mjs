@@ -16,7 +16,7 @@ test("policy host lives under plugins without a provider re-export", async () =>
     { code: "ENOENT" },
   );
 
-  const policy = await import("../src/plugins/policy.mjs");
+  const policy = await import("../src/plugins/policy.ts");
   assert.equal(typeof policy.loadApplicablePolicy, "function");
   assert.equal(typeof policy.authorizeAction, "function");
   assert.equal(typeof policy.isPolicyError, "function");

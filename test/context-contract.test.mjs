@@ -12,7 +12,7 @@ import {
 const baseState = () => ({ version: 1, nodes: {}, edges: [], initiatives: {}, log: [] });
 
 test("context: returns the design doc shape with revision, claim, blocking, knowledge, alerts, allowed_actions", async () => {
-  const { default: context } = await importFresh("./cli/commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.ts");
   const dir = await createTempProject();
   try {
     await writeCanonicalState(dir, {
@@ -49,7 +49,7 @@ test("context: returns the design doc shape with revision, claim, blocking, know
 });
 
 test("context: scope_matches is an array (not a scalar)", async () => {
-  const { default: context } = await importFresh("./cli/commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.ts");
   const dir = await createTempProject();
   try {
     await writeCanonicalState(dir, {
@@ -86,7 +86,7 @@ test("context: scope_matches is an array (not a scalar)", async () => {
 });
 
 test("context: a knowledge arriving via node_id AND domain -> scope_matches has both, ordering prefers node_id first", async () => {
-  const { default: context } = await importFresh("./cli/commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.ts");
   const dir = await createTempProject();
   try {
     await writeCanonicalState(dir, {
@@ -173,7 +173,7 @@ test("context: a knowledge arriving via node_id AND domain -> scope_matches has 
 });
 
 test("context: tie-break by id when several items share the same top specificity", async () => {
-  const { default: context } = await importFresh("./cli/commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.ts");
   const dir = await createTempProject();
   try {
     await writeCanonicalState(dir, {
@@ -216,7 +216,7 @@ test("context: tie-break by id when several items share the same top specificity
 });
 
 test("context: claim is { by, at, stale } when in_progress, null when not", async () => {
-  const { default: context } = await importFresh("./cli/commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.ts");
   const dir = await createTempProject();
   try {
     const fresh = Date.now();
@@ -254,7 +254,7 @@ test("context: claim is { by, at, stale } when in_progress, null when not", asyn
 });
 
 test("context: claim.stale reflects --staleMs threshold", async () => {
-  const { default: context } = await importFresh("./cli/commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.ts");
   const dir = await createTempProject();
   try {
     await writeCanonicalState(dir, {
@@ -288,7 +288,7 @@ test("context: claim.stale reflects --staleMs threshold", async () => {
 });
 
 test("context: allowed_actions for task ready (no claim) includes claim/update/add-note/cancel", async () => {
-  const { default: context } = await importFresh("./cli/commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.ts");
   const dir = await createTempProject();
   try {
     await writeCanonicalState(dir, {
@@ -315,7 +315,7 @@ test("context: allowed_actions for task ready (no claim) includes claim/update/a
 });
 
 test("context: allowed_actions for task in_progress owned by --as", async () => {
-  const { default: context } = await importFresh("./cli/commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.ts");
   const dir = await createTempProject();
   try {
     await writeCanonicalState(dir, {
@@ -354,7 +354,7 @@ test("context: allowed_actions for task in_progress owned by --as", async () => 
 });
 
 test("context: submitted task reports validation actions without claim or release actions", async () => {
-  const { default: context } = await importFresh("./cli/commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.ts");
   const dir = await createTempProject();
   try {
     await writeCanonicalState(dir, {
@@ -387,7 +387,7 @@ test("context: submitted task reports validation actions without claim or releas
 });
 
 test("context: allowed_actions for task in_progress with --as bob (non-owner) -> submit/release/add-note/update (ADR-009: ownership is not projected)", async () => {
-  const { default: context } = await importFresh("./cli/commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.ts");
   const dir = await createTempProject();
   try {
     await writeCanonicalState(dir, {
@@ -423,7 +423,7 @@ test("context: allowed_actions for task in_progress with --as bob (non-owner) ->
 });
 
 test("context: allowed_actions for task in_progress --as test-agent (non-owner) -> submit/release/add-note/update (actor name has no authority)", async () => {
-  const { default: context } = await importFresh("./cli/commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.ts");
   const dir = await createTempProject();
   try {
     await writeCanonicalState(dir, {
@@ -457,7 +457,7 @@ test("context: allowed_actions for task in_progress --as test-agent (non-owner) 
 });
 
 test("context: allowed_actions for task in_progress anonymous (no --as) -> add-note only", async () => {
-  const { default: context } = await importFresh("./cli/commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.ts");
   const dir = await createTempProject();
   try {
     await writeCanonicalState(dir, {
@@ -487,7 +487,7 @@ test("context: allowed_actions for task in_progress anonymous (no --as) -> add-n
 });
 
 test("context: allowed_actions for task done (no --as, anonymous) -> add-note only", async () => {
-  const { default: context } = await importFresh("./cli/commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.ts");
   const dir = await createTempProject();
   try {
     await writeCanonicalState(dir, {
@@ -513,7 +513,7 @@ test("context: allowed_actions for task done (no --as, anonymous) -> add-note on
 });
 
 test("context: allowed_actions for task done with --as alice -> reopen + add-note", async () => {
-  const { default: context } = await importFresh("./cli/commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.ts");
   const dir = await createTempProject();
   try {
     await writeCanonicalState(dir, {
@@ -539,7 +539,7 @@ test("context: allowed_actions for task done with --as alice -> reopen + add-not
 });
 
 test("context: allowed_actions for task done with --as bob (not done_by) -> reopen + add-note (ADR-009: done_by is not projected)", async () => {
-  const { default: context } = await importFresh("./cli/commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.ts");
   const dir = await createTempProject();
   try {
     await writeCanonicalState(dir, {
@@ -567,7 +567,7 @@ test("context: allowed_actions for task done with --as bob (not done_by) -> reop
 });
 
 test("context: allowed_actions for task canceled", async () => {
-  const { default: context } = await importFresh("./cli/commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.ts");
   const dir = await createTempProject();
   try {
     await writeCanonicalState(dir, {
@@ -593,7 +593,7 @@ test("context: allowed_actions for task canceled", async () => {
 });
 
 test("context: allowed_actions for gate open", async () => {
-  const { default: context } = await importFresh("./cli/commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.ts");
   const dir = await createTempProject();
   try {
     await writeCanonicalState(dir, {
@@ -626,7 +626,7 @@ test("context: allowed_actions for gate open", async () => {
 });
 
 test("context: allowed_actions for gate resolved", async () => {
-  const { default: context } = await importFresh("./cli/commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.ts");
   const dir = await createTempProject();
   try {
     await writeCanonicalState(dir, {
@@ -651,7 +651,7 @@ test("context: allowed_actions for gate resolved", async () => {
 });
 
 test("context: allowed_actions for knowledge active", async () => {
-  const { default: context } = await importFresh("./cli/commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.ts");
   const dir = await createTempProject();
   try {
     await writeCanonicalState(dir, {
@@ -676,7 +676,7 @@ test("context: allowed_actions for knowledge active", async () => {
 });
 
 test("context: allowed_actions for knowledge deprecated", async () => {
-  const { default: context } = await importFresh("./cli/commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.ts");
   const dir = await createTempProject();
   try {
     await writeCanonicalState(dir, {
@@ -701,7 +701,7 @@ test("context: allowed_actions for knowledge deprecated", async () => {
 });
 
 test("context: alerts include STALE_CLAIM when claim is stale", async () => {
-  const { default: context } = await importFresh("./cli/commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.ts");
   const dir = await createTempProject();
   try {
     await writeCanonicalState(dir, {
@@ -730,7 +730,7 @@ test("context: alerts include STALE_CLAIM when claim is stale", async () => {
 });
 
 test("context: alerts include SUPERSEDED_BLOCKER when a blocker is superseded by a successor", async () => {
-  const { default: context } = await importFresh("./cli/commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.ts");
   const dir = await createTempProject();
   try {
     await writeCanonicalState(dir, {
@@ -779,7 +779,7 @@ test("context: alerts include SUPERSEDED_BLOCKER when a blocker is superseded by
 });
 
 test("context: alerts include KNOWLEDGE_DEPRECATED_SOON when matching knowledge is deprecated", async () => {
-  const { default: context } = await importFresh("./cli/commands/context.mjs");
+  const { default: context } = await importFresh("./cli/commands/context.ts");
   const dir = await createTempProject();
   try {
     await writeCanonicalState(dir, {
@@ -815,10 +815,10 @@ test("context: alerts include KNOWLEDGE_DEPRECATED_SOON when matching knowledge 
 });
 
 test("context: --project and unknown flags are rejected by the known-flags guard", async () => {
-  const { default: context } = await importFresh("./cli/commands/context.mjs");
-  assert.ok(Array.isArray(context.knownFlags || (await importFresh("./cli/commands/context.mjs")).default.knownFlags) || true);
+  const { default: context } = await importFresh("./cli/commands/context.ts");
+  assert.ok(Array.isArray(context.knownFlags || (await importFresh("./cli/commands/context.ts")).default.knownFlags) || true);
 
-  const mod = await importFresh("./cli/commands/context.mjs");
+  const mod = await importFresh("./cli/commands/context.ts");
   assert.ok(mod.knownFlags.includes("as"));
   assert.ok(mod.knownFlags.includes("staleMs"));
 });

@@ -6,7 +6,7 @@ import path from "node:path";
 import { createTempProject, rmTempProject, importFresh } from "./helpers.mjs";
 
 test("bug: withLock creates the state directory if missing", async () => {
-  const { withLock } = await importFresh("./storage/lock.mjs");
+  const { withLock } = await importFresh("./storage/lock.ts");
   const os = await import("node:os");
   const base = await fs.mkdtemp(path.join(os.tmpdir(), "climier-bug3-"));
   try {
@@ -25,7 +25,7 @@ test("bug: withLock creates the state directory if missing", async () => {
 
 // BUG #4: readState throws on corrupted JSON; should return a sentinel or clear error.
 test("bug: corrupted state file produces a clear error, not a SyntaxError stack", async () => {
-  const { readState } = await importFresh("./storage/state.mjs");
+  const { readState } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
   try {
     const { stateFilePath } = await import("./helpers.mjs");
@@ -41,9 +41,9 @@ test("bug: corrupted state file produces a clear error, not a SyntaxError stack"
 // should warn or fail, not silently create a task stuck forever.
 // v2 equivalent: add-task --blocked-by=NONEXISTENT must fail edge validation.
 test("bug: add-task rejects --blocked-by pointing to non-existent id", async () => {
-  const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
-  const { default: addTask } = await importFresh("./cli/commands/add-task.mjs");
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
+  const { default: addInit } = await importFresh("./cli/commands/add-initiative.ts");
+  const { default: addTask } = await importFresh("./cli/commands/add-task.ts");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
   const dir = await createTempProject();
   try {
     // init first so the state file exists and the validator can run.
