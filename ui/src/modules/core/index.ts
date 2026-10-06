@@ -36,3 +36,16 @@ export { RuntimeProvider, useRuntime } from "./providers/RuntimeProvider";
 export type { RuntimeController, RuntimeMode } from "./providers/RuntimeProvider";
 export { SessionProvider, useSession } from "./providers/SessionProvider";
 export type { SessionController } from "./providers/SessionProvider";
+export { ThemeProvider, useTheme } from "./theme";
+export type {
+  ResolvedTheme,
+  ThemeController,
+  ThemePreference,
+} from "./theme";
+export {
+  applyTheme,
+  META_THEME_COLOR,
+  readStoredPreference,
+  resolveTheme,
+  THEME_STORAGE_KEY,
+} from "./theme";
