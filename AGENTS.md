@@ -20,13 +20,19 @@ providers own domain semantics; the kernel owns the mutation transaction; and
 storage owns persistence. The canonical dependency direction is:
 
 ```text
-CLI / Plugins -> application/operations -> providers -> kernel -> storage
+adapters (cli/, plugins/, server/) -> application/operations -> providers -> kernel -> storage
 ```
 
-`read-model/` is a pure transversal module. `kernel/`, `providers/`, and
-`read-model/` must not import adapters (`cli/` or `plugins`). `providers/` and
-`read-model/` must not import `storage/`. The kernel must not know about
-application or adapters.
+Adapters also consume `providers/` and the pure `read-model/` projections
+directly, and every mutation enters through the `kernel/mutate.ts` facade
+(`plugins/` and `server/` included). Both shapes are approved: ADR-013 §5 lets
+the plugin host consume kernel, providers and read-model, ADR-032 keeps server
+transfers on the kernel port, and the enforcement table in
+`test/architecture/import-boundaries.test.mjs` declares those five edges as
+normative allowed roots. `read-model/` is a pure transversal module. `kernel/`,
+`providers/`, and `read-model/` must not import adapters (`cli/`, `plugins/`, or
+`server`). `providers/` and `read-model/` must not import `storage/`. The kernel
+must not know about application or adapters.
 
 ### Source layout
 

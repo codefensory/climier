@@ -9,8 +9,9 @@ import {
   relativeImportSpecifiers,
 } from "./import-graph.mjs";
 
-// This is the ratchet for the measured graph. Exceptions name edges that are
-// currently real but remain outside the normative dependency direction.
+// This is the ratchet for the measured graph. `documentedEdges` names the
+// adapter edges the ADRs approve explicitly: each one is also an allowed root,
+// listed here so the norm stays visible instead of hiding inside an allowlist.
 const BOUNDARIES = [
   { name: "contracts", directory: "src/contracts", allowedRoots: [] },
   { name: "storage", directory: "src/storage", allowedRoots: ["contracts"] },
@@ -22,19 +23,19 @@ const BOUNDARIES = [
     name: "plugins",
     directory: "src/plugins",
     allowedRoots: ["application", "contracts", "kernel", "providers", "read-model", "storage"],
-    exceptions: [
-      { edge: "plugins -> kernel", reason: "existing plugin host dependency" },
-      { edge: "plugins -> providers", reason: "existing plugin host dependency" },
-      { edge: "plugins -> read-model", reason: "existing plugin host dependency" },
+    documentedEdges: [
+      { edge: "plugins -> kernel", source: "ADR-013 §5: the plugin host may consume the kernel" },
+      { edge: "plugins -> providers", source: "ADR-013 §5: the plugin host may consume providers" },
+      { edge: "plugins -> read-model", source: "ADR-013 §5 and §9: plugin queries consume read-model" },
     ],
   },
   {
     name: "server",
     directory: "src/server",
     allowedRoots: ["application", "kernel", "read-model", "storage"],
-    exceptions: [
-      { edge: "server -> kernel", reason: "existing remote runtime dependency" },
-      { edge: "server -> read-model", reason: "existing remote runtime dependency" },
+    documentedEdges: [
+      { edge: "server -> kernel", source: "ADR-032: transfers dispatch through kernel/transfer port" },
+      { edge: "server -> read-model", source: "ADR-032: the narrow boundary test does not restrict read-model" },
     ],
   },
   {
@@ -87,9 +88,9 @@ for (const boundary of BOUNDARIES) {
   });
 }
 
-test("the table names all five measured normative deviations", () => {
+test("the table declares the five adapter edges approved by ADR-013 and ADR-032", () => {
   assert.deepEqual(
-    BOUNDARIES.flatMap(({ exceptions = [] }) => exceptions.map(({ edge }) => edge)),
+    BOUNDARIES.flatMap(({ documentedEdges = [] }) => documentedEdges.map(({ edge }) => edge)),
     [
       "plugins -> kernel",
       "plugins -> providers",
@@ -98,6 +99,15 @@ test("the table names all five measured normative deviations", () => {
       "server -> read-model",
     ],
   );
+  // A documented edge is normative, not a tolerated exception: it must also be an
+  // allowed root, so it can never silently drift out of the declared graph again.
+  for (const boundary of BOUNDARIES) {
+    for (const { edge, source } of boundary.documentedEdges ?? []) {
+      const target = edge.split(" -> ")[1];
+      assert.ok(boundary.allowedRoots.includes(target), `${edge} must be an allowed root`);
+      assert.match(source, /ADR-\d{3}/, `${edge} must cite its normative source`);
+    }
+  }
 });
 
 test("providers -> kernel is an explicitly allowed edge", async () => {
