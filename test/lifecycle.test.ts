@@ -46,7 +46,7 @@ async function projectFixture() {
   return dir;
 }
 
-async function addTask(dir, id, extra = {}) {
+async function addTask(dir, id, extra: Record<string, unknown> = {}) {
   const { default: addNode } = await importFresh("./cli/commands/add-node.ts");
   return addNode({
     statePath: dir,
@@ -63,7 +63,7 @@ async function addTask(dir, id, extra = {}) {
   });
 }
 
-async function addGate(dir, id, extra = {}) {
+async function addGate(dir, id, extra: Record<string, unknown> = {}) {
   const { default: addNode } = await importFresh("./cli/commands/add-node.ts");
   return addNode({
     statePath: dir,
@@ -361,7 +361,7 @@ test("resolve: repeated local resolve of a resolved gate fails with INVALID_STAT
 
     await assert.rejects(
       resolve(dir, input, ["G-auth-v2"]),
-      (error) => error.code === "INVALID_STATUS",
+      (error) => (typeof error === "object" && error !== null && "code" in error && error.code === "INVALID_STATUS"),
     );
 
     const afterRetry = await readState(dir);
@@ -515,7 +515,7 @@ test("reopen: re-blocks downstream tasks (DAG consequence)", async () => {
     await submitAccept(dir, "T-blocker", "alice", "done");
 
     let d = deriveV2(await readState(dir));
-    assert.ok(d.ready.includes("T-down"), "T-down should be ready before reopen");
+    assert.ok((d.ready as readonly string[]).includes("T-down"), "T-down should be ready before reopen");
 
     await reopen({
       statePath: dir,
@@ -524,8 +524,8 @@ test("reopen: re-blocks downstream tasks (DAG consequence)", async () => {
     });
 
     d = deriveV2(await readState(dir));
-    assert.equal(d.ready.includes("T-down"), false, "T-down must not be ready after reopen");
-    assert.ok(d.blocked.includes("T-down"), "T-down must be blocked after reopen");
+    assert.equal((d.ready as readonly string[]).includes("T-down"), false, "T-down must not be ready after reopen");
+    assert.ok((d.blocked as readonly string[]).includes("T-down"), "T-down must be blocked after reopen");
   } finally { await rmTempProject(dir); }
 });
 
@@ -704,8 +704,8 @@ test("cancel: submitted task becomes canceled and remains an unsatisfied blocker
     assert.equal(out.node.claim, null);
     assert.equal(out.node.submitted_by, "alice");
     const derived = deriveV2(await readState(dir));
-    assert.ok(derived.blocked.includes("T-down"));
-    assert.equal(derived.ready.includes("T-down"), false);
+    assert.ok((derived.blocked as readonly string[]).includes("T-down"));
+    assert.equal((derived.ready as readonly string[]).includes("T-down"), false);
   } finally { await rmTempProject(dir); }
 });
 
@@ -779,7 +779,10 @@ async function seedV1State(dir, state) {
     await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
     projectId = JSON.parse(await fs.readFile(metaPath, "utf8")).project_id;
   }
-  const stateFile = path.join(process.env.CLIMIER_HOME, "projects", projectId, "tasks.json");
+  if (!projectId) throw new Error("seedV1State: project metadata has no project_id");
+  const climierHome = process.env.CLIMIER_HOME;
+  if (!climierHome) throw new Error("seedV1State: CLIMIER_HOME is required");
+  const stateFile = path.join(climierHome, "projects", projectId, "tasks.json");
   await fs.mkdir(path.dirname(stateFile), { recursive: true });
   await fs.writeFile(stateFile, JSON.stringify(state, null, 2));
   return stateFile;

@@ -8,6 +8,9 @@ import { stateFile } from "../src/storage/state.ts";
 import { ledgerFile } from "../src/storage/ledger.ts";
 import { createTempProject, rmTempProject, runCli, writeFencedState } from "./helpers.mjs";
 
+type MigratedState = { version: number; fence_generation: number; revision: number; nodes: Record<string, { revision: number }>; log: Array<{ action: string; agent?: string }> };
+type Ledger = { fence_generation: number; high_water_revision: number; [key: string]: unknown };
+
 async function createFencedProject(t) {
   const projectDir = await createTempProject();
   t.after(() => rmTempProject(projectDir));
@@ -27,15 +30,17 @@ async function createFencedProject(t) {
   await writeFencedState(projectDir, fixture);
   const resolvedStatePath = stateFile(projectDir);
   const resolvedLedgerPath = ledgerFile(projectDir);
-  const tempHome = path.resolve(process.env.CLIMIER_HOME);
+  const climierHome = process.env.CLIMIER_HOME;
+  if (!climierHome) throw new Error("createFencedProject: CLIMIER_HOME is required");
+  const tempHome = path.resolve(climierHome);
   assert.ok(path.resolve(resolvedStatePath).startsWith(`${tempHome}${path.sep}`),
     `fixture state must live under isolated CLIMIER_HOME: ${resolvedStatePath}`);
   assert.ok(path.resolve(resolvedLedgerPath).startsWith(`${tempHome}${path.sep}`),
     `fixture ledger must live under isolated CLIMIER_HOME: ${resolvedLedgerPath}`);
   // The shared fixture helper follows the current canonical bootstrap. Install
 
-  const canonical = JSON.parse(await fs.readFile(resolvedStatePath, "utf8"));
-  const ledger = JSON.parse(await fs.readFile(resolvedLedgerPath, "utf8"));
+  const canonical = JSON.parse(await fs.readFile(resolvedStatePath, "utf8")) as { nodes: Record<string, unknown> };
+  const ledger = JSON.parse(await fs.readFile(resolvedLedgerPath, "utf8")) as Ledger;
   await fs.writeFile(resolvedStatePath, `${JSON.stringify({
     ...canonical,
     ...fixture,
@@ -47,7 +52,7 @@ async function createFencedProject(t) {
   return { projectDir, statePath: resolvedStatePath, ledgerPath: resolvedLedgerPath };
 }
 
-async function migrate(projectDir, extraFlags = []) {
+async function migrate(projectDir, extraFlags: string[] = []) {
   return runCli(["--project", projectDir, "migrate", ...extraFlags], {
     env: { CLIMIER_HOME: process.env.CLIMIER_HOME },
   });
@@ -55,8 +60,8 @@ async function migrate(projectDir, extraFlags = []) {
 
 test("fenced migrate preserves node CAS, advances state and ledger revisions, logs once, and is idempotent", async (t) => {
   const { projectDir, statePath, ledgerPath } = await createFencedProject(t);
-  const beforeState = JSON.parse(await fs.readFile(statePath, "utf8"));
-  const beforeLedger = JSON.parse(await fs.readFile(ledgerPath, "utf8"));
+  const beforeState = JSON.parse(await fs.readFile(statePath, "utf8")) as MigratedState;
+  const beforeLedger = JSON.parse(await fs.readFile(ledgerPath, "utf8")) as Ledger;
   const beforeNodeCount = Object.keys(beforeState.nodes).length;
   const beforeNodeRevisions = Object.fromEntries(Object.entries(beforeState.nodes).map(([id, node]) => [id, node.revision]));
   const beforeLogCount = beforeState.log.length;
@@ -65,16 +70,18 @@ test("fenced migrate preserves node CAS, advances state and ledger revisions, lo
 
   const first = await migrate(projectDir);
   assert.equal(first.code, 0, first.stdout);
-  let state = JSON.parse(await fs.readFile(statePath, "utf8"));
-  let ledger = JSON.parse(await fs.readFile(ledgerPath, "utf8"));
+  let state = JSON.parse(await fs.readFile(statePath, "utf8")) as MigratedState;
+  let ledger = JSON.parse(await fs.readFile(ledgerPath, "utf8")) as Ledger;
   assert.equal(state.version, 1);
   assert.equal(state.fence_generation, beforeState.fence_generation);
   assert.equal(state.revision, beforeStateRevision + 1, "schema migration advances the state revision monotonically");
   assert.equal(Object.keys(state.nodes).length, beforeNodeCount);
   assert.deepEqual(Object.fromEntries(Object.entries(state.nodes).map(([id, node]) => [id, node.revision])), beforeNodeRevisions);
   assert.equal(state.log.length, beforeLogCount + 1);
-  assert.equal(state.log.at(-1).action, "migrate");
-  assert.equal(state.log.at(-1).agent, "migrate");
+  const last = state.log.at(-1);
+  assert.ok(last);
+  assert.equal(last.action, "migrate");
+  assert.equal(last.agent, "migrate");
   assert.equal(ledger.high_water_revision, state.revision, "ledger high-water must agree with new state revision");
   assert.equal(ledger.high_water_revision, beforeHighWater + 1);
   assert.equal(ledger.high_water_revision, state.revision);

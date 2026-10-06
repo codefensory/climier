@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import { createTempProject, readState as readStateHelper, rmTempProject } from "../../helpers.mjs";
 import { bootstrapProject, importKernel, createTaskProvider, updateNodeProvider } from "./helpers.mjs";
 
+type TestError = { code: string; message: string; details: Record<string, unknown> };
+
 async function attemptNestedMutation(mutate, dir) {
   return mutate({
     projectDir: dir,
@@ -26,7 +28,7 @@ test("kernel.mutate: nested mutate throws INVALID_EXECUTION_CONTRACT and inner s
   const dir = await createTempProject();
   try {
     await bootstrapProject(dir);
-    let innerCaught = null;
+    let innerCaught: TestError | null = null;
     // Outer provider.apply will call mutate again — must be rejected.
     const innerMutationAttempt = () => attemptNestedMutation(mutate, dir);
     const outerProvider = {
@@ -38,7 +40,7 @@ test("kernel.mutate: nested mutate throws INVALID_EXECUTION_CONTRACT and inner s
         try {
           await innerMutationAttempt();
         } catch (err) {
-          innerCaught = err;
+          innerCaught = err as TestError;
         }
         // Even though the inner call was rejected, we still produce a
         // valid (outer) draft. The outer apply mutates T1 in draft.
@@ -48,7 +50,7 @@ test("kernel.mutate: nested mutate throws INVALID_EXECUTION_CONTRACT and inner s
     // Note: we can't use the outer provider apply directly because it
     // would need a tx — wire it through mutate again so the nested
     // guard actually fires.
-    let outerCaught = null;
+    let outerCaught: TestError | null = null;
     try {
       await mutate({
         projectDir: dir,
@@ -63,7 +65,7 @@ test("kernel.mutate: nested mutate throws INVALID_EXECUTION_CONTRACT and inner s
           },
         },
       });
-    } catch (err) { outerCaught = err; }
+    } catch (err) { outerCaught = err as TestError; }
     await assertNoInnerMutation(dir, outerCaught, innerCaught);
   } finally {
     await rmTempProject(dir);
@@ -147,7 +149,10 @@ test("kernel.mutate: reserved plan.logFields are rejected before apply", async (
     };
     await assert.rejects(
       mutate({ projectDir: dir, request: { action: "task.update", actor: "alice", input: {} }, provider }),
-      (err) => err.code === "INVALID_EXECUTION_CONTRACT" && err.details.field === "logFields.revision",
+      (err) => {
+        const error = err as TestError;
+        return error.code === "INVALID_EXECUTION_CONTRACT" && error.details.field === "logFields.revision";
+      },
     );
     assert.equal(applyCalls, 0);
     const after = await readStateHelper(dir);

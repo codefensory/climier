@@ -8,6 +8,15 @@ import { stateFile } from "../src/storage/state.ts";
 import { ledgerFile } from "../src/storage/ledger.ts";
 import { createTempProject, rmTempProject, runCli } from "./helpers.mjs";
 
+type LegacyState = { version: number; fence_generation?: number; revision: number; nodes: Record<string, Record<string, unknown>>; edges: unknown[]; initiatives: Record<string, unknown>; log: unknown[] };
+type Ledger = { bootstrap_pending: unknown; high_water_revision: number; [key: string]: unknown };
+
+function currentHome(): string {
+  const home = process.env.CLIMIER_HOME;
+  if (!home) throw new Error("migrate-old-forms: CLIMIER_HOME is required");
+  return home;
+}
+
 const repoRoot = path.resolve(import.meta.dirname, "..");
 
 const privateHomes = new WeakMap();
@@ -30,7 +39,7 @@ async function ensurePrivateHome(t) {
   return home;
 }
 
-async function createLegacyProject(t, { version = 4, preRelease = false, id } = {}) {
+async function createLegacyProject(t, { version = 4, preRelease = false, id }: { version?: number; preRelease?: boolean; id?: string } = {}) {
   await ensurePrivateHome(t);
   const projectDir = await createTempProject();
   t.after(() => rmTempProject(projectDir));
@@ -38,7 +47,7 @@ async function createLegacyProject(t, { version = 4, preRelease = false, id } = 
   await fs.writeFile(path.join(projectDir, ".climier.json"), JSON.stringify({ version: 1, project_id: projectId }));
   const statePath = stateFile(projectDir);
   const ledgerPath = ledgerFile(projectDir);
-  const tempHome = path.resolve(process.env.CLIMIER_HOME);
+  const tempHome = path.resolve(currentHome());
   assert.ok(path.resolve(statePath).startsWith(`${tempHome}${path.sep}`), `state outside temp CLIMIER_HOME: ${statePath}`);
   assert.ok(path.resolve(ledgerPath).startsWith(`${tempHome}${path.sep}`), `ledger outside temp CLIMIER_HOME: ${ledgerPath}`);
   await fs.mkdir(path.dirname(statePath), { recursive: true });
@@ -71,8 +80,8 @@ test("legacy v2, v3, and v4 imports normalize gates and create the initial fence
     const fixture = await createLegacyProject(t, { version });
     const result = await runMigrate(fixture.projectDir);
     assert.equal(result.code, 0, result.stdout);
-    const state = JSON.parse(await fs.readFile(fixture.statePath, "utf8"));
-    const ledger = JSON.parse(await fs.readFile(fixture.ledgerPath, "utf8"));
+    const state = JSON.parse(await fs.readFile(fixture.statePath, "utf8")) as LegacyState;
+    const ledger = JSON.parse(await fs.readFile(fixture.ledgerPath, "utf8")) as Ledger;
     assert.equal(state.version, 1);
     assert.equal(state.fence_generation, 1);
     assert.ok(state.revision >= 7, `version ${version} imported revision ${state.revision}`);
@@ -88,7 +97,7 @@ test("prehistoric import writes a canonical empty state readable by status", asy
   const fixture = await createLegacyProject(t, { preRelease: true });
   const result = await runMigrate(fixture.projectDir);
   assert.equal(result.code, 0, result.stdout);
-  const state = JSON.parse(await fs.readFile(fixture.statePath, "utf8"));
+  const state = JSON.parse(await fs.readFile(fixture.statePath, "utf8")) as LegacyState;
   assert.deepEqual(state.nodes, {});
   assert.deepEqual(state.edges, []);
   assert.deepEqual(state.initiatives, {});
@@ -118,7 +127,7 @@ test("legacy migration backs up source and reports old migration_pending while c
   assert.match(result.stdout, new RegExp(old.projectId));
   assert.equal(await fs.readFile(old.statePath, "utf8"), `${JSON.stringify(old.source, null, 2)}\n`);
   assert.equal(JSON.parse(await fs.readFile(next.statePath, "utf8")).version, 1, "sweep continues after the named old pending");
-  const backupsRoot = path.join(process.env.CLIMIER_HOME, "backups", next.projectId);
+  const backupsRoot = path.join(currentHome(), "backups", next.projectId);
   const backups = await fs.readdir(backupsRoot);
   assert.ok(backups.length > 0);
   assert.ok(await fs.stat(path.join(backupsRoot, backups[0], "tasks.json")));
@@ -145,7 +154,7 @@ test("SIGKILL at each bootstrap publication boundary resumes to a readable consi
     let stdout = "";
     child.stdout.setEncoding("utf8");
     child.stdout.on("data", (chunk) => { stdout += chunk; });
-    await new Promise((resolve, reject) => {
+    await new Promise<void>((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error(`child did not reach ${checkpoint}; output=${stdout}`)), 10_000);
       child.stdout.on("data", () => {
         if (stdout.includes("CHECKPOINT")) { clearTimeout(timer); resolve(); }
@@ -154,21 +163,21 @@ test("SIGKILL at each bootstrap publication boundary resumes to a readable consi
       t.after(() => clearTimeout(timer));
     });
     child.kill("SIGKILL");
-    await new Promise((resolve) => child.once("exit", resolve));
+    await new Promise<void>((resolve) => child.once("exit", () => resolve()));
     // SIGKILL intentionally leaves the documented file lock behind; clear only
 
-    await fs.rm(path.join(process.env.CLIMIER_HOME, "projects", fixture.projectId, ".lock"), { force: true });
+    await fs.rm(path.join(currentHome(), "projects", fixture.projectId, ".lock"), { force: true });
     const resumed = await runMigrate(fixture.projectDir);
     assert.equal(resumed.code, 0, `${checkpoint}: ${resumed.stdout}`);
-    const state = JSON.parse(await fs.readFile(fixture.statePath, "utf8"));
-    const ledger = JSON.parse(await fs.readFile(fixture.ledgerPath, "utf8"));
+    const state = JSON.parse(await fs.readFile(fixture.statePath, "utf8")) as LegacyState;
+    const ledger = JSON.parse(await fs.readFile(fixture.ledgerPath, "utf8")) as Ledger;
     assert.equal(state.version, 1);
     assert.equal(ledger.high_water_revision, state.revision);
     assert.equal(ledger.bootstrap_pending, null);
     assert.equal((await runCli(["--project", fixture.projectDir, "status"], { env: { CLIMIER_HOME: process.env.CLIMIER_HOME } })).code, 0);
-    const backups = await fs.readdir(path.join(process.env.CLIMIER_HOME, "backups", fixture.projectId));
+    const backups = await fs.readdir(path.join(currentHome(), "backups", fixture.projectId));
     assert.ok(backups.length > 0);
-    const backupDir = path.join(process.env.CLIMIER_HOME, "backups", fixture.projectId, backups[0]);
+    const backupDir = path.join(currentHome(), "backups", fixture.projectId, backups[0]);
     assert.ok(await fs.stat(path.join(backupDir, "tasks.json")));
     assert.ok(await fs.stat(path.join(backupDir, "revision-ledger.json")));
     if (["after-pending", "before-state-replace"].includes(checkpoint)) {

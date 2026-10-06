@@ -7,9 +7,21 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+type PackageJson = {
+  scripts: Record<string, unknown>;
+  version: string;
+  engines: Record<string, string>;
+  bin: Record<string, string>;
+  repository?: unknown;
+  homepage?: unknown;
+  bugs?: unknown;
+};
+function readPackage(): PackageJson {
+  return JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8")) as PackageJson;
+}
 
 test("package: bun test uses the bounded core runner", () => {
-  const pkg = JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8"));
+  const pkg = readPackage();
   assert.equal(pkg.scripts.test, "bun test/run-core-tests.mjs");
   assert.equal(pkg.version, "2.0.0");
   assert.deepEqual(pkg.engines, { bun: ">=1.4" });
@@ -18,7 +30,7 @@ test("package: bun test uses the bounded core runner", () => {
 });
 
 test("package: every published bin entry uses the Bun shebang", () => {
-  const pkg = JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8"));
+  const pkg = readPackage();
   for (const [name, relativePath] of Object.entries(pkg.bin)) {
     const firstLine = readFileSync(path.join(repoRoot, relativePath), "utf8").split("\n", 1)[0];
     assert.equal(firstLine, "#!/usr/bin/env bun", `${name} must use the Bun shebang`);
@@ -28,7 +40,7 @@ test("package: every published bin entry uses the Bun shebang", () => {
 });
 
 test("package: the UI test suite is gone with its script and loader", async () => {
-  const pkg = JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8"));
+  const pkg = readPackage();
   assert.equal(pkg.scripts["test:ui"], undefined, "no test:ui script survives the suite it ran");
   assert.equal(pkg.repository, undefined);
   assert.equal(pkg.homepage, undefined);

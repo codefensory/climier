@@ -22,7 +22,7 @@ async function putState(home, id, value) {
 test("migrate --all --dry-run reports the four on-disk forms without changing bytes", async (t) => {
   const home = await makeHome();
   t.after(() => fs.rm(home, { recursive: true, force: true }));
-  const states = [
+  const states: Array<[string, Record<string, unknown>]> = [
     ["pre", { version: 1, tasks: {}, decisions: {}, gotchas: {} }],
     ["legacy-2", { version: 2, nodes: { a: {} }, edges: [], initiatives: {}, log: [{}] }],
     ["legacy-3", { version: 3, nodes: {}, edges: [], initiatives: {}, log: [] }],
@@ -30,7 +30,7 @@ test("migrate --all --dry-run reports the four on-disk forms without changing by
     ["fenced", { version: 5, nodes: { a: {}, b: {} }, edges: [], initiatives: {}, log: [{}, {}] }],
     ["canonical", { version: 1, fence_generation: 1, nodes: { a: {} }, edges: [], initiatives: {}, log: [] }],
   ];
-  const before = new Map();
+  const before = new Map<string, Buffer>();
   for (const [id, value] of states) {
     const file = await putState(home, id, value);
     if (["fenced", "canonical"].includes(id)) {

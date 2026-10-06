@@ -5,6 +5,9 @@ import { createTempProject, readState as readStateHelper, rmTempProject, stateFi
 import { bootstrapProject, importKernel, updateNodeProvider } from "./helpers.mjs";
 import { withLock } from "../../../src/storage/lock.ts";
 
+type TestError = { code: string; message: string; details: Record<string, unknown> };
+type FencedState = { version: number; fence_generation: number; revision: number; nodes: Record<string, { title?: string; revision?: number }>; log: Array<{ action: string }> };
+
 // failingPrepareProvider — prepare throws a structured error.
 function assertBootstrapPolicyResult(result, state, exists) {
   assert.equal(result.result.name, "new-project");
@@ -182,7 +185,7 @@ test("kernel mutation writes provider changes through the ledger commit over a c
     const secondDir = await createTempProject();
     try {
       await bootstrapProject(secondDir);
-      const fenced = await bootstrapFencedState(secondDir);
+      const fenced = await bootstrapFencedState(secondDir) as FencedState;
       const nextProvider = updateNodeProvider({ id: "T1", newTitle: "fenced again" }).provider;
       await mutate({
         projectDir: secondDir,
@@ -229,14 +232,16 @@ test("kernel.mutate recovers a pending fenced commit before checking caller CAS"
         apply: async () => assert.fail("stale CAS must prevent apply"),
       },
       policyAction: { decide: async () => { policyCalled = true; return { decision: "allow" }; } },
-    }), (error) => error.code === "STATE_REVISION_CONFLICT");
+    }), (error) => (error as TestError).code === "STATE_REVISION_CONFLICT");
 
     assert.equal(preparedRevision, current.revision + 1, "provider sees the recovered commit candidate before CAS");
     assert.equal(policyCalled, false, "CAS is checked before policy");
-    const recovered = await readFencedState(dir);
+    const recovered = await readFencedState(dir) as FencedState;
     assert.equal(recovered.nodes.T1.title, "recovered pending");
     assert.equal(recovered.revision, current.revision + 1);
-    assert.equal(recovered.log.at(-1).action, "test.recovery");
+    const last = recovered.log.at(-1);
+    assert.ok(last);
+    assert.equal(last.action, "test.recovery");
   } finally {
     await rmTempProject(dir);
   }
@@ -266,7 +271,7 @@ test("kernel.mutate bootstraps a missing project only after provider policy allo
         request: { action: "initiative.create", actor: "alice", input: { name: "denied" } },
         provider: initiativeCreateProvider,
         policyAction: { decide: async () => ({ decision: "deny", reason: "no" }) },
-      }), (error) => error.code === "POLICY_DENIED");
+      }), (error) => (error as TestError).code === "POLICY_DENIED");
       assert.equal(await stateExists(deniedDir), false);
       await assert.rejects(fs.access(ledgerFile(deniedDir)), { code: "ENOENT" });
       await assert.rejects(fs.access(stateFilePath(deniedDir)), { code: "ENOENT" });

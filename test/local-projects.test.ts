@@ -8,6 +8,8 @@ import { initState } from "../src/kernel/state-operations.ts";
 import { listProjectIds } from "../src/storage/state.ts";
 import { ledgerFileForProjectId, readStateByProjectId } from "../src/storage/ledger.ts";
 
+type ProjectState = { version: number; revision: number; nodes: Record<string, unknown> };
+
 async function makeHome(t) {
   const home = await fs.mkdtemp(path.join(os.tmpdir(), "climier-local-projects-"));
   const previousHome = process.env.CLIMIER_HOME;
@@ -32,7 +34,7 @@ test("readStateByProjectId reads a canonical state without a project root", asyn
   const home = await makeHome(t);
   await makeProject(home, "proj-a");
 
-  const state = await readStateByProjectId("proj-a");
+  const state = await readStateByProjectId("proj-a") as ProjectState;
   assert.equal(state.version, 1);
   assert.equal(state.revision, 1);
   assert.deepEqual(state.nodes, {});
@@ -72,6 +74,6 @@ test("readStateByProjectId rejects a state without a ledger instead of guessing"
 
   await assert.rejects(
     readStateByProjectId("legacy"),
-    (error) => error.code === "CLIMIER_LEDGER_MISSING",
+    (error) => typeof error === "object" && error !== null && "code" in error && error.code === "CLIMIER_LEDGER_MISSING",
   );
 });

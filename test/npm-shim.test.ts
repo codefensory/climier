@@ -13,8 +13,10 @@ import { fileURLToPath } from "node:url";
 const testDirectory = path.dirname(fileURLToPath(import.meta.url));
 const SHIM = path.join(testDirectory, "fixtures", "npm-shim");
 
-function runShim(args) {
-  return new Promise((resolve) => {
+type ShimResult = { error?: Error; code: number | null; stdout: string; stderr: string };
+
+function runShim(args: string[]): Promise<ShimResult> {
+  return new Promise<ShimResult>((resolve) => {
     const proc = spawn(SHIM, args);
     let stdout = "";
     let stderr = "";

@@ -154,7 +154,7 @@ test("kernel provider diff fences created and modified nodes above state revisio
     state = await readStateHelper(dir);
     assert.equal(state.nodes.T1.revision, 15);
     assert.equal(state.revision, 15);
-    assert.ok(state.revision >= Math.max(...Object.values(state.nodes).map((node) => node.revision)));
+    assert.ok(state.revision >= Math.max(...(Object.values(state.nodes) as Array<{ revision: number }>).map((node) => node.revision)));
   } finally {
     await rmTempProject(dir);
   }
@@ -283,7 +283,7 @@ test("revision assignment fences new, recreated, and modified nodes above the st
   assert.equal(assigned.next.T4.revision, 13);
   assert.equal(revisions.deriveNextStateRevision(snapshot, assigned.next), 13);
   assert.ok(revisions.deriveNextStateRevision(snapshot, assigned.next) >=
-    Math.max(...Object.values(assigned.next).map((node) => node.revision)));
+    Math.max(...(Object.values(assigned.next) as Array<{ revision: number }>).map((node) => node.revision)));
 });
 
 function assertFinalizationValues(revisions, validation, logEntry, { snapshot, draft }) {

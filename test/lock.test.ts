@@ -6,6 +6,8 @@ import path from "node:path";
 import { createTempProject, rmTempProject, importFresh, lockFilePath, writeCanonicalState } from "./helpers.mjs";
 import { commitFencedStateUnderLock, readFencedStateUnderLock } from "../src/storage/ledger.ts";
 
+type FencedState = { version: number; revision: number; log: Array<{ action: string }> };
+
 test("withLock acquires and releases on success", async () => {
   const { withLock } = await importFresh("./storage/lock.ts");
   const dir = await createTempProject();
@@ -93,7 +95,7 @@ test("withLock blocks concurrent acquires; second waits then succeeds", async ()
   const { withLock } = await importFresh("./storage/lock.ts");
   const dir = await createTempProject();
   try {
-    const order = [];
+    const order: string[] = [];
     const a = withLock(dir, async () => {
       order.push("a-start");
       await new Promise((r) => setTimeout(r, 150));
@@ -162,7 +164,7 @@ test("stale lock recovery requires verified manual removal before schema-1 opera
 
     await fs.rm(lockPath);
     await withLock(dir, async (lockContext) => {
-      const current = await readFencedStateUnderLock(lockContext, { projectDir: dir });
+      const current = await readFencedStateUnderLock(lockContext, { projectDir: dir }) as FencedState;
       assert.equal(current.version, 1);
       const next = {
         ...current,
@@ -173,10 +175,12 @@ test("stale lock recovery requires verified manual removal before schema-1 opera
     });
 
     const recovered = await withLock(dir, async (lockContext) => (
-      readFencedStateUnderLock(lockContext, { projectDir: dir })
+      readFencedStateUnderLock(lockContext, { projectDir: dir }) as Promise<FencedState>
     ));
     assert.equal(recovered.version, 1);
-    assert.equal(recovered.log.at(-1).action, "stale-lock-recovery-test");
+    const last = recovered.log.at(-1);
+    assert.ok(last);
+    assert.equal(last.action, "stale-lock-recovery-test");
   } finally {
     await rmTempProject(dir);
   }

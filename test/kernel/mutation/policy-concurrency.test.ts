@@ -128,7 +128,7 @@ test("kernel.mutate: policyAction.decide = deny throws POLICY_DENIED with no sta
   const dir = await createTempProject();
   try {
     const base = await bootstrapProject(dir);
-    let decidedWith = null;
+    let decidedWith: { target: { id: string }; action: string } | null = null;
     const policyAction = {
       pluginId: "policy-fixture",
       action: "task.update",
@@ -210,7 +210,7 @@ test("kernel.mutate: policy receives fenced semantic snapshots without fence_gen
   const dir = await createTempProject();
   try {
     const initial = await setupFencedPolicyProject(dir, mutate, readFencedState);
-    const snapshots = [];
+    const snapshots: Array<Record<string, unknown>> = [];
     const { policyAction, provider } = capturePolicySnapshots(snapshots);
     const beforeBatch = await runSingleAndBatchPolicyMutation({ dir, mutate, readFencedState, provider, policyAction });
     assertPolicySnapshots(snapshots, initial, beforeBatch);
