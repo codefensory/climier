@@ -2,6 +2,27 @@ import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
 
+type WatcherListener = (revision: number) => void;
+type WatcherOptions = {
+  projectDir?: string;
+  ledgerPath?: string;
+  resolveLedger?: () => string | Promise<string>;
+  pollIntervalMs?: number;
+  watchFactory?: typeof fs.watch;
+  readFile?: (file: string) => Promise<string>;
+  onError?: (error: unknown) => void;
+};
+
+type Watcher = {
+  readonly currentRevision: number | undefined;
+  readonly closed: boolean;
+  readonly listening: boolean;
+  start: () => Promise<number | undefined>;
+  poll: (emit?: boolean) => Promise<number | undefined>;
+  close: () => Promise<void>;
+  subscribe: (listener: WatcherListener) => () => boolean;
+};
+
 const DEFAULT_POLL_INTERVAL_MS = 250;
 
 function assertPositiveInteger(value, name) {
@@ -10,7 +31,7 @@ function assertPositiveInteger(value, name) {
   }
 }
 
-function revisionFromLedger(raw, ledgerPath) {
+function revisionFromLedger(raw: string, ledgerPath: string) {
   let ledger;
   try {
     ledger = JSON.parse(raw);
@@ -41,7 +62,7 @@ export function createRevisionWatcher({
   watchFactory = fs.watch,
   readFile = (file) => fsp.readFile(file, "utf8"),
   onError,
-} = {}) {
+}: WatcherOptions = {}): Watcher {
   if (typeof projectDir !== "undefined" && (typeof projectDir !== "string" || projectDir.length === 0)) {
     throw new TypeError("server revision watcher: projectDir must be a non-empty path");
   }
@@ -65,7 +86,7 @@ export function createRevisionWatcher({
     throw new TypeError("server revision watcher: onError must be a function");
   }
 
-  const listeners = new Set();
+  const listeners = new Set<WatcherListener>();
   let currentRevision;
   let currentDirectory;
   let directoryWatcher;

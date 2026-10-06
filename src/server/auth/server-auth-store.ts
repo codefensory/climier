@@ -2,18 +2,25 @@ import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
+import { errorProperties, isRecord, type ServerError } from "../types.ts";
 
-const scrypt = promisify(crypto.scrypt);
+const scrypt = promisify(crypto.scrypt) as (password: string, salt: string, keylen: number, options: object) => Promise<Buffer>;
 const AUTH_FILE = "remote-auth.json";
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const SCRYPT_KEY_BYTES = 32;
 const SCRYPT_OPTIONS = { N: 16_384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
 
-function codedError(code, message, details) {
-  const error = new Error(message);
+type AuthVerifier = { algorithm: string; salt: string; key: string };
+type AuthSession = { token_hash: string; expires_at: string };
+type AuthState = { version: 1; password_verifier: AuthVerifier; sessions: AuthSession[] };
+type AuthTestHooks = { beforeRename?: (temporary: string, target: string) => Promise<void> };
+type AuthStoreOptions = { stateHome?: string; password?: string; now?: () => Date; testHooks?: AuthTestHooks };
+
+function codedError(code: string, message: string, details?: unknown) {
+  const error = new Error(message) as ServerError;
   error.code = code;
   if (details) {
-    error.details = details;
+    error.details = details as Record<string, unknown>;
   }
   return error;
 }
@@ -42,7 +49,7 @@ function timingSafeEqualHex(left, right) {
   return crypto.timingSafeEqual(leftBuffer, rightBuffer);
 }
 
-async function passwordVerifier(password, salt = randomHex(16)) {
+async function passwordVerifier(password: string, salt = randomHex(16)): Promise<AuthVerifier> {
   const key = await scrypt(password, salt, SCRYPT_KEY_BYTES, SCRYPT_OPTIONS);
   return {
     algorithm: "scrypt",
@@ -51,7 +58,7 @@ async function passwordVerifier(password, salt = randomHex(16)) {
   };
 }
 
-async function verifyPassword(password, verifier) {
+async function verifyPassword(password: string, verifier: AuthVerifier | undefined) {
   if (!verifier || verifier.algorithm !== "scrypt" || typeof verifier.salt !== "string" || typeof verifier.key !== "string") {
     return false;
   }
@@ -68,11 +75,11 @@ async function fsyncPath(targetPath) {
   }
 }
 
-async function writeAuthFileDurably(file, state, testHooks) {
+async function writeAuthFileDurably(file: string, state: AuthState, testHooks?: AuthTestHooks) {
   const dir = path.dirname(file);
   await fs.mkdir(dir, { recursive: true, mode: 0o700 });
   await fs.chmod(dir, 0o700).catch((error) => {
-    if (error.code !== "ENOENT") {
+    if (errorProperties(error).code !== "ENOENT") {
       throw error;
     }
   });
@@ -91,24 +98,27 @@ async function writeAuthFileDurably(file, state, testHooks) {
   await fsyncPath(dir);
 }
 
-async function readAuthFile(file) {
+async function readAuthFile(file: string): Promise<AuthState | null> {
   let raw;
   try {
     raw = await fs.readFile(file, "utf8");
   } catch (error) {
-    if (error.code === "ENOENT") {
+    if (errorProperties(error).code === "ENOENT") {
       return null;
     }
     throw error;
   }
   try {
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object" || parsed.version !== 1 || !parsed.password_verifier || !Array.isArray(parsed.sessions)) {
+    const parsed: unknown = JSON.parse(raw);
+    if (!isRecord(parsed) || parsed.version !== 1 || !isRecord(parsed.password_verifier) || !Array.isArray(parsed.sessions)
+        || parsed.password_verifier.algorithm !== "scrypt" || typeof parsed.password_verifier.salt !== "string"
+        || typeof parsed.password_verifier.key !== "string"
+        || parsed.sessions.some((session) => !isRecord(session) || typeof session.token_hash !== "string" || typeof session.expires_at !== "string")) {
       throw codedError("AUTH_STORE_CORRUPT", `server auth: ${file} has invalid shape`, { file });
     }
-    return parsed;
+    return parsed as unknown as AuthState;
   } catch (error) {
-    if (error.code === "AUTH_STORE_CORRUPT") {
+    if (errorProperties(error).code === "AUTH_STORE_CORRUPT") {
       throw error;
     }
     throw codedError("AUTH_STORE_CORRUPT", `server auth: ${file} is corrupt`, { file });
@@ -116,7 +126,13 @@ async function readAuthFile(file) {
 }
 
 class ServerAuthStore {
-  constructor({ file, state, now, testHooks }) {
+  file: string;
+  state: AuthState;
+  now: () => Date;
+  testHooks?: AuthTestHooks;
+  queue: Promise<void>;
+
+  constructor({ file, state, now, testHooks }: { file: string; state: AuthState; now: () => Date; testHooks?: AuthTestHooks }) {
     this.file = file;
     this.state = state;
     this.now = now;
@@ -159,7 +175,7 @@ class ServerAuthStore {
   }
 }
 
-export async function createServerAuthStore({ stateHome, password, now = () => new Date(), testHooks } = {}) {
+export async function createServerAuthStore({ stateHome, password, now = () => new Date(), testHooks }: AuthStoreOptions = {}) {
   if (typeof stateHome !== "string" || !stateHome.trim()) {
     throw new TypeError("server auth: stateHome is required");
   }
@@ -169,14 +185,14 @@ export async function createServerAuthStore({ stateHome, password, now = () => n
   const file = authPath(stateHome);
   const existing = await readAuthFile(file);
   if (!existing) {
-    const state = { version: 1, password_verifier: await passwordVerifier(password), sessions: [] };
+    const state: AuthState = { version: 1, password_verifier: await passwordVerifier(password), sessions: [] };
     await writeAuthFileDurably(file, state, testHooks);
     return new ServerAuthStore({ file, state, now, testHooks });
   }
   if (await verifyPassword(password, existing.password_verifier)) {
     return new ServerAuthStore({ file, state: existing, now, testHooks });
   }
-  const rotated = { version: 1, password_verifier: await passwordVerifier(password), sessions: [] };
+  const rotated: AuthState = { version: 1, password_verifier: await passwordVerifier(password), sessions: [] };
   await writeAuthFileDurably(file, rotated, testHooks);
   return new ServerAuthStore({ file, state: rotated, now, testHooks });
 }

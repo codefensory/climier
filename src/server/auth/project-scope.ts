@@ -1,4 +1,21 @@
-function authError(code, message) {
+type Catalog = {
+  resolveProject?: (projectId: string) => Promise<string>;
+  provisionProject?: (projectId: string) => Promise<string>;
+};
+
+type AuthStore = { verifyBearer: (token: string) => Promise<boolean> };
+type AuthorizedProject = { projectDir: string; [key: string]: unknown };
+type OpenProject = (storagePath: string, metadata?: { projectId?: string }) => Promise<AuthorizedProject>;
+type AuthorizedProjectOptions = {
+  authorization?: unknown;
+  projectId?: string;
+  authStore?: AuthStore;
+  catalog?: Catalog;
+  openProject?: OpenProject;
+  provision?: boolean;
+};
+
+function authError(code: string, message: string) {
   return Object.assign(new Error(`server auth: ${message}`), { code });
 }
 
@@ -13,13 +30,13 @@ function bearerToken(authorization) {
   return match[1];
 }
 
-function assertCatalogAvailable(catalog) {
+function assertCatalogAvailable(catalog: Catalog | undefined): asserts catalog is Catalog & { resolveProject: NonNullable<Catalog["resolveProject"]> } {
   if (!catalog || typeof catalog.resolveProject !== "function") {
     throw authError("CATALOG_UNAVAILABLE", "trusted project catalog is unavailable");
   }
 }
 
-function projectResolver(catalog, provision) {
+function projectResolver(catalog: Catalog, provision: boolean) {
   const resolveProject = provision ? catalog.provisionProject : catalog.resolveProject;
   if (typeof resolveProject !== "function") {
     throw authError("CATALOG_UNAVAILABLE", "trusted project catalog cannot provision projects");
@@ -27,7 +44,7 @@ function projectResolver(catalog, provision) {
   return resolveProject;
 }
 
-async function assertBearer(authStore, authorization) {
+async function assertBearer(authStore: AuthStore | undefined, authorization: unknown) {
   if (!authStore || typeof authStore.verifyBearer !== "function") {
     throw authError("AUTH_STORE_UNAVAILABLE", "server auth store is unavailable");
   }
@@ -43,7 +60,7 @@ export async function withAuthorizedProject({
   catalog,
   openProject,
   provision = false,
-} = {}) {
+}: AuthorizedProjectOptions = {}) {
   await assertBearer(authStore, authorization);
   assertCatalogAvailable(catalog);
   if (typeof openProject !== "function") {
@@ -51,6 +68,6 @@ export async function withAuthorizedProject({
   }
 
   const resolveProject = projectResolver(catalog, provision);
-  const storagePath = await resolveProject.call(catalog, projectId);
+  const storagePath = await resolveProject.call(catalog, projectId as string);
   return openProject(storagePath, { projectId });
 }

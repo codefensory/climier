@@ -20,6 +20,7 @@
     "src/providers/**/*.ts",
     "src/read-model/**/*.ts",
     "src/application/**/*.ts",
-    "src/plugins/**/*.ts"
+    "src/plugins/**/*.ts",
+    "src/server/**/*.ts"
   ]
 }

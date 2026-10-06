@@ -1,4 +1,20 @@
 import fs from "node:fs/promises";
+import { errorProperties, type Headers, type ServerError } from "./types.ts";
+import type { SourceInput } from "../application/types.ts";
+
+type Project = { projectDir: string; source_project_id?: string; name?: string | null; id?: string; [key: string]: unknown };
+type Catalog = { resolveProject: (id: string) => Promise<string>; provisionProject: (id: string) => Promise<string>; listProjects: () => Promise<Project[]> };
+type AuthStore = { verifyBearer: (token: string) => Promise<boolean>; login: (password: string) => Promise<string> };
+type RateLimiter = { assertAllowed: (key: string) => void; recordFailure: (key: string) => void; recordSuccess: (key: string) => void };
+type HttpRequest = { method: string; url?: string; headers: Headers; socket?: { remoteAddress?: string }; once?: (event: string, listener: () => void) => unknown; [Symbol.asyncIterator](): AsyncIterator<Buffer> };
+type HttpResponse = { headersSent: boolean; writableEnded: boolean; destroyed: boolean; writeHead(status: number, headers?: Record<string, string | number>): unknown; flushHeaders?: () => unknown; write(data: string | Buffer): boolean; end(data?: string | Buffer): unknown; destroy(error?: unknown): unknown; once(event: string, listener: (...args: unknown[]) => void): unknown };
+type BaseDependencies = { catalog: Catalog; authStore: AuthStore; openProject: (projectDir: string, options?: { projectId?: string; create?: boolean }) => Promise<Project>; getOperationSource: () => Promise<SourceInput>; loginRateLimiter: RateLimiter };
+type ServerDependencies = BaseDependencies & { uiApi: ReturnType<typeof createUiApi>; uiEvents: ReturnType<typeof createUiEvents> };
+type OperationSourceOptions = NonNullable<Parameters<typeof createOperationSource>[0]>;
+type MutateFn = NonNullable<OperationSourceOptions["mutate"]>;
+type ServerOptions = { catalog?: Catalog; authStore?: AuthStore; openProject?: BaseDependencies["openProject"]; operationSource?: (() => Promise<SourceInput>) | SourceInput; source?: SourceInput; registry?: OperationSourceOptions["registry"]; mutate?: MutateFn; selectPolicy?: OperationSourceOptions["loadPolicy"]; authorizeAction?: OperationSourceOptions["authorize"]; loginRateLimiter?: RateLimiter; uiRoot?: string; indexFile?: string };
+type Route = { login?: boolean; projects?: boolean; projectId?: string; route: string };
+type MatchedRoute = { projectsRoute: boolean; operationRoute: boolean; initRoute: boolean; transferRoute: string | null; read: unknown; events: unknown; ui: unknown };
 
 import { dispatchOperationRequest, validateOperationRequest } from "./http/operations.ts";
 import { createOperationSource } from "../operation-source.ts";
@@ -23,11 +39,11 @@ const reads = createHttpReads({
   httpError,
   routing: { decodeURIComponent },
   query: { searchParams: (url) => url.searchParams },
-  deps: readModel,
+  deps: readModel as unknown as Record<string, (args?: unknown) => unknown>,
   clock: Date.now,
 });
 
-function validateServerDependencies({ catalog, openProject, getOperationSource, authStore }) {
+function validateServerDependencies({ catalog, openProject, getOperationSource, authStore }: BaseDependencies) {
   if (!catalog || typeof catalog.resolveProject !== "function"
       || typeof catalog.provisionProject !== "function" || typeof catalog.listProjects !== "function") {
     throw new TypeError("server http: catalog with resolveProject, provisionProject, and listProjects is required");
@@ -43,7 +59,7 @@ function validateServerDependencies({ catalog, openProject, getOperationSource, 
   }
 }
 
-async function authorizeUiRequest(request, authStore) {
+async function authorizeUiRequest(request: HttpRequest, authStore: AuthStore) {
   const authorization = request?.headers?.authorization;
   if (typeof authorization !== "string") {
     throw httpError("AUTH_REQUIRED", "server auth: bearer token is required", undefined, 401);
@@ -57,7 +73,7 @@ async function authorizeUiRequest(request, authStore) {
   }
 }
 
-async function listProjectSummary(project) {
+async function listProjectSummary(project: Project) {
   const snapshot = await readState(project.projectDir);
   if (!snapshot) {
     return {
@@ -72,20 +88,20 @@ async function listProjectSummary(project) {
   return {
     project_id: project.source_project_id,
     name: project.name ?? null,
-    revision: Number.isInteger(snapshot.revision) ? snapshot.revision : 0,
-    node_count: snapshot.nodes && typeof snapshot.nodes === "object" && !Array.isArray(snapshot.nodes)
-      ? Object.keys(snapshot.nodes).length
+    revision: Number.isInteger((snapshot as { revision?: unknown }).revision) ? (snapshot as { revision: number }).revision : 0,
+    node_count: (snapshot as { nodes?: unknown }).nodes && typeof (snapshot as { nodes?: unknown }).nodes === "object" && !Array.isArray((snapshot as { nodes?: unknown }).nodes)
+      ? Object.keys((snapshot as { nodes: object }).nodes).length
       : 0,
     updated_at: stateInfo.mtime.toISOString(),
   };
 }
 
-async function listProjectSummaries(dependencies) {
+async function listProjectSummaries(dependencies: BaseDependencies) {
   const projects = await dependencies.catalog.listProjects();
   return Promise.all(projects.map((project) => listProjectSummary(project)));
 }
 
-async function getUiProject(projectId, dependencies) {
+async function getUiProject(projectId: string, dependencies: BaseDependencies): Promise<Project> {
   const projectDir = await dependencies.catalog.resolveProject(projectId);
   const project = await dependencies.openProject(projectDir, { projectId });
   if (!project || typeof project.projectDir !== "string") {
@@ -94,26 +110,26 @@ async function getUiProject(projectId, dependencies) {
   return { ...project, id: projectId, name: project.name || projectId };
 }
 
-function createRemoteUiApi(dependencies) {
+function createRemoteUiApi(dependencies: BaseDependencies) {
   return createUiApi({
-    authorize: (request) => authorizeUiRequest(request, dependencies.authStore),
+    authorize: (request) => authorizeUiRequest(request as HttpRequest, dependencies.authStore),
     getProject: (projectId) => getUiProject(projectId, dependencies),
     readSnapshot: ({ projectDir }) => readState(projectDir),
     clock: Date.now,
   });
 }
 
-function createRemoteUiEvents(dependencies) {
+function createRemoteUiEvents(dependencies: BaseDependencies) {
   return createUiEvents({
-    authorize: (request) => authorizeUiRequest(request, dependencies.authStore),
+    authorize: (request) => authorizeUiRequest(request as HttpRequest, dependencies.authStore),
     getProject: (projectId) => getUiProject(projectId, dependencies),
     readSnapshot: ({ projectDir }) => readState(projectDir),
-    resolveLedger: ({ projectDir }) => ledgerFile(projectDir),
+    resolveLedger: ({ projectDir }: { projectDir: string }) => ledgerFile(projectDir),
     protocolVersion: PROTOCOL_VERSION,
   });
 }
 
-function assertProtocol(request) {
+function assertProtocol(request: HttpRequest) {
   const version = request.headers["x-climier-protocol-version"];
   if (version !== PROTOCOL_VERSION) {
     throw httpError(
@@ -125,13 +141,13 @@ function assertProtocol(request) {
   }
 }
 
-function resolveRoute(request, url) {
+function resolveRoute(request: HttpRequest, url: URL): Route {
   if (url.pathname === "/v1/auth/login") {
     assertProtocol(request);
     if (request.method !== "POST") {
       throw httpError("ROUTE_NOT_FOUND", "server http: route was not found", undefined, 404);
     }
-    return { login: true };
+    return { login: true, route: "" };
   }
   if (url.pathname === "/v1/projects") {
     assertProtocol(request);
@@ -213,7 +229,7 @@ async function readRequestInput(request, route, matched, uiApi) {
   return { body, query };
 }
 
-async function openAuthorizedProject(request, route, initRoute, dependencies) {
+async function openAuthorizedProject(request: HttpRequest, route: Route, initRoute: boolean, dependencies: BaseDependencies): Promise<Project> {
   const project = await withAuthorizedProject({
     authorization: request.headers.authorization,
     projectId: route.projectId,
@@ -228,12 +244,13 @@ async function openAuthorizedProject(request, route, initRoute, dependencies) {
   return project;
 }
 
-async function handleInit(projectDir) {
+async function handleInit(projectDir: string) {
   try {
-    const mutation = await initState({ projectDir, actor: "system" });
+    const mutation = await initState({ projectDir, actor: "system" }) as { result: unknown };
     return mutation.result;
   } catch (error) {
-    if (typeof error?.message === "string" && error.message.startsWith("state.init: state file already exists at ")) {
+    const properties = errorProperties(error);
+    if (typeof properties.message === "string" && properties.message.startsWith("state.init: state file already exists at ")) {
       throw httpError("STATE_ALREADY_INITIALIZED", "server http: project state is already initialized", undefined, 409);
     }
     throw error;
@@ -307,7 +324,7 @@ async function sendRouteResult({ response, route, matched, body, query, project,
       body,
       httpError,
     });
-    const result = matched.transferRoute === "transfer/export" ? installed : { revision: installed.revision };
+    const result = matched.transferRoute === "transfer/export" ? installed : { revision: (installed as { revision: number }).revision };
     send(response, 200, { ok: true, result });
     return;
   }
@@ -330,7 +347,7 @@ async function handleLogin(request, response, dependencies) {
     dependencies.loginRateLimiter.recordSuccess(clientAddress);
     send(response, 200, { ok: true, token, token_type: "Bearer", expires_in_days: 30 });
   } catch (error) {
-    if (error.code === "AUTH_INVALID_PASSWORD") {
+    if (errorProperties(error).code === "AUTH_INVALID_PASSWORD") {
       dependencies.loginRateLimiter.recordFailure(clientAddress);
       throw httpError("AUTH_INVALID", "server http: password is invalid", undefined, 401);
     }
@@ -412,15 +429,15 @@ function createBunRequest(request, server) {
 
 function createBunResponse() {
   const listeners = new Map();
-  const queued = [];
-  const written = [];
+  const queued: Buffer[] = [];
+  const written: Buffer[] = [];
   let controller;
   let status = 200;
   let headers = {};
   let headersSent = false;
   let writableEnded = false;
   let destroyed = false;
-  const stream = new ReadableStream({
+  const stream = new ReadableStream<Uint8Array>({
     start(nextController) {
       controller = nextController;
       for (const chunk of queued.splice(0)) controller.enqueue(chunk);
@@ -462,7 +479,7 @@ function createBunResponse() {
       emit("close");
       return response;
     },
-    destroy(error) {
+    destroy(error = undefined) {
       if (destroyed) return response;
       destroyed = true;
       if (controller) controller.error(error);
@@ -498,23 +515,29 @@ export function createRemoteApiServer({
   operationSource: operationSourceFactory,
   source,
   registry,
-  mutate: mutateKernel = mutate,
+  mutate: mutateKernel = mutate as unknown as MutateFn,
   selectPolicy,
   authorizeAction,
   loginRateLimiter = createLoginRateLimiter(),
   uiRoot,
   indexFile = "index.html",
-} = {}) {
-  const getOperationSource = typeof operationSourceFactory === "function"
+}: ServerOptions = {}) {
+  const getOperationSource: () => Promise<SourceInput> = typeof operationSourceFactory === "function"
     ? operationSourceFactory
     : createOperationSource({
       source: operationSourceFactory || source,
       registry,
-      mutate: mutateKernel,
+      mutate: mutateKernel as unknown as MutateFn,
       loadPolicy: selectPolicy,
       authorize: authorizeAction,
     });
-  const dependencies = { catalog, authStore, openProject: openProjectDependency, getOperationSource, loginRateLimiter };
+  const dependencies: BaseDependencies & Partial<Pick<ServerDependencies, "uiApi" | "uiEvents">> = {
+    catalog: catalog!,
+    authStore: authStore!,
+    openProject: openProjectDependency,
+    getOperationSource,
+    loginRateLimiter,
+  };
   validateServerDependencies(dependencies);
   dependencies.uiApi = createRemoteUiApi(dependencies);
   dependencies.uiEvents = createRemoteUiEvents(dependencies);
@@ -533,7 +556,7 @@ export function createRemoteApiServer({
       if (staticHandler && await staticHandler(adaptedRequest, response)) {
         return response.toResponse();
       }
-      await handleRequest(adaptedRequest, response, dependencies);
+      await handleRequest(adaptedRequest, response, dependencies as ServerDependencies);
     } catch (error) {
       sendRequestError(response, error);
     }
@@ -586,7 +609,7 @@ export function createRemoteApiServer({
         return server;
       }
       closePromise = (async () => {
-        await dependencies.uiEvents.close();
+        await (dependencies as ServerDependencies).uiEvents.close();
         if (bunServer) {
           await bunServer.stop(true);
           bunServer = undefined;

@@ -1,3 +1,5 @@
+import type { ServerError } from "../types.ts";
+
 import {
   executeBatch as executeBatchDefault,
   executeOperation as executeOperationDefault,
@@ -44,7 +46,7 @@ function operationCapabilities(manifest) {
   return { operationsById, operationIds: new Set(operationsById.keys()), batch: manifest.batch };
 }
 
-function invalidRequest(httpError, message, field, details = { field }) {
+function invalidRequest(httpError, message, field, details: Record<string, unknown> = { field }) {
   throw httpError("INVALID_REQUEST", `server http: ${message}`, details, 400);
 }
 
@@ -125,7 +127,7 @@ function validateOperationIdentity(body, { batch, operationIds, httpError }) {
   if (operationIds.has(body.operation) || body.operation === batch.id) {
     return;
   }
-  const error = new Error(`application.executeOperation: operation '${body.operation}' is not registered`);
+  const error = new Error(`application.executeOperation: operation '${body.operation}' is not registered`) as ServerError;
   error.code = "OPERATION_NOT_FOUND";
   error.details = { operation: body.operation };
   error.status = 404;

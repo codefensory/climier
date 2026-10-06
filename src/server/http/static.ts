@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { errorProperties } from "../types.ts";
 
 const CACHE_CONTROL_ASSET = "public, max-age=31536000, immutable";
 const CACHE_CONTROL_HTML = "no-cache";
@@ -85,7 +86,7 @@ async function resolveFile(candidate, root) {
     try {
       await fs.lstat(current);
     } catch (error) {
-      if (error.code === "ENOENT") {
+      if (errorProperties(error).code === "ENOENT") {
         return { kind: "missing" };
       }
       return { kind: "unsafe" };
@@ -124,7 +125,7 @@ async function sendFile(request, response, file, { asset }) {
   response.end(request.method === "HEAD" ? undefined : body);
 }
 
-export function createStaticHandler({ root, indexFile = "index.html" } = {}) {
+export function createStaticHandler({ root, indexFile = "index.html" }: { root?: string; indexFile?: string } = {}) {
   if (typeof root !== "string" || root.length === 0) {
     throw new TypeError("server static: root is required");
   }
