@@ -108,15 +108,6 @@ test("private server config fails closed for malformed or unsafe settings", asyn
 
 test("private server config accepts every non-empty listen host without a network policy", async (t) => {
   const root = await makeRoot(t);
-  const previousAllowTailscaleHttp = process.env.CLIMIER_SERVER_ALLOW_TAILSCALE_HTTP;
-  delete process.env.CLIMIER_SERVER_ALLOW_TAILSCALE_HTTP;
-  t.after(() => {
-    if (previousAllowTailscaleHttp === undefined) {
-      delete process.env.CLIMIER_SERVER_ALLOW_TAILSCALE_HTTP;
-    } else {
-      process.env.CLIMIER_SERVER_ALLOW_TAILSCALE_HTTP = previousAllowTailscaleHttp;
-    }
-  });
 
   for (const host of ["0.0.0.0", "::", "localhost", "192.0.2.10", "127.0.0.1"]) {
     assert.equal(parseServerRuntimeConfig(config(root, { listen: { host, port: 0 } })).listen.host, host);
