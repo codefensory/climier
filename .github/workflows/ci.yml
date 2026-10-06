@@ -42,7 +42,7 @@ jobs:
             target: bun-linux-arm64
             extension: ""
           - name: darwin-x64
-            os: macos-13
+            os: macos-15-intel
             target: bun-darwin-x64
             extension: ""
           - name: darwin-arm64
