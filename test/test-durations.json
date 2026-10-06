@@ -1,5 +1,5 @@
 {
-  "regeneration": "node test/generate-test-durations.mjs (min across in-process JUnit passes)",
+  "regeneration": "bun test/generate-test-durations.mjs (min across duration-sharded JUnit passes)",
   "files": {
     "test/add-note.test.mjs": 316,
     "test/add-task-initiative-lookup.test.mjs": 236,

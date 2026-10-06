@@ -4,7 +4,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { validateManifest } from "./test-manifest-checker.mjs";
-import { parseTapTestNames } from "./test-manifest-collector.mjs";
+import { parseJunitTestNames, parseTapTestNames } from "./test-manifest-collector.mjs";
 import { findRawWriterFiles } from "./test-manifest-lanes.mjs";
 import { buildManifestRows } from "./test-manifest-rows.mjs";
 
@@ -249,6 +249,17 @@ test("TAP collector builds full names from runtime nesting and indentation", () 
   assert.deepEqual(parseTapTestNames(tap, "test/runtime.test.mjs"), [
     { path: "test/runtime.test.mjs", name: "describe runtime title > test with interpolated text captured" },
     { path: "test/runtime.test.mjs", name: "describe runtime title > subtest from t.test" },
+  ]);
+});
+
+test("JUnit collector reads Bun test names and decodes XML entities", () => {
+  const junit = [
+    '<testsuite file="test/runtime.test.mjs">',
+    '  <testcase name="runtime &amp; captured" file="test/runtime.test.mjs" />',
+    '</testsuite>',
+  ].join("\n");
+  assert.deepEqual(parseJunitTestNames(junit, "test/runtime.test.mjs"), [
+    { path: "test/runtime.test.mjs", name: "runtime & captured" },
   ]);
 });
 

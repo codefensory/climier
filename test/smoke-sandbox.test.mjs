@@ -139,7 +139,7 @@ test("smoke-sandbox.sh: forces CLIMIER_HOME to a private temp dir", async () => 
 test("smoke-sandbox.sh: does not touch the real ~/.climier", async () => {
   const tmp = await createTempProject();
   try {
-    const r = await runHelper(["node", BIN, "--project", tmp, "init"]);
+    const r = await runHelper([process.execPath, BIN, "--project", tmp, "init"]);
     assert.equal(r.code, 0, `init failed; stdout=${r.stdout} stderr=${r.stderr}`);
     // Real ~/.climier is untouched: no tasks.json was created under the
     // sentinel home either, because the helper redirects CLIMIER_HOME.
@@ -206,7 +206,7 @@ test("smoke-sandbox.sh: works with a project that preserves .climier.json", asyn
       JSON.stringify({ project_id: metaId }) + "\n",
       "utf8",
     );
-    const r = await runHelper(["node", BIN, "--project", tmp, "init"]);
+    const r = await runHelper([process.execPath, BIN, "--project", tmp, "init"]);
     assert.equal(r.code, 0, `init failed; stdout=${r.stdout} stderr=${r.stderr}`);
     // .climier.json is preserved (init does not overwrite by default).
     const meta = JSON.parse(await fsp.readFile(path.join(tmp, ".climier.json"), "utf8"));
@@ -222,7 +222,7 @@ test("smoke-sandbox.sh: works with a project that has no metadata", async () => 
     // No .climier.json. The CLI derives a project_id from the path; the
     // helper must still isolate CLIMIER_HOME so init does not touch the
     // real home.
-    const r = await runHelper(["node", BIN, "--project", tmp, "init"]);
+    const r = await runHelper([process.execPath, BIN, "--project", tmp, "init"]);
     assert.equal(r.code, 0, `init failed; stdout=${r.stdout} stderr=${r.stderr}`);
     // init writes .climier.json even when starting without metadata.
     assert.ok(fs.existsSync(path.join(tmp, ".climier.json")));

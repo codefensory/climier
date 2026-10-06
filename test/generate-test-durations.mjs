@@ -2,7 +2,7 @@
 // same in-process shards the core runner uses. The runner partitions shards
 // with these weights, which tracks real cost far better than file size.
 //
-//   node test/generate-test-durations.mjs
+//   bun test/generate-test-durations.mjs
 //
 // Each file keeps the minimum across passes, so background load inflating a
 // pass does not poison its weight. Re-run after large test additions or
@@ -28,18 +28,22 @@ const rootDir = path.resolve(testDir, "..");
 const durationsPath = path.join(testDir, "test-durations.json");
 const workers = Math.max(1, Number(process.env.CLIMIER_TEST_WORKERS || os.availableParallelism() - 1) || 1);
 const passes = Math.max(1, Number(process.env.CLIMIER_TEST_DURATION_PASSES || 3) || 1);
+const isBun = Boolean(process.versions.bun);
 
 function runShard(shard, index, workDir) {
   return new Promise((resolve) => {
     const destination = path.join(workDir, `shard-${index}.xml`);
-    const child = spawn(process.execPath, [
-      "--test",
-      "--test-concurrency=1",
-      ...inProcessIsolationArgs("none"),
-      "--test-reporter=junit",
-      `--test-reporter-destination=${destination}`,
-      ...shard,
-    ], { stdio: ["ignore", "ignore", "pipe"] });
+    const args = isBun
+      ? ["test", "--reporter=junit", `--reporter-outfile=${destination}`, ...shard]
+      : [
+        "--test",
+        "--test-concurrency=1",
+        ...inProcessIsolationArgs("none"),
+        "--test-reporter=junit",
+        `--test-reporter-destination=${destination}`,
+        ...shard,
+      ];
+    const child = spawn(process.execPath, args, { stdio: ["ignore", "ignore", "pipe"] });
     let stderr = "";
     child.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
     child.once("error", (error) => resolve({ index, error: error.message }));
@@ -90,7 +94,7 @@ async function measurePass(files, table, workDir) {
   return durations;
 }
 
-if (!supportsInProcessIsolation()) {
+if (!isBun && !supportsInProcessIsolation()) {
   console.error(`generate-test-durations: in-process isolation requires Node >= 22.8.0 (running ${process.versions.node})`);
   process.exitCode = 1;
 } else {
@@ -115,7 +119,7 @@ if (!supportsInProcessIsolation()) {
         .toSorted(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
     );
     await writeFile(durationsPath, `${JSON.stringify({
-      regeneration: "node test/generate-test-durations.mjs (min across in-process JUnit passes)",
+      regeneration: "bun test/generate-test-durations.mjs (min across duration-sharded JUnit passes)",
       files: relative,
     }, null, 2)}\n`);
     console.log(`test durations: recorded ${Object.keys(relative).length} files${missing.length > 0 ? ` (${missing.length} missing)` : ""}`);

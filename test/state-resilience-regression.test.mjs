@@ -95,7 +95,7 @@ if (!BIN || !PROJECT || !PID || !SANDBOX_HOME) {
 const TASKS_FILE = path.join(SANDBOX_HOME, "projects", PID, "tasks.json");
 
 function cli(...args) {
-  const result = execFileSync("node", [BIN, "--project", PROJECT, ...args], {
+  const result = execFileSync(process.execPath, [BIN, "--project", PROJECT, ...args], {
     encoding: "utf8",
   });
   return JSON.parse(result);
@@ -207,7 +207,7 @@ function writeOrchestrator(dir) {
 
 function spawnCli(args, env = {}) {
   return new Promise((resolve) => {
-    const proc = spawn("node", args, {
+    const proc = spawn(process.execPath, args, {
       cwd: ROOT,
       env: { ...process.env, NO_COLOR: "1", ...env },
     });
@@ -316,7 +316,7 @@ test("REGRESSION: with smoke-sandbox, init --force with copied project_id does N
     // `export CLIMIER_HOME="$sandbox/home"` MUST override this; the
     // orchestrator's `summary.sandbox_home` (read inside the helper)
     // confirms the override.
-    const r = await spawnHelper(["node", orchestrator], {
+    const r = await spawnHelper([process.execPath, orchestrator], {
       CLIMIER_HOME: control,
       CLIMIER_BIN: BIN,
       CLIMIER_PROJECT: tempProj,
@@ -429,7 +429,7 @@ test("SANDBOX FILES: orchestrator-created state file lives under the sandbox hom
 
   try {
     const orchestrator = writeOrchestrator(tempProj);
-    const r = await spawnHelper(["node", orchestrator], {
+    const r = await spawnHelper([process.execPath, orchestrator], {
       CLIMIER_HOME: control,
       CLIMIER_BIN: BIN,
       CLIMIER_PROJECT: tempProj,

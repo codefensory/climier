@@ -13,7 +13,7 @@ const BIN = path.join(ROOT, "bin", "climier.mjs");
 
 async function runCliWithInput(args, input, { cwd, env } = {}) {
   return new Promise((resolve) => {
-    const proc = spawn("node", [BIN, ...args], {
+    const proc = spawn(process.execPath, [BIN, ...args], {
       cwd,
       env: { ...process.env, ...env, NO_COLOR: "1" },
     });

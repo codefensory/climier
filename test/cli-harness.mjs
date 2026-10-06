@@ -90,7 +90,7 @@ export function runCliSpawn(args, { cwd, env } = {}) {
   const ownsCwd = cwd === undefined;
   const childCwd = cwd ?? fs.mkdtempSync(path.join(os.tmpdir(), "climier-cli-test-"));
   return new Promise((resolve) => {
-    const proc = spawn("node", [BIN, ...args], {
+    const proc = spawn(process.execPath, [BIN, ...args], {
       cwd: childCwd,
       env: { ...process.env, ...env, NO_COLOR: "1" },
     });

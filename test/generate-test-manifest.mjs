@@ -17,7 +17,7 @@ const tests = buildManifestRows({ rows, previous: previous.tests, declarations: 
 const manifest = {
   version: 1,
   base_sha: previous.base_sha ?? "518af2c618d4daf1cc8839daac2242404c09d863",
-  regeneration: "node test/generate-test-manifest.mjs (runs each test file with node --test --test-reporter=tap); final regeneration owner: T-v1-release-candidate",
+  regeneration: "bun test/generate-test-manifest.mjs (runs each test file with Bun's JUnit reporter); final regeneration owner: T-v1-release-candidate",
   tests,
 };
 validateManifest(manifest, rows, { rawWriterFiles, rawLaneDeclarations });
