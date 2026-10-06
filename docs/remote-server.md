@@ -25,7 +25,7 @@ or private environment file, never as a command argument and never in JSON:
 
 ```sh
 export CLIMIER_SERVER_PASSWORD='<high-entropy-password>'
-node /path/to/climier/bin/climier-server.mjs /srv/climier/private/server.json
+/path/to/climier-server /srv/climier/private/server.json
 ```
 
 The launcher prints one JSON health line. A missing password, malformed listener,
@@ -63,13 +63,57 @@ bun install --frozen-lockfile
 bun run build
 ```
 
-When the service host has no build toolchain, `scripts/deploy-hosted-ui.sh`
-builds `ui/dist` locally, merges the deployment base into the current commit,
-pushes it to the remote checkout over SSH, ships the bundle, restarts the
-service and verifies the served asset byte for byte against the local build.
-Configure host, path, service and origin in a gitignored `.deploy.env` (copy
-`scripts/deploy-hosted-ui.env.example`); `--check` reports drift without
-changing anything.
+### Deploy the compiled server and UI
+
+The supported deployment procedure ships a compiled server binary and the
+static UI bundle; the host does not need Bun, Node.js, a checkout, or UI
+runtime dependencies. The old out-of-tree deployment patch is retired: the
+operator controls the listener address through `listen.host`, and the service
+runs the binary built from the repository revision being deployed.
+
+Prepare the host once with a private `server.json`, a systemd unit, and an
+absolute deployment root. The unit's `ExecStart` must point at the deployed
+binary and config, for example:
+
+```ini
+[Service]
+ExecStart=/srv/climier/climier-server /srv/climier/server.json
+```
+
+Set `uiRoot` in that config to the path where the script will install the UI.
+The script defaults to `/srv/climier/ui/dist` when the remote root is
+`/srv/climier`; it updates and validates this field before restarting:
+
+```json
+{
+  "listen": { "host": "100.64.0.10", "port": 43127 },
+  "dataRoot": "/srv/climier/data",
+  "stateHome": "/srv/climier/state",
+  "uiRoot": "/srv/climier/ui/dist"
+}
+```
+
+Copy `scripts/deploy-server.env.example` to the gitignored `.deploy.env` and
+set the SSH destination, Bun target, systemd unit, and origin. Supported
+binary targets include `linux-x64`, `linux-arm64`, `darwin-x64`,
+`darwin-arm64`, and `windows-x64`; the target must match the service host.
+Then run:
+
+```sh
+scripts/deploy-server.sh
+scripts/deploy-server.sh --check
+```
+
+A deployment runs `bun run build:binary --target "$CLIMIER_DEPLOY_TARGET"`,
+builds `ui/dist`, copies the binary and bundle over SSH, ensures the remote
+`server.json` has the explicit absolute `uiRoot`, restarts the unit, and
+checks the service health URL plus the hashed UI asset byte for byte. `--check`
+only reads local build artifacts and remote state; it reports drift without
+copying files, changing `server.json`, or restarting the service. If the
+origin is only reachable from the server, set `CLIMIER_DEPLOY_HEALTH_URL` and
+`CLIMIER_DEPLOY_URL` to URLs that the host can access. Do not run the real
+production deployment from an implementation task; use `bash -n`, `--help`,
+and `--check` with a test host or missing configuration for local validation.
 
 The SPA authenticates with the same `POST /v1/auth/login` password; it lists
 projects with `GET /v1/projects` and reads one project with
