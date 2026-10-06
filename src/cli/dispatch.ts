@@ -6,6 +6,50 @@ import { createBackendClient } from "../application/operations/index.ts";
 import { getOperationSource } from "../operation-source.ts";
 import { exitCodeForError, normalizeCliError } from "../contracts/errors.ts";
 import { RESERVED_NAMESPACES } from "./commands/reserved-namespaces.ts";
+import type { CommandContext, CommandLoader, DispatchOptions } from "./commands/contracts.ts";
+export type { CommandContext, CommandModule } from "./commands/contracts.ts";
+
+export const COMMANDS = Object.freeze({
+  accept: () => import("./commands/accept.ts"),
+  "add-edge": () => import("./commands/add-edge.ts"),
+  "add-gate": () => import("./commands/add-gate.ts"),
+  "add-initiative": () => import("./commands/add-initiative.ts"),
+  "add-knowledge": () => import("./commands/add-knowledge.ts"),
+  "add-node": () => import("./commands/add-node.ts"),
+  "add-note": () => import("./commands/add-note.ts"),
+  "add-task": () => import("./commands/add-task.ts"),
+  batch: () => import("./commands/batch.ts"),
+  cancel: () => import("./commands/cancel.ts"),
+  context: () => import("./commands/context.ts"),
+  "deprecate-knowledge": () => import("./commands/deprecate-knowledge.ts"),
+  history: () => import("./commands/history.ts"),
+  initiatives: () => import("./commands/initiatives.ts"),
+  init: () => import("./commands/init.ts"),
+  install: () => import("./commands/install.ts"),
+  link: () => import("./commands/link.ts"),
+  login: () => import("./commands/login.ts"),
+  logout: () => import("./commands/logout.ts"),
+  log: () => import("./commands/log.ts"),
+  migrate: () => import("./commands/migrate.ts"),
+  pull: () => import("./commands/pull.ts"),
+  push: () => import("./commands/push.ts"),
+  reject: () => import("./commands/reject.ts"),
+  release: () => import("./commands/release.ts"),
+  "remove-edge": () => import("./commands/remove-edge.ts"),
+  reopen: () => import("./commands/reopen.ts"),
+  resolve: () => import("./commands/resolve.ts"),
+  restore: () => import("./commands/restore.ts"),
+  search: () => import("./commands/search.ts"),
+  show: () => import("./commands/show.ts"),
+  snapshots: () => import("./commands/snapshots.ts"),
+  state: () => import("./commands/state.ts"),
+  status: () => import("./commands/status.ts"),
+  submit: () => import("./commands/submit.ts"),
+  take: () => import("./commands/take.ts"),
+  ui: () => import("./commands/ui.ts"),
+  uninstall: () => import("./commands/uninstall.ts"),
+  update: () => import("./commands/update.ts"),
+} satisfies Readonly<Record<string, CommandLoader>>);
 
 export const PACKAGE_VERSION = JSON.parse(
   fsSync.readFileSync(new URL("../../package.json", import.meta.url), "utf8"),
@@ -174,29 +218,25 @@ async function dispatchInstalledPlugin({
   return dispatchPlugin({ originalArgv, namespace: command, projectDir, flags, backendClient });
 }
 
-async function dispatchBuiltInCommand({
-  command,
-  flags,
-  positional,
-  statePath,
-  projectDir,
-  projectConfig,
-  backendClient,
-  source,
-  originalArgv,
-}) {
-  const mod = await import(`./commands/${command}.ts`);
-  validateKnownFlags(command, flags, mod.knownFlags);
-  return mod.default({ positional, flags, statePath, projectDir, projectConfig, backendClient, source, originalArgv });
+async function dispatchBuiltInCommand(context: CommandContext) {
+  const load = COMMANDS[context.command];
+  if (!load) {
+    const error = new Error(`unknown command '${context.command}'`);
+    error.code = "MODULE_NOT_FOUND";
+    throw error;
+  }
+  const mod = await load();
+  validateKnownFlags(context.command, context.flags, mod.knownFlags);
+  return mod.default(context);
 }
 
-export async function dispatchCommand(options = {}) {
+export async function dispatchCommand(options: DispatchOptions = {}) {
   const {
-    command,
+    command = null,
     originalArgv = [],
     flags = {},
     positional = [],
-    projectDir,
+    projectDir = "",
     statePath = projectDir,
     projectConfig = {},
     backendClient,
@@ -218,15 +258,15 @@ export async function dispatchCommand(options = {}) {
     return pluginResult;
   }
   return dispatchBuiltInCommand({
-    command,
+    command: command ?? "",
+    originalArgv,
     flags,
     positional,
-    statePath,
     projectDir,
+    statePath,
     projectConfig,
     backendClient,
     source,
-    originalArgv,
   });
 }
 

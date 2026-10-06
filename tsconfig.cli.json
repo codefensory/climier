@@ -1,6 +1,7 @@
 {
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
+    "strict": true,
     "rootDir": ".",
     "outDir": "node_modules/.cache/climier-tsbuild/cli",
     "tsBuildInfoFile": "node_modules/.cache/climier-tsbuild/cli.tsbuildinfo"
