@@ -15,7 +15,9 @@ export async function findRawWriterFiles(directory, relativeTo = directory) {
       files.push(...await findRawWriterFiles(entryPath, relativeTo));
       continue;
     }
-    if (!entry.isFile() || !entry.name.endsWith(".test.mjs") || entry.name.startsWith("ui-")) continue;
+    if (!entry.isFile()
+      || (!entry.name.endsWith(".test.mjs") && !entry.name.endsWith(".test.ts"))
+      || entry.name.startsWith("ui-")) continue;
     const source = await readFile(entryPath, "utf8");
     if (RAW_WRITER_CALL.test(source)) {
       files.push(path.relative(relativeTo, entryPath).split(path.sep).join("/"));

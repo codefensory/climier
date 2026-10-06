@@ -90,7 +90,9 @@ async function findTestFiles(directory) {
   for (const entry of entries) {
     const entryPath = path.join(directory, entry.name);
     if (entry.isDirectory()) files.push(...await findTestFiles(entryPath));
-    else if (entry.isFile() && entry.name.endsWith(".test.mjs") && !entry.name.startsWith("ui-")) files.push(entryPath);
+    else if (entry.isFile()
+      && (entry.name.endsWith(".test.mjs") || entry.name.endsWith(".test.ts"))
+      && !entry.name.startsWith("ui-")) files.push(entryPath);
   }
   return files.toSorted();
 }

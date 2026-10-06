@@ -32,12 +32,16 @@ export function buildManifestRows({ rows, previous = [], declarations = {} }) {
     const prior = priorByKey.get(JSON.stringify([filePath, name, ordinal]));
     if (prior?.disposition === "delete") return prior;
     const declaration = declarations[filePath];
+    const carriedMoveMetadata = prior?.disposition === "move"
+      ? Object.fromEntries(Object.entries(prior).filter(([key]) => !["path", "name", "ordinal", "disposition", "move_from"].includes(key)))
+      : {};
     return {
       path: filePath,
       name,
       ordinal,
       disposition: prior?.disposition ?? "keep",
       ...(prior?.disposition === "move" ? { move_from: prior.move_from } : {}),
+      ...carriedMoveMetadata,
       ...(declaration ? { lane: "raw", ...declaration } : {}),
     };
   });
