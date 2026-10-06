@@ -38,10 +38,11 @@ const richDetail = () => makeTaskDetail({
   activity: [
     { id: "1", kind: "created", author: "orchestrator", text: "created the task", at: "5d" },
     { id: "2", kind: "claim", author: "climier-worker", text: "claimed it", at: "3d" },
-    { id: "3", kind: "comment", author: "reviewer", text: "commented", at: "2d", comment: "El error de red no dice qué hacer: agregar una acción de reintento." },
-    { id: "4", kind: "submit", author: "climier-worker", text: "submitted it for validation", at: "1d" },
+    { id: "3", kind: "comment", author: "climier-worker", text: "commented", at: "2d", comment: "Arranqué por los estados vacíos; el error de red queda para el final." },
+    { id: "4", kind: "update", author: "climier-worker", text: "updated it", at: "2d" },
+    { id: "5", kind: "comment", author: "reviewer", text: "commented", at: "1d", comment: "El error de red no dice qué hacer: agregar una acción de reintento." },
+    { id: "6", kind: "submit", author: "climier-worker", text: "submitted it for validation", at: "6h" },
   ],
-  notes: [{ id: "n1", agent: "reviewer", text: "El error de red no dice qué hacer.", at: "2026-10-01T10:00:00.000Z" }],
 }, { tags: ["design", "checkout"], status: "in_progress", progress: 50, claimedBy: "climier-worker" });
 
 export const Playground: Story = {
@@ -49,10 +50,11 @@ export const Playground: Story = {
   render: (args) => <Frame><TaskDetailView {...args} /></Frame>,
   play: async () => {
     await waitFor(() => {
-      const notes = document.querySelector('[data-testid="task-notes"]');
-      expect(notes?.textContent).toContain("Notes · 1");
-      expect(notes?.textContent).toContain("reviewer");
-      expect(notes?.textContent).toContain("El error de red no dice qué hacer.");
+      const activity = document.querySelector('[data-testid="task-activity"]');
+      expect(activity?.textContent).toContain("Activity · 6");
+      expect(activity?.textContent).toContain("Arranqué por los estados vacíos; el error de red queda para el final.");
+      expect(activity?.textContent).toContain("El error de red no dice qué hacer: agregar una acción de reintento.");
+      expect(document.querySelector('[data-testid="task-notes"]')).toBeNull();
     });
   },
 };

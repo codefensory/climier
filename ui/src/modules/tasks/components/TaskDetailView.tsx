@@ -12,7 +12,7 @@ import { TaskProperties } from "./TaskProperties";
 import { TaskReferenceList } from "./TaskReferenceList";
 import { GroupHeader } from "./GroupHeader";
 import { taskGroups } from "../utils/taskGroups";
-import type { TaskBlocker, TaskDependent, TaskDetail, TaskKnowledge, TaskNote } from "../types";
+import type { TaskBlocker, TaskDependent, TaskDetail, TaskKnowledge } from "../types";
 
 export type TaskDetailViewProps = {
   detail: TaskDetail;
@@ -60,27 +60,6 @@ function NodeRow(props: NodeRowProps) {
 function gateRelationMeta(node: GateRelation): string {
   const status = statusLabel(node.status);
   return node.kind === "gate" && node.purpose ? `${status} · ${gatePurposeLabel(node.purpose)}` : status;
-}
-
-function TaskNotes(props: { notes: TaskNote[] }) {
-  return (
-    <section data-testid="task-notes" class="mt-8">
-      <h2 class="text-[13px] leading-5 font-medium text-ink">Notes · {props.notes.length}</h2>
-      <Show when={props.notes.length > 0} fallback={<p class="mt-3 text-[12px] leading-4 text-faint">No notes yet.</p>}>
-        <ul class="mt-3 flex flex-col gap-3">
-          <For each={props.notes}>{(note) => (
-            <li class="rounded-[10px] border border-line bg-raised px-3 py-2.5">
-              <div class="flex items-center justify-between gap-3 text-[11px] leading-4">
-                <span class="truncate font-medium text-ink">{note.agent}</span>
-                <time class="shrink-0 text-faint" dateTime={note.at}>{formatUpdatedAt(note.at)}</time>
-              </div>
-              <p class="mt-1.5 whitespace-pre-wrap text-[13px] leading-5 text-ink-soft">{note.text}</p>
-            </li>
-          )}</For>
-        </ul>
-      </Show>
-    </section>
-  );
 }
 
 function GateDetailArticle(props: TaskDetailViewProps & { gateInfo: { record: GateRecord; resolutionMode: string } }) {
@@ -182,9 +161,7 @@ function GateDetailArticle(props: TaskDetailViewProps & { gateInfo: { record: Ga
             </section>
           </Show>
 
-          <TaskNotes notes={props.detail.notes} />
-
-          <section class="mt-8 border-t border-hairline pt-6">
+          <section data-testid="task-activity" class="mt-8 border-t border-hairline pt-6">
             <h2 class="text-[13px] leading-5 font-medium text-ink">Activity · {props.detail.activity.length}</h2>
             <Show when={props.detail.activity.length > 0} fallback={<p class="mt-3 text-[12px] leading-4 text-faint">No activity yet.</p>}>
               <div class="mt-4"><TaskActivityFeed activity={props.detail.activity} /></div>
@@ -208,8 +185,8 @@ function GateDetailArticle(props: TaskDetailViewProps & { gateInfo: { record: Ga
  * snapshot es trabajo de la página, que es la que tiene el router.
  *
  * Las secciones son las del modelo de climier: **Specification** (body + acceptance),
- * **Blocking**, **Dependents**, **Knowledge**, **Activity/Notes** y **References**. La columna
- * derecha queda para propiedades y referencias; el resto se lee como una página.
+ * **Blocking**, **Dependents**, **Knowledge**, **Activity** (hilo único con las notas) y **References**.
+ * La columna derecha queda para propiedades y referencias; el resto se lee como una página.
  */
 export function TaskDetailView(props: TaskDetailViewProps) {
   if (props.gateInfo) return <GateDetailArticle {...props} gateInfo={props.gateInfo} />;
@@ -291,11 +268,11 @@ export function TaskDetailView(props: TaskDetailViewProps) {
             </section>
           </Show>
 
-          <TaskNotes notes={props.detail.notes} />
-
-          <section class="mt-10 border-t border-hairline pt-6">
-            <h2 class="text-[13px] leading-5 font-medium text-ink">Activity</h2>
-            <div class="mt-4"><TaskActivityFeed activity={props.detail.activity} /></div>
+          <section data-testid="task-activity" class="mt-10 border-t border-hairline pt-6">
+            <h2 class="text-[13px] leading-5 font-medium text-ink">Activity · {props.detail.activity.length}</h2>
+            <Show when={props.detail.activity.length > 0} fallback={<p class="mt-3 text-[12px] leading-4 text-faint">No activity yet.</p>}>
+              <div class="mt-4"><TaskActivityFeed activity={props.detail.activity} /></div>
+            </Show>
             <div class="mt-6"><TaskCommentComposer onSubmit={props.onSubmitComment} /></div>
           </section>
         </div>

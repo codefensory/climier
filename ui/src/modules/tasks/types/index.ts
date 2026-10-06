@@ -176,14 +176,6 @@ export type TaskKnowledge = {
   scopeMatches: string[];
 };
 
-/** Una nota del thread, con su autor y timestamp. */
-export type TaskNote = {
-  id: string;
-  agent: string;
-  text: string;
-  at: string;
-};
-
 /**
  * Qué dibuja `TaskActivityFeed` a la izquierda de una entrada.
  *
@@ -231,8 +223,8 @@ export type TaskDetail = {
   dependents: TaskDependent[];
   knowledge: TaskKnowledge[];
   refs: TaskReference[];
+  /** Hilo único del node: eventos del log y notas del thread, en orden cronológico. */
   activity: TaskActivityEntry[];
-  notes: TaskNote[];
 };
 
 export type FilterFieldDef = {

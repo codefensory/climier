@@ -69,7 +69,7 @@ export function TaskActivityFeed(props: TaskActivityFeedProps) {
               <span class="font-medium text-ink">{entry.author}</span> {entry.text} <span class="text-faint">{entry.at}</span>
             </p>
             <Show when={entry.comment}>
-              <p class="mt-2 rounded-[10px] border border-line bg-raised px-3 py-2 text-[13px] leading-5 text-ink-soft">{entry.comment}</p>
+              <p class="mt-2 whitespace-pre-wrap rounded-[10px] border border-line bg-raised px-3 py-2 text-[13px] leading-5 text-ink-soft">{entry.comment}</p>
             </Show>
           </div>
         </li>

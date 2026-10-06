@@ -24,6 +24,5 @@ export function taskDetailFor(task: Task): TaskDetail {
     knowledge: [],
     refs: [],
     activity: [],
-    notes: [],
   };
 }

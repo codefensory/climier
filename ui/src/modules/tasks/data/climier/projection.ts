@@ -34,7 +34,6 @@ import type {
   TaskDependent,
   TaskDetail,
   TaskKnowledge,
-  TaskNote,
   TaskReference,
   TaskReferenceKind,
 } from "../../types";
@@ -346,22 +345,50 @@ function logNodeId(entry: ClimierLogEntry): string | null {
   return entry.node_id ?? entry.node ?? entry.task ?? null;
 }
 
-/** Historial de un node a partir del log del snapshot. */
+/** Entrada del hilo con su timestamp crudo: ordena antes de formatear la etiqueta relativa. */
+type TimelineItem = { ts: string; entry: TaskActivityEntry };
+
+/** Eventos del log atribuidos al node. `add-note` se excluye: la nota ya vive en `node.notes`. */
+function logTimeline(snapshot: ClimierSnapshot, id: string): TimelineItem[] {
+  return [...(snapshot.recent_activity ?? [])]
+    .filter((entry) => logNodeId(entry) === id && entry.action !== "add-note")
+    .map((entry, index) => {
+      const kind = ACTION_KIND[entry.action] ?? "update";
+      return {
+        ts: String(entry.ts ?? ""),
+        entry: {
+          id: `${id}-${index}`,
+          kind,
+          author: entry.agent || "unknown",
+          text: ACTION_TEXT[entry.action] ?? entry.action,
+          at: relativeTime(entry.ts),
+        },
+      };
+    });
+}
+
+/** Notas del thread como entradas de comentario del hilo. */
+function noteTimeline(node: ClimierNode): TimelineItem[] {
+  return (node.notes ?? []).map((note, index) => ({
+    ts: String(note.ts ?? ""),
+    entry: {
+      id: `${node.id}-note-${index}`,
+      kind: "comment",
+      author: note.agent || "unknown",
+      text: ACTION_TEXT["add-note"],
+      at: relativeTime(note.ts),
+      comment: note.text,
+    },
+  }));
+}
+
+/** Hilo cronológico de un node: eventos del log y notas del thread mezclados en una sola lista. */
 export function activityForNode(snapshot: ClimierSnapshot, id: string): TaskActivityEntry[] {
-  const entries = [...(snapshot.recent_activity ?? [])]
-    .filter((entry) => logNodeId(entry) === id)
-    .sort((left, right) => String(left.ts).localeCompare(String(right.ts)));
-  return entries.map((entry, index) => {
-    const kind = ACTION_KIND[entry.action] ?? "update";
-    return {
-      id: `${id}-${index}`,
-      kind,
-      author: entry.agent || "unknown",
-      text: ACTION_TEXT[entry.action] ?? entry.action,
-      at: relativeTime(entry.ts),
-      comment: kind === "comment" && entry.note ? entry.note : undefined,
-    };
-  });
+  const node = nodesOf(snapshot)[id];
+  const items = [...logTimeline(snapshot, id), ...(node ? noteTimeline(node) : [])];
+  return items
+    .sort((left, right) => left.ts.localeCompare(right.ts))
+    .map((item) => item.entry);
 }
 
 function toBlocker(blocker: ClimierBlocker): TaskBlocker {
@@ -412,15 +439,6 @@ function toReferences(refs: ClimierRef[]): TaskReference[] {
   }));
 }
 
-function toNotes(node: ClimierNode): TaskNote[] {
-  return (node.notes ?? []).map((note, index) => ({
-    id: `${node.id}-note-${index}`,
-    agent: note.agent || "unknown",
-    text: note.text,
-    at: note.ts,
-  }));
-}
-
 /** Detalle completo de un node, derivado del snapshot (misma información que `/api/node/:id`). */
 export function projectTaskDetail(snapshot: ClimierSnapshot, id: string): TaskDetail | undefined {
   const node = nodesOf(snapshot)[id];
@@ -438,7 +456,6 @@ export function projectTaskDetail(snapshot: ClimierSnapshot, id: string): TaskDe
     knowledge: knowledgeForNode(snapshot, id).map(toKnowledge),
     refs: toReferences(refsOf(node)),
     activity: activityForNode(snapshot, id),
-    notes: toNotes(node),
   };
 }
 

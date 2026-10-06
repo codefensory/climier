@@ -108,8 +108,10 @@ function fanOutDetail(gate: GateRecord) {
     blockers,
     dependents,
     refs: [{ id: "docs/session-refresh.md::explicit", name: "session-refresh.md", source: "explicit", kind: "doc" }],
-    notes: [{ id: "fanout-note", agent: "platform-reviewer", text: "Check recovery behavior after the refresh token expires.", at: "2026-10-05T10:00:00.000Z" }],
-    activity: [{ id: "fanout-created", kind: "created", author: "orchestrator", text: "created the gate", at: "1d" }],
+    activity: [
+      { id: "fanout-created", kind: "created", author: "orchestrator", text: "created the gate", at: "1d" },
+      { id: "fanout-note", kind: "comment", author: "platform-reviewer", text: "commented", at: "5h", comment: "Check recovery behavior after the refresh token expires." },
+    ],
   }, {
     id: gate.id,
     kind: "gate",
