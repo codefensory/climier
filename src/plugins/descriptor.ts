@@ -123,13 +123,15 @@ export async function readDescriptor(pkgJsonPath: string): Promise<PluginDescrip
 }
 
 async function importPluginModule(entryAbsPath: string): Promise<Record<string, unknown>> {
+  // Keep the entrypoint as a runtime file URL: compiled Bun embeds the host,
+  // while installed plugin files remain outside the executable.
+  const fileUrl = pathToFileURL(path.resolve(entryAbsPath)).href;
   try {
-    const fileUrl = pathToFileURL(path.resolve(entryAbsPath)).href;
     return await import(fileUrl) as unknown as Record<string, unknown>;
   } catch (err: unknown) {
     throw new PluginLoadFailed(
       `plugin-descriptor: failed to import entrypoint at ${entryAbsPath}: ${errorMessage(err)}`,
-      { entry: entryAbsPath, cause: errorMessage(err) },
+      { entry: entryAbsPath, entry_url: fileUrl, cause: errorMessage(err) },
     );
   }
 }

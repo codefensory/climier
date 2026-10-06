@@ -70,9 +70,21 @@ jobs:
           test -f "$server"
           "$cli" --version
           project="$RUNNER_TEMP/climier-binary-smoke"
-          rm -rf "$project"
-          "$cli" --project "$project" init
-          "$cli" --project "$project" status
+          plugin_home="$RUNNER_TEMP/climier-binary-plugin-home"
+          plugin_dir="$plugin_home/plugins/installed/binary-smoke"
+          rm -rf "$project" "$plugin_home"
+          mkdir -p "$plugin_dir"
+          cat > "$plugin_dir/package.json" <<'EOF'
+          {"name":"binary-smoke","version":"1.0.0","type":"module","climier":{"id":"binary-smoke","command":"binary-smoke","entry":"./climier.mjs","api":1}}
+          EOF
+          cat > "$plugin_dir/climier.mjs" <<'EOF'
+          export default { commands: { probe: (args, api) => ({ loaded: true, args, project: api.runtime.project_dir }) } };
+          EOF
+          CLIMIER_HOME="$plugin_home" "$cli" --project "$project" init
+          CLIMIER_HOME="$plugin_home" "$cli" --project "$project" status
+          output=$(CLIMIER_HOME="$plugin_home" "$cli" --project "$project" --as binary-smoke binary-smoke probe --external)
+          echo "$output"
+          echo "$output" | grep -q '"loaded":true'
       - uses: actions/upload-artifact@v4
         with:
           name: climier-${{ matrix.name }}

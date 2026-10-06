@@ -60,6 +60,27 @@ An optional `default.policy` field adds a policy plugin (ADR-007); see
 may ship both, only one of them, or neither — `importEntry` rejects a
 shape that mixes the two incorrectly.
 
+### Compiled binaries
+
+The compiled `climier` binary also loads installed plugin entrypoints from the
+filesystem. `bun build --compile` embeds the host modules, but it does not
+embed anything under `$CLIMIER_HOME/plugins/installed`; the loader resolves the
+descriptor entry relative to its installed plugin directory and imports it as a
+runtime `file:` URL. An installed `.mjs` plugin therefore works without being
+present when the binary is built. The binary smoke test exercises this path for
+each release target in CI.
+
+If a target-specific Bun runtime cannot load an external entrypoint, use the
+source launcher as a fallback with the same plugin home:
+
+```bash
+CLIMIER_HOME="$HOME/.climier" bun bin/climier.ts --project . --as me audit ping
+```
+
+A failed load returns `PLUGIN_LOAD_FAILED`; its details include the absolute
+`entry`, the `entry_url`, and the underlying `cause`, so a missing file or
+invalid ESM entrypoint can be corrected without guessing which plugin was read.
+
 Each handler receives:
 
 - `args`: an array of strings — the original CLI tokens with the

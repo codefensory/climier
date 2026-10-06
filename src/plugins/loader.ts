@@ -144,6 +144,9 @@ export async function loadInstalledPlugin(namespace: string): Promise<{
   }
   const descriptor = await readInstalledDescriptor(installedDir, namespace);
   validateInstalledIdentity(descriptor, installedDir, namespace);
+  // Resolve against the installed package, not the executable directory. The
+  // descriptor loader deliberately passes this filesystem path to the runtime
+  // dynamic import so compiled binaries can load plugins installed later.
   const entryPath = path.resolve(installedDir, descriptor.entry);
   const commands = await importInstalledCommands(entryPath, installedDir, namespace);
   return { pluginId: descriptor.id, descriptor, commands, entryPath, installedDir };
