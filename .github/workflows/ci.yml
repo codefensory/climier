@@ -14,6 +14,8 @@ jobs:
         with:
           bun-version: 1.4.2
       - run: bun install --frozen-lockfile
+      - run: bunx tsc -b
+      - run: bun scripts/type-budget.ts
       - run: bun run test
       - run: bun run surface:check
       - run: bun run smoke:pack
