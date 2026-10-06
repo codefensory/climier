@@ -2,6 +2,22 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import * as helpers from "./plugin-core-adapter-helpers.mjs";
 
+type ErrorDetails = Record<string, unknown> & {
+  code?: string;
+  op?: string;
+  plugin_id?: string;
+  reason?: string;
+  supported?: string[];
+};
+
+type PluginErrorLike = { code: string; details: ErrorDetails };
+
+function isPluginErrorLike(error: unknown): error is PluginErrorLike {
+  return typeof error === "object" && error !== null &&
+    "code" in error && typeof error.code === "string" &&
+    "details" in error && typeof error.details === "object" && error.details !== null;
+}
+
 // 3. run — rejection BEFORE any kernel call (no state required)
 
 test("plugin-core-adapter: run rejects non-string op with PLUGIN_CORE_INVALID_OPERATION and lists supported ops", async () => {
@@ -16,12 +32,12 @@ test("plugin-core-adapter: run rejects non-string op with PLUGIN_CORE_INVALID_OP
   for (const bad of [undefined, null, 1, true, [], {}, ""]) {
     await assert.rejects(
       core.run({ op: bad, input: {} }),
-      (err) =>
-        err &&
-        err.code === "PLUGIN_CORE_INVALID_OPERATION" &&
-        err.details &&
-        Array.isArray(err.details.supported) &&
-        err.details.supported.length === helpers.EXPECTED_OPS.length,
+      (err) => {
+        if (!isPluginErrorLike(err)) return false;
+        return err.code === "PLUGIN_CORE_INVALID_OPERATION" &&
+          Array.isArray(err.details.supported) &&
+          err.details.supported.length === helpers.EXPECTED_OPS.length;
+      },
       `expected PLUGIN_CORE_INVALID_OPERATION for op=${JSON.stringify(bad)}`,
     );
   }
@@ -32,14 +48,16 @@ test("plugin-core-adapter: run rejects unknown op with the full supported list",
   const core = createCore({ projectDir: "/tmp/no-state-needed", agent: "alice", pluginId: "p.test" });
   await assert.rejects(
     core.run({ op: "edge.unknown", input: {} }),
-    (err) =>
-      err.code === "PLUGIN_CORE_INVALID_OPERATION" &&
-      err.details.op === "edge.unknown" &&
-      err.details.reason === "unknown operation" &&
-      err.details.supported.includes("edge.add") &&
-      err.details.supported.includes("edge.remove") &&
-      err.details.supported.includes("note.add") &&
-      err.details.supported.includes("task.update"),
+    (err) => {
+      if (!isPluginErrorLike(err) || !Array.isArray(err.details.supported)) return false;
+      return err.code === "PLUGIN_CORE_INVALID_OPERATION" &&
+        err.details.op === "edge.unknown" &&
+        err.details.reason === "unknown operation" &&
+        err.details.supported.includes("edge.add") &&
+        err.details.supported.includes("edge.remove") &&
+        err.details.supported.includes("note.add") &&
+        err.details.supported.includes("task.update");
+    },
   );
 });
 
@@ -49,9 +67,11 @@ test("plugin-core-adapter: run rejects non-object input with PLUGIN_CORE_INVALID
   for (const bad of [null, undefined, "string", 1, true, []]) {
     await assert.rejects(
       core.run({ op: "task.create", input: bad }),
-      (err) =>
-        err.code === "PLUGIN_CORE_INVALID_OPERATION" &&
-        /input must be an object/.test(err.details.reason || ""),
+      (err) => {
+        if (!isPluginErrorLike(err)) return false;
+        return err.code === "PLUGIN_CORE_INVALID_OPERATION" &&
+          /input must be an object/.test(err.details.reason || "");
+      },
       `expected input-must-be-object for ${JSON.stringify(bad)}`,
     );
   }
@@ -73,10 +93,12 @@ test("plugin-core-adapter: run rejects input.as with reason 'input.as is forbidd
         as: "bob",
       },
     }),
-    (err) =>
-      err.code === "PLUGIN_CORE_INVALID_OPERATION" &&
-      err.details.reason === "input.as is forbidden" &&
-      err.details.plugin_id === "p.test",
+    (err) => {
+      if (!isPluginErrorLike(err)) return false;
+      return err.code === "PLUGIN_CORE_INVALID_OPERATION" &&
+        err.details.reason === "input.as is forbidden" &&
+        err.details.plugin_id === "p.test";
+    },
   );
 });
 

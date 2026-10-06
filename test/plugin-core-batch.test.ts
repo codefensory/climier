@@ -11,6 +11,21 @@ import {
   importFresh,
 } from "./helpers.mjs";
 
+type ErrorDetails = Record<string, unknown> & {
+  op?: string;
+  cause?: ErrorDetails;
+  details?: ErrorDetails;
+  operation_index?: number;
+};
+
+type PluginErrorLike = { code: string; details: ErrorDetails };
+
+function isPluginErrorLike(error: unknown): error is PluginErrorLike {
+  return typeof error === "object" && error !== null &&
+    "code" in error && typeof error.code === "string" &&
+    "details" in error && typeof error.details === "object" && error.details !== null;
+}
+
 function baseState() {
   return {
     version: 1,
@@ -74,10 +89,13 @@ test("api.core.batch rolls back on an operation failure and reports its index/op
         if_state_revision: seeded.revision,
         operations: [...repair.slice(0, 3), { op: "edge.add", input: { from: "T1", to: "T3", type: "BLOCKS" } }],
       }),
-      (error) => error.code === "PLUGIN_CORE_ACTION_FAILED" &&
-        error.details.op === "core.batch" &&
-        error.details.cause.code === "BATCH_OPERATION_FAILED" &&
-        error.details.cause.details.operation_index === 3,
+      (error) => {
+        if (!isPluginErrorLike(error) || !error.details.cause || !error.details.cause.details) return false;
+        return error.code === "PLUGIN_CORE_ACTION_FAILED" &&
+          error.details.op === "core.batch" &&
+          error.details.cause.code === "BATCH_OPERATION_FAILED" &&
+          error.details.cause.details.operation_index === 3;
+      },
     );
     assert.deepEqual(await fs.readFile(stateFilePath(dir)), before);
   } finally {
@@ -92,8 +110,11 @@ test("api.core.batch rejects stale global CAS before any operation", async () =>
     const api = await makeApi(dir);
     await assert.rejects(
       api.core.batch({ if_state_revision: seeded.revision - 1, operations: repair }),
-      (error) => error.code === "PLUGIN_CORE_ACTION_FAILED" &&
-        error.details.cause.code === "STATE_REVISION_CONFLICT",
+      (error) => {
+        if (!isPluginErrorLike(error) || !error.details.cause) return false;
+        return error.code === "PLUGIN_CORE_ACTION_FAILED" &&
+          error.details.cause.code === "STATE_REVISION_CONFLICT";
+      },
     );
     const state = await readState(dir);
     assert.equal(state.revision, seeded.revision);
@@ -112,12 +133,12 @@ test("api.core.batch accepts only the declarative envelope", async () => {
     for (const input of [null, [], {}, { operations: [] }]) {
       await assert.rejects(
         api.core.batch(input),
-        (error) => error.code === "PLUGIN_CORE_INVALID_OPERATION",
+        (error) => isPluginErrorLike(error) && error.code === "PLUGIN_CORE_INVALID_OPERATION",
       );
     }
     await assert.rejects(
       api.core.batch({ operations: [{ op: "edge.remove", input: {}, actor: "spoof" }] }),
-      (error) => error.code === "PLUGIN_CORE_INVALID_OPERATION",
+      (error) => isPluginErrorLike(error) && error.code === "PLUGIN_CORE_INVALID_OPERATION",
     );
   } finally {
     await rmTempProject(dir);

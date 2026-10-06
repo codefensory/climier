@@ -12,6 +12,21 @@ import {
   taskInput,
 } from "./plugin-core-integration-helpers.mjs";
 
+type ErrorDetails = Record<string, unknown> & {
+  op?: string;
+  plugin_id?: string;
+  cause?: ErrorDetails;
+  code?: string;
+};
+
+type PluginErrorLike = { code: string; details: ErrorDetails };
+
+function isPluginErrorLike(error: unknown): error is PluginErrorLike {
+  return typeof error === "object" && error !== null &&
+    "code" in error && typeof error.code === "string" &&
+    "details" in error && typeof error.details === "object" && error.details !== null;
+}
+
 test("plugin-core-integration: PLUGIN_CORE_INVALID_OPERATION does not mutate and lists supported ops", async () => {
   const dir = await createTempProject();
   try {
@@ -44,13 +59,13 @@ test("plugin-core-integration: handler-rejected actions surface as PLUGIN_CORE_A
 
     await assert.rejects(
       api.core.run({ op: "task.take", input: { id: "T-bogus" } }),
-      (err) =>
-        err &&
-        err.code === "PLUGIN_CORE_ACTION_FAILED" &&
-        err.details.op === "task.take" &&
-        err.details.plugin_id === "example.core" &&
-        err.details.cause &&
-        err.details.cause.code === "NODE_NOT_FOUND",
+      (err) => {
+        if (!isPluginErrorLike(err) || !err.details.cause) return false;
+        return err.code === "PLUGIN_CORE_ACTION_FAILED" &&
+          err.details.op === "task.take" &&
+          err.details.plugin_id === "example.core" &&
+          err.details.cause.code === "NODE_NOT_FOUND";
+      },
     );
 
     // validates both endpoints before mutating). The adapter wraps it
@@ -60,14 +75,14 @@ test("plugin-core-integration: handler-rejected actions surface as PLUGIN_CORE_A
         op: "edge.add",
         input: { from: "T-no", to: "T-still-no", type: "BLOCKS" },
       }),
-      (err) =>
-        err &&
-        err.code === "PLUGIN_CORE_ACTION_FAILED" &&
-        err.details.op === "edge.add" &&
-        err.details.cause &&
-        (err.details.cause.code === "INVALID_EDGE_TARGET" ||
-          err.details.cause.code === "NODE_NOT_FOUND" ||
-          err.details.cause.code === "CORE_ERROR"),
+      (err) => {
+        if (!isPluginErrorLike(err) || !err.details.cause) return false;
+        return err.code === "PLUGIN_CORE_ACTION_FAILED" &&
+          err.details.op === "edge.add" &&
+          (err.details.cause.code === "INVALID_EDGE_TARGET" ||
+            err.details.cause.code === "NODE_NOT_FOUND" ||
+            err.details.cause.code === "CORE_ERROR");
+      },
     );
   } finally {
     await rmTempProject(dir);
@@ -87,7 +102,7 @@ test("plugin-core-integration: a successful task.create is preserved when a subs
         op: "edge.add",
         input: { from: "T-partial-1", to: "T-partial-2-missing", type: "BLOCKS" },
       }),
-      (err) => err && err.code === "PLUGIN_CORE_ACTION_FAILED",
+      (err) => isPluginErrorLike(err) && err.code === "PLUGIN_CORE_ACTION_FAILED",
     );
 
     const after = await readState(dir);

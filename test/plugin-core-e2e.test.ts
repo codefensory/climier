@@ -36,6 +36,14 @@ const FIXTURE_ID = "example.core";
 const FIXTURE_COMMAND = "core";
 const FIXTURE_BASENAME = "core-plugin";
 
+type LogEntry = {
+  action: string;
+  agent: string;
+  node: string;
+  plugin_id?: string;
+  ts: string;
+};
+
 // installed dir name = descriptor.id; dispatch namespace = descriptor
 // .command (the first non-flag token). The bin scans installed/<*> for
 // descriptor.command === <first-token> at dispatch time.
@@ -88,7 +96,7 @@ async function cli(args) {
   return JSON.parse(result.stdout);
 }
 
-async function setupPluginProject(projectDir, description) {
+async function setupPluginProject(projectDir, description?: string) {
   const init = await cli(["--project", projectDir, "init"]);
   assert.equal(init.ok, true);
   const initiativeArgs = [
@@ -105,7 +113,9 @@ async function setupPluginProject(projectDir, description) {
   assert.equal(installRes.plugin.id, FIXTURE_ID);
   assert.equal(installRes.plugin.command, FIXTURE_COMMAND);
   assert.equal(installRes.plugin.entry, "./climier.mjs");
-  const installedDir = path.join(process.env.CLIMIER_HOME, "plugins", "installed", FIXTURE_ID);
+  const climierHome = process.env.CLIMIER_HOME;
+  assert.ok(climierHome);
+  const installedDir = path.join(climierHome, "plugins", "installed", FIXTURE_ID);
   assert.ok((await fs.stat(installedDir)).isDirectory(), "installed/<id> exists");
   const installedPkg = JSON.parse(
     await fs.readFile(
@@ -132,8 +142,8 @@ async function assertProjectCountsUnchanged(projectDir, before) {
   assert.equal(after.log.length, before.logs, "no log entries added");
 }
 
-function pluginLogEntries(state) {
-  const entries = [];
+function pluginLogEntries(state: { log: LogEntry[] }): LogEntry[] {
+  const entries: LogEntry[] = [];
   for (const entry of state.log) {
     if (entry.plugin_id === FIXTURE_ID) {
       entries.push(entry);
@@ -142,8 +152,8 @@ function pluginLogEntries(state) {
   return entries;
 }
 
-function actionsFrom(entries) {
-  const actions = new Set();
+function actionsFrom(entries: LogEntry[]): Set<string> {
+  const actions = new Set<string>();
   for (const entry of entries) {
     actions.add(entry.action);
   }
