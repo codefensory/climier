@@ -2340,37 +2340,85 @@
       "path": "test/core-test-plan.test.mjs",
       "name": "isolation helpers match the Node version gate",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "move",
+      "move_from": "test/core-test-plan.test.mjs"
     },
     {
       "path": "test/core-test-plan.test.mjs",
       "name": "listTestFiles discovers nested test files and ignores other modules",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "move",
+      "move_from": "test/core-test-plan.test.mjs"
     },
     {
       "path": "test/core-test-plan.test.mjs",
       "name": "loadDurationTable resolves keys against the root and rejects unusable tables",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "move",
+      "move_from": "test/core-test-plan.test.mjs"
     },
     {
       "path": "test/core-test-plan.test.mjs",
       "name": "partitionShards estimates unknown files from size in the table's unit",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "move",
+      "move_from": "test/core-test-plan.test.mjs"
     },
     {
       "path": "test/core-test-plan.test.mjs",
       "name": "partitionShards keeps a single shard for one worker or one file",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "move",
+      "move_from": "test/core-test-plan.test.mjs"
     },
     {
       "path": "test/core-test-plan.test.mjs",
       "name": "partitionShards spreads the heaviest measured files across shards",
       "ordinal": 1,
-      "disposition": "keep"
+      "disposition": "move",
+      "move_from": "test/core-test-plan.test.mjs"
+    },
+    {
+      "path": "test/core-test-plan.test.ts",
+      "name": "isolation helpers match the Node version gate",
+      "ordinal": 1,
+      "disposition": "move",
+      "move_from": "test/core-test-plan.test.mjs"
+    },
+    {
+      "path": "test/core-test-plan.test.ts",
+      "name": "listTestFiles discovers nested test files and ignores other modules",
+      "ordinal": 1,
+      "disposition": "move",
+      "move_from": "test/core-test-plan.test.mjs"
+    },
+    {
+      "path": "test/core-test-plan.test.ts",
+      "name": "loadDurationTable resolves keys against the root and rejects unusable tables",
+      "ordinal": 1,
+      "disposition": "move",
+      "move_from": "test/core-test-plan.test.mjs"
+    },
+    {
+      "path": "test/core-test-plan.test.ts",
+      "name": "partitionShards estimates unknown files from size in the table's unit",
+      "ordinal": 1,
+      "disposition": "move",
+      "move_from": "test/core-test-plan.test.mjs"
+    },
+    {
+      "path": "test/core-test-plan.test.ts",
+      "name": "partitionShards keeps a single shard for one worker or one file",
+      "ordinal": 1,
+      "disposition": "move",
+      "move_from": "test/core-test-plan.test.mjs"
+    },
+    {
+      "path": "test/core-test-plan.test.ts",
+      "name": "partitionShards spreads the heaviest measured files across shards",
+      "ordinal": 1,
+      "disposition": "move",
+      "move_from": "test/core-test-plan.test.mjs"
     },
     {
       "path": "test/credential-profile.test.mjs",

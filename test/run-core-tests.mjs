@@ -9,7 +9,7 @@ import {
   loadDurationTable,
   partitionShards,
   supportsInProcessIsolation,
-} from "./core-test-plan.mjs";
+} from "./core-test-plan.ts";
 
 const testDir = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(testDir, "..");
@@ -51,7 +51,7 @@ function spawnRunner(shardFiles, { inheritsOutput, label }) {
   // independent shards.
   const concurrencyArgs = isBun ? [] : isolation === "none" ? ["--test-concurrency=1"] : [];
   const args = isBun
-    ? ["test", ...shardFiles]
+    ? ["test", "--timeout", "30000", ...shardFiles]
     : ["--test", ...concurrencyArgs, ...isolationArgs, ...shardFiles];
   const child = spawn(process.execPath, args, {
     stdio: inheritsOutput ? "inherit" : ["ignore", "pipe", "pipe"],

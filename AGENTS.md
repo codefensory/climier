@@ -297,7 +297,7 @@ Do not put domain rules or persistence in the CLI layer.
   paths inject their own command, and an operator-set `CLIMIER_NPM_CMD`
   always wins.
 - `npm test` partitions the suite into in-process shards
-  (`test/run-core-tests.mjs` + `test/core-test-plan.mjs`) balanced by
+  (`test/run-core-tests.mjs` + `test/core-test-plan.ts`) balanced by
   `test/test-durations.json`, a generated per-file timing table. Regenerate
   it with `node test/generate-test-durations.mjs` after large test changes;
   files missing from the table fall back to a size estimate, so a stale

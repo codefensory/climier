@@ -13,7 +13,7 @@ import {
   loadDurationTable,
   partitionShards,
   supportsInProcessIsolation,
-} from "./core-test-plan.mjs";
+} from "./core-test-plan.ts";
 
 test("listTestFiles discovers nested test files and ignores other modules", async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "climier-plan-files-"));
