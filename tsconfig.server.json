@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "node_modules/.cache/climier-tsbuild/server",
+    "tsBuildInfoFile": "node_modules/.cache/climier-tsbuild/server.tsbuildinfo"
+  },
+  "include": ["src/server/**/*.ts", "src/operation-source.ts"],
+  "references": [
+    { "path": "./tsconfig.contracts.json" },
+    { "path": "./tsconfig.application.json" },
+    { "path": "./tsconfig.plugins.json" },
+    { "path": "./tsconfig.storage.json" }
+  ]
+}

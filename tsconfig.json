@@ -1,0 +1,14 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.contracts.json" },
+    { "path": "./tsconfig.storage.json" },
+    { "path": "./tsconfig.kernel.json" },
+    { "path": "./tsconfig.providers.json" },
+    { "path": "./tsconfig.read-model.json" },
+    { "path": "./tsconfig.application.json" },
+    { "path": "./tsconfig.plugins.json" },
+    { "path": "./tsconfig.server.json" },
+    { "path": "./tsconfig.cli.json" }
+  ]
+}

@@ -30,7 +30,10 @@
     "lint": "oxlint src bin test"
   },
   "devDependencies": {
-    "oxlint": "^1.85.0"
+    "@types/node": "^26.6.4",
+    "oxlint": "^1.85.0",
+    "ts-morph": "^28.0.0",
+    "typescript": "^7.0.2"
   },
   "files": [
     "bin",
