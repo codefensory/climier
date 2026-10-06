@@ -7,6 +7,7 @@ import { resolveAgent } from "../actor.ts";
 import { taskTakeProvider } from "../../providers/task/take.ts";
 import { statusOfV2 } from "../../providers/task/derivation.ts";
 import { executeRemoteTask, requireRemoteTask, throwMissingRemoteNode } from "./internal/task-routing.ts";
+import type { CliMutation, CommandContext } from "./contracts.ts";
 
 export const knownFlags = ["as"];
 
@@ -91,7 +92,7 @@ async function takeRemotely({ backendClient, id, agent }) {
   }
   return {
     node,
-    context: { derived_status: node.status, revision: node.revision, claim: node.claim || null, blocking: [], knowledge: [] },
+    context: { derived_status: node!.status, revision: node!.revision, claim: node!.claim || null, blocking: [], knowledge: [] },
     freshly_claimed: remote.mutation.result ? remote.mutation.result.freshly_claimed === true : false,
   };
 }
@@ -103,7 +104,7 @@ async function takeLocally({ id, agent, dir, source, pluginId }) {
     // The source keeps this adapter's narrow provider/policy compatibility seam.
     policyActionFromPlan: true, source: await takeSource(source, snapshotNode, pluginId),
     // source: takeSource(...) is intentionally retained as the adapter contract.
-  });
+  }) as CliMutation;
   const updated = mutation.diff.updated.find((entry) => entry.id === id);
   const node = updated ? updated.node : snapshotNode.value;
   if (!node) {
@@ -111,12 +112,12 @@ async function takeLocally({ id, agent, dir, source, pluginId }) {
   }
   return {
     node,
-    context: { derived_status: node.status, revision: node.revision, claim: node.claim || null, blocking: [], knowledge: [] },
+    context: { derived_status: node!.status, revision: node!.revision, claim: node!.claim || null, blocking: [], knowledge: [] },
     freshly_claimed: mutation.result ? mutation.result.freshly_claimed === true : false,
   };
 }
 
-export default async function take({ positional = [], flags = {}, projectDir, statePath, pluginId, backendClient, source } = {}) {
+export default async function take({ positional, flags, projectDir, statePath, pluginId, backendClient, source }: CommandContext) {
   const id = positional[0];
   if (!id) {
     throwV2("MISSING_FIELD", "take: node id required", { field: "id" });

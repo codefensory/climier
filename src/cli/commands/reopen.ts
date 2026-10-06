@@ -7,6 +7,7 @@ import { resolveAgent } from "../actor.ts";
 import { taskReopenProvider } from "../../providers/task/reopen.ts";
 import { executeRemoteResolvableLifecycle } from "./internal/resolvable-lifecycle-routing.ts";
 import { prepareGateReopen, applyGateReopen } from "../../providers/gate/lifecycle.ts";
+import type { CliMutation, CommandContext } from "./contracts.ts";
 
 export const knownFlags = ["as", "reason"];
 
@@ -96,7 +97,7 @@ async function reopenLocally({ dir, agent, id, reason, pluginId, suppliedSource 
     input: { id, reason, actor: agent },
     source: sourceWithCliProvider({ ...baseSource, ...(pluginId ? { pluginId } : {}) }, id),
     policyActionFromPlan: true,
-  });
+  }) as CliMutation;
   const updated = mutation.diff.updated.find((entry) => entry.id === id);
   if (!updated || !updated.node) {
     throwV2("INVALID_EXECUTION_CONTRACT", `reopen: kernel did not return node ${id}`, { id });
@@ -107,12 +108,12 @@ async function reopenLocally({ dir, agent, id, reason, pluginId, suppliedSource 
 export default async function reopen({
   statePath,
   projectDir,
-  flags = {},
-  positional = [],
+  flags,
+  positional,
   pluginId,
   backendClient,
   source: suppliedSource,
-}) {
+}: CommandContext) {
   const id = positional[0];
   if (!id) {
     throwV2("MISSING_FIELD", "reopen: node id required", { field: "id" });

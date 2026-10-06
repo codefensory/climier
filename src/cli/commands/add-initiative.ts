@@ -3,6 +3,7 @@ import { executeOperation } from "../../application/operations/index.ts";
 import { getOperationSource } from "../../operation-source.ts";
 import { initiativeCreateProvider } from "../../providers/core/initiative.ts";
 import { throwV2 } from "../../contracts/errors.ts";
+import type { CliMutation } from "./contracts.ts";
 import { resolveAgent } from "../actor.ts";
 import { executeRemoteDomain } from "./internal/domain-routing.ts";
 
@@ -36,32 +37,34 @@ function validateName(name) {
   }
   if (!NAME_RE.test(name)) {
     throwV2(
-      "INVALID_NAME",
+      "INVALID_NAME" as Parameters<typeof throwV2>[0],
       `add-initiative: name '${name}' is invalid (must match ${NAME_RE})`,
       { name, pattern: NAME_RE.source },
     );
   }
 }
 
-function initiativeEnvelopeData(name, desc, initiative) {
+function initiativeEnvelopeData(name: string, desc: string, initiative?: { desc?: string; created_at?: string }) {
   return { initiative: { name, desc: initiative?.desc ?? desc, ...(initiative?.created_at ? { created_at: initiative.created_at } : {}) } };
 }
 
 async function createRemoteInitiative(backendClient, actor, name, desc) {
-  const mutation = await executeRemoteDomain({ backendClient, actor, operation: "initiative.create", input: { name, desc }, command: "add-initiative" });
+  const mutation = await executeRemoteDomain({ backendClient, actor, operation: "initiative.create", input: { name, desc }, command: "add-initiative" }) as CliMutation;
   const created = mutation.diff?.initiatives?.created?.find((entry) => entry.name === name);
-  const initiative = created ? created.initiative : mutation.result;
-  const responseDesc = initiative?.desc ?? desc;
-  return initiativeEnvelopeData(name, responseDesc, initiative);
+  const initiative = created?.initiative || mutation.result;
+  const data = initiative && typeof initiative === "object" ? initiative as { desc?: string; created_at?: string } : undefined;
+  const responseDesc = data?.desc ?? desc;
+  return initiativeEnvelopeData(name, responseDesc, data);
 }
 
-function initiativeEnvelope(result, name, _desc) {
-  const created = result.diff.initiatives.created.find((entry) => entry.name === name);
-  const initiative = created ? created.initiative : result.result;
-  return initiativeEnvelopeData(name, initiative.desc, initiative);
+function initiativeEnvelope(result: CliMutation, name: string, _desc: string) {
+  const created = result.diff.initiatives?.created.find((entry) => entry.name === name);
+  const initiative = created?.initiative || result.result;
+  const data = initiative && typeof initiative === "object" ? initiative as { desc?: string; created_at?: string } : undefined;
+  return initiativeEnvelopeData(name, data?.desc || "", data);
 }
 
-export default async function addInitiative({ statePath, projectDir: suppliedProjectDir, flags = {}, positional = [], pluginId, backendClient, source }) {
+export default async function addInitiative({ statePath, projectDir: suppliedProjectDir, flags, positional, pluginId, backendClient, source }: import("./contracts.ts").CommandContext) {
   const [name] = positional;
   validateName(name);
 
@@ -70,13 +73,12 @@ export default async function addInitiative({ statePath, projectDir: suppliedPro
   const desc = typeof flags.desc === "string" ? flags.desc : "";
   if (backendClient?.type === "remote") {return createRemoteInitiative(backendClient, actor, name, desc);}
   const operationSource = source || await getOperationSource();
-  const result = await executeOperation({
-    projectDir,
+  const result = await executeOperation({    projectDir,
     actor,
     operation: "initiative.create",
     input: { name, desc },
     source: withCliProvider({ ...operationSource, ...(pluginId ? { pluginId } : {}) }, "initiative.create", cliInitiativeProvider),
-  });
+  }) as CliMutation;
   return initiativeEnvelope(result, name, desc);
 }
 

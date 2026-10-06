@@ -4,12 +4,21 @@ import fsSync from "node:fs";
 import { resolveProject, projectMetaFile } from "../storage/paths.ts";
 import { createBackendClient } from "../application/operations/index.ts";
 import { getOperationSource } from "../operation-source.ts";
-import { exitCodeForError, normalizeCliError } from "../contracts/errors.ts";
+import { asCaughtError, exitCodeForError, normalizeCliError } from "../contracts/errors.ts";
 import { RESERVED_NAMESPACES } from "./commands/reserved-namespaces.ts";
 import type { CommandContext, CommandLoader, DispatchOptions } from "./commands/contracts.ts";
 export type { CommandContext, CommandModule } from "./commands/contracts.ts";
 
 declare const CLIMIER_BUILD_VERSION: string | undefined;
+
+type CliRunOptions = {
+  argv?: string[];
+  write?: (value: string) => void;
+  exit?: (code: number) => void;
+  source?: CommandContext["source"];
+  createBackendClient?: typeof createBackendClient;
+  dispatch?: (context: CommandContext) => Promise<unknown>;
+};
 
 export const COMMANDS = Object.freeze({
   accept: () => import("./commands/accept.ts"),
@@ -61,7 +70,7 @@ export const HELP_TEXT = "climier — JSON-first task DAG CLI for coordinating w
 
 export const BOOLEAN_FLAGS = Object.freeze(new Set(["all", "force", "stdin", "dry-run"]));
 
-function parsedFlag(argv, index) {
+function parsedFlag(argv: string[], index: number): { key: string; value: string | boolean | undefined; nextIndex: number } {
   const token = argv[index];
   const equalsIndex = token.indexOf("=");
   if (equalsIndex !== -1) {
@@ -73,11 +82,11 @@ function parsedFlag(argv, index) {
   return { key, value: consumesNext ? next : true, nextIndex: consumesNext ? index + 1 : index };
 }
 
-export function parseArgv(argv = []) {
+export function parseArgv(argv: string[] = []): { originalArgv: string[]; command: string | null; flags: Record<string, string | boolean | undefined>; positional: string[] } {
   const originalArgv = Array.isArray(argv) ? argv.slice() : [];
-  const flags = {};
-  const positional = [];
-  let command = null;
+  const flags: Record<string, string | boolean | undefined> = {};
+  const positional: string[] = [];
+  let command: string | null = null;
   let parsingCommand = false;
 
   for (let i = 0; i < originalArgv.length; i++) {
@@ -159,7 +168,7 @@ function ensureRemoteCommandSupported({ command, flags = {}, projectConfig = {},
   ensureRemoteProjectId(command, projectConfig, flags);
 }
 
-function readProjectConfig(projectDir) {
+function readProjectConfig(projectDir: string): Record<string, unknown> {
   const file = projectMetaFile(projectDir);
   if (!fsSync.existsSync(file)) {
     return {};
@@ -167,7 +176,8 @@ function readProjectConfig(projectDir) {
   let config;
   try {
     config = JSON.parse(fsSync.readFileSync(file, "utf8"));
-  } catch (cause) {
+  } catch (caught) {
+    const cause = asCaughtError(caught);
     const error = new Error(`state: project metadata at ${file} is corrupt or not valid JSON: ${cause.message}`);
     error.code = "CLIMIER_CORRUPT_PROJECT_META";
     error.cause = cause;
@@ -220,6 +230,11 @@ async function dispatchInstalledPlugin({
   return dispatchPlugin({ originalArgv, namespace: command, projectDir, flags, backendClient });
 }
 
+function isCommandModule(value: unknown): value is { knownFlags?: readonly string[]; default: (context: CommandContext) => unknown } {
+  return value !== null && typeof value === "object"
+    && typeof (value as { default?: unknown }).default === "function";
+}
+
 async function dispatchBuiltInCommand(context: CommandContext) {
   const load = COMMANDS[context.command];
   if (!load) {
@@ -227,9 +242,12 @@ async function dispatchBuiltInCommand(context: CommandContext) {
     error.code = "MODULE_NOT_FOUND";
     throw error;
   }
-  const mod = await load();
-  validateKnownFlags(context.command, context.flags, mod.knownFlags);
-  return mod.default(context);
+  const loaded = await load();
+  if (!isCommandModule(loaded)) {
+    throw new Error(`command '${context.command}' does not export a default handler`);
+  }
+  validateKnownFlags(context.command, context.flags, loaded.knownFlags);
+  return loaded.default(context);
 }
 
 export async function dispatchCommand(options: DispatchOptions = {}) {
@@ -324,7 +342,10 @@ function writeNoCommandResponse(command, write, exit) {
 
 async function addBackendContext(context, { source, backendClientFactory }) {
   const projectConfig = readProjectConfig(context.projectDir);
-  const localSource = source ?? (projectConfig.backend?.type === "remote" ? undefined : await getOperationSource());
+  const backend = projectConfig.backend;
+  const isRemote = backend && typeof backend === "object" && !Array.isArray(backend)
+    && (backend as { type?: unknown }).type === "remote";
+  const localSource = source ?? (isRemote ? undefined : await getOperationSource());
   const backendClient = backendClientFactory({
     projectDir: context.projectDir,
     projectConfig,
@@ -376,7 +397,7 @@ async function executeParsedCli({ parsed, context, source, backendClientFactory,
   }
 }
 
-function cliOptions(options = {}) {
+function cliOptions(options: CliRunOptions = {}) {
   return {
     argv: options.argv ?? process.argv.slice(2),
     write: options.write ?? console.log,
@@ -387,7 +408,7 @@ function cliOptions(options = {}) {
   };
 }
 
-async function runCliWithOptions(options = {}) {
+async function runCliWithOptions(options: CliRunOptions = {}) {
   const { argv, write, exit, source, backendClientFactory, dispatchCommandFn } = cliOptions(options);
   const args = Array.isArray(argv) ? argv.slice() : [];
   const earlyResponse = writeEarlyResponse(args, write, exit);
@@ -396,8 +417,8 @@ async function runCliWithOptions(options = {}) {
   }
 
   const parsed = parseArgv(args);
-  const projectDir = resolveProject({ project: parsed.flags.project });
-  const context = { ...parsed, projectDir, statePath: projectDir };
+  const projectDir = resolveProject({ project: parsed.flags.project as string | undefined });
+  const context = { ...parsed, projectDir, statePath: projectDir } as CommandContext;
   return executeParsedCli({ parsed, context, source, backendClientFactory, dispatchCommandFn, write, exit });
 }
 

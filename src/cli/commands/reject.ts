@@ -3,6 +3,7 @@ import { createBackendClient, createOperationBridge } from "../../application/op
 import { throwV2 } from "../../contracts/errors.ts";
 import { resolveAgent } from "../actor.ts";
 import { executeRemoteTask, throwMissingRemoteNode } from "./internal/task-routing.ts";
+import type { CliMutation, CommandContext } from "./contracts.ts";
 
 export const knownFlags = ["as", "reason"];
 
@@ -32,7 +33,7 @@ async function rejectLocally({ backendClient, dir, projectConfig, source, agent,
     actor: agent,
     operation: "task.reject",
     input: { id, reason },
-  });
+  }) as CliMutation;
   const updated = mutation.diff.updated.find((entry) => entry.id === id);
   if (!updated || !updated.node) {
     throwV2("INVALID_EXECUTION_CONTRACT", `reject: kernel did not return node ${id}`, { id });
@@ -40,7 +41,7 @@ async function rejectLocally({ backendClient, dir, projectConfig, source, agent,
   return { node: updated.node };
 }
 
-export default async function reject({ statePath, projectDir, projectConfig, source, flags = {}, positional = [], backendClient } = {}) {
+export default async function reject({ statePath, projectDir, projectConfig, source, flags, positional, backendClient }: CommandContext) {
   const id = positional[0];
   if (!id) {
     throwV2("MISSING_FIELD", "reject: node id required", { field: "id" });

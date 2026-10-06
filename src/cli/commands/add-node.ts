@@ -1,7 +1,8 @@
 
 import { createBackendClient } from "../../application/backend-client.ts";
 import { createOperationBridge, executeOperation } from "../../application/operations/index.ts";
-import { throwV2 } from "../../contracts/errors.ts";
+import { asCaughtError, throwV2 } from "../../contracts/errors.ts";
+import type { CliMutation, CommandContext } from "./contracts.ts";
 import { resolveAgent } from "../actor.ts";
 import { executeRemoteDomain, nodeFromMutation } from "./internal/domain-routing.ts";
 
@@ -51,7 +52,8 @@ function parseMeta(raw) {
   try {
     parsed = JSON.parse(String(raw));
   } catch (err) {
-    throw new Error(`add-node: --meta must be valid JSON (${err.message})`, { cause: err });
+    const error = asCaughtError(err);
+    throw new Error(`add-node: --meta must be valid JSON (${error.message})`, { cause: error });
   }
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
     throw new Error("add-node: --meta must be a JSON object");
@@ -282,7 +284,7 @@ async function createRemoteNode({ backendClient, agent, operation, input, kind, 
   const remoteInput = { ...input };
   delete remoteInput.allow_unregistered_initiative;
   completeRemoteInput(remoteInput, kind, subkind);
-  const mutation = await executeRemoteDomain({ backendClient, actor: agent, operation, input: remoteInput, command: "add-node" });
+  const mutation = await executeRemoteDomain({ backendClient, actor: agent, operation, input: remoteInput, command: "add-node" }) as CliMutation;
   return { node: nodeFromMutation(mutation, id, "created") || mutation.result?.node || null };
 }
 
@@ -296,7 +298,6 @@ async function createLocalNode({ projectDir, agent, operation, input, backendCli
     input,
   });
   const result = await createOperationBridge({ backendClient: routedClient }).executeOperation({
-    projectDir,
     actor: agent,
     operation,
     input,
@@ -304,7 +305,7 @@ async function createLocalNode({ projectDir, agent, operation, input, backendCli
   return { node: nodeFromOperation(result) };
 }
 
-export default async function addNode({ statePath, projectDir: suppliedProjectDir, flags = {}, positional = [], pluginId, backendClient, source, createCommand = "add-node" }) {
+export default async function addNode({ statePath, projectDir: suppliedProjectDir, flags, positional, pluginId, backendClient, source, createCommand = "add-node" }: Omit<CommandContext, "command" | "originalArgv" | "projectConfig"> & { createCommand?: string }) {
   const [id] = positional;
   const nodeType = validateNodeRequest(id, flags);
   const projectDir = suppliedProjectDir || statePath;

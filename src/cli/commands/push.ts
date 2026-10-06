@@ -1,4 +1,6 @@
 import { pushManualTransfer } from "../../application/manual-transfer.ts";
+import { asCaughtError } from "../../contracts/errors.ts";
+import type { CommandContext } from "./contracts.ts";
 
 export const knownFlags = ["as", "force"];
 
@@ -9,7 +11,7 @@ function usage(message, details) {
   return error;
 }
 
-function requestOptions({ positional = [], flags = {}, projectDir, projectConfig, backendClient, originalArgv = [] }) {
+function requestOptions({ positional, flags, projectDir, projectConfig, backendClient, originalArgv }: Pick<CommandContext, "positional" | "flags" | "projectDir" | "projectConfig" | "backendClient" | "originalArgv">) {
   const commandIndex = originalArgv.indexOf("push");
   if (commandIndex >= 0 && originalArgv.slice(0, commandIndex).some((token) => token === "--force" || token.startsWith("--force="))) {
     throw usage("--force must appear after push", { flag: "force" });
@@ -32,14 +34,15 @@ function requestOptions({ positional = [], flags = {}, projectDir, projectConfig
   };
 }
 
-function withActionableConflict(error) {
-  if (["TRANSFER_REMOTE_CHANGED", "TRANSFER_LOCAL_CHANGED", "TRANSFER_BASE_UNKNOWN"].includes(error?.code)) {
+function withActionableConflict(caught: unknown) {
+  const error = asCaughtError(caught);
+  if (["TRANSFER_REMOTE_CHANGED", "TRANSFER_LOCAL_CHANGED", "TRANSFER_BASE_UNKNOWN"].includes(error.code || "")) {
     error.message = `${error.message}; choose explicitly: pull --force keeps the remote DAG and replaces local state, while push --force keeps the local DAG and replaces remote state`;
   }
   return error;
 }
 
-export default async function push(options = {}) {
+export default async function push(options: Pick<CommandContext, "positional" | "flags" | "projectDir" | "projectConfig" | "backendClient" | "originalArgv">) {
   try {
     return await pushManualTransfer(requestOptions(options));
   } catch (error) {

@@ -1,17 +1,37 @@
 import { createOperationBridge } from "../../../application/operations/index.ts";
-import { throwV2 } from "../../../contracts/errors.ts";
+import { asCaughtError, throwV2 } from "../../../contracts/errors.ts";
+import type { CliBackendClient, CliMutation, CliNode } from "../contracts.ts";
 
-export function isRemoteBackend(backendClient) {
+type RouteOptions = {
+  backendClient?: CliBackendClient;
+  actor: string;
+  operation: string;
+  input: Record<string, unknown>;
+  command: string;
+  targetId?: string;
+  preReadTarget?: boolean;
+  acceptsTarget?: (node: CliNode) => boolean;
+  rejectTarget?: (error: Error, targetId: string) => never;
+  selectOperation?: (target: CliNode | null) => string;
+  revision?: { field: string; map?: boolean; fallback: number } | null;
+  prepareInput?: (input: Record<string, unknown>, target: CliNode | null) => void;
+  validate?: (input: Record<string, unknown>, target: CliNode | null) => void;
+  collection?: string;
+  useTargetFallback?: boolean;
+  fallbackToResult?: boolean;
+};
+
+export function isRemoteBackend(backendClient: CliBackendClient | undefined): backendClient is CliBackendClient & { type: "remote" } {
   return backendClient?.type === "remote";
 }
 
-function requireOperationBridge(backendClient, command) {
+function requireOperationBridge(backendClient: CliBackendClient, command: string) {
   if (typeof backendClient?.executeOperation !== "function" || typeof backendClient?.executeBatch !== "function") {
-    throwV2("INVALID_OPERATION_BRIDGE", `${command}: remote backend client does not support operation execution`);
+    throwV2("INVALID_OPERATION_BRIDGE" as Parameters<typeof throwV2>[0], `${command}: remote backend client does not support operation execution`);
   }
 }
 
-function requireAcceptedRemoteNode(node, id, command, accepts) {
+function requireAcceptedRemoteNode(node: CliNode | null, id: string, command: string, accepts: (node: CliNode) => boolean) {
   if (node && accepts(node)) {
     return node;
   }
@@ -20,36 +40,37 @@ function requireAcceptedRemoteNode(node, id, command, accepts) {
   });
 }
 
-export async function readRemoteNode(backendClient, id, command, accepts = () => true) {
+export async function readRemoteNode(backendClient: CliBackendClient, id: string, command: string, accepts: (node: CliNode) => boolean = () => true): Promise<CliNode> {
   if (typeof backendClient?.readNode !== "function") {
-    throwV2("INVALID_OPERATION_BRIDGE", `${command}: remote backend client must support node reads`);
+    throwV2("INVALID_OPERATION_BRIDGE" as Parameters<typeof throwV2>[0], `${command}: remote backend client must support node reads`);
   }
   const node = (await backendClient.readNode({ id }))?.node || null;
   return requireAcceptedRemoteNode(node, id, command, accepts);
 }
 
-async function readRouteTarget(backendClient, options) {
-  const { targetId, command, preReadTarget, acceptsTarget, rejectTarget } = options;
+async function readRouteTarget(backendClient: CliBackendClient, options: Pick<RouteOptions, "targetId" | "command" | "preReadTarget" | "acceptsTarget" | "rejectTarget">) {
+  const { targetId, command, preReadTarget, acceptsTarget = () => true, rejectTarget } = options;
   if (!preReadTarget) {
     return null;
   }
   try {
-    return await readRemoteNode(backendClient, targetId, command, acceptsTarget);
+    return await readRemoteNode(backendClient, targetId as string, command, acceptsTarget);
   } catch (error) {
-    if (error?.code !== "REMOTE_UNSUPPORTED_OPERATION" || !rejectTarget) {
-      throw error;
+    const caught = asCaughtError(error);
+    if (caught.code !== "REMOTE_UNSUPPORTED_OPERATION" || !rejectTarget) {
+      throw caught;
     }
-    return rejectTarget(error, targetId);
+    return rejectTarget(caught, targetId as string);
   }
 }
 
-function applyRevision(remoteInput, target, targetId, revision) {
+function applyRevision(remoteInput: Record<string, unknown>, target: CliNode | null, targetId: string | undefined, revision: RouteOptions["revision"]) {
   if (!revision || remoteInput[revision.field] !== undefined) {
     return;
   }
-  const value = Number.isInteger(target?.revision) ? target.revision : revision.fallback;
+  const value = Number.isInteger(target?.revision) ? target!.revision as number : revision.fallback;
   if (revision.map) {
-    remoteInput[revision.field] = { [targetId]: value };
+    remoteInput[revision.field] = { [targetId as string]: value };
     return;
   }
   remoteInput[revision.field] = value;
@@ -72,12 +93,15 @@ export async function routeRemoteOperation({
   collection = "updated",
   useTargetFallback = false,
   fallbackToResult = true,
-}) {
+}: RouteOptions): Promise<{ mutation: CliMutation; target: CliNode | null; operation: string; node: CliNode | null } | null> {
+  if (!isRemoteBackend(backendClient)) {
+    return null;
+  }
   if (!isRemoteBackend(backendClient)) {
     return null;
   }
   requireOperationBridge(backendClient, command);
-  const routeOptions = { targetId, command, preReadTarget, acceptsTarget, rejectTarget };
+  const routeOptions = { targetId, command, preReadTarget, acceptsTarget: acceptsTarget ?? (() => true), rejectTarget };
   const target = await readRouteTarget(backendClient, routeOptions);
   const selectedOperation = selectOperation ? selectOperation(target) : operation;
   const inputOptions = { revision, prepareInput, validate };
@@ -89,7 +113,7 @@ export async function routeRemoteOperation({
   });
 }
 
-function prepareRemoteInput(input, target, targetId, options) {
+function prepareRemoteInput(input: Record<string, unknown>, target: CliNode | null, targetId: string | undefined, options: Pick<RouteOptions, "revision" | "prepareInput" | "validate">): Record<string, unknown> {
   const { revision, prepareInput, validate } = options;
   const remoteInput = { ...input };
   delete remoteInput.actor;
@@ -103,11 +127,11 @@ function prepareRemoteInput(input, target, targetId, options) {
   return remoteInput;
 }
 
-async function executeRemoteMutation(backendClient, actor, operation, input) {
-  return createOperationBridge({ backendClient }).executeOperation({ actor, operation, input });
+async function executeRemoteMutation(backendClient: CliBackendClient, actor: string, operation: string, input: Record<string, unknown>): Promise<CliMutation> {
+  return await createOperationBridge({ backendClient }).executeOperation({ actor, operation, input }) as CliMutation;
 }
 
-function buildRoutedResult(options) {
+function buildRoutedResult(options: { mutation: CliMutation; operation: string; target: CliNode | null; targetId?: string; collection?: string; useTargetFallback?: boolean; fallbackToResult?: boolean }) {
   const { mutation, operation, target, targetId, collection, useTargetFallback, fallbackToResult } = options;
   return {
     mutation,
@@ -121,27 +145,27 @@ function buildRoutedResult(options) {
   };
 }
 
-function domainTargetOptions(operation, input) {
+function domainTargetOptions(operation: string, input: Record<string, unknown>): Pick<RouteOptions, "targetId" | "acceptsTarget" | "revision"> {
   const gateRevision = ["gate.resolve", "gate.reopen", "gate.cancel"].includes(operation)
     && input.id
     && input.if_revisions === undefined;
   if (gateRevision) {
     return {
-      targetId: input.id,
+      targetId: input.id as string,
       acceptsTarget: (node) => node.kind === "resolvable" && node.subkind === "gate",
       revision: { field: "if_revisions", map: true, fallback: 1 },
     };
   }
   if (operation === "note.add" && input.id && input.if_revision === undefined) {
     return {
-      targetId: input.id,
+      targetId: input.id as string,
       revision: { field: "if_revision", fallback: 1 },
     };
   }
   return { revision: null };
 }
 
-function validateDomainInput(command, operation, input) {
+function validateDomainInput(command: string, operation: string, input: Record<string, unknown>) {
   if (operation === "gate.create" && input.resolution_mode !== undefined) {
     throwV2("REMOTE_UNSUPPORTED_OPERATION", `${command}: remote gate.create does not support resolution_mode`, { command, field: "resolution_mode" });
   }
@@ -169,31 +193,31 @@ export async function executeRemoteDomain({ backendClient, actor, operation, inp
   return routed?.mutation ?? null;
 }
 
-function findDiffNode(mutation, id, collection) {
+function findDiffNode(mutation: CliMutation, id: string | undefined, collection = "updated"): CliNode | null {
   const entries = mutation?.diff?.[collection];
   if (!Array.isArray(entries)) {
     return null;
   }
-  return entries.find((entry) => entry.id === id)?.node || null;
+  return (entries as Array<{ id: string; node?: CliNode }>).find((entry) => entry.id === id)?.node || null;
 }
 
-function resultNode(mutation, fallbackToResult) {
+function resultNode(mutation: CliMutation, fallbackToResult: boolean | undefined): CliNode | null {
   if (fallbackToResult) {
-    return mutation?.result?.node || null;
+    return (mutation?.result?.node as CliNode | undefined) || null;
   }
   return null;
 }
 
-function directRemoteNode(mutation, id, options) {
+function directRemoteNode(mutation: CliMutation, id: string | undefined, options: { collection?: string; target?: CliNode | null }): CliNode | null {
   const { collection = "updated", target = null } = options;
-  return findDiffNode(mutation, id, collection) || target || mutation?.node || null;
+  return findDiffNode(mutation, id, collection) || target || (mutation?.node as CliNode | undefined) || null;
 }
 
-export function locateRemoteNode(mutation, id, options = {}) {
+export function locateRemoteNode(mutation: CliMutation, id: string | undefined, options: { collection?: string; target?: CliNode | null; fallbackToResult?: boolean } = {}): CliNode | null {
   const directNode = directRemoteNode(mutation, id, options);
   return directNode || resultNode(mutation, options.fallbackToResult !== false);
 }
 
-export function nodeFromMutation(mutation, id, collection = "updated") {
+export function nodeFromMutation(mutation: CliMutation, id: string, collection = "updated"): CliNode | null {
   return locateRemoteNode(mutation, id, { collection });
 }

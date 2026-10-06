@@ -2,10 +2,12 @@
 import fs from "node:fs/promises";
 import { withGlobalPluginLock } from "../../plugins/lock.ts";
 import { pluginInstalledDir } from "../../plugins/paths.ts";
+import { asCaughtError } from "../../contracts/errors.ts";
+import type { CommandContext } from "./contracts.ts";
 
 export const knownFlags = [];
 
-export default async function uninstall({ positional = [] } = {}) {
+export default async function uninstall({ positional }: CommandContext) {
   const id = positional[0];
   if (!id || typeof id !== "string" || !id.trim()) {
 
@@ -16,7 +18,8 @@ export default async function uninstall({ positional = [] } = {}) {
     const targetDir = pluginInstalledDir(id);
     try {
       await fs.rm(targetDir, { recursive: true, force: true });
-    } catch (err) {
+    } catch (caught) {
+      const err = asCaughtError(caught);
 
       if (err.code !== "ENOENT") {
         throw err;

@@ -4,6 +4,7 @@ import { throwV2 } from "../../contracts/errors.ts";
 import { resolveAgent } from "../actor.ts";
 import { PolicyDenied } from "../../plugins/errors.ts";
 import { executeRemoteTask, requireRemoteTask, throwMissingRemoteNode } from "./internal/task-routing.ts";
+import type { CliMutation, CommandContext } from "./contracts.ts";
 
 export const knownFlags = ["as"];
 
@@ -103,7 +104,7 @@ async function releaseLocally({ backendClient, dir, projectConfig, source, plugi
     actor: agent,
     operation: "task.release",
     input: { id, actor: agent },
-  });
+  }) as CliMutation;
   const updated = mutation.diff.updated.find((entry) => entry.id === id);
   const node = updated ? updated.node : snapshotNode.value || mutation.result?.node || null;
   if (!node) {
@@ -115,7 +116,7 @@ async function releaseLocally({ backendClient, dir, projectConfig, source, plugi
   };
 }
 
-export default async function release({ statePath, flags = {}, positional = [], projectDir, projectConfig, pluginId, backendClient, source }) {
+export default async function release({ statePath, flags, positional, projectDir, projectConfig, pluginId, backendClient, source }: CommandContext) {
   const id = positional[0];
   if (!id) {
     throwV2("MISSING_FIELD", "release: node id required", { field: "id" });

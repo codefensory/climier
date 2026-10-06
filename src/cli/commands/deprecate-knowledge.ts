@@ -4,7 +4,8 @@ import { mutate } from "../../kernel/mutate.ts";
 import { getOperationSource } from "../../operation-source.ts";
 
 void mutate;
-import { throwV2 } from "../../contracts/errors.ts";
+import { asCaughtError, throwV2 } from "../../contracts/errors.ts";
+import type { CliMutation } from "./contracts.ts";
 import { resolveAgent } from "../actor.ts";
 import { deprecateProvider } from "../../providers/knowledge/deprecate.ts";
 import { executeRemoteDomain, nodeFromMutation } from "./internal/domain-routing.ts";
@@ -35,9 +36,9 @@ const cliKnowledgeProvider = Object.freeze({
 
         logFields: { reason: plan.reason },
       };
-    } catch (error) {
+    } catch (caught) {
+      const error = asCaughtError(caught);
       if (
-        error &&
         error.code === "INVALID_PROVIDER_INPUT" &&
         error.details &&
         error.details.id === args.input.id &&
@@ -80,7 +81,7 @@ function validateDeprecationRequest(positional, flags) {
 }
 
 async function deprecateRemote(backendClient, agent, id, input) {
-  const mutation = await executeRemoteDomain({ backendClient, actor: agent, operation: "knowledge.deprecate", input, command: "deprecate-knowledge" });
+  const mutation = await executeRemoteDomain({ backendClient, actor: agent, operation: "knowledge.deprecate", input, command: "deprecate-knowledge" }) as CliMutation;
   return { node: nodeFromMutation(mutation, id) || mutation.result?.node || null };
 }
 

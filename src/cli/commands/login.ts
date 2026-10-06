@@ -4,10 +4,11 @@ import { StringDecoder } from "node:string_decoder";
 
 import { createCredentialStore, normalizeOrigin } from "../../storage/credential-profile.ts";
 import { loginRemote } from "../../application/backend-remote-transport.ts";
+import type { CliFlags, CommandContext } from "./contracts.ts";
 
 export const knownFlags = ["server"];
 
-function loginError(code, message, details) {
+function loginError(code: string, message: string, details?: Record<string, unknown>) {
   const error = new Error(`login: ${message}`);
   error.code = code;
   if (details !== undefined) {error.details = details;}
@@ -16,14 +17,18 @@ function loginError(code, message, details) {
 
 function checkedOrigin(value) {
   try {return normalizeOrigin(value);}
-  catch (cause) {throw loginError("CLI_USAGE_ERROR", cause.message.replace(/^credential store: /, ""), { field: "server" });}
+  catch (cause) {throw loginError("CLI_USAGE_ERROR", String(cause).replace(/^credential store: /, ""), { field: "server" });}
 }
 
-function serverOrigin(flags, projectConfig) {
+function serverOrigin(flags: CliFlags, projectConfig: Record<string, unknown>) {
   if (typeof flags.server === "string" && flags.server) {return checkedOrigin(flags.server);}
   if (flags.server !== undefined) {throw loginError("CLI_USAGE_ERROR", "--server requires an origin", { flag: "server" });}
-  if (projectConfig?.backend?.type === "remote" && typeof projectConfig.backend.url === "string") {
-    return checkedOrigin(projectConfig.backend.url);
+  const backend = projectConfig.backend;
+  if (backend && typeof backend === "object" && !Array.isArray(backend)) {
+    const remote = backend as { type?: unknown; url?: unknown };
+    if (remote.type === "remote" && typeof remote.url === "string") {
+      return checkedOrigin(remote.url);
+    }
   }
   throw loginError("CLI_USAGE_ERROR", "--server is required when the checkout is not linked remotely", { flag: "server" });
 }
@@ -45,7 +50,7 @@ export async function readPasswordFromTty() {
   fs.writeSync(fd, "Password: ");
   input.resume();
   try {
-    return await new Promise((resolve, reject) => {
+    return await new Promise<string>((resolve, reject) => {
       let password = "";
       const decoder = new StringDecoder("utf8");
       input.on("data", (chunk) => {
@@ -53,7 +58,7 @@ export async function readPasswordFromTty() {
           if (byte === 3) {reject(loginError("INTERACTIVE_LOGIN_REQUIRED", "login was cancelled")); return;}
           if (byte === 10 || byte === 13) {resolve(password + decoder.end()); return;}
           if (byte === 8 || byte === 127) {password = password.slice(0, -1); continue;}
-          password += decoder.write(Buffer.from([byte]));
+          password += decoder.write(Buffer.from([byte as number]));
         }
       });
       input.once("error", reject);
@@ -65,14 +70,14 @@ export async function readPasswordFromTty() {
   }
 }
 
-export default async function login({ positional = [], flags = {}, projectConfig = {}, readPassword = readPasswordFromTty, requestLogin = loginRemote, credentialStore = createCredentialStore() } = {}) {
+export default async function login({ positional = [], flags = {}, projectConfig = {}, readPassword = readPasswordFromTty, requestLogin = loginRemote, credentialStore = createCredentialStore() }: CommandContext & { readPassword?: () => Promise<string>; requestLogin?: (options: { origin: string; password: string }) => Promise<unknown>; credentialStore?: Readonly<{ set(origin: string, token: string): Promise<void> }> }) {
   if (positional.length) {throw loginError("CLI_USAGE_ERROR", "does not accept positional arguments", { positional_count: positional.length });}
   const origin = serverOrigin(flags, projectConfig);
   const password = await readPassword();
-  const session = await requestLogin({ origin, password });
+  const session = await requestLogin({ origin, password }) as { token?: unknown; expires_in_days?: unknown };
   if (!session || typeof session.token !== "string" || !session.token) {
     throw loginError("REMOTE_INVALID_RESPONSE", "server response did not contain a bearer token");
   }
-  await credentialStore.set(origin, session.token);
+  await credentialStore?.set(origin, session.token as string);
   return { session: { origin, ...(Number.isInteger(session.expires_in_days) ? { expires_in_days: session.expires_in_days } : {}) } };
 }

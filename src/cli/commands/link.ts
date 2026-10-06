@@ -4,6 +4,10 @@ import path from "node:path";
 
 import { parseBackendConfig } from "../../application/backend-config.ts";
 import { projectMetaFile } from "../../storage/paths.ts";
+import { asCaughtError } from "../../contracts/errors.ts";
+import type { CommandContext } from "./contracts.ts";
+
+type LinkMetadata = { version?: unknown; project_id?: unknown; backend?: { type?: unknown; url?: unknown } } & Record<string, unknown>;
 
 export const knownFlags = ["replace"];
 
@@ -29,11 +33,12 @@ function newProjectId() {
   return crypto.randomBytes(16).toString("base64url");
 }
 
-async function readMetadata(file) {
+async function readMetadata(file: string): Promise<LinkMetadata> {
   let raw;
   try {
     raw = await fs.readFile(file, "utf8");
-  } catch (error) {
+  } catch (caught) {
+    const error = asCaughtError(caught);
     if (error.code === "ENOENT") {return {};}
     throw error;
   }
@@ -43,23 +48,25 @@ async function readMetadata(file) {
       throw linkError("CLIMIER_CORRUPT_PROJECT_META", `link: project metadata at ${file} must be a JSON object`, { file });
     }
     return parsed;
-  } catch (error) {
+  } catch (caught) {
+    const error = asCaughtError(caught);
     if (error.code) {throw error;}
     throw linkError("CLIMIER_CORRUPT_PROJECT_META", `link: project metadata at ${file} is corrupt or not valid JSON: ${error.message}`, { file });
   }
 }
 
-function normalizedRemoteBackend(origin) {
-  const { type, url } = parseBackendConfig({ backend: { type: "remote", url: origin } });
-  return { type, url };
+function normalizedRemoteBackend(origin: string): { type: "remote"; url: string } {
+  const backend = parseBackendConfig({ backend: { type: "remote", url: origin } });
+  if (backend.type !== "remote") { throw new Error("link: remote backend configuration was not selected"); }
+  return { type: "remote", url: backend.url };
 }
 
-function currentRemoteOrigin(meta) {
+function currentRemoteOrigin(meta: LinkMetadata): string | null {
   if (meta.backend?.type !== "remote") {return null;}
   return typeof meta.backend.url === "string" ? normalizedRemoteBackend(meta.backend.url).url : null;
 }
 
-function updatedMetadata(meta, backend) {
+function updatedMetadata(meta: LinkMetadata, backend: { type: "remote"; url: string }): LinkMetadata {
   return {
     ...meta,
     version: Number.isInteger(meta.version) ? meta.version : 1,
@@ -68,7 +75,7 @@ function updatedMetadata(meta, backend) {
   };
 }
 
-export default async function link({ positional = [], flags = {}, projectDir }) {
+export default async function link({ positional, flags, projectDir }: CommandContext) {
   if (positional.length !== 1) {throw usage("expected exactly one origin", { positional_count: positional.length });}
   const replace = normalizeReplace(flags.replace);
   const backend = normalizedRemoteBackend(positional[0]);

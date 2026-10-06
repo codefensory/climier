@@ -9,6 +9,8 @@ import { isRemoteBackend, throwMissingRemoteNode } from "./internal/task-routing
 import { readRemoteNode, nodeFromMutation } from "./internal/domain-routing.ts";
 import { throwV2 } from "../../contracts/errors.ts";
 import { resolveAgent } from "../actor.ts";
+import { asCaughtError } from "../../contracts/errors.ts";
+import type { CliFlags, CliMutation, CommandContext } from "./contracts.ts";
 
 
 export const knownFlags = ["title", "body", "initiative", "domain", "tags", "refs", "meta", "definition", "acceptance", "backlog", "purpose", "resolution-mode", "knowledge-type", "mitigation", "scope-domains", "scope-initiatives", "scope-tags", "scope-node-ids", "if-revision", "as"];
@@ -41,7 +43,8 @@ function parseMeta(raw) {
   let parsed;
   try {
     parsed = JSON.parse(String(raw));
-  } catch (error) {
+  } catch (caught) {
+    const error = asCaughtError(caught);
     throw new Error(`update: --meta must be valid JSON (${error.message})`, { cause: error });
   }
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
@@ -79,8 +82,8 @@ function parseIfRevision(raw) {
 
 const SCALAR_FLAGS = ["title", "body", "initiative", "domain", "definition", "acceptance", "purpose", "mitigation"];
 
-function buildScalarChanges(flags) {
-  const changes = {};
+function buildScalarChanges(flags: CliFlags): Record<string, unknown> {
+  const changes: Record<string, unknown> = {};
   for (const field of SCALAR_FLAGS) {
     if (flags[field] === undefined) {
       continue;
@@ -92,7 +95,7 @@ function buildScalarChanges(flags) {
   }
   return changes;
 }
-function addFlagChange(changes, flags, flag, field) {
+function addFlagChange(changes: Record<string, unknown>, flags: CliFlags, flag: string, field: string) {
   if (flags[flag] === undefined) {
     return;
   }
@@ -101,8 +104,8 @@ function addFlagChange(changes, flags, flag, field) {
   }
   changes[field] = flags[flag];
 }
-function buildFlagChanges(flags) {
-  const changes = {};
+function buildFlagChanges(flags: CliFlags): Record<string, unknown> {
+  const changes: Record<string, unknown> = {};
   addFlagChange(changes, flags, "resolution-mode", "resolution_mode");
   addFlagChange(changes, flags, "knowledge-type", "knowledge_type");
   if (flags.tags !== undefined) {
@@ -122,8 +125,8 @@ function buildFlagChanges(flags) {
   }
   return changes;
 }
-function buildScope(flags) {
-  const scope = {};
+function buildScope(flags: CliFlags): Record<string, unknown> {
+  const scope: Record<string, unknown> = {};
   for (const flag of ["scope-domains", "scope-initiatives", "scope-tags", "scope-node-ids"]) {
     if (flags[flag] === undefined) {
       continue;
@@ -139,7 +142,7 @@ function buildScope(flags) {
   return scope;
 }
 function buildChanges(flags) {
-  const changes = { ...buildScalarChanges(flags), ...buildFlagChanges(flags) };
+  const changes: Record<string, unknown> = { ...buildScalarChanges(flags), ...buildFlagChanges(flags) };
   const backlog = parseBacklog(flags.backlog);
   if (backlog !== undefined) {
     changes.backlog = backlog;
@@ -239,8 +242,8 @@ async function readUpdateTarget(backendClient, dir, id) {
     }
     return { target, operation };
   }
-  const snapshot = await readState(dir);
-  const target = snapshot.nodes?.[id] || null;
+  const snapshot = await readState(dir) as { nodes?: Record<string, Record<string, unknown>> } | null;
+  const target = snapshot?.nodes?.[id] || null;
   return { target, operation: operationForTarget(target) || "task.update" };
 }
 function createLocalClient({ backendClient, source, pluginId, dir }) {
@@ -260,12 +263,12 @@ function createLocalClient({ backendClient, source, pluginId, dir }) {
       });
     },
     async executeBatch() {
-      throwV2("INVALID_OPERATION_BRIDGE", "update: single operation execution is required");
+      throwV2("INVALID_OPERATION_BRIDGE" as Parameters<typeof throwV2>[0], "update: single operation execution is required");
     },
   };
 }
 function buildOperationInput({ id, changes, expectedRevision, target, remote }) {
-  const input = { id, changes };
+  const input: Record<string, unknown> = { id, changes };
   if (expectedRevision !== undefined) {
     input.if_revision = expectedRevision;
   } else if (remote) {
@@ -290,7 +293,7 @@ function updatedNodeFromMutation(mutation, id, remote) {
   return node;
 }
 
-export default async function update({ statePath, projectDir, flags = {}, positional = [], pluginId, backendClient, source }) {
+export default async function update({ statePath, projectDir, flags, positional, pluginId, backendClient, source }: CommandContext) {
   const id = positional[0];
   if (!id) {
     throwV2("MISSING_FIELD", "update: node id required", { field: "id" });

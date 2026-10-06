@@ -1,6 +1,8 @@
 
 import { readState } from "../../storage/state.ts";
 import { projectStatusView } from "../../read-model/index.ts";
+import type { CommandContext } from "./contracts.ts";
+import type { ReadModelSnapshot } from "../../read-model/types.ts";
 
 export const knownFlags = [
   "initiative",
@@ -25,8 +27,8 @@ function parseStaleMs(flags) {
   return n;
 }
 
-function parseLimit(flags) {
-  if (flags.limit === undefined || flags.limit === true) {return null;}
+function parseLimit(flags): number | undefined {
+  if (flags.limit === undefined || flags.limit === true) {return undefined;}
   const n = parseInt(flags.limit, 10);
   if (Number.isNaN(n) || n < 0) {
     throw new Error(`status: --limit must be a non-negative integer (got '${flags.limit}')`);
@@ -79,7 +81,7 @@ async function readRemoteStatus(flags, backendClient) {
 }
 
 async function readLocalStatus(statePath, flags) {
-  const snapshot = await readState(statePath);
+  const snapshot = await readState(statePath) as ReadModelSnapshot | null;
   if (!snapshot) {return emptyResult();}
   const filters = {
     initiative: flags.initiative || undefined,
@@ -94,7 +96,7 @@ async function readLocalStatus(statePath, flags) {
   return projectStatusView({ snapshot, filters, now: Date.now() });
 }
 
-export default async function statusV2({ statePath, flags, backendClient }) {
+export default async function statusV2({ statePath, flags, backendClient }: CommandContext) {
   if (backendClient?.type === "remote") {return readRemoteStatus(flags, backendClient);}
   return readLocalStatus(statePath, flags);
 }

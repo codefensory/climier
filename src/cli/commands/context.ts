@@ -2,6 +2,8 @@
 import { readState, assertReadableState } from "../../storage/state.ts";
 import { projectContextView } from "../../read-model/index.ts";
 import { throwV2 } from "../../contracts/errors.ts";
+import type { CommandContext } from "./contracts.ts";
+import type { ReadModelSnapshot } from "../../read-model/types.ts";
 
 export const knownFlags = ["as", "staleMs"];
 
@@ -25,7 +27,7 @@ async function readRemoteContext(id, flags, backendClient) {
 }
 
 async function readLocalContext(statePath, id, flags) {
-  const snapshot = await readState(statePath);
+  const snapshot = await readState(statePath) as ReadModelSnapshot | null;
   if (!snapshot) {throw new Error("context: state file missing");}
   assertReadableState(snapshot, "context");
   const view = projectContextView({
@@ -44,7 +46,7 @@ async function readContext({ statePath, id, flags, backendClient }) {
   return readLocalContext(statePath, id, flags);
 }
 
-export default async function context({ statePath, positional, flags, backendClient }) {
+export default async function context({ statePath, positional, flags, backendClient }: CommandContext) {
   const [id] = positional;
   if (!id) {throwV2("MISSING_FIELD", "context: node id required", { field: "id" });}
   return readContext({ statePath, id, flags, backendClient });
