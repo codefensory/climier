@@ -213,16 +213,26 @@ async function sourceFiles(directory) {
   return files.toSorted();
 }
 
-export async function collectRelativeImports(directory) {
+export async function collectRelativeImports(directory, {
+  sourceRootDirectory,
+  targetRootDirectory,
+} = {}) {
   const sourceDirectory = path.resolve(directory);
-  let sourceRoot = sourceDirectory;
-  while (path.basename(sourceRoot) !== "src") {
-    const parent = path.dirname(sourceRoot);
-    if (parent === sourceRoot) {
-      throw new Error(`collectRelativeImports: ${directory} is not under src`);
+  let sourceRoot = sourceRootDirectory === undefined
+    ? sourceDirectory
+    : path.resolve(sourceRootDirectory);
+  if (sourceRootDirectory === undefined) {
+    while (path.basename(sourceRoot) !== "src") {
+      const parent = path.dirname(sourceRoot);
+      if (parent === sourceRoot) {
+        throw new Error(`collectRelativeImports: ${directory} is not under src`);
+      }
+      sourceRoot = parent;
     }
-    sourceRoot = parent;
   }
+  const targetRoot = targetRootDirectory === undefined
+    ? sourceRoot
+    : path.resolve(targetRootDirectory);
   const files = await sourceFiles(sourceDirectory);
   const imports = [];
 
@@ -232,7 +242,7 @@ export async function collectRelativeImports(directory) {
       const target = path.resolve(path.dirname(file), specifier);
       imports.push({
         sourceFile: path.relative(sourceRoot, file),
-        targetFile: path.relative(sourceRoot, target),
+        targetFile: path.relative(targetRoot, target),
         specifier,
       });
     }

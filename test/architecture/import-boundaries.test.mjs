@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import path from "node:path";
 import { readFile } from "node:fs/promises";
 
 import {
@@ -8,66 +9,120 @@ import {
   relativeImportSpecifiers,
 } from "./import-graph.mjs";
 
+// This is the ratchet for the measured graph. Exceptions name edges that are
+// currently real but remain outside the normative dependency direction.
 const BOUNDARIES = [
+  { name: "contracts", directory: "src/contracts", allowedRoots: [] },
+  { name: "storage", directory: "src/storage", allowedRoots: ["contracts"] },
+  { name: "kernel", directory: "src/kernel", allowedRoots: ["contracts", "storage"] },
+  { name: "providers", directory: "src/providers", allowedRoots: ["contracts", "kernel"] },
+  { name: "read-model", directory: "src/read-model", allowedRoots: ["kernel", "providers"] },
+  { name: "application", directory: "src/application", allowedRoots: ["contracts", "kernel", "providers", "storage"] },
   {
-    name: "kernel",
-    directory: "src/kernel",
-    forbiddenRoots: ["application", "plugins", "cli"],
+    name: "plugins",
+    directory: "src/plugins",
+    allowedRoots: ["application", "contracts", "kernel", "providers", "read-model", "storage"],
+    exceptions: [
+      { edge: "plugins -> kernel", reason: "existing plugin host dependency" },
+      { edge: "plugins -> providers", reason: "existing plugin host dependency" },
+      { edge: "plugins -> read-model", reason: "existing plugin host dependency" },
+    ],
   },
   {
-    name: "providers",
-    directory: "src/providers",
-    forbiddenRoots: ["cli", "plugins", "storage"],
+    name: "server",
+    directory: "src/server",
+    allowedRoots: ["application", "kernel", "read-model", "storage"],
+    exceptions: [
+      { edge: "server -> kernel", reason: "existing remote runtime dependency" },
+      { edge: "server -> read-model", reason: "existing remote runtime dependency" },
+    ],
   },
   {
-    name: "read-model",
-    directory: "src/read-model",
-    forbiddenRoots: ["cli", "plugins", "storage"],
+    name: "cli",
+    directory: "src/cli",
+    allowedRoots: ["application", "contracts", "kernel", "plugins", "providers", "read-model", "server", "storage"],
+  },
+  {
+    name: "bin",
+    directory: "bin",
+    allowedRoots: ["cli", "server"],
+    collectOptions: { sourceRootDirectory: ".", targetRootDirectory: "src" },
   },
 ];
 
+const BOUNDARY_ROOTS = BOUNDARIES.map(({ name }) => name);
+
+function forbiddenRootsFor(boundary) {
+  return BOUNDARY_ROOTS.filter((root) => root !== boundary.name && !boundary.allowedRoots.includes(root));
+}
+
+function boundaryRoot(targetFile) {
+  return BOUNDARY_ROOTS.find((root) => (
+    targetFile === root || targetFile.startsWith(`${root}${path.sep}`)
+  ));
+}
+
+function actualBoundaryRoots(imports, boundary) {
+  return imports
+    .map(({ targetFile }) => boundaryRoot(targetFile))
+    .filter((root) => root !== undefined && root !== boundary.name)
+    .filter((root, index, roots) => roots.indexOf(root) === index)
+    .toSorted();
+}
+
 for (const boundary of BOUNDARIES) {
-  test(`${boundary.name} does not import forbidden architectural roots`, async () => {
-    const imports = await collectRelativeImports(boundary.directory);
+  test(`${boundary.name} matches the declared architectural graph`, async () => {
+    const imports = await collectRelativeImports(boundary.directory, boundary.collectOptions);
     assert.ok(imports.length > 0, `${boundary.name} should have imports to inspect`);
+    assert.deepEqual(actualBoundaryRoots(imports, boundary), boundary.allowedRoots.toSorted());
     assert.deepEqual(findBoundaryViolations(imports, {
       sourceRoot: boundary.name,
-      forbiddenRoots: boundary.forbiddenRoots,
+      forbiddenRoots: forbiddenRootsFor(boundary),
     }), []);
+
+    const undeclaredRoots = imports.filter(({ targetFile }) => (
+      targetFile.includes(path.sep) && boundaryRoot(targetFile) === undefined
+    ));
+    assert.deepEqual(undeclaredRoots, [], `${boundary.name} imports an undeclared root`);
   });
 }
 
-test("application does not import plugins", async () => {
-  const imports = await collectRelativeImports("src/application");
-  assert.ok(imports.length > 0, "application should have imports to inspect");
-  assert.deepEqual(findBoundaryViolations(imports, {
-    sourceRoot: "application",
-    forbiddenRoots: ["plugins"],
-  }), []);
+test("the table names all five measured normative deviations", () => {
+  assert.deepEqual(
+    BOUNDARIES.flatMap(({ exceptions = [] }) => exceptions.map(({ edge }) => edge)),
+    [
+      "plugins -> kernel",
+      "plugins -> providers",
+      "plugins -> read-model",
+      "server -> kernel",
+      "server -> read-model",
+    ],
+  );
 });
 
-test("boundary matcher detects every prohibited direction", () => {
-  const imports = [
-    { sourceFile: "kernel/mutate.ts", targetFile: "application/operations/index.ts" },
-    { sourceFile: "kernel/graph.ts", targetFile: "plugins/query.ts" },
-    { sourceFile: "kernel/transaction.ts", targetFile: "cli/actor.ts" },
-    { sourceFile: "providers/task/create.ts", targetFile: "cli/actor.ts" },
-    { sourceFile: "providers/task/create.ts", targetFile: "plugins/policy.ts" },
-    { sourceFile: "providers/task/create.ts", targetFile: "storage/state.ts" },
-    { sourceFile: "execution/contract.mjs", targetFile: "cli/actor.ts" },
-    { sourceFile: "execution/contract.mjs", targetFile: "plugins/policy.ts" },
-    { sourceFile: "execution/contract.mjs", targetFile: "storage/state.ts" },
-    { sourceFile: "read-model/index.ts", targetFile: "cli/actor.ts" },
-    { sourceFile: "read-model/index.ts", targetFile: "plugins/query.ts" },
-    { sourceFile: "read-model/index.ts", targetFile: "storage/state.ts" },
-  ];
+test("providers -> kernel is an explicitly allowed edge", async () => {
+  const boundary = BOUNDARIES.find(({ name }) => name === "providers");
+  const imports = await collectRelativeImports(boundary.directory);
+  assert.ok(boundary.allowedRoots.includes("kernel"));
+  assert.deepEqual(findBoundaryViolations(imports, {
+    sourceRoot: boundary.name,
+    forbiddenRoots: forbiddenRootsFor(boundary),
+  }), []);
+  assert.ok(actualBoundaryRoots(imports, boundary).includes("kernel"));
+});
 
+test("boundary matcher detects every prohibited direction from the table", () => {
   for (const boundary of BOUNDARIES) {
+    const forbiddenRoots = forbiddenRootsFor(boundary);
+    const imports = forbiddenRoots.map((root) => ({
+      sourceFile: `${boundary.name}/fixture.ts`,
+      targetFile: `${root}/fixture.ts`,
+    }));
     const violations = findBoundaryViolations(imports, {
       sourceRoot: boundary.name,
-      forbiddenRoots: boundary.forbiddenRoots,
+      forbiddenRoots,
     });
-    assert.equal(violations.length, 3, `${boundary.name} should detect all of its forbidden roots`);
+    assert.equal(violations.length, forbiddenRoots.length, `${boundary.name} should detect every forbidden root`);
   }
 });
 
