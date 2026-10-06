@@ -6,6 +6,7 @@ import path from "node:path";
 import batch from "../src/cli/commands/batch.mjs";
 import { createBackendClient } from "../src/application/operations/index.mjs";
 import { createLocalOperationSource } from "../src/application/local-operation-source.mjs";
+import { getOperationSource } from "../src/operation-source.mjs";
 import { dispatchCommand, runCli as runCliInProcess } from "../src/cli/dispatch.mjs";
 
 import { createTempProject, rmTempProject } from "./helpers.mjs";
@@ -92,13 +93,47 @@ test("remote dispatch does not load a local source", async () => {
 });
 
 test("local source getter memoizes the complete source across concurrent requests", async () => {
-  const getSource = createLocalOperationSource();
+  const getSource = getOperationSource;
   const [first, second] = await Promise.all([getSource(), getSource()]);
   assert.equal(first, second);
   assert.ok(first.registry);
   assert.equal(typeof first.mutate, "function");
   assert.equal(typeof first.loadApplicablePolicy, "function");
   assert.equal(typeof first.authorizeAction, "function");
+});
+
+test("local source receives policy ports from composition instead of importing plugins", async () => {
+  const loadApplicablePolicy = async () => null;
+  const authorizeAction = async () => ({ decision: "abstain" });
+  const getSource = createLocalOperationSource(undefined, { loadApplicablePolicy, authorizeAction });
+  const source = await getSource();
+
+  assert.equal(source.loadApplicablePolicy, loadApplicablePolicy);
+  assert.equal(source.authorizeAction, authorizeAction);
+});
+
+test("CLI and HTTP adapters consume the injected source builder", async () => {
+  const files = [
+    "src/cli/commands/add-edge.mjs",
+    "src/cli/commands/resolve.mjs",
+    "src/cli/commands/add-note.mjs",
+    "src/cli/commands/cancel.mjs",
+    "src/cli/commands/reopen.mjs",
+    "src/cli/commands/deprecate-knowledge.mjs",
+    "src/cli/commands/remove-edge.mjs",
+    "src/cli/commands/add-initiative.mjs",
+    "src/cli/commands/take.mjs",
+    "src/cli/commands/update.mjs",
+    "src/server/http.mjs",
+  ];
+  const sources = await Promise.all(files.map((file) => fs.readFile(path.join(path.dirname(new URL(import.meta.url).pathname), "..", file), "utf8")));
+  for (const [index, source] of sources.entries()) {
+    assert.doesNotMatch(source, /bootstrapBuiltins|createBuiltinOperationRegistry/,
+      `${files[index]} must not construct a second built-in registry`);
+    assert.doesNotMatch(source, /selectPolicy\s*:\s*async\s*\(\)\s*=>\s*policy/,
+      `${files[index]} must not create a per-command policy selector`);
+  }
+  assert.match(sources[10], /createOperationSource\(/);
 });
 
 test("batch shares the already-selected local backend instead of rebuilding its source", async () => {

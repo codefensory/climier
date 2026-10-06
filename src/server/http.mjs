@@ -2,7 +2,7 @@ import { createServer } from "node:http";
 import fs from "node:fs/promises";
 
 import { dispatchOperationRequest, validateOperationRequest } from "./http/operations.mjs";
-import { createBuiltinOperationRegistry } from "../application/operations/builtins.mjs";
+import { createOperationSource } from "../operation-source.mjs";
 import { remoteV1Manifest } from "../application/operations/remote-v1-manifest.mjs";
 import { mutate } from "../kernel/mutate.mjs";
 import { createHttpReads } from "./http/reads.mjs";
@@ -11,7 +11,6 @@ import * as readModel from "../read-model/index.mjs";
 import { ledgerFile } from "../storage/ledger.mjs";
 import { readState, stateFile } from "../storage/state.mjs";
 import { initState } from "../kernel/state-operations.mjs";
-import { authorizeAction as authorizeServerAction, loadApplicablePolicy } from "../plugins/policy.mjs";
 import { withAuthorizedProject } from "./auth/project-scope.mjs";
 import { createLoginRateLimiter, loginClientAddress } from "./auth/login-rate-limiter.mjs";
 import { createHttpCodec } from "./http/codec.mjs";
@@ -29,7 +28,7 @@ const reads = createHttpReads({
   clock: Date.now,
 });
 
-function validateServerDependencies({ catalog, openProject, registry, mutateKernel, authStore }) {
+function validateServerDependencies({ catalog, openProject, getOperationSource, authStore }) {
   if (!catalog || typeof catalog.resolveProject !== "function"
       || typeof catalog.provisionProject !== "function" || typeof catalog.listProjects !== "function") {
     throw new TypeError("server http: catalog with resolveProject, provisionProject, and listProjects is required");
@@ -37,11 +36,8 @@ function validateServerDependencies({ catalog, openProject, registry, mutateKern
   if (typeof openProject !== "function") {
     throw new TypeError("server http: openProject must be a function");
   }
-  if (!registry || typeof registry.lookup !== "function") {
-    throw new TypeError("server http: registry.lookup is required");
-  }
-  if (typeof mutateKernel !== "function") {
-    throw new TypeError("server http: mutate must be a function");
+  if (typeof getOperationSource !== "function") {
+    throw new TypeError("server http: operation source builder is required");
   }
   if (!authStore || typeof authStore.verifyBearer !== "function" || typeof authStore.login !== "function") {
     throw new TypeError("server http: authStore with login and verifyBearer is required");
@@ -245,13 +241,8 @@ async function handleInit(projectDir) {
   }
 }
 
-function operationSource(dependencies) {
-  return {
-    registry: dependencies.registry,
-    mutate: dependencies.mutateKernel,
-    selectPolicy: dependencies.selectPolicy || loadApplicablePolicy,
-    authorizeAction: dependencies.authorizeAction || authorizeServerAction,
-  };
+async function operationSource(dependencies) {
+  return dependencies.getOperationSource();
 }
 
 async function sendRouteResult({ response, route, matched, body, query, project, dependencies, request }) {
@@ -304,7 +295,7 @@ async function sendRouteResult({ response, route, matched, body, query, project,
     const result = await dispatchOperationRequest({
       projectDir: project.projectDir,
       body,
-      source: operationSource(dependencies),
+      source: await operationSource(dependencies),
       manifest: remoteV1Manifest,
     });
     send(response, 200, { ok: true, result });
@@ -375,7 +366,9 @@ export function createRemoteApiServer({
   catalog,
   authStore,
   openProject: openProjectDependency = async (projectDir) => ({ projectDir }),
-  registry = createBuiltinOperationRegistry(),
+  operationSource: operationSourceFactory,
+  source,
+  registry,
   mutate: mutateKernel = mutate,
   selectPolicy,
   authorizeAction,
@@ -383,7 +376,16 @@ export function createRemoteApiServer({
   uiRoot,
   indexFile = "index.html",
 } = {}) {
-  const dependencies = { catalog, authStore, openProject: openProjectDependency, registry, mutateKernel, selectPolicy, authorizeAction, loginRateLimiter };
+  const getOperationSource = typeof operationSourceFactory === "function"
+    ? operationSourceFactory
+    : createOperationSource({
+      source: operationSourceFactory || source,
+      registry,
+      mutate: mutateKernel,
+      loadPolicy: selectPolicy,
+      authorize: authorizeAction,
+    });
+  const dependencies = { catalog, authStore, openProject: openProjectDependency, getOperationSource, loginRateLimiter };
   validateServerDependencies(dependencies);
   dependencies.uiApi = createRemoteUiApi(dependencies);
   dependencies.uiEvents = createRemoteUiEvents(dependencies);

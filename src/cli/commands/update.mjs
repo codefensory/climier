@@ -1,18 +1,15 @@
 
 import {
-  bootstrapBuiltins,
   createOperationBridge,
   executeOperation,
 } from "../../application/operations/index.mjs";
-import { mutate } from "../../kernel/mutate.mjs";
+import { getOperationSource } from "../../operation-source.mjs";
 import { readState } from "../../storage/state.mjs";
 import { isRemoteBackend, throwMissingRemoteNode } from "./internal/task-routing.mjs";
 import { readRemoteNode, nodeFromMutation } from "./internal/domain-routing.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
 import { resolveAgent } from "../actor.mjs";
-import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
 
-const REGISTRY = bootstrapBuiltins();
 
 export const knownFlags = ["title", "body", "initiative", "domain", "tags", "refs", "meta", "definition", "acceptance", "backlog", "purpose", "resolution-mode", "knowledge-type", "mitigation", "scope-domains", "scope-initiatives", "scope-tags", "scope-node-ids", "if-revision", "as"];
 
@@ -156,19 +153,19 @@ function buildChanges(flags) {
   }
   return changes;
 }
-function providerFor(snapshot, id) {
+function providerFor(snapshot, id, operationSource) {
   const node = snapshot && snapshot.nodes ? snapshot.nodes[id] : null;
   if (node && node.kind === "knowledge") {
-    return REGISTRY.lookup("knowledge.update").provider;
+    return operationSource.registry.lookup("knowledge.update").provider;
   }
   if (node && node.kind === "resolvable" && node.subkind === "gate") {
-    return REGISTRY.lookup("gate.update").provider;
+    return operationSource.registry.lookup("gate.update").provider;
   }
-  return REGISTRY.lookup("task.update").provider;
+  return operationSource.registry.lookup("task.update").provider;
 }
 
-async function prepareUpdateProvider(args, id, changes, expectedRevision) {
-  const provider = providerFor(args.snapshot, id);
+async function prepareUpdateProvider(args, id, changes, expectedRevision, operationSource, selectedProvider) {
+  const provider = selectedProvider || providerFor(args.snapshot, id, operationSource);
   const current = args.snapshot?.nodes?.[id] || null;
   const revision = expectedRevision ?? (Number.isInteger(current?.revision) ? current.revision : 1);
   args.request.if_revision = { kind: "single", id, value: revision };
@@ -183,18 +180,22 @@ async function prepareUpdateProvider(args, id, changes, expectedRevision) {
   };
 }
 
-async function applyUpdateProvider(args, id) {
-  const provider = providerFor(args.snapshot, id);
+async function applyUpdateProvider(args, id, operationSource, selectedProvider) {
+  const provider = selectedProvider || providerFor(args.snapshot, id, operationSource);
   const applied = await provider.apply(args);
   return { ...applied, result: args.tx.getNode(id) };
 }
-function createUpdateProvider(id, changes, expectedRevision) {
+function createUpdateProvider(id, changes, expectedRevision, operationSource) {
+  let selectedProvider;
   return {
+    setSelectedProvider(provider) {
+      selectedProvider = provider;
+    },
     prepare(args) {
-      return prepareUpdateProvider(args, id, changes, expectedRevision);
+      return prepareUpdateProvider(args, id, changes, expectedRevision, operationSource, selectedProvider);
     },
     apply(args) {
-      return applyUpdateProvider(args, id);
+      return applyUpdateProvider(args, id, operationSource, selectedProvider);
     },
   };
 }
@@ -205,7 +206,11 @@ function withUpdateProvider(source, provider) {
       ...source.registry,
       lookup(operation) {
         const entry = source.registry.lookup(operation);
-        return operation.endsWith(".update") && entry ? { ...entry, provider } : entry;
+        if (operation.endsWith(".update") && entry) {
+          provider.setSelectedProvider(entry.provider || entry);
+          return { ...entry, provider };
+        }
+        return entry;
       },
     },
   };
@@ -243,14 +248,8 @@ function createLocalClient({ backendClient, source, pluginId, dir }) {
     ...backendClient,
     type: "local",
     async executeOperation(args) {
-      const operationSource = source || await backendClient?.operationSource || {
-        registry: REGISTRY,
-        mutate,
-        loadApplicablePolicy: ({ projectDir: targetDir }) => loadApplicablePolicy({ projectDir: targetDir }),
-        authorizeAction,
-        pluginId,
-      };
-      const provider = createUpdateProvider(args.input.id, args.input.changes, args.input.if_revision);
+      const operationSource = source || await backendClient?.operationSource || await getOperationSource();
+      const provider = createUpdateProvider(args.input.id, args.input.changes, args.input.if_revision, operationSource);
       return executeOperation({
         projectDir: dir,
         actor: args.actor,

@@ -1,13 +1,11 @@
 
-import { bootstrapBuiltins, executeOperation } from "../../application/operations/index.mjs";
+import { executeOperation } from "../../application/operations/index.mjs";
 import { mutate } from "../../kernel/mutate.mjs";
+import { getOperationSource } from "../../operation-source.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
 import { resolveAgent } from "../actor.mjs";
-import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
 import { gateResolveProvider } from "../../providers/gate/lifecycle.mjs";
 import { executeRemoteDomain, nodeFromMutation } from "./internal/domain-routing.mjs";
-
-const REGISTRY = bootstrapBuiltins();
 
 export const knownFlags = ["as", "note", "choice", "rationale"];
 
@@ -66,20 +64,20 @@ async function resolveRemotely({ backendClient, agent, id, input }) {
   return resolveRemoteNode(mutation, id);
 }
 
-function createResolveSource(suppliedSource, policy, pluginId) {
-  return suppliedSource || {
-    registry: REGISTRY, mutate, selectPolicy: async () => policy, authorizeAction, pluginId,
-  };
+async function createResolveSource(suppliedSource, pluginId) {
+  const selectedSource = suppliedSource || await getOperationSource();
+  const operationSource = typeof selectedSource.mutate === "function" ? selectedSource : { ...selectedSource, mutate };
+  return { ...operationSource, ...(pluginId ? { pluginId } : {}) };
 }
 
-function cliResolveSource({ suppliedSource, policy, pluginId, id, resolvedNode }) {
-  return sourceWithCliProvider(createResolveSource(suppliedSource, policy, pluginId), id, resolvedNode);
+function cliResolveSource({ operationSource, id, resolvedNode }) {
+  return sourceWithCliProvider(operationSource, id, resolvedNode);
 }
 
 async function resolveLocally({ dir, agent, id, input, pluginId, suppliedSource }) {
-  const policy = suppliedSource ? null : await loadApplicablePolicy({ projectDir: dir });
   const resolvedNode = { value: null };
-  const source = cliResolveSource({ suppliedSource, policy, pluginId, id, resolvedNode });
+  const operationSource = await createResolveSource(suppliedSource, pluginId);
+  const source = cliResolveSource({ operationSource, id, resolvedNode });
   const mutation = await executeOperation({
     projectDir: dir, actor: agent, operation: "gate.resolve", input, source, policyActionFromPlan: true,
   });

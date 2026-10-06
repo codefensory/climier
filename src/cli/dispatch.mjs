@@ -3,6 +3,7 @@ import fsSync from "node:fs";
 
 import { resolveProject, projectMetaFile } from "../storage/paths.mjs";
 import { createBackendClient } from "../application/operations/index.mjs";
+import { getOperationSource } from "../operation-source.mjs";
 import { exitCodeForError, normalizeCliError } from "../contracts/errors.mjs";
 import { RESERVED_NAMESPACES } from "./commands/reserved-namespaces.mjs";
 
@@ -281,13 +282,14 @@ function writeNoCommandResponse(command, write, exit) {
 
 async function addBackendContext(context, { source, backendClientFactory }) {
   const projectConfig = readProjectConfig(context.projectDir);
+  const localSource = source ?? (projectConfig.backend?.type === "remote" ? undefined : await getOperationSource());
   const backendClient = backendClientFactory({
     projectDir: context.projectDir,
     projectConfig,
-    source,
+    source: localSource,
     command: context.command,
   });
-  let selectedSource = source;
+  let selectedSource = localSource;
   if (backendClient?.type === "local") {
     selectedSource ??= await backendClient.operationSource;
   }

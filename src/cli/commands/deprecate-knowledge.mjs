@@ -1,13 +1,13 @@
 
-import { bootstrapBuiltins, executeOperation } from "../../application/operations/index.mjs";
+import { executeOperation } from "../../application/operations/index.mjs";
 import { mutate } from "../../kernel/mutate.mjs";
+import { getOperationSource } from "../../operation-source.mjs";
+
+void mutate;
 import { throwV2 } from "../../contracts/errors.mjs";
 import { resolveAgent } from "../actor.mjs";
-import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
 import { deprecateProvider } from "../../providers/knowledge/deprecate.mjs";
 import { executeRemoteDomain, nodeFromMutation } from "./internal/domain-routing.mjs";
-
-const REGISTRY = bootstrapBuiltins();
 
 export const knownFlags = ["reason", "as"];
 
@@ -56,8 +56,9 @@ const cliKnowledgeProvider = Object.freeze({
 });
 
 function withCliProvider(source) {
+  const operationSource = typeof source.mutate === "function" ? source : { ...source, mutate: (args) => mutate(args) };
   return {
-    ...source,
+    ...operationSource,
     registry: {
       ...source.registry,
       lookup(id) {
@@ -104,20 +105,13 @@ export default async function deprecateKnowledge({
   const dir = projectDir || statePath;
   const agent = resolveAgent(flags, "deprecate-knowledge");
   if (backendClient?.type === "remote") {return deprecateRemote(backendClient, agent, id, input);}
-  const policy = await loadApplicablePolicy({ projectDir: dir });
-  const operationSource = source || {
-    registry: REGISTRY,
-    mutate: (args) => mutate(args),
-    selectPolicy: async () => policy,
-    authorizeAction,
-    pluginId,
-  };
+  const operationSource = source || await getOperationSource();
   const mutation = await executeOperation({
     projectDir: dir,
     actor: agent,
     operation: "knowledge.deprecate",
     input,
-    source: withCliProvider(operationSource),
+    source: withCliProvider({ ...operationSource, ...(pluginId ? { pluginId } : {}) }),
   });
   return deprecatedNode(mutation, id);
 }

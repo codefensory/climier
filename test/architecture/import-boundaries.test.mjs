@@ -37,6 +37,15 @@ for (const boundary of BOUNDARIES) {
   });
 }
 
+test("application does not import plugins", async () => {
+  const imports = await collectRelativeImports("src/application");
+  assert.ok(imports.length > 0, "application should have imports to inspect");
+  assert.deepEqual(findBoundaryViolations(imports, {
+    sourceRoot: "application",
+    forbiddenRoots: ["plugins"],
+  }), []);
+});
+
 test("boundary matcher detects every prohibited direction", () => {
   const imports = [
     { sourceFile: "kernel/mutate.mjs", targetFile: "application/operations/index.mjs" },

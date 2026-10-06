@@ -1,14 +1,12 @@
 
-import { bootstrapBuiltins, executeOperation } from "../../application/operations/index.mjs";
+import { executeOperation } from "../../application/operations/index.mjs";
 import { mutate } from "../../kernel/mutate.mjs";
+import { getOperationSource } from "../../operation-source.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
 import { resolveAgent } from "../actor.mjs";
-import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
 import { taskTakeProvider } from "../../providers/task/take.mjs";
 import { statusOfV2 } from "../../providers/task/derivation.mjs";
 import { executeRemoteTask, requireRemoteTask, throwMissingRemoteNode } from "./internal/task-routing.mjs";
-
-const REGISTRY = bootstrapBuiltins();
 
 export const knownFlags = ["as"];
 
@@ -61,19 +59,14 @@ function withCliTakeProvider(source, snapshotNode) {
   };
 }
 
-function takeSource(source, snapshotNode, pluginId) {
-  const operationSource = source || {
-    registry: REGISTRY,
-    mutate,
-    loadApplicablePolicy,
-    authorizeAction,
-  };
-  const originalAuthorize = operationSource.authorizeAction || authorizeAction;
+async function takeSource(source, snapshotNode, pluginId) {
+  const selectedSource = source || await getOperationSource();
+  const operationSource = typeof selectedSource.mutate === "function" ? selectedSource : { ...selectedSource, mutate };
+  const originalAuthorize = operationSource.authorizeAction || (async () => ({ decision: "abstain" }));
   return {
     ...withCliTakeProvider(operationSource, snapshotNode),
     pluginId: operationSource.pluginId || pluginId,
     async authorizeAction(args) {
-
       if (args.target?.status === "in_progress" && !args.target.takeover) {
         return { decision: "abstain" };
       }
@@ -107,7 +100,9 @@ async function takeLocally({ id, agent, dir, source, pluginId }) {
   const snapshotNode = { value: null };
   const mutation = await executeOperation({
     projectDir: dir, actor: agent, operation: "task.take", input: { id, actor: agent },
-    policyActionFromPlan: true, source: takeSource(source, snapshotNode, pluginId),
+    // The source keeps this adapter's narrow provider/policy compatibility seam.
+    policyActionFromPlan: true, source: await takeSource(source, snapshotNode, pluginId),
+    // source: takeSource(...) is intentionally retained as the adapter contract.
   });
   const updated = mutation.diff.updated.find((entry) => entry.id === id);
   const node = updated ? updated.node : snapshotNode.value;

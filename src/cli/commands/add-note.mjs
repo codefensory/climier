@@ -2,12 +2,11 @@
 // domain operation; kernel.mutate owns the lock, snapshot, CAS, revisions,
 // audit log and atomic persistence. The request action remains `add-note` so
 
-import { bootstrapBuiltins, executeOperation } from "../../application/operations/index.mjs";
-import { mutate } from "../../kernel/mutate.mjs";
+import { executeOperation } from "../../application/operations/index.mjs";
+import { getOperationSource } from "../../operation-source.mjs";
 import { noteAddProvider } from "../../providers/core/note.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
 import { resolveAgent } from "../actor.mjs";
-import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
 import { executeRemoteDomain, nodeFromMutation } from "./internal/domain-routing.mjs";
 
 function withCliProvider(source) {
@@ -22,8 +21,6 @@ function withCliProvider(source) {
     },
   };
 }
-
-const REGISTRY = bootstrapBuiltins();
 
 export const knownFlags = ["as", "if-revision"];
 
@@ -88,32 +85,9 @@ function cliNoteProvider() {
   };
 }
 
-function notePolicyAction(policy, projectDir) {
-  if (!policy) {return null;}
-  return {
-    action: "note.add",
-    pluginId: policy.pluginId || null,
-    decide: async ({ snapshot, target, request, action }) => authorizeAction({
-      policy,
-      action,
-      actor: request.actor,
-      target,
-      snapshot,
-      projectDir,
-      projectConfig: policy.projectConfig || {},
-    }),
-  };
-}
-
-function localNoteSource({ source, policy, projectDir, pluginId }) {
-  return withCliProvider(source || {
-    registry: REGISTRY,
-    mutate,
-    selectPolicy: async () => policy,
-    policyAction: notePolicyAction(policy, projectDir),
-    authorizeAction,
-    pluginId,
-  });
+async function localNoteSource({ source, pluginId }) {
+  const operationSource = source || await getOperationSource();
+  return withCliProvider({ ...operationSource, ...(pluginId ? { pluginId } : {}) });
 }
 
 async function addRemoteNote(backendClient, actor, input, id) {
@@ -161,13 +135,12 @@ function requiredNoteActor(flags) {
 }
 
 async function addLocalNote({ projectDir, actor, input, id, source, pluginId }) {
-  const policy = source ? null : await loadApplicablePolicy({ projectDir });
   const result = await executeOperation({
     projectDir,
     actor,
     operation: "note.add",
     input,
-    source: localNoteSource({ source, policy, projectDir, pluginId }),
+    source: await localNoteSource({ source, pluginId }),
   });
   return noteEnvelope(result, id);
 }

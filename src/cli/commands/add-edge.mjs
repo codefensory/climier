@@ -1,14 +1,11 @@
 
 // atomic state + log write. The adapter delegates the operation to
 
-import { bootstrapBuiltins, executeOperation } from "../../application/operations/index.mjs";
-import { mutate } from "../../kernel/mutate.mjs";
-import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
+import { executeOperation } from "../../application/operations/index.mjs";
+import { getOperationSource } from "../../operation-source.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
 import { resolveAgent } from "../actor.mjs";
 import { executeRemoteDomain } from "./internal/domain-routing.mjs";
-
-const REGISTRY = bootstrapBuiltins();
 
 function withCliProvider(source) {
   return {
@@ -39,32 +36,9 @@ export const knownFlags = ["type", "as"];
 const POLICY_ACTION = "edge.add";
 const LOG_ACTION = "add-edge";
 
-function edgePolicyAction(policy, projectDir) {
-  if (!policy) {return undefined;}
-  return {
-    action: POLICY_ACTION,
-    pluginId: policy.pluginId || null,
-    decide: async ({ snapshot, target, request, action }) => authorizeAction({
-      policy,
-      action,
-      actor: request.actor,
-      target,
-      snapshot,
-      projectDir,
-      projectConfig: policy.projectConfig || {},
-    }),
-  };
-}
-
-function edgeSource(source, policy, projectDir, pluginId) {
-  return withCliProvider(source || {
-    registry: REGISTRY,
-    mutate,
-    selectPolicy: async () => policy,
-    policyAction: edgePolicyAction(policy, projectDir),
-    authorizeAction,
-    pluginId,
-  });
+async function edgeSource(source, pluginId) {
+  const operationSource = source || await getOperationSource();
+  return withCliProvider({ ...operationSource, ...(pluginId ? { pluginId } : {}) });
 }
 
 async function addRemoteEdge(backendClient, agent, input) {
@@ -84,13 +58,12 @@ function validateEdgeArgs(positional, flags) {
 }
 
 async function addLocalEdge({ projectDir, agent, input, source, pluginId }) {
-  const policy = await loadApplicablePolicy({ projectDir });
   const result = await executeOperation({
     projectDir,
     actor: agent,
     operation: POLICY_ACTION,
     input,
-    source: edgeSource(source, policy, projectDir, pluginId),
+    source: await edgeSource(source, pluginId),
   });
   const edge = result.result && result.result.edge ? result.result.edge : null;
   return { edge };

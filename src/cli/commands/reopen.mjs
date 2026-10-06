@@ -1,14 +1,12 @@
 
-import { bootstrapBuiltins, executeOperation } from "../../application/operations/index.mjs";
+import { executeOperation } from "../../application/operations/index.mjs";
 import { mutate } from "../../kernel/mutate.mjs";
+import { getOperationSource } from "../../operation-source.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
 import { resolveAgent } from "../actor.mjs";
-import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
 import { taskReopenProvider } from "../../providers/task/reopen.mjs";
 import { executeRemoteResolvableLifecycle } from "./internal/resolvable-lifecycle-routing.mjs";
 import { prepareGateReopen, applyGateReopen } from "../../providers/gate/lifecycle.mjs";
-
-const REGISTRY = bootstrapBuiltins();
 
 export const knownFlags = ["as", "reason"];
 
@@ -63,10 +61,9 @@ const gateReopenAdapterProvider = Object.freeze({
   },
 });
 
-function sourceWithCliProvider(source, id, selectedPolicyAction) {
+function sourceWithCliProvider(source, id) {
   return {
     ...source,
-    policyAction: selectedPolicyAction,
     registry: {
       lookup(operation) {
         const entry = source.registry.lookup(operation);
@@ -89,44 +86,15 @@ function sourceWithCliProvider(source, id, selectedPolicyAction) {
   };
 }
 
-function policyAction({ policy, projectDir, agent, id }) {
-  return {
-    action: "task.reopen",
-    pluginId: policy && policy.pluginId ? policy.pluginId : null,
-    async decide({ snapshot, target }) {
-      if (!policy) {
-        return { decision: "abstain" };
-      }
-      const node = snapshot && snapshot.nodes ? snapshot.nodes[id] : null;
-      return authorizeAction({
-        policy,
-        action: "task.reopen",
-        actor: agent,
-        target: { ...target, done_by: node && node.done_by ? node.done_by : null },
-        snapshot,
-        projectDir,
-        projectConfig: policy.projectConfig || {},
-      });
-    },
-  };
-}
-
 async function reopenLocally({ dir, agent, id, reason, pluginId, suppliedSource }) {
-  const policy = suppliedSource ? null : await loadApplicablePolicy({ projectDir: dir });
-  const baseSource = suppliedSource || {
-    registry: REGISTRY,
-    mutate,
-    selectPolicy: async () => policy,
-    authorizeAction,
-    policyAction: policy ? policyAction({ policy, projectDir: dir, agent, id }) : undefined,
-    pluginId,
-  };
+  const selectedSource = suppliedSource || await getOperationSource();
+  const baseSource = typeof selectedSource.mutate === "function" ? selectedSource : { ...selectedSource, mutate };
   const mutation = await executeOperation({
     projectDir: dir,
     actor: agent,
     operation: "task.reopen",
     input: { id, reason, actor: agent },
-    source: sourceWithCliProvider(baseSource, id, policy ? policyAction({ policy, projectDir: dir, agent, id }) : null),
+    source: sourceWithCliProvider({ ...baseSource, ...(pluginId ? { pluginId } : {}) }, id),
     policyActionFromPlan: true,
   });
   const updated = mutation.diff.updated.find((entry) => entry.id === id);

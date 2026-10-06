@@ -1,10 +1,9 @@
 
-import { bootstrapBuiltins, executeOperation } from "../../application/operations/index.mjs";
-import { mutate } from "../../kernel/mutate.mjs";
+import { executeOperation } from "../../application/operations/index.mjs";
+import { getOperationSource } from "../../operation-source.mjs";
 import { initiativeCreateProvider } from "../../providers/core/initiative.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
 import { resolveAgent } from "../actor.mjs";
-import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
 import { executeRemoteDomain } from "./internal/domain-routing.mjs";
 
 const cliInitiativeProvider = Object.freeze({
@@ -44,23 +43,6 @@ function validateName(name) {
   }
 }
 
-function initiativePolicyAction(policy, projectDir, name, desc) {
-  if (!policy) {return null;}
-  return {
-    action: "initiative.create",
-    pluginId: policy.pluginId || null,
-    decide: async ({ snapshot, target, request, action }) => authorizeAction({
-      policy,
-      action,
-      actor: request.actor,
-      target: { ...target, desc, already_registered: Boolean(snapshot.initiatives?.[name]) },
-      snapshot,
-      projectDir,
-      projectConfig: policy.projectConfig || {},
-    }),
-  };
-}
-
 function initiativeEnvelopeData(name, desc, initiative) {
   return { initiative: { name, desc: initiative?.desc ?? desc, ...(initiative?.created_at ? { created_at: initiative.created_at } : {}) } };
 }
@@ -87,20 +69,13 @@ export default async function addInitiative({ statePath, projectDir: suppliedPro
   const projectDir = suppliedProjectDir || statePath;
   const desc = typeof flags.desc === "string" ? flags.desc : "";
   if (backendClient?.type === "remote") {return createRemoteInitiative(backendClient, actor, name, desc);}
-  const policy = await loadApplicablePolicy({ projectDir });
+  const operationSource = source || await getOperationSource();
   const result = await executeOperation({
     projectDir,
     actor,
     operation: "initiative.create",
     input: { name, desc },
-    source: withCliProvider(source || {
-      registry: bootstrapBuiltins(),
-      mutate,
-      selectPolicy: async () => policy,
-      policyAction: initiativePolicyAction(policy, projectDir, name, desc),
-      authorizeAction,
-      pluginId,
-    }, "initiative.create", cliInitiativeProvider),
+    source: withCliProvider({ ...operationSource, ...(pluginId ? { pluginId } : {}) }, "initiative.create", cliInitiativeProvider),
   });
   return initiativeEnvelope(result, name, desc);
 }

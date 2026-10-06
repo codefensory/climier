@@ -1,17 +1,11 @@
 
-import {
-  bootstrapBuiltins,
-  executeOperation,
-} from "../../application/operations/index.mjs";
-import { mutate } from "../../kernel/mutate.mjs";
-import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.mjs";
+import { executeOperation } from "../../application/operations/index.mjs";
+import { getOperationSource } from "../../operation-source.mjs";
 import { throwV2 } from "../../contracts/errors.mjs";
 import { resolveAgent } from "../actor.mjs";
 import { executeRemoteDomain } from "./internal/domain-routing.mjs";
 
 export const knownFlags = ["type", "as"];
-
-const REG = bootstrapBuiltins();
 
 async function removeEdgeRemotely({ backendClient, actor, input }) {
   if (backendClient?.type !== "remote") {
@@ -22,13 +16,7 @@ async function removeEdgeRemotely({ backendClient, actor, input }) {
 }
 
 async function removeEdgeLocally({ projectDir, actor, input, suppliedSource }) {
-  const policy = suppliedSource ? null : await loadApplicablePolicy({ projectDir });
-  const source = suppliedSource || {
-    registry: REG,
-    mutate,
-    selectPolicy: async () => policy,
-    authorizeAction,
-  };
+  const source = suppliedSource || await getOperationSource();
   const outcome = await executeOperation({ projectDir, actor, operation: "edge.remove", input, source });
   return outcome.result;
 }
