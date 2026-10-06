@@ -41,6 +41,7 @@ test("loadDurationTable resolves keys against the root and rejects unusable tabl
     const tablePath = path.join(root, "test-durations.json");
     await fs.writeFile(tablePath, JSON.stringify({ files: { "test/a.test.mjs": 250 } }));
     const table = await loadDurationTable(tablePath, { rootDir: root });
+    assert.ok(table);
     assert.deepEqual([...table.entries()], [[path.join(root, "test/a.test.mjs"), 250]]);
 
     assert.equal(await loadDurationTable(path.join(root, "missing.json"), { rootDir: root }), null);
