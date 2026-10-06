@@ -70,7 +70,7 @@ export async function seedState(dir, mutate) {
 }
 
 export async function freshApi(dir, opts = {}) {
-  const { createApi } = await importFresh("./plugins/api.mjs");
+  const { createApi } = await importFresh("./plugins/api.ts");
   return createApi({
     projectDir: dir,
     agent: opts.agent === undefined ? "tester" : opts.agent,
@@ -80,8 +80,8 @@ export async function freshApi(dir, opts = {}) {
 
 export async function readyProject() {
   const dir = await createTempProject();
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
-  const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
+  const { default: addInit } = await importFresh("./cli/commands/add-initiative.ts");
   await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
   await addInit({
     statePath: dir,

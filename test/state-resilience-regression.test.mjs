@@ -44,7 +44,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 
 const ROOT = path.resolve(process.cwd());
-const BIN = path.join(ROOT, "bin", "climier.mjs");
+const BIN = path.join(ROOT, "bin", "climier.ts");
 const HELPER = path.join(ROOT, "scripts", "smoke-sandbox.sh");
 
 function mkTempDir(prefix) {

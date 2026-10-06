@@ -294,7 +294,7 @@ test("deprecate: provider never seeds revision through tx.updateNode", async () 
   // 1. The transaction layer rejects any caller (including the
   // provider) that tries to seed `revision`. The reject is synchronous,
   // so we wrap the call so assert.rejects can resolve it.
-  const { createTransaction } = await importFresh("../src/kernel/transaction.mjs");
+  const { createTransaction } = await importFresh("../src/kernel/transaction.ts");
   const tx = createTransaction(snapshot);
   await assert.rejects(
     Promise.resolve().then(() => tx.updateNode("K-1", {

@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 
-import { createBackendClient, REMOTE_PROTOCOL_VERSION } from "../src/application/operations/index.mjs";
-import { loginRemote } from "../src/application/backend-remote-transport.mjs";
+import { createBackendClient, REMOTE_PROTOCOL_VERSION } from "../src/application/operations/index.ts";
+import { loginRemote } from "../src/application/backend-remote-transport.ts";
 
 async function withServer(handler, run) {
   const server = createServer(handler);

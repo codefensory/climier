@@ -1,0 +1,102 @@
+// `batch` CLI adapter for the canonical atomic core.batch operation.
+
+import path from "node:path";
+import { readFile } from "node:fs/promises";
+
+import createOperationBridge from "../../application/operations/bridge.ts";
+import { createBackendClient } from "../../application/operations/index.ts";
+import { throwV2 } from "../../contracts/errors.ts";
+import { resolveAgent } from "../actor.ts";
+
+export const knownFlags = ["file", "stdin", "as"];
+
+function invalidInput(message, details = {}) {
+  throwV2("INVALID_EXECUTION_CONTRACT", `batch: ${message}`, details);
+}
+
+async function readStdin() {
+  let contents = "";
+  for await (const chunk of process.stdin) {contents += chunk.toString();}
+  return contents;
+}
+
+async function readFileInput(value) {
+  if (typeof value !== "string" || !value.trim()) {
+    invalidInput("--file requires a JSON file path", { field: "file" });
+  }
+  const file = path.resolve(value);
+  try {
+    return await readFile(file, "utf8");
+  } catch (error) {
+    invalidInput(`cannot read input file '${file}'`, {
+      field: "file",
+      path: file,
+      cause: error && error.code ? error.code : "READ_FAILED",
+    });
+  }
+}
+
+async function readInput(flags) {
+  const hasFile = flags.file !== undefined;
+  const hasStdin = flags.stdin !== undefined;
+  if (hasFile && hasStdin) {
+    invalidInput("exactly one of --file or --stdin is required", { field: "file,stdin" });
+  }
+  if (!hasFile && !hasStdin) {
+    throwV2("MISSING_FIELD", "batch: exactly one of --file or --stdin is required", { field: "file,stdin" });
+  }
+  if (hasFile) {return readFileInput(flags.file);}
+  if (flags.stdin !== true) {
+    invalidInput("--stdin does not accept a value", { field: "stdin" });
+  }
+  return readStdin();
+}
+
+function parseJson(raw) {
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    invalidInput(`input must be valid JSON (${error.message})`, {
+      field: "input",
+      cause: "JSON_PARSE_ERROR",
+    });
+  }
+}
+
+function validateDocumentShape(document) {
+  if (!document || typeof document !== "object" || Array.isArray(document)) {
+    invalidInput("input document must be an object", { field: "input" });
+  }
+  const unexpectedField = Object.keys(document).find((key) => key !== "if_state_revision" && key !== "operations");
+  if (unexpectedField) {
+    invalidInput(`unknown input field '${unexpectedField}'`, { field: unexpectedField });
+  }
+  if (!Array.isArray(document.operations) || document.operations.length === 0) {
+    invalidInput("input document must contain a non-empty operations array", { field: "operations" });
+  }
+  return document;
+}
+
+function parseDocument(raw) {
+  return validateDocumentShape(parseJson(raw));
+}
+
+export default async function batch({ statePath, projectDir, projectConfig, backendClient, source, flags = {}, positional = [] }) {
+  if (positional.length > 0) {
+    invalidInput("positional arguments are not allowed", { field: "positional" });
+  }
+  const document = parseDocument(await readInput(flags));
+  const actor = resolveAgent(flags, "batch");
+
+  const selectedClient = backendClient || createBackendClient({
+    projectDir: projectDir || statePath,
+    projectConfig,
+    source,
+  });
+
+  return createOperationBridge({ backendClient: selectedClient }).executeBatch({
+    actor,
+    operations: document.operations,
+    if_state_revision: document.if_state_revision,
+  });
+}

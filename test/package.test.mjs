@@ -23,7 +23,7 @@ test("package: every published bin entry uses the Bun shebang", () => {
     const firstLine = readFileSync(path.join(repoRoot, relativePath), "utf8").split("\n", 1)[0];
     assert.equal(firstLine, "#!/usr/bin/env bun", `${name} must use the Bun shebang`);
   }
-  const smokeShebang = readFileSync(path.join(repoRoot, "scripts/smoke-packed.mjs"), "utf8").split("\n", 1)[0];
+  const smokeShebang = readFileSync(path.join(repoRoot, "scripts/smoke-packed.ts"), "utf8").split("\n", 1)[0];
   assert.equal(smokeShebang, "#!/usr/bin/env bun");
 });
 
@@ -49,7 +49,7 @@ test("package: bun pm pack only includes runtime files", () => {
     return match ? [match[1]] : [];
   });
 
-  assert.ok(paths.includes("bin/climier.mjs"));
+  assert.ok(paths.includes("bin/climier.ts"));
   assert.ok(paths.some((p) => p.startsWith("src/")));
   assert.ok(paths.includes("LICENSE"));
   assert.ok(paths.includes("CHANGELOG.md"));

@@ -50,7 +50,7 @@ function snapshotState() {
 }
 
 test("read-model projectSnapshot creates a deterministic core lifecycle projection", async () => {
-  const { projectSnapshot } = await importFresh("./read-model/index.mjs");
+  const { projectSnapshot } = await importFresh("./read-model/index.ts");
   const source = snapshotState();
   const out = projectSnapshot({ snapshot: source, pluginId: "plugin.a" });
 
@@ -83,7 +83,7 @@ test("api.query.snapshot reads one coherent state and exposes only the caller na
   const dir = await createTempProject();
   try {
     await writeCanonicalState(dir, { ...snapshotState(), revision: 16 });
-    const { createApi } = await importFresh("./plugins/api.mjs");
+    const { createApi } = await importFresh("./plugins/api.ts");
     const api = createApi({ projectDir: dir, agent: "alice", pluginId: "plugin.a" });
     assert.equal(typeof api.query.snapshot, "function");
 

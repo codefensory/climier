@@ -22,12 +22,12 @@ async function withProject(fn) {
 }
 
 async function initProject(dir) {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
   await init({ statePath: dir, projectDir: dir, positional: [] });
 }
 
 async function registerFoo(dir) {
-  const { default: addInitiative } = await importFresh("./cli/commands/add-initiative.mjs");
+  const { default: addInitiative } = await importFresh("./cli/commands/add-initiative.ts");
   await addInitiative({
     statePath: dir,
     projectDir: dir,
@@ -40,7 +40,7 @@ test("add-task accepts an initiative registered by add-initiative", async () => 
   await withProject(async (dir) => {
     await initProject(dir);
     await registerFoo(dir);
-    const { default: addTask } = await importFresh("./cli/commands/add-task.mjs");
+    const { default: addTask } = await importFresh("./cli/commands/add-task.ts");
 
     const out = await addTask({
       statePath: dir,
@@ -73,7 +73,7 @@ test("CLI add-task accepts an initiative registered by add-initiative", async ()
 test("add-task rejects an unregistered initiative with INITIATIVE_NOT_FOUND", async () => {
   await withProject(async (dir) => {
     await initProject(dir);
-    const { default: addTask } = await importFresh("./cli/commands/add-task.mjs");
+    const { default: addTask } = await importFresh("./cli/commands/add-task.ts");
 
     await assert.rejects(
       addTask({

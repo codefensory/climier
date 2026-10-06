@@ -206,7 +206,7 @@ async function sourceFiles(directory) {
     const entryPath = path.join(directory, entry.name);
     if (entry.isDirectory()) {
       files.push(...await sourceFiles(entryPath));
-    } else if (entry.isFile() && entry.name.endsWith(".mjs")) {
+    } else if (entry.isFile() && (entry.name.endsWith(".ts") || entry.name.endsWith(".mjs"))) {
       files.push(entryPath);
     }
   }

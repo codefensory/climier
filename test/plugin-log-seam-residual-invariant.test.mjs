@@ -34,7 +34,7 @@ test("plugin-log-seam: handlers still observe withLock → updateState → appen
   }
 });
 test("plugin-log-seam: append() CLI path still works after the seam is added", async () => {
-  const { append } = await importFresh("./storage/log.mjs");
+  const { append } = await importFresh("./storage/log.ts");
   const dir = await createTempProject();
   try {
     await append(dir, { agent: "alice", action: "add-task", node: "T1" });

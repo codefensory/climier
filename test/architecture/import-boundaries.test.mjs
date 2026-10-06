@@ -48,18 +48,18 @@ test("application does not import plugins", async () => {
 
 test("boundary matcher detects every prohibited direction", () => {
   const imports = [
-    { sourceFile: "kernel/mutate.mjs", targetFile: "application/operations/index.mjs" },
-    { sourceFile: "kernel/graph.mjs", targetFile: "plugins/query.mjs" },
-    { sourceFile: "kernel/transaction.mjs", targetFile: "cli/actor.mjs" },
-    { sourceFile: "providers/task/create.mjs", targetFile: "cli/actor.mjs" },
-    { sourceFile: "providers/task/create.mjs", targetFile: "plugins/policy.mjs" },
-    { sourceFile: "providers/task/create.mjs", targetFile: "storage/state.mjs" },
-    { sourceFile: "execution/contract.mjs", targetFile: "cli/actor.mjs" },
-    { sourceFile: "execution/contract.mjs", targetFile: "plugins/policy.mjs" },
-    { sourceFile: "execution/contract.mjs", targetFile: "storage/state.mjs" },
-    { sourceFile: "read-model/index.mjs", targetFile: "cli/actor.mjs" },
-    { sourceFile: "read-model/index.mjs", targetFile: "plugins/query.mjs" },
-    { sourceFile: "read-model/index.mjs", targetFile: "storage/state.mjs" },
+    { sourceFile: "kernel/mutate.ts", targetFile: "application/operations/index.ts" },
+    { sourceFile: "kernel/graph.ts", targetFile: "plugins/query.ts" },
+    { sourceFile: "kernel/transaction.ts", targetFile: "cli/actor.ts" },
+    { sourceFile: "providers/task/create.ts", targetFile: "cli/actor.ts" },
+    { sourceFile: "providers/task/create.ts", targetFile: "plugins/policy.ts" },
+    { sourceFile: "providers/task/create.ts", targetFile: "storage/state.ts" },
+    { sourceFile: "execution/contract.mjs", targetFile: "cli/actor.ts" },
+    { sourceFile: "execution/contract.mjs", targetFile: "plugins/policy.ts" },
+    { sourceFile: "execution/contract.mjs", targetFile: "storage/state.ts" },
+    { sourceFile: "read-model/index.ts", targetFile: "cli/actor.ts" },
+    { sourceFile: "read-model/index.ts", targetFile: "plugins/query.ts" },
+    { sourceFile: "read-model/index.ts", targetFile: "storage/state.ts" },
   ];
 
   for (const boundary of BOUNDARIES) {
@@ -82,24 +82,24 @@ test("HTTP modules do not import storage", async () => {
 
 test("HTTP transfers delegate through kernel transfer ports", async () => {
   const imports = await collectRelativeImports("src/server/http");
-  const transferImports = imports.filter(({ sourceFile }) => sourceFile === "server/http/transfers.mjs");
-  assert.ok(transferImports.some(({ targetFile }) => targetFile === "kernel/transfer.mjs"));
-  const source = await readFile("src/server/http/transfers.mjs", "utf8");
+  const transferImports = imports.filter(({ sourceFile }) => sourceFile === "server/http/transfers.ts");
+  assert.ok(transferImports.some(({ targetFile }) => targetFile === "kernel/transfer.ts"));
+  const source = await readFile("src/server/http/transfers.ts", "utf8");
   assert.match(source, /captureTransferSource\(/);
   assert.match(source, /installTransferDestination\(/);
 });
 
 test("HTTP facade remains the only HTTP module allowed to read storage", async () => {
-  const source = await readFile("src/server/http.mjs", "utf8");
-  assert.match(source, /from "\.\.\/storage\/state\.mjs"/);
+  const source = await readFile("src/server/http.ts", "utf8");
+  assert.match(source, /from "\.\.\/storage\/state\.ts"/);
 });
 
 test("HTTP extracted modules do not open projects", async () => {
   for (const file of [
-    "src/server/http/codec.mjs",
-    "src/server/http/operations.mjs",
-    "src/server/http/reads.mjs",
-    "src/server/http/transfers.mjs",
+    "src/server/http/codec.ts",
+    "src/server/http/operations.ts",
+    "src/server/http/reads.ts",
+    "src/server/http/transfers.ts",
   ]) {
     const source = await readFile(file, "utf8");
     assert.doesNotMatch(source, /\b(?:openProject|provisionProject|withAuthorizedProject)\b/, file);
@@ -109,11 +109,11 @@ test("HTTP extracted modules do not open projects", async () => {
 
 test("HTTP protocol version is defined once in the public facade", async () => {
   const files = [
-    "src/server/http.mjs",
-    "src/server/http/codec.mjs",
-    "src/server/http/operations.mjs",
-    "src/server/http/reads.mjs",
-    "src/server/http/transfers.mjs",
+    "src/server/http.ts",
+    "src/server/http/codec.ts",
+    "src/server/http/operations.ts",
+    "src/server/http/reads.ts",
+    "src/server/http/transfers.ts",
   ];
   const sources = await Promise.all(files.map((file) => readFile(file, "utf8")));
   const definitions = [];
@@ -122,7 +122,7 @@ test("HTTP protocol version is defined once in the public facade", async () => {
     definitions.push(...Array(definitionCount).fill(files[index]));
   }
 
-  assert.deepEqual(definitions, ["src/server/http.mjs"]);
+  assert.deepEqual(definitions, ["src/server/http.ts"]);
   assert.match(sources[0], /createHttpCodec\(\{ protocolVersion: PROTOCOL_VERSION \}\)/);
 });
 
@@ -138,16 +138,16 @@ test("scanner recognizes canonical inward dependencies", async () => {
 
 test("scanner ignores comments and strings while inspecting dynamic imports", () => {
   const source = `
-    // import { fake } from "../plugins/policy.mjs";
-    const text = "export { fake } from '../storage/state.mjs'";
-    const dynamic = import("../cli/actor.mjs");
-    import { real } from "../providers/task/index.mjs";
-    export { real } from "../kernel/graph.mjs";
+    // import { fake } from "../plugins/policy.ts";
+    const text = "export { fake } from '../storage/state.ts'";
+    const dynamic = import("../cli/actor.ts");
+    import { real } from "../providers/task/index.ts";
+    export { real } from "../kernel/graph.ts";
   `;
 
   assert.deepEqual(relativeImportSpecifiers(source), [
-    "../cli/actor.mjs",
-    "../providers/task/index.mjs",
-    "../kernel/graph.mjs",
+    "../cli/actor.ts",
+    "../providers/task/index.ts",
+    "../kernel/graph.ts",
   ]);
 });

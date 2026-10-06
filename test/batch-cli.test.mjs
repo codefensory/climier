@@ -4,12 +4,12 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { createTempProject, rmTempProject, runCli, stateFilePath, readState, writeCanonicalState } from "./helpers.mjs";
-import { HELP_TEXT } from "../src/cli/dispatch.mjs";
-import batch from "../src/cli/commands/batch.mjs";
-import { RESERVED_NAMESPACES } from "../src/cli/commands/reserved-namespaces.mjs";
+import { HELP_TEXT } from "../src/cli/dispatch.ts";
+import batch from "../src/cli/commands/batch.ts";
+import { RESERVED_NAMESPACES } from "../src/cli/commands/reserved-namespaces.ts";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
-const BIN = path.join(ROOT, "bin", "climier.mjs");
+const BIN = path.join(ROOT, "bin", "climier.ts");
 
 async function runCliWithInput(args, input, { cwd, env } = {}) {
   return new Promise((resolve) => {

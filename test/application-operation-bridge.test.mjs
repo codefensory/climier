@@ -4,8 +4,8 @@ import assert from "node:assert/strict";
 import {
   createOperationBridge,
   SUPPORTED_OPERATION_IDS,
-} from "../src/application/operations/index.mjs";
-import { remoteV1Manifest } from "../src/application/operations/remote-v1-manifest.mjs";
+} from "../src/application/operations/index.ts";
+import { remoteV1Manifest } from "../src/application/operations/remote-v1-manifest.ts";
 
 function backendClient(type, calls, handlers = {}) {
   return {

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
-import { PROTOCOL_VERSION } from "../../../src/server/http.mjs";
+import { PROTOCOL_VERSION } from "../../../src/server/http.ts";
 import { authHeaders, operation, withApi, withInitApi } from "./fixtures.mjs";
 
 
@@ -77,8 +77,8 @@ async function verifyInitializedState(dataRoot, response, openCount) {
   assert.equal(JSON.stringify(response).includes(dataRoot), false);
   assert.equal(openCount(), 1);
 
-  const projectDir = await (await import("../../../src/server/catalog/index.mjs")).createProjectCatalog({ dataRoot }).resolveProject("catalogued");
-  const { readState, stateFile } = await import("../../../src/storage/state.mjs");
+  const projectDir = await (await import("../../../src/server/catalog/index.ts")).createProjectCatalog({ dataRoot }).resolveProject("catalogued");
+  const { readState, stateFile } = await import("../../../src/storage/state.ts");
   const state = await readState(projectDir);
   assert.equal(state.version, 1);
   assert.deepEqual(state.nodes, {});

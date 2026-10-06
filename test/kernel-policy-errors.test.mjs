@@ -8,10 +8,10 @@ import {
   writeCanonicalState as writeStateHelper,
   readState as readStateHelper,
 } from "./helpers.mjs";
-import { bootstrapFencedState } from "../src/storage/ledger.mjs";
+import { bootstrapFencedState } from "../src/storage/ledger.ts";
 
 async function importKernel() {
-  return importFresh("./kernel/mutate.mjs");
+  return importFresh("./kernel/mutate.ts");
 }
 
 async function createTrackedProject(t) {

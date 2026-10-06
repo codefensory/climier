@@ -49,7 +49,7 @@ test("add-note: CLI call writes add-note log entry without plugin_id", async () 
   try {
     await initProject(dir);
     await seedOpenTask(dir, "T-note-1");
-    const { default: addNote } = await importFresh("./cli/commands/add-note.mjs");
+    const { default: addNote } = await importFresh("./cli/commands/add-note.ts");
     await addNote({
       statePath: dir,
       flags: { as: "alice" },
@@ -71,7 +71,7 @@ test("add-note: ctx.pluginId propagates to the log entry as plugin_id", async ()
   try {
     await initProject(dir);
     await seedOpenTask(dir, "T-note-2");
-    const { default: addNote } = await importFresh("./cli/commands/add-note.mjs");
+    const { default: addNote } = await importFresh("./cli/commands/add-note.ts");
     await addNote({
       statePath: dir,
       flags: { as: "alice" },

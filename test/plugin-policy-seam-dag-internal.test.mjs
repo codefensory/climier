@@ -38,13 +38,13 @@ test("seam-dag: deprecate-knowledge with policy=deny returns POLICY_DENIED witho
 
 test("seam-dag: deprecate-knowledge adapter uses the kernel knowledge provider frontier", async () => {
   const source = await fs.readFile(
-    path.resolve(path.dirname(new URL(import.meta.url).pathname), "..", "src", "cli", "commands", "deprecate-knowledge.mjs"),
+    path.resolve(path.dirname(new URL(import.meta.url).pathname), "..", "src", "cli", "commands", "deprecate-knowledge.ts"),
     "utf8",
   );
-  assert.match(source, new RegExp(String.raw`from ["']\.\.\/\.\.\/kernel\/mutate\.mjs["']`));
-  assert.match(source, new RegExp(String.raw`from ["']\.\.\/\.\.\/providers\/knowledge\/deprecate\.mjs["']`));
+  assert.match(source, new RegExp(String.raw`from ["']\.\.\/\.\.\/kernel\/mutate\.ts["']`));
+  assert.match(source, new RegExp(String.raw`from ["']\.\.\/\.\.\/providers\/knowledge\/deprecate\.ts["']`));
   assert.match(source, /\bmutate\(/);
-  for (const forbidden of ["../state.mjs", "../storage/lock.mjs", "../storage/log.mjs"]) {
+  for (const forbidden of ["../state.mjs", "../storage/lock.ts", "../storage/log.ts"]) {
     const importPattern = new RegExp(`from ["']${forbidden.replaceAll("/", "\\/")}["']`);
     assert.doesNotMatch(source, importPattern);
   }
@@ -53,7 +53,7 @@ test("seam-dag: deprecate-knowledge adapter uses the kernel knowledge provider f
 test("seam-dag: addNodeInternal({ allowUnregisteredInitiative: true }) bypasses INITIATIVE_NOT_FOUND", async () => {
   await withFreshEnv(async ({ projectDir }) => {
     await initProject(projectDir);
-    const { addNodeInternal } = await importFresh("../src/cli/commands/internal/create-node.mjs");
+    const { addNodeInternal } = await importFresh("../src/cli/commands/internal/create-node.ts");
     const out = await addNodeInternal({
       statePath: projectDir,
       projectDir,
@@ -78,7 +78,7 @@ test("seam-dag: addNodeInternal({ allowUnregisteredInitiative: true }) bypasses 
 test("seam-dag: addNodeInternal without the flag still enforces INITIATIVE_NOT_FOUND", async () => {
   await withFreshEnv(async ({ projectDir }) => {
     await initProject(projectDir);
-    const { addNodeInternal } = await importFresh("../src/cli/commands/internal/create-node.mjs");
+    const { addNodeInternal } = await importFresh("../src/cli/commands/internal/create-node.ts");
     await assert.rejects(
       addNodeInternal({
         statePath: projectDir,

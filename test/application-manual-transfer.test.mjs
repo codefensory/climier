@@ -4,11 +4,11 @@ import os from "node:os";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
-import { bootstrapFencedState, readFencedState, replaceFencedStateUnderLock } from "../src/storage/ledger.mjs";
-import { createRemoteTransferBaselineStore } from "../src/storage/remote-transfer-baseline.mjs";
-import { withLock } from "../src/storage/lock.mjs";
+import { bootstrapFencedState, readFencedState, replaceFencedStateUnderLock } from "../src/storage/ledger.ts";
+import { createRemoteTransferBaselineStore } from "../src/storage/remote-transfer-baseline.ts";
+import { withLock } from "../src/storage/lock.ts";
 import { createTempProject, rmTempProject } from "./helpers.mjs";
-import { pullManualTransfer, pushManualTransfer } from "../src/application/manual-transfer.mjs";
+import { pullManualTransfer, pushManualTransfer } from "../src/application/manual-transfer.ts";
 
 function projectConfig(projectId) {
   return {

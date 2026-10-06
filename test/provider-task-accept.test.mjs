@@ -3,8 +3,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { taskAcceptProvider } from "../src/providers/task/accept.mjs";
-import { createTransaction } from "../src/kernel/transaction.mjs";
+import { taskAcceptProvider } from "../src/providers/task/accept.ts";
+import { createTransaction } from "../src/kernel/transaction.ts";
 
 function state(nodes, edges = []) {
   return { version: 3, initiatives: {}, nodes, edges, log: [] };

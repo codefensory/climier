@@ -31,11 +31,11 @@ function assertRemoteUnsupported(error) {
 }
 
 async function createRemoteFactories(projectDir) {
-  const { createApi } = await importFresh("./plugins/api.mjs");
-  const { createQuery } = await importFresh("./plugins/query.mjs");
-  const { createData } = await importFresh("./plugins/data.mjs");
-  const { createCore } = await importFresh("./plugins/core-adapter.mjs");
-  const { createRuntime } = await importFresh("./plugins/runtime.mjs");
+  const { createApi } = await importFresh("./plugins/api.ts");
+  const { createQuery } = await importFresh("./plugins/query.ts");
+  const { createData } = await importFresh("./plugins/data.ts");
+  const { createCore } = await importFresh("./plugins/core-adapter.ts");
+  const { createRuntime } = await importFresh("./plugins/runtime.ts");
   return [
     ["createApi", () => createApi({ projectDir, agent: "alice", pluginId: "example.audit", backendClient: remote })],
     ["createQuery", () => createQuery({ projectDir, agent: "alice", pluginId: "example.audit", backendClient: remote })],
@@ -81,7 +81,7 @@ async function runRemoteFactoryGuard() {
 test("plugin factories reject remote backends before filesystem access", () => runRemoteFactoryGuard());
 
 async function assertRemoteDispatchRejected(home) {
-    const { dispatchPlugin } = await importFresh("./plugins/dispatch.mjs");
+    const { dispatchPlugin } = await importFresh("./plugins/dispatch.ts");
     const installedRoot = path.join(home, "plugins", "installed");
     await assert.rejects(
       dispatchPlugin({
@@ -111,7 +111,7 @@ async function assertPluginDispatchBackendForwarded(home) {
         climier: { id: "fixture", command: "fixture", entry: "./climier.mjs", api: 1 },
       }));
       await fs.writeFile(path.join(installedRoot, "climier.mjs"), "export default { commands: { ping: () => ({ ok: true }) } };\n");
-      const { dispatchPlugin } = await importFresh("./plugins/dispatch.mjs");
+      const { dispatchPlugin } = await importFresh("./plugins/dispatch.ts");
       const backendClient = { type: "local", marker: "dispatch-to-factory" };
       let received;
       await dispatchPlugin({
@@ -135,7 +135,7 @@ test("plugin dispatch forwards backend context into the API factory", () => with
 test("plugin CLI dispatch forwards its resolved backend client into plugin dispatch", async () => {
   const projectDir = await createTempProject();
   const received = [];
-  const { dispatchCommand } = await importFresh("./cli/dispatch.mjs");
+  const { dispatchCommand } = await importFresh("./cli/dispatch.ts");
   const dispatchPlugin = (args) => {
     received.push(args);
     return { ok: true };
@@ -161,11 +161,11 @@ test("plugin CLI dispatch forwards its resolved backend client into plugin dispa
 test("plugin factories keep direct local construction compatible when backend context is omitted", async () => {
   const projectDir = await createTempProject();
   try {
-    const { createApi } = await importFresh("./plugins/api.mjs");
-    const { createQuery } = await importFresh("./plugins/query.mjs");
-    const { createData } = await importFresh("./plugins/data.mjs");
-    const { createCore } = await importFresh("./plugins/core-adapter.mjs");
-    const { createRuntime } = await importFresh("./plugins/runtime.mjs");
+    const { createApi } = await importFresh("./plugins/api.ts");
+    const { createQuery } = await importFresh("./plugins/query.ts");
+    const { createData } = await importFresh("./plugins/data.ts");
+    const { createCore } = await importFresh("./plugins/core-adapter.ts");
+    const { createRuntime } = await importFresh("./plugins/runtime.ts");
     assert.ok(createApi({ projectDir, agent: "alice", pluginId: "example.audit" }));
     assert.ok(createQuery({ projectDir, agent: "alice", pluginId: "example.audit" }));
     assert.ok(createData({ projectDir, agent: "alice", pluginId: "example.audit" }));

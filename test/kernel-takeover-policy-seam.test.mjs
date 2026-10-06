@@ -9,9 +9,9 @@ import {
   writeCanonicalState,
 } from "./helpers.mjs";
 
-const EXECUTE = "../src/application/operations/execute.mjs";
-const BUILTINS = "../src/application/operations/builtins.mjs";
-const MUTATE = "../src/kernel/mutate.mjs";
+const EXECUTE = "../src/application/operations/execute.ts";
+const BUILTINS = "../src/application/operations/builtins.ts";
+const MUTATE = "../src/kernel/mutate.ts";
 
 async function fixture() {
   const projectDir = await createTempProject();

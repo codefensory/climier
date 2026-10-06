@@ -3,9 +3,9 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { initState } from "../../../src/kernel/state-operations.mjs";
-import { createProjectCatalog } from "../../../src/server/catalog/index.mjs";
-import { createRemoteApiServer } from "../../../src/server/http.mjs";
+import { initState } from "../../../src/kernel/state-operations.ts";
+import { createProjectCatalog } from "../../../src/server/catalog/index.ts";
+import { createRemoteApiServer } from "../../../src/server/http.ts";
 
 export const testAuthStore = Object.freeze({
   async login(password) {

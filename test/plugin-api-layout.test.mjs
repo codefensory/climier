@@ -21,7 +21,7 @@ async function exists(file) {
 
 test("plugin API surfaces live under src/plugins without root plugin files", async () => {
   for (const name of modules) {
-    assert.equal(await exists(path.join(pluginRoot, `${name}.mjs`)), true, `${name}.mjs is under src/plugins`);
-    assert.equal(await exists(path.join(srcRoot, `plugin-${name}.mjs`)), false, `${name} has no root legacy module`);
+    assert.equal(await exists(path.join(pluginRoot, `${name}.ts`)), true, `${name}.ts is under src/plugins`);
+    assert.equal(await exists(path.join(srcRoot, `plugin-${name}.ts`)), false, `${name} has no root legacy module`);
   }
 });

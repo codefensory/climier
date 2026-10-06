@@ -10,7 +10,7 @@ import {
   readState,
   stateFilePath,
 } from "./helpers.mjs";
-import { ledgerFile } from "../src/storage/ledger.mjs";
+import { ledgerFile } from "../src/storage/ledger.ts";
 
 async function withProject(fn) {
   const projectDir = await createTempProject();

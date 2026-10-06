@@ -11,7 +11,7 @@ import {
 import {
   pluginDataNodeSetProvider,
   pluginDataProjectSetProvider,
-} from "../src/providers/plugin-data/index.mjs";
+} from "../src/providers/plugin-data/index.ts";
 
 const PLUGIN = "example.plugin";
 
@@ -44,7 +44,7 @@ function baseState() {
 }
 
 async function runMutation(projectDir, provider, action, input) {
-  const { mutate } = await importFresh("../src/kernel/mutate.mjs");
+  const { mutate } = await importFresh("../src/kernel/mutate.ts");
   return mutate({
     projectDir,
     request: { action, actor: "agent", plugin_id: PLUGIN, input },

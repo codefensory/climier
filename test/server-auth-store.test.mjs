@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { createServerAuthStore } from "../src/server/auth/server-auth-store.mjs";
+import { createServerAuthStore } from "../src/server/auth/server-auth-store.ts";
 
 async function tempStateHome() {
   return fs.mkdtemp(path.join(os.tmpdir(), "climier-auth-store-"));

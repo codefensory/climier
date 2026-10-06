@@ -202,7 +202,7 @@ function assertDiffHelpers(diff, snapshot, draft) {
 }
 
 test("kernel mutation diff helpers are extracted and preserve deterministic diff shapes", async () => {
-  const diff = await importFresh("./kernel/mutation/diff.mjs");
+  const diff = await importFresh("./kernel/mutation/diff.ts");
   const snapshot = {
     nodes: {
       T1: { id: "T1", title: "same", revision: 3 },
@@ -231,7 +231,7 @@ test("kernel mutation diff helpers are extracted and preserve deterministic diff
 });
 
 test("kernel mutation request helpers are extracted and preserved through the façade", async () => {
-  const request = await importFresh("./kernel/mutation/request.mjs");
+  const request = await importFresh("./kernel/mutation/request.ts");
   const kernel = await importKernel();
 
   assert.equal(request.operationLabel({ action: "task.create" }), "kernel.mutate(task.create)");
@@ -248,7 +248,7 @@ test("kernel mutation request helpers are extracted and preserved through the fa
 });
 
 test("kernel mutation execution coordinator owns the pipeline while the façade keeps compatibility helpers", async () => {
-  const execute = await importFresh("./kernel/mutation/execute.mjs");
+  const execute = await importFresh("./kernel/mutation/execute.ts");
   const kernel = await importKernel();
 
   assert.equal(typeof execute.executeMutation, "function");
@@ -257,7 +257,7 @@ test("kernel mutation execution coordinator owns the pipeline while the façade 
 });
 
 test("revision assignment fences new, recreated, and modified nodes above the state revision", async () => {
-  const revisions = await importFresh("./kernel/mutation/revisions.mjs");
+  const revisions = await importFresh("./kernel/mutation/revisions.ts");
   const snapshot = {
     revision: 12,
     nodes: {
@@ -313,9 +313,9 @@ function assertFinalizationValues(revisions, validation, logEntry, { snapshot, d
 }
 
 test("kernel mutation finalization helpers are pure boundaries preserved through the façade", async () => {
-  const revisions = await importFresh("./kernel/mutation/revisions.mjs");
-  const validation = await importFresh("./kernel/mutation/validation.mjs");
-  const logEntry = await importFresh("./kernel/mutation/log-entry.mjs");
+  const revisions = await importFresh("./kernel/mutation/revisions.ts");
+  const validation = await importFresh("./kernel/mutation/validation.ts");
+  const logEntry = await importFresh("./kernel/mutation/log-entry.ts");
   const kernel = await importKernel();
 
   assertExports(revisions, validation, logEntry, kernel);

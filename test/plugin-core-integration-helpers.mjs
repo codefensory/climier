@@ -8,8 +8,8 @@ import {
 
 // Shared setup for the core API integration cases.
 export async function initProject(dir, initiatives = ["plugin-platform"]) {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
-  const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
+  const { default: addInit } = await importFresh("./cli/commands/add-initiative.ts");
   await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
   for (const name of initiatives) {
     await addInit({ statePath: dir, flags: { desc: name }, positional: [name] });
@@ -17,7 +17,7 @@ export async function initProject(dir, initiatives = ["plugin-platform"]) {
 }
 
 export async function makeApi(dir, { agent = "alice", pluginId = "example.core" } = {}) {
-  const { createApi } = await importFresh("./plugins/api.mjs");
+  const { createApi } = await importFresh("./plugins/api.ts");
   return createApi({ projectDir: dir, agent, pluginId });
 }
 

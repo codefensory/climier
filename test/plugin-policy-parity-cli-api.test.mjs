@@ -10,7 +10,7 @@
 
 // submit/accept, release, reopen, cancel, add-note, add-initiative) it runs
 
-//   - the CLI bin (`node bin/climier.mjs ...`)
+//   - the CLI bin (`node bin/climier.ts ...`)
 //   - the plugin API core (`api.core.run({ op, input })`)
 // and asserts both paths produced the SAME canonical action and
 // recorded the SAME actor. A divergence here would mean the adapter
@@ -145,7 +145,7 @@ async function assertRecorded(projectDir, action, actor) {
 }
 
 async function freshApi(projectDir, { agent, pluginId }) {
-  const { createApi } = await importFresh("./plugins/api.mjs");
+  const { createApi } = await importFresh("./plugins/api.ts");
   return createApi({ projectDir, agent, pluginId });
 }
 

@@ -4,10 +4,10 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import { runCli, importFresh } from "./helpers.mjs";
-const ERRORS_MODULE="../src/plugins/errors.mjs";
-const LOADER_MODULE="../src/plugins/loader.mjs";
-const DISPATCH_MODULE="../src/plugins/dispatch.mjs";
-const RESERVED_MODULE="../src/cli/commands/reserved-namespaces.mjs";
+const ERRORS_MODULE="../src/plugins/errors.ts";
+const LOADER_MODULE="../src/plugins/loader.ts";
+const DISPATCH_MODULE="../src/plugins/dispatch.ts";
+const RESERVED_MODULE="../src/cli/commands/reserved-namespaces.ts";
 async function freshEnv(prefix="climier-dispatch-test"){const home=await fs.mkdtemp(path.join(os.tmpdir(),
 prefix+"-"));
 const projectDir=await fs.mkdtemp(path.join(os.tmpdir(),"climier-dispatch-proj-"));

@@ -4,8 +4,8 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { throwV2 } from "../src/contracts/errors.mjs";
-import { EDGE_TYPES, existingEdge, validateEdge } from "../src/kernel/edges.mjs";
+import { throwV2 } from "../src/contracts/errors.ts";
+import { EDGE_TYPES, existingEdge, validateEdge } from "../src/kernel/edges.ts";
 import { createTempProject, rmTempProject, importFresh, runCli } from "./helpers.mjs";
 
 // --- pure helpers -------------------------------------------------------
@@ -144,8 +144,8 @@ test("validateEdge: rejects unknown edge types with code INVALID_EDGE_TYPE", asy
 // --- add-edge: command integration -------------------------------------
 
 test("add-edge: rejects self-edges with code SELF_EDGE", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
-  const { default: addEdge } = await importFresh("./cli/commands/add-edge.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
+  const { default: addEdge } = await importFresh("./cli/commands/add-edge.ts");
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, positional: [], projectDir: dir });
@@ -159,8 +159,8 @@ test("add-edge: rejects self-edges with code SELF_EDGE", async () => {
 });
 
 test("add-edge: rejects missing target nodes with code INVALID_EDGE_TARGET", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
-  const { default: addEdge } = await importFresh("./cli/commands/add-edge.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
+  const { default: addEdge } = await importFresh("./cli/commands/add-edge.ts");
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, positional: [], projectDir: dir });
@@ -174,10 +174,10 @@ test("add-edge: rejects missing target nodes with code INVALID_EDGE_TARGET", asy
 });
 
 test("add-edge: rejects BLOCKS targeting knowledge with code INVALID_EDGE_KIND", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
-  const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
-  const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
-  const { default: addEdge } = await importFresh("./cli/commands/add-edge.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
+  const { default: addInit } = await importFresh("./cli/commands/add-initiative.ts");
+  const { default: addNode } = await importFresh("./cli/commands/add-node.ts");
+  const { default: addEdge } = await importFresh("./cli/commands/add-edge.ts");
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, positional: [], projectDir: dir });
@@ -202,10 +202,10 @@ test("add-edge: rejects BLOCKS targeting knowledge with code INVALID_EDGE_KIND",
 });
 
 test("add-edge: rejects SUPERSEDES across kinds with code INVALID_EDGE_KIND", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
-  const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
-  const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
-  const { default: addEdge } = await importFresh("./cli/commands/add-edge.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
+  const { default: addInit } = await importFresh("./cli/commands/add-initiative.ts");
+  const { default: addNode } = await importFresh("./cli/commands/add-node.ts");
+  const { default: addEdge } = await importFresh("./cli/commands/add-edge.ts");
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, positional: [], projectDir: dir });
@@ -230,10 +230,10 @@ test("add-edge: rejects SUPERSEDES across kinds with code INVALID_EDGE_KIND", as
 });
 
 test("add-edge: rejects duplicate (from, to, type) edges with code DUPLICATE_EDGE", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
-  const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
-  const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
-  const { default: addEdge } = await importFresh("./cli/commands/add-edge.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
+  const { default: addInit } = await importFresh("./cli/commands/add-initiative.ts");
+  const { default: addNode } = await importFresh("./cli/commands/add-node.ts");
+  const { default: addEdge } = await importFresh("./cli/commands/add-edge.ts");
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, positional: [], projectDir: dir });
@@ -263,10 +263,10 @@ test("add-edge: rejects duplicate (from, to, type) edges with code DUPLICATE_EDG
 });
 
 test("add-edge: rejects INFORMS, RELATES_TO, CONFLICTS_WITH with code INVALID_EDGE_TYPE", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
-  const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
-  const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
-  const { default: addEdge } = await importFresh("./cli/commands/add-edge.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
+  const { default: addInit } = await importFresh("./cli/commands/add-initiative.ts");
+  const { default: addNode } = await importFresh("./cli/commands/add-node.ts");
+  const { default: addEdge } = await importFresh("./cli/commands/add-edge.ts");
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, positional: [], projectDir: dir });
@@ -294,8 +294,8 @@ test("add-edge: rejects INFORMS, RELATES_TO, CONFLICTS_WITH with code INVALID_ED
 });
 
 test("CLI: --informs, --relates-to, --conflicts-with are no longer recognized flags", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
-  const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
+  const { default: addInit } = await importFresh("./cli/commands/add-initiative.ts");
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, positional: [], projectDir: dir });

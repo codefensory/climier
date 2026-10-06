@@ -7,12 +7,12 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { BIN, runCli } from "./cli-harness.mjs";
-import { withLock } from "../src/storage/lock.mjs";
+import { withLock } from "../src/storage/lock.ts";
 import {
   bootstrapFencedStateUnderLock,
   readFencedStateUnderLock,
   replaceFencedStateUnderLock,
-} from "../src/storage/ledger.mjs";
+} from "../src/storage/ledger.ts";
 
 const testDirectory = path.dirname(fileURLToPath(import.meta.url));
 const SRC_DIR = path.resolve(testDirectory, "..", "src");

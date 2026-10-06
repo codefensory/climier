@@ -5,9 +5,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { createTransaction } from "../src/kernel/transaction.mjs";
-import { isTaskReady } from "../src/providers/task/derivation.mjs";
-import { taskRejectProvider } from "../src/providers/task/reject.mjs";
+import { createTransaction } from "../src/kernel/transaction.ts";
+import { isTaskReady } from "../src/providers/task/derivation.ts";
+import { taskRejectProvider } from "../src/providers/task/reject.ts";
 
 function state(nodes, edges = []) {
   return { version: 3, initiatives: {}, nodes, edges, log: [] };

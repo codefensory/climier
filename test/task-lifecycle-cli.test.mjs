@@ -5,13 +5,13 @@ import {
   rmTempProject,
   runCli,
 } from "./helpers.mjs";
-import { HELP_TEXT } from "../src/cli/dispatch.mjs";
-import { RESERVED_NAMESPACES } from "../src/cli/commands/reserved-namespaces.mjs";
-import resolve from "../src/cli/commands/resolve.mjs";
-import reopen from "../src/cli/commands/reopen.mjs";
-import cancel from "../src/cli/commands/cancel.mjs";
-import { bootstrapBuiltins } from "../src/application/operations/index.mjs";
-import { mutate as kernelMutate } from "../src/kernel/mutate.mjs";
+import { HELP_TEXT } from "../src/cli/dispatch.ts";
+import { RESERVED_NAMESPACES } from "../src/cli/commands/reserved-namespaces.ts";
+import resolve from "../src/cli/commands/resolve.ts";
+import reopen from "../src/cli/commands/reopen.ts";
+import cancel from "../src/cli/commands/cancel.ts";
+import { bootstrapBuiltins } from "../src/application/operations/index.ts";
+import { mutate as kernelMutate } from "../src/kernel/mutate.ts";
 
 async function seedTask(dir, id = "T-lifecycle") {
   let result = await runCli(["--project", dir, "init"]);

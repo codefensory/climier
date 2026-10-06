@@ -24,7 +24,7 @@ function seedTask(extra = {}) {
 }
 
 test("add-note: appends a note to an open task and returns the node envelope", async () => {
-  const { default: addNote } = await importFresh("./cli/commands/add-note.mjs");
+  const { default: addNote } = await importFresh("./cli/commands/add-note.ts");
   const dir = await createTempProject();
   try {
     await seedTask()(dir);
@@ -42,7 +42,7 @@ test("add-note: appends a note to an open task and returns the node envelope", a
 });
 
 test("add-note: preserves multiline Markdown source verbatim", async () => {
-  const { default: addNote } = await importFresh("./cli/commands/add-note.mjs");
+  const { default: addNote } = await importFresh("./cli/commands/add-note.ts");
   const dir = await createTempProject();
   const markdown = "### Verification\n\n- `npm test` — passed.\n\n### Follow-up\n- Keep the report concise.";
   try {
@@ -56,7 +56,7 @@ test("add-note: preserves multiline Markdown source verbatim", async () => {
 });
 
 test("add-note: multiple notes accumulate on the same node", async () => {
-  const { default: addNote } = await importFresh("./cli/commands/add-note.mjs");
+  const { default: addNote } = await importFresh("./cli/commands/add-note.ts");
   const dir = await createTempProject();
   try {
     await seedTask()(dir);
@@ -74,7 +74,7 @@ test("add-note: multiple notes accumulate on the same node", async () => {
 });
 
 test("add-note: works on an in_progress task", async () => {
-  const { default: addNote } = await importFresh("./cli/commands/add-note.mjs");
+  const { default: addNote } = await importFresh("./cli/commands/add-note.ts");
   const dir = await createTempProject();
   try {
     await seedTask({ status: "in_progress", claim: { by: "bob", at: Date.now() } })(dir);
@@ -86,7 +86,7 @@ test("add-note: works on an in_progress task", async () => {
 });
 
 test("add-note: works on a done task", async () => {
-  const { default: addNote } = await importFresh("./cli/commands/add-note.mjs");
+  const { default: addNote } = await importFresh("./cli/commands/add-note.ts");
   const dir = await createTempProject();
   try {
     await seedTask({ status: "done", done_by: "alice", done_at: "2026-01-01T00:00:00.000Z" })(dir);
@@ -98,7 +98,7 @@ test("add-note: works on a done task", async () => {
 });
 
 test("add-note: works on an archived task", async () => {
-  const { default: addNote } = await importFresh("./cli/commands/add-note.mjs");
+  const { default: addNote } = await importFresh("./cli/commands/add-note.ts");
   const dir = await createTempProject();
   try {
     await seedTask({ status: "archived" })(dir);
@@ -110,7 +110,7 @@ test("add-note: works on an archived task", async () => {
 });
 
 test("add-note: fails if text is empty", async () => {
-  const { default: addNote } = await importFresh("./cli/commands/add-note.mjs");
+  const { default: addNote } = await importFresh("./cli/commands/add-note.ts");
   const dir = await createTempProject();
   try {
     await seedTask()(dir);
@@ -124,7 +124,7 @@ test("add-note: fails if text is empty", async () => {
 });
 
 test("add-note: fails if node does not exist", async () => {
-  const { default: addNote } = await importFresh("./cli/commands/add-note.mjs");
+  const { default: addNote } = await importFresh("./cli/commands/add-note.ts");
   const dir = await createTempProject();
   try {
     await seedTask()(dir);
@@ -138,7 +138,7 @@ test("add-note: fails if node does not exist", async () => {
 });
 
 test("add-note: fails if state missing", async () => {
-  const { default: addNote } = await importFresh("./cli/commands/add-note.mjs");
+  const { default: addNote } = await importFresh("./cli/commands/add-note.ts");
   const dir = await createTempProject();
   try {
     await assert.rejects(
@@ -151,7 +151,7 @@ test("add-note: fails if state missing", async () => {
 });
 
 test("add-note: requires --as", async () => {
-  const { default: addNote } = await importFresh("./cli/commands/add-note.mjs");
+  const { default: addNote } = await importFresh("./cli/commands/add-note.ts");
   const dir = await createTempProject();
   try {
     await seedTask()(dir);
@@ -165,7 +165,7 @@ test("add-note: requires --as", async () => {
 });
 
 test("add-note: appends a log entry with action=add-note, agent=alice, node=T1", async () => {
-  const { default: addNote } = await importFresh("./cli/commands/add-note.mjs");
+  const { default: addNote } = await importFresh("./cli/commands/add-note.ts");
   const dir = await createTempProject();
   try {
     await seedTask()(dir);

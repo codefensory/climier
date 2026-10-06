@@ -8,7 +8,7 @@ const ACTOR = "codex-worker";
 // accidental module-level state in the provider would surface as a
 // regression.
 export async function importTaskProvider() {
-  const mod = await importFresh("./providers/task/index.mjs");
+  const mod = await importFresh("./providers/task/index.ts");
   return {
     taskCreateProvider: mod.taskCreateProvider,
     taskUpdateProvider: mod.taskUpdateProvider,
@@ -168,7 +168,7 @@ function view(state) {
 }
 
 // makeTxStub — captures transaction accessor calls. It mirrors the test
-// surface of src/kernel/transaction.mjs without exposing provider internals.
+// surface of src/kernel/transaction.ts without exposing provider internals.
 export function makeTxStub({ existingNode, initialNodes } = {}) {
   const calls = { createNode: [], updateNode: [], addEdge: [], removeEdge: [], view: 0 };
   const state = makeTxState({ existingNode, initialNodes });

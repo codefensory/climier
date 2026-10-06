@@ -9,7 +9,7 @@ test("add-task: CLI call writes add-task log entry without plugin_id", async () 
   const dir = await createTempProject();
   try {
     await initProject(dir);
-    const { default: addTask } = await importFresh("./cli/commands/add-task.mjs");
+    const { default: addTask } = await importFresh("./cli/commands/add-task.ts");
     await addTask({
       statePath: dir,
       flags: {
@@ -37,7 +37,7 @@ test("add-task: ctx.pluginId is propagated to the log entry as plugin_id", async
   const dir = await createTempProject();
   try {
     await initProject(dir);
-    const { default: addTask } = await importFresh("./cli/commands/add-task.mjs");
+    const { default: addTask } = await importFresh("./cli/commands/add-task.ts");
     await addTask({
       statePath: dir,
       flags: {
@@ -67,7 +67,7 @@ test("add-task: two consecutive calls (one CLI, one plugin) produce two distinct
   const dir = await createTempProject();
   try {
     await initProject(dir);
-    const { default: addTask } = await importFresh("./cli/commands/add-task.mjs");
+    const { default: addTask } = await importFresh("./cli/commands/add-task.ts");
     await addTaskPair(dir, addTask);
     const s = await readState(dir);
     // initV2Project calls add-initiative once (which now writes a log

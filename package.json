@@ -14,18 +14,18 @@
   ],
   "type": "module",
   "bin": {
-    "climier": "./bin/climier.mjs",
-    "climier-server": "./bin/climier-server.mjs"
+    "climier": "./bin/climier.ts",
+    "climier-server": "./bin/climier-server.ts"
   },
-  "main": "bin/climier.mjs",
+  "main": "bin/climier.ts",
   "scripts": {
     "test": "bun test/run-core-tests.mjs",
     "test:watch": "bun test --watch test/",
     "test:concurrent": "bun test test/take.test.mjs test/take-by-id.test.mjs test/adversarial.test.mjs",
     "pack:check": "bun pm pack --dry-run > /dev/null",
-    "surface:check": "bun scripts/check-retired-surfaces.mjs",
-    "smoke:pack": "bun install --cwd ui --frozen-lockfile && bun run --cwd ui build && bun scripts/smoke-packed.mjs",
-    "lint:cut": "oxlint bin scripts src/cli/commands/ui.mjs src/cli/dispatch.mjs test/package.test.mjs test/retired-surfaces.test.mjs",
+    "surface:check": "bun scripts/check-retired-surfaces.ts",
+    "smoke:pack": "bun install --cwd ui --frozen-lockfile && bun run --cwd ui build && bun scripts/smoke-packed.ts",
+    "lint:cut": "oxlint bin scripts src/cli/commands/ui.mjs src/cli/dispatch.ts test/package.test.mjs test/retired-surfaces.test.mjs",
     "prepublishOnly": "bun run test && bun run surface:check && bun run lint:cut && bun run pack:check",
     "lint": "oxlint src bin test"
   },

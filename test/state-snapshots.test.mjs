@@ -29,13 +29,13 @@ async function seedCanonicalFixture(dir, mutate) {
     mutate(base);
   }
   await writeCanonicalState(dir, base);
-  return importFresh("./storage/state.mjs").then(({ readState }) => readState(dir));
+  return importFresh("./storage/state.ts").then(({ readState }) => readState(dir));
 }
 
 // Snapshot creation primitives
 
 test("createSnapshot: writes raw + metadata files under <state-dir>/snapshots", async () => {
-  const { createSnapshot } = await importFresh("./storage/state.mjs");
+  const { createSnapshot } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
   try {
     const base = await seedCanonicalFixture(dir, (s) => {
@@ -57,7 +57,7 @@ test("createSnapshot: writes raw + metadata files under <state-dir>/snapshots", 
 });
 
 test("createSnapshot: metadata has id, created_at, reason, bytes, sha256 with correct values", async () => {
-  const { createSnapshot } = await importFresh("./storage/state.mjs");
+  const { createSnapshot } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
   try {
     const base = await seedCanonicalFixture(dir, (s) => {
@@ -86,7 +86,7 @@ test("createSnapshot: metadata has id, created_at, reason, bytes, sha256 with co
 });
 
 test("createSnapshot: id matches the ADR format <UTC YYYYMMDDTHHmmssSSS Z>-<reason>-<8 hex>", async () => {
-  const { createSnapshot } = await importFresh("./storage/state.mjs");
+  const { createSnapshot } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
   try {
     await seedCanonicalFixture(dir);
@@ -103,7 +103,7 @@ test("createSnapshot: id matches the ADR format <UTC YYYYMMDDTHHmmssSSS Z>-<reas
 });
 
 test("createSnapshot: rejects unknown reason", async () => {
-  const { createSnapshot } = await importFresh("./storage/state.mjs");
+  const { createSnapshot } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
   try {
     await seedCanonicalFixture(dir);
@@ -117,7 +117,7 @@ test("createSnapshot: rejects unknown reason", async () => {
 });
 
 test("createSnapshot: accepts all three valid reasons", async () => {
-  const { createSnapshot } = await importFresh("./storage/state.mjs");
+  const { createSnapshot } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
   try {
     await seedCanonicalFixture(dir);
@@ -133,7 +133,7 @@ test("createSnapshot: accepts all three valid reasons", async () => {
 });
 
 test("createSnapshot: uses temp+rename; no .tmp-* leftovers after success", async () => {
-  const { createSnapshot } = await importFresh("./storage/state.mjs");
+  const { createSnapshot } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
   try {
     await seedCanonicalFixture(dir);
@@ -147,7 +147,7 @@ test("createSnapshot: uses temp+rename; no .tmp-* leftovers after success", asyn
 });
 
 test("createSnapshot: snapshot dir perms 0700 on Unix (best-effort)", { skip: process.platform === "win32" }, async () => {
-  const { createSnapshot } = await importFresh("./storage/state.mjs");
+  const { createSnapshot } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
   try {
     await seedCanonicalFixture(dir);
@@ -164,7 +164,7 @@ test("createSnapshot: snapshot dir perms 0700 on Unix (best-effort)", { skip: pr
 });
 
 test("createSnapshot: perms are best-effort on Windows (does not throw)", { skip: process.platform !== "win32" }, async () => {
-  const { createSnapshot } = await importFresh("./storage/state.mjs");
+  const { createSnapshot } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
   try {
     await seedCanonicalFixture(dir);
@@ -178,7 +178,7 @@ test("createSnapshot: perms are best-effort on Windows (does not throw)", { skip
 });
 
 test("createSnapshot: throws when the source state file is missing", async () => {
-  const { createSnapshot } = await importFresh("./storage/state.mjs");
+  const { createSnapshot } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
   try {
     await assert.rejects(() => createSnapshot(dir, "force-init"));
@@ -188,11 +188,11 @@ test("createSnapshot: throws when the source state file is missing", async () =>
 });
 
 test("createSnapshot: preserves raw bytes verbatim for non-JSON content", async () => {
-  const { createSnapshot } = await importFresh("./storage/state.mjs");
+  const { createSnapshot } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
   try {
 
-    const { default: init } = await importFresh("./cli/commands/init.mjs");
+    const { default: init } = await importFresh("./cli/commands/init.ts");
     await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
     const file = stateFilePath(dir);
     const garbage = "{ this is not JSON but it's raw and we keep it verbatim\n";
@@ -206,7 +206,7 @@ test("createSnapshot: preserves raw bytes verbatim for non-JSON content", async 
 });
 
 test("two snapshots taken back-to-back have different ids (random suffix)", async () => {
-  const { createSnapshot } = await importFresh("./storage/state.mjs");
+  const { createSnapshot } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
   try {
     await seedCanonicalFixture(dir);
@@ -221,7 +221,7 @@ test("two snapshots taken back-to-back have different ids (random suffix)", asyn
 // listSnapshots primitive
 
 test("listSnapshots: returns [] when no snapshot dir exists", async () => {
-  const { listSnapshots } = await importFresh("./storage/state.mjs");
+  const { listSnapshots } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
   try {
     const out = await listSnapshots(dir);
@@ -232,7 +232,7 @@ test("listSnapshots: returns [] when no snapshot dir exists", async () => {
 });
 
 test("listSnapshots: returns [] for an empty snapshot dir", async () => {
-  const { listSnapshots } = await importFresh("./storage/state.mjs");
+  const { listSnapshots } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
   try {
     await fs.mkdir(snapshotDir(dir), { recursive: true });
@@ -244,7 +244,7 @@ test("listSnapshots: returns [] for an empty snapshot dir", async () => {
 });
 
 test("listSnapshots: orphan .json without .meta.json is excluded", async () => {
-  const { createSnapshot, listSnapshots } = await importFresh("./storage/state.mjs");
+  const { createSnapshot, listSnapshots } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
   try {
     await seedCanonicalFixture(dir);
@@ -259,7 +259,7 @@ test("listSnapshots: orphan .json without .meta.json is excluded", async () => {
 });
 
 test("listSnapshots: orphan .meta.json without .json is excluded", async () => {
-  const { listSnapshots } = await importFresh("./storage/state.mjs");
+  const { listSnapshots } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
   try {
     await fs.mkdir(snapshotDir(dir), { recursive: true });
@@ -273,7 +273,7 @@ test("listSnapshots: orphan .meta.json without .json is excluded", async () => {
 });
 
 test("listSnapshots: sorted descending by id (newest first)", async () => {
-  const { createSnapshot, listSnapshots } = await importFresh("./storage/state.mjs");
+  const { createSnapshot, listSnapshots } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
   try {
     await seedCanonicalFixture(dir);
@@ -293,7 +293,7 @@ test("listSnapshots: sorted descending by id (newest first)", async () => {
 });
 
 test("listSnapshots: excludes snapshots with corrupt metadata (unparseable JSON)", async () => {
-  const { createSnapshot, listSnapshots } = await importFresh("./storage/state.mjs");
+  const { createSnapshot, listSnapshots } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
   try {
     await seedCanonicalFixture(dir);
@@ -309,7 +309,7 @@ test("listSnapshots: excludes snapshots with corrupt metadata (unparseable JSON)
 });
 
 test("listSnapshots: excludes snapshots where meta.id does not match filename", async () => {
-  const { createSnapshot, listSnapshots } = await importFresh("./storage/state.mjs");
+  const { createSnapshot, listSnapshots } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
   try {
     await seedCanonicalFixture(dir);
@@ -328,7 +328,7 @@ test("listSnapshots: excludes snapshots where meta.id does not match filename", 
 });
 
 test("listSnapshots: lists multiple snapshots with mixed reasons", async () => {
-  const { createSnapshot, listSnapshots } = await importFresh("./storage/state.mjs");
+  const { createSnapshot, listSnapshots } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
   try {
     await seedCanonicalFixture(dir);
@@ -352,8 +352,8 @@ test("listSnapshots: lists multiple snapshots with mixed reasons", async () => {
 // init integration: force-init and corrupt-recovery paths
 
 test("init --force on existing v4 state: snapshot reason=force-init, raw preserves the pre-reset state", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
-  const { readState, listSnapshots } = await importFresh("./storage/state.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
+  const { readState, listSnapshots } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
   try {
 
@@ -377,8 +377,8 @@ test("init --force on existing v4 state: snapshot reason=force-init, raw preserv
 });
 
 test("init --force on existing valid v4 state: snapshot reason=force-init, raw preserves bytes verbatim", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
-  const { readState, listSnapshots } = await importFresh("./storage/state.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
+  const { readState, listSnapshots } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
   try {
     // Bootstrap the project first so stateFile() resolves, then install the
@@ -406,8 +406,8 @@ test("init --force on existing valid v4 state: snapshot reason=force-init, raw p
 });
 
 test("init recovery on corrupt JSON (no --force): snapshot reason=corrupt-recovery, raw preserves garbage", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
-  const { readState, listSnapshots } = await importFresh("./storage/state.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
+  const { readState, listSnapshots } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
@@ -430,8 +430,8 @@ test("init recovery on corrupt JSON (no --force): snapshot reason=corrupt-recove
 });
 
 test("init on missing state (no file): no snapshot is created", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
-  const { listSnapshots } = await importFresh("./storage/state.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
+  const { listSnapshots } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
@@ -443,8 +443,8 @@ test("init on missing state (no file): no snapshot is created", async () => {
 });
 
 test("init on valid existing state without --force: refuses and does NOT create a snapshot", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
-  const { listSnapshots } = await importFresh("./storage/state.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
+  const { listSnapshots } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
   try {
     await seedCanonicalFixture(dir, (s) => {
@@ -460,8 +460,8 @@ test("init on valid existing state without --force: refuses and does NOT create 
 
 // oxlint-disable-next-line max-statements -- the multi-snapshot recovery contract remains one scenario
 test("init --force twice creates two snapshots, newest first; original pre-reset data is recoverable from the first", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
-  const { readState, listSnapshots } = await importFresh("./storage/state.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
+  const { readState, listSnapshots } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
   try {
     // First pre-existing state: "alpha".

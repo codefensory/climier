@@ -9,8 +9,8 @@ import {
   isTaskReady,
   readiness,
   statusOfV2,
-} from "../src/providers/task/derivation.mjs";
-import { taskTakeProvider } from "../src/providers/task/index.mjs";
+} from "../src/providers/task/derivation.ts";
+import { taskTakeProvider } from "../src/providers/task/index.ts";
 
 function state(nodes, edges = []) {
   return { version: 2, initiatives: {}, nodes, edges, log: [] };

@@ -22,7 +22,7 @@ import { importFresh } from "./helpers.mjs";
 const ACTOR = "codex-worker";
 
 async function importEdgeProvider() {
-  return importFresh("../src/providers/core/edge.mjs");
+  return importFresh("../src/providers/core/edge.ts");
 }
 
 function makeSnapshot({ nodes = {}, edges = [], initiatives = { foo: { desc: "x" } }, log = [] } = {}) {
@@ -46,7 +46,7 @@ function makeTaskNode(id, revision = 1) {
 }
 
 // makeTxStub — captures addEdge invocations. Mirrors the structural
-// validation in src/kernel/transaction.mjs#addEdge so the provider's
+// validation in src/kernel/transaction.ts#addEdge so the provider's
 // happy path is exercised end-to-end without exercising real tx state.
 function makeTxStub({ nodes = {} } = {}) {
   const addedEdges = [];

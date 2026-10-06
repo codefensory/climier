@@ -10,7 +10,7 @@ import {
   projectStatusView,
   projectContextView,
   projectStatus,
-} from "../src/read-model/index.mjs";
+} from "../src/read-model/index.ts";
 import { readModelParity } from "./fixtures/read-model-parity.mjs";
 
 const snapshot = {

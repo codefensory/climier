@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { taskSubmitProvider } from "../src/providers/task/submit.mjs";
+import { taskSubmitProvider } from "../src/providers/task/submit.ts";
 
 const ACTOR = "codex-worker";
 const SUBMITTED_AT = "2026-01-02T03:04:05.000Z";

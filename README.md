@@ -77,13 +77,13 @@ npx climier --help
 From this repo during development:
 
 ```bash
-node bin/climier.mjs --help
+node bin/climier.ts --help
 ```
 
 Bun remains available as an alternative by invoking it explicitly:
 
 ```bash
-bun bin/climier.mjs --help
+bun bin/climier.ts --help
 ```
 
 ## Agent skill

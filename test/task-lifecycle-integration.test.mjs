@@ -158,7 +158,7 @@ async function runCompatibilityBypass(dir) {
 }
 
 async function createPluginActors(dir) {
-  const { createApi } = await importFresh("./plugins/api.mjs");
+  const { createApi } = await importFresh("./plugins/api.ts");
   return {
     worker: createApi({ projectDir: dir, agent: "worker", pluginId: "integration.worker" }),
     validator: createApi({ projectDir: dir, agent: "validator", pluginId: "integration.validator" }),

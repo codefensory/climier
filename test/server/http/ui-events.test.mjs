@@ -3,8 +3,8 @@ import { EventEmitter } from "node:events";
 import fs from "node:fs/promises";
 import { test } from "node:test";
 
-import { ledgerFile } from "../../../src/storage/ledger.mjs";
-import { createUiEvents } from "../../../src/server/http/ui-events.mjs";
+import { ledgerFile } from "../../../src/storage/ledger.ts";
+import { createUiEvents } from "../../../src/server/http/ui-events.ts";
 import { authHeaders, withApi } from "./fixtures.mjs";
 
 async function writeRevision(file, revision) {

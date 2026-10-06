@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { createCredentialStore } from "../src/storage/credential-profile.mjs";
+import { createCredentialStore } from "../src/storage/credential-profile.ts";
 
 async function withHome(run) {
   const home = await fs.mkdtemp(path.join(os.tmpdir(), "climier-credentials-"));

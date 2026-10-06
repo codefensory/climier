@@ -1,9 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import * as httpServer from "../../../src/server/http.mjs";
+import * as httpServer from "../../../src/server/http.ts";
 const { createRemoteApiServer, PROTOCOL_VERSION } = httpServer;
-import { createHttpCodec } from "../../../src/server/http/codec.mjs";
+import { createHttpCodec } from "../../../src/server/http/codec.ts";
 import { authHeaders, operation, withApi, withInitApi } from "./fixtures.mjs";
 
 test("HTTP codec keeps path and body decoding contracts and receives the public protocol version", async () => {

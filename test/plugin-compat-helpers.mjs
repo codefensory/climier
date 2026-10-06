@@ -30,8 +30,8 @@ export {
 };
 
 export async function submitAcceptTask(dir, id = "T1", as = "tester", note = "done") {
-  const { default: submit } = await importFresh("./cli/commands/submit.mjs");
-  const { default: accept } = await importFresh("./cli/commands/accept.mjs");
+  const { default: submit } = await importFresh("./cli/commands/submit.ts");
+  const { default: accept } = await importFresh("./cli/commands/accept.ts");
   await submit({ statePath: dir, projectDir: dir, positional: [id], flags: { as, note } });
   return accept({ statePath: dir, projectDir: dir, positional: [id], flags: { as } });
 }

@@ -1,0 +1,72 @@
+// src/providers/knowledge/scopes.ts — pure scope-matching helper for the
+// knowledge provider.
+// Responsibility:
+//   - `matchesScopes(node, knowledge)` returns the scope keys that match
+//     `node` against `knowledge.scope`, ordered by priority.
+//   - `SCOPE_ORDER` exposes the canonical priority (node_id > domain > tag
+
+// Constraints:
+//   - Pure function over JSON-shaped values: no fs, no lock, no state, no
+//     log, no policy, no commands, no registry, no adapter, no CLI, no UI.
+//   - Tolerates missing/typed-wrong scope fields (defensive: callers
+//     receive [] or the partial match instead of an exception).
+//   - Order-independent of the keys present in `scope`: matches are always
+//     reported in `SCOPE_ORDER`, never in the caller's insertion order.
+
+export const SCOPE_ORDER = Object.freeze(["node_id", "domain", "tag", "initiative"]);
+
+function asArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function matchesValue(value, scopeValues) {
+  return typeof value === "string" && value.length > 0 && asArray(scopeValues).includes(value);
+}
+
+function matchesTag(node, scope) {
+  const nodeTags = asArray(node.tags);
+  const scopeTags = asArray(scope.tags);
+  return nodeTags.some((tag) => scopeTags.includes(tag));
+}
+
+function matchesScopeKey(key, node, scope) {
+  switch (key) {
+    case "node_id":
+      return matchesValue(node.id, scope.node_ids);
+    case "domain":
+      return matchesValue(node.domain, scope.domains);
+    case "tag":
+      return matchesTag(node, scope);
+    case "initiative":
+      return matchesValue(node.initiative, scope.initiatives);
+    default:
+      return false;
+  }
+}
+
+/**
+ * Returns the scope keys from `knowledge.scope` that match `node`,
+ * ordered by `SCOPE_ORDER`. Returns `[]` when nothing matches.
+ *
+ * Match rules (codified here so the provider does not depend on command
+ * adapters):
+ *   - `node_id` matches when `scope.node_ids` contains `node.id`.
+ *   - `domain` matches when `node.domain` is non-empty AND
+ *     `scope.domains` contains it.
+ *   - `initiative` matches when `node.initiative` is non-empty AND
+ *     `scope.initiatives` contains it.
+ *   - `tag` matches when any of `node.tags` is contained in
+ *     `scope.tags`.
+ *
+ * @param {object} knowledge - Knowledge node carrying `scope`.
+ * @returns {string[]} Subset of SCOPE_ORDER in priority order.
+ */
+export function matchesScopes(node, knowledge) {
+  if (!node || typeof node !== "object") {
+    return [];
+  }
+  const scope = knowledge && typeof knowledge === "object" && knowledge.scope && typeof knowledge.scope === "object"
+    ? knowledge.scope
+    : {};
+  return SCOPE_ORDER.filter((key) => matchesScopeKey(key, node, scope));
+}

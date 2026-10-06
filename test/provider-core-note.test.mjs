@@ -24,7 +24,7 @@ import { importFresh } from "./helpers.mjs";
 const ACTOR = "codex-worker";
 
 async function importNoteProvider() {
-  return importFresh("../src/providers/core/note.mjs");
+  return importFresh("../src/providers/core/note.ts");
 }
 
 function makeSnapshot({ nodes = {}, edges = [], initiatives = { foo: { desc: "x" } }, log = [] } = {}) {
@@ -53,7 +53,7 @@ function makeTaskNode(id, { revision = 1, notes = [] } = {}) {
 }
 
 // makeTxStub — captures updateNode calls and serves a draft whose
-// nodes mirror the seed. Mirrors src/kernel/transaction.mjs#updateNode
+// nodes mirror the seed. Mirrors src/kernel/transaction.ts#updateNode
 // so the provider's apply is exercised end-to-end without touching
 
 function makeTxStub({ initialNodes = {} } = {}) {

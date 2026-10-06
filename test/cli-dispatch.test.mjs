@@ -6,7 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createTempProject, rmTempProject, runCli, initExampleProject } from "./helpers.mjs";
-import * as dispatchModule from "../src/cli/dispatch.mjs";
+import * as dispatchModule from "../src/cli/dispatch.ts";
 const { runCli: runCliInProcess } = dispatchModule;
 
 for (const retiredExport of ["parseArgs", "dispatch", "main"]) {

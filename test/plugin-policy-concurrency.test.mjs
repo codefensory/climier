@@ -45,7 +45,7 @@ import {
 } from "./helpers.mjs";
 
 const REPO_ROOT = path.resolve(".");
-const BIN = path.join(REPO_ROOT, "bin", "climier.mjs");
+const BIN = path.join(REPO_ROOT, "bin", "climier.ts");
 
 // ---- Per-test environment -------------------------------------------
 

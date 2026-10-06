@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { createRemoteTransferBaselineStore } from "../src/storage/remote-transfer-baseline.mjs";
+import { createRemoteTransferBaselineStore } from "../src/storage/remote-transfer-baseline.ts";
 
 function baseline(origin, project_id, remote_revision, local_revision) {
   return { version: 1, origin, project_id, remote_revision, local_revision };

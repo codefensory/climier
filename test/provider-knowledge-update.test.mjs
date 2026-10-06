@@ -220,7 +220,7 @@ test("update: provider never seeds revision through tx.updateNode", async () => 
   });
   await assert.rejects(
     provider.apply({
-      tx: importFresh("../src/kernel/transaction.mjs").then(({ createTransaction }) =>
+      tx: importFresh("../src/kernel/transaction.ts").then(({ createTransaction }) =>
         createTransaction(snapshot),
       ),
       plan: { target: { id: "K-1", kind: "knowledge" }, if_revision: { kind: "single", id: "K-1", value: 1 } },

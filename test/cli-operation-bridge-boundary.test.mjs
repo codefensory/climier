@@ -3,11 +3,11 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import batch from "../src/cli/commands/batch.mjs";
-import { createBackendClient } from "../src/application/operations/index.mjs";
-import { createLocalOperationSource } from "../src/application/local-operation-source.mjs";
-import { getOperationSource } from "../src/operation-source.mjs";
-import { dispatchCommand, runCli as runCliInProcess } from "../src/cli/dispatch.mjs";
+import batch from "../src/cli/commands/batch.ts";
+import { createBackendClient } from "../src/application/operations/index.ts";
+import { createLocalOperationSource } from "../src/application/local-operation-source.ts";
+import { getOperationSource } from "../src/operation-source.ts";
+import { dispatchCommand, runCli as runCliInProcess } from "../src/cli/dispatch.ts";
 
 import { createTempProject, rmTempProject } from "./helpers.mjs";
 import fsSync from "node:fs";
@@ -114,17 +114,17 @@ test("local source receives policy ports from composition instead of importing p
 
 test("CLI and HTTP adapters consume the injected source builder", async () => {
   const files = [
-    "src/cli/commands/add-edge.mjs",
-    "src/cli/commands/resolve.mjs",
-    "src/cli/commands/add-note.mjs",
-    "src/cli/commands/cancel.mjs",
-    "src/cli/commands/reopen.mjs",
-    "src/cli/commands/deprecate-knowledge.mjs",
-    "src/cli/commands/remove-edge.mjs",
-    "src/cli/commands/add-initiative.mjs",
-    "src/cli/commands/take.mjs",
-    "src/cli/commands/update.mjs",
-    "src/server/http.mjs",
+    "src/cli/commands/add-edge.ts",
+    "src/cli/commands/resolve.ts",
+    "src/cli/commands/add-note.ts",
+    "src/cli/commands/cancel.ts",
+    "src/cli/commands/reopen.ts",
+    "src/cli/commands/deprecate-knowledge.ts",
+    "src/cli/commands/remove-edge.ts",
+    "src/cli/commands/add-initiative.ts",
+    "src/cli/commands/take.ts",
+    "src/cli/commands/update.ts",
+    "src/server/http.ts",
   ];
   const sources = await Promise.all(files.map((file) => fs.readFile(path.join(path.dirname(new URL(import.meta.url).pathname), "..", file), "utf8")));
   for (const [index, source] of sources.entries()) {

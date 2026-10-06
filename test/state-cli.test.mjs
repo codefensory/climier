@@ -110,6 +110,6 @@ test("CLI help and reserved namespaces include state", async () => {
   assert.equal(help.code, 0);
   assert.match(help.stdout, /\bstate\b/);
 
-  const { RESERVED_NAMESPACES } = await import("../src/cli/commands/reserved-namespaces.mjs");
+  const { RESERVED_NAMESPACES } = await import("../src/cli/commands/reserved-namespaces.ts");
   assert.ok(RESERVED_NAMESPACES.includes("state"));
 });

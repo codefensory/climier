@@ -6,8 +6,8 @@ import { createTempProject, importFresh, readState, rmTempProject, installPolicy
 export { createTempProject, importFresh, readState, rmTempProject, installPolicyFixture, uninstallPolicyFixture };
 export const fsModule = fs;
 export const pathModule = path;
-export const ADAPTER_MODULE = "../src/plugins/core-adapter.mjs";
-export const REGISTRY_MODULE = "../src/plugins/core-registry.mjs";
+export const ADAPTER_MODULE = "../src/plugins/core-adapter.ts";
+export const REGISTRY_MODULE = "../src/plugins/core-registry.ts";
 export const EXPECTED_OPS = [
   "task.create", "task.update", "task.take", "task.release", "task.reopen", "task.cancel",
   "task.submit", "task.accept", "task.reject", "gate.create", "gate.update", "gate.resolve",
@@ -29,8 +29,8 @@ export async function withIsolatedEnv(body) {
 }
 
 export async function freshCore(projectDir, { agent = "alice", pluginId = "example.audit" } = {}) {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
-  const { default: addInit } = await importFresh("./cli/commands/add-initiative.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
+  const { default: addInit } = await importFresh("./cli/commands/add-initiative.ts");
   await init({ statePath: projectDir, positional: [], projectDir });
   await addInit({ statePath: projectDir, flags: { desc: "plugin platform" }, positional: ["plugin-platform"] });
   const { createCore } = await importFresh(ADAPTER_MODULE);

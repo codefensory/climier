@@ -4,10 +4,10 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { createTempProject, rmTempProject, stateExists, stateFilePath, importFresh, runCli } from "./helpers.mjs";
-import { runCli as runCliInProcess } from "../src/cli/dispatch.mjs";
+import { runCli as runCliInProcess } from "../src/cli/dispatch.ts";
 
 test("init: creates empty canonical v1 state and ledger when none exists", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
   const dir = await createTempProject();
   try {
     assert.equal(await stateExists(dir), false);
@@ -17,7 +17,7 @@ test("init: creates empty canonical v1 state and ledger when none exists", async
     const meta = JSON.parse(await fs.readFile(path.join(dir, ".climier.json"), "utf8"));
     assert.match(meta.project_id, /\S/);
     assert.equal(stateFilePath(dir).startsWith(path.join(process.env.CLIMIER_HOME, "projects")), true);
-    const { readState } = await importFresh("./storage/state.mjs");
+    const { readState } = await importFresh("./storage/state.ts");
     const s = await readState(dir);
     assert.equal(s.version, 1);
     assert.equal(s.fence_generation, 1);
@@ -36,7 +36,7 @@ test("init: creates empty canonical v1 state and ledger when none exists", async
 });
 
 test("init: remote init preserves local sentinels and omits the server path", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
   const dir = await createTempProject();
   const metaPath = path.join(dir, ".climier.json");
   const meta = JSON.stringify({ project_id: "remote-project", backend: { type: "remote", url: "https://climier.example.test" } });
@@ -62,7 +62,7 @@ test("init: remote init preserves local sentinels and omits the server path", as
 });
 
 test("init: insecure remote HTTP returns a warning after successful provisioning", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
   const dir = await createTempProject();
   let requests = 0;
   try {
@@ -129,7 +129,7 @@ test("CLI: insecure remote HTTP init returns the warning in its JSON envelope", 
 });
 
 test("init: HTTPS and loopback remote init omit warnings", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
   const dir = await createTempProject();
   try {
     for (const insecureRemoteHttp of [false, undefined]) {
@@ -150,7 +150,7 @@ test("init: HTTPS and loopback remote init omit warnings", async () => {
 });
 
 test("init: remote errors preserve local sentinels and force fails before filesystem access", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
   const dir = await createTempProject();
   const metaPath = path.join(dir, ".climier.json");
   const meta = JSON.stringify({ project_id: "remote-project", backend: { type: "remote", url: "https://climier.example.test" } });
@@ -190,7 +190,7 @@ test("init: remote errors preserve local sentinels and force fails before filesy
 });
 
 test("init: fails if state already exists (no overwrite)", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
@@ -201,8 +201,8 @@ test("init: fails if state already exists (no overwrite)", async () => {
 });
 
 test("init: ignores unknown flags and still creates an empty canonical v1 state", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
-  const { readState } = await importFresh("./storage/state.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
+  const { readState } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, flags: { seed: "migration" }, positional: [], projectDir: dir });
@@ -218,7 +218,7 @@ test("init: ignores unknown flags and still creates an empty canonical v1 state"
 });
 
 test("init: refuses to overwrite an existing valid state without --force", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
@@ -237,8 +237,8 @@ test("init: refuses to overwrite an existing valid state without --force", async
 });
 
 test("init: --force replaces an existing canonical v1 state and preserves ledger high-water", async () => {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
-  const { readState } = await importFresh("./storage/state.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
+  const { readState } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });

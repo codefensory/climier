@@ -5,7 +5,7 @@ import path from "node:path";
 
 import { importFresh } from "./helpers.mjs";
 
-const OPERATIONS = "../src/application/operations/index.mjs";
+const OPERATIONS = "../src/application/operations/index.ts";
 
 function provider() {
   return {
@@ -19,7 +19,7 @@ test("application operations: exports executeOperation without importing the ker
   assert.equal(typeof executeOperation, "function");
 
   const source = await fs.readFile(
-    path.resolve(path.dirname(new URL(import.meta.url).pathname), "../src/application/operations/execute.mjs"),
+    path.resolve(path.dirname(new URL(import.meta.url).pathname), "../src/application/operations/execute.ts"),
     "utf8",
   );
   assert.doesNotMatch(source, new RegExp(String.raw`from ["'].*kernel/mutate.mjs["']`));

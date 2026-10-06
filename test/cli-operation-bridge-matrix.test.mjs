@@ -9,7 +9,7 @@ import {
   PUBLIC_GATE_OPS,
   PUBLIC_KNOWLEDGE_OPS,
   PUBLIC_TASK_OPS,
-} from "../src/application/operations/builtins.mjs";
+} from "../src/application/operations/builtins.ts";
 
 const TEST_DIR = path.dirname(fileURLToPath(import.meta.url));
 
@@ -185,12 +185,12 @@ const adapterBridgeMarkers = [
 const exceptions = [
   {
     command: "init", owner: "kernel/state-operations.mjs:initState",
-    path: "src/cli/commands/init.mjs", markers: ["initState(", "backendClient.init()"],
+    path: "src/cli/commands/init.ts", markers: ["initState(", "backendClient.init()"],
     tests: ["init.test.mjs", "kernel-state-operations.test.mjs", "server/http/auth-validation.test.mjs"],
   },
   {
     command: "restore", owner: "kernel/state-operations.mjs:restoreState",
-    path: "src/cli/commands/restore.mjs", markers: ["restoreState("],
+    path: "src/cli/commands/restore.ts", markers: ["restoreState("],
     tests: ["snapshots-restore.test.mjs", "kernel-state-operations.test.mjs", "cli-remote-write-routing.test.mjs"],
   },
 ];
@@ -227,7 +227,7 @@ test("write matrix covers every registered operation and documents local/remote 
 
 test("ordinary write adapters route through the operation bridge", async () => {
   for (const [command, marker] of adapterBridgeMarkers) {
-    const source = await sourceAt(`src/cli/commands/${command}.mjs`);
+    const source = await sourceAt(`src/cli/commands/${command}.ts`);
     assert.ok(source.includes(marker), `${command} adapter delegates via ${marker.trim()}`);
     if (command === "take") {
       assert.match(source, /source:\s*takeSource\(/, "take keeps its narrowly scoped CLI provider/policy compatibility source");
@@ -235,7 +235,7 @@ test("ordinary write adapters route through the operation bridge", async () => {
     }
   }
 
-  const batch = await sourceAt("src/cli/commands/batch.mjs");
+  const batch = await sourceAt("src/cli/commands/batch.ts");
   assert.ok(batch.includes("executeBatch("), "batch delegates to the bridge batch operation");
 });
 

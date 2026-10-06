@@ -6,9 +6,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
-import { loadServerRuntimeConfig, parseServerRuntimeConfig } from "../src/server/runtime-config.mjs";
-import { createServerRuntime, startServerRuntime } from "../src/server/runtime.mjs";
-import { stateFile } from "../src/storage/state.mjs";
+import { loadServerRuntimeConfig, parseServerRuntimeConfig } from "../src/server/runtime-config.ts";
+import { createServerRuntime, startServerRuntime } from "../src/server/runtime.ts";
+import { stateFile } from "../src/storage/state.ts";
 
 async function makeRoot(t) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "climier-server-runtime-"));
@@ -147,7 +147,7 @@ test("server runtime rejects a project directory with conflicting metadata", asy
 test("launcher starts the configured server and reports its listening health", async (t) => {
   const root = await makeRoot(t);
   const configPath = await writeConfig(root, config(root));
-  const launcher = new URL("../bin/climier-server.mjs", import.meta.url);
+  const launcher = new URL("../bin/climier-server.ts", import.meta.url);
   const child = spawn(process.execPath, [launcher.pathname, configPath], {
     stdio: ["ignore", "pipe", "pipe"],
     env: { ...process.env, CLIMIER_SERVER_PASSWORD: "password" },

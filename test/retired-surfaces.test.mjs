@@ -4,8 +4,8 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { KNOWN_COMMANDS } from "../src/cli/dispatch.mjs";
-import { scanRetiredSurfaces, UPDATE_PATCH_KEYS } from "../scripts/check-retired-surfaces.mjs";
+import { KNOWN_COMMANDS } from "../src/cli/dispatch.ts";
+import { scanRetiredSurfaces, UPDATE_PATCH_KEYS } from "../scripts/check-retired-surfaces.ts";
 
 async function fixtureRoot() {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "climier-retired-surfaces-"));
@@ -42,10 +42,10 @@ test("manual transfer CLI and remote v1 manifest remain registered", async () =>
   assert.ok(KNOWN_COMMANDS.includes("link"));
   assert.ok(KNOWN_COMMANDS.includes("push"));
   assert.ok(KNOWN_COMMANDS.includes("pull"));
-  for (const relative of ["src/cli/commands/push.mjs", "src/cli/commands/pull.mjs"]) {
+  for (const relative of ["src/cli/commands/push.ts", "src/cli/commands/pull.ts"]) {
     await assert.doesNotReject(fs.access(path.join(root, relative)));
   }
-  await assert.doesNotReject(fs.access(path.join(root, "src/application/operations/remote-v1-manifest.mjs")));
+  await assert.doesNotReject(fs.access(path.join(root, "src/application/operations/remote-v1-manifest.ts")));
 });
 
 test("retired surface checker passes the repository sources", async () => {

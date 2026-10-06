@@ -4,8 +4,8 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import login from "../src/cli/commands/login.mjs";
-import { createCredentialStore } from "../src/storage/credential-profile.mjs";
+import login from "../src/cli/commands/login.ts";
+import { createCredentialStore } from "../src/storage/credential-profile.ts";
 
 test("login requires an interactive TTY before making a request", async () => {
   let requested = false;

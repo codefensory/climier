@@ -18,7 +18,7 @@ import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, importFresh, readState as readStateHelper, writeCanonicalState, stateExists } from "./helpers.mjs";
 
 async function importKernel() {
-  return importFresh("./kernel/mutate.mjs");
+  return importFresh("./kernel/mutate.ts");
 }
 
 function createInitiativeProvider({ name, desc = "", created_at }) {
@@ -278,7 +278,7 @@ test("kernel.mutate: snapshot's initiatives map is preserved when only a new one
 
 test("kernel.mutate: initiative.create bootstraps an absent state in one write", async () => {
   const { mutate } = await importKernel();
-  const { initiativeCreateProvider } = await importFresh("./providers/core/initiative.mjs");
+  const { initiativeCreateProvider } = await importFresh("./providers/core/initiative.ts");
   const dir = await createTempProject();
   try {
     assert.equal(await stateExists(dir), false);
@@ -303,7 +303,7 @@ test("kernel.mutate: initiative.create bootstraps an absent state in one write",
 
 test("kernel.mutate: denied bootstrap leaves state absent", async () => {
   const { mutate } = await importKernel();
-  const { initiativeCreateProvider } = await importFresh("./providers/core/initiative.mjs");
+  const { initiativeCreateProvider } = await importFresh("./providers/core/initiative.ts");
   const dir = await createTempProject();
   try {
     await assert.rejects(
@@ -326,7 +326,7 @@ test("kernel.mutate: denied bootstrap leaves state absent", async () => {
 
 test("kernel.mutate: second initiative.create rejects without changing the bootstrapped state", async () => {
   const { mutate } = await importKernel();
-  const { initiativeCreateProvider } = await importFresh("./providers/core/initiative.mjs");
+  const { initiativeCreateProvider } = await importFresh("./providers/core/initiative.ts");
   const dir = await createTempProject();
   try {
     const request = { action: "initiative.create", actor: "alice", input: { name: "bootstrap" } };

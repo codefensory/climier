@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { parseBackendConfig } from "../src/application/backend-config.mjs";
+import { parseBackendConfig } from "../src/application/backend-config.ts";
 
 test("backend config defaults to local and accepts explicit local config", () => {
   assert.deepEqual(parseBackendConfig({ version: 1, project_id: "demo" }), { type: "local" });

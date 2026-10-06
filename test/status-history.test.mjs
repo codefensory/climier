@@ -15,15 +15,15 @@ import { createTempProject, rmTempProject, importFresh, readState as readRawStat
 
 async function bootstrapProject(dir, initName) {
   if (initName === undefined) {initName = "work";}
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
-  const { default: addInitiative } = await importFresh("./cli/commands/add-initiative.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
+  const { default: addInitiative } = await importFresh("./cli/commands/add-initiative.ts");
   await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
   await addInitiative({ statePath: dir, flags: { desc: "test" }, positional: [initName] });
 }
 
 async function addGate(dir, id, extra) {
   extra = extra || {};
-  const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
+  const { default: addNode } = await importFresh("./cli/commands/add-node.ts");
   return addNode({
     statePath: dir,
     positional: [id],
@@ -44,7 +44,7 @@ async function addGate(dir, id, extra) {
 
 async function addTask(dir, id, extra) {
   extra = extra || {};
-  const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
+  const { default: addNode } = await importFresh("./cli/commands/add-node.ts");
   return addNode({
     statePath: dir,
     positional: [id],
@@ -65,7 +65,7 @@ async function addTask(dir, id, extra) {
 
 async function addKnowledge(dir, id, extra) {
   extra = extra || {};
-  const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
+  const { default: addNode } = await importFresh("./cli/commands/add-node.ts");
   return addNode({
     statePath: dir,
     positional: [id],
@@ -84,19 +84,19 @@ async function addKnowledge(dir, id, extra) {
 
 async function statusOf(dir, flags) {
   flags = flags || {};
-  const { default: status } = await importFresh("./cli/commands/status.mjs");
+  const { default: status } = await importFresh("./cli/commands/status.ts");
   return status({ statePath: dir, flags, positional: [] });
 }
 
 async function deprecateOf(dir, id, flags) {
   flags = flags || {};
-  const { default: deprecate } = await importFresh("./cli/commands/deprecate-knowledge.mjs");
+  const { default: deprecate } = await importFresh("./cli/commands/deprecate-knowledge.ts");
   return deprecate({ statePath: dir, positional: [id], flags });
 }
 
 async function historyOf(dir, id, flags) {
   flags = flags || {};
-  const { default: hist } = await importFresh("./cli/commands/history.mjs");
+  const { default: hist } = await importFresh("./cli/commands/history.ts");
   return hist({ statePath: dir, positional: [id], flags });
 }
 
@@ -181,7 +181,7 @@ test("status: --initiative filters the nodes", async () => {
   const dir = await createTempProject();
   try {
     await bootstrapProject(dir, "work");
-    const { default: addInitiative } = await importFresh("./cli/commands/add-initiative.mjs");
+    const { default: addInitiative } = await importFresh("./cli/commands/add-initiative.ts");
     await addInitiative({ statePath: dir, flags: { desc: "other" }, positional: ["other"] });
     await addTask(dir, "T-work", { initiative: "work", title: "W" });
     await addTask(dir, "T-other", { initiative: "other", title: "O" });
@@ -199,7 +199,7 @@ test("status: in_progress visibility is global by default; --as does not restric
     await bootstrapProject(dir);
     await addTask(dir, "T-a", { title: "a" });
     await addTask(dir, "T-b", { title: "b" });
-    const { default: take } = await importFresh("./cli/commands/take.mjs");
+    const { default: take } = await importFresh("./cli/commands/take.ts");
     await take({ statePath: dir, projectDir: dir, flags: { as: "alice" }, positional: ["T-a"] });
     await take({ statePath: dir, projectDir: dir, flags: { as: "bob" }, positional: ["T-b"] });
 
@@ -224,7 +224,7 @@ test("status: --claimed-by X narrows in_progress to one agent", async () => {
     await bootstrapProject(dir);
     await addTask(dir, "T-a", { title: "a" });
     await addTask(dir, "T-b", { title: "b" });
-    const { default: take } = await importFresh("./cli/commands/take.mjs");
+    const { default: take } = await importFresh("./cli/commands/take.ts");
     await take({ statePath: dir, projectDir: dir, flags: { as: "alice" }, positional: ["T-a"] });
     await take({ statePath: dir, projectDir: dir, flags: { as: "bob" }, positional: ["T-b"] });
 
@@ -245,7 +245,7 @@ test("status: in_progress honors --status (in_progress shows all; other values l
     await bootstrapProject(dir);
     await addTask(dir, "T-a", { title: "a" });
     await addTask(dir, "T-b", { title: "b" });
-    const { default: take } = await importFresh("./cli/commands/take.mjs");
+    const { default: take } = await importFresh("./cli/commands/take.ts");
     await take({ statePath: dir, projectDir: dir, flags: { as: "alice" }, positional: ["T-a"] });
     await take({ statePath: dir, projectDir: dir, flags: { as: "bob" }, positional: ["T-b"] });
 
@@ -270,7 +270,7 @@ test("status: in_progress list honors --limit", async () => {
     for (const id of ["T-a", "T-b", "T-c"]) {
       await addTask(dir, id, { title: id });
     }
-    const { default: take } = await importFresh("./cli/commands/take.mjs");
+    const { default: take } = await importFresh("./cli/commands/take.ts");
     await take({ statePath: dir, projectDir: dir, flags: { as: "alice" }, positional: ["T-a"] });
     await take({ statePath: dir, projectDir: dir, flags: { as: "bob" }, positional: ["T-b"] });
     await take({ statePath: dir, projectDir: dir, flags: { as: "carol" }, positional: ["T-c"] });
@@ -287,11 +287,11 @@ test("status: in_progress list honors --initiative (and --as does not re-scope)"
   const dir = await createTempProject();
   try {
     await bootstrapProject(dir);
-    const { default: addInitiative } = await importFresh("./cli/commands/add-initiative.mjs");
+    const { default: addInitiative } = await importFresh("./cli/commands/add-initiative.ts");
     await addInitiative({ statePath: dir, flags: { desc: "other" }, positional: ["other"] });
     await addTask(dir, "T-w", { title: "w", initiative: "work" });
     await addTask(dir, "T-o", { title: "o", initiative: "other" });
-    const { default: take } = await importFresh("./cli/commands/take.mjs");
+    const { default: take } = await importFresh("./cli/commands/take.ts");
     await take({ statePath: dir, projectDir: dir, flags: { as: "alice" }, positional: ["T-w"] });
     await take({ statePath: dir, projectDir: dir, flags: { as: "bob" }, positional: ["T-o"] });
 
@@ -313,7 +313,7 @@ test("status: stale-claim alerts are global by default; --claimed-by X narrows t
     await bootstrapProject(dir);
     await addTask(dir, "T-a", { title: "a" });
     await addTask(dir, "T-b", { title: "b" });
-    const { default: take } = await importFresh("./cli/commands/take.mjs");
+    const { default: take } = await importFresh("./cli/commands/take.ts");
     await take({ statePath: dir, projectDir: dir, flags: { as: "alice" }, positional: ["T-a"] });
     await take({ statePath: dir, projectDir: dir, flags: { as: "bob" }, positional: ["T-b"] });
 
@@ -341,7 +341,7 @@ test("status: --all includes done groups and alerts", async () => {
     await bootstrapProject(dir);
     await addGate(dir, "G-done", { status: "resolved", choice: "yes", rationale: "ok" });
     await addTask(dir, "T-z", { title: "z" });
-    const { default: take } = await importFresh("./cli/commands/take.mjs");
+    const { default: take } = await importFresh("./cli/commands/take.ts");
     const first = await take({ statePath: dir, projectDir: dir, flags: { as: "alice" }, positional: ["T-z"] });
     // Flip status by hand because this test exercises the status view, not
 
@@ -466,7 +466,7 @@ test("history: returns matching log entries referencing the id", async () => {
   try {
     await bootstrapProject(dir);
     await addTask(dir, "T-1", { title: "t1" });
-    const { default: addNote } = await importFresh("./cli/commands/add-note.mjs");
+    const { default: addNote } = await importFresh("./cli/commands/add-note.ts");
     await addNote({ statePath: dir, positional: ["T-1", "first thought"], flags: { as: "alice" } });
     await addNote({ statePath: dir, positional: ["T-1", "second thought"], flags: { as: "alice" } });
 
@@ -497,7 +497,7 @@ test("history: --limit caps results but stays in chronological order", async () 
   try {
     await bootstrapProject(dir);
     await addTask(dir, "T-1", { title: "t1" });
-    const { default: addNote } = await importFresh("./cli/commands/add-note.mjs");
+    const { default: addNote } = await importFresh("./cli/commands/add-note.ts");
     for (let i = 0; i < 5; i++) {
       await addNote({ statePath: dir, positional: ["T-1", `note ${i}`], flags: { as: "alice" } });
     }

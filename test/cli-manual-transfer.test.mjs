@@ -3,9 +3,9 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
-import { createRemoteTransferBaselineStore } from "../src/storage/remote-transfer-baseline.mjs";
-import { readFencedState } from "../src/storage/ledger.mjs";
-import { runCli as runCliInProcess } from "../src/cli/dispatch.mjs";
+import { createRemoteTransferBaselineStore } from "../src/storage/remote-transfer-baseline.ts";
+import { readFencedState } from "../src/storage/ledger.ts";
+import { runCli as runCliInProcess } from "../src/cli/dispatch.ts";
 import { createTempProject, rmTempProject, writeCanonicalState } from "./helpers.mjs";
 
 const remoteConfig = (projectId) => ({

@@ -597,8 +597,8 @@ Estas métricas deben validarse con usuarios antes de fijarlas como contrato:
 - `src/commands/show.mjs`: node raw.
 - `src/commands/history.mjs`: historial por node.
 - `src/commands/add-note.mjs`: thread de notes append-only.
-- `src/storage/state.mjs`: lectura, escritura atómica y schema validation.
-- `src/storage/lock.mjs`: coordinación de mutaciones concurrentes.
+- `src/storage/state.ts`: lectura, escritura atómica y schema validation.
+- `src/storage/lock.ts`: coordinación de mutaciones concurrentes.
 - `~/Dev/vegsport/AGENTS.md`: uso de Climier en el monorepo.
 - `~/Dev/vegsport/CLIMIER-CHEATSHEET.md`: workflow y vocabulario usado por agents.
 
@@ -606,7 +606,7 @@ Estas métricas deben validarse con usuarios antes de fijarlas como contrato:
 
 - `ui/package.json` + `ui/bun.lock`: subproyecto SolidJS + Vite + Tailwind + Storybook, sin Express.
 - `ui/src/`: frontend y proyección de lectura (Overview, Board, Nodes, Gates, Knowledge, Activity y detalle de nodes).
-- `src/server/http/static.mjs`: handler stdlib para `ui/dist`, MIME, cache, fallback SPA y confinamiento de paths.
-- `src/server/http/ui-api.mjs`: proyección HTTP de snapshot, nodes y activity.
+- `src/server/http/static.ts`: handler stdlib para `ui/dist`, MIME, cache, fallback SPA y confinamiento de paths.
+- `src/server/http/ui-api.ts`: proyección HTTP de snapshot, nodes y activity.
 - `src/cli/commands/ui.mjs`: comando local read-only sobre el handler estático y la proyección compartida.
-- `src/read-model/ui.mjs` / `src/storage/state.mjs`: derivación y lectura del state usadas por el server.
+- `src/read-model/ui.ts` / `src/storage/state.ts`: derivación y lectura del state usadas por el server.

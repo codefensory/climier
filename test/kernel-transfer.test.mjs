@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import test from "node:test";
 import { createTempProject, rmTempProject } from "./helpers.mjs";
-import { STATE_SCHEMA_VERSION, stateFile } from "../src/storage/state.mjs";
-import { ledgerFile, bootstrapFencedState, replaceFencedStateUnderLock, readFencedState, commitFencedStateUnderLock } from "../src/storage/ledger.mjs";
-import { withLock } from "../src/storage/lock.mjs";
-import { captureTransferSource, installTransferDestination, transferState } from "../src/kernel/transfer.mjs";
+import { STATE_SCHEMA_VERSION, stateFile } from "../src/storage/state.ts";
+import { ledgerFile, bootstrapFencedState, replaceFencedStateUnderLock, readFencedState, commitFencedStateUnderLock } from "../src/storage/ledger.ts";
+import { withLock } from "../src/storage/lock.ts";
+import { captureTransferSource, installTransferDestination, transferState } from "../src/kernel/transfer.ts";
 
 function projectState(overrides = {}) {
   return {

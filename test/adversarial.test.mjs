@@ -32,17 +32,17 @@ import {
 // --- shared scaffolding ------------------------------------------------
 
 async function freshProject(dir) {
-  const { default: init } = await importFresh("./cli/commands/init.mjs");
+  const { default: init } = await importFresh("./cli/commands/init.ts");
   await init({ statePath: dir, positional: [], projectDir: dir });
 }
 
 async function addInit(dir, name = "auth", desc = "auth") {
-  const { default: addInitiative } = await importFresh("./cli/commands/add-initiative.mjs");
+  const { default: addInitiative } = await importFresh("./cli/commands/add-initiative.ts");
   await addInitiative({ statePath: dir, projectDir: dir, flags: { desc }, positional: [name] });
 }
 
 async function addTaskNode(dir, id, extra = {}) {
-  const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
+  const { default: addNode } = await importFresh("./cli/commands/add-node.ts");
   return addNode({
     statePath: dir,
     positional: [id],
@@ -57,7 +57,7 @@ async function addTaskNode(dir, id, extra = {}) {
 }
 
 async function addGateNode(dir, id, extra = {}) {
-  const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
+  const { default: addNode } = await importFresh("./cli/commands/add-node.ts");
   return addNode({
     statePath: dir,
     positional: [id],
@@ -73,7 +73,7 @@ async function addGateNode(dir, id, extra = {}) {
 }
 
 async function addKnowledgeNode(dir, id, extra = {}) {
-  const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
+  const { default: addNode } = await importFresh("./cli/commands/add-node.ts");
   return addNode({
     statePath: dir,
     positional: [id],
@@ -88,13 +88,13 @@ async function addKnowledgeNode(dir, id, extra = {}) {
 }
 
 async function takeNode(dir, id, as) {
-  const { default: take } = await importFresh("./cli/commands/take.mjs");
+  const { default: take } = await importFresh("./cli/commands/take.ts");
   return take({ statePath: dir, flags: { as }, positional: [id], projectDir: dir });
 }
 
 async function submitAcceptTask(dir, id, as, note = "shipped") {
-  const { default: submit } = await importFresh("./cli/commands/submit.mjs");
-  const { default: accept } = await importFresh("./cli/commands/accept.mjs");
+  const { default: submit } = await importFresh("./cli/commands/submit.ts");
+  const { default: accept } = await importFresh("./cli/commands/accept.ts");
   await submit({ statePath: dir, projectDir: dir, flags: { as, note }, positional: [id] });
   return accept({ statePath: dir, projectDir: dir, flags: { as }, positional: [id] });
 }
@@ -121,7 +121,7 @@ describe("status: --status filter applies to ALL buckets (not just derived)", ()
       await addTaskNode(dir, "T-b");
       await takeNode(dir, "T-a", "alice");
       // Two tasks; one is in_progress (claimed by alice), one is ready.
-      const { default: status } = await importFresh("./cli/commands/status.mjs");
+      const { default: status } = await importFresh("./cli/commands/status.ts");
       const out = await status({
         statePath: dir,
         flags: { status: "ready", as: "alice" },
@@ -138,7 +138,7 @@ describe("status: --status filter applies to ALL buckets (not just derived)", ()
     try {
       await addTaskNode(dir, "T-a");
       await takeNode(dir, "T-a", "alice");
-      const { default: status } = await importFresh("./cli/commands/status.mjs");
+      const { default: status } = await importFresh("./cli/commands/status.ts");
       const out = await status({
         statePath: dir,
         flags: { status: "done", as: "alice" },
@@ -157,7 +157,7 @@ describe("status: --status filter applies to ALL buckets (not just derived)", ()
       await addTaskNode(dir, "T-b");
       await takeNode(dir, "T-a", "alice");
       await takeNode(dir, "T-b", "bob");
-      const { default: status } = await importFresh("./cli/commands/status.mjs");
+      const { default: status } = await importFresh("./cli/commands/status.ts");
       const out = await status({
         statePath: dir,
         flags: { status: "in_progress" },
@@ -175,7 +175,7 @@ describe("status: --status filter applies to ALL buckets (not just derived)", ()
     try {
       await addTaskNode(dir, "T-a");
       await takeNode(dir, "T-a", "alice");
-      const { default: status } = await importFresh("./cli/commands/status.mjs");
+      const { default: status } = await importFresh("./cli/commands/status.ts");
       const out = await status({ statePath: dir, flags: { status: "open" } });
       assert.equal(out.summary.in_progress, 0,
         `summary.in_progress must be 0 when --status open; got ${out.summary.in_progress}`);
@@ -190,9 +190,9 @@ describe("status: --status filter applies to ALL buckets (not just derived)", ()
       await addGateNode(dir, "G-a");
       await addGateNode(dir, "G-b");
 
-      const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
+      const { default: resolve } = await importFresh("./cli/commands/resolve.ts");
       await resolve({ statePath: dir, flags: { as: "alice", choice: "yes", rationale: "ok" }, positional: ["G-b"] });
-      const { default: status } = await importFresh("./cli/commands/status.mjs");
+      const { default: status } = await importFresh("./cli/commands/status.ts");
       const out = await status({ statePath: dir, flags: { status: "open" } });
       // open gates should be included; resolved should not.
       assert.equal(out.summary.open_gates, 1,
@@ -259,7 +259,7 @@ describe("search: regex metacharacters are literal (no regex engine)", () => {
         initiatives: { auth: { desc: "auth" } },
         log: [],
       });
-      const { default: search } = await importFresh("./cli/commands/search.mjs");
+      const { default: search } = await importFresh("./cli/commands/search.ts");
       const out = await search({ statePath: dir, positional: ["v1.2"], flags: {} });
       assert.equal(out.count, 1, "literal '.' must NOT match every character");
       assert.equal(out.matches[0].id, "K-x");
@@ -288,7 +288,7 @@ describe("search: regex metacharacters are literal (no regex engine)", () => {
         initiatives: { auth: { desc: "auth" } },
         log: [],
       });
-      const { default: search } = await importFresh("./cli/commands/search.mjs");
+      const { default: search } = await importFresh("./cli/commands/search.ts");
       const out = await search({ statePath: dir, positional: [".*"], flags: {} });
       // Only K-x has ".*" in any field.
       assert.equal(out.count, 1, "literal '.*' must NOT match everything");
@@ -302,7 +302,7 @@ describe("search: regex metacharacters are literal (no regex engine)", () => {
       await writeCanonicalState(dir, {
         version: 1, revision: 0, nodes: {}, edges: [], initiatives: {}, log: [],
       });
-      const { default: search } = await importFresh("./cli/commands/search.mjs");
+      const { default: search } = await importFresh("./cli/commands/search.ts");
       const out = await search({ statePath: dir, positional: [""], flags: {} });
       assert.deepEqual(out, { matches: [], count: 0 });
     } finally { await rmTempProject(dir); }
@@ -325,7 +325,7 @@ describe("search: regex metacharacters are literal (no regex engine)", () => {
         initiatives: { auth: { desc: "auth" } },
         log: [],
       });
-      const { default: search } = await importFresh("./cli/commands/search.mjs");
+      const { default: search } = await importFresh("./cli/commands/search.ts");
       const out1 = await search({ statePath: dir, positional: ["ñoño"], flags: {} });
       assert.equal(out1.count, 1);
       const out2 = await search({ statePath: dir, positional: ["漢字"], flags: {} });
@@ -355,7 +355,7 @@ describe("history: tokenization matches whole id only", () => {
           { ts: new Date().toISOString(), agent: "alice", action: "add-edge", note: "T10 BLOCKS T11" },
         ],
       });
-      const { default: history } = await importFresh("./cli/commands/history.mjs");
+      const { default: history } = await importFresh("./cli/commands/history.ts");
       const out = await history({ statePath: dir, positional: ["T1"], flags: {} });
       assert.equal(out.entries.length, 0,
         `history T1 must not match note "T10 BLOCKS T11" (substring false positive)`);
@@ -376,7 +376,7 @@ describe("history: tokenization matches whole id only", () => {
           { ts: new Date().toISOString(), agent: "alice", action: "update", node: "T1" },
         ],
       });
-      const { default: history } = await importFresh("./cli/commands/history.mjs");
+      const { default: history } = await importFresh("./cli/commands/history.ts");
       const out = await history({ statePath: dir, positional: ["T1"], flags: {} });
 
       assert.equal(out.entries.length, 2,
@@ -388,7 +388,7 @@ describe("history: tokenization matches whole id only", () => {
     const dir = await createTempProject();
     try {
       // No writeState — state file is absent.
-      const { default: history } = await importFresh("./cli/commands/history.mjs");
+      const { default: history } = await importFresh("./cli/commands/history.ts");
       const out = await history({ statePath: dir, positional: ["T-x"], flags: {} });
       assert.deepEqual(out, { id: "T-x", entries: [] });
     } finally { await rmTempProject(dir); }
@@ -400,7 +400,7 @@ describe("history: tokenization matches whole id only", () => {
       await writeCanonicalState(dir, {
         version: 1, revision: 0, nodes: {}, edges: [], initiatives: {}, log: [],
       });
-      const { default: history } = await importFresh("./cli/commands/history.mjs");
+      const { default: history } = await importFresh("./cli/commands/history.ts");
       let caught;
       try { await history({ statePath: dir, positional: [], flags: {} }); }
       catch (e) { caught = e; }
@@ -425,7 +425,7 @@ describe("history: tokenization matches whole id only", () => {
           node: "T1",
         })),
       });
-      const { default: history } = await importFresh("./cli/commands/history.mjs");
+      const { default: history } = await importFresh("./cli/commands/history.ts");
       const out = await history({ statePath: dir, positional: ["T1"], flags: { limit: "3" } });
       assert.equal(out.entries.length, 3);
       // Last 3 entries should be the most recent (ts at index 7, 8, 9 of the seed).
@@ -533,7 +533,7 @@ describe("idempotency contracts", () => {
     const dir = await projectFixture();
     try {
       await addTaskNode(dir, "T-a");
-      const { default: addNote } = await importFresh("./cli/commands/add-note.mjs");
+      const { default: addNote } = await importFresh("./cli/commands/add-note.ts");
       await addNote({ statePath: dir, flags: { as: "alice" }, positional: ["T-a", "hello"] });
       await addNote({ statePath: dir, flags: { as: "alice" }, positional: ["T-a", "hello"] });
       const s = await readRawState(dir);
@@ -548,7 +548,7 @@ describe("idempotency contracts", () => {
     try {
       await addTaskNode(dir, "T-a");
       await addTaskNode(dir, "T-b");
-      const { default: addEdge } = await importFresh("./cli/commands/add-edge.mjs");
+      const { default: addEdge } = await importFresh("./cli/commands/add-edge.ts");
       await addEdge({ statePath: dir, positional: ["T-a", "T-b"], flags: { type: "BLOCKS", as: "alice" } });
       let caught;
       try {
@@ -569,7 +569,7 @@ describe("idempotency contracts", () => {
     try {
       await addTaskNode(dir, "T-a");
       await addTaskNode(dir, "T-b");
-      const { default: addEdge } = await importFresh("./cli/commands/add-edge.mjs");
+      const { default: addEdge } = await importFresh("./cli/commands/add-edge.ts");
       await addEdge({ statePath: dir, positional: ["T-a", "T-b"], flags: { type: "BLOCKS", as: "alice" } });
       await assert.rejects(
         () => addEdge({ statePath: dir, positional: ["T-b", "T-a"], flags: { type: "BLOCKS", as: "alice" } }),
@@ -582,7 +582,7 @@ describe("idempotency contracts", () => {
     const dir = await createTempProject();
     try {
       await freshProject(dir);
-      const { default: addInitiative } = await importFresh("./cli/commands/add-initiative.mjs");
+      const { default: addInitiative } = await importFresh("./cli/commands/add-initiative.ts");
       await addInitiative({ statePath: dir, projectDir: dir, flags: { desc: "first" }, positional: ["auth"] });
       let caught;
       try {
@@ -609,7 +609,7 @@ describe("revision control", () => {
     try {
       await addTaskNode(dir, "T-a");
       const currentRevision = (await readRawState(dir)).nodes["T-a"].revision;
-      const { default: update } = await importFresh("./cli/commands/update.mjs");
+      const { default: update } = await importFresh("./cli/commands/update.ts");
       const out = await update({
         statePath: dir, positional: ["T-a"],
         flags: { title: "v2", "if-revision": String(currentRevision), as: "alice" },
@@ -622,7 +622,7 @@ describe("revision control", () => {
     const dir = await projectFixture();
     try {
       await addTaskNode(dir, "T-a");
-      const { default: update } = await importFresh("./cli/commands/update.mjs");
+      const { default: update } = await importFresh("./cli/commands/update.ts");
       await update({
         statePath: dir, positional: ["T-a"],
         flags: { title: "first", as: "alice" },
@@ -654,7 +654,7 @@ describe("revision control", () => {
       await takeNode(dir, "T-a", "alice");
       const afterTake = (await readRawState(dir)).nodes["T-a"].revision;
       assert.ok(afterTake > beforeTake, "take advances the global high-water");
-      const { default: update } = await importFresh("./cli/commands/update.mjs");
+      const { default: update } = await importFresh("./cli/commands/update.ts");
       // Without --if-revision, apply.
       const out = await update({
         statePath: dir, positional: ["T-a"],
@@ -677,7 +677,7 @@ describe("revision control", () => {
     const dir = await projectFixture();
     try {
       await addTaskNode(dir, "T-a");
-      const { default: update } = await importFresh("./cli/commands/update.mjs");
+      const { default: update } = await importFresh("./cli/commands/update.ts");
       let caught;
       try {
         await update({
@@ -703,7 +703,7 @@ describe("context envelope per node kind", () => {
     const dir = await projectFixture();
     try {
       await addGateNode(dir, "G-a");
-      const { default: context } = await importFresh("./cli/commands/context.mjs");
+      const { default: context } = await importFresh("./cli/commands/context.ts");
       const out = await context({ statePath: dir, positional: ["G-a"], flags: { as: "alice" } });
       const resolve = out.allowed_actions.find((a) => a === "resolve" || a.startsWith("resolve "));
       assert.ok(resolve, "resolve should be in allowed_actions");
@@ -718,7 +718,7 @@ describe("context envelope per node kind", () => {
     const dir = await projectFixture();
     try {
       await addKnowledgeNode(dir, "K-a", { body: "x", "scope-domains": "auth" });
-      const { default: context } = await importFresh("./cli/commands/context.mjs");
+      const { default: context } = await importFresh("./cli/commands/context.ts");
       const out = await context({ statePath: dir, positional: ["K-a"], flags: {} });
       assert.equal(out.claim, null);
       assert.deepEqual(out.blocking, []);
@@ -734,7 +734,7 @@ describe("context envelope per node kind", () => {
     try {
       await addGateNode(dir, "G-old");
 
-      const { default: addNode } = await importFresh("./cli/commands/add-node.mjs");
+      const { default: addNode } = await importFresh("./cli/commands/add-node.ts");
       await addNode({
         statePath: dir, positional: ["G-new"],
         flags: {
@@ -744,7 +744,7 @@ describe("context envelope per node kind", () => {
         },
       });
       await addTaskNode(dir, "T-x", { "blocked-by": "G-old" });
-      const { default: context } = await importFresh("./cli/commands/context.mjs");
+      const { default: context } = await importFresh("./cli/commands/context.ts");
       const out = await context({ statePath: dir, positional: ["T-x"], flags: {} });
       const superseded = out.alerts.find((a) => a.kind === "SUPERSEDED_BLOCKER");
       assert.ok(superseded, `expected SUPERSEDED_BLOCKER alert; got ${JSON.stringify(out.alerts)}`);
@@ -937,7 +937,7 @@ describe("take idempotency and takeover", () => {
     try {
       await addTaskNode(dir, "T-a");
       await takeNode(dir, "T-a", "alice");
-      const { default: take } = await importFresh("./cli/commands/take.mjs");
+      const { default: take } = await importFresh("./cli/commands/take.ts");
       const out = await take({ statePath: dir, flags: { as: "recovery-agent" }, positional: ["T-a"], projectDir: dir });
       assert.equal(out.freshly_claimed, true);
       const s = await readRawState(dir);
@@ -995,7 +995,7 @@ describe("lifecycle completion: newly_ready is the diff of pre/post derive", () 
     try {
       await addGateNode(dir, "G-a");
       await addTaskNode(dir, "T-x", { "blocked-by": "G-a" });
-      const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
+      const { default: resolve } = await importFresh("./cli/commands/resolve.ts");
       const out = await resolve({
         statePath: dir, flags: { as: "alice", choice: "yes", rationale: "ok" },
         positional: ["G-a"],
@@ -1008,7 +1008,7 @@ describe("lifecycle completion: newly_ready is the diff of pre/post derive", () 
     const dir = await projectFixture();
     try {
       await addGateNode(dir, "G-a");
-      const { default: resolve } = await importFresh("./cli/commands/resolve.mjs");
+      const { default: resolve } = await importFresh("./cli/commands/resolve.ts");
       const out = await resolve({
         statePath: dir, flags: { as: "alice", choice: "yes", rationale: "ok" },
         positional: ["G-a"],
@@ -1041,7 +1041,7 @@ describe("knowledge scoping on context", () => {
     try {
       await addKnowledgeNode(dir, "K-auth-ttl", { body: "x", domain: "auth", "scope-domains": "auth" });
       await addTaskNode(dir, "T-a", { domain: "auth" });
-      const { default: context } = await importFresh("./cli/commands/context.mjs");
+      const { default: context } = await importFresh("./cli/commands/context.ts");
       const out = await context({ statePath: dir, positional: ["T-a"], flags: {} });
       assert.equal(out.knowledge.length, 1);
       assert.equal(out.knowledge[0].id, "K-auth-ttl");
@@ -1054,7 +1054,7 @@ describe("knowledge scoping on context", () => {
     try {
       await addKnowledgeNode(dir, "K-sso", { body: "x", "scope-initiatives": "auth" });
       await addTaskNode(dir, "T-a");
-      const { default: context } = await importFresh("./cli/commands/context.mjs");
+      const { default: context } = await importFresh("./cli/commands/context.ts");
       const out = await context({ statePath: dir, positional: ["T-a"], flags: {} });
       assert.equal(out.knowledge.length, 1);
       assert.deepEqual(out.knowledge[0].scope_matches, ["initiative"]);
@@ -1066,7 +1066,7 @@ describe("knowledge scoping on context", () => {
     try {
       await addKnowledgeNode(dir, "K-orph", { body: "x", domain: "unrelated", "scope-domains": "unrelated" });
       await addTaskNode(dir, "T-a", { domain: "auth" });
-      const { default: context } = await importFresh("./cli/commands/context.mjs");
+      const { default: context } = await importFresh("./cli/commands/context.ts");
       const out = await context({ statePath: dir, positional: ["T-a"], flags: {} });
       assert.equal(out.knowledge.length, 0);
     } finally { await rmTempProject(dir); }
@@ -1082,7 +1082,7 @@ describe("envelope shape consistency", () => {
     const dir = await projectFixture();
     try {
       await addTaskNode(dir, "T-a");
-      const { default: show } = await importFresh("./cli/commands/show.mjs");
+      const { default: show } = await importFresh("./cli/commands/show.ts");
       const out = await show({ statePath: dir, positional: ["T-a"] });
       assert.equal(out.type, "task");
       assert.equal(out.node.id, "T-a");
@@ -1095,7 +1095,7 @@ describe("envelope shape consistency", () => {
     const dir = await projectFixture();
     try {
       await addKnowledgeNode(dir, "K-a", { body: "x", "scope-domains": "auth" });
-      const { default: show } = await importFresh("./cli/commands/show.mjs");
+      const { default: show } = await importFresh("./cli/commands/show.ts");
       const out = await show({ statePath: dir, positional: ["K-a"] });
       assert.equal(out.type, "knowledge");
       assert.equal(out.node.id, "K-a");
@@ -1107,7 +1107,7 @@ describe("envelope shape consistency", () => {
     const dir = await projectFixture();
     try {
       await addGateNode(dir, "G-a");
-      const { default: show } = await importFresh("./cli/commands/show.mjs");
+      const { default: show } = await importFresh("./cli/commands/show.ts");
       const out = await show({ statePath: dir, positional: ["G-a"] });
       assert.equal(out.type, "gate");
       assert.equal(out.node.id, "G-a");
@@ -1121,7 +1121,7 @@ describe("envelope shape consistency", () => {
 
       await addInit(dir, "unused", "unused");
       // Without --all, 'unused' is hidden (zero nodes).
-      const { default: initiatives } = await importFresh("./cli/commands/initiatives.mjs");
+      const { default: initiatives } = await importFresh("./cli/commands/initiatives.ts");
       const def = await initiatives({ statePath: dir, flags: {} });
       assert.ok(!def.initiatives.some((i) => i.name === "unused"),
         `--all=false should hide zero-usage initiative; got ${JSON.stringify(def.initiatives.map((i) => i.name))}`);

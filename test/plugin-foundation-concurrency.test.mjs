@@ -8,7 +8,7 @@ import path from "node:path";
 import { createTempProject, readState, rmTempProject, runCli } from "./helpers.mjs";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
-const BIN = path.join(ROOT, "bin", "climier.mjs");
+const BIN = path.join(ROOT, "bin", "climier.ts");
 const FIXTURE_DIR = path.join(ROOT, "test/fixtures/plugin-foundation");
 const FIXTURE_ID = "foundation.acceptance";
 

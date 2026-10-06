@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, importFresh, readState } from "./helpers.mjs";
 
 test("appendWithContext: adds plugin_id when ctx.pluginId is a non-empty string", async () => {
-  const { appendWithContext } = await importFresh("./storage/log.mjs");
+  const { appendWithContext } = await importFresh("./storage/log.ts");
   const dir = await createTempProject();
   try {
     await appendWithContext(
@@ -25,7 +25,7 @@ test("appendWithContext: adds plugin_id when ctx.pluginId is a non-empty string"
   }
 });
 test("appendWithContext: omits plugin_id when ctx is undefined", async () => {
-  const { appendWithContext } = await importFresh("./storage/log.mjs");
+  const { appendWithContext } = await importFresh("./storage/log.ts");
   const dir = await createTempProject();
   try {
     await appendWithContext(dir, { agent: "alice", action: "add-task", node: "T1" });
@@ -37,7 +37,7 @@ test("appendWithContext: omits plugin_id when ctx is undefined", async () => {
   }
 });
 test("appendWithContext: omits plugin_id when ctx.pluginId is missing", async () => {
-  const { appendWithContext } = await importFresh("./storage/log.mjs");
+  const { appendWithContext } = await importFresh("./storage/log.ts");
   const dir = await createTempProject();
   try {
     await appendWithContext(dir, { agent: "alice", action: "add-task", node: "T1" }, {});
@@ -49,7 +49,7 @@ test("appendWithContext: omits plugin_id when ctx.pluginId is missing", async ()
   }
 });
 test("appendWithContext: omits plugin_id when ctx.pluginId is not a string", async () => {
-  const { appendWithContext } = await importFresh("./storage/log.mjs");
+  const { appendWithContext } = await importFresh("./storage/log.ts");
   const dir = await createTempProject();
   try {
     await appendWithContext(
@@ -65,7 +65,7 @@ test("appendWithContext: omits plugin_id when ctx.pluginId is not a string", asy
   }
 });
 test("appendWithContext: omits plugin_id when ctx.pluginId is empty / whitespace", async () => {
-  const { appendWithContext } = await importFresh("./storage/log.mjs");
+  const { appendWithContext } = await importFresh("./storage/log.ts");
   const dirA = await createTempProject();
   const dirB = await createTempProject();
   try {
@@ -89,7 +89,7 @@ test("appendWithContext: omits plugin_id when ctx.pluginId is empty / whitespace
   }
 });
 test("appendWithContext: trims surrounding whitespace from pluginId", async () => {
-  const { appendWithContext } = await importFresh("./storage/log.mjs");
+  const { appendWithContext } = await importFresh("./storage/log.ts");
   const dir = await createTempProject();
   try {
     await appendWithContext(
@@ -104,7 +104,7 @@ test("appendWithContext: trims surrounding whitespace from pluginId", async () =
   }
 });
 test("appendWithContext: rejects when entry is not an object (validation propagates)", async () => {
-  const { appendWithContext } = await importFresh("./storage/log.mjs");
+  const { appendWithContext } = await importFresh("./storage/log.ts");
   const dir = await createTempProject();
   try {
     await assert.rejects(
@@ -116,7 +116,7 @@ test("appendWithContext: rejects when entry is not an object (validation propaga
   }
 });
 test("appendWithContext: rejects when entry.action is missing (validation propagates)", async () => {
-  const { appendWithContext } = await importFresh("./storage/log.mjs");
+  const { appendWithContext } = await importFresh("./storage/log.ts");
   const dir = await createTempProject();
   try {
     await assert.rejects(
@@ -128,7 +128,7 @@ test("appendWithContext: rejects when entry.action is missing (validation propag
   }
 });
 test("appendWithContext: rejects when entry.agent is missing (validation propagates)", async () => {
-  const { appendWithContext } = await importFresh("./storage/log.mjs");
+  const { appendWithContext } = await importFresh("./storage/log.ts");
   const dir = await createTempProject();
   try {
     await assert.rejects(
@@ -140,7 +140,7 @@ test("appendWithContext: rejects when entry.agent is missing (validation propaga
   }
 });
 test("appendWithContext: never mutates the entry passed in by the caller", async () => {
-  const { appendWithContext } = await importFresh("./storage/log.mjs");
+  const { appendWithContext } = await importFresh("./storage/log.ts");
   const dir = await createTempProject();
   try {
     const entry = { agent: "alice", action: "add-task", node: "T1" };

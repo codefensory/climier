@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { checkPrecondition, selectPrecondition } from "../src/kernel/mutation/preconditions.mjs";
+import { checkPrecondition, selectPrecondition } from "../src/kernel/mutation/preconditions.ts";
 
 const snapshot = {
   nodes: {

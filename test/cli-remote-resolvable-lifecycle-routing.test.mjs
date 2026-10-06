@@ -1,12 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import reopen from "../src/cli/commands/reopen.mjs";
-import cancel from "../src/cli/commands/cancel.mjs";
-import release from "../src/cli/commands/release.mjs";
-import submit from "../src/cli/commands/submit.mjs";
-import accept from "../src/cli/commands/accept.mjs";
-import reject from "../src/cli/commands/reject.mjs";
+import reopen from "../src/cli/commands/reopen.ts";
+import cancel from "../src/cli/commands/cancel.ts";
+import release from "../src/cli/commands/release.ts";
+import submit from "../src/cli/commands/submit.ts";
+import accept from "../src/cli/commands/accept.ts";
+import reject from "../src/cli/commands/reject.ts";
 import { createTempProject, readState, rmTempProject, writeCanonicalState, runCli, initExampleProject, installPolicyFixture, uninstallPolicyFixture } from "./helpers.mjs";
 
 const initialState = {

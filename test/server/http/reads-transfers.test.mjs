@@ -1,10 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { createHttpReads } from "../../../src/server/http/reads.mjs";
-import { createHttpCodec } from "../../../src/server/http/codec.mjs";
-import { PROTOCOL_VERSION } from "../../../src/server/http.mjs";
-import * as readModel from "../../../src/read-model/index.mjs";
+import { createHttpReads } from "../../../src/server/http/reads.ts";
+import { createHttpCodec } from "../../../src/server/http/codec.ts";
+import { PROTOCOL_VERSION } from "../../../src/server/http.ts";
+import * as readModel from "../../../src/read-model/index.ts";
 import { readState, runCli, writeCanonicalState } from "../../helpers.mjs";
 import { authHeaders, operation, withApi } from "./fixtures.mjs";
 

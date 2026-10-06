@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import { createTempProject, readState as readStateHelper, rmTempProject, stateFilePath, writeCanonicalState, importFresh } from "../../helpers.mjs";
 import { bootstrapProject, importKernel, updateNodeProvider } from "./helpers.mjs";
-import { withLock } from "../../../src/storage/lock.mjs";
+import { withLock } from "../../../src/storage/lock.ts";
 
 // failingPrepareProvider — prepare throws a structured error.
 function assertBootstrapPolicyResult(result, state, exists) {
@@ -63,7 +63,7 @@ test("kernel.mutate: provider.prepare throws ⇒ no state mutation, no log entry
     assert.deepEqual(after.nodes, base.nodes);
     assert.equal(after.log.length, 0);
     // Lock released: a fresh withLock should succeed immediately.
-    const { withLock: freshWithLock } = await importFresh("./storage/lock.mjs");
+    const { withLock: freshWithLock } = await importFresh("./storage/lock.ts");
     await freshWithLock(dir, async () => { lockObserved = true; });
     assert.equal(lockObserved, true, "withLock must be released after the failing call");
   } finally {
@@ -171,7 +171,7 @@ function assertCanonicalState(state, expectedFenceGeneration, expectedRevision, 
 
 test("kernel mutation writes provider changes through the ledger commit over a canonical state", async () => {
   const { mutate } = await importKernel();
-  const { readFencedState, bootstrapFencedState } = await import("../../../src/storage/ledger.mjs");
+  const { readFencedState, bootstrapFencedState } = await import("../../../src/storage/ledger.ts");
   const dir = await createTempProject();
   try {
     const { provider } = updateNodeProvider({ id: "T1", newTitle: "fenced provider" });
@@ -201,7 +201,7 @@ test("kernel mutation writes provider changes through the ledger commit over a c
 
 test("kernel.mutate recovers a pending fenced commit before checking caller CAS", async () => {
   const { mutate } = await importKernel();
-  const { readFencedState, commitFencedStateUnderLock } = await import("../../../src/storage/ledger.mjs");
+  const { readFencedState, commitFencedStateUnderLock } = await import("../../../src/storage/ledger.ts");
   const dir = await createTempProject();
   try {
     const current = await bootstrapProject(dir);
@@ -245,17 +245,17 @@ test("kernel.mutate recovers a pending fenced commit before checking caller CAS"
 test("kernel.mutate bootstraps a missing project only after provider policy allows", async () => {
   const { mutate } = await importKernel();
   const { stateExists } = await import("../../helpers.mjs");
-  const { ledgerFile } = await import("../../../src/storage/ledger.mjs");
+  const { ledgerFile } = await import("../../../src/storage/ledger.ts");
   const dir = await createTempProject();
   try {
-    const { initiativeCreateProvider } = await import("../../../src/providers/core/initiative.mjs");
+    const { initiativeCreateProvider } = await import("../../../src/providers/core/initiative.ts");
     const result = await mutate({
       projectDir: dir,
       request: { action: "initiative.create", actor: "alice", input: { name: "new-project" } },
       provider: initiativeCreateProvider,
       policyAction: { decide: async () => ({ decision: "allow" }) },
     });
-    const { readFencedState } = await import("../../../src/storage/ledger.mjs");
+    const { readFencedState } = await import("../../../src/storage/ledger.ts");
     const state = await readFencedState(dir);
     assertBootstrapPolicyResult(result, state, await stateExists(dir));
 
@@ -279,8 +279,8 @@ test("kernel.mutate bootstraps a missing project only after provider policy allo
 });
 
 test("direct mutation executor requires the active lock capability supplied by mutate", async () => {
-  const { executeMutation } = await importFresh("./kernel/mutation/execute.mjs");
-  const { withLock: withActiveLock } = await import("../../../src/storage/lock.mjs");
+  const { executeMutation } = await importFresh("./kernel/mutation/execute.ts");
+  const { withLock: withActiveLock } = await import("../../../src/storage/lock.ts");
   const dir = await createTempProject();
   try {
     await writeCanonicalState(dir, {

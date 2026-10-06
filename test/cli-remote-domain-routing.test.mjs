@@ -6,18 +6,18 @@ import {
   rmTempProject,
   writeCanonicalState,
 } from "./helpers.mjs";
-import addGate from "../src/cli/commands/add-gate.mjs";
-import addKnowledge from "../src/cli/commands/add-knowledge.mjs";
-import addNode from "../src/cli/commands/add-node.mjs";
-import addInitiative from "../src/cli/commands/add-initiative.mjs";
-import addNote from "../src/cli/commands/add-note.mjs";
-import addEdge from "../src/cli/commands/add-edge.mjs";
-import removeEdge from "../src/cli/commands/remove-edge.mjs";
-import resolve from "../src/cli/commands/resolve.mjs";
-import deprecateKnowledge from "../src/cli/commands/deprecate-knowledge.mjs";
-import update from "../src/cli/commands/update.mjs";
-import { bootstrapBuiltins, createBackendClient } from "../src/application/operations/index.mjs";
-import { mutate as kernelMutate } from "../src/kernel/mutate.mjs";
+import addGate from "../src/cli/commands/add-gate.ts";
+import addKnowledge from "../src/cli/commands/add-knowledge.ts";
+import addNode from "../src/cli/commands/add-node.ts";
+import addInitiative from "../src/cli/commands/add-initiative.ts";
+import addNote from "../src/cli/commands/add-note.ts";
+import addEdge from "../src/cli/commands/add-edge.ts";
+import removeEdge from "../src/cli/commands/remove-edge.ts";
+import resolve from "../src/cli/commands/resolve.ts";
+import deprecateKnowledge from "../src/cli/commands/deprecate-knowledge.ts";
+import update from "../src/cli/commands/update.ts";
+import { bootstrapBuiltins, createBackendClient } from "../src/application/operations/index.ts";
+import { mutate as kernelMutate } from "../src/kernel/mutate.ts";
 
 const initialState = {
   version: 1,

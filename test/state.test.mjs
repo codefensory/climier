@@ -6,7 +6,7 @@ import pathModule from "node:path";
 import { createTempProject, rmTempProject, importFresh, stateFilePath } from "./helpers.mjs";
 
 test("readState returns null if file missing", async () => {
-  const { readState } = await importFresh("./storage/state.mjs");
+  const { readState } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
   try {
     const s = await readState(dir);
@@ -17,9 +17,9 @@ test("readState returns null if file missing", async () => {
 });
 
 test("readState fails closed for ledger-only projects and recovers exact pending bootstrap", async (t) => {
-  const { readState } = await importFresh("./storage/state.mjs");
-  const { bootstrapFencedState, ledgerFile } = await importFresh("./storage/ledger.mjs");
-  const { stateFile } = await importFresh("./storage/state.mjs");
+  const { readState } = await importFresh("./storage/state.ts");
+  const { bootstrapFencedState, ledgerFile } = await importFresh("./storage/ledger.ts");
+  const { stateFile } = await importFresh("./storage/state.ts");
   const fs = await import("node:fs/promises");
 
   await t.test("ledger without state or pending bootstrap", async () => {
@@ -54,7 +54,7 @@ test("readState fails closed for ledger-only projects and recovers exact pending
 });
 
 test("emptyState returns a valid empty canonical schema", async () => {
-  const { emptyState } = await importFresh("./storage/state.mjs");
+  const { emptyState } = await importFresh("./storage/state.ts");
   const s = emptyState();
   assert.equal(s.version, 1);
   assert.equal(s.fence_generation, 1);
@@ -70,7 +70,7 @@ test("emptyState returns a valid empty canonical schema", async () => {
 });
 
 test("readState classifies pre-release v1 structure before checking its version", async () => {
-  const { readState } = await importFresh("./storage/state.mjs");
+  const { readState } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
   try {
 
@@ -98,7 +98,7 @@ test("readState classifies pre-release v1 structure before checking its version"
 });
 
 test("unknown future schema version is rejected on read and write", async () => {
-  const { readState, writeState } = await importFresh("./storage/state.mjs");
+  const { readState, writeState } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
   try {
     const fs = await import("node:fs/promises");
@@ -114,8 +114,8 @@ test("unknown future schema version is rejected on read and write", async () => 
 });
 
 test("readState accepts canonical v1 state when its revision ledger is present", async () => {
-  const { readState, stateFile } = await importFresh("./storage/state.mjs");
-  const { bootstrapFencedState } = await importFresh("./storage/ledger.mjs");
+  const { readState, stateFile } = await importFresh("./storage/state.ts");
+  const { bootstrapFencedState } = await importFresh("./storage/ledger.ts");
   const fs = await import("node:fs/promises");
   const dir = await createTempProject();
   try {
@@ -131,7 +131,7 @@ test("readState accepts canonical v1 state when its revision ledger is present",
 });
 
 test("readState rejects canonical v1 state without fence or ledger", async (t) => {
-  const { readState } = await importFresh("./storage/state.mjs");
+  const { readState } = await importFresh("./storage/state.ts");
   const fs = await import("node:fs/promises");
   for (const [name, extra, reason] of [
     ["no fence", {}, /fence_generation/i],
@@ -150,7 +150,7 @@ test("readState rejects canonical v1 state without fence or ledger", async (t) =
 });
 
 test("readState rejects incomplete canonical v1 state", async () => {
-  const { readState } = await importFresh("./storage/state.mjs");
+  const { readState } = await importFresh("./storage/state.ts");
   const fs = await import("node:fs/promises");
   const dir = await createTempProject();
   try {
@@ -162,7 +162,7 @@ test("readState rejects incomplete canonical v1 state", async () => {
 });
 
 test("writeState rejects a v1-shaped object with a clear error", async () => {
-  const { writeState } = await importFresh("./storage/state.mjs");
+  const { writeState } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
   try {
     const v1 = { version: 1, tasks: {}, decisions: {}, gotchas: {}, initiatives: {}, log: [] };
@@ -174,7 +174,7 @@ test("writeState rejects a v1-shaped object with a clear error", async () => {
 });
 
 test("writeState rejects a v2 object missing the v2 collections", async () => {
-  const { writeState } = await importFresh("./storage/state.mjs");
+  const { writeState } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
   try {
     const bad = { version: 2, nodes: {}, edges: [] };
@@ -188,8 +188,8 @@ test("writeState rejects a v2 object missing the v2 collections", async () => {
 const appendLegacyEntry = (state) => ({ ...state, log: [...state.log, { action: "legacy" }] });
 
 test("direct state writers reject ledger-backed and fenced projects before mutation", async (t) => {
-  const { writeState, updateState } = await importFresh("./storage/state.mjs");
-  const { ledgerFile, bootstrapFencedState } = await importFresh("./storage/ledger.mjs");
+  const { writeState, updateState } = await importFresh("./storage/state.ts");
+  const { ledgerFile, bootstrapFencedState } = await importFresh("./storage/ledger.ts");
   const fs = await import("node:fs/promises");
   for (const fencedBy of ["v5-state", "ledger"]) {
     await t.test(fencedBy, async () => {
@@ -215,8 +215,8 @@ test("direct state writers reject ledger-backed and fenced projects before mutat
 });
 
 test("canonical-only reader rejects versions 2 through 5 while retaining classification", async (t) => {
-  const { readState, classifyStateShape, stateFile } = await importFresh("./storage/state.mjs");
-  const { bootstrapFencedState } = await importFresh("./storage/ledger.mjs");
+  const { readState, classifyStateShape, stateFile } = await importFresh("./storage/state.ts");
+  const { bootstrapFencedState } = await importFresh("./storage/ledger.ts");
   const fs = await import("node:fs/promises");
   for (const version of [2, 3, 4, 5]) {
     await t.test(`version ${version}`, async () => {
@@ -234,9 +234,9 @@ test("canonical-only reader rejects versions 2 through 5 while retaining classif
 
 test("canonical-only ledger protocols load without the migration module", async () => {
   await Promise.all([
-    importFresh("./storage/ledger/recovery.mjs"),
-    importFresh("./storage/ledger/bootstrap.mjs"),
-    importFresh("./storage/ledger/replace.mjs"),
-    importFresh("./storage/ledger.mjs"),
+    importFresh("./storage/ledger/recovery.ts"),
+    importFresh("./storage/ledger/bootstrap.ts"),
+    importFresh("./storage/ledger/replace.ts"),
+    importFresh("./storage/ledger.ts"),
   ]);
 });

@@ -2,8 +2,8 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { deriveV2, isSatisfiedV2 } from "../src/providers/task/derivation.mjs";
-import { statusOf as statusOfV2 } from "../src/read-model/index.mjs";
+import { deriveV2, isSatisfiedV2 } from "../src/providers/task/derivation.ts";
+import { statusOf as statusOfV2 } from "../src/read-model/index.ts";
 import {
   createTempProject,
   rmTempProject,
@@ -95,7 +95,7 @@ test("`meta` and `nodes[id].plugins` survive take together (disjoint keyspaces)"
       s.nodes.T1.plugins = { "example.audit": { data: { x: 1 } } };
     });
     await writeCanonicalState(dir, base);
-    const { default: take } = await importFresh("./cli/commands/take.mjs");
+    const { default: take } = await importFresh("./cli/commands/take.ts");
     await take({
       positional: ["T1"],
       flags: { as: "tester" },
@@ -120,7 +120,7 @@ test("`meta` and `nodes[id].plugins` survive submit + accept (task) together", a
       s.nodes.T1.plugins = { "example.audit": { data: { x: 2 } } };
     });
     await writeCanonicalState(dir, base);
-    const { default: take } = await importFresh("./cli/commands/take.mjs");
+    const { default: take } = await importFresh("./cli/commands/take.ts");
     await take({
       positional: ["T1"],
       flags: { as: "tester" },

@@ -4,11 +4,11 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { createProjectCatalog } from "../../../src/server/catalog/index.mjs";
-import { createRemoteApiServer } from "../../../src/server/http.mjs";
-import { dispatchOperationRequest, validateOperationRequest } from "../../../src/server/http/operations.mjs";
-import { remoteV1Manifest } from "../../../src/application/operations/remote-v1-manifest.mjs";
-import { bootstrapFencedState } from "../../../src/storage/ledger.mjs";
+import { createProjectCatalog } from "../../../src/server/catalog/index.ts";
+import { createRemoteApiServer } from "../../../src/server/http.ts";
+import { dispatchOperationRequest, validateOperationRequest } from "../../../src/server/http/operations.ts";
+import { remoteV1Manifest } from "../../../src/application/operations/remote-v1-manifest.ts";
+import { bootstrapFencedState } from "../../../src/storage/ledger.ts";
 import { authHeaders, operation, testAuthStore, withApi } from "./fixtures.mjs";
 
 
@@ -51,7 +51,7 @@ test("HTTP v1 delegates core operations and read projections through server boun
 });
 
 async function assertGateHasCanonicalEdges(projectDirs) {
-  const { readState } = await import("../../../src/storage/state.mjs");
+  const { readState } = await import("../../../src/storage/state.ts");
   const state = await readState(projectDirs[0]);
   assert.deepEqual(state.edges.filter((edge) => edge.from === "G-http-edges" || edge.to === "G-http-edges"), [
     { from: "T-gate-http-source", to: "G-http-edges", type: "BLOCKS" },
@@ -60,7 +60,7 @@ async function assertGateHasCanonicalEdges(projectDirs) {
 }
 
 async function assertEmptyGateBlockers(projectDirs) {
-  const { readState } = await import("../../../src/storage/state.mjs");
+  const { readState } = await import("../../../src/storage/state.ts");
   const state = await readState(projectDirs[0]);
   assert.equal(state.nodes["G-http-empty-blockers"].id, "G-http-empty-blockers");
 }
@@ -140,7 +140,7 @@ async function assertFailedBatchIsAtomic(baseUrl, projectDir, expectedRevision) 
   });
   assert.equal(invalidDomainInput.status, 400);
   assert.equal((await invalidDomainInput.json()).error.code, "BATCH_OPERATION_FAILED");
-  const { readState } = await import("../../../src/storage/state.mjs");
+  const { readState } = await import("../../../src/storage/state.ts");
   const unchanged = await readState(projectDir);
   assert.equal(unchanged.revision, expectedRevision);
   assert.deepEqual(Object.keys(unchanged.initiatives), ["batch-remote"]);
@@ -148,7 +148,7 @@ async function assertFailedBatchIsAtomic(baseUrl, projectDir, expectedRevision) 
 
 test("HTTP v1 executes core.batch through one canonical server mutation", async () => {
   await withApi(async ({ baseUrl, projectDirs }) => {
-    const { readState } = await import("../../../src/storage/state.mjs");
+    const { readState } = await import("../../../src/storage/state.ts");
     await bootstrapFencedState(projectDirs[0]);
     const before = await readState(projectDirs[0]);
     const response = await operation(baseUrl, "project-a", "core.batch", {

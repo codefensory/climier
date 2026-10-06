@@ -4,9 +4,9 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { initState } from "../src/kernel/state-operations.mjs";
-import { listProjectIds } from "../src/storage/state.mjs";
-import { ledgerFileForProjectId, readStateByProjectId } from "../src/storage/ledger.mjs";
+import { initState } from "../src/kernel/state-operations.ts";
+import { listProjectIds } from "../src/storage/state.ts";
+import { ledgerFileForProjectId, readStateByProjectId } from "../src/storage/ledger.ts";
 
 async function makeHome(t) {
   const home = await fs.mkdtemp(path.join(os.tmpdir(), "climier-local-projects-"));
