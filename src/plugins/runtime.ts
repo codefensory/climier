@@ -1,12 +1,15 @@
-
 import fsSync from "node:fs";
 import { resolveProject } from "../storage/paths.ts";
 import { pluginRuntimeDataDir } from "./paths.ts";
 import { assertLocalBackend } from "./remote-guard.ts";
+import type { PluginBackendClient, PluginRuntime } from "./types.ts";
 
 const VALUE_FLAGS = new Set(["project", "as"]);
 
-function flagEntry(argv, index) {
+type FlagValue = string | boolean;
+type FlagEntry = [Record<string, FlagValue>, number];
+
+function flagEntry(argv: unknown[], index: number): FlagEntry | null {
   const token = argv[index];
   if (typeof token !== "string" || !token.startsWith("--")) {
     return null;
@@ -24,8 +27,8 @@ function flagEntry(argv, index) {
   return [{ [key]: true }, index];
 }
 
-export function parseFlags(argv) {
-  const flags = {};
+export function parseFlags(argv: unknown): Record<string, FlagValue> {
+  const flags: Record<string, FlagValue> = {};
   if (!Array.isArray(argv)) {
     return flags;
   }
@@ -41,7 +44,7 @@ export function parseFlags(argv) {
   return flags;
 }
 
-export function resolveRuntime(argv) {
+export function resolveRuntime(argv: unknown): { project_dir: string; agent: string } {
   const flags = parseFlags(argv);
   const projectFlag = flags.project;
   const projectInput = typeof projectFlag === "string" && projectFlag !== "" ? projectFlag : undefined;
@@ -53,7 +56,12 @@ export function resolveRuntime(argv) {
   return { project_dir, agent };
 }
 
-export function createRuntime({ projectDir, agent, pluginId, backendClient } = {}) {
+export function createRuntime({ projectDir, agent, pluginId, backendClient }: {
+  projectDir?: unknown;
+  agent?: unknown;
+  pluginId?: unknown;
+  backendClient: PluginBackendClient;
+} = { backendClient: undefined as unknown as PluginBackendClient }): PluginRuntime {
   assertLocalBackend(backendClient, "createRuntime");
   if (typeof projectDir !== "string" || !projectDir) {
     throw new Error("createRuntime: projectDir required");
@@ -65,13 +73,14 @@ export function createRuntime({ projectDir, agent, pluginId, backendClient } = {
   const dataDir = pluginRuntimeDataDir(projectDir, pluginId);
   try {
     fsSync.mkdirSync(dataDir, { recursive: true, mode: 0o700 });
-  } catch (err) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
     const wrapped = new Error(
-      `createRuntime: unable to create runtime data directory at ${dataDir}: ${err.message}`,
+      `createRuntime: unable to create runtime data directory at ${dataDir}: ${message}`,
       { cause: err },
     );
     wrapped.code = "PLUGIN_RUNTIME_UNAVAILABLE";
-    wrapped.details = { plugin_id: pluginId, data_dir: dataDir, cause: err.message };
+    wrapped.details = { plugin_id: pluginId, data_dir: dataDir, cause: message };
     throw wrapped;
   }
 

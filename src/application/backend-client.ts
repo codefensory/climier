@@ -5,15 +5,37 @@ import { createCredentialStore } from "../storage/credential-profile.ts";
 import { createLocalOperationSource } from "./local-operation-source.ts";
 import { createRemoteReadMethods } from "./backend-remote-reads.ts";
 import { createRemoteRequest, REMOTE_PROTOCOL_VERSION } from "./backend-remote-transport.ts";
+import type {
+  BackendClient,
+  BackendSelection,
+  CodedApplicationError,
+  OperationCall,
+  ProjectConfig,
+  RemoteBackend,
+  RemoteRequest,
+  SourceInput,
+} from "./types.ts";
+import { isRecord } from "./types.ts";
 
-function createLocalBackendClient({ projectDir, source }) {
+type CredentialStore = ReturnType<typeof createCredentialStore>;
+type TransferExport = { payload: Record<string, unknown>; revision: number };
+type TransferImportOptions = {
+  payload: unknown;
+  actor: string;
+  expected_remote_revision?: number;
+  force?: boolean;
+};
+
+function createLocalBackendClient({ projectDir, source }: { projectDir: string; source?: SourceInput }): BackendClient {
   const getSource = createLocalOperationSource(source);
   const client = {
-    type: "local",
-    async executeOperation({ actor, operation, input } = {}) {
+    type: "local" as const,
+    async executeOperation(options: OperationCall = {}) {
+      const { actor, operation, input } = options;
       return executeOperation({ projectDir, actor, operation, input, source: await getSource() });
     },
-    async executeBatch({ actor, operations, input, if_state_revision } = {}) {
+    async executeBatch(options: OperationCall = {}) {
+      const { actor, operations, input, if_state_revision } = options;
       return executeBatch({ projectDir, actor, operations, input, if_state_revision, source: await getSource() });
     },
   };
@@ -23,17 +45,17 @@ function createLocalBackendClient({ projectDir, source }) {
 
 export { REMOTE_PROTOCOL_VERSION };
 const DEFAULT_TIMEOUT_MS = 10_000;
-const REMOTE_OPERATION_IDS = new Set(remoteV1Manifest.operations.map(({ id }) => id));
-const REMOTE_BATCH_OPERATION_IDS = new Set(remoteV1Manifest.batch.eligibleOperationIds);
+const REMOTE_OPERATION_IDS: Set<string> = new Set(remoteV1Manifest.operations.map(({ id }) => id));
+const REMOTE_BATCH_OPERATION_IDS: Set<string> = new Set(remoteV1Manifest.batch.eligibleOperationIds);
 
-function clientError(code, message, details) {
-  const error = new Error(message);
+function clientError(code: string, message: string, details?: Record<string, unknown>): CodedApplicationError {
+  const error = new Error(message) as CodedApplicationError;
   error.code = code;
   if (details !== undefined) {error.details = details;}
   return error;
 }
 
-function unsupportedRemoteOperation(operation) {
+function unsupportedRemoteOperation(operation: string): CodedApplicationError {
   return clientError(
     "REMOTE_UNSUPPORTED_OPERATION",
     `application.backendClient: operation '${operation}' is not supported by remote protocol v${REMOTE_PROTOCOL_VERSION}`,
@@ -41,46 +63,51 @@ function unsupportedRemoteOperation(operation) {
   );
 }
 
-function validateRemoteOperation(operation) {
+function validateRemoteOperation(operation: unknown): asserts operation is string {
   if (typeof operation !== "string" || !REMOTE_OPERATION_IDS.has(operation)) {
-    throw unsupportedRemoteOperation(operation);
+    throw unsupportedRemoteOperation(String(operation));
   }
 }
 
-function validateRemoteBatch(operations) {
+function validateRemoteBatch(operations: unknown): void {
   if (!Array.isArray(operations)) {return;}
   for (const entry of operations) {
-    if (!entry || typeof entry !== "object" || Array.isArray(entry) || typeof entry.op !== "string") {continue;}
+    if (!isRecord(entry) || typeof entry.op !== "string") {continue;}
     if (!REMOTE_BATCH_OPERATION_IDS.has(entry.op)) {throw unsupportedRemoteOperation(entry.op);}
   }
 }
 
-function isRecord(value) {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
-function validateTransferExport(result) {
-  if (!isRecord(result) || !isRecord(result.payload) || !Number.isSafeInteger(result.revision) || result.revision < 0) {
+function validateTransferExport(result: unknown): TransferExport {
+  if (!isRecord(result) || !isRecord(result.payload)
+      || typeof result.revision !== "number" || !Number.isSafeInteger(result.revision) || result.revision < 0) {
     throw clientError(
       "REMOTE_INVALID_RESPONSE",
       "application.backendClient: transfer export response must contain an object payload and non-negative integer revision",
       { field: "result" },
     );
   }
-  return result;
+  return { payload: result.payload, revision: result.revision };
 }
 
-function createRemoteOperations(request) {
+type RemoteOperations = {
+  executeOperation(options?: OperationCall): Promise<unknown>;
+  executeBatch(options?: OperationCall): Promise<unknown>;
+  init(): Promise<unknown>;
+  exportTransfer(): Promise<TransferExport>;
+  importTransfer(options: TransferImportOptions): Promise<unknown>;
+};
+
+function createRemoteOperations(request: RemoteRequest): RemoteOperations {
   return {
-    async executeOperation({ actor, operation, input } = {}) {
-      validateRemoteOperation(operation);
-      return request({ method: "POST", route: "operations", body: { operation, actor, input } });
+    async executeOperation(options: OperationCall = {}) {
+      validateRemoteOperation(options.operation);
+      return request({ method: "POST", route: "operations", body: { operation: options.operation, actor: options.actor, input: options.input } });
     },
-    async executeBatch({ actor, operations, if_state_revision } = {}) {
-      validateRemoteBatch(operations);
-      const input = { operations };
-      if (if_state_revision !== undefined) {input.if_state_revision = if_state_revision;}
-      return request({ method: "POST", route: "operations", body: { operation: "core.batch", actor, input } });
+    async executeBatch(options: OperationCall = {}) {
+      validateRemoteBatch(options.operations);
+      const input: { operations: unknown; if_state_revision?: unknown } = { operations: options.operations };
+      if (options.if_state_revision !== undefined) {input.if_state_revision = options.if_state_revision;}
+      return request({ method: "POST", route: "operations", body: { operation: "core.batch", actor: options.actor, input } });
     },
     init() {
       return request({ method: "POST", route: "init", body: {} });
@@ -88,8 +115,8 @@ function createRemoteOperations(request) {
     async exportTransfer() {
       return validateTransferExport(await request({ method: "GET", route: "transfer/export" }));
     },
-    async importTransfer(options = {}) {
-      const body = { payload: options.payload, actor: options.actor };
+    async importTransfer(options: TransferImportOptions) {
+      const body: TransferImportOptions = { payload: options.payload, actor: options.actor };
       if (options.force !== true && options.expected_remote_revision !== undefined) {body.expected_remote_revision = options.expected_remote_revision;}
       if (options.force !== undefined) {body.force = options.force;}
       return request({ method: "POST", route: "transfer/import", body });
@@ -97,7 +124,12 @@ function createRemoteOperations(request) {
   };
 }
 
-function createRemoteTransport(options) {
+function createRemoteTransport(options: {
+  backend: RemoteBackend;
+  projectId: string;
+  tokenProvider: (origin: string) => Promise<string | null>;
+  timeoutMs: number;
+}): RemoteOperations & ReturnType<typeof createRemoteReadMethods> {
   const request = createRemoteRequest(options);
   return Object.freeze({
     ...createRemoteOperations(request),
@@ -105,31 +137,50 @@ function createRemoteTransport(options) {
   });
 }
 
-function validateBackendClientOptions({ projectDir, timeoutMs }) {
+function validateBackendClientOptions(projectDir: unknown, timeoutMs: unknown): { projectDir: string; timeoutMs: number } {
   if (typeof projectDir !== "string" || projectDir.length === 0) {
     throw clientError("INVALID_BACKEND_CLIENT", "application.backendClient: projectDir is required", { field: "projectDir" });
   }
-  if (!Number.isInteger(timeoutMs) || timeoutMs < 1) {
+  if (typeof timeoutMs !== "number" || !Number.isInteger(timeoutMs) || timeoutMs < 1) {
     throw clientError("INVALID_BACKEND_CLIENT", "application.backendClient: timeoutMs must be a positive integer", { field: "timeoutMs" });
   }
+  return { projectDir, timeoutMs };
 }
 
-function validateRemoteClientOptions(projectConfig) {
+function validateRemoteClientOptions(projectConfig: ProjectConfig): string {
   if (typeof projectConfig.project_id !== "string" || projectConfig.project_id.length === 0) {
     throw clientError("REMOTE_PROJECT_ID_REQUIRED", "application.backendClient: remote backend requires project_id", { field: "project_id" });
   }
+  return projectConfig.project_id;
 }
 
-function createSelectedBackendClient({ backend, projectDir, projectConfig, source, credentialStore, timeoutMs }) {
+function createSelectedBackendClient({
+  backend,
+  projectDir,
+  projectConfig,
+  source,
+  credentialStore,
+  timeoutMs,
+}: {
+  backend: BackendSelection;
+  projectDir: string;
+  projectConfig: ProjectConfig;
+  source?: SourceInput;
+  credentialStore: CredentialStore;
+  timeoutMs: number;
+}): BackendClient & Record<string, unknown> {
   if (backend.type === "local") {return createLocalBackendClient({ projectDir, source });}
-  validateRemoteClientOptions(projectConfig);
+  const projectId = validateRemoteClientOptions(projectConfig);
   const transport = createRemoteTransport({
     backend,
-    projectId: projectConfig.project_id,
-    tokenProvider: (origin) => credentialStore.get(origin),
+    projectId,
+    tokenProvider: async (origin) => {
+      const token = await credentialStore.get(origin);
+      return typeof token === "string" ? token : null;
+    },
     timeoutMs,
   });
-  return Object.freeze({ type: "remote", insecureRemoteHttp: backend.insecureRemoteHttp === true, ...transport });
+  return Object.freeze({ type: "remote" as const, insecureRemoteHttp: backend.insecureRemoteHttp === true, ...transport });
 }
 
 /** Create one backend selection for a project; remote failures never retry locally. */
@@ -140,10 +191,24 @@ export function createBackendClient({
   command,
   credentialStore = createCredentialStore(),
   timeoutMs = DEFAULT_TIMEOUT_MS,
-} = {}) {
-  validateBackendClientOptions({ projectDir, timeoutMs });
+}: {
+  projectDir?: unknown;
+  projectConfig?: ProjectConfig;
+  source?: SourceInput;
+  command?: string;
+  credentialStore?: CredentialStore;
+  timeoutMs?: unknown;
+} = {}): BackendClient & Record<string, unknown> {
+  const validated = validateBackendClientOptions(projectDir, timeoutMs);
   const backend = parseBackendConfig(projectConfig, { command });
-  return createSelectedBackendClient({ backend, projectDir, projectConfig, source, credentialStore, timeoutMs });
+  return createSelectedBackendClient({
+    backend,
+    projectDir: validated.projectDir,
+    projectConfig,
+    source,
+    credentialStore,
+    timeoutMs: validated.timeoutMs,
+  });
 }
 
 export default createBackendClient;

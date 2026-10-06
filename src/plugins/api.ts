@@ -1,11 +1,16 @@
-
 import { createQuery } from "./query.ts";
 import { createData } from "./data.ts";
 import { createCore } from "./core-adapter.ts";
 import { createRuntime } from "./runtime.ts";
 import { assertLocalBackend } from "./remote-guard.ts";
+import type { ApiFactory, PluginApi, PluginBackendClient } from "./types.ts";
 
-export function createApi({ projectDir, agent, pluginId, backendClient }) {
+export const createApi: ApiFactory = ({ projectDir, agent, pluginId, backendClient }: {
+  projectDir: string;
+  agent: string;
+  pluginId: string;
+  backendClient: PluginBackendClient;
+}): PluginApi => {
   assertLocalBackend(backendClient, "createApi");
   if (typeof projectDir !== "string" || !projectDir) {
     throw new Error("createApi: projectDir required");
@@ -23,4 +28,4 @@ export function createApi({ projectDir, agent, pluginId, backendClient }) {
     backendClient,
   });
   return { version: 1, runtime, query, data, core };
-}
+};

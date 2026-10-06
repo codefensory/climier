@@ -1,4 +1,3 @@
-
 import path from "node:path";
 import fs from "node:fs/promises";
 
@@ -9,9 +8,13 @@ import {
   readDescriptor,
   importEntry,
 } from "./descriptor.ts";
+import type { PluginDescriptor, PluginPolicy } from "./descriptor.ts";
+import type { PluginCommands } from "./types.ts";
+import { isRecord } from "../application/types.ts";
+import { asCaughtError } from "../contracts/errors.ts";
 
 class PluginNotInstalled extends PluginLoadFailed {
-  constructor(namespace) {
+  constructor(namespace: string) {
     super(
       `plugin-loader: namespace '${namespace}' has no installed plugin`,
       { namespace, installed_root: path.join(pluginsHome(), "installed") },
@@ -19,23 +22,23 @@ class PluginNotInstalled extends PluginLoadFailed {
   }
 }
 
-async function installedEntries(installedRoot) {
+async function installedEntries(installedRoot: string): Promise<string[]> {
   try {
     return await fs.readdir(installedRoot);
-  } catch (err) {
-    if (err.code === "ENOENT") {
+  } catch (err: unknown) {
+    if (asCaughtError(err).code === "ENOENT") {
       return [];
     }
     throw err;
   }
 }
 
-async function readPackage(packagePath) {
-  let raw;
+async function readPackage(packagePath: string): Promise<unknown> {
+  let raw: string;
   try {
     raw = await fs.readFile(packagePath, "utf8");
-  } catch (err) {
-    if (err.code === "ENOENT") {
+  } catch (err: unknown) {
+    if (asCaughtError(err).code === "ENOENT") {
       return null;
     }
     throw err;
@@ -47,13 +50,13 @@ async function readPackage(packagePath) {
   }
 }
 
-function packageClaimsCommand(pkg, command) {
+function packageClaimsCommand(pkg: unknown, command: string): boolean {
   return Boolean(
-    pkg && pkg.climier && typeof pkg.climier === "object" && pkg.climier.command === command,
+    isRecord(pkg) && isRecord(pkg.climier) && pkg.climier.command === command,
   );
 }
 
-async function findInstalledDirByCommand(command) {
+async function findInstalledDirByCommand(command: string): Promise<string | null> {
   const installedRoot = path.join(pluginsHome(), "installed");
   const entries = await installedEntries(installedRoot);
   for (const entry of entries) {
@@ -69,7 +72,7 @@ async function findInstalledDirByCommand(command) {
   return null;
 }
 
-function validateNamespace(namespace) {
+function validateNamespace(namespace: unknown): asserts namespace is string {
   if (typeof namespace !== "string" || !namespace.trim()) {
     throw new PluginInvalidDescriptor(
       "plugin-loader: namespace must be a non-empty string",
@@ -78,23 +81,24 @@ function validateNamespace(namespace) {
   }
 }
 
-async function readInstalledDescriptor(installedDir, namespace) {
+async function readInstalledDescriptor(installedDir: string, namespace: string): Promise<PluginDescriptor> {
   const pkgPath = path.join(installedDir, "package.json");
   try {
     return await readDescriptor(pkgPath);
-  } catch (err) {
-    if (err && typeof err.code === "string") {
-      err.details = { ...err.details, namespace, installed_dir: installedDir };
-      throw err;
+  } catch (err: unknown) {
+    const caught = asCaughtError(err);
+    if (typeof caught.code === "string") {
+      caught.details = { ...caught.details, namespace, installed_dir: installedDir };
+      throw caught;
     }
     throw new PluginLoadFailed(
-      `plugin-loader: failed to read descriptor at ${pkgPath}: ${err.message}`,
-      { namespace, path: pkgPath, cause: err.message },
+      `plugin-loader: failed to read descriptor at ${pkgPath}: ${caught.message}`,
+      { namespace, path: pkgPath, cause: caught.message },
     );
   }
 }
 
-function validateInstalledIdentity(descriptor, installedDir, namespace) {
+function validateInstalledIdentity(descriptor: PluginDescriptor, installedDir: string, namespace: string): void {
   if (descriptor.command !== namespace) {
     throw new PluginInvalidDescriptor(
       `plugin-loader: namespace '${namespace}' does not match descriptor.command '${descriptor.command}'`,
@@ -110,22 +114,29 @@ function validateInstalledIdentity(descriptor, installedDir, namespace) {
   }
 }
 
-async function importInstalledCommands(entryPath, installedDir, namespace) {
+async function importInstalledCommands(entryPath: string, installedDir: string, namespace: string): Promise<PluginCommands> {
   try {
-    return (await importEntry(entryPath)).commands;
-  } catch (err) {
-    if (err && typeof err.code === "string") {
-      err.details = { ...err.details, namespace, installed_dir: installedDir };
-      throw err;
+    return (await importEntry(entryPath)).commands as PluginCommands;
+  } catch (err: unknown) {
+    const caught = asCaughtError(err);
+    if (typeof caught.code === "string") {
+      caught.details = { ...caught.details, namespace, installed_dir: installedDir };
+      throw caught;
     }
     throw new PluginLoadFailed(
-      `plugin-loader: failed to import entrypoint at ${entryPath}: ${err.message}`,
-      { namespace, path: entryPath, cause: err.message },
+      `plugin-loader: failed to import entrypoint at ${entryPath}: ${caught.message}`,
+      { namespace, path: entryPath, cause: caught.message },
     );
   }
 }
 
-export async function loadInstalledPlugin(namespace) {
+export async function loadInstalledPlugin(namespace: string): Promise<{
+  pluginId: string;
+  descriptor: PluginDescriptor;
+  commands: PluginCommands;
+  entryPath: string;
+  installedDir: string;
+}> {
   validateNamespace(namespace);
   const installedDir = await findInstalledDirByCommand(namespace);
   if (!installedDir) {
@@ -138,21 +149,30 @@ export async function loadInstalledPlugin(namespace) {
   return { pluginId: descriptor.id, descriptor, commands, entryPath, installedDir };
 }
 
-export async function hasInstalledPlugin(namespace) {
+export async function hasInstalledPlugin(namespace: string): Promise<boolean> {
   const dir = await findInstalledDirByCommand(namespace);
   return dir !== null;
 }
 
-export async function findInstalledPolicyDirs() {
+export type InstalledPolicyPlugin = {
+  pluginId: string;
+  descriptor: PluginDescriptor;
+  policy: PluginPolicy;
+  namespace: string;
+  entryPath: string;
+  installedDir: string;
+};
+
+export async function findInstalledPolicyDirs(): Promise<string[]> {
   const installedRoot = path.join(pluginsHome(), "installed");
-  let entries = [];
+  let entries: string[] = [];
   try {
     entries = await fs.readdir(installedRoot);
-  } catch (err) {
-    if (err.code === "ENOENT") {return [];}
+  } catch (err: unknown) {
+    if (asCaughtError(err).code === "ENOENT") {return [];}
     throw err;
   }
-  const dirs = [];
+  const dirs: string[] = [];
   for (const entry of entries) {
     if (entry.startsWith(".")) {continue;}
     const full = path.join(installedRoot, entry);
@@ -169,24 +189,22 @@ export async function findInstalledPolicyDirs() {
   return dirs;
 }
 
-export async function loadInstalledPolicyPlugins() {
+export async function loadInstalledPolicyPlugins(): Promise<InstalledPolicyPlugin[]> {
   const dirs = await findInstalledPolicyDirs();
-  const out = [];
+  const out: InstalledPolicyPlugin[] = [];
   for (const installedDir of dirs) {
     const pkgPath = path.join(installedDir, "package.json");
-    let descriptor;
+    let descriptor: PluginDescriptor;
     try {
       descriptor = await readDescriptor(pkgPath);
     } catch {
-
       continue;
     }
     const entryPath = path.resolve(installedDir, descriptor.entry);
-    let policy;
+    let policy: PluginPolicy | undefined;
     try {
       ({ policy } = await importEntry(entryPath));
     } catch {
-
       continue;
     }
     if (!policy || typeof policy.authorize !== "function") {continue;}
@@ -202,45 +220,43 @@ export async function loadInstalledPolicyPlugins() {
   return out;
 }
 
-function isProjectConfig(value) {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
+function isProjectConfig(value: unknown): value is Record<string, unknown> {
+  return isRecord(value);
 }
 
-function parseProjectConfig(raw) {
+function parseProjectConfig(raw: string): Record<string, unknown> {
   try {
-    const parsed = JSON.parse(raw);
+    const parsed: unknown = JSON.parse(raw);
     return isProjectConfig(parsed) ? parsed : {};
   } catch {
-
     return {};
   }
 }
 
-export async function readProjectConfig(projectDir) {
+export async function readProjectConfig(projectDir: string): Promise<Record<string, unknown>> {
   if (typeof projectDir !== "string" || !projectDir.trim()) {
-
     throw new Error("plugin-loader: readProjectConfig requires a non-empty projectDir");
   }
   const metaPath = path.join(projectDir, ".climier.json");
-  let raw;
+  let raw: string;
   try {
     raw = await fs.readFile(metaPath, "utf8");
-  } catch (err) {
-    if (err.code === "ENOENT") {
-      return deepFreeze({});
+  } catch (err: unknown) {
+    if (asCaughtError(err).code === "ENOENT") {
+      return deepFreeze({}) as Record<string, unknown>;
     }
     throw err;
   }
-  return deepFreeze(parseProjectConfig(raw));
+  return deepFreeze(parseProjectConfig(raw)) as Record<string, unknown>;
 }
 
-function deepFreeze(value, seen = new WeakSet()) {
+function deepFreeze(value: unknown, seen: WeakSet<object> = new WeakSet()): unknown {
   if (value === null || typeof value !== "object") {return value;}
   if (seen.has(value)) {return value;}
   seen.add(value);
   Object.freeze(value);
   for (const key of Object.keys(value)) {
-    deepFreeze(value[key], seen);
+    deepFreeze((value as Record<string, unknown>)[key], seen);
   }
   return value;
 }

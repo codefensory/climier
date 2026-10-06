@@ -1,4 +1,3 @@
-
 import path from "node:path";
 
 import {
@@ -9,10 +8,13 @@ import {
 } from "./errors.ts";
 import { loadInstalledPlugin } from "./loader.ts";
 import { assertLocalBackend } from "./remote-guard.ts";
+import type { ApiFactory, PluginApi, PluginBackendClient, PluginCommands } from "./types.ts";
 
 const BOOLEAN_FLAGS = new Set(["all", "force"]);
 
-function consumedFlagValue(argv, index, token) {
+type DispatchApiFactory = ApiFactory;
+
+function consumedFlagValue(argv: string[], index: number, token: string): boolean {
   const eq = token.indexOf("=");
   const key = eq === -1 ? token.slice(2) : token.slice(2, eq);
   if (BOOLEAN_FLAGS.has(key) || eq !== -1) {
@@ -22,7 +24,7 @@ function consumedFlagValue(argv, index, token) {
   return next !== undefined && !String(next).startsWith("--");
 }
 
-function findSubcommandIndex(argv, startIndex) {
+function findSubcommandIndex(argv: string[], startIndex: number): number {
   for (let i = startIndex + 1; i < argv.length; i++) {
     const token = argv[i];
     if (typeof token !== "string" || !token) {
@@ -39,7 +41,7 @@ function findSubcommandIndex(argv, startIndex) {
   return -1;
 }
 
-function findNamespaceIndex(argv, namespace) {
+function findNamespaceIndex(argv: string[], namespace: string): number {
   for (let i = 0; i < argv.length; i++) {
     const token = argv[i];
     if (typeof token !== "string" || !token) {
@@ -58,7 +60,7 @@ function findNamespaceIndex(argv, namespace) {
   return -1;
 }
 
-export function findStripIndices(argv, namespace) {
+export function findStripIndices(argv: string[], namespace: string): number[] {
   const namespaceIndex = findNamespaceIndex(argv, namespace);
   if (namespaceIndex === -1) {
     return [];
@@ -67,12 +69,12 @@ export function findStripIndices(argv, namespace) {
   return subcommandIndex === -1 ? [namespaceIndex] : [namespaceIndex, subcommandIndex];
 }
 
-export function stripAtIndices(argv, indices) {
+export function stripAtIndices(argv: string[], indices: number[]): string[] {
   if (!indices || indices.length === 0) {
     return argv.slice();
   }
   const set = new Set(indices);
-  const out = [];
+  const out: string[] = [];
   for (let i = 0; i < argv.length; i++) {
     if (!set.has(i)) {
       out.push(argv[i]);
@@ -81,7 +83,7 @@ export function stripAtIndices(argv, indices) {
   return out;
 }
 
-export function findFirstFlagValue(argv, flagName) {
+export function findFirstFlagValue(argv: string[], flagName: string): string | null {
   const eqPrefix = `--${flagName}=`;
   const exact = `--${flagName}`;
   for (let i = 0; i < argv.length; i++) {
@@ -91,7 +93,6 @@ export function findFirstFlagValue(argv, flagName) {
       return tok.slice(eqPrefix.length);
     }
     if (tok === exact) {
-
       const next = argv[i + 1];
       if (next !== undefined && !String(next).startsWith("--")) {return next;}
       return null;
@@ -100,7 +101,7 @@ export function findFirstFlagValue(argv, flagName) {
   return null;
 }
 
-export function resolveEffectiveProjectDir(argv, fallback) {
+export function resolveEffectiveProjectDir(argv: string[], fallback: string | undefined): string | undefined {
   const v = findFirstFlagValue(argv || [], "project");
   if (v && String(v).trim()) {
     return path.resolve(String(v).trim());
@@ -108,7 +109,7 @@ export function resolveEffectiveProjectDir(argv, fallback) {
   return fallback;
 }
 
-export function resolveEffectiveAgent(argv, namespace) {
+export function resolveEffectiveAgent(argv: string[], namespace: string): string {
   const v = findFirstFlagValue(argv || [], "as");
   const fromArgv = v && String(v).trim() ? String(v).trim() : "";
   if (fromArgv) {
@@ -122,14 +123,20 @@ export function resolveEffectiveAgent(argv, namespace) {
   throw new PluginAgentMissing(namespace);
 }
 
-function placeholderApiFactory({ projectDir, agent, pluginId }) {
-  const notImpl = (key) => () => {
-    throw new PluginHandlerFailed(
-      pluginId,
-      "(dispatch)",
-      new Error(`api.${key} not implemented yet (plugin API unavailable)`),
-    );
-  };
+const notImplemented = (pluginId: string, key: string) => (..._args: unknown[]): never => {
+  throw new PluginHandlerFailed(
+    pluginId,
+    "(dispatch)",
+    new Error(`api.${key} not implemented yet (plugin API unavailable)`),
+  );
+};
+
+function placeholderApiFactory({ projectDir, agent, pluginId }: {
+  projectDir: string;
+  agent: string;
+  pluginId: string;
+  backendClient: PluginBackendClient;
+}): PluginApi {
   return {
     runtime: {
       project_dir: projectDir,
@@ -137,31 +144,31 @@ function placeholderApiFactory({ projectDir, agent, pluginId }) {
       plugin_id: pluginId,
     },
     query: {
-      node: notImpl("query.node"),
-      context: notImpl("query.context"),
-      status: notImpl("query.status"),
-      history: notImpl("query.history"),
+      node: notImplemented(pluginId, "query.node"),
+      context: notImplemented(pluginId, "query.context"),
+      status: notImplemented(pluginId, "query.status"),
+      history: notImplemented(pluginId, "query.history"),
     },
     data: {
-      node: { get: notImpl("data.node.get"), set: notImpl("data.node.set") },
-      project: { get: notImpl("data.project.get"), set: notImpl("data.project.set") },
+      node: { get: notImplemented(pluginId, "data.node.get"), set: notImplemented(pluginId, "data.node.set") },
+      project: { get: notImplemented(pluginId, "data.project.get"), set: notImplemented(pluginId, "data.project.set") },
     },
   };
 }
 
-let apiFactory = null;
+let apiFactory: DispatchApiFactory | null = null;
 let apiFactoryResolved = false;
-async function loadApiFactory() {
+async function loadApiFactory(): Promise<DispatchApiFactory> {
   if (apiFactoryResolved) {
-    return apiFactory;
+    return apiFactory || placeholderApiFactory;
   }
   try {
     const mod = await import("./api.ts");
-    if (mod && typeof mod.createApi === "function") {
+    if (typeof mod.createApi === "function") {
       apiFactory = mod.createApi;
     }
   } catch {
-
+    // The placeholder keeps dispatch errors within the plugin API contract.
   }
   apiFactoryResolved = true;
   if (!apiFactory) {
@@ -170,23 +177,29 @@ async function loadApiFactory() {
   return apiFactory;
 }
 
-function resetApiFactoryForTests() {
+function resetApiFactoryForTests(): void {
   apiFactory = null;
   apiFactoryResolved = false;
 }
 
 export { resetApiFactoryForTests as _resetApiFactoryForTests };
 
-function validateSubcommand(commands, namespace, subcommand) {
+function validateSubcommand(commands: PluginCommands, namespace: string, subcommand: unknown): asserts subcommand is string {
   if (!subcommand || typeof subcommand !== "string" || typeof commands[subcommand] !== "function") {
-    throw new PluginSubcommandNotFound(namespace, subcommand ?? null);
+    throw new PluginSubcommandNotFound(namespace, typeof subcommand === "string" ? subcommand : null);
   }
 }
 
-async function invokePluginHandler({ commands, subcommand, namespace, tokens, api }) {
+async function invokePluginHandler({ commands, subcommand, namespace, tokens, api }: {
+  commands: PluginCommands;
+  subcommand: string;
+  namespace: string;
+  tokens: string[];
+  api: PluginApi;
+}): Promise<unknown> {
   try {
     return await commands[subcommand](tokens, api);
-  } catch (err) {
+  } catch (err: unknown) {
     if (isPluginError(err)) {
       throw err;
     }
@@ -198,19 +211,32 @@ export async function dispatchPlugin({
   originalArgv,
   namespace,
   projectDir,
-  flags = {}, // eslint-disable-line no-unused-vars
+  flags = {},
   createApi: createApiInjected,
   backendClient,
-} = {}) {
+}: {
+  originalArgv?: string[];
+  namespace?: string;
+  projectDir?: string;
+  flags?: Record<string, unknown>;
+  createApi?: ApiFactory;
+  backendClient: PluginBackendClient;
+}): Promise<unknown> {
   assertLocalBackend(backendClient, "dispatchPlugin");
+  if (typeof namespace !== "string" || !namespace) {
+    throw new Error("dispatchPlugin: namespace required");
+  }
   const { pluginId, commands } = await loadInstalledPlugin(namespace);
   const argv = originalArgv || [];
   const indices = findStripIndices(argv, namespace);
   const subcommand = indices.length >= 2 ? argv[indices[1]] : null;
   validateSubcommand(commands, namespace, subcommand);
   const forwardedTokens = stripAtIndices(argv, indices);
-  const effectiveProjectDir = resolveEffectiveProjectDir(originalArgv, projectDir);
-  const agent = resolveEffectiveAgent(originalArgv, namespace);
+  const effectiveProjectDir = resolveEffectiveProjectDir(originalArgv || [], projectDir);
+  if (!effectiveProjectDir) {
+    throw new Error("dispatchPlugin: projectDir required");
+  }
+  const agent = resolveEffectiveAgent(originalArgv || [], namespace);
   const createApi = createApiInjected || (await loadApiFactory());
   const api = createApi({ projectDir: effectiveProjectDir, agent, pluginId, backendClient });
   return invokePluginHandler({ commands, subcommand, namespace, tokens: forwardedTokens, api });

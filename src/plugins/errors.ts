@@ -1,12 +1,20 @@
-
+import type { ErrorCode } from "../contracts/errors.ts";
 import { makeError } from "../contracts/errors.ts";
+import { isRecord } from "../application/types.ts";
 
-export function pluginErrorEnvelope(code, message, details) {
+type PluginDetails = Record<string, unknown>;
+type PluginErrorShape = Error & { code?: string; details?: unknown };
+
+export function pluginErrorEnvelope(code: ErrorCode, message: string, details: PluginDetails = {}): ReturnType<typeof makeError> {
   return makeError(code, message, details);
 }
 
 export class PluginError extends Error {
-  constructor(code, message, details = {}) {
+  readonly code: ErrorCode;
+  details: PluginDetails;
+  toJSON: () => ReturnType<typeof pluginErrorEnvelope>;
+
+  constructor(code: ErrorCode, message: string, details: PluginDetails = {}) {
     super(message);
     this.name = "PluginError";
     this.code = code;
@@ -16,7 +24,7 @@ export class PluginError extends Error {
 }
 
 export class PluginSubcommandNotFound extends PluginError {
-  constructor(namespace, subcommand) {
+  constructor(namespace: string, subcommand: string | null) {
     super(
       "PLUGIN_SUBCOMMAND_NOT_FOUND",
       `plugin-dispatch: namespace '${namespace}' has no subcommand '${subcommand ?? ""}'`,
@@ -25,8 +33,11 @@ export class PluginSubcommandNotFound extends PluginError {
   }
 }
 
-function errorMessage(cause) {
-  if (cause && cause.message) {
+function errorMessage(cause: unknown): string {
+  if (cause instanceof Error) {
+    return cause.message;
+  }
+  if (isRecord(cause) && typeof cause.message === "string") {
     return cause.message;
   }
   if (typeof cause === "string") {
@@ -36,7 +47,7 @@ function errorMessage(cause) {
 }
 
 export class PluginHandlerFailed extends PluginError {
-  constructor(namespace, subcommand, cause) {
+  constructor(namespace: string, subcommand: string, cause: unknown) {
     const causeMessage = errorMessage(cause);
     super(
       "PLUGIN_HANDLER_FAILED",
@@ -52,7 +63,7 @@ export class PluginHandlerFailed extends PluginError {
 }
 
 export class PluginAgentMissing extends PluginHandlerFailed {
-  constructor(namespace) {
+  constructor(namespace: string) {
     super(namespace, "(dispatch)", new Error("agent required (pass --as <agent> or set CLIMIER_AGENT)"));
 
     this.details = {
@@ -64,17 +75,17 @@ export class PluginAgentMissing extends PluginHandlerFailed {
   }
 }
 
-export function throwPluginError(code, message, details) {
-  const err = new Error(message);
+export function throwPluginError(code: ErrorCode, message: string, details: PluginDetails = {}): never {
+  const err = new Error(message) as PluginErrorShape & { toJSON: () => ReturnType<typeof pluginErrorEnvelope> };
   err.code = code;
   err.details = details;
   err.toJSON = () => pluginErrorEnvelope(code, message, details);
   throw err;
 }
 
-export function isPluginError(err) {
-  return (
-    err &&
+export function isPluginError(err: unknown): err is PluginErrorShape {
+  return Boolean(
+    isRecord(err) &&
     typeof err.code === "string" &&
     err.code.startsWith("PLUGIN_") &&
     err.details !== undefined
@@ -82,7 +93,7 @@ export function isPluginError(err) {
 }
 
 export class PluginCoreInvalidOperation extends PluginError {
-  constructor(pluginId, op, supported, reason) {
+  constructor(pluginId: string, op: string, supported: unknown, reason: unknown) {
     super(
       "PLUGIN_CORE_INVALID_OPERATION",
       `plugin-core: operation '${op}' is not supported`,
@@ -97,7 +108,7 @@ export class PluginCoreInvalidOperation extends PluginError {
 }
 
 export class PluginCoreActionFailed extends PluginError {
-  constructor(pluginId, op, cause) {
+  constructor(pluginId: string, op: string, cause: unknown) {
     const causeObj = normalizeCoreCause(cause);
     super(
       "PLUGIN_CORE_ACTION_FAILED",
@@ -111,8 +122,8 @@ export class PluginCoreActionFailed extends PluginError {
   }
 }
 
-function normalizeCoreCause(cause) {
-  if (cause && typeof cause.code === "string" && cause.details !== undefined) {
+function normalizeCoreCause(cause: unknown): { code: string; message: string; details: PluginDetails } {
+  if (isRecord(cause) && typeof cause.code === "string" && cause.details !== undefined) {
     return {
       code: cause.code,
       message: typeof cause.message === "string" ? cause.message : String(cause.message ?? ""),
@@ -123,8 +134,8 @@ function normalizeCoreCause(cause) {
   return { code: "CORE_ERROR", message: errorMessage(cause), details: {} };
 }
 
-function safeDetails(details) {
-  if (details === null || details === undefined) {return {};}
+function safeDetails(details: unknown): PluginDetails {
+  if (!isRecord(details)) {return {};}
   try {
     JSON.parse(JSON.stringify(details));
     return details;
@@ -133,25 +144,25 @@ function safeDetails(details) {
   }
 }
 
-export function wrapCoreError(pluginId, op, err) {
+export function wrapCoreError(pluginId: string, op: string, err: unknown): PluginCoreActionFailed {
   return new PluginCoreActionFailed(pluginId, op, err);
 }
 
-export function isPluginCoreError(err) {
+export function isPluginCoreError(err: unknown): boolean {
   return Boolean(
-    err &&
+    isPluginError(err) &&
     typeof err.code === "string" &&
     err.code.startsWith("PLUGIN_CORE_") &&
     err.details !== undefined,
   );
 }
 
-function normalizePolicyCause(cause) {
+function normalizePolicyCause(cause: unknown): { code: string | null; message: string | null } {
   if (!cause) {return { code: null, message: null };}
   if (typeof cause === "string") {
     return { code: null, message: cause };
   }
-  if (typeof cause === "object") {
+  if (isRecord(cause)) {
     return {
       code: typeof cause.code === "string" ? cause.code : null,
       message: typeof cause.message === "string" ? cause.message : null,
@@ -161,7 +172,7 @@ function normalizePolicyCause(cause) {
 }
 
 export class PolicyDenied extends PluginError {
-  constructor(pluginId, action, actor, reason) {
+  constructor(pluginId: string, action: string, actor: string, reason: unknown) {
     super(
       "POLICY_DENIED",
       `policy: plugin '${pluginId}' denied action '${action}' for actor '${actor}': ${reason}`,
@@ -177,7 +188,7 @@ export class PolicyDenied extends PluginError {
 }
 
 export class PolicyError extends PluginError {
-  constructor(pluginId, action, cause) {
+  constructor(pluginId: string, action: string, cause: unknown) {
     const normalized = normalizePolicyCause(cause);
     const causeMessage = normalized.message ?? "(unknown)";
     super(
@@ -195,7 +206,7 @@ export class PolicyError extends PluginError {
 }
 
 export class PolicyConflict extends PluginError {
-  constructor(pluginIds, namespaces, causeMessage = null) {
+  constructor(pluginIds: unknown, namespaces: unknown, causeMessage: string | null = null) {
     const ids = Array.isArray(pluginIds) ? pluginIds.slice() : [];
     const ns = Array.isArray(namespaces) ? namespaces.slice() : [];
     const reason = causeMessage
