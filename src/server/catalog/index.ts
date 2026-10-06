@@ -1,10 +1,20 @@
 import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { errorProperties, isRecord } from "../types.ts";
+
+type ProjectMetadata = {
+  version?: unknown;
+  project_id?: unknown;
+  source_project_id?: unknown;
+  name?: unknown;
+};
+type ListedMetadata = ProjectMetadata & { source_project_id: string; name: string | null };
+type ListedProject = ListedMetadata & { projectDir: string };
 
 const PROJECT_METADATA_FILE = ".climier.json";
 
-function contractError(code, message) {
+function contractError(code: string, message: string) {
   return Object.assign(new Error(`server catalog: ${message}`), { code });
 }
 
@@ -26,14 +36,15 @@ function projectDirectoryName(projectId) {
   return createHash("sha256").update(projectId, "utf8").digest("hex");
 }
 
-function throwProjectResolutionError(error, create) {
-  if (error.code === "ENOENT" && !create) {
+function throwProjectResolutionError(error: unknown, create: boolean): never {
+  const properties = errorProperties(error);
+  if (properties.code === "ENOENT" && !create) {
     throw contractError("UNKNOWN_PROJECT", "project is not provisioned");
   }
   throw error;
 }
 
-async function resolveRoot(dataRoot, create) {
+async function resolveRoot(dataRoot: string, create: boolean): Promise<string> {
   const root = path.resolve(dataRoot);
   if (create) {
     await fs.mkdir(root, { recursive: true, mode: 0o700 });
@@ -45,17 +56,17 @@ async function resolveRoot(dataRoot, create) {
   }
 }
 
-async function createProjectDirectory(expectedPath) {
+async function createProjectDirectory(expectedPath: string) {
   try {
     await fs.mkdir(expectedPath, { recursive: false, mode: 0o700 });
   } catch (error) {
-    if (error.code !== "EEXIST") {
+    if (errorProperties(error).code !== "EEXIST") {
       throw error;
     }
   }
 }
 
-async function inspectProjectDirectory(expectedPath, create) {
+async function inspectProjectDirectory(expectedPath: string, create: boolean): Promise<{ projectReal: string; info: Awaited<ReturnType<typeof fs.lstat>> }> {
   try {
     const [projectReal, info] = await Promise.all([
       fs.realpath(expectedPath),
@@ -67,7 +78,7 @@ async function inspectProjectDirectory(expectedPath, create) {
   }
 }
 
-async function ensureConfinedDirectory(dataRoot, storagePath, { create }) {
+async function ensureConfinedDirectory(dataRoot: string, storagePath: string, { create }: { create: boolean }) {
   const rootReal = await resolveRoot(dataRoot, create);
   const expectedPath = path.join(rootReal, path.basename(storagePath));
   if (storagePath !== expectedPath) {
@@ -85,7 +96,7 @@ async function ensureConfinedDirectory(dataRoot, storagePath, { create }) {
   return expectedPath;
 }
 
-function metadataFor(projectId, name) {
+function metadataFor(projectId: string, name?: string) {
   return {
     version: 1,
     project_id: projectDirectoryName(projectId),
@@ -94,7 +105,7 @@ function metadataFor(projectId, name) {
   };
 }
 
-async function createMetadataIfMissing(projectDir, projectId, name) {
+async function createMetadataIfMissing(projectDir: string, projectId: string, name?: string) {
   const metadataFile = path.join(projectDir, PROJECT_METADATA_FILE);
   const raw = `${JSON.stringify(metadataFor(projectId, name), null, 2)}\n`;
   try {
@@ -105,13 +116,13 @@ async function createMetadataIfMissing(projectDir, projectId, name) {
       await handle.close();
     }
   } catch (error) {
-    if (error.code !== "EEXIST") {
+    if (errorProperties(error).code !== "EEXIST") {
       throw error;
     }
   }
 }
 
-async function readMetadataForListing(metadataFile) {
+async function readMetadataForListing(metadataFile: string): Promise<ProjectMetadata | null> {
   let info;
   try {
     info = await fs.lstat(metadataFile);
@@ -123,8 +134,8 @@ async function readMetadataForListing(metadataFile) {
   }
 
   try {
-    const metadata = JSON.parse(await fs.readFile(metadataFile, "utf8"));
-    if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    const metadata: unknown = JSON.parse(await fs.readFile(metadataFile, "utf8"));
+    if (!isRecord(metadata)) {
       return null;
     }
     return metadata;
@@ -133,8 +144,8 @@ async function readMetadataForListing(metadataFile) {
   }
 }
 
-function validListedMetadata(metadata, directoryName) {
-  if (metadata?.version !== 1 || metadata.project_id !== directoryName) {
+function validListedMetadata(metadata: ProjectMetadata | null, directoryName: string): ListedMetadata | null {
+  if (metadata?.version !== 1 || metadata.project_id !== directoryName || typeof metadata.source_project_id !== "string") {
     return null;
   }
   try {
@@ -150,23 +161,24 @@ function validListedMetadata(metadata, directoryName) {
   }
   return {
     ...metadata,
+    source_project_id: metadata.source_project_id,
     name: metadata.name ?? null,
   };
 }
 
-export function createProjectCatalog({ dataRoot } = {}) {
+export function createProjectCatalog({ dataRoot }: { dataRoot?: string } = {}) {
   if (typeof dataRoot !== "string" || dataRoot.length === 0) {
     throw contractError("INVALID_DATA_ROOT", "dataRoot must be a non-empty path");
   }
   const rootPath = path.resolve(dataRoot);
-  const storagePathFor = (projectId) => path.join(rootPath, projectDirectoryName(projectId));
+  const storagePathFor = (projectId: string) => path.join(rootPath, projectDirectoryName(projectId));
 
-  async function resolveProject(projectId) {
+  async function resolveProject(projectId: string) {
     validateProjectId(projectId);
     return ensureConfinedDirectory(rootPath, storagePathFor(projectId), { create: false });
   }
 
-  async function provisionProject(projectId, { name } = {}) {
+  async function provisionProject(projectId: string, { name }: { name?: string } = {}) {
     validateProjectId(projectId);
     if (name !== undefined && typeof name !== "string") {
       throw contractError("INVALID_PROJECT_NAME", "project name must be a string");
@@ -176,12 +188,12 @@ export function createProjectCatalog({ dataRoot } = {}) {
     return projectDir;
   }
 
-  async function listProjects() {
+  async function listProjects(): Promise<ListedProject[]> {
     let rootReal;
     try {
       rootReal = await fs.realpath(rootPath);
     } catch (error) {
-      if (error.code === "ENOENT") {
+      if (errorProperties(error).code === "ENOENT") {
         return [];
       }
       throw error;
@@ -191,13 +203,13 @@ export function createProjectCatalog({ dataRoot } = {}) {
     try {
       entries = await fs.readdir(rootReal);
     } catch (error) {
-      if (error.code === "ENOENT") {
+      if (errorProperties(error).code === "ENOENT") {
         return [];
       }
       throw error;
     }
 
-    const projects = [];
+    const projects: ListedProject[] = [];
     for (const directoryName of entries) {
       const projectDir = path.join(rootReal, directoryName);
       let projectReal;

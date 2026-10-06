@@ -8,6 +8,17 @@ import { createRemoteApiServer } from "./http.ts";
 import { loadServerRuntimeConfig, parseServerRuntimeConfig } from "./runtime-config.ts";
 import { createServerAuthStore } from "./auth/server-auth-store.ts";
 import { acquireServerServiceLock } from "./service-lock.ts";
+import { errorProperties } from "./types.ts";
+
+type RuntimeOptions = {
+  serverFactory?: typeof createRemoteApiServer;
+  authStore?: Awaited<ReturnType<typeof createServerAuthStore>>;
+  acquireLock?: typeof acquireServerServiceLock;
+  createAuthStore?: typeof createServerAuthStore;
+  password?: string;
+  now?: () => Date;
+  authTestHooks?: { beforeRename?: (temporary: string, target: string) => Promise<void> };
+};
 
 const DEFAULT_UI_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "ui", "dist");
 
@@ -44,10 +55,10 @@ async function validateMetadataFile(metadataFile) {
     }
     return JSON.parse(await fs.readFile(metadataFile, "utf8"));
   } catch (error) {
-    if (error.code === "ENOENT") {
+    if (errorProperties(error).code === "ENOENT") {
       return null;
     }
-    if (error.code === "UNTRUSTED_PROJECT_METADATA") {
+    if (errorProperties(error).code === "UNTRUSTED_PROJECT_METADATA") {
       throw error;
     }
     throw runtimeError("UNTRUSTED_PROJECT_METADATA", "project metadata is corrupt or unreadable");
@@ -69,7 +80,7 @@ async function createMetadataFile(metadataFile, expectedProjectId, sourceProject
       await handle.close();
     }
   } catch (error) {
-    if (error.code !== "EEXIST") {
+    if (errorProperties(error).code !== "EEXIST") {
       throw error;
     }
   }
@@ -115,21 +126,21 @@ async function ensureProjectMetadata(metadataFile, expectedProjectId, { create, 
   await initializeProjectMetadata(metadataFile, expectedProjectId, sourceProjectId);
 }
 
-function createOpenProject({ catalog, pinnedHome }) {
-  return async function openProject(projectDir, { projectId, create = false } = {}) {
+function createOpenProject({ catalog, pinnedHome }: { catalog: ReturnType<typeof createProjectCatalog>; pinnedHome: ReturnType<typeof pinStateHome> }) {
+  return async function openProject(projectDir: string, { projectId, create = false }: { projectId?: string; create?: boolean } = {}) {
     pinnedHome.assertPinned();
-    const trustedDirectory = create ? await catalog.provisionProject(projectId) : await catalog.resolveProject(projectId);
+    const trustedDirectory = create ? await catalog.provisionProject(projectId as string) : await catalog.resolveProject(projectId as string);
     if (path.resolve(projectDir) !== trustedDirectory) {
       throw runtimeError("UNSAFE_PROJECT_STORAGE", "project opener only accepts catalog-resolved storage");
     }
     const metadataFile = path.join(trustedDirectory, ".climier.json");
-    await ensureProjectMetadata(metadataFile, internalProjectId(projectId), { create, sourceProjectId: projectId });
+    await ensureProjectMetadata(metadataFile, internalProjectId(projectId as string), { create, sourceProjectId: projectId as string });
     pinnedHome.assertPinned();
     return Object.freeze({ projectDir: trustedDirectory });
   };
 }
 
-export function createServerRuntime(rawConfig, { serverFactory = createRemoteApiServer, authStore } = {}) {
+export function createServerRuntime(rawConfig: unknown, { serverFactory = createRemoteApiServer, authStore }: RuntimeOptions = {}) {
   const parsedConfig = parseServerRuntimeConfig(rawConfig);
   const config = Object.freeze({ ...parsedConfig, uiRoot: parsedConfig.uiRoot ?? DEFAULT_UI_ROOT });
   const pinnedHome = pinStateHome(config.stateHome);
@@ -146,7 +157,7 @@ async function preparePrivateDirectory(directory) {
   }
 }
 
-export async function startServerRuntime(configPath, options = {}) {
+export async function startServerRuntime(configPath: string, options: RuntimeOptions = {}) {
   const config = await loadServerRuntimeConfig(configPath);
   process.env.CLIMIER_HOME = path.resolve(config.stateHome);
   await preparePrivateDirectory(config.stateHome);

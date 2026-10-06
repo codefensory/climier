@@ -1,5 +1,6 @@
 import { brotliCompress, constants as zlibConstants, gzip } from "node:zlib";
 import { promisify } from "node:util";
+import { isRecord, type ServerError } from "../types.ts";
 
 import {
   projectUiActivity,
@@ -11,14 +12,24 @@ const compressBrotli = promisify(brotliCompress);
 const compressGzip = promisify(gzip);
 const BROTLI_QUALITY = 5;
 
-const UI_ROUTES = [
+type UiRoute = { kind: string; id?: string; allowedQuery: readonly string[] };
+type UiApiOptions = {
+  getProject: (projectId: string, options?: unknown) => Promise<unknown>;
+  authorize: (request: unknown, options?: unknown) => Promise<void>;
+  readSnapshot: (project: { projectDir: string }, options?: unknown) => Promise<unknown>;
+  clock?: () => number;
+};
+
+type UiReadOptions = { request?: unknown; projectId?: string; now?: number };
+
+const UI_ROUTES: readonly [string, RegExp, readonly string[]][] = [
   ["snapshot", /^ui\/snapshot$/, []],
   ["node", /^ui\/nodes\/([^/]+)$/, []],
   ["activity", /^ui\/activity$/, ["limit", "offset", "action", "agent", "node", "q", "initiative"]],
 ];
 
 function uiError(code, message, details, status) {
-  const error = new Error(message);
+  const error = new Error(message) as ServerError;
   error.code = code;
   error.status = status;
   if (details !== undefined) {
@@ -31,7 +42,7 @@ function invalidQuery(message, details) {
   return uiError("INVALID_QUERY", `server http: ${message}`, details, 400);
 }
 
-function matchUiRoute(route, decode = decodeURIComponent) {
+function matchUiRoute(route: string, decode = decodeURIComponent): UiRoute | null {
   for (const [kind, pattern, allowedQuery] of UI_ROUTES) {
     const match = pattern.exec(route);
     if (!match) {
@@ -62,7 +73,7 @@ function parseNonNegativeInteger(value, parameter) {
   return parsed;
 }
 
-function parseUiQuery(url, route) {
+function parseUiQuery(url: string | URL, route: UiRoute | null) {
   const searchParams = typeof url === "string"
     ? new URL(url, "http://localhost").searchParams
     : url?.searchParams;
@@ -100,8 +111,8 @@ function requireDependencies({ getProject, authorize, readSnapshot }) {
 }
 
 function routeProject(project, projectId) {
-  if (project && typeof project === "object") {
-    return { ...project, id: project.id ?? project.project_id ?? projectId };
+  if (isRecord(project)) {
+    return { ...project, id: typeof project.id === "string" ? project.id : typeof project.project_id === "string" ? project.project_id : projectId };
   }
   return { id: projectId, name: projectId, value: project };
 }
@@ -177,7 +188,7 @@ async function cachedCompressedBody(cache, encoding) {
   }
 }
 
-export function createUiApi({ getProject, authorize, readSnapshot, clock = Date.now } = {}) {
+export function createUiApi({ getProject, authorize, readSnapshot, clock = Date.now }: UiApiOptions = {} as UiApiOptions) {
   requireDependencies({ getProject, authorize, readSnapshot });
   if (typeof clock !== "function") {
     throw new TypeError("server http ui: clock must be a function");
@@ -185,14 +196,14 @@ export function createUiApi({ getProject, authorize, readSnapshot, clock = Date.
 
   let snapshotCache;
 
-  async function load({ request, projectId, now } = {}) {
+  async function load({ request, projectId, now }: UiReadOptions = {}) {
     await authorize(request, { projectId });
-    const project = await getProject(projectId, { request });
+    const project = await getProject(projectId!, { request });
     if (!project) {
       throw uiError("UNKNOWN_PROJECT", "server http: project is not provisioned", { projectId }, 404);
     }
     const resolvedProject = routeProject(project, projectId);
-    const snapshot = await readSnapshot(resolvedProject, { request, projectId });
+    const snapshot = await readSnapshot(resolvedProject as unknown as { projectDir: string }, { request, projectId });
     if (!snapshot) {
       throw uiError("STATE_NOT_INITIALIZED", "server http: project state is not initialized", undefined, 409);
     }
@@ -216,15 +227,15 @@ export function createUiApi({ getProject, authorize, readSnapshot, clock = Date.
     return view;
   }
 
-  async function read({ request, projectId, route, query = {}, now } = {}) {
+  async function read({ request, projectId, route, query = {}, now }: UiReadOptions & { route?: UiRoute | null; query?: Record<string, unknown> } = {}) {
     const loaded = await load({ request, projectId, now });
     return projectResult({ ...loaded, route, query });
   }
 
-  async function readSnapshotResponse({ request, projectId, now } = {}) {
+  async function readSnapshotResponse({ request, projectId, now }: UiReadOptions = {}) {
     const loaded = await load({ request, projectId, now });
     const result = projectResult({ ...loaded, route: { kind: "snapshot" }, query: {} });
-    const revision = result.project.revision;
+    const revision = (result as { project: { revision: number } }).project.revision;
     const etag = `"${revision}"`;
     const baseHeaders = {
       etag,

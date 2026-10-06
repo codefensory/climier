@@ -1,4 +1,15 @@
-const READ_ROUTES = [
+type ReadRoute = { kind: string; id?: string; query?: string; allowedQuery: readonly string[] };
+type ReadDependencies = {
+  httpError: (code: string, message: string, details?: unknown, status?: number) => Error;
+  routing: { decodeURIComponent: (value: string) => string };
+  query: { searchParams: (url: URL) => Iterable<[string, string]> };
+  deps: Record<string, (args?: unknown) => unknown>;
+  clock?: () => number;
+};
+
+type ReadOptions = Partial<ReadDependencies>;
+
+const READ_ROUTES: readonly [string, RegExp, readonly string[]][] = [
   ["status", /^read\/status$/, ["initiative", "kind", "status", "domain", "claimed-by", "stale-ms", "limit", "all", "as"]],
   ["context", /^read\/context\/([^/]+)$/, ["as", "staleMs"]],
   ["show", /^read\/show\/([^/]+)$/, []],
@@ -24,7 +35,7 @@ function requireDependencies({ httpError, routing, query, deps, clock }) {
   }
 }
 
-function matchReadRoute(route, routing, httpError) {
+function matchReadRoute(route: string, routing: ReadDependencies["routing"], httpError: ReadDependencies["httpError"]): ReadRoute | null {
   for (const [kind, pattern, allowedQuery] of READ_ROUTES) {
     const match = pattern.exec(route);
     if (!match) {
@@ -65,7 +76,7 @@ function parseAll(parsed, httpError) {
   parsed.all = parsed.all === "true";
 }
 
-function parseNonNegativeInt(parsed, name, httpError, options = {}) {
+function parseNonNegativeInt(parsed, name, httpError, options: { number?: boolean } = {}) {
   const { number = false } = options;
   if (!Object.hasOwn(parsed, name)) {
     return;
@@ -198,11 +209,11 @@ function projectReadResult({ snapshot, route, query: filters, now }, projectors)
   return project(snapshot, route, filters, now);
 }
 
-export function createHttpReads({ httpError, routing, query, deps, clock = Date.now } = {}) {
+export function createHttpReads({ httpError, routing, query, deps, clock = Date.now }: ReadOptions = {}) {
   requireDependencies({ httpError, routing, query, deps, clock });
   const projectors = createProjectors({ deps, httpError });
   return {
-    matchReadRoute: (route) => matchReadRoute(route, routing, httpError),
+    matchReadRoute: (route) => matchReadRoute(route, routing!, httpError!),
     parseReadQuery: (url, route) => parseReadQuery(url, route, query, httpError),
     projectReadResult: (input) => projectReadResult({ ...input, now: input.now ?? clock() }, projectors),
   };

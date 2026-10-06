@@ -2,11 +2,12 @@ import fs from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 import net from "node:net";
 import path from "node:path";
+import { errorProperties, isRecord } from "./types.ts";
 
 const CONFIG_FIELDS = new Set(["listen", "dataRoot", "stateHome", "uiRoot"]);
 const LISTEN_FIELDS = new Set(["host", "port"]);
 
-function invalid(message, cause) {
+function invalid(message: string, cause?: unknown) {
   return Object.assign(new Error(`server config: ${message}`, cause ? { cause } : undefined), {
     code: "INVALID_SERVER_CONFIG",
   });
@@ -91,18 +92,20 @@ async function readConfigText(configPath) {
       await handle.close();
     }
   } catch (error) {
-    if (error.code === "INVALID_SERVER_CONFIG") {
+    if (errorProperties(error).code === "INVALID_SERVER_CONFIG") {
       throw error;
     }
-    throw invalid(`cannot read configuration file: ${error.message}`, error);
+    throw invalid(`cannot read configuration file: ${errorProperties(error).message}`, error);
   }
 }
 
 function parseConfigJson(text) {
   try {
-    return JSON.parse(text);
+    const parsed: unknown = JSON.parse(text);
+    if (!isRecord(parsed)) return parsed;
+    return parsed;
   } catch (error) {
-    throw invalid(`configuration is not valid JSON: ${error.message}`, error);
+    throw invalid(`configuration is not valid JSON: ${errorProperties(error).message}`, error);
   }
 }
 

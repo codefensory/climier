@@ -1,4 +1,5 @@
 import net from "node:net";
+import type { Headers, ServerError } from "../types.ts";
 
 const DEFAULT_MAX_FAILURES = 5;
 const DEFAULT_WINDOW_MS = 15 * 60 * 1000;
@@ -43,7 +44,16 @@ function forwardedAddress(header) {
   return normalizedAddress(parts[0]);
 }
 
-export function loginClientAddress(request) {
+type LoginRequest = { socket?: { remoteAddress?: unknown }; headers?: Headers };
+
+type RateLimiterOptions = {
+  now?: () => number;
+  maxFailures?: number;
+  windowMs?: number;
+  lockMs?: number;
+};
+
+export function loginClientAddress(request: LoginRequest) {
   const peer = normalizedAddress(request?.socket?.remoteAddress) || "unknown";
   if (!isLoopbackAddress(peer)) {
     return peer;
@@ -52,7 +62,7 @@ export function loginClientAddress(request) {
 }
 
 function rateLimitedError(retryAfterMs) {
-  const error = new Error("server http: login rate limit exceeded");
+  const error = new Error("server http: login rate limit exceeded") as ServerError;
   error.code = "AUTH_RATE_LIMITED";
   error.status = 429;
   error.details = { retry_after_ms: Math.max(0, retryAfterMs) };
@@ -64,7 +74,7 @@ export function createLoginRateLimiter({
   maxFailures = DEFAULT_MAX_FAILURES,
   windowMs = DEFAULT_WINDOW_MS,
   lockMs = DEFAULT_LOCK_MS,
-} = {}) {
+}: RateLimiterOptions = {}) {
   const entries = new Map();
   const currentTime = () => Number(now());
 

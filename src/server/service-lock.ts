@@ -1,8 +1,9 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { errorProperties } from "./types.ts";
 
 function serverAlreadyRunning(lockPath, lock) {
-  const error = new Error(`server: another instance already holds ${lockPath}`);
+  const error = new Error(`server: another instance already holds ${lockPath}`) as import("./types.ts").ServerError;
   error.code = "SERVER_ALREADY_RUNNING";
   error.details = { lockPath, lock };
   return error;
@@ -13,7 +14,7 @@ async function readExistingLock(lockPath) {
     const raw = await fs.readFile(lockPath, "utf8");
     return JSON.parse(raw);
   } catch (error) {
-    if (error.code === "ENOENT") {
+    if (errorProperties(error).code === "ENOENT") {
       return null;
     }
     if (error instanceof SyntaxError) {
@@ -23,7 +24,7 @@ async function readExistingLock(lockPath) {
   }
 }
 
-export async function acquireServerServiceLock(stateHome, opts = {}) {
+export async function acquireServerServiceLock(stateHome: string, opts: { pid?: number; now?: () => Date } = {}) {
   if (typeof stateHome !== "string" || !stateHome.trim()) {
     throw new TypeError("server lock: stateHome is required");
   }
@@ -42,7 +43,7 @@ export async function acquireServerServiceLock(stateHome, opts = {}) {
     if (handle) {
       await handle.close().catch(() => {});
     }
-    if (error.code === "EEXIST") {
+    if (errorProperties(error).code === "EEXIST") {
       throw serverAlreadyRunning(lockPath, await readExistingLock(lockPath));
     }
     throw error;
@@ -59,7 +60,7 @@ export async function acquireServerServiceLock(stateHome, opts = {}) {
       released = true;
       await handle.close();
       await fs.unlink(lockPath).catch((error) => {
-        if (error.code !== "ENOENT") {
+        if (errorProperties(error).code !== "ENOENT") {
           throw error;
         }
       });

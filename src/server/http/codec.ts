@@ -1,3 +1,11 @@
+import { errorProperties, type Headers, type ServerError } from "../types.ts";
+
+type CodecOptions = { protocolVersion?: string; maxBodyBytes?: number | string };
+type HttpRequest = { headers: Headers; [Symbol.asyncIterator](): AsyncIterator<Buffer> };
+type HttpResponse = { writeHead(status: number, headers: Record<string, string | number>): void; end(body?: string): void };
+type HttpErrorFactory = (code: string, message: string, details?: unknown, status?: number) => ServerError;
+type RouteDefinition = readonly [string, RegExp, readonly string[]];
+
 const DEFAULT_MAX_BODY_BYTES = 1024 * 1024;
 const MAX_CONFIGURED_BODY_BYTES = 32 * 1024 * 1024;
 
@@ -33,11 +41,11 @@ const NOT_FOUND_CODES = new Set(["OPERATION_NOT_FOUND", "NODE_NOT_FOUND", "INITI
 const FIXED_ERROR_STATUSES = new Map([["UNKNOWN_PROJECT", 404], ["INVALID_PROJECT_ID", 400], ["SERVER_ALREADY_RUNNING", 409]]);
 const FORBIDDEN_CODES = new Set(["PROJECT_SCOPE_DENIED", "POLICY_DENIED"]);
 
-function httpError(code, message, details, status) {
-  const error = new Error(message);
+function httpError(code: string, message: string, details?: unknown, status?: number) {
+  const error = new Error(message) as ServerError;
   error.code = code;
   if (details !== undefined) {
-    error.details = details;
+    error.details = details as Record<string, unknown>;
   }
   error.status = status;
   return error;
@@ -72,17 +80,18 @@ function hasValidationCodePrefix(code) {
     && ["MISSING_", "INVALID_", "SELF_", "DUPLICATE_", "NOT_READY"].some((prefix) => code.startsWith(prefix));
 }
 
-function jsonError(error) {
-  const code = typeof error?.code === "string" ? error.code : "INTERNAL_ERROR";
-  const message = typeof error?.message === "string" ? error.message : "server http: request failed";
-  const body = { ok: false, error: { code, message } };
-  if (error?.details !== undefined) {
-    body.error.details = error.details;
+function jsonError(error: unknown) {
+  const properties = errorProperties(error);
+  const code = typeof properties.code === "string" ? properties.code : "INTERNAL_ERROR";
+  const message = typeof properties.message === "string" ? properties.message : "server http: request failed";
+  const body: { ok: false; error: { code: string; message: string; details?: Record<string, unknown> } } = { ok: false, error: { code, message } };
+  if (properties.details !== undefined) {
+    body.error.details = properties.details;
   }
   return body;
 }
 
-function send(response, status, body, options) {
+function send(response: HttpResponse, status: number, body: unknown, options: { headers?: Record<string, string | number>; protocolVersion: string }) {
   const { headers = {}, protocolVersion } = options;
   const data = JSON.stringify(body);
   response.writeHead(status, {
@@ -109,12 +118,12 @@ function parseProjectPath(pathname, decode, makeHttpError) {
   return { projectId, route: match[2] || "" };
 }
 
-async function readJsonBody(request, makeHttpError, maxBodyBytes) {
+async function readJsonBody(request: HttpRequest, makeHttpError: HttpErrorFactory, maxBodyBytes: number) {
   const contentType = String(request.headers["content-type"] || "").toLowerCase().split(";")[0].trim();
   if (!contentType.includes("application/json")) {
     throw makeHttpError("UNSUPPORTED_MEDIA_TYPE", "server http: Content-Type must be application/json", undefined, 415);
   }
-  const chunks = [];
+  const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of request) {
     size += chunk.length;
@@ -130,7 +139,7 @@ async function readJsonBody(request, makeHttpError, maxBodyBytes) {
   }
 }
 
-const READ_ROUTES = [
+const READ_ROUTES: readonly RouteDefinition[] = [
   ["status", /^read\/status$/, ["initiative", "kind", "status", "domain", "claimed-by", "stale-ms", "limit", "all", "as"]],
   ["context", /^read\/context\/([^/]+)$/, ["as", "staleMs"]],
   ["show", /^read\/show\/([^/]+)$/, []],
@@ -142,7 +151,7 @@ const READ_ROUTES = [
   ["node", /^read\/nodes\/([^/]+)$/, []],
 ];
 
-function readRoute(route, makeHttpError) {
+function readRoute(route: string, makeHttpError: HttpErrorFactory) {
   for (const [kind, pattern, allowedQuery] of READ_ROUTES) {
     const match = pattern.exec(route);
     if (!match) {
@@ -165,7 +174,7 @@ function readRoute(route, makeHttpError) {
   return null;
 }
 
-export function createHttpCodec(options = {}) {
+export function createHttpCodec(options: CodecOptions = {}) {
   const { protocolVersion } = options;
   const maxBodyBytes = resolveMaxBodyBytes(
     Object.hasOwn(options, "maxBodyBytes") ? options.maxBodyBytes : process.env.CLIMIER_SERVER_MAX_BODY_BYTES,
