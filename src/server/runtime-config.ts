@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 import net from "node:net";
+import os from "node:os";
 import path from "node:path";
 
 const CONFIG_FIELDS = new Set(["listen", "dataRoot", "stateHome", "uiRoot"]);
@@ -27,18 +28,35 @@ function isLoopbackHost(host) {
   return host === "::1" || host === "0:0:0:0:0:0:0:1";
 }
 
+function isTailscaleIPv4(host) {
+  if (!net.isIPv4(host)) {return false;}
+  const [first, second] = host.split(".").map(Number);
+  return first === 100 && second >= 64 && second <= 127;
+}
+
+function assignedToTailscale0(host, networkInterfaces) {
+  if (!isTailscaleIPv4(host)) {return false;}
+  return (networkInterfaces.tailscale0 || []).some((entry) =>
+    entry?.address === host && (entry.family === "IPv4" || entry.family === 4));
+}
+
+function allowedListenHost(host, { allowTailscaleHttp, networkInterfaces }) {
+  return isLoopbackHost(host)
+    || (allowTailscaleHttp && assignedToTailscale0(host, networkInterfaces));
+}
+
 function hasValidListenShape(listen) {
   return hasOnlyKeys(listen, LISTEN_FIELDS)
     && typeof listen.host === "string" && listen.host.length > 0
     && Number.isInteger(listen.port) && listen.port >= 0 && listen.port <= 65_535;
 }
 
-function validateListenConfig(listen) {
+function validateListenConfig(listen, options) {
   if (!hasValidListenShape(listen)) {
     throw invalid("expected only listen { host, port }, dataRoot, stateHome, and uiRoot");
   }
-  if (!isLoopbackHost(listen.host)) {
-    throw invalid("listen.host must be loopback");
+  if (!allowedListenHost(listen.host, options)) {
+    throw invalid("listen.host must be loopback, or the assigned tailscale0 IPv4 with CLIMIER_SERVER_ALLOW_TAILSCALE_HTTP=true");
   }
 }
 
@@ -62,17 +80,20 @@ function normalizeConfig(config) {
   });
 }
 
-function validateConfig(config) {
+function validateConfig(config, {
+  allowTailscaleHttp = process.env.CLIMIER_SERVER_ALLOW_TAILSCALE_HTTP === "true",
+  networkInterfaces = os.networkInterfaces(),
+} = {}) {
   if (!hasOnlyKeys(config, CONFIG_FIELDS)) {
     throw invalid("expected only listen { host, port }, dataRoot, stateHome, and uiRoot; projectIds and credentials are no longer supported");
   }
-  validateListenConfig(config.listen);
+  validateListenConfig(config.listen, { allowTailscaleHttp, networkInterfaces });
   validatePaths(config);
   return normalizeConfig(config);
 }
 
-export function parseServerRuntimeConfig(value) {
-  return validateConfig(value);
+export function parseServerRuntimeConfig(value, options) {
+  return validateConfig(value, options);
 }
 
 async function readConfigText(configPath) {

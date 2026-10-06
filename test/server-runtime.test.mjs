@@ -106,6 +106,30 @@ test("private server config fails closed for malformed or unsafe settings", asyn
   assert.equal(parsed.uiRoot, explicitUiRoot);
 });
 
+test("private server config permits an opted-in Tailscale listener only on its assigned interface", async (t) => {
+  const root = await makeRoot(t);
+  const host = "100.127.228.54";
+  const value = config(root, { listen: { host, port: 43127 } });
+  const tailscaleInterfaces = { tailscale0: [{ address: host, family: "IPv4" }] };
+
+  assert.equal(parseServerRuntimeConfig(value, {
+    allowTailscaleHttp: true,
+    networkInterfaces: tailscaleInterfaces,
+  }).listen.host, host);
+  assert.throws(() => parseServerRuntimeConfig(value, {
+    allowTailscaleHttp: false,
+    networkInterfaces: tailscaleInterfaces,
+  }), { code: "INVALID_SERVER_CONFIG" });
+  assert.throws(() => parseServerRuntimeConfig(value, {
+    allowTailscaleHttp: true,
+    networkInterfaces: { eth0: [{ address: host, family: "IPv4" }] },
+  }), { code: "INVALID_SERVER_CONFIG" });
+  assert.throws(() => parseServerRuntimeConfig(config(root, { listen: { host: "100.128.0.1", port: 43127 } }), {
+    allowTailscaleHttp: true,
+    networkInterfaces: { tailscale0: [{ address: "100.128.0.1", family: "IPv4" }] },
+  }), { code: "INVALID_SERVER_CONFIG" });
+});
+
 test("server runtime resolves the packaged UI root and passes it to the server factory", async (t) => {
   const root = await makeRoot(t);
   let received;
