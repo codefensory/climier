@@ -8,6 +8,28 @@ import os from "node:os";
 import { importFresh } from "./helpers.mjs";
 import { INSTALL_MODULE, freshEnv, mkdirp, createFixturePackage, installedDir, listStagingDirs, installCommandCollisionPair } from "./plugin-install-test-helpers.mjs";
 
+type PluginTestError = { code: string; details: Record<string, unknown> };
+
+function hasPluginCode(error: unknown, code: string): boolean {
+  return Boolean(error && typeof error === "object" && (error as { code?: unknown }).code === code);
+}
+
+function asPluginError(error: unknown): PluginTestError {
+  if (!error || typeof error !== "object") {
+    throw new TypeError("expected plugin error");
+  }
+  const candidate = error as { code?: unknown; details?: unknown };
+  if (
+    typeof candidate.code !== "string" ||
+    !candidate.details ||
+    typeof candidate.details !== "object" ||
+    Array.isArray(candidate.details)
+  ) {
+    throw new TypeError("expected structured plugin error");
+  }
+  return { code: candidate.code, details: candidate.details as Record<string, unknown> };
+}
+
 test("install: id already installed returns PLUGIN_ID_CONFLICT and cleans staging", async () => {
   const env = await freshEnv();
   const { default: install } = await importFresh(INSTALL_MODULE);
@@ -32,10 +54,12 @@ test("install: id already installed returns PLUGIN_ID_CONFLICT and cleans stagin
     });
     await assert.rejects(
       install({ positional: [secondDir + "/double-pkg"], flags: {}, projectDir: fixtureDir, statePath: fixtureDir }),
-      (err) =>
-        err.code === "PLUGIN_ID_CONFLICT" &&
-        err.details.id === "double.id" &&
-        err.details.reason === "id-already-installed",
+      (err) => {
+        const error = asPluginError(err);
+        return error.code === "PLUGIN_ID_CONFLICT" &&
+          error.details.id === "double.id" &&
+          error.details.reason === "id-already-installed";
+      },
     );
     assert.deepEqual(await listStagingDirs(env), []);
     // First plugin still installed at installed/<id>.
@@ -64,10 +88,12 @@ test("install: command collision across different ids is rejected and cleans sta
         projectDir: fixtureDir,
         statePath: fixtureDir,
       }),
-      (err) =>
-        err.code === "PLUGIN_ID_CONFLICT" &&
-        err.details.id === "shared.second" &&
-        err.details.reason === "command-already-installed",
+      (err) => {
+        const error = asPluginError(err);
+        return error.code === "PLUGIN_ID_CONFLICT" &&
+          error.details.id === "shared.second" &&
+          error.details.reason === "command-already-installed";
+      },
     );
     assert.deepEqual(await listStagingDirs(env), []);
     // First plugin still installed; the rejected second never promoted.
@@ -92,7 +118,7 @@ test("install: command colliding with reserved core namespace fails and cleans s
     });
     await assert.rejects(
       install({ positional: [fixtureDir + "/trojan-pkg"], flags: {}, projectDir: fixtureDir, statePath: fixtureDir }),
-      (err) => err.code === "PLUGIN_INVALID_DESCRIPTOR",
+      (err) => asPluginError(err).code === "PLUGIN_INVALID_DESCRIPTOR",
     );
     assert.deepEqual(await listStagingDirs(env), []);
   } finally {
@@ -116,7 +142,7 @@ test("install: entry without default.commands returns PLUGIN_LOAD_FAILED and cle
     });
     await assert.rejects(
       install({ positional: [fixtureDir + "/broken-pkg"], flags: {}, projectDir: fixtureDir, statePath: fixtureDir }),
-      (err) => err.code === "PLUGIN_LOAD_FAILED",
+      (err) => asPluginError(err).code === "PLUGIN_LOAD_FAILED",
     );
     assert.deepEqual(await listStagingDirs(env), []);
   } finally {
@@ -140,7 +166,7 @@ test("install: when the npm command cannot be spawned, returns PLUGIN_NPM_UNAVAI
     });
     await assert.rejects(
       install({ positional: [fixtureDir + "/needs-pkg"], flags: {}, projectDir: fixtureDir, statePath: fixtureDir }),
-      (err) => err.code === "PLUGIN_NPM_UNAVAILABLE",
+      (err) => asPluginError(err).code === "PLUGIN_NPM_UNAVAILABLE",
     );
     assert.deepEqual(await listStagingDirs(env), []);
   } finally {
@@ -166,7 +192,7 @@ test("install: two concurrent installs against the same source serialize via glo
       dirName: "conc-pkg",
     });
     const source = path.join(fixtureDir, "conc-pkg");
-    const callOrder = [];
+    const callOrder: string[] = [];
     // Both installs run in parallel; the global plugin lock serializes
     // them so the second observes the first's installed/ promotion. We
     // capture both outcomes (success or PLUGIN_ID_CONFLICT) on either
@@ -174,7 +200,7 @@ test("install: two concurrent installs against the same source serialize via glo
     const captureOutcome = (label) => (p) =>
       p.then(
         (r) => { callOrder.push(`${label}:success`); return r; },
-        (err) => { callOrder.push(`${label}:${err.code}`); return err; },
+        (err) => { const error = asPluginError(err); callOrder.push(`${label}:${error.code}`); return error; },
       );
     const [r1, r2] = await Promise.all([
       captureOutcome("first")(install({ positional: [source], flags: {}, projectDir: fixtureDir, statePath: fixtureDir })),
@@ -182,7 +208,7 @@ test("install: two concurrent installs against the same source serialize via glo
     ]);
     // Exactly one succeeded; the other got PLUGIN_ID_CONFLICT.
     const success = [r1, r2].filter((r) => r && r.plugin);
-    const conflict = [r1, r2].filter((r) => r && r.code === "PLUGIN_ID_CONFLICT");
+    const conflict = [r1, r2].filter((r) => hasPluginCode(r, "PLUGIN_ID_CONFLICT"));
     assert.equal(success.length, 1);
     assert.equal(conflict.length, 1);
     assert.equal(callOrder.length, 2);

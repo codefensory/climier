@@ -15,6 +15,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import type { OperationEntry } from "../src/contracts/operations.ts";
 
 import { importFresh } from "./helpers.mjs";
 
@@ -31,8 +32,31 @@ function makeProvider(tag = "test") {
 }
 
 // makeEntry — convenience builder for entry stubs.
-function makeEntry(id, kind, tag) {
-  return { id, kind, provider: makeProvider(tag ?? id) };
+function makeEntry(id: string, kind: string, tag = id): OperationEntry | Record<string, unknown> {
+  return { id, kind, provider: makeProvider(tag) };
+}
+
+type RegistryError = { code: string; message: string; details: Record<string, unknown> };
+
+function asRegistryError(error: unknown): RegistryError {
+  if (!error || typeof error !== "object") {
+    throw new TypeError("expected registry error");
+  }
+  const candidate = error as { code?: unknown; message?: unknown; details?: unknown };
+  if (
+    typeof candidate.code !== "string" ||
+    typeof candidate.message !== "string" ||
+    !candidate.details ||
+    typeof candidate.details !== "object" ||
+    Array.isArray(candidate.details)
+  ) {
+    throw new TypeError("expected structured registry error");
+  }
+  return {
+    code: candidate.code,
+    message: candidate.message,
+    details: candidate.details as Record<string, unknown>,
+  };
 }
 
 async function importRegistry() {
@@ -89,24 +113,27 @@ test("buildRegistry: returns a frozen registry with entries, providers, ops, byK
   assertRegistryGroups(reg);
 });
 
-function assertDuplicateRegistryError(error, { id, firstIndex, secondIndex }) {
-  assert.equal(typeof error, "object", "error is an object");
-  assert.ok(error && typeof error === "object", "error is an object");
-  assert.equal(typeof error.code, "string");
-  assert.equal(error.code, "REGISTRY_DUPLICATE_ID");
-  assert.equal(typeof error.message, "string");
-  assert.ok(error.message.includes(id), "message mentions duplicate id");
-  assert.ok(error.details, "error carries details");
-  assert.equal(typeof error.details, "object");
-  assert.deepEqual(Object.keys(error.details).toSorted(), ["first_index", "id", "second_index"]);
-  assert.equal(error.details.id, id);
-  assert.equal(error.details.first_index, firstIndex);
-  assert.equal(error.details.second_index, secondIndex);
+function assertDuplicateRegistryError(error: unknown, { id, firstIndex, secondIndex }: {
+  id: string;
+  firstIndex: number;
+  secondIndex: number;
+}) {
+  const typed = asRegistryError(error);
+  assert.equal(typeof typed.code, "string");
+  assert.equal(typed.code, "REGISTRY_DUPLICATE_ID");
+  assert.equal(typeof typed.message, "string");
+  assert.ok(typed.message.includes(id), "message mentions duplicate id");
+  assert.ok(typed.details, "error carries details");
+  assert.equal(typeof typed.details, "object");
+  assert.deepEqual(Object.keys(typed.details).toSorted(), ["first_index", "id", "second_index"]);
+  assert.equal(typed.details.id, id);
+  assert.equal(typed.details.first_index, firstIndex);
+  assert.equal(typed.details.second_index, secondIndex);
 }
 
 test("buildRegistry: rejects duplicate operation ids deterministically with structured error", async () => {
   const mod = await importRegistry();
-  let firstThrew = null;
+  let firstThrew: unknown;
   try {
     mod.buildRegistry([
       makeEntry("task.create", "task", "first"),
@@ -128,7 +155,7 @@ test("buildRegistry: rejects duplicate operation ids deterministically with stru
   // Determinism: a second call with the same colliding input throws an
   // error with the same shape and indices — the builder must not
   // depend on insertion order of the underlying Map.
-  let secondThrew = null;
+  let secondThrew: unknown;
   try {
     mod.buildRegistry([
       makeEntry("a.b", "task", "x"),
@@ -143,11 +170,13 @@ test("buildRegistry: rejects duplicate operation ids deterministically with stru
     firstIndex: 0,
     secondIndex: 1,
   });
-  assert.equal(secondThrew.code, firstThrew.code);
-  assert.ok(secondThrew.details);
-  assert.equal(secondThrew.details.id, "a.b");
-  assert.equal(secondThrew.details.first_index, 0);
-  assert.equal(secondThrew.details.second_index, 1);
+  const firstError = asRegistryError(firstThrew);
+  const secondError = asRegistryError(secondThrew);
+  assert.equal(secondError.code, firstError.code);
+  assert.ok(secondError.details);
+  assert.equal(secondError.details.id, "a.b");
+  assert.equal(secondError.details.first_index, 0);
+  assert.equal(secondError.details.second_index, 1);
 });
 
 test("buildRegistry: rejects empty / non-string ids", async () => {
@@ -161,31 +190,31 @@ test("buildRegistry: rejects empty / non-string ids", async () => {
     [{}, "missing"],
   ];
   for (const [entry, label] of cases) {
-    let thrown = null;
+    let thrown: unknown;
     try {
       mod.buildRegistry([entry]);
     } catch (err) {
       thrown = err;
     }
-    assert.ok(thrown, `${label}: should throw`);
-    assert.equal(thrown.code, "REGISTRY_INVALID_ID", `${label}: code`);
-    assert.equal(typeof thrown.message, "string");
-    assert.ok(thrown.details, `${label}: carries details`);
+    const typed = asRegistryError(thrown);
+    assert.equal(typed.code, "REGISTRY_INVALID_ID", `${label}: code`);
+    assert.equal(typeof typed.message, "string");
+    assert.ok(typed.details, `${label}: carries details`);
   }
 });
 
 test("buildRegistry: rejects unknown kinds", async () => {
   const mod = await importRegistry();
-  let thrown = null;
+  let thrown: unknown;
   try {
     mod.buildRegistry([makeEntry("note.add", "note")]);
   } catch (err) {
     thrown = err;
   }
-  assert.ok(thrown, "should throw");
-  assert.equal(thrown.code, "REGISTRY_INVALID_KIND");
-  assert.equal(thrown.details.id, "note.add");
-  assert.equal(thrown.details.kind, "note");
+  const typed = asRegistryError(thrown);
+  assert.equal(typed.code, "REGISTRY_INVALID_KIND");
+  assert.equal(typed.details.id, "note.add");
+  assert.equal(typed.details.kind, "note");
 });
 
 test("buildRegistry: rejects providers missing prepare or apply", async () => {
@@ -208,14 +237,14 @@ test("buildRegistry: rejects providers missing prepare or apply", async () => {
     [{ id: "task.create", kind: "task" }, "missing provider"],
   ];
   for (const [entry, label] of cases) {
-    let thrown = null;
+    let thrown: unknown;
     try {
       mod.buildRegistry([entry]);
     } catch (err) {
       thrown = err;
     }
-    assert.ok(thrown, `${label}: should throw`);
-    assert.equal(thrown.code, "REGISTRY_INVALID_PROVIDER", `${label}: code`);
+    const typed = asRegistryError(thrown);
+    assert.equal(typed.code, "REGISTRY_INVALID_PROVIDER", `${label}: code`);
   }
 });
 
@@ -223,27 +252,27 @@ test("buildRegistry: rejects non-iterable providers", async () => {
   const mod = await importRegistry();
 
   for (const bad of [null, undefined, 42, "x", {}, true]) {
-    let thrown = null;
+    let thrown: unknown;
     try {
       mod.buildRegistry(bad);
     } catch (err) {
       thrown = err;
     }
-    assert.ok(thrown, `non-iterable (${typeof bad}) should throw`);
-    assert.equal(thrown.code, "REGISTRY_INVALID_INPUT");
+    const typed = asRegistryError(thrown);
+    assert.equal(typed.code, "REGISTRY_INVALID_INPUT");
   }
 });
 
 test("buildRegistry: rejects non-object entries", async () => {
   const mod = await importRegistry();
-  let thrown = null;
+  let thrown: unknown;
   try {
     mod.buildRegistry([null, makeEntry("task.take", "task")]);
   } catch (err) {
     thrown = err;
   }
-  assert.ok(thrown, "null entry should throw");
-  assert.equal(thrown.code, "REGISTRY_INVALID_ENTRY");
+  const typed = asRegistryError(thrown);
+  assert.equal(typed.code, "REGISTRY_INVALID_ENTRY");
 });
 
 function assertBuiltinIds(reg, expectedIds) {

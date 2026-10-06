@@ -143,7 +143,7 @@ test("appendWithContext: never mutates the entry passed in by the caller", async
   const { appendWithContext } = await importFresh("./storage/log.ts");
   const dir = await createTempProject();
   try {
-    const entry = { agent: "alice", action: "add-task", node: "T1" };
+    const entry: Record<string, unknown> = { agent: "alice", action: "add-task", node: "T1" };
     await appendWithContext(dir, entry, { pluginId: "example.audit" });
     assert.equal(entry.plugin_id, undefined);
   } finally {

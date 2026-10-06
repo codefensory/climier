@@ -4,6 +4,40 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import { runCli, importFresh } from "./helpers.mjs";
+
+type SeedPluginOptions = {
+  id?: string;
+  command?: string;
+  entry?: string;
+  api?: number;
+  npmName?: string;
+  entryCode?: string;
+};
+type PluginTestError = { code: string; message: string; details: Record<string, unknown> };
+
+type JsonObject = Record<string, unknown>;
+
+function asPluginError(error: unknown): PluginTestError {
+  if (!error || typeof error !== "object") {
+    throw new TypeError("expected plugin error");
+  }
+  const candidate = error as { code?: unknown; message?: unknown; details?: unknown };
+  if (
+    typeof candidate.code !== "string" ||
+    typeof candidate.message !== "string" ||
+    !candidate.details ||
+    typeof candidate.details !== "object" ||
+    Array.isArray(candidate.details)
+  ) {
+    throw new TypeError("expected structured plugin error");
+  }
+  return {
+    code: candidate.code,
+    message: candidate.message,
+    details: candidate.details as Record<string, unknown>,
+  };
+}
+
 const ERRORS_MODULE="../src/plugins/errors.ts";
 const LOADER_MODULE="../src/plugins/loader.ts";
 const DISPATCH_MODULE="../src/plugins/dispatch.ts";
@@ -15,7 +49,7 @@ const prev=process.env.CLIMIER_HOME;
 process.env.CLIMIER_HOME=home;
   return{home,projectDir,restore(){if(prev===void 0){delete process.env.CLIMIER_HOME}else{process.env.CLIMIER_HOME=prev}},
     async cleanup(){await fs.rm(home,{recursive:true,force:true});
-await fs.rm(projectDir,{recursive:true,force:true})}}}async function seedInstalledPlugin(home,namespace,opts={}){const installedRoot=path.join(home,
+await fs.rm(projectDir,{recursive:true,force:true})}}}async function seedInstalledPlugin(home: string, namespace: string, opts: SeedPluginOptions = {}){const installedRoot=path.join(home,
 "plugins","installed",namespace);
 await fs.mkdir(installedRoot,{recursive:true});
   const descriptor={id:opts.id??namespace,command:opts.command??namespace,entry:opts.entry??"./climier.mjs",
@@ -23,13 +57,14 @@ api:opts.api??1};
   await fs.writeFile(path.join(installedRoot,"package.json"),JSON.stringify({name:opts.npmName??namespace,version:"1.0.0",
 type:"module",climier:descriptor},null,2)+"\n","utf8");
 await fs.writeFile(path.join(installedRoot,"climier.mjs"),opts.entryCode??defaultEntryCode(),"utf8");
-return{installedRoot,descriptor}}function defaultEntryCode(){return"export default {\n  commands: {\n    ping: (args, api) => ({\n      ok: true,\n      command: 'ping',\n      args,\n      api_runtime: api.runtime,\n    }),\n    thrower: () => { throw new Error('handler-boom'); },\n    rethrow: () => { const e = new Error('already-plugin'); e.code = 'PLUGIN_LOAD_FAILED'; e.details = { from: 'handler' }; throw e; },\n  },\n};\n"}async function captureRejection(promise){try{await promise}catch(error){return error}assert.fail("expected promise to reject")}function testWithEnv(name,
+return{installedRoot,descriptor}}function defaultEntryCode(){return"export default {\n  commands: {\n    ping: (args, api) => ({\n      ok: true,\n      command: 'ping',\n      args,\n      api_runtime: api.runtime,\n    }),\n    thrower: () => { throw new Error('handler-boom'); },\n    rethrow: () => { const e = new Error('already-plugin'); e.code = 'PLUGIN_LOAD_FAILED'; e.details = { from: 'handler' }; throw e; },\n  },\n};\n"}async function captureRejection(promise: Promise<unknown>): Promise<PluginTestError>{try{await promise}catch(error){return asPluginError(error)}assert.fail("expected promise to reject")}
+async function captureAnyRejection(promise: Promise<unknown>): Promise<unknown>{try{await promise}catch(error){return error}assert.fail("expected promise to reject")} function testWithEnv(name,
   body,prefix="climier-dispatch-test"){test(name,async()=>{const env=await freshEnv(prefix);
     try{await body(env)}finally{env.restore();
 await env.cleanup()}})}testWithEnv("plugin-errors: throwPluginError throws an Error with .code and .details",
 async()=>{const{throwPluginError}=await importFresh(ERRORS_MODULE);
-let caught;
-try{throwPluginError("PLUGIN_HANDLER_FAILED","boom",{namespace:"x"})}catch(error){caught=error}assert.ok(caught);
+let caught: PluginTestError | undefined;
+try{throwPluginError("PLUGIN_HANDLER_FAILED","boom",{namespace:"x"})}catch(error){caught=asPluginError(error)}assert.ok(caught);
 assert.equal(caught.code,"PLUGIN_HANDLER_FAILED");
 assert.deepEqual(caught.details,{namespace:"x"});
 assert.match(caught.message,/boom/)});
@@ -80,8 +115,8 @@ assert.equal(error.code,"PLUGIN_API_INCOMPATIBLE");
 assert.equal(error.details.received,3);
 assert.match(error.message,/api: 1/);
 assert.match(error.message,/update.*reinstall|reinstall.*update/i);
-const markerError=await captureRejection(fs.access(marker));
-assert.equal(markerError.code,"ENOENT")});
+const markerError=await captureAnyRejection(fs.access(marker));
+assert.equal((markerError as {code?: unknown}).code,"ENOENT")});
 testWithEnv("plugin-loader: loadInstalledPlugin throws PLUGIN_LOAD_FAILED when installed dir is missing",async()=>{const{loadInstalledPlugin}=await importFresh(LOADER_MODULE);
 const error=await captureRejection(loadInstalledPlugin("ghost"));
 assert.equal(error.code,"PLUGIN_LOAD_FAILED")});
@@ -165,21 +200,21 @@ assert.equal(error.details.subcommand,"ghost")});
 testWithEnv("plugin-dispatch: handler throwing is mapped to PLUGIN_HANDLER_FAILED with details",async env=>{await seedInstalledPlugin(env.home,
 "audit");
 const{dispatchPlugin}=await importFresh(DISPATCH_MODULE);
-let caught;
+let caught: PluginTestError | undefined;
     try{await dispatchPlugin({originalArgv:["audit","thrower"],namespace:"audit",projectDir:env.projectDir,flags:{as:"alice"},
-createApi:({projectDir,agent})=>({runtime:{project_dir:projectDir,agent},query:{},data:{}})})}catch(err){caught=err}assert.ok(caught,
+createApi:({projectDir,agent})=>({runtime:{project_dir:projectDir,agent},query:{},data:{}})})}catch(err){caught=asPluginError(err)}assert.ok(caught,
 "expected dispatchPlugin to throw");
 assert.equal(caught.code,"PLUGIN_HANDLER_FAILED");
 assert.equal(caught.details.plugin_id,"audit");
 assert.equal(caught.details.namespace,"audit");
 assert.equal(caught.details.subcommand,"thrower");
-assert.match(caught.details.cause,/handler-boom/)});
+assert.match(String(caught.details.cause),/handler-boom/)});
 testWithEnv("plugin-dispatch: handler throwing an existing PLUGIN_* error is propagated without rewrapping",
 async env=>{await seedInstalledPlugin(env.home,"audit");
 const{dispatchPlugin}=await importFresh(DISPATCH_MODULE);
-let caught;
+let caught: PluginTestError | undefined;
     try{await dispatchPlugin({originalArgv:["audit","rethrow"],namespace:"audit",projectDir:env.projectDir,flags:{as:"alice"},
-createApi:({projectDir,agent})=>({runtime:{project_dir:projectDir,agent},query:{},data:{}})})}catch(err){caught=err}assert.ok(caught,
+createApi:({projectDir,agent})=>({runtime:{project_dir:projectDir,agent},query:{},data:{}})})}catch(err){caught=asPluginError(err)}assert.ok(caught,
 "expected dispatchPlugin to throw");
 assert.equal(caught.code,"PLUGIN_LOAD_FAILED");
 assert.deepEqual(caught.details,{from:"handler"})});
@@ -195,9 +230,9 @@ testWithEnv("plugin-dispatch: missing --as throws PLUGIN_HANDLER_FAILED with age
 const prev=process.env.CLIMIER_AGENT;
 delete process.env.CLIMIER_AGENT;
 const{dispatchPlugin}=await importFresh(DISPATCH_MODULE);
-let caught;
+let caught: PluginTestError | undefined;
     try{await dispatchPlugin({originalArgv:["audit","ping"],namespace:"audit",projectDir:env.projectDir,flags:{},
-createApi:({projectDir,agent})=>({runtime:{project_dir:projectDir,agent},query:{},data:{}})})}catch(err){caught=err}finally{if(prev!==void 0){process.env.CLIMIER_AGENT=prev}}assert.ok(caught,
+createApi:({projectDir,agent})=>({runtime:{project_dir:projectDir,agent},query:{},data:{}})})}catch(err){caught=asPluginError(err)}finally{if(prev!==void 0){process.env.CLIMIER_AGENT=prev}}assert.ok(caught,
 "expected dispatchPlugin to throw");
 assert.equal(caught.code,"PLUGIN_HANDLER_FAILED");
 assert.equal(caught.details.namespace,"audit");

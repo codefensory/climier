@@ -12,6 +12,8 @@ const BIN = path.join(ROOT, "bin", "climier.ts");
 const FIXTURE_DIR = path.join(ROOT, "test/fixtures/plugin-foundation");
 const FIXTURE_ID = "foundation.acceptance";
 
+type SpawnResult = { code: number | null; signal: NodeJS.Signals | null; stdout: string; stderr: string };
+
 async function withFreshEnv(body) {
   const home = await fs.mkdtemp(path.join(os.tmpdir(), "climier-plugin-foundation-concurrent-"));
   const projectDir = await createTempProject();
@@ -45,11 +47,16 @@ async function cli(args) {
   return result.stdout.trim() ? JSON.parse(result.stdout) : null;
 }
 
-function collectSpawnResult(child) {
+function collectSpawnResult(child: ReturnType<typeof spawn>): Promise<SpawnResult> {
   return new Promise((resolve, reject) => {
     let stdout = "";
     let stderr = "";
     const timer = setTimeout(() => child.kill("SIGTERM"), 30_000);
+    if (!child.stdout || !child.stderr) {
+      clearTimeout(timer);
+      reject(new Error("spawnCli: child stdio is unavailable"));
+      return;
+    }
     child.stdout.on("data", (chunk) => { stdout += chunk; });
     child.stderr.on("data", (chunk) => { stderr += chunk; });
     child.once("error", (error) => {
