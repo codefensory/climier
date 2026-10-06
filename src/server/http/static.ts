@@ -174,6 +174,10 @@ export function createStaticHandler({ root, indexFile = "index.html" } = {}) {
     }
 
     let file = direct.kind === "file" ? direct.path : null;
+    if (!file && path.extname(pathname) !== "") {
+      notFound(response);
+      return true;
+    }
     if (!file) {
       const fallback = await resolveFile(path.join(realRoot, indexRelative), realRoot);
       if (fallback.kind !== "file") {

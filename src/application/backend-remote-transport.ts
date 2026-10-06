@@ -98,9 +98,16 @@ function validateHttpResponse(response: Response, envelope: unknown): void {
   if (!response.ok || (isRecord(envelope) && envelope.ok === false)) {throw remoteError(envelope, response.status);}
 }
 
-function validateProtocolVersion(response: Response): void {
+function validateProtocolVersion(response: Response, { transferImport = false } = {}): void {
   const received = response.headers.get("x-climier-protocol-version");
   if (received === REMOTE_PROTOCOL_VERSION) {return;}
+  if (transferImport && response.status === 200 && received === null
+      && response.headers.get("content-length") === null) {
+    throw clientError(
+      "REMOTE_REQUEST_FAILED",
+      "application.backendClient: remote transfer import response was dropped before completion",
+    );
+  }
   const label = received === null ? "missing" : received;
   throw clientError(
     "PROTOCOL_VERSION_UNSUPPORTED",
@@ -145,7 +152,7 @@ export function createRemoteRequest({
     try {
       const options = requestOptions({ method, body, token, signal: controller.signal });
       const response = await fetchResponse(url, options, controller, timeoutMs);
-      validateProtocolVersion(response);
+      validateProtocolVersion(response, { transferImport: method === "POST" && route === "transfer/import" });
       const envelope = await parseResponse(response, controller, timeoutMs);
       return validateResponse(response, envelope);
     } finally {

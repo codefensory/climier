@@ -1,4 +1,3 @@
-import { createServer } from "node:http";
 import fs from "node:fs/promises";
 
 import { dispatchOperationRequest, validateOperationRequest } from "./http/operations.ts";
@@ -362,6 +361,136 @@ function sendRequestError(response, error) {
   }
 }
 
+function bunServerRuntime() {
+  const bun = globalThis.Bun;
+  if (!bun || typeof bun.serve !== "function") {
+    throw new Error("server http: Bun.serve is required");
+  }
+  return bun;
+}
+
+function createBunRequest(request, server) {
+  const listeners = new Map();
+  const headers = Object.fromEntries(request.headers.entries());
+  const rawUrl = request.url.replace(/^[a-z][a-z\d+.-]*:\/\/[^/]+/iu, "") || "/";
+  const adapted = {
+    method: request.method,
+    url: rawUrl,
+    headers,
+    socket: { remoteAddress: server.requestIP(request)?.address ?? "127.0.0.1" },
+    once(event, listener) {
+      const wrapped = (...args) => {
+        const callbacks = listeners.get(event);
+        callbacks?.delete(wrapped);
+        listener(...args);
+      };
+      const callbacks = listeners.get(event) || new Set();
+      callbacks.add(wrapped);
+      listeners.set(event, callbacks);
+      return adapted;
+    },
+    emit(event, ...args) {
+      for (const listener of [...(listeners.get(event) || [])]) listener(...args);
+    },
+    async *[Symbol.asyncIterator]() {
+      if (!request.body) return;
+      const reader = request.body.getReader();
+      try {
+        while (true) {
+          const chunk = await reader.read();
+          if (chunk.done) return;
+          yield Buffer.from(chunk.value);
+        }
+      } finally {
+        reader.releaseLock();
+      }
+    },
+  };
+  request.signal.addEventListener("abort", () => adapted.emit("aborted"), { once: true });
+  return adapted;
+}
+
+function createBunResponse() {
+  const listeners = new Map();
+  const queued = [];
+  const written = [];
+  let controller;
+  let status = 200;
+  let headers = {};
+  let headersSent = false;
+  let writableEnded = false;
+  let destroyed = false;
+  const stream = new ReadableStream({
+    start(nextController) {
+      controller = nextController;
+      for (const chunk of queued.splice(0)) controller.enqueue(chunk);
+      if (writableEnded) controller.close();
+    },
+  });
+
+  const emit = (event, ...args) => {
+    for (const listener of [...(listeners.get(event) || [])]) listener(...args);
+  };
+  const response = {
+    get headersSent() { return headersSent; },
+    get writableEnded() { return writableEnded; },
+    get destroyed() { return destroyed; },
+    writeHead(nextStatus, nextHeaders = {}) {
+      status = nextStatus;
+      headers = Object.fromEntries(Object.entries(nextHeaders).map(([key, value]) => [key, String(value)]));
+      headersSent = true;
+      return response;
+    },
+    flushHeaders() {
+      headersSent = true;
+      return response;
+    },
+    write(data) {
+      if (destroyed || writableEnded) return false;
+      headersSent = true;
+      const chunk = typeof data === "string" ? Buffer.from(data) : Buffer.from(data);
+      written.push(chunk);
+      if (controller) controller.enqueue(chunk);
+      else queued.push(chunk);
+      return true;
+    },
+    end(data) {
+      if (writableEnded) return response;
+      if (data !== undefined) response.write(data);
+      writableEnded = true;
+      if (controller) controller.close();
+      emit("close");
+      return response;
+    },
+    destroy(error) {
+      if (destroyed) return response;
+      destroyed = true;
+      if (controller) controller.error(error);
+      emit("error", error);
+      emit("close");
+      return response;
+    },
+    once(event, listener) {
+      const wrapped = (...args) => {
+        const callbacks = listeners.get(event);
+        callbacks?.delete(wrapped);
+        listener(...args);
+      };
+      const callbacks = listeners.get(event) || new Set();
+      callbacks.add(wrapped);
+      listeners.set(event, callbacks);
+      return response;
+    },
+    toResponse() {
+      if (writableEnded) {
+        return new Response(Buffer.concat(written), { status, headers });
+      }
+      return new Response(stream, { status, headers });
+    },
+  };
+  return response;
+}
+
 export function createRemoteApiServer({
   catalog,
   authStore,
@@ -390,22 +519,87 @@ export function createRemoteApiServer({
   dependencies.uiApi = createRemoteUiApi(dependencies);
   dependencies.uiEvents = createRemoteUiEvents(dependencies);
   const staticHandler = uiRoot === undefined ? null : createStaticHandler({ root: uiRoot, indexFile });
-  const server = createServer(async (request, response) => {
+  let bunServer;
+  let closePromise;
+  const listeners = new Map();
+  const emit = (event, ...args) => {
+    for (const listener of [...(listeners.get(event) || [])]) listener(...args);
+  };
+  const fetch = async (request, bun) => {
+    const adaptedRequest = createBunRequest(request, bun);
+    const response = createBunResponse();
+    request.signal.addEventListener("abort", () => response.destroy(), { once: true });
     try {
-      if (staticHandler && await staticHandler(request, response)) {
-        return;
+      if (staticHandler && await staticHandler(adaptedRequest, response)) {
+        return response.toResponse();
       }
-      await handleRequest(request, response, dependencies);
+      await handleRequest(adaptedRequest, response, dependencies);
     } catch (error) {
       sendRequestError(response, error);
     }
-  });
-  const closeServer = server.close.bind(server);
-  server.close = (...args) => {
-    void dependencies.uiEvents.close();
-    return closeServer(...args);
+    return response.toResponse();
   };
-  server.once("close", () => { void dependencies.uiEvents.close(); });
+  const server = {
+    get listening() { return bunServer !== undefined; },
+    once(event, listener) {
+      const wrapped = (...args) => {
+        const callbacks = listeners.get(event);
+        callbacks?.delete(wrapped);
+        listener(...args);
+      };
+      const callbacks = listeners.get(event) || new Set();
+      callbacks.add(wrapped);
+      listeners.set(event, callbacks);
+      return server;
+    },
+    on(event, listener) {
+      const callbacks = listeners.get(event) || new Set();
+      callbacks.add(listener);
+      listeners.set(event, callbacks);
+      return server;
+    },
+    listen(port, hostname, callback) {
+      if (bunServer !== undefined) {
+        const error = new Error("server http: server is already listening");
+        emit("error", error);
+        return server;
+      }
+      try {
+        bunServer = bunServerRuntime().serve({ hostname, port, fetch });
+        callback?.();
+      } catch (error) {
+        emit("error", error);
+      }
+      return server;
+    },
+    address() {
+      if (!bunServer) return null;
+      return {
+        address: bunServer.hostname,
+        family: bunServer.hostname?.includes(":") ? "IPv6" : "IPv4",
+        port: bunServer.port,
+      };
+    },
+    close(callback) {
+      if (closePromise) {
+        closePromise.then(() => callback?.(), (error) => callback?.(error));
+        return server;
+      }
+      closePromise = (async () => {
+        await dependencies.uiEvents.close();
+        if (bunServer) {
+          await bunServer.stop(true);
+          bunServer = undefined;
+        }
+        emit("close");
+      })();
+      closePromise.then(() => callback?.(), (error) => {
+        emit("error", error);
+        callback?.(error);
+      });
+      return server;
+    },
+  };
   return server;
 }
 
