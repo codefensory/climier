@@ -113,8 +113,10 @@ async function writeClimierJson(projectDir, mode, extra = {}) {
 // and --project as the calling test. Returns { stdout, stderr, code }
 // once the child exits. Errors here propagate so a child failure is a
 // regression.
-function spawnCli(args, { env } = {}) {
-  return new Promise((resolve, reject) => {
+type SpawnResult = { stdout: string; stderr: string; code: number | null };
+
+function spawnCli(args, { env }: { env?: NodeJS.ProcessEnv } = {}): Promise<SpawnResult> {
+  return new Promise<SpawnResult>((resolve, reject) => {
     let stdout = "";
     let stderr = "";
     let proc;
@@ -192,7 +194,7 @@ function spawnContentionTake(projectDir, index) {
 }
 
 async function spawnContendingChildren(projectDir, fanout) {
-  const results = [];
+  const results: Array<Promise<SpawnResult>> = [];
   for (let index = 0; index < fanout; index++) {
     results.push(spawnContentionTake(projectDir, index));
   }

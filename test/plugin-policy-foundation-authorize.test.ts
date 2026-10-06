@@ -165,7 +165,7 @@ test("policy-foundation: authorizeAction throws POLICY_ERROR when policy.authori
 test("policy-foundation: authorizeAction passes actor, target, snapshot, projectConfig read-only to the policy", async () => {
   await withEnv(async () => {
     const { authorizeAction } = await importFresh(POLICY_MODULE);
-    let received = null;
+    let received: Record<string, unknown> = {};
     const policy = {
       pluginId: "team-policy",
       namespace: "team-policy",
