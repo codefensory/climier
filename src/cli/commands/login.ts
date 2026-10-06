@@ -5,6 +5,7 @@ import { StringDecoder } from "node:string_decoder";
 import { createCredentialStore, normalizeOrigin } from "../../storage/credential-profile.ts";
 import { loginRemote } from "../../application/backend-remote-transport.ts";
 import type { CliFlags, CommandContext } from "./contracts.ts";
+import { warningField } from "./warnings.ts";
 
 export const knownFlags = ["server"];
 
@@ -79,5 +80,8 @@ export default async function login({ positional = [], flags = {}, projectConfig
     throw loginError("REMOTE_INVALID_RESPONSE", "server response did not contain a bearer token");
   }
   await credentialStore?.set(origin, session.token as string);
-  return { session: { origin, ...(Number.isInteger(session.expires_in_days) ? { expires_in_days: session.expires_in_days } : {}) } };
+  return {
+    session: { origin, ...(Number.isInteger(session.expires_in_days) ? { expires_in_days: session.expires_in_days } : {}) },
+    ...warningField("login", origin, flags),
+  };
 }

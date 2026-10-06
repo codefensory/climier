@@ -60,13 +60,32 @@ test("link stores only public metadata for a remote HTTP origin without an opt-i
   const dir = await createTempProject();
   try {
     await fs.writeFile(path.join(dir, ".climier.json"), JSON.stringify({ version: 1, project_id: "kept-id" }, null, 2) + "\n");
-    const result = await runLink(dir, ["http://remote.example.test:43127"]);
+    const result = await runLink(dir, ["http://remote.example.test:43127/path"]);
     assert.equal(result.code, 0, result.stdout);
-    const publicBackend = { type: "remote", url: "http://remote.example.test:43127/" };
-    assert.deepEqual(JSON.parse(result.stdout).project.backend, publicBackend);
+    const publicBackend = { type: "remote", url: "http://remote.example.test:43127/path" };
+    const output = JSON.parse(result.stdout);
+    assert.deepEqual(output.project.backend, publicBackend);
+    assert.deepEqual(output.warnings, [{
+      kind: "insecure-remote-http",
+      severity: "warning",
+      message: "link: http://remote.example.test:43127 is not HTTPS; the login password and bearer travel without transport encryption.",
+    }]);
     assert.deepEqual((await readMeta(dir)).backend, publicBackend);
   } finally {
     await rmTempProject(dir);
+  }
+});
+
+test("link --no-warnings suppresses insecure HTTP warnings before and after the command", async () => {
+  for (const args of [["--no-warnings", "http://remote.example.test/path"], ["http://remote.example.test/path", "--no-warnings"]]) {
+    const dir = await createTempProject();
+    try {
+      const result = await runLink(dir, args);
+      assert.equal(result.code, 0, result.stdout);
+      assert.equal(Object.hasOwn(JSON.parse(result.stdout), "warnings"), false);
+    } finally {
+      await rmTempProject(dir);
+    }
   }
 });
 

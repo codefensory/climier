@@ -62,14 +62,40 @@ test("login resolves the linked checkout origin when --server is omitted", async
   assert.equal(requested.origin, "https://remote.example");
 });
 
-test("login accepts plaintext non-loopback origins without an opt-in", async () => {
+test("login warns for plaintext non-loopback origins without an opt-in", async () => {
   let requested;
   const result = await login({
-    flags: { server: "http://remote.example" },
+    flags: { server: "http://remote.example/path" },
     readPassword: async () => "secret",
     requestLogin: async (options) => { requested = options; return { token: "token" }; },
     credentialStore: { async set() {} },
   });
   assert.deepEqual(requested, { origin: "http://remote.example", password: "secret" });
-  assert.deepEqual(result, { session: { origin: "http://remote.example" } });
+  assert.deepEqual(result, {
+    session: { origin: "http://remote.example" },
+    warnings: [{
+      kind: "insecure-remote-http",
+      severity: "warning",
+      message: "login: http://remote.example is not HTTPS; the login password and bearer travel without transport encryption.",
+    }],
+  });
+});
+
+test("login omits warnings for HTTPS and loopback HTTP, and supports --no-warnings", async () => {
+  for (const server of ["https://remote.example/path", "http://localhost:43127/path", "http://127.0.0.1:43127/path"]) {
+    const result = await login({
+      flags: { server },
+      readPassword: async () => "secret",
+      requestLogin: async () => ({ token: "token" }),
+      credentialStore: { async set() {} },
+    });
+    assert.equal(Object.hasOwn(result, "warnings"), false, server);
+  }
+  const suppressed = await login({
+    flags: { server: "http://remote.example/path", "no-warnings": true },
+    readPassword: async () => "secret",
+    requestLogin: async () => ({ token: "token" }),
+    credentialStore: { async set() {} },
+  });
+  assert.equal(Object.hasOwn(suppressed, "warnings"), false);
 });
