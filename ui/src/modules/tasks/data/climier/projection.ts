@@ -217,13 +217,6 @@ function firstParagraph(body: string | undefined): string {
   return String(body ?? "").split(/\n\s*\n/)[0].replace(/\s+/g, " ").trim();
 }
 
-function paragraphs(body: string | undefined): string[] {
-  return String(body ?? "")
-    .split(/\n\s*\n/)
-    .map((paragraph) => paragraph.replace(/\s+/g, " ").trim())
-    .filter(Boolean);
-}
-
 function claimOf(node: ClimierNode): { by: string | null; stale: boolean } {
   const by = node.claim?.by ?? null;
   if (!by) return { by: null, stale: false };
@@ -446,7 +439,7 @@ export function projectTaskDetail(snapshot: ClimierSnapshot, id: string): TaskDe
   const claim = claimOf(node);
   return {
     task: taskFromNode(snapshot, node),
-    body: paragraphs(node.body),
+    body: String(node.body ?? ""),
     acceptance: node.acceptance ?? null,
     initiative: node.initiative ?? null,
     domain: node.domain ?? null,

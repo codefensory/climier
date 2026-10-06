@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
+import { expect, waitFor } from "storybook/test";
 import { TaskActivityFeed } from "./TaskActivityFeed";
 import type { TaskActivityFeedProps } from "./TaskActivityFeed";
 
@@ -12,7 +13,7 @@ const meta = {
   title: "Tasks/TaskActivityFeed",
   component: TaskActivityFeed,
   parameters: { layout: "centered" },
-  argTypes: { activity: { control: "object" } },
+  argTypes: { activity: { control: "object" }, raw: { control: "boolean" } },
 } satisfies Meta<typeof TaskActivityFeed>;
 
 export default meta;
@@ -40,6 +41,32 @@ export const Playground: Story = {
 export const SingleEntry: Story = {
   args: { activity: [{ id: "one", kind: "created", author: "orchestrator", text: "created the task", at: "3d" }] },
   render: (args) => <Column><TaskActivityFeed {...args} /></Column>,
+};
+
+/**
+ * Un comentario en markdown: la burbuja renderiza negrita, código y listas, no el texto plano.
+ *
+ * Se prueba desde `TaskActivityFeed` y no desde `Markdown` porque el contrato real es que la nota del
+ * thread entre al render, no que el componente de markdown funcione aislado.
+ */
+export const MarkdownComment: Story = {
+  args: {
+    activity: [
+      {
+        id: "md",
+        kind: "comment",
+        author: "reviewer-ejecucion",
+        text: "commented",
+        at: "1d",
+        comment: "The **network error** does not say what to do:\n\n- add a `retry` action\n- keep the cart",
+      },
+    ],
+  },
+  render: (args) => <Column><TaskActivityFeed {...args} /></Column>,
+  play: async () => {
+    await waitFor(() => expect(document.querySelector('[data-testid="markdown"] strong')?.textContent).toBe("network error"));
+    await expect(document.querySelectorAll('[data-testid="markdown"] li').length).toBe(2);
+  },
 };
 
 /** Un comentario largo: la burbuja envuelve el texto sin romper el ancho de la columna. */

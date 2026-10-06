@@ -14,7 +14,7 @@ export const localAuthor = "you";
 export function taskDetailFor(task: Task): TaskDetail {
   return {
     task,
-    body: task.description ? [task.description] : [],
+    body: task.description ?? "",
     acceptance: null,
     initiative: task.initiative,
     domain: task.domain,

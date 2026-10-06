@@ -31,6 +31,9 @@ export type { ButtonProps, ButtonState, ButtonVariant } from "./components/Butto
 export { Chip } from "./components/Chip";
 export type { ChipProps } from "./components/Chip";
 
+export { Markdown } from "./components/Markdown";
+export type { MarkdownProps } from "./components/Markdown";
+
 export { MenuOption } from "./components/MenuOption";
 export type { MenuOptionProps } from "./components/MenuOption";
 

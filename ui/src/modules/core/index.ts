@@ -18,6 +18,9 @@ export type { HugeIconAsset } from "./types/hugeicon";
 
 export { tint } from "./utils/color";
 
+export { parseInline, parseMarkdown } from "./utils/markdown";
+export type { MarkdownBlock, MarkdownInline } from "./utils/markdown";
+
 export { BREAKPOINTS } from "./breakpoints";
 export { useMediaQuery } from "./primitives/useMediaQuery";
 

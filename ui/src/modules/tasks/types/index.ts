@@ -213,8 +213,8 @@ export type TaskActivityEntry = {
 /** Todo lo que necesita la vista de detalle de una tarea. */
 export type TaskDetail = {
   task: Task;
-  /** Párrafos del cuerpo (`body`), en orden. */
-  body: string[];
+  /** Cuerpo crudo (`body`), en markdown. El render (o el crudo) lo decide la vista. */
+  body: string;
   acceptance: string | null;
   initiative: string | null;
   domain: string | null;

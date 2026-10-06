@@ -275,6 +275,27 @@
   transition-timing-function: cubic-bezier(0, 0, 0.2, 1);
 }
 
+/*
+ * `<summary>` de un grupo colapsado. El chevron lo dibuja `GroupHeader`, así que el marcador nativo
+ * del navegador sobra: queda fuera del padding de la fila y desalineado.
+ *
+ * Va como clase sin capa y no con la utilidad `block`/`list-none` porque el preflight
+ * (`summary { display: list-item }`) gana por orden de capas sobre las utilidades de Tailwind.
+ */
+.disclosure-summary {
+  display: block;
+  list-style: none;
+}
+
+.disclosure-summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Chevron del grupo colapsable: apunta a la derecha cerrado y hacia abajo abierto. */
+.group[open] .disclosure-chevron {
+  rotate: 90deg;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .sidebar-nav-track > aside,
   .app-sidebar-wrap,

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
-import { expect, waitFor } from "storybook/test";
+import { expect, userEvent, waitFor } from "storybook/test";
 import { makeTaskDetail } from "../data/fixtures";
 import { TaskDetailView } from "./TaskDetailView";
 import type { TaskDetailViewProps } from "./TaskDetailView";
@@ -27,10 +27,17 @@ const Frame = (props: { children: import("solid-js").JSX.Element }) => (
 
 const richDetail = () => makeTaskDetail({
   body: [
-    "Map the empty, error and recovery moments across checkout as one flow instead of three disconnected screens.",
-    "Keep every surface inside the current token set and make the failure explain itself without sending the customer to support.",
-  ],
-  acceptance: "Empty, error and recovery states reviewed at 639, 1023 and 1440.",
+    "Map the **empty**, **error** and **recovery** moments across checkout as one flow instead of three disconnected screens.",
+    "",
+    "Keep every surface inside the current token set:",
+    "",
+    "- no new tokens",
+    "- the failure explains itself with a `retry` action",
+    "- the cart survives the retry",
+    "",
+    "See [docs/checkout.md](https://example.com/checkout.md).",
+  ].join("\n"),
+  acceptance: "Empty, error and recovery states reviewed at **639**, **1023** and **1440**.",
   blockers: [{ id: "G-checkout-tax-decision", title: "Decide the tax display rule", kind: "gate", status: "open", satisfied: false }],
   dependents: [{ id: "T-checkout-recovery-flow", title: "Rebuild the recovery path", kind: "task", status: "submitted", edgeType: "BLOCKS" }],
   knowledge: [{ id: "K-checkout-empty-states", title: "Los estados vacíos se revisan contra el build", body: "Cualquier decisión de copy o layout en checkout tiene que sostenerse a 639, 1023 y 1440.", knowledgeType: "warning", status: "active", scopeMatches: ["tag"] }],
@@ -38,7 +45,7 @@ const richDetail = () => makeTaskDetail({
   activity: [
     { id: "1", kind: "created", author: "orchestrator", text: "created the task", at: "5d" },
     { id: "2", kind: "claim", author: "climier-worker", text: "claimed it", at: "3d" },
-    { id: "3", kind: "comment", author: "climier-worker", text: "commented", at: "2d", comment: "Arranqué por los estados vacíos; el error de red queda para el final." },
+    { id: "3", kind: "comment", author: "climier-worker", text: "commented", at: "2d", comment: "Arranqué por los **estados vacíos**; el error de red queda para el final." },
     { id: "4", kind: "update", author: "climier-worker", text: "updated it", at: "2d" },
     { id: "5", kind: "comment", author: "reviewer", text: "commented", at: "1d", comment: "El error de red no dice qué hacer: agregar una acción de reintento." },
     { id: "6", kind: "submit", author: "climier-worker", text: "submitted it for validation", at: "6h" },
@@ -56,6 +63,24 @@ export const Playground: Story = {
       expect(activity?.textContent).toContain("El error de red no dice qué hacer: agregar una acción de reintento.");
       expect(document.querySelector('[data-testid="task-notes"]')).toBeNull();
     });
+  },
+};
+
+/**
+ * El switch cambia body, acceptance y comentarios entre markdown renderizado y fuente crudo.
+ *
+ * Se afirma sobre el DOM: en markdown la negrita es un `<strong>`; en crudo, los delimitadores se ven
+ * como texto y no queda ningún bloque renderizado.
+ */
+export const RawMode: Story = {
+  args: { detail: richDetail() },
+  render: (args) => <Frame><TaskDetailView {...args} /></Frame>,
+  play: async () => {
+    await waitFor(() => expect(document.querySelector('[data-testid="markdown"] strong')?.textContent).toBe("empty"));
+    const buttons = document.querySelectorAll<HTMLButtonElement>('[data-testid="content-mode-switch"] button');
+    await userEvent.click(buttons[1]!);
+    await waitFor(() => expect(document.querySelector('[data-testid="markdown"]')).toBeNull());
+    await expect(document.body.textContent).toContain("**empty**");
   },
 };
 

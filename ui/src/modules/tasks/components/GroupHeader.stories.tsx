@@ -1,5 +1,7 @@
 import { For } from "solid-js";
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
+import { expect, userEvent, waitFor } from "storybook/test";
+import { must } from "../../../test-utils/story";
 import { makeTask } from "../data/fixtures";
 import { STATUS_TOKENS, statusOrder } from "../data/statuses";
 import { GroupHeader } from "./GroupHeader";
@@ -19,7 +21,7 @@ const meta = {
   title: "Tasks/GroupHeader",
   component: GroupHeader,
   parameters: { layout: "centered" },
-  argTypes: { group: { control: "object" } },
+  argTypes: { group: { control: "object" }, collapsible: { control: "boolean" } },
 } satisfies Meta<typeof GroupHeader>;
 
 export default meta;
@@ -77,6 +79,34 @@ export const GateGroup: Story = {
 export const AllGroup: Story = {
   args: { group: group({ key: "all", label: "All tasks", color: "var(--color-faint)", glyph: { kind: "all" }, tasks: sampleTasks(), progress: 100 }) },
   render: (args) => <Frame><GroupHeader {...args} /></Frame>,
+};
+
+/**
+ * Variante colapsable: el chevron reemplaza al marcador nativo del `<details>` y rota al abrir.
+ *
+ * La clase `.disclosure-summary` del `<summary>` (que borra el marcador nativo) es
+ * responsabilidad del consumidor; acá se replica el par completo para documentar la variante.
+ */
+export const Collapsible: Story = {
+  render: () => (
+    <Frame>
+      <details class="group" open={false}>
+        <summary class="disclosure-summary cursor-pointer">
+          <GroupHeader group={group({ tasks: sampleTasks(), progress: 68 })} collapsible />
+        </summary>
+        <div class="px-4 py-3 text-[13px] text-muted">Two tasks</div>
+      </details>
+    </Frame>
+  ),
+  play: async () => {
+    const summary = must(document.querySelector<HTMLElement>("details > summary"), "el summary del grupo");
+    const chevron = must(summary.querySelector("svg"), "el chevron del summary");
+    await expect(getComputedStyle(summary).display).toBe("block");
+    const collapsed = getComputedStyle(chevron).rotate;
+    await userEvent.click(summary);
+    await waitFor(() => expect(summary.closest("details")?.hasAttribute("open")).toBe(true));
+    await waitFor(() => expect(getComputedStyle(chevron).rotate).not.toBe(collapsed));
+  },
 };
 
 /** Grupo vacío: el progreso es 0, no `NaN`. */
