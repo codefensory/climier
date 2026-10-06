@@ -47,7 +47,7 @@ test("plugin-lock: blocks concurrent acquires; second waits then succeeds", asyn
   const env = await freshEnv();
   const { withGlobalPluginLock } = await importFresh(LOCK_MODULE);
   try {
-    const order = [];
+    const order: string[] = [];
     const a = withGlobalPluginLock(async () => {
       order.push("a-start");
       await new Promise((r) => setTimeout(r, 150));

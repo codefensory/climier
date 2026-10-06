@@ -8,6 +8,19 @@ import os from "node:os";
 import { importFresh } from "./helpers.mjs";
 import { INSTALL_MODULE, freshEnv, createFixturePackage, listStagingDirs } from "./plugin-install-test-helpers.mjs";
 
+type PluginTestError = { code: string };
+
+function asPluginError(error: unknown): PluginTestError {
+  if (!error || typeof error !== "object") {
+    throw new TypeError("expected plugin error");
+  }
+  const code = (error as { code?: unknown }).code;
+  if (typeof code !== "string") {
+    throw new TypeError("expected plugin error code");
+  }
+  return { code };
+}
+
 test("install: missing climier.id returns PLUGIN_INVALID_DESCRIPTOR and cleans staging", async () => {
   const env = await freshEnv();
   const { default: install } = await importFresh(INSTALL_MODULE);
@@ -21,7 +34,7 @@ test("install: missing climier.id returns PLUGIN_INVALID_DESCRIPTOR and cleans s
     });
     await assert.rejects(
       install({ positional: [fixtureDir + "/no-id"], flags: {}, projectDir: fixtureDir, statePath: fixtureDir }),
-      (err) => err.code === "PLUGIN_INVALID_DESCRIPTOR",
+      (err) => asPluginError(err).code === "PLUGIN_INVALID_DESCRIPTOR",
     );
     assert.deepEqual(await listStagingDirs(env), []);
   } finally {
@@ -43,7 +56,7 @@ test("install: descriptor with invalid id regex returns PLUGIN_INVALID_DESCRIPTO
     });
     await assert.rejects(
       install({ positional: [fixtureDir + "/bad-id-pkg"], flags: {}, projectDir: fixtureDir, statePath: fixtureDir }),
-      (err) => err.code === "PLUGIN_INVALID_DESCRIPTOR",
+      (err) => asPluginError(err).code === "PLUGIN_INVALID_DESCRIPTOR",
     );
     assert.deepEqual(await listStagingDirs(env), []);
   } finally {
@@ -65,7 +78,7 @@ test("install: descriptor missing command returns PLUGIN_INVALID_DESCRIPTOR and 
     });
     await assert.rejects(
       install({ positional: [fixtureDir + "/no-cmd"], flags: {}, projectDir: fixtureDir, statePath: fixtureDir }),
-      (err) => err.code === "PLUGIN_INVALID_DESCRIPTOR",
+      (err) => asPluginError(err).code === "PLUGIN_INVALID_DESCRIPTOR",
     );
     assert.deepEqual(await listStagingDirs(env), []);
   } finally {
@@ -88,7 +101,7 @@ test("install: descriptor missing entry returns PLUGIN_INVALID_DESCRIPTOR and cl
     });
     await assert.rejects(
       install({ positional: [fixtureDir + "/no-entry"], flags: {}, projectDir: fixtureDir, statePath: fixtureDir }),
-      (err) => err.code === "PLUGIN_INVALID_DESCRIPTOR",
+      (err) => asPluginError(err).code === "PLUGIN_INVALID_DESCRIPTOR",
     );
     assert.deepEqual(await listStagingDirs(env), []);
   } finally {
@@ -103,7 +116,7 @@ test("install: rejects missing positional with PLUGIN_INVALID_DESCRIPTOR", async
   try {
     await assert.rejects(
       install({ positional: [], flags: {}, projectDir: "/tmp", statePath: "/tmp" }),
-      (err) => err.code === "PLUGIN_INVALID_DESCRIPTOR",
+      (err) => asPluginError(err).code === "PLUGIN_INVALID_DESCRIPTOR"
     );
   } finally {
     env.restore();

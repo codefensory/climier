@@ -11,7 +11,7 @@ test("uninstall: rejects missing positional", async () => {
   try {
     await assert.rejects(
       uninstall({ positional: [], flags: {}, projectDir: "/tmp/x", statePath: "/tmp/x" }),
-      (err) => /uninstall:/.test(err.message),
+      (err) => /uninstall:/.test(String((err as { message?: unknown }).message)),
     );
   } finally {
     env.restore();

@@ -11,6 +11,29 @@ import { requireTestModule as require } from "./plugin-install-test-helpers.mjs"
 import { captureError as capture } from "./plugin-install-test-helpers.mjs";
 import { DESCRIPTOR_MODULE } from "./plugin-install-test-helpers.mjs";
 
+type PluginTestError = { code: string; message: string; details: Record<string, unknown> };
+
+function asPluginError(error: unknown): PluginTestError {
+  if (!error || typeof error !== "object") {
+    throw new TypeError("expected plugin error");
+  }
+  const candidate = error as { code?: unknown; message?: unknown; details?: unknown };
+  if (
+    typeof candidate.code !== "string" ||
+    typeof candidate.message !== "string" ||
+    !candidate.details ||
+    typeof candidate.details !== "object" ||
+    Array.isArray(candidate.details)
+  ) {
+    throw new TypeError("expected structured plugin error");
+  }
+  return {
+    code: candidate.code,
+    message: candidate.message,
+    details: candidate.details as Record<string, unknown>,
+  };
+}
+
 test("plugin-descriptor: PLUGIN_ID_RE matches the ADR regex", () => {
   const { PLUGIN_ID_RE } = require(DESCRIPTOR_MODULE);
   assert.ok(PLUGIN_ID_RE.test("a"));
@@ -77,7 +100,7 @@ test("plugin-descriptor: importEntry rejects missing default.commands with PLUGI
     );
     await assert.rejects(
       importEntry(path.join(dir, "entry.mjs")),
-      (err) => err.code === "PLUGIN_LOAD_FAILED",
+      (err) => asPluginError(err).code === "PLUGIN_LOAD_FAILED",
     );
   } finally {
     await fs.rm(dir, { recursive: true, force: true });
@@ -90,10 +113,11 @@ test("plugin-descriptor: importEntry rejects entry that cannot be resolved with 
     await assert.rejects(
       importEntry(path.join(dir, "missing.mjs")),
       (err) => {
-        assert.equal(err.code, "PLUGIN_LOAD_FAILED");
-        assert.equal(err.details.entry, path.join(dir, "missing.mjs"));
-        assert.equal(err.details.entry_url, pathToFileURL(path.join(dir, "missing.mjs")).href);
-        assert.match(err.details.cause, /missing|cannot find|not found/i);
+        const error = asPluginError(err);
+        assert.equal(error.code, "PLUGIN_LOAD_FAILED");
+        assert.equal(error.details.entry, path.join(dir, "missing.mjs"));
+        assert.equal(error.details.entry_url, pathToFileURL(path.join(dir, "missing.mjs")).href);
+        assert.match(String(error.details.cause), /missing|cannot find|not found/i);
         return true;
       },
     );
