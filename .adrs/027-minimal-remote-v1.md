@@ -1,6 +1,11 @@
 # ADR-027: remote v1 mínimo, operaciones tipadas y transferencias explícitas
 
-- Gate: `G-rb-minimal-v1` · Deriva de: `G-remote-backend-rfc` · Estado: aprobado
+> **Histórico / reemplazado:** esta decisión conserva el diseño anterior para
+> trazabilidad. La política de boundary de red y sus referencias operativas a
+> HTTP/loopback fueron reemplazadas por ADR-051 y ADR-052; consulte esas
+> decisiones para el contrato vigente.
+
+- Gate: `G-rb-minimal-v1` · Deriva de: `G-remote-backend-rfc` · Estado: histórico / reemplazado
 - Fecha: 2026-09-25
 
 ## Contexto

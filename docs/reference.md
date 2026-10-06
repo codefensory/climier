@@ -36,7 +36,7 @@ in `details.cause`; opaque failures are exposed as `CLI_INTERNAL_ERROR`. Help
 and version remain the only intentional plain-text outputs and exit 0. There is
 no `--json` switch because JSON is already the default.
 
-Remote v1 requires HTTPS for non-loopback origins by default. An explicit `CLIMIER_ALLOW_INSECURE_REMOTE_HTTP=true` opt-in permits HTTP on a trusted private network; the destination is read from `.climier.json` and bearers remain scoped to their saved origin. The server continues to bind to loopback by default; this client opt-in does not change its listener. HTTP sends credentials without TLS and should be used only when the network path is trusted. A successful remote `init` has the same JSON result shape as local initialization, plus a warning for opted-in HTTP; remote failures never fall back to local state.
+Remote v1 accepts HTTP and HTTPS origins. The operator owns the server listener address and transport exposure; `listen.host` is a non-empty host string passed to the operating system, and Climier does not impose a loopback, interface, or network-vendor policy. HTTPS is recommended. For an HTTP origin outside loopback, successful `login`, `link`, and remote `init` results include a `warnings` field containing `{ kind: "insecure-remote-http", severity: "warning", message: "<command>: <origin> is not HTTPS; the login password and bearer travel without transport encryption." }`; `<origin>` is `new URL(backend.url).origin`. `--no-warnings` suppresses that field and is accepted before or after the command. Loopback HTTP and HTTPS do not warn; remote failures never fall back to local state.
 
 If you only need the quickstart, use `README.md`. If you need the actual contract, use this file.
 
@@ -863,10 +863,12 @@ credential profile; `logout` removes that local entry. A checkout with a retired
 protocol marker fails with `REMOTE_CONFIG_OUTDATED` before auth or local state
 I/O; relink it to the configured URL to clean the metadata. `init` may provision
 an absent remote project, while reads and writes never create storage implicitly.
-The server requires `CLIMIER_SERVER_PASSWORD`, loopback binding, a
-service-lifetime lock, and a durable auth file; see
-[`docs/remote-server.md`](remote-server.md) for TLS, private-network HTTP,
-backup, rotation, transfers, and stale-lock recovery.
+The server requires `CLIMIER_SERVER_PASSWORD`, a service-lifetime lock, and
+a durable auth file; its bind address and transport are operator-managed.
+Successful HTTP non-loopback `login`, `link`, and remote `init` operations warn
+unless `--no-warnings` is supplied; see
+[`docs/remote-server.md`](remote-server.md) for transport, backup, rotation,
+transfers, and stale-lock recovery.
 
 ## Low-level semantics worth knowing
 
