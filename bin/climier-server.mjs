@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 import { startServerRuntime } from "../src/server/runtime.mjs";
 
 const configPath = process.argv[2];

@@ -8,17 +8,23 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-test("package: npm test uses the bounded core runner", () => {
+test("package: bun test uses the bounded core runner", () => {
   const pkg = JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8"));
-  assert.equal(pkg.scripts.test, "node test/run-core-tests.mjs");
+  assert.equal(pkg.scripts.test, "bun test/run-core-tests.mjs");
+  assert.equal(pkg.version, "2.0.0");
+  assert.deepEqual(pkg.engines, { bun: ">=1.4" });
+  assert.equal(existsSync(path.join(repoRoot, "package-lock.json")), false);
+  assert.equal(existsSync(path.join(repoRoot, "bun.lock")), true);
 });
 
-test("package: every published bin entry uses the portable Node shebang", () => {
+test("package: every published bin entry uses the Bun shebang", () => {
   const pkg = JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8"));
   for (const [name, relativePath] of Object.entries(pkg.bin)) {
     const firstLine = readFileSync(path.join(repoRoot, relativePath), "utf8").split("\n", 1)[0];
-    assert.equal(firstLine, "#!/usr/bin/env node", `${name} must use the Node shebang`);
+    assert.equal(firstLine, "#!/usr/bin/env bun", `${name} must use the Bun shebang`);
   }
+  const smokeShebang = readFileSync(path.join(repoRoot, "scripts/smoke-packed.mjs"), "utf8").split("\n", 1)[0];
+  assert.equal(smokeShebang, "#!/usr/bin/env bun");
 });
 
 test("package: the UI test suite is gone with its script and loader", async () => {
@@ -33,16 +39,15 @@ test("package: the UI test suite is gone with its script and loader", async () =
   assert.equal(existsSync(path.join(testDir, "jsx-loader.mjs")), false, "the JSX loader existed only for those files");
 });
 
-test("package: npm pack only includes runtime files", () => {
-  const raw = execFileSync("npm", ["pack", "--dry-run", "--json"], {
+test("package: bun pm pack only includes runtime files", () => {
+  const raw = execFileSync("bun", ["pm", "pack", "--dry-run"], {
     cwd: repoRoot,
     encoding: "utf8",
   });
-  const packed = JSON.parse(raw);
-  // npm 10 returns an array here; npm 12 wraps the manifest by package name.
-  const report = Array.isArray(packed) ? packed[0] : Object.values(packed)[0];
-  const { files } = report;
-  const paths = files.map((f) => f.path);
+  const paths = raw.split(/\r?\n/).flatMap((line) => {
+    const match = line.match(/^packed \S+ (.+)$/);
+    return match ? [match[1]] : [];
+  });
 
   assert.ok(paths.includes("bin/climier.mjs"));
   assert.ok(paths.some((p) => p.startsWith("src/")));

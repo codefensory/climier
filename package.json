@@ -1,6 +1,6 @@
 {
   "name": "climier",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "JSON-first task DAG CLI for coordinating work, decisions, and claims",
   "keywords": [
     "dag",
@@ -19,14 +19,14 @@
   },
   "main": "bin/climier.mjs",
   "scripts": {
-    "test": "node test/run-core-tests.mjs",
-    "test:watch": "node --test --watch test/",
-    "test:concurrent": "node --test test/take.test.mjs test/take-by-id.test.mjs test/adversarial.test.mjs",
-    "pack:check": "npm pack --dry-run --json > /dev/null",
-    "surface:check": "node scripts/check-retired-surfaces.mjs",
-    "smoke:pack": "node scripts/smoke-packed.mjs",
+    "test": "bun test/run-core-tests.mjs",
+    "test:watch": "bun test --watch test/",
+    "test:concurrent": "bun test test/take.test.mjs test/take-by-id.test.mjs test/adversarial.test.mjs",
+    "pack:check": "bun pm pack --dry-run > /dev/null",
+    "surface:check": "bun scripts/check-retired-surfaces.mjs",
+    "smoke:pack": "bun install --cwd ui --frozen-lockfile && bun run --cwd ui build && bun scripts/smoke-packed.mjs",
     "lint:cut": "oxlint bin scripts src/cli/commands/ui.mjs src/cli/dispatch.mjs test/package.test.mjs test/retired-surfaces.test.mjs",
-    "prepublishOnly": "npm_config_dry_run= npm test && npm run surface:check && npm run lint:cut && npm run pack:check",
+    "prepublishOnly": "bun run test && bun run surface:check && bun run lint:cut && bun run pack:check",
     "lint": "oxlint src bin test"
   },
   "devDependencies": {
@@ -42,7 +42,7 @@
     "LICENSE"
   ],
   "engines": {
-    "node": ">=20"
+    "bun": ">=1.4"
   },
   "license": "MIT"
 }

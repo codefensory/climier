@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 /* oxlint-disable complexity, max-statements, max-lines-per-function -- this is a linear release-artifact smoke sequence. */
 // Exercise the published artifact rather than the checkout's source tree.
 import { execFile, spawn } from "node:child_process";
@@ -145,15 +145,17 @@ async function main() {
     const destination = path.join(root, "pack");
     const prefix = path.join(root, "prefix");
     await fs.mkdir(destination, { recursive: true });
-    const packed = await command("npm", ["pack", "--json", "--pack-destination", destination]);
-    if (packed.code !== 0) {throw new Error(`npm pack failed: ${packed.stderr}`);}
-    const report = jsonOutput(packed, "npm pack");
-    const manifest = Array.isArray(report) ? report[0] : Object.values(report)[0];
-    if (!manifest?.filename) {throw new Error(`npm pack returned no tarball filename: ${JSON.stringify(report)}`);}
-    const tarball = path.join(destination, manifest.filename);
+    await fs.mkdir(prefix, { recursive: true });
+    const packed = await command("bun", ["pm", "pack", "--destination", destination]);
+    if (packed.code !== 0) {throw new Error(`bun pm pack failed: ${packed.stderr}`);}
+    const tarball = packed.stdout
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .find((line) => line.endsWith(".tgz") && path.isAbsolute(line));
+    if (!tarball) {throw new Error(`bun pm pack returned no tarball filename: ${packed.stdout}`);}
 
-    const installed = await command("npm", ["install", "--prefix", prefix, "--no-save", "--no-audit", "--no-fund", "--ignore-scripts", tarball]);
-    if (installed.code !== 0) {throw new Error(`npm install tarball failed: ${installed.stderr}`);}
+    const installed = await command("bun", ["add", "--cwd", prefix, "--no-save", tarball]);
+    if (installed.code !== 0) {throw new Error(`bun add tarball failed: ${installed.stderr}`);}
     const packageRoot = path.join(prefix, "node_modules", "climier");
     const climier = path.join(prefix, "node_modules", ".bin", "climier");
     const serverBin = path.join(prefix, "node_modules", ".bin", "climier-server");
