@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
+import { expect, waitFor } from "storybook/test";
 import { makeTaskDetail } from "../data/fixtures";
 import { TaskDetailView } from "./TaskDetailView";
 import type { TaskDetailViewProps } from "./TaskDetailView";
@@ -46,6 +47,14 @@ const richDetail = () => makeTaskDetail({
 export const Playground: Story = {
   args: { detail: richDetail() },
   render: (args) => <Frame><TaskDetailView {...args} /></Frame>,
+  play: async () => {
+    await waitFor(() => {
+      const notes = document.querySelector('[data-testid="task-notes"]');
+      expect(notes?.textContent).toContain("Notes · 1");
+      expect(notes?.textContent).toContain("reviewer");
+      expect(notes?.textContent).toContain("El error de red no dice qué hacer.");
+    });
+  },
 };
 
 /** Sin actividad en el historial: la sección queda vacía pero presente. */
