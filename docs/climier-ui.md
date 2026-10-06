@@ -608,5 +608,5 @@ Estas métricas deben validarse con usuarios antes de fijarlas como contrato:
 - `ui/src/`: frontend y proyección de lectura (Overview, Board, Nodes, Gates, Knowledge, Activity y detalle de nodes).
 - `src/server/http/static.ts`: handler stdlib para `ui/dist`, MIME, cache, fallback SPA y confinamiento de paths.
 - `src/server/http/ui-api.ts`: proyección HTTP de snapshot, nodes y activity.
-- `src/cli/commands/ui.mjs`: comando local read-only sobre el handler estático y la proyección compartida.
+- `src/cli/commands/ui.ts`: comando local read-only sobre el handler estático y la proyección compartida.
 - `src/read-model/ui.ts` / `src/storage/state.ts`: derivación y lectura del state usadas por el server.
