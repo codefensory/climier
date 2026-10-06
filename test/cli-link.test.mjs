@@ -56,13 +56,11 @@ test("link writes remote metadata without a protocol marker and generates an id 
   }
 });
 
-test("link stores only public metadata for an opted-in remote HTTP origin", async () => {
+test("link stores only public metadata for a remote HTTP origin without an opt-in", async () => {
   const dir = await createTempProject();
   try {
     await fs.writeFile(path.join(dir, ".climier.json"), JSON.stringify({ version: 1, project_id: "kept-id" }, null, 2) + "\n");
-    const result = await runCli(["--project", dir, "link", "http://remote.example.test:43127"], {
-      env: { CLIMIER_ALLOW_INSECURE_REMOTE_HTTP: "true" },
-    });
+    const result = await runLink(dir, ["http://remote.example.test:43127"]);
     assert.equal(result.code, 0, result.stdout);
     const publicBackend = { type: "remote", url: "http://remote.example.test:43127/" };
     assert.deepEqual(JSON.parse(result.stdout).project.backend, publicBackend);

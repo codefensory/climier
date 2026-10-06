@@ -62,21 +62,14 @@ test("login resolves the linked checkout origin when --server is omitted", async
   assert.equal(requested.origin, "https://remote.example");
 });
 
-test("login rejects plaintext non-loopback origins before reading or requesting", async () => {
-  let read = false;
-  let requested = false;
-  const previous = process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP;
-  delete process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP;
-  try {
-    await assert.rejects(login({
-      flags: { server: "http://remote.example" },
-      readPassword: async () => { read = true; return "secret"; },
-      requestLogin: async () => { requested = true; },
-    }), (error) => error.code === "CLI_USAGE_ERROR");
-    assert.equal(read, false);
-    assert.equal(requested, false);
-  } finally {
-    if (previous === undefined) {delete process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP;}
-    else {process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP = previous;}
-  }
+test("login accepts plaintext non-loopback origins without an opt-in", async () => {
+  let requested;
+  const result = await login({
+    flags: { server: "http://remote.example" },
+    readPassword: async () => "secret",
+    requestLogin: async (options) => { requested = options; return { token: "token" }; },
+    credentialStore: { async set() {} },
+  });
+  assert.deepEqual(requested, { origin: "http://remote.example", password: "secret" });
+  assert.deepEqual(result, { session: { origin: "http://remote.example" } });
 });

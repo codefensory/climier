@@ -88,9 +88,6 @@ function parseLocalBackend(backend: BackendMetadata): { type: "local" } {
 function parseRemoteBackend(backend: BackendMetadata): RemoteBackend {
   if (!Object.hasOwn(backend, "url")) {fail("remote url is required");}
   const parsedUrl = parseRemoteUrl(backend.url);
-  if (parsedUrl.insecureRemoteHttp && process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP !== "true") {
-    fail("remote url must use HTTPS outside localhost; set CLIMIER_ALLOW_INSECURE_REMOTE_HTTP=true to allow HTTP non-loopback");
-  }
   const result: RemoteBackend = { type: "remote", url: parsedUrl.url };
   if (parsedUrl.insecureRemoteHttp) {result.insecureRemoteHttp = true;}
   return result;
