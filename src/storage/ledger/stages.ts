@@ -120,12 +120,7 @@ export async function durableReplace(file, raw) {
     await handle.close();
   }
   await fs.rename(temp, file);
-  const dirHandle = await fs.open(dir, "r");
-  try {
-    await dirHandle.sync();
-  } finally {
-    await dirHandle.close();
-  }
+  await syncDirectory(dir);
 }
 
 export async function persistLedger(file, ledger) {
@@ -143,12 +138,7 @@ export async function durableCreate(file, raw) {
   } finally {
     await handle.close();
   }
-  const dirHandle = await fs.open(dir, "r");
-  try {
-    await dirHandle.sync();
-  } finally {
-    await dirHandle.close();
-  }
+  await syncDirectory(dir);
   try {
     await fs.link(temp, file);
   } finally {
@@ -158,12 +148,7 @@ export async function durableCreate(file, raw) {
     }
     });
   }
-  const syncedDir = await fs.open(dir, "r");
-  try {
-    await syncedDir.sync();
-  } finally {
-    await syncedDir.close();
-  }
+  await syncDirectory(dir);
 }
 
 export function bootstrapStagePath(statePath, stageId) {
@@ -198,7 +183,9 @@ export async function cleanOrphanRecoveryStages(statePath) {
   if (changed) { await syncDirectory(directory); }
 }
 
-export async function syncDirectory(directory) {
+export async function syncDirectory(directory: string, platform: NodeJS.Platform = process.platform): Promise<void> {
+  // Windows cannot fsync directory handles; file contents are still synced before publication.
+  if (platform === "win32") {return;}
   const handle = await fs.open(directory, "r");
   try {
     await handle.sync();
@@ -229,10 +216,5 @@ export async function writeDurableStage(stagePath, destinationRaw) {
   } finally {
     await handle.close();
   }
-  const directory = await fs.open(path.dirname(stagePath), "r");
-  try {
-    await directory.sync();
-  } finally {
-    await directory.close();
-  }
+  await syncDirectory(path.dirname(stagePath));
 }

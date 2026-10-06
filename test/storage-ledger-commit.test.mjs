@@ -14,6 +14,7 @@ import {
   readFencedState,
   readFencedStateUnderLock,
 } from "../src/storage/ledger.ts";
+import { syncDirectory } from "../src/storage/ledger/stages.ts";
 
 
 async function withProject(fn) {
@@ -24,6 +25,12 @@ async function withProject(fn) {
     await rmTempProject(projectDir);
   }
 }
+
+test("directory sync is skipped on Windows, where directory handles cannot be fsynced", async () => {
+  await withProject(async (projectDir) => {
+    await assert.doesNotReject(syncDirectory(path.join(projectDir, "missing"), "win32"));
+  });
+});
 
 function rejectAfterTimeout(message) {
   return new Promise((_, reject) => setTimeout(() => reject(new Error(message)), 1000));

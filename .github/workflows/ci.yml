@@ -84,7 +84,7 @@ jobs:
           CLIMIER_HOME="$plugin_home" "$cli" --project "$project" status
           output=$(CLIMIER_HOME="$plugin_home" "$cli" --project "$project" --as binary-smoke binary-smoke probe --external)
           echo "$output"
-          echo "$output" | grep -q '"loaded":true'
+          echo "$output" | grep -Eq '"loaded"[[:space:]]*:[[:space:]]*true'
       - uses: actions/upload-artifact@v4
         with:
           name: climier-${{ matrix.name }}

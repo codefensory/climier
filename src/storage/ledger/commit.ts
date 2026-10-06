@@ -11,7 +11,7 @@ import { validateStateInvariants } from "../../contracts/state-invariants.ts";
 import { assertValidLedger } from "./recovery.ts";
 import type { LedgerLike, NodeRecord, StateLike } from "./stages.ts";
 import { finishPendingBootstrap } from "./bootstrap.ts";
-import { assertFencedMigrationSource, assertSchemaMigrationDestination, assertSchemaMigratedState, assertFencedState, hasFencedSchemaMigrationEntry, isSchemaMigratedState, commitStagePath, durableReplace, fault, fingerprintMismatch, maxNodeRevision, persistLedger, readJson, sha256, writeDurableStage } from "./stages.ts";
+import { assertFencedMigrationSource, assertSchemaMigrationDestination, assertSchemaMigratedState, assertFencedState, hasFencedSchemaMigrationEntry, isSchemaMigratedState, commitStagePath, durableReplace, fault, fingerprintMismatch, maxNodeRevision, persistLedger, readJson, sha256, syncDirectory, writeDurableStage } from "./stages.ts";
 
 function ledgerFile(statePath) {
   return path.join(path.dirname(statePath), "revision-ledger.json");
@@ -56,14 +56,7 @@ async function cleanOrphanCommitStages(statePath) {
       changed = true;
     }
   }
-  if (changed) {
-    const handle = await fs.open(directory, "r");
-    try {
-      await handle.sync();
-    } finally {
-      await handle.close();
-    }
-  }
+  if (changed) { await syncDirectory(directory); }
 }
 
 function assertCommitSource(rawState, pending, ledger) {
@@ -129,12 +122,7 @@ async function clearPendingCommit({ stagePath, ledgerPath, ledger, pending, opts
   await persistLedger(ledgerPath, ledger);
   fault(opts, "after-ledger-clear");
   await fs.unlink(stagePath);
-  const directory = await fs.open(path.dirname(stagePath), "r");
-  try {
-    await directory.sync();
-  } finally {
-    await directory.close();
-  }
+  await syncDirectory(path.dirname(stagePath));
 }
 
 async function finishPendingCommit({ statePath, ledgerPath, ledger, rawState, opts = {} }) {
