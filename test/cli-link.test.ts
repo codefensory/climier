@@ -9,7 +9,7 @@ async function readMeta(dir) {
   return JSON.parse(await fs.readFile(path.join(dir, ".climier.json"), "utf8"));
 }
 
-async function runLink(dir, args = []) {
+async function runLink(dir: string, args: string[] = []) {
   return runCli(["--project", dir, "link", ...args]);
 }
 

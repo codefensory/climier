@@ -1,15 +1,24 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import status from "../src/cli/commands/status.ts";
-import context from "../src/cli/commands/context.ts";
-import show from "../src/cli/commands/show.ts";
-import history from "../src/cli/commands/history.ts";
-import search from "../src/cli/commands/search.ts";
-import initiatives from "../src/cli/commands/initiatives.ts";
-import log from "../src/cli/commands/log.ts";
-import state from "../src/cli/commands/state.ts";
+import statusCommand from "../src/cli/commands/status.ts";
+import contextCommand from "../src/cli/commands/context.ts";
+import showCommand from "../src/cli/commands/show.ts";
+import historyCommand from "../src/cli/commands/history.ts";
+import searchCommand from "../src/cli/commands/search.ts";
+import initiativesCommand from "../src/cli/commands/initiatives.ts";
+import logCommand from "../src/cli/commands/log.ts";
+import stateCommand from "../src/cli/commands/state.ts";
 import { createTempProject, rmTempProject, writeCanonicalState, readState, runCli, initExampleProject } from "./helpers.mjs";
+
+const status = (context: unknown) => statusCommand(context as Parameters<typeof statusCommand>[0]);
+const context = (value: unknown) => contextCommand(value as Parameters<typeof contextCommand>[0]);
+const show = (value: unknown) => showCommand(value as Parameters<typeof showCommand>[0]);
+const history = (value: unknown) => historyCommand(value as Parameters<typeof historyCommand>[0]);
+const search = (value: unknown) => searchCommand(value as Parameters<typeof searchCommand>[0]);
+const initiatives = (value: unknown) => initiativesCommand(value as Parameters<typeof initiativesCommand>[0]);
+const log = (value: unknown) => logCommand(value as Parameters<typeof logCommand>[0]);
+const state = (value: unknown) => stateCommand(value as Parameters<typeof stateCommand>[0]);
 
 const sentinelState = {
   version: 1,
@@ -68,9 +77,9 @@ function commandCases(client, statePath = "/not/read/locally") {
   ];
 }
 
-function createRemoteClient({ rejectWith } = {}) {
-  const calls = [];
-  const client = { type: "remote" };
+function createRemoteClient({ rejectWith }: { rejectWith?: Error } = {}) {
+  const calls: Array<{ method: string; options: unknown }> = [];
+  const client: { type: "remote"; [method: string]: unknown } = { type: "remote" };
   for (const [method, response] of Object.entries({
     readStatus: remoteResponses.status,
     readContext: remoteResponses.context,

@@ -6,18 +6,29 @@ import {
   rmTempProject,
   writeCanonicalState,
 } from "./helpers.mjs";
-import addGate from "../src/cli/commands/add-gate.ts";
-import addKnowledge from "../src/cli/commands/add-knowledge.ts";
-import addNode from "../src/cli/commands/add-node.ts";
-import addInitiative from "../src/cli/commands/add-initiative.ts";
-import addNote from "../src/cli/commands/add-note.ts";
-import addEdge from "../src/cli/commands/add-edge.ts";
-import removeEdge from "../src/cli/commands/remove-edge.ts";
-import resolve from "../src/cli/commands/resolve.ts";
-import deprecateKnowledge from "../src/cli/commands/deprecate-knowledge.ts";
-import update from "../src/cli/commands/update.ts";
+import addGateCommand from "../src/cli/commands/add-gate.ts";
+import addKnowledgeCommand from "../src/cli/commands/add-knowledge.ts";
+import addNodeCommand from "../src/cli/commands/add-node.ts";
+import addInitiativeCommand from "../src/cli/commands/add-initiative.ts";
+import addNoteCommand from "../src/cli/commands/add-note.ts";
+import addEdgeCommand from "../src/cli/commands/add-edge.ts";
+import removeEdgeCommand from "../src/cli/commands/remove-edge.ts";
+import resolveCommand from "../src/cli/commands/resolve.ts";
+import deprecateKnowledgeCommand from "../src/cli/commands/deprecate-knowledge.ts";
+import updateCommand from "../src/cli/commands/update.ts";
 import { bootstrapBuiltins, createBackendClient } from "../src/application/operations/index.ts";
 import { mutate as kernelMutate } from "../src/kernel/mutate.ts";
+
+const addGate = (value: unknown) => addGateCommand(value as Parameters<typeof addGateCommand>[0]);
+const addKnowledge = (value: unknown) => addKnowledgeCommand(value as Parameters<typeof addKnowledgeCommand>[0]);
+const addNode = (value: unknown) => addNodeCommand(value as Parameters<typeof addNodeCommand>[0]);
+const addInitiative = (value: unknown) => addInitiativeCommand(value as Parameters<typeof addInitiativeCommand>[0]);
+const addNote = (value: unknown) => addNoteCommand(value as Parameters<typeof addNoteCommand>[0]);
+const addEdge = (value: unknown) => addEdgeCommand(value as Parameters<typeof addEdgeCommand>[0]);
+const removeEdge = (value: unknown) => removeEdgeCommand(value as Parameters<typeof removeEdgeCommand>[0]);
+const resolve = (value: unknown) => resolveCommand(value as Parameters<typeof resolveCommand>[0]);
+const deprecateKnowledge = (value: unknown) => deprecateKnowledgeCommand(value as Parameters<typeof deprecateKnowledgeCommand>[0]);
+const update = (value: unknown) => updateCommand(value as Parameters<typeof updateCommand>[0]);
 
 const initialState = {
   version: 1,
@@ -51,8 +62,8 @@ function createOperationDiff(args, id, node) {
   return { created, updated, initiatives: { created: args.operation === "initiative.create" ? [initiative] : [] } };
 }
 
-function fakeRemoteBackend({ failure } = {}) {
-  const calls = [];
+function fakeRemoteBackend({ failure }: { failure?: Error } = {}) {
+  const calls: Array<Record<string, unknown>> = [];
   const client = {
     type: "remote",
     async readNode({ id }) {
@@ -89,7 +100,7 @@ async function withLocalSentinel(run) {
 
 test("local domain adapters delegate through the supplied application operation source", async () => {
   const projectDir = await createTempProject();
-  const operations = [];
+  const operations: string[] = [];
   const source = {
     registry: bootstrapBuiltins(),
     mutate(args) {

@@ -7,7 +7,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createTempProject, rmTempProject, runCli, initExampleProject } from "./helpers.mjs";
 import * as dispatchModule from "../src/cli/dispatch.ts";
-const { runCli: runCliInProcess } = dispatchModule;
+const runCliInProcess = (options: unknown) => dispatchModule.runCli(options as Parameters<typeof dispatchModule.runCli>[0]);
 
 for (const retiredExport of ["parseArgs", "dispatch", "main"]) {
   assert.equal(Object.hasOwn(dispatchModule, retiredExport), false, `dispatch export ${retiredExport} is retired`);
@@ -214,7 +214,7 @@ test("CLI: remote auth and link commands are advertised and dispatchable", async
     assert.match(help.stdout, /pull.*EXPERIMENTAL.*UNSAFE/is);
 
     for (const command of ["login", "logout", "link"]) {
-      const calls = [];
+      const calls: string[] = [];
       const result = await runCliInProcess({
         argv: ["--project", dir, command, ...(command === "link" ? ["https://climier.example.test"] : [])],
         createBackendClient() { return { type: "local" }; },
@@ -331,8 +331,8 @@ test("dispatch: help and no-command handling remain ahead of backend selection",
   const dir = await createTempProject();
   try {
     fs.writeFileSync(path.join(dir, ".climier.json"), "{invalid json");
-    const helpOutput = [];
-    const helpCodes = [];
+    const helpOutput: string[] = [];
+    const helpCodes: number[] = [];
     const helpResult = await runCliInProcess({
       argv: ["--project", dir, "--help"],
       createBackendClient() { throw new Error("help must not select a backend"); },
@@ -343,8 +343,8 @@ test("dispatch: help and no-command handling remain ahead of backend selection",
     assert.deepEqual(helpCodes, [0]);
     assert.match(helpOutput[0], /climier/i);
 
-    const noCommandOutput = [];
-    const noCommandCodes = [];
+    const noCommandOutput: string[] = [];
+    const noCommandCodes: number[] = [];
     const noCommandResult = await runCliInProcess({
       argv: ["--project", dir],
       createBackendClient() { throw new Error("no-command handling must not select a backend"); },
@@ -378,7 +378,7 @@ test("dispatch: remote project config and injected client reach command dispatch
       backend: { type: "remote", url: "https://climier.example.test" },
     };
     fs.writeFileSync(path.join(dir, ".climier.json"), JSON.stringify(projectConfig));
-    const localCalls = [];
+    const localCalls: unknown[] = [];
     const source = {
       registry: { lookup(...args) { localCalls.push(["lookup", ...args]); } },
       mutate(...args) { localCalls.push(["mutate", ...args]); },
@@ -408,8 +408,8 @@ test("dispatch: link repairs legacy metadata before backend selection without to
       label: "preserve",
       backend: { type: "remote", protocol: "v2", url: "https://climier.example.test/base" },
     }, null, 2) + "\n");
-    const output = [];
-    const exitCodes = [];
+    const output: string[] = [];
+    const exitCodes: number[] = [];
     const result = await runCliInProcess({
       argv: ["--project", dir, "link", "https://climier.example.test/base"],
       createBackendClient() { throw new Error("link must not select a backend"); },
@@ -435,7 +435,7 @@ test("dispatch: link repairs legacy metadata before backend selection without to
 });
 
 async function runInvalidMetadataDispatch(dir) {
-  let dispatched = false; const output = []; const codes = [];
+  let dispatched = false; const output: string[] = []; const codes: number[] = [];
   const result = await runCliInProcess({ argv: ["--project", dir, "status"], dispatch: async () => { dispatched = true; }, write: (value) => output.push(value), exit: (code) => codes.push(code) });
   return { result, dispatched, output, codes };
 }

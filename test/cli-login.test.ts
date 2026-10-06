@@ -4,8 +4,10 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import login from "../src/cli/commands/login.ts";
+import loginCommand from "../src/cli/commands/login.ts";
 import { createCredentialStore } from "../src/storage/credential-profile.ts";
+
+const login = (context: unknown) => loginCommand(context as Parameters<typeof loginCommand>[0]);
 
 test("login requires an interactive TTY before making a request", async () => {
   let requested = false;
@@ -14,7 +16,7 @@ test("login requires an interactive TTY before making a request", async () => {
     projectConfig: {},
     readPassword: async () => { const error = new Error("login: interactive TTY required"); error.code = "INTERACTIVE_LOGIN_REQUIRED"; throw error; },
     requestLogin: async () => { requested = true; },
-  }), (error) => error.code === "INTERACTIVE_LOGIN_REQUIRED");
+  }), (error) => (error as { code?: string }).code === "INTERACTIVE_LOGIN_REQUIRED");
   assert.equal(requested, false);
 });
 
@@ -22,7 +24,7 @@ test("login stores the bearer by origin and never returns it", async () => {
   const home = await fs.mkdtemp(path.join(os.tmpdir(), "climier-login-"));
   try {
     const store = createCredentialStore({ home });
-    const requests = [];
+    const requests: Array<{ origin: string; password: string }> = [];
     const result = await login({
       flags: { server: "https://remote.example/path" },
       projectConfig: {},
@@ -52,18 +54,19 @@ test("login does not report success when profile persistence fails", async () =>
 });
 
 test("login resolves the linked checkout origin when --server is omitted", async () => {
-  let requested;
+  let requested: { origin: string; password: string } | undefined;
   await login({
     projectConfig: { project_id: "p", backend: { type: "remote", url: "https://remote.example/base" } },
     readPassword: async () => "secret",
     requestLogin: async (value) => { requested = value; return { token: "token" }; },
     credentialStore: { async set() {} },
   });
+  assert.ok(requested);
   assert.equal(requested.origin, "https://remote.example");
 });
 
 test("login warns for plaintext non-loopback origins without an opt-in", async () => {
-  let requested;
+  let requested: { origin: string; password: string } | undefined;
   const result = await login({
     flags: { server: "http://remote.example/path" },
     readPassword: async () => "secret",
