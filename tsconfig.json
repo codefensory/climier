@@ -25,7 +25,6 @@
     "src/cli/**/*.ts",
     "bin/**/*.ts",
     "scripts/**/*.ts",
-    "test/core-test-plan.ts",
-    "test/core-test-plan.test.ts"
+    "test/**/*.ts"
   ]
 }
