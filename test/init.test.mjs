@@ -69,6 +69,7 @@ test("init: insecure remote HTTP returns a warning after successful provisioning
     const result = await init({
       statePath: dir,
       projectDir: dir,
+      projectConfig: { backend: { type: "remote", url: "http://remote.example.test:43127/path" } },
       backendClient: {
         type: "remote",
         insecureRemoteHttp: true,
@@ -83,7 +84,7 @@ test("init: insecure remote HTTP returns a warning after successful provisioning
       warnings: [{
         kind: "insecure-remote-http",
         severity: "warning",
-        message: "init: remote HTTP is enabled by CLIMIER_ALLOW_INSECURE_REMOTE_HTTP=true; bearer credentials are sent without transport encryption. Internal trusted networks only.",
+        message: "init: http://remote.example.test:43127 is not HTTPS; the login password and bearer travel without transport encryption.",
       }],
     });
   } finally {
@@ -91,11 +92,11 @@ test("init: insecure remote HTTP returns a warning after successful provisioning
   }
 });
 
-async function runInsecureRemoteInit(dir, client) {
+async function runInsecureRemoteInit(dir, client, args = ["init"]) {
   const output = [];
   const errors = [];
   const status = await runCliInProcess({
-    argv: ["--project", dir, "init"],
+    argv: ["--project", dir, ...args],
     createBackendClient: () => client,
     write: (value) => output.push(value),
     exit: (code) => errors.push(code),
@@ -120,7 +121,7 @@ test("CLI: insecure remote HTTP init returns the warning in its JSON envelope", 
     assert.deepEqual(JSON.parse(result.output[0]).warnings, [{
       kind: "insecure-remote-http",
       severity: "warning",
-      message: "init: remote HTTP is enabled by CLIMIER_ALLOW_INSECURE_REMOTE_HTTP=true; bearer credentials are sent without transport encryption. Internal trusted networks only.",
+      message: "init: http://internal.example.test is not HTTPS; the login password and bearer travel without transport encryption.",
     }]);
     assert.deepEqual(result.errors, []);
   } finally {
@@ -128,17 +129,39 @@ test("CLI: insecure remote HTTP init returns the warning in its JSON envelope", 
   }
 });
 
+test("CLI: init --no-warnings works before and after the command", async () => {
+  for (const args of [["--no-warnings", "init"], ["init", "--no-warnings"]]) {
+    const dir = await createTempProject();
+    try {
+      await fs.writeFile(path.join(dir, ".climier.json"), JSON.stringify({
+        project_id: "remote-project",
+        backend: { type: "remote", url: "http://internal.example.test" },
+      }));
+      const result = await runInsecureRemoteInit(dir, {
+        type: "remote",
+        insecureRemoteHttp: true,
+        async init() { return { seeded: null }; },
+      }, args);
+      assert.equal(result.status, 0);
+      assert.equal(Object.hasOwn(JSON.parse(result.output[0]), "warnings"), false);
+    } finally {
+      await rmTempProject(dir);
+    }
+  }
+});
+
 test("init: HTTPS and loopback remote init omit warnings", async () => {
   const { default: init } = await importFresh("./cli/commands/init.ts");
   const dir = await createTempProject();
   try {
-    for (const insecureRemoteHttp of [false, undefined]) {
+    for (const url of ["https://remote.example.test/path", "http://localhost:43127/path", "http://127.0.0.1:43127/path"]) {
       const result = await init({
         statePath: dir,
         projectDir: dir,
+        projectConfig: { backend: { type: "remote", url } },
         backendClient: {
           type: "remote",
-          insecureRemoteHttp,
+          insecureRemoteHttp: url.startsWith("http://") && !url.includes("localhost") && !url.includes("127.0.0.1"),
           async init() { return { seeded: null }; },
         },
       });

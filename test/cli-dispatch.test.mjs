@@ -123,6 +123,7 @@ test("CLI: --help prints help and exits 0", async () => {
     assert.match(r.stdout, /add-gate/);
     assert.match(r.stdout, /push.*EXPERIMENTAL.*UNSAFE/is);
     assert.match(r.stdout, /pull.*EXPERIMENTAL.*UNSAFE/is);
+    assert.match(r.stdout, /--no-warnings/);
     assert.doesNotMatch(r.stdout, /\.agents\/skills/i);
     assert.doesNotMatch(r.stdout, /example fixture/i);
   } finally {

@@ -5,6 +5,7 @@ import { resolveAgent } from "../actor.ts";
 import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.ts";
 import { initState } from "../../kernel/state-operations.ts";
 import type { CliBackendClient, CliFlags, CommandContext } from "./contracts.ts";
+import { warningField } from "./warnings.ts";
 
 export const knownFlags = ["force", "as"];
 
@@ -31,23 +32,20 @@ function policyForInit({ policy, projectDir, actor }: { policy: Awaited<ReturnTy
   };
 }
 
-async function initRemote(backendClient: CliBackendClient, force: boolean) {
+async function initRemote(backendClient: CliBackendClient, force: boolean, projectConfig: CommandContext["projectConfig"], flags: CliFlags) {
   if (force) {
     const error = new Error("init: --force is not supported by the remote backend");
     error.code = "REMOTE_UNSUPPORTED_OPERATION";
     error.details = { command: "init", option: "--force" };
     throw error;
   }
-  const insecureRemoteHttp = backendClient.insecureRemoteHttp === true;
+  const remote = projectConfig.backend;
+  const configuredUrl = remote && typeof remote === "object" && !Array.isArray(remote)
+    && typeof remote.url === "string" ? remote.url : undefined;
+  const remoteUrl = configuredUrl ?? (typeof backendClient.url === "string" ? backendClient.url : undefined);
   const result = await backendClient.init();
   const response: { ok: boolean; seeded: unknown; file: null; warnings?: Array<Record<string, string>> } = { ok: true, seeded: result?.seeded ?? null, file: null };
-  if (insecureRemoteHttp) {
-    response.warnings = [{
-      kind: "insecure-remote-http",
-      severity: "warning",
-      message: "init: remote HTTP is enabled by CLIMIER_ALLOW_INSECURE_REMOTE_HTTP=true; bearer credentials are sent without transport encryption. Internal trusted networks only.",
-    }];
-  }
+  Object.assign(response, warningField("init", remoteUrl, flags));
   return response;
 }
 
@@ -76,9 +74,9 @@ async function initLocal({ dir, force, flags, pluginId }: { dir: string; force: 
   };
 }
 
-export default async function init({ statePath, flags = {}, projectDir, pluginId, backendClient }: CommandContext) {
+export default async function init({ statePath, flags = {}, projectDir, pluginId, backendClient, projectConfig = {} }: CommandContext) {
   const dir = projectDir || statePath;
   const force = Boolean(flags.force);
-  if (backendClient?.type === "remote") {return initRemote(backendClient, force);}
+  if (backendClient?.type === "remote") {return initRemote(backendClient, force, projectConfig, flags);}
   return initLocal({ dir, force, flags, pluginId });
 }

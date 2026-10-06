@@ -6,6 +6,7 @@ import { parseBackendConfig } from "../../application/backend-config.ts";
 import { projectMetaFile } from "../../storage/paths.ts";
 import { asCaughtError } from "../../contracts/errors.ts";
 import type { CommandContext } from "./contracts.ts";
+import { warningField } from "./warnings.ts";
 
 type LinkMetadata = { version?: unknown; project_id?: unknown; backend?: { type?: unknown; url?: unknown } } & Record<string, unknown>;
 
@@ -75,7 +76,7 @@ function updatedMetadata(meta: LinkMetadata, backend: { type: "remote"; url: str
   };
 }
 
-export default async function link({ positional, flags, projectDir }: CommandContext) {
+export default async function link({ positional, flags = {}, projectDir }: CommandContext) {
   if (positional.length !== 1) {throw usage("expected exactly one origin", { positional_count: positional.length });}
   const replace = normalizeReplace(flags.replace);
   const backend = normalizedRemoteBackend(positional[0]);
@@ -92,5 +93,8 @@ export default async function link({ positional, flags, projectDir }: CommandCon
   const next = updatedMetadata(meta, backend);
   await fs.mkdir(path.dirname(file), { recursive: true });
   await fs.writeFile(file, JSON.stringify(next, null, 2) + "\n", "utf8");
-  return { project: { project_id: next.project_id, backend: next.backend } };
+  return {
+    project: { project_id: next.project_id, backend: next.backend },
+    ...warningField("link", backend.url, flags),
+  };
 }
