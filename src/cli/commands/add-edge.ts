@@ -4,6 +4,7 @@
 import { executeOperation } from "../../application/operations/index.ts";
 import { getOperationSource } from "../../operation-source.ts";
 import { throwV2 } from "../../contracts/errors.ts";
+import type { CliMutation } from "./contracts.ts";
 import { resolveAgent } from "../actor.ts";
 import { executeRemoteDomain } from "./internal/domain-routing.ts";
 
@@ -42,7 +43,7 @@ async function edgeSource(source, pluginId) {
 }
 
 async function addRemoteEdge(backendClient, agent, input) {
-  const mutation = await executeRemoteDomain({ backendClient, actor: agent, operation: "edge.add", input, command: "add-edge" });
+  const mutation = await executeRemoteDomain({ backendClient, actor: agent, operation: "edge.add", input, command: "add-edge" }) as CliMutation;
   return mutation.result;
 }
 
@@ -58,13 +59,12 @@ function validateEdgeArgs(positional, flags) {
 }
 
 async function addLocalEdge({ projectDir, agent, input, source, pluginId }) {
-  const result = await executeOperation({
-    projectDir,
+  const result = await executeOperation({    projectDir,
     actor: agent,
     operation: POLICY_ACTION,
     input,
     source: await edgeSource(source, pluginId),
-  });
+  }) as CliMutation;
   const edge = result.result && result.result.edge ? result.result.edge : null;
   return { edge };
 }

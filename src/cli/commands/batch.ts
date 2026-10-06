@@ -5,12 +5,13 @@ import { readFile } from "node:fs/promises";
 
 import createOperationBridge from "../../application/operations/bridge.ts";
 import { createBackendClient } from "../../application/operations/index.ts";
-import { throwV2 } from "../../contracts/errors.ts";
+import { asCaughtError, throwV2 } from "../../contracts/errors.ts";
+import type { CliFlags, CommandContext } from "./contracts.ts";
 import { resolveAgent } from "../actor.ts";
 
 export const knownFlags = ["file", "stdin", "as"];
 
-function invalidInput(message, details = {}) {
+function invalidInput(message: string, details: Record<string, unknown> = {}): never {
   throwV2("INVALID_EXECUTION_CONTRACT", `batch: ${message}`, details);
 }
 
@@ -27,7 +28,8 @@ async function readFileInput(value) {
   const file = path.resolve(value);
   try {
     return await readFile(file, "utf8");
-  } catch (error) {
+  } catch (caught) {
+    const error = asCaughtError(caught);
     invalidInput(`cannot read input file '${file}'`, {
       field: "file",
       path: file,
@@ -36,7 +38,7 @@ async function readFileInput(value) {
   }
 }
 
-async function readInput(flags) {
+async function readInput(flags: CliFlags) {
   const hasFile = flags.file !== undefined;
   const hasStdin = flags.stdin !== undefined;
   if (hasFile && hasStdin) {
@@ -55,7 +57,8 @@ async function readInput(flags) {
 function parseJson(raw) {
   try {
     return JSON.parse(raw);
-  } catch (error) {
+  } catch (caught) {
+    const error = asCaughtError(caught);
     invalidInput(`input must be valid JSON (${error.message})`, {
       field: "input",
       cause: "JSON_PARSE_ERROR",
@@ -81,7 +84,7 @@ function parseDocument(raw) {
   return validateDocumentShape(parseJson(raw));
 }
 
-export default async function batch({ statePath, projectDir, projectConfig, backendClient, source, flags = {}, positional = [] }) {
+export default async function batch({ statePath, projectDir, projectConfig, backendClient, source, flags, positional }: CommandContext) {
   if (positional.length > 0) {
     invalidInput("positional arguments are not allowed", { field: "positional" });
   }

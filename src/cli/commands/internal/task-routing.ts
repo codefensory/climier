@@ -1,15 +1,16 @@
 import { throwV2 } from "../../../contracts/errors.ts";
 import { isRemoteBackend, readRemoteNode, routeRemoteOperation } from "./domain-routing.ts";
+import type { CliBackendClient, CliMutation, CliNode } from "../contracts.ts";
 
 export { isRemoteBackend };
 
-export function remoteNode(result) {
+export function remoteNode(result: { node?: CliNode | null } | null): CliNode | null {
   return result && result.node ? result.node : null;
 }
 
 export { readRemoteNode };
 
-export async function requireRemoteTask(backendClient, id, command) {
+export async function requireRemoteTask(backendClient: CliBackendClient, id: string, command: string): Promise<CliNode> {
   return readRemoteNode(backendClient, id, command, (node) => node.kind === "resolvable" && node.subkind === "task")
     .catch((error) => {
       if (error?.code !== "REMOTE_UNSUPPORTED_OPERATION") {
@@ -32,7 +33,7 @@ export async function executeRemoteTask({
   command,
   inspectTarget = false,
   collection = "updated",
-}) {
+}: { backendClient?: CliBackendClient; projectDir?: string; actor: string; operation: string; input: Record<string, unknown>; id: string; command: string; inspectTarget?: boolean; collection?: string }): Promise<{ mutation: CliMutation; node: CliNode | null } | null> {
   const routed = await routeRemoteOperation({
     backendClient,
     actor,

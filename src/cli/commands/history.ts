@@ -1,5 +1,7 @@
 
 import { readState } from "../../storage/state.ts";
+import type { CommandContext } from "./contracts.ts";
+import type { ReadModelSnapshot } from "../../read-model/types.ts";
 
 export const knownFlags = ["limit"];
 
@@ -29,12 +31,12 @@ async function readHistory({ statePath, id, limit, backendClient }) {
   if (backendClient?.type === "remote") {
     return backendClient.readHistory({ id, limit: limit === null ? undefined : limit });
   }
-  const snapshot = await readState(statePath);
+  const snapshot = await readState(statePath) as ReadModelSnapshot | null;
   if (!snapshot) {return { id, entries: [] };}
-  return { id, entries: applyLimit(snapshot.log.filter((entry) => entryReferencesId(entry, id)), limit) };
+  return { id, entries: applyLimit((snapshot.log || []).filter((entry) => entryReferencesId(entry, id)), limit) };
 }
 
-export default async function history({ statePath, flags, positional, backendClient }) {
+export default async function history({ statePath, flags, positional, backendClient }: CommandContext) {
   const [id] = positional;
   if (!id) {
     throw new Error("history: node id required (e.g. history T1)");

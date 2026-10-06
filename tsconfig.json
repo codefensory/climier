@@ -21,6 +21,7 @@
     "src/read-model/**/*.ts",
     "src/application/**/*.ts",
     "src/plugins/**/*.ts",
-    "src/server/**/*.ts"
+    "src/server/**/*.ts",
+    "src/cli/**/*.ts"
   ]
 }

@@ -11,6 +11,11 @@ import { createUiEvents } from "../../server/http/ui-events.ts";
 import { ledgerFileForProjectId, readStateByProjectId } from "../../storage/ledger.ts";
 import { climierHome } from "../../storage/paths.ts";
 import { listProjectIds, readState, stateFile, stateFileForProjectId } from "../../storage/state.ts";
+import { asCaughtError } from "../../contracts/errors.ts";
+import type { CommandContext } from "./contracts.ts";
+import type { ReadModelSnapshot } from "../../read-model/types.ts";
+
+type UiOptions = { projectDir: string; uiRoot?: string; indexFile?: string; port?: number; clock?: () => number };
 
 export const knownFlags = ["port", "open"];
 
@@ -34,9 +39,9 @@ function requestPath(request) {
   return new URL(request.url || "/", "http://localhost").pathname;
 }
 
-function sendRequestError(response, error) {
+function sendRequestError(response: import("node:http").ServerResponse, error: unknown) {
   if (response.headersSent) {
-    response.destroy(error);
+    response.destroy(error instanceof Error ? error : undefined);
     return;
   }
   send(response, errorStatus(error), jsonError(error));
@@ -61,7 +66,7 @@ function createLocalUiApi({ clock }) {
   return createUiApi({
     authorize: async () => {},
     getProject: (projectId) => resolveLocalProject(projectId),
-    readSnapshot: (project) => readStateByProjectId(project.id),
+    readSnapshot: (project) => readStateByProjectId((project as unknown as { id: string }).id),
     clock,
   });
 }
@@ -70,8 +75,8 @@ function createLocalUiEvents() {
   return createUiEvents({
     authorize: async () => {},
     getProject: (projectId) => resolveLocalProject(projectId),
-    readSnapshot: (project) => readStateByProjectId(project.id),
-    resolveLedger: ({ projectId }) => ledgerFileForProjectId(projectId),
+    readSnapshot: (project) => readStateByProjectId((project as unknown as { id: string }).id),
+    resolveLedger: ({ projectId }: { projectId: string }) => ledgerFileForProjectId(projectId),
     protocolVersion: PROTOCOL_VERSION,
   });
 }
@@ -80,15 +85,15 @@ function createLocalUiEvents() {
 // neutral counters so one bad project cannot blank the whole board; the snapshot
 // request for that project surfaces the real error.
 async function localProjectSummary(projectId) {
-  let updatedAt = null;
+  let updatedAt: string | null = null;
   try {
     updatedAt = fsSync.statSync(stateFileForProjectId(projectId)).mtime.toISOString();
   } catch {
     // A ledger-only project has no state file yet.
   }
-  let state = null;
+  let state: ReadModelSnapshot | null = null;
   try {
-    state = await readStateByProjectId(projectId);
+    state = await readStateByProjectId(projectId) as ReadModelSnapshot | null;
   } catch {
     // Surfaced when the node/snapshot route reads this project.
   }
@@ -169,7 +174,7 @@ async function handleLocalUiApi(request, response, { uiApi, uiEvents, projectId 
   send(response, 200, { ok: true, result });
 }
 
-export function createLocalUiServer({ projectDir, uiRoot = UI_ROOT, indexFile = "index.html", clock = Date.now } = {}) {
+export function createLocalUiServer({ projectDir, uiRoot = UI_ROOT, indexFile = "index.html", clock = Date.now }: UiOptions) {
   if (typeof projectDir !== "string" || projectDir.length === 0) {
     throw new TypeError("ui: projectDir is required");
   }
@@ -188,21 +193,21 @@ export function createLocalUiServer({ projectDir, uiRoot = UI_ROOT, indexFile = 
         return;
       }
       await handleLocalUiApi(request, response, dependencies);
-    } catch (error) {
-      sendRequestError(response, error);
+    } catch (caught) {
+      sendRequestError(response, asCaughtError(caught));
     }
   });
 }
 
-export async function startLocalUiServer({ projectDir, uiRoot = UI_ROOT, indexFile = "index.html", port = DEFAULT_PORT, clock = Date.now } = {}) {
+export async function startLocalUiServer({ projectDir, uiRoot = UI_ROOT, indexFile = "index.html", port = DEFAULT_PORT, clock = Date.now }: UiOptions) {
   const server = createLocalUiServer({ projectDir, uiRoot, indexFile, clock });
-  await new Promise((resolve, reject) => {
+  await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
-    server.listen(port, LOOPBACK_HOST, resolve);
+    server.listen(port, LOOPBACK_HOST, () => resolve());
   });
   const address = server.address();
   if (!address || typeof address !== "object") {
-    await new Promise((resolve) => server.close(() => resolve()));
+    await new Promise<void>((resolve) => server.close(() => resolve()));
     throw new Error("ui: local server did not expose a listening address");
   }
   return {
@@ -227,7 +232,7 @@ function ensureBuild(uiRoot) {
   }
 }
 
-function browserCommand(url) {
+function browserCommand(url: string): [string, string[]] {
   if (process.platform === "darwin") return ["open", [url]];
   if (process.platform === "win32") return ["cmd", ["/c", "start", "", url]];
   return ["xdg-open", [url]];
@@ -240,10 +245,10 @@ function openBrowser(url) {
   child.unref();
 }
 
-export default async function uiCommand(ctx) {
+export default async function uiCommand(ctx: CommandContext & { uiRoot?: string }) {
   const projectDir = ctx.projectDir;
   const open = ctx.flags.open !== "false" && ctx.flags.open !== false;
-  const port = parseInt(ctx.flags.port, 10);
+  const port = typeof ctx.flags.port === "string" ? parseInt(ctx.flags.port, 10) : Number.NaN;
   const finalPort = Number.isInteger(port) && port >= 0 ? port : DEFAULT_PORT;
   const uiRoot = ctx.uiRoot || UI_ROOT;
 
@@ -253,7 +258,8 @@ export default async function uiCommand(ctx) {
   let started;
   try {
     started = await startLocalUiServer({ projectDir, uiRoot, port: finalPort });
-  } catch (error) {
+  } catch (caught) {
+    const error = asCaughtError(caught);
     if (error.code === "EADDRINUSE") {
       throw new Error(`ui: port ${finalPort} is already in use; pick another with --port <n>`, { cause: error });
     }

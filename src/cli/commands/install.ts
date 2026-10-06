@@ -19,33 +19,42 @@ import {
   readDescriptor,
 } from "../../plugins/descriptor.ts";
 import { assertNoReservedCollision } from "./reserved-namespaces.ts";
+import { asCaughtError } from "../../contracts/errors.ts";
+import type { CommandContext } from "./contracts.ts";
+
+type NpmVersionResult = { ok: true; command: string } | { ok: false; code: string; reason: string; command: string; exitCode?: number };
+type NpmInstallResult = { code: number; stderr: string };
+type InstalledDescriptor = { dirName: string; descriptor: { id: string; command: string; entry: string } };
 
 export const knownFlags = [];
 
 class PluginIdConflict extends Error {
+  declare readonly toJSON: () => { ok: false; error: { code: string; message: string; details: Record<string, unknown> } };
   constructor(id, extra = {}) {
     super(`install: plugin id '${id}' is already installed`);
     this.code = "PLUGIN_ID_CONFLICT";
     this.details = { id, ...extra };
-    this.toJSON = () => ({ ok: false, error: { code: this.code, message: this.message, details: this.details } });
+    this.toJSON = () => ({ ok: false, error: { code: this.code || "", message: this.message, details: this.details || {} } });
   }
 }
 
 class PluginNpmFailed extends Error {
+  declare readonly toJSON: () => { ok: false; error: { code: string; message: string; details: Record<string, unknown> } };
   constructor(message, extra = {}) {
     super(message);
     this.code = "PLUGIN_NPM_FAILED";
     this.details = extra;
-    this.toJSON = () => ({ ok: false, error: { code: this.code, message: this.message, details: this.details } });
+    this.toJSON = () => ({ ok: false, error: { code: this.code || "", message: this.message, details: this.details || {} } });
   }
 }
 
 class PluginNpmUnavailable extends Error {
+  declare readonly toJSON: () => { ok: false; error: { code: string; message: string; details: Record<string, unknown> } };
   constructor(extra = {}) {
     super("install: npm is not available on this system");
     this.code = "PLUGIN_NPM_UNAVAILABLE";
     this.details = extra;
-    this.toJSON = () => ({ ok: false, error: { code: this.code, message: this.message, details: this.details } });
+    this.toJSON = () => ({ ok: false, error: { code: this.code || "", message: this.message, details: this.details || {} } });
   }
 }
 
@@ -53,19 +62,21 @@ function resolveNpmCommand() {
   return process.env.CLIMIER_NPM_CMD || "npm";
 }
 
-async function npmVersionCheck() {
+async function npmVersionCheck(): Promise<NpmVersionResult> {
   const cmd = resolveNpmCommand();
   return new Promise((resolve) => {
     let stderr = "";
     let proc;
     try {
       proc = spawn(cmd, ["--version"], { stdio: ["ignore", "ignore", "pipe"] });
-    } catch (err) {
+    } catch (caught) {
+      const err = asCaughtError(caught);
       resolve({ ok: false, code: "SPAWN_ERROR", reason: err.message, command: cmd });
       return;
     }
     if (proc.stderr) {proc.stderr.on("data", (d) => (stderr += d.toString()));}
-    proc.on("error", (err) => {
+    proc.on("error", (caught) => {
+      const err = asCaughtError(caught);
       resolve({ ok: false, code: err.code || "SPAWN_ERROR", reason: err.message, command: cmd });
     });
     proc.on("close", (exitCode) => {
@@ -75,7 +86,7 @@ async function npmVersionCheck() {
   });
 }
 
-async function npmInstall(stagingDir, source) {
+async function npmInstall(stagingDir: string, source: string): Promise<NpmInstallResult> {
   const cmd = resolveNpmCommand();
   return new Promise((resolve, reject) => {
     let stderr = "";
@@ -123,7 +134,7 @@ async function isLocalPath(source) {
   );
 }
 
-async function installedDescriptor(installedRoot, entry) {
+async function installedDescriptor(installedRoot: string, entry: string): Promise<InstalledDescriptor | null> {
   const pkgPath = path.join(installedRoot, entry, "package.json");
   try {
     const raw = await fs.readFile(pkgPath, "utf8");
@@ -132,7 +143,8 @@ async function installedDescriptor(installedRoot, entry) {
       return { dirName: entry, descriptor: pkg.climier };
     }
     return null;
-  } catch (err) {
+  } catch (caught) {
+    const err = asCaughtError(caught);
     if (err.code === "ENOENT") {return null;}
     throw err;
   }
@@ -140,14 +152,15 @@ async function installedDescriptor(installedRoot, entry) {
 
 async function listInstalledDescriptors() {
   const installedRoot = path.join(pluginsHome(), "installed");
-  let entries = [];
+  let entries: string[] = [];
   try {
     entries = await fs.readdir(installedRoot);
-  } catch (err) {
+  } catch (caught) {
+    const err = asCaughtError(caught);
     if (err.code === "ENOENT") {return [];}
     throw err;
   }
-  const out = [];
+  const out: InstalledDescriptor[] = [];
   for (const entry of entries) {
     if (entry.startsWith(".")) {continue;}
     const descriptor = await installedDescriptor(installedRoot, entry);
@@ -156,7 +169,7 @@ async function listInstalledDescriptors() {
   return out;
 }
 
-async function checkUniqueness(descriptor) {
+async function checkUniqueness(descriptor: { id: string; command: string }) {
 
   const targetDir = pluginInstalledDir(descriptor.id);
   if (await pathExists(targetDir)) {
@@ -182,7 +195,8 @@ async function pathExists(p) {
   try {
     await fs.access(p);
     return true;
-  } catch (err) {
+  } catch (caught) {
+    const err = asCaughtError(caught);
     if (err.code === "ENOENT") {return false;}
     throw err;
   }
@@ -205,7 +219,7 @@ async function requireNpmAvailable() {
   if (npmOk.ok !== true) {throw new PluginNpmUnavailable(npmOk);}
 }
 
-async function installStagedPackage(stagingDir, source) {
+async function installStagedPackage(stagingDir: string, source: string) {
   try {
     const npmResult = await npmInstall(stagingDir, source);
     if (npmResult.code !== 0) {
@@ -220,9 +234,9 @@ async function installStagedPackage(stagingDir, source) {
       );
     }
     return await promoteStagedPackage(stagingDir, source);
-  } catch (err) {
+  } catch (caught) {
     await cleanupStaging(stagingDir);
-    throw err;
+    throw caught;
   }
 }
 
@@ -260,7 +274,7 @@ async function installLocked(source) {
   });
 }
 
-export default async function install({ positional = [], flags: _flags = {} } = {}) {
+export default async function install({ positional }: CommandContext) {
   const source = validateInstallSource(positional);
   await requireNpmAvailable();
   return installLocked(source);

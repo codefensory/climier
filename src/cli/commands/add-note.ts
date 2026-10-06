@@ -6,6 +6,7 @@ import { executeOperation } from "../../application/operations/index.ts";
 import { getOperationSource } from "../../operation-source.ts";
 import { noteAddProvider } from "../../providers/core/note.ts";
 import { throwV2 } from "../../contracts/errors.ts";
+import type { CliFlags, CliMutation } from "./contracts.ts";
 import { resolveAgent } from "../actor.ts";
 import { executeRemoteDomain, nodeFromMutation } from "./internal/domain-routing.ts";
 
@@ -91,7 +92,7 @@ async function localNoteSource({ source, pluginId }) {
 }
 
 async function addRemoteNote(backendClient, actor, input, id) {
-  const mutation = await executeRemoteDomain({ backendClient, actor, operation: "note.add", input, command: "add-note" });
+  const mutation = await executeRemoteDomain({ backendClient, actor, operation: "note.add", input, command: "add-note" }) as CliMutation;
   return { node: nodeFromMutation(mutation, id) || mutation.result?.node || null };
 }
 
@@ -100,8 +101,8 @@ function noteEnvelope(result, id) {
   return { node: updated ? updated.node : null };
 }
 
-function noteInput(id, text, flags) {
-  const input = { id, text };
+function noteInput(id, text, flags: CliFlags) {
+  const input: Record<string, unknown> = { id, text };
   if (flags["if-revision"] !== undefined) {input.if_revision = flags["if-revision"];}
   return input;
 }

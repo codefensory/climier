@@ -2,6 +2,7 @@
 import { addV2Node, requireFields } from "./internal/create-node.ts";
 import { throwV2 } from "../../contracts/errors.ts";
 import { resolveAgent } from "../actor.ts";
+import type { CommandContext } from "./contracts.ts";
 
 export const knownFlags = [
   "initiative",
@@ -18,7 +19,7 @@ export const knownFlags = [
   "as",
 ];
 
-export default async function addTask({ statePath, flags = {}, positional = [], projectDir, pluginId, backendClient }) {
+export default async function addTask({ statePath, flags, positional, projectDir, pluginId, backendClient }: CommandContext) {
   if (flags.supersedes !== undefined) {
     throwV2(
       "INVALID_EDGE_KIND",

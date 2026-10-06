@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
 import addNode from "../add-node.ts";
 import { throwV2 } from "../../../contracts/errors.ts";
+import type { CliFlags, CommandContext } from "../contracts.ts";
 
 const ID_RE = /^[A-Za-z0-9_.-]+$/;
 
-export function requireFields(command, flags, fields, allowEmpty = []) {
+export function requireFields(command: string, flags: CliFlags, fields: readonly string[], allowEmpty: readonly string[] = []) {
   for (const field of fields) {
     const value = flags[field];
     if (typeof value !== "string" || (!allowEmpty.includes(field) && !value.trim())) {
@@ -20,11 +21,11 @@ export function hasCsvValue(value) {
   return typeof value === "string" && value.split(",").some((part) => part.trim());
 }
 
-export async function addV2Node(command, prefix, shape, ctx) {
+export async function addV2Node(command: string, prefix: string, shape: Record<string, string>, ctx: Omit<CommandContext, "command" | "originalArgv" | "projectConfig">) {
   const supplied = ctx.positional[0];
   const id = supplied || `${prefix}-${randomUUID().slice(0, 8)}`;
   if (supplied && !ID_RE.test(supplied)) {
-    throwV2("INVALID_ID", `${command}: id '${supplied}' is invalid (must match ${ID_RE})`, {
+    throwV2("INVALID_ID" as Parameters<typeof throwV2>[0], `${command}: id '${supplied}' is invalid (must match ${ID_RE})`, {
       id: supplied,
       pattern: ID_RE.source,
       command,

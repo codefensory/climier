@@ -5,6 +5,7 @@ import { throwV2 } from "../../contracts/errors.ts";
 import { resolveAgent } from "../actor.ts";
 import { loadApplicablePolicy, authorizeAction } from "../../plugins/policy.ts";
 import { restoreState } from "../../kernel/state-operations.ts";
+import type { CliMutation, CommandContext } from "./contracts.ts";
 
 export const knownFlags = ["as"];
 
@@ -31,7 +32,7 @@ function policyForRestore({ policy, projectDir, actor }) {
   };
 }
 
-export default async function restore({ statePath, flags = {}, positional = [], projectDir, pluginId }) {
+export default async function restore({ statePath, flags, positional, projectDir, pluginId }: CommandContext) {
   const [snapshotId] = positional;
   if (!snapshotId || typeof snapshotId !== "string") {
     throwV2("MISSING_FIELD", "restore: snapshot id required", { field: "id" });
@@ -46,7 +47,7 @@ export default async function restore({ statePath, flags = {}, positional = [], 
     actor,
     policyAction: policyForRestore({ policy, projectDir: dir, actor }),
     pluginId,
-  });
+  }) as CliMutation;
 
   return mutation.result;
 }
