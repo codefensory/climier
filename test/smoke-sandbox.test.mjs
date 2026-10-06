@@ -173,21 +173,26 @@ test("smoke-sandbox.sh: cleans up sandbox on TERM", async () => {
   const before = new Set(listSmokeSandboxes());
   // detached:true puts the helper in its own process group so we can
   // deliver TERM to the whole group and not leave the inner sleep running.
-  const proc = spawn("bash", [HELPER, "--", "sleep", "5"], {
-    cwd: ROOT,
-    env: sentinelEnv(),
-    detached: true,
-  });
-  // Wait for the sandbox dir to appear (umask 077 makes it owned by us).
+  const proc = spawn(
+    "bash",
+    [HELPER, "--", "bash", "-c", 'touch "$CLIMIER_HOME/ready"; exec sleep 5'],
+    {
+      cwd: ROOT,
+      env: sentinelEnv(),
+      detached: true,
+    },
+  );
+  // Wait until the wrapped command starts; the sandbox directory appears
+  // before the helper installs its signal trap.
   let appeared = null;
   for (let i = 0; i < 100 && !appeared; i++) {
     await new Promise((r) => setTimeout(r, 20));
     const now = listSmokeSandboxes().filter((n) => !before.has(n));
-    if (now.length > 0) {
+    if (now.length > 0 && fs.existsSync(path.join(PRIVATE_TMPDIR, now[0], "home", "ready"))) {
       appeared = now;
     }
   }
-  assert.ok(appeared, "sandbox dir should appear during run");
+  assert.ok(appeared, "wrapped command should start inside the sandbox");
   // Kill the whole process group so the inner sleep also terminates.
   process.kill(-proc.pid, "SIGTERM");
   await new Promise((resolve) => proc.on("close", () => resolve()));
