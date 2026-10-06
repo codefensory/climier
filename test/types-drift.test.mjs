@@ -16,18 +16,6 @@ import {
 
 const ROOT = fileURLToPath(new URL("../", import.meta.url));
 const GENERATED_DIR = path.join(ROOT, "src", "contracts", "generated");
-const TYPE_PROJECTS = [
-  "tsconfig.contracts.json",
-  "tsconfig.storage.json",
-  "tsconfig.kernel.json",
-  "tsconfig.providers.json",
-  "tsconfig.read-model.json",
-  "tsconfig.application.json",
-  "tsconfig.plugins.json",
-  "tsconfig.server.json",
-  "tsconfig.cli.json",
-];
-
 async function currentCatalogs() {
   return collectCatalogs(ROOT);
 }
@@ -36,11 +24,33 @@ function parseTsConfig(text) {
   return JSON.parse(text.replace(/,\s*([}\]])/g, "$1"));
 }
 
-test("every TypeScript project in the build graph enables strict checking", async () => {
-  for (const filename of TYPE_PROJECTS) {
-    const config = parseTsConfig(await fs.readFile(path.join(ROOT, filename), "utf8"));
-    assert.equal(config.compilerOptions.strict, true, `${filename} must enable strict checking`);
-  }
+test("the single TypeScript config has the intended checking options", async () => {
+  const config = parseTsConfig(await fs.readFile(path.join(ROOT, "tsconfig.json"), "utf8"));
+  const { compilerOptions } = config;
+
+  assert.equal(compilerOptions.target, "ES2023");
+  assert.equal(compilerOptions.module, "NodeNext");
+  assert.equal(compilerOptions.moduleResolution, "NodeNext");
+  assert.deepEqual(compilerOptions.lib, ["ES2023"]);
+  assert.deepEqual(compilerOptions.types, ["node"]);
+  assert.equal(compilerOptions.allowImportingTsExtensions, true);
+  assert.equal(compilerOptions.resolveJsonModule, true);
+  assert.equal(compilerOptions.esModuleInterop, true);
+  assert.equal(compilerOptions.strict, true);
+  assert.equal(compilerOptions.noImplicitAny, false);
+  assert.equal(compilerOptions.noEmit, true);
+  assert.equal(compilerOptions.skipLibCheck, true);
+  assert.equal("composite" in compilerOptions, false);
+  assert.equal("declaration" in compilerOptions, false);
+  assert.equal("emitDeclarationOnly" in compilerOptions, false);
+});
+
+test("the root has no TypeScript project split", async () => {
+  const configs = (await fs.readdir(ROOT))
+    .filter((filename) => /^tsconfig.*\.json$/.test(filename))
+    .sort();
+
+  assert.deepEqual(configs, ["tsconfig.json"]);
 });
 
 test("generated type catalogs are deterministic", async () => {

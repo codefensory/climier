@@ -1,14 +1,25 @@
 {
-  "files": [],
-  "references": [
-    { "path": "./tsconfig.contracts.json" },
-    { "path": "./tsconfig.storage.json" },
-    { "path": "./tsconfig.kernel.json" },
-    { "path": "./tsconfig.providers.json" },
-    { "path": "./tsconfig.read-model.json" },
-    { "path": "./tsconfig.application.json" },
-    { "path": "./tsconfig.plugins.json" },
-    { "path": "./tsconfig.server.json" },
-    { "path": "./tsconfig.cli.json" }
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "strict": true,
+    "noImplicitAny": false,
+    "noEmit": true,
+    "skipLibCheck": true
+  },
+  "include": [
+    "src/contracts/**/*.ts",
+    "src/storage/**/*.ts",
+    "src/kernel/**/*.ts",
+    "src/providers/**/*.ts",
+    "src/read-model/**/*.ts",
+    "src/application/**/*.ts",
+    "src/plugins/**/*.ts"
   ]
 }

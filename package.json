@@ -20,6 +20,7 @@
   "main": "bin/climier.ts",
   "scripts": {
     "test": "bun test/run-core-tests.mjs",
+    "typecheck": "bunx tsc -p tsconfig.json",
     "build:binary": "bun scripts/build-binary.ts",
     "test:watch": "bun test --watch test/",
     "test:concurrent": "bun test test/take.test.mjs test/take-by-id.test.mjs test/adversarial.test.mjs",
