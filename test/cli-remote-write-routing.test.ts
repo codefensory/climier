@@ -47,7 +47,7 @@ async function createLocalProject(root, projectId) {
 }
 
 async function startRemoteApi(root, projectId) {
-  const catalog = createProjectCatalog({ dataRoot: path.join(root, "catalog"), projectIds: [projectId] });
+  const catalog = createProjectCatalog({ dataRoot: path.join(root, "catalog"), projectIds: [projectId] } as unknown as Parameters<typeof createProjectCatalog>[0]);
   const remoteDir = await catalog.provisionProject(projectId);
   await initState({ projectDir: remoteDir });
   const authStore = await createServerAuthStore({ stateHome: path.join(root, "server-auth"), password: "fixture-password" });
@@ -61,7 +61,7 @@ async function startRemoteApi(root, projectId) {
       return { projectDir: projectDirForRequest };
     },
   });
-  await new Promise((resolve, reject) => {
+  await new Promise<void>((resolve, reject) => {
     api.once("error", reject);
     api.listen(0, "127.0.0.1", resolve);
   });
@@ -69,13 +69,15 @@ async function startRemoteApi(root, projectId) {
 }
 
 async function closeServer(server) {
-  await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
 }
 
 async function prepareRemoteFixture(root, projectId, home) {
   const projectDir = await createLocalProject(root, projectId);
   const { remoteDir, api, token, openCount } = await startRemoteApi(root, projectId);
-  const apiUrl = `http://127.0.0.1:${api.address().port}`;
+  const address = api.address();
+  assert.ok(address && typeof address !== "string");
+  const apiUrl = `http://127.0.0.1:${address.port}`;
   await changeBackendUrl(projectDir, apiUrl);
   const profile = createCredentialStore({ home });
   await profile.set(apiUrl, token);
@@ -144,13 +146,13 @@ async function changeBackendUrl(projectDir, url) {
 
 function responseProtocolProxy(upstreamUrl) {
   return createServer(async (request, response) => {
-    const chunks = [];
+    const chunks: Buffer[] = [];
     for await (const chunk of request) {
       chunks.push(chunk);
     }
     const upstream = await fetch(`${upstreamUrl}${request.url}`, {
       method: request.method,
-      headers: request.headers,
+      headers: request.headers as unknown as Record<string, string>,
       body: chunks.length ? Buffer.concat(chunks) : undefined,
     });
     const headers = Object.fromEntries(upstream.headers);
@@ -197,7 +199,7 @@ async function applyCreatedWrites(projectDir, remoteEnv, original) {
 }
 
 async function applyMiscWrites(projectDir, remoteEnv, original) {
-  const writes = [
+  const writes: Array<[string, string[], string]> = [
     ["add-note", ["T-task", "remote note", "--as", "alice"], "node"],
     ["add-edge", ["T-task", "T-low", "--type", "BLOCKS", "--as", "alice"], "edge"],
     ["update", ["T-low", "--title", "updated task", "--as", "alice"], "node"],
@@ -218,7 +220,7 @@ async function applyMiscWrites(projectDir, remoteEnv, original) {
 }
 
 async function applyTaskLifecycle(projectDir, remoteEnv, original) {
-  const lifecycle = [
+  const lifecycle: Array<[string, string[], string, string]> = [
     ["take", ["T-task", "--as", "alice"], "context", "in_progress"],
     ["release", ["T-task", "--as", "alice"], "node", "open"],
     ["take", ["T-task", "--as", "alice"], "context", "in_progress"],
@@ -337,8 +339,10 @@ async function checkAuthAndProtocolRejection(fixture, before) {
   await preserveSentinel(projectDir, before);
 
   const proxy = responseProtocolProxy(apiUrl);
-  await new Promise((resolve, reject) => { proxy.once("error", reject); proxy.listen(0, "127.0.0.1", resolve); });
-  const proxyUrl = `http://127.0.0.1:${proxy.address().port}`;
+  await new Promise<void>((resolve, reject) => { proxy.once("error", reject); proxy.listen(0, "127.0.0.1", resolve); });
+  const proxyAddress = proxy.address();
+  assert.ok(proxyAddress && typeof proxyAddress !== "string");
+  const proxyUrl = `http://127.0.0.1:${proxyAddress.port}`;
   try {
     await profile.set(proxyUrl, token);
     await changeBackendUrl(projectDir, proxyUrl);

@@ -4,8 +4,10 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import logout from "../src/cli/commands/logout.ts";
+import logoutCommand from "../src/cli/commands/logout.ts";
 import { createCredentialStore } from "../src/storage/credential-profile.ts";
+
+const logout = (context: unknown) => logoutCommand(context as Parameters<typeof logoutCommand>[0]);
 
 test("logout removes only the selected origin session", async () => {
   const home = await fs.mkdtemp(path.join(os.tmpdir(), "climier-logout-"));
@@ -21,7 +23,7 @@ test("logout removes only the selected origin session", async () => {
 });
 
 test("logout resolves the linked origin and is idempotent", async () => {
-  const calls = [];
+  const calls: string[] = [];
   const result = await logout({
     projectConfig: { project_id: "p", backend: { type: "remote", url: "https://remote.example/base" } },
     credentialStore: { async delete(origin) { calls.push(origin); return false; } },

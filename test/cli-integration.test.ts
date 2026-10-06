@@ -336,7 +336,10 @@ test("add-edge: BLOCKS cannot target knowledge", async () => {
         positional: ["T-auth-1", "K-auth-ttl"],
         flags: { type: "BLOCKS" },
       }),
-      (err) => err.code === "INVALID_EDGE_KIND" && /BLOCKS/.test(err.message)
+      (err) => {
+        const error = err as { code?: string; message?: string };
+        return error.code === "INVALID_EDGE_KIND" && /BLOCKS/.test(error.message ?? "");
+      }
     );
   } finally {
     await rmTempProject(dir);

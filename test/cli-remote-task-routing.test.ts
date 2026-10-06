@@ -1,16 +1,28 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import addTask from "../src/cli/commands/add-task.ts";
-import update from "../src/cli/commands/update.ts";
-import take from "../src/cli/commands/take.ts";
-import release from "../src/cli/commands/release.ts";
-import reopen from "../src/cli/commands/reopen.ts";
-import cancel from "../src/cli/commands/cancel.ts";
-import submit from "../src/cli/commands/submit.ts";
-import accept from "../src/cli/commands/accept.ts";
-import reject from "../src/cli/commands/reject.ts";
+import addTaskCommand from "../src/cli/commands/add-task.ts";
+import updateCommand from "../src/cli/commands/update.ts";
+import takeCommand from "../src/cli/commands/take.ts";
+import releaseCommand from "../src/cli/commands/release.ts";
+import reopenCommand from "../src/cli/commands/reopen.ts";
+import cancelCommand from "../src/cli/commands/cancel.ts";
+import submitCommand from "../src/cli/commands/submit.ts";
+import acceptCommand from "../src/cli/commands/accept.ts";
+import rejectCommand from "../src/cli/commands/reject.ts";
 import { createTempProject, readState, rmTempProject, writeCanonicalState, runCli } from "./helpers.mjs";
+
+type TestContext = unknown;
+type TestResult = { node: { status?: string; [key: string]: unknown }; [key: string]: unknown };
+const addTask = async (value: TestContext): Promise<TestResult> => await addTaskCommand(value as Parameters<typeof addTaskCommand>[0]) as unknown as TestResult;
+const update = async (value: TestContext): Promise<TestResult> => await updateCommand(value as Parameters<typeof updateCommand>[0]) as unknown as TestResult;
+const take = async (value: TestContext): Promise<TestResult> => await takeCommand(value as Parameters<typeof takeCommand>[0]) as unknown as TestResult;
+const release = async (value: TestContext): Promise<TestResult> => await releaseCommand(value as Parameters<typeof releaseCommand>[0]) as unknown as TestResult;
+const reopen = async (value: TestContext): Promise<TestResult> => await reopenCommand(value as Parameters<typeof reopenCommand>[0]) as unknown as TestResult;
+const cancel = async (value: TestContext): Promise<TestResult> => await cancelCommand(value as Parameters<typeof cancelCommand>[0]) as unknown as TestResult;
+const submit = async (value: TestContext): Promise<TestResult> => await submitCommand(value as Parameters<typeof submitCommand>[0]) as unknown as TestResult;
+const accept = async (value: TestContext): Promise<TestResult> => await acceptCommand(value as Parameters<typeof acceptCommand>[0]) as unknown as TestResult;
+const reject = async (value: TestContext): Promise<TestResult> => await rejectCommand(value as Parameters<typeof rejectCommand>[0]) as unknown as TestResult;
 
 const sentinelState = {
   version: 1,
@@ -133,8 +145,8 @@ const lifecycle = [
   },
 ];
 
-function createClient(operationCase, { error } = {}) {
-  const calls = [];
+function createClient(operationCase, { error }: { error?: Error } = {}) {
+  const calls: Array<Record<string, unknown>> = [];
   const inputNode = operationCase.name === "create" ? taskNode("T-remote") : taskNode("T-remote", {
     status: ({
       "task.take": "open",
@@ -159,7 +171,9 @@ function createClient(operationCase, { error } = {}) {
       async executeOperation(args) {
         calls.push(args);
         if (error) { throw error; }
-        const result = { diff: { created: [], updated: [] }, result: operationCase.result || {}, effects: null };
+        const created: Array<{ id: string; node: unknown }> = [];
+        const updated: Array<{ id: string; node: unknown }> = [];
+        const result = { diff: { created, updated }, result: operationCase.result || {}, effects: null };
         const entry = { id: operationCase.node.id, node: operationCase.node };
         if (operationCase.operation === "task.create") { result.diff.created.push(entry); }
         else { result.diff.updated.push(entry); }
@@ -180,6 +194,7 @@ for (const operationCase of lifecycle) {
       const result = await operationCase.run({ projectDir, statePath: projectDir, backendClient: client });
       assert.deepEqual(result, operationCase.envelope(operationCase.node, operationCase.result || {}));
       const call = calls.find((entry) => entry.operation === operationCase.operation);
+  assert.ok(call);
       assert.equal(call.actor, "alice");
       const expectedInput = { ...operationCase.input };
       delete expectedInput.actor;
@@ -213,7 +228,7 @@ async function assertTaskFailures(projectDir, error) {
 }
 
 test("remote task failures propagate without fallback or changing local sentinel", async () => {
-  const errors = [
+  const errors: Error[] = [
     Object.assign(new Error("unauthorized"), { code: "AUTH_REQUIRED", status: 401 }),
     Object.assign(new Error("wrong protocol"), { code: "PROTOCOL_VERSION_UNSUPPORTED" }),
     Object.assign(new Error("endpoint unavailable"), { code: "REMOTE_REQUEST_FAILED" }),

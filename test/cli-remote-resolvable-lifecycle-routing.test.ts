@@ -1,13 +1,22 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import reopen from "../src/cli/commands/reopen.ts";
-import cancel from "../src/cli/commands/cancel.ts";
-import release from "../src/cli/commands/release.ts";
-import submit from "../src/cli/commands/submit.ts";
-import accept from "../src/cli/commands/accept.ts";
-import reject from "../src/cli/commands/reject.ts";
+import reopenCommand from "../src/cli/commands/reopen.ts";
+import cancelCommand from "../src/cli/commands/cancel.ts";
+import releaseCommand from "../src/cli/commands/release.ts";
+import submitCommand from "../src/cli/commands/submit.ts";
+import acceptCommand from "../src/cli/commands/accept.ts";
+import rejectCommand from "../src/cli/commands/reject.ts";
 import { createTempProject, readState, rmTempProject, writeCanonicalState, runCli, initExampleProject, installPolicyFixture, uninstallPolicyFixture } from "./helpers.mjs";
+
+type TestContext = unknown;
+type TestResult = { node: { status?: string; [key: string]: unknown }; [key: string]: unknown };
+const reopen = async (value: TestContext): Promise<TestResult> => await reopenCommand(value as Parameters<typeof reopenCommand>[0]) as unknown as TestResult;
+const cancel = async (value: TestContext): Promise<TestResult> => await cancelCommand(value as Parameters<typeof cancelCommand>[0]) as unknown as TestResult;
+const release = async (value: TestContext): Promise<TestResult> => await releaseCommand(value as Parameters<typeof releaseCommand>[0]) as unknown as TestResult;
+const submit = async (value: TestContext): Promise<TestResult> => await submitCommand(value as Parameters<typeof submitCommand>[0]) as unknown as TestResult;
+const accept = async (value: TestContext): Promise<TestResult> => await acceptCommand(value as Parameters<typeof acceptCommand>[0]) as unknown as TestResult;
+const reject = async (value: TestContext): Promise<TestResult> => await rejectCommand(value as Parameters<typeof rejectCommand>[0]) as unknown as TestResult;
 
 const initialState = {
   version: 1,
@@ -33,8 +42,8 @@ const taskLifecycleCommands = [
   { name: "reject", run: reject, operation: "task.reject", status: "open", input: (id) => ({ id, reason: "retry" }), flags: { reason: "retry" } },
 ];
 
-function lifecycleRemoteClient(target, { failure } = {}) {
-  const calls = [];
+function lifecycleRemoteClient(target, { failure }: { failure?: Error } = {}) {
+  const calls: Array<Record<string, unknown>> = [];
   return {
     calls,
     client: {
@@ -46,7 +55,7 @@ function lifecycleRemoteClient(target, { failure } = {}) {
       async executeOperation(args) {
         calls.push(args);
         if (failure) { throw failure; }
-        const updated = { ...target, status: taskLifecycleCommands.find((command) => command.operation === args.operation).status, revision: 8 };
+        const updated = { ...target, status: taskLifecycleCommands.find((command) => command.operation === args.operation)?.status ?? "open", revision: 8 };
         return { result: { released: args.operation === "task.release" }, diff: { created: [], updated: [{ id: target.id, node: updated }] }, effects: { newly_ready: ["T-next"] } };
       },
       async executeBatch() { throw new Error("unexpected batch"); },
@@ -85,7 +94,7 @@ for (const command of taskLifecycleCommands) {
 
   test(`local ${command.name} delegates once through the operation bridge`, async () => {
     const id = "T-local-bridge";
-    const calls = [];
+    const calls: Array<Record<string, unknown>> = [];
     const backendClient = {
       type: "local",
       async executeOperation(args) {
@@ -119,8 +128,8 @@ for (const command of taskLifecycleCommands) {
   });
 }
 
-function remoteClient(targetNode, { failure, readFailure } = {}) {
-  const calls = [];
+function remoteClient(targetNode, { failure, readFailure }: { failure?: Error; readFailure?: Error } = {}) {
+  const calls: Array<Record<string, unknown>> = [];
   return {
     calls,
     client: {
@@ -190,7 +199,7 @@ test("remote lifecycle rejects unsupported target kinds before mutation", async 
         const { client, calls } = remoteClient(target);
         await assert.rejects(
           command.run({ projectDir, statePath: projectDir, backendClient: client, positional: ["R-remote"], flags: { as: "alice" } }),
-          (error) => error.code === "REMOTE_UNSUPPORTED_OPERATION",
+          (error) => (error as { code?: string }).code === "REMOTE_UNSUPPORTED_OPERATION",
         );
         assert.equal(calls.filter((call) => call.operation).length, 0);
         assert.deepEqual(await readState(projectDir), before);
@@ -216,7 +225,7 @@ test("local lifecycle commands retain their existing mutation semantics and enve
       [reopen, "G-local", "open"],
       [cancel, "T-local", "canceled"],
       [cancel, "G-local", "canceled"],
-    ]) {
+    ] as Array<[(value: unknown) => Promise<TestResult>, string, string]>) {
       const result = await command({ projectDir, statePath: projectDir, positional: [id], flags: { reason: "local check", as: "alice" } });
       assert.ok(result.node, "local command keeps the { node } envelope");
       assert.equal(result.node.id, id);

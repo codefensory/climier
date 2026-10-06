@@ -23,14 +23,14 @@ const writes = [
     input: "id, initiative, title, body, acceptance, blocked_by, tags, refs, meta",
     policyAction: "task.create", envelope: "{ node }", error: "MISSING_FIELD / INVALID_ID",
     logAction: "add-task / add-node", state: "created task, revision, and blocker edges",
-    local: "add-wrappers.test.mjs", remote: "cli-remote-write-routing.test.mjs",
+    local: "add-wrappers.test.mjs", remote: "cli-remote-write-routing.test.ts",
   },
   {
     operation: "task.update", commands: ["update(task)"],
     input: "id, changes, if_revision; legacy fields share the operation input",
     policyAction: "task.update", envelope: "{ node }", error: "NODE_NOT_FOUND / REVISION_CONFLICT",
     logAction: "update", state: "updated task and revision; idempotence preserves both",
-    local: "update.test.mjs", remote: "cli-remote-write-routing.test.mjs",
+    local: "update.test.mjs", remote: "cli-remote-write-routing.test.ts",
   },
   {
     operation: "task.take", commands: ["take"],
@@ -38,125 +38,125 @@ const writes = [
     policyAction: "task.takeover only for a different existing owner",
     envelope: "{ node, context, freshly_claimed }", error: "ALREADY_CLAIMED / POLICY_DENIED",
     logAction: "take", state: "claim/status change; denied and idempotent calls do not mutate",
-    local: "cli-takeover-policy-seam.test.mjs", remote: "cli-remote-write-routing.test.mjs",
+    local: "cli-takeover-policy-seam.test.mjs", remote: "cli-remote-write-routing.test.ts",
   },
   {
     operation: "task.release", commands: ["release"],
     input: "id, actor (local); id (remote)", policyAction: "task.release",
     envelope: "{ released, node }", error: "NODE_NOT_FOUND / POLICY_DENIED",
     logAction: "release", state: "claim cleared and task open",
-    local: "cli-remote-resolvable-lifecycle-routing.test.mjs", remote: "cli-remote-write-routing.test.mjs",
+    local: "cli-remote-resolvable-lifecycle-routing.test.ts", remote: "cli-remote-write-routing.test.ts",
   },
   {
     operation: "task.reopen", commands: ["reopen(task)"], input: "id, reason",
     policyAction: "task.reopen", envelope: "{ node }", error: "INVALID_STATUS / POLICY_DENIED",
     logAction: "task.reopen", state: "task open and terminal fields cleared",
-    local: "task-lifecycle-cli.test.mjs", remote: "cli-remote-write-routing.test.mjs",
+    local: "task-lifecycle-cli.test.mjs", remote: "cli-remote-write-routing.test.ts",
   },
   {
     operation: "task.cancel", commands: ["cancel(task)"], input: "id, reason",
     policyAction: "task.cancel", envelope: "{ node }", error: "INVALID_STATUS / POLICY_DENIED",
     logAction: "task.cancel", state: "task canceled and terminal fields cleared",
-    local: "task-lifecycle-cli.test.mjs", remote: "cli-remote-write-routing.test.mjs",
+    local: "task-lifecycle-cli.test.mjs", remote: "cli-remote-write-routing.test.ts",
   },
   {
     operation: "task.submit", commands: ["submit"], input: "id, note, actor (local); id, note (remote)",
     policyAction: "task.submit", envelope: "{ node, newly_ready }", error: "INVALID_STATUS / POLICY_DENIED",
     logAction: "task.submit", state: "task submitted",
-    local: "task-lifecycle-cli.test.mjs", remote: "cli-remote-write-routing.test.mjs",
+    local: "task-lifecycle-cli.test.mjs", remote: "cli-remote-write-routing.test.ts",
   },
   {
     operation: "task.accept", commands: ["accept"], input: "id, actor (local); id (remote)",
     policyAction: "task.accept", envelope: "{ node, newly_ready }", error: "INVALID_STATUS / POLICY_DENIED",
     logAction: "task.accept", state: "task done",
-    local: "task-lifecycle-cli.test.mjs", remote: "cli-remote-write-routing.test.mjs",
+    local: "task-lifecycle-cli.test.mjs", remote: "cli-remote-write-routing.test.ts",
   },
   {
     operation: "task.reject", commands: ["reject"], input: "id, reason, actor (local); id, reason (remote)",
     policyAction: "task.reject", envelope: "{ node }", error: "MISSING_FIELD / INVALID_STATUS",
     logAction: "task.reject", state: "task open with rejection reason",
-    local: "task-lifecycle-cli.test.mjs", remote: "cli-remote-write-routing.test.mjs",
+    local: "task-lifecycle-cli.test.mjs", remote: "cli-remote-write-routing.test.ts",
   },
   {
     operation: "gate.create", commands: ["add-gate", "add-node(gate)"],
     input: "id, initiative, title, body, purpose, blocked_by, derived_from",
     policyAction: "gate.create", envelope: "{ node }", error: "MISSING_FIELD / INVALID_EDGE_KIND",
     logAction: "add-node / supersede", state: "created gate and supersedes edge when requested",
-    local: "add-wrappers.test.mjs", remote: "cli-remote-write-routing.test.mjs",
+    local: "add-wrappers.test.mjs", remote: "cli-remote-write-routing.test.ts",
   },
   {
     operation: "gate.update", commands: ["update(gate)"], input: "id, changes, if_revision",
     policyAction: "gate.update", envelope: "{ node }", error: "NODE_NOT_FOUND / REVISION_CONFLICT",
     logAction: "update", state: "updated gate and revision",
-    local: "update.test.mjs", remote: "cli-remote-write-routing.test.mjs",
+    local: "update.test.mjs", remote: "cli-remote-write-routing.test.ts",
   },
   {
     operation: "gate.resolve", commands: ["resolve"], input: "id, choice, rationale, if_revisions",
     policyAction: "gate.resolve", envelope: "{ node, newly_ready }", error: "INVALID_STATUS / POLICY_DENIED",
     logAction: "gate.resolve", state: "gate resolved; repeated same resolution remains compatible",
-    local: "task-lifecycle-cli.test.mjs", remote: "cli-remote-write-routing.test.mjs",
+    local: "task-lifecycle-cli.test.mjs", remote: "cli-remote-write-routing.test.ts",
   },
   {
     operation: "gate.reopen", commands: ["reopen(gate)"], input: "id, reason, if_revisions",
     policyAction: "gate.reopen", envelope: "{ node }", error: "INVALID_STATUS / POLICY_DENIED",
     logAction: "gate.reopen", state: "gate open and resolution fields cleared",
-    local: "task-lifecycle-cli.test.mjs", remote: "cli-remote-write-routing.test.mjs",
+    local: "task-lifecycle-cli.test.mjs", remote: "cli-remote-write-routing.test.ts",
   },
   {
     operation: "gate.cancel", commands: ["cancel(gate)"], input: "id, reason, if_revisions",
     policyAction: "gate.cancel", envelope: "{ node }", error: "INVALID_STATUS / POLICY_DENIED",
     logAction: "gate.cancel", state: "gate canceled and terminal fields cleared",
-    local: "task-lifecycle-cli.test.mjs", remote: "cli-remote-write-routing.test.mjs",
+    local: "task-lifecycle-cli.test.mjs", remote: "cli-remote-write-routing.test.ts",
   },
   {
     operation: "knowledge.create", commands: ["add-knowledge", "add-node(knowledge)"],
     input: "id, initiative, title, body, scope, refs, derived_from",
     policyAction: "knowledge.create", envelope: "{ node }", error: "MISSING_FIELD / INVALID_EDGE_KIND",
     logAction: "add-node / supersede", state: "created knowledge and supersedes edge when requested",
-    local: "add-wrappers.test.mjs", remote: "cli-remote-write-routing.test.mjs",
+    local: "add-wrappers.test.mjs", remote: "cli-remote-write-routing.test.ts",
   },
   {
     operation: "knowledge.update", commands: ["update(knowledge)"], input: "id, changes, if_revision",
     policyAction: "knowledge.update", envelope: "{ node }", error: "NODE_NOT_FOUND / REVISION_CONFLICT",
     logAction: "update", state: "updated knowledge and revision",
-    local: "update.test.mjs", remote: "cli-remote-write-routing.test.mjs",
+    local: "update.test.mjs", remote: "cli-remote-write-routing.test.ts",
   },
   {
     operation: "knowledge.deprecate", commands: ["deprecate-knowledge"], input: "id, reason",
     policyAction: "knowledge.deprecate", envelope: "{ node }", error: "MISSING_FIELD / INVALID_STATUS",
     logAction: "knowledge.deprecate", state: "knowledge deprecated",
-    local: "provider-knowledge-deprecate.test.mjs", remote: "cli-remote-write-routing.test.mjs",
+    local: "provider-knowledge-deprecate.test.mjs", remote: "cli-remote-write-routing.test.ts",
   },
   {
     operation: "initiative.create", commands: ["add-initiative"], input: "name, desc",
     policyAction: "initiative.create", envelope: "{ initiative }", error: "MISSING_FIELD / INVALID_REQUEST",
     logAction: "initiative.create", state: "initiative created",
-    local: "initiative-validation.test.mjs", remote: "cli-remote-write-routing.test.mjs",
+    local: "initiative-validation.test.mjs", remote: "cli-remote-write-routing.test.ts",
   },
   {
     operation: "note.add", commands: ["add-note"], input: "id, text, if_revision",
     policyAction: "note.add", envelope: "{ node }", error: "MISSING_FIELD / NODE_NOT_FOUND / REVISION_CONFLICT",
     logAction: "note.add", state: "note appended and node revision incremented",
-    local: "add-note.test.mjs", remote: "cli-remote-write-routing.test.mjs",
+    local: "add-note.test.mjs", remote: "cli-remote-write-routing.test.ts",
   },
   {
     operation: "edge.add", commands: ["add-edge"], input: "from, to, type",
     policyAction: "edge.add", envelope: "{ edge }", error: "INVALID_EDGE_KIND / NODE_NOT_FOUND",
     logAction: "edge.add", state: "edge appended",
-    local: "provider-core-edge.test.mjs", remote: "cli-remote-write-routing.test.mjs",
+    local: "provider-core-edge.test.mjs", remote: "cli-remote-write-routing.test.ts",
   },
   {
     operation: "edge.remove", commands: ["remove-edge"], input: "from, to, type",
     policyAction: "edge.remove", envelope: "{ removed }", error: "INVALID_EDGE_KIND / NODE_NOT_FOUND",
     logAction: "edge.remove", state: "matching edge removed",
-    local: "edge-remove.test.mjs", remote: "cli-remote-write-routing.test.mjs",
+    local: "edge-remove.test.mjs", remote: "cli-remote-write-routing.test.ts",
   },
   {
     operation: "core.batch", commands: ["batch"], input: "operations[], if_state_revision",
     policyAction: "core.batch", envelope: "{ ok, results }", error: "INVALID_REQUEST / REVISION_CONFLICT",
     logAction: "per-operation audit entries in the one batch transaction",
     state: "all operations commit atomically or none commit",
-    local: "cli-operation-bridge-boundary.test.mjs", remote: "cli-remote-write-routing.test.mjs",
+    local: "cli-operation-bridge-boundary.test.ts", remote: "cli-remote-write-routing.test.ts",
     http: "server/http/operations-batch.test.mjs",
   },
 ];
@@ -182,7 +182,14 @@ const adapterBridgeMarkers = [
   ["deprecate-knowledge", "executeOperation("],
 ];
 
-const exceptions = [
+const exceptions: Array<{
+  command: string;
+  owner: string;
+  path: string;
+  markers: string[];
+  tests: string[];
+  downstream?: string;
+}> = [
   {
     command: "init", owner: "kernel/state-operations.mjs:initState",
     path: "src/cli/commands/init.ts", markers: ["initState(", "backendClient.init()"],
@@ -191,7 +198,7 @@ const exceptions = [
   {
     command: "restore", owner: "kernel/state-operations.mjs:restoreState",
     path: "src/cli/commands/restore.ts", markers: ["restoreState("],
-    tests: ["snapshots-restore.test.mjs", "kernel-state-operations.test.mjs", "cli-remote-write-routing.test.mjs"],
+    tests: ["snapshots-restore.test.mjs", "kernel-state-operations.test.mjs", "cli-remote-write-routing.test.ts"],
   },
 ];
 
@@ -201,7 +208,7 @@ async function sourceAt(relativePath) {
 
 function assertTestFiles(files) {
   for (const file of files) {
-    assert.ok(file.endsWith(".test.mjs"), `test owner is a focused test file: ${file}`);
+    assert.match(file, /\.test\.(?:mjs|ts)$/, `test owner is a focused test file: ${file}`);
   }
 }
 
@@ -211,7 +218,7 @@ test("write matrix covers every registered operation and documents local/remote 
   assert.deepEqual([...matrix].filter((operation) => operation !== "core.batch").toSorted(), [...catalog].toSorted(), "every registered operation has one matrix row");
   assert.ok(matrix.includes("core.batch"), "batch's descriptor is also represented");
   assert.equal(new Set(matrix).size, matrix.length, "matrix operation ids are unique");
-  const batch = writes.find(({ operation }) => operation === "core.batch");
+  const batch = writes.find(({ operation }) => operation === "core.batch") as { http: string };
   assertTestFiles([batch.http]);
 
   for (const row of writes) {

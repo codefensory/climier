@@ -5,10 +5,30 @@ import { randomUUID } from "node:crypto";
 import test from "node:test";
 import { createRemoteTransferBaselineStore } from "../src/storage/remote-transfer-baseline.ts";
 import { readFencedState } from "../src/storage/ledger.ts";
-import { runCli as runCliInProcess } from "../src/cli/dispatch.ts";
+import { runCli as runCliCommand } from "../src/cli/dispatch.ts";
 import { createTempProject, rmTempProject, writeCanonicalState } from "./helpers.mjs";
 
-const remoteConfig = (projectId) => ({
+const runCliInProcess = (options: unknown) => runCliCommand(options as Parameters<typeof runCliCommand>[0]);
+
+type TransferRequest = {
+  actor?: string;
+  force?: boolean;
+  expected_remote_revision?: number;
+  payload: { nodes: Record<string, { title?: string }> };
+};
+type Fixture = {
+  projectDir: string;
+  config: { project_id: string; [key: string]: unknown };
+  calls: { exports: number; imports: TransferRequest[] };
+  backendClient: unknown;
+};
+type TransferResponse = {
+  ok?: boolean;
+  error: { code: string; message: string; details: Record<string, unknown> };
+  [key: string]: unknown;
+};
+
+const remoteConfig = (projectId: string) => ({
   version: 1,
   project_id: projectId,
   backend: { type: "remote", url: "https://transfer.example.test/api/" },
@@ -23,13 +43,13 @@ const remotePayload = () => ({
   log: [],
 });
 
-async function fixture(t, { state = emptyState(), client } = {}) {
+async function fixture(t: { after(callback: () => void): void }, { state = emptyState(), client }: { state?: unknown; client?: unknown } = {}): Promise<Fixture> {
   const projectDir = await createTempProject();
   t.after(() => rmTempProject(projectDir));
   const config = remoteConfig(`cli-transfer-${randomUUID()}`);
   await fs.writeFile(path.join(projectDir, ".climier.json"), JSON.stringify(config));
   await writeCanonicalState(projectDir, state);
-  const calls = { exports: 0, imports: [] };
+  const calls: Fixture["calls"] = { exports: 0, imports: [] };
   const backendClient = client || {
     type: "remote",
     async exportTransfer() { calls.exports++; return { payload: remotePayload(), revision: 7 }; },
@@ -38,9 +58,9 @@ async function fixture(t, { state = emptyState(), client } = {}) {
   return { projectDir, config, calls, backendClient };
 }
 
-async function invoke(f, command, commandArgs = [], backendClient = f.backendClient, prefixArgs = []) {
-  const output = [];
-  const exitCodes = [];
+async function invoke(f: Fixture, command: string, commandArgs: string[] = [], backendClient: unknown = f.backendClient, prefixArgs: string[] = []): Promise<{ result: number; exitCodes: number[]; data: TransferResponse; factoryOptions: { projectDir?: string; projectConfig?: unknown } | undefined }> {
+  const output: string[] = [];
+  const exitCodes: number[] = [];
   let factoryOptions;
   const result = await runCliInProcess({
     argv: [...prefixArgs, "--project", f.projectDir, command, ...commandArgs],
@@ -48,7 +68,7 @@ async function invoke(f, command, commandArgs = [], backendClient = f.backendCli
     write(value) { output.push(value); },
     exit(code) { exitCodes.push(code); },
   });
-  return { result, exitCodes, data: JSON.parse(output[0]), factoryOptions };
+  return { result, exitCodes, data: JSON.parse(output[0]) as TransferResponse, factoryOptions };
 }
 
 test("push and pull are registered remote commands that return only the transfer summary", async (t) => {
@@ -62,6 +82,7 @@ test("push and pull are registered remote commands that return only the transfer
   });
   const pushed = await invoke(pushFixture, "push", ["--as", "alice"]);
   assert.equal(pushed.result, 0);
+  assert.ok(pushed.factoryOptions);
   assert.equal(pushed.factoryOptions.projectDir, pushFixture.projectDir);
   assert.deepEqual(pushed.factoryOptions.projectConfig, pushFixture.config);
   assert.deepEqual(pushed.data, {
@@ -72,12 +93,16 @@ test("push and pull are registered remote commands that return only the transfer
     forced: false,
   });
   assert.deepEqual(Object.keys(pushed.data).sort(), ["forced", "local_revision", "project_id", "remote_revision", "transfer"]);
-  assert.equal(pushFixture.calls.imports[0].actor, "alice");
-  assert.equal(pushFixture.calls.imports[0].payload.nodes.T1.title, "local");
+  const firstImport = pushFixture.calls.imports[0];
+  assert.ok(firstImport);
+  assert.equal(firstImport.actor, "alice");
+  assert.equal(firstImport.payload.nodes.T1.title, "local");
   const forcedPush = await invoke(pushFixture, "push", ["--as", "alice", "--force"]);
   assert.equal(forcedPush.result, 0);
-  assert.equal(pushFixture.calls.imports[1].force, true);
-  assert.equal(Object.hasOwn(pushFixture.calls.imports[1], "expected_remote_revision"), false);
+  const forcedImport = pushFixture.calls.imports[1];
+  assert.ok(forcedImport);
+  assert.equal(forcedImport.force, true);
+  assert.equal(Object.hasOwn(forcedImport, "expected_remote_revision"), false);
   assert.equal(JSON.stringify(pushed.data).includes("payload"), false);
   assert.equal(JSON.stringify(pushed.data).includes("bearer"), false);
 
@@ -92,7 +117,8 @@ test("push and pull are registered remote commands that return only the transfer
     forced: true,
   });
   assert.equal(pullFixture.calls.exports, 1);
-  assert.equal((await readFencedState(pullFixture.projectDir)).nodes.T1.title, "remote");
+  const pulledState = await readFencedState(pullFixture.projectDir) as { nodes: Record<string, { title?: string }> };
+  assert.equal(pulledState.nodes.T1.title, "remote");
 });
 
 test("push/pull require --as, reject positional arguments and require bare --force", async (t) => {
@@ -126,7 +152,7 @@ test("manual transfer rejects local backend and keeps remote failures structured
     ["REMOTE_UNAUTHORIZED", "authentication failed", { status: 401 }],
     ["REMOTE_REQUEST_FAILED", "network unavailable", { cause: "offline" }],
     ["REMOTE_PROTOCOL_MISMATCH", "remote protocol mismatch", { expected: "v2" }],
-  ]) {
+  ] as Array<[string, string, Record<string, unknown>]>) {
     const remoteError = Object.assign(new Error(message), { code, details });
     const failingClient = {
       type: "remote",
@@ -171,7 +197,7 @@ test("transfer conflicts retain codes/details and explain both force choices", a
     },
   });
   const baselineStore = createRemoteTransferBaselineStore();
-  const localState = await readFencedState(localFixture.projectDir);
+  const localState = await readFencedState(localFixture.projectDir) as { revision: number; nodes: Record<string, { title?: string }> };
   await baselineStore.set({
     version: 1,
     origin: "https://transfer.example.test",
@@ -219,8 +245,8 @@ test("invalid project metadata fails before creating a backend client", async (t
 
 test("help marks manual push/pull experimental and unsafe and warns about destructive force", async (t) => {
   const f = await fixture(t);
-  const output = [];
-  const codes = [];
+  const output: string[] = [];
+  const codes: number[] = [];
   const result = await runCliInProcess({
     argv: ["--project", f.projectDir, "--help"],
     write(value) { output.push(value); },
@@ -236,8 +262,8 @@ test("help marks manual push/pull experimental and unsafe and warns about destru
 
 test("registered transfer commands advertise the current Remote v1 boundary", async (t) => {
   const f = await fixture(t);
-  const output = [];
-  const codes = [];
+  const output: string[] = [];
+  const codes: number[] = [];
   const result = await runCliInProcess({
     argv: ["--project", f.projectDir, "--help"],
     write(value) { output.push(value); },

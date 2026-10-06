@@ -3,14 +3,19 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import batch from "../src/cli/commands/batch.ts";
+import batchCommand from "../src/cli/commands/batch.ts";
 import { createBackendClient } from "../src/application/operations/index.ts";
 import { createLocalOperationSource } from "../src/application/local-operation-source.ts";
 import { getOperationSource } from "../src/operation-source.ts";
-import { dispatchCommand, runCli as runCliInProcess } from "../src/cli/dispatch.ts";
+import { dispatchCommand as dispatchCommandImpl, runCli as runCliCommand } from "../src/cli/dispatch.ts";
 
 import { createTempProject, rmTempProject } from "./helpers.mjs";
 import fsSync from "node:fs";
+import type { SourceInput } from "../src/application/types.ts";
+
+const batch = (context: unknown) => batchCommand(context as Parameters<typeof batchCommand>[0]);
+const dispatchCommand = (options: unknown) => dispatchCommandImpl(options as Parameters<typeof dispatchCommandImpl>[0]);
+const runCliInProcess = (options: unknown) => runCliCommand(options as Parameters<typeof runCliCommand>[0]);
 
 async function executeLocalBatch(projectDir, inputPath, writes, client) {
   return runCliInProcess({ argv: ["--project", projectDir, "batch", "--file", inputPath, "--as", "alice"], createBackendClient: () => client, write: (value) => writes.push(value), exit() {} });
@@ -22,7 +27,7 @@ test("local backend creates and shares one lazy operation source with batch", as
   await fs.writeFile(inputPath, JSON.stringify({
     operations: [{ op: "initiative.create", input: { name: "shared-source" } }],
   }), "utf8");
-  const calls = [];
+  const calls: Array<[string, { batch: { registry: unknown }; request: { action: string } }]> = [];
   const registry = {
     lookup(operation) {
       calls.push(["lookup", operation]);
@@ -41,9 +46,9 @@ test("local backend creates and shares one lazy operation source with batch", as
   const client = createBackendClient({
     projectDir,
     projectConfig: { backend: { type: "local" } },
-    source,
+    source: source as unknown as SourceInput,
   });
-  const writes = [];
+  const writes: string[] = [];
   try {
     const result = await executeLocalBatch(projectDir, inputPath, writes, client);
 
@@ -69,7 +74,7 @@ test("remote dispatch does not load a local source", async () => {
     registry: { lookup() { assert.fail("remote dispatch must not load local source"); } },
     mutate() { assert.fail("remote dispatch must not mutate local state"); },
   };
-  const writes = [];
+  const writes: string[] = [];
   try {
     await fs.writeFile(path.join(projectDir, ".climier.json"), JSON.stringify(projectConfig));
     const result = await runCliInProcess({
@@ -104,7 +109,7 @@ test("local source getter memoizes the complete source across concurrent request
 
 test("local source receives policy ports from composition instead of importing plugins", async () => {
   const loadApplicablePolicy = async () => null;
-  const authorizeAction = async () => ({ decision: "abstain" });
+  const authorizeAction = async () => ({ decision: "abstain" as const });
   const getSource = createLocalOperationSource(undefined, { loadApplicablePolicy, authorizeAction });
   const source = await getSource();
 
@@ -143,7 +148,7 @@ test("batch shares the already-selected local backend instead of rebuilding its 
     operations: [{ op: "initiative.create", input: { name: "shared-source" } }],
   };
   const response = { ok: true, results: [] };
-  const calls = [];
+  const calls: unknown[] = [];
   const backendClient = {
     type: "local",
     executeOperation() { assert.fail("batch must not execute individual operations"); },
@@ -184,9 +189,12 @@ async function assertRemotePluginNotLoaded(dir, marker) {
     projectConfig: { project_id: "remote-project", backend: { type: "remote", url: "https://climier.example.test" } },
     backendClient: { type: "remote" } };
   const command = { command: "audit", originalArgv: ["audit", "ping"], flags: {} };
-  await assert.rejects(() => dispatchCommand({ ...context, ...command }), (error) => error.code === "REMOTE_UNSUPPORTED_OPERATION" && error.details.command === "audit");
+  await assert.rejects(() => dispatchCommand({ ...context, ...command }), (error) => {
+    const failure = error as { code?: string; details?: { command?: string } };
+    return failure.code === "REMOTE_UNSUPPORTED_OPERATION" && failure.details?.command === "audit";
+  });
   assert.equal(fsSync.existsSync(marker), false);
-  await assert.rejects(() => dispatchCommand({ ...context, ...command, flags: undefined }), (error) => error.code === "REMOTE_UNSUPPORTED_OPERATION");
+  await assert.rejects(() => dispatchCommand({ ...context, ...command, flags: undefined }), (error) => (error as { code?: string }).code === "REMOTE_UNSUPPORTED_OPERATION");
   assert.equal(fsSync.existsSync(marker), false, "plugin entry remains unloaded for direct dispatch");
 }
 
@@ -218,7 +226,10 @@ test("dispatch: remote unsupported operation is denied before plugin loading", a
 async function rejectRemoteLocalOnlyCommands(context, source) {
   for (const [command, flags] of [["snapshots", {}], ["restore", {}], ["ui", {}], ["init", { force: true }]]) {
     await assert.rejects(() => dispatchCommand({ command, flags, ...context, source }),
-      (error) => error.code === "REMOTE_UNSUPPORTED_OPERATION" && error.details.command === command);
+      (error) => {
+        const failure = error as { code?: string; details?: { command?: string } };
+        return failure.code === "REMOTE_UNSUPPORTED_OPERATION" && failure.details?.command === command;
+      });
   }
 }
 
@@ -237,7 +248,7 @@ test("dispatch: remote unsupported snapshots command fails before local handler 
   try {
     const projectConfig = { project_id: "remote-project", backend: { type: "remote", url: "https://climier.example.test" } };
     const client = { type: "remote" };
-    const sourceCalls = [];
+    const sourceCalls: unknown[] = [];
     const source = {
       registry: { lookup(...args) { sourceCalls.push(["lookup", ...args]); } },
       mutate(...args) { sourceCalls.push(["mutate", ...args]); },
