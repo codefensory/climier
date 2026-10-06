@@ -114,6 +114,13 @@ export type ErrorCode = CoreErrorCode | StorageErrorCode | RemoteErrorCode | Plu
 
 export type ErrorDetails = Record<string, unknown>;
 
+declare global {
+  interface Error {
+    code?: string;
+    details?: ErrorDetails;
+  }
+}
+
 export interface ErrorEnvelope {
   ok: false;
   error: {
@@ -127,8 +134,8 @@ export class ClimierError extends Error {
   readonly code: ErrorCode;
   readonly details: ErrorDetails;
 
-  constructor(code: ErrorCode, message: string, details: ErrorDetails = {}) {
-    super(message);
+  constructor(code: ErrorCode, message: string, details: ErrorDetails = {}, options?: ErrorOptions) {
+    super(message, options);
     this.name = "ClimierError";
     this.code = code;
     this.details = details;
@@ -228,4 +235,29 @@ export function exitCodeForError(error: unknown): number {
 
 export function throwV2(code: ErrorCode, message: string, details: ErrorDetails = {}): never {
   throw new ClimierError(code, message, details);
+}
+
+export type CodedError = Error & { code: string; details?: ErrorDetails; cause?: unknown };
+
+export function codedError(
+  code: string,
+  message: string,
+  details?: ErrorDetails,
+  cause?: unknown,
+): CodedError {
+  const error = new Error(message) as CodedError;
+  error.code = code;
+  if (details !== undefined) {
+    error.details = details;
+  }
+  if (cause !== undefined) {
+    error.cause = cause;
+  }
+  return error;
+}
+
+export type CaughtError = Error & { code?: string; details?: ErrorDetails; cause?: unknown };
+
+export function asCaughtError(error: unknown): CaughtError {
+  return error as CaughtError;
 }

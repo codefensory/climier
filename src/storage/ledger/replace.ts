@@ -1,7 +1,9 @@
+import { asCaughtError } from "../../contracts/errors.ts";
 // Durable fenced-replace protocol and its pending-stage recovery.
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { ClimierError } from "../../contracts/errors.ts";
 import { stateFile, STATE_SCHEMA_VERSION } from "../state.ts";
 import { assertActiveLockContext, getActiveLockContext } from "../lock.ts";
 import { validateStateInvariants } from "../../contracts/state-invariants.ts";
@@ -19,25 +21,30 @@ import {
   writeDurableStage,
 } from "./stages.ts";
 
-function ledgerFile(projectDir) {
+type ReplacementCandidate = Record<string, unknown> & {
+  version: number;
+  fence_generation?: number;
+  revision?: number;
+  nodes?: Record<string, Record<string, unknown>>;
+};
+type ReplaceOptions = { projectDir?: string; [key: string]: unknown };
+
+function ledgerFile(projectDir: string): string {
   return path.join(path.dirname(stateFile(projectDir)), "revision-ledger.json");
 }
 
-function assertReplacementCandidate(candidate) {
-  if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)
-      || candidate.version !== STATE_SCHEMA_VERSION) {
-    const error = new Error(`ledger.replace: unsupported replacement state version ${candidate?.version}`);
-    error.code = "CLIMIER_UNSUPPORTED_SOURCE_VERSION";
-    throw error;
+function assertReplacementCandidate(candidate: unknown): asserts candidate is ReplacementCandidate {
+  const value = candidate as ReplacementCandidate | null;
+  if (!value || typeof value !== "object" || Array.isArray(value)
+      || value.version !== STATE_SCHEMA_VERSION) {
+    throw new ClimierError("CLIMIER_UNSUPPORTED_SOURCE_VERSION", `ledger.replace: unsupported replacement state version ${value?.version}`);
   }
-  if (!Number.isInteger(candidate.fence_generation)) {
-    const error = new Error("ledger.replace: fenced replacement candidate must include fence_generation");
-    error.code = "CLIMIER_LEDGER_STATE_MISMATCH";
-    throw error;
+  if (!Number.isInteger(value.fence_generation)) {
+    throw new ClimierError("CLIMIER_LEDGER_STATE_MISMATCH", "ledger.replace: fenced replacement candidate must include fence_generation");
   }
 }
 
-function replacementCandidateForValidation(candidate) {
+function replacementCandidateForValidation(candidate: ReplacementCandidate): ReplacementCandidate & { nodes: Record<string, Record<string, unknown>> } {
   const compatible = {
     ...candidate,
     nodes: Object.fromEntries(Object.entries(candidate.nodes || {}).map(([id, node]) => [id, { ...node }])),
@@ -54,13 +61,13 @@ function replacementHighWater(compatible, ledger) {
   ) + 1;
 }
 
-function rebasedReplacement(compatible, ledger, highWater) {
+function rebasedReplacement(compatible: ReplacementCandidate & { nodes: Record<string, Record<string, unknown>> }, ledger, highWater) {
   const destination = {
     ...compatible,
     version: STATE_SCHEMA_VERSION,
     revision: highWater,
     fence_generation: ledger.fence_generation,
-    nodes: Object.fromEntries(Object.entries(compatible.nodes).map(([id, node]) => [id, { ...node, revision: highWater }])),
+    nodes: Object.fromEntries((Object.entries(compatible.nodes) as [string, Record<string, unknown>][]).map(([id, node]) => [id, { ...node, revision: highWater }])),
   };
   validateStateInvariants(destination, "ledger.replace.destination");
   return destination;
@@ -82,12 +89,15 @@ async function readPendingReplaceStage(stagePath, pending) {
   let stageRaw;
   try {
     stageRaw = await fs.readFile(stagePath, "utf8");
-  } catch (error) {
+  } catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
     if (error.code === "ENOENT") {
       throw fingerprintMismatch("replace stage is missing; explicit recovery is required");
     }
     throw error;
-  }
+
+  }}
   if (sha256(stageRaw) !== pending.destination_sha256) {
     throw fingerprintMismatch("replace stage does not match the pending destination fingerprint");
   }
@@ -164,19 +174,20 @@ async function readReplaceLedger(ledgerPath, missingMessage) {
   let ledger;
   try {
     ledger = readJson(await fs.readFile(ledgerPath, "utf8"), "revision ledger");
-  } catch (error) {
+  } catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
     if (error.code === "ENOENT") {
-      const missing = new Error(missingMessage);
-      missing.code = "CLIMIER_LEDGER_MISSING";
-      throw missing;
+      throw new ClimierError("CLIMIER_LEDGER_MISSING", missingMessage);
     }
     throw error;
-  }
+
+  }}
   assertValidLedger(ledger);
   return ledger;
 }
 
-async function resumePendingReplaceUnderActiveLock(lockContext, opts = {}) {
+async function resumePendingReplaceUnderActiveLock(lockContext: object, opts: ReplaceOptions = {}) {
   assertActiveLockContext(lockContext, opts.projectDir);
   const { projectDir, statePath } = getActiveLockContext(lockContext);
   const ledgerPath = ledgerFile(projectDir);
@@ -188,7 +199,7 @@ async function resumePendingReplaceUnderActiveLock(lockContext, opts = {}) {
   return finishPendingReplace({ statePath, ledgerPath, ledger, rawState, opts });
 }
 
-function replaceLayout(lockContext, opts) {
+function replaceLayout(lockContext: object, opts: ReplaceOptions): { projectDir: string; statePath: string; ledgerPath: string } {
   assertActiveLockContext(lockContext, opts.projectDir);
   const { projectDir, statePath } = getActiveLockContext(lockContext);
   return { projectDir, statePath, ledgerPath: ledgerFile(projectDir) };
@@ -197,14 +208,15 @@ function replaceLayout(lockContext, opts) {
 async function stateForReplacement(statePath) {
   try {
     return await fs.readFile(statePath, "utf8");
-  } catch (error) {
+  } catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
     if (error.code === "ENOENT") {
-      const missing = new Error("ledger.replace: fenced state is required");
-      missing.code = "CLIMIER_LEDGER_STATE_MISMATCH";
-      throw missing;
+      throw new ClimierError("CLIMIER_LEDGER_STATE_MISMATCH", "ledger.replace: fenced state is required");
     }
     throw error;
-  }
+
+  }}
 }
 
 function assertNoOtherPendingOperation(ledger) {
@@ -290,7 +302,7 @@ async function replaceFromCandidate(layout, inputHash, candidate, opts) {
   });
 }
 
-export async function replaceUnderActiveLock(lockContext, candidate, opts = {}) {
+export async function replaceUnderActiveLock(lockContext: object, candidate: unknown, opts: ReplaceOptions = {}): Promise<unknown> {
   const layout = await replaceLayout(lockContext, opts);
   if (candidate === undefined) {
     const resumed = await resumePendingReplaceUnderActiveLock(lockContext, opts);
@@ -309,12 +321,15 @@ async function cleanOrphanReplaceStages(statePath) {
   let entries;
   try {
     entries = await fs.readdir(directory, { withFileTypes: true });
-  } catch (error) {
+  } catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
     if (error.code === "ENOENT") {
       return;
     }
     throw error;
-  }
+
+  }}
   let changed = false;
   for (const entry of entries) {
     if (entry.isFile() && /^\.replace-stage-[a-f0-9]{32}$/.test(entry.name)) {

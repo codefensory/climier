@@ -92,7 +92,8 @@ function selectPolicyAndAuditFromPlan({ request, provider, policyAction }) {
   return { provider: wrappedProvider, policyAction: wrappedPolicyAction };
 }
 
-export async function mutate({ projectDir, request, provider, policyAction, policyActionFromPlan, pluginId, stateOperation, batch }) {
+export async function mutate(args: { projectDir: string; request: Record<string, unknown>; provider?: unknown; policyAction?: unknown; policyActionFromPlan?: boolean; pluginId?: string; stateOperation?: unknown; batch?: unknown }) {
+  let { projectDir, request, provider, policyAction, policyActionFromPlan, pluginId, stateOperation, batch } = args;
   if (policyActionFromPlan === true) {
     ({ provider, policyAction } = selectPolicyAndAuditFromPlan({ request, provider, policyAction }));
   }

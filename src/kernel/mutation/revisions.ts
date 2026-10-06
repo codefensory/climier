@@ -28,10 +28,12 @@ export function deepEqualNodes(a, b) {
   return sameKeys(a, b) && Object.keys(a).every((key) => deepEqualValue(a[key], b[key]));
 }
 
+type RevisableNode = { revision?: number };
+
 function maxNodeRevision(nodes) {
   let maximum = 0;
-  for (const node of Object.values(nodes || {})) {
-    if (Number.isInteger(node && node.revision)) {maximum = Math.max(maximum, node.revision);}
+  for (const node of Object.values(nodes || {}) as RevisableNode[]) {
+    if (typeof node.revision === "number" && Number.isInteger(node.revision)) {maximum = Math.max(maximum, node.revision);}
   }
   return maximum;
 }
@@ -85,9 +87,9 @@ export function deriveNextStateRevision(snapshot, nodes) {
 // Assign node revisions and return the diff shape used by the kernel response
 // plus removed nodes (snapshot ids absent from the draft).
 function assignDraftNodes(snapshot, draftNodes, snapNodes) {
-  const next = {};
-  const created = [];
-  const updated = [];
+  const next: Record<string, unknown> = {};
+  const created: unknown[] = [];
+  const updated: unknown[] = [];
   for (const [id, draft] of Object.entries(draftNodes)) {
     const assigned = assignNodeRevision(snapshot && snapshot.revision, snapNodes[id], draft);
     next[id] = assigned.node;

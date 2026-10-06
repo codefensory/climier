@@ -1,28 +1,68 @@
+import { asCaughtError } from "../../contracts/errors.ts";
 // Durable fenced bootstrap and initial-state protocol.
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { stateFile, STATE_SCHEMA_VERSION } from "../state.ts";
 import { assertActiveLockContext, getActiveLockContext } from "../lock.ts";
+import { ClimierError } from "../../contracts/errors.ts";
 import { validateStateInvariants } from "../../contracts/state-invariants.ts";
 import { assertValidLedger, LEDGER_VERSION, SOURCE_VERSIONS } from "./recovery.ts";
 
 import { assertFencedState, bootstrapStagePath, durableCreate, durableReplace, fault, fingerprintMismatch, maxNodeRevision, persistLedger, readJson, sha256, syncDirectory, writeDurableStage } from "./stages.ts";
 
-function ledgerFile(projectDir) {
+type JsonRecord = Record<string, unknown>;
+type InitialState = JsonRecord & {
+  version?: number;
+  revision?: number;
+  nodes?: Record<string, JsonRecord & { revision?: number }>;
+};
+type PreparedBootstrap = { destination: InitialState; destinationRaw: string; highWater: number };
+type BootstrapPending = {
+  source_sha256?: string;
+  destination_sha256: string;
+  stage_id: string;
+  fence_generation: number;
+  high_water_revision: number;
+};
+export type BootstrapLedger = JsonRecord & {
+  bootstrap_pending: BootstrapPending | null;
+  high_water_revision: number;
+  fence_generation: number;
+};
+type BootstrapOptions = {
+  projectDir?: string;
+  replaceExisting?: boolean;
+  faultAt?: string;
+  onCheckpoint?: (point: string) => void | Promise<void>;
+  [key: string]: unknown;
+};
+
+type BootstrapHandlers = {
+  finishPendingCommit: (args: {
+    statePath: string;
+    ledgerPath: string;
+    ledger: unknown;
+    rawState: string;
+    opts?: BootstrapOptions;
+  }) => Promise<unknown>;
+  cleanOrphanCommitStages: (statePath: string) => Promise<void>;
+};
+
+function ledgerFile(projectDir: string): string {
   return path.join(path.dirname(stateFile(projectDir)), "revision-ledger.json");
 }
 
-function assertSupportedInitialState(initialState) {
-  const supported = initialState?.version === STATE_SCHEMA_VERSION || SOURCE_VERSIONS.has(initialState?.version);
-  if (!initialState || typeof initialState !== "object" || Array.isArray(initialState) || !supported) {
-    const error = new Error(`ledger.bootstrap: unsupported initial state version ${initialState?.version}`);
-    error.code = "CLIMIER_UNSUPPORTED_SOURCE_VERSION";
-    throw error;
+function assertSupportedInitialState(initialState: unknown): asserts initialState is InitialState {
+  const candidate = initialState as InitialState | null;
+  const supported = candidate?.version === STATE_SCHEMA_VERSION
+    || (candidate?.version !== undefined && SOURCE_VERSIONS.has(candidate.version));
+  if (!candidate || typeof candidate !== "object" || Array.isArray(candidate) || !supported) {
+    throw new ClimierError("CLIMIER_UNSUPPORTED_SOURCE_VERSION", `ledger.bootstrap: unsupported initial state version ${candidate?.version}`);
   }
 }
 
-function fencedInitialState(initialState) {
+function fencedInitialState(initialState: unknown): PreparedBootstrap {
   assertSupportedInitialState(initialState);
   const compatible = {
     ...initialState,
@@ -30,8 +70,9 @@ function fencedInitialState(initialState) {
     nodes: Object.fromEntries(Object.entries(initialState.nodes || {}).map(([id, node]) => [id, { ...node }])),
   };
   validateStateInvariants(compatible, "ledger.bootstrap.initial");
+  const compatibleRevision = compatible.revision;
   const highWater = Math.max(
-    Number.isInteger(compatible.revision) && compatible.revision >= 0 ? compatible.revision : 0,
+    typeof compatibleRevision === "number" && Number.isInteger(compatibleRevision) && compatibleRevision >= 0 ? compatibleRevision : 0,
     maxNodeRevision(compatible),
   );
   const fence = highWater + 1;
@@ -50,12 +91,15 @@ async function readPendingBootstrapStage(stagePath, pending, ledger) {
   let staged;
   try {
     staged = await fs.readFile(stagePath, "utf8");
-  } catch (error) {
+  } catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
     if (error.code === "ENOENT") {
       throw fingerprintMismatch("bootstrap stage is missing; explicit recovery is required");
     }
     throw error;
-  }
+
+  }}
   if (sha256(staged) !== pending.destination_sha256) {
     throw fingerprintMismatch("bootstrap stage does not match the pending destination fingerprint");
   }
@@ -68,7 +112,9 @@ async function publishPendingBootstrapStage(stagePath, statePath, pending, stage
     await fs.link(stagePath, statePath);
     await syncDirectory(path.dirname(statePath));
     return staged;
-  } catch (error) {
+  } catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
     if (error.code !== "EEXIST") {
       throw error;
     }
@@ -77,7 +123,8 @@ async function publishPendingBootstrapStage(stagePath, statePath, pending, stage
       throw fingerprintMismatch("state appeared with a different bootstrap destination");
     }
     return rawState;
-  }
+
+  }}
 }
 
 async function checkpoint(opts, point) {
@@ -109,7 +156,9 @@ async function readPendingBootstrapState(statePath, stagePath, pending, ledger, 
       return replacePendingBootstrapSource(statePath, stagePath, pending, ledger, rawState, opts);
     }
     throw fingerprintMismatch("state diverged from the pending bootstrap source and destination");
-  } catch (error) {
+  } catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
     if (error.code !== "ENOENT") {
       throw error;
     }
@@ -121,7 +170,8 @@ async function readPendingBootstrapState(statePath, stagePath, pending, ledger, 
       return staged;
     }
     return publishPendingBootstrapStage(stagePath, statePath, pending, staged);
-  }
+
+  }}
 }
 
 async function clearPendingBootstrap({ stagePath, statePath, ledgerPath, ledger, state }) {
@@ -137,7 +187,13 @@ async function clearPendingBootstrap({ stagePath, statePath, ledgerPath, ledger,
   return state;
 }
 
-async function finishPendingBootstrap({ statePath, ledgerPath, ledger, expectedDestinationRaw, opts = {} }) {
+async function finishPendingBootstrap({ statePath, ledgerPath, ledger, expectedDestinationRaw, opts = {} }: {
+  statePath: string;
+  ledgerPath: string;
+  ledger: BootstrapLedger;
+  expectedDestinationRaw?: string;
+  opts?: BootstrapOptions;
+}): Promise<unknown> {
   const pending = ledger.bootstrap_pending;
   if (!pending) {
     return null;
@@ -156,12 +212,15 @@ async function cleanOrphanBootstrapStages(statePath) {
   let entries;
   try {
     entries = await fs.readdir(directory, { withFileTypes: true });
-  } catch (error) {
+  } catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
     if (error.code === "ENOENT") {
       return;
     }
     throw error;
-  }
+
+  }}
   let changed = false;
   for (const entry of entries) {
     if (entry.isFile() && /^\\.bootstrap-stage-[a-f0-9]{32}$/.test(entry.name)) {
@@ -175,43 +234,47 @@ async function cleanOrphanBootstrapStages(statePath) {
 }
 
 function bootstrapExists() {
-  const error = new Error("ledger.bootstrap: state or revision ledger already exists; refusing to overwrite it");
-  error.code = "CLIMIER_FENCED_BOOTSTRAP_EXISTS";
-  return error;
+  return new ClimierError("CLIMIER_FENCED_BOOTSTRAP_EXISTS", "ledger.bootstrap: state or revision ledger already exists; refusing to overwrite it");
 }
 
 async function fileExists(file) {
   try {
     await fs.access(file);
     return true;
-  } catch (error) {
+  } catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
     if (error.code === "ENOENT") {
       return false;
     }
     throw error;
-  }
+
+  }}
 }
 
-async function loadExistingBootstrapLedger(ledgerPath) {
+async function loadExistingBootstrapLedger(ledgerPath: string): Promise<BootstrapLedger> {
   try {
-    const ledger = readJson(await fs.readFile(ledgerPath, "utf8"), "revision ledger");
+    const ledger = readJson(await fs.readFile(ledgerPath, "utf8"), "revision ledger") as BootstrapLedger;
     assertValidLedger(ledger);
     return ledger;
-  } catch (error) {
+  } catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
     if (error.code === "ENOENT"
         || error.code === "CLIMIER_CORRUPT_LEDGER"
         || error.code === "CLIMIER_INVALID_LEDGER") {
       throw bootstrapExists();
     }
     throw error;
-  }
+
+  }}
 }
 
-function hasPendingBootstrap(ledger) {
+function hasPendingBootstrap(ledger: BootstrapLedger): boolean {
   return ledger.bootstrap_pending !== null && ledger.bootstrap_pending !== undefined;
 }
 
-function makeBootstrapLedger(prepared, destinationHash, stageId, sourceRaw = null) {
+function makeBootstrapLedger(prepared: PreparedBootstrap, destinationHash: string, stageId: string, sourceRaw: string | null = null): BootstrapLedger {
   return {
     version: LEDGER_VERSION,
     fence_generation: 1,
@@ -227,23 +290,34 @@ function makeBootstrapLedger(prepared, destinationHash, stageId, sourceRaw = nul
   };
 }
 
-async function createPendingBootstrap({ stagePath, ledgerPath, statePath, prepared, ledger, opts }) {
+async function createPendingBootstrap({ stagePath, ledgerPath, statePath, prepared, ledger, opts }: {
+  stagePath: string;
+  ledgerPath: string;
+  statePath: string;
+  prepared: PreparedBootstrap;
+  ledger: BootstrapLedger;
+  opts: BootstrapOptions;
+}): Promise<unknown> {
   await writeDurableStage(stagePath, prepared.destinationRaw);
   await checkpoint(opts, "before-pending");
   await durableCreate(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`);
   await checkpoint(opts, "after-pending");
-  if (await fileExists(statePath) && ledger.bootstrap_pending.source_sha256) {
+  const pending = ledger.bootstrap_pending;
+  if (await fileExists(statePath) && pending?.source_sha256) {
     const sourceRaw = await fs.readFile(statePath, "utf8");
-    await replacePendingBootstrapSource(statePath, stagePath, ledger.bootstrap_pending, ledger, sourceRaw, opts);
+    await replacePendingBootstrapSource(statePath, stagePath, pending, ledger, sourceRaw, opts);
   } else {
     try {
       await fs.link(stagePath, statePath);
-    } catch (error) {
+    } catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
       if (error.code === "EEXIST") {
         throw bootstrapExists();
       }
       throw error;
-    }
+
+  }}
     await syncDirectory(path.dirname(statePath));
   }
   fault(opts, "after-state-create");
@@ -256,7 +330,7 @@ async function createPendingBootstrap({ stagePath, ledgerPath, statePath, prepar
   });
 }
 
-export async function bootstrapInitialUnderLock(lockContext, initialState, opts = {}) {
+export async function bootstrapInitialUnderLock(lockContext: object, initialState: unknown, opts: BootstrapOptions = {}): Promise<unknown> {
   assertActiveLockContext(lockContext, opts.projectDir);
   const { projectDir, statePath } = getActiveLockContext(lockContext);
   const ledgerPath = ledgerFile(projectDir);
@@ -280,7 +354,13 @@ export async function bootstrapInitialUnderLock(lockContext, initialState, opts 
   return createInitialBootstrap({ statePath, ledgerPath, prepared, opts });
 }
 
-async function createInitialBootstrap({ statePath, ledgerPath, prepared, opts, sourceRaw = null }) {
+async function createInitialBootstrap({ statePath, ledgerPath, prepared, opts, sourceRaw = null }: {
+  statePath: string;
+  ledgerPath: string;
+  prepared: PreparedBootstrap;
+  opts: BootstrapOptions;
+  sourceRaw?: string | null;
+}): Promise<unknown> {
   await cleanOrphanBootstrapStages(statePath);
   const stageId = crypto.randomBytes(16).toString("hex");
   const stagePath = bootstrapStagePath(statePath, stageId);
@@ -300,26 +380,32 @@ async function createInitialBootstrap({ statePath, ledgerPath, prepared, opts, s
   return createPendingBootstrap({ stagePath, ledgerPath, statePath, prepared, ledger, opts });
 }
 
-async function readOptionalLedger(ledgerPath) {
+async function readOptionalLedger(ledgerPath: string): Promise<BootstrapLedger | null> {
   try {
-    return readJson(await fs.readFile(ledgerPath, "utf8"), "revision ledger");
-  } catch (error) {
+    return readJson(await fs.readFile(ledgerPath, "utf8"), "revision ledger") as BootstrapLedger;
+  } catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
     if (error.code === "ENOENT") {
       return null;
     }
     throw error;
-  }
+
+  }}
 }
 
 async function readOrCreateState(statePath) {
   try {
     return await fs.readFile(statePath, "utf8");
-  } catch (error) {
+  } catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
     if (error.code !== "ENOENT") {
       throw error;
     }
     return null;
-  }
+
+  }}
 }
 
 async function finishExistingLedger({ statePath, ledgerPath, ledger, rawState, opts }, handlers) {
@@ -330,15 +416,13 @@ async function finishExistingLedger({ statePath, ledgerPath, ledger, rawState, o
   }
   await handlers.cleanOrphanCommitStages(statePath);
   if (state.version !== STATE_SCHEMA_VERSION) {
-    const error = new Error("ledger: fenced project is missing canonical state marker");
-    error.code = "CLIMIER_LEDGER_STATE_MISMATCH";
-    throw error;
+    throw new ClimierError("CLIMIER_LEDGER_STATE_MISMATCH", "ledger: fenced project is missing canonical state marker");
   }
   assertFencedState(state, ledger);
   return state;
 }
 
-export async function migrateLegacyInitialUnderLock(lockContext, initialState, sourceRaw, opts = {}) {
+export async function migrateLegacyInitialUnderLock(lockContext: object, initialState: unknown, sourceRaw: string | null, opts: BootstrapOptions = {}): Promise<unknown> {
   assertActiveLockContext(lockContext, opts.projectDir);
   const { projectDir, statePath } = getActiveLockContext(lockContext);
   const ledgerPath = path.join(path.dirname(statePath), "revision-ledger.json");
@@ -359,14 +443,49 @@ export async function migrateLegacyInitialUnderLock(lockContext, initialState, s
   if (sourceRaw !== null) {
     const targetHighWater = prepared.highWater + 1;
     prepared.destination.revision = targetHighWater;
-    for (const node of Object.values(prepared.destination.nodes)) node.revision = targetHighWater;
+    for (const node of Object.values(prepared.destination.nodes ?? {})) node.revision = targetHighWater;
     prepared.destinationRaw = `${JSON.stringify(prepared.destination, null, 2)}\n`;
     prepared.highWater = targetHighWater;
   }
   return createInitialBootstrap({ statePath, ledgerPath, prepared, opts: { ...opts, replaceExisting: true }, sourceRaw });
 }
 
-async function bootstrapLocked(projectDir, opts, handlers) {
+async function replaceWithCanonicalBootstrap({ statePath, ledgerPath, prepared, ledger, opts }: {
+  statePath: string;
+  ledgerPath: string;
+  prepared: PreparedBootstrap;
+  ledger: BootstrapLedger;
+  opts: BootstrapOptions;
+}): Promise<unknown> {
+  await cleanOrphanBootstrapStages(statePath);
+  const stageId = crypto.randomBytes(16).toString("hex");
+  const stagePath = bootstrapStagePath(statePath, stageId);
+  ledger.bootstrap_pending = {
+    destination_sha256: sha256(prepared.destinationRaw),
+    stage_id: stageId,
+    fence_generation: ledger.fence_generation,
+    high_water_revision: prepared.highWater,
+  };
+  ledger.high_water_revision = prepared.highWater;
+  await writeDurableStage(stagePath, prepared.destinationRaw);
+  await checkpoint(opts, "before-pending");
+  await durableReplace(ledgerPath, `${JSON.stringify(ledger, null, 2)}\\n`);
+  await checkpoint(opts, "after-pending");
+  await checkpoint(opts, "before-state-replace");
+  await durableReplace(statePath, prepared.destinationRaw);
+  await checkpoint(opts, "after-state-replace");
+  fault(opts, "after-state-create");
+  return finishPendingBootstrap({ statePath, ledgerPath, ledger, expectedDestinationRaw: prepared.destinationRaw, opts });
+}
+
+function finishBootstrapWithoutState(ledger: BootstrapLedger, statePath: string, ledgerPath: string): Promise<unknown> {
+  if (ledger.bootstrap_pending) {
+    return finishPendingBootstrap({ statePath, ledgerPath, ledger });
+  }
+  throw new ClimierError("CLIMIER_LEDGER_STATE_MISMATCH", "ledger: revision ledger exists without state and no exact bootstrap is pending");
+}
+
+async function bootstrapLocked(projectDir: string, opts: BootstrapOptions, handlers: BootstrapHandlers): Promise<unknown> {
   const statePath = stateFile(projectDir);
   const ledgerPath = ledgerFile(projectDir);
   await fs.mkdir(path.dirname(statePath), { recursive: true });
@@ -375,7 +494,7 @@ async function bootstrapLocked(projectDir, opts, handlers) {
     const source = await readOrCreateState(statePath);
     const priorLedger = initialLedger;
     const highWater = Math.max(
-      priorLedger?.high_water_revision || 0,
+      typeof priorLedger?.high_water_revision === "number" ? priorLedger.high_water_revision : 0,
       source ? (() => { try { return maxNodeRevision(readJson(source, "replaced state")); } catch { return 0; } })() : 0,
     );
     const initial = { version: STATE_SCHEMA_VERSION, nodes: {}, edges: [], initiatives: {}, log: [], revision: highWater };
@@ -398,9 +517,7 @@ async function bootstrapLocked(projectDir, opts, handlers) {
   if (rawState === null) {
     return createInitialBootstrap({ statePath, ledgerPath, prepared: fencedInitialState({ version: STATE_SCHEMA_VERSION, nodes: {}, edges: [], initiatives: {}, log: [], revision: 0 }), opts });
   }
-  const incompatible = new Error(`ledger.bootstrap: existing state at ${statePath} is not canonical version ${STATE_SCHEMA_VERSION}; run climier migrate`);
-  incompatible.code = "CLIMIER_INCOMPATIBLE_VERSION";
-  throw incompatible;
+  throw new ClimierError("CLIMIER_INCOMPATIBLE_VERSION", `ledger.bootstrap: existing state at ${statePath} is not canonical version ${STATE_SCHEMA_VERSION}; run climier migrate`);
 }
 
 

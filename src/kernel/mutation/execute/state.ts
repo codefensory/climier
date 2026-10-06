@@ -1,3 +1,4 @@
+import { asCaughtError } from "../../../contracts/errors.ts";
 
 
 import fs from "node:fs/promises";
@@ -11,24 +12,30 @@ import { commandLabel, runPolicy, checkStateRevision } from "./shared.ts";
 async function inspectStateFile(statePath) {
   try {
     return { raw: await fs.readFile(statePath), exists: true };
-  } catch (error) {
+  } catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
     if (error.code === "ENOENT") {
       return { raw: null, exists: false };
     }
     throw error;
-  }
+
+  }}
 }
 
 async function hasFencedLedger(statePath) {
   try {
     await fs.access(path.join(path.dirname(statePath), "revision-ledger.json"));
     return true;
-  } catch (error) {
+  } catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
     if (error.code === "ENOENT") {
       return false;
     }
     throw error;
-  }
+
+  }}
 }
 
 async function loadCurrentState(projectDir, exists) {
@@ -37,13 +44,16 @@ async function loadCurrentState(projectDir, exists) {
   }
   try {
     return { currentState: await readState(projectDir), stateError: null };
-  } catch (error) {
-    const recoverable = ["CLIMIER_CORRUPT_STATE", "CLIMIER_INCOMPATIBLE_VERSION", "CLIMIER_LEDGER_STATE_MISMATCH"].includes(error.code);
+  } catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
+    const recoverable = ["CLIMIER_CORRUPT_STATE", "CLIMIER_INCOMPATIBLE_VERSION", "CLIMIER_LEDGER_STATE_MISMATCH"].includes(error.code ?? "");
     if (!recoverable) {
       throw error;
     }
     return { currentState: null, stateError: error };
-  }
+
+  }}
 }
 
 function snapshotNodes(state) {
@@ -69,8 +79,26 @@ function snapshotRevision(state) {
   return state && Number.isInteger(state.revision) ? state.revision : 0;
 }
 
-function stateSnapshot({ currentState, raw, exists, stateError, fencedLedger }) {
-  const snapshot = {
+type MutationSnapshot = Record<string, unknown> & {
+  state: Record<string, unknown> | null;
+  raw: Buffer | null;
+  exists: boolean;
+  stateError: { code?: string } | null;
+  fencedCorrupt?: boolean;
+  nodes: Record<string, unknown>;
+  edges: unknown[];
+  initiatives: Record<string, unknown>;
+  revision: number;
+};
+
+function stateSnapshot({ currentState, raw, exists, stateError, fencedLedger }: {
+  currentState: Record<string, unknown> | null;
+  raw: Buffer | null;
+  exists: boolean;
+  stateError: { code?: string } | null;
+  fencedLedger: boolean;
+}): MutationSnapshot {
+  const snapshot: MutationSnapshot = {
     state: currentState,
     raw,
     exists,
@@ -84,14 +112,14 @@ function stateSnapshot({ currentState, raw, exists, stateError, fencedLedger }) 
   if (stateError?.code === "CLIMIER_CORRUPT_STATE" && exists && fencedLedger) {
     snapshot.fencedCorrupt = true;
   }
-  return Object.freeze(snapshot);
+  return Object.freeze(snapshot) as MutationSnapshot;
 }
 
 async function loadMutationSnapshot(projectDir, statePath) {
   const file = await inspectStateFile(statePath);
   const fencedLedger = await hasFencedLedger(statePath);
   const loaded = await loadCurrentState(projectDir, file.exists);
-  const snapshot = stateSnapshot({ ...file, ...loaded, fencedLedger });
+  const snapshot = stateSnapshot({ ...file, currentState: loaded.currentState as Record<string, unknown> | null, stateError: loaded.stateError, fencedLedger });
   return { snapshot, currentState: loaded.currentState };
 }
 
@@ -125,7 +153,7 @@ async function recoverCorruptFencedState({ plan, snapshot, lockContext, projectD
   if (!plan.corruptRecovery || !snapshot.fencedCorrupt) {
     return null;
   }
-  const recovered = await recoverFencedStateUnderLock(lockContext, undefined, { projectDir });
+  const recovered = await recoverFencedStateUnderLock(lockContext, undefined, { projectDir }) as { revision: number };
   return {
     result: { ...applied.result, snapshot: snapshotMeta },
     effects: applied.effects === undefined ? null : applied.effects,
@@ -144,7 +172,10 @@ async function persistState({ lockContext, projectDir, fencedCurrentState, fence
   if (nextState?.version === 1 && Number.isInteger(nextState.fence_generation)) {
     let existingLedger = true;
     try { await fs.access(ledgerPath); }
-    catch (error) { if (error.code === "ENOENT") { existingLedger = false; } else { throw error; } }
+    catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue); if (error.code === "ENOENT") { existingLedger = false; } else { throw error; }
+  }}
     if (existingLedger) {
       await recoverFencedStateUnderLock(lockContext, nextState, { projectDir });
     } else {
@@ -154,7 +185,10 @@ async function persistState({ lockContext, projectDir, fencedCurrentState, fence
   }
   let ledgerExists = true;
   try { await fs.access(ledgerPath); }
-  catch (error) { if (error.code === "ENOENT") { ledgerExists = false; } else { throw error; } }
+  catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue); if (error.code === "ENOENT") { ledgerExists = false; } else { throw error; }
+  }}
   if (ledgerExists) {
     await recoverFencedStateUnderLock(lockContext, nextState, { projectDir });
     return;

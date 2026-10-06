@@ -1,7 +1,9 @@
+import { asCaughtError } from "../../contracts/errors.ts";
 // Durable recovery protocol for fenced project state.
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { ClimierError } from "../../contracts/errors.ts";
 import { STATE_SCHEMA_VERSION } from "../state.ts";
 import { getActiveLockContext } from "../lock.ts";
 import { validateStateInvariants } from "../../contracts/state-invariants.ts";
@@ -14,23 +16,29 @@ export const LEDGER_VERSION = 1;
 export const SOURCE_VERSIONS = new Set([2, 3, 4]);
 export const RECOVERY_VERSIONS = new Set([STATE_SCHEMA_VERSION, ...SOURCE_VERSIONS]);
 
-const isPresent = (value) => value !== null && value !== undefined;
-const isObject = (value) => value !== null && typeof value === "object";
+type JsonRecord = Record<string, unknown>;
+type RecoveryCandidate = JsonRecord & {
+  version: number;
+  revision?: number;
+  fence_generation?: number;
+  nodes?: Record<string, JsonRecord>;
+};
+
+const isPresent = (value: unknown): boolean => value !== null && value !== undefined;
+const isObject = (value: unknown): value is JsonRecord => value !== null && typeof value === "object";
 const isOptionalObject = (value) => value === undefined || value === null || isObject(value);
 const isSha256 = (value) => typeof value === "string" && /^[a-f0-9]{64}$/.test(value);
 const isStageId = (value) => typeof value === "string" && /^[a-f0-9]{32}$/.test(value);
 const all = (checks) => checks.every(Boolean);
 
-function invalidLedger(message = "ledger: invalid ledger schema") {
-  const error = new Error(message);
-  error.code = "CLIMIER_INVALID_LEDGER";
-  throw error;
+function invalidLedger(message = "ledger: invalid ledger schema"): never {
+  throw new ClimierError("CLIMIER_INVALID_LEDGER", message);
 }
 
 function validLedgerCore(ledger) {
   return isObject(ledger) && !Array.isArray(ledger) && ledger.version === LEDGER_VERSION
-    && Number.isInteger(ledger.fence_generation) && ledger.fence_generation >= 1
-    && Number.isInteger(ledger.high_water_revision) && ledger.high_water_revision >= 1;
+    && Number.isInteger(ledger.fence_generation) && typeof ledger.fence_generation === "number" && ledger.fence_generation >= 1
+    && Number.isInteger(ledger.high_water_revision) && typeof ledger.high_water_revision === "number" && ledger.high_water_revision >= 1;
 }
 
 function validLedgerOptionalFields(ledger) {
@@ -101,12 +109,10 @@ export function assertValidLedger(ledger) {
   assertPendingRecord(ledger.replace_pending, (pending) => validReplacePending(pending, ledger), "ledger: invalid replace_pending record");
 }
 
-function assertSupportedRecoveryCandidate(candidate) {
-  if (candidate && typeof candidate === "object" && !Array.isArray(candidate)
-      && RECOVERY_VERSIONS.has(candidate.version)) { return; }
-  const error = new Error(`ledger.recover: unsupported recovery state version ${candidate?.version}`);
-  error.code = "CLIMIER_UNSUPPORTED_SOURCE_VERSION";
-  throw error;
+function assertSupportedRecoveryCandidate(candidate: unknown): asserts candidate is RecoveryCandidate {
+  if (isObject(candidate) && !Array.isArray(candidate)
+      && typeof candidate.version === "number" && RECOVERY_VERSIONS.has(candidate.version)) { return; }
+  throw new ClimierError("CLIMIER_UNSUPPORTED_SOURCE_VERSION", `ledger.recover: unsupported recovery state version ${isObject(candidate) ? candidate.version : undefined}`);
 }
 
 function recoveryDestination(candidate, ledger) {
@@ -118,7 +124,7 @@ function recoveryDestination(candidate, ledger) {
   validateStateInvariants(compatible, "ledger.recover.candidate");
   const highWater = Math.max(
     ledger.high_water_revision,
-    Number.isInteger(compatible.revision) && compatible.revision >= 0 ? compatible.revision : 0,
+    typeof compatible.revision === "number" && Number.isInteger(compatible.revision) && compatible.revision >= 0 ? compatible.revision : 0,
     maxNodeRevision(compatible),
   );
   const fence = highWater + 1;
@@ -137,12 +143,15 @@ async function readPendingRecoveryStage(stagePath, pending) {
   let stageRaw;
   try {
     stageRaw = await fs.readFile(stagePath, "utf8");
-  } catch (error) {
+  } catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
     if (error.code === "ENOENT") {
       throw fingerprintMismatch("recovery stage is missing; explicit recovery is required");
     }
     throw error;
-  }
+
+  }}
   if (sha256(stageRaw) !== pending.destination_sha256) {
     throw fingerprintMismatch("recovery stage does not match the pending destination fingerprint");
   }
@@ -165,7 +174,7 @@ function assertCorruptRecoverySource(rawState) {
   throw fingerprintMismatch("recovery source is no longer corrupt");
 }
 
-function assertLegacyRecoverySource(rawState) {
+function assertLegacyRecoverySource(rawState: string, _pending?: unknown): void {
   const source = readJson(rawState, "recovery source state");
   if (source.version !== STATE_SCHEMA_VERSION || !Number.isInteger(source.fence_generation)) {
     throw fingerprintMismatch("recovery source no longer matches the stale canonical state");
@@ -225,26 +234,28 @@ async function readRecoveryFiles(statePath) {
   let rawState;
   try {
     rawState = await fs.readFile(statePath, "utf8");
-  } catch (error) {
+  } catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
     if (error.code === "ENOENT") {
-      const missing = new Error("ledger.recover: state file is required for explicit recovery");
-      missing.code = "CLIMIER_LEDGER_STATE_MISMATCH";
-      throw missing;
+      throw new ClimierError("CLIMIER_LEDGER_STATE_MISMATCH", "ledger.recover: state file is required for explicit recovery");
     }
     throw error;
-  }
+
+  }}
   const ledgerPath = path.join(path.dirname(statePath), "revision-ledger.json");
   let ledger;
   try {
     ledger = readJson(await fs.readFile(ledgerPath, "utf8"), "revision ledger");
-  } catch (error) {
+  } catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
     if (error.code === "ENOENT") {
-      const missing = new Error("ledger.recover: revision ledger is required; refusing reconstruction");
-      missing.code = "CLIMIER_LEDGER_MISSING";
-      throw missing;
+      throw new ClimierError("CLIMIER_LEDGER_MISSING", "ledger.recover: revision ledger is required; refusing reconstruction");
     }
     throw error;
-  }
+
+  }}
   assertValidLedger(ledger);
   return { rawState, ledger, ledgerPath };
 }
@@ -303,18 +314,21 @@ function assertNoCandidateForCorruptSource(candidate) {
 }
 
 function recoverySource(rawState, candidate, ledger) {
-  let source = null;
+  let source: Record<string, unknown> | null = null;
   let corruptSource = false;
   try {
     source = readJson(rawState, "state");
-  } catch (error) {
+  } catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
     if (error.code !== "CLIMIER_CORRUPT_LEDGER") { throw error; }
     corruptSource = true;
-  }
+
+  }}
   if (corruptSource) {
     assertNoCandidateForCorruptSource(candidate);
     candidate = { version: STATE_SCHEMA_VERSION, fence_generation: ledger.fence_generation, nodes: {}, edges: [], initiatives: {}, log: [], revision: 0 };
-  } else if (source.version !== STATE_SCHEMA_VERSION || !Number.isInteger(source.fence_generation)) {
+  } else if (!source || source.version !== STATE_SCHEMA_VERSION || !Number.isInteger(source.fence_generation)) {
     throw fingerprintMismatch("explicit recovery accepts only a canonical version 1 source state");
   }
   return { source, candidate: candidate ?? source, corruptSource };

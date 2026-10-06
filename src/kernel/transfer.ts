@@ -4,25 +4,36 @@ import {
   TRANSFER_PAYLOAD_VERSION,
 } from "../storage/transfer.ts";
 
-function assertProjectDir(projectDir, field) {
+type TransferDirection = "push" | "pull";
+type TransferRequest = {
+  sourceProjectDir?: unknown;
+  destinationProjectDir?: unknown;
+  actor?: unknown;
+  direction?: unknown;
+  expectedRevision?: unknown;
+  force?: unknown;
+  payload?: unknown;
+};
+
+function assertProjectDir(projectDir: unknown, field: string): asserts projectDir is string {
   if (typeof projectDir !== "string" || !projectDir.trim()) {
     throw new Error(`transfer: ${field} is required`);
   }
 }
 
-function assertActorAndDirection(actor, direction) {
+function assertActorAndDirection(actor: unknown, direction: unknown): asserts actor is string {
   if (typeof actor !== "string" || !actor.trim()) {throw new Error("transfer: actor is required");}
-  if (!new Set(["push", "pull"]).has(direction)) {throw new Error("transfer: direction must be push or pull");}
+  if (!new Set(["push", "pull"]).has(direction as string)) {throw new Error("transfer: direction must be push or pull");}
 }
 
-function assertTransferOptions({ expectedRevision, force }) {
-  if (expectedRevision !== undefined && (!Number.isInteger(expectedRevision) || expectedRevision < 0)) {
+function assertTransferOptions({ expectedRevision, force }: { expectedRevision?: unknown; force?: unknown }) {
+  if (expectedRevision !== undefined && (typeof expectedRevision !== "number" || !Number.isInteger(expectedRevision) || expectedRevision < 0)) {
     throw new Error("transfer: expectedRevision must be a non-negative integer");
   }
   if (force !== undefined && typeof force !== "boolean") {throw new Error("transfer: force must be boolean");}
 }
 
-function assertTransferRequest(request) {
+function assertTransferRequest(request: TransferRequest): void {
   if (!request || typeof request !== "object" || Array.isArray(request)) {
     throw new Error("transfer: request must be an object");
   }
@@ -33,15 +44,16 @@ function assertTransferRequest(request) {
 }
 
 /** Capture a complete validated DAG snapshot and its consistent source revision. */
-export async function captureTransferSource(request = {}) {
+export async function captureTransferSource(request: TransferRequest = {}): Promise<Record<string, unknown>> {
   if (!request || typeof request !== "object" || Array.isArray(request)) {
     throw new Error("transfer: request must be an object");
   }
-  assertProjectDir(request.sourceProjectDir, "sourceProjectDir");
-  return captureTransferSourceFromStorage(request.sourceProjectDir);
+  const sourceProjectDir = request.sourceProjectDir;
+  assertProjectDir(sourceProjectDir, "sourceProjectDir");
+  return captureTransferSourceFromStorage(sourceProjectDir);
 }
 
-function validateInstallRequest(request) {
+function validateInstallRequest(request: TransferRequest): void {
   if (!request || typeof request !== "object" || Array.isArray(request)) {
     throw new Error("transfer: request must be an object");
   }
@@ -60,18 +72,23 @@ function validateTransferPayload(payload) {
 }
 
 /** Install a captured snapshot; storage appends its audit event under the destination lock. */
-export async function installTransferDestination(request = {}) {
+export async function installTransferDestination(request: TransferRequest = {}): Promise<unknown> {
   validateInstallRequest(request);
   validateTransferPayload(request.payload);
-  return installTransferDestinationInStorage(request.destinationProjectDir, request.payload, {
-    actor: request.actor,
-    direction: request.direction,
-    expectedRevision: request.expectedRevision,
+  const destinationProjectDir = request.destinationProjectDir;
+  assertProjectDir(destinationProjectDir, "destinationProjectDir");
+  const actor = request.actor;
+  const direction = request.direction;
+  assertActorAndDirection(actor, direction);
+  return installTransferDestinationInStorage(destinationProjectDir, request.payload, {
+    actor,
+    direction: direction as TransferDirection,
+    expectedRevision: typeof request.expectedRevision === "number" ? request.expectedRevision : undefined,
     force: request.force === true,
   });
 }
 
-export async function transferState(request = {}) {
+export async function transferState(request: TransferRequest = {}): Promise<unknown> {
   assertTransferRequest(request);
   const captured = await captureTransferSource({ sourceProjectDir: request.sourceProjectDir });
   return installTransferDestination({

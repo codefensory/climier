@@ -1,3 +1,4 @@
+import { asCaughtError } from "../contracts/errors.ts";
 // Durable, project-local revision fence bootstrap. The API intentionally does
 // not wire itself into mutation callers; callers must migrate to fenced commits
 
@@ -5,25 +6,38 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { stateFile, stateFileForProjectId } from "./state.ts";
 import { withLock, withCurrentProjectLock, withProjectIdLock, assertActiveLockContext, getActiveLockContext } from "./lock.ts";
+import { ClimierError } from "../contracts/errors.ts";
+import type { ProjectState } from "../contracts/domain.ts";
 import {
   assertValidLedger,
   recoverUnderActiveLock as recoverUnderActiveLockProtocol,
 } from "./ledger/recovery.ts";
 import { assertFencedState, readJson } from "./ledger/stages.ts";
 import { bootstrapInitialUnderLock, bootstrapLocked, fileExists, finishPendingBootstrap } from "./ledger/bootstrap.ts";
+import type { BootstrapLedger } from "./ledger/bootstrap.ts";
 import { cleanOrphanCommitStages, commitFencedStateUnderLock as commitProtocol, finishPendingCommit } from "./ledger/commit.ts";
 import { replaceUnderActiveLock } from "./ledger/replace.ts";
 
-export function ledgerFile(projectDir) {
+export type LockOptions = { timeoutMs?: number; retryEveryMs?: number };
+export type LedgerOptions = LockOptions & {
+  projectDir?: string;
+  lockOptions?: LockOptions;
+  [key: string]: unknown;
+};
+
+type LockContext = object;
+type LedgerState = ProjectState & Record<string, unknown>;
+
+export function ledgerFile(projectDir: string): string {
   return path.join(path.dirname(stateFile(projectDir)), "revision-ledger.json");
 }
 
 /** Ledger path for a project known only by its id (the storage dir name). */
-export function ledgerFileForProjectId(projectId) {
+export function ledgerFileForProjectId(projectId: string): string {
   return path.join(path.dirname(stateFileForProjectId(projectId)), "revision-ledger.json");
 }
 
-function runRecoveryProtocol(lockContext, candidate, opts) {
+function runRecoveryProtocol(lockContext: LockContext, candidate: unknown, opts: LedgerOptions): unknown {
   return recoverUnderActiveLockProtocol(lockContext, candidate, opts, {
     finishPendingBootstrap,
     finishPendingCommit,
@@ -31,13 +45,13 @@ function runRecoveryProtocol(lockContext, candidate, opts) {
 }
 
 
-export async function recoverFencedStateUnderLock(lockContext, candidate, opts = {}) {
+export async function recoverFencedStateUnderLock(lockContext: LockContext, candidate: unknown, opts: LedgerOptions = {}): Promise<unknown> {
   assertActiveLockContext(lockContext, opts.projectDir);
   return runRecoveryProtocol(lockContext, candidate, opts);
 }
 
 /** Replace a valid fenced state with an explicitly authorized restore candidate under the active lock. */
-export async function replaceFencedStateUnderLock(lockContext, candidate, opts = {}) {
+export async function replaceFencedStateUnderLock(lockContext: LockContext, candidate: unknown, opts: LedgerOptions = {}): Promise<unknown> {
   assertActiveLockContext(lockContext, opts.projectDir);
   return replaceUnderActiveLock(lockContext, candidate, opts);
 }
@@ -47,27 +61,28 @@ export async function replaceFencedStateUnderLock(lockContext, candidate, opts =
  * under the canonical project lock. The optional fault points are for storage
  * crash-recovery tests and are not used by production callers.
  */
-export async function bootstrapFencedState(projectDir, opts = {}) {
+export async function bootstrapFencedState(projectDir: string, opts: LedgerOptions = {}): Promise<unknown> {
   return withLock(projectDir, () => bootstrapLocked(projectDir, opts, { finishPendingCommit, cleanOrphanCommitStages }), opts.lockOptions);
 }
 
 /** Create a new fenced project while the caller holds its project lock. */
-export async function bootstrapFencedStateUnderLock(lockContext, initialState, opts = {}) {
+export async function bootstrapFencedStateUnderLock(lockContext: LockContext, initialState: unknown, opts: LedgerOptions = {}): Promise<unknown> {
   return bootstrapInitialUnderLock(lockContext, initialState, opts);
 }
 
-async function readValidatedLedger(ledgerPath) {
+async function readValidatedLedger(ledgerPath: string): Promise<BootstrapLedger> {
   let ledger;
   try {
-    ledger = readJson(await fs.readFile(ledgerPath, "utf8"), "revision ledger");
-  } catch (error) {
+    ledger = readJson(await fs.readFile(ledgerPath, "utf8"), "revision ledger") as BootstrapLedger;
+  } catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
     if (error.code === "ENOENT") {
-      const missing = new Error("ledger: revision ledger disappeared while holding project lock");
-      missing.code = "CLIMIER_LEDGER_STATE_MISMATCH";
-      throw missing;
+      throw new ClimierError("CLIMIER_LEDGER_STATE_MISMATCH", "ledger: revision ledger disappeared while holding project lock");
     }
     throw error;
-  }
+
+  }}
   assertValidLedger(ledger);
   return ledger;
 }
@@ -76,12 +91,10 @@ function finishBootstrapWithoutState(ledger, statePath, ledgerPath) {
   if (ledger.bootstrap_pending) {
     return finishPendingBootstrap({ statePath, ledgerPath, ledger });
   }
-  const missing = new Error("ledger: revision ledger exists without state and no exact bootstrap is pending");
-  missing.code = "CLIMIER_LEDGER_STATE_MISMATCH";
-  throw missing;
+  throw new ClimierError("CLIMIER_LEDGER_STATE_MISMATCH", "ledger: revision ledger exists without state and no exact bootstrap is pending");
 }
 
-async function finishLedgerRead(lockContext, ledger, paths, opts) {
+async function finishLedgerRead(lockContext: LockContext, ledger: BootstrapLedger, paths: { statePath: string; ledgerPath: string }, opts: LedgerOptions): Promise<unknown> {
   const { statePath, ledgerPath } = paths;
   const rawState = await fs.readFile(statePath, "utf8");
   const parsedState = readJson(rawState, "fenced state");
@@ -95,9 +108,7 @@ async function finishLedgerRead(lockContext, ledger, paths, opts) {
     return finishPendingCommit({ statePath, ledgerPath, ledger, rawState, opts });
   }
   if (!ledger.commit_pending && !ledger.bootstrap_pending && !ledger.recovery_pending && !ledger.replace_pending && parsedState.version !== 1) {
-    const incompatible = new Error("ledger: state is not canonical version 1; run climier migrate");
-    incompatible.code = "CLIMIER_INCOMPATIBLE_VERSION";
-    throw incompatible;
+    throw new ClimierError("CLIMIER_INCOMPATIBLE_VERSION", "ledger: state is not canonical version 1; run climier migrate");
   }
   await cleanOrphanCommitStages(statePath);
   const state = parsedState;
@@ -106,7 +117,7 @@ async function finishLedgerRead(lockContext, ledger, paths, opts) {
 }
 
 
-export async function readFencedStateUnderLock(lockContext, opts = {}) {
+export async function readFencedStateUnderLock(lockContext: LockContext, opts: LedgerOptions = {}): Promise<unknown> {
   assertActiveLockContext(lockContext, opts.projectDir);
   const { statePath } = getActiveLockContext(lockContext);
   const ledgerPath = path.join(path.dirname(statePath), "revision-ledger.json");
@@ -115,9 +126,7 @@ export async function readFencedStateUnderLock(lockContext, opts = {}) {
     return null;
   }
   if (!hasLedger) {
-    const error = new Error(`ledger: canonical state at ${statePath} has no revision ledger`);
-    error.code = "CLIMIER_LEDGER_MISSING";
-    throw error;
+    throw new ClimierError("CLIMIER_LEDGER_MISSING", `ledger: canonical state at ${statePath} has no revision ledger`);
   }
   const ledger = await readValidatedLedger(ledgerPath);
   if (!hasState) {
@@ -130,7 +139,7 @@ export async function readFencedStateUnderLock(lockContext, opts = {}) {
 }
 
 /** Read a v5 state only when its durable project ledger agrees with it. */
-export async function readFencedState(projectDir, opts = {}) {
+export async function readFencedState(projectDir: string, opts: LedgerOptions = {}): Promise<unknown> {
   return withCurrentProjectLock(projectDir, (lockContext) => readFencedStateUnderLock(lockContext, opts), opts.lockOptions);
 }
 

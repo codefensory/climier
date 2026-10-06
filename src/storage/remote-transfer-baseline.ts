@@ -1,3 +1,4 @@
+import { asCaughtError } from "../contracts/errors.ts";
 import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -7,7 +8,7 @@ import { climierHome } from "./paths.ts";
 const DIRECTORY = "remote-transfer-baselines";
 const BASELINE_KEYS = ["version", "origin", "project_id", "remote_revision", "local_revision"];
 
-function baselineError(message, cause) {
+function baselineError(message, cause: unknown = undefined) {
   const error = new Error(`remote transfer baseline: ${message}`);
   error.code = "REMOTE_TRANSFER_BASELINE_ERROR";
   if (cause) {error.cause = cause;}
@@ -58,17 +59,23 @@ export function createRemoteTransferBaselineStore({ home = climierHome() } = {})
     let raw;
     try {
       raw = await fs.readFile(file, "utf8");
-    } catch (error) {
+    } catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
       if (error.code === "ENOENT") {return null;}
       throw baselineError(`cannot read ${file}: ${error.message}`, error);
-    }
+
+  }}
 
     let value;
     try {
       value = JSON.parse(raw);
-    } catch (error) {
+    } catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
       throw baselineError(`record at ${file} is corrupt`, error);
-    }
+
+  }}
     const baseline = validateBaseline(value);
     if (baseline.origin !== origin || baseline.project_id !== projectId) {
       throw baselineError(`record at ${file} does not match its origin and project_id`);
@@ -98,10 +105,13 @@ export function createRemoteTransferBaselineStore({ home = climierHome() } = {})
         await fs.chmod(temporary, 0o600);
         await fs.rename(temporary, file);
         await fs.chmod(file, 0o600);
-      } catch (error) {
+      } catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
         await fs.rm(temporary, { force: true }).catch(() => {});
         throw baselineError(`cannot persist ${file}: ${error.message}`, error);
-      }
+
+  }}
     },
   });
 }

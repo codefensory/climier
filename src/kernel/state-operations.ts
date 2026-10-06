@@ -1,3 +1,4 @@
+import { asCaughtError } from "../contracts/errors.ts";
 // Trusted state operations used by the kernel frontier.
 // These operations intentionally are not registry entries: state bootstrap,
 // force-init and restore are recovery primitives, not agent-facing core ops.
@@ -14,6 +15,7 @@ import {
 import { requireAgent } from "../contracts/agent.ts";
 import { throwV2 } from "../contracts/errors.ts";
 import { validateStateInvariants } from "../contracts/state-invariants.ts";
+import type { ProjectState } from "../contracts/domain.ts";
 
 const REQUIRED_COLLECTIONS = ["nodes", "edges", "initiatives", "log"];
 const SNAPSHOT_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
@@ -27,9 +29,12 @@ function validateSnapshotMetadata(meta, id) {
 function parseSnapshotJson(raw, id) {
   try {
     return JSON.parse(raw.toString("utf8"));
-  } catch (err) {
+  } catch (rawCaughtValue: unknown) {
+  {
+    const err = asCaughtError(rawCaughtValue);
     throwV2("INVALID_STATUS", `state.restore: snapshot ${id} raw is not valid JSON`, { id, error: err.message });
-  }
+
+  }}
 }
 
 function validateSnapshotVersion(parsed, id, snapshotPath) {
@@ -83,7 +88,7 @@ function validateInitSnapshot(projectDir, snapshot, force) {
 }
 
 function initPlan(projectDir, snapshot, force) {
-  let snapshotReason = null;
+  let snapshotReason: string | null = null;
   if (snapshot.exists) {snapshotReason = force ? "force-init" : "corrupt-recovery";}
   return Object.freeze({
     target: Object.freeze({ id: "state", kind: "state", state_file: stateFile(projectDir), exists: snapshot.exists }),
@@ -100,7 +105,7 @@ const initOperation = Object.freeze({
     return initPlan(projectDir, snapshot, force);
   },
   async apply({ snapshot, plan }) {
-    const fresh = emptyState();
+    const fresh: ProjectState = emptyState();
     if (plan.force && snapshot.state && snapshot.state.plugins && typeof snapshot.state.plugins === "object" && !Array.isArray(snapshot.state.plugins)) {
       fresh.plugins = snapshot.state.plugins;
     }
@@ -121,14 +126,20 @@ async function readSnapshotMetadata(metaPath, id) {
   let metaRaw;
   try {
     metaRaw = await fs.readFile(metaPath, "utf8");
-  } catch (err) {
+  } catch (rawCaughtValue: unknown) {
+  {
+    const err = asCaughtError(rawCaughtValue);
     if (err.code === "ENOENT") {throwV2("NODE_NOT_FOUND", `state.restore: snapshot ${id} not found`, { id });}
     throw err;
-  }
+
+  }}
   let meta;
-  try { meta = JSON.parse(metaRaw); } catch (err) {
+  try { meta = JSON.parse(metaRaw); } catch (rawCaughtValue: unknown) {
+  {
+    const err = asCaughtError(rawCaughtValue);
     throwV2("NODE_NOT_FOUND", `state.restore: snapshot ${id} metadata is corrupt`, { id, error: err.message });
-  }
+
+  }}
   validateSnapshotMetadata(meta, id);
   return meta;
 }
@@ -136,10 +147,13 @@ async function readSnapshotMetadata(metaPath, id) {
 async function readSnapshotBytes(rawPath, id) {
   try {
     return await fs.readFile(rawPath);
-  } catch (err) {
+  } catch (rawCaughtValue: unknown) {
+  {
+    const err = asCaughtError(rawCaughtValue);
     if (err.code === "ENOENT") {throwV2("NODE_NOT_FOUND", `state.restore: snapshot ${id} is incomplete`, { id });}
     throw err;
-  }
+
+  }}
 }
 
 function restorePlan(id, meta, restored) {
@@ -174,7 +188,7 @@ function operationRequest(action, actor, input) {
 }
 
 
-export async function initState({ projectDir, force = false, actor, policyAction, pluginId } = {}) {
+export async function initState({ projectDir, force = false, actor, policyAction, pluginId }: { projectDir: string; force?: boolean; actor?: string; policyAction?: unknown; pluginId?: string } = { projectDir: "" }) {
   const isForce = force === true;
   const resolvedActor = isForce ? requireAgent(actor, "state.init_force") : (actor || "system");
   return mutate({
@@ -187,7 +201,7 @@ export async function initState({ projectDir, force = false, actor, policyAction
 }
 
 
-export async function restoreState({ projectDir, snapshotId, actor, policyAction, pluginId } = {}) {
+export async function restoreState({ projectDir, snapshotId, actor, policyAction, pluginId }: { projectDir: string; snapshotId?: string; actor?: string; policyAction?: unknown; pluginId?: string } = { projectDir: "" }) {
   const resolvedActor = requireAgent(actor, "state.restore");
   return mutate({
     projectDir,

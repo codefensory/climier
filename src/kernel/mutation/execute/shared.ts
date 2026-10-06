@@ -1,3 +1,4 @@
+import { asCaughtError } from "../../../contracts/errors.ts";
 
 
 import fs from "node:fs/promises";
@@ -31,7 +32,7 @@ function isValidStateOperation(stateOperation) {
     typeof stateOperation.prepare === "function" && typeof stateOperation.apply === "function";
 }
 
-export function validateMutationArguments({ request, provider, stateOperation, batch } = {}) {
+export function validateMutationArguments({ request, provider, stateOperation, batch }: { request: Record<string, unknown>; provider?: unknown; stateOperation?: unknown; batch?: unknown } = { request: {} }) {
   validateRequest(request);
   if (batch !== undefined) {
     if (request.action !== "core.batch") {
@@ -53,10 +54,10 @@ export function validateMutationArguments({ request, provider, stateOperation, b
   return operationLabel(request);
 }
 
-export function freezePlan(prepareResult, commandName) {
+export function freezePlan(prepareResult: Record<string, unknown>, commandName: string): Record<string, unknown> {
   validatePlan(prepareResult, commandName);
   const plan = Object.freeze({
-    target: Object.freeze({ ...prepareResult.target }),
+    target: Object.freeze({ ...(prepareResult.target as Record<string, unknown>) }),
     policyAction: prepareResult.policyAction && typeof prepareResult.policyAction === "object" && !Array.isArray(prepareResult.policyAction)
       ? prepareResult.policyAction
       : null,
@@ -102,9 +103,12 @@ function throwPolicyFailure(error, action, commandName) {
 async function decidePolicy({ policyAction, policySnapshot, plan, request, action, commandName }) {
   try {
     return await policyAction.decide({ snapshot: policySnapshot, target: plan.target, request, action });
-  } catch (error) {
+  } catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
     throwPolicyFailure(error, action, commandName);
-  }
+
+  }}
 }
 
 function validatePolicyDecision(decision, commandName) {
@@ -158,12 +162,15 @@ function cloneError(err) {
 export function cloneBatchValue(value) {
   try {
     return structuredClone(value);
-  } catch (err) {
+  } catch (rawCaughtValue: unknown) {
+  {
+    const err = asCaughtError(rawCaughtValue);
     throwV2("INVALID_EXECUTION_CONTRACT", "kernel.mutate(core.batch): result must be cloneable JSON data", {
       field: "batch.result",
       cause: cloneError(err),
     });
-  }
+
+  }}
 }
 
 export function freezeSnapshotValue(value) {
@@ -199,7 +206,7 @@ export function batchSnapshot(snapshot, tx) {
 }
 
 export function batchOperationError(index, op, err) {
-  const cause = {
+  const cause: Record<string, unknown> = {
     code: err && typeof err.code === "string" ? err.code : "BATCH_OPERATION_FAILED",
     message: err && typeof err.message === "string" ? err.message : String(err),
   };
@@ -248,12 +255,15 @@ export function validateBatchOperation(raw, index) {
 async function readRawState(projectDir) {
   try {
     return await fs.readFile(stateFile(projectDir), "utf8");
-  } catch (error) {
+  } catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
     if (error.code === "ENOENT") {
       return null;
     }
     throw error;
-  }
+
+  }}
 }
 
 async function hasRevisionLedger(statePath) {
@@ -261,12 +271,15 @@ async function hasRevisionLedger(statePath) {
   try {
     await fs.access(`${directory}/revision-ledger.json`);
     return true;
-  } catch (error) {
+  } catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
     if (error.code === "ENOENT") {
       return false;
     }
     throw error;
-  }
+
+  }}
 }
 
 function parseStateRaw(raw) {
@@ -310,11 +323,14 @@ async function validateStateVersion(raw, projectDir) {
   }
   try {
     await readState(projectDir);
-  } catch (error) {
+  } catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
     if (isIncompatibleVersionError(error)) {
       throw error;
     }
-  }
+
+  }}
 }
 
 async function validateRawState(raw, hasLedger, projectDir, statePath) {
@@ -325,22 +341,28 @@ async function validateRawState(raw, hasLedger, projectDir, statePath) {
 async function readFencedState(lockContext, projectDir) {
   try {
     return await readFencedStateUnderLock(lockContext, { projectDir });
-  } catch (error) {
+  } catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
     if (error.code !== "CLIMIER_UNSUPPORTED_SOURCE_VERSION") {
       throw error;
     }
     try {
       await readState(projectDir);
-    } catch (stateError) {
+    } catch (rawCaughtValue: unknown) {
+  {
+    const stateError = asCaughtError(rawCaughtValue);
       if (isIncompatibleVersionError(stateError)) {
-        throw stateError;
+
+  }   throw stateError;
       }
-    }
-    throw error;
+
+  }}
+    throw asCaughtError(rawCaughtValue);
   }
 }
 
-export async function readMutationStateUnderLock(lockContext, projectDir) {
+export async function readMutationStateUnderLock(lockContext: object, projectDir: string): Promise<unknown> {
   const statePath = stateFile(projectDir);
   const raw = await readRawState(projectDir);
   const hasLedger = await hasRevisionLedger(statePath);

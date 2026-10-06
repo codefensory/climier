@@ -1,12 +1,15 @@
+import { asCaughtError } from "../../contracts/errors.ts";
 // Durable fenced-commit protocol and its pending-stage recovery.
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
+import { ClimierError } from "../../contracts/errors.ts";
 import { isFencedStateVersion } from "../state.ts";
 import { getActiveLockContext, assertActiveLockContext } from "../lock.ts";
 import { validateStateInvariants } from "../../contracts/state-invariants.ts";
 import { assertValidLedger } from "./recovery.ts";
+import type { LedgerLike, NodeRecord, StateLike } from "./stages.ts";
 import { finishPendingBootstrap } from "./bootstrap.ts";
 import { assertFencedMigrationSource, assertSchemaMigrationDestination, assertSchemaMigratedState, assertFencedState, hasFencedSchemaMigrationEntry, isSchemaMigratedState, commitStagePath, durableReplace, fault, fingerprintMismatch, maxNodeRevision, persistLedger, readJson, sha256, writeDurableStage } from "./stages.ts";
 
@@ -18,16 +21,19 @@ async function readCommitStage(stagePath, pending) {
   let raw;
   try {
     raw = await fs.readFile(stagePath, "utf8");
-  } catch (error) {
+  } catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
     if (error.code === "ENOENT") {
       throw fingerprintMismatch("commit stage is missing; explicit recovery is required");
     }
     throw error;
-  }
+
+  }}
   if (sha256(raw) !== pending.destination_sha256) {
     throw fingerprintMismatch("commit stage does not match the pending destination fingerprint");
   }
-  const destination = readJson(raw, "commit stage");
+  const destination = readJson(raw, "commit stage") as CommitState;
   const expectedRevision = pending.high_water_revision;
   if ((!isFencedStateVersion(destination.version) && (!pending.schema_only_migration
       || !isSchemaMigratedState(destination, { fence_generation: pending.fence_generation, high_water_revision: pending.high_water_revision })))
@@ -61,13 +67,16 @@ async function cleanOrphanCommitStages(statePath) {
 }
 
 function assertCommitSource(rawState, pending, ledger) {
-  const source = readJson(rawState, "commit source state");
+  const source = readJson(rawState, "commit source state") as CommitState;
   if (pending.schema_only_migration) {
     try {
       assertFencedMigrationSource(source, { ...ledger, high_water_revision: pending.source_high_water_revision });
-    } catch (cause) {
+    } catch (rawCaughtValue: unknown) {
+  {
+    const cause = asCaughtError(rawCaughtValue);
       throw fingerprintMismatch(`schema-only migration source is invalid: ${cause.message}`);
-    }
+
+  }}
     if (pending.high_water_revision !== pending.source_high_water_revision + 1
         || ledger.high_water_revision !== pending.high_water_revision) {
       throw fingerprintMismatch("schema-only migration reservation does not advance exactly one state revision");
@@ -95,7 +104,7 @@ async function installPendingCommitSource({ statePath, rawState, pending, ledger
 }
 
 function assertInstalledCommit(rawState, pending) {
-  const destination = readJson(rawState, "committed state");
+  const destination = readJson(rawState, "committed state") as CommitState;
   const expectedRevision = pending.high_water_revision;
   if (destination.fence_generation !== pending.fence_generation
       || destination.revision !== expectedRevision
@@ -162,7 +171,16 @@ async function finishPendingCommit({ statePath, ledgerPath, ledger, rawState, op
   return destination;
 }
 
-function schemaOnlyMigration(current, candidate, ledger) {
+type CommitState = StateLike & {
+  version: number;
+  revision: number;
+  fence_generation: number;
+  nodes: Record<string, NodeRecord>;
+  log: Array<Record<string, unknown>>;
+};
+type CommitLedger = LedgerLike;
+
+function schemaOnlyMigration(current: CommitState, candidate: CommitState, ledger: CommitLedger): boolean {
   if (!current || current.version !== 5 || candidate?.version !== 1
       || candidate.revision !== ledger.high_water_revision + 1
       || candidate.fence_generation !== ledger.fence_generation
@@ -172,7 +190,7 @@ function schemaOnlyMigration(current, candidate, ledger) {
   const { version: _currentVersion, revision: _currentRevision, log: _currentLog, ...currentData } = current;
   const { version: _candidateVersion, revision: _candidateRevision, log: _candidateLog, ...candidateData } = candidate;
   return isDeepStrictEqual(currentData, candidateData)
-    && Object.entries(current.nodes).every(([id, node]) => candidate.nodes[id]?.revision === node.revision);
+    && (Object.entries(current.nodes) as [string, NodeRecord][]).every(([id, node]) => candidate.nodes[id]?.revision === node.revision);
 }
 
 function assertCandidateEnvelope(candidate, current, ledger) {
@@ -230,16 +248,16 @@ function assertChangedNodeRevision(node, previous, id, current) {
   }
 }
 
-function validateCandidateNodes(candidate, current, migration = false) {
+function validateCandidateNodes(candidate: CommitState, current: CommitState, migration = false): void {
   if (migration && candidate.version === 1 && candidate.revision === current.revision + 1) {
-    for (const [id, node] of Object.entries(candidate.nodes)) {
+    for (const [id, node] of Object.entries(candidate.nodes) as [string, NodeRecord][]) {
       if (!current.nodes[id] || node.revision !== current.nodes[id].revision) {
         throw new Error(`ledger.commit: schema-only migration must preserve node ${id} revision`);
       }
     }
     return;
   }
-  for (const [id, node] of Object.entries(candidate.nodes)) {
+  for (const [id, node] of Object.entries(candidate.nodes) as [string, NodeRecord][]) {
     const previous = current.nodes[id];
     assertNodeRevision(node, previous, id, current);
     if (previous) {
@@ -248,7 +266,7 @@ function validateCandidateNodes(candidate, current, migration = false) {
   }
 }
 
-function validateCommitCandidate(candidate, current, ledger) {
+function validateCommitCandidate(candidate: CommitState, current: CommitState, ledger: CommitLedger) {
   const migration = schemaOnlyMigration(current, candidate, ledger);
   assertCandidateEnvelope(candidate, current, ledger);
   assertCandidateGeneration(candidate, current, ledger);
@@ -267,14 +285,15 @@ function validateCommitCandidate(candidate, current, ledger) {
 async function readRequiredCommitLedger(ledgerPath) {
   try {
     return readJson(await fs.readFile(ledgerPath, "utf8"), "revision ledger");
-  } catch (error) {
+  } catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
     if (error.code === "ENOENT") {
-      const missing = new Error("ledger: revision ledger is missing for fenced commit; refusing reconstruction");
-      missing.code = "CLIMIER_LEDGER_MISSING";
-      throw missing;
+      throw new ClimierError("CLIMIER_LEDGER_MISSING", "ledger: revision ledger is missing for fenced commit; refusing reconstruction");
     }
     throw error;
-  }
+
+  }}
 }
 
 async function recoverPendingCommitPrerequisite({ statePath, ledgerPath, ledger }) {
@@ -293,7 +312,7 @@ async function recoverPendingCommitState({ statePath, ledgerPath, ledger, rawSta
 }
 
 async function stageCommit({ statePath, ledgerPath, ledger, rawState, candidate, candidateNodeMax, opts }) {
-  const schemaMigrationCommit = schemaOnlyMigration(readJson(rawState, "fenced state"), candidate, ledger);
+  const schemaMigrationCommit = schemaOnlyMigration(readJson(rawState, "fenced state") as CommitState, candidate, ledger);
   const highWater = schemaMigrationCommit
     ? candidate.revision
     : Math.max(ledger.high_water_revision, candidate.revision, candidateNodeMax);
@@ -333,7 +352,7 @@ async function installStagedCommit({ statePath, destinationRaw, opts }) {
 }
 
 async function readSchemaMigrationSource({ rawState, pending, ledger }) {
-  const source = readJson(rawState, "schema migration source state");
+  const source = readJson(rawState, "schema migration source state") as CommitState;
   if (!pending.schema_only_migration
       || pending.high_water_revision !== pending.source_high_water_revision + 1
       || ledger.high_water_revision !== pending.high_water_revision) {
@@ -341,9 +360,12 @@ async function readSchemaMigrationSource({ rawState, pending, ledger }) {
   }
   try {
     assertFencedMigrationSource(source, { ...ledger, high_water_revision: pending.source_high_water_revision });
-  } catch (cause) {
+  } catch (rawCaughtValue: unknown) {
+  {
+    const cause = asCaughtError(rawCaughtValue);
     throw fingerprintMismatch(`schema-only migration source is invalid: ${cause.message}`);
-  }
+
+  }}
   return source;
 }
 
@@ -353,12 +375,12 @@ export async function commitFencedStateUnderLock(lockContext, candidate, opts = 
   const ledgerPath = ledgerFile(statePath);
   await fs.mkdir(path.dirname(statePath), { recursive: true });
 
-  const ledger = await readRequiredCommitLedger(ledgerPath);
+  const ledger = await readRequiredCommitLedger(ledgerPath) as CommitLedger;
   assertValidLedger(ledger);
   await recoverPendingCommitPrerequisite({ statePath, ledgerPath, ledger });
   const rawState = await fs.readFile(statePath, "utf8");
   await recoverPendingCommitState({ statePath, ledgerPath, ledger, rawState, opts });
-  const current = readJson(rawState, "fenced state");
+  const current = readJson(rawState, "fenced state") as CommitState;
   if (schemaOnlyMigration(current, candidate, ledger)) {
     assertFencedMigrationSource(current, ledger);
   } else {

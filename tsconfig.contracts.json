@@ -1,9 +1,11 @@
 {
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
+    "strict": true,
+    "noCheck": false,
     "rootDir": ".",
     "outDir": "node_modules/.cache/climier-tsbuild/contracts",
-    "tsBuildInfoFile": "node_modules/.cache/climier-tsbuild/contracts.tsbuildinfo"
+    "tsBuildInfoFile": "node_modules/.cache/climier-tsbuild/contracts.tsbuildinfo",
   },
   "include": ["src/contracts/**/*.ts"]
 }

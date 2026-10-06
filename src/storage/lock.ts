@@ -1,26 +1,30 @@
+import { asCaughtError } from "../contracts/errors.ts";
 // lock.mjs: file lock for atomic mutating operations.
 import fs from "node:fs/promises";
 import path from "node:path";
 import { AsyncLocalStorage } from "node:async_hooks";
+import { codedError } from "../contracts/errors.ts";
 import { stateFile } from "./state.ts";
 
 const RETRY_BASE_MS = 25;
 const DEFAULT_TIMEOUT_MS = 10_000;
-const activeLockContexts = new WeakMap();
-const activeProjectLock = new AsyncLocalStorage();
+type LockDetails = { projectDir: string; statePath: string; active: boolean };
+type LockStore = { lockContexts: Map<string, object> };
+export type LockOptions = { timeoutMs?: number; retryEveryMs?: number };
+type LockCallback<T> = (lockContext: object) => T | PromiseLike<T>;
+const activeLockContexts = new WeakMap<object, LockDetails>();
+const activeProjectLock = new AsyncLocalStorage<LockStore>();
 
-function invalidLockContext() {
-  const error = new Error("lock: active project lock capability is required");
-  error.code = "CLIMIER_INVALID_LOCK_CONTEXT";
-  return error;
+function invalidLockContext(): Error {
+  return codedError("CLIMIER_INVALID_LOCK_CONTEXT", "lock: active project lock capability is required");
 }
 
 /** Assert that a capability is active for exactly the requested project. */
-export function assertActiveLockContext(lockContext, projectDir) {
+export function assertActiveLockContext(lockContext: unknown, projectDir?: string): boolean {
   if (!lockContext || (typeof lockContext !== "object" && typeof lockContext !== "function")) {
     throw invalidLockContext();
   }
-  const details = activeLockContexts.get(lockContext);
+  const details = activeLockContexts.get(lockContext as object);
   if (!details?.active || (projectDir !== undefined && details.projectDir !== path.resolve(projectDir))) {
     throw invalidLockContext();
   }
@@ -28,32 +32,36 @@ export function assertActiveLockContext(lockContext, projectDir) {
 }
 
 /** Resolve a live capability to its canonical storage paths for storage APIs. */
-export function getActiveLockContext(lockContext) {
+export function getActiveLockContext(lockContext: unknown): Readonly<{ projectDir: string; statePath: string }> {
   assertActiveLockContext(lockContext);
-  const details = activeLockContexts.get(lockContext);
+  const details = activeLockContexts.get(lockContext as object);
+  if (!details) { throw invalidLockContext(); }
   return Object.freeze({ projectDir: details.projectDir, statePath: details.statePath });
 }
 
 
-export function getCurrentLockContext(projectDir) {
+export function getCurrentLockContext(projectDir: string): object | null {
   const active = activeProjectLock.getStore();
-  const lockContext = active?.lockContexts?.get(path.resolve(projectDir));
+  const lockContext = active?.lockContexts.get(path.resolve(projectDir));
   if (!lockContext) {
     return null;
   }
   try {
     assertActiveLockContext(lockContext, projectDir);
     return lockContext;
-  } catch (error) {
-    if (error.code === "CLIMIER_INVALID_LOCK_CONTEXT") {
+  } catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
+    if (error instanceof Error && "code" in error && error.code === "CLIMIER_INVALID_LOCK_CONTEXT") {
       return null;
     }
     throw error;
-  }
+
+  }}
 }
 
 
-export async function withCurrentProjectLock(projectDir, fn, opts = {}) {
+export async function withCurrentProjectLock<T>(projectDir: string, fn: LockCallback<T>, opts: LockOptions = {}): Promise<T> {
   const lockContext = getCurrentLockContext(projectDir);
   if (lockContext) {
     return fn(lockContext);
@@ -61,8 +69,8 @@ export async function withCurrentProjectLock(projectDir, fn, opts = {}) {
   return withLock(projectDir, fn, opts);
 }
 
-function makeLockContext(projectDir, statePath = stateFile(projectDir)) {
-  const context = Object.freeze(Object.create(null));
+function makeLockContext(projectDir: string, statePath = stateFile(projectDir)): object {
+  const context = Object.freeze(Object.create(null)) as object;
   activeLockContexts.set(context, {
     projectDir: path.resolve(projectDir),
     statePath,
@@ -71,39 +79,41 @@ function makeLockContext(projectDir, statePath = stateFile(projectDir)) {
   return context;
 }
 
-function expireLockContext(lockContext) {
+function expireLockContext(lockContext: object): void {
   const details = activeLockContexts.get(lockContext);
   if (details) {
     details.active = false;
   }
 }
 
-function lockPath(projectDir) {
+function lockPath(projectDir: string): string {
   return path.join(path.dirname(stateFile(projectDir)), ".lock");
 }
 
-async function ensureTasksDir(projectDir) {
+async function ensureTasksDir(projectDir: string): Promise<void> {
   await fs.mkdir(path.dirname(stateFile(projectDir)), { recursive: true });
 }
 
-async function sleep(ms) {
+async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function createLockFile(lockPathname) {
+async function createLockFile(lockPathname: string): Promise<void> {
   const file = await fs.open(lockPathname, "wx");
   await file.writeFile(JSON.stringify({ pid: process.pid, at: Date.now() }));
   await file.close();
 }
 
-async function acquireLockFile(lockPathname, { timeoutMs, retryEveryMs }) {
+async function acquireLockFile(lockPathname: string, { timeoutMs, retryEveryMs }: Required<LockOptions>): Promise<void> {
   const start = Date.now();
   let attempt = 0;
   while (true) {
     try {
       await createLockFile(lockPathname);
       return;
-    } catch (error) {
+    } catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
       if (error.code !== "EEXIST") {
         throw error;
       }
@@ -112,11 +122,12 @@ async function acquireLockFile(lockPathname, { timeoutMs, retryEveryMs }) {
       }
       await sleep(Math.min(retryEveryMs * Math.max(1, attempt), 200));
       attempt++;
-    }
+
+  }}
   }
 }
 
-async function runWithLockContext(projectDir, lockPathname, fn, statePath) {
+async function runWithLockContext<T>(projectDir: string, lockPathname: string, fn: LockCallback<T>, statePath = stateFile(projectDir)): Promise<T> {
   const lockContext = makeLockContext(projectDir, statePath);
   const inheritedContexts = activeProjectLock.getStore()?.lockContexts;
   const lockContexts = new Map(inheritedContexts ?? []);
@@ -133,7 +144,7 @@ async function runWithLockContext(projectDir, lockPathname, fn, statePath) {
   }
 }
 
-export async function withProjectIdLock(projectId, fn, opts = {}) {
+export async function withProjectIdLock<T>(projectId: string, fn: LockCallback<T>, opts: LockOptions = {}): Promise<T> {
   if (typeof projectId !== "string" || !projectId.trim() || projectId === "." || projectId === ".."
       || path.basename(projectId) !== projectId || projectId.includes(path.sep) || projectId.includes("\\")) {
     throw new TypeError("lock: project_id must be a non-empty path component");
@@ -141,7 +152,7 @@ export async function withProjectIdLock(projectId, fn, opts = {}) {
   const home = path.resolve(process.env.CLIMIER_HOME || path.join(process.env.HOME || ".", ".climier"));
   const storageProjectDir = path.join(home, "projects", projectId);
   const pathname = path.join(storageProjectDir, ".lock");
-  const options = {
+  const options: Required<LockOptions> = {
     timeoutMs: opts.timeoutMs ?? DEFAULT_TIMEOUT_MS,
     retryEveryMs: opts.retryEveryMs ?? RETRY_BASE_MS,
   };
@@ -150,13 +161,13 @@ export async function withProjectIdLock(projectId, fn, opts = {}) {
   return runWithLockContext(storageProjectDir, pathname, fn, path.join(storageProjectDir, "tasks.json"));
 }
 
-export async function withLock(projectDir, fn, opts = {}) {
+export async function withLock<T>(projectDir: string, fn: LockCallback<T>, opts: LockOptions = {}): Promise<T> {
   const resolvedProjectDir = path.resolve(projectDir);
   const inherited = getCurrentLockContext(resolvedProjectDir);
   if (inherited) {
     return fn(inherited);
   }
-  const options = {
+  const options: Required<LockOptions> = {
     timeoutMs: opts.timeoutMs ?? DEFAULT_TIMEOUT_MS,
     retryEveryMs: opts.retryEveryMs ?? RETRY_BASE_MS,
   };

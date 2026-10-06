@@ -1,9 +1,11 @@
 {
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
+    "strict": true,
+    "noCheck": false,
     "rootDir": ".",
     "outDir": "node_modules/.cache/climier-tsbuild/storage",
-    "tsBuildInfoFile": "node_modules/.cache/climier-tsbuild/storage.tsbuildinfo"
+    "tsBuildInfoFile": "node_modules/.cache/climier-tsbuild/storage.tsbuildinfo",
   },
   "include": ["src/storage/**/*.ts"],
   "references": [

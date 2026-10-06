@@ -32,8 +32,8 @@ function draftEdgeMap(edges) {
 export function computeEdgeDiff(snapshotEdges, draftEdges) {
   const snapMap = snapshotEdgeMap(snapshotEdges);
   const draftMap = draftEdgeMap(draftEdges);
-  const added = [];
-  const removed = [];
+  const added: unknown[] = [];
+  const removed: unknown[] = [];
   for (const [k, e] of draftMap) {
     if (!snapMap.has(k)) {added.push(e);}
   }
@@ -53,6 +53,10 @@ function sameObjectKeys(a, b) {
   return aKeys.every((key) => Object.prototype.hasOwnProperty.call(b, key));
 }
 
+function objectCopy(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value) ? { ...value } : {};
+}
+
 function initiativesEqual(a, b) {
   if (a === b) {return true;}
   if (!a || !b || typeof a !== "object" || typeof b !== "object") {return false;}
@@ -64,16 +68,16 @@ function initiativesEqual(a, b) {
 export function computeInitiativeDiff(snapshotInitiatives, draftInitiatives) {
   const snap = snapshotInitiatives && typeof snapshotInitiatives === "object" ? snapshotInitiatives : {};
   const draft = draftInitiatives && typeof draftInitiatives === "object" ? draftInitiatives : {};
-  const created = [];
-  const updated = [];
+  const created: unknown[] = [];
+  const updated: unknown[] = [];
   for (const [name, draftInit] of Object.entries(draft)) {
     const prev = snap[name];
     if (!prev) {
-      created.push({ name, initiative: { ...draftInit } });
+      created.push({ name, initiative: objectCopy(draftInit) });
       continue;
     }
     if (!initiativesEqual(prev, draftInit)) {
-      updated.push({ name, initiative: { ...draftInit }, previous: { ...prev } });
+      updated.push({ name, initiative: objectCopy(draftInit), previous: objectCopy(prev) });
     }
   }
   return { created, updated };

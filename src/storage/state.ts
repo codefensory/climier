@@ -1,3 +1,4 @@
+import { asCaughtError } from "../contracts/errors.ts";
 // state.mjs: read/write/atomic-mutate the tasks.json state file.
 import crypto from "node:crypto";
 import fsSync from "node:fs";
@@ -6,6 +7,7 @@ import path from "node:path";
 import { withLock, assertActiveLockContext, getActiveLockContext } from "./lock.ts";
 import { climierHome, projectMetaFile } from "./paths.ts";
 import { validateStateInvariants } from "../contracts/state-invariants.ts";
+import type { ProjectState } from "../contracts/domain.ts";
 
 function readProjectMetaSync(projectDir) {
   const file = projectMetaFile(projectDir);
@@ -13,12 +15,15 @@ function readProjectMetaSync(projectDir) {
   let meta;
   try {
     meta = JSON.parse(fsSync.readFileSync(file, "utf8"));
-  } catch (err) {
+  } catch (rawCaughtValue: unknown) {
+  {
+    const err = asCaughtError(rawCaughtValue);
     const wrapped = new Error(`state: project metadata at ${file} is corrupt or not valid JSON: ${err.message}`);
     wrapped.code = "CLIMIER_CORRUPT_PROJECT_META";
     wrapped.cause = err;
     throw wrapped;
-  }
+
+  }}
   if (!meta || typeof meta !== "object" || typeof meta.project_id !== "string" || !meta.project_id.trim()) { throw new Error(`state: project metadata at ${file} is invalid (missing non-empty 'project_id')`); }
   return meta;
 }
@@ -47,11 +52,14 @@ export async function listProjectIds() {
   let entries;
   try {
     entries = await fs.readdir(projectsDir, { withFileTypes: true });
-  } catch (error) {
+  } catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
     if (error.code === "ENOENT") { return []; }
     throw error;
-  }
-  const ids = [];
+
+  }}
+  const ids: string[] = [];
   for (const entry of entries) {
     if (!entry.isDirectory()) { continue; }
     const dir = path.join(projectsDir, entry.name);
@@ -59,7 +67,7 @@ export async function listProjectIds() {
       ids.push(entry.name);
     }
   }
-  return ids.toSorted();
+  return ids.slice().sort();
 }
 
 async function hasAny(...files) {
@@ -67,9 +75,12 @@ async function hasAny(...files) {
     try {
       await fs.access(file);
       return true;
-    } catch (error) {
+    } catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
       if (error.code !== "ENOENT") { throw error; }
-    }
+
+  }}
   }
   return false;
 }
@@ -123,7 +134,7 @@ export function classifyStateShape(state) {
   return { kind: "legacy" };
 }
 
-export function emptyState() {
+export function emptyState(): ProjectState {
   return {
     version: STATE_SCHEMA_VERSION,
     fence_generation: 1,
@@ -152,11 +163,14 @@ export function assertReadableState(state, commandName) {
 async function readMissingState(projectDir) {
   const { ledgerFile, readFencedState } = await import("./ledger.ts");
   try { await fs.access(ledgerFile(projectDir)); }
-  catch (error) { if (error.code === "ENOENT") { return null; } throw error; }
+  catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue); if (error.code === "ENOENT") { return null; } throw error;
+  }}
   return readFencedState(projectDir);
 }
 
-function stateShapeError(code, message, details) {
+function stateShapeError(code, message, details?: Record<string, unknown>) {
   const error = new Error(message);
   error.code = code;
   error.details = details;
@@ -181,7 +195,8 @@ async function parseStateFile(projectDir, file, raw) {
   }
   if (shape.kind === "incompatible") { rejectFutureWritableVersion(state, file); }
   if (shape.kind === "incomplete") {
-    throw stateShapeError("CLIMIER_INCOMPLETE_STATE", `state: canonical version 1 file at ${file} is incomplete (missing ${shape.missing.join(", ")})`, {
+    const missing = shape.missing || [];
+    throw stateShapeError("CLIMIER_INCOMPLETE_STATE", `state: canonical version 1 file at ${file} is incomplete (missing ${missing.join(", ")})`, {
       file, missing: shape.missing,
     });
   }
@@ -193,14 +208,17 @@ async function parseStateFile(projectDir, file, raw) {
   if (shape.kind === "canonical") {
     const { ledgerFile, readFencedState } = await import("./ledger.ts");
     try { await fs.access(ledgerFile(projectDir)); }
-    catch (error) {
+    catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
       if (error.code === "ENOENT") {
         throw stateShapeError("CLIMIER_NONCANONICAL_STATE", `state: version 1 file at ${file} is not canonical (revision-ledger.json is missing); run climier migrate`, {
           file, version: STATE_SCHEMA_VERSION, reason: "revision-ledger.json is missing", hint: "Run climier migrate to create a canonical state.",
         });
       }
       throw error;
-    }
+
+  }}
     return readFencedState(projectDir);
   }
   throw stateShapeError("CLIMIER_INCOMPATIBLE_VERSION", `state: file at ${file} is not a canonical version ${STATE_SCHEMA_VERSION} state; run climier migrate`, { file, version: state.version, hint: "Run climier migrate to import this state." });
@@ -211,13 +229,18 @@ export async function readState(projectDir) {
   let raw;
   try {
     raw = await fs.readFile(file, "utf8");
-  } catch (error) {
+  } catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
     if (error.code === "ENOENT") { return readMissingState(projectDir); }
     throw error;
-  }
+
+  }}
   try {
     return await parseStateFile(projectDir, file, raw);
-  } catch (error) {
+  } catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
     if (error instanceof SyntaxError) {
       const wrapped = new Error(`state: file at ${file} is corrupt or not valid JSON: ${error.message}`);
       wrapped.code = "CLIMIER_CORRUPT_STATE";
@@ -225,7 +248,8 @@ export async function readState(projectDir) {
       throw wrapped;
     }
     throw error;
-  }
+
+  }}
 }
 
 function ledgerRequired(message) {
@@ -238,21 +262,27 @@ function hasFenceMarker(state) {
   return state?.version === FENCED_LEGACY_VERSION || Number.isInteger(state?.fence_generation);
 }
 
-async function assertUnledgeredWriteAllowed(lockContext, projectDir, targetState) {
+async function assertUnledgeredWriteAllowed(lockContext, projectDir, targetState = undefined) {
   assertActiveLockContext(lockContext, projectDir);
   const { statePath } = getActiveLockContext(lockContext);
   const ledgerPath = path.join(path.dirname(statePath), "revision-ledger.json");
   try {
     await fs.access(ledgerPath);
     throw ledgerRequired("state: revision-ledger projects require the fenced ledger commit API");
-  } catch (error) {
+  } catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
     if (error.code !== "ENOENT") { throw error; }
-  }
+
+  }}
 
   let existing;
   try {
     existing = JSON.parse(await fs.readFile(statePath, "utf8"));
-  } catch (error) { if (error.code !== "ENOENT" && !(error instanceof SyntaxError)) { throw error; } }
+  } catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue); if (error.code !== "ENOENT" && !(error instanceof SyntaxError)) { throw error; }
+  }}
   if (hasFenceMarker(existing) || hasFenceMarker(targetState)) { throw ledgerRequired("state: canonical states require the revision ledger commit API"); }
 }
 
@@ -270,10 +300,13 @@ function rejectUnsupportedWriteVersion(state, file) {
 
 async function readStateForUpdate(file) {
   try { return JSON.parse(await fs.readFile(file, "utf8")); }
-  catch (error) {
+  catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
     if (error.code !== "ENOENT") { throw error; }
     return { version: STATE_SCHEMA_VERSION, nodes: {}, edges: [], initiatives: {}, log: [], revision: 0 };
-  }
+
+  }}
 }
 
 function rejectFutureWritableVersion(state, file) {
@@ -405,18 +438,21 @@ export async function listSnapshots(projectDir) {
   let entries;
   try {
     entries = await fs.readdir(dir);
-  } catch (error) {
+  } catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
     if (error.code === "ENOENT") { return []; }
     throw error;
-  }
-  const result = [];
+
+  }}
+  const result: unknown[] = [];
   for (const name of entries) {
     // Only complete snapshot pairs with matching metadata ids are surfaced.
     const metadata = await readSnapshotMetadata(dir, name);
     if (metadata) { result.push(metadata); }
   }
   // Timestamp-prefixed ids sort in creation order, newest first.
-  return result.toSorted(newestFirst);
+  return result.slice().sort(newestFirst);
 }
 
 async function writeStateUnderLock(projectDir, lockContext, state) {
@@ -452,7 +488,7 @@ export function assertInitiativeRegistered(state, name, commandName) {
     return;
   }
   const valid =
-    state && state.initiatives ? Object.keys(state.initiatives).toSorted() : [];
+    state && state.initiatives ? Object.keys(state.initiatives).slice().sort() : [];
   const hint =
     valid.length > 0
       ? `valid initiatives: ${valid.join(", ")}`

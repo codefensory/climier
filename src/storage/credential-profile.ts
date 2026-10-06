@@ -1,6 +1,8 @@
+import { asCaughtError } from "../contracts/errors.ts";
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import { codedError } from "../contracts/errors.ts";
 import { climierHome } from "./paths.ts";
 
 const PROFILE_FILE = "remote-sessions.json";
@@ -9,11 +11,8 @@ function emptyProfile() {
   return { version: 1, sessions: {} };
 }
 
-function profileError(message, cause) {
-  const error = new Error(`credential store: ${message}`);
-  error.code = "CREDENTIAL_PROFILE_ERROR";
-  if (cause) {error.cause = cause;}
-  return error;
+function profileError(message: string, cause?: unknown): Error {
+  return codedError("CREDENTIAL_PROFILE_ERROR", `credential store: ${message}`, undefined, cause);
 }
 
 function isLoopbackHost(host) {
@@ -30,7 +29,10 @@ function permitsHttpOrigin(url, allowInsecureRemoteHttp) {
 
 function normalizeOrigin(value, { allowInsecureRemoteHttp = process.env.CLIMIER_ALLOW_INSECURE_REMOTE_HTTP === "true" } = {}) {
   let url;
-  try { url = new URL(value); } catch (cause) { throw profileError("origin must be an absolute HTTP(S) URL", cause); }
+  try { url = new URL(value); } catch (rawCaughtValue: unknown) {
+  {
+    const cause = asCaughtError(rawCaughtValue); throw profileError("origin must be an absolute HTTP(S) URL", cause);
+  }}
   if (!hasAllowedProtocol(url)) {
     throw profileError("origin must be an absolute HTTP(S) URL without credentials");
   }
@@ -64,15 +66,21 @@ function validateProfile(value) {
 async function readProfileFile(file) {
   let raw;
   try { raw = await fs.readFile(file, "utf8"); }
-  catch (error) {
+  catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
     if (error.code === "ENOENT") {return emptyProfile();}
     throw profileError(`cannot read ${file}: ${error.message}`, error);
-  }
+
+  }}
   try { return validateProfile(JSON.parse(raw)); }
-  catch (error) {
+  catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
     if (error.code === "CREDENTIAL_PROFILE_ERROR") {throw error;}
     throw profileError(`profile at ${file} is corrupt`, error);
-  }
+
+  }}
 }
 
 async function writeProfileFile(directory, file, profile) {
@@ -84,10 +92,13 @@ async function writeProfileFile(directory, file, profile) {
     await fs.chmod(temporary, 0o600);
     await fs.rename(temporary, file);
     await fs.chmod(file, 0o600);
-  } catch (error) {
+  } catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
     await fs.rm(temporary, { force: true }).catch(() => {});
     throw profileError(`cannot persist ${file}: ${error.message}`, error);
-  }
+
+  }}
 }
 
 export function createCredentialStore({ home = climierHome() } = {}) {

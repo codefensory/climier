@@ -39,7 +39,7 @@ function logPluginId(pluginId, plan) {
 
 export function buildLogEntry(...args) {
   const [request, plan, , , edgesAdded, edgesRemoved, removedNodes, targetNextRevision, pluginId, initiativeDiff] = args;
-  const base = logIdentity(request, plan);
+  const base: Record<string, unknown> = logIdentity(request, plan);
   addRevision(base, targetNextRevision);
   if (removedNodes.length > 0) {base.removed_nodes = removedNodes.toSorted();}
   addEdgeChanges(base, edgesAdded, edgesRemoved);

@@ -1,3 +1,4 @@
+import { asCaughtError } from "../contracts/errors.ts";
 // log.mjs: append entries to the global state log.
 // Two entry points:
 //   - append(projectDir, entry): CLI path. Shape unchanged.
@@ -80,17 +81,26 @@ export async function append(projectDir, entry) {
     let state;
     try {
       state = await readFencedStateUnderLock(lockContext, { projectDir });
-    } catch (error) {
+    } catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
       if (error.code !== "CLIMIER_LEDGER_STATE_MISMATCH") { throw error; }
-    }
+
+  }}
     if (!state) {
       state = { ...emptyState(), log: [preparedEntry] };
       let hasState = true;
       try { await fs.access(stateFile(projectDir)); }
-      catch (error) { if (error.code === "ENOENT") { hasState = false; } else { throw error; } }
+      catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue); if (error.code === "ENOENT") { hasState = false; } else { throw error; }
+  }}
       let hasLedger = true;
       try { await fs.access(path.join(path.dirname(stateFile(projectDir)), "revision-ledger.json")); }
-      catch (error) { if (error.code === "ENOENT") { hasLedger = false; } else { throw error; } }
+      catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue); if (error.code === "ENOENT") { hasLedger = false; } else { throw error; }
+  }}
       if (hasLedger) { throw new Error("append: cannot initialize over a corrupt ledger-backed state"); }
       if (hasState) { throw new Error("append: cannot initialize over a corrupt state without explicit recovery"); }
       return bootstrapFencedStateUnderLock(lockContext, state, { projectDir });

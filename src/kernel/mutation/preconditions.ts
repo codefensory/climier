@@ -84,7 +84,7 @@ function preconditionValues(precondition, commandName) {
 
 function checkMultiPrecondition(precondition, snapshot, commandName) {
   const values = preconditionValues(precondition, commandName);
-  const checked = [];
+  const checked: string[] = [];
   for (const [id, raw] of Object.entries(values)) {
     const expected = Number(raw);
     if (!Number.isInteger(expected)) {

@@ -1,3 +1,4 @@
+import { asCaughtError } from "../contracts/errors.ts";
 // src/kernel/transaction.ts — pure draft transaction for the graph kernel.
 
 // to compose a logical mutation (nodes + edges) without
@@ -96,12 +97,15 @@ function validateEdgeShape(edge, commandName) {
 function cloneValue(value, operation, field) {
   try {
     return clone(value);
-  } catch (err) {
+  } catch (rawCaughtValue: unknown) {
+  {
+    const err = asCaughtError(rawCaughtValue);
     throwV2("INVALID_EXECUTION_CONTRACT", `${operation}: ${field} must be cloneable JSON data`, {
       field,
       cause: err && err.name ? err.name : "DataCloneError",
     });
-  }
+
+  }}
 }
 
 function findEdgeIndex(edges, predicate) {
@@ -399,7 +403,7 @@ export function createTransaction(snapshot) {
     return true;
   }
 
-  function view(options = {}) {
+  function view(options: { includePlugins?: boolean } = {}) {
     // Deep-clone the nodes and edges so the caller cannot mutate the draft
     // through the returned view. O(n) per call is acceptable: the draft is
     // pure and callers are expected to call view() once at apply time.
@@ -461,7 +465,7 @@ export function createTransaction(snapshot) {
     // stores whatever it is given so the kernel can diff initiatives later
     // without re-reading the snapshot. desc is normalised to a string to
     // keep the diff stable when a provider passes desc: undefined.
-    const stored = {};
+    const stored: Record<string, unknown> = {};
     if (typeof input.desc === "string") {
       stored.desc = input.desc;
     }

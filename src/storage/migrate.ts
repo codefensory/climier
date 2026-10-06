@@ -1,3 +1,4 @@
+import { asCaughtError } from "../contracts/errors.ts";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { assertActiveLockContext, getActiveLockContext } from "./lock.ts";
@@ -6,10 +7,20 @@ import { assertValidLedger } from "./ledger/recovery.ts";
 import { assertFencedMigrationSource, readJson } from "./ledger/stages.ts";
 import { commitFencedStateUnderLock } from "./ledger/commit.ts";
 import { migrateLegacyInitialUnderLock } from "./ledger/bootstrap.ts";
+import type { BootstrapLedger } from "./ledger/bootstrap.ts";
 import { finishPendingBootstrap } from "./ledger/bootstrap.ts";
 import { validateStateInvariants } from "../contracts/state-invariants.ts";
 import { climierHome } from "./paths.ts";
 import { STATE_SCHEMA_VERSION } from "./state.ts";
+
+type MigrationState = Record<string, unknown> & {
+  version: number;
+  revision: number;
+  nodes: Record<string, Record<string, unknown>>;
+  edges: unknown[];
+  initiatives: Record<string, unknown>;
+  log: Array<Record<string, unknown>>;
+};
 
 function ledgerPath(statePath) {
   return path.join(path.dirname(statePath), "revision-ledger.json");
@@ -23,10 +34,13 @@ function hasPendingOperation(ledger) {
 async function optionalJson(file, label) {
   try {
     return { raw: await fs.readFile(file, "utf8"), exists: true };
-  } catch (error) {
+  } catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
     if (error.code === "ENOENT") return { raw: null, exists: false };
     throw error;
-  }
+
+  }}
 }
 
 async function backupProject(projectId, projectDir) {
@@ -40,19 +54,25 @@ async function backupProject(projectId, projectDir) {
       await fs.access(backupDir);
       suffix += 1;
       backupDir = path.join(backupsDir, `${timestamp}-${suffix}`);
-    } catch (error) {
+    } catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
       if (error.code !== "ENOENT") throw error;
       break;
-    }
+
+  }}
   }
   await fs.cp(projectDir, backupDir, { recursive: true, errorOnExist: true, force: false });
   try {
     await fs.access(path.join(backupDir, "revision-ledger.json"));
-  } catch (error) {
+  } catch (rawCaughtValue: unknown) {
+  {
+    const error = asCaughtError(rawCaughtValue);
     if (error.code !== "ENOENT") throw error;
 
     await fs.writeFile(path.join(backupDir, "revision-ledger.json"), `${JSON.stringify({ absent_at_backup: true }, null, 2)}\n`, { flag: "wx" });
-  }
+
+  }}
   return backupDir;
 }
 
@@ -61,9 +81,9 @@ function normalizeLegacyState(source, form) {
     return { version: STATE_SCHEMA_VERSION, nodes: {}, edges: [], initiatives: {}, log: [], revision: 0 };
   }
   const nodes = source.nodes && typeof source.nodes === "object" && !Array.isArray(source.nodes)
-    ? Object.fromEntries(Object.entries(source.nodes).map(([id, node]) => {
+    ? Object.fromEntries(Object.entries(source.nodes as Record<string, unknown>).map(([id, node]) => {
       if (!node || typeof node !== "object" || Array.isArray(node)) return [id, node];
-      const normalized = { ...node };
+      const normalized: Record<string, unknown> = { ...(node as Record<string, unknown>) };
       if (normalized.subkind === "gate" && normalized.resolution_mode === undefined) {
         normalized.resolution_mode = "choice";
       }
@@ -119,8 +139,8 @@ export async function migrateOldProjectUnderLock(lockContext, projectId, opts = 
   const { projectDir, statePath } = getActiveLockContext(lockContext);
   const rawStateFile = await optionalJson(statePath, "state");
   const ledgerFile = await optionalJson(ledgerPath(statePath), "revision ledger");
-  const source = rawStateFile.raw === null ? null : readJson(rawStateFile.raw, "state");
-  const ledger = ledgerFile.raw === null ? null : readJson(ledgerFile.raw, "revision ledger");
+  const source = rawStateFile.raw === null ? null : readJson(rawStateFile.raw, "state") as MigrationState;
+  const ledger = ledgerFile.raw === null ? null : readJson(ledgerFile.raw, "revision ledger") as BootstrapLedger;
 
   if (ledger?.migration_pending) {
     const error = new Error(`migrate: project ${projectId} has legacy migration_pending; resolve it with the pre-cut binary or recreate explicitly`);
@@ -154,9 +174,9 @@ export async function migrateFencedProjectUnderLock(lockContext, projectId, opts
   assertActiveLockContext(lockContext);
   const { statePath } = getActiveLockContext(lockContext);
   const sourceRaw = await fs.readFile(statePath, "utf8");
-  const source = readJson(sourceRaw, "state");
+  const source = readJson(sourceRaw, "state") as MigrationState;
   const rawLedger = await fs.readFile(ledgerPath(statePath), "utf8");
-  const ledger = readJson(rawLedger, "revision ledger");
+  const ledger = readJson(rawLedger, "revision ledger") as BootstrapLedger;
   if (ledger.migration_pending) {
     const error = new Error(`migrate: project ${projectId} has legacy migration_pending; resolve it with the pre-cut binary or recreate explicitly`);
     error.code = "CLIMIER_OLD_MIGRATION_PENDING";
@@ -194,7 +214,7 @@ export async function migrateFencedProjectUnderLock(lockContext, projectId, opts
     }],
   };
   validateStateInvariants(candidate, "ledger.migrate.candidate");
-  for (const [id, node] of Object.entries(source.nodes)) {
+  for (const [id, node] of Object.entries(source.nodes) as [string, Record<string, unknown>][]) {
     if (candidate.nodes[id]?.revision !== node.revision) {
       throw new Error(`migrate: project ${projectId} schema transition changed node ${id} revision`);
     }
@@ -216,9 +236,9 @@ export async function migrateProjectUnderLock(lockContext, projectId, opts = {})
   if (rawState.raw === null) {
     return migrateOldProjectUnderLock(lockContext, projectId, opts);
   }
-  const state = readJson(rawState.raw, "state");
+  const state = readJson(rawState.raw, "state") as MigrationState;
   const rawLedger = await optionalJson(ledgerPath(statePath), "revision ledger");
-  const ledger = rawLedger.raw === null ? null : readJson(rawLedger.raw, "revision ledger");
+  const ledger = rawLedger.raw === null ? null : readJson(rawLedger.raw, "revision ledger") as BootstrapLedger;
   if (ledger?.migration_pending) {
     const error = new Error(`migrate: project ${projectId} has legacy migration_pending; resolve it with the pre-cut binary or recreate explicitly`);
     error.code = "CLIMIER_OLD_MIGRATION_PENDING";

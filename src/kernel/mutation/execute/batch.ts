@@ -1,3 +1,4 @@
+import { asCaughtError } from "../../../contracts/errors.ts";
 
 
 import { commitFencedStateUnderLock } from "../../../storage/ledger.ts";
@@ -33,13 +34,16 @@ function validateOperations(rawOperations) {
   if (!Array.isArray(rawOperations) || rawOperations.length === 0) {
     throwV2("INVALID_EXECUTION_CONTRACT", "core.batch: operations must be a non-empty array", { field: "operations" });
   }
-  const operations = [];
+  const operations: unknown[] = [];
   for (let index = 0; index < rawOperations.length; index += 1) {
     try {
       operations.push(validateBatchOperation(rawOperations[index], index));
-    } catch (err) {
+    } catch (rawCaughtValue: unknown) {
+  {
+    const err = asCaughtError(rawCaughtValue);
       throw batchOperationError(index, rawOperations[index] && rawOperations[index].op, err);
-    }
+
+  }}
   }
   return operations;
 }
@@ -119,9 +123,12 @@ async function executeOperation({ operation, index, request, batch, policyAction
     );
     plans.push(plan);
     results.push({ op: operation.op, ...outcome, idempotent: !changed });
-  } catch (err) {
+  } catch (rawCaughtValue: unknown) {
+  {
+    const err = asCaughtError(rawCaughtValue);
     throw batchOperationError(index, operation.op, err);
-  }
+
+  }}
 }
 
 async function executeOperations({ operations, request, batch, policyAction, pluginId, tx, snapshot }) {
@@ -200,7 +207,7 @@ function buildPersistedBatchState({ snapshot, draftView, diff, results, plans, r
 
 export async function executeBatchMutation({ projectDir, lockContext, request, batch, policyAction, pluginId }) {
   const commandName = "core.batch";
-  const snapshot = await readMutationStateUnderLock(lockContext, projectDir);
+  const snapshot = await readMutationStateUnderLock(lockContext, projectDir) as Record<string, unknown> & { version: number; revision: number };
   if (!snapshot || typeof snapshot !== "object" || !isFencedStateVersion(snapshot.version)) {
     throw new Error(`${commandName}: state file missing or not canonical (run init first)`);
   }
