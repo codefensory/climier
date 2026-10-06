@@ -1,7 +1,5 @@
 import fs from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
-import net from "node:net";
-import os from "node:os";
 import path from "node:path";
 import { errorProperties, isRecord } from "./types.ts";
 
@@ -19,45 +17,15 @@ function hasOnlyKeys(value, allowed) {
     && Object.keys(value).every((key) => allowed.has(key));
 }
 
-function isLoopbackHost(host) {
-  if (host === "localhost") {
-    return true;
-  }
-  if (net.isIPv4(host)) {
-    return host.split(".")[0] === "127";
-  }
-  return host === "::1" || host === "0:0:0:0:0:0:0:1";
-}
-
-function isTailscaleIPv4(host) {
-  if (!net.isIPv4(host)) {return false;}
-  const [first, second] = host.split(".").map(Number);
-  return first === 100 && second >= 64 && second <= 127;
-}
-
-function assignedToTailscale0(host, networkInterfaces) {
-  if (!isTailscaleIPv4(host)) {return false;}
-  return (networkInterfaces.tailscale0 || []).some((entry) =>
-    entry?.address === host && (entry.family === "IPv4" || entry.family === 4));
-}
-
-function allowedListenHost(host, { allowTailscaleHttp, networkInterfaces }) {
-  return isLoopbackHost(host)
-    || (allowTailscaleHttp && assignedToTailscale0(host, networkInterfaces));
-}
-
 function hasValidListenShape(listen) {
   return hasOnlyKeys(listen, LISTEN_FIELDS)
     && typeof listen.host === "string" && listen.host.length > 0
     && Number.isInteger(listen.port) && listen.port >= 0 && listen.port <= 65_535;
 }
 
-function validateListenConfig(listen, options) {
+function validateListenConfig(listen) {
   if (!hasValidListenShape(listen)) {
     throw invalid("expected only listen { host, port }, dataRoot, stateHome, and uiRoot");
-  }
-  if (!allowedListenHost(listen.host, options)) {
-    throw invalid("listen.host must be loopback, or the assigned tailscale0 IPv4 with CLIMIER_SERVER_ALLOW_TAILSCALE_HTTP=true");
   }
 }
 
@@ -81,20 +49,17 @@ function normalizeConfig(config) {
   });
 }
 
-function validateConfig(config, {
-  allowTailscaleHttp = process.env.CLIMIER_SERVER_ALLOW_TAILSCALE_HTTP === "true",
-  networkInterfaces = os.networkInterfaces(),
-} = {}) {
+function validateConfig(config) {
   if (!hasOnlyKeys(config, CONFIG_FIELDS)) {
     throw invalid("expected only listen { host, port }, dataRoot, stateHome, and uiRoot; projectIds and credentials are no longer supported");
   }
-  validateListenConfig(config.listen, { allowTailscaleHttp, networkInterfaces });
+  validateListenConfig(config.listen);
   validatePaths(config);
   return normalizeConfig(config);
 }
 
-export function parseServerRuntimeConfig(value, options = {}) {
-  return validateConfig(value, options);
+export function parseServerRuntimeConfig(value) {
+  return validateConfig(value);
 }
 
 async function readConfigText(configPath) {

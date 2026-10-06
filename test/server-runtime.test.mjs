@@ -81,8 +81,8 @@ test("private server config fails closed for malformed or unsafe settings", asyn
     { ...valid, stateHome: "" },
     { ...valid, uiRoot: "relative/ui/dist" },
     { ...valid, listen: { host: "127.0.0.1", port: 65_536 } },
-    { ...valid, listen: { host: "0.0.0.0", port: 0 } },
-    { ...valid, listen: { host: "192.0.2.10", port: 0 } },
+    { ...valid, listen: {} },
+    { ...valid, listen: { host: 123, port: 0 } },
     { ...valid, projectIds: ["alpha"] },
     { ...valid, credentials: [{ token: "secret", projectIds: ["alpha"] }] },
   ];
@@ -106,28 +106,21 @@ test("private server config fails closed for malformed or unsafe settings", asyn
   assert.equal(parsed.uiRoot, explicitUiRoot);
 });
 
-test("private server config permits an opted-in Tailscale listener only on its assigned interface", async (t) => {
+test("private server config accepts every non-empty listen host without a network policy", async (t) => {
   const root = await makeRoot(t);
-  const host = "100.127.228.54";
-  const value = config(root, { listen: { host, port: 43127 } });
-  const tailscaleInterfaces = { tailscale0: [{ address: host, family: "IPv4" }] };
+  const previousAllowTailscaleHttp = process.env.CLIMIER_SERVER_ALLOW_TAILSCALE_HTTP;
+  delete process.env.CLIMIER_SERVER_ALLOW_TAILSCALE_HTTP;
+  t.after(() => {
+    if (previousAllowTailscaleHttp === undefined) {
+      delete process.env.CLIMIER_SERVER_ALLOW_TAILSCALE_HTTP;
+    } else {
+      process.env.CLIMIER_SERVER_ALLOW_TAILSCALE_HTTP = previousAllowTailscaleHttp;
+    }
+  });
 
-  assert.equal(parseServerRuntimeConfig(value, {
-    allowTailscaleHttp: true,
-    networkInterfaces: tailscaleInterfaces,
-  }).listen.host, host);
-  assert.throws(() => parseServerRuntimeConfig(value, {
-    allowTailscaleHttp: false,
-    networkInterfaces: tailscaleInterfaces,
-  }), { code: "INVALID_SERVER_CONFIG" });
-  assert.throws(() => parseServerRuntimeConfig(value, {
-    allowTailscaleHttp: true,
-    networkInterfaces: { eth0: [{ address: host, family: "IPv4" }] },
-  }), { code: "INVALID_SERVER_CONFIG" });
-  assert.throws(() => parseServerRuntimeConfig(config(root, { listen: { host: "100.128.0.1", port: 43127 } }), {
-    allowTailscaleHttp: true,
-    networkInterfaces: { tailscale0: [{ address: "100.128.0.1", family: "IPv4" }] },
-  }), { code: "INVALID_SERVER_CONFIG" });
+  for (const host of ["0.0.0.0", "::", "localhost", "192.0.2.10", "127.0.0.1"]) {
+    assert.equal(parseServerRuntimeConfig(config(root, { listen: { host, port: 0 } })).listen.host, host);
+  }
 });
 
 test("server runtime resolves the packaged UI root and passes it to the server factory", async (t) => {
@@ -273,4 +266,22 @@ test("runtime requires password and service lock before listening", async (t) =>
   const first = await startServerRuntime(file, { password: "password" });
   t.after(() => new Promise((resolve) => first.server.close(resolve)));
   await assert.rejects(startServerRuntime(file, { password: "password" }), { code: "SERVER_ALREADY_RUNNING" });
+});
+
+test("runtime releases the service lock when the operating system rejects the bind", async (t) => {
+  const root = await makeRoot(t);
+  const firstFile = await writeConfig(root, config(root));
+  const first = await startServerRuntime(firstFile, { password: "password" });
+  t.after(() => new Promise((resolve) => first.server.close(resolve)));
+
+  const port = first.server.address().port;
+  const secondStateHome = path.join(root, "second-state-home");
+  const secondFile = await writeConfig(root, config(root, {
+    listen: { host: "127.0.0.1", port },
+    dataRoot: path.join(root, "second-catalog"),
+    stateHome: secondStateHome,
+  }));
+
+  await assert.rejects(startServerRuntime(secondFile, { password: "password" }), { code: "EADDRINUSE" });
+  await assert.rejects(fs.access(path.join(secondStateHome, ".server.lock")), { code: "ENOENT" });
 });
