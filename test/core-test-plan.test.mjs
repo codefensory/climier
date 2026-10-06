@@ -21,11 +21,14 @@ test("listTestFiles discovers nested test files and ignores other modules", asyn
     await fs.mkdir(path.join(root, "nested"));
     await fs.writeFile(path.join(root, "a.test.mjs"), "");
     await fs.writeFile(path.join(root, "nested", "b.test.mjs"), "");
+    await fs.writeFile(path.join(root, "nested", "c.test.ts"), "");
     await fs.writeFile(path.join(root, "helpers.mjs"), "");
+    await fs.writeFile(path.join(root, "nested", "ignored.test.tsx"), "");
     const files = await listTestFiles(root);
     assert.deepEqual(files.map((file) => path.relative(root, file)), [
       "a.test.mjs",
       "nested/b.test.mjs",
+      "nested/c.test.ts",
     ]);
   } finally {
     await fs.rm(root, { recursive: true, force: true });
