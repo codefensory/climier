@@ -1,6 +1,7 @@
 import { statusOf } from "./core.ts";
+import type { ReadModelEdge, ReadModelNode, ReadModelSnapshot } from "./types.ts";
 
-function compareText(a, b) {
+function compareText(a: unknown, b: unknown): number {
   const left = String(a);
   const right = String(b);
   if (left < right) {
@@ -12,15 +13,15 @@ function compareText(a, b) {
   return 0;
 }
 
-function clone(value) {
+function clone<T>(value: T): T {
   return structuredClone(value);
 }
 
-function isRecord(value) {
+function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
-function copyNodePlugin(node, pluginId) {
+function copyNodePlugin(node: ReadModelNode, pluginId: string | undefined): ReadModelNode {
   const nodePlugins = node.plugins;
   delete node.plugins;
   if (pluginId && isRecord(nodePlugins) && Object.prototype.hasOwnProperty.call(nodePlugins, pluginId)) {
@@ -29,15 +30,18 @@ function copyNodePlugin(node, pluginId) {
   return node;
 }
 
-function copyNode(sourceNode, pluginId) {
+function copyNode(sourceNode: unknown, pluginId: string | undefined): ReadModelNode | null {
   if (!isRecord(sourceNode)) {
     return null;
   }
-  return copyNodePlugin(clone(sourceNode), pluginId);
+  return copyNodePlugin(clone(sourceNode) as ReadModelNode, pluginId);
 }
 
-function copyNodes(sourceNodes, pluginId) {
-  const nodes = {};
+function copyNodes(
+  sourceNodes: Record<string, ReadModelNode>,
+  pluginId: string | undefined,
+): { nodes: Record<string, ReadModelNode>; nodeIds: string[] } {
+  const nodes: Record<string, ReadModelNode> = {};
   const nodeIds = Object.keys(sourceNodes).toSorted(compareText);
   for (const id of nodeIds) {
     const node = copyNode(sourceNodes[id], pluginId);
@@ -48,23 +52,24 @@ function copyNodes(sourceNodes, pluginId) {
   return { nodes, nodeIds };
 }
 
-function sourceRecord(value) {
+function sourceRecord(value: unknown): Record<string, unknown> {
   return isRecord(value) ? value : {};
 }
 
-function revisionOf(source) {
-  return Number.isInteger(source.revision) && source.revision >= 0 ? source.revision : 0;
+function revisionOf(source: ReadModelSnapshot): number {
+  const revision = source.revision;
+  return typeof revision === "number" && Number.isInteger(revision) && revision >= 0 ? revision : 0;
 }
 
-function copyEdges(sourceEdges) {
+function copyEdges(sourceEdges: unknown): ReadModelEdge[] {
   return (Array.isArray(sourceEdges) ? sourceEdges : [])
-    .filter((edge) => edge && typeof edge === "object" && !Array.isArray(edge))
-    .map(clone)
+    .filter((edge): edge is ReadModelEdge => isRecord(edge))
+    .map((edge) => clone(edge) as ReadModelEdge)
     .toSorted((a, b) => compareText(a.from, b.from) || compareText(a.to, b.to) || compareText(a.type, b.type));
 }
 
-function deriveStatuses(source, nodes, nodeIds) {
-  const derived = {};
+function deriveStatuses(source: ReadModelSnapshot, nodes: Record<string, ReadModelNode>, nodeIds: string[]): Record<string, unknown> {
+  const derived: Record<string, unknown> = {};
   for (const id of nodeIds) {
     if (Object.prototype.hasOwnProperty.call(nodes, id)) {
       derived[id] = statusOf({ snapshot: source, id });
@@ -73,8 +78,8 @@ function deriveStatuses(source, nodes, nodeIds) {
   return derived;
 }
 
-function copyPlugin(sourcePlugins, pluginId) {
-  const plugins = {};
+function copyPlugin(sourcePlugins: Record<string, unknown>, pluginId: string | undefined): Record<string, unknown> {
+  const plugins: Record<string, unknown> = {};
   if (pluginId && Object.prototype.hasOwnProperty.call(sourcePlugins, pluginId)) {
     plugins[pluginId] = clone(sourcePlugins[pluginId]);
   }
@@ -82,9 +87,14 @@ function copyPlugin(sourcePlugins, pluginId) {
 }
 
 
-export function projectSnapshot({ snapshot, pluginId } = {}) {
-  const source = sourceRecord(snapshot);
-  const sourceNodes = sourceRecord(source.nodes);
+interface ProjectSnapshotArgs {
+  snapshot?: ReadModelSnapshot;
+  pluginId?: string;
+}
+
+export function projectSnapshot({ snapshot, pluginId }: ProjectSnapshotArgs = {}) {
+  const source = sourceRecord(snapshot) as ReadModelSnapshot;
+  const sourceNodes = sourceRecord(source.nodes) as Record<string, ReadModelNode>;
   const { nodes, nodeIds } = copyNodes(sourceNodes, pluginId);
   const edges = copyEdges(source.edges);
   const derived = deriveStatuses(source, nodes, nodeIds);

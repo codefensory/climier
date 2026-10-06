@@ -1,13 +1,89 @@
 import { derive, statusOf, blockingForNode } from "./core.ts";
+import type { ReadModelNode, ReadModelSnapshot } from "./types.ts";
 
-function claimBy(node) {
+interface NodeFilters {
+  initiative?: string | null;
+  domain?: string | null;
+  kind?: string | null;
+}
+
+interface RawStatusFilters extends NodeFilters {
+  all?: boolean;
+  status?: string;
+  "claimed-by"?: string;
+  "stale-ms"?: number;
+  limit?: number;
+}
+
+interface StatusFilters extends NodeFilters {
+  all: boolean;
+  status: string | null;
+  claimedBy: string | null;
+  staleMs: number;
+  limit: number | null;
+}
+
+interface StatusDerived {
+  ready: string[];
+  blocked: string[];
+  backlog: string[];
+  openGates: string[];
+}
+
+interface NodeSummary {
+  id: string;
+  kind?: string;
+  subkind?: string;
+  title: string;
+  status: string;
+  initiative?: string;
+  domain?: string;
+  claimed_by: string | null;
+}
+
+interface StatusAlert {
+  kind: string;
+  severity: string;
+  task_id: string;
+  claimed_by: string;
+  age_ms: number;
+  message: string;
+}
+
+interface StatusPools {
+  knowledge: ReadModelNode[];
+  activeKnowledge: number;
+  submitted: string[];
+  inProgress: string[];
+  openGates: string[];
+}
+
+interface TaskLists {
+  ready: string[];
+  inProgress: string[];
+  submitted: string[];
+  blocked: string[];
+  backlog: string[];
+  cap: (items: string[]) => string[];
+}
+
+export interface StatusResult {
+  summary: Record<string, number>;
+  tasks: Record<string, NodeSummary[]>;
+  gates: { open: NodeSummary[] };
+  knowledge_count: number;
+  alerts: StatusAlert[];
+  [key: string]: unknown;
+}
+
+function claimBy(node: ReadModelNode): string | null {
   if (node?.claim && typeof node.claim === "object" && node.claim.by) {
     return node.claim.by;
   }
   return node?.claimed_by || null;
 }
 
-function claimTimestampMs(at) {
+function claimTimestampMs(at: unknown): number | null {
   if (typeof at === "number") {
     return at;
   }
@@ -18,33 +94,33 @@ function claimTimestampMs(at) {
   return null;
 }
 
-function claimAtMs(node) {
+function claimAtMs(node: ReadModelNode): number | null {
   const at = (node?.claim && node.claim.at) || node?.claimed_at;
   return claimTimestampMs(at);
 }
 
-function matchesNodeFilters(node, { initiative, domain, kind }) {
+function matchesNodeFilters(node: ReadModelNode, { initiative, domain, kind }: NodeFilters): boolean {
   return (!initiative || node.initiative === initiative) &&
     (!domain || node.domain === domain) && (!kind || node.kind === kind);
 }
 
-function matchesStatus(node, id, snapshot, status) {
+function matchesStatus(node: ReadModelNode, id: string, snapshot: ReadModelSnapshot, status: string | null): boolean {
   return !status || (node.status || "open") === status || statusOf({ snapshot, id }) === status;
 }
 
-function isStaleClaimCandidate(node, initiative) {
+function isStaleClaimCandidate(node: ReadModelNode, initiative: string | null | undefined): boolean {
   return node.kind === "resolvable" && node.subkind === "task" &&
     (node.status || "open") === "in_progress" && (!initiative || node.initiative === initiative);
 }
 
-function staleClaimAge(node, now, staleMs, claimedBy) {
+function staleClaimAge(node: ReadModelNode, now: number, staleMs: number, claimedBy: string | null): { age: number; by: string } | null {
   const at = claimAtMs(node);
   const by = claimBy(node);
   const age = at === null ? null : now - at;
   return age !== null && by && age > staleMs && (!claimedBy || by === claimedBy) ? { age, by } : null;
 }
 
-function staleClaimAlert(node, age, by) {
+function staleClaimAlert(node: ReadModelNode, age: number, by: string): StatusAlert {
   return {
     kind: "stale-claim",
     severity: "warning",
@@ -55,7 +131,10 @@ function staleClaimAlert(node, age, by) {
   };
 }
 
-function nodePools(nodes, { initiative, kind }) {
+function nodePools(nodes: Record<string, ReadModelNode>, { initiative, kind }: NodeFilters): {
+  knowledge: ReadModelNode[];
+  activeKnowledge: number;
+} {
   const knowledge = Object.values(nodes).filter((node) => node.kind === "knowledge")
     .filter((node) => matchesNodeFilters(node, { initiative, kind }));
   return {
@@ -64,7 +143,11 @@ function nodePools(nodes, { initiative, kind }) {
   };
 }
 
-function selectOpenGates(nodes, derived, { initiative, kind, status }) {
+function selectOpenGates(
+  nodes: Record<string, ReadModelNode>,
+  derived: StatusDerived,
+  { initiative, kind, status }: NodeFilters & { status: string | null },
+): string[] {
   const openGates = (derived.openGates || []).filter((id) => {
     const node = nodes[id];
     return Boolean(node) && matchesNodeFilters(node, { initiative, kind });
@@ -72,7 +155,7 @@ function selectOpenGates(nodes, derived, { initiative, kind, status }) {
   return status && status !== "open" ? [] : openGates;
 }
 
-function selectActiveTasks(nodes, filters) {
+function selectActiveTasks(nodes: Record<string, ReadModelNode>, filters: StatusFilters): string[] {
   const { initiative, domain, kind, status, claimedBy } = filters;
   const inProgressAll = selectTasks(nodes, { taskStatus: "in_progress", initiative, domain, kind });
   if (status && status !== "in_progress") {
@@ -84,19 +167,27 @@ function selectActiveTasks(nodes, filters) {
   return inProgressAll;
 }
 
-function selectSubmittedTasks(nodes, { initiative, domain, kind, status }) {
+function selectSubmittedTasks(
+  nodes: Record<string, ReadModelNode>,
+  { initiative, domain, kind, status }: NodeFilters & { status: string | null },
+): string[] {
   const submitted = selectTasks(nodes, { taskStatus: "submitted", initiative, domain, kind });
   return status && status !== "submitted" ? [] : submitted;
 }
 
-function createTaskResult(nodes, id, snapshot) {
+function createTaskResult(nodes: Record<string, ReadModelNode>, id: string, snapshot: ReadModelSnapshot) {
   const summary = nodeSummary(nodes[id]);
   const unsatisfiedBlockers = blockingForNode(snapshot, id).filter((blocker) => blocker.satisfied === false)
     .map((blocker) => blocker.node && blocker.node.id).filter(Boolean);
   return { ...summary, unsatisfied_blockers: unsatisfiedBlockers };
 }
 
-function createStatusResult(nodes, pools, tasks, snapshot) {
+function createStatusResult(
+  nodes: Record<string, ReadModelNode>,
+  pools: StatusPools,
+  tasks: TaskLists,
+  snapshot: ReadModelSnapshot,
+): StatusResult {
   const { ready, inProgress, submitted, blocked, backlog, cap } = tasks;
   return {
     summary: {
@@ -121,7 +212,19 @@ function createStatusResult(nodes, pools, tasks, snapshot) {
   };
 }
 
-function applyStatusOptions({ result, pools, nodes, filters, now }) {
+function applyStatusOptions({
+  result,
+  pools,
+  nodes,
+  filters,
+  now,
+}: {
+  result: StatusResult;
+  pools: StatusPools;
+  nodes: Record<string, ReadModelNode>;
+  filters: StatusFilters;
+  now: number;
+}): StatusResult {
   if (filters.all) {
     result.knowledge = projectKnowledge(pools.knowledge);
   }
@@ -132,7 +235,7 @@ function applyStatusOptions({ result, pools, nodes, filters, now }) {
   return result;
 }
 
-function nodeSummary(node) {
+function nodeSummary(node: ReadModelNode): NodeSummary {
   return {
     id: node.id,
     kind: node.kind,
@@ -145,13 +248,13 @@ function nodeSummary(node) {
   };
 }
 
-function requireNow(now) {
+function requireNow(now: number | undefined): asserts now is number {
   if (typeof now !== "number" || !Number.isFinite(now)) {
     throw new TypeError("read-model: now epoch-ms is required");
   }
 }
 
-function statusFilters(filters) {
+function statusFilters(filters: RawStatusFilters): StatusFilters {
   return {
     all: filters.all === true,
     initiative: filters.initiative || null,
@@ -164,13 +267,28 @@ function statusFilters(filters) {
   };
 }
 
-function matchesPool({ id, nodes, snapshot, initiative, domain, kind, status }) {
+function matchesPool({
+  id,
+  nodes,
+  snapshot,
+  initiative,
+  domain,
+  kind,
+  status,
+}: {
+  id: string;
+  nodes: Record<string, ReadModelNode>;
+  snapshot: ReadModelSnapshot;
+} & NodeFilters & { status: string | null }): boolean {
   const node = nodes[id];
   return Boolean(node) && matchesNodeFilters(node, { initiative, domain, kind }) &&
     matchesStatus(node, id, snapshot, status);
 }
 
-function selectTasks(nodes, { taskStatus, initiative, domain, kind }) {
+function selectTasks(
+  nodes: Record<string, ReadModelNode>,
+  { taskStatus, initiative, domain, kind }: NodeFilters & { taskStatus: string },
+): string[] {
   return Object.values(nodes)
     .filter((node) => node.kind === "resolvable" && node.subkind === "task" && (node.status || "open") === taskStatus)
     .filter((node) => !initiative || node.initiative === initiative)
@@ -179,7 +297,11 @@ function selectTasks(nodes, { taskStatus, initiative, domain, kind }) {
     .map((node) => node.id);
 }
 
-function selectStatusPools(nodes, derived, filters) {
+function selectStatusPools(
+  nodes: Record<string, ReadModelNode>,
+  derived: StatusDerived,
+  filters: StatusFilters,
+): StatusPools {
   const { initiative, domain, kind, status } = filters;
   const taskFilters = { initiative, domain, kind, status };
   const nodeFilters = { initiative, kind };
@@ -192,7 +314,7 @@ function selectStatusPools(nodes, derived, filters) {
   };
 }
 
-function projectKnowledge(nodes) {
+function projectKnowledge(nodes: ReadModelNode[]) {
   return nodes.map((node) => ({
     id: node.id,
     title: node.title || "",
@@ -206,7 +328,12 @@ function projectKnowledge(nodes) {
   }));
 }
 
-function appendStaleClaimAlerts(result, nodes, { initiative, claimedBy, staleMs }, now) {
+function appendStaleClaimAlerts(
+  result: StatusResult,
+  nodes: Record<string, ReadModelNode>,
+  { initiative, claimedBy, staleMs }: StatusFilters,
+  now: number,
+): void {
   for (const node of Object.values(nodes)) {
     if (!isStaleClaimCandidate(node, initiative)) {
       continue;
@@ -218,7 +345,12 @@ function appendStaleClaimAlerts(result, nodes, { initiative, claimedBy, staleMs 
   }
 }
 
-function projectHistoricalStatuses(result, nodes, filters, knowledge) {
+function projectHistoricalStatuses(
+  result: StatusResult,
+  nodes: Record<string, ReadModelNode>,
+  filters: StatusFilters,
+  knowledge: ReadModelNode[],
+): void {
   const { initiative } = filters;
   const onInitiative = (node) => !initiative || node.initiative === initiative;
   const tasks = (taskStatus) => Object.values(nodes).filter((node) =>
@@ -241,7 +373,13 @@ function projectHistoricalStatuses(result, nodes, filters, knowledge) {
   };
 }
 
-function taskLists({ snapshot, nodes, pools, filters, derived }) {
+function taskLists({ snapshot, nodes, pools, filters, derived }: {
+  snapshot: ReadModelSnapshot;
+  nodes: Record<string, ReadModelNode>;
+  pools: StatusPools;
+  filters: StatusFilters;
+  derived: StatusDerived;
+}): TaskLists {
   const cap = (items) => filters.limit === null ? items : items.slice(0, filters.limit);
   const pool = (ids) => ids.filter((id) => matchesPool({ ...filters, id, nodes, snapshot }));
   return {
@@ -255,7 +393,13 @@ function taskLists({ snapshot, nodes, pools, filters, derived }) {
 }
 
 
-export function projectStatusView({ snapshot, filters = {}, now } = {}) {
+interface ProjectStatusArgs {
+  snapshot?: ReadModelSnapshot;
+  filters?: RawStatusFilters;
+  now?: number;
+}
+
+export function projectStatusView({ snapshot = {}, filters = {}, now }: ProjectStatusArgs = {}) {
   requireNow(now);
   const nodes = snapshot?.nodes || {};
   const options = statusFilters(filters);

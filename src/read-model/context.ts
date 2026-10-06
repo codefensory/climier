@@ -1,6 +1,20 @@
 import { blockingForNode, informingForNode, knowledgeForNode, statusOf } from "./core.ts";
+import type { ReadModelClaim, ReadModelNode, ReadModelSnapshot } from "./types.ts";
 
-function rawClaim(node) {
+interface ContextClaim {
+  by: string | null;
+  at: string | number | null;
+  stale?: boolean;
+}
+
+interface ContextAlert {
+  kind: string;
+  node_id: string;
+  message: string;
+  [key: string]: unknown;
+}
+
+function rawClaim(node: ReadModelNode): ContextClaim | null {
   if (node.claim && typeof node.claim === "object" && node.claim.by) {
     return { by: node.claim.by, at: node.claim.at ?? null };
   }
@@ -10,7 +24,7 @@ function rawClaim(node) {
   return null;
 }
 
-function claimTimestamp(at) {
+function claimTimestamp(at: ReadModelClaim["at"]): number {
   if (typeof at === "number") {
     return at;
   }
@@ -20,7 +34,7 @@ function claimTimestamp(at) {
   return NaN;
 }
 
-function contextClaim(node, staleMs, now) {
+function contextClaim(node: ReadModelNode, staleMs: number, now: number): ContextClaim | null {
   const raw = rawClaim(node);
   if (!raw) {
     return null;
@@ -29,15 +43,15 @@ function contextClaim(node, staleMs, now) {
   return { ...raw, stale: Number.isFinite(at) && now - at > staleMs };
 }
 
-function isIdentified(agent) {
+function isIdentified(agent: unknown): agent is string {
   return typeof agent === "string" && agent.length > 0;
 }
 
-function hasTaskStatus(derivedStatus, status) {
+function hasTaskStatus(derivedStatus: string, status: string): boolean {
   return derivedStatus === status;
 }
 
-function taskActionsByStatus(derivedStatus, identified) {
+function taskActionsByStatus(derivedStatus: string, identified: boolean): string[] {
   const actions = {
     ready: [...(identified ? ["claim"] : []), "update", "add-note", "cancel"],
     in_progress: identified ? ["submit", "release", "add-note", "update"] : ["add-note"],
@@ -48,7 +62,7 @@ function taskActionsByStatus(derivedStatus, identified) {
   return actions[derivedStatus] || [];
 }
 
-function projectContextNode(node, derivedStatus, agent) {
+function projectContextNode(node: ReadModelNode, derivedStatus: string, agent: unknown) {
   return {
     node: structuredClone(node),
     derived_status: derivedStatus,
@@ -58,11 +72,11 @@ function projectContextNode(node, derivedStatus, agent) {
   };
 }
 
-function taskAllowedActions(derivedStatus, identified) {
+function taskAllowedActions(derivedStatus: string, identified: boolean): string[] {
   return taskActionsByStatus(derivedStatus, identified);
 }
 
-function gateAllowedActions(derivedStatus, identified) {
+function gateAllowedActions(derivedStatus: string, identified: boolean): string[] {
   if (derivedStatus === "open") {
     return [
       "resolve --choice <X> --rationale <Y>",
@@ -80,7 +94,7 @@ function gateAllowedActions(derivedStatus, identified) {
   return [];
 }
 
-function knowledgeAllowedActions(node) {
+function knowledgeAllowedActions(node: ReadModelNode): string[] {
   if ((node.status || "active") === "active") {
     return ["update", "add-note", "deprecate-knowledge"];
   }
@@ -90,7 +104,7 @@ function knowledgeAllowedActions(node) {
   return [];
 }
 
-function contextAllowedActions(node, derivedStatus, identified) {
+function contextAllowedActions(node: ReadModelNode, derivedStatus: string, identified: boolean): string[] {
   if (node.kind === "resolvable" && node.subkind === "task") {
     return taskAllowedActions(derivedStatus, identified);
   }
@@ -103,7 +117,7 @@ function contextAllowedActions(node, derivedStatus, identified) {
   return [];
 }
 
-function appendBlockerAlerts(alerts, blocking, id) {
+function appendBlockerAlerts(alerts: ContextAlert[], blocking: Array<{ node?: ReadModelNode }>, id: string): void {
   for (const blocker of blocking) {
     const node = blocker.node;
     if (!node || node.status !== "superseded") {
@@ -120,7 +134,7 @@ function appendBlockerAlerts(alerts, blocking, id) {
   }
 }
 
-function appendKnowledgeAlerts(alerts, knowledge, id) {
+function appendKnowledgeAlerts(alerts: ContextAlert[], knowledge: ReadModelNode[], id: string): void {
   for (const item of knowledge) {
     if (item.status !== "deprecated") {
       continue;
@@ -134,8 +148,13 @@ function appendKnowledgeAlerts(alerts, knowledge, id) {
   }
 }
 
-function createContextAlerts(claim, blocking, knowledge, id) {
-  const alerts = [];
+function createContextAlerts(
+  claim: ContextClaim | null,
+  blocking: Array<{ node?: ReadModelNode }>,
+  knowledge: ReadModelNode[],
+  id: string,
+): ContextAlert[] {
+  const alerts: ContextAlert[] = [];
   if (claim?.stale) {
     alerts.push({ kind: "STALE_CLAIM", node_id: id, claimed_by: claim.by, message: `${id} claimed by ${claim.by} is stale` });
   }
@@ -145,20 +164,28 @@ function createContextAlerts(claim, blocking, knowledge, id) {
 }
 
 
-export function projectContextView({ snapshot, id, agent, staleMs = 2 * 60 * 60 * 1000, now } = {}) {
+interface ProjectContextArgs {
+  snapshot?: ReadModelSnapshot;
+  id?: string;
+  agent?: unknown;
+  staleMs?: number;
+  now?: number;
+}
+
+export function projectContextView({ snapshot, id, agent, staleMs = 2 * 60 * 60 * 1000, now }: ProjectContextArgs = {}) {
   if (typeof now !== "number" || !Number.isFinite(now)) {
     throw new TypeError("read-model: now epoch-ms is required");
   }
-  const node = snapshot?.nodes?.[id];
+  const node = snapshot?.nodes?.[id as string];
   if (!node) {
     return null;
   }
   const claim = contextClaim(node, staleMs, now);
-  const blocking = blockingForNode(snapshot, id);
-  const knowledge = knowledgeForNode(snapshot, id);
-  const informing = informingForNode(snapshot, id);
-  const alerts = createContextAlerts(claim, blocking, knowledge, id);
-  const derivedStatus = statusOf({ snapshot, id });
+  const blocking = blockingForNode(snapshot, id as string);
+  const knowledge = knowledgeForNode(snapshot, id as string);
+  const informing = informingForNode(snapshot, id as string);
+  const alerts = createContextAlerts(claim, blocking, knowledge, id as string);
+  const derivedStatus = statusOf({ snapshot, id: id as string });
   return {
     ...projectContextNode(node, derivedStatus, agent),
     claim,

@@ -1,6 +1,9 @@
 {
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
+    "strict": true,
+    "noCheck": false,
+    "lib": ["ES2023"],
     "rootDir": ".",
     "outDir": "node_modules/.cache/climier-tsbuild/read-model",
     "tsBuildInfoFile": "node_modules/.cache/climier-tsbuild/read-model.tsbuildinfo"

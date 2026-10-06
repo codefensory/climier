@@ -8,67 +8,157 @@ import {
   statusOf,
   supersededBy,
 } from "./core.ts";
+import type { ReadModelLogEntry, ReadModelNode, ReadModelRef, ReadModelSnapshot } from "./types.ts";
 
 const DEFAULT_ACTIVITY_LIMIT = 50;
+
+type UiProject = string | null | undefined | {
+  id?: string;
+  project_id?: string;
+  name?: string;
+  revision?: number;
+  generated_at?: string;
+};
+
+interface UiDerived {
+  ready: string[];
+  blocked: string[];
+  backlog: string[];
+  openGates: string[];
+  submitted: string[];
+}
+
+export interface UiAlert {
+  kind: string;
+  severity: string;
+  node_id: string;
+  claimed_by: string;
+  age_ms: number;
+  message: string;
+}
+
+export interface UiSummary {
+  ready: number;
+  in_progress: number;
+  submitted: number;
+  blocked: number;
+  backlog: number;
+  placeholders: number;
+  stale: number;
+  open_gates: number;
+  open_decisions: number;
+  done: number;
+  archived: number;
+  canceled: number;
+  resolved_gates: number;
+  superseded: number;
+  active_knowledge: number;
+  deprecated_knowledge: number;
+  total_nodes: number;
+}
+
+export interface InitiativeSlot {
+  initiative: string;
+  total: number;
+  by_kind: {
+    tasks: Record<string, number>;
+    gates: Record<string, number>;
+    knowledge: Record<string, number>;
+  };
+}
+
+interface ActivityFilters {
+  action?: string;
+  agent?: string;
+  node?: string;
+  initiative?: string;
+  q?: string;
+}
+
+interface RefDefaults {
+  type?: string;
+  source?: string;
+}
+
+interface UiProjectSnapshotArgs {
+  snapshot?: ReadModelSnapshot;
+  project?: UiProject;
+  now?: number;
+  activityLimit?: number;
+  staleMs?: number;
+}
+
+interface UiNodeArgs {
+  snapshot?: ReadModelSnapshot;
+  id?: string;
+}
+
+interface UiActivityArgs {
+  snapshot?: ReadModelSnapshot;
+  filters?: ActivityFilters;
+  limit?: number;
+  offset?: number;
+}
 const DEFAULT_STALE_MS = 2 * 60 * 60 * 1000;
 
-function nodesOf(snapshot) {
+function nodesOf(snapshot: ReadModelSnapshot | undefined): Record<string, ReadModelNode> {
   return snapshot?.nodes && typeof snapshot.nodes === "object" && !Array.isArray(snapshot.nodes)
     ? snapshot.nodes
     : {};
 }
 
-function edgesOf(snapshot) {
+function edgesOf(snapshot: ReadModelSnapshot | undefined) {
   return Array.isArray(snapshot?.edges) ? snapshot.edges : [];
 }
 
-function logOf(snapshot) {
+function logOf(snapshot: ReadModelSnapshot | undefined): ReadModelLogEntry[] {
   return Array.isArray(snapshot?.log) ? snapshot.log : [];
 }
 
-function clone(value) {
+function clone<T>(value: T): T {
   return structuredClone(value);
 }
 
-function projectIdOf(project) {
+function projectIdOf(project: UiProject): string {
   if (typeof project === "string") {
     return project;
   }
   return project?.id ?? project?.project_id ?? "";
 }
 
-function projectNameOf(project, id) {
+function projectNameOf(project: UiProject, id: string): string {
   if (project && typeof project === "object" && typeof project.name === "string" && project.name.length > 0) {
     return project.name;
   }
   return id;
 }
 
-function revisionOf(snapshot, project) {
-  if (Number.isInteger(project?.revision) && project.revision >= 0) {
+function revisionOf(snapshot: ReadModelSnapshot | undefined, project: UiProject): number {
+  if (project && typeof project === "object" && typeof project.revision === "number" && Number.isInteger(project.revision) && project.revision >= 0) {
     return project.revision;
   }
-  return Number.isInteger(snapshot?.revision) && snapshot.revision >= 0 ? snapshot.revision : 0;
+  const revision = snapshot?.revision;
+  return typeof revision === "number" && Number.isInteger(revision) && revision >= 0 ? revision : 0;
 }
 
-function generatedAt(now, project) {
-  if (typeof project?.generated_at === "string") {
+function generatedAt(now: number | undefined, project: UiProject): string {
+  if (project && typeof project === "object" && typeof project.generated_at === "string") {
     return project.generated_at;
   }
   if (!Number.isFinite(now)) {
     throw new TypeError("read-model ui: now epoch-ms is required");
   }
-  return new Date(now).toISOString();
+  return new Date(now as number).toISOString();
 }
 
-function claimBy(node) {
-  if (node?.claim && typeof node.claim === "object" && node.claim.by) {
+function claimBy(node: ReadModelNode): string | null {
+  if (node.claim && typeof node.claim === "object" && node.claim.by) {
     return node.claim.by;
   }
-  return node?.claimed_by || null;
+  return node.claimed_by || null;
 }
 
-function claimAtMs(node) {
+function claimAtMs(node: ReadModelNode): number | null {
   const at = node?.claim?.at ?? node?.claimed_at;
   if (typeof at === "number") {
     return Number.isFinite(at) ? at : null;
@@ -80,13 +170,13 @@ function claimAtMs(node) {
   return null;
 }
 
-function staleClaim(node, now, staleMs) {
+function staleClaim(node: ReadModelNode, now: number | undefined, staleMs: number): UiAlert | null {
   if (node?.kind !== "resolvable" || node.subkind !== "task" || (node.status || "open") !== "in_progress") {
     return null;
   }
   const by = claimBy(node);
   const at = claimAtMs(node);
-  if (!by || at === null || now - at <= staleMs) {
+  if (!by || at === null || (now as number) - at <= staleMs) {
     return null;
   }
   return {
@@ -94,12 +184,12 @@ function staleClaim(node, now, staleMs) {
     severity: "warning",
     node_id: node.id,
     claimed_by: by,
-    age_ms: now - at,
-    message: `${node.id} claimed by ${by} is stale (${Math.round((now - at) / 60000)}m old)`,
+    age_ms: (now as number) - at,
+    message: `${node.id} claimed by ${by} is stale (${Math.round(((now as number) - at) / 60000)}m old)`,
   };
 }
 
-function zeroSummary() {
+function zeroSummary(): UiSummary {
   return {
     ready: 0,
     in_progress: 0,
@@ -121,19 +211,19 @@ function zeroSummary() {
   };
 }
 
-function taskNodes(nodes) {
+function taskNodes(nodes: Record<string, ReadModelNode>): ReadModelNode[] {
   return Object.values(nodes).filter((node) => node?.kind === "resolvable" && node.subkind === "task");
 }
 
-function gateNodes(nodes) {
+function gateNodes(nodes: Record<string, ReadModelNode>): ReadModelNode[] {
   return Object.values(nodes).filter((node) => node?.kind === "resolvable" && node.subkind === "gate");
 }
 
-function knowledgeNodes(nodes) {
+function knowledgeNodes(nodes: Record<string, ReadModelNode>): ReadModelNode[] {
   return Object.values(nodes).filter((node) => node?.kind === "knowledge");
 }
 
-function summaryOf(nodes, derived, alerts) {
+function summaryOf(nodes: Record<string, ReadModelNode>, derived: UiDerived, alerts: UiAlert[]): UiSummary {
   const tasks = taskNodes(nodes);
   const gates = gateNodes(nodes);
   const knowledge = knowledgeNodes(nodes);
@@ -158,7 +248,7 @@ function summaryOf(nodes, derived, alerts) {
   return summary;
 }
 
-function initiativeSlot(name) {
+function initiativeSlot(name: string): InitiativeSlot {
   return {
     initiative: name,
     total: 0,
@@ -170,13 +260,13 @@ function initiativeSlot(name) {
   };
 }
 
-function initiativeSummary(snapshot, derived) {
+function initiativeSummary(snapshot: ReadModelSnapshot | undefined, derived: UiDerived): InitiativeSlot[] {
   const nodes = nodesOf(snapshot);
   const ready = new Set(derived.ready);
   const blocked = new Set(derived.blocked);
   const backlog = new Set(derived.backlog);
   const submitted = new Set(derived.submitted);
-  const byInitiative = new Map();
+  const byInitiative = new Map<string, InitiativeSlot>();
   for (const node of Object.values(nodes)) {
     if (!node?.initiative) {
       continue;
@@ -219,7 +309,10 @@ function initiativeSummary(snapshot, derived) {
   return [...byInitiative.values()].sort((left, right) => right.total - left.total || left.initiative.localeCompare(right.initiative));
 }
 
-function normalizeActivityEntry(snapshot, entry) {
+function normalizeActivityEntry(
+  snapshot: ReadModelSnapshot | undefined,
+  entry: ReadModelLogEntry,
+): ReadModelLogEntry & { node_id: string | null; node_title: string | null } {
   const nodes = nodesOf(snapshot);
   const id = entry?.node || entry?.task || null;
   const node = id ? nodes[id] : null;
@@ -230,18 +323,18 @@ function normalizeActivityEntry(snapshot, entry) {
   };
 }
 
-function recentActivity(snapshot, limit) {
+function recentActivity(snapshot: ReadModelSnapshot | undefined, limit: number) {
   return logOf(snapshot).slice(-limit).reverse().map((entry) => normalizeActivityEntry(snapshot, entry));
 }
 
-function lastActivity(snapshot) {
-  const result = {};
+function lastActivity(snapshot: ReadModelSnapshot | undefined): Record<string, Record<string, unknown>> {
+  const result: Record<string, Record<string, unknown>> = {};
   for (const entry of logOf(snapshot)) {
     const id = entry?.node || entry?.task;
     if (!id) {
       continue;
     }
-    const activity = {};
+    const activity: Record<string, unknown> = {};
     for (const key of ["action", "agent", "ts", "note"]) {
       if (entry[key] !== undefined) {
         activity[key] = entry[key];
@@ -252,27 +345,28 @@ function lastActivity(snapshot) {
   return result;
 }
 
-function normalizeRef(input, defaults = {}) {
+function normalizeRef(input: unknown, defaults: RefDefaults = {}): ReadModelRef | null {
   if (input == null) {
     return null;
   }
   if (typeof input === "string") {
     return { target: input, type: defaults.type || "doc", source: defaults.source || "explicit" };
   }
-  if (typeof input === "object") {
+  if (typeof input === "object" && input !== null) {
+    const record = input as Record<string, unknown>;
     return {
-      target: String(input.target || ""),
-      type: String(input.type || defaults.type || "doc"),
-      source: String(input.source || defaults.source || "explicit"),
+      target: String(record.target || ""),
+      type: String(record.type || defaults.type || "doc"),
+      source: String(record.source || defaults.source || "explicit"),
     };
   }
   return null;
 }
 
-function refsOf(node) {
-  const result = [];
-  const seen = new Set();
-  const push = (value, defaults) => {
+function refsOf(node: ReadModelNode): ReadModelRef[] {
+  const result: ReadModelRef[] = [];
+  const seen = new Set<string>();
+  const push = (value: unknown, defaults: RefDefaults = {}): void => {
     const ref = normalizeRef(value, defaults);
     if (!ref || !ref.target) {
       return;
@@ -305,7 +399,7 @@ function refsOf(node) {
   return result;
 }
 
-function inlineNode(snapshot, id) {
+function inlineNode(snapshot: ReadModelSnapshot | undefined, id: string): Record<string, unknown> {
   const node = nodesOf(snapshot)[id];
   if (!node) {
     return { id, status: "missing", is_current: true, superseded_by: null };
@@ -313,18 +407,22 @@ function inlineNode(snapshot, id) {
   return { ...clone(node), is_current: isCurrent(snapshot, id), superseded_by: supersededBy(snapshot, id) };
 }
 
-function dependentsForNode(snapshot, id) {
-  return outgoing(snapshot, id).map((edge) => ({ edge_type: edge.type, node: inlineNode(snapshot, edge.to) }));
+function dependentsForNode(snapshot: ReadModelSnapshot | undefined, id: string) {
+  return outgoing(snapshot, id, undefined).map((edge) => ({ edge_type: edge.type, node: inlineNode(snapshot, edge.to) }));
 }
 
-function logForNode(snapshot, id) {
+function logForNode(snapshot: ReadModelSnapshot | undefined, id: string) {
   return logOf(snapshot)
     .filter((entry) => entry?.node === id || entry?.task === id)
     .slice(-DEFAULT_ACTIVITY_LIMIT)
     .map((entry) => normalizeActivityEntry(snapshot, entry));
 }
 
-function applyActivityFilters(snapshot, entries, filters = {}) {
+function applyActivityFilters(
+  snapshot: ReadModelSnapshot | undefined,
+  entries: ReadModelLogEntry[],
+  filters: ActivityFilters = {},
+): ReadModelLogEntry[] {
   const nodes = nodesOf(snapshot);
   let result = entries;
   if (filters.action) result = result.filter((entry) => entry.action === filters.action);
@@ -351,8 +449,8 @@ function applyActivityFilters(snapshot, entries, filters = {}) {
   return result;
 }
 
-function facet(entries, key) {
-  const counts = new Map();
+function facet(entries: ReadModelLogEntry[], key: "action" | "agent"): Array<Record<string, unknown> & { count: number }> {
+  const counts = new Map<unknown, number>();
   for (const entry of entries) {
     if (entry[key] == null) {
       continue;
@@ -364,20 +462,30 @@ function facet(entries, key) {
     .sort((left, right) => right.count - left.count || String(left[key]).localeCompare(String(right[key])));
 }
 
-function activityFacets(snapshot, entries, filters) {
+function activityFacets(
+  snapshot: ReadModelSnapshot | undefined,
+  entries: ReadModelLogEntry[],
+  filters: ActivityFilters,
+): { actions: Array<Record<string, unknown> & { count: number }>; agents: Array<Record<string, unknown> & { count: number }> } {
   return {
     actions: facet(applyActivityFilters(snapshot, entries, { ...filters, action: undefined }), "action"),
     agents: facet(applyActivityFilters(snapshot, entries, { ...filters, agent: undefined }), "agent"),
   };
 }
 
-function numericOption(value, fallback) {
-  return Number.isInteger(value) && value >= 0 ? value : fallback;
+function numericOption(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : fallback;
 }
 
-export function projectUiSnapshot({ snapshot = {}, project = {}, now, activityLimit = DEFAULT_ACTIVITY_LIMIT, staleMs = DEFAULT_STALE_MS } = {}) {
+export function projectUiSnapshot({
+  snapshot = {},
+  project = {},
+  now,
+  activityLimit = DEFAULT_ACTIVITY_LIMIT,
+  staleMs = DEFAULT_STALE_MS,
+}: UiProjectSnapshotArgs = {}) {
   const nodes = nodesOf(snapshot);
-  const derivedBase = derive({ snapshot });
+  const derivedBase = derive({ snapshot }) as Partial<UiDerived>;
   const submitted = taskNodes(nodes)
     .filter((node) => (node.status || "open") === "submitted")
     .map((node) => node.id);
@@ -390,7 +498,7 @@ export function projectUiSnapshot({ snapshot = {}, project = {}, now, activityLi
   };
   const alerts = Object.values(nodes)
     .map((node) => staleClaim(node, now, staleMs))
-    .filter(Boolean);
+    .filter((alert): alert is UiAlert => alert !== null);
   const id = projectIdOf(project);
   const recentLimit = Math.min(DEFAULT_ACTIVITY_LIMIT, numericOption(activityLimit, DEFAULT_ACTIVITY_LIMIT));
   return {
@@ -412,18 +520,18 @@ export function projectUiSnapshot({ snapshot = {}, project = {}, now, activityLi
   };
 }
 
-export function projectUiNode({ snapshot = {}, id } = {}) {
-  const node = nodesOf(snapshot)[id];
+export function projectUiNode({ snapshot = {}, id }: UiNodeArgs = {}) {
+  const node = nodesOf(snapshot)[id as string];
   if (!node) {
     return null;
   }
   return {
     node: clone(node),
     blocking: clone(blockingForNode({ snapshot, id })),
-    dependents: dependentsForNode(snapshot, id),
+    dependents: dependentsForNode(snapshot, id as string),
     informing: clone(informingForNode({ snapshot, id })),
     knowledge: clone(knowledgeForNode({ snapshot, id })),
-    history: logForNode(snapshot, id),
+    history: logForNode(snapshot, id as string),
     refs: refsOf(node),
     derived_status: statusOf({ snapshot, id }),
     is_current: isCurrent(snapshot, id),
@@ -431,7 +539,12 @@ export function projectUiNode({ snapshot = {}, id } = {}) {
   };
 }
 
-export function projectUiActivity({ snapshot = {}, filters = {}, limit = DEFAULT_ACTIVITY_LIMIT, offset = 0 } = {}) {
+export function projectUiActivity({
+  snapshot = {},
+  filters = {},
+  limit = DEFAULT_ACTIVITY_LIMIT,
+  offset = 0,
+}: UiActivityArgs = {}) {
   const source = logOf(snapshot);
   const filtered = applyActivityFilters(snapshot, source, filters);
   const pageLimit = numericOption(limit, DEFAULT_ACTIVITY_LIMIT);

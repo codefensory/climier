@@ -1,15 +1,17 @@
-const searchableFields = (node) => [
+import type { ReadModelNode, ReadModelSnapshot } from "./types.ts";
+
+const searchableFields = (node: ReadModelNode): Array<[string, unknown]> => [
   ["id", node.id],
   ["title", node.title],
   ["body", node.body],
   ["mitigation", node.mitigation],
   ["domain", node.domain],
   ["tags", node.tags],
-  ["refs", (node.refs || []).map((ref) => ref && ref.target)],
+  ["refs", (node.refs || []).map((ref) => typeof ref === "object" && ref !== null ? ref.target : undefined)],
   ["meta", node.meta],
 ];
 
-function includes(value, textQuery) {
+function includes(value: unknown, textQuery: string): boolean {
   if (value === null || value === undefined) {
     return false;
   }
@@ -18,7 +20,13 @@ function includes(value, textQuery) {
 }
 
 
-export function projectSearchView({ snapshot, query = "", all = false } = {}) {
+interface ProjectSearchArgs {
+  snapshot?: ReadModelSnapshot;
+  query?: string;
+  all?: boolean;
+}
+
+export function projectSearchView({ snapshot, query = "", all = false }: ProjectSearchArgs = {}) {
   const textQuery = String(query ?? "").toLowerCase();
   if (!textQuery) {
     return { matches: [], count: 0 };

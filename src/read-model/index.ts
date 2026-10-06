@@ -9,8 +9,21 @@ import { projectSearchView } from "./search.ts";
 import { projectContextView } from "./context.ts";
 import { projectSnapshot } from "./snapshot.ts";
 import { projectUiActivity, projectUiNode, projectUiSnapshot } from "./ui.ts";
+import type { ReadModelLogEntry, ReadModelSnapshot } from "./types.ts";
 
-function filterLogEntries(entries, filters) {
+interface LogFilters {
+  action?: string;
+  agent?: string;
+  node?: string;
+  limit?: string | number;
+}
+
+interface ProjectLogArgs {
+  snapshot?: ReadModelSnapshot;
+  filters?: LogFilters;
+}
+
+function filterLogEntries(entries: ReadModelLogEntry[], filters: LogFilters): ReadModelLogEntry[] {
   let current = entries;
   for (const key of ["action", "agent", "node"]) {
     if (filters[key]) {
@@ -20,16 +33,16 @@ function filterLogEntries(entries, filters) {
   return current;
 }
 
-function limitLogEntries(entries, limitValue) {
+function limitLogEntries(entries: ReadModelLogEntry[], limitValue: string | number | undefined): ReadModelLogEntry[] {
   if (!limitValue) {
     return entries;
   }
-  const limit = Number.parseInt(limitValue, 10);
+  const limit = Number.parseInt(String(limitValue), 10);
   return Number.isFinite(limit) && limit > 0 ? entries.slice(-limit) : entries;
 }
 
 /** Project a snapshot's append-only log without changing its order or shape. */
-export function projectLogView({ snapshot, filters = {} } = {}) {
+export function projectLogView({ snapshot, filters = {} }: ProjectLogArgs = {}) {
   const entries = snapshot?.log || [];
   return limitLogEntries(filterLogEntries(entries, filters), filters.limit);
 }

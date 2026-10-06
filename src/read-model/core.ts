@@ -3,6 +3,7 @@
 // have no filesystem, argv, mutation, or logging concerns.
 
 import { incoming } from "../kernel/graph.ts";
+import type { ReadModelSnapshot } from "./types.ts";
 import {
   deriveV2,
   statusOfV2 as taskStatusOfV2,
@@ -18,23 +19,29 @@ import {
   informingForNode as providerInformingForNode,
 } from "../providers/knowledge/index.ts";
 
-function projectionArgs(input, id) {
+interface ProjectionArgs {
+  snapshot?: ReadModelSnapshot;
+  id?: string;
+}
+
+function projectionArgs(input: ReadModelSnapshot | ProjectionArgs | undefined, id?: string): ProjectionArgs {
   if (input && typeof input === "object" && Object.prototype.hasOwnProperty.call(input, "snapshot")) {
-    return { snapshot: input.snapshot, id: input.id };
+    const args = input as ProjectionArgs;
+    return { snapshot: args.snapshot, id: args.id };
   }
-  return { snapshot: input, id };
+  return { snapshot: input as ReadModelSnapshot | undefined, id };
 }
 
 
-export function derive({ snapshot } = {}) {
+export function derive({ snapshot }: { snapshot?: ReadModelSnapshot } = {}) {
   return deriveV2(snapshot);
 }
 
 
-export function statusOf(input, id) {
+export function statusOf(input: ReadModelSnapshot | ProjectionArgs | undefined, id?: string) {
   const args = projectionArgs(input, id);
   const { snapshot } = args;
-  const node = snapshot && snapshot.nodes ? snapshot.nodes[args.id] : null;
+  const node = snapshot && snapshot.nodes ? snapshot.nodes[args.id as string] : null;
   if (node && node.kind === "resolvable" && node.subkind === "gate" && (node.status || "open") === "open") {
     return "open";
   }
@@ -42,7 +49,7 @@ export function statusOf(input, id) {
 }
 
 
-export function blockingForNode(input, id) {
+export function blockingForNode(input: ReadModelSnapshot | ProjectionArgs | undefined, id?: string) {
   const { snapshot, id: targetId } = projectionArgs(input, id);
   return incoming(snapshot, targetId, "BLOCKS").map((edge) => ({
     edge_type: edge.type,
@@ -52,13 +59,13 @@ export function blockingForNode(input, id) {
 }
 
 
-export function knowledgeForNode(input, id) {
+export function knowledgeForNode(input: ReadModelSnapshot | ProjectionArgs | undefined, id?: string) {
   const { snapshot, id: targetId } = projectionArgs(input, id);
   return providerKnowledgeForNode({ snapshot, id: targetId });
 }
 
 
-export function informingForNode(input, id) {
+export function informingForNode(input: ReadModelSnapshot | ProjectionArgs | undefined, id?: string) {
   const { snapshot, id: targetId } = projectionArgs(input, id);
   return providerInformingForNode({ snapshot, id: targetId });
 }
