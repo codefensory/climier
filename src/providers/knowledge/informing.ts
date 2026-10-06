@@ -9,7 +9,12 @@
 
 import { relations } from "../../kernel/graph.ts";
 
-function inlineNode(snapshot, id) {
+type InformingSnapshot = {
+  nodes?: Record<string, Record<string, unknown>>;
+  edges?: Array<{ type?: string; from?: string; to?: string }>;
+};
+
+function inlineNode(snapshot: InformingSnapshot, id: string) {
   const node = snapshot && snapshot.nodes ? snapshot.nodes[id] : null;
   if (!node) {
     return {
@@ -33,7 +38,9 @@ function inlineNode(snapshot, id) {
 }
 
 
-export function informingForNode({ snapshot, id } = {}) {
+export function informingForNode(
+  { snapshot, id }: { snapshot?: InformingSnapshot; id?: string } = {},
+) {
   if (!snapshot || typeof snapshot !== "object") {
     return [];
   }

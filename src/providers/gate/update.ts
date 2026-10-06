@@ -155,7 +155,7 @@ function normalizeRef(ref, index) {
 }
 
 function normalizePatch(changes) {
-  const patch = {};
+  const patch: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(changes)) {
     if (key === "tags") {
       patch.tags = csv(value, key);

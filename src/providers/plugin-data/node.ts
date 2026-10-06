@@ -7,6 +7,16 @@ import { cloneValue, nonEmpty, pluginIdFrom, planPolicyAction, validateValue } f
 
 const OP = "plugin-data.node.set";
 const LOG_ACTION = "plugin-data-set";
+type NodePlan = {
+  target: Readonly<{ id: string; kind: "plugin-data-node"; log_node: false }>;
+  policyAction: object;
+  logAction: string;
+  logFields: Readonly<{ scope: "node"; node_id: string; key: null }>;
+  pluginId: string;
+  nodeId: string;
+  value: unknown;
+  if_revision?: Readonly<{ kind: string; id: string; value: number }>;
+};
 
 function inputObject(input) {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
@@ -51,7 +61,7 @@ async function prepare({ snapshot, input, request, pluginId }) {
   const value = validateValue(source, OP);
   const identity = pluginIdFrom(request, pluginId, OP);
   const ifRevision = revisionPlan(id, source);
-  const plan = {
+  const plan: NodePlan = {
     target: Object.freeze({ id, kind: "plugin-data-node", log_node: false }),
     policyAction: planPolicyAction(OP, identity),
     logAction: LOG_ACTION,

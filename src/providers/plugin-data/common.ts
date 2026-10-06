@@ -13,7 +13,7 @@ export function pluginIdFrom(request, explicitPluginId, operation) {
   return pluginId;
 }
 
-function invalidJsonValue(operation, field, reason) {
+function invalidJsonValue(operation, field, reason): never {
   throwV2("PLUGIN_DATA_INVALID", `${operation}: ${field} must be a JSON-safe value`, {
     field,
     reason,
@@ -132,7 +132,7 @@ export function cloneValue(value, operation, field = "value") {
   } catch (err) {
     throwV2("PLUGIN_DATA_INVALID", `${operation}: ${field} must be cloneable JSON data`, {
       field,
-      cause: err && err.name ? err.name : "DataCloneError",
+      cause: err && typeof err === "object" && "name" in err && err.name ? err.name : "DataCloneError",
     });
   }
 }

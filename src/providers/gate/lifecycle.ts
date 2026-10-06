@@ -169,14 +169,27 @@ function checkNodeRevision(nodes, command, nodeId, expected) {
   }
 }
 
-function loadTargetGate(snapshot, id, command, { terminalOnly = false, allowedStatuses = null } = {}) {
+function loadTargetGate(
+  snapshot,
+  id,
+  command,
+  { terminalOnly = false, allowedStatuses = null }: {
+    terminalOnly?: boolean;
+    allowedStatuses?: readonly string[] | null;
+  } = {},
+) {
   const nodes = readSnapshotNodes(snapshot);
   const node = requireTargetGate(nodes[id], id, command);
   validateGateStatus(node, id, command, { terminalOnly, allowedStatuses });
   return node;
 }
 
-function validateGateStatus(node, id, command, { terminalOnly, allowedStatuses }) {
+function validateGateStatus(
+  node,
+  id,
+  command,
+  { terminalOnly, allowedStatuses }: { terminalOnly: boolean; allowedStatuses: readonly string[] | null },
+) {
   const status = node.status || "open";
   const allowed = allowedStatuses || (terminalOnly ? [TERMINAL_STATUS] : null);
   if (allowed && !allowed.includes(status)) {

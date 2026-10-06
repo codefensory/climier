@@ -20,7 +20,7 @@
 // registry, no adapter, no CLI, no UI. The only side effect is on the
 // caller-supplied `tx` draft.
 
-import { throwV2 } from "../../contracts/errors.ts";
+import { throwV2, type ErrorCode } from "../../contracts/errors.ts";
 
 const POLICY_ACTION = "knowledge.deprecate";
 const COMMAND_OP = "knowledge.deprecate";
@@ -68,14 +68,14 @@ function validateTarget(nodes, id) {
   }
   if (current.kind !== "knowledge") {
     throwV2(
-      "INVALID_PROVIDER_INPUT",
+      "INVALID_PROVIDER_INPUT" as ErrorCode,
       `${COMMAND_OP}: node '${id}' is not a knowledge node (kind=${current.kind})`,
       { id, kind: current.kind },
     );
   }
   if (!Number.isInteger(current.revision)) {
     throwV2(
-      "INVALID_PROVIDER_INPUT",
+      "INVALID_PROVIDER_INPUT" as ErrorCode,
       `${COMMAND_OP}: node '${id}' has no integer revision`,
       { id, revision: current.revision },
     );

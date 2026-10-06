@@ -11,6 +11,20 @@
 
 const SNIPPET_LIMIT = 200;
 
+type SearchNode = Record<string, unknown> & { id: string; kind?: string };
+type SearchSnapshot = { nodes?: Record<string, SearchNode> };
+type CollectedMatch = { node: SearchNode; matchedFields: string[] };
+type SearchResult = {
+  id: string;
+  kind: "knowledge";
+  title: unknown;
+  initiative: unknown;
+  domain: unknown;
+  status: unknown;
+  matched_fields: string[];
+  snippet: string;
+};
+
 function asArray(value) {
   return Array.isArray(value) ? value : [];
 }
@@ -19,7 +33,7 @@ function normalizeQuery(query) {
   return typeof query === "string" ? query.trim().toLowerCase() : "";
 }
 
-function searchableFields(node) {
+function searchableFields(node: SearchNode): Array<[string, unknown]> {
   return [
     ["id", node.id],
     ["title", node.title],
@@ -40,9 +54,9 @@ function includes(value, query) {
   return text ? text.toLowerCase().includes(query) : false;
 }
 
-function collectMatches(snapshot, query) {
+function collectMatches(snapshot: SearchSnapshot | undefined, query: string): CollectedMatch[] {
   const nodes = snapshot && snapshot.nodes && typeof snapshot.nodes === "object" ? snapshot.nodes : {};
-  const out = [];
+  const out: CollectedMatch[] = [];
   for (const node of Object.values(nodes)) {
     if (!node || node.kind !== "knowledge") {
       continue;
@@ -58,7 +72,7 @@ function collectMatches(snapshot, query) {
   return out;
 }
 
-function projectMatch({ node, matchedFields }) {
+function projectMatch({ node, matchedFields }: CollectedMatch): SearchResult {
   return {
     id: node.id,
     kind: "knowledge",
@@ -81,8 +95,8 @@ function compareIds(a, b) {
   return 0;
 }
 
-function projectMatches(collected, includeDeprecated) {
-  const projected = [];
+function projectMatches(collected: CollectedMatch[], includeDeprecated: boolean): SearchResult[] {
+  const projected: SearchResult[] = [];
   for (const item of collected) {
     const status = (item.node && item.node.status) || "active";
     if (!includeDeprecated && status !== "active") {
@@ -100,7 +114,9 @@ function projectMatches(collected, includeDeprecated) {
  * @param {string} args.query - Substring (case-insensitive). Empty/whitespace → no matches.
  * @returns {{ matches: object[], count: number }} Matches in deterministic id order.
  */
-export function searchKnowledge({ snapshot, query, all = false } = {}) {
+export function searchKnowledge(
+  { snapshot, query, all = false }: { snapshot?: SearchSnapshot; query?: string; all?: boolean } = {},
+) {
   const normalizedQuery = normalizeQuery(query);
   if (!normalizedQuery) {
     return { matches: [], count: 0 };

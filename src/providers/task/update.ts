@@ -254,7 +254,7 @@ async function apply({ tx, plan, input, request, snapshot }) {
   // revision-free; tx.updateNode enforces this contract on its own.
   tx.updateNode(plan.target.id, plan.patch);
 
-  const addedEdges = [];
+  const addedEdges: unknown[] = [];
   for (const blockerId of plan.added_blocked_by) {
     const edge = blocksEdge(blockerId, plan.target.id);
     // tx.addEdge validates self-edge / missing / kind / duplicate

@@ -19,7 +19,7 @@
 //     filesystem, lock, state, log, policy, commands, registry,
 //     adapter, CLI or UI.
 
-import { throwV2 } from "../../contracts/errors.ts";
+import { throwV2, type ErrorCode } from "../../contracts/errors.ts";
 
 const OP = "initiative.create";
 const LOG_ACTION = "add-initiative";
@@ -44,7 +44,7 @@ function readSnapshotInitiatives(snapshot) {
 function validateName(name) {
   if (!NAME_PATTERN.test(name)) {
     throwV2(
-      "INVALID_NAME",
+      "INVALID_NAME" as ErrorCode,
       `${OP}: name '${name}' is invalid (must match ${NAME_PATTERN})`,
       { name, pattern: NAME_PATTERN.source },
     );

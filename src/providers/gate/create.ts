@@ -4,7 +4,7 @@
 // Superseding rewrites incoming BLOCKS edges atomically and collapses duplicate
 // destinations; outgoing BLOCKS edges resolve through the supersedence chain.
 
-import { throwV2 } from "../../contracts/errors.ts";
+import { throwV2, type ErrorCode } from "../../contracts/errors.ts";
 import { blocksEdge, validateEdge } from "../../kernel/edges.ts";
 
 const COMMAND = "gate.create";
@@ -17,6 +17,13 @@ export const GATE_STATUSES = Object.freeze(["open", "resolved", "superseded", "c
 export const GATE_CREATE_POLICY_ACTION = "gate.create";
 export const GATE_CREATE_LOG_ACTION = "add-node";
 export const GATE_SUPERSEDE_LOG_ACTION = "supersede";
+
+type PlannedEdge = { from: string; to: string; type: string };
+type GateNode = Record<string, unknown> & {
+  backlog?: boolean;
+  resolution?: { choice: string; rationale: string | undefined };
+};
+type EdgeRewrite = { remove: PlannedEdge; add: PlannedEdge; collapsed: boolean };
 
 function edgeKey(edge) {
   return `${edge.from}|${edge.to}|${edge.type}`;
@@ -164,7 +171,7 @@ function buildNode(input, { id, initiative, status }) {
     throwV2("MISSING_FIELD", `${COMMAND}: 'meta' must be an object`, { field: "meta" });
   }
   const resolutionMode = optionalString(input, "resolution_mode") || "choice";
-  const node = {
+  const node: GateNode = {
     id,
     kind: "resolvable",
     title: requiredString(input, "title"), body: requiredString(input, "body"), refs, meta,
@@ -274,8 +281,8 @@ function derivePreconditions(nodes, affected) {
 
 function planEdges(snapshot, input, { id, workingState, supersedes }) {
   const known = new Set(snapshotEdges(snapshot).map((edge) => edgeKey(edge)));
-  const edges = [];
-  const push = (edge) => {
+  const edges: PlannedEdge[] = [];
+  const push = (edge: PlannedEdge) => {
     const key = edgeKey(edge);
     if (known.has(key)) {
       throwV2("DUPLICATE_EDGE", `${COMMAND}: edge ${edge.type} ${edge.from} -> ${edge.to} already exists`, edge);
@@ -298,7 +305,7 @@ function planEdges(snapshot, input, { id, workingState, supersedes }) {
 
 
 function planRewrites(snapshot, { id, supersedes, known }) {
-  const rewrites = [];
+  const rewrites: EdgeRewrite[] = [];
   if (!supersedes) {
     return rewrites;
   }
@@ -329,7 +336,7 @@ export async function prepare({ snapshot, input }) {
   }
   const id = rawId.trim();
   if (!ID_RE.test(id)) {
-    throwV2("INVALID_ID", `${COMMAND}: id '${id}' is invalid (must match ${ID_RE})`, {
+    throwV2("INVALID_ID" as ErrorCode, `${COMMAND}: id '${id}' is invalid (must match ${ID_RE})`, {
       id,
       pattern: ID_RE.source,
     });

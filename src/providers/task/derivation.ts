@@ -6,8 +6,14 @@
 
 const NON_OPEN_TASK_STATUSES = new Set(["in_progress", "submitted", "done", "archived", "canceled"]);
 const SATISFIED_TASK_STATUSES = new Set(["done", "archived"]);
+type TaskNode = Record<string, unknown> & {
+  kind?: string;
+  subkind?: string;
+  status?: string;
+  backlog?: boolean;
+};
 
-function nodesOf(state) {
+function nodesOf(state): Record<string, TaskNode> {
   return state && state.nodes && typeof state.nodes === "object" ? state.nodes : {};
 }
 
@@ -101,7 +107,7 @@ export const readiness = isTaskReady;
 
 
 export function collectReadyTasks(state) {
-  const ready = [];
+  const ready: string[] = [];
   for (const [id, node] of Object.entries(nodesOf(state))) {
     if (node && node.kind === "resolvable" && node.subkind === "task" && isTaskReady(state, id)) {
       ready.push(id);

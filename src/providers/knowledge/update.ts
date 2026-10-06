@@ -14,7 +14,7 @@
 // Pure: no fs, no lock, no state, no log, no policy, no commands, no
 // registry, no adapter, no CLI, no UI.
 
-import { throwV2 } from "../../contracts/errors.ts";
+import { throwV2, type ErrorCode } from "../../contracts/errors.ts";
 
 const KNOWN_KNOWLEDGE_TYPES = Object.freeze(["warning", "fact", "instruction"]);
 const KNOWN_STATUSES = Object.freeze(["active", "deprecated", "superseded"]);
@@ -108,14 +108,14 @@ function validateTarget(nodes, id) {
     throwV2("NODE_NOT_FOUND", `knowledge.update: node '${id}' does not exist`, { field: "id", id });
   }
   if (current.kind !== "knowledge") {
-    throwV2("INVALID_PROVIDER_INPUT", `knowledge.update: node '${id}' is not a knowledge node (kind=${current.kind})`, {
+    throwV2("INVALID_PROVIDER_INPUT" as ErrorCode, `knowledge.update: node '${id}' is not a knowledge node (kind=${current.kind})`, {
       field: "id",
       id,
       kind: current.kind,
     });
   }
   if (!Number.isInteger(current.revision)) {
-    throwV2("INVALID_PROVIDER_INPUT", `knowledge.update: node '${id}' has no integer revision`, {
+    throwV2("INVALID_PROVIDER_INPUT" as ErrorCode, `knowledge.update: node '${id}' has no integer revision`, {
       field: "revision",
       id,
       revision: current.revision,
@@ -131,7 +131,7 @@ function validateEnum(changes, field, allowed) {
   const value = asString(changes[field]);
   if (!allowed.includes(value)) {
     throwV2(
-      "INVALID_PROVIDER_INPUT",
+      "INVALID_PROVIDER_INPUT" as ErrorCode,
       `knowledge.update: ${field} '${value}' is not allowed (allowed: ${allowed.join(", ")})`,
       { field, value, allowed },
     );

@@ -11,7 +11,10 @@
 import { matchesScopes } from "./scopes.ts";
 import { rankKnowledge } from "./ranking.ts";
 
-function projectCandidate(node, candidate) {
+type ProjectionNode = Record<string, unknown>;
+type ProjectionSnapshot = { nodes?: Record<string, ProjectionNode> };
+
+function projectCandidate(node: ProjectionNode, candidate: ProjectionNode) {
   if (!candidate || typeof candidate !== "object" || candidate.kind !== "knowledge") {
     return null;
   }
@@ -22,8 +25,8 @@ function projectCandidate(node, candidate) {
   return { ...candidate, scope_matches: scopeMatches };
 }
 
-function matchingKnowledge(node, nodes) {
-  const matches = [];
+function matchingKnowledge(node: ProjectionNode, nodes: Record<string, ProjectionNode>) {
+  const matches: ProjectionNode[] = [];
   for (const candidate of Object.values(nodes)) {
     const projected = projectCandidate(node, candidate);
     if (projected) {
@@ -33,25 +36,31 @@ function matchingKnowledge(node, nodes) {
   return matches;
 }
 
-function validNodes(nodes) {
-  return nodes && typeof nodes === "object" && !Array.isArray(nodes);
+function validNodes(nodes: unknown): nodes is Record<string, ProjectionNode> {
+  return nodes !== null && typeof nodes === "object" && !Array.isArray(nodes);
 }
 
-function targetNode(snapshot, id) {
+function targetNode(snapshot: ProjectionSnapshot, id: string) {
   return validNodes(snapshot.nodes) ? snapshot.nodes[id] : null;
 }
 
 
-export function knowledgeForNode({ snapshot, id } = {}) {
+export function knowledgeForNode(
+  { snapshot, id }: { snapshot?: ProjectionSnapshot; id?: string } = {},
+) {
   if (!snapshot || typeof snapshot !== "object") {
     return [];
   }
   if (typeof id !== "string" || id.length === 0) {
     return [];
   }
+  const nodes = snapshot.nodes;
+  if (!validNodes(nodes)) {
+    return [];
+  }
   const node = targetNode(snapshot, id);
   if (!node || typeof node !== "object") {
     return [];
   }
-  return rankKnowledge(matchingKnowledge(node, snapshot.nodes));
+  return rankKnowledge(matchingKnowledge(node, nodes));
 }

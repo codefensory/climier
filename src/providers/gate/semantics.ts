@@ -74,7 +74,7 @@ function satisfyGate(state, id, status, visited) {
 }
 
 
-export function isSatisfiedByGraph(nodes, edges, id, seen) {
+export function isSatisfiedByGraph(nodes, edges, id, seen?) {
   return isSatisfied({ nodes, edges }, id, seen);
 }
 

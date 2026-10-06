@@ -12,7 +12,15 @@
 // Pure: no fs, no lock, no state, no log, no policy, no commands, no
 // registry, no adapter, no CLI, no UI.
 
-import { throwV2 } from "../../contracts/errors.ts";
+import { throwV2, type ErrorCode } from "../../contracts/errors.ts";
+
+type KnowledgeCreatePlan = {
+  target: { id: string | null; kind: string };
+  policyAction: null;
+  idempotent: boolean;
+  node: Record<string, unknown>;
+  supersedes?: string;
+};
 
 const KNOWN_STATUSES = Object.freeze(["active", "deprecated"]);
 const SCOPE_KEYS = Object.freeze(["domains", "initiatives", "tags", "node_ids"]);
@@ -98,7 +106,7 @@ function validateStatus(input) {
   const status = input.status === undefined ? "active" : asString(input.status);
   if (!KNOWN_STATUSES.includes(status)) {
     throwV2(
-      "INVALID_PROVIDER_INPUT",
+      "INVALID_PROVIDER_INPUT" as ErrorCode,
       `knowledge.create: status '${status}' is not allowed (allowed: ${KNOWN_STATUSES.join(", ")})`,
       { field: "status", value: status, allowed: KNOWN_STATUSES },
     );
@@ -140,14 +148,14 @@ function validateSupersedes(snapshot, id, input) {
     });
   }
   if (targetNode.kind !== "knowledge") {
-    throwV2("INVALID_PROVIDER_INPUT", `knowledge.create: supersedes target '${supersedes}' is not a knowledge node`, {
+    throwV2("INVALID_PROVIDER_INPUT" as ErrorCode, `knowledge.create: supersedes target '${supersedes}' is not a knowledge node`, {
       field: "supersedes",
       id: supersedes,
       kind: targetNode.kind,
     });
   }
   if (id !== null && id === supersedes) {
-    throwV2("INVALID_PROVIDER_INPUT", "knowledge.create: supersedes target cannot be the same as the new node id", {
+    throwV2("INVALID_PROVIDER_INPUT" as ErrorCode, "knowledge.create: supersedes target cannot be the same as the new node id", {
       field: "supersedes",
       id,
     });
@@ -218,7 +226,7 @@ async function prepare({ snapshot: rawSnapshot, input: rawInput }) {
   const id = validateId(input);
   const supersedes = validateSupersedes(snapshot, id, input);
   const node = createNode(input, { id, title, body, ...initiativeValues, scope, status, knowledgeType });
-  const plan = { target: { id, kind: "knowledge" }, policyAction: null, idempotent: false, node };
+  const plan: KnowledgeCreatePlan = { target: { id, kind: "knowledge" }, policyAction: null, idempotent: false, node };
   if (supersedes !== null) {
     plan.supersedes = supersedes;
   }

@@ -335,7 +335,7 @@ async function apply({ tx, plan, input, request, snapshot }) {
   void _r;
   tx.createNode(seedWithoutRevision);
 
-  const addedEdges = [];
+  const addedEdges: unknown[] = [];
   for (const blockerId of plan.target.blocked_by) {
     const edge = blocksEdge(blockerId, plan.target.id);
     const persisted = tx.addEdge(edge);
