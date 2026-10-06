@@ -1,7 +1,8 @@
 #!/usr/bin/env bun
 /* oxlint-disable complexity, max-statements, max-lines-per-function -- this is a linear release-artifact smoke sequence. */
 // Exercise the published artifact rather than the checkout's source tree.
-import { execFile, spawn } from "node:child_process";
+import { execFile, spawn, type ChildProcessByStdio } from "node:child_process";
+import type { Readable } from "node:stream";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -12,8 +13,23 @@ const execFileAsync = promisify(execFile);
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const projectId = "smoke-packed-project";
 const serverPassword = "smoke-packed-server-password";
+type PipedChild = ChildProcessByStdio<null, Readable, Readable>;
+type CommandResult = { code: number; stdout: string; stderr: string };
+type CommandOptions = { cwd?: string; env?: NodeJS.ProcessEnv; encoding?: BufferEncoding; maxBuffer?: number };
+type ExecFailure = { code?: unknown; stdout?: unknown; stderr?: unknown; message?: unknown };
+type Health = { ok: boolean; host: string; port: number };
+type UiStartup = { ui?: { read_only?: unknown; url?: unknown } };
+type TransferSummary = { transfer: string; project_id: string; forced: boolean };
 
-async function command(file, args, options = {}) {
+function failureDetails(error: unknown): ExecFailure {
+  return typeof error === "object" && error !== null ? error as ExecFailure : {};
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+async function command(file: string, args: string[], options: CommandOptions = {}): Promise<CommandResult> {
   try {
     const result = await execFileAsync(file, args, {
       cwd: repoRoot,
@@ -23,26 +39,25 @@ async function command(file, args, options = {}) {
     });
     return { code: 0, stdout: result.stdout, stderr: result.stderr };
   } catch (error) {
+    const failure = failureDetails(error);
     return {
-      code: typeof error.code === "number" ? error.code : 1,
-      stdout: error.stdout ?? "",
-      stderr: error.stderr ?? error.message,
+      code: typeof failure.code === "number" ? failure.code : 1,
+      stdout: typeof failure.stdout === "string" ? failure.stdout : "",
+      stderr: typeof failure.stderr === "string" ? failure.stderr : errorMessage(error),
     };
   }
 }
 
-function jsonOutput(result, label) {
-  let value;
+function jsonOutput<T>(result: CommandResult, label: string): T {
   try {
-    value = JSON.parse(result.stdout);
+    return JSON.parse(result.stdout) as T;
   } catch (error) {
-    throw new Error(`${label}: expected JSON stdout, got ${JSON.stringify(result.stdout)} (${error.message})`, { cause: error });
+    throw new Error(`${label}: expected JSON stdout, got ${JSON.stringify(result.stdout)} (${errorMessage(error)})`, { cause: error });
   }
-  return value;
 }
 
-async function waitForHealth(child) {
-  return new Promise((resolve, reject) => {
+async function waitForHealth(child: PipedChild): Promise<Health> {
+  return new Promise<Health>((resolve, reject) => {
     let stdout = "";
     let stderr = "";
     const timer = setTimeout(() => reject(new Error(`server health timeout: ${stderr}`)), 10_000);
@@ -58,9 +73,9 @@ async function waitForHealth(child) {
       if (newline < 0) {return;}
       finish(() => {
         try {
-          resolve(JSON.parse(stdout.slice(0, newline)));
+          resolve(JSON.parse(stdout.slice(0, newline)) as Health);
         } catch (error) {
-          reject(new Error(`server health was not JSON: ${error.message}`));
+          reject(new Error(`server health was not JSON: ${errorMessage(error)}`));
         }
       });
     });
@@ -70,10 +85,10 @@ async function waitForHealth(child) {
   });
 }
 
-async function stopServer(child) {
+async function stopServer(child: PipedChild | undefined): Promise<void> {
   if (!child || child.exitCode !== null || child.signalCode !== null) {return;}
   child.kill("SIGTERM");
-  await new Promise((resolve) => {
+  await new Promise<void>((resolve) => {
     const timer = setTimeout(() => {
       child.kill("SIGKILL");
       resolve();
@@ -85,7 +100,7 @@ async function stopServer(child) {
   });
 }
 
-async function startPackedUi(climier, projectDir, env, cwd) {
+async function startPackedUi(climier: string, projectDir: string, env: NodeJS.ProcessEnv, cwd: string): Promise<{ child: PipedChild; result: UiStartup }> {
   const child = spawn(climier, ["--project", projectDir, "ui", "--open=false", "--port", "0"], {
     cwd,
     env,
@@ -93,7 +108,7 @@ async function startPackedUi(climier, projectDir, env, cwd) {
   });
   let stdout = "";
   let stderr = "";
-  return new Promise((resolve, reject) => {
+  return new Promise<{ child: PipedChild; result: UiStartup }>((resolve, reject) => {
     const timer = setTimeout(() => {
       child.kill("SIGTERM");
       finish(() => reject(new Error(`installed ui startup timed out: ${stderr}`)));
@@ -108,7 +123,7 @@ async function startPackedUi(climier, projectDir, env, cwd) {
       stdout += chunk;
       try {
         const result = JSON.parse(stdout);
-        finish(() => resolve({ child, result }));
+        finish(() => resolve({ child, result: result as UiStartup }));
       } catch {
         // Wait for the rest of the JSON output.
       }
@@ -119,13 +134,13 @@ async function startPackedUi(climier, projectDir, env, cwd) {
   });
 }
 
-async function seedRemoteSession(origin, clientHome) {
+async function seedRemoteSession(origin: string, clientHome: string): Promise<void> {
   const response = await fetch(`${origin}/v1/auth/login`, {
     method: "POST",
     headers: { accept: "application/json", "content-type": "application/json", "x-climier-protocol-version": "1" },
     body: JSON.stringify({ password: serverPassword }),
   });
-  const body = await response.json();
+  const body = await response.json() as { ok?: unknown; token?: unknown };
   if (!response.ok || body.ok !== true || typeof body.token !== "string" || body.token.length === 0) {
     throw new Error(`v1 login failed with HTTP ${response.status}`);
   }
@@ -139,8 +154,8 @@ async function seedRemoteSession(origin, clientHome) {
 
 async function main() {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "climier-packed-smoke-"));
-  let server;
-  let uiChild;
+  let server: PipedChild | undefined;
+  let uiChild: PipedChild | undefined;
   try {
     const destination = path.join(root, "pack");
     const prefix = path.join(root, "prefix");
@@ -224,17 +239,17 @@ async function main() {
     jsonOutput(remoteStatus, "authorized remote status");
     const pushed = await command(climier, ["--project", localProject, "push", "--as", "smoke"], { cwd: root, env: clientEnv });
     if (pushed.code !== 0) {throw new Error(`packed push failed: ${pushed.stdout}${pushed.stderr}`);}
-    const pushResult = jsonOutput(pushed, "packed push");
+    const pushResult = jsonOutput<TransferSummary>(pushed, "packed push");
     if (pushResult.transfer !== "push" || pushResult.project_id !== projectId || pushResult.forced !== false) {
       throw new Error(`packed push returned an invalid transfer summary: ${JSON.stringify(pushResult)}`);
     }
     const remoteTask = await command(climier, ["--project", localProject, "show", "T-packed-transfer"], { cwd: root, env: clientEnv });
-    if (remoteTask.code !== 0 || jsonOutput(remoteTask, "packed remote task").node?.title !== "Packed local task") {
+    if (remoteTask.code !== 0 || jsonOutput<{ node?: { title?: string } }>(remoteTask, "packed remote task").node?.title !== "Packed local task") {
       throw new Error(`packed push did not publish the local task: ${remoteTask.stdout}${remoteTask.stderr}`);
     }
     const pulled = await command(climier, ["--project", localProject, "pull", "--as", "smoke"], { cwd: root, env: clientEnv });
     if (pulled.code !== 0) {throw new Error(`packed pull failed: ${pulled.stdout}${pulled.stderr}`);}
-    const pullResult = jsonOutput(pulled, "packed pull");
+    const pullResult = jsonOutput<TransferSummary>(pulled, "packed pull");
     if (pullResult.transfer !== "pull" || pullResult.project_id !== projectId || pullResult.forced !== false) {
       throw new Error(`packed pull returned an invalid transfer summary: ${JSON.stringify(pullResult)}`);
     }
@@ -244,10 +259,11 @@ async function main() {
     await fs.writeFile(path.join(localProject, ".climier.json"), `${JSON.stringify(localMetadata, null, 2)}\n`);
     const startedUi = await startPackedUi(climier, localProject, clientEnv, root);
     uiChild = startedUi.child;
-    if (startedUi.result.ui?.read_only !== true || typeof startedUi.result.ui.url !== "string") {
+    const ui = startedUi.result.ui;
+    if (!ui || ui.read_only !== true || typeof ui.url !== "string") {
       throw new Error(`installed ui returned an invalid startup envelope: ${JSON.stringify(startedUi.result)}`);
     }
-    const uiResponse = await fetch(startedUi.result.ui.url);
+    const uiResponse = await fetch(ui.url);
     if (!uiResponse.ok || !uiResponse.headers.get("content-type")?.startsWith("text/html")) {
       throw new Error(`installed ui did not serve its packaged SPA: HTTP ${uiResponse.status}`);
     }

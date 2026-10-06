@@ -17,8 +17,17 @@ const GLOBAL_FLAGS = new Set(["project", "help", "h", "version"]);
 const COMMAND_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../src/cli/commands");
 const TARGETS = ["README.md", "docs/reference.md", "CLIMIER-CHEATSHEET.md", "AGENTS.md", ".github/workflows/ci.yml"];
 
-async function canonicalFlags() {
-  const result = new Map();
+type FlagsByCommand = Map<string, Set<string>>;
+type ScanOptions = {
+  flagsByCommand: FlagsByCommand;
+  commands: Set<string>;
+  issues: string[];
+  help?: boolean;
+  persistent?: boolean;
+};
+
+async function canonicalFlags(): Promise<FlagsByCommand> {
+  const result: FlagsByCommand = new Map();
   for (const command of KNOWN_COMMANDS) {
     result.set(command, new Set());
   }
@@ -35,11 +44,11 @@ async function canonicalFlags() {
   return result;
 }
 
-function issue(issues, file, line, message) {
+function issue(issues: string[], file: string, line: number, message: string): void {
   issues.push(`${file}:${line}: ${message}`);
 }
 
-function commandFromLine(line, currentCommand, commands) {
+function commandFromLine(line: string, currentCommand: string | null, commands: ReadonlySet<string>): string | null {
   const heading = line.match(/^###\s+`([a-z][a-z0-9-]*)\b/i);
   if (heading && commands.has(heading[1])) {return heading[1];}
   const table = line.match(/^\|\s*`([a-z][a-z0-9-]*)\b/i);
@@ -49,8 +58,8 @@ function commandFromLine(line, currentCommand, commands) {
   return currentCommand;
 }
 
-function scanText(text, file, { flagsByCommand, commands, issues, help = false, persistent = false }) {
-  let currentCommand = null;
+function scanText(text: string, file: string, { flagsByCommand, commands, issues, help = false, persistent = false }: ScanOptions): void {
+  let currentCommand: string | null = null;
   const lines = text.split(/\r?\n/);
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
@@ -86,11 +95,11 @@ function scanText(text, file, { flagsByCommand, commands, issues, help = false, 
   }
 }
 
-function validateUpdateSection(text, file, issues) {
+function validateUpdateSection(text: string, file: string, issues: string[]): void {
   const heading = /^###\s+`update\b/;
   const lines = text.split(/\r?\n/);
   let inUpdate = false;
-  const documented = [];
+  const documented: string[] = [];
   for (const line of lines) {
     if (heading.test(line)) {
       inUpdate = true;
@@ -113,7 +122,7 @@ function validateUpdateSection(text, file, issues) {
   }
 }
 
-async function scanCi(root, issues, commands, flagsByCommand) {
+async function scanCi(root: string, issues: string[], commands: Set<string>, flagsByCommand: FlagsByCommand): Promise<void> {
   const file = ".github/workflows/ci.yml";
   const content = await fs.readFile(path.join(root, file), "utf8");
   const packageJson = JSON.parse(await fs.readFile(path.join(root, "package.json"), "utf8"));
@@ -127,10 +136,10 @@ async function scanCi(root, issues, commands, flagsByCommand) {
   scanText(content, file, { flagsByCommand, commands, issues });
 }
 
-export async function scanRetiredSurfaces({ root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."), helpText = HELP_TEXT } = {}) {
+export async function scanRetiredSurfaces({ root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."), helpText = HELP_TEXT }: { root?: string; helpText?: string } = {}): Promise<{ issues: string[]; checked: number }> {
   const flagsByCommand = await canonicalFlags();
   const commands = new Set(KNOWN_COMMANDS);
-  const issues = [];
+  const issues: string[] = [];
   scanText(helpText, "HELP_TEXT", { flagsByCommand, commands, issues, help: true });
   for (const relative of TARGETS.filter((target) => target !== ".github/workflows/ci.yml")) {
     const file = path.join(root, relative);
@@ -138,7 +147,7 @@ export async function scanRetiredSurfaces({ root = path.resolve(path.dirname(fil
     try {
       content = await fs.readFile(file, "utf8");
     } catch (error) {
-      if (error.code === "ENOENT") {continue;}
+      if (error instanceof Error && "code" in error && error.code === "ENOENT") {continue;}
       throw error;
     }
     scanText(content, relative, { flagsByCommand, commands, issues, persistent: relative === "docs/reference.md" });
