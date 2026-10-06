@@ -17,12 +17,19 @@ const targetNames = {
 const target = targetNames[process.platform]?.[process.arch];
 const targetFlag = target ? `bun-${target}` : undefined;
 
+type ExecFileError = {
+  code?: string | number;
+  stdout?: string;
+  stderr?: string;
+};
+
 async function run(command, args, options = {}) {
   try {
     return await execFileAsync(command, args, { ...options, maxBuffer: 2 * 1024 * 1024 });
   } catch (error) {
+    const execError = typeof error === "object" && error !== null ? error as ExecFileError : {};
     throw new Error(
-      `${command} ${args.join(" ")} failed (${error.code}):\n${error.stdout ?? ""}${error.stderr ?? ""}`,
+      `${command} ${args.join(" ")} failed (${execError.code}):\n${execError.stdout ?? ""}${execError.stderr ?? ""}`,
       { cause: error },
     );
   }

@@ -13,6 +13,10 @@ import { importFresh } from "./helpers.mjs";
 
 const ERRORS_MODULE = "../src/plugins/errors.ts";
 
+type SerializedPluginError = Error & {
+  toJSON: () => { ok: boolean; error: { code: string; details: { op?: string } } };
+};
+
 // ---- PluginCoreInvalidOperation -------------------------------------
 
 test("plugin-core-errors: PluginCoreInvalidOperation carries code, plugin_id, op, supported, reason", async () => {
@@ -36,7 +40,7 @@ test("plugin-core-errors: PluginCoreInvalidOperation extends PluginError and is 
   const err = new PluginCoreInvalidOperation("example.audit", "edge.unknown", ["edge.add"], "x");
   assert.ok(err instanceof PluginError);
   assert.ok(err instanceof Error);
-  const json = err.toJSON();
+  const json = (err as SerializedPluginError).toJSON();
   assert.equal(json.ok, false);
   assert.equal(json.error.code, "PLUGIN_CORE_INVALID_OPERATION");
   assert.equal(json.error.details.op, "edge.unknown");

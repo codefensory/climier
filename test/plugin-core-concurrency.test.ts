@@ -43,6 +43,19 @@ const BIN = path.join(REPO_ROOT, "bin", "climier.ts");
 const PLUGIN_COUNT = 10;
 const CLI_COUNT = 10;
 
+type LogEntry = {
+  action: string;
+  agent: string;
+  node: string;
+  plugin_id?: string;
+  ts: string;
+};
+
+type State = {
+  nodes: Record<string, { status: string; claim?: unknown }>;
+  log: LogEntry[];
+};
+
 // ---- Per-test environment -------------------------------------------
 
 async function withFreshEnv(body) {
@@ -91,7 +104,7 @@ async function cli(args) {
 // and --project as the calling test. Returns { stdout, stderr, code }
 // once the child exits. Errors here are propagated loudly because any
 // failure in either child is a regression for the contract.
-function spawnCli(args, { env } = {}) {
+function spawnCli(args, { env }: { env?: NodeJS.ProcessEnv } = {}) {
   return new Promise((resolve, reject) => {
     let stdout = "";
     let stderr = "";
@@ -182,7 +195,7 @@ function assertSuccessfulWriters(pluginRes, cliResults) {
   return pluginOut;
 }
 
-function assertPluginNodes(finalState, pluginIds) {
+function assertPluginNodes(finalState: State, pluginIds: Set<string>) {
   assert.equal(pluginIds.size, PLUGIN_COUNT, "plugin fixture must produce unique ids");
   for (const id of pluginIds) {
     assert.ok(finalState.nodes[id], `plugin task ${id} must be present in state`);
@@ -190,7 +203,7 @@ function assertPluginNodes(finalState, pluginIds) {
   }
 }
 
-function assertCliNodes(finalState, cliLogEntries, cliLogs) {
+function assertCliNodes(finalState: State, cliLogEntries: LogEntry[], cliLogs: LogEntry[]) {
   assert.ok(
     cliLogEntries.length >= CLI_COUNT,
     `expected ≥${CLI_COUNT} cli-bob add-task log entries, got ${cliLogEntries.length}`,
@@ -211,7 +224,7 @@ function assertCliNodes(finalState, cliLogEntries, cliLogs) {
   }
 }
 
-function assertPluginLogEntries(pluginLogs) {
+function assertPluginLogEntries(pluginLogs: LogEntry[]) {
   assert.ok(
     pluginLogs.length >= PLUGIN_COUNT * 2,
     `expected at least ${PLUGIN_COUNT * 2} plugin-tagged log entries (create + take), got ${pluginLogs.length}`,
@@ -229,7 +242,7 @@ function assertPluginLogEntries(pluginLogs) {
   }
 }
 
-function assertPluginLogOrder(pluginLogs, pluginIds) {
+function assertPluginLogOrder(pluginLogs: LogEntry[], pluginIds: Set<string>) {
   const timestamps = pluginLogs.map((entry) => entry.ts);
   for (let index = 1; index < timestamps.length; index++) {
     assert.ok(
@@ -250,7 +263,7 @@ function assertPluginLogOrder(pluginLogs, pluginIds) {
   }
 }
 
-function assertLogAttribution(pluginLogs, cliLogs) {
+function assertLogAttribution(pluginLogs: LogEntry[], cliLogs: LogEntry[]) {
   assert.equal(
     cliLogs.filter((entry) => entry.plugin_id === FIXTURE_ID).length,
     0,
@@ -283,7 +296,7 @@ async function runConcurrency({ projectDir }) {
   const [pluginResult, ...cliResults] = await runConcurrentWriters(projectDir);
   const pluginOut = assertSuccessfulWriters(pluginResult, cliResults);
   const finalState = JSON.parse(await fs.readFile(stateFilePath(projectDir), "utf8"));
-  const pluginIds = new Set(pluginOut.created);
+  const pluginIds = new Set<string>(pluginOut.created as string[]);
   assertPluginNodes(finalState, pluginIds);
   const cliLogs = finalState.log.filter((entry) => entry.agent === "cli-bob");
   const cliLogEntries = cliLogs.filter((entry) => entry.action === "add-task");
