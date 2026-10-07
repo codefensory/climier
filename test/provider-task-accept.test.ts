@@ -6,7 +6,16 @@ import assert from "node:assert/strict";
 import { taskAcceptProvider } from "../src/providers/task/accept.ts";
 import { createTransaction } from "../src/kernel/transaction.ts";
 
-function state(nodes, edges = []) {
+type CaughtError = { code?: string; details?: Record<string, unknown> };
+
+function caughtError(error: unknown): CaughtError {
+  return typeof error === "object" && error !== null ? error as CaughtError : {};
+}
+
+function state(
+  nodes: Record<string, Record<string, unknown>>,
+  edges: Array<{ from: string; to: string; type: string }> = [],
+) {
   return { version: 3, initiatives: {}, nodes, edges, log: [] };
 }
 
@@ -90,7 +99,7 @@ test("task.accept accepts only submitted tasks", async () => {
         input: { id: "candidate", actor: "validator", accepted_at: fixedAcceptance },
         request: {},
       }),
-      (error) => error.code === "INVALID_STATUS" && error.details.current === status,
+      (error) => caughtError(error).code === "INVALID_STATUS" && caughtError(error).details?.current === status,
     );
   }
 });
@@ -107,7 +116,7 @@ test("task.accept rejects missing actors and non-task targets", async () => {
       input: { id: "submitted", accepted_at: fixedAcceptance },
       request: {},
     }),
-    (error) => error.code === "MISSING_FIELD" && error.details.field === "actor",
+    (error) => caughtError(error).code === "MISSING_FIELD" && caughtError(error).details?.field === "actor",
   );
   await assert.rejects(
     taskAcceptProvider.prepare({
@@ -115,6 +124,6 @@ test("task.accept rejects missing actors and non-task targets", async () => {
       input: { id: "gate", actor: "validator", accepted_at: fixedAcceptance },
       request: {},
     }),
-    (error) => error.code === "INVALID_EXECUTION_CONTRACT",
+    (error) => caughtError(error).code === "INVALID_EXECUTION_CONTRACT",
   );
 });

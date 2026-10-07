@@ -15,6 +15,12 @@ import {
 } from "../src/providers/gate/index.ts";
 import { createTransaction } from "../src/kernel/transaction.ts";
 
+type CaughtError = { code?: string; details?: Record<string, unknown> };
+
+function caughtError(error: unknown): CaughtError {
+  return typeof error === "object" && error !== null ? error as CaughtError : {};
+}
+
 function baseNodes() {
   return {
     T1: {
@@ -63,6 +69,10 @@ function baseEdges() {
   ];
 }
 
+type LifecycleProvider = {
+  prepare(args: { snapshot: unknown; input: Record<string, unknown> }): Promise<unknown>;
+};
+
 function baseSnapshot() {
   return {
     version: 2,
@@ -74,53 +84,23 @@ function baseSnapshot() {
 }
 
 async function runResolve(snapshot, input) {
-  const plan = await gateResolveProvider.prepare({
-    snapshot,
-    input,
-    request: { action: "gate.resolve", actor: "alice" },
-  });
+  const plan = await gateResolveProvider.prepare({ snapshot, input });
   const tx = createTransaction(snapshot);
-  const applied = await gateResolveProvider.apply({
-    tx,
-    plan,
-    input,
-    request: { action: "gate.resolve", actor: "alice" },
-    snapshot,
-  });
+  const applied = await gateResolveProvider.apply({ tx, plan, snapshot });
   return { plan, tx, view: tx.view(), ...applied };
 }
 
 async function runReopen(snapshot, input) {
-  const plan = await gateReopenProvider.prepare({
-    snapshot,
-    input,
-    request: { action: "gate.reopen", actor: "alice" },
-  });
+  const plan = await gateReopenProvider.prepare({ snapshot, input });
   const tx = createTransaction(snapshot);
-  const applied = await gateReopenProvider.apply({
-    tx,
-    plan,
-    input,
-    request: { action: "gate.reopen", actor: "alice" },
-    snapshot,
-  });
+  const applied = await gateReopenProvider.apply({ tx, plan, snapshot });
   return { plan, tx, view: tx.view(), ...applied };
 }
 
 async function runCancel(snapshot, input) {
-  const plan = await gateCancelProvider.prepare({
-    snapshot,
-    input,
-    request: { action: "gate.cancel", actor: "alice" },
-  });
+  const plan = await gateCancelProvider.prepare({ snapshot, input });
   const tx = createTransaction(snapshot);
-  const applied = await gateCancelProvider.apply({
-    tx,
-    plan,
-    input,
-    request: { action: "gate.cancel", actor: "alice" },
-    snapshot,
-  });
+  const applied = await gateCancelProvider.apply({ tx, plan, snapshot });
   return { plan, tx, view: tx.view(), ...applied };
 }
 
@@ -246,7 +226,7 @@ test("gate.cancel prepares cancel payload and applies status=canceled", async ()
 
 test("structured errors: NODE_NOT_FOUND, INVALID_STATUS, MISSING_FIELD, RESOLVABLE, REVISION_CONFLICT", async () => {
   const snapshot = baseSnapshot();
-  const cases = [
+  const cases: Array<[LifecycleProvider, Record<string, unknown>, string]> = [
     // gate.resolve
     [gateResolveProvider, { id: "missing", choice: "x", rationale: "y" }, "NODE_NOT_FOUND"],
     [gateResolveProvider, { id: "G-B", choice: "x", rationale: "y", if_revisions: { "G-B": 3 } }, "INVALID_STATUS"],
@@ -266,7 +246,7 @@ test("structured errors: NODE_NOT_FOUND, INVALID_STATUS, MISSING_FIELD, RESOLVAB
   for (const [provider, input, code] of cases) {
     await assert.rejects(
       provider.prepare({ snapshot, input }),
-      (err) => err.code === code,
+      (err) => caughtError(err).code === code,
       `expected ${code} for ${JSON.stringify(input)}`,
     );
   }
@@ -275,13 +255,13 @@ test("structured errors: NODE_NOT_FOUND, INVALID_STATUS, MISSING_FIELD, RESOLVAB
 test("prepare is read-only and never mutates the snapshot", async () => {
   const snapshot = baseSnapshot();
   const before = structuredClone(snapshot);
-  const fail = [
+  const fail: Array<[LifecycleProvider, Record<string, unknown>]> = [
     [gateResolveProvider, { id: "missing", choice: "x", rationale: "y" }],
     [gateReopenProvider, { id: "G-A", reason: "r" }],
     [gateCancelProvider, { id: "G-B", reason: "r" }],
   ];
   for (const [provider, input] of fail) {
-    await assert.rejects(provider.prepare({ snapshot, input }), (err) => typeof err.code === "string");
+    await assert.rejects(provider.prepare({ snapshot, input }), (err) => typeof caughtError(err).code === "string");
   }
   assert.deepEqual(snapshot, before);
 });
@@ -289,30 +269,30 @@ test("prepare is read-only and never mutates the snapshot", async () => {
 test("lifecycle providers never write revision into the draft", async () => {
   const snapshot = baseSnapshot();
 
-  let plan = await gateResolveProvider.prepare({
+  const resolvePlan = await gateResolveProvider.prepare({
     snapshot,
     input: { id: "G-A", choice: "yes", rationale: "ok", if_revisions: { "G-A": 2 } },
   });
   let tx = createTransaction(snapshot);
-  await gateResolveProvider.apply({ tx, plan, snapshot });
+  await gateResolveProvider.apply({ tx, plan: resolvePlan, snapshot });
   let view = tx.view();
   assert.equal("revision" in view.nodes["G-A"], false);
   // reopen
-  plan = await gateReopenProvider.prepare({
+  const reopenPlan = await gateReopenProvider.prepare({
     snapshot,
     input: { id: "G-B", reason: "r", if_revisions: { "G-B": 3 } },
   });
   tx = createTransaction(snapshot);
-  await gateReopenProvider.apply({ tx, plan, snapshot });
+  await gateReopenProvider.apply({ tx, plan: reopenPlan, snapshot });
   view = tx.view();
   assert.equal("revision" in view.nodes["G-B"], false);
   // cancel
-  plan = await gateCancelProvider.prepare({
+  const cancelPlan = await gateCancelProvider.prepare({
     snapshot,
     input: { id: "G-A", reason: "r", if_revisions: { "G-A": 2 } },
   });
   tx = createTransaction(snapshot);
-  await gateCancelProvider.apply({ tx, plan, snapshot });
+  await gateCancelProvider.apply({ tx, plan: cancelPlan, snapshot });
   view = tx.view();
   assert.equal("revision" in view.nodes["G-A"], false);
 });
@@ -326,7 +306,7 @@ test("tx rejects patches that try to seed revision (kernel contract)", async () 
   const tx = createTransaction(snapshot);
   await assert.rejects(
     async () => tx.updateNode("G-A", { status: "resolved", revision: 99 }),
-    (err) => err.code === "INVALID_EXECUTION_CONTRACT",
+    (err) => caughtError(err).code === "INVALID_EXECUTION_CONTRACT",
   );
   void plan;
 });

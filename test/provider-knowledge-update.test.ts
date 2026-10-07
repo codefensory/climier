@@ -13,6 +13,12 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { emptySnapshot, importKernel, importProviders, knowledgeNode, taskNode } from "./provider-knowledge/fixtures.mjs";
+
+type CaughtError = { code?: string; message?: string };
+
+function caughtError(error: unknown): CaughtError {
+  return typeof error === "object" && error !== null ? error as CaughtError : {};
+}
 import { importFresh } from "./helpers.mjs";
 
 import {
@@ -72,7 +78,7 @@ test("update: prepare rejects missing id", async () => {
       input: { changes: { title: "v2" } },
       request: { action: "knowledge.update", actor: "alice" },
     }),
-    (err) => err.code === "MISSING_FIELD" && /id/.test(err.message),
+    (err) => caughtError(err).code === "MISSING_FIELD" && /id/.test(caughtError(err).message ?? ""),
   );
 });
 
@@ -86,7 +92,7 @@ test("update: prepare rejects missing changes", async () => {
       input: { id: "K-1" },
       request: { action: "knowledge.update", actor: "alice" },
     }),
-    (err) => err.code === "MISSING_FIELD" && /changes/.test(err.message),
+    (err) => caughtError(err).code === "MISSING_FIELD" && /changes/.test(caughtError(err).message ?? ""),
   );
 });
 
@@ -99,7 +105,7 @@ test("update: prepare rejects unknown target with NODE_NOT_FOUND", async () => {
       input: { id: "ghost", changes: { title: "v2" } },
       request: { action: "knowledge.update", actor: "alice" },
     }),
-    (err) => err.code === "NODE_NOT_FOUND",
+    (err) => caughtError(err).code === "NODE_NOT_FOUND",
   );
 });
 
@@ -113,7 +119,7 @@ test("update: prepare rejects updating a non-knowledge node", async () => {
       input: { id: "T-a", changes: { title: "v2" } },
       request: { action: "knowledge.update", actor: "alice" },
     }),
-    (err) => err.code === "INVALID_PROVIDER_INPUT" && /knowledge/.test(err.message),
+    (err) => caughtError(err).code === "INVALID_PROVIDER_INPUT" && /knowledge/.test(caughtError(err).message ?? ""),
   );
 });
 
@@ -127,7 +133,7 @@ test("update: prepare rejects empty changes", async () => {
       input: { id: "K-1", changes: {} },
       request: { action: "knowledge.update", actor: "alice" },
     }),
-    (err) => err.code === "MISSING_FIELD",
+    (err) => caughtError(err).code === "MISSING_FIELD",
   );
 });
 
@@ -141,7 +147,7 @@ test("update: prepare rejects unknown knowledge_type / status", async () => {
       input: { id: "K-1", changes: { knowledge_type: "bogus" } },
       request: { action: "knowledge.update", actor: "alice" },
     }),
-    (err) => err.code === "INVALID_PROVIDER_INPUT" && /knowledge_type/.test(err.message),
+    (err) => caughtError(err).code === "INVALID_PROVIDER_INPUT" && /knowledge_type/.test(caughtError(err).message ?? ""),
   );
   await assert.rejects(
     provider.prepare({
@@ -149,7 +155,7 @@ test("update: prepare rejects unknown knowledge_type / status", async () => {
       input: { id: "K-1", changes: { status: "weird" } },
       request: { action: "knowledge.update", actor: "alice" },
     }),
-    (err) => err.code === "INVALID_PROVIDER_INPUT" && /status/.test(err.message),
+    (err) => caughtError(err).code === "INVALID_PROVIDER_INPUT" && /status/.test(caughtError(err).message ?? ""),
   );
 });
 
@@ -228,6 +234,6 @@ test("update: provider never seeds revision through tx.updateNode", async () => 
       request: { action: "knowledge.update", actor: "alice" },
       snapshot,
     }),
-    (err) => err.code === "INVALID_EXECUTION_CONTRACT",
+    (err) => caughtError(err).code === "INVALID_EXECUTION_CONTRACT",
   );
 });
