@@ -9,6 +9,8 @@ import { createTempProject, rmTempProject, runCli, importFresh } from "./helpers
 
 // --- helpers ------------------------------------------------------------
 
+type TestError = Error & { code?: string; details?: Record<string, unknown>; toJSON(): unknown };
+
 function assertV2Error(data, code) {
   assert.equal(data.ok, false, "ok must be false");
   assert.ok(data.error && typeof data.error === "object", "error must be an object");
@@ -64,24 +66,24 @@ test("errors.mjs: makeError returns { ok: false, error: { code, message, details
 
 test("errors.mjs: throwV2 throws an Error with .code, .details, .toJSON", async () => {
   const { throwV2, makeError } = await importFresh("./contracts/errors.ts");
-  let caught;
+  let caught: TestError | undefined;
   try {
     throwV2("NODE_NOT_FOUND", "context: X not found", { id: "X" });
   } catch (e) {
-    caught = e;
+    caught = e as TestError;
   }
   assert.ok(caught instanceof Error, "must throw an Error");
-  assert.equal(caught.message, "context: X not found");
-  assert.equal(caught.code, "NODE_NOT_FOUND");
-  assert.deepEqual(caught.details, { id: "X" });
-  assert.deepEqual(caught.toJSON(), makeError("NODE_NOT_FOUND", "context: X not found", { id: "X" }));
+  assert.equal(caught!.message, "context: X not found");
+  assert.equal(caught!.code, "NODE_NOT_FOUND");
+  assert.deepEqual(caught!.details, { id: "X" });
+  assert.deepEqual(caught!.toJSON(), makeError("NODE_NOT_FOUND", "context: X not found", { id: "X" }));
 });
 
 test("errors.mjs: toJSON output is JSON-serialisable", async () => {
   const { throwV2 } = await importFresh("./contracts/errors.ts");
-  let caught;
-  try { throwV2("X", "y", { a: 1 }); } catch (e) { caught = e; }
-  const round = JSON.parse(JSON.stringify(caught.toJSON()));
+  let caught: TestError | undefined;
+  try { throwV2("X", "y", { a: 1 }); } catch (e) { caught = e as TestError; }
+  const round = JSON.parse(JSON.stringify(caught!.toJSON()));
   assert.deepEqual(round, { ok: false, error: { code: "X", message: "y", details: { a: 1 } } });
 });
 

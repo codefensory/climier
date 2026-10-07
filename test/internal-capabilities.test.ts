@@ -54,7 +54,9 @@ async function withFreshHome(body) {
   }
 }
 
-async function runCliRaw(args, { cwd } = {}) {
+type ErrorBody = { ok: boolean; error: { code: string; details: Record<string, unknown> } };
+
+async function runCliRaw(args: string[], { cwd }: { cwd?: string } = {}) {
   return runCli(args, { cwd });
 }
 
@@ -156,11 +158,11 @@ test("internal-caps: addNodeInternal without the flag still enforces INITIATIVE_
         },
         pluginId: null,
       }),
-      (err) =>
-        err &&
-        err.code === "INITIATIVE_NOT_FOUND" &&
-        err.details &&
-        err.details.initiative === "ghost",
+      (err) => {
+        const failure = err as { code?: string; details?: { initiative?: string } };
+        return failure.code === "INITIATIVE_NOT_FOUND"
+          && failure.details?.initiative === "ghost";
+      },
     );
   });
 });
@@ -177,7 +179,7 @@ test("internal-caps: CLI add-task rejects --allow-unregistered-initiative as unk
       "--allow-unregistered-initiative",
     ], { cwd: projectDir });
     assert.equal(r.code, 2, `expected exit 2, got ${r.code}: ${r.stdout}`);
-    const body = JSON.parse(r.stdout);
+    const body = JSON.parse(r.stdout) as ErrorBody;
     assert.equal(body.ok, false);
     assert.equal(body.error.code, "CLI_USAGE_ERROR");
     assert.equal(body.error.details.flag, "allow-unregistered-initiative");
