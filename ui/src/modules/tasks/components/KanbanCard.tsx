@@ -33,7 +33,7 @@ export function KanbanCard(props: KanbanCardProps) {
       role={props.onOpen ? "button" : undefined}
       onClick={props.onOpen ? open : undefined}
       onKeyDown={props.onOpen ? (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); open(); } } : undefined}
-      class="flex w-full flex-col gap-2 rounded-[8px] border border-line bg-white p-3 text-left transition-colors hover:border-line-strong hover:bg-raised focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+      class="flex w-full flex-col gap-2 rounded-[8px] border border-line bg-surface p-3 text-left transition-colors hover:border-line-strong hover:bg-raised focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
       classList={{ "cursor-pointer": props.onOpen !== undefined }}
     >
       <Show when={props.task.kind === "gate"}>
