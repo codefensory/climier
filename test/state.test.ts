@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import pathModule from "node:path";
-import { createTempProject, rmTempProject, importFresh, stateFilePath } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, stateFilePath } from "./helpers.ts";
 
 type StateError = { code?: string; message: string; details?: { version?: number; file?: string; hint?: string } };
 type FenceCase = [string, Record<string, number>, RegExp];

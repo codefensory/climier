@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createTempProject, rmTempProject, importFresh } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh } from "./helpers.ts";
 
 test("bug: withLock creates the state directory if missing", async () => {
   const { withLock } = await importFresh("./storage/lock.ts");
@@ -15,7 +15,7 @@ test("bug: withLock creates the state directory if missing", async () => {
       ran = true;
     });
     assert.equal(ran, true);
-    const { stateFilePath } = await import("./helpers.mjs");
+    const { stateFilePath } = await import("./helpers.ts");
     const stat = await fs.stat(path.dirname(stateFilePath(base)));
     assert.ok(stat.isDirectory());
   } finally {
@@ -28,7 +28,7 @@ test("bug: corrupted state file produces a clear error, not a SyntaxError stack"
   const { readState } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
   try {
-    const { stateFilePath } = await import("./helpers.mjs");
+    const { stateFilePath } = await import("./helpers.ts");
     const file = stateFilePath(dir);
     await fs.mkdir(path.dirname(file), { recursive: true });
     await fs.writeFile(file, "{ this is not valid json :::", "utf8");

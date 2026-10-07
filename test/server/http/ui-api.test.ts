@@ -7,7 +7,7 @@ import { test } from "node:test";
 import { authHeaders, withApi, withInitApi } from "./fixtures.mjs";
 import { createProjectCatalog } from "../../../src/server/catalog/index.ts";
 import { createUiApi } from "../../../src/server/http/ui-api.ts";
-import { readState, writeCanonicalState } from "../../helpers.mjs";
+import { readState, writeCanonicalState } from "../../helpers.ts";
 
 type RawResponse = { status: number | undefined; headers: http.IncomingHttpHeaders; body: Buffer };
 type UiBody = { ok?: boolean; result: { project: { id: string; name: string; revision: number; generated_at: string }; recent_activity: unknown[]; node: { id: string }; derived_status: string; blocking: Array<{ node: { id: string }; satisfied: boolean }>; entries: Array<{ node_id: string | null }>; total: number } };

@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createTempProject, rmTempProject, stateExists, stateFilePath, importFresh, runCli } from "./helpers.mjs";
+import { createTempProject, rmTempProject, stateExists, stateFilePath, importFresh, runCli } from "./helpers.ts";
 import { runCli as runCliInProcess } from "../src/cli/dispatch.ts";
 
 test("init: creates empty canonical v1 state and ledger when none exists", async () => {

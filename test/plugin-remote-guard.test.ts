@@ -8,7 +8,7 @@ import {
   createTempProject,
   rmTempProject,
   importFresh,
-} from "./helpers.mjs";
+} from "./helpers.ts";
 
 const remote = { type: "remote", marker: "resolved-by-cli" };
 

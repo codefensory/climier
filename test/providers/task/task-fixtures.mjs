@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { importFresh } from "../../helpers.mjs";
+import { importFresh } from "../../helpers.ts";
 
 const ACTOR = "codex-worker";
 

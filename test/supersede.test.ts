@@ -6,7 +6,7 @@ import {
   rmTempProject,
   importFresh,
   readState as readRawState,
-} from "./helpers.mjs";
+} from "./helpers.ts";
 
 type TestError = { code?: string; message?: string; details?: Record<string, unknown> };
 function testError(value: unknown): TestError { return value as TestError; }

@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import { createRequire } from "node:module";
-import { stateFilePath } from "./helpers.mjs";
+import { stateFilePath } from "./helpers.ts";
 
 export const PLUGIN_MODULE = "../src/plugins/paths.ts";
 export const LOCK_MODULE = "../src/plugins/lock.ts";

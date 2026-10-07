@@ -11,7 +11,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createTempProject, rmTempProject, importFresh, readState as readRawState, writeCanonicalState, runCli } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, readState as readRawState, writeCanonicalState, runCli } from "./helpers.ts";
 
 type Extra = {
   title?: string;
@@ -445,7 +445,7 @@ test("deprecate-knowledge: missing --as throws MISSING_AGENT", async () => {
   try {
     await bootstrapProject(dir);
     await addKnowledge(dir, "K-1", { domain: "auth" });
-    // drop the env-var fallback that helpers.mjs set, so MISSING_AGENT wins.
+    // drop the env-var fallback that helpers.ts set, so MISSING_AGENT wins.
     prev = process.env.CLIMIER_AGENT;
     delete process.env.CLIMIER_AGENT;
     await assert.rejects(

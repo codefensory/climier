@@ -6,7 +6,7 @@ import test from "node:test";
 import { createRemoteTransferBaselineStore } from "../src/storage/remote-transfer-baseline.ts";
 import { readFencedState } from "../src/storage/ledger.ts";
 import { runCli as runCliCommand } from "../src/cli/dispatch.ts";
-import { createTempProject, rmTempProject, writeCanonicalState } from "./helpers.mjs";
+import { createTempProject, rmTempProject, writeCanonicalState } from "./helpers.ts";
 
 const runCliInProcess = (options: unknown) => runCliCommand(options as Parameters<typeof runCliCommand>[0]);
 

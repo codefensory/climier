@@ -9,7 +9,7 @@ import {
   writeCanonicalState,
   readState as readStateRaw,
   stateFilePath,
-} from "./helpers.mjs";
+} from "./helpers.ts";
 
 type NodeRecord = { id: string; kind: string; subkind?: string; status?: string; [key: string]: unknown };
 type State = { version: number; revision: number; fence_generation?: number; nodes: Record<string, NodeRecord>; edges: unknown[]; initiatives: Record<string, unknown>; log: Array<Record<string, unknown>>; plugins?: Record<string, unknown> };

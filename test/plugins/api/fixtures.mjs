@@ -1,4 +1,4 @@
-import { createTempProject, importFresh, writeFencedState, readState as readRawState } from "../../helpers.mjs";
+import { createTempProject, importFresh, writeFencedState, readState as readRawState } from "../../helpers.ts";
 
 function baseNodes() {
   return {

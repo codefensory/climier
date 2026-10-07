@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { importFresh } from "./helpers.mjs";
+import { importFresh } from "./helpers.ts";
 import { PLUGIN_MODULE, LOCK_MODULE, freshEnv } from "./plugin-install-test-helpers.mjs";
 
 test("plugin-paths: exposes pluginsHome, pluginInstalledDir, pluginStagingDir, globalPluginLockPath under CLIMIER_HOME/plugins", async () => {

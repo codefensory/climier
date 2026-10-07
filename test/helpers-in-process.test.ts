@@ -14,7 +14,7 @@ import {
   runCliSpawn,
   exampleState,
   writeCanonicalState,
-} from "./helpers.mjs";
+} from "./helpers.ts";
 
 function restoreEnv(key, value) {
   if (value === undefined) {

@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
-import { createTempProject, readState as readStateHelper, rmTempProject, stateFilePath } from "../../helpers.mjs";
-import { bootstrapProject, importKernel, createTaskProvider, updateNodeProvider } from "./helpers.mjs";
+import { createTempProject, readState as readStateHelper, rmTempProject, stateFilePath } from "../../helpers.ts";
+import { bootstrapProject, importKernel, createTaskProvider, updateNodeProvider } from "./helpers.ts";
 
 function assertUnchangedAfterNoop(out, state, baseMtime, finalStat) {
   assert.equal(out.idempotent, true, "no diff ⇒ idempotent");

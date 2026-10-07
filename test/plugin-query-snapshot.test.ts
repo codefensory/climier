@@ -6,7 +6,7 @@ import {
   rmTempProject,
   importFresh,
   writeCanonicalState,
-} from "./helpers.mjs";
+} from "./helpers.ts";
 
 const SNAPSHOT_NODES = {
   "T-z": {

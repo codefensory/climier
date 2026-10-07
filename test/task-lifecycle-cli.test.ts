@@ -4,7 +4,7 @@ import {
   createTempProject,
   rmTempProject,
   runCli,
-} from "./helpers.mjs";
+} from "./helpers.ts";
 import { HELP_TEXT } from "../src/cli/dispatch.ts";
 import { RESERVED_NAMESPACES } from "../src/cli/commands/reserved-namespaces.ts";
 import resolve from "../src/cli/commands/resolve.ts";

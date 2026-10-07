@@ -2,7 +2,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createTempProject, rmTempProject, importFresh, readState } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, readState } from "./helpers.ts";
 
 test("appendWithContext: adds plugin_id when ctx.pluginId is a non-empty string", async () => {
   const { appendWithContext } = await importFresh("./storage/log.ts");

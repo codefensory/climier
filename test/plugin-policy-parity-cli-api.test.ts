@@ -21,7 +21,7 @@
 // api.runtime.agent automatically; see src/plugin-core-adapter.mjs).
 //
 // Isolation: per-test CLIMIER_HOME under os.tmpdir() and per-test
-// project dir. helpers.mjs guards the real ~/.climier.
+// project dir. helpers.ts guards the real ~/.climier.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -36,7 +36,7 @@ import {
   runCli,
   installPolicyFixture,
   uninstallPolicyFixture,
-} from "./helpers.mjs";
+} from "./helpers.ts";
 
 const FIXTURE_COMMAND = "policy";
 

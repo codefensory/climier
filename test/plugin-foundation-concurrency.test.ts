@@ -5,7 +5,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { createTempProject, readState, rmTempProject, runCli } from "./helpers.mjs";
+import { createTempProject, readState, rmTempProject, runCli } from "./helpers.ts";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
 const BIN = path.join(ROOT, "bin", "climier.ts");

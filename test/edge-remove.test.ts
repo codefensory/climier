@@ -7,7 +7,7 @@ import {
   readState,
   rmTempProject,
   runCli,
-} from "./helpers.mjs";
+} from "./helpers.ts";
 
 async function setupProject(dir) {
   let result = await runCli(["--project", dir, "init"]);

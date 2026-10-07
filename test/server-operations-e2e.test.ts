@@ -9,7 +9,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { createRemoteTransferBaselineStore } from "../src/storage/remote-transfer-baseline.ts";
-import { runCli, writeCanonicalState } from "./helpers.mjs";
+import { runCli, writeCanonicalState } from "./helpers.ts";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const cliLauncher = path.join(repoRoot, "bin", "climier.ts");

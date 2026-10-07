@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createTempProject, rmTempProject, importFresh, stateFilePath, writeCanonicalState } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, stateFilePath, writeCanonicalState } from "./helpers.ts";
 
 const SNAPSHOT_ID_PATTERN = /^(\d{8}T\d{9}Z)-(force-init|corrupt-recovery|pre-restore)-([0-9a-f]{8})$/;
 

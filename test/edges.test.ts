@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { throwV2 } from "../src/contracts/errors.ts";
 import type { ErrorCode } from "../src/contracts/errors.ts";
 import { EDGE_TYPES, existingEdge, validateEdge } from "../src/kernel/edges.ts";
-import { createTempProject, rmTempProject, importFresh, runCli } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, runCli } from "./helpers.ts";
 
 // --- pure helpers -------------------------------------------------------
 

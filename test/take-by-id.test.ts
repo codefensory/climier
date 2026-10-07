@@ -15,7 +15,7 @@ import {
   readState,
   installPolicyFixture,
   uninstallPolicyFixture,
-} from "./helpers.mjs";
+} from "./helpers.ts";
 
 type TestError = { code?: string; details?: Record<string, unknown> };
 function testError(value: unknown): TestError { return value as TestError; }

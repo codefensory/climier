@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { createTempProject } from "./helpers.mjs";
+import { createTempProject } from "./helpers.ts";
 
 export async function freshHome(prefix = "climier-policy-test") {
   const home = await fs.mkdtemp(path.join(os.tmpdir(), prefix + "-"));

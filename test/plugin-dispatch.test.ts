@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { runCli, importFresh } from "./helpers.mjs";
+import { runCli, importFresh } from "./helpers.ts";
 
 type SeedPluginOptions = {
   id?: string;

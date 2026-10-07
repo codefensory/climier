@@ -3,6 +3,11 @@ import path from "node:path";
 
 const IDENTIFIER = /[$\w]/u;
 
+type Token = { type: "string" | "identifier" | "punctuation"; value: string; line: number };
+type TokenResult = { token?: Token; index: number; line: number };
+type ImportRecord = { sourceFile: string; targetFile: string; specifier?: string };
+type CollectOptions = { sourceRootDirectory?: string; targetRootDirectory?: string };
+
 function isIdentifierStart(character) {
   return Boolean(character) && (character === "_" || character === "$" || /[A-Za-z]/u.test(character));
 }
@@ -11,7 +16,7 @@ function isIdentifierPart(character) {
   return Boolean(character) && (character === "_" || character === "$" || IDENTIFIER.test(character));
 }
 
-function skipWhitespace(source, index, line) {
+function skipWhitespace(source: string, index: number, line: number): { index: number; line: number } {
   while (index < source.length && /\s/u.test(source[index])) {
     if (source[index] === "\n") {
       line += 1;
@@ -21,14 +26,14 @@ function skipWhitespace(source, index, line) {
   return { index, line };
 }
 
-function skipLineComment(source, index) {
+function skipLineComment(source: string, index: number): number {
   while (index < source.length && source[index] !== "\n") {
     index += 1;
   }
   return index;
 }
 
-function skipBlockComment(source, index, line) {
+function skipBlockComment(source: string, index: number, line: number): { index: number; line: number } {
   while (index < source.length && !(source[index] === "*" && source[index + 1] === "/")) {
     if (source[index] === "\n") {
       line += 1;
@@ -38,7 +43,7 @@ function skipBlockComment(source, index, line) {
   return { index: index + 2, line };
 }
 
-function readQuotedString(source, index, line) {
+function readQuotedString(source: string, index: number, line: number): TokenResult {
   const quote = source[index];
   const start = index;
   index += 1;
@@ -63,7 +68,7 @@ function readQuotedString(source, index, line) {
   };
 }
 
-function skipTemplate(source, index, line) {
+function skipTemplate(source: string, index: number, line: number): { index: number; line: number } {
   index += 1;
   while (index < source.length) {
     if (source[index] === "\\") {
@@ -82,7 +87,7 @@ function skipTemplate(source, index, line) {
   return { index, line };
 }
 
-function readIdentifier(source, index, line) {
+function readIdentifier(source: string, index: number, line: number): TokenResult {
   const start = index;
   while (isIdentifierPart(source[index])) {
     index += 1;
@@ -90,10 +95,11 @@ function readIdentifier(source, index, line) {
   return {
     token: { type: "identifier", value: source.slice(start, index), line },
     index,
+    line,
   };
 }
 
-function readComment(source, index, line) {
+function readComment(source: string, index: number, line: number): TokenResult | undefined {
   if (source[index] !== "/") {
     return undefined;
   }
@@ -106,14 +112,14 @@ function readComment(source, index, line) {
   return undefined;
 }
 
-function readLiteral(source, index, line) {
+function readLiteral(source: string, index: number, line: number): TokenResult {
   if (source[index] === "'" || source[index] === '"') {
     return readQuotedString(source, index, line);
   }
   return { ...skipTemplate(source, index, line), token: undefined };
 }
 
-function nextToken(source, index, line) {
+function nextToken(source: string, index: number, line: number): TokenResult {
   const character = source[index];
   if (/\s/u.test(character)) {
     return { ...skipWhitespace(source, index, line), token: undefined };
@@ -131,8 +137,8 @@ function nextToken(source, index, line) {
   return { token: { type: "punctuation", value: character, line }, index: index + 1, line };
 }
 
-function tokenize(source) {
-  const tokens = [];
+function tokenize(source: string): Token[] {
+  const tokens: Token[] = [];
   let index = 0;
   let line = 1;
 
@@ -148,16 +154,16 @@ function tokenize(source) {
   return tokens;
 }
 
-function isImportOrExport(token) {
+function isImportOrExport(token: Token): boolean {
   return token.type === "identifier" && (token.value === "import" || token.value === "export");
 }
 
-function dynamicImportSpecifier(tokens, index) {
+function dynamicImportSpecifier(tokens: Token[], index: number): string | undefined {
   const specifier = tokens[index + 2];
   return specifier?.type === "string" ? specifier.value : undefined;
 }
 
-function declarationImportSpecifier(tokens, index) {
+function declarationImportSpecifier(tokens: Token[], index: number): string | undefined {
   for (let cursor = index + 1; cursor < tokens.length; cursor += 1) {
     if (tokens[cursor].value === ";") {
       break;
@@ -170,7 +176,7 @@ function declarationImportSpecifier(tokens, index) {
   return undefined;
 }
 
-function importSpecifier(tokens, index) {
+function importSpecifier(tokens: Token[], index: number): string | undefined {
   const token = tokens[index];
   const next = tokens[index + 1];
   if (token.value === "import" && next?.value === "(") {
@@ -182,9 +188,9 @@ function importSpecifier(tokens, index) {
   return declarationImportSpecifier(tokens, index);
 }
 
-export function relativeImportSpecifiers(source) {
+export function relativeImportSpecifiers(source: string): string[] {
   const tokens = tokenize(source);
-  const specifiers = [];
+  const specifiers: string[] = [];
 
   for (let index = 0; index < tokens.length; index += 1) {
     if (!isImportOrExport(tokens[index])) {
@@ -199,9 +205,9 @@ export function relativeImportSpecifiers(source) {
   return specifiers.filter((specifier) => specifier.startsWith("."));
 }
 
-async function sourceFiles(directory) {
+async function sourceFiles(directory: string): Promise<string[]> {
   const entries = await readdir(directory, { withFileTypes: true });
-  const files = [];
+  const files: string[] = [];
   for (const entry of entries) {
     const entryPath = path.join(directory, entry.name);
     if (entry.isDirectory()) {
@@ -213,10 +219,10 @@ async function sourceFiles(directory) {
   return files.toSorted();
 }
 
-export async function collectRelativeImports(directory, {
+export async function collectRelativeImports(directory: string, {
   sourceRootDirectory,
   targetRootDirectory,
-} = {}) {
+}: CollectOptions = {}): Promise<ImportRecord[]> {
   const sourceDirectory = path.resolve(directory);
   let sourceRoot = sourceRootDirectory === undefined
     ? sourceDirectory
@@ -234,7 +240,7 @@ export async function collectRelativeImports(directory, {
     ? sourceRoot
     : path.resolve(targetRootDirectory);
   const files = await sourceFiles(sourceDirectory);
-  const imports = [];
+  const imports: ImportRecord[] = [];
 
   for (const file of files) {
     const source = await readFile(file, "utf8");
@@ -251,7 +257,7 @@ export async function collectRelativeImports(directory, {
   return imports;
 }
 
-export function findBoundaryViolations(imports, { sourceRoot, forbiddenRoots }) {
+export function findBoundaryViolations(imports: ImportRecord[], { sourceRoot, forbiddenRoots }: { sourceRoot: string; forbiddenRoots: string[] }): ImportRecord[] {
   return imports.filter(({ sourceFile, targetFile }) => {
     const sourceMatches = sourceFile === sourceRoot || sourceFile.startsWith(`${sourceRoot}${path.sep}`);
     const targetRoot = targetFile.split(path.sep)[0];

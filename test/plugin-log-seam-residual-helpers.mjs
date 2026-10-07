@@ -1,4 +1,4 @@
-import { importFresh } from "./helpers.mjs";
+import { importFresh } from "./helpers.ts";
 
 export async function submitAcceptTask(dir, id, options = {}) {
   const { as = "alice", note = "done", pluginId } = options;

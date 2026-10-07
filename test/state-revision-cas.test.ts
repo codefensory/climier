@@ -7,7 +7,7 @@ import {
   importFresh,
   readState,
   writeCanonicalState,
-} from "./helpers.mjs";
+} from "./helpers.ts";
 
 function baseState() {
   return {

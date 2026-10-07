@@ -6,7 +6,7 @@ import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { BIN, runCli } from "./cli-harness.mjs";
+import { BIN, runCli } from "./cli-harness.ts";
 import { withLock } from "../src/storage/lock.ts";
 import {
   bootstrapFencedStateUnderLock,
@@ -16,6 +16,26 @@ import {
 
 const testDirectory = path.dirname(fileURLToPath(import.meta.url));
 const SRC_DIR = path.resolve(testDirectory, "..", "src");
+type DynamicModule = ReturnType<typeof JSON.parse>;
+type CanonicalState = {
+  version: number;
+  revision: number;
+  fence_generation?: number;
+  nodes: Record<string, Record<string, unknown>>;
+  edges: Array<Record<string, unknown>>;
+  initiatives: Record<string, unknown>;
+  log: Array<Record<string, unknown>>;
+  [key: string]: unknown;
+};
+type PolicyOptions = {
+  pluginId?: string;
+  id?: string;
+  appliesMode?: string;
+  authorizeMode?: string;
+  reason?: string;
+};
+type ProjectConfig = { plugins?: Record<string, Record<string, unknown>> };
+
 
 // Plugin install fixtures go through the product's install command, which
 // shells out to npm for one local-directory resolution. Real npm costs two
@@ -29,15 +49,16 @@ if (!process.env.CLIMIER_NPM_CMD && process.platform !== "win32") {
 
 if (!process.env.CLIMIER_HOME) {
   process.env.CLIMIER_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "climier-home-"));
+  const testHome = process.env.CLIMIER_HOME;
   // Cleanup auto-created temp CLIMIER_HOME on exit. Real users set their
   // own CLIMIER_HOME and never hit this branch; the temp dir is owned by
   // us so deleting it is safe.
   process.on("exit", () => {
-    try { fs.rmSync(process.env.CLIMIER_HOME, { recursive: true, force: true }); } catch {}
+    try { fs.rmSync(testHome, { recursive: true, force: true }); } catch {}
   });
 } else {
   // Guard rail: a developer must NEVER run the suite against the real
-  // ~/.climier. If CLIMIER_HOME is already set when helpers.mjs loads,
+  // ~/.climier. If CLIMIER_HOME is already set when helpers.ts loads,
 
   // Acceptable paths:
   //   - <tmpdir>/climier-home-*      (auto-created by us in another process)
@@ -47,12 +68,16 @@ if (!process.env.CLIMIER_HOME) {
   // Refused paths:
   //   - ~/.climier
   //   - any non-tmpdir location that exists (we don't want to wipe personal data)
-  const home = path.resolve(process.env.CLIMIER_HOME);
+  const configuredHome = process.env.CLIMIER_HOME;
+  if (configuredHome === undefined) {
+    throw new Error("helpers.ts: CLIMIER_HOME disappeared while loading tests");
+  }
+  const home = path.resolve(configuredHome);
   const tmpRoot = path.resolve(os.tmpdir());
   const realUserHome = path.resolve(os.homedir(), ".climier");
   if (home === realUserHome || home.startsWith(realUserHome + path.sep)) {
     throw new Error(
-      `helpers.mjs: refusing to run with CLIMIER_HOME=${realUserHome}. ` +
+      `helpers.ts: refusing to run with CLIMIER_HOME=${realUserHome}. ` +
       `Tests would write to and potentially wipe the real global state. ` +
       `Unset CLIMIER_HOME so each run gets an isolated temp dir, or point it ` +
       `at an explicit temp location (e.g. CLIMIER_HOME=/tmp/climier-test).`
@@ -60,7 +85,7 @@ if (!process.env.CLIMIER_HOME) {
   }
   if (!home.startsWith(tmpRoot + path.sep) && home !== tmpRoot) {
     throw new Error(
-      `helpers.mjs: refusing to run with CLIMIER_HOME=${home}. ` +
+      `helpers.ts: refusing to run with CLIMIER_HOME=${home}. ` +
       `It must live inside ${tmpRoot} to keep tests isolated. ` +
       `Unset CLIMIER_HOME so each run gets an isolated temp dir.`
     );
@@ -81,23 +106,27 @@ function defaultProjectId(dir) {
   return crypto.createHash("sha1").update(path.resolve(dir)).digest("hex").slice(0, 16);
 }
 
-export function stateFilePath(dir) {
+export function stateFilePath(dir: string): string {
   const metaFile = projectMetaPath(dir);
   const projectId = fs.existsSync(metaFile)
     ? JSON.parse(fs.readFileSync(metaFile, "utf8")).project_id
     : defaultProjectId(dir);
-  return path.join(process.env.CLIMIER_HOME, "projects", projectId, "tasks.json");
+  const climierHome = process.env.CLIMIER_HOME;
+  if (climierHome === undefined) {
+    throw new Error("stateFilePath: CLIMIER_HOME is not configured");
+  }
+  return path.join(climierHome, "projects", projectId, "tasks.json");
 }
 
-export function lockFilePath(dir) {
+export function lockFilePath(dir: string): string {
   return path.join(path.dirname(stateFilePath(dir)), ".lock");
 }
 
-export async function createTempProject() {
+export async function createTempProject(): Promise<string> {
   return fsp.mkdtemp(path.join(os.tmpdir(), "climier-test-"));
 }
 
-export async function rmTempProject(dir) {
+export async function rmTempProject(dir: string): Promise<void> {
   await fsp.rm(dir, { recursive: true, force: true });
 }
 
@@ -112,7 +141,7 @@ export async function writeState(dir, state) {
 // canonical-only there is no other writable form, and a fixture project must
 // never claim a schema the reader refuses. The name retires with the era
 // renames slice.
-export async function writeFencedState(dir, state) {
+export async function writeFencedState(dir: string, state): Promise<CanonicalState> {
   if (!state || typeof state !== "object" || Array.isArray(state) || state.version !== 5) {
     throw new TypeError("writeFencedState: expected a v5 state fixture");
   }
@@ -123,7 +152,7 @@ export async function writeFencedState(dir, state) {
 // Install a canonical fixture (version 1 plus its ledger) through the same
 // protocol the product uses, so a fixture project is never inconsistent with
 
-export async function writeCanonicalState(dir, state) {
+export async function writeCanonicalState(dir: string, state): Promise<CanonicalState> {
   const initialState = {
     ...state,
     version: 4,
@@ -133,7 +162,8 @@ export async function writeCanonicalState(dir, state) {
 
   return withLock(dir, async (lockContext) => {
     const current = await readFencedStateUnderLock(lockContext);
-    if (current) {
+    if (current && typeof current === "object" && !Array.isArray(current)
+      && "fence_generation" in current && "revision" in current) {
       return replaceFencedStateUnderLock(lockContext, {
         ...state,
         version: 1,
@@ -142,7 +172,7 @@ export async function writeCanonicalState(dir, state) {
       });
     }
     return bootstrapFencedStateUnderLock(lockContext, initialState);
-  });
+  }) as Promise<CanonicalState>;
 }
 
 export async function readState(dir) {
@@ -235,9 +265,9 @@ export async function initExampleProject(dir, { force = false } = {}) {
 }
 
 // The CLI harness (in-process by default, runCliSpawn for process isolation)
-// lives in cli-harness.mjs and is re-exported here for the test corpus.
+// lives in cli-harness.ts and is re-exported here for the test corpus.
 
-export function importFresh(modulePath) {
+export function importFresh(modulePath: string): Promise<DynamicModule> {
   const url = new URL(modulePath, `file://${SRC_DIR}/`).href;
   return import(`${url}?t=${Date.now()}-${Math.random()}`);
 }
@@ -246,9 +276,9 @@ export function importFresh(modulePath) {
 const POLICY_FIXTURE_DIR = path.resolve(testDirectory, "fixtures", "plugins", "policy-fixture");
 const POLICY_FIXTURE_DEFAULT_ID = "policy-fixture";
 
-const customFixtureDirs = new Set();
+const customFixtureDirs = new Set<string>();
 
-function trackCustomFixtureDir(dir) {
+function trackCustomFixtureDir(dir: string): string {
   customFixtureDirs.add(dir);
   return dir;
 }
@@ -262,7 +292,7 @@ process.on("exit", () => {
 // materializePolicyFixtureDir — when the caller supplies a custom
 // `pluginId` (or any of the option fields below), build a per-call
 // copy of the reusable fixture. Never mutate the shared fixture.
-async function materializePolicyFixtureDir(options) {
+async function materializePolicyFixtureDir(options: PolicyOptions): Promise<{ fixtureDir: string; pluginId: string }> {
   const pluginId = typeof options.pluginId === "string" && options.pluginId
     ? options.pluginId
     : POLICY_FIXTURE_DEFAULT_ID;
@@ -277,12 +307,12 @@ async function materializePolicyFixtureDir(options) {
   return { fixtureDir, pluginId };
 }
 
-async function writeCustomPolicyFixture(customDir, pluginId) {
+async function writeCustomPolicyFixture(customDir: string, pluginId: string): Promise<void> {
   await writeCustomPolicyPackage(customDir, pluginId);
   await fsp.writeFile(path.join(customDir, "climier.mjs"), buildPolicyFixtureEntry(pluginId), "utf8");
 }
 
-async function writeCustomPolicyPackage(customDir, pluginId) {
+async function writeCustomPolicyPackage(customDir: string, pluginId: string): Promise<void> {
   const pkgName = path.basename(customDir);
   const pkg = {
     name: pkgName,
@@ -325,7 +355,7 @@ function policyFixtureExportSource() {
   return `export default { commands: {}, policy: { applies, authorize } };`;
 }
 
-async function writePolicyNamespace(projectDir, pluginId, options) {
+async function writePolicyNamespace(projectDir: string, pluginId: string, options: PolicyOptions): Promise<void> {
   if (!hasPolicyOptions(options)) {
     return;
   }
@@ -348,26 +378,28 @@ async function writePolicyNamespace(projectDir, pluginId, options) {
   await fsp.writeFile(metaPath, JSON.stringify(config, null, 2) + "\n", "utf8");
 }
 
-function hasPolicyOptions(options) {
+function hasPolicyOptions(options: PolicyOptions): boolean {
   return options.appliesMode !== undefined || options.authorizeMode !== undefined || options.reason !== undefined;
 }
 
-async function readProjectConfig(metaPath) {
+async function readProjectConfig(metaPath: string): Promise<ProjectConfig> {
   try {
-    return JSON.parse(await fsp.readFile(metaPath, "utf8"));
+    return JSON.parse(await fsp.readFile(metaPath, "utf8")) as ProjectConfig;
   } catch (err) {
-    if (err && err.code === "ENOENT") {
+    if (err && typeof err === "object" && "code" in err && err.code === "ENOENT") {
       return {};
     }
     throw err;
   }
 }
 
-function getPluginNamespaces(plugins) {
-  return plugins && typeof plugins === "object" ? plugins : {};
+function getPluginNamespaces(plugins: unknown): Record<string, Record<string, unknown>> {
+  return plugins && typeof plugins === "object" && !Array.isArray(plugins)
+    ? plugins as Record<string, Record<string, unknown>>
+    : {};
 }
 
-function setAppliesMode(namespace, mode) {
+function setAppliesMode(namespace: Record<string, unknown>, mode: string | undefined): void {
   if (mode === "true") {
     namespace.applies = true;
   } else if (mode === "false") {
@@ -377,7 +409,7 @@ function setAppliesMode(namespace, mode) {
   }
 }
 
-function parseReason(reason) {
+function parseReason(reason: string): DynamicModule {
   try {
     return JSON.parse(reason);
   } catch {
@@ -385,7 +417,7 @@ function parseReason(reason) {
   }
 }
 
-export async function installPolicyFixture(projectDir, options = {}) {
+export async function installPolicyFixture(projectDir: string, options: PolicyOptions = {}): Promise<DynamicModule | null> {
   const { fixtureDir, pluginId } = await materializePolicyFixtureDir(options);
   await writePolicyNamespace(projectDir, pluginId, options);
   const args = ["--project", projectDir, "install", fixtureDir];
@@ -403,7 +435,7 @@ export async function installPolicyFixture(projectDir, options = {}) {
   return JSON.parse(result.stdout);
 }
 
-export async function uninstallPolicyFixture(projectDir, options = {}) {
+export async function uninstallPolicyFixture(projectDir: string, options: PolicyOptions = {}): Promise<DynamicModule | null> {
 
   // install helper's option name) or `id` (kept as a backward-
   // compatible alias for older callers).
@@ -430,4 +462,4 @@ export async function uninstallPolicyFixture(projectDir, options = {}) {
 }
 
 export { SRC_DIR, BIN, POLICY_FIXTURE_DIR };
-export { runCli, runCliInProcess, runCliSpawn } from "./cli-harness.mjs";
+export { runCli, runCliInProcess, runCliSpawn } from "./cli-harness.ts";

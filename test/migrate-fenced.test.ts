@@ -6,7 +6,7 @@ import { append } from "../src/storage/log.ts";
 import { checkStateRevision } from "../src/kernel/mutation/preconditions.ts";
 import { stateFile } from "../src/storage/state.ts";
 import { ledgerFile } from "../src/storage/ledger.ts";
-import { createTempProject, rmTempProject, runCli, writeFencedState } from "./helpers.mjs";
+import { createTempProject, rmTempProject, runCli, writeFencedState } from "./helpers.ts";
 
 type MigratedState = { version: number; fence_generation: number; revision: number; nodes: Record<string, { revision: number }>; log: Array<{ action: string; agent?: string }> };
 type Ledger = { fence_generation: number; high_water_revision: number; [key: string]: unknown };

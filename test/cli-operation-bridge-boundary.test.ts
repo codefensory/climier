@@ -9,7 +9,7 @@ import { createLocalOperationSource } from "../src/application/local-operation-s
 import { getOperationSource } from "../src/operation-source.ts";
 import { dispatchCommand as dispatchCommandImpl, runCli as runCliCommand } from "../src/cli/dispatch.ts";
 
-import { createTempProject, rmTempProject } from "./helpers.mjs";
+import { createTempProject, rmTempProject } from "./helpers.ts";
 import fsSync from "node:fs";
 import type { SourceInput } from "../src/application/types.ts";
 

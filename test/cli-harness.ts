@@ -13,14 +13,29 @@ export const BIN = path.resolve(testDirectory, "..", "bin", "climier.ts");
 // The suite issues thousands of CLI calls, and one spawned node per call costs
 // ~50ms of startup plus the dispatch module graph. Capturing write/exit keeps
 // the public contract: { stdout, stderr, code }.
-let dispatchModulePromise;
+let dispatchModulePromise: Promise<DispatchModule> | undefined;
 
-function loadDispatch() {
+function loadDispatch(): Promise<DispatchModule> {
   dispatchModulePromise ??= import("../src/cli/dispatch.ts");
   return dispatchModulePromise;
 }
 
-function applyEnvOverrides(env) {
+type CliEnvironment = Record<string, string | undefined>;
+type CliOptions = { cwd?: string; env?: CliEnvironment | string[] };
+type CliArgs = string[] | Record<string, string> | undefined;
+type CliResult = { stdout: string; stderr: string; code: number | null };
+
+type DispatchModule = typeof import("../src/cli/dispatch.ts");
+
+function normalizeArgs(args: CliArgs): string[] {
+  return Array.isArray(args) ? args : [];
+}
+
+function normalizeEnv(env: CliOptions["env"]): CliEnvironment | undefined {
+  return env !== undefined && !Array.isArray(env) ? env : undefined;
+}
+
+function applyEnvOverrides(env: CliEnvironment | undefined): Map<string, string | undefined> | null {
   if (!env || typeof env !== "object") {
     return null;
   }
@@ -36,7 +51,7 @@ function applyEnvOverrides(env) {
   return previous;
 }
 
-function restoreEnvOverrides(previous) {
+function restoreEnvOverrides(previous: Map<string, string | undefined> | null): void {
   if (!previous) {
     return;
   }
@@ -49,19 +64,19 @@ function restoreEnvOverrides(previous) {
   }
 }
 
-export async function runCliInProcess(args, { cwd, env } = {}) {
+export async function runCliInProcess(args: CliArgs, { cwd, env }: CliOptions = {}): Promise<CliResult> {
   const { runCli: dispatchRunCli } = await loadDispatch();
   const previousCwd = process.cwd();
   const ownsCwd = cwd === undefined;
   const effectiveCwd = cwd ?? fs.mkdtempSync(path.join(os.tmpdir(), "climier-cli-test-"));
-  const previousEnv = applyEnvOverrides({ ...env, NO_COLOR: "1" });
-  const writes = [];
+  const previousEnv = applyEnvOverrides({ ...normalizeEnv(env), NO_COLOR: "1" });
+  const writes: string[] = [];
   let code = 0;
   let exited = false;
   try {
     process.chdir(effectiveCwd);
     const result = await dispatchRunCli({
-      argv: args,
+      argv: normalizeArgs(args),
       // dispatch calls exit() inside the try/catch that also handles errors.
       // Record the code without throwing and suppress writes after exit so a
       // late path cannot append a second envelope.
@@ -86,13 +101,13 @@ export const runCli = runCliInProcess;
 
 // Spawn the real bin. Kept for process-isolation tests only: concurrent calls
 // share process.chdir/process.env, and stdin consumers need their own process.
-export function runCliSpawn(args, { cwd, env } = {}) {
+export function runCliSpawn(args: CliArgs, { cwd, env }: CliOptions = {}): Promise<CliResult> {
   const ownsCwd = cwd === undefined;
   const childCwd = cwd ?? fs.mkdtempSync(path.join(os.tmpdir(), "climier-cli-test-"));
   return new Promise((resolve) => {
-    const proc = spawn(process.execPath, [BIN, ...args], {
+    const proc = spawn(process.execPath, [BIN, ...normalizeArgs(args)], {
       cwd: childCwd,
-      env: { ...process.env, ...env, NO_COLOR: "1" },
+      env: { ...process.env, ...normalizeEnv(env), NO_COLOR: "1" },
     });
     let stdout = "";
     let stderr = "";

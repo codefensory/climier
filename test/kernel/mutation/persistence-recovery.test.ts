@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
-import { createTempProject, readState as readStateHelper, rmTempProject, stateFilePath, writeCanonicalState, importFresh } from "../../helpers.mjs";
-import { bootstrapProject, importKernel, updateNodeProvider } from "./helpers.mjs";
+import { createTempProject, readState as readStateHelper, rmTempProject, stateFilePath, writeCanonicalState, importFresh } from "../../helpers.ts";
+import { bootstrapProject, importKernel, updateNodeProvider } from "./helpers.ts";
 import { withLock } from "../../../src/storage/lock.ts";
 
 type TestError = { code: string; message: string; details: Record<string, unknown> };
@@ -249,7 +249,7 @@ test("kernel.mutate recovers a pending fenced commit before checking caller CAS"
 
 test("kernel.mutate bootstraps a missing project only after provider policy allows", async () => {
   const { mutate } = await importKernel();
-  const { stateExists } = await import("../../helpers.mjs");
+  const { stateExists } = await import("../../helpers.ts");
   const { ledgerFile } = await import("../../../src/storage/ledger.ts");
   const dir = await createTempProject();
   try {

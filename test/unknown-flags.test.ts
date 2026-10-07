@@ -3,7 +3,7 @@
 // Errors are JSON to stdout, not stderr.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createTempProject, rmTempProject, runCli } from "./helpers.mjs";
+import { createTempProject, rmTempProject, runCli } from "./helpers.ts";
 
 async function seedV2(dir) {
   let r = await runCli(["--project", dir, "init"]);

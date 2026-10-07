@@ -9,7 +9,7 @@ import {
   rmTempProject,
   writeCanonicalState,
   writeState,
-} from "./helpers.mjs";
+} from "./helpers.ts";
 
 function compatibleState(version = 4) {
   return {

@@ -14,7 +14,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createTempProject, rmTempProject, importFresh, runCli, readState as readRawState, writeCanonicalState } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, runCli, readState as readRawState, writeCanonicalState } from "./helpers.ts";
 
 type TestError = { code?: string; details?: Record<string, unknown> };
 

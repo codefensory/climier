@@ -5,7 +5,7 @@ import {
   createTempProject,
   rmTempProject,
   runCli,
-} from "./helpers.mjs";
+} from "./helpers.ts";
 
 export async function withFreshEnv(body) {
   const home = await fs.mkdtemp(path.join(os.tmpdir(), "climier-seam-dag-"));

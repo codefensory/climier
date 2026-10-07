@@ -25,7 +25,7 @@ import {
   rmTempProject,
   writeFencedState,
   readState as readStateHelper,
-} from "./helpers.mjs";
+} from "./helpers.ts";
 
 // Pure imports (no fs) — re-imported per test for freshness.
 

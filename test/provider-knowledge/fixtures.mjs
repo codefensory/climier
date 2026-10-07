@@ -1,6 +1,6 @@
 // Shared imports and pure state fixtures for knowledge provider contract tests.
 
-import { importFresh } from "../helpers.mjs";
+import { importFresh } from "../helpers.ts";
 
 export async function importProviders() {
   return importFresh("providers/knowledge/index.ts");

@@ -2,7 +2,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createTempProject, rmTempProject, importFresh, readState } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, readState } from "./helpers.ts";
 import { initProject, lastLog, addTaskPair } from "./plugin-log-seam-residual-helpers.mjs";
 
 test("add-task: CLI call writes add-task log entry without plugin_id", async () => {

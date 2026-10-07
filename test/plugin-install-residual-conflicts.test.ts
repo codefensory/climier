@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { importFresh } from "./helpers.mjs";
+import { importFresh } from "./helpers.ts";
 import { INSTALL_MODULE, freshEnv, mkdirp, createFixturePackage, installedDir, listStagingDirs, installCommandCollisionPair } from "./plugin-install-test-helpers.mjs";
 
 type PluginTestError = { code: string; details: Record<string, unknown> };

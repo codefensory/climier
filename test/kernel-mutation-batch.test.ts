@@ -8,7 +8,7 @@ import {
   readState as readStateRaw,
   writeCanonicalState as writeStateHelper,
   stateFilePath,
-} from "./helpers.mjs";
+} from "./helpers.ts";
 import { createBuiltinOperationRegistry, executeBatch as executeBatchRaw } from "../src/application/operations/index.ts";
 import { mutate } from "../src/kernel/mutate.ts";
 import { bootstrapFencedState } from "../src/storage/ledger.ts";

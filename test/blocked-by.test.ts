@@ -5,7 +5,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createTempProject, rmTempProject, importFresh, runCli, readState as readRawState } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, runCli, readState as readRawState } from "./helpers.ts";
 
 type TestError = { code?: string; message?: string };
 const asTestError = (error: unknown): TestError => error as TestError;

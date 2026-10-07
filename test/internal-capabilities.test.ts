@@ -31,7 +31,7 @@ import {
   importFresh,
   runCli,
   readState,
-} from "./helpers.mjs";
+} from "./helpers.ts";
 
 async function withFreshHome(body) {
   const home = await fs.mkdtemp(path.join(os.tmpdir(), "climier-internal-caps-"));

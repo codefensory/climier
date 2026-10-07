@@ -7,7 +7,7 @@ import {
   importFresh,
   writeCanonicalState,
   readState,
-} from "./helpers.mjs";
+} from "./helpers.ts";
 import {
   pluginDataNodeSetProvider,
   pluginDataProjectSetProvider,

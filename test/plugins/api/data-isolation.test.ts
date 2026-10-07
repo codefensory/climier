@@ -1,7 +1,7 @@
 // Split from test/plugin-api.test.mjs; complete original test bodies and cleanup are retained.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createTempProject, rmTempProject, importFresh, readState as readRawState } from "../../helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, readState as readRawState } from "../../helpers.ts";
 import { seedState, freshApi } from "./fixtures.mjs";
 
 type TestError = { code?: string; details: Record<string, unknown>; message?: string };

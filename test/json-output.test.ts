@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createTempProject, rmTempProject, runCli } from "./helpers.mjs";
+import { createTempProject, rmTempProject, runCli } from "./helpers.ts";
 
 const packageVersion = JSON.parse(
   fs.readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "package.json"), "utf8")

@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
-import { createTempProject, readState as readStateHelper, rmTempProject, stateFilePath } from "../../helpers.mjs";
-import { bootstrapProject, importKernel, updateNodeProvider } from "./helpers.mjs";
+import { createTempProject, readState as readStateHelper, rmTempProject, stateFilePath } from "../../helpers.ts";
+import { bootstrapProject, importKernel, updateNodeProvider } from "./helpers.ts";
 
 function assertRevisionConflict(err) {
   assert.ok(err, "should have thrown");

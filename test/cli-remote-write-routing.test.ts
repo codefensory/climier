@@ -12,7 +12,7 @@ import { createProjectCatalog } from "../src/server/catalog/index.ts";
 import { initState } from "../src/kernel/state-operations.ts";
 import { PUBLIC_CORE_OPS, PUBLIC_GATE_OPS, PUBLIC_KNOWLEDGE_OPS, PUBLIC_TASK_OPS } from "../src/application/operations/builtins.ts";
 import { HELP_TEXT } from "../src/cli/dispatch.ts";
-import { readState, runCli, writeCanonicalState } from "./helpers.mjs";
+import { readState, runCli, writeCanonicalState } from "./helpers.ts";
 
 const builtInWrites = [
   "task.create", "task.update", "task.take", "task.release", "task.reopen", "task.cancel", "task.submit", "task.accept", "task.reject",

@@ -9,7 +9,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { importFresh } from "./helpers.mjs";
+import { importFresh } from "./helpers.ts";
 
 const ERRORS_MODULE = "../src/plugins/errors.ts";
 

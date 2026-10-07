@@ -2,7 +2,7 @@
 // F6 — update: field edits, revision tracking, --if-revision optimistic concurrency.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createTempProject, rmTempProject, importFresh, readState as readRawState, runCli } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, readState as readRawState, runCli } from "./helpers.ts";
 
 async function projectFixture() {
   const { default: init } = await importFresh("./cli/commands/init.ts");

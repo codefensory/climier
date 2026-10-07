@@ -12,7 +12,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { importFresh } from "./helpers.mjs";
+import { importFresh } from "./helpers.ts";
 
 type Edge = { from: string; to: string; type: string };
 type State = { version: number; nodes?: Record<string, Record<string, string>>; edges?: Edge[] | null | string; log: unknown[] };

@@ -1,7 +1,7 @@
 /* eslint-disable max-nested-callbacks -- Wrapper integration tests keep setup and detailed error assertions in one case. */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createTempProject, rmTempProject, importFresh, readState, runCli } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, readState, runCli } from "./helpers.ts";
 
 type TestError = {
   code?: string;

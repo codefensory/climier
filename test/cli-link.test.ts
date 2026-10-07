@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { createTempProject, rmTempProject, runCli, stateFilePath, writeCanonicalState } from "./helpers.mjs";
+import { createTempProject, rmTempProject, runCli, stateFilePath, writeCanonicalState } from "./helpers.ts";
 
 async function readMeta(dir) {
   return JSON.parse(await fs.readFile(path.join(dir, ".climier.json"), "utf8"));

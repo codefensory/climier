@@ -6,7 +6,7 @@ import {
   readState,
   rmTempProject,
   runCli,
-} from "./helpers.mjs";
+} from "./helpers.ts";
 
 async function command(dir: string, ...args: string[]) {
   const result = await runCli(["--project", dir, ...args]);

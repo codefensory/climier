@@ -39,7 +39,7 @@ import {
   runCli,
   installPolicyFixture,
   uninstallPolicyFixture,
-} from "./helpers.mjs";
+} from "./helpers.ts";
 
 const PROJECT_ID = "seam-state-ops-project";
 

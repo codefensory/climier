@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { withLock, withProjectIdLock } from "../src/storage/lock.ts";
-import { runCli } from "./helpers.mjs";
+import { runCli } from "./helpers.ts";
 
 async function makeHome() {
   const home = await fs.mkdtemp(path.join(os.tmpdir(), "climier-migrate-home-"));

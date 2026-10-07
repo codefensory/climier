@@ -15,7 +15,7 @@
 //   4. Each log entry has exactly one ts / agent / action tuple.
 //
 // Isolation: per-test CLIMIER_HOME under os.tmpdir() — the helper
-// helpers.mjs guards against `~/.climier` (its own private check inside
+// helpers.ts guards against `~/.climier` (its own private check inside
 
 // the same installed fixture and the same project state file.
 
@@ -31,7 +31,7 @@ import {
   rmTempProject,
   runCli,
   stateFilePath,
-} from "./helpers.mjs";
+} from "./helpers.ts";
 
 const REPO_ROOT = path.resolve(".");
 const FIXTURE_DIR = path.join(REPO_ROOT, "test/fixtures/core-plugin");

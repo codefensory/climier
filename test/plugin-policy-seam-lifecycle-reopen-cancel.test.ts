@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readState, runCli, installPolicyFixture, uninstallPolicyFixture } from "./helpers.mjs";
+import { readState, runCli, installPolicyFixture, uninstallPolicyFixture } from "./helpers.ts";
 import { assertPolicyError, cli, entriesForAction, initAndSeed, installAndTake, withFreshEnv, writeClimierJson } from "./plugin-policy-seam-lifecycle-helpers.mjs";
 
 test("seam-reopen: done_by reopens with no policy (defaults core)", async () => {

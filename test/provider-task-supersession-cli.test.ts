@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { createTempProject, rmTempProject, runCli, writeCanonicalState } from "./helpers.mjs";
+import { createTempProject, rmTempProject, runCli, writeCanonicalState } from "./helpers.ts";
 
 const task = (id, status) => ({
   id,

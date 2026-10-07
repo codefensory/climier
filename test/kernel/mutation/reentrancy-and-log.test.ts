@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createTempProject, readState as readStateHelper, rmTempProject } from "../../helpers.mjs";
-import { bootstrapProject, importKernel, createTaskProvider, updateNodeProvider } from "./helpers.mjs";
+import { createTempProject, readState as readStateHelper, rmTempProject } from "../../helpers.ts";
+import { bootstrapProject, importKernel, createTaskProvider, updateNodeProvider } from "./helpers.ts";
 
 type TestError = { code: string; message: string; details: Record<string, unknown> };
 

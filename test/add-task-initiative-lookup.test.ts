@@ -1,7 +1,7 @@
 /* eslint-disable max-nested-callbacks -- Nested subprocess/setup fixtures remain grouped around the public rejection contract. */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createTempProject, rmTempProject, importFresh, runCli } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, runCli } from "./helpers.ts";
 
 type TestError = {
   code?: string;

@@ -7,12 +7,12 @@
 //   - CLIMIER_AGENT is picked up when --as is absent
 //   - CLI smoke: env var works end-to-end without --as
 //
-// helpers.mjs sets CLIMIER_AGENT to a default so unrelated tests keep
+// helpers.ts sets CLIMIER_AGENT to a default so unrelated tests keep
 // passing. These tests delete the env var to exercise the missing-agent path.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createTempProject, rmTempProject, importFresh, runCli } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, runCli } from "./helpers.ts";
 
 type TestError = {
   code?: string;

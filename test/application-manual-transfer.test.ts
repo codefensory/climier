@@ -7,7 +7,7 @@ import test from "node:test";
 import { bootstrapFencedState, readFencedState, replaceFencedStateUnderLock } from "../src/storage/ledger.ts";
 import { createRemoteTransferBaselineStore } from "../src/storage/remote-transfer-baseline.ts";
 import { withLock } from "../src/storage/lock.ts";
-import { createTempProject, rmTempProject } from "./helpers.mjs";
+import { createTempProject, rmTempProject } from "./helpers.ts";
 import { pullManualTransfer, pushManualTransfer } from "../src/application/manual-transfer.ts";
 
 type SnapshotNode = { id: string; kind: string; subkind: string; status: string; title: string };

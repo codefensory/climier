@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
-import { createTempProject, rmTempProject } from "./helpers.mjs";
+import { createTempProject, rmTempProject } from "./helpers.ts";
 import { stateFile } from "../src/storage/state.ts";
 import { withLock, assertActiveLockContext } from "../src/storage/lock.ts";
 import {

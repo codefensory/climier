@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { initState } from "../src/kernel/state-operations.ts";
-import { runCli } from "./cli-harness.mjs";
+import { runCli } from "./cli-harness.ts";
 import uiCommand, { startLocalUiServer } from "../src/cli/commands/ui.ts";
 
 interface SnapshotBody {

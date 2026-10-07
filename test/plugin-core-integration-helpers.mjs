@@ -4,7 +4,7 @@ import {
   rmTempProject,
   importFresh,
   readState,
-} from "./helpers.mjs";
+} from "./helpers.ts";
 
 // Shared setup for the core API integration cases.
 export async function initProject(dir, initiatives = ["plugin-platform"]) {

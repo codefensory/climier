@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createTempProject, rmTempProject, runCli, initExampleProject } from "./helpers.mjs";
+import { createTempProject, rmTempProject, runCli, initExampleProject } from "./helpers.ts";
 import * as dispatchModule from "../src/cli/dispatch.ts";
 const runCliInProcess = (options: unknown) => dispatchModule.runCli(options as Parameters<typeof dispatchModule.runCli>[0]);
 

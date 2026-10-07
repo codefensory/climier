@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { createTempProject, importFresh, readState, rmTempProject, installPolicyFixture, uninstallPolicyFixture } from "./helpers.mjs";
+import { createTempProject, importFresh, readState, rmTempProject, installPolicyFixture, uninstallPolicyFixture } from "./helpers.ts";
 
 export { createTempProject, importFresh, readState, rmTempProject, installPolicyFixture, uninstallPolicyFixture };
 export const fsModule = fs;

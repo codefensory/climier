@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { blockingForNode } from "../src/read-model/index.ts";
 import { deriveV2 } from "../src/providers/task/derivation.ts";
-import { createTempProject, rmTempProject, runCli, readState as readRawState } from "./helpers.mjs";
+import { createTempProject, rmTempProject, runCli, readState as readRawState } from "./helpers.ts";
 
 // Canonical edge direction contract:
 

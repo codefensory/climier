@@ -8,7 +8,7 @@ import { createRemoteApiServer } from "../src/server/http.ts";
 import { createServerAuthStore } from "../src/server/auth/server-auth-store.ts";
 import { createProjectCatalog } from "../src/server/catalog/index.ts";
 import { initState } from "../src/kernel/state-operations.ts";
-import { writeCanonicalState } from "./helpers.mjs";
+import { writeCanonicalState } from "./helpers.ts";
 import { projectInitiativesView, projectSearchView } from "../src/read-model/index.ts";
 import { readModelParity } from "./fixtures/read-model-parity.mjs";
 

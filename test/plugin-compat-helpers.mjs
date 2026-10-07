@@ -14,7 +14,7 @@ import {
   installPolicyFixture,
   uninstallPolicyFixture,
   writeCanonicalState,
-} from "./helpers.mjs";
+} from "./helpers.ts";
 
 export {
   createTempProject,

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { importFresh } from "./helpers.mjs";
+import { importFresh } from "./helpers.ts";
 
 const REGISTRY_MODULE = "../src/application/operations/registry.ts";
 const INDEX_MODULE = "../src/application/operations/index.ts";

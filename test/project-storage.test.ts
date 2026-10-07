@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createTempProject, rmTempProject, importFresh, stateFilePath, lockFilePath, writeCanonicalState } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, stateFilePath, lockFilePath, writeCanonicalState } from "./helpers.ts";
 
 test("storage: init uses the global state path", async () => {
   const { default: init } = await importFresh("./cli/commands/init.ts");

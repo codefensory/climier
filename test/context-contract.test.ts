@@ -7,7 +7,7 @@ import {
   importFresh,
   readState,
   writeCanonicalState,
-} from "./helpers.mjs";
+} from "./helpers.ts";
 
 const baseState = () => ({ version: 1, nodes: {}, edges: [], initiatives: {}, log: [] });
 

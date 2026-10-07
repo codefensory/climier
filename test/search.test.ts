@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createTempProject, rmTempProject, importFresh, runCli, writeCanonicalState } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, runCli, writeCanonicalState } from "./helpers.ts";
 
 function state(nodes) {
   return { version: 1, nodes, edges: [], initiatives: {}, log: [] };

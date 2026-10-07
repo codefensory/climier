@@ -27,7 +27,7 @@ import {
   readState as readRawState,
   installPolicyFixture,
   uninstallPolicyFixture,
-} from "./helpers.mjs";
+} from "./helpers.ts";
 
 type TestError = { code?: string; message?: string; details?: Record<string, unknown> };
 const asTestError = (error: unknown): TestError => error as TestError;

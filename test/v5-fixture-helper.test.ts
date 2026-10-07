@@ -9,7 +9,7 @@ import {
   writeFencedState,
   readState,
   stateFilePath,
-} from "./helpers.mjs";
+} from "./helpers.ts";
 import { ledgerFile } from "../src/storage/ledger.ts";
 
 async function withProject(fn) {

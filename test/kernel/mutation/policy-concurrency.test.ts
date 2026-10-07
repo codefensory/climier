@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createTempProject, readState as readStateHelper, rmTempProject } from "../../helpers.mjs";
-import { bootstrapProject, importKernel, updateNodeProvider } from "./helpers.mjs";
+import { createTempProject, readState as readStateHelper, rmTempProject } from "../../helpers.ts";
+import { bootstrapProject, importKernel, updateNodeProvider } from "./helpers.ts";
 
 function policyFields(state) {
   return {

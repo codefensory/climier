@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
-import { createTempProject, rmTempProject, runCli, stateFilePath, readState, writeCanonicalState } from "./helpers.mjs";
+import { createTempProject, rmTempProject, runCli, stateFilePath, readState, writeCanonicalState } from "./helpers.ts";
 import { HELP_TEXT } from "../src/cli/dispatch.ts";
 import batch from "../src/cli/commands/batch.ts";
 import { RESERVED_NAMESPACES } from "../src/cli/commands/reserved-namespaces.ts";

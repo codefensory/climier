@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { installPolicyFixture } from "./helpers.mjs";
+import { installPolicyFixture } from "./helpers.ts";
 import { runCliRaw } from "./plugin-policy-seam-dag-helpers.mjs";
 import { baseClimierJson, buildEnvNamespace, cli, initProject, recorded, registerInitiative, withFreshEnv } from "./plugin-policy-seam-dag-helpers.mjs";
 

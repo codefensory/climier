@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createTempProject, rmTempProject, importFresh, lockFilePath, writeCanonicalState } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, lockFilePath, writeCanonicalState } from "./helpers.ts";
 import { commitFencedStateUnderLock, readFencedStateUnderLock } from "../src/storage/ledger.ts";
 
 type FencedState = { version: number; revision: number; log: Array<{ action: string }> };

@@ -14,7 +14,7 @@
 //   - test/plugin-core-concurrency.test.mjs — child_process fan-out
 //     with a shared CLIMIER_HOME (see §3 there).
 //
-// All mutations run through helpers.mjs (auto-managed CLIMIER_HOME under
+// All mutations run through helpers.ts (auto-managed CLIMIER_HOME under
 // os.tmpdir()). Each test installs a fresh fixture from the local path;
 // nothing touches the real ~/.climier tree.
 
@@ -29,7 +29,7 @@ import {
   rmTempProject,
   runCli,
   stateFilePath,
-} from "./helpers.mjs";
+} from "./helpers.ts";
 
 const FIXTURE_DIR = path.resolve("test/fixtures/core-plugin");
 const FIXTURE_ID = "example.core";

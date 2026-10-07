@@ -13,7 +13,7 @@ import {
   importFresh,
   readState as readRawState,
   writeCanonicalState,
-} from "./helpers.mjs";
+} from "./helpers.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const baseState = () => ({ version: 1, initiatives: {}, nodes: {}, edges: [], log: [] });

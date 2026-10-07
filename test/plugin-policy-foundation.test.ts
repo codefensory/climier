@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { importFresh } from "./helpers.mjs";
+import { importFresh } from "./helpers.ts";
 import { commandOnlyFixture, policyFailureForField, policyFixture, withEnv, writePlugin } from "./plugin-policy-foundation-helpers.mjs";
 
 const DESCRIPTOR_MODULE = "../src/plugins/descriptor.ts";

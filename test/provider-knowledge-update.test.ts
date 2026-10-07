@@ -19,14 +19,14 @@ type CaughtError = { code?: string; message?: string };
 function caughtError(error: unknown): CaughtError {
   return typeof error === "object" && error !== null ? error as CaughtError : {};
 }
-import { importFresh } from "./helpers.mjs";
+import { importFresh } from "./helpers.ts";
 
 import {
   createTempProject,
   rmTempProject,
   writeFencedState,
   readState as readStateHelper,
-} from "./helpers.mjs";
+} from "./helpers.ts";
 
 // Pure imports (no fs) — re-imported per test for freshness.
 

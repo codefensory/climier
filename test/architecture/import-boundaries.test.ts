@@ -7,7 +7,7 @@ import {
   collectRelativeImports,
   findBoundaryViolations,
   relativeImportSpecifiers,
-} from "./import-graph.mjs";
+} from "./import-graph.ts";
 
 // This is the ratchet for the measured graph. `documentedEdges` names the
 // adapter edges the ADRs approve explicitly: each one is also an allowed root,

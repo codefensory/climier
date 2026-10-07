@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { importFresh } from "./helpers.mjs";
+import { importFresh } from "./helpers.ts";
 
 const OPERATIONS = "../src/application/operations/index.ts";
 

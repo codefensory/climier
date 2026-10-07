@@ -5,7 +5,7 @@ import {
   readState,
   rmTempProject,
   writeCanonicalState,
-} from "./helpers.mjs";
+} from "./helpers.ts";
 import addGateCommand from "../src/cli/commands/add-gate.ts";
 import addKnowledgeCommand from "../src/cli/commands/add-knowledge.ts";
 import addNodeCommand from "../src/cli/commands/add-node.ts";

@@ -3,7 +3,7 @@
 // typo-driven orphan initiatives.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createTempProject, rmTempProject, importFresh } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh } from "./helpers.ts";
 
 type TestError = { message: string };
 

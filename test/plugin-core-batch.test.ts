@@ -9,7 +9,7 @@ import {
   writeCanonicalState,
   stateFilePath,
   importFresh,
-} from "./helpers.mjs";
+} from "./helpers.ts";
 
 type ErrorDetails = Record<string, unknown> & {
   op?: string;

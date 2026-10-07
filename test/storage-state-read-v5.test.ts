@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import test from "node:test";
-import { createTempProject, rmTempProject } from "./helpers.mjs";
+import { createTempProject, rmTempProject } from "./helpers.ts";
 import { readState, stateFile } from "../src/storage/state.ts";
 import { bootstrapFencedState, ledgerFile, readFencedState } from "../src/storage/ledger.ts";
 

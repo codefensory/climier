@@ -8,7 +8,7 @@
 # non-zero with a clear message for anything else, so a future install change
 # cannot silently pass against a shim that no longer models it.
 #
-# An operator-provided CLIMIER_NPM_CMD always wins (test/helpers.mjs only sets
+# An operator-provided CLIMIER_NPM_CMD always wins (test/helpers.ts only sets
 # this shim as the default). Tests that cover npm failures inject their own
 # command.
 

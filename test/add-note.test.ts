@@ -1,7 +1,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createTempProject, rmTempProject, importFresh, readState, writeCanonicalState } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, readState, writeCanonicalState } from "./helpers.ts";
 
 function seedTask(extra = {}) {
   return async (dir, id = "T1") => {

@@ -7,7 +7,7 @@ import {
   importFresh,
   readState,
   writeCanonicalState,
-} from "./helpers.mjs";
+} from "./helpers.ts";
 
 const EXECUTE = "../src/application/operations/execute.ts";
 const BUILTINS = "../src/application/operations/builtins.ts";

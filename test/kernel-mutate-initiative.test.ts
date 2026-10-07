@@ -15,7 +15,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { createTempProject, rmTempProject, importFresh, readState as readStateHelper, writeCanonicalState, stateExists } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, readState as readStateHelper, writeCanonicalState, stateExists } from "./helpers.ts";
 
 async function importKernel() {
   return importFresh("./kernel/mutate.ts");

@@ -10,7 +10,7 @@ import cancelCommand from "../src/cli/commands/cancel.ts";
 import submitCommand from "../src/cli/commands/submit.ts";
 import acceptCommand from "../src/cli/commands/accept.ts";
 import rejectCommand from "../src/cli/commands/reject.ts";
-import { createTempProject, readState, rmTempProject, writeCanonicalState, runCli } from "./helpers.mjs";
+import { createTempProject, readState, rmTempProject, writeCanonicalState, runCli } from "./helpers.ts";
 
 type TestContext = unknown;
 type TestResult = { node: { status?: string; [key: string]: unknown }; [key: string]: unknown };

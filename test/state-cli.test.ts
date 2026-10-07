@@ -9,7 +9,7 @@ import {
   runCli,
   stateFilePath,
   writeCanonicalState,
-} from "./helpers.mjs";
+} from "./helpers.ts";
 
 function currentState() {
   return {

@@ -5,9 +5,9 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { createTempProject, rmTempProject, importFresh, stateFilePath, writeCanonicalState } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, stateFilePath, writeCanonicalState } from "./helpers.ts";
 import { PLUGIN_MODULE, INSTALL_MODULE, freshEnv, createFixturePackage, installedDir, listStagingDirs, installAndCheckProjectUntouched, assertHappyInstallLayout } from "./plugin-install-test-helpers.mjs";
-import { runCli } from "./helpers.mjs";
+import { runCli } from "./helpers.ts";
 
 test("install: valid descriptor installs with promotion by rename; staging is gone", async () => {
   const env = await freshEnv();

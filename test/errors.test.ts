@@ -5,7 +5,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createTempProject, rmTempProject, runCli, importFresh } from "./helpers.mjs";
+import { createTempProject, rmTempProject, runCli, importFresh } from "./helpers.ts";
 
 // --- helpers ------------------------------------------------------------
 

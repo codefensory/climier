@@ -13,7 +13,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { createTempProject, rmTempProject, importFresh, writeCanonicalState as writeStateHelper, readState as readStateHelper } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, writeCanonicalState as writeStateHelper, readState as readStateHelper } from "./helpers.ts";
 import { bootstrapFencedState } from "../src/storage/ledger.ts";
 
 async function importKernel() {

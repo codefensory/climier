@@ -1,7 +1,7 @@
 // Split from test/plugin-api.test.mjs; complete original test bodies and cleanup are retained.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { rmTempProject, readState as readRawState, installPolicyFixture, uninstallPolicyFixture } from "../../helpers.mjs";
+import { rmTempProject, readState as readRawState, installPolicyFixture, uninstallPolicyFixture } from "../../helpers.ts";
 import { freshApi, readyProject } from "./fixtures.mjs";
 
 type TestErrorDetails = { [key: string]: unknown; code?: string; message?: string; op?: string; plugin_id?: string; cause?: TestError };

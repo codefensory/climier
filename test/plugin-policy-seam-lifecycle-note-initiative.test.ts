@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { importFresh, readState, stateExists, runCli, installPolicyFixture, uninstallPolicyFixture } from "./helpers.mjs";
+import { importFresh, readState, stateExists, runCli, installPolicyFixture, uninstallPolicyFixture } from "./helpers.ts";
 import { baseClimierJson, cli, entriesForAction, initAndSeed, withFreshEnv, writeClimierJson } from "./plugin-policy-seam-lifecycle-helpers.mjs";
 
 test("seam-add-note: note.add with no policy installed succeeds (defaults core)", async () => {

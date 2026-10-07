@@ -36,7 +36,7 @@ import {
   rmTempProject,
   runCli,
   stateFilePath,
-} from "./helpers.mjs";
+} from "./helpers.ts";
 
 const FIXTURE_DIR = path.resolve("test/fixtures/sample-plugin");
 const FIXTURE_ID = "sample";

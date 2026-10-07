@@ -2,7 +2,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { importFresh } from "./helpers.mjs";
+import { importFresh } from "./helpers.ts";
 import { UNINSTALL_MODULE, freshEnv } from "./plugin-install-test-helpers.mjs";
 
 test("uninstall: rejects missing positional", async () => {

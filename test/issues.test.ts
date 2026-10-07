@@ -24,7 +24,7 @@ import {
   importFresh,
   runCli,
   readState,
-} from "./helpers.mjs";
+} from "./helpers.ts";
 
 function clearAgentEnv() {
   const prev = process.env.CLIMIER_AGENT;

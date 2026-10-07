@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { createTempProject, rmTempProject, runCli, installPolicyFixture, uninstallPolicyFixture, POLICY_FIXTURE_DIR } from "./helpers.mjs";
+import { createTempProject, rmTempProject, runCli, installPolicyFixture, uninstallPolicyFixture, POLICY_FIXTURE_DIR } from "./helpers.ts";
 
 export const FIXTURE_ID = "policy-fixture";
 export const FIXTURE_COMMAND = "policy";

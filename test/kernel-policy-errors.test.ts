@@ -7,7 +7,7 @@ import {
   importFresh,
   writeCanonicalState as writeStateHelper,
   readState as readStateHelper,
-} from "./helpers.mjs";
+} from "./helpers.ts";
 import { bootstrapFencedState } from "../src/storage/ledger.ts";
 
 type ErrorDetails = {

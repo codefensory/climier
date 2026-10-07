@@ -9,7 +9,7 @@ import searchCommand from "../src/cli/commands/search.ts";
 import initiativesCommand from "../src/cli/commands/initiatives.ts";
 import logCommand from "../src/cli/commands/log.ts";
 import stateCommand from "../src/cli/commands/state.ts";
-import { createTempProject, rmTempProject, writeCanonicalState, readState, runCli, initExampleProject } from "./helpers.mjs";
+import { createTempProject, rmTempProject, writeCanonicalState, readState, runCli, initExampleProject } from "./helpers.ts";
 
 const status = (context: unknown) => statusCommand(context as Parameters<typeof statusCommand>[0]);
 const context = (value: unknown) => contextCommand(value as Parameters<typeof contextCommand>[0]);

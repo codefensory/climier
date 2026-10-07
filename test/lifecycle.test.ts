@@ -35,7 +35,7 @@ import {
   installPolicyFixture,
   uninstallPolicyFixture,
   writeCanonicalState,
-} from "./helpers.mjs";
+} from "./helpers.ts";
 
 async function projectFixture() {
   const { default: init } = await importFresh("./cli/commands/init.ts");

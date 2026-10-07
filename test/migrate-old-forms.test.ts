@@ -6,7 +6,7 @@ import path from "node:path";
 import test from "node:test";
 import { stateFile } from "../src/storage/state.ts";
 import { ledgerFile } from "../src/storage/ledger.ts";
-import { createTempProject, rmTempProject, runCli } from "./helpers.mjs";
+import { createTempProject, rmTempProject, runCli } from "./helpers.ts";
 
 type LegacyState = { version: number; fence_generation?: number; revision: number; nodes: Record<string, Record<string, unknown>>; edges: unknown[]; initiatives: Record<string, unknown>; log: unknown[] };
 type Ledger = { bootstrap_pending: unknown; high_water_revision: number; [key: string]: unknown };

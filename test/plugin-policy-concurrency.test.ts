@@ -27,7 +27,7 @@
 //
 // All tests share a single CLIMIER_HOME across the parent + N children
 // (per the seam-dag lifecycle contract) and never touch the real
-// ~/.climier (helpers.mjs guard).
+// ~/.climier (helpers.ts guard).
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -42,7 +42,7 @@ import {
   runCli,
   readState,
   installPolicyFixture,
-} from "./helpers.mjs";
+} from "./helpers.ts";
 
 const REPO_ROOT = path.resolve(".");
 const BIN = path.join(REPO_ROOT, "bin", "climier.ts");

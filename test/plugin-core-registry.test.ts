@@ -17,7 +17,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { OperationEntry } from "../src/contracts/operations.ts";
 
-import { importFresh } from "./helpers.mjs";
+import { importFresh } from "./helpers.ts";
 
 const REGISTRY_MODULE = "../src/plugins/core-registry.ts";
 const BUILTINS_MODULE = "../src/application/operations/builtins.ts";

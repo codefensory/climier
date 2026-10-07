@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { createTempProject, rmTempProject, importFresh, stateFilePath, writeCanonicalState } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, stateFilePath, writeCanonicalState } from "./helpers.ts";
 import { INSTALL_MODULE, UNINSTALL_MODULE, freshEnv, createFixturePackage, installedDir, uninstallOnlyNamedPlugin } from "./plugin-install-test-helpers.mjs";
 
 test("uninstall: removes installed/<id> and nothing else; project state is untouched", async () => {

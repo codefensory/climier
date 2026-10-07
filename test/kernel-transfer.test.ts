@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import test from "node:test";
-import { createTempProject, rmTempProject } from "./helpers.mjs";
+import { createTempProject, rmTempProject } from "./helpers.ts";
 import { STATE_SCHEMA_VERSION, stateFile } from "../src/storage/state.ts";
 import { ledgerFile, bootstrapFencedState, replaceFencedStateUnderLock, readFencedState as readFencedStateRaw, commitFencedStateUnderLock } from "../src/storage/ledger.ts";
 import { withLock } from "../src/storage/lock.ts";

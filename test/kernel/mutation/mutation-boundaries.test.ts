@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createTempProject, readState as readStateHelper, rmTempProject, writeCanonicalState, importFresh } from "../../helpers.mjs";
-import { bootstrapProject, importKernel, createTaskProvider, updateNodeProvider } from "./helpers.mjs";
+import { createTempProject, readState as readStateHelper, rmTempProject, writeCanonicalState, importFresh } from "../../helpers.ts";
+import { bootstrapProject, importKernel, createTaskProvider, updateNodeProvider } from "./helpers.ts";
 
 test("kernel.mutate: provider cannot set 'revision' on a node (tx layer rejects it)", async () => {
   const { mutate } = await importKernel();

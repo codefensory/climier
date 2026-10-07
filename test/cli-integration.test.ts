@@ -1,7 +1,7 @@
 /* eslint-disable max-lines, max-lines-per-function -- The integration contracts preserve their established end-to-end test boundaries. */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createTempProject, rmTempProject, importFresh, readState as readRawState, runCli, writeFencedState } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh, readState as readRawState, runCli, writeFencedState } from "./helpers.ts";
 
 test("init: creates an empty canonical state by default", async () => {
   const { default: init } = await importFresh("./cli/commands/init.ts");

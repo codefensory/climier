@@ -6,7 +6,7 @@ import {
   importFresh,
   readState,
   writeCanonicalState,
-} from "./helpers.mjs";
+} from "./helpers.ts";
 
 const TAKE = "./cli/commands/take.ts";
 const BUILTINS = "./application/operations/builtins.ts";

@@ -35,7 +35,7 @@ import {
   runCli,
   writeCanonicalState,
   readState,
-} from "./helpers.mjs";
+} from "./helpers.ts";
 
 const SNAPSHOT_ID_PATTERN = /^(\d{8}T\d{9}Z)-(force-init|corrupt-recovery|pre-restore)-([0-9a-f]{8})$/;
 

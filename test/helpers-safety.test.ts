@@ -5,9 +5,9 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-const HELPERS = path.resolve(process.cwd(), "test", "helpers.mjs");
+const HELPERS = path.resolve(process.cwd(), "test", "helpers.ts");
 
-// These tests guard the helpers.mjs contract: tests must NEVER write to or
+// These tests guard the helpers.ts contract: tests must NEVER write to or
 // erase a real CLIMIER_HOME. If a developer runs `CLIMIER_HOME=~/.climier npm test`,
 // the suite must fail loudly instead of silently touching user data.
 
@@ -30,12 +30,12 @@ test("npm test refuses to use the real ~/.climier", () => {
     env: { ...process.env, CLIMIER_HOME: real },
     encoding: "utf8",
   });
-  assert.equal(r.status, 1, "helpers.mjs must refuse real CLIMIER_HOME");
+  assert.equal(r.status, 1, "helpers.ts must refuse real CLIMIER_HOME");
   assert.match(r.stdout, /GUARD_OK/);
   assert.match(r.stdout, new RegExp(real.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 });
 
-test("helpers.mjs allows CLIMIER_HOME when it points at a temp dir", () => {
+test("helpers.ts allows CLIMIER_HOME when it points at a temp dir", () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "climier-guard-test-"));
   const probe = `
     await import(${JSON.stringify(HELPERS)});
@@ -45,11 +45,11 @@ test("helpers.mjs allows CLIMIER_HOME when it points at a temp dir", () => {
     env: { ...process.env, CLIMIER_HOME: tmp },
     encoding: "utf8",
   });
-  assert.equal(r.status, 0, `helpers.mjs must accept safe CLIMIER_HOME; stderr=${r.stderr}`);
+  assert.equal(r.status, 0, `helpers.ts must accept safe CLIMIER_HOME; stderr=${r.stderr}`);
   fs.rmSync(tmp, { recursive: true, force: true });
 });
 
-test("helpers.mjs auto-creates a temp CLIMIER_HOME when none is set", () => {
+test("helpers.ts auto-creates a temp CLIMIER_HOME when none is set", () => {
   const env = { ...process.env };
   delete env.CLIMIER_HOME;
   const probe = `
@@ -64,7 +64,7 @@ test("helpers.mjs auto-creates a temp CLIMIER_HOME when none is set", () => {
   assert.match(r.stdout, /^HOME=\/tmp\/climier-home-/);
 });
 
-test("helpers.mjs cleans up auto-created CLIMIER_HOME on exit", () => {
+test("helpers.ts cleans up auto-created CLIMIER_HOME on exit", () => {
   const env = { ...process.env };
   delete env.CLIMIER_HOME;
   const probe = `

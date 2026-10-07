@@ -11,7 +11,7 @@ import {
   runCli,
   stateFilePath,
   writeCanonicalState,
-} from "./helpers.mjs";
+} from "./helpers.ts";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
 const FIXTURE_DIR = path.join(ROOT, "test/fixtures/plugin-foundation");

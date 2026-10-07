@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createTempProject, rmTempProject, importFresh } from "../../helpers.mjs";
-import { bootstrapProject, importKernel, createTaskProvider } from "./helpers.mjs";
+import { createTempProject, rmTempProject, importFresh } from "../../helpers.ts";
+import { bootstrapProject, importKernel, createTaskProvider } from "./helpers.ts";
 
 test("kernel.mutate: rejects invalid request (missing action)", async () => {
   const { mutate } = await importKernel();
