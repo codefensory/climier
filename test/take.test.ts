@@ -7,6 +7,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, importFresh, runCli, readState } from "./helpers.mjs";
 
+type TestError = { code?: string; message?: string };
+function testError(value: unknown): TestError { return value as TestError; }
+type TaskExtra = { title?: string; initiative?: string; domain?: string; tags?: string; [key: string]: unknown };
+
 async function projectFixture() {
   const { default: init } = await importFresh("./cli/commands/init.ts");
   const { default: addInit } = await importFresh("./cli/commands/add-initiative.ts");
@@ -21,7 +25,7 @@ async function addInitiative(dir, name, desc = name) {
   await addInit({ statePath: dir, flags: { desc }, positional: [name] });
 }
 
-async function addTask(dir, id, extra = {}) {
+async function addTask(dir, id, extra: TaskExtra = {}) {
   const { default: addNode } = await importFresh("./cli/commands/add-node.ts");
   return addNode({
     statePath: dir,
@@ -98,7 +102,7 @@ test("take: throws NOT_READY when the requested task is blocked", async () => {
     await addTask(dir, "T-blocked", { "blocked-by": "T-blocker" });
     await assert.rejects(
       take(dir, "T-blocked", { as: "alice" }),
-      (err) => err.code === "NOT_READY",
+      (err: unknown) => testError(err).code === "NOT_READY",
     );
   } finally { await rmTempProject(dir); }
 });
@@ -175,7 +179,7 @@ test("take: another agent cannot take the explicit in-progress task", async () =
 
     await assert.rejects(
       take(dir, "T-only", { as: "bob" }),
-      (err) => err.code === "ALREADY_CLAIMED",
+      (err: unknown) => testError(err).code === "ALREADY_CLAIMED",
     );
   } finally { await rmTempProject(dir); }
 });
@@ -205,7 +209,7 @@ test("take: rejects --as with no value (MISSING_AGENT)", async () => {
   try {
     await assert.rejects(
       take(dir, "T-auth-1", { as: true }),
-      (err) => err.code === "MISSING_AGENT" && err.message.startsWith('take:') && /--as/.test(err.message),
+      (err: unknown) => testError(err).code === "MISSING_AGENT" && testError(err).message?.startsWith("take:") === true && /--as/.test(testError(err).message ?? ""),
     );
   } finally {
     if (prev === undefined) {delete process.env.CLIMIER_AGENT;}
@@ -221,7 +225,7 @@ test("take: rejects missing --as (MISSING_AGENT)", async () => {
   try {
     await assert.rejects(
       take(dir, "T-auth-1", {}),
-      (err) => err.code === "MISSING_AGENT" && err.message.startsWith('take:'),
+      (err: unknown) => testError(err).code === "MISSING_AGENT" && testError(err).message?.startsWith("take:") === true,
     );
   } finally {
     if (prev === undefined) {delete process.env.CLIMIER_AGENT;}

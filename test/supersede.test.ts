@@ -8,6 +8,9 @@ import {
   readState as readRawState,
 } from "./helpers.mjs";
 
+type TestError = { code?: string; message?: string; details?: Record<string, unknown> };
+function testError(value: unknown): TestError { return value as TestError; }
+
 async function setup(dir) {
   const { default: init } = await importFresh("./cli/commands/init.ts");
   const { default: addInitiative } = await importFresh("./cli/commands/add-initiative.ts");
@@ -83,7 +86,7 @@ test("add-task rejects --supersedes with INVALID_EDGE_KIND", async () => {
         positional: ["T1"],
         flags: { initiative: "work", title: "Task", body: "Task", acceptance: "Done", "blocked-by": "", supersedes: "G-A" },
       }),
-      (err) => err.code === "INVALID_EDGE_KIND" && /supersedes/i.test(err.message),
+      (err: unknown) => testError(err).code === "INVALID_EDGE_KIND" && /supersedes/i.test(testError(err).message ?? ""),
     );
     const state = await readRawState(dir);
     assert.equal(state.nodes.T1, undefined);
@@ -104,7 +107,7 @@ test("add-gate --supersedes rejects a missing target atomically", async () => {
         positional: ["G-B"],
         flags: { initiative: "work", title: "New gate", body: "New", purpose: "choice", supersedes: "missing" },
       }),
-      (err) => err.code === "INVALID_EDGE_TARGET" && err.details.missing === "missing",
+      (err: unknown) => testError(err).code === "INVALID_EDGE_TARGET" && testError(err).details?.missing === "missing",
     );
     const state = await readRawState(dir);
     assert.equal(state.nodes["G-B"], undefined);
@@ -132,7 +135,7 @@ test("add-gate --supersedes rejects a knowledge target atomically", async () => 
         positional: ["G-B"],
         flags: { initiative: "work", title: "Gate", body: "Gate", purpose: "choice", supersedes: "K-A" },
       }),
-      (err) => err.code === "INVALID_EDGE_KIND" && /SUPERSEDES/.test(err.message),
+      (err: unknown) => testError(err).code === "INVALID_EDGE_KIND" && /SUPERSEDES/.test(testError(err).message ?? ""),
     );
     const state = await readRawState(dir);
     assert.equal(state.nodes["G-B"], undefined);

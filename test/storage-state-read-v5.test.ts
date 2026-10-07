@@ -5,7 +5,23 @@ import { createTempProject, rmTempProject } from "./helpers.mjs";
 import { readState, stateFile } from "../src/storage/state.ts";
 import { bootstrapFencedState, ledgerFile, readFencedState } from "../src/storage/ledger.ts";
 
-function legacyState(version) {
+type TestNode = { id: string; revision: number; [key: string]: unknown };
+type TestState = {
+  version: number;
+  fence_generation?: number;
+  revision: number;
+  nodes: Record<string, TestNode>;
+  edges: unknown[];
+  initiatives: Record<string, unknown>;
+  log: Array<{ action: string; [key: string]: unknown }>;
+  [key: string]: unknown;
+};
+
+function asTestState(value: unknown): TestState {
+  return value as TestState;
+}
+
+function legacyState(version): TestState {
   return {
     version,
     nodes: { T1: { id: "T1", revision: 8 } },
@@ -31,7 +47,7 @@ async function withProject(fn) {
   }
 }
 
-function nextCandidate(current) {
+function nextCandidate(current: TestState): TestState {
   const revision = current.revision + 1;
   const nodes = Object.fromEntries(Object.entries(current.nodes).map(([id, node]) => [id, { ...node, revision }]));
   return { ...current, revision, nodes, log: [...current.log, { action: "commit" }] };
@@ -58,7 +74,7 @@ test("readState rejects versions 2 through 5 and directs explicit migration", as
       await withProject(async (projectDir) => {
         await seedCanonicalState(projectDir);
         await fs.writeFile(stateFile(projectDir), `${JSON.stringify(legacyState(version), null, 2)}\n`, "utf8");
-        await assert.rejects(readState(projectDir), (error) => error.code === "CLIMIER_INCOMPATIBLE_VERSION" && /climier migrate/i.test(error.message));
+        await assert.rejects(readState(projectDir), (error: unknown) => error instanceof Error && error.code === "CLIMIER_INCOMPATIBLE_VERSION" && /climier migrate/i.test(error.message));
       });
     });
   }
@@ -93,7 +109,7 @@ test("readState recovers exact pending bootstrap", async () => {
   await withProject(async (projectDir) => {
     await assert.rejects(bootstrapFencedState(projectDir, { faultAt: "after-pending" }), /injected failure/);
 
-    const recovered = await readState(projectDir);
+    const recovered = asTestState(await readState(projectDir));
     assert.equal(recovered.version, 1);
     assert.equal(JSON.parse(await fs.readFile(ledgerFile(projectDir), "utf8")).bootstrap_pending, null);
   });
@@ -101,7 +117,7 @@ test("readState recovers exact pending bootstrap", async () => {
   await withProject(async (projectDir) => {
     await assert.rejects(bootstrapFencedState(projectDir, { faultAt: "after-state-create" }), /injected failure/);
 
-    const recovered = await readState(projectDir);
+    const recovered = asTestState(await readState(projectDir));
     assert.equal(recovered.version, 1);
     assert.equal(JSON.parse(await fs.readFile(ledgerFile(projectDir), "utf8")).bootstrap_pending, null);
   });
@@ -110,7 +126,7 @@ test("readState recovers exact pending bootstrap", async () => {
 test("readState resumes an exact pending fenced commit", async () => {
   await withProject(async (projectDir) => {
     await seedCanonicalState(projectDir);
-    const current = await readFencedState(projectDir);
+    const current = asTestState(await readFencedState(projectDir));
     const candidate = nextCandidate(current);
     await assert.rejects(interruptedCommit(projectDir, candidate), /injected failure/);
 

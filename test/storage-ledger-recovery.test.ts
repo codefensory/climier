@@ -14,7 +14,23 @@ import {
   recoverFencedStateUnderLock,
 } from "../src/storage/ledger.ts";
 
-function canonicalState(revision = 10, fenceGeneration = 1) {
+type TestNode = { id: string; revision: number; [key: string]: unknown };
+type TestState = {
+  version: number;
+  fence_generation: number;
+  revision: number;
+  nodes: Record<string, TestNode>;
+  edges: unknown[];
+  initiatives: Record<string, unknown>;
+  log: Array<{ action: string; [key: string]: unknown }>;
+  [key: string]: unknown;
+};
+
+function asTestState(value: unknown): TestState {
+  return value as TestState;
+}
+
+function canonicalState(revision = 10, fenceGeneration = 1): TestState {
   return {
     version: 1,
     fence_generation: fenceGeneration,
@@ -39,7 +55,7 @@ async function runProjectSubtest(t, label, fn) {
   await t.test(label, () => withProject(fn));
 }
 
-function allNodesAboveRevision(state, revision) {
+function allNodesAboveRevision(state: TestState, revision: number) {
   return Object.values(state.nodes).every((node) => node.revision > revision);
 }
 
@@ -55,7 +71,7 @@ async function readRecoveryUnderLock(projectDir, state) {
 }
 
 async function prepareStaleRecovery(projectDir) {
-  const fenced = await bootstrapFencedState(projectDir);
+  const fenced = asTestState(await bootstrapFencedState(projectDir));
   const statePath = stateFile(projectDir);
   const ledgerPath = ledgerFile(projectDir);
   const ledger = JSON.parse(await fs.readFile(ledgerPath, "utf8"));
@@ -100,7 +116,7 @@ async function verifyRecoveryCrashState(faultAt, setup) {
 }
 
 async function verifyRecoveryCrashRetry(projectDir, setup, pending) {
-  const recovered = await recover(projectDir, setup.sourceState);
+  const recovered = asTestState(await recover(projectDir, setup.sourceState));
   const rawDestination = await fs.readFile(setup.statePath, "utf8");
   const after = JSON.parse(await fs.readFile(setup.ledgerPath, "utf8"));
   assert.equal(recovered.version, 1);
@@ -137,21 +153,21 @@ function sha256(raw) {
   return crypto.createHash("sha256").update(raw).digest("hex");
 }
 
-async function recover(projectDir, candidate, options) {
+async function recover(projectDir, candidate: unknown = undefined, options: Record<string, unknown> = {}) {
   return withLock(projectDir, (lockContext) => recoverFencedStateUnderLock(lockContext, candidate, options));
 }
 
 test("fenced recovery rejects invalid lock capabilities before storage access", async () => {
-  await assert.rejects(recoverFencedStateUnderLock(null), { code: "CLIMIER_INVALID_LOCK_CONTEXT" });
+  await assert.rejects(recoverFencedStateUnderLock(null as unknown as object, undefined), { code: "CLIMIER_INVALID_LOCK_CONTEXT" });
   await assert.rejects(recoverFencedStateUnderLock(new Proxy({}, {
     get() { throw new Error("forged lock capability must not be inspected"); },
-  })), { code: "CLIMIER_INVALID_LOCK_CONTEXT" });
+  }), undefined), { code: "CLIMIER_INVALID_LOCK_CONTEXT" });
 });
 
 test("fenced recovery rebases stale legacy state above local high-water and preserves generation", async () => {
   await withProject(async (projectDir) => {
     const { fenced, candidate, ledgerPath } = await prepareStaleRecovery(projectDir);
-    const recovered = await recover(projectDir, candidate);
+    const recovered = asTestState(await recover(projectDir, candidate));
     const after = JSON.parse(await fs.readFile(ledgerPath, "utf8"));
     assert.equal(recovered.version, 1);
     assert.equal(recovered.fence_generation, 7);
@@ -170,7 +186,7 @@ test("fenced recovery rebases stale legacy state above local high-water and pres
 test("recovery checkpoint is invalidated durably before a normal fenced commit", async () => {
   await withProject(async (projectDir) => {
     const { candidate, ledgerPath } = await prepareStaleRecovery(projectDir);
-    const recovered = await recover(projectDir, candidate);
+    const recovered = asTestState(await recover(projectDir, candidate));
     assert.ok(JSON.parse(await fs.readFile(ledgerPath, "utf8")).last_recovery);
     const commitCandidate = {
       ...recovered,
@@ -196,7 +212,7 @@ test("recovery without a candidate retries durable null input fingerprints", asy
     assert.equal(durableLedger.recovery_pending.input_sha256, null);
     await fs.writeFile(setup.ledgerPath, `${JSON.stringify(durableLedger, null, 2)}\n`, "utf8");
 
-    const recovered = await readFencedState(projectDir);
+    const recovered = asTestState(await readFencedState(projectDir));
     assert.equal(recovered.version, 1);
     assert.equal(JSON.parse(await fs.readFile(setup.ledgerPath, "utf8")).recovery_pending, null);
     assert.deepEqual(await readFencedState(projectDir), recovered);
