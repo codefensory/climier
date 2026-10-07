@@ -193,7 +193,7 @@ Sin charts de tendencia: el snapshot no tiene series temporales.
 - Acceptance: `git status --short` limpio.
 
 ### Fase 1 — Corregir el contrato de lectura
-Archivos: `ui/server/server.mjs`, `ui/src/api.js`, `ui/src/store.jsx`, `test/ui-live.test.mjs`.
+Archivos: `ui/server/server.mjs`, `ui/src/api.js`, `ui/src/store.jsx`.
 
 1. Server: usar `statusOfV2()` para `derived_status`; claims con `claim.at` (fallback `claim.ts`); stale solo en tasks `in_progress`; `project_id` desde `.climier.json`; alerts normalizados (`kind`, `severity`, `message`, `node_id`); actividad normalizada (`node_id`, `node_title`); refs como `{ target, type, source }`; conservar `blocking` y separar dependents `BLOCKS` de otras relaciones.
 2. Expandir `summary`: ready, in_progress, blocked, backlog, placeholders, stale, open_gates, open_decisions, done, archived, canceled, resolved_gates, superseded, active_knowledge, deprecated_knowledge, total_nodes.
@@ -203,7 +203,7 @@ Archivos: `ui/server/server.mjs`, `ui/src/api.js`, `ui/src/store.jsx`, `test/ui-
 6. Tests primero (fallidos): gate abierta sigue `open`; stale usa `claim.at`; summary incluye archived/placeholders/open decisions; state-read-error conserva snapshot; refs estructuradas; requests GET no modifican el state.
 
 Acceptance: ninguna vista reimplementa semántica de blockers; snapshot devuelve cero para métricas ausentes; error de refresh no borra UI; sin endpoints de escritura.
-Verificación: `node --test test/ui-live.test.mjs` y `npm test`.
+Verificación: `npm test`.
 
 ### Fase 2 — Tokens y componentes base
 Archivos: `ui/src/index.css`, `ui/src/components.jsx`, `ui/DESIGN.md`.
@@ -236,10 +236,10 @@ Contrato congelado: `components.jsx`, `store.jsx` y el snapshot no se tocan en e
 
 **Track C — Graph** (`Graph.jsx`): adjacency maps antes del layout; zoom/pan sobre `<g transform=...>`; Fit/Reset + % zoom; markers SVG con flechas; node muestra ID + kind/status + título abreviado; search, initiative, status/kind, Show history; focus de vecinos (resaltar/atenuar); default sin knowledge desconectado; callout si hay nodes sin relaciones visibles; keyboard para nodes SVG; sin librería de graph. Acceptance: wheel escala tamaño real; pan no desplaza página; Fit muestra todo; dirección blocker→blocked clara sin depender del color; Show history visualiza la cadena histórica.
 
-**Track D — Activity** (`Activity.jsx`, `api.js`, `server.mjs`, `test/ui-live.test.mjs`): `q` e `initiative` en el endpoint; facets de actions/agents; actions derivadas del log; debounce 250–300 ms + cancelación; skeleton inicial y error no destructivo; tabla cómoda (hora, acción, agente, título/ID, note preview); note completa al expandir; corregir paginación vacía; refresh manual con estado. Acceptance: sin flash de empty en loading; requests viejas no pisan; `add-edge` y futuras en filtros; empty `0 of 0`; `node_title` usado.
+**Track D — Activity** (`Activity.jsx`, `api.js`, `server.mjs`): `q` e `initiative` en el endpoint; facets de actions/agents; actions derivadas del log; debounce 250–300 ms + cancelación; skeleton inicial y error no destructivo; tabla cómoda (hora, acción, agente, título/ID, note preview); note completa al expandir; corregir paginación vacía; refresh manual con estado. Acceptance: sin flash de empty en loading; requests viejas no pisan; `add-edge` y futuras en filtros; empty `0 of 0`; `node_title` usado.
 
 ### Fase 6 — NodeDetail y relaciones
-Archivos: `NodeDetail.jsx`, `store.jsx`, `components.jsx`, `server.mjs`, `test/ui-live.test.mjs`.
+Archivos: `NodeDetail.jsx`, `store.jsx`, `components.jsx`, `server.mjs`.
 
 Header sticky con back/close/kind correcto/status/ID; título 20–24; resumen status/initiative/claim/revision/última actividad; callout para blocked/stale/superseded; spec y blockers relevantes abiertos por defecto; knowledge/notes/history/refs/relaciones secundarias en `<details>`; separar blockers entrantes / nodes bloqueados / DERIVED_FROM / SUPERSEDES-superseded_by / informing; navegación back entre nodes; Escape + focus inicial + devolución + `role="dialog"`; `Time` usa `claim.at`; refs muestran type/source con copy, sin renderizar Markdown/HTML; "Equivalent CLI command" con Copy, nunca ejecutar.
 Acceptance: gate abierta muestra `open`; task claimed con fecha correcta; refs estructuradas distinguidas; recorrer blocker→node→back sin cerrar; operable con teclado; sin requests mutantes.
@@ -250,7 +250,7 @@ Archivos: todos los anteriores.
 Finder global con `/api/search` agrupado (Tasks/Gates/Knowledge); atajo `/` o Ctrl/Cmd+K, Escape, keyboard nav; auditoría labels/focus/contraste/targets; revisar empty/loading/error; truncados con tooltip/título accesible; un único scroll por vista; probar sparse/empty/uninitialized/fixture ~200 nodes; sin virtualización antes de medir; sin dark mode.
 
 Acceptance final: Overview responde "qué requiere atención" sin abrir otra vista; Board responde "qué trabajo hay en cada estado"; Graph explica dependencia y dirección; Detail explica por qué un node está en su estado; UI conserva snapshot ante fallos de polling; sin POST/PATCH/DELETE ni escritura directa/indirecta; sin nuevas dependencias; teclado OK; build + suite verdes.
-Verificación final: `cd ui && npm run build`; `node --test test/ui-live.test.mjs`; `npm test`; smoke `node server/server.mjs --project . --port 7374`; revisar 1440×900, 1280×800, 1024×768, 768×1024, 390×844, teclado, polling con detail abierto, error de API posterior a snapshot, proyecto vacío/no inicializado.
+Verificación final: `cd ui && npm run build`; `npm test`; smoke `node server/server.mjs --project . --port 7374`; revisar 1440×900, 1280×800, 1024×768, 768×1024, 390×844, teclado, polling con detail abierto, error de API posterior a snapshot, proyecto vacío/no inicializado.
 
 ## 7. Orden y paralelismo
 

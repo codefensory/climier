@@ -319,7 +319,7 @@ transfer cycle, revision conflicts, both force directions, state/plugin/claim
 preservation, ledger continuity, and an ambiguous dropped transfer response:
 
 ```sh
-timeout -k 10s 180s node --test test/server-operations-e2e.test.mjs
+timeout -k 10s 180s node --test test/server-operations-e2e.test.ts
 ```
 
 Run the packed-artifact smoke with temporary homes; it installs the package,
