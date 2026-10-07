@@ -29,6 +29,9 @@ import {
   uninstallPolicyFixture,
 } from "./helpers.mjs";
 
+type TestError = { code?: string; message?: string; details?: Record<string, unknown> };
+const asTestError = (error: unknown): TestError => error as TestError;
+
 // --- shared scaffolding ------------------------------------------------
 
 async function freshProject(dir) {
@@ -72,7 +75,7 @@ async function addGateNode(dir, id, extra = {}) {
   });
 }
 
-async function addKnowledgeNode(dir, id, extra = {}) {
+async function addKnowledgeNode(dir, id, extra: { body?: string; [key: string]: unknown } = {}) {
   const { default: addNode } = await importFresh("./cli/commands/add-node.ts");
   return addNode({
     statePath: dir,
@@ -555,12 +558,13 @@ describe("idempotency contracts", () => {
         await addEdge({ statePath: dir, positional: ["T-a", "T-b"], flags: { type: "BLOCKS", as: "alice" } });
       } catch (e) { caught = e; }
       assert.ok(caught, "second add-edge should throw");
-      assert.equal(caught.code, "DUPLICATE_EDGE");
+      const error = asTestError(caught);
+      assert.equal(error.code, "DUPLICATE_EDGE");
 
       // canonical (from, to, type) tuple is present.
-      assert.equal(caught.details.from, "T-a");
-      assert.equal(caught.details.to, "T-b");
-      assert.equal(caught.details.type, "BLOCKS");
+      assert.equal(error.details?.from, "T-a");
+      assert.equal(error.details?.to, "T-b");
+      assert.equal(error.details?.type, "BLOCKS");
     } finally { await rmTempProject(dir); }
   });
 
@@ -573,7 +577,7 @@ describe("idempotency contracts", () => {
       await addEdge({ statePath: dir, positional: ["T-a", "T-b"], flags: { type: "BLOCKS", as: "alice" } });
       await assert.rejects(
         () => addEdge({ statePath: dir, positional: ["T-b", "T-a"], flags: { type: "BLOCKS", as: "alice" } }),
-        (err) => err.code === "CYCLE_DETECTED",
+        (err) => asTestError(err).code === "CYCLE_DETECTED",
       );
     } finally { await rmTempProject(dir); }
   });
@@ -589,10 +593,12 @@ describe("idempotency contracts", () => {
         await addInitiative({ statePath: dir, projectDir: dir, flags: { desc: "second" }, positional: ["auth"] });
       } catch (e) { caught = e; }
       assert.ok(caught, "second add-initiative should throw");
-      assert.equal(caught.code, "ID_CONFLICT");
-      assert.equal(caught.details.name, "auth");
-      assert.ok(caught.details.existing, "details.existing should be present");
-      assert.equal(caught.details.existing.desc, "first");
+      const error = asTestError(caught);
+      assert.equal(error.code, "ID_CONFLICT");
+      assert.equal(error.details?.name, "auth");
+      assert.ok(error.details?.existing, "details.existing should be present");
+      const existing = error.details?.existing as { desc?: string } | undefined;
+      assert.equal(existing?.desc, "first");
     } finally { await rmTempProject(dir); }
   });
 });
@@ -844,7 +850,9 @@ describe("init --force on existing state", () => {
       const fs = await import("node:fs/promises");
       const path = await import("node:path");
       const meta = JSON.parse(await fs.readFile(path.join(dir, ".climier.json"), "utf8"));
-      const stateFile = path.join(process.env.CLIMIER_HOME, "projects", meta.project_id, "tasks.json");
+      const climierHome = process.env.CLIMIER_HOME;
+      assert.ok(climierHome);
+      const stateFile = path.join(climierHome, "projects", meta.project_id, "tasks.json");
       await fs.writeFile(stateFile, JSON.stringify({
         version: 1,
         tasks: { T1: { id: "T1", title: "x" } },

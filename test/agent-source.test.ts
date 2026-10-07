@@ -14,6 +14,16 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, importFresh, runCli } from "./helpers.mjs";
 
+type TestError = {
+  code?: string;
+  message?: string;
+  details?: Record<string, unknown>;
+};
+
+type CommandFixture = [string, () => Record<string, string>, string[], boolean];
+
+const asTestError = (error: unknown): TestError => error as TestError;
+
 function assertStructuredError(data, code) {
   assert.equal(data.ok, false);
   assert.ok(data.error && typeof data.error === "object");
@@ -22,7 +32,7 @@ function assertStructuredError(data, code) {
   assert.ok(data.error.details !== undefined);
 }
 
-function clearAgentEnv(restore) {
+function clearAgentEnv(restore?: () => void) {
   const prev = process.env.CLIMIER_AGENT;
   delete process.env.CLIMIER_AGENT;
   return () => {
@@ -82,11 +92,12 @@ test("resolveAgent: both sources empty throws MISSING_AGENT with structured deta
     let caught;
     try { resolveAgent({}, "test-cmd"); } catch (e) { caught = e; }
     assert.ok(caught, "should have thrown");
-    assert.equal(caught.code, "MISSING_AGENT");
-    assert.match(caught.message, /^test-cmd:/);
-    assert.match(caught.message, /--as/);
-    assert.match(caught.message, /CLIMIER_AGENT/);
-    assert.deepEqual(caught.details, {
+    const error = asTestError(caught);
+    assert.equal(error.code, "MISSING_AGENT");
+    assert.match(error.message ?? "", /^test-cmd:/);
+    assert.match(error.message ?? "", /--as/);
+    assert.match(error.message ?? "", /CLIMIER_AGENT/);
+    assert.deepEqual(error.details, {
       command: "test-cmd",
       flag: "as",
       env: "CLIMIER_AGENT",
@@ -101,7 +112,7 @@ test("resolveAgent: --as boolean true throws MISSING_AGENT (not coerced to 'true
     let caught;
     try { resolveAgent({ as: true }, "test-cmd"); } catch (e) { caught = e; }
     assert.ok(caught, "should have thrown");
-    assert.equal(caught.code, "MISSING_AGENT");
+    assert.equal(asTestError(caught).code, "MISSING_AGENT");
   } finally { restore(); }
 });
 
@@ -126,9 +137,12 @@ test("contracts/agent: validates a supplied actor without CLI source resolution"
   try {
     assert.throws(
       () => requireAgent(undefined, "state.restore"),
-      (err) => err.code === "MISSING_AGENT"
-        && err.details.command === "state.restore"
-        && err.details.field === "actor",
+      (err) => {
+        const error = asTestError(err);
+        return error.code === "MISSING_AGENT"
+          && error.details?.command === "state.restore"
+          && error.details?.field === "actor";
+      },
     );
   } finally {
     restore();
@@ -144,7 +158,7 @@ for (const [name, buildFlags, positional, register] of [
   ["add-knowledge", () => ({ initiative: "auth", title: "t", body: "b", "scope-domains": "auth" }), [], true],
   ["add-node", () => ({ kind: "resolvable", subkind: "task", title: "t", initiative: "auth" }), ["T-x"], true],
   ["add-edge", () => ({ type: "BLOCKS" }), ["T-a", "T-b"], true],
-]) {
+] as CommandFixture[]) {
   test(`${name}: missing agent emits MISSING_AGENT`, async () => {
     const dir = await createTempProject();
     const restore = clearAgentEnv();
@@ -181,9 +195,10 @@ for (const [name, buildFlags, positional, register] of [
         });
       } catch (e) { caught = e; }
       assert.ok(caught, `${name} should have thrown MISSING_AGENT`);
-      assert.equal(caught.code, "MISSING_AGENT");
-      assert.equal(caught.details.command, name);
-      assert.match(caught.message, new RegExp(`^${name}:`));
+      const error = asTestError(caught);
+      assert.equal(error.code, "MISSING_AGENT");
+      assert.equal(error.details?.command, name);
+      assert.match(error.message ?? "", new RegExp(`^${name}:`));
     } finally { restore(); await rmTempProject(dir); }
   });
 }
@@ -211,8 +226,9 @@ test("update: missing agent emits MISSING_AGENT", async () => {
       });
     } catch (e) { caught = e; }
     assert.ok(caught);
-    assert.equal(caught.code, "MISSING_AGENT");
-    assert.equal(caught.details.command, "update");
+    const error = asTestError(caught);
+    assert.equal(error.code, "MISSING_AGENT");
+    assert.equal(error.details?.command, "update");
   } finally { restore(); await rmTempProject(dir); }
 });
 
@@ -298,7 +314,9 @@ test("CLI: --as takes precedence over CLIMIER_AGENT in the log entry", async () 
     const fs = await import("node:fs/promises");
     const path = await import("node:path");
     const meta = JSON.parse(await fs.readFile(path.join(dir, ".climier.json"), "utf8"));
-    const stateFile = path.join(process.env.CLIMIER_HOME, "projects", meta.project_id, "tasks.json");
+    const climierHome = process.env.CLIMIER_HOME;
+    assert.ok(climierHome);
+    const stateFile = path.join(climierHome, "projects", meta.project_id, "tasks.json");
     const s = JSON.parse(await fs.readFile(stateFile, "utf8"));
     const last = s.log[s.log.length - 1];
     assert.equal(last.agent, "flag-agent");

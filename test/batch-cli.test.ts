@@ -11,8 +11,12 @@ import { RESERVED_NAMESPACES } from "../src/cli/commands/reserved-namespaces.ts"
 const ROOT = path.resolve(import.meta.dirname, "..");
 const BIN = path.join(ROOT, "bin", "climier.ts");
 
-async function runCliWithInput(args, input, { cwd, env } = {}) {
-  return new Promise((resolve) => {
+type CliResult = { stdout: string; stderr: string; code: number | null };
+
+type CliInputOptions = { cwd: string; env?: NodeJS.ProcessEnv };
+
+async function runCliWithInput(args: string[], input: string, { cwd, env }: CliInputOptions = { cwd: process.cwd() }): Promise<CliResult> {
+  return new Promise<CliResult>((resolve) => {
     const proc = spawn(process.execPath, [BIN, ...args], {
       cwd,
       env: { ...process.env, ...env, NO_COLOR: "1" },
@@ -156,21 +160,21 @@ const sentinelState = {
   log: [{ id: "local-log", task: "sentinel" }],
 };
 
-async function invokeRemoteBatch(projectDir, backendClient, document) {
+async function invokeRemoteBatch(projectDir: string, backendClient: unknown, document: unknown) {
   const inputPath = path.join(projectDir, "remote-batch.json");
   await fs.writeFile(inputPath, JSON.stringify(document), "utf8");
-  return batch({
+  return batch(({
     projectDir,
     statePath: projectDir,
     backendClient,
     flags: { file: inputPath, as: "alice" },
     positional: [],
-  });
+  } as unknown) as Parameters<typeof batch>[0]);
 }
 
 test("remote batch CLI delegates its exact actor, operations, and revision once without touching local state", async () => {
   const dir = await createTempProject();
-  const calls = [];
+  const calls: Array<Record<string, unknown>> = [];
   const response = { ok: true, results: [{ op: "initiative.create", result: { name: "remote" } }] };
   const backendClient = {
     type: "remote",

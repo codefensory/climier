@@ -2,33 +2,66 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 
-import { createBackendClient, REMOTE_PROTOCOL_VERSION } from "../src/application/operations/index.ts";
+import { createBackendClient as createRawBackendClient, REMOTE_PROTOCOL_VERSION } from "../src/application/operations/index.ts";
 import { loginRemote } from "../src/application/backend-remote-transport.ts";
+import type { AddressInfo } from "node:net";
+import type { IncomingMessage, ServerResponse } from "node:http";
+import type { BackendClient, ProjectConfig, SourceInput } from "../src/application/types.ts";
 
-async function withServer(handler, run) {
-  const server = createServer(handler);
-  await new Promise((resolve, reject) => { server.once("error", reject); server.listen(0, "127.0.0.1", resolve); });
-  const origin = `http://127.0.0.1:${server.address().port}`;
-  try { await run(origin); }
-  finally { await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve())); }
+type ClientOptions = NonNullable<Parameters<typeof createRawBackendClient>[0]>;
+type CredentialStore = NonNullable<ClientOptions["credentialStore"]>;
+type TestBackendClient = BackendClient & {
+  exportTransfer: () => Promise<unknown>;
+  importTransfer: (options: Record<string, unknown>) => Promise<unknown>;
+  readStatus: () => Promise<unknown>;
+};
+type TestError = { code?: string; status?: number; details?: Record<string, unknown> };
+
+const asTestError = (error: unknown): TestError => error as TestError;
+const asCredentialStore = (store: object): CredentialStore => store as CredentialStore;
+const asSource = (source: object): SourceInput => source as SourceInput;
+
+function testBackendClient(options: ClientOptions): TestBackendClient {
+  return createRawBackendClient(options) as TestBackendClient;
 }
 
-async function readJson(request) {
-  const chunks = [];
-  for await (const chunk of request) {chunks.push(chunk);}
+function createBackendClient(options: ClientOptions): TestBackendClient {
+  return testBackendClient(options);
+}
+
+async function withServer(
+  handler: (request: IncomingMessage, response: ServerResponse) => void | Promise<void>,
+  run: (origin: string) => Promise<void>,
+) {
+  const server = createServer(handler);
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  const address = server.address() as AddressInfo;
+  const origin = `http://127.0.0.1:${address.port}`;
+  try { await run(origin); }
+  finally { await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve())); }
+}
+
+async function readJson(request: IncomingMessage): Promise<unknown> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of request) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)));
+  }
   return JSON.parse(Buffer.concat(chunks).toString("utf8"));
 }
 
-function remoteConfig(origin) {
+function remoteConfig(origin: string): ProjectConfig {
   return { project_id: "project/opaque", backend: { type: "remote", url: origin } };
 }
 
-function jsonResponse(response, result) {
+function jsonResponse(response: ServerResponse, result: unknown) {
   response.writeHead(200, { "content-type": "application/json", "x-climier-protocol-version": "1" });
   response.end(JSON.stringify({ ok: true, result }));
 }
 
-async function withInsecureRemoteHttp(run) {
+async function withInsecureRemoteHttp(run: () => Promise<void>): Promise<void> {
   const previousFetch = globalThis.fetch;
   try {
     await run();
@@ -38,15 +71,19 @@ async function withInsecureRemoteHttp(run) {
 }
 
 test("backend client keeps local execution unchanged", async () => {
-  const calls = [];
+  const calls: string[] = [];
   const result = { diff: { created: [] } };
   const client = createBackendClient({
     projectDir: "/project",
     projectConfig: { version: 1, project_id: "local-project" },
-    source: {
-      registry: { lookup(operation) { calls.push(operation); return { provider: { prepare() {}, apply() {} } }; } },
-      mutate(request) { calls.push(request.request.action); return result; },
-    },
+    source: asSource({
+      registry: { lookup(operation) { calls.push(String(operation)); return { provider: { prepare() {}, apply() {} } }; } },
+      mutate(request: unknown) {
+        const mutation = request as { request: { action: string } };
+        calls.push(mutation.request.action);
+        return result;
+      },
+    }),
   });
   assert.equal(await client.executeOperation({ actor: "alice", operation: "task.create", input: {} }), result);
   assert.equal(client.exportTransfer, undefined);
@@ -55,16 +92,16 @@ test("backend client keeps local execution unchanged", async () => {
 });
 
 test("remote client uses protocol v1 and only the profile bearer for its origin", async () => {
-  const requests = [];
+  const requests: Array<Record<string, unknown>> = [];
   await withServer(async (request, response) => {
     requests.push({ url: request.url, authorization: request.headers.authorization, protocol: request.headers["x-climier-protocol-version"], body: await readJson(request) });
     jsonResponse(response, { accepted: true });
   }, async (origin) => {
-    const lookedUp = [];
+    const lookedUp: string[] = [];
     const client = createBackendClient({
       projectDir: "/project",
       projectConfig: remoteConfig(origin),
-      credentialStore: { async get(value) { lookedUp.push(value); return "profile-token"; } },
+      credentialStore: asCredentialStore({ async get(value: string) { lookedUp.push(value); return "profile-token"; } }),
     });
     assert.deepEqual(await client.executeOperation({ actor: "alice", operation: "task.create", input: { id: "T1" } }), { accepted: true });
     assert.deepEqual(lookedUp, [origin]);
@@ -79,10 +116,10 @@ test("remote client uses protocol v1 and only the profile bearer for its origin"
 });
 
 test("remote client exports and imports transfers through authenticated v1 endpoints", async () => {
-  const requests = [];
+  const requests: Array<Record<string, unknown>> = [];
   const payload = { version: 1, nodes: {}, edges: [], initiatives: {}, log: [] };
   await withServer(async (request, response) => {
-    const observed = {
+    const observed: Record<string, unknown> = {
       method: request.method,
       url: request.url,
       authorization: request.headers.authorization,
@@ -95,7 +132,7 @@ test("remote client exports and imports transfers through authenticated v1 endpo
     const client = createBackendClient({
       projectDir: "/project",
       projectConfig: remoteConfig(origin),
-      credentialStore: { async get() { return "profile-token"; } },
+      credentialStore: asCredentialStore({ async get() { return "profile-token"; } }),
     });
     assert.deepEqual(await client.exportTransfer(), { payload, revision: 13 });
     assert.deepEqual(await client.importTransfer({
@@ -140,9 +177,9 @@ test("HTTP remote clients use each project's configured origin and matching prof
   await withInsecureRemoteHttp(async () => {
     const origins = ["http://remote-one.example.test:43128", "http://remote-two.example.test:43128"];
     const sessions = new Map(origins.map((origin, index) => [origin, `profile-token-${index + 1}`]));
-    const requests = [];
+    const requests: Array<Record<string, unknown>> = [];
     globalThis.fetch = async (url, options) => {
-      requests.push({ url: String(url), authorization: options.headers.authorization });
+      requests.push({ url: String(url), authorization: new Headers(options?.headers).get("authorization") });
       return new Response(JSON.stringify({ ok: true, result: { ready: [] } }), {
         status: 200,
         headers: { "content-type": "application/json", "x-climier-protocol-version": "1" },
@@ -152,7 +189,7 @@ test("HTTP remote clients use each project's configured origin and matching prof
       const client = createBackendClient({
         projectDir: "/project",
         projectConfig: remoteConfig(origin),
-        credentialStore: { async get(value) { return sessions.get(value) ?? null; } },
+        credentialStore: asCredentialStore({ async get(value: string) { return sessions.get(value) ?? null; } }),
       });
       assert.deepEqual(await client.readStatus(), { ready: [] });
     }
@@ -168,15 +205,15 @@ test("remote clients validate the response protocol before status or body, inclu
     const client = createBackendClient({
       projectDir: "/project",
       projectConfig: remoteConfig("http://remote.example.test"),
-      credentialStore: { async get() { return "profile-token"; } },
+      credentialStore: asCredentialStore({ async get() { return "profile-token"; } }),
     });
     for (const protocol of [null, "2"]) {
       globalThis.fetch = async () => new Response("not-json", {
         status: 401,
         headers: protocol === null ? {} : { "x-climier-protocol-version": protocol },
       });
-      await assert.rejects(client.readStatus(), (error) => error.code === "PROTOCOL_VERSION_UNSUPPORTED");
-      await assert.rejects(loginRemote({ origin: "http://remote.example.test", password: "private-password" }), (error) => error.code === "PROTOCOL_VERSION_UNSUPPORTED");
+      await assert.rejects(client.readStatus(), (error) => asTestError(error).code === "PROTOCOL_VERSION_UNSUPPORTED");
+      await assert.rejects(loginRemote({ origin: "http://remote.example.test", password: "private-password" }), (error) => asTestError(error).code === "PROTOCOL_VERSION_UNSUPPORTED");
     }
   });
 });
@@ -189,7 +226,7 @@ test("legacy token environment variable never authenticates remote requests", as
       assert.equal(request.headers.authorization, undefined);
       jsonResponse(response, {});
     }, async (origin) => {
-      const client = createBackendClient({ projectDir: "/project", projectConfig: remoteConfig(origin), credentialStore: { async get() { return null; } } });
+      const client = createBackendClient({ projectDir: "/project", projectConfig: remoteConfig(origin), credentialStore: asCredentialStore({ async get() { return null; } }) });
       await client.readStatus();
     });
   } finally {
@@ -218,14 +255,23 @@ test("remote transfer methods preserve HTTP, protocol, and timeout errors", asyn
     const client = createBackendClient({
       projectDir: "/project",
       projectConfig: remoteConfig(origin),
-      credentialStore: { async get() { return "profile-token"; } },
+      credentialStore: asCredentialStore({ async get() { return "profile-token"; } }),
       timeoutMs: 100,
     });
-    await assert.rejects(client.exportTransfer(), (error) => error.code === "AUTH_REQUIRED" && error.status === 401 && error.details.profile === "missing");
-    await assert.rejects(client.importTransfer({ payload, actor: "alice" }), (error) => error.code === "TRANSFER_REMOTE_CHANGED" && error.status === 409 && error.details.current === 4);
-    await assert.rejects(client.exportTransfer(), (error) => error.code === "PROTOCOL_VERSION_UNSUPPORTED");
-    await assert.rejects(client.exportTransfer(), (error) => error.code === "REMOTE_INVALID_RESPONSE");
-    await assert.rejects(client.exportTransfer(), (error) => error.code === "REMOTE_TIMEOUT" && error.details.timeout_ms === 100);
+    await assert.rejects(client.exportTransfer(), (error) => {
+      const caught = asTestError(error);
+      return caught.code === "AUTH_REQUIRED" && caught.status === 401 && caught.details?.profile === "missing";
+    });
+    await assert.rejects(client.importTransfer({ payload, actor: "alice" }), (error) => {
+      const caught = asTestError(error);
+      return caught.code === "TRANSFER_REMOTE_CHANGED" && caught.status === 409 && caught.details?.current === 4;
+    });
+    await assert.rejects(client.exportTransfer(), (error) => asTestError(error).code === "PROTOCOL_VERSION_UNSUPPORTED");
+    await assert.rejects(client.exportTransfer(), (error) => asTestError(error).code === "REMOTE_INVALID_RESPONSE");
+    await assert.rejects(client.exportTransfer(), (error) => {
+      const caught = asTestError(error);
+      return caught.code === "REMOTE_TIMEOUT" && caught.details?.timeout_ms === 100;
+    });
     assert.equal(call, 5, "transfer failures are not retried");
   });
 });
@@ -244,14 +290,18 @@ test("login transport posts the password to the origin endpoint and returns the 
 
 test("remote failures never fall back to local execution", async () => {
   const server = createServer(() => {});
-  await new Promise((resolve, reject) => { server.once("error", reject); server.listen(0, "127.0.0.1", resolve); });
-  const origin = `http://127.0.0.1:${server.address().port}`;
-  await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  const address = server.address() as AddressInfo;
+  const origin = `http://127.0.0.1:${address.port}`;
+  await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   let localCalls = 0;
   const client = createBackendClient({
-    projectDir: "/project", projectConfig: remoteConfig(origin), credentialStore: { async get() { return "token"; } },
-    source: { registry: { lookup() { localCalls += 1; } }, mutate() { localCalls += 1; } },
+    projectDir: "/project", projectConfig: remoteConfig(origin), credentialStore: asCredentialStore({ async get() { return "token"; } }),
+    source: asSource({ registry: { lookup() { localCalls += 1; } }, mutate() { localCalls += 1; } }),
   });
-  await assert.rejects(client.readStatus(), (error) => error.code === "REMOTE_REQUEST_FAILED");
+  await assert.rejects(client.readStatus(), (error) => asTestError(error).code === "REMOTE_REQUEST_FAILED");
   assert.equal(localCalls, 0);
 });

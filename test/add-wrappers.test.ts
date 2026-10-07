@@ -3,7 +3,18 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, importFresh, readState, runCli } from "./helpers.mjs";
 
-const taskFlags = () => ({
+type TestError = {
+  code?: string;
+  message?: string;
+  details?: Record<string, unknown>;
+};
+
+type WrapperFlags = Record<string, string>;
+type WrapperFactory = () => WrapperFlags;
+
+const asTestError = (error: unknown): TestError => error as TestError;
+
+const taskFlags = (): WrapperFlags => ({
   initiative: "auth",
   title: "Implement sessions",
   body: "Replace JWT validation",
@@ -11,14 +22,14 @@ const taskFlags = () => ({
   "blocked-by": "",
 });
 
-const gateFlags = () => ({
+const gateFlags = (): WrapperFlags => ({
   initiative: "auth",
   title: "Choose session model",
   body: "Pick the canonical model",
   purpose: "decision",
 });
 
-const knowledgeFlags = () => ({
+const knowledgeFlags = (): WrapperFlags => ({
   initiative: "auth",
   title: "Refresh session TTL",
   body: "Sessions expire unless refreshed",
@@ -145,9 +156,10 @@ test('add-task: missing --blocked-by explains that --blocked-by "" is valid', as
     await assert.rejects(
       addTask({ statePath: dir, projectDir: dir, positional: ["T-auth"], flags }),
       (err) => {
-        assert.equal(err.code, "MISSING_FIELD");
-        assert.match(err.message, /--blocked-by/);
-        assert.match(err.message, /""/);
+        const caught = asTestError(err);
+        assert.equal(caught.code, "MISSING_FIELD");
+        assert.match(caught.message ?? "", /--blocked-by/);
+        assert.match(caught.message ?? "", /""/);
         return true;
       },
     );
@@ -224,13 +236,16 @@ for (const [name, id, flags] of [
   ["add-task", "T-auth", taskFlags],
   ["add-gate", "G-auth", gateFlags],
   ["add-knowledge", "K-auth", knowledgeFlags],
-]) {
+] as Array<[string, string, WrapperFactory]>) {
   test(`${name}: rejects an unregistered initiative`, async () => {
     await withProject(async (dir) => {
       const add = await command(name);
       await assert.rejects(
         add({ statePath: dir, projectDir: dir, positional: [id], flags: { ...flags(), initiative: "ghost" } }),
-        (err) => err.code === "INITIATIVE_NOT_FOUND" && err.details.initiative === "ghost",
+        (err) => {
+          const caught = asTestError(err);
+          return caught.code === "INITIATIVE_NOT_FOUND" && caught.details?.initiative === "ghost";
+        },
       );
     }, { register: false });
   });
@@ -240,7 +255,7 @@ for (const [name, prefix, flags] of [
   ["add-task", "T-", taskFlags],
   ["add-gate", "G-", gateFlags],
   ["add-knowledge", "K-", knowledgeFlags],
-]) {
+] as Array<[string, string, WrapperFactory]>) {
   test(`${name}: generates an id with the ${prefix} prefix when omitted`, async () => {
     await withProject(async (dir) => {
       const add = await command(name);
@@ -256,13 +271,18 @@ for (const [name, flags] of [
   ["add-task", taskFlags],
   ["add-gate", gateFlags],
   ["add-knowledge", knowledgeFlags],
-]) {
+] as Array<[string, WrapperFactory]>) {
   test(`${name}: rejects a provided id outside the allowed format`, async () => {
     await withProject(async (dir) => {
       const add = await command(name);
       await assert.rejects(
         add({ statePath: dir, projectDir: dir, positional: ["bad/id"], flags: flags() }),
-        (err) => err.code === "INVALID_ID" && err.details.id === "bad/id" && err.details.pattern === "^[A-Za-z0-9_.-]+$",
+        (err) => {
+          const caught = asTestError(err);
+          return caught.code === "INVALID_ID"
+            && caught.details?.id === "bad/id"
+            && caught.details?.pattern === "^[A-Za-z0-9_.-]+$";
+        },
       );
     });
   });
@@ -270,7 +290,7 @@ for (const [name, flags] of [
 
 test("add wrappers route local creates through the operation bridge", async () => {
   await withProject(async (dir) => {
-    const calls = [];
+    const calls: Array<{ operation: string; input: { id?: string } }> = [];
     const backendClient = {
       type: "local",
       async executeOperation(args) {

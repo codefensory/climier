@@ -7,6 +7,9 @@ const REGISTRY_MODULE = "../src/application/operations/registry.ts";
 const INDEX_MODULE = "../src/application/operations/index.ts";
 const TASK_PROVIDER_MODULE = "../src/providers/task/index.ts";
 
+type TestError = { code?: string; details?: Record<string, unknown> };
+const asTestError = (error: unknown): TestError => error as TestError;
+
 function provider() {
   return Object.freeze({
     prepare() {},
@@ -91,12 +94,17 @@ test("buildRegistry keeps deterministic structured validation and duplicate erro
   const { buildRegistry } = await importFresh(REGISTRY_MODULE);
   assert.throws(
     () => buildRegistry([entry("same"), entry("same")]),
-    (error) => error.code === "REGISTRY_DUPLICATE_ID" &&
-      error.details.first_index === 0 && error.details.second_index === 1,
+    (error) => {
+      const caught = asTestError(error);
+      return caught.code === "REGISTRY_DUPLICATE_ID"
+        && caught.details?.first_index === 0 && caught.details?.second_index === 1;
+    },
   );
   assert.throws(
     () => buildRegistry([{ id: "bad", kind: "task", provider: {} }]),
-    (error) => error.code === "REGISTRY_INVALID_PROVIDER" &&
-      error.details.index === 0,
+    (error) => {
+      const caught = asTestError(error);
+      return caught.code === "REGISTRY_INVALID_PROVIDER" && caught.details?.index === 0;
+    },
   );
 });
