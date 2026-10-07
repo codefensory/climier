@@ -21,7 +21,12 @@ async function importKernel() {
   return importFresh("./kernel/mutate.ts");
 }
 
-function createInitiativeProvider({ name, desc = "", created_at }) {
+type ErrorLike = { code?: string; message?: string };
+function errorLike(error: unknown): ErrorLike {
+  return (typeof error === "object" && error !== null ? error : {}) as ErrorLike;
+}
+
+function createInitiativeProvider({ name, desc = "", created_at }: { name: string; desc?: string; created_at?: string }) {
   return {
     prepare: async () => ({
       target: { id: name, kind: "initiative" },
@@ -29,7 +34,7 @@ function createInitiativeProvider({ name, desc = "", created_at }) {
       initiative: { name, desc, created_at },
     }),
     apply: async ({ tx, plan }) => {
-      const init = {
+      const init: { name: string; desc: string; created_at?: string } = {
         name: plan.initiative.name,
         desc: plan.initiative.desc,
       };
@@ -40,7 +45,7 @@ function createInitiativeProvider({ name, desc = "", created_at }) {
   };
 }
 
-function bootstrap(dir, mutate) {
+function bootstrap(dir, mutate?: (state: { nodes: Record<string, Record<string, unknown>> }) => void) {
   const base = {
     version: 1,
     revision: 0,
@@ -316,7 +321,7 @@ test("kernel.mutate: denied bootstrap leaves state absent", async () => {
           pluginId: "policy.test",
         },
       }),
-      (err) => err.code === "POLICY_DENIED",
+      (err) => errorLike(err).code === "POLICY_DENIED",
     );
     assert.equal(await stateExists(dir), false);
   } finally {
@@ -334,7 +339,7 @@ test("kernel.mutate: second initiative.create rejects without changing the boots
     const before = await readStateHelper(dir);
     await assert.rejects(
       mutate({ projectDir: dir, request, provider: initiativeCreateProvider }),
-      (err) => err.code === "ID_CONFLICT",
+      (err) => errorLike(err).code === "ID_CONFLICT",
     );
     assert.deepEqual(await readStateHelper(dir), before);
   } finally {

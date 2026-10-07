@@ -14,13 +14,32 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importFresh } from "./helpers.mjs";
 
-function makeState(nodes = {}, edges = []) {
+type Edge = { from: string; to: string; type: string };
+type Node = { id: string; kind: string; subkind?: string; title: string };
+type State = { version: number; nodes?: Record<string, Node>; edges?: Edge[]; log: unknown[] };
+type ErrorLike = { code?: string; message?: string; details?: Record<string, string> };
+type EdgesModule = {
+  EDGE_TYPES: readonly string[];
+  existingEdge: (state: State, from: string, to: string, type: string) => boolean;
+  blocksEdge: (from: string, to: string) => Edge;
+  validateEdge: (state: State, edge: Edge, commandName: string) => void;
+};
+
+function makeState(nodes: Record<string, Node> = {}, edges: Edge[] = []): State {
   return { version: 2, nodes, edges, log: [] };
 }
 
-const resolvableTask = (id) => ({ id, kind: "resolvable", subkind: "task", title: id });
-const resolvableGate = (id) => ({ id, kind: "resolvable", subkind: "gate", title: id });
-const knowledgeNode = (id) => ({ id, kind: "knowledge", title: id });
+function errorLike(error: unknown): ErrorLike {
+  return (typeof error === "object" && error !== null ? error : {}) as ErrorLike;
+}
+
+async function edgesModule(): Promise<EdgesModule> {
+  return await importFresh("../src/kernel/edges.ts") as EdgesModule;
+}
+
+const resolvableTask = (id: string): Node => ({ id, kind: "resolvable", subkind: "task", title: id });
+const resolvableGate = (id: string): Node => ({ id, kind: "resolvable", subkind: "gate", title: id });
+const knowledgeNode = (id: string): Node => ({ id, kind: "knowledge", title: id });
 
 // --- EDGE_TYPES ---------------------------------------------------------
 
@@ -116,7 +135,7 @@ test("validateEdge: rejects self-edge with code SELF_EDGE", async () => {
   const state = makeState({ T1: resolvableTask("T1") });
   assert.throws(
     () => validateEdge(state, { from: "T1", to: "T1", type: "BLOCKS" }, "cmd"),
-    (err) => err.code === "SELF_EDGE" && /self-edge/i.test(err.message),
+    (err) => errorLike(err).code === "SELF_EDGE" && /self-edge/i.test(errorLike(err).message ?? ""),
   );
 });
 
@@ -125,7 +144,7 @@ test("validateEdge: missing from-node is rejected with code INVALID_EDGE_TARGET"
   const state = makeState({ B: resolvableGate("B") });
   assert.throws(
     () => validateEdge(state, { from: "A", to: "B", type: "BLOCKS" }, "cmd"),
-    (err) => err.code === "INVALID_EDGE_TARGET" && /A/.test(err.message),
+    (err) => errorLike(err).code === "INVALID_EDGE_TARGET" && /A/.test(errorLike(err).message ?? ""),
   );
 });
 
@@ -134,7 +153,7 @@ test("validateEdge: missing to-node is rejected with code INVALID_EDGE_TARGET", 
   const state = makeState({ A: resolvableTask("A") });
   assert.throws(
     () => validateEdge(state, { from: "A", to: "B", type: "BLOCKS" }, "cmd"),
-    (err) => err.code === "INVALID_EDGE_TARGET" && /B/.test(err.message),
+    (err) => errorLike(err).code === "INVALID_EDGE_TARGET" && /B/.test(errorLike(err).message ?? ""),
   );
 });
 
@@ -160,7 +179,7 @@ test("validateEdge: BLOCKS requires both ends to be resolvable (to is knowledge)
   const state = makeState({ T: resolvableTask("T"), K: knowledgeNode("K") });
   assert.throws(
     () => validateEdge(state, { from: "T", to: "K", type: "BLOCKS" }, "cmd"),
-    (err) => err.code === "INVALID_EDGE_KIND" && /BLOCKS/.test(err.message),
+    (err) => errorLike(err).code === "INVALID_EDGE_KIND" && /BLOCKS/.test(errorLike(err).message ?? ""),
   );
 });
 
@@ -169,7 +188,7 @@ test("validateEdge: BLOCKS requires both ends to be resolvable (from is knowledg
   const state = makeState({ T: resolvableTask("T"), K: knowledgeNode("K") });
   assert.throws(
     () => validateEdge(state, { from: "K", to: "T", type: "BLOCKS" }, "cmd"),
-    (err) => err.code === "INVALID_EDGE_KIND" && /BLOCKS/.test(err.message),
+    (err) => errorLike(err).code === "INVALID_EDGE_KIND" && /BLOCKS/.test(errorLike(err).message ?? ""),
   );
 });
 
@@ -178,7 +197,7 @@ test("validateEdge: SUPERSEDES requires both ends to be the same kind", async ()
   const state = makeState({ G: resolvableGate("G"), K: knowledgeNode("K") });
   assert.throws(
     () => validateEdge(state, { from: "G", to: "K", type: "SUPERSEDES" }, "cmd"),
-    (err) => err.code === "INVALID_EDGE_KIND" && /SUPERSEDES/.test(err.message),
+    (err) => errorLike(err).code === "INVALID_EDGE_KIND" && /SUPERSEDES/.test(errorLike(err).message ?? ""),
   );
 });
 
@@ -211,7 +230,7 @@ test("validateEdge: rejects unknown edge types with code INVALID_EDGE_TYPE", asy
   const state = makeState({ T: resolvableTask("T"), G: resolvableGate("G") });
   assert.throws(
     () => validateEdge(state, { from: "T", to: "G", type: "INFORMS" }, "cmd"),
-    (err) => err.code === "INVALID_EDGE_TYPE" && /INFORMS/.test(err.message),
+    (err) => errorLike(err).code === "INVALID_EDGE_TYPE" && /INFORMS/.test(errorLike(err).message ?? ""),
   );
 });
 
@@ -221,7 +240,7 @@ test("validateEdge: rejects RELATES_TO and CONFLICTS_WITH with code INVALID_EDGE
   for (const type of ["RELATES_TO", "CONFLICTS_WITH"]) {
     assert.throws(
       () => validateEdge(state, { from: "T", to: "G", type }, "cmd"),
-      (err) => err.code === "INVALID_EDGE_TYPE" && err.message.includes(type),
+      (err) => errorLike(err).code === "INVALID_EDGE_TYPE" && (errorLike(err).message ?? "").includes(type),
       `expected ${type} to be rejected with INVALID_EDGE_TYPE`,
     );
   }
@@ -232,7 +251,7 @@ test("validateEdge: commandName is reflected in error messages", async () => {
   const state = makeState({ T1: resolvableTask("T1") });
   assert.throws(
     () => validateEdge(state, { from: "T1", to: "T1", type: "BLOCKS" }, "my-command"),
-    (err) => err.message.startsWith("my-command:"),
+    (err) => (errorLike(err).message ?? "").startsWith("my-command:"),
   );
 });
 
@@ -242,7 +261,7 @@ test("validateEdge: handles missing state.nodes field defensively", async () => 
   assert.throws(
     () =>
       validateEdge({ version: 2, edges: [], log: [] }, { from: "A", to: "B", type: "BLOCKS" }, "cmd"),
-    (err) => err.code === "INVALID_EDGE_TARGET",
+    (err) => errorLike(err).code === "INVALID_EDGE_TARGET",
   );
 });
 

@@ -9,7 +9,14 @@ import { createTransaction } from "../src/kernel/transaction.ts";
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const SRC_DIR = path.resolve(currentDir, "..", "src");
 
-function baseSnapshot() {
+type NodeRecord = { id: string; kind: string; subkind?: string; title?: string; status?: string; revision?: number; [key: string]: unknown };
+type Edge = { from: string; to: string; type: string };
+type ErrorLike = { code?: string; message?: string; details: Record<string, unknown> };
+function errorLike(error: unknown): ErrorLike {
+  return (typeof error === "object" && error !== null ? error : { details: {} }) as ErrorLike;
+}
+
+function baseSnapshot(): { version: number; nodes: Record<string, NodeRecord>; edges: Edge[]; initiatives: Record<string, { desc: string }>; log: Array<Record<string, unknown>> } {
   return {
     version: 2,
     nodes: {
@@ -55,7 +62,7 @@ test("createTransaction: clones snapshot on entry (and strips revision)", () => 
   const tx = createTransaction(snapshot);
 
   assert.notEqual(tx.view().nodes, snapshot.nodes); assert.notEqual(tx.view().edges, snapshot.edges);
-  const expectedNodes = {};
+  const expectedNodes: Record<string, Omit<NodeRecord, "revision">> = {};
   for (const [id, node] of Object.entries(snapshot.nodes)) {
     const { revision: _rev, ...rest } = node;
     expectedNodes[id] = rest;
@@ -80,12 +87,12 @@ test("createTransaction: each accessor returns a cloned node", () => {
 
 test("view: returns cloned snapshot of nodes + edges + initiatives", () => {
   const tx = createTransaction(baseSnapshot());
-  const v1 = tx.view();
+  const v1 = tx.view() as { nodes: Record<string, NodeRecord>; edges: Edge[]; initiatives: Record<string, { desc: string }>; log?: unknown };
   const v2 = tx.view();
   assert.notEqual(v1.nodes, v2.nodes); assert.notEqual(v1.edges, v2.edges);
   assert.notEqual(v1.initiatives, v2.initiatives); assert.deepEqual(Object.keys(v1).toSorted(), ["edges", "initiatives", "nodes"]);
   assert.equal(v1.log, undefined); assert.ok(v1.initiatives, "view must surface initiatives from the snapshot");
-  assert.equal(v1.initiatives.kernel.desc, "kernel initiative");
+  assert.equal(v1.initiatives.kernel!.desc, "kernel initiative");
 });
 
 test("createNode: registers a new node without revision", () => {
@@ -106,7 +113,7 @@ test("createNode: registers a new node without revision", () => {
 
 test("createNode: rejects nodes carrying revision", () => {
   const tx = createTransaction(baseSnapshot());
-  let caught;
+  let caught: ErrorLike = { details: {} };
   try {
     tx.createNode({
       id: "T-bad",
@@ -117,7 +124,7 @@ test("createNode: rejects nodes carrying revision", () => {
       revision: 7,
     });
   } catch (err) {
-    caught = err;
+    caught = errorLike(err);
   }
   assert.ok(caught, "createNode must throw when revision is present"); assert.equal(caught.code, "INVALID_EXECUTION_CONTRACT");
   assert.equal(caught.details.field, "revision"); assert.equal(tx.getNode("T-bad"), undefined);
@@ -125,7 +132,7 @@ test("createNode: rejects nodes carrying revision", () => {
 
 test("createNode: rejects duplicate ids (against snapshot and draft)", () => {
   const tx = createTransaction(baseSnapshot());
-  let caught;
+  let caught: ErrorLike = { details: {} };
   try {
     tx.createNode({
       id: "T1",
@@ -135,7 +142,7 @@ test("createNode: rejects duplicate ids (against snapshot and draft)", () => {
       status: "open",
     });
   } catch (err) {
-    caught = err;
+    caught = errorLike(err);
   }
   assert.equal(caught.code, "ID_CONFLICT"); assert.equal(caught.details.id, "T1");
 
@@ -146,7 +153,7 @@ test("createNode: rejects duplicate ids (against snapshot and draft)", () => {
     title: "first",
     status: "open",
   });
-  let caught2;
+  let caught2: ErrorLike = { details: {} };
   try {
     tx.createNode({
       id: "T-first",
@@ -156,14 +163,14 @@ test("createNode: rejects duplicate ids (against snapshot and draft)", () => {
       status: "open",
     });
   } catch (err) {
-    caught2 = err;
+    caught2 = errorLike(err);
   }
   assert.equal(caught2.code, "ID_CONFLICT"); assert.equal(caught2.details.id, "T-first");
 });
 
 test("createNode: rejects missing required fields (id, kind)", () => {
   const tx = createTransaction(baseSnapshot());
-  assert.throws(() => tx.createNode({ kind: "resolvable", title: "no id" }), (err) => err.code === "MISSING_FIELD" && err.details.field === "id"); assert.throws(() => tx.createNode({ id: "no-kind", title: "no kind" }), (err) => err.code === "MISSING_FIELD" && err.details.field === "kind");
+  assert.throws(() => tx.createNode({ kind: "resolvable", title: "no id" }), (err) => errorLike(err).code === "MISSING_FIELD" && errorLike(err).details?.field === "id"); assert.throws(() => tx.createNode({ id: "no-kind", title: "no kind" }), (err) => errorLike(err).code === "MISSING_FIELD" && errorLike(err).details?.field === "kind");
 });
 
 test("updateNode: applies a patch without revision", () => {
@@ -176,11 +183,11 @@ test("updateNode: applies a patch without revision", () => {
 
 test("updateNode: rejects patches that carry revision", () => {
   const tx = createTransaction(baseSnapshot());
-  let caught;
+  let caught: ErrorLike = { details: {} };
   try {
     tx.updateNode("T1", { status: "in_progress", revision: 99 });
   } catch (err) {
-    caught = err;
+    caught = errorLike(err);
   }
   assert.equal(caught.code, "INVALID_EXECUTION_CONTRACT"); assert.equal(caught.details.field, "revision");
   assert.equal(tx.getNode("T1").status, "open"); assert.equal(tx.getNode("T1").revision, undefined);
@@ -188,11 +195,11 @@ test("updateNode: rejects patches that carry revision", () => {
 
 test("updateNode: rejects missing target ids (snapshot + draft)", () => {
   const tx = createTransaction(baseSnapshot());
-  let caught;
+  let caught: ErrorLike = { details: {} };
   try {
     tx.updateNode("T-does-not-exist", { title: "x" });
   } catch (err) {
-    caught = err;
+    caught = errorLike(err);
   }
   assert.equal(caught.code, "NODE_NOT_FOUND"); assert.equal(caught.details.id, "T-does-not-exist");
 
@@ -208,7 +215,7 @@ test("addEdge: rejects a BLOCKS edge that closes a cycle", () => {
   });
   assert.throws(
     () => tx.addEdge({ from: "T1", to: "G1", type: "BLOCKS" }),
-    (err) => err.code === "CYCLE_DETECTED",
+    (err) => errorLike(err).code === "CYCLE_DETECTED",
   );
 });
 
@@ -221,11 +228,11 @@ test("addEdge: accepts a valid edge against snapshot + draft nodes", () => {
 
 test("addEdge: rejects self-edges", () => {
   const tx = createTransaction(baseSnapshot());
-  let caught;
+  let caught: ErrorLike = { details: {} };
   try {
     tx.addEdge({ from: "T1", to: "T1", type: "BLOCKS" });
   } catch (err) {
-    caught = err;
+    caught = errorLike(err);
   }
   assert.equal(caught.code, "SELF_EDGE");
   assert.equal(caught.details.from, "T1");
@@ -233,23 +240,23 @@ test("addEdge: rejects self-edges", () => {
 });
 
 function assertMissingEdgeFields(tx) {
-  assert.throws(() => tx.addEdge({ to: "T1", type: "BLOCKS" }), (err) => err.code === "MISSING_FIELD" && err.details.field === "from");
-  assert.throws(() => tx.addEdge({ from: "T1", type: "BLOCKS" }), (err) => err.code === "MISSING_FIELD" && err.details.field === "to");
-  assert.throws(() => tx.addEdge({ from: "T1", to: "T-new" }), (err) => err.code === "MISSING_FIELD" && err.details.field === "type");
+  assert.throws(() => tx.addEdge({ to: "T1", type: "BLOCKS" }), (err) => errorLike(err).code === "MISSING_FIELD" && errorLike(err).details?.field === "from");
+  assert.throws(() => tx.addEdge({ from: "T1", type: "BLOCKS" }), (err) => errorLike(err).code === "MISSING_FIELD" && errorLike(err).details?.field === "to");
+  assert.throws(() => tx.addEdge({ from: "T1", to: "T-new" }), (err) => errorLike(err).code === "MISSING_FIELD" && errorLike(err).details?.field === "type");
 }
 
 function assertInvalidEdgeTypesAndKinds(tx) {
-  let caught;
+  let caught: ErrorLike = { details: {} };
   try {
     tx.addEdge({ from: "T1", to: "T1", type: "RELATES_TO" });
   } catch (err) {
-    caught = err;
+    caught = errorLike(err);
   }
   assert.equal(caught.code, "SELF_EDGE");
   try {
     tx.addEdge({ from: "T1", to: "G1", type: "WHATEVER" });
   } catch (err) {
-    caught = err;
+    caught = errorLike(err);
   }
   assert.equal(caught.code, "INVALID_EDGE_TYPE");
   assert.deepEqual(caught.details.allowed, ["BLOCKS", "SUPERSEDES", "DERIVED_FROM"]);
@@ -257,7 +264,7 @@ function assertInvalidEdgeTypesAndKinds(tx) {
   try {
     tx.addEdge({ from: "T1", to: "K1", type: "BLOCKS" });
   } catch (err) {
-    caught = err;
+    caught = errorLike(err);
   }
   assert.equal(caught.code, "INVALID_EDGE_KIND");
   assert.equal(caught.details.fromKind, "resolvable");
@@ -266,7 +273,7 @@ function assertInvalidEdgeTypesAndKinds(tx) {
   try {
     tx.addEdge({ from: "T1", to: "G1", type: "SUPERSEDES" });
   } catch (err) {
-    caught = err;
+    caught = errorLike(err);
   }
   assert.equal(caught.code, "INVALID_EDGE_KIND");
 }
@@ -279,36 +286,36 @@ test("addEdge: rejects missing fields and invalid edge types/kinds", () => {
 
 test("addEdge: rejects edges targeting unknown nodes", () => {
   const tx = createTransaction(baseSnapshot());
-  let caught;
+  let caught: ErrorLike = { details: {} };
   try {
     tx.addEdge({ from: "T1", to: "T-missing", type: "BLOCKS" });
   } catch (err) {
-    caught = err;
+    caught = errorLike(err);
   }
   assert.equal(caught.code, "INVALID_EDGE_TARGET"); assert.equal(caught.details.missing, "T-missing");
 
   try {
     tx.addEdge({ from: "T-missing", to: "T1", type: "BLOCKS" });
   } catch (err) {
-    caught = err;
+    caught = errorLike(err);
   }
   assert.equal(caught.code, "INVALID_EDGE_TARGET"); assert.equal(caught.details.missing, "T-missing");
 });
 
 test("addEdge: rejects duplicates against snapshot and draft", () => {
   const tx = createTransaction(baseSnapshot());
-  let caught;
+  let caught: ErrorLike = { details: {} };
   try {
     tx.addEdge({ from: "G1", to: "T1", type: "BLOCKS" });
   } catch (err) {
-    caught = err;
+    caught = errorLike(err);
   }
   assert.equal(caught.code, "DUPLICATE_EDGE");
   tx.addEdge({ from: "T1", to: "G1", type: "DERIVED_FROM" });
   try {
     tx.addEdge({ from: "T1", to: "G1", type: "DERIVED_FROM" });
   } catch (err) {
-    caught = err;
+    caught = errorLike(err);
   }
   assert.equal(caught.code, "DUPLICATE_EDGE");
 });
@@ -325,11 +332,11 @@ test("removeEdge: removes a matching edge from snapshot or draft", () => {
 
 test("removeEdge: rejects when no matching edge exists", () => {
   const tx = createTransaction(baseSnapshot());
-  let caught;
+  let caught: ErrorLike = { details: {} };
   try {
     tx.removeEdge({ from: "T1", to: "G1", type: "BLOCKS" });
   } catch (err) {
-    caught = err;
+    caught = errorLike(err);
   }
   assert.ok(caught, "removeEdge must throw when the predicate does not match"); assert.equal(typeof caught.code, "string");
   assert.equal(typeof caught.message, "string"); assert.ok(caught.details);
@@ -352,12 +359,12 @@ test("end-to-end: task + edges composition in memory", () => {
 
 test("isolation: mutating view() result does not affect the draft", () => {
   const tx = createTransaction(baseSnapshot());
-  const view = tx.view();
+  const view = tx.view() as { nodes: Record<string, NodeRecord>; edges: Edge[] };
   view.nodes.T1.title = "tampered via view";
   view.edges.push({ from: "T1", to: "T1", type: "BLOCKS" });
   view.nodes["T-leak"] = { id: "T-leak", kind: "resolvable", subkind: "task", title: "leak", status: "open" };
 
-  const fresh = tx.view();
+  const fresh = tx.view() as { nodes: Record<string, NodeRecord>; edges: Edge[] };
   assert.equal(fresh.nodes.T1.title, "existing task"); assert.equal(fresh.edges.length, 1);
   assert.equal(fresh.nodes["T-leak"], undefined);
 });

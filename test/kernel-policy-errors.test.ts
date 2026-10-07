@@ -10,8 +10,21 @@ import {
 } from "./helpers.mjs";
 import { bootstrapFencedState } from "../src/storage/ledger.ts";
 
-async function importKernel() {
-  return importFresh("./kernel/mutate.ts");
+type ErrorDetails = {
+  plugin_id?: string; action?: string; actor?: string; reason?: string | null; cause_message?: string;
+  plugin_ids?: string[]; namespaces?: string[]; field?: string; cause?: { code?: string };
+  [key: string]: unknown;
+};
+type ErrorLike = { code?: string; message: string; details: ErrorDetails };
+type State = { nodes: Record<string, Record<string, unknown>>; log: unknown[] };
+type KernelModule = { mutate: (args: Record<string, unknown>) => Promise<{ idempotent: boolean }> };
+
+async function importKernel(): Promise<KernelModule> {
+  return await importFresh("./kernel/mutate.ts") as KernelModule;
+}
+
+function errorLike(error: unknown): ErrorLike {
+  return (typeof error === "object" && error !== null ? error : { message: "", details: {} }) as ErrorLike;
 }
 
 async function createTrackedProject(t) {
@@ -20,11 +33,11 @@ async function createTrackedProject(t) {
   return dir;
 }
 
-async function captureError(run) {
+async function captureError(run: () => Promise<unknown>): Promise<ErrorLike> {
   try {
     await run();
   } catch (error) {
-    return error;
+    return errorLike(error);
   }
   assert.fail("expected mutation to reject");
 }
@@ -47,7 +60,7 @@ async function bootstrap(dir) {
     initiatives: { kernel: { desc: "kernel", created_at: "2026-01-01T00:00:00.000Z" } },
     log: [],
   });
-  return bootstrapFencedState(dir);
+  return await bootstrapFencedState(dir) as State;
 }
 
 const updateProvider = {
@@ -317,7 +330,7 @@ test("kernel.mutate: same-chain nested mutate still rejected with INVALID_EXECUT
   const { mutate } = await importKernel();
   const dir = await createTrackedProject(t);
   await bootstrap(dir);
-  let innerCaught = null;
+  let innerCaught: ErrorLike | null = null;
   await mutate({
     projectDir: dir,
     request: baseRequest(),
@@ -340,14 +353,16 @@ test("kernel.mutate: same-chain nested mutate still rejected with INVALID_EXECUT
           });
           throw new Error("inner mutate should have thrown");
         } catch (err) {
-          innerCaught = err;
+          innerCaught = errorLike(err);
         }
         return { result: null };
       },
     },
   });
-  assert.ok(innerCaught, "inner mutate must reject"); assert.equal(innerCaught.code, "INVALID_EXECUTION_CONTRACT");
-  assert.match(innerCaught.message, /nested kernel\.mutate/i);
+  assert.ok(innerCaught, "inner mutate must reject");
+  const nestedError = errorLike(innerCaught);
+  assert.equal(nestedError.code, "INVALID_EXECUTION_CONTRACT");
+  assert.match(nestedError.message, /nested kernel\.mutate/i);
   const after = await readStateHelper(dir);
   assert.equal(after.nodes.T1.title, "T1-title", "T1 untouched — nested call rejected before any tx"); assert.equal(after.log.length, 0);
 });
