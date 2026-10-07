@@ -29,7 +29,7 @@ export function TaskReferenceList(props: TaskReferenceListProps) {
       <Show when={props.references.length > 0} fallback={<p class="mt-3 text-[12px] leading-4 text-faint">No references yet.</p>}>
         <ul class="mt-3 flex flex-col gap-2">
           <For each={props.references}>{(reference) => (
-            <li class="flex items-center gap-2.5 rounded-[10px] border border-line px-3 py-2">
+            <li class="flex items-center gap-2.5 rounded-[10px] bg-surface px-3 py-2 shadow-[var(--elevation-tile)] transition-transform hover:-translate-y-px">
               <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] bg-sunken text-muted">
                 <HugeIcon icon={REFERENCE_ICON[reference.kind]} class="h-4 w-4" strokeWidth="1.6" />
               </span>

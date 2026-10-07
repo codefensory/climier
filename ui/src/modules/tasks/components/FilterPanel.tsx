@@ -55,7 +55,7 @@ export function FilterPanel(props: FilterPanelProps) {
       };
       return <div data-testid="filter-condition" class="flex min-w-0 items-center gap-0">
         <div class="flex h-8 w-11 shrink-0 items-center justify-center max-[639px]:w-8">{connector(index > 0, condition.join, field().label, () => filters.toggleConditionJoin(condition.id))}</div>
-        <div class="flex h-8 min-w-0 flex-1 overflow-hidden rounded-[8px] border border-line bg-surface">
+        <div class="flex h-8 min-w-0 flex-1 overflow-hidden rounded-[8px] bg-surface">
           <button type="button" data-filter-picker aria-label={`Field: ${field().label}`} onClick={(event) => filters.openPicker(event, condition.id, "field")} class="flex h-full max-w-[150px] min-w-0 shrink-0 items-center gap-1.5 border-r border-separator px-2 text-left text-[12px] text-ink-soft transition hover:bg-canvas focus-visible:relative focus-visible:outline-2 focus-visible:outline-ink cursor-pointer"><HugeIcon icon={field().icon} class="h-3.5 w-3.5 shrink-0 text-muted" /><span class="min-w-0 truncate">{field().label}</span></button>
           <button type="button" data-filter-picker aria-label={`Operator: ${operator().label}`} onClick={(event) => filters.openPicker(event, condition.id, "operator")} class="flex h-full max-w-[150px] min-w-0 shrink-0 items-center border-r border-separator px-2 text-left text-[12px] text-muted transition hover:bg-canvas focus-visible:relative focus-visible:outline-2 focus-visible:outline-ink cursor-pointer"><span class="truncate">{operator().label}</span></button>
           <button type="button" data-filter-picker aria-label={`Value: ${selected().map((item) => item.label).join(", ") || "Choose value"}`} onClick={(event) => filters.openPicker(event, condition.id, "value")} class="flex h-full min-w-0 flex-1 items-center gap-1.5 border-r border-separator px-2 text-left text-[12px] text-ink-soft transition hover:bg-canvas focus-visible:relative focus-visible:outline-2 focus-visible:outline-ink cursor-pointer"><span class="min-w-0 flex-1 truncate">{valueContent()}</span></button>
@@ -70,7 +70,7 @@ export function FilterPanel(props: FilterPanelProps) {
         <Show when={!nested && childCount > 0 && !group.groups.length}><button type="button" onClick={filters.addGroup} class="flex h-7 items-center rounded-[6px] px-1.5 text-[12px] text-muted transition hover:bg-canvas hover:text-ink focus-visible:outline-2 focus-visible:outline-ink">Add group</button></Show>
       </div>
     </div>;
-    return <div classList={{ "flex min-w-0 flex-1 rounded-[10px] border border-line bg-raised p-1.5": nested }} data-testid={nested ? "filter-subgroup" : "filter-group"}>
+    return <div classList={{ "flex min-w-0 flex-1 rounded-[10px] bg-raised p-1.5": nested }} data-testid={nested ? "filter-subgroup" : "filter-group"}>
       <div classList={{ "min-w-0 flex-1 space-y-1.5": nested, "space-y-1.5": !nested }}>
         <For each={group.conditions}>{(condition, index) => renderCondition(condition, index())}</For>
         <For each={group.groups}>{(child, index) => <div class="flex min-w-0 items-start gap-0"><div class="flex h-8 w-11 shrink-0 items-center justify-center max-[639px]:w-8">{connector(group.conditions.length + index() > 0, child.join, "group", () => filters.toggleGroupJoin(child.id))}</div>{renderGroup(child, true)}</div>}</For>

@@ -65,7 +65,7 @@ function reachNote(record: KnowledgeRecord): string {
 
 function ReachedNode(props: { reach: KnowledgeRecord["reaches"][number] }) {
   return (
-    <li class="flex min-w-0 items-center gap-2.5 rounded-[10px] border border-line px-3 py-2">
+    <li class="flex min-w-0 items-center gap-2.5 rounded-[10px] bg-raised px-3 py-2">
       <StatusGlyph status={props.reach.status} class="h-4 w-4 shrink-0" />
       <span class="min-w-0 flex-1">
         <span class="block truncate text-[13px] leading-5 text-ink">{props.reach.title}</span>
@@ -111,7 +111,7 @@ export function KnowledgeEgoPanel(props: KnowledgeEgoPanelProps) {
           const typeStyle = () => knowledgeTypeStyle(record().knowledgeType);
           const statusStyle = () => lifecycleStyle(record().status);
           return <div class="min-w-0">
-            <section class="relative rounded-[10px] border border-line bg-raised px-3 py-3" classList={{ "pr-12": props.overlay }}>
+            <section class="relative rounded-[10px] bg-raised px-3 py-3" classList={{ "pr-12": props.overlay }}>
               <Show when={props.overlay}><Button ref={closeButton} variant="icon" aria-label="Close knowledge details" onClick={() => props.onClose?.()} class="absolute right-2 top-2"><HugeIcon icon={Cancel01Icon} class="h-4 w-4" strokeWidth="1.8" /></Button></Show>
               <div class="flex flex-wrap items-center gap-1.5">
                 <Chip background={statusStyle().background} color={statusStyle().color}>{knowledgeStatusLabel(record().status)}</Chip>
@@ -137,9 +137,9 @@ export function KnowledgeEgoPanel(props: KnowledgeEgoPanelProps) {
                 <For each={record().axes}>{(axis) => {
                   const decisive = () => axis.axis === effective();
                   return <div data-axis={axis.axis} class="min-w-0">
-                    <div class="flex items-baseline justify-between gap-2">
+                    <div class="flex items-baseline justify-between gap-2 max-[639px]:grid max-[639px]:grid-cols-[104px_minmax(0,1fr)] max-[639px]:items-start">
                       <p class="min-w-0 truncate text-[11px] font-medium text-ink">{knowledgeAxisName(axis.axis)}{decisive() ? <span class="ml-1.5 text-tone-blue-ink">· decides reach</span> : null}</p>
-                      <span class="shrink-0 text-[10px] tabular-nums text-muted">{axis.count} {axis.count === 1 ? "node" : "nodes"}</span>
+                      <span class="shrink-0 text-[10px] tabular-nums text-muted max-[639px]:whitespace-normal">{axis.count} {axis.count === 1 ? "node" : "nodes"}</span>
                     </div>
                     <p class="mt-0.5 truncate text-[10px] leading-4 text-faint">{axis.values.join(", ")}</p>
                     <div aria-hidden="true" class="mt-1 h-[3px] overflow-hidden rounded-full bg-subtle">
@@ -178,7 +178,7 @@ export function KnowledgeEgoPanel(props: KnowledgeEgoPanelProps) {
             <Show when={record().supersedeChain.length > 0}>
               <section class="mt-5 border-t border-hairline pt-4">
                 <SectionLabel>Supersede chain · {record().supersedeChain.length}</SectionLabel>
-                <ol class="mt-2 flex flex-col gap-2">{record().supersedeChain.map((member) => <li class="flex min-w-0 items-center gap-2 rounded-[10px] border border-line px-3 py-2">
+                <ol class="mt-2 flex flex-col gap-2">{record().supersedeChain.map((member) => <li class="flex min-w-0 items-center gap-2 rounded-[10px] bg-raised px-3 py-2">
                   <StatusGlyph status={lifecycleGlyph(member.status)} class="h-4 w-4 shrink-0" />
                   <button type="button" onClick={() => props.onSelect?.(member.id)} class="min-w-0 flex-1 truncate text-left text-[12px] text-ink hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink">{member.id}</button>
                   <Show when={member.status !== "superseded"}><Chip background="var(--color-tone-blue-bg)" color="var(--color-tone-blue-ink)">In force</Chip></Show>

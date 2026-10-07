@@ -50,9 +50,9 @@ function NodeRow(props: NodeRowProps) {
   const href = () => `/${props.kind === "gate" ? "gates" : "tasks"}/${encodeURIComponent(props.id)}`;
   const navigable = () => props.kind !== "knowledge" && props.onOpenNode !== undefined;
   return (
-    <li class="rounded-[10px] border border-line">
+    <li class="rounded-[10px] bg-surface shadow-[var(--elevation-tile)] transition-transform hover:-translate-y-px">
       <Show when={navigable()} fallback={<div class="flex items-center gap-2.5 px-3 py-2"><NodeIdentity {...props} /></div>}>
-        <a href={href()} aria-label={props.title} onClick={(event) => { event.preventDefault(); props.onOpenNode?.(props.id, props.kind as "task" | "gate"); }} class="flex cursor-pointer items-center gap-2.5 rounded-[10px] px-3 py-2 transition-colors hover:bg-raised focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink">
+        <a href={href()} aria-label={props.title} onClick={(event) => { event.preventDefault(); props.onOpenNode?.(props.id, props.kind as "task" | "gate"); }} class="flex cursor-pointer items-center gap-2.5 rounded-[10px] px-3 py-2 transition-colors hover:bg-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink">
           <NodeIdentity {...props} />
         </a>
       </Show>
@@ -73,7 +73,7 @@ function gateRelationMeta(node: GateRelation): string {
  */
 function ContentModeSwitch(props: { raw: boolean; onChange: (raw: boolean) => void }) {
   return (
-    <div data-testid="content-mode-switch" class="flex shrink-0 items-center gap-[3px] rounded-[10px] bg-subtle p-[3px]">
+    <div data-testid="content-mode-switch" class="flex shrink-0 items-center gap-[3px] rounded-[10px] bg-subtle p-[3px] max-[639px]:self-end">
       <Button variant="segment" state={props.raw ? "idle" : "active"} aria-pressed={!props.raw} onClick={() => props.onChange(false)}>
         <HugeIcon icon={EyeIcon} class="h-4 w-4" />Markdown
       </Button>
@@ -94,7 +94,7 @@ function GateDetailArticle(props: TaskDetailViewProps & { gateInfo: { record: Ga
   return (
     <article class="mx-auto w-full max-w-[640px] pb-4 md:max-w-[880px]">
       <header>
-        <div class="flex items-start justify-between gap-4">
+        <div class="flex items-start justify-between gap-4 max-[639px]:flex-col max-[639px]:items-stretch">
           <div class="min-w-0">
             <div class="flex flex-wrap items-center gap-2">
               <span class="rounded-[5px] bg-tone-amber-bg px-2 py-[2px] text-[11px] font-medium tracking-wide text-tone-amber-ink uppercase">Gate{gate().purpose ? ` · ${gatePurposeLabel(gate().purpose)}` : ""}</span>
@@ -117,7 +117,7 @@ function GateDetailArticle(props: TaskDetailViewProps & { gateInfo: { record: Ga
           <section>
             <h2 class="text-[13px] leading-5 font-medium text-ink">Decision</h2>
             <Show when={gate().status === "resolved" && (gate().choice || gate().rationale)} fallback={<p class="mt-3 text-[12px] leading-4 text-faint">{decisionMessage()}</p>}>
-              <div class="mt-3 rounded-[10px] border border-line bg-raised px-3 py-3">
+              <div class="mt-3 rounded-[10px] bg-raised px-3 py-3">
                 <Show when={gate().choice}>
                   <div>
                     <p class="text-[11px] font-medium text-muted">Choice</p>
@@ -153,7 +153,7 @@ function GateDetailArticle(props: TaskDetailViewProps & { gateInfo: { record: Ga
           <section class="mt-8">
             <h2 class="text-[13px] leading-5 font-medium text-ink">Opens work in · {gate().impactedTasks.length} {gate().impactedTasks.length === 1 ? "task" : "tasks"}</h2>
             <Show when={gate().impactedTasks.length > 0} fallback={<p class="mt-3 text-[12px] leading-4 text-faint">No downstream tasks.</p>}>
-              <div class="mt-3 overflow-hidden rounded-[10px] border border-line">
+              <div class="mt-3 overflow-hidden">
                 <For each={downstreamGroups()}>{(group) => {
                   const collapse = gate().impactedTasks.length >= 10 && group.tasks.length > 1 && (group.key === "done" || group.key === "canceled");
                   return <section>
@@ -228,7 +228,7 @@ export function TaskDetailView(props: TaskDetailViewProps) {
         </button>
       </Show>
       <header classList={{ "mt-6": props.onBack !== undefined }}>
-        <div class="flex items-start justify-between gap-4">
+        <div class="flex items-start justify-between gap-4 max-[639px]:flex-col max-[639px]:items-stretch">
           <div class="min-w-0">
             <div class="flex flex-wrap items-center gap-2">
               <Show when={task().kind === "gate"}>
@@ -259,7 +259,7 @@ export function TaskDetailView(props: TaskDetailViewProps) {
           <Show when={props.detail.acceptance}>
             <section class="mt-8">
               <h2 class="text-[13px] leading-5 font-medium text-ink">Acceptance</h2>
-              <div class="mt-3 rounded-[10px] border border-line bg-raised px-3 py-2">
+              <div class="mt-3 rounded-[10px] bg-raised px-3 py-2">
                 <Markdown source={props.detail.acceptance ?? ""} raw={raw()} class="text-[13px] leading-5 text-ink-soft" />
               </div>
             </section>
@@ -288,7 +288,7 @@ export function TaskDetailView(props: TaskDetailViewProps) {
               <h2 class="text-[13px] leading-5 font-medium text-ink">Knowledge</h2>
               <ul class="mt-3 flex flex-col gap-2">
                 <For each={props.detail.knowledge}>{(item: TaskKnowledge) => (
-                  <li class="rounded-[10px] border border-line px-3 py-2">
+                  <li class="rounded-[10px] bg-surface px-3 py-2 shadow-[var(--elevation-tile)] transition-transform hover:-translate-y-px">
                     <div class="flex items-center gap-2">
                       <span class="rounded-[5px] bg-subtle px-1.5 py-[1px] text-[10px] font-medium tracking-wide text-muted uppercase">{item.knowledgeType}</span>
                       <span class="truncate text-[13px] leading-5 text-ink">{item.title}</span>
@@ -301,7 +301,7 @@ export function TaskDetailView(props: TaskDetailViewProps) {
             </section>
           </Show>
 
-          <section data-testid="task-activity" class="mt-10 border-t border-hairline pt-6">
+          <section data-testid="task-activity" class="mt-8 border-t border-hairline pt-6">
             <h2 class="text-[13px] leading-5 font-medium text-ink">Activity · {props.detail.activity.length}</h2>
             <Show when={props.detail.activity.length > 0} fallback={<p class="mt-3 text-[12px] leading-4 text-faint">No activity yet.</p>}>
               <div class="mt-4"><TaskActivityFeed activity={props.detail.activity} raw={raw()} /></div>

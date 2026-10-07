@@ -54,7 +54,7 @@ export function KnowledgesPage() {
 
   return (
     <PageFrame header={toolbar()}>
-      <div data-testid="knowledges-content" class="relative grid min-h-0 min-w-0 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-[10px] border border-line bg-surface min-[1024px]:h-[calc(100vh-9rem)] min-[1280px]:grid-rows-[auto_minmax(0,1fr)] min-[1280px]:grid-cols-[minmax(640px,1fr)_380px]">
+      <div data-testid="knowledges-content" class="relative grid min-h-0 min-w-0 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] overflow-hidden min-[1024px]:h-[var(--page-frame-content-height)] min-[1280px]:grid-rows-[auto_minmax(0,1fr)] min-[1280px]:grid-cols-[minmax(640px,1fr)_380px]">
         <div data-testid="knowledges-summary" class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 pb-3 pt-4 text-[12px] text-muted min-[1280px]:col-start-1 min-[1280px]:row-start-1">
           <p>{leftSummary()}</p>
           <Show when={rightSummary()}><p class="ml-auto text-right">{rightSummary()}</p></Show>

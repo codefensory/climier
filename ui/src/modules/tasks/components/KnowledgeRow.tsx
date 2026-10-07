@@ -43,16 +43,16 @@ export function KnowledgeRow(props: KnowledgeRowProps) {
           props.onSelect(props.knowledge.id);
         }
       }}
-      class="flex min-h-[64px] cursor-pointer items-center justify-between gap-3 border-l-2 border-l-transparent px-4 py-2.5 transition-colors hover:bg-raised focus-visible:outline-2 focus-visible:outline-[-2px] focus-visible:outline-ink max-[639px]:items-stretch max-[639px]:gap-2"
+      class="flex min-h-[64px] cursor-pointer items-center justify-between gap-3 border-l-2 border-l-transparent px-4 py-2.5 transition-colors hover:bg-raised focus-visible:outline-2 focus-visible:outline-[-2px] focus-visible:outline-ink max-[639px]:flex-col max-[639px]:items-stretch max-[639px]:gap-2"
       classList={{ "border-l-tone-blue-ink bg-tone-blue-bg": props.selected }}
     >
-      <div class="flex min-w-0 flex-1 items-center gap-2 max-[639px]:grid max-[639px]:w-[calc(100%_-_78px)] max-[639px]:flex-none max-[639px]:grid-cols-[16px_minmax(0,1fr)_auto] max-[639px]:grid-rows-[auto_auto] max-[639px]:items-center max-[639px]:gap-x-2 max-[639px]:gap-y-0">
+      <div class="flex min-w-0 flex-1 items-center gap-2 max-[639px]:grid max-[639px]:w-full max-[639px]:flex-none max-[639px]:grid-cols-[16px_minmax(0,1fr)_auto] max-[639px]:grid-rows-[auto_auto] max-[639px]:items-center max-[639px]:gap-x-2 max-[639px]:gap-y-0">
         <StatusGlyph status={glyphStatus()} class="h-4 w-4 shrink-0 max-[639px]:col-start-1 max-[639px]:row-start-1" />
         <span class="shrink-0 text-[11px] tabular-nums text-faint max-[639px]:col-start-2 max-[639px]:row-start-2 max-[639px]:block max-[639px]:min-w-0 max-[639px]:max-w-full max-[639px]:truncate">{props.knowledge.id}</span>
-        <h3 class="min-w-0 flex-1 truncate text-[14px] font-medium leading-5 text-ink max-[639px]:col-start-2 max-[639px]:col-span-2 max-[639px]:row-start-1 max-[639px]:min-w-[150px]">{props.knowledge.title}</h3>
+        <h3 class="min-w-0 flex-1 truncate text-[14px] font-medium leading-5 text-ink max-[639px]:col-start-2 max-[639px]:col-span-2 max-[639px]:row-start-1 max-[639px]:whitespace-normal max-[639px]:line-clamp-2">{props.knowledge.title}</h3>
         <span class="inline-flex max-[639px]:col-start-3 max-[639px]:row-start-2"><Chip background={typeStyle().background} color={typeStyle().color}>{knowledgeTypeLabel(props.knowledge.knowledgeType)}</Chip></span>
       </div>
-      <div class="w-[70px] shrink-0 whitespace-nowrap text-right tabular-nums max-[639px]:self-end max-[639px]:whitespace-normal">
+      <div class="w-[70px] shrink-0 whitespace-nowrap text-right tabular-nums max-[639px]:w-full max-[639px]:self-start max-[639px]:flex max-[639px]:flex-wrap max-[639px]:gap-x-3 max-[639px]:text-left max-[639px]:whitespace-normal">
         <span class="block text-[10px] text-ink-soft">{props.knowledge.coverage} nodes</span>
         <span class="block text-[10px] text-faint">{knowledgeAxisLabel(props.knowledge.declaredAxis)}</span>
       </div>

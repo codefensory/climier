@@ -50,9 +50,9 @@ function taskStatusSummary(tasks: GateRelation[]): string[] {
 
 function NodeRow(props: { node: GateRelation; onSelect?: (id: string) => void }) {
   return (
-    <li class="flex min-w-0 items-center gap-2.5 rounded-[10px] border border-line px-3 py-2">
+    <li class="flex min-w-0 items-center gap-2.5 rounded-[10px] bg-raised px-3 py-2">
       {props.node.kind === "gate" && props.onSelect ? (
-        <button type="button" onClick={() => props.onSelect?.(props.node.id)} class="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-[6px] text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink">
+        <button type="button" onClick={() => props.onSelect?.(props.node.id)} class="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-[6px] text-left transition-colors hover:bg-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink">
           <StatusGlyph status={props.node.status} class="h-4 w-4 shrink-0" />
           <span class="min-w-0 flex-1">
             <span class="block truncate text-[13px] leading-5 text-ink underline underline-offset-2">{props.node.title}</span>
@@ -72,9 +72,9 @@ function NodeRow(props: { node: GateRelation; onSelect?: (id: string) => void })
 
 function Fact(props: { label: string; value: JSX.Element }) {
   return (
-    <div class="flex items-baseline justify-between gap-3">
+    <div class="flex items-baseline justify-between gap-3 max-[639px]:grid max-[639px]:grid-cols-[104px_minmax(0,1fr)] max-[639px]:items-start max-[639px]:gap-2">
       <dt class={LABEL_CLASS}>{props.label}</dt>
-      <dd class="min-w-0 truncate text-right text-[12px] font-medium text-ink">{props.value}</dd>
+      <dd class="min-w-0 truncate text-right text-[12px] font-medium text-ink max-[639px]:overflow-visible max-[639px]:text-left max-[639px]:whitespace-normal max-[639px]:break-words">{props.value}</dd>
     </div>
   );
 }
@@ -120,7 +120,7 @@ export function GateEgoPanel(props: GateEgoPanelProps) {
                 </section>
               </Show>
 
-              <section class="relative -ml-5 rounded-[10px] border border-line bg-raised px-3 py-3" classList={{ "pr-12": props.overlay }}>
+              <section class="relative -ml-5 rounded-[10px] bg-raised px-3 py-3" classList={{ "pr-12": props.overlay }}>
                 <Show when={props.overlay}><Button ref={closeButton} variant="icon" aria-label="Close gate details" onClick={() => props.onClose?.()} class="absolute right-2 top-2"><HugeIcon icon={Cancel01Icon} class="h-4 w-4" strokeWidth="1.8" /></Button></Show>
                 <p class="text-[10px] font-medium tracking-wide text-muted">{gate().id.toLowerCase()}</p>
                 <div class="mt-1 flex items-start justify-between gap-2">

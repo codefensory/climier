@@ -28,7 +28,7 @@ export function TaskListRow(props: TaskListRowProps) {
       role={props.onOpen ? "button" : undefined}
       onClick={props.onOpen ? open : undefined}
       onKeyDown={props.onOpen ? (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); open(); } } : undefined}
-      class="flex min-h-[64px] items-center justify-between gap-5 px-4 py-2.5 transition-colors hover:bg-raised focus-visible:outline-2 focus-visible:outline-[-2px] focus-visible:outline-ink"
+      class="group flex min-h-[64px] items-center justify-between gap-5 px-4 py-2.5 transition-colors hover:bg-raised focus-visible:outline-2 focus-visible:outline-[-2px] focus-visible:outline-ink"
       classList={{ "cursor-pointer": props.onOpen !== undefined }}
       style={{ "content-visibility": "auto", "contain-intrinsic-block-size": "auto 64px" }}
     >

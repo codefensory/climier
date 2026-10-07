@@ -15,9 +15,9 @@ export type TaskPropertiesProps = {
 /** Una fila label/valor. El `dt` va apagado y el `dd` alineado a la derecha. */
 function Row(props: { label: string; children: JSX.Element }) {
   return (
-    <div class="flex items-baseline justify-between gap-4">
-      <dt class="shrink-0 text-[12px] leading-4 text-muted">{props.label}</dt>
-      <dd class="min-w-0 text-right text-[13px] leading-5 text-ink">{props.children}</dd>
+    <div class="flex items-baseline justify-between gap-4 max-[639px]:grid max-[639px]:grid-cols-[104px_minmax(0,1fr)] max-[639px]:items-start max-[639px]:gap-2">
+      <dt class="shrink-0 text-[12px] leading-4 text-muted max-[639px]:min-w-0">{props.label}</dt>
+      <dd class="min-w-0 text-right text-[13px] leading-5 text-ink max-[639px]:w-full max-[639px]:text-left max-[639px]:whitespace-normal max-[639px]:break-words">{props.children}</dd>
     </div>
   );
 }
@@ -43,7 +43,7 @@ export function TaskProperties(props: TaskPropertiesProps) {
       <Show when={props.purpose}>{(purpose) => <Row label="Purpose">{gatePurposeLabel(purpose())}</Row>}</Show>
       <Show when={props.task.tags.length > 0}>
         <Row label="Tags">
-          <span class="inline-flex flex-wrap justify-end gap-1">
+          <span class="inline-flex flex-wrap justify-end gap-1 max-[639px]:max-w-full max-[639px]:justify-start">
             <For each={props.task.tags}>{(tag) => {
               const style = taskTag(tag);
               return <span class="max-w-[120px] truncate rounded-[5px] px-1.5 py-[2px] text-[11px] leading-4 font-medium" style={{ "background-color": style.background, color: style.color }}>{tag}</span>;
@@ -53,8 +53,8 @@ export function TaskProperties(props: TaskPropertiesProps) {
       </Show>
       <Show when={props.task.claimedBy}>
         <Row label="Claimed by">
-          <span classList={{ "text-tone-amber-ink": props.task.claimStale }} class="inline-flex items-center gap-1.5">
-            <span class="truncate">{props.task.claimedBy}</span>
+          <span classList={{ "text-tone-amber-ink": props.task.claimStale }} class="inline-flex items-center gap-1.5 max-[639px]:min-w-0 max-[639px]:flex-wrap">
+            <span class="truncate max-[639px]:overflow-visible max-[639px]:whitespace-normal max-[639px]:break-words">{props.task.claimedBy}</span>
             <Show when={props.task.claimStale}><span class="rounded-[5px] bg-tone-amber-bg px-1.5 py-[1px] text-[10px] font-medium">stale</span></Show>
           </span>
         </Row>

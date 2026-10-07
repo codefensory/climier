@@ -50,7 +50,7 @@ export function GatesPage() {
 
   return (
     <PageFrame header={toolbar()}>
-      <div data-testid="gates-content" class="relative grid min-h-0 min-w-0 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-[10px] border border-line bg-surface min-[1024px]:h-[calc(100vh-9rem)] min-[1280px]:grid-rows-[auto_minmax(0,1fr)] min-[1280px]:grid-cols-[minmax(640px,1fr)_380px]">
+      <div data-testid="gates-content" class="relative grid min-h-0 min-w-0 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] overflow-hidden min-[1024px]:h-[var(--page-frame-content-height)] min-[1280px]:grid-rows-[auto_minmax(0,1fr)] min-[1280px]:grid-cols-[minmax(640px,1fr)_380px]">
         <p class="px-4 pb-3 pt-4 text-[14px] text-muted min-[1280px]:col-start-1 min-[1280px]:row-start-1">{visibleGates().length} gates · {visibleGates().filter((gate) => gate.status === "open").length} open · {uniqueDownstreamTasks()} distinct tasks downstream · {threads()} threads</p>
         <section aria-hidden={overlay() && !!selectedGate()} inert={overlay() && !!selectedGate()} class="min-h-0 min-w-0 overflow-y-auto min-[1280px]:col-start-1 min-[1280px]:row-start-2">
           <Show when={groups().length > 0} fallback={<p class="px-4 py-8 text-center text-[13px] text-muted">No gates match these filters.</p>}>

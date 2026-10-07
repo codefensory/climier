@@ -130,16 +130,16 @@ export function TaskListView(props: TaskListViewProps) {
   });
 
   return (
-    <div ref={list} data-testid="tasks-list-view" class="flex flex-col gap-3">
+    <div ref={list} data-testid="tasks-list-view" class="flex flex-col gap-6">
       <Show when={gates().length > 0}>
-        <section data-testid="tasks-gates" class="overflow-hidden rounded-[10px] border border-line bg-surface">
-          <GroupHeader group={gateGroup(gates())} />
+        <section data-testid="tasks-gates">
+          <GroupHeader group={gateGroup(gates())} sticky />
           <TaskRows tasks={gates()} onOpenTask={props.onOpenTask} />
         </section>
       </Show>
       <For each={groups()}>{(group, index) => (
-        <section data-testid="tasks-group" data-status={group.status} data-group={group.key} class="overflow-hidden rounded-[10px] border border-line bg-surface">
-          <Show when={props.group !== "none"}><GroupHeader group={group} /></Show>
+        <section data-testid="tasks-group" data-status={group.status} data-group={group.key}>
+          <Show when={props.group !== "none"}><GroupHeader group={group} sticky /></Show>
           <TaskRows tasks={group.tasks.slice(0, renderedGroupCounts()[index()])} onOpenTask={props.onOpenTask} />
         </section>
       )}</For>

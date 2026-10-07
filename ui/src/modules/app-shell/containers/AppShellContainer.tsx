@@ -58,7 +58,7 @@ export function AppShellContainer(props: AppShellContainerProps) {
                 <span class="flex-1">Search</span>
                 <span class="flex items-center gap-1" aria-hidden="true"><kbd class="rounded-[5px] bg-surface px-1.5 py-0.5 text-[11px] leading-4 text-faint">⌘ K</kbd><kbd class="rounded-[5px] bg-surface px-1.5 py-0.5 text-[11px] leading-4 text-faint">/</kbd></span>
               </button>
-              <button type="button" data-project-trigger aria-label={`Select project, ${selectedProject().label}`} aria-haspopup="menu" aria-expanded={projectsMenuOpen()} onClick={toggleProjectsMenu} class="mt-3 flex h-10 w-full items-center gap-2 rounded-[10px] border border-line bg-surface px-2.5 text-left shadow-[var(--elevation-edge)] transition-colors hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink">
+              <button type="button" data-project-trigger aria-label={`Select project, ${selectedProject().label}`} aria-haspopup="menu" aria-expanded={projectsMenuOpen()} onClick={toggleProjectsMenu} class="mt-3 flex h-10 w-full items-center gap-2 rounded-[10px] bg-subtle px-2.5 text-left transition-colors hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink">
                 <ProjectIcon background={selectedProject().background} textColor={selectedProject().textColor} initial={selectedProject().initial} large />
                 <span class="min-w-0 flex-1 truncate text-[14px] leading-5 font-medium text-ink">{selectedProject().label}</span>
                 <svg class="h-4 w-4 shrink-0 text-faint" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7 15 5 5 5-5" /><path d="m7 9 5-5 5 5" /></svg>
@@ -69,12 +69,12 @@ export function AppShellContainer(props: AppShellContainerProps) {
                   <SidebarHeading>Workspace</SidebarHeading>
                   <div class="space-y-0"><For each={appNavigation.slice(1)}>{(item) => <SidebarRow nav label={item.label} active={activeView() === item.label} onSelect={() => selectView(item.label)} icon={<NavGlyph name={item.icon} />} />}</For></div>
                 </div>
-                <div class="mt-auto border-t border-line pt-2">
+                <div class="mt-auto border-t border-hairline pt-2">
                   <Button variant="ghost" class="w-full justify-start px-2.5 text-muted" data-testid="logout" onClick={session.logout}>Log out</Button>
                 </div>
               </nav>
               <Portal>
-                <div id="projects-menu" data-project-menu data-popup-surface data-open={projectsMenuOpen() ? "true" : "false"} role="menu" aria-label="Projects" aria-hidden={!projectsMenuOpen()} inert={!projectsMenuOpen()} style={{ left: `${projectsMenuPosition().left}px`, top: `${projectsMenuPosition().top}px` }} classList={{ "fixed z-[100] w-[224px] rounded-[14px] border border-line bg-overlay px-2 py-[6px] shadow-[var(--elevation-overlay)] origin-top-left": true, "visible pointer-events-auto translate-y-0 opacity-100": projectsMenuOpen(), "invisible pointer-events-none -translate-y-[5px] opacity-0": !projectsMenuOpen() }}>
+                <div id="projects-menu" data-project-menu data-popup-surface data-open={projectsMenuOpen() ? "true" : "false"} role="menu" aria-label="Projects" aria-hidden={!projectsMenuOpen()} inert={!projectsMenuOpen()} style={{ left: `${projectsMenuPosition().left}px`, top: `${projectsMenuPosition().top}px` }} classList={{ "fixed z-[100] w-[224px] rounded-[14px] bg-overlay px-2 py-[6px] shadow-[var(--elevation-overlay)] origin-top-left": true, "visible pointer-events-auto translate-y-0 opacity-100": projectsMenuOpen(), "invisible pointer-events-none -translate-y-[5px] opacity-0": !projectsMenuOpen() }}>
                   <For each={availableProjects()}>{(project) => (
                     <button type="button" role="menuitemradio" aria-checked={selectedProject().projectId === project.projectId} onClick={[selectProject, project]} class="flex h-9 w-full items-center gap-2.5 rounded-[10px] px-2 text-left text-[14px] leading-5 text-muted transition-colors hover:bg-canvas hover:text-ink focus-visible:bg-canvas focus-visible:outline-2 focus-visible:outline-ink">
                       <ProjectIcon background={project.background} textColor={project.textColor} initial={project.initial} />

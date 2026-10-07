@@ -40,7 +40,7 @@ const VARIANT_CLASS: Record<ButtonVariant, string> = {
   ghost: "flex h-8 items-center gap-1.5 rounded-[8px] px-1.5 text-[13px] transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ink sm:px-2.5",
   segment: "flex h-7 items-center gap-1.5 rounded-[8px] px-2 text-[13px] transition-colors focus-visible:outline-2 focus-visible:outline-ink sm:px-2.5",
   icon: "flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] text-muted transition hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
-  outline: "shrink-0 rounded-[8px] border border-line px-3 py-2 text-[13px] font-medium text-muted transition hover:bg-sunken hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
+  outline: "shrink-0 rounded-[8px] bg-subtle px-3 py-2 text-[13px] font-medium text-muted transition hover:bg-chip hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
   solid: "shrink-0 rounded-[8px] bg-ink px-4 py-2 text-[13px] font-medium text-on-strong transition hover:bg-ink-soft",
 };
 

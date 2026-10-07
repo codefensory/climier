@@ -45,7 +45,7 @@ function Block(props: { block: MarkdownBlock }): import("solid-js").JSX.Element 
         </Show>
       );
     case "code":
-      return <pre class="overflow-x-auto rounded-[8px] border border-line bg-raised p-3 font-mono text-[12px] leading-[18px] text-ink-soft"><code>{block.value}</code></pre>;
+      return <pre class="overflow-x-auto rounded-[8px] bg-raised p-3 font-mono text-[12px] leading-[18px] text-ink-soft"><code>{block.value}</code></pre>;
     case "quote":
       return <blockquote class="border-l-2 border-line pl-3 text-muted"><Inline nodes={block.children} /></blockquote>;
     case "hr":

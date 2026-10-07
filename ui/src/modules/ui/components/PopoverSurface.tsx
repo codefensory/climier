@@ -13,7 +13,7 @@ export type PopoverVariant = "menuWide" | "menuNarrow" | "menuFit" | "panel";
 /**
  * Clases de cada superficie flotante.
  *
- * Están juntas a propósito: las cuatro comparten `fixed`, borde, fondo, sombra, `origin-top-left` y
+ * Están juntas a propósito: las cuatro comparten `fixed`, fondo, sombra, `origin-top-left` y
  * la transición de entrada/salida, y las diferencias son sólo ancho, padding y redondeo. Tenerlas
  * en un solo lugar es lo que hace que la animación no se desincronice entre menús.
  *
@@ -21,10 +21,10 @@ export type PopoverVariant = "menuWide" | "menuNarrow" | "menuFit" | "panel";
  * de opciones cuando se abre dentro del panel.
  */
 const SURFACE_CLASS: Record<PopoverVariant, string> = {
-  menuWide: "fixed z-[110] w-[220px] max-h-64 min-w-[156px] overflow-y-auto rounded-[10px] border border-line bg-overlay p-1 shadow-[var(--elevation-overlay)] origin-top-left",
-  menuNarrow: "fixed z-[110] w-[180px] max-h-64 min-w-[156px] overflow-y-auto rounded-[10px] border border-line bg-overlay p-1 shadow-[var(--elevation-overlay)] origin-top-left",
-  menuFit: "fixed z-[110] max-h-64 min-w-[156px] overflow-y-auto rounded-[10px] border border-line bg-overlay p-1 shadow-[var(--elevation-overlay)] origin-top-left",
-  panel: "fixed z-[100] w-[min(560px,calc(100vw-24px))] max-h-[min(70vh,560px)] overflow-y-auto rounded-[14px] border border-line bg-overlay p-3 pt-2 shadow-[var(--elevation-overlay)] origin-top-right",
+  menuWide: "fixed z-[110] w-[220px] max-h-64 min-w-[156px] overflow-y-auto rounded-[10px] bg-overlay p-1 shadow-[var(--elevation-overlay)] origin-top-left",
+  menuNarrow: "fixed z-[110] w-[180px] max-h-64 min-w-[156px] overflow-y-auto rounded-[10px] bg-overlay p-1 shadow-[var(--elevation-overlay)] origin-top-left",
+  menuFit: "fixed z-[110] max-h-64 min-w-[156px] overflow-y-auto rounded-[10px] bg-overlay p-1 shadow-[var(--elevation-overlay)] origin-top-left",
+  panel: "fixed z-[100] w-[min(560px,calc(100vw-24px))] max-h-[min(70vh,560px)] overflow-y-auto rounded-[14px] bg-overlay p-3 pt-2 shadow-[var(--elevation-overlay)] origin-top-right",
 };
 
 export type PopoverSurfaceProps = {

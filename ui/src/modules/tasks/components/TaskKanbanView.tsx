@@ -22,8 +22,8 @@ export type TaskKanbanViewProps = {
  * A diferencia de la lista, acá la cabecera **siempre** se muestra, incluso con `group === "none"`:
  * sin ella la columna sería una caja sin nombre.
  *
- * El `min-h-[calc(100vh-180px)]` reserva el alto del chrome (breadcrumb + toolbar) para que las
- * columnas lleguen al fondo sin empujar la página; por eso el alto no es un valor fijo.
+ * El alto del kanban sigue la altura compartida del PageFrame;
+ * las lanes conservan el scroll vertical interno.
  */
 export function TaskKanbanView(props: TaskKanbanViewProps) {
   const gates = () => props.gates ?? [];
@@ -33,20 +33,20 @@ export function TaskKanbanView(props: TaskKanbanViewProps) {
     props.sort,
   ).filter((group) => group.status !== "done" && group.status !== "canceled");
   return (
-    <div class="flex h-full min-h-[calc(100vh-180px)] w-full flex-col gap-3">
+    <div class="flex w-full flex-col gap-6 min-[640px]:h-[var(--page-frame-content-height)] min-[640px]:min-h-0">
       <Show when={gates().length > 0}>
-        <section data-testid="tasks-gates" class="mx-3 shrink-0 overflow-hidden rounded-[10px] border border-line bg-surface sm:mx-0">
+        <section data-testid="tasks-gates" class="mx-3 shrink-0 overflow-hidden max-[639px]:mx-0 sm:mx-0">
           <GroupHeader group={gateGroup(gates())} />
-          <div class="flex flex-col gap-2 bg-raised p-2 sm:flex-row sm:overflow-x-auto">
+          <div class="flex flex-col gap-2 bg-sunken p-2 sm:flex-row sm:overflow-x-auto max-[639px]:gap-3 max-[639px]:bg-transparent max-[639px]:px-0">
             <For each={gates()}>{(gate) => <div class="w-full sm:w-[300px] sm:min-w-[280px] sm:shrink-0"><KanbanCard task={gate} onOpen={props.onOpenTask} /></div>}</For>
           </div>
         </section>
       </Show>
-      <div data-testid="tasks-kanban-view" class="flex min-h-0 flex-1 flex-row items-stretch gap-3 overflow-x-auto pb-2">
+      <div data-testid="tasks-kanban-view" class="flex min-h-0 flex-1 flex-row items-stretch gap-6 overflow-x-auto pb-2">
         <For each={groups()}>{(group) => (
-          <section data-testid="kanban-column" data-status={group.status} data-group={group.key} class="flex w-[300px] min-w-[280px] max-w-[320px] shrink-0 flex-col overflow-hidden rounded-[10px] border border-line bg-surface">
+          <section data-testid="kanban-column" data-status={group.status} data-group={group.key} class="flex w-[300px] min-w-[280px] max-w-[320px] shrink-0 flex-col overflow-hidden">
             <GroupHeader group={group} />
-            <div class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto bg-raised p-2"><For each={group.tasks}>{(task) => <KanbanCard task={task} onOpen={props.onOpenTask} />}</For></div>
+            <div class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto bg-sunken p-2 max-[639px]:gap-3 max-[639px]:bg-transparent max-[639px]:px-0"><For each={group.tasks}>{(task) => <KanbanCard task={task} onOpen={props.onOpenTask} />}</For></div>
           </section>
         )}</For>
       </div>

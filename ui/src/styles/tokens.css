@@ -33,9 +33,9 @@
 
   /* Superficies, de más claro a más oscuro */
   --color-surface: #ffffff; /* fondo de tarjetas y paneles */
-  --color-raised: #fafafa; /* superficie elevada dentro de una tarjeta */
+  --color-raised: #f8f8f8; /* superficie elevada dentro de una tarjeta */
   --color-canvas: #f6f6f6; /* fondo de la app (bajo la grilla de puntos) */
-  --color-sunken: #f8f8f8; /* bloque hundido / placeholder de avatar */
+  --color-sunken: #f2f2f2; /* bloque hundido / placeholder de avatar */
   --color-subtle: #f4f4f4; /* chip y botón en reposo */
   --color-skeleton: #f1f1f1; /* barras de esqueleto de carga */
   --color-hairline: #f0f0f0; /* línea más tenue: borde, divisor y riel de progreso */
@@ -80,8 +80,9 @@
   color-scheme: light;
   --elevation-control: 0 1px 2px rgb(0 0 0 / 6%);
   --elevation-edge: 0 1px 3px rgb(0 0 0 / 6%);
-  --elevation-overlay: 0 8px 24px rgb(0 0 0 / 10%);
-  --elevation-panel: 0 8px 28px rgb(0 0 0 / 6%);
+  --elevation-tile: 0 1px 2px rgb(0 0 0 / 4%), 0 4px 10px rgb(0 0 0 / 3%);
+  --elevation-panel: 0 1px 3px rgb(0 0 0 / 5%), 0 8px 20px rgb(0 0 0 / 4%);
+  --elevation-overlay: 0 2px 4px rgb(0 0 0 / 8%), 0 12px 28px rgb(0 0 0 / 10%);
 }
 
 [data-theme="dark"] {
@@ -125,6 +126,7 @@
 
   --elevation-control: 0 1px 2px rgb(0 0 0 / 45%);
   --elevation-edge: 0 1px 3px rgb(0 0 0 / 45%);
-  --elevation-overlay: 0 8px 24px rgb(0 0 0 / 55%);
-  --elevation-panel: 0 8px 28px rgb(0 0 0 / 45%);
+  --elevation-tile: 0 1px 2px rgb(0 0 0 / 45%), 0 4px 10px rgb(0 0 0 / 35%);
+  --elevation-panel: 0 1px 3px rgb(0 0 0 / 55%), 0 8px 20px rgb(0 0 0 / 45%);
+  --elevation-overlay: 0 2px 4px rgb(0 0 0 / 70%), 0 12px 28px rgb(0 0 0 / 60%);
 }

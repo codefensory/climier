@@ -19,6 +19,7 @@ export type GroupHeaderProps = {
    * del navegador queda fuera del padding de la fila y desalineado.
    */
   collapsible?: boolean;
+  sticky?: boolean;
 };
 
 /**
@@ -60,7 +61,7 @@ function GroupGlyph(props: { glyph: TaskGroupGlyph }) {
  */
 export function GroupHeader(props: GroupHeaderProps) {
   return (
-    <div class="flex min-h-[40px] items-center gap-2.5 border-b border-hairline px-4 py-2" style={{ "background-color": `color-mix(in srgb, ${props.group.color} 7%, var(--color-surface))`, "border-bottom-color": `color-mix(in srgb, ${props.group.color} 15%, var(--color-surface))` }}>
+    <div class="flex min-h-[40px] items-center gap-2.5 border-b border-hairline px-4 py-2" classList={{ sticky: props.sticky, "top-0": props.sticky, "z-10": props.sticky }} style={{ "background-color": `color-mix(in srgb, ${props.group.color} 7%, var(--color-surface))`, "border-bottom-color": `color-mix(in srgb, ${props.group.color} 15%, var(--color-surface))` }}>
       <Show when={props.collapsible}>
         <HugeIcon icon={ArrowRight01Icon} class="disclosure-chevron h-3.5 w-3.5 shrink-0 text-muted transition-transform" strokeWidth="1.8" />
       </Show>

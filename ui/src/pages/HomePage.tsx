@@ -16,12 +16,14 @@ export function HomePage() {
     <PageFrame>
       <div>
         <p class="mb-5 text-[14px] text-muted">A clear view of what’s moving in {projectName()}.</p>
-        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <section class="rounded-[12px] border border-line p-5"><p class="text-[13px] text-muted">Open tasks</p><p class="mt-3 text-[28px] font-semibold tracking-[-0.04em]">{openTasks()}</p><p class="mt-1 text-[12px] text-faint">In this project</p></section>
-          <section class="rounded-[12px] border border-line p-5"><p class="text-[13px] text-muted">Nodes</p><p class="mt-3 text-[28px] font-semibold tracking-[-0.04em]">{Object.keys(snapshot().nodes).length}</p><p class="mt-1 text-[12px] text-faint">Tasks and gates</p></section>
-          <section class="rounded-[12px] border border-line p-5"><p class="text-[13px] text-muted">Completed</p><p class="mt-3 text-[28px] font-semibold tracking-[-0.04em]">{completed()}</p><p class="mt-1 text-[12px] text-faint">Accepted work</p></section>
+        <div class="border-t border-hairline pt-4">
+          <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 max-[639px]:grid-cols-3 max-[359px]:grid-cols-2">
+            <section><p class="text-[13px] text-muted">Open tasks</p><p class="mt-3 text-[28px] font-semibold tracking-[-0.04em]">{openTasks()}</p><p class="mt-1 text-[12px] text-faint">In this project</p></section>
+            <section><p class="text-[13px] text-muted">Nodes</p><p class="mt-3 text-[28px] font-semibold tracking-[-0.04em]">{Object.keys(snapshot().nodes).length}</p><p class="mt-1 text-[12px] text-faint">Tasks and gates</p></section>
+            <section><p class="text-[13px] text-muted">Completed</p><p class="mt-3 text-[28px] font-semibold tracking-[-0.04em]">{completed()}</p><p class="mt-1 text-[12px] text-faint">Accepted work</p></section>
+          </div>
         </div>
-        <section class="mt-5 rounded-[12px] border border-line p-5"><h2 class="text-[14px] font-medium">Up next</h2><p class="mt-2 text-[13px] text-muted">Live project updates appear here as the server revision changes.</p></section>
+        <section class="mt-6 border-t border-hairline pt-4 max-[639px]:mt-4"><h2 class="text-[14px] font-medium">Up next</h2><p class="mt-2 text-[13px] text-muted">Live project updates appear here as the server revision changes.</p></section>
       </div>
     </PageFrame>
   );

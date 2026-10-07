@@ -76,7 +76,7 @@ export function TasksToolbar(props: TasksToolbarProps) {
           </div>
         </div>
         <div class="shrink-0 min-[640px]:hidden">
-          <select aria-label="Task scope" value={props.scope} onChange={(event) => props.onScope(event.currentTarget.value as TaskScope)} class="h-8 w-[156px] rounded-[8px] border border-line bg-surface px-2 text-[12px] text-muted outline-none focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ink">
+          <select aria-label="Task scope" value={props.scope} onChange={(event) => props.onScope(event.currentTarget.value as TaskScope)} class="h-8 w-[156px] rounded-[8px] bg-subtle px-2 text-[12px] text-muted outline-none focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ink">
             <For each={scopeOptions}>{(option) => <option value={option.key}>{option.label} · {props.scopeCounts[option.key]}</option>}</For>
           </select>
         </div>
