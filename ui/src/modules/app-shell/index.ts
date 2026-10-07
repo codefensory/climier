@@ -26,6 +26,8 @@ export type { ProjectIconProps } from "./components/ProjectIcon";
 export { ShowSidebarButton } from "./components/ShowSidebarButton";
 export type { ShowSidebarButtonProps } from "./components/ShowSidebarButton";
 
+export { ThemeControl } from "./components/ThemeControl";
+
 export { SidebarControlIcon } from "./components/SidebarControlIcon";
 export type { SidebarControlIconProps } from "./components/SidebarControlIcon";
 

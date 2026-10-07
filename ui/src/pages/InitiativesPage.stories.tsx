@@ -25,13 +25,18 @@ type Story = StoryObj<Record<string, unknown>>;
 
 const Host = () => (
   <StoryShell path="/initiatives">
-    <div class="min-h-screen bg-white">
+    <div class="min-h-screen bg-surface">
       <InitiativesPage />
     </div>
   </StoryShell>
 );
 
 export const Playground: Story = {
+  render: () => <Host />,
+};
+
+export const Dark: Story = {
+  globals: { theme: "dark" },
   render: () => <Host />,
 };
 

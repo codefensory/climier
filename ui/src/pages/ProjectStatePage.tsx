@@ -4,7 +4,7 @@ import { useProjectData } from "../modules/app-shell";
 export function ProjectStatePage() {
   const data = useProjectData();
   return (
-    <main data-testid="project-state" class="flex min-h-[calc(100vh-44px)] items-center justify-center bg-white px-6 py-12 text-center">
+    <main data-testid="project-state" class="flex min-h-[calc(100vh-44px)] items-center justify-center bg-surface px-6 py-12 text-center">
       <section class="max-w-[420px]">
         <Show when={data.projectStatus() === "loading"}><h1 class="text-[20px] font-semibold">Loading projects…</h1><p class="mt-2 text-[13px] text-muted">Connecting to the Climier server.</p></Show>
         <Show when={data.projectStatus() === "empty"}><h1 class="text-[20px] font-semibold">No projects available</h1><p class="mt-2 text-[13px] text-muted">Provision a project on the server, then retry.</p><RetryButton onRetry={data.retry} /></Show>
@@ -17,5 +17,5 @@ export function ProjectStatePage() {
 }
 
 function RetryButton(props: { onRetry: () => void }) {
-  return <button type="button" onClick={props.onRetry} class="mt-5 rounded-[9px] bg-ink px-4 py-2 text-[13px] font-medium text-white">Retry</button>;
+  return <button type="button" onClick={props.onRetry} class="mt-5 rounded-[9px] bg-ink px-4 py-2 text-[13px] font-medium text-on-strong">Retry</button>;
 }

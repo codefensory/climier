@@ -22,7 +22,7 @@ export default meta;
 type Story = StoryObj<MarkdownProps>;
 
 const Column = (props: { children: import("solid-js").JSX.Element }) => (
-  <div class="w-[620px] bg-white p-6">{props.children}</div>
+  <div class="w-[620px] bg-surface p-6">{props.children}</div>
 );
 
 const SOURCE = [

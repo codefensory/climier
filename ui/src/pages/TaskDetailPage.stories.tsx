@@ -23,13 +23,18 @@ type Story = StoryObj<Record<string, unknown>>;
 
 const Host = (props: { taskId: string }) => (
   <StoryShell path={`/tasks/${props.taskId}`}>
-    <div class="min-h-screen bg-white">
+    <div class="min-h-screen bg-surface">
       <TaskDetailPage taskId={props.taskId} />
     </div>
   </StoryShell>
 );
 
 export const Playground: Story = {
+  render: () => <Host taskId="T-checkout-empty-states" />,
+};
+
+export const Dark: Story = {
+  globals: { theme: "dark" },
   render: () => <Host taskId="T-checkout-empty-states" />,
 };
 

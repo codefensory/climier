@@ -24,7 +24,7 @@ type Story = StoryObj<Record<string, unknown>>;
 
 export const Playground: Story = {
   render: () => (
-    <div class="min-h-screen bg-white">
+    <div class="min-h-screen bg-surface">
       <ProjectsPage />
     </div>
   ),

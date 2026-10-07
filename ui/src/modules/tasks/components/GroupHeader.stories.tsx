@@ -39,7 +39,7 @@ const group = (over: Partial<TaskGroupView>): TaskGroupView => ({
 });
 
 const Frame = (props: { children: import("solid-js").JSX.Element }) => (
-  <div class="w-[560px] overflow-hidden rounded-[10px] border border-line bg-white">{props.children}</div>
+  <div class="w-[560px] overflow-hidden rounded-[10px] border border-line bg-surface">{props.children}</div>
 );
 
 const sampleTasks = () => [makeTask({ id: "T-checkout-empty-states" }), makeTask({ id: "T-checkout-recovery-flow" })];

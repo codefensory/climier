@@ -80,7 +80,7 @@ export function InitiativesPage() {
   return (
     <PageFrame>
       <p class="mb-5 text-[14px] text-muted">{visibleRows().length} initiatives · {openTaskCount()} open tasks · {blockedTaskCount()} blocked</p>
-      <div class="overflow-hidden rounded-[10px] border border-line bg-white">
+      <div class="overflow-hidden rounded-[10px] border border-line bg-surface">
           <div class="hidden min-h-[38px] grid-cols-[minmax(0,1fr)_88px_72px_112px] items-center gap-3 border-b border-hairline px-4 min-[640px]:grid min-[1024px]:grid-cols-[minmax(0,1fr)_88px_72px_76px_112px]">
             <span class="text-[11px] font-medium text-muted">Initiative</span>
             <span class="text-right text-[11px] font-medium text-muted">Tasks</span>

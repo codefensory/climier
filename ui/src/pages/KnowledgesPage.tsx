@@ -54,18 +54,18 @@ export function KnowledgesPage() {
 
   return (
     <PageFrame header={toolbar()}>
-      <div data-testid="knowledges-content" class="relative grid min-h-0 min-w-0 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-[10px] border border-line bg-white min-[1024px]:h-[calc(100vh-9rem)] min-[1280px]:grid-rows-[auto_minmax(0,1fr)] min-[1280px]:grid-cols-[minmax(640px,1fr)_380px]">
+      <div data-testid="knowledges-content" class="relative grid min-h-0 min-w-0 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-[10px] border border-line bg-surface min-[1024px]:h-[calc(100vh-9rem)] min-[1280px]:grid-rows-[auto_minmax(0,1fr)] min-[1280px]:grid-cols-[minmax(640px,1fr)_380px]">
         <div data-testid="knowledges-summary" class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 pb-3 pt-4 text-[12px] text-muted min-[1280px]:col-start-1 min-[1280px]:row-start-1">
           <p>{leftSummary()}</p>
           <Show when={rightSummary()}><p class="ml-auto text-right">{rightSummary()}</p></Show>
         </div>
         <section aria-hidden={overlay() && !!selectedKnowledge()} inert={overlay() && !!selectedKnowledge()} class="min-h-0 min-w-0 overflow-y-auto min-[1280px]:col-start-1 min-[1280px]:row-start-2">
           <Show when={groups().length > 0} fallback={<p class="px-4 py-8 text-center text-[13px] text-muted">No knowledges match these filters.</p>}>
-            <div role="listbox" aria-label="Knowledges" class="divide-y divide-hairline">
+            <div class="divide-y divide-hairline">
               <For each={groups()}>{(group) => (
                 <section role="group" aria-label={group.label} data-testid="knowledge-group" data-group={group.key}>
                   <GroupHeader group={group} />
-                  <div class="divide-y divide-hairline [&_[data-testid=knowledge-row]>div:last-child]:w-max">
+                  <div role="listbox" aria-label={`${group.label} knowledges`} class="divide-y divide-hairline [&_[data-testid=knowledge-row]>div:last-child]:w-max">
                     <For each={group.knowledges}>{(knowledge) => <KnowledgeRow knowledge={knowledge} selected={selectedKnowledge()?.id === knowledge.id} onSelect={url.setSelection} />}</For>
                   </div>
                 </section>

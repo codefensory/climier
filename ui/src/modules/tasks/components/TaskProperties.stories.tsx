@@ -22,7 +22,7 @@ type Story = StoryObj<TaskPropertiesProps>;
 
 /** El ancho de la columna real del detalle. */
 const Rail = (props: { children: import("solid-js").JSX.Element }) => (
-  <div class="w-[240px] bg-white p-6">{props.children}</div>
+  <div class="w-[240px] bg-surface p-6">{props.children}</div>
 );
 
 export const Playground: Story = {

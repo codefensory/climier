@@ -25,7 +25,7 @@ export default meta;
 type Story = StoryObj<TasksViewSwitchProps>;
 
 const Frame = (props: { children: import("solid-js").JSX.Element }) => (
-  <div class="bg-white p-3">{props.children}</div>
+  <div class="bg-surface p-3">{props.children}</div>
 );
 
 export const Playground: Story = {

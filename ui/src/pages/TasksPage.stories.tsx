@@ -28,7 +28,7 @@ type Story = StoryObj<Record<string, unknown>>;
 /** Monta la página en `/tasks`. El `path` del `StoryShell` es la URL con la que arranca. */
 const Host = (props: { path?: string }) => (
   <StoryShell path={props.path ?? "/tasks"}>
-    <div class="bg-white">
+    <div class="bg-surface">
       <TasksPage />
     </div>
   </StoryShell>
@@ -36,6 +36,22 @@ const Host = (props: { path?: string }) => (
 
 export const Playground: Story = {
   render: () => <Host />,
+};
+
+export const DarkList: Story = {
+  globals: { theme: "dark", viewport: { value: "wide" } },
+  render: () => <Host />,
+};
+
+export const DarkKanban: Story = {
+  globals: { theme: "dark", viewport: { value: "wide" } },
+  render: () => <Host path="/tasks?view=kanban" />,
+  play: async () => {
+    const segments = [...document.querySelectorAll<HTMLElement>('[data-testid="tasks-view-switch"] button')];
+    const kanban = must(segments.find((button) => button.textContent?.trim() === "Kanban") ?? null, "el segmento Kanban");
+    await waitFor(() => expect(kanban.getAttribute("aria-pressed")).toBe("true"));
+    await waitFor(() => expect(document.querySelector('[data-testid="tasks-kanban-view"]')).not.toBeNull());
+  },
 };
 
 /**

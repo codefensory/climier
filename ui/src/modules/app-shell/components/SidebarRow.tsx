@@ -39,7 +39,7 @@ export function SidebarRow(props: SidebarRowProps) {
       aria-haspopup={props.menu ? "menu" : undefined}
       aria-expanded={props.menu ? props.expanded : undefined}
       onClick={props.onSelect}
-      class="flex h-9 w-full items-center gap-[9px] rounded-[10px] border border-transparent px-[5px] text-left text-muted transition-colors hover:bg-white/70 aria-expanded:bg-chip aria-[current=page]:border-line aria-[current=page]:bg-white aria-[current=page]:text-ink aria-[current=page]:shadow-[0_1px_3px_rgb(0_0_0_/_6%)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ink"
+      class="flex h-9 w-full items-center gap-[9px] rounded-[10px] border border-transparent px-[5px] text-left text-muted transition-colors hover:bg-hover aria-expanded:bg-chip aria-[current=page]:border-line aria-[current=page]:bg-surface aria-[current=page]:text-ink aria-[current=page]:shadow-[var(--elevation-edge)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ink"
       classList={{
         "text-[14px] leading-5 font-normal": props.nav,
         "text-[15px]": !props.nav,

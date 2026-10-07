@@ -23,7 +23,7 @@
 }
 
 /* ── Color ──────────────────────────────────────────────────────────────── */
-@theme {
+@theme static {
   /* Texto */
   --color-ink: #111111; /* texto principal */
   --color-ink-soft: #333333; /* texto secundario fuerte */
@@ -64,7 +64,67 @@
   --color-tone-mauve-bg: #f4ebee;
   --color-tone-mauve-ink: #8d6270; /* también status "blocked" */
 
+  /* Nuevos roles semánticos */
+  --color-overlay: #ffffff;
+  --color-hover: #ffffffb3;
+  --color-on-strong: #ffffff;
+  --color-tone-red-bg: #f8e9e7;
+  --color-tone-red-ink: #a4473f;
+
   /* Dominio: valores propios que no comparten tono */
   --color-status-backlog: #b4b4b4;
   --color-status-progress: #c08a3e;
+}
+
+:root {
+  color-scheme: light;
+  --elevation-control: 0 1px 2px rgb(0 0 0 / 6%);
+  --elevation-edge: 0 1px 3px rgb(0 0 0 / 6%);
+  --elevation-overlay: 0 8px 24px rgb(0 0 0 / 10%);
+  --elevation-panel: 0 8px 28px rgb(0 0 0 / 6%);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-ink: #f2f2f2;
+  --color-ink-soft: #d6d6d6;
+  --color-muted: #a0a0a0;
+  --color-faint: #909090;
+  --color-ghost: #4d4d4d;
+  --color-surface: #18181b;
+  --color-raised: #1e1e22;
+  --color-canvas: #0e0e11;
+  --color-sunken: #141417;
+  --color-subtle: #232327;
+  --color-skeleton: #242428;
+  --color-hairline: #202024;
+  --color-chip: #26262b;
+  --color-separator: #2a2a2f;
+  --color-pressed: #2e2e33;
+  --color-line: #2c2c31;
+  --color-line-strong: #3d3d43;
+  --color-dot: #23282e;
+  --color-scrollbar: #333338;
+  --color-scrollbar-strong: #4a4a51;
+  --color-tone-green-bg: #1c2418;
+  --color-tone-green-ink: #a9bf93;
+  --color-tone-blue-bg: #1a2129;
+  --color-tone-blue-ink: #9fb2cd;
+  --color-tone-amber-bg: #262019;
+  --color-tone-amber-ink: #d3a983;
+  --color-tone-mauve-bg: #261d21;
+  --color-tone-mauve-ink: #cfa2b1;
+  --color-overlay: #202024;
+  --color-hover: #ffffff14;
+  --color-on-strong: #0e0e11;
+  --color-tone-red-bg: #2a1a19;
+  --color-tone-red-ink: #e0998f;
+  --color-status-backlog: #6e6e6e;
+  --color-status-progress: #d9a45c;
+
+  --elevation-control: 0 1px 2px rgb(0 0 0 / 45%);
+  --elevation-edge: 0 1px 3px rgb(0 0 0 / 45%);
+  --elevation-overlay: 0 8px 24px rgb(0 0 0 / 55%);
+  --elevation-panel: 0 8px 28px rgb(0 0 0 / 45%);
 }

@@ -70,7 +70,7 @@ const Host = (props: { view?: TaskView; scope?: TaskScope; sort?: TaskSort; grou
     return { active: current.length - closed + openGates, closed, all: current.length + openGates };
   });
   return (
-    <div class="bg-white">
+    <div class="bg-surface">
       <TasksToolbar view={view()} onView={setView} scope={scope()} scopeCounts={scopeCounts()} onScope={setScope} sort={sort()} onSort={setSort} group={group()} onGroup={setGroup} filterTree={tree()} onFilterTree={setTree} snapshot={snapshot} />
     </div>
   );

@@ -2,7 +2,7 @@ import { HashRouter, Route, type RouteSectionProps } from "@solidjs/router";
 import type { JSX } from "solid-js";
 import { Show } from "solid-js";
 import { AppShellContainer, ProjectProvider, ShellProvider, useProjectData } from "./modules/app-shell";
-import { RuntimeProvider, SessionProvider, useRuntime, useSession } from "./modules/core";
+import { RuntimeProvider, SessionProvider, ThemeProvider, useRuntime, useSession } from "./modules/core";
 import { LoginPage, PlaceholderPage, ProjectStatePage, workspaceRoutes } from "./pages";
 
 const routeDefs = [...workspaceRoutes.map((page) => <Route path={page.path} component={page.component} />), <Route path="*" component={PlaceholderPage} />];
@@ -15,7 +15,9 @@ export type AppProps = {
 function App(props: AppProps = {}) {
   return (
     <RuntimeProvider mode={props.mode ?? "live"} fixtureSnapshot={props.fixtureSnapshot}>
-      <HashRouter root={RootLayout}>{routeDefs}</HashRouter>
+      <ThemeProvider>
+        <HashRouter root={RootLayout}>{routeDefs}</HashRouter>
+      </ThemeProvider>
     </RuntimeProvider>
   );
 }
