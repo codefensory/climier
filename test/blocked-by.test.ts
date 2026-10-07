@@ -7,6 +7,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, importFresh, runCli, readState as readRawState } from "./helpers.mjs";
 
+type TestError = { code?: string; message?: string };
+const asTestError = (error: unknown): TestError => error as TestError;
+
 async function bootstrapV2(dir, initiative = "auth") {
   const { default: init } = await importFresh("./cli/commands/init.ts");
   const { default: addInit } = await importFresh("./cli/commands/add-initiative.ts");
@@ -135,7 +138,10 @@ test("add-node: --blocked-by with missing target emits INVALID_EDGE_TARGET", asy
           "blocked-by": "G-missing",
         },
       }),
-      (err) => err.code === "INVALID_EDGE_TARGET" && /G-missing/.test(err.message),
+      (err) => {
+        const error = asTestError(err);
+        return error.code === "INVALID_EDGE_TARGET" && /G-missing/.test(error.message ?? "");
+      },
     );
   } finally {
     await rmTempProject(dir);

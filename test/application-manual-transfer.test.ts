@@ -10,14 +10,66 @@ import { withLock } from "../src/storage/lock.ts";
 import { createTempProject, rmTempProject } from "./helpers.mjs";
 import { pullManualTransfer, pushManualTransfer } from "../src/application/manual-transfer.ts";
 
-function projectConfig(projectId) {
+type SnapshotNode = { id: string; kind: string; subkind: string; status: string; title: string };
+type Snapshot = {
+  version: number;
+  nodes: Record<string, SnapshotNode>;
+  edges: unknown[];
+  initiatives: Record<string, { desc: string }>;
+  log: unknown[];
+};
+type ProjectConfig = { project_id: string; backend: { type: "remote"; url: string; protocol?: string } };
+type FencedSnapshot = Snapshot & { revision: number };
+type ImportOptions = {
+  payload: Snapshot;
+  actor: string;
+  expected_remote_revision?: number;
+  force?: boolean;
+};
+type Fixture = {
+  projectDir: string;
+  config: ProjectConfig;
+  remote: { payload: Snapshot; revision: number };
+  calls: { exports: number; imports: ImportOptions[] };
+  backendClient: {
+    type: "remote";
+    exportTransfer(): Promise<{ payload: Snapshot; revision: number }>;
+    importTransfer(options: ImportOptions): Promise<{ revision: number; payload: string }>;
+  };
+  store: ReturnType<typeof createRemoteTransferBaselineStore>;
+};
+type TransferRequest = {
+  projectDir: string;
+  projectConfig: unknown;
+  backendClient: unknown;
+  actor: unknown;
+  force: unknown;
+};
+type TransferError = {
+  code?: string;
+  message?: string;
+  status?: number;
+  details?: {
+    expected?: number;
+    current?: number;
+    force?: string;
+    timeout_ms?: number;
+    remote_result_ambiguous?: boolean;
+    confirmed_remote_revision?: number;
+    confirmed_local_revision?: number;
+    [key: string]: unknown;
+  };
+};
+const asTransferError = (error: unknown): TransferError => error as TransferError;
+
+function projectConfig(projectId: string): ProjectConfig {
   return {
     project_id: projectId,
     backend: { type: "remote", url: "https://transfer.example.test/api/" },
   };
 }
 
-function payload(title = "remote") {
+function payload(title = "remote"): Snapshot {
   return {
     version: 1,
     nodes: { T1: { id: "T1", kind: "resolvable", subkind: "task", status: "open", title } },
@@ -27,7 +79,7 @@ function payload(title = "remote") {
   };
 }
 
-async function initialize(projectDir, state = payload("local")) {
+async function initialize(projectDir: string, state: Snapshot | null = payload("local")) {
   await bootstrapFencedState(projectDir);
   if (state) {
     await withLock(projectDir, (lockContext) => replaceFencedStateUnderLock(lockContext, {
@@ -38,21 +90,29 @@ async function initialize(projectDir, state = payload("local")) {
   }
 }
 
-async function fixture(t, { state = payload("local"), remoteRevision = 4, projectId, url } = {}) {
+async function fixture(
+  t: { after(callback: () => void | Promise<void>): void },
+  { state = payload("local"), remoteRevision = 4, projectId, url }: {
+    state?: Snapshot | null;
+    remoteRevision?: number;
+    projectId?: string;
+    url?: string;
+  } = {},
+): Promise<Fixture> {
   const projectDir = await createTempProject();
   t.after(() => rmTempProject(projectDir));
   await initialize(projectDir, state);
   const config = projectConfig(projectId || `transfer-${randomUUID()}`);
   if (url) {config.backend.url = url;}
   const remote = { payload: payload(), revision: remoteRevision };
-  const calls = { exports: 0, imports: [] };
+  const calls: Fixture["calls"] = { exports: 0, imports: [] };
   const backendClient = {
-    type: "remote",
-    async exportTransfer() {
+    type: "remote" as const,
+    async exportTransfer(): Promise<{ payload: Snapshot; revision: number }> {
       calls.exports++;
       return { payload: remote.payload, revision: remote.revision };
     },
-    async importTransfer(options) {
+    async importTransfer(options: ImportOptions): Promise<{ revision: number; payload: string }> {
       calls.imports.push(options);
       remote.payload = options.payload;
       remote.revision++;
@@ -62,13 +122,13 @@ async function fixture(t, { state = payload("local"), remoteRevision = 4, projec
   return { projectDir, config, remote, calls, backendClient, store: createRemoteTransferBaselineStore() };
 }
 
-async function changeLocalTitle(projectDir, title) {
-  const current = await readFencedState(projectDir);
+async function changeLocalTitle(projectDir: string, title: string) {
+  const current = await readFencedState(projectDir) as FencedSnapshot;
   current.nodes.T1.title = title;
   return withLock(projectDir, (lockContext) => replaceFencedStateUnderLock(lockContext, current));
 }
 
-function request(fixture, overrides = {}) {
+function request(fixture: Fixture, overrides: Partial<TransferRequest> = {}): TransferRequest {
   return {
     projectDir: fixture.projectDir,
     projectConfig: fixture.config,
@@ -134,7 +194,7 @@ test("manual pull then offline local work and push uses and advances the shared 
   assert.equal(f.calls.imports[0].expected_remote_revision, pulled.remote_revision);
   assert.equal(f.calls.imports[0].force, undefined);
   assert.equal(f.calls.imports[0].payload.nodes.T1.title, "offline change");
-  assert.equal(pushed.local_revision, (await readFencedState(f.projectDir)).revision);
+  assert.equal(pushed.local_revision, (await readFencedState(f.projectDir) as FencedSnapshot).revision);
   assert.deepEqual(await f.store.get("https://transfer.example.test", f.config.project_id), {
     version: 1,
     origin: "https://transfer.example.test",
@@ -164,7 +224,8 @@ test("push uses the last confirmed remote revision for remote CAS and preserves 
     throw remoteError;
   };
 
-  await assert.rejects(pushManualTransfer(request(f)), (error) => {
+  await assert.rejects(pushManualTransfer(request(f)), (rawError) => {
+    const error = asTransferError(rawError);
     assert.equal(error, remoteError);
     assert.equal(error.status, 409);
     assert.deepEqual(error.details, { expected: previous.remote_revision, current: f.remote.revision });
@@ -199,7 +260,7 @@ test("force push omits expected remote revision and updates baseline only after 
 
 test("force pull omits local CAS while replacing the destination and recording the new baseline", async (t) => {
   const f = await fixture(t);
-  const before = await readFencedState(f.projectDir);
+  const before = await readFencedState(f.projectDir) as FencedSnapshot;
   await f.store.set({
     version: 1,
     origin: "https://transfer.example.test",
@@ -211,7 +272,7 @@ test("force pull omits local CAS while replacing the destination and recording t
   const result = await pullManualTransfer(request(f, { force: true }));
 
   assert.equal(result.forced, true);
-  assert.equal((await readFencedState(f.projectDir)).nodes.T1.title, "remote");
+  assert.equal((await readFencedState(f.projectDir) as FencedSnapshot).nodes.T1.title, "remote");
   assert.deepEqual(await f.store.get("https://transfer.example.test", f.config.project_id), {
     version: 1,
     origin: "https://transfer.example.test",
@@ -223,7 +284,7 @@ test("force pull omits local CAS while replacing the destination and recording t
 
 test("pull maps stale local CAS to TRANSFER_LOCAL_CHANGED without advancing the baseline", async (t) => {
   const f = await fixture(t);
-  const local = await readFencedState(f.projectDir);
+  const local = await readFencedState(f.projectDir) as FencedSnapshot;
   const previous = {
     version: 1,
     origin: "https://transfer.example.test",
@@ -233,11 +294,12 @@ test("pull maps stale local CAS to TRANSFER_LOCAL_CHANGED without advancing the 
   };
   await f.store.set(previous);
 
-  await assert.rejects(pullManualTransfer(request(f)), (error) => {
+  await assert.rejects(pullManualTransfer(request(f)), (rawError) => {
+    const error = asTransferError(rawError);
     assert.equal(error.code, "TRANSFER_LOCAL_CHANGED");
-    assert.equal(error.details.expected, previous.local_revision);
-    assert.equal(error.details.current, local.revision);
-    assert.match(error.message, /pull --force/);
+    assert.equal(error.details?.expected, previous.local_revision);
+    assert.equal(error.details?.current, local.revision);
+    assert.match(error.message ?? "", /pull --force/);
     return true;
   });
   assert.deepEqual(await f.store.get(previous.origin, previous.project_id), previous);
@@ -246,10 +308,11 @@ test("pull maps stale local CAS to TRANSFER_LOCAL_CHANGED without advancing the 
 test("pull maps a non-pristine destination without baseline to TRANSFER_BASE_UNKNOWN", async (t) => {
   const f = await fixture(t);
 
-  await assert.rejects(pullManualTransfer(request(f)), (error) => {
+  await assert.rejects(pullManualTransfer(request(f)), (rawError) => {
+    const error = asTransferError(rawError);
     assert.equal(error.code, "TRANSFER_BASE_UNKNOWN");
-    assert.match(error.message, /pull --force/);
-    assert.match(error.details.force, /complete local DAG/);
+    assert.match(error.message ?? "", /pull --force/);
+    assert.match(error.details?.force ?? "", /complete local DAG/);
     return true;
   });
   assert.equal(await f.store.get("https://transfer.example.test", f.config.project_id), null);
@@ -257,7 +320,7 @@ test("pull maps a non-pristine destination without baseline to TRANSFER_BASE_UNK
 
 test("pull rejects a local write racing with the remote export", async (t) => {
   const f = await fixture(t);
-  const local = await readFencedState(f.projectDir);
+  const local = await readFencedState(f.projectDir) as FencedSnapshot;
   const previous = {
     version: 1,
     origin: "https://transfer.example.test",
@@ -271,10 +334,11 @@ test("pull rejects a local write racing with the remote export", async (t) => {
     return { payload: f.remote.payload, revision: f.remote.revision };
   };
 
-  await assert.rejects(pullManualTransfer(request(f)), (error) => {
+  await assert.rejects(pullManualTransfer(request(f)), (rawError) => {
+    const error = asTransferError(rawError);
     assert.equal(error.code, "TRANSFER_LOCAL_CHANGED");
-    assert.equal(error.details.expected, previous.local_revision);
-    assert.ok(error.details.current > error.details.expected);
+    assert.equal(error.details?.expected, previous.local_revision);
+    assert.ok((error.details?.current ?? 0) > (error.details?.expected ?? 0));
     return true;
   });
   assert.deepEqual(await f.store.get(previous.origin, previous.project_id), previous);
@@ -296,11 +360,12 @@ test("push timeout and network failures report ambiguous outcomes without advanc
         throw Object.assign(new Error("network failure"), { code, details: { timeout_ms: 100 } });
       };
 
-      await assert.rejects(pushManualTransfer(request(f)), (error) => {
+      await assert.rejects(pushManualTransfer(request(f)), (rawError) => {
+        const error = asTransferError(rawError);
         assert.equal(error.code, code);
-        assert.equal(error.details.timeout_ms, 100);
-        assert.equal(error.details.remote_result_ambiguous, true);
-        assert.match(error.message, /outcome is ambiguous/);
+        assert.equal(error.details?.timeout_ms, 100);
+        assert.equal(error.details?.remote_result_ambiguous, true);
+        assert.match(error.message ?? "", /outcome is ambiguous/);
         return true;
       });
       assert.deepEqual(await f.store.get(previous.origin, previous.project_id), previous);
@@ -323,10 +388,11 @@ test("explicit remote HTTP and auth/protocol errors are preserved without fallba
       const remoteError = Object.assign(new Error("remote rejected request"), { code, status: 409, details: { current: 7 } });
       f.backendClient.importTransfer = async () => { throw remoteError; };
 
-      await assert.rejects(pushManualTransfer(request(f)), (error) => {
+      await assert.rejects(pushManualTransfer(request(f)), (rawError) => {
+        const error = asTransferError(rawError);
         assert.equal(error, remoteError);
         assert.equal(error.code, code);
-        assert.equal(error.details.remote_result_ambiguous, undefined);
+        assert.equal(error.details?.remote_result_ambiguous, undefined);
         return true;
       });
       assert.deepEqual(await f.store.get(previous.origin, previous.project_id), previous);
@@ -339,7 +405,7 @@ test("explicit remote HTTP and auth/protocol errors are preserved without fallba
     origin: "https://transfer.example.test",
     project_id: f.config.project_id,
     remote_revision: f.remote.revision,
-    local_revision: (await readFencedState(f.projectDir)).revision,
+    local_revision: (await readFencedState(f.projectDir) as FencedSnapshot).revision,
   };
   await f.store.set(previous);
   const remoteError = Object.assign(new Error("authentication rejected"), { code: "REMOTE_UNAUTHORIZED", status: 401 });
@@ -351,7 +417,7 @@ test("explicit remote HTTP and auth/protocol errors are preserved without fallba
 test("service rejects non-remote, incomplete and invalid transfer requests before I/O", async (t) => {
   const f = await fixture(t);
   const noCalls = {
-    type: "remote",
+    type: "remote" as const,
     async exportTransfer() { throw new Error("must not call remote"); },
     async importTransfer() { throw new Error("must not call remote"); },
   };
@@ -362,7 +428,7 @@ test("service rejects non-remote, incomplete and invalid transfer requests befor
     request(f, { actor: " ", backendClient: noCalls }),
     request(f, { force: "true", backendClient: noCalls }),
     request(f, { backendClient: { type: "local" } }),
-    request(f, { backendClient: { type: "remote", exportTransfer() {} } }),
+    request(f, { backendClient: { type: "remote" as const, exportTransfer() {} } }),
   ];
 
   for (const invalid of invalidRequests) {
@@ -388,15 +454,21 @@ test("baseline scopes use the configured origin and project id independently", a
   const pushed = await pushManualTransfer(request(f));
 
   assert.deepEqual(await f.store.get(firstOrigin, f.config.project_id), first);
-  assert.equal((await f.store.get(secondOrigin, f.config.project_id)).remote_revision, pushed.remote_revision);
+  const secondBaseline = await f.store.get(secondOrigin, f.config.project_id);
+  assert.ok(secondBaseline);
+  assert.equal(secondBaseline.remote_revision, pushed.remote_revision);
 
   const otherProjectId = `${f.config.project_id}-other`;
   const otherProjectPush = await pushManualTransfer(request(f, {
     projectConfig: { ...f.config, project_id: otherProjectId },
   }));
   assert.equal(otherProjectPush.project_id, otherProjectId);
-  assert.equal((await f.store.get(secondOrigin, otherProjectId)).remote_revision, otherProjectPush.remote_revision);
-  assert.equal(await f.store.get(secondOrigin, f.config.project_id).then((entry) => entry.project_id), f.config.project_id);
+  const otherBaseline = await f.store.get(secondOrigin, otherProjectId);
+  assert.ok(otherBaseline);
+  assert.equal(otherBaseline.remote_revision, otherProjectPush.remote_revision);
+  const originalBaseline = await f.store.get(secondOrigin, f.config.project_id);
+  assert.ok(originalBaseline);
+  assert.equal(originalBaseline.project_id, f.config.project_id);
 });
 
 test("confirmed transfer with a baseline write failure reports the changed side and revision", async (t) => {
@@ -411,15 +483,16 @@ test("confirmed transfer with a baseline write failure reports the changed side 
   const f = await fixture(t);
   f.backendClient.importTransfer = async () => {
     await fs.writeFile(path.join(home, "remote-transfer-baselines"), "occupied");
-    return { revision: 23 };
+    return { revision: 23, payload: "must not escape" };
   };
 
-  await assert.rejects(pushManualTransfer(request(f)), (error) => {
+  await assert.rejects(pushManualTransfer(request(f)), (rawError) => {
+    const error = asTransferError(rawError);
     assert.equal(error.code, "REMOTE_TRANSFER_BASELINE_ERROR");
-    assert.match(error.message, /remote DAG changed after confirmed push/);
-    assert.match(error.message, /confirmed remote revision 23/);
-    assert.equal(error.details.confirmed_remote_revision, 23);
-    assert.ok(Number.isInteger(error.details.confirmed_local_revision));
+    assert.match(error.message ?? "", /remote DAG changed after confirmed push/);
+    assert.match(error.message ?? "", /confirmed remote revision 23/);
+    assert.equal(error.details?.confirmed_remote_revision, 23);
+    assert.ok(Number.isInteger(error.details?.confirmed_local_revision));
     return true;
   });
 });
@@ -439,11 +512,12 @@ test("confirmed pull with a baseline write failure reports the installed local r
     return { payload: f.remote.payload, revision: 23 };
   };
 
-  await assert.rejects(pullManualTransfer(request(f)), (error) => {
+  await assert.rejects(pullManualTransfer(request(f)), (rawError) => {
+    const error = asTransferError(rawError);
     assert.equal(error.code, "REMOTE_TRANSFER_BASELINE_ERROR");
-    assert.match(error.message, /local DAG changed after confirmed pull/);
-    assert.match(error.message, /confirmed remote revision 23/);
-    assert.ok(Number.isInteger(error.details.confirmed_local_revision));
+    assert.match(error.message ?? "", /local DAG changed after confirmed pull/);
+    assert.match(error.message ?? "", /confirmed remote revision 23/);
+    assert.ok(Number.isInteger(error.details?.confirmed_local_revision));
     return true;
   });
 });

@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 
 import { parseBackendConfig } from "../src/application/backend-config.ts";
 
+type ConfigError = { code?: string; message?: string; details?: Record<string, unknown> };
+const asConfigError = (error: unknown): ConfigError => error as ConfigError;
+
 test("backend config defaults to local and accepts explicit local config", () => {
   assert.deepEqual(parseBackendConfig({ version: 1, project_id: "demo" }), { type: "local" });
   assert.deepEqual(parseBackendConfig({ backend: { type: "local" } }), { type: "local" });
@@ -34,11 +37,15 @@ test("backend config rejects any legacy protocol marker with a copyable relink",
   for (const protocol of ["v1", "v2", null, "future"]) {
     assert.throws(
       () => parseBackendConfig({ backend: { type: "remote", url: "https://climier.example.test/api", protocol } }),
-      (error) => error.code === "REMOTE_CONFIG_OUTDATED"
-        && error.message.includes("https://climier.example.test/api")
-        && error.message.includes("climier link https://climier.example.test/api")
-        && error.message.includes(".climier.json")
-        && error.details.configured_url === "https://climier.example.test/api",
+      (error) => {
+        const caught = asConfigError(error);
+        const message = caught.message ?? "";
+        return caught.code === "REMOTE_CONFIG_OUTDATED"
+          && message.includes("https://climier.example.test/api")
+          && message.includes("climier link https://climier.example.test/api")
+          && message.includes(".climier.json")
+          && caught.details?.configured_url === "https://climier.example.test/api";
+      },
     );
   }
 });
@@ -82,13 +89,14 @@ test("backend config rejects credentials in metadata and remote URLs", () => {
 });
 
 test("backend config rejects invalid config shapes and extra backend fields", () => {
-  for (const config of [
+  const invalidConfigs: unknown[] = [
     null,
     [],
     { backend: null },
     { backend: { type: "remote", url: "https://climier.example.test", region: "west" } },
     { backend: { type: "local", url: "https://climier.example.test" } },
-  ]) {
-    assert.throws(() => parseBackendConfig(config), /backend config:/);
+  ];
+  for (const config of invalidConfigs) {
+    assert.throws(() => parseBackendConfig(config as Record<string, unknown>), /backend config:/);
   }
 });

@@ -3,6 +3,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, importFresh, runCli } from "./helpers.mjs";
 
+type TestError = {
+  code?: string;
+  details?: Record<string, unknown>;
+};
+
+const asTestError = (error: unknown): TestError => error as TestError;
+
 const taskFlags = (initiative) => ({
   initiative,
   title: "x",
@@ -82,8 +89,11 @@ test("add-task rejects an unregistered initiative with INITIATIVE_NOT_FOUND", as
         positional: ["T-y"],
         flags: taskFlags("NOT_REGISTERED"),
       }),
-      (error) => error.code === "INITIATIVE_NOT_FOUND"
-        && error.details?.initiative === "NOT_REGISTERED",
+      (error) => {
+        const caught = asTestError(error);
+        return caught.code === "INITIATIVE_NOT_FOUND"
+          && caught.details?.initiative === "NOT_REGISTERED";
+      },
     );
   });
 });

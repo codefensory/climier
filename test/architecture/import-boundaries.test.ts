@@ -112,6 +112,7 @@ test("the table declares the five adapter edges approved by ADR-013 and ADR-032"
 
 test("providers -> kernel is an explicitly allowed edge", async () => {
   const boundary = BOUNDARIES.find(({ name }) => name === "providers");
+  assert.ok(boundary);
   const imports = await collectRelativeImports(boundary.directory);
   assert.ok(boundary.allowedRoots.includes("kernel"));
   assert.deepEqual(findBoundaryViolations(imports, {
@@ -181,7 +182,7 @@ test("HTTP protocol version is defined once in the public facade", async () => {
     "src/server/http/transfers.ts",
   ];
   const sources = await Promise.all(files.map((file) => readFile(file, "utf8")));
-  const definitions = [];
+  const definitions: string[] = [];
   for (const [index, source] of sources.entries()) {
     const definitionCount = [...source.matchAll(/\b(?:const|let|var)\s+PROTOCOL_VERSION\s*=/g)].length;
     definitions.push(...Array(definitionCount).fill(files[index]));

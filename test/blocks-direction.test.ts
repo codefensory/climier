@@ -107,6 +107,6 @@ test("derivation: T-x with satisfied blocker G-y is ready", async () => {
     log: [],
   };
   const d = deriveV2(state);
-  assert.ok(d.ready.includes("T-x"), "T-x should be ready");
-  assert.ok(!d.blocked.includes("T-x"));
+  assert.ok((d.ready as string[]).includes("T-x"), "T-x should be ready");
+  assert.ok(!(d.blocked as string[]).includes("T-x"));
 });

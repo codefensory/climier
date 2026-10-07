@@ -7,6 +7,9 @@ import { importFresh } from "./helpers.mjs";
 
 const OPERATIONS = "../src/application/operations/index.ts";
 
+type TestError = { code?: string; details?: Record<string, unknown> };
+const asTestError = (error: unknown): TestError => error as TestError;
+
 function provider() {
   return {
     prepare() {},
@@ -81,7 +84,10 @@ test("executeOperation: preserves structured lookup and kernel errors", async ()
         mutate() { throw new Error("must not run"); },
       },
     }),
-    (error) => error === lookupError && error.code === "OPERATION_NOT_FOUND" && error.details.operation === "task.missing",
+    (error) => {
+      const caught = asTestError(error);
+      return caught === lookupError && caught.code === "OPERATION_NOT_FOUND" && caught.details?.operation === "task.missing";
+    },
   );
 
   const kernelError = Object.assign(new Error("revision changed"), {
@@ -99,7 +105,10 @@ test("executeOperation: preserves structured lookup and kernel errors", async ()
         mutate() { throw kernelError; },
       },
     }),
-    (error) => error === kernelError && error.code === "REVISION_CONFLICT" && error.details.current === 2,
+    (error) => {
+      const caught = asTestError(error);
+      return caught === kernelError && caught.code === "REVISION_CONFLICT" && caught.details?.current === 2;
+    },
   );
 });
 
@@ -111,7 +120,10 @@ test("executeOperation: rejects malformed calls with structured contract errors"
   };
   await assert.rejects(
     executeOperation(null),
-    (error) => error.code === "INVALID_EXECUTION_CONTRACT" && error.details.field === "arguments",
+    (error) => {
+      const caught = asTestError(error);
+      return caught.code === "INVALID_EXECUTION_CONTRACT" && caught.details?.field === "arguments";
+    },
   );
 
   for (const [field, args] of [
@@ -122,7 +134,10 @@ test("executeOperation: rejects malformed calls with structured contract errors"
   ]) {
     await assert.rejects(
       executeOperation(args),
-      (error) => error.code === "INVALID_EXECUTION_CONTRACT" && error.details.field === field,
+      (error) => {
+        const caught = asTestError(error);
+        return caught.code === "INVALID_EXECUTION_CONTRACT" && caught.details?.field === field;
+      },
       `${field} should be a structured contract error`,
     );
   }

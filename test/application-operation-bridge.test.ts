@@ -6,15 +6,23 @@ import {
   SUPPORTED_OPERATION_IDS,
 } from "../src/application/operations/index.ts";
 import { remoteV1Manifest } from "../src/application/operations/remote-v1-manifest.ts";
+import type { BackendClient, OperationCall } from "../src/application/types.ts";
 
-function backendClient(type, calls, handlers = {}) {
+type Handler = (args: OperationCall) => unknown;
+
+type Handlers = {
+  executeOperation?: Handler;
+  executeBatch?: Handler;
+};
+
+function backendClient(type: "local" | "remote", calls: Array<{ method: string; args: OperationCall }>, handlers: Handlers = {}): BackendClient {
   return {
     type,
-    executeOperation(args) {
+    async executeOperation(args: OperationCall = {}) {
       calls.push({ method: "executeOperation", args });
       return handlers.executeOperation ? handlers.executeOperation(args) : { backend: type };
     },
-    executeBatch(args) {
+    async executeBatch(args: OperationCall = {}) {
       calls.push({ method: "executeBatch", args });
       return handlers.executeBatch ? handlers.executeBatch(args) : { backend: type };
     },
@@ -51,16 +59,16 @@ test("operation bridge selects the local backend and delegates operation and bat
 });
 
 test("operation bridge selects remote backend without invoking local execution dependencies", async () => {
-  const calls = [];
+  const calls: Array<{ method: string; args: OperationCall }> = [];
   let localCalls = 0;
-  const bridge = createOperationBridge({
+  const bridge = createOperationBridge(({
     backendClient: backendClient("remote", calls),
     local: {
       loadPolicy() { localCalls += 1; },
       mutate() { localCalls += 1; },
       readMetadata() { localCalls += 1; },
     },
-  });
+  } as unknown as Parameters<typeof createOperationBridge>[0]));
 
   assert.deepEqual(await bridge.executeOperation({ actor: "alice", operation: "task.create", input: {} }), { backend: "remote" });
   assert.deepEqual(await bridge.executeBatch({ actor: "alice", operations: [] }), { backend: "remote" });
@@ -69,7 +77,7 @@ test("operation bridge selects remote backend without invoking local execution d
 });
 
 test("operation bridge rejects unsupported ids before delegation and does not fallback after remote failure", async () => {
-  const calls = [];
+  const calls: Array<{ method: string; args: OperationCall }> = [];
   const failure = Object.assign(new Error("remote auth failed"), { code: "AUTH_REQUIRED" });
   const bridge = createOperationBridge({
     backendClient: backendClient("remote", calls, {
@@ -79,7 +87,10 @@ test("operation bridge rejects unsupported ids before delegation and does not fa
 
   await assert.rejects(
     bridge.executeOperation({ actor: "alice", operation: "plugin.custom", input: {} }),
-    (error) => error.code === "REMOTE_UNSUPPORTED_OPERATION" && error.details.operation === "plugin.custom",
+    (error) => {
+      const caught = error as { code?: string; details?: Record<string, unknown> };
+      return caught.code === "REMOTE_UNSUPPORTED_OPERATION" && caught.details?.operation === "plugin.custom";
+    },
   );
   assert.equal(calls.length, 0);
   await assert.rejects(
