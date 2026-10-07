@@ -104,8 +104,11 @@ test("kernel mutation rejects stale global CAS before policy/apply and does not 
           async decide() { policyCalls += 1; return { decision: "allow" }; },
         },
       }),
-      (error) => error.code === "STATE_REVISION_CONFLICT" &&
-        error.details.expected === 7 && error.details.actual === 2,
+      (error) => {
+        const details = (error as { code?: string; details?: { expected?: number; actual?: number } }).details;
+        return (error as { code?: string }).code === "STATE_REVISION_CONFLICT" &&
+          details?.expected === 7 && details.actual === 2;
+      },
     );
     assert.equal(policyCalls, 0);
     assert.equal(applyCalls, 0);

@@ -46,6 +46,7 @@ import { spawn } from "node:child_process";
 const ROOT = path.resolve(process.cwd());
 const BIN = path.join(ROOT, "bin", "climier.ts");
 const HELPER = path.join(ROOT, "scripts", "smoke-sandbox.sh");
+type RunResult = { stdout: string; stderr: string; code: number | null };
 
 function mkTempDir(prefix) {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -205,8 +206,8 @@ function writeOrchestrator(dir) {
   return file;
 }
 
-function spawnCli(args, env = {}) {
-  return new Promise((resolve) => {
+function spawnCli(args: string[], env: NodeJS.ProcessEnv = {}): Promise<RunResult> {
+  return new Promise<RunResult>((resolve) => {
     const proc = spawn(process.execPath, args, {
       cwd: ROOT,
       env: { ...process.env, NO_COLOR: "1", ...env },
@@ -219,8 +220,8 @@ function spawnCli(args, env = {}) {
   });
 }
 
-function spawnHelper(args, env = {}) {
-  return new Promise((resolve) => {
+function spawnHelper(args: string[], env: NodeJS.ProcessEnv = {}): Promise<RunResult> {
+  return new Promise<RunResult>((resolve) => {
     const proc = spawn("bash", [HELPER, "--", ...args], {
       cwd: ROOT,
       env: { ...process.env, NO_COLOR: "1", ...env },

@@ -27,8 +27,8 @@ test("revision watcher polls the authoritative ledger after directory renames", 
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   await writeLedger(ledger, 3);
 
-  const revisions = [];
   const watcher = createRevisionWatcher({ ledgerPath: ledger, pollIntervalMs: 10 });
+  const revisions: number[] = [];
   watcher.subscribe((revision) => revisions.push(revision));
   await watcher.start();
 
@@ -63,7 +63,7 @@ test("revision watcher re-resolves a changed ledger directory and closes its han
     resolveLedger: () => currentLedger,
     pollIntervalMs: 10,
   });
-  const revisions = [];
+  const revisions: number[] = [];
   watcher.subscribe((revision) => revisions.push(revision));
   await watcher.start();
   currentLedger = secondLedger;
