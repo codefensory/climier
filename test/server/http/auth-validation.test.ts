@@ -4,6 +4,13 @@ import fs from "node:fs/promises";
 import { PROTOCOL_VERSION } from "../../../src/server/http.ts";
 import { authHeaders, operation, withApi, withInitApi } from "./fixtures.mjs";
 
+type ErrorBody = { ok: false; error: { code: string; message: string; details?: Record<string, unknown> } };
+type CanonicalState = { version: number; nodes: Record<string, unknown>; edges: unknown[]; initiatives: Record<string, unknown>; log: unknown[] };
+
+async function errorBody(response: Response): Promise<ErrorBody> {
+  return await response.json() as ErrorBody;
+}
+
 
 test("HTTP v1 rejects protocol mismatches before opening a project", async () => {
   await withApi(async ({ baseUrl, openCount }) => {
@@ -29,7 +36,7 @@ test("HTTP v2 routes are not accepted by the v1 server", async () => {
     const response = await fetch(`${baseUrl}/v2/projects/project-a/read/status`, { headers: authHeaders() });
     assert.equal(response.status, 404);
     assert.equal(response.headers.get("x-climier-protocol-version"), "1");
-    assert.equal((await response.json()).error.code, "ROUTE_NOT_FOUND");
+    assert.equal((await errorBody(response)).error.code, "ROUTE_NOT_FOUND");
     assert.equal(openCount(), 0);
   });
 });
@@ -37,17 +44,17 @@ test("HTTP v2 routes are not accepted by the v1 server", async () => {
 async function assertInitAuthFailures(route) {
   const missingBearer = await fetch(route, { method: "POST", headers: { "x-climier-protocol-version": "1", "content-type": "application/json" }, body: "{}" });
   assert.equal(missingBearer.status, 401);
-  assert.equal((await missingBearer.json()).error.code, "AUTH_REQUIRED");
+  assert.equal((await errorBody(missingBearer)).error.code, "AUTH_REQUIRED");
 
   const invalidBearer = await fetch(route, { method: "POST", headers: { ...authHeaders({ authorization: "Bearer wrong" }), "content-type": "application/json" }, body: "{}" });
   assert.equal(invalidBearer.status, 401);
-  assert.equal((await invalidBearer.json()).error.code, "AUTH_INVALID");
+  assert.equal((await errorBody(invalidBearer)).error.code, "AUTH_INVALID");
 }
 
 async function assertReadUnknownProject(baseUrl) {
   const unknown = await fetch(`${baseUrl}/v1/projects/unknown/read/status`, { headers: authHeaders() });
   assert.equal(unknown.status, 404);
-  assert.equal((await unknown.json()).error.code, "UNKNOWN_PROJECT");
+  assert.equal((await errorBody(unknown)).error.code, "UNKNOWN_PROJECT");
 }
 
 async function assertInvalidInit(route) {
@@ -56,7 +63,7 @@ async function assertInvalidInit(route) {
       method: "POST", headers: { ...authHeaders(), "content-type": "application/json" }, body: JSON.stringify(body),
     });
     assert.equal(invalid.status, 400);
-    assert.equal((await invalid.json()).error.code, body.force || body.reset ? "REMOTE_UNSUPPORTED_OPERATION" : "INVALID_REQUEST");
+    assert.equal((await errorBody(invalid)).error.code, body.force || body.reset ? "REMOTE_UNSUPPORTED_OPERATION" : "INVALID_REQUEST");
   }
 }
 
@@ -79,7 +86,7 @@ async function verifyInitializedState(dataRoot, response, openCount) {
 
   const projectDir = await (await import("../../../src/server/catalog/index.ts")).createProjectCatalog({ dataRoot }).resolveProject("catalogued");
   const { readState, stateFile } = await import("../../../src/storage/state.ts");
-  const state = await readState(projectDir);
+  const state = await readState(projectDir) as CanonicalState;
   assert.equal(state.version, 1);
   assert.deepEqual(state.nodes, {});
   assert.deepEqual(state.edges, []);
@@ -93,7 +100,7 @@ async function assertInitAlreadyExists(route, { dataRoot, projectDir, stateFile,
     method: "POST", headers: { ...authHeaders(), "content-type": "application/json" }, body: "{}",
   });
   assert.equal(second.status, 409);
-  const error = await second.json();
+  const error = await errorBody(second);
   assert.equal(error.ok, false);
   assert.equal(error.error.code, "STATE_ALREADY_INITIALIZED");
   assert.match(error.error.message, /already initialized/);
@@ -121,7 +128,7 @@ test("HTTP init rejects unsupported protocol before project opening", async () =
       method: "POST", headers: { ...authHeaders({ "x-climier-protocol-version": "2" }), "content-type": "application/json" }, body: "{}",
     });
     assert.equal(response.status, 426);
-    assert.equal((await response.json()).error.code, "PROTOCOL_VERSION_UNSUPPORTED");
+    assert.equal((await errorBody(response)).error.code, "PROTOCOL_VERSION_UNSUPPORTED");
     assert.equal(openCount(), 0);
   });
 });
@@ -130,7 +137,7 @@ test("HTTP v1 authenticates before storage access and isolates projects", async 
   await withApi(async ({ baseUrl, openCount }) => {
     const unauthorized = await fetch(`${baseUrl}/v1/projects/project-a/read/status`, { headers: { "x-climier-protocol-version": "1" } });
     assert.equal(unauthorized.status, 401);
-    assert.equal((await unauthorized.json()).error.code, "AUTH_REQUIRED");
+    assert.equal((await errorBody(unauthorized)).error.code, "AUTH_REQUIRED");
     assert.equal(openCount(), 0);
 
     const createA = await operation(baseUrl, "project-a", "initiative.create", { name: "only-a" });
@@ -138,8 +145,8 @@ test("HTTP v1 authenticates before storage access and isolates projects", async 
 
     const statusA = await fetch(`${baseUrl}/v1/projects/project-a/read/status`, { headers: authHeaders() });
     const statusB = await fetch(`${baseUrl}/v1/projects/project-b/read/status`, { headers: authHeaders() });
-    assert.deepEqual((await statusA.json()).result.tasks.ready, []);
-    assert.deepEqual((await statusB.json()).result.tasks.ready, []);
+    assert.deepEqual((await statusA.json() as { result: { tasks: { ready: unknown[] } } }).result.tasks.ready, []);
+    assert.deepEqual((await statusB.json() as { result: { tasks: { ready: unknown[] } } }).result.tasks.ready, []);
   });
 });
 
@@ -152,7 +159,7 @@ async function assertMalformedRequestRejected(baseUrl, openCount, request) {
   });
   assert.equal(response.status, request.status, request.label);
   assert.equal(response.headers.get("x-climier-protocol-version"), PROTOCOL_VERSION, request.label);
-  const error = await response.json();
+  const error = await errorBody(response);
   assert.equal(error.ok, false, request.label);
   assert.equal(error.error.code, request.code, request.label);
   assert.equal(openCount(), openedBefore, `${request.label} must reject before opening a project`);
@@ -168,7 +175,7 @@ async function assertUnauthorizedOperationRequests(baseUrl, openCount, validOper
     });
     assert.equal(response.status, 401);
     assert.equal(response.headers.get("x-climier-protocol-version"), PROTOCOL_VERSION);
-    assert.equal((await response.json()).error.code, code);
+    assert.equal((await errorBody(response)).error.code, code);
     assert.equal(openCount(), 0, `${code} must reject before opening a project`);
   }
 }
@@ -213,19 +220,19 @@ test("HTTP transfer routes authenticate and reject unsupported protocol before p
     const unauthenticated = await fetch(exportUrl, { headers: { "x-climier-protocol-version": PROTOCOL_VERSION } });
     assert.equal(unauthenticated.status, 401);
     assert.equal(unauthenticated.headers.get("x-climier-protocol-version"), PROTOCOL_VERSION);
-    assert.equal((await unauthenticated.json()).error.code, "AUTH_REQUIRED");
+    assert.equal((await errorBody(unauthenticated)).error.code, "AUTH_REQUIRED");
     assert.equal(openCount(), 0);
 
     const invalidBearer = await fetch(exportUrl, { headers: authHeaders({ authorization: "Bearer wrong" }) });
     assert.equal(invalidBearer.status, 401);
     assert.equal(invalidBearer.headers.get("x-climier-protocol-version"), PROTOCOL_VERSION);
-    assert.equal((await invalidBearer.json()).error.code, "AUTH_INVALID");
+    assert.equal((await errorBody(invalidBearer)).error.code, "AUTH_INVALID");
     assert.equal(openCount(), 0);
 
     const wrongProtocol = await fetch(exportUrl, { headers: authHeaders({ "x-climier-protocol-version": "2" }) });
     assert.equal(wrongProtocol.status, 426);
     assert.equal(wrongProtocol.headers.get("x-climier-protocol-version"), PROTOCOL_VERSION);
-    assert.equal((await wrongProtocol.json()).error.code, "PROTOCOL_VERSION_UNSUPPORTED");
+    assert.equal((await errorBody(wrongProtocol)).error.code, "PROTOCOL_VERSION_UNSUPPORTED");
     assert.equal(openCount(), 0);
 
     const validPayload = { version: 1, nodes: {}, edges: [], initiatives: {}, log: [] };
@@ -235,7 +242,7 @@ test("HTTP transfer routes authenticate and reject unsupported protocol before p
       body: JSON.stringify({ payload: validPayload, actor: "alice" }),
     });
     assert.equal(unauthorizedImport.status, 401);
-    assert.equal((await unauthorizedImport.json()).error.code, "AUTH_REQUIRED");
+    assert.equal((await errorBody(unauthorizedImport)).error.code, "AUTH_REQUIRED");
     assert.equal(openCount(), 0);
   });
 });
@@ -244,7 +251,7 @@ test("HTTP transfer requires an existing catalog project and never provisions on
   await withInitApi(async ({ baseUrl, dataRoot, openCount }) => {
     const response = await fetch(`${baseUrl}/v1/projects/not-provisioned/transfer/export`, { headers: authHeaders() });
     assert.equal(response.status, 404);
-    assert.equal((await response.json()).error.code, "UNKNOWN_PROJECT");
+    assert.equal((await errorBody(response)).error.code, "UNKNOWN_PROJECT");
     assert.equal(openCount(), 0);
     await assert.rejects(fs.access(dataRoot));
   });

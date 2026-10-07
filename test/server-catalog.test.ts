@@ -16,8 +16,21 @@ async function makeRoot(t) {
 
 const authStore = Object.freeze({ async verifyBearer(token) { return token === "token-a"; } });
 
-function withProject({ authorization = "Bearer token-a", projectId = "alpha", catalog, openProject, provision = false }) {
-  return withAuthorizedProject({ authorization, projectId, authStore, catalog, openProject, provision });
+function withProject({ authorization = "Bearer token-a", projectId = "alpha", catalog, openProject, provision = false }: {
+  authorization?: string | null;
+  projectId?: string;
+  catalog: ReturnType<typeof createProjectCatalog>;
+  openProject: (projectDir: string, metadata?: { projectId?: string }) => Promise<{ projectDir: string; [key: string]: unknown } | void>;
+  provision?: boolean;
+}) {
+  return withAuthorizedProject({
+    authorization,
+    projectId,
+    authStore,
+    catalog,
+    openProject: openProject as (projectDir: string, metadata?: { projectId?: string }) => Promise<{ projectDir: string; [key: string]: unknown }>,
+    provision,
+  });
 }
 
 test("catalog confines generated storage and keeps distinct project IDs isolated", async (t) => {

@@ -60,9 +60,11 @@ test("shared status and context views project parity fixture at one fixed epoch 
   const now = Date.parse("2025-01-04T00:00:00.000Z");
   const status = projectStatusView({ snapshot: readModelParity.snapshot, filters: { "stale-ms": 0 }, now });
   const context = projectContextView({ snapshot: readModelParity.snapshot, id: "T-progress", agent: "alice", staleMs: 0, now });
+  assert.ok(context);
 
   assert.deepEqual(status.summary, { ready: 3, in_progress: 1, submitted: 1, blocked: 1, backlog: 1, open_gates: 1, active_knowledge: 3 });
   assert.equal(status.alerts[0].age_ms, now - Date.parse("2000-01-01T00:00:00.000Z"));
+  assert.ok(context.claim);
   assert.equal(context.claim.stale, true);
   assert.equal(context.alerts[0].kind, "STALE_CLAIM");
   assert.deepEqual(context.allowed_actions, ["submit", "release", "add-note", "update"]);
@@ -79,7 +81,9 @@ test("shared read views require a sampled epoch-ms value and preserve neutral mi
   Date.now = () => { throw new Error("projection must not sample its own clock"); };
   try {
     assert.equal(projectStatusView({ snapshot, now }).summary.ready, 2);
-    assert.equal(projectContextView({ snapshot, id: "task", now }).claim, null);
+    const taskContext = projectContextView({ snapshot, id: "task", now });
+    assert.ok(taskContext);
+    assert.equal(taskContext.claim, null);
   } finally {
     Date.now = originalNow;
   }

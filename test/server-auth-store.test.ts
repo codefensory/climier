@@ -13,11 +13,15 @@ async function readAuthFile(stateHome) {
   return JSON.parse(await fs.readFile(path.join(stateHome, "remote-auth.json"), "utf8"));
 }
 
+function errorCode(error: unknown) {
+  return error && typeof error === "object" && "code" in error ? error.code : undefined;
+}
+
 test("auth store requires a configured password", async () => {
   const stateHome = await tempStateHome();
   await assert.rejects(
     () => createServerAuthStore({ stateHome, password: "" }),
-    (error) => error.code === "SERVER_PASSWORD_REQUIRED",
+    (error) => errorCode(error) === "SERVER_PASSWORD_REQUIRED",
   );
 });
 
@@ -27,7 +31,7 @@ test("login rejects incorrect passwords and stores only token hashes", async () 
 
   await assert.rejects(
     () => auth.login("wrong"),
-    (error) => error.code === "AUTH_INVALID_PASSWORD",
+    (error) => errorCode(error) === "AUTH_INVALID_PASSWORD",
   );
 
   const token = await auth.login("correct horse battery staple");
@@ -73,7 +77,7 @@ test("password rotation persists a new verifier and revokes all sessions", async
 
   const rotated = await createServerAuthStore({ stateHome, password: "new" });
   assert.equal(await rotated.verifyBearer(token), false);
-  await assert.rejects(() => rotated.login("old"), (error) => error.code === "AUTH_INVALID_PASSWORD");
+  await assert.rejects(() => rotated.login("old"), (error) => errorCode(error) === "AUTH_INVALID_PASSWORD");
   const replacement = await rotated.login("new");
   assert.equal(await rotated.verifyBearer(replacement), true);
   assert.equal((await readAuthFile(stateHome)).sessions.length, 1);
@@ -102,7 +106,7 @@ test("crash before rename leaves the previous auth file usable and new token inv
     password: "pw",
     testHooks: { beforeRename() { throw Object.assign(new Error("simulated crash"), { code: "SIMULATED_CRASH" }); } },
   });
-  await assert.rejects(() => crashing.login("pw"), (error) => error.code === "SIMULATED_CRASH");
+  await assert.rejects(() => crashing.login("pw"), (error) => errorCode(error) === "SIMULATED_CRASH");
 
   const restarted = await createServerAuthStore({ stateHome, password: "pw" });
   assert.equal(await restarted.verifyBearer(oldToken), true);
@@ -116,6 +120,6 @@ test("corrupt auth file fails closed", async () => {
 
   await assert.rejects(
     () => createServerAuthStore({ stateHome, password: "pw" }),
-    (error) => error.code === "AUTH_STORE_CORRUPT",
+    (error) => errorCode(error) === "AUTH_STORE_CORRUPT",
   );
 });
