@@ -19,7 +19,7 @@
   },
   "main": "bin/climier.ts",
   "scripts": {
-    "test": "bun test/run-core-tests.mjs",
+    "test": "bun test/run-core-tests.ts",
     "typecheck": "bunx tsc -p tsconfig.json",
     "build:binary": "bun scripts/build-binary.ts",
     "test:watch": "bun test --watch test/",

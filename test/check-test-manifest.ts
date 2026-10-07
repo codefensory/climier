@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { collectTestNames } from "./test-manifest-collector.mjs";
-import { findRawWriterFiles } from "./test-manifest-lanes.mjs";
-import { rawLaneDeclarations } from "./test-manifest-declarations.mjs";
-import { validateManifest } from "./test-manifest-checker.mjs";
+import { collectTestNames } from "./test-manifest-collector.ts";
+import { findRawWriterFiles } from "./test-manifest-lanes.ts";
+import { rawLaneDeclarations } from "./test-manifest-declarations.ts";
+import { validateManifest } from "./test-manifest-checker.ts";
 
 const testDir = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(testDir, "..");

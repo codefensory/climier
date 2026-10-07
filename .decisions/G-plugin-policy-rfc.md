@@ -253,7 +253,7 @@ Descriptor:
 }
 ```
 
-El harness agrega un helper `installPolicyFixture()` en `test/helpers.mjs` que copia o instala el fixture bajo el `CLIMIER_HOME` temporal usado por la suite. Un helper `enablePolicyFixture(projectDir)` agrega:
+El harness agrega un helper `installPolicyFixture()` en `test/helpers.ts` que copia o instala el fixture bajo el `CLIMIER_HOME` temporal usado por la suite. Un helper `enablePolicyFixture(projectDir)` agrega:
 
 ```json
 {

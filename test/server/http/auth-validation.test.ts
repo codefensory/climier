@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import { PROTOCOL_VERSION } from "../../../src/server/http.ts";
-import { authHeaders, operation, withApi, withInitApi } from "./fixtures.mjs";
+import { authHeaders, operation, withApi, withInitApi } from "./fixtures.ts";
 
 type ErrorBody = { ok: false; error: { code: string; message: string; details?: Record<string, unknown> } };
 type CanonicalState = { version: number; nodes: Record<string, unknown>; edges: unknown[]; initiatives: Record<string, unknown>; log: unknown[] };

@@ -7,7 +7,7 @@
 
 Un validador ejecutó un smoke que copió `.climier.json` hacia un proyecto temporal. Ese archivo conserva el `project_id`, por lo que el proceso apuntó al mismo `CLIMIER_HOME` real. Al ejecutar `climier init --force`, `src/commands/init.mjs` reemplazó el estado activo con `emptyState()` sin snapshot previo. Se perdió el grafo y el historial local de coordinación.
 
-El aislamiento de `test/helpers.mjs` solo cubre el runner de tests: no protege comandos de smoke ejecutados manualmente por workers o validadores. El modelo actual requiere que los worktrees compartan el mismo `project_id`; no se debe romper esa propiedad para resolver el problema.
+El aislamiento de `test/helpers.ts` solo cubre el runner de tests: no protege comandos de smoke ejecutados manualmente por workers o validadores. El modelo actual requiere que los worktrees compartan el mismo `project_id`; no se debe romper esa propiedad para resolver el problema.
 
 ## Propuesta
 

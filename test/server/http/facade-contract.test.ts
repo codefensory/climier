@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import * as httpServer from "../../../src/server/http.ts";
 const { createRemoteApiServer, PROTOCOL_VERSION } = httpServer;
 import { createHttpCodec } from "../../../src/server/http/codec.ts";
-import { authHeaders, operation, withApi, withInitApi } from "./fixtures.mjs";
+import { authHeaders, operation, withApi, withInitApi } from "./fixtures.ts";
 
 async function errorCode(response: Response): Promise<string> {
   return (await response.json() as { error: { code: string } }).error.code;

@@ -9,7 +9,7 @@ import { createRemoteApiServer } from "../../../src/server/http.ts";
 import { dispatchOperationRequest, validateOperationRequest } from "../../../src/server/http/operations.ts";
 import { remoteV1Manifest } from "../../../src/application/operations/remote-v1-manifest.ts";
 import { bootstrapFencedState } from "../../../src/storage/ledger.ts";
-import { authHeaders, operation, testAuthStore, withApi } from "./fixtures.mjs";
+import { authHeaders, operation, testAuthStore, withApi } from "./fixtures.ts";
 
 type TestState = {
   revision: number;

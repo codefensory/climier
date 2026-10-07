@@ -60,7 +60,7 @@ La lista final y sus paths exclusivos se concretan en ADRs/tasks tras revisar la
 
 ### Descubrimiento y ejecución de tests
 
-El runner core (`test/run-core-tests.mjs`) recorre directorios recursivamente y excluye por prefijo los archivos cuyo nombre empieza por `ui-`. En cambio, `npm run test:ui` usa el patrón superior `test/ui-*.test.mjs`. Si una decisión mueve UI o core a carpetas, los patrones deben adaptarse expresamente y probarse contra el inventario; no se acepta confiar en un glob que silenciosamente no descubra archivos. Añadir una comprobación automatizada de que los conjuntos core/UI cubren cada `*.test.mjs` exactamente una vez (unión completa e intersección vacía). Los cambios limitados a UI conservan `npm run test:ui` y el build cuando aplique; los cambios core ejecutan suites focales y luego `npm test` cuando el blast radius lo requiera. `npm test` por sí solo no verifica la suite UI.
+El runner core (`test/run-core-tests.ts`) recorre directorios recursivamente y excluye por prefijo los archivos cuyo nombre empieza por `ui-`. En cambio, `npm run test:ui` usa el patrón superior `test/ui-*.test.mjs`. Si una decisión mueve UI o core a carpetas, los patrones deben adaptarse expresamente y probarse contra el inventario; no se acepta confiar en un glob que silenciosamente no descubra archivos. Añadir una comprobación automatizada de que los conjuntos core/UI cubren cada `*.test.mjs` exactamente una vez (unión completa e intersección vacía). Los cambios limitados a UI conservan `npm run test:ui` y el build cuando aplique; los cambios core ejecutan suites focales y luego `npm test` cuando el blast radius lo requiera. `npm test` por sí solo no verifica la suite UI.
 
 ### Oxlint en cada tarea
 

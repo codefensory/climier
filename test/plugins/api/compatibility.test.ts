@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { createTempProject, rmTempProject, importFresh, readState as readRawState, installPolicyFixture, uninstallPolicyFixture, stateFilePath } from "../../helpers.ts";
-import { seedState, freshApi, readyProject } from "./fixtures.mjs";
+import { seedState, freshApi, readyProject } from "./fixtures.ts";
 
 type TestErrorDetails = {
   [key: string]: unknown;

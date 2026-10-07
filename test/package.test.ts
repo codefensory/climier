@@ -22,7 +22,7 @@ function readPackage(): PackageJson {
 
 test("package: bun test uses the bounded core runner", () => {
   const pkg = readPackage();
-  assert.equal(pkg.scripts.test, "bun test/run-core-tests.mjs");
+  assert.equal(pkg.scripts.test, "bun test/run-core-tests.ts");
   assert.equal(pkg.version, "2.0.0");
   assert.deepEqual(pkg.engines, { bun: ">=1.4" });
   assert.equal(existsSync(path.join(repoRoot, "package-lock.json")), false);

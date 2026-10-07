@@ -3,10 +3,10 @@ import test from "node:test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { validateManifest } from "./test-manifest-checker.mjs";
-import { collectTestNames, parseJunitTestNames, parseTapTestNames } from "./test-manifest-collector.mjs";
-import { findRawWriterFiles } from "./test-manifest-lanes.mjs";
-import { buildManifestRows } from "./test-manifest-rows.mjs";
+import { validateManifest } from "./test-manifest-checker.ts";
+import { collectTestNames, parseJunitTestNames, parseTapTestNames } from "./test-manifest-collector.ts";
+import { findRawWriterFiles } from "./test-manifest-lanes.ts";
+import { buildManifestRows } from "./test-manifest-rows.ts";
 
 const SHA = "a".repeat(40);
 

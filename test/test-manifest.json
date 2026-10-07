@@ -1,7 +1,7 @@
 {
   "version": 1,
   "base_sha": "518af2c618d4daf1cc8839daac2242404c09d863",
-  "regeneration": "bun test/generate-test-manifest.mjs (runs each test file with Bun's JUnit reporter); final regeneration owner: T-v1-release-candidate",
+  "regeneration": "bun test/generate-test-manifest.ts (runs each test file with Bun's JUnit reporter); final regeneration owner: T-v1-release-candidate",
   "tests": [
     {
       "path": "test/add-note.test.mjs",
@@ -5759,21 +5759,21 @@
     },
     {
       "path": "test/helpers-safety.test.mjs",
-      "name": "helpers.mjs allows CLIMIER_HOME when it points at a temp dir",
+      "name": "helpers.ts allows CLIMIER_HOME when it points at a temp dir",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/helpers-safety.test.mjs"
     },
     {
       "path": "test/helpers-safety.test.mjs",
-      "name": "helpers.mjs auto-creates a temp CLIMIER_HOME when none is set",
+      "name": "helpers.ts auto-creates a temp CLIMIER_HOME when none is set",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/helpers-safety.test.mjs"
     },
     {
       "path": "test/helpers-safety.test.mjs",
-      "name": "helpers.mjs cleans up auto-created CLIMIER_HOME on exit",
+      "name": "helpers.ts cleans up auto-created CLIMIER_HOME on exit",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/helpers-safety.test.mjs"
@@ -5787,21 +5787,21 @@
     },
     {
       "path": "test/helpers-safety.test.ts",
-      "name": "helpers.mjs allows CLIMIER_HOME when it points at a temp dir",
+      "name": "helpers.ts allows CLIMIER_HOME when it points at a temp dir",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/helpers-safety.test.mjs"
     },
     {
       "path": "test/helpers-safety.test.ts",
-      "name": "helpers.mjs auto-creates a temp CLIMIER_HOME when none is set",
+      "name": "helpers.ts auto-creates a temp CLIMIER_HOME when none is set",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/helpers-safety.test.mjs"
     },
     {
       "path": "test/helpers-safety.test.ts",
-      "name": "helpers.mjs cleans up auto-created CLIMIER_HOME on exit",
+      "name": "helpers.ts cleans up auto-created CLIMIER_HOME on exit",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/helpers-safety.test.mjs"

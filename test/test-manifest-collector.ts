@@ -4,11 +4,15 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 
 const isBun = Boolean(process.versions.bun);
+type TestRow = { path: string; name: string };
+type PendingResult = { name: string; type?: "test" | "suite" };
+type HierarchyItem = { indent: number; name: string };
+type CollectOptions = { rootDir: string; testDir: string; timeoutMs?: number };
 
-export function parseTapTestNames(tap, filePath) {
-  const rows = [];
-  const hierarchy = [];
-  let pendingResult;
+export function parseTapTestNames(tap: string, filePath: string): TestRow[] {
+  const rows: TestRow[] = [];
+  const hierarchy: HierarchyItem[] = [];
+  let pendingResult: PendingResult | undefined;
 
   function finishResult() {
     if (pendingResult && pendingResult.type !== "suite") {
@@ -22,10 +26,9 @@ export function parseTapTestNames(tap, filePath) {
     if (result) {
       finishResult();
       const indent = result[1].length;
-      while (hierarchy.length && hierarchy.at(-1).indent >= indent) hierarchy.pop();
+      while (hierarchy.length && hierarchy[hierarchy.length - 1]!.indent >= indent) hierarchy.pop();
       pendingResult = {
         name: [...hierarchy.map((item) => item.name), result[2]].join(" > "),
-        type: undefined,
       };
       continue;
     }
@@ -33,14 +36,14 @@ export function parseTapTestNames(tap, filePath) {
     const subtest = line.match(/^(\s*)# Subtest:\s*(.*)$/);
     if (subtest) {
       const indent = subtest[1].length;
-      while (hierarchy.length && hierarchy.at(-1).indent >= indent) hierarchy.pop();
+      while (hierarchy.length && hierarchy[hierarchy.length - 1]!.indent >= indent) hierarchy.pop();
       hierarchy.push({ indent, name: subtest[2] });
       continue;
     }
 
     if (pendingResult) {
       const type = line.match(/^\s+type:\s*['"]?(test|suite)['"]?\s*$/);
-      if (type) pendingResult.type = type[1];
+      if (type && (type[1] === "test" || type[1] === "suite")) pendingResult.type = type[1];
     }
   }
   finishResult();
@@ -56,8 +59,8 @@ function decodeXml(value) {
     .replace(/&amp;/g, "&");
 }
 
-export function parseJunitTestNames(xml, filePath) {
-  const rows = [];
+export function parseJunitTestNames(xml: string, filePath: string): TestRow[] {
+  const rows: TestRow[] = [];
   for (const match of xml.matchAll(/<testcase\b(?:[^>\"]|\"[^\"]*\")*>/g)) {
     const name = match[0].match(/\bname=\"([^\"]*)\"/)?.[1];
     if (name) rows.push({ path: filePath, name: decodeXml(name) });
@@ -65,9 +68,9 @@ export function parseJunitTestNames(xml, filePath) {
   return rows;
 }
 
-export async function collectTestNames({ rootDir, testDir, timeoutMs = 180_000 } = {}) {
+export async function collectTestNames({ rootDir, testDir, timeoutMs = 180_000 }: CollectOptions): Promise<TestRow[]> {
   const files = await findTestFiles(testDir);
-  const rowsByFile = new Map();
+  const rowsByFile = new Map<string, TestRow[]>();
   let nextFile = 0;
   const workers = Array.from({ length: Math.min(8, files.length) }, async () => {
     while (nextFile < files.length) {
@@ -80,13 +83,13 @@ export async function collectTestNames({ rootDir, testDir, timeoutMs = 180_000 }
     }
   });
   await Promise.all(workers);
-  return files.flatMap((file) => rowsByFile.get(path.relative(rootDir, file).split(path.sep).join("/")));
+  return files.flatMap((file) => rowsByFile.get(path.relative(rootDir, file).split(path.sep).join("/")) ?? []);
 }
 
-async function findTestFiles(directory) {
+async function findTestFiles(directory: string): Promise<string[]> {
   const { readdir } = await import("node:fs/promises");
   const entries = await readdir(directory, { withFileTypes: true });
-  const files = [];
+  const files: string[] = [];
   for (const entry of entries) {
     const entryPath = path.join(directory, entry.name);
     if (entry.isDirectory()) files.push(...await findTestFiles(entryPath));
@@ -97,7 +100,7 @@ async function findTestFiles(directory) {
   return files.toSorted();
 }
 
-async function runTap(file, timeoutMs) {
+async function runTap(file: string, timeoutMs: number): Promise<string> {
   const reportDir = isBun ? await mkdtemp(path.join(os.tmpdir(), "climier-manifest-")) : null;
   const reportPath = reportDir ? path.join(reportDir, "report.xml") : null;
   const args = isBun
@@ -119,8 +122,8 @@ async function runTap(file, timeoutMs) {
       killTimer.unref();
     }, timeoutMs);
     timer.unref();
-    child.stdout.setEncoding("utf8").on("data", (chunk) => { stdout += chunk; });
-    child.stderr.setEncoding("utf8").on("data", (chunk) => { stderr += chunk; });
+    child.stdout?.setEncoding("utf8").on("data", (chunk) => { stdout += chunk; });
+    child.stderr?.setEncoding("utf8").on("data", (chunk) => { stderr += chunk; });
     child.once("error", async (error) => {
       clearTimeout(timer);
       clearTimeout(killTimer);

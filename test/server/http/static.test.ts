@@ -7,7 +7,7 @@ import test from "node:test";
 
 import { createProjectCatalog } from "../../../src/server/catalog/index.ts";
 import { createRemoteApiServer, PROTOCOL_VERSION } from "../../../src/server/http.ts";
-import { testAuthStore } from "./fixtures.mjs";
+import { testAuthStore } from "./fixtures.ts";
 
 async function makeRoot(t) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "climier-server-static-"));

@@ -41,11 +41,14 @@ const durationTable = await loadDurationTable(path.join(testDir, "test-durations
 // Partition with the regenerable duration table; without it (or for files it
 // does not know) the plan falls back to a size estimate.
 const shards = isolation === "none"
-  ? await partitionShards(files, workerCount, { table: durationTable })
+  ? await partitionShards(files, workerCount, { table: durationTable ?? undefined })
   : [files];
 const single = shards.length === 1;
 
-function spawnRunner(shardFiles, { inheritsOutput, label }) {
+function spawnRunner(
+  shardFiles: string[],
+  { inheritsOutput, label }: { inheritsOutput: boolean; label: string },
+): { child: ReturnType<typeof spawn>; completion: Promise<number> } {
   // In-process isolation shares process.env and cwd between test files. Keep
   // each shard's files sequential; the outer runner already parallelizes
   // independent shards.
@@ -66,9 +69,9 @@ function spawnRunner(shardFiles, { inheritsOutput, label }) {
     }) };
   }
   let output = "";
-  child.stdout.on("data", (chunk) => { output += chunk.toString(); });
-  child.stderr.on("data", (chunk) => { output += chunk.toString(); });
-  const completion = new Promise((resolve) => {
+  child.stdout?.on("data", (chunk) => { output += chunk.toString(); });
+  child.stderr?.on("data", (chunk) => { output += chunk.toString(); });
+  const completion = new Promise<number>((resolve) => {
     child.once("error", (error) => {
       output += `core test runner: ${error.message}\n`;
       resolve(1);
@@ -81,7 +84,7 @@ function spawnRunner(shardFiles, { inheritsOutput, label }) {
   return { child, completion };
 }
 
-const running = [];
+const running: Array<{ child: ReturnType<typeof spawn>; completion: Promise<number> }> = [];
 for (let index = 0; index < shards.length; index++) {
   running.push(spawnRunner(shards[index], {
     inheritsOutput: single,

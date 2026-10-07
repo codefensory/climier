@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { createTempProject, rmTempProject, importFresh, writeFencedState, readState as readRawState, stateFilePath } from "../../helpers.ts";
-import { baseState, seedState, freshApi } from "./fixtures.mjs";
+import { baseState, seedState, freshApi } from "./fixtures.ts";
 
 type TestError = { code?: string; details: Record<string, unknown>; message?: string };
 

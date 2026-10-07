@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { expectThrows, importTaskProvider, makeInputCancel, makeInputRelease, makeInputReopen, makeInputTake, makeSnapshot, makeTxStub } from "./task-fixtures.mjs";
+import { expectThrows, importTaskProvider, makeInputCancel, makeInputRelease, makeInputReopen, makeInputTake, makeSnapshot, makeTxStub } from "./task-fixtures.ts";
 
 test("providers do not import filesystem, lock, state, log, policy, commands, registry, adapters, CLI or UI", async () => {
   // Smoke: import the provider modules in isolation and confirm they

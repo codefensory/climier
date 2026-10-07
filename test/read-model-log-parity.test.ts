@@ -10,7 +10,7 @@ import { createServerAuthStore } from "../src/server/auth/server-auth-store.ts";
 import { createProjectCatalog } from "../src/server/catalog/index.ts";
 import { initState } from "../src/kernel/state-operations.ts";
 import { runCli, writeCanonicalState } from "./helpers.ts";
-import { readModelParity } from "./fixtures/read-model-parity.mjs";
+import { readModelParity } from "./fixtures/read-model-parity.ts";
 
 const log = [
   { ts: "2025-01-01T00:00:00.000Z", agent: "alice", action: "take", node: "T-two" },

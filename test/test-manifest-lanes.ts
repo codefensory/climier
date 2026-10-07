@@ -6,9 +6,9 @@ import path from "node:path";
 // wrappers several suites define around them.
 const RAW_WRITER_CALL = /(?:^|[^.\w])(?:writeState|updateState|bootstrapState)\s*\(/m;
 
-export async function findRawWriterFiles(directory, relativeTo = directory) {
+export async function findRawWriterFiles(directory: string, relativeTo = directory): Promise<string[]> {
   const entries = await readdir(directory, { withFileTypes: true });
-  const files = [];
+  const files: string[] = [];
   for (const entry of entries.toSorted((left, right) => left.name.localeCompare(right.name))) {
     const entryPath = path.join(directory, entry.name);
     if (entry.isDirectory()) {

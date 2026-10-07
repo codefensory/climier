@@ -1,10 +1,33 @@
 import assert from "node:assert/strict";
 
-function key({ path, name, ordinal }) {
+type ManifestRow = {
+  path: string;
+  name: string;
+  ordinal: number;
+  disposition: string;
+  move_from?: string;
+  category?: string;
+  reason?: string;
+  replacement?: string;
+  coverage_removed?: boolean;
+  lane?: string;
+  motive?: string;
+  [key: string]: unknown;
+};
+type RuntimeCase = { path: string; name: string };
+type Manifest = { version: number; base_sha: string; tests: ManifestRow[] };
+type RawLaneDeclaration = { category: string; motive: string; replacement?: string };
+type ValidationOptions = {
+  deleteAllowlist?: Array<Pick<ManifestRow, "path" | "name" | "ordinal"> | ManifestRow | string>;
+  rawWriterFiles?: string[];
+  rawLaneDeclarations?: Record<string, RawLaneDeclaration>;
+};
+
+function key({ path, name, ordinal }: Pick<ManifestRow, "path" | "name" | "ordinal">): string {
   return JSON.stringify([path, name, ordinal]);
 }
 
-function countByFileAndName(rows) {
+function countByFileAndName(rows: ManifestRow[]): Map<string, number> {
   const counts = new Map();
   for (const row of rows) {
     const item = JSON.stringify([row.path, row.name]);
@@ -13,7 +36,7 @@ function countByFileAndName(rows) {
   return counts;
 }
 
-function countByName(rows) {
+function countByName(rows: ManifestRow[]): Map<string, number> {
   const counts = new Map();
   for (const row of rows) {
     const identity = JSON.stringify([row.name, row.ordinal]);
@@ -22,7 +45,7 @@ function countByName(rows) {
   return counts;
 }
 
-function assertMoveNameMultisets(manifest) {
+function assertMoveNameMultisets(manifest: Manifest): void {
   const moves = new Map();
   for (const row of manifest.tests) {
     if (row.disposition !== "move") continue;
@@ -44,7 +67,11 @@ function assertMoveNameMultisets(manifest) {
   }
 }
 
-export function validateManifest(manifest, runtimeCases, { deleteAllowlist, rawWriterFiles, rawLaneDeclarations } = {}) {
+export function validateManifest(
+  manifest: Manifest,
+  runtimeCases: RuntimeCase[],
+  { deleteAllowlist, rawWriterFiles, rawLaneDeclarations }: ValidationOptions = {},
+): true {
   assert.equal(manifest?.version, 1, "manifest version must be 1");
   assert.match(manifest?.base_sha ?? "", /^[0-9a-f]{40}$/, "manifest base_sha must be a full commit SHA");
   assert.ok(Array.isArray(manifest.tests), "manifest tests must be an array");
@@ -99,7 +126,10 @@ export function validateManifest(manifest, runtimeCases, { deleteAllowlist, rawW
   return true;
 }
 
-function assertRawLane(manifest, { rawWriterFiles, rawLaneDeclarations }) {
+function assertRawLane(
+  manifest: Manifest,
+  { rawWriterFiles, rawLaneDeclarations }: Pick<ValidationOptions, "rawWriterFiles" | "rawLaneDeclarations">,
+): void {
   if (!rawWriterFiles && !rawLaneDeclarations) return;
   const files = rawWriterFiles ?? [];
   const declarations = rawLaneDeclarations ?? {};

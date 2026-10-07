@@ -5,7 +5,7 @@ import { test } from "node:test";
 
 import { ledgerFile } from "../../../src/storage/ledger.ts";
 import { createUiEvents } from "../../../src/server/http/ui-events.ts";
-import { authHeaders, withApi } from "./fixtures.mjs";
+import { authHeaders, withApi } from "./fixtures.ts";
 type ErrorBody = { error: { code: string } };
 async function errorCode(response: Response): Promise<string> {
   return (await response.json() as ErrorBody).error.code;

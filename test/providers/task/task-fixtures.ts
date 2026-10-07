@@ -2,6 +2,49 @@ import assert from "node:assert/strict";
 import { importFresh } from "../../helpers.ts";
 
 const ACTOR = "codex-worker";
+type JsonObject = Record<string, unknown>;
+type Patch = JsonObject & { status?: string; claim: { by: string; at: string } };
+type FixtureNode = JsonObject & { id: string };
+type FixtureEdge = { from: string; to: string; type: string };
+type FixtureSnapshot = {
+  version: number;
+  revision: number;
+  initiatives: Record<string, JsonObject>;
+  nodes: Record<string, FixtureNode>;
+  edges: FixtureEdge[];
+  log: JsonObject[];
+};
+type RequestOptions = {
+  action?: string;
+  input?: JsonObject;
+  actor?: string;
+  if_revision?: number;
+  if_revisions?: Record<string, number>;
+};
+type TxState = {
+  nodes: Record<string, FixtureNode>;
+  created: Array<{ id: string; node: FixtureNode }>;
+  updated: Array<{ id: string; node: FixtureNode }>;
+  addedEdges: FixtureEdge[];
+  removedEdges: FixtureEdge[];
+};
+type TxCalls = {
+  createNode: JsonObject[];
+  updateNode: Array<{ id: string; patch: Patch }>;
+  addEdge: FixtureEdge[];
+  removeEdge: FixtureEdge[];
+  view: number;
+};
+type TxStub = {
+  calls: TxCalls;
+  state: TxState;
+  getNode: (id: string) => FixtureNode | undefined;
+  createNode: (input: JsonObject & { id: string }) => FixtureNode;
+  updateNode: (id: string, patch: Patch) => FixtureNode;
+  addEdge: (edge: FixtureEdge) => FixtureEdge;
+  removeEdge: (edge: FixtureEdge) => FixtureEdge;
+  view: () => { nodes: Record<string, FixtureNode>; edges: FixtureEdge[] };
+};
 
 // importTaskProvider — returns the module namespace fresh per call.
 
@@ -21,12 +64,18 @@ export async function importTaskProvider() {
 
 // `log`. Tests construct literal snapshots so the provider's read-only
 // expectation is verified by reference equality on input.
-export function makeSnapshot({ nodes = {}, edges = [], initiatives = { foo: { desc: "x" } }, log = [] } = {}) {
-  return { version: 2, initiatives, nodes, edges, log };
+export function makeSnapshot({
+  nodes = {},
+  edges = [],
+  initiatives = { foo: { desc: "x" } },
+  log = [],
+  revision = 0,
+}: Partial<FixtureSnapshot> = {}): FixtureSnapshot {
+  return { version: 2, revision, initiatives, nodes, edges, log };
 }
 
-export function makeRequest({ action, input, actor = ACTOR, if_revision, if_revisions } = {}) {
-  const request = { action, actor, input };
+export function makeRequest({ action, input, actor = ACTOR, if_revision, if_revisions }: RequestOptions = {}): RequestOptions {
+  const request: RequestOptions = { action, actor, input };
   if (if_revision !== undefined) {
     request.if_revision = if_revision;
   }
@@ -57,7 +106,7 @@ export function makeInputUpdate(overrides = {}) {
   };
 }
 
-function cloneNodes(initialNodes) {
+function cloneNodes(initialNodes?: Record<string, FixtureNode>): Record<string, FixtureNode> {
   const nodes = {};
   if (initialNodes && typeof initialNodes === "object") {
     for (const [id, node] of Object.entries(initialNodes)) {
@@ -69,7 +118,7 @@ function cloneNodes(initialNodes) {
   return nodes;
 }
 
-function makeTxState({ existingNode, initialNodes }) {
+function makeTxState({ existingNode, initialNodes }: { existingNode?: FixtureNode; initialNodes?: Record<string, FixtureNode> } = {}): TxState {
   const nodes = cloneNodes(initialNodes);
   if (existingNode) {
     nodes[existingNode.id] = { ...existingNode };
@@ -78,7 +127,7 @@ function makeTxState({ existingNode, initialNodes }) {
   return { nodes, created: [], updated: [], addedEdges: [], removedEdges: [] };
 }
 
-function createNode(calls, state, input) {
+function createNode(calls: TxCalls, state: TxState, input: JsonObject & { id: string }): FixtureNode {
   calls.createNode.push(input);
   state.nodes[input.id] = { ...input };
   delete state.nodes[input.id].revision;
@@ -86,7 +135,7 @@ function createNode(calls, state, input) {
   return { ...state.nodes[input.id] };
 }
 
-function updateNode(calls, state, id, patch) {
+function updateNode(calls: TxCalls, state: TxState, id: string, patch: Patch): FixtureNode {
   calls.updateNode.push({ id, patch });
   const current = state.nodes[id];
   if (!current) {
@@ -105,7 +154,7 @@ function updateNode(calls, state, id, patch) {
   return { ...state.nodes[id] };
 }
 
-function requireEdgeNodes(state, edge) {
+function requireEdgeNodes(state: TxState, edge: FixtureEdge): { fromNode: FixtureNode; toNode: FixtureNode } {
   const fromNode = state.nodes[edge.from];
   const toNode = state.nodes[edge.to];
   if (!fromNode || !toNode) {
@@ -118,7 +167,7 @@ function requireEdgeNodes(state, edge) {
   return { fromNode, toNode };
 }
 
-function rejectSelfEdge(edge) {
+function rejectSelfEdge(edge: FixtureEdge): void {
   if (edge.from === edge.to) {
     const err = new Error(`txStub: edge ${edge.from} -> ${edge.to} is a self-edge`);
     err.code = "SELF_EDGE";
@@ -127,7 +176,7 @@ function rejectSelfEdge(edge) {
   }
 }
 
-function rejectInvalidBlocks({ fromNode, toNode, edge }) {
+function rejectInvalidBlocks({ fromNode, toNode, edge }: { fromNode: FixtureNode; toNode: FixtureNode; edge: FixtureEdge }): void {
   if (edge.type === "BLOCKS" && (fromNode.kind !== "resolvable" || toNode.kind !== "resolvable")) {
     const err = new Error("txStub: BLOCKS requires both ends to be resolvable");
     err.code = "INVALID_EDGE_KIND";
@@ -136,7 +185,7 @@ function rejectInvalidBlocks({ fromNode, toNode, edge }) {
   }
 }
 
-function rejectDuplicateEdge(state, edge) {
+function rejectDuplicateEdge(state: TxState, edge: FixtureEdge): void {
   const duplicate = state.addedEdges.some((item) => (
     item.from === edge.from && item.to === edge.to && item.type === edge.type
   ));
@@ -148,7 +197,7 @@ function rejectDuplicateEdge(state, edge) {
   }
 }
 
-function addEdge(calls, state, edge) {
+function addEdge(calls: TxCalls, state: TxState, edge: FixtureEdge): FixtureEdge {
   const nodes = requireEdgeNodes(state, edge);
   rejectSelfEdge(edge);
   rejectInvalidBlocks({ ...nodes, edge });
@@ -158,7 +207,7 @@ function addEdge(calls, state, edge) {
   return { ...edge };
 }
 
-function view(state) {
+function view(state: TxState): { nodes: Record<string, FixtureNode>; edges: FixtureEdge[] } {
   const nodes = {};
   for (const [id, node] of Object.entries(state.nodes)) {
     nodes[id] = { ...node };
@@ -169,8 +218,8 @@ function view(state) {
 
 // makeTxStub — captures transaction accessor calls. It mirrors the test
 // surface of src/kernel/transaction.ts without exposing provider internals.
-export function makeTxStub({ existingNode, initialNodes } = {}) {
-  const calls = { createNode: [], updateNode: [], addEdge: [], removeEdge: [], view: 0 };
+export function makeTxStub({ existingNode, initialNodes }: { existingNode?: FixtureNode; initialNodes?: Record<string, FixtureNode> } = {}): TxStub {
+  const calls: TxCalls = { createNode: [], updateNode: [], addEdge: [], removeEdge: [], view: 0 };
   const state = makeTxState({ existingNode, initialNodes });
   return {
     calls,
@@ -236,14 +285,21 @@ export function assertTaskUpdatePatchResult({ tx, out }) {
 // expectThrows — assert the async function throws, surfacing the
 
 // branch on `err.code === "..."`). Returns the caught error.
-export async function expectThrows(fn, code) {
+export async function expectThrows(
+  fn: () => unknown | Promise<unknown>,
+  code?: string,
+): Promise<Error & { code?: string; details?: unknown }> {
   try {
     await fn();
   } catch (err) {
     if (code !== undefined) {
-      assert.equal(err.code, code, `expected code ${code} got ${err.code}: ${err.message}`);
+      const details = err instanceof Error
+        ? { code: "code" in err && typeof err.code === "string" ? err.code : undefined, message: err.message }
+        : { code: undefined, message: String(err) };
+      assert.equal(details.code, code, `expected code ${code} got ${details.code}: ${details.message}`);
     }
-    return err;
+    if (err instanceof Error) return err as Error & { code?: string; details?: unknown };
+    return Object.assign(new Error(String(err)), { code: undefined as string | undefined });
   }
   assert.fail("expected throw, got success");
 }

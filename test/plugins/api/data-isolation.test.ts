@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, importFresh, readState as readRawState } from "../../helpers.ts";
-import { seedState, freshApi } from "./fixtures.mjs";
+import { seedState, freshApi } from "./fixtures.ts";
 
 type TestError = { code?: string; details: Record<string, unknown>; message?: string };
 

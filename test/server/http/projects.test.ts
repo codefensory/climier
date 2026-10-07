@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import test from "node:test";
 
-import { authHeaders, withApi, withInitApi } from "./fixtures.mjs";
+import { authHeaders, withApi, withInitApi } from "./fixtures.ts";
 
 type ProjectSummary = { project_id: string; name: string | null; revision: number; node_count: number; updated_at: string };
 type ProjectsBody = { projects: ProjectSummary[] };

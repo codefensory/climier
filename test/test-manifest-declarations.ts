@@ -15,11 +15,13 @@
 //                   string), not a call
 //
 
-const importerSource = (motive) => ({ category: "importer-source", motive, replacement: "no replacement until the importer lane retires" });
-const guard = (motive) => ({ category: "guard", motive, replacement: "keep while the guard is required" });
-const mentionOnly = (motive) => ({ category: "mention-only", motive, replacement: "none needed" });
+type RawLaneDeclaration = { category: string; motive: string; replacement: string };
 
-export const rawLaneDeclarations = {
+const importerSource = (motive: string): RawLaneDeclaration => ({ category: "importer-source", motive, replacement: "no replacement until the importer lane retires" });
+const guard = (motive: string): RawLaneDeclaration => ({ category: "guard", motive, replacement: "keep while the guard is required" });
+const mentionOnly = (motive: string): RawLaneDeclaration => ({ category: "mention-only", motive, replacement: "none needed" });
+
+export const rawLaneDeclarations: Record<string, RawLaneDeclaration> = {
   "test/kernel-mutate-initiative.test.ts": mentionOnly("names the writers in a test title and a comment; the fixture uses the ledger protocol"),
   "test/kernel/mutation/contract-guards.test.ts": mentionOnly("names the writers in a comment listing what the module exports"),
   "test/plugin-compat.test.ts": guard("`init --force on a state with corrupt JSON (cannot read) does not crash and writes emptyState()` seeds a raw v4 source with no ledger because a ledger changes recovery by rejecting the replacement candidate with CLIMIER_LEDGER_FINGERPRINT_MISMATCH"),

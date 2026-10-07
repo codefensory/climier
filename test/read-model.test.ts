@@ -11,7 +11,7 @@ import {
   projectContextView,
   projectStatus,
 } from "../src/read-model/index.ts";
-import { readModelParity } from "./fixtures/read-model-parity.mjs";
+import { readModelParity } from "./fixtures/read-model-parity.ts";
 
 const snapshot = {
   version: 2,

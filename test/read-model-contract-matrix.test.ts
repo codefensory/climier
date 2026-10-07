@@ -10,7 +10,7 @@ import { createProjectCatalog } from "../src/server/catalog/index.ts";
 import { initState } from "../src/kernel/state-operations.ts";
 import { writeCanonicalState } from "./helpers.ts";
 import { projectInitiativesView, projectSearchView } from "../src/read-model/index.ts";
-import { readModelParity } from "./fixtures/read-model-parity.mjs";
+import { readModelParity } from "./fixtures/read-model-parity.ts";
 
 const canonicalReadMatrix = [
   ...readModelParity.matrix,

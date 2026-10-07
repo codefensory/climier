@@ -2,7 +2,7 @@
 // same in-process shards the core runner uses. The runner partitions shards
 // with these weights, which tracks real cost far better than file size.
 //
-//   bun test/generate-test-durations.mjs
+//   bun test/generate-test-durations.ts
 //
 // Each file keeps the minimum across passes, so background load inflating a
 // pass does not poison its weight. Re-run after large test additions or
@@ -119,7 +119,7 @@ if (!isBun && !supportsInProcessIsolation()) {
         .toSorted(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
     );
     await writeFile(durationsPath, `${JSON.stringify({
-      regeneration: "bun test/generate-test-durations.mjs (min across duration-sharded JUnit passes)",
+      regeneration: "bun test/generate-test-durations.ts (min across duration-sharded JUnit passes)",
       files: relative,
     }, null, 2)}\n`);
     console.log(`test durations: recorded ${Object.keys(relative).length} files${missing.length > 0 ? ` (${missing.length} missing)` : ""}`);

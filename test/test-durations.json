@@ -1,5 +1,5 @@
 {
-  "regeneration": "bun test/generate-test-durations.mjs (min across duration-sharded JUnit passes)",
+  "regeneration": "bun test/generate-test-durations.ts (min across duration-sharded JUnit passes)",
   "files": {
     "test/add-note.test.ts": 23,
     "test/add-task-initiative-lookup.test.ts": 13,

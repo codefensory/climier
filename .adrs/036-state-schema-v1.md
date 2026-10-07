@@ -38,7 +38,7 @@ La fila 7 es transitoria y explica por qué el orden 3 no puede leerse como "tod
 - A favor: una sola forma en disco; el arranque deja de depender de una lane de migración; los guards dejan de ser numéricos y ambiguos; `init` pasa a ser atómico de verdad (estado y ledger juntos); desaparecen los literales de versión dispersos.
 - A favor: se borra código con superficie grande y sin dueño claro (`ledger/migration.mjs`, la sonda duplicada, dos exports inalcanzables).
 - En contra / deuda: el importador de ADR-037 es **prerequisito** para cualquier estado existente, incluidos los dos proyectos activos; `restore` y transfer cambian de camino y necesitan cobertura nueva; el número 1 pasa a designar el esquema canónico y el prehistórico, y eso se sostiene solo con detección estructural (si alguien vuelve a un guard numérico, se rompe en silencio).
-- En contra / deuda: los fixtures de test que hoy escriben estados crudos pierden su contrato y hay que redefinirlo (ADR-039), lo que hace que este ADR y el 039 se toquen en `test/helpers.mjs`.
+- En contra / deuda: los fixtures de test que hoy escriben estados crudos pierden su contrato y hay que redefinirlo (ADR-039), lo que hace que este ADR y el 039 se toquen en `test/helpers.ts`.
 
 ## Plan de implementación
 

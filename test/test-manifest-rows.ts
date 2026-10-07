@@ -1,3 +1,20 @@
+type ManifestRow = {
+  path: string;
+  name: string;
+  ordinal: number;
+  disposition: string;
+  move_from?: string;
+  lane?: string;
+  category?: string;
+  motive?: string;
+  replacement?: string;
+  reason?: string;
+  coverage_removed?: boolean;
+  [key: string]: unknown;
+};
+type RuntimeCase = { path: string; name: string };
+type RawLaneDeclaration = { category: string; motive: string; replacement?: string };
+
 /** Row merge for the versioned test manifest.
  *
 
@@ -9,7 +26,7 @@
  */
 
 /** Stable identity of a manifest row: path, name and ordinal. */
-function rowKey({ path, name, ordinal }) {
+function rowKey({ path, name, ordinal }: Pick<ManifestRow, "path" | "name" | "ordinal">): string {
   return JSON.stringify([path, name, ordinal]);
 }
 
@@ -22,10 +39,18 @@ function rowKey({ path, name, ordinal }) {
  * @param {Record<string, object>} [params.declarations] raw-lane annotations by path
  * @returns {object[]} sorted manifest rows, including the carried declarations
  */
-export function buildManifestRows({ rows, previous = [], declarations = {} }) {
-  const priorByKey = new Map(previous.map((row) => [rowKey(row), row]));
-  const ordinalByName = new Map();
-  const tests = rows.map(({ path: filePath, name }) => {
+export function buildManifestRows({
+  rows,
+  previous = [],
+  declarations = {},
+}: {
+  rows: RuntimeCase[];
+  previous?: ManifestRow[];
+  declarations?: Record<string, RawLaneDeclaration>;
+}): ManifestRow[] {
+  const priorByKey = new Map<string, ManifestRow>(previous.map((row) => [rowKey(row), row]));
+  const ordinalByName = new Map<string, number>();
+  const tests: ManifestRow[] = rows.map(({ path: filePath, name }) => {
     const base = JSON.stringify([filePath, name]);
     const ordinal = (ordinalByName.get(base) ?? 0) + 1;
     ordinalByName.set(base, ordinal);

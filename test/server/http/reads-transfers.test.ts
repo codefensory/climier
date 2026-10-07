@@ -6,7 +6,7 @@ import { createHttpCodec } from "../../../src/server/http/codec.ts";
 import { PROTOCOL_VERSION } from "../../../src/server/http.ts";
 import * as readModel from "../../../src/read-model/index.ts";
 import { readState, runCli, writeCanonicalState } from "../../helpers.ts";
-import { authHeaders, operation, withApi } from "./fixtures.mjs";
+import { authHeaders, operation, withApi } from "./fixtures.ts";
 
 type TestState = {
   revision: number;

@@ -12,7 +12,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { emptySnapshot, importProviders, knowledgeNode, taskNode } from "./provider-knowledge/fixtures.mjs";
+import { emptySnapshot, importProviders, knowledgeNode, taskNode } from "./provider-knowledge/fixtures.ts";
 
 // Pure imports (no fs) — re-imported per test for freshness.
 

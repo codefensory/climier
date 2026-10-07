@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { expectThrows, importTaskProvider, makeInputCreate, makeInputUpdate, makeRequest, makeSnapshot, makeTxStub, runTaskCreateApplyTest, assertTaskUpdatePatchResult } from "./task-fixtures.mjs";
+import { expectThrows, importTaskProvider, makeInputCreate, makeInputUpdate, makeRequest, makeSnapshot, makeTxStub, runTaskCreateApplyTest, assertTaskUpdatePatchResult } from "./task-fixtures.ts";
 
 test("task.create prepare: returns a frozen plan with target, policyAction and logAction", async () => {
   const { taskCreateProvider } = await importTaskProvider();

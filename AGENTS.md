@@ -66,7 +66,7 @@ src/
     commands/                           # One CLI adapter per command; parses flags and maps envelopes
   contracts/                           # Error contracts and compatibility-only public facades
  test/
-  helpers.mjs                          # createTempProject, rmTempProject, runCli/runCliSpawn, importFresh
+  helpers.ts                          # createTempProject, rmTempProject, runCli/runCliSpawn, importFresh
   *.test.ts                             # Tests, one per module/feature
 ```
 
@@ -273,7 +273,7 @@ Do not put domain rules or persistence in the CLI layer.
 - **Positional args for things, flags for options.** `climier take T1 --as alice` not `--id T1 --agent alice`.
 - **CSV in flag values.** `--tags "ts,sql"` not `--tag ts --tag sql`. Trim and filter empty strings.
 - **Pure projections live in `read-model/` and pure domain semantics live in `providers/`.** No I/O or side effects. Test them with literal snapshots, no temp dirs.
-- **Imperative wrappers in `storage/state.ts` and `storage/lock.ts`.** These touch the filesystem. They are tested via `helpers.mjs` (temp dirs).
+- **Imperative wrappers in `storage/state.ts` and `storage/lock.ts`.** These touch the filesystem. They are tested via `helpers.ts` (temp dirs).
 - **Adapters return data, not console.log.** `bin/climier.ts` is the only place that prints (except for errors).
 - **Comments declare constraints, not narration.** Remove line-by-line narration, provenance, task/ADR justification, commented-out code, decorative banners, and documentation mirrors. Keep only restrictions the code cannot express.
 
@@ -283,7 +283,7 @@ Do not put domain rules or persistence in the CLI layer.
 - For changes limited to `/ui`, the subproject's own checks are enough: `(cd ui && npm run build)` and any manual check you document. The root suite still applies to everything outside `/ui`.
 - `ui/server/` consumes CLI state and read-only helpers. If a change crosses that boundary or changes a shared CLI contract, run the relevant targeted CLI tests too; use `npm test` when the blast radius warrants it. The UI is experimental and carries no root test suite.
 - `npm run test:concurrent` runs the multi-agent race tests in isolation.
-- Each test uses a temp dir (see `helpers.mjs`) so tests don't interfere.
+- Each test uses a temp dir (see `helpers.ts`) so tests don't interfere.
 - `importFresh()` re-imports modules fresh between tests (defeats the module cache); use it when you need clean state.
 - For CLI end-to-end tests, use `runCli(args, { cwd, env })`. It runs the real
   dispatch pipeline **in-process** (capturing stdout/exit, applying and
@@ -297,9 +297,9 @@ Do not put domain rules or persistence in the CLI layer.
   paths inject their own command, and an operator-set `CLIMIER_NPM_CMD`
   always wins.
 - `npm test` partitions the suite into in-process shards
-  (`test/run-core-tests.mjs` + `test/core-test-plan.ts`) balanced by
+  (`test/run-core-tests.ts` + `test/core-test-plan.ts`) balanced by
   `test/test-durations.json`, a generated per-file timing table. Regenerate
-  it with `node test/generate-test-durations.mjs` after large test changes;
+  it with `node test/generate-test-durations.ts` after large test changes;
   files missing from the table fall back to a size estimate, so a stale
   table only degrades balance. Node < 22.8 (the CI matrix includes 20) runs
   one process-isolated runner; `CLIMIER_TEST_ISOLATION=process` forces that

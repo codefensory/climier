@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, importFresh, readState as readRawState } from "../../helpers.ts";
-import { freshApi, readyProject } from "./fixtures.mjs";
+import { freshApi, readyProject } from "./fixtures.ts";
 
 type TestErrorDetails = { [key: string]: unknown; code?: string; message?: string; op?: string; plugin_id?: string; cause?: TestError };
 type TestError = { code?: string; details: TestErrorDetails; message?: string };
