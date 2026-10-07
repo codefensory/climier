@@ -4,6 +4,9 @@ import assert from "node:assert/strict";
 import { rmTempProject, readState as readRawState, installPolicyFixture, uninstallPolicyFixture } from "../../helpers.mjs";
 import { freshApi, readyProject } from "./fixtures.mjs";
 
+type TestErrorDetails = { [key: string]: unknown; code?: string; message?: string; op?: string; plugin_id?: string; cause?: TestError };
+type TestError = { code?: string; details: TestErrorDetails; message?: string };
+
 function assertGateCreatedEnvelope(out, id) {
   assert.ok(out && typeof out === "object", "kernel returned the typed result envelope");
   assert.equal(typeof out.result, "object", "typed envelope carries result");
@@ -176,7 +179,7 @@ test("api.core.run: gate.create without --purpose is rejected with PLUGIN_CORE_A
           body: "b",
         },
       }),
-      (err) =>
+      (err: TestError) =>
         err &&
         err.code === "PLUGIN_CORE_ACTION_FAILED" &&
         err.details.op === "gate.create" &&
@@ -260,7 +263,7 @@ test("api.core.run: gate.resolve without --rationale is rejected with PLUGIN_COR
         op: "gate.resolve",
         input: { id: "G-parity-resolve-no-rationale", choice: "x" },
       }),
-      (err) =>
+      (err: TestError) =>
         err &&
         err.code === "PLUGIN_CORE_ACTION_FAILED" &&
         err.details.op === "gate.resolve" &&

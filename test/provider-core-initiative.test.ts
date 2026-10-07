@@ -24,16 +24,33 @@ import { importFresh } from "./helpers.mjs";
 
 const ACTOR = "codex-worker";
 
+type Initiative = { desc?: string; created_at?: string };
+type RequestInput = Record<string, unknown>;
+type CodedError = { code?: string; message?: string };
+
+function asCodedError(error: unknown): CodedError {
+  return error && typeof error === "object" ? error as CodedError : {};
+}
+
 async function importInitiativeProvider() {
   return importFresh("../src/providers/core/initiative.ts");
 }
 
-function makeSnapshot({ nodes = {}, edges = [], initiatives = {}, log = [] } = {}) {
+function makeSnapshot({ nodes = {}, edges = [], initiatives = {}, log = [] }: {
+  nodes?: Record<string, unknown>;
+  edges?: Array<{ from: string; to: string; type: string }>;
+  initiatives?: Record<string, Initiative>;
+  log?: unknown[];
+} = {}) {
   return { version: 2, initiatives, nodes, edges, log };
 }
 
-function makeRequest({ input, action = "initiative.create", actor = ACTOR } = {}) {
-  return { action, actor, input };
+function makeRequest({ input, action = "initiative.create", actor = ACTOR }: {
+  input?: unknown;
+  action?: string;
+  actor?: string;
+} = {}) {
+  return { action, actor, input: input as RequestInput };
 }
 
 const NAME_PATTERN = /^[A-Za-z0-9_-]+$/;
@@ -76,8 +93,8 @@ function assertInitiativeAvailable(draft, name) {
   }
 }
 
-function makeTxStub({ initiatives = {} } = {}) {
-  const draft = {};
+function makeTxStub({ initiatives = {} }: { initiatives?: Record<string, Initiative> } = {}) {
+  const draft: Record<string, Initiative> = {};
   for (const [name, init] of Object.entries(initiatives)) {
     draft[name] = { ...init };
   }
@@ -90,7 +107,7 @@ function makeTxStub({ initiatives = {} } = {}) {
       const name = initiativeName(input.name);
       assertInitiativeName(name);
       assertInitiativeAvailable(this.draft, name);
-      const stored = {};
+      const stored: Initiative = {};
       if (typeof input.desc === "string") {
         stored.desc = input.desc;
       }
@@ -110,9 +127,10 @@ function makeTxStub({ initiatives = {} } = {}) {
 async function expectCode(fn, code) {
   try {
     await fn();
-  } catch (err) {
-    assert.equal(err.code, code, `expected ${code} got ${err.code}: ${err.message}`);
-    return err;
+  } catch (err: unknown) {
+    const error = asCodedError(err);
+    assert.equal(error.code, code, `expected ${code} got ${error.code}: ${error.message}`);
+    return error;
   }
   assert.fail(`expected throw with code ${code}`);
 }

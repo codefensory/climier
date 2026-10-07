@@ -6,6 +6,8 @@ import path from "node:path";
 import { createTempProject, rmTempProject, importFresh, writeFencedState, readState as readRawState, stateFilePath } from "../../helpers.mjs";
 import { baseState, seedState, freshApi } from "./fixtures.mjs";
 
+type TestError = { code?: string; details: Record<string, unknown>; message?: string };
+
 test("createApi: public api.version and api.core.version are 1", async () => {
   const dir = await createTempProject();
   try {
@@ -160,11 +162,11 @@ test("createApi: rejects traversal plugin ids before creating a runtime data dir
     const { createApi } = await importFresh("./plugins/api.ts");
     await assert.rejects(
       async () => createApi({ projectDir: dir, agent: "alice", pluginId: "../escape" }),
-      (err) => err && err.code === "PLUGIN_INVALID_DESCRIPTOR",
+      (err: TestError) => err && err.code === "PLUGIN_INVALID_DESCRIPTOR",
     );
     await assert.rejects(
       fs.access(path.join(path.dirname(stateFilePath(dir)), "escape")),
-      (err) => err && err.code === "ENOENT",
+      (err: TestError) => err && err.code === "ENOENT",
     );
   } finally {
     await rmTempProject(dir);

@@ -9,7 +9,7 @@ test("storage: init uses the global state path", async () => {
   const dir = await createTempProject();
   try {
     await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
-    assert.equal(stateFilePath(dir).startsWith(path.join(process.env.CLIMIER_HOME, "projects")), true);
+    assert.equal(stateFilePath(dir).startsWith(path.join(process.env.CLIMIER_HOME!, "projects")), true);
   } finally {
     await rmTempProject(dir);
   }

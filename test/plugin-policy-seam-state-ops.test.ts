@@ -43,6 +43,8 @@ import {
 
 const PROJECT_ID = "seam-state-ops-project";
 
+type PolicyMode = "allow" | "abstain" | "deny" | "throw";
+
 function restoreEntry(log) {
   return log.find((entry) => entry.action === "restore");
 }
@@ -98,8 +100,12 @@ async function cliFail(args) {
   return data.error;
 }
 
-async function writeClimierJson(projectDir, mode) {
-  const value = { version: 1, project_id: PROJECT_ID };
+async function writeClimierJson(projectDir: string, mode?: PolicyMode) {
+  const value: {
+    version: number;
+    project_id: string;
+    plugins?: Record<string, { mode: PolicyMode }>;
+  } = { version: 1, project_id: PROJECT_ID };
   if (mode !== undefined) {
     value.plugins = { "policy-fixture": { mode } };
   }
@@ -112,7 +118,7 @@ async function writeClimierJson(projectDir, mode) {
 
 // initAndSeed — .climier.json MUST exist before `init` so the state
 // path is pinned to PROJECT_ID (same caveat as the lifecycle suite).
-async function initAndSeed({ projectDir, mode }) {
+async function initAndSeed({ projectDir, mode }: { projectDir: string; mode?: PolicyMode }) {
   await writeClimierJson(projectDir, mode);
   await cli(["--project", projectDir, "init"]);
   await cli(["--project", projectDir, "add-initiative", "auth", "--desc", "auth", "--as", "setup"]);
@@ -144,7 +150,7 @@ async function assertPolicyDidNotRun(home) {
 // seedSnapshotWithSentinel — produce a restorable snapshot that carries
 
 // core) and an explicit actor.
-async function seedSnapshotWithSentinel(projectDir, mode) {
+async function seedSnapshotWithSentinel(projectDir: string, mode?: PolicyMode) {
   await initAndSeed({ projectDir });
   await cli(["--project", projectDir, "init", "--force", "--as", "setup"]);
   const snaps = await snapshots(projectDir);
@@ -159,8 +165,8 @@ async function recorded(home) {
   try {
     const raw = await fs.readFile(path.join(home, "policy-fixture-state.json"), "utf8");
     return JSON.parse(raw);
-  } catch (err) {
-    if (err && err.code === "ENOENT") {
+  } catch (err: unknown) {
+    if (err instanceof Error && "code" in err && err.code === "ENOENT") {
       return null;
     }
     throw err;
@@ -378,7 +384,7 @@ test("seam-init: plain init needs no actor and never invokes the policy (deny in
 test("seam-init: corrupt-recovery (no --force) needs no actor and never invokes the policy", async () => {
   await withFreshEnv(async ({ projectDir, home }) => {
     await initAndSeed({ projectDir, mode: "deny" });
-    const stateDir = path.join(process.env.CLIMIER_HOME, "projects", PROJECT_ID);
+    const stateDir = path.join(process.env.CLIMIER_HOME!, "projects", PROJECT_ID);
     await fs.writeFile(path.join(stateDir, "tasks.json"), "{ not json", "utf8");
     await installPolicyFixture(projectDir);
     try {
