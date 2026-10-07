@@ -1,6 +1,7 @@
 /* eslint-disable max-nested-callbacks -- Fenced-state read consumer assertions intentionally share one project fixture callback. */
 import test from "node:test";
 import assert from "node:assert/strict";
+import { asCaughtError } from "../src/contracts/errors.ts";
 
 import {
   createTempProject,
@@ -130,8 +131,9 @@ test("read consumers reject legacy state versions with a migration hint", async 
 
     for (const version of [2, 3, 4, 5]) {
       for (const read of reads) {
-        await assert.rejects(read(version), (error) => {
-          assert.ok(["CLIMIER_INCOMPATIBLE_VERSION", "CLIMIER_STATE_NOT_READABLE"].includes(error.code));
+        await assert.rejects(read(version), (rawError) => {
+          const error = asCaughtError(rawError);
+          assert.ok(["CLIMIER_INCOMPATIBLE_VERSION", "CLIMIER_STATE_NOT_READABLE"].includes(error.code ?? ""));
           assert.match(error.message, /climier migrate/i);
           return true;
         });
@@ -163,7 +165,8 @@ test("read consumers reject future state versions", async () => {
     ];
 
     for (const read of reads) {
-      await assert.rejects(read, (error) => {
+      await assert.rejects(read, (rawError) => {
+        const error = asCaughtError(rawError);
         assert.equal(error.code, "CLIMIER_INCOMPATIBLE_VERSION");
         assert.match(error.message, /version 6/);
         return true;

@@ -69,8 +69,8 @@ test("update: the typed patch reaches the node through one canonical operation a
   const { mutate: kernelMutate } = await import("../src/kernel/mutate.ts");
   const { default: update } = await importFresh("./cli/commands/update.ts");
   const dir = await projectFixture();
-  const operations = [];
-  const mutations = [];
+  const operations: string[] = [];
+  const mutations: Array<{ policyActionFromPlan?: boolean }> = [];
   try {
     await seedTask(dir);
     const registry = bootstrapBuiltins();
@@ -261,7 +261,9 @@ test("update: rejects update on a future state with the public incompatibility c
     const fs = await import("node:fs/promises");
     const path = await import("node:path");
     const meta = JSON.parse(await fs.readFile(path.join(dir, ".climier.json"), "utf8"));
-    const futureFile = path.join(process.env.CLIMIER_HOME, "projects", meta.project_id, "tasks.json");
+    const climierHome = process.env.CLIMIER_HOME;
+    assert.ok(climierHome, "CLIMIER_HOME must be set by the test helpers");
+    const futureFile = path.join(climierHome, "projects", meta.project_id, "tasks.json");
     await fs.writeFile(futureFile, JSON.stringify({
       version: 6,
       nodes: {}, edges: [], initiatives: {}, log: [],
@@ -287,7 +289,9 @@ test("update: rejects a pre-release state with migration guidance", async () => 
     const fs = await import("node:fs/promises");
     const path = await import("node:path");
     const meta = JSON.parse(await fs.readFile(path.join(dir, ".climier.json"), "utf8"));
-    const v1File = path.join(process.env.CLIMIER_HOME, "projects", meta.project_id, "tasks.json");
+    const climierHome = process.env.CLIMIER_HOME;
+    assert.ok(climierHome, "CLIMIER_HOME must be set by the test helpers");
+    const v1File = path.join(climierHome, "projects", meta.project_id, "tasks.json");
     await fs.writeFile(v1File, JSON.stringify({
       version: 1,
       tasks: { F0T1: { id: "F0T1", title: "v1 task", initiative: "x" } },

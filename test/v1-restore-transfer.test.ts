@@ -7,6 +7,8 @@ import { dispatchCommand } from "../src/cli/dispatch.ts";
 import { initState } from "../src/kernel/state-operations.ts";
 import { readFencedState } from "../src/storage/ledger.ts";
 import { snapshotDir } from "../src/storage/state.ts";
+import { asCaughtError } from "../src/contracts/errors.ts";
+import type { ProjectState } from "../src/contracts/domain.ts";
 
 async function withIsolatedProject(run) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "climier-v1-restore-transfer-"));
@@ -47,10 +49,13 @@ for (const version of [2, 3, 4, 5]) {
 
       await assert.rejects(
         () => dispatchCommand({ command: "restore", positional: [id], flags: { as: "recovery" }, projectDir }),
-        (error) => error.message.includes(file)
-          && error.message.includes("climier migrate")
-          && error.details?.path === file
-          && error.details?.id === id,
+        (rawError) => {
+          const error = asCaughtError(rawError);
+          return error.message.includes(file)
+            && error.message.includes("climier migrate")
+            && error.details?.path === file
+            && error.details?.id === id;
+        },
       );
     });
   });
@@ -79,11 +84,11 @@ test("restore installs a canonical snapshot and the restored project accepts a m
       projectDir,
     });
 
-    const state = await readFencedState(projectDir);
+    const state = await readFencedState(projectDir) as ProjectState;
     assert.equal(state.version, 1);
     assert.ok(Number.isInteger(state.fence_generation));
-    assert.equal(state.initiatives.before.desc, "restored");
-    assert.equal(state.initiatives["after-restore"].desc, "mutation after canonical restore");
-    assert.equal(state.log.at(-1).action, "add-initiative");
+    assert.equal(state.initiatives.before?.desc, "restored");
+    assert.equal(state.initiatives["after-restore"]?.desc, "mutation after canonical restore");
+    assert.equal(state.log.at(-1)?.action, "add-initiative");
   });
 });
