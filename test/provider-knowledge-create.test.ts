@@ -14,6 +14,12 @@ import assert from "node:assert/strict";
 
 import { emptySnapshot, importKernel, importProviders, knowledgeNode, taskNode } from "./provider-knowledge/fixtures.mjs";
 
+type CaughtError = { code?: string; message?: string };
+
+function caughtError(error: unknown): CaughtError {
+  return typeof error === "object" && error !== null ? error as CaughtError : {};
+}
+
 import {
   createTempProject,
   rmTempProject,
@@ -65,7 +71,7 @@ test("create: prepare rejects missing title/body with MISSING_FIELD", async () =
       input: { body: "b", initiative: "auth" },
       request: { action: "knowledge.create", actor: "alice" },
     }),
-    (err) => err.code === "MISSING_FIELD" && /title/.test(err.message),
+    (err) => caughtError(err).code === "MISSING_FIELD" && /title/.test(caughtError(err).message ?? ""),
   );
   await assert.rejects(
     provider.prepare({
@@ -73,7 +79,7 @@ test("create: prepare rejects missing title/body with MISSING_FIELD", async () =
       input: { title: "t", initiative: "auth" },
       request: { action: "knowledge.create", actor: "alice" },
     }),
-    (err) => err.code === "MISSING_FIELD" && /body/.test(err.message),
+    (err) => caughtError(err).code === "MISSING_FIELD" && /body/.test(caughtError(err).message ?? ""),
   );
 });
 
@@ -86,7 +92,7 @@ test("create: prepare rejects unknown initiative with INITIATIVE_NOT_FOUND", asy
       input: { title: "t", body: "b", initiative: "ghost", scope: { domains: ["x"] } },
       request: { action: "knowledge.create", actor: "alice" },
     }),
-    (err) => err.code === "INITIATIVE_NOT_FOUND",
+    (err) => caughtError(err).code === "INITIATIVE_NOT_FOUND",
   );
 });
 
@@ -101,7 +107,7 @@ test("create: prepare rejects when every scope array is empty", async () => {
       } },
       request: { action: "knowledge.create", actor: "alice" },
     }),
-    (err) => err.code === "MISSING_FIELD" && /scope/i.test(err.message),
+    (err) => caughtError(err).code === "MISSING_FIELD" && /scope/i.test(caughtError(err).message ?? ""),
   );
 });
 
@@ -114,7 +120,7 @@ test("create: prepare rejects missing initiative", async () => {
       input: { title: "t", body: "b", scope: { domains: ["x"] } },
       request: { action: "knowledge.create", actor: "alice" },
     }),
-    (err) => err.code === "MISSING_FIELD" && /initiative/.test(err.message),
+    (err) => caughtError(err).code === "MISSING_FIELD" && /initiative/.test(caughtError(err).message ?? ""),
   );
 });
 
@@ -230,7 +236,7 @@ test("create: prepare rejects unknown supersedes target", async () => {
       input: { title: "t", body: "b", initiative: "auth", scope: { domains: ["x"] }, supersedes: "ghost" },
       request: { action: "knowledge.create", actor: "alice" },
     }),
-    (err) => err.code === "NODE_NOT_FOUND",
+    (err) => caughtError(err).code === "NODE_NOT_FOUND",
   );
 });
 
@@ -246,7 +252,7 @@ test("create: prepare rejects supersedes pointing at a non-knowledge node", asyn
       input: { title: "t", body: "b", initiative: "auth", scope: { domains: ["x"] }, supersedes: "T-a" },
       request: { action: "knowledge.create", actor: "alice" },
     }),
-    (err) => err.code === "INVALID_PROVIDER_INPUT" && /knowledge/.test(err.message),
+    (err) => caughtError(err).code === "INVALID_PROVIDER_INPUT" && /knowledge/.test(caughtError(err).message ?? ""),
   );
 });
 
@@ -275,7 +281,7 @@ test("create: provider never writes revision (kernel assigns it)", async () => {
         request: { action: "knowledge.create", actor: "alice", input: { id: "K-spy", title: "t", body: "b", initiative: "auth", scope: { domains: ["x"] } } },
         provider: spyProvider,
       })),
-      (err) => err.code === "INVALID_EXECUTION_CONTRACT",
+      (err) => caughtError(err).code === "INVALID_EXECUTION_CONTRACT",
     );
 
     assert.equal(applySawRevision, false, "tx.createNode stripped revision before return");

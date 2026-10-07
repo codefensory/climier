@@ -10,6 +10,12 @@ import assert from "node:assert/strict";
 import { gateCreateProvider, gateProviders, GATE_PROVIDER_KIND } from "../src/providers/gate/index.ts";
 import { createTransaction } from "../src/kernel/transaction.ts";
 
+type CaughtError = { code?: string; details?: Record<string, unknown> };
+
+function caughtError(error: unknown): CaughtError {
+  return typeof error === "object" && error !== null ? error as CaughtError : {};
+}
+
 function baseSnapshot() {
   return {
     version: 2,
@@ -52,9 +58,9 @@ function validInput(extra = {}) {
 }
 
 async function run(snapshot, input) {
-  const plan = await gateCreateProvider.prepare({ snapshot, input, request: { action: "gate.create", actor: "alice" } });
+  const plan = await gateCreateProvider.prepare({ snapshot, input });
   const tx = createTransaction(snapshot);
-  const applied = await gateCreateProvider.apply({ tx, plan, input, request: { action: "gate.create", actor: "alice" }, snapshot });
+  const applied = await gateCreateProvider.apply({ tx, plan });
   return { plan, tx, view: tx.view(), ...applied };
 }
 
@@ -105,7 +111,7 @@ test("prepare is read-only: a failing prepare never mutates the snapshot", async
   const before = structuredClone(snapshot);
   await assert.rejects(
     gateCreateProvider.prepare({ snapshot, input: validInput({ blocked_by: ["missing"] }) }),
-    (err) => err.code === "INVALID_EDGE_TARGET" && err.details.missing === "missing",
+    (err) => caughtError(err).code === "INVALID_EDGE_TARGET" && caughtError(err).details?.missing === "missing",
   );
   assert.deepEqual(snapshot, before);
 });
@@ -136,7 +142,7 @@ test("structured errors: id conflict, unknown initiative, missing fields, invali
   for (const [input, code] of cases) {
     await assert.rejects(
       gateCreateProvider.prepare({ snapshot, input }),
-      (err) => err.code === code,
+      (err) => caughtError(err).code === code,
       `expected ${code} for ${JSON.stringify(input)}`,
     );
   }
@@ -146,22 +152,22 @@ test("choice/rationale are validated as applicable pairs", async () => {
   const snapshot = baseSnapshot();
   await assert.rejects(
     gateCreateProvider.prepare({ snapshot, input: validInput({ choice: "A" }) }),
-    (err) => err.code === "MISSING_FIELD" && err.details.field === "rationale",
+    (err) => caughtError(err).code === "MISSING_FIELD" && caughtError(err).details?.field === "rationale",
   );
   await assert.rejects(
     gateCreateProvider.prepare({ snapshot, input: validInput({ rationale: "because" }) }),
-    (err) => err.code === "MISSING_FIELD" && err.details.field === "choice",
+    (err) => caughtError(err).code === "MISSING_FIELD" && caughtError(err).details?.field === "choice",
   );
   await assert.rejects(
     gateCreateProvider.prepare({
       snapshot,
       input: validInput({ choice: "A", rationale: "because", resolution_mode: "labor" }),
     }),
-    (err) => err.code === "INVALID_EXECUTION_CONTRACT" && err.details.resolution_mode === "labor",
+    (err) => caughtError(err).code === "INVALID_EXECUTION_CONTRACT" && caughtError(err).details?.resolution_mode === "labor",
   );
   await assert.rejects(
     gateCreateProvider.prepare({ snapshot, input: validInput({ status: "resolved" }) }),
-    (err) => err.code === "MISSING_FIELD" && err.details.status === "resolved",
+    (err) => caughtError(err).code === "MISSING_FIELD" && caughtError(err).details?.status === "resolved",
   );
   const plan = await gateCreateProvider.prepare({
     snapshot,
@@ -235,7 +241,7 @@ test("supersede validates targets and revisions in prepare", async () => {
   for (const [input, code] of cases) {
     await assert.rejects(
       gateCreateProvider.prepare({ snapshot, input }),
-      (err) => err.code === code,
+      (err) => caughtError(err).code === code,
       `expected ${code} for ${JSON.stringify(input)}`,
     );
   }
@@ -250,7 +256,6 @@ test("supersede auto-derives if_revisions from snapshot when omitted (F9)", asyn
   const plan = await gateCreateProvider.prepare({
     snapshot,
     input: validInput({ supersedes: "G-A" }),
-    request: { action: "gate.create", actor: "alice" },
   });
   assert.equal(plan.if_revisions.kind, "multi");
   assert.equal(plan.if_revisions.values["G-A"], 2);
@@ -263,7 +268,7 @@ test("the provider never writes revision and rejects seeded revisions via tx", a
   await gateCreateProvider.apply({ tx, plan });
   const view = tx.view();
   for (const node of Object.values(view.nodes)) {
-    assert.equal("revision" in node, false);
+    assert.equal(node !== null && typeof node === "object" && "revision" in node, false);
   }
   assert.equal(plan.node.revision, undefined);
 });

@@ -13,6 +13,12 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { emptySnapshot, importKernel, importProviders, knowledgeNode, taskNode } from "./provider-knowledge/fixtures.mjs";
+
+type CaughtError = { code?: string; message?: string };
+
+function caughtError(error: unknown): CaughtError {
+  return typeof error === "object" && error !== null ? error as CaughtError : {};
+}
 import { importFresh } from "./helpers.mjs";
 
 import {
@@ -107,7 +113,7 @@ test("deprecate: prepare rejects missing id", async () => {
       input: { reason: "outdated" },
       request: { action: "knowledge.deprecate", actor: "alice" },
     }),
-    (err) => err.code === "MISSING_FIELD" && /id/.test(err.message),
+    (err) => caughtError(err).code === "MISSING_FIELD" && /id/.test(caughtError(err).message ?? ""),
   );
 });
 
@@ -120,7 +126,7 @@ test("deprecate: prepare rejects missing reason", async () => {
       input: { id: "K-1" },
       request: { action: "knowledge.deprecate", actor: "alice" },
     }),
-    (err) => err.code === "MISSING_FIELD" && /reason/.test(err.message),
+    (err) => caughtError(err).code === "MISSING_FIELD" && /reason/.test(caughtError(err).message ?? ""),
   );
 });
 
@@ -136,7 +142,7 @@ test("deprecate: prepare rejects non-knowledge target", async () => {
       input: { id: "T-a", reason: "outdated" },
       request: { action: "knowledge.deprecate", actor: "alice" },
     }),
-    (err) => err.code === "INVALID_PROVIDER_INPUT" && /knowledge/.test(err.message),
+    (err) => caughtError(err).code === "INVALID_PROVIDER_INPUT" && /knowledge/.test(caughtError(err).message ?? ""),
   );
 });
 
@@ -149,7 +155,7 @@ test("deprecate: prepare rejects unknown target with NODE_NOT_FOUND", async () =
       input: { id: "ghost", reason: "outdated" },
       request: { action: "knowledge.deprecate", actor: "alice" },
     }),
-    (err) => err.code === "NODE_NOT_FOUND",
+    (err) => caughtError(err).code === "NODE_NOT_FOUND",
   );
 });
 
@@ -304,7 +310,7 @@ test("deprecate: provider never seeds revision through tx.updateNode", async () 
       deprecated_by: "alice",
       revision: 999,
     })),
-    (err) => err.code === "INVALID_EXECUTION_CONTRACT",
+    (err) => caughtError(err).code === "INVALID_EXECUTION_CONTRACT",
   );
   // 2. The real provider's apply never tries to seed revision either.
   // Run it against a fresh tx and inspect the resulting draft.

@@ -9,7 +9,16 @@ import { createTransaction } from "../src/kernel/transaction.ts";
 import { isTaskReady } from "../src/providers/task/derivation.ts";
 import { taskRejectProvider } from "../src/providers/task/reject.ts";
 
-function state(nodes, edges = []) {
+type CaughtError = { code?: string; details?: Record<string, unknown> };
+
+function caughtError(error: unknown): CaughtError {
+  return typeof error === "object" && error !== null ? error as CaughtError : {};
+}
+
+function state(
+  nodes: Record<string, Record<string, unknown>>,
+  edges: Array<{ from: string; to: string; type: string }> = [],
+) {
   return { version: 3, initiatives: {}, nodes, edges, log: [] };
 }
 
@@ -102,7 +111,7 @@ test("task.reject requires a reason and rejects every status other than submitte
         input: baseInput,
         request: { actor: "validator" },
       }),
-      (error) => error.code === "INVALID_STATUS",
+      (error) => caughtError(error).code === "INVALID_STATUS",
       `status ${status} must not be rejected`,
     );
   }
@@ -113,6 +122,6 @@ test("task.reject requires a reason and rejects every status other than submitte
       input: { id: "target" },
       request: { actor: "validator" },
     }),
-    (error) => error.code === "MISSING_FIELD" && error.details.field === "reason",
+    (error) => caughtError(error).code === "MISSING_FIELD" && caughtError(error).details?.field === "reason",
   );
 });

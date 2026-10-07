@@ -12,7 +12,10 @@ import {
 } from "../src/providers/task/derivation.ts";
 import { taskTakeProvider } from "../src/providers/task/index.ts";
 
-function state(nodes, edges = []) {
+function state(
+  nodes: Record<string, Record<string, unknown>>,
+  edges: Array<{ from: string; to: string; type: string }> = [],
+) {
   return { version: 2, initiatives: {}, nodes, edges, log: [] };
 }
 

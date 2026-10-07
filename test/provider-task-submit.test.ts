@@ -3,10 +3,20 @@ import assert from "node:assert/strict";
 
 import { taskSubmitProvider } from "../src/providers/task/submit.ts";
 
+type Claim = { by: string; at: string } | null;
+type CaughtError = { code?: string };
+
+function caughtError(error: unknown): CaughtError {
+  return typeof error === "object" && error !== null ? error as CaughtError : {};
+}
+
 const ACTOR = "codex-worker";
 const SUBMITTED_AT = "2026-01-02T03:04:05.000Z";
 
-function snapshot({ status = "in_progress", claim = { by: ACTOR, at: "2026-01-01T00:00:00.000Z" } } = {}) {
+function snapshot({
+  status = "in_progress",
+  claim = { by: ACTOR, at: "2026-01-01T00:00:00.000Z" },
+}: { status?: string; claim?: Claim } = {}) {
   return {
     version: 3,
     initiatives: {},
@@ -44,10 +54,12 @@ function makeSubmitInput(overrides = {}) {
 }
 
 function txStub(initialSnapshot) {
-  const nodes = Object.fromEntries(
-    Object.entries(initialSnapshot.nodes).map(([id, node]) => [id, { ...node }]),
-  );
-  const calls = [];
+  const nodes: Record<string, Record<string, unknown>> = {};
+  const sourceNodes = initialSnapshot.nodes as Record<string, Record<string, unknown>>;
+  for (const [id, node] of Object.entries(sourceNodes)) {
+    nodes[id] = { ...node };
+  }
+  const calls: Array<{ id: string; patch: Record<string, unknown> }> = [];
   return {
     calls,
     updateNode(id, patch) {
@@ -63,7 +75,7 @@ function txStub(initialSnapshot) {
 
 async function expectCode(fn, code) {
   await assert.rejects(fn, (error) => {
-    assert.equal(error.code, code);
+    assert.equal(caughtError(error).code, code);
     return true;
   });
 }
@@ -88,7 +100,7 @@ test("task.submit prepare: validates the in_progress owner and freezes the plan"
   assert.ok(Object.isFrozen(plan.target));
   assert.ok(Object.isFrozen(plan.policyAction));
   assert.equal(snapshotValue.nodes["T-submit"].status, "in_progress");
-  assert.equal(snapshotValue.nodes["T-submit"].claim.by, ACTOR);
+  assert.equal(snapshotValue.nodes["T-submit"].claim?.by, ACTOR);
 });
 
 test("task.submit prepare: rejects every status except in_progress", async () => {
@@ -147,9 +159,6 @@ test("task.submit apply: changes status, clears claim, and stores submission met
   const output = await taskSubmitProvider.apply({
     tx,
     plan,
-    input: submitInput,
-    request: request(submitInput),
-    snapshot: snapshotValue,
   });
 
   assert.deepEqual(tx.calls, [{
@@ -180,7 +189,7 @@ test("task.submit apply: never reports newly ready dependents", async () => {
     input: submitInput,
     request: request(submitInput),
   });
-  const output = await taskSubmitProvider.apply({ tx: txStub(snapshotValue), plan, input: submitInput, request: request(submitInput), snapshot: snapshotValue });
+  const output = await taskSubmitProvider.apply({ tx: txStub(snapshotValue), plan });
 
   assert.deepEqual(output.effects.newly_ready, []);
 });

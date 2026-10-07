@@ -11,6 +11,12 @@ import {
 import { gateUpdateProvider } from "../src/providers/gate/index.ts";
 import { createTransaction } from "../src/kernel/transaction.ts";
 
+type CaughtError = { code?: string };
+
+function caughtError(error: unknown): CaughtError {
+  return typeof error === "object" && error !== null ? error as CaughtError : {};
+}
+
 function snapshot() {
   return {
     version: 2,
@@ -42,7 +48,7 @@ test("gate semantics has one canonical supersedence and satisfaction implementat
   assert.equal(supersededBy(state, "G-old"), "G-new");
   assert.equal(isCurrent(state, "G-old"), false);
   assert.equal(isCurrent(state, "G-new"), true);
-  assert.equal(isSatisfied(state, "G-old"), true);
+  assert.equal(isSatisfied(state, "G-old", undefined), true);
   assert.deepEqual(gateProjection(state, "G-old"), {
     ...state.nodes["G-old"],
     is_current: false,
@@ -60,7 +66,7 @@ test("gate satisfaction rejects cycles and follows the deterministic superseder"
   const state = snapshot();
   state.nodes["G-new"].status = "superseded";
   state.edges.push({ from: "G-old", to: "G-new", type: "SUPERSEDES" });
-  assert.equal(isSatisfied(state, "G-old"), false);
+  assert.equal(isSatisfied(state, "G-old", undefined), false);
 });
 
 test("diffReadyByGate remains a pure projection over snapshot and draft graphs", () => {
@@ -100,6 +106,7 @@ test("gate.update prepares and applies the CLI patch contract with CAS and polic
   const before = structuredClone(state);
   const plan = await gateUpdateProvider.prepare({
     snapshot: state,
+    request: { action: "gate.update", actor: "alice" },
     input: {
       id: "G-old",
       if_revision: 2,
@@ -117,7 +124,23 @@ test("gate.update prepares and applies the CLI patch contract with CAS and polic
   assert.deepEqual(plan.policyAction, { action: "gate.update", pluginId: null });
   assert.equal(plan.logAction, "update");
   const tx = createTransaction(state);
-  const applied = await gateUpdateProvider.apply({ tx, plan });
+  const applied = await gateUpdateProvider.apply({
+    tx,
+    plan,
+    input: {
+      id: "G-old",
+      if_revision: 2,
+      changes: {
+        title: "after",
+        resolution_mode: "approval",
+        tags: ["new"],
+        refs: [{ type: "external", target: "docs/gate.md" }],
+        backlog: false,
+      },
+    },
+    request: { action: "gate.update", actor: "alice" },
+    snapshot: state,
+  });
   assert.equal(applied.result.title, "after");
   assert.equal(applied.result.resolution_mode, "approval");
   assert.deepEqual(applied.result.tags, ["new"]);
@@ -130,19 +153,19 @@ test("gate.update prepares and applies the CLI patch contract with CAS and polic
 test("gate.update rejects non-gates, unknown fields, missing CAS, and stale CAS", async () => {
   const state = gateSnapshot();
   await assert.rejects(
-    gateUpdateProvider.prepare({ snapshot: state, input: { id: "T1", if_revision: 1, changes: { title: "x" } } }),
-    (err) => err.code === "INVALID_EXECUTION_CONTRACT",
+    gateUpdateProvider.prepare({ snapshot: state, input: { id: "T1", if_revision: 1, changes: { title: "x" } }, request: { action: "gate.update", actor: "alice" } }),
+    (err) => caughtError(err).code === "INVALID_EXECUTION_CONTRACT",
   );
   await assert.rejects(
-    gateUpdateProvider.prepare({ snapshot: state, input: { id: "G-old", if_revision: 2, changes: { status: "resolved" } } }),
-    (err) => err.code === "INVALID_EXECUTION_CONTRACT",
+    gateUpdateProvider.prepare({ snapshot: state, input: { id: "G-old", if_revision: 2, changes: { status: "resolved" } }, request: { action: "gate.update", actor: "alice" } }),
+    (err) => caughtError(err).code === "INVALID_EXECUTION_CONTRACT",
   );
   await assert.rejects(
-    gateUpdateProvider.prepare({ snapshot: state, input: { id: "G-old", changes: { title: "x" } } }),
-    (err) => err.code === "MISSING_FIELD",
+    gateUpdateProvider.prepare({ snapshot: state, input: { id: "G-old", changes: { title: "x" } }, request: { action: "gate.update", actor: "alice" } }),
+    (err) => caughtError(err).code === "MISSING_FIELD",
   );
   await assert.rejects(
-    gateUpdateProvider.prepare({ snapshot: state, input: { id: "G-old", if_revision: 1, changes: { title: "x" } } }),
-    (err) => err.code === "REVISION_CONFLICT",
+    gateUpdateProvider.prepare({ snapshot: state, input: { id: "G-old", if_revision: 1, changes: { title: "x" } }, request: { action: "gate.update", actor: "alice" } }),
+    (err) => caughtError(err).code === "REVISION_CONFLICT",
   );
 });
