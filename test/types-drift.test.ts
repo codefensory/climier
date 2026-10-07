@@ -76,7 +76,11 @@ test("generated error and command catalogs match their runtime source catalogs",
 
 test("generated operations match the live built-in registry", async () => {
   const registry = createBuiltinOperationRegistry();
-  const liveOperations = registry.ops.map((id) => ({ id, kind: registry.lookup(id).kind }));
+  const liveOperations = registry.ops.map((id) => {
+    const entry = registry.lookup(id);
+    assert.ok(entry);
+    return { id, kind: entry.kind };
+  });
 
   assert.deepEqual(GENERATED_CATALOG.operations, liveOperations);
 });

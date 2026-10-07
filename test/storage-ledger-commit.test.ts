@@ -16,6 +16,21 @@ import {
 } from "../src/storage/ledger.ts";
 import { syncDirectory } from "../src/storage/ledger/stages.ts";
 
+type TestNode = { id: string; revision: number; [key: string]: unknown };
+type TestState = {
+  version: number;
+  fence_generation: number;
+  revision: number;
+  nodes: Record<string, TestNode>;
+  edges: unknown[];
+  initiatives: Record<string, unknown>;
+  log: Array<{ action: string; [key: string]: unknown }>;
+  [key: string]: unknown;
+};
+
+function asTestState(value: unknown): TestState {
+  return value as TestState;
+}
 
 async function withProject(fn) {
   const projectDir = await createTempProject();
@@ -40,11 +55,11 @@ async function pathExists(filePath) {
   return fs.stat(filePath).then(() => false, () => true);
 }
 
-function allNodesAtMostRevision(state, revision) {
+function allNodesAtMostRevision(state: TestState, revision: number) {
   return Object.values(state.nodes).every((node) => node.revision <= revision);
 }
 
-function commitActionCount(state) {
+function commitActionCount(state: TestState) {
   return state.log.filter((entry) => entry.action === "commit").length;
 }
 
@@ -66,7 +81,7 @@ async function runProjectSubtest(t, label, fn) {
   await t.test(label, () => withProject(fn));
 }
 
-function nextCandidate(state, revision = state.revision + 1) {
+function nextCandidate(state: TestState, revision = state.revision + 1): TestState {
   return {
     ...state,
     revision,
@@ -75,12 +90,12 @@ function nextCandidate(state, revision = state.revision + 1) {
   };
 }
 
-async function commit(projectDir, candidate, options) {
+async function commit(projectDir, candidate, options = {}) {
   return withLock(projectDir, (lockContext) =>
     commitFencedStateUnderLock(lockContext, candidate, options));
 }
 
-async function readUnderLock(projectDir, options) {
+async function readUnderLock(projectDir, options = {}) {
   return withLock(projectDir, (lockContext) =>
     readFencedStateUnderLock(lockContext, options));
 }
@@ -106,7 +121,7 @@ test("lock context is opaque, active only for its project and invocation", async
 });
 
 test("fenced read rejects absent and forged capabilities before storage access", async () => {
-  await assert.rejects(readFencedStateUnderLock(null), { code: "CLIMIER_INVALID_LOCK_CONTEXT" });
+  await assert.rejects(readFencedStateUnderLock(null as unknown as object), { code: "CLIMIER_INVALID_LOCK_CONTEXT" });
   await assert.rejects(readFencedStateUnderLock(new Proxy({}, {
     get() { throw new Error("forged lock context must not be inspected"); },
   })), { code: "CLIMIER_INVALID_LOCK_CONTEXT" });
@@ -116,19 +131,19 @@ test("fenced read requires an active capability and reads without reacquiring th
   const first = await createTempProject();
   const second = await createTempProject();
   try {
-    const expected = await bootstrapFencedState(first);
+    const expected = asTestState(await bootstrapFencedState(first));
     let expiredContext;
     await withLock(first, async (lockContext) => {
       expiredContext = lockContext;
-      const result = await Promise.race([
+      const result = asTestState(await Promise.race([
         readFencedStateUnderLock(lockContext),
         rejectAfterTimeout("read reacquired the held lock"),
-      ]);
+      ]));
       assert.deepEqual(result, expected);
-      const publicRead = await Promise.race([
+      const publicRead = asTestState(await Promise.race([
         readFencedState(first),
         rejectAfterTimeout("public read reacquired the held lock"),
-      ]);
+      ]));
       assert.deepEqual(publicRead, expected);
     });
     await assert.rejects(readFencedStateUnderLock(expiredContext), { code: "CLIMIER_INVALID_LOCK_CONTEXT" });
@@ -142,7 +157,7 @@ test("fenced read requires an active capability and reads without reacquiring th
 });
 
 test("fenced read rejects malformed, downgraded, generation, and revision-mismatched state", async (t) => {
-  const cases = [
+  const cases: Array<[string, (state: TestState) => Record<string, unknown>]> = [
     ["degraded schema", (state) => ({ ...state, version: 5 })],
     ["missing generation", (state) => {
       const { fence_generation: _generation, ...degraded } = state;
@@ -154,7 +169,7 @@ test("fenced read rejects malformed, downgraded, generation, and revision-mismat
   for (const [label, alter] of cases) {
     await runProjectSubtest(t, label, async (projectDir) => {
       await bootstrapFencedState(projectDir);
-      const state = await readFencedState(projectDir);
+      const state = asTestState(await readFencedState(projectDir));
       await fs.writeFile(stateFile(projectDir), `${JSON.stringify(alter(state), null, 2)}\n`, "utf8");
       await assert.rejects(readUnderLock(projectDir), { code: label === "degraded schema" ? "CLIMIER_INCOMPATIBLE_VERSION" : "CLIMIER_LEDGER_STATE_MISMATCH" });
     });
@@ -163,17 +178,17 @@ test("fenced read rejects malformed, downgraded, generation, and revision-mismat
 
 test("fenced commit requires an active capability and commits under the existing lock", async () => {
   await assert.rejects(
-    commitFencedStateUnderLock(null, {}),
+    commitFencedStateUnderLock(null as unknown as object, {}),
     { code: "CLIMIER_INVALID_LOCK_CONTEXT" },
   );
 
   await withProject(async (projectDir) => {
-    const initial = await bootstrapFencedState(projectDir);
+    const initial = asTestState(await bootstrapFencedState(projectDir));
     const candidate = nextCandidate(initial);
-    const result = await Promise.race([
+    const result = asTestState(await Promise.race([
       commitWhileLockHeld(projectDir, candidate),
       rejectAfterTimeout("commit reacquired the held lock"),
-    ]);
+    ]));
 
     assert.equal(result.revision, candidate.revision);
     assert.deepEqual(await readFencedState(projectDir), candidate);
@@ -183,7 +198,7 @@ test("fenced commit requires an active capability and commits under the existing
 
 test("fenced commit rejects created or modified nodes without advancing their revisions", async () => {
   await withProject(async (projectDir) => {
-    const current = await bootstrapFencedState(projectDir);
+    const current = asTestState(await bootstrapFencedState(projectDir));
     const created = nextCandidate(current);
     created.nodes.T3 = { id: "T3", revision: current.revision };
     const modified = nextCandidate(current);
@@ -196,9 +211,9 @@ test("fenced commit rejects created or modified nodes without advancing their re
 
 test("fenced commit preserves generation and requires strictly monotonic state and node revisions", async () => {
   await withProject(async (projectDir) => {
-    const current = await withLock(projectDir, (context) => bootstrapFencedStateUnderLock(context, {
+    const current = asTestState(await withLock(projectDir, (context) => bootstrapFencedStateUnderLock(context, {
       version: 1, nodes: { T1: { id: "T1", revision: 3 } }, edges: [], initiatives: {}, log: [], revision: 2,
-    }));
+    })));
     const populated = {
       ...current,
       nodes: { T1: { id: "T1", revision: current.revision } },
@@ -218,9 +233,9 @@ test("fenced commit preserves generation and requires strictly monotonic state a
 
 test("fenced commit reserves at least all candidate revisions and persists exact state/log bytes", async () => {
   await withProject(async (projectDir) => {
-    const current = await bootstrapFencedState(projectDir);
+    const current = asTestState(await bootstrapFencedState(projectDir));
     const candidate = nextCandidate(current, current.revision + 3);
-    const result = await commit(projectDir, candidate);
+    const result = asTestState(await commit(projectDir, candidate));
     const raw = await fs.readFile(stateFile(projectDir), "utf8");
     const ledger = JSON.parse(await fs.readFile(ledgerFile(projectDir), "utf8"));
 
@@ -237,7 +252,7 @@ test("commit crash before durable stage or pending leaves source state and ledge
   for (const faultAt of ["before-stage", "after-stage", "before-pending"]) {
     await runProjectSubtest(t, faultAt, async (projectDir) => {
       await bootstrapFencedState(projectDir);
-      const current = await readFencedState(projectDir);
+      const current = asTestState(await readFencedState(projectDir));
       const sourceRaw = await fs.readFile(stateFile(projectDir), "utf8");
       const ledgerRaw = await fs.readFile(ledgerFile(projectDir), "utf8");
       await assert.rejects(commit(projectDir, nextCandidate(current), { faultAt }), /injected failure/);
@@ -252,7 +267,7 @@ test("commit recovery resumes exact source or destination fingerprints idempoten
   for (const faultAt of ["after-pending", "before-state-rename", "after-state-rename", "before-ledger-clear"]) {
     await runProjectSubtest(t, faultAt, async (projectDir) => {
       await bootstrapFencedState(projectDir);
-      const current = await readFencedState(projectDir);
+      const current = asTestState(await readFencedState(projectDir));
       const candidate = nextCandidate(current);
       await assert.rejects(commit(projectDir, candidate, { faultAt }), /injected failure/);
 
@@ -263,7 +278,7 @@ test("commit recovery resumes exact source or destination fingerprints idempoten
       assert.equal(pending.high_water_revision, candidate.revision);
       assert.equal(typeof pending.stage_id, "string");
 
-      const recovered = await readCommitUnderHeldLock(projectDir);
+      const recovered = asTestState(await readCommitUnderHeldLock(projectDir));
       assert.deepEqual(recovered, candidate);
       assert.deepEqual(await readUnderLock(projectDir), candidate);
       const ledger = JSON.parse(await fs.readFile(ledgerFile(projectDir), "utf8"));
@@ -278,7 +293,7 @@ test("commit recovery resumes exact source or destination fingerprints idempoten
 
 test("commit recovery fails closed when state diverges from both pending fingerprints", async () => {
   await withProject(async (projectDir) => {
-    const current = await bootstrapFencedState(projectDir);
+    const current = asTestState(await bootstrapFencedState(projectDir));
     await assert.rejects(commit(projectDir, nextCandidate(current), { faultAt: "after-pending" }), /injected failure/);
     const changed = { ...current, log: [...current.log, { action: "unrelated" }] };
     await fs.writeFile(stateFile(projectDir), `${JSON.stringify(changed, null, 2)}\n`, "utf8");
@@ -290,7 +305,7 @@ test("commit recovery fails closed when state diverges from both pending fingerp
 
 test("commit recovery fails closed when the durable ledger advances beyond the pending reservation", async () => {
   await withProject(async (projectDir) => {
-    const current = await bootstrapFencedState(projectDir);
+    const current = asTestState(await bootstrapFencedState(projectDir));
     await assert.rejects(commit(projectDir, nextCandidate(current), { faultAt: "after-pending" }), /injected failure/);
     const ledger = JSON.parse(await fs.readFile(ledgerFile(projectDir), "utf8"));
     ledger.high_water_revision += 1;
@@ -305,7 +320,7 @@ test("commit pending recovery rejects missing or altered durable stage without c
   for (const stageState of ["missing", "altered"]) {
     await runProjectSubtest(t, stageState, async (projectDir) => {
       await bootstrapFencedState(projectDir);
-      const current = await readFencedState(projectDir);
+      const current = asTestState(await readFencedState(projectDir));
       await assert.rejects(commit(projectDir, nextCandidate(current), { faultAt: "after-pending" }), /injected failure/);
       const ledger = JSON.parse(await fs.readFile(ledgerFile(projectDir), "utf8"));
       const stage = path.join(path.dirname(stateFile(projectDir)), `.commit-stage-${ledger.commit_pending.stage_id}`);

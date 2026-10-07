@@ -17,6 +17,9 @@ import {
   uninstallPolicyFixture,
 } from "./helpers.mjs";
 
+type TestError = { code?: string; details?: Record<string, unknown> };
+function testError(value: unknown): TestError { return value as TestError; }
+
 async function projectFixture() {
   const { default: init } = await importFresh("./cli/commands/init.ts");
   const { default: addInitiative } = await importFresh("./cli/commands/add-initiative.ts");
@@ -56,7 +59,7 @@ async function addKnowledge(dir, id) {
   });
 }
 
-async function take(dir, id, flags = { as: "agent-a" }, extraPositional = []) {
+async function take(dir, id, flags: Record<string, string | boolean | undefined> = { as: "agent-a" }, extraPositional: string[] = []) {
   const { default: takeCommand } = await importFresh("./cli/commands/take.ts");
   return takeCommand({
     statePath: dir,
@@ -115,7 +118,7 @@ test("take by id: rejects a task claimed by another agent with ALREADY_CLAIMED",
 
     await assert.rejects(
       take(dir, "T-auth-1", { as: "agent-a" }),
-      (err) => err.code === "ALREADY_CLAIMED" && err.details.owner === "other-agent",
+      (err: unknown) => testError(err).code === "ALREADY_CLAIMED" && testError(err).details?.owner === "other-agent",
     );
   } finally { await rmTempProject(dir); }
 });
@@ -125,7 +128,7 @@ test("take by id: rejects an unknown id with NODE_NOT_FOUND", async () => {
   try {
     await assert.rejects(
       take(dir, "T-missing", { as: "agent-a" }),
-      (err) => err.code === "NODE_NOT_FOUND" && err.details.id === "T-missing",
+      (err: unknown) => testError(err).code === "NODE_NOT_FOUND" && testError(err).details?.id === "T-missing",
     );
   } finally { await rmTempProject(dir); }
 });
@@ -139,7 +142,7 @@ test("take by id: rejects a knowledge node with NOT_CLAIMABLE", async () => {
 
     await assert.rejects(
       take(dir, "K-auth-ttl", { as: "agent-a" }),
-      (err) => err.code === "NOT_CLAIMABLE" && err.details.id === "K-auth-ttl",
+      (err: unknown) => testError(err).code === "NOT_CLAIMABLE" && testError(err).details?.id === "K-auth-ttl",
     );
   } finally { await rmTempProject(dir); }
 });
@@ -153,7 +156,7 @@ test("take by id: rejects done, canceled, resolved, and superseded tasks with NO
       await addTask(dir, id, { status });
       await assert.rejects(
         take(dir, id, { as: "agent-a" }),
-        (err) => err.code === "NOT_READY" && err.details.status === status,
+        (err: unknown) => testError(err).code === "NOT_READY" && testError(err).details?.status === status,
         status,
       );
     }
@@ -168,7 +171,7 @@ test("take by id: rejects a blocked task with NOT_READY", async () => {
 
     await assert.rejects(
       take(dir, "T-x", { as: "agent-a" }),
-      (err) => err.code === "NOT_READY" && err.details.status === "blocked",
+      (err: unknown) => testError(err).code === "NOT_READY" && testError(err).details?.status === "blocked",
     );
   } finally { await rmTempProject(dir); }
 });
@@ -181,7 +184,7 @@ test("take by id: backlog tasks remain NOT_READY", async () => {
 
     await assert.rejects(
       take(dir, "T-x", { as: "agent-a" }),
-      (err) => err.code === "NOT_READY" && err.details.status === "backlog",
+      (err: unknown) => testError(err).code === "NOT_READY" && testError(err).details?.status === "backlog",
     );
   } finally { await rmTempProject(dir); }
 });
@@ -261,7 +264,7 @@ test("take by id: missing id throws MISSING_FIELD", async () => {
     await addTask(dir, "T-x");
     await assert.rejects(
       take(dir, undefined, { as: "agent-a" }),
-      (err) => err.code === "MISSING_FIELD" && assert.deepEqual(err.details, { field: "id" }) === undefined,
+      (err: unknown) => testError(err).code === "MISSING_FIELD" && assert.deepEqual(testError(err).details, { field: "id" }) === undefined,
     );
   } finally { await rmTempProject(dir); }
 });

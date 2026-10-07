@@ -8,7 +8,7 @@ import {
   runCli,
 } from "./helpers.mjs";
 
-async function command(dir, ...args) {
+async function command(dir: string, ...args: string[]) {
   const result = await runCli(["--project", dir, ...args]);
   const data = JSON.parse(result.stdout);
   return { result, data };
@@ -119,8 +119,8 @@ async function assertRejectedTaskIsReady(dir) {
   assert.equal(rejection.reason, "needs another check");
 }
 
-async function runTask(args) {
-  const out = await command(...args);
+async function runTask(args: string[]) {
+  const out = await command(args[0], ...args.slice(1));
   assert.equal(out.result.code, 0, out.result.stderr);
   return out;
 }

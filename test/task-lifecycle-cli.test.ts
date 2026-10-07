@@ -13,6 +13,8 @@ import cancel from "../src/cli/commands/cancel.ts";
 import { bootstrapBuiltins } from "../src/application/operations/index.ts";
 import { mutate as kernelMutate } from "../src/kernel/mutate.ts";
 
+const testContext = { command: "test", originalArgv: [], projectConfig: {} };
+
 async function seedTask(dir, id = "T-lifecycle") {
   let result = await runCli(["--project", dir, "init"]);
   assert.equal(result.code, 0, result.stderr);
@@ -144,6 +146,7 @@ test("CLI resolve delegates its gate operation through Application Operations", 
     assert.equal(result.code, 0, result.stderr);
 
     const out = await resolve({
+      ...testContext,
       projectDir: dir,
       statePath: dir,
       source,
@@ -153,13 +156,14 @@ test("CLI resolve delegates its gate operation through Application Operations", 
     assert.equal(out.node.status, "resolved");
     await assert.rejects(
       resolve({
+        ...testContext,
         projectDir: dir,
         statePath: dir,
         source,
         positional: ["G-resolve"],
         flags: { choice: "yes", rationale: "accepted", as: "operator" },
       }),
-      (error) => error.code === "INVALID_STATUS",
+      (error: unknown) => error instanceof Error && error.code === "INVALID_STATUS",
     );
     assert.deepEqual(operations, ["gate.resolve", "gate.resolve"]);
   } finally {
@@ -175,11 +179,13 @@ test("CLI reopen and cancel delegate task and gate lifecycle through Application
     await prepareReopenCancelProject(dir);
     await seedReopenCancelStates(dir);
 
-    const reopenedTask = await reopen({ projectDir: dir, statePath: dir, source, positional: ["T-reopen"], flags: { reason: "retry", as: "operator" } });
-    const reopenedGate = await reopen({ projectDir: dir, statePath: dir, source, positional: ["G-reopen"], flags: { reason: "retry", as: "operator" } });
-    const canceledTask = await cancel({ projectDir: dir, statePath: dir, source, positional: ["T-cancel"], flags: { reason: "stop", as: "operator" } });
-    const canceledGate = await cancel({ projectDir: dir, statePath: dir, source, positional: ["G-cancel"], flags: { reason: "stop", as: "operator" } });
+    const reopenedTask = await reopen({ ...testContext, projectDir: dir, statePath: dir, source, positional: ["T-reopen"], flags: { reason: "retry", as: "operator" } });
+    const reopenedGate = await reopen({ ...testContext, projectDir: dir, statePath: dir, source, positional: ["G-reopen"], flags: { reason: "retry", as: "operator" } });
+    const canceledTask = await cancel({ ...testContext, projectDir: dir, statePath: dir, source, positional: ["T-cancel"], flags: { reason: "stop", as: "operator" }, backendClient: undefined, pluginId: undefined } as unknown as Parameters<typeof cancel>[0]);
+    const canceledGate = await cancel({ ...testContext, projectDir: dir, statePath: dir, source, positional: ["G-cancel"], flags: { reason: "stop", as: "operator" }, backendClient: undefined, pluginId: undefined } as unknown as Parameters<typeof cancel>[0]);
+    assert.ok(reopenedTask.node);
     assert.equal(reopenedTask.node.status, "open");
+    assert.ok(reopenedGate.node);
     assert.equal(reopenedGate.node.status, "open");
     assert.equal(canceledTask.node.status, "canceled");
     assert.equal(canceledGate.node.status, "canceled");

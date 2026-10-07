@@ -13,17 +13,33 @@ import {
   readFencedStateUnderLock,
 } from "../src/storage/ledger.ts";
 
+type TestNode = { id: string; revision: number; [key: string]: unknown };
+type TestState = {
+  version: number;
+  fence_generation: number;
+  revision: number;
+  nodes: Record<string, TestNode>;
+  edges: unknown[];
+  initiatives: Record<string, unknown>;
+  log: Array<{ action: string; [key: string]: unknown }>;
+  [key: string]: unknown;
+};
+
+function asTestState(value: unknown): TestState {
+  return value as TestState;
+}
+
 async function createProjectForTest(t) {
   const projectDir = await createTempProject();
   t.after(() => rmTempProject(projectDir));
   return projectDir;
 }
 
-async function readUnderLock(projectDir) {
-  return withLock(projectDir, readFencedStateUnderLock);
+async function readUnderLock(projectDir, options = {}) {
+  return withLock(projectDir, (context) => readFencedStateUnderLock(context, options));
 }
 
-async function bootstrapUnderLock(projectDir, initialState, options) {
+async function bootstrapUnderLock(projectDir, initialState, options = {}) {
   return withLock(projectDir, (context) => bootstrapFencedStateUnderLock(context, initialState, options));
 }
 
@@ -34,8 +50,8 @@ async function captureExpiredLockContext(projectDir) {
 }
 
 async function fileExists(filePath) {
-  try { await fs.access(filePath); return true; } catch (error) {
-    if (error.code === "ENOENT") { return false; }
+  try { await fs.access(filePath); return true; } catch (error: unknown) {
+    if (error instanceof Error && error.code === "ENOENT") { return false; }
     throw error;
   }
 }
@@ -116,22 +132,22 @@ test("under-lock fenced read fails closed for ledger-only projects unless bootst
 test("fenced bootstrap creates an initial canonical v1 state under an active lock without reacquiring", async (t) => {
   const projectDir = await createProjectForTest(t);
   const initialState = { ...canonicalInitialState(), log: [{ action: "authorized-bootstrap" }] };
-  const result = await Promise.race([
+  const result = asTestState(await Promise.race([
     withLock(projectDir, async (lockContext) => {
       const state = await bootstrapFencedStateUnderLock(lockContext, initialState);
       assert.ok(await fileExists(path.join(path.dirname(stateFile(projectDir)), ".lock")));
       return state;
     }),
     new Promise((_, reject) => setTimeout(() => reject(new Error("bootstrap reacquired the held lock")), 1000)),
-  ]);
+  ]));
   assert.equal(result.version, 1);
   assert.equal(result.fence_generation, 1);
   assert.equal(result.revision, 4);
-  assert.deepEqual((await readFencedState(projectDir)).log, [{ action: "authorized-bootstrap" }]);
+  assert.deepEqual(asTestState(await readFencedState(projectDir)).log, [{ action: "authorized-bootstrap" }]);
 });
 
 test("fenced bootstrap rejects invalid lock capabilities before storage access", async () => {
-  await assert.rejects(bootstrapFencedStateUnderLock(null, canonicalInitialState()), { code: "CLIMIER_INVALID_LOCK_CONTEXT" });
+  await assert.rejects(bootstrapFencedStateUnderLock(null as unknown as object, canonicalInitialState()), { code: "CLIMIER_INVALID_LOCK_CONTEXT" });
   await assert.rejects(bootstrapFencedStateUnderLock(new Proxy({}, {
     get() { throw new Error("forged lock context must not be inspected"); },
   }), canonicalInitialState()), { code: "CLIMIER_INVALID_LOCK_CONTEXT" });
@@ -181,7 +197,7 @@ test("fenced bootstrap recovers interrupted initial publication without divergen
       const ledgerExists = await fileExists(ledgerPath);
       assert.equal(stateExists, faultAt === "after-state-create");
       assert.equal(ledgerExists, faultAt !== "before-pending");
-      const state = await bootstrapUnderLock(projectDir, initialState);
+      const state = asTestState(await bootstrapUnderLock(projectDir, initialState));
       assert.equal(state.version, 1);
       assert.deepEqual(state.log, [{ action: "only-once" }]);
       assert.deepEqual(await readFencedState(projectDir), state);
@@ -189,7 +205,7 @@ test("fenced bootstrap recovers interrupted initial publication without divergen
       assert.equal(ledger.high_water_revision, state.revision);
       assert.equal(ledger.bootstrap_pending, null);
       if (faultAt === "after-pending") {
-        const recovered = await readFencedState(projectDir);
+        const recovered = asTestState(await readFencedState(projectDir));
         assert.deepEqual(recovered, state);
       }
     });
@@ -206,8 +222,8 @@ test("fenced bootstrap rejects a retry with a different initial-state fingerprin
     bootstrapFencedStateUnderLock(context, altered)), { code: "CLIMIER_LEDGER_FINGERPRINT_MISMATCH" });
   assert.equal(await fileExists(stateFile(projectDir)), false);
   assert.ok(JSON.parse(await fs.readFile(ledgerFile(projectDir), "utf8")).bootstrap_pending);
-  const recovered = await withLock(projectDir, (context) =>
-    bootstrapFencedStateUnderLock(context, initialState));
+  const recovered = asTestState(await withLock(projectDir, (context) =>
+    bootstrapFencedStateUnderLock(context, initialState)));
   assert.deepEqual(recovered.log, [{ action: "original" }]);
 });
 

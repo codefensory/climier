@@ -14,7 +14,23 @@ import {
   replaceFencedStateUnderLock,
 } from "../src/storage/ledger.ts";
 
-function canonicalState(revision = 10, fenceGeneration = 1) {
+type TestNode = { id: string; revision: number; [key: string]: unknown };
+type TestState = {
+  version: number;
+  fence_generation: number;
+  revision: number;
+  nodes: Record<string, TestNode>;
+  edges: unknown[];
+  initiatives: Record<string, unknown>;
+  log: Array<{ action: string; [key: string]: unknown }>;
+  [key: string]: unknown;
+};
+
+function asTestState(value: unknown): TestState {
+  return value as TestState;
+}
+
+function canonicalState(revision = 10, fenceGeneration = 1): TestState {
   return {
     version: STATE_SCHEMA_VERSION,
     fence_generation: fenceGeneration,
@@ -38,7 +54,7 @@ async function withProject(fn) {
 async function seedFenced(projectDir) {
   await bootstrapFencedState(projectDir);
   const file = stateFile(projectDir);
-  const state = JSON.parse(await fs.readFile(file, "utf8"));
+  const state = asTestState(JSON.parse(await fs.readFile(file, "utf8")));
   const ledgerPath = ledgerFile(projectDir);
   const ledger = JSON.parse(await fs.readFile(ledgerPath, "utf8"));
   state.fence_generation = 7;
@@ -51,7 +67,7 @@ async function seedFenced(projectDir) {
   return { file, ledgerPath };
 }
 
-async function replace(projectDir, candidate, options) {
+async function replace(projectDir, candidate, options = {}) {
   return withLock(projectDir, (lockContext) => replaceFencedStateUnderLock(lockContext, candidate, options));
 }
 
@@ -65,7 +81,7 @@ async function recoverCanonicalState(projectDir, statePath) {
   stale.nodes.T2.revision = 4;
   stale.log = [{ action: "stale-canonical-source" }];
   await fs.writeFile(statePath, `${JSON.stringify(stale, null, 2)}\n`, "utf8");
-  return withLock(projectDir, (lockContext) => recoverFencedStateUnderLock(lockContext));
+  return withLock(projectDir, (lockContext) => recoverFencedStateUnderLock(lockContext, undefined));
 }
 
 function replacementCandidate() {
@@ -77,7 +93,7 @@ function replacementCandidate() {
   return candidate;
 }
 
-function assertRebasedReplacement(replaced, ledger) {
+function assertRebasedReplacement(replaced: TestState, ledger) {
   assert.equal(replaced.version, STATE_SCHEMA_VERSION);
   assert.equal(replaced.fence_generation, 7);
   assert.equal(replaced.revision, 41);
@@ -89,7 +105,7 @@ function assertRebasedReplacement(replaced, ledger) {
   assert.equal(ledger.replace_pending, null);
 }
 
-async function assertPendingReplace(projectDir, setup, faultAt) {
+async function assertPendingReplace(projectDir, setup, faultAt): Promise<TestState> {
   const { file, candidate, sourceRaw, pendingLedger } = setup;
   const pending = pendingLedger.replace_pending;
   const pendingDurable = ["after-pending", "before-state-rename", "after-state-rename", "before-ledger-clear"].includes(faultAt);
@@ -97,13 +113,13 @@ async function assertPendingReplace(projectDir, setup, faultAt) {
   if (!pendingDurable) {
     assert.equal(pendingLedger.high_water_revision, 40);
     assert.equal(await fs.readFile(file, "utf8"), sourceRaw);
-    return replace(projectDir, candidate);
+    return asTestState(await replace(projectDir, candidate));
   }
   assert.equal(pending.source_sha256, sha(sourceRaw));
   assert.match(pending.destination_sha256, /^[a-f0-9]{64}$/);
   const wrongRetry = { ...candidate, log: [{ action: "different-payload" }] };
   await assert.rejects(replace(projectDir, wrongRetry), { code: "CLIMIER_LEDGER_FINGERPRINT_MISMATCH" });
-  return readFencedState(projectDir);
+  return asTestState(await readFencedState(projectDir));
 }
 
 async function runReplaceCrash(projectDir, faultAt) {
@@ -148,7 +164,7 @@ async function runMissingOrCorruptLedger(projectDir, mode) {
   if (mode === "absent") {await fs.unlink(ledgerPath);}
   else if (mode === "corrupt") {await fs.writeFile(ledgerPath, "{broken", "utf8");}
   else {
-    const state = JSON.parse(await fs.readFile(file, "utf8"));
+    const state = asTestState(JSON.parse(await fs.readFile(file, "utf8")));
     state.fence_generation += 1;
     await fs.writeFile(file, `${JSON.stringify(state, null, 2)}\n`, "utf8");
   }
@@ -162,7 +178,7 @@ async function runMissingOrCorruptLedger(projectDir, mode) {
 }
 
 test("fenced replace rejects invalid lock capabilities before storage access", async () => {
-  await assert.rejects(replaceFencedStateUnderLock(null, {}), { code: "CLIMIER_INVALID_LOCK_CONTEXT" });
+  await assert.rejects(replaceFencedStateUnderLock(null as unknown as object, {}), { code: "CLIMIER_INVALID_LOCK_CONTEXT" });
   await assert.rejects(replaceFencedStateUnderLock(new Proxy({}, {
     get() { throw new Error("forged lock capability must not be inspected"); },
   }), {}), { code: "CLIMIER_INVALID_LOCK_CONTEXT" });
@@ -172,7 +188,7 @@ test("fenced replace rebases a canonical candidate above local high-water and pr
   await withProject(async (projectDir) => {
     const { file, ledgerPath } = await seedFenced(projectDir);
     const candidate = replacementCandidate();
-    const replaced = await replace(projectDir, candidate);
+    const replaced = asTestState(await replace(projectDir, candidate));
     const ledger = JSON.parse(await fs.readFile(ledgerPath, "utf8"));
 
     assertRebasedReplacement(replaced, ledger);
@@ -185,7 +201,7 @@ test("fenced replace rebases a canonical candidate above local high-water and pr
 test("replace checkpoint is invalidated durably before installing a replacement", async () => {
   await withProject(async (projectDir) => {
     const { file, ledgerPath } = await seedFenced(projectDir);
-    const recovered = await recoverCanonicalState(projectDir, file);
+    const recovered = asTestState(await recoverCanonicalState(projectDir, file));
     assert.ok(JSON.parse(await fs.readFile(ledgerPath, "utf8")).last_recovery);
     const candidate = replacementCandidate();
 
@@ -193,7 +209,7 @@ test("replace checkpoint is invalidated durably before installing a replacement"
     const pending = JSON.parse(await fs.readFile(ledgerPath, "utf8"));
     assert.equal(pending.last_recovery, undefined);
     assert.ok(pending.replace_pending);
-    const replaced = await readFencedState(projectDir);
+    const replaced = asTestState(await readFencedState(projectDir));
     assert.equal(replaced.nodes.T1.title, "restored payload");
     assert.equal(JSON.parse(await fs.readFile(ledgerPath, "utf8")).replace_pending, null);
     assert.notDeepEqual(replaced, recovered);
