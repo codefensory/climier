@@ -23,11 +23,11 @@
     "typecheck": "bunx tsc -p tsconfig.json",
     "build:binary": "bun scripts/build-binary.ts",
     "test:watch": "bun test --watch test/",
-    "test:concurrent": "bun test test/take.test.mjs test/take-by-id.test.mjs test/adversarial.test.mjs",
+    "test:concurrent": "bun test test/take.test.ts test/take-by-id.test.ts test/adversarial.test.ts",
     "pack:check": "bun pm pack --dry-run > /dev/null",
     "surface:check": "bun scripts/check-retired-surfaces.ts",
     "smoke:pack": "bun install --cwd ui --frozen-lockfile && bun run --cwd ui build && bun scripts/smoke-packed.ts",
-    "lint:cut": "oxlint bin scripts src/cli/commands/ui.ts src/cli/dispatch.ts test/package.test.mjs test/retired-surfaces.test.mjs",
+    "lint:cut": "oxlint bin scripts src/cli/commands/ui.ts src/cli/dispatch.ts test/package.test.ts test/retired-surfaces.test.ts",
     "prepublishOnly": "bun run test && bun run surface:check && bun run lint:cut && bun run pack:check",
     "lint": "oxlint src bin test"
   },
