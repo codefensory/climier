@@ -16,6 +16,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, importFresh, runCli, readState as readRawState, writeCanonicalState } from "./helpers.mjs";
 
+type TestError = { code?: string; details?: Record<string, unknown> };
+
 // --- pure helpers -------------------------------------------------------
 
 function assertV2Error(data, code) {
@@ -98,7 +100,7 @@ test("add-initiative : rejects duplicate name with ID_CONFLICT", async () => {
     await addInit({ statePath: dir, flags: { desc: "first" }, positional: ["auth"] });
     await assert.rejects(
       addInit({ statePath: dir, flags: { desc: "second" }, positional: ["auth"] }),
-      (err) => err.code === "ID_CONFLICT" && err.details && err.details.name === "auth",
+      (err: TestError) => err.code === "ID_CONFLICT" && err.details && err.details.name === "auth",
     );
   } finally {
     await rmTempProject(dir);
@@ -131,7 +133,7 @@ test("add-initiative : missing name emits MISSING_FIELD", async () => {
     await init({ statePath: dir, positional: [], projectDir: dir });
     await assert.rejects(
       addInit({ statePath: dir, flags: { desc: "x" }, positional: [] }),
-      (err) => err.code === "MISSING_FIELD" && err.details && err.details.field === "name",
+      (err: TestError) => err.code === "MISSING_FIELD" && err.details && err.details.field === "name",
     );
   } finally {
     await rmTempProject(dir);
@@ -267,7 +269,7 @@ test("add-node : missing --initiative emits MISSING_FIELD with field=initiative"
         positional: ["T1"],
         flags: { kind: "resolvable", subkind: "task", title: "t" },
       }),
-      (err) => err.code === "MISSING_FIELD" && err.details && err.details.field === "initiative",
+      (err: TestError) => err.code === "MISSING_FIELD" && err.details && err.details.field === "initiative",
     );
   } finally {
     await rmTempProject(dir);
@@ -291,7 +293,7 @@ test("add-node : unregistered initiative emits INITIATIVE_NOT_FOUND with details
           initiative: "ghost",
         },
       }),
-      (err) =>
+      (err: TestError) =>
         err.code === "INITIATIVE_NOT_FOUND" &&
         err.details &&
         err.details.initiative === "ghost" &&
@@ -341,7 +343,7 @@ test("add-node : knowledge nodes also require --initiative", async () => {
         positional: ["K1"],
         flags: { kind: "knowledge", title: "k" },
       }),
-      (err) => err.code === "MISSING_FIELD" && err.details && err.details.field === "initiative",
+      (err: TestError) => err.code === "MISSING_FIELD" && err.details && err.details.field === "initiative",
     );
   } finally {
     await rmTempProject(dir);

@@ -5,6 +5,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, importFresh } from "./helpers.mjs";
 
+type TestError = { message: string };
+
 test("assertInitiativeRegistered: passes for a registered initiative", async () => {
   const { assertInitiativeRegistered } = await importFresh("./storage/state.ts");
   const s = { initiatives: { migration: { desc: "x" } } };
@@ -18,8 +20,9 @@ test("assertInitiativeRegistered: throws with sorted list of valid names", async
     assertInitiativeRegistered(s, "qa", "add-task");
     assert.fail("should have thrown");
   } catch (err) {
-    assert.match(err.message, /--initiative 'qa' is not registered/);
-    assert.match(err.message, /maintenance, migration/); // sorted alphabetically
+    const failure = err as TestError;
+    assert.match(failure.message, /--initiative 'qa' is not registered/);
+    assert.match(failure.message, /maintenance, migration/); // sorted alphabetically
   }
 });
 
@@ -29,14 +32,16 @@ test("assertInitiativeRegistered: empty state hints at add-initiative", async ()
     assertInitiativeRegistered(null, "qa", "add-task");
     assert.fail("should have thrown");
   } catch (err) {
-    assert.match(err.message, /no initiatives registered/);
-    assert.match(err.message, /add-initiative/);
+    const failure = err as TestError;
+    assert.match(failure.message, /no initiatives registered/);
+    assert.match(failure.message, /add-initiative/);
   }
   try {
     assertInitiativeRegistered({ initiatives: {} }, "qa", "add-task");
     assert.fail("should have thrown");
   } catch (err) {
-    assert.match(err.message, /no initiatives registered/);
+    const failure = err as TestError;
+    assert.match(failure.message, /no initiatives registered/);
   }
 });
 

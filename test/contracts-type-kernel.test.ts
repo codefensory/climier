@@ -15,6 +15,12 @@ const EXPECTED_DOMAIN_SIZES = Object.freeze({
   cli: 3,
 });
 
+type ErrorShape = Error & {
+  code: string;
+  details: Record<string, unknown>;
+  toJSON(): unknown;
+};
+
 for (const file of ["agent.ts", "errors.ts", "domain.ts", "operations.ts", "state-invariants.ts"]) {
   test(`contracts/${file} is a runtime-independent leaf`, async () => {
     const source = await fs.readFile(path.join(CONTRACT_DIR, file), "utf8");
@@ -29,17 +35,19 @@ test("error contract keeps the canonical 52-code domain catalog in sync", async 
     ERROR_CODES,
   } = await importFresh("../src/contracts/errors.ts");
 
+  const domains = ERROR_CODES_BY_DOMAIN as Record<string, Record<string, string>>;
+  const allCodes = ERROR_CODES as Record<string, string>;
   assert.deepEqual(
-    Object.fromEntries(Object.entries(ERROR_CODES_BY_DOMAIN).map(([domain, codes]) => [domain, Object.keys(codes).length])),
+    Object.fromEntries(Object.entries(domains).map(([domain, codes]) => [domain, Object.keys(codes).length])),
     EXPECTED_DOMAIN_SIZES,
   );
-  assert.equal(Object.keys(ERROR_CODES).length, 52);
-  assert.equal(new Set(Object.values(ERROR_CODES)).size, 52);
+  assert.equal(Object.keys(allCodes).length, 52);
+  assert.equal(new Set(Object.values(allCodes)).size, 52);
 
-  for (const [domain, codes] of Object.entries(ERROR_CODES_BY_DOMAIN)) {
+  for (const [domain, codes] of Object.entries(domains)) {
     for (const [name, value] of Object.entries(codes)) {
       assert.equal(value, name, `${domain}.${name} must be self-describing`);
-      assert.equal(ERROR_CODES[name], value, `${domain}.${name} is missing from the aggregate catalog`);
+      assert.equal(allCodes[name], value, `${domain}.${name} is missing from the aggregate catalog`);
     }
   }
 });
@@ -47,7 +55,7 @@ test("error contract keeps the canonical 52-code domain catalog in sync", async 
 test("ClimierError and throwV2 expose the structured error envelope", async () => {
   const { ClimierError, makeError, throwV2 } = await importFresh("../src/contracts/errors.ts");
   const details = { field: "id" };
-  const direct = new ClimierError("NODE_NOT_FOUND", "node is missing", details);
+  const direct = new ClimierError("NODE_NOT_FOUND", "node is missing", details) as ErrorShape;
 
   assert.ok(direct instanceof Error);
   assert.equal(direct.code, "NODE_NOT_FOUND");
@@ -56,9 +64,12 @@ test("ClimierError and throwV2 expose the structured error envelope", async () =
 
   assert.throws(
     () => throwV2("MISSING_FIELD", "id is required", details),
-    (error) => error instanceof ClimierError
-      && error.code === "MISSING_FIELD"
-      && error.details.field === "id",
+    (error) => {
+      const failure = error as ErrorShape;
+      return failure instanceof ClimierError
+        && failure.code === "MISSING_FIELD"
+        && failure.details.field === "id";
+    },
   );
 });
 

@@ -12,7 +12,18 @@ const TAKE = "./cli/commands/take.ts";
 const BUILTINS = "./application/operations/builtins.ts";
 const MUTATE = "./kernel/mutate.ts";
 
-async function fixture({ policy = { pluginId: "policy-fixture", projectConfig: {} }, decision = "allow" } = {}) {
+type Policy = { pluginId: string; projectConfig: Record<string, unknown> };
+type Authorization = {
+  action?: string;
+  actor?: string;
+  target: { previous_owner?: string; [key: string]: unknown };
+};
+type TestError = { code?: string; details?: Record<string, unknown> };
+
+async function fixture({ policy = { pluginId: "policy-fixture", projectConfig: {} }, decision = "allow" }: {
+  policy?: Policy | null;
+  decision?: string | ((args: Authorization) => { decision: string });
+} = {}) {
   const projectDir = await createTempProject();
   await writeCanonicalState(projectDir, {
     version: 1,
@@ -38,7 +49,7 @@ async function fixture({ policy = { pluginId: "policy-fixture", projectConfig: {
     importFresh(BUILTINS),
     importFresh(MUTATE),
   ]);
-  const authorization = [];
+  const authorization: Authorization[] = [];
   const source = {
     registry: createBuiltinOperationRegistry(),
     mutate,
@@ -88,8 +99,10 @@ test("CLI take without policy preserves ALREADY_CLAIMED and does not mutate", as
   const state = await fixture({ policy: null });
   try {
     const before = await readState(state.projectDir);
-    await assert.rejects(callTake(state, "bob"), (error) =>
-      error.code === "ALREADY_CLAIMED" && error.details.owner === "alice");
+    await assert.rejects(callTake(state, "bob"), (error) => {
+      const failure = error as TestError;
+      return failure.code === "ALREADY_CLAIMED" && failure.details?.owner === "alice";
+    });
     const after = await readState(state.projectDir);
     assert.deepEqual(after.nodes.T1, before.nodes.T1);
     assert.deepEqual(after.log, before.log);
@@ -103,8 +116,10 @@ test("CLI take with policy abstain preserves ALREADY_CLAIMED and does not mutate
   const state = await fixture({ decision: "abstain" });
   try {
     const before = await readState(state.projectDir);
-    await assert.rejects(callTake(state, "bob"), (error) =>
-      error.code === "ALREADY_CLAIMED" && error.details.owner === "alice");
+    await assert.rejects(callTake(state, "bob"), (error) => {
+      const failure = error as TestError;
+      return failure.code === "ALREADY_CLAIMED" && failure.details?.owner === "alice";
+    });
     const after = await readState(state.projectDir);
     assert.deepEqual(after.nodes.T1, before.nodes.T1);
     assert.deepEqual(after.log, before.log);
@@ -118,8 +133,10 @@ test("CLI take with policy deny preserves POLICY_DENIED and does not mutate", as
   const state = await fixture({ decision: "deny" });
   try {
     const before = await readState(state.projectDir);
-    await assert.rejects(callTake(state, "bob"), (error) =>
-      error.code === "POLICY_DENIED" && error.details.action === "task.takeover");
+    await assert.rejects(callTake(state, "bob"), (error) => {
+      const failure = error as TestError;
+      return failure.code === "POLICY_DENIED" && failure.details?.action === "task.takeover";
+    });
     const after = await readState(state.projectDir);
     assert.deepEqual(after.nodes.T1, before.nodes.T1);
     assert.deepEqual(after.log, before.log);

@@ -16,7 +16,7 @@ test("init: creates empty canonical v1 state and ledger when none exists", async
     assert.equal(await stateExists(dir), true);
     const meta = JSON.parse(await fs.readFile(path.join(dir, ".climier.json"), "utf8"));
     assert.match(meta.project_id, /\S/);
-    assert.equal(stateFilePath(dir).startsWith(path.join(process.env.CLIMIER_HOME, "projects")), true);
+    assert.equal(stateFilePath(dir).startsWith(path.join(process.env.CLIMIER_HOME ?? "", "projects")), true);
     const { readState } = await importFresh("./storage/state.ts");
     const s = await readState(dir);
     assert.equal(s.version, 1);
@@ -93,8 +93,8 @@ test("init: insecure remote HTTP returns a warning after successful provisioning
 });
 
 async function runInsecureRemoteInit(dir, client, args = ["init"]) {
-  const output = [];
-  const errors = [];
+  const output: string[] = [];
+  const errors: number[] = [];
   const status = await runCliInProcess({
     argv: ["--project", dir, ...args],
     createBackendClient: () => client,
@@ -205,7 +205,7 @@ test("init: remote errors preserve local sentinels and force fails before filesy
       projectDir: untouched,
       flags: { force: true },
       backendClient: { type: "remote", async init() { assert.fail("remote force must be rejected before request"); } },
-    }), (error) => error.code === "REMOTE_UNSUPPORTED_OPERATION");
+    }), (error) => (error as { code?: string }).code === "REMOTE_UNSUPPORTED_OPERATION");
     await assert.rejects(fs.access(untouched), { code: "ENOENT" });
   } finally {
     await rmTempProject(dir);
@@ -248,13 +248,13 @@ test("init: refuses to overwrite an existing valid state without --force", async
     const file = stateFilePath(dir);
     const before = await fs.readFile(file, "utf8");
 
-    let caught;
+    let caught: Error | undefined;
     try {
       await init({ statePath: dir, flags: {}, positional: [], projectDir: dir });
-    } catch (e) { caught = e; }
+    } catch (e) { caught = e as Error; }
     assert.ok(caught, "init without --force on a valid existing state must throw");
-    assert.match(caught.message, /already exists/i);
-    assert.match(caught.message, /--force/);
+    assert.match(caught!.message, /already exists/i);
+    assert.match(caught!.message, /--force/);
     assert.equal(await fs.readFile(file, "utf8"), before, "existing state must remain unchanged");
   } finally { await rmTempProject(dir); }
 });

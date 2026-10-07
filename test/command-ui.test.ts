@@ -8,6 +8,15 @@ import { initState } from "../src/kernel/state-operations.ts";
 import { runCli } from "./cli-harness.mjs";
 import uiCommand, { startLocalUiServer } from "../src/cli/commands/ui.ts";
 
+interface SnapshotBody {
+  ok: boolean;
+  result: { project: { id: string; name: string; revision: number; generated_at: string }; nodes: Record<string, unknown> };
+}
+type CatalogProject = { project_id: string; revision: number; node_count: number; updated_at?: string | null };
+type CatalogBody = { projects: CatalogProject[] };
+type LoginBody = { ok: boolean; token_type: string };
+type ErrorBody = { error: { code: string } };
+
 async function makeProject(t, projectId = "local-project") {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "climier-ui-local-"));
   const home = path.join(root, "home");
@@ -31,7 +40,7 @@ async function makeProject(t, projectId = "local-project") {
 
 async function closeServer(server) {
   if (!server.listening) return;
-  await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
 }
 
 test("climier ui serves the local SPA and UI projections without Express or bearer auth", async (t) => {
@@ -51,7 +60,7 @@ test("climier ui serves the local SPA and UI projections without Express or bear
   const snapshot = await fetch(`${started.url}/v1/projects/${projectId}/ui/snapshot`);
   assert.equal(snapshot.status, 200);
   assert.equal(snapshot.headers.get("x-climier-protocol-version"), "1");
-  const body = await snapshot.json();
+  const body = await snapshot.json() as SnapshotBody;
   assert.equal(body.ok, true);
   assert.deepEqual(body.result.project, {
     id: projectId,
@@ -69,7 +78,7 @@ test("climier ui exposes the hosted read contract locally: catalog, login, ETag 
 
   const catalog = await fetch(`${started.url}/v1/projects`);
   assert.equal(catalog.status, 200);
-  const projects = (await catalog.json()).projects;
+  const projects = (await catalog.json() as CatalogBody).projects;
   assert.deepEqual(projects.map((project) => project.project_id), [projectId]);
   assert.equal(projects[0].revision, 1);
   assert.equal(projects[0].node_count, 0);
@@ -80,7 +89,7 @@ test("climier ui exposes the hosted read contract locally: catalog, login, ETag 
     body: JSON.stringify({ password: "anything" }),
   });
   assert.equal(login.status, 200);
-  const session = await login.json();
+  const session = await login.json() as LoginBody;
   assert.equal(session.ok, true);
   assert.equal(session.token_type, "Bearer");
 
@@ -135,14 +144,14 @@ test("climier ui catalog lists every local project, not only the launch project"
   t.after(() => closeServer(started.server));
 
   const catalog = await (await fetch(`${started.url}/v1/projects`)).json();
-  const projects = Object.fromEntries(catalog.projects.map((project) => [project.project_id, project]));
+  const projects = Object.fromEntries((catalog as CatalogBody).projects.map((project) => [project.project_id, project]));
   assert.deepEqual(Object.keys(projects).toSorted(), ["proj-a", "proj-b"]);
   assert.equal(projects["proj-a"].node_count, 0);
   assert.equal(projects["proj-b"].node_count, 1);
 
-  const other = await (await fetch(`${started.url}/v1/projects/proj-b/ui/snapshot`)).json();
+  const other = await (await fetch(`${started.url}/v1/projects/proj-b/ui/snapshot`)).json() as SnapshotBody;
   assert.deepEqual(Object.keys(other.result.nodes), ["T-b"]);
-  const launching = await (await fetch(`${started.url}/v1/projects/proj-a/ui/snapshot`)).json();
+  const launching = await (await fetch(`${started.url}/v1/projects/proj-a/ui/snapshot`)).json() as SnapshotBody;
   assert.deepEqual(Object.keys(launching.result.nodes), []);
 
   const unknown = await fetch(`${started.url}/v1/projects/not-a-project/ui/snapshot`);
@@ -177,30 +186,39 @@ test("climier ui keeps an unreadable project in the catalog and fails when it is
   t.after(() => closeServer(started.server));
 
   const catalog = await (await fetch(`${started.url}/v1/projects`)).json();
-  const legacy = catalog.projects.find((entry) => entry.project_id === "legacy");
-  assert.deepEqual(legacy, {
+  const legacy = (catalog as CatalogBody).projects.find((entry) => entry.project_id === "legacy");
+  assert.deepEqual(legacy!, {
     project_id: "legacy",
     name: "legacy",
     revision: 0,
     node_count: 0,
-    updated_at: legacy.updated_at,
+    updated_at: legacy!.updated_at,
   });
 
   const opened = await fetch(`${started.url}/v1/projects/legacy/ui/snapshot`);
   assert.equal(opened.status, 400);
-  assert.equal((await opened.json()).error.code, "CLIMIER_LEDGER_MISSING");
+  assert.equal((await opened.json() as ErrorBody).error.code, "CLIMIER_LEDGER_MISSING");
 });
 
 test("uiCommand starts the stdlib local server and reports the loopback URL", async (t) => {
   const { root, uiRoot } = await makeProject(t, "command-project");
-  const result = await uiCommand({ projectDir: root, flags: { open: false, port: "0" }, uiRoot });
+  const result = await uiCommand({
+    command: "ui",
+    originalArgv: [],
+    positional: [],
+    projectDir: root,
+    statePath: root,
+    projectConfig: { version: 1, project_id: "command-project" },
+    flags: { open: false, port: "0" },
+    uiRoot,
+  });
   assert.match(result.ui.url, /^http:\/\/127\.0\.0\.1:\d+$/);
   assert.equal(result.ui.project, root);
   assert.equal(result.ui.read_only, true);
 
   const response = await fetch(`${result.ui.url}/api/health`);
   assert.equal(response.status, 200);
-  await closeServer(result.server);
+  await closeServer((result as typeof result & { server: import("node:http").Server }).server);
   t.after(() => fs.rm(root, { recursive: true, force: true }));
 });
 
@@ -214,8 +232,16 @@ test("ui keeps corrupt-state errors before starting the local server", async () 
   process.env.CLIMIER_HOME = home;
   try {
     await assert.rejects(
-      uiCommand({ projectDir: root, flags: { open: false } }),
-      (error) => error.code === "CLIMIER_CORRUPT_STATE",
+      uiCommand({
+        command: "ui",
+        originalArgv: [],
+        positional: [],
+        projectDir: root,
+        statePath: root,
+        projectConfig: { version: 1, project_id: "ui-state-project" },
+        flags: { open: false },
+      }),
+      (error) => (error as { code?: string }).code === "CLIMIER_CORRUPT_STATE",
     );
   } finally {
     if (oldHome === undefined) delete process.env.CLIMIER_HOME;
