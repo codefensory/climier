@@ -24,7 +24,7 @@ type Story = StoryObj<TaskListRowProps>;
 
 /** Una fila vive dentro de un grupo, que es quien aporta el borde y los divisores. */
 const Rows = (props: { children: import("solid-js").JSX.Element }) => (
-  <div class="overflow-hidden rounded-[10px] border border-line bg-white">
+  <div class="overflow-hidden rounded-[10px] border border-line bg-surface">
     <div class="divide-y divide-hairline">{props.children}</div>
   </div>
 );

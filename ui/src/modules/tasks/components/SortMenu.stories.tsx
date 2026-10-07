@@ -44,7 +44,7 @@ const Host = (props: { sort?: TaskSort }) => {
   const [sort, setSort] = createSignal<TaskSort>(props.sort ?? { key: "updated", dir: "desc" });
   const [open, setOpen] = createSignal(false);
   return (
-    <div class="flex justify-end bg-white p-4">
+    <div class="flex justify-end bg-surface p-4">
       <SortMenu sort={sort()} onSort={setSort} isOpen={open} onOpen={() => setOpen(true)} onClose={() => setOpen(false)} />
     </div>
   );
@@ -87,7 +87,7 @@ export const OpenWithAppliedSort: Story = {
 /** Interactivo: hacer clic en el trigger abre, elegir un criterio aplica y cierra. */
 export const Interactive: Story = {
   render: () => (
-    <div class="bg-white p-4">
+    <div class="bg-surface p-4">
       <p class="mb-3 text-[12px] text-muted">Clic en Sort para abrir. Elegir un criterio cierra el menú y devuelve el foco al trigger.</p>
       <Host />
     </div>

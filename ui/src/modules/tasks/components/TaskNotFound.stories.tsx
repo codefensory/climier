@@ -21,11 +21,11 @@ type Story = StoryObj<TaskNotFoundProps>;
 
 export const Playground: Story = {
   args: { id: "CLI-999", onBack: () => {} },
-  render: (args) => <div class="w-[720px] bg-white p-8"><TaskNotFound {...args} /></div>,
+  render: (args) => <div class="w-[720px] bg-surface p-8"><TaskNotFound {...args} /></div>,
 };
 
 /** Sin id: la URL no traía ninguno, así que el mensaje no puede nombrarlo. */
 export const NoId: Story = {
   args: { onBack: () => {} },
-  render: (args) => <div class="w-[720px] bg-white p-8"><TaskNotFound {...args} /></div>,
+  render: (args) => <div class="w-[720px] bg-surface p-8"><TaskNotFound {...args} /></div>,
 };

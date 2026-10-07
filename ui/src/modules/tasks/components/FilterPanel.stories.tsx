@@ -49,7 +49,7 @@ const Host = (props: { tree?: FilterGroup; note?: string }) => {
   const [tree, setTree] = createSignal<FilterGroup>(props.tree ?? emptyFilterTree());
   const filters = useTaskFilters({ isOpen: open, setOpen, tree, setTree, snapshot: () => snapshot });
   return (
-    <div class="bg-white p-4">
+    <div class="bg-surface p-4">
       {props.note && <p class="mb-3 text-[12px] text-muted">{props.note}</p>}
       <div class="flex justify-end">
         <FilterPanel filters={filters} isOpen={open} setOpen={setOpen} />

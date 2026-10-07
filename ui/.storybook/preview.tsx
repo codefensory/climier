@@ -1,10 +1,26 @@
 import type { Preview } from "storybook-solidjs-vite";
+import { withTheme } from "./decorators";
 
 // CRÍTICO: sin este import, Tailwind no genera las clases usadas por las stories.
 // La app lo importa en `src/index.tsx`, pero las stories no pasan por ahí.
 import "../src/styles/style.css";
 
 const preview: Preview = {
+  globalTypes: {
+    theme: {
+      description: "Global theme for the story canvas",
+      defaultValue: "light",
+      toolbar: {
+        title: "Theme",
+        icon: "paintbrush",
+        items: [
+          { value: "light", title: "Light" },
+          { value: "dark", title: "Dark" },
+        ],
+      },
+    },
+  },
+  decorators: [withTheme],
   parameters: {
     // Los menús de sort/group/filter usan <Portal> + position: fixed y calculan su
     // posición leyendo window.innerWidth / window.innerHeight: necesitan el viewport completo.
@@ -13,12 +29,7 @@ const preview: Preview = {
     // Fase 7 lo pondrá en "error". Mientras tanto no bloquea.
     a11y: { test: "error" },
 
-    backgrounds: {
-      options: {
-        canvas: { name: "canvas", value: "#f6f6f6" },
-        surface: { name: "surface", value: "#ffffff" },
-      },
-    },
+    backgrounds: { disable: true },
 
     // Los breakpoints reales de la app (src/styles/style.css) son 1023px y 639px,
     //
@@ -52,7 +63,7 @@ const preview: Preview = {
   },
 
   initialGlobals: {
-    backgrounds: { value: "surface" },
+    theme: "light",
     viewport: { value: "wide" },
   },
 };

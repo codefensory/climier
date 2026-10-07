@@ -37,7 +37,7 @@ export const Playground: Story = {
  */
 export const AllStatuses: Story = {
   render: () => (
-    <div class="flex flex-col gap-2 bg-white p-5">
+    <div class="flex flex-col gap-2 bg-surface p-5">
       <For each={ALL_STATUSES}>{(status) => (
         <div class="flex items-center gap-3">
           <StatusGlyph status={status} class="h-5 w-5 shrink-0" />
@@ -52,7 +52,7 @@ export const AllStatuses: Story = {
 /** Las gates: abierta, resuelta y superseded. */
 export const Gates: Story = {
   render: () => (
-    <div class="flex flex-col gap-2 bg-white p-5">
+    <div class="flex flex-col gap-2 bg-surface p-5">
       <For each={["open", "resolved", "superseded"] as const}>{(status) => (
         <div class="flex items-center gap-3">
           <StatusGlyph status={status} class="h-5 w-5 shrink-0" />
@@ -67,7 +67,7 @@ export const Gates: Story = {
 /** Los 4 tamaños en uso real. `stroke-width` es fijo en 1.5. */
 export const Sizes: Story = {
   render: () => (
-    <div class="flex items-end gap-4 bg-white p-5">
+    <div class="flex items-end gap-4 bg-surface p-5">
       <For each={[{ size: "h-3.5 w-3.5", label: "3.5 · kanban" }, { size: "h-4 w-4", label: "4 · fila" }, { size: "h-5 w-5", label: "5 · grupo" }, { size: "h-6 w-6", label: "6 · grande" }]}>{(item) => (
         <div class="flex flex-col items-center gap-2">
           <StatusGlyph status="done" class={`${item.size} shrink-0`} />

@@ -39,7 +39,7 @@ type Story = StoryObj<Record<string, unknown>>;
  * fallaran: el árbol de accesibilidad que armaba la story era inválido.
  */
 const Menu = (props: { width?: string; children: JSX.Element }) => (
-  <div role="listbox" aria-label="Opciones" class={`${props.width ?? "w-[220px]"} rounded-[10px] border border-line bg-white p-1 shadow-[0_8px_24px_rgb(0_0_0_/_10%)]`}>{props.children}</div>
+  <div role="listbox" aria-label="Opciones" class={`${props.width ?? "w-[220px]"} rounded-[10px] border border-line bg-surface p-1 shadow-[var(--elevation-overlay)]`}>{props.children}</div>
 );
 
 const Slot = (props: { icon: typeof Sorting01Icon }) => (
@@ -51,7 +51,7 @@ const Slot = (props: { icon: typeof Sorting01Icon }) => (
 /** Las dos formas reales: una lista con la opción elegida y otra sin ninguna. */
 export const Playground: Story = {
   render: () => (
-    <div class="flex flex-wrap gap-6 bg-white p-6">
+    <div class="flex flex-wrap gap-6 bg-surface p-6">
       <Menu>
         <MenuOption selected leading={<Slot icon={Sorting01Icon} />} onSelect={() => {}} label={<span>Status</span>} />
         <MenuOption selected={false} leading={<Slot icon={Sorting01Icon} />} onSelect={() => {}} label={<span>Last updated</span>} />
@@ -69,7 +69,7 @@ export const Playground: Story = {
  */
 export const CheckSlot: Story = {
   render: () => (
-    <div class="flex flex-wrap gap-6 bg-white p-6">
+    <div class="flex flex-wrap gap-6 bg-surface p-6">
       <Menu>
         {[true, false].map((selected) => (
           <MenuOption selected={selected} leading={<Slot icon={Sorting01Icon} />} onSelect={() => {}} label={<span>{selected ? "Elegida" : "No elegida"}</span>} />
@@ -82,7 +82,7 @@ export const CheckSlot: Story = {
 /** Sin `leading`: el menú de valores del filtro sólo pone un icono cuando el campo es un status. */
 export const WithoutLeading: Story = {
   render: () => (
-    <div class="flex flex-wrap gap-6 bg-white p-6">
+    <div class="flex flex-wrap gap-6 bg-surface p-6">
       <Menu width="w-[200px]">
         <MenuOption selected leading={undefined} onSelect={() => {}} label={<span>In Progress</span>} />
         <MenuOption selected={false} leading={undefined} onSelect={() => {}} label={<span>Ready</span>} />
@@ -95,7 +95,7 @@ export const WithoutLeading: Story = {
 /** Con un chip de label como etiqueta: el `label` acepta cualquier JSX, no sólo texto. */
 export const ChipLabel: Story = {
   render: () => (
-    <div class="flex flex-wrap gap-6 bg-white p-6">
+    <div class="flex flex-wrap gap-6 bg-surface p-6">
       <Menu>
         <MenuOption selected onSelect={() => {}} label={<Chip background="var(--color-tone-green-bg)" color="var(--color-tone-green-ink)">Design</Chip>} />
         <MenuOption selected={false} onSelect={() => {}} label={<Chip background="var(--color-tone-blue-bg)" color="var(--color-tone-blue-ink)">Platform</Chip>} />
@@ -111,7 +111,7 @@ export const ChipLabel: Story = {
  */
 export const LongLabel: Story = {
   render: () => (
-    <div class="flex flex-wrap gap-6 bg-white p-6">
+    <div class="flex flex-wrap gap-6 bg-surface p-6">
       <Menu>
         <MenuOption selected leading={<Slot icon={Layers01Icon} />} onSelect={() => {}} label={<span class="truncate">Infraestructura y despliegues de producción</span>} />
         <MenuOption selected={false} leading={<Slot icon={Layers01Icon} />} onSelect={() => {}} label={<span class="truncate">Corto</span>} />
