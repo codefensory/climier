@@ -7,7 +7,7 @@ contract is fixed by ADR-021 (`.adrs/021-plugin-foundation-public-api.md`);
 implementation details live under `src/plugins/` and are internal. The
 fastest way to see a working plugin is the fixture at
 `test/fixtures/sample-plugin/` and its smoke test
-`test/plugin-integration.test.mjs`.
+`test/plugin-integration.test.ts`.
 
 ## 1. The descriptor
 
@@ -257,7 +257,7 @@ Before publishing a plugin, run this smoke against a local copy:
 7. Uninstall a second time after reinstall; the no-op removal still
    returns `uninstalled: true`.
 
-The smoke is automated in `test/plugin-integration.test.mjs`. Use the
+The smoke is automated in `test/plugin-integration.test.ts`. Use the
 fixture at `test/fixtures/sample-plugin/` as a template for your own
 descriptor and entrypoint.
 
@@ -266,7 +266,7 @@ descriptor and entrypoint.
 `test/fixtures/plugin-foundation/` is the end-to-end public-contract fixture.
 Its entrypoint imports only Node standard-library modules and exercises the
 surface exclusively through `api.*`; it must not import `src/**` internals.
-`test/plugin-foundation-acceptance.test.mjs` verifies the complete shell and
+`test/plugin-foundation-acceptance.test.ts` verifies the complete shell and
 plugin flow:
 
 - `foundation snapshot` checks one coherent, deterministic snapshot and
@@ -281,14 +281,14 @@ plugin flow:
 - the same test drives `state -> batch -> state`, using the state revision for
   a shell CAS.
 
-`test/plugin-foundation-concurrency.test.mjs` fans out independent
+`test/plugin-foundation-concurrency.test.ts` fans out independent
 `api.data.project.set` calls through real CLI child processes and verifies
 that no project key or plugin attribution is lost. Run the focused checks
 with:
 
 ```bash
-node --test test/plugin-foundation-acceptance.test.mjs \
-  test/plugin-foundation-concurrency.test.mjs
+node --test test/plugin-foundation-acceptance.test.ts \
+  test/plugin-foundation-concurrency.test.ts
 ```
 
 or use `npm test` for the full core suite.

@@ -28,7 +28,7 @@ directly, and every mutation enters through the `kernel/mutate.ts` facade
 (`plugins/` and `server/` included). Both shapes are approved: ADR-013 §5 lets
 the plugin host consume kernel, providers and read-model, ADR-032 keeps server
 transfers on the kernel port, and the enforcement table in
-`test/architecture/import-boundaries.test.mjs` declares those five edges as
+`test/architecture/import-boundaries.test.ts` declares those five edges as
 normative allowed roots. `read-model/` is a pure transversal module. `kernel/`,
 `providers/`, and `read-model/` must not import adapters (`cli/`, `plugins/`, or
 `server`). `providers/` and `read-model/` must not import `storage/`. The kernel
@@ -67,7 +67,7 @@ src/
   contracts/                           # Error contracts and compatibility-only public facades
  test/
   helpers.mjs                          # createTempProject, rmTempProject, runCli/runCliSpawn, importFresh
-  *.test.mjs                            # Tests, one per module/feature
+  *.test.ts                             # Tests, one per module/feature
 ```
 
 Boundary rules:
@@ -231,7 +231,7 @@ Do not put domain rules or persistence in the CLI layer.
 
 ### Adding a CLI command
 
-1. **Test first.** Add `test/<name>.test.mjs` or the appropriate integration
+1. **Test first.** Add `test/<name>.test.ts` or the appropriate integration
    test. Cover the public happy path, validation/permission errors, missing
    state, and one edge case.
 2. **Implement `src/cli/commands/<name>.mjs`.** Export the async command
@@ -308,11 +308,11 @@ Do not put domain rules or persistence in the CLI layer.
 
 ### Test file naming
 
-- `test/<module>.test.mjs` for unit tests of a module.
-- `test/<feature>.test.mjs` for behavior tests that cross modules.
-- `test/deep-holes-N.test.mjs` for regression tests on bugs found in audit rounds.
+- `test/<module>.test.ts` for unit tests of a module.
+- `test/<feature>.test.ts` for behavior tests that cross modules.
+- `test/deep-holes-N.test.ts` for regression tests on bugs found in audit rounds.
 
-When you fix a bug, write a test that reproduces it BEFORE the fix. The test goes in `bugs.test.mjs` (real bugs) or `coverage-gaps.test.mjs` (missing tests for known behaviors) or a new `deep-holes-N.test.mjs` (deeper audit rounds).
+When you fix a bug, write a test that reproduces it BEFORE the fix. The test goes in `bugs.test.ts` (real bugs) or `coverage-gaps.test.ts` (missing tests for known behaviors) or a new `deep-holes-N.test.ts` (deeper audit rounds).
 
 ## Non-obvious things that bit us
 
@@ -332,10 +332,10 @@ When you fix a bug, write a test that reproduces it BEFORE the fix. The test goe
 npm test
 
 # Run a single test file
-node --test test/status.test.mjs
+node --test test/status-history.test.ts
 
 # Run a single test by name
-node --test --test-name-pattern="take.*same agent" test/take.test.mjs
+node --test --test-name-pattern="take.*same agent" test/take.test.ts
 
 # Watch mode
 npm run test:watch
@@ -370,7 +370,7 @@ When you add a new command, pick whichever shape fits the data. **Do not** add a
 1. Run `npm test`. If anything is red, fix it first (a new agent should never commit on top of red).
 2. Read `src/storage/state.ts` — it explains the storage shape and version handling.
 3. Read one command end-to-end (`src/cli/commands/take.ts` is the most representative).
-4. Look at `test/take.test.mjs` (and `test/concurrent-takes.test.mjs` if present) — they show the multi-agent guarantee in action.
+4. Look at `test/take.test.ts` (and `test/concurrent-takes.test.ts` if present) — they show the multi-agent guarantee in action.
 5. Then tackle your task. TDD: write the test, watch it fail, implement, watch it pass.
 
 ## Climier control plane
