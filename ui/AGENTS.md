@@ -5,7 +5,15 @@ Project conventions for coding agents working on `climier-ui`.
 Read the `climier-ui` skill before non-trivial work: `.agents/skills/climier-ui/SKILL.md` (commands, the
 module-layering contract, how to run Storybook and its tests, and the DOM harness for proving a refactor did
 not change the render). `docs/plan-storybook.md` is the decision log: *why* each thing is where it is, with
-the measurements behind it. It is history, not a task list.
+the measurements behind it. It is history, not a task list. The theme contract, token names, runtime
+precedence, and verification commands are documented in `docs/theme.md`.
+
+## Theme tokens
+
+Use semantic tokens from `src/styles/tokens.css` for all component colors; do not add literal Tailwind
+white/black colors, CSS color functions, colored arbitrary shadows, or style hex values. Run
+`bun run check:colors` after UI changes. `src/styles/tokens.css` is the source of truth for light and dark
+values; update the contract and contrast tests when adding a token.
 
 ## Iconography
 
