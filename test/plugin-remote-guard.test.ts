@@ -12,6 +12,8 @@ import {
 
 const remote = { type: "remote", marker: "resolved-by-cli" };
 
+type Factory = () => unknown;
+
 async function withPluginHome(run) {
   const home = await fs.mkdtemp(path.join(os.tmpdir(), "climier-remote-plugin-home-"));
   const previous = process.env.CLIMIER_HOME;
@@ -42,7 +44,7 @@ async function createRemoteFactories(projectDir) {
     ["createData", () => createData({ projectDir, agent: "alice", pluginId: "example.audit", backendClient: remote })],
     ["createCore", () => createCore({ projectDir, agent: "alice", pluginId: "example.audit", backendClient: remote })],
     ["createRuntime", () => createRuntime({ projectDir, agent: "alice", pluginId: "example.audit", backendClient: remote })],
-  ];
+  ] as Array<[string, Factory]>;
 }
 
 async function runRemoteFactoryGuard() {
@@ -52,18 +54,18 @@ async function runRemoteFactoryGuard() {
   const originalMkdirSync = fsSync.mkdirSync;
   let readFileCalls = 0;
   let mkdirCalls = 0;
-  fsSync.readFileSync = (...args) => {
+  fsSync.readFileSync = ((...args: Parameters<typeof originalReadFileSync>) => {
     readFileCalls++;
     return originalReadFileSync(...args);
-  };
-  fsSync.mkdirSync = (...args) => {
+  }) as typeof fsSync.readFileSync;
+  fsSync.mkdirSync = ((...args: Parameters<typeof originalMkdirSync>) => {
     mkdirCalls++;
     return originalMkdirSync(...args);
-  };
+  }) as typeof fsSync.mkdirSync;
 
   try {
     for (const [name, factory] of factories) {
-      assert.throws(factory, (error) => {
+      assert.throws(factory, (error: Error) => {
         assertRemoteUnsupported(error);
         assert.match(error.message, new RegExp(name));
         return true;
@@ -95,7 +97,7 @@ async function assertRemoteDispatchRejected(home) {
         return true;
       },
     );
-    await assert.rejects(fs.access(installedRoot), (error) => error.code === "ENOENT");
+    await assert.rejects(fs.access(installedRoot), (error: NodeJS.ErrnoException) => error.code === "ENOENT");
 }
 
 test("plugin dispatch rejects remote backend before plugin loading", () => withPluginHome(assertRemoteDispatchRejected));
@@ -113,7 +115,7 @@ async function assertPluginDispatchBackendForwarded(home) {
       await fs.writeFile(path.join(installedRoot, "climier.mjs"), "export default { commands: { ping: () => ({ ok: true }) } };\n");
       const { dispatchPlugin } = await importFresh("./plugins/dispatch.ts");
       const backendClient = { type: "local", marker: "dispatch-to-factory" };
-      let received;
+      let received: { backendClient: unknown } | undefined;
       await dispatchPlugin({
         originalArgv: ["fixture", "ping"],
         namespace: "fixture",
@@ -124,6 +126,7 @@ async function assertPluginDispatchBackendForwarded(home) {
           return { runtime: { agent: "" } };
         },
       });
+      assert.ok(received);
       assert.equal(received.backendClient, backendClient);
     } finally {
       await fs.rm(projectDir, { recursive: true, force: true });
@@ -134,7 +137,7 @@ test("plugin dispatch forwards backend context into the API factory", () => with
 
 test("plugin CLI dispatch forwards its resolved backend client into plugin dispatch", async () => {
   const projectDir = await createTempProject();
-  const received = [];
+  const received: Array<{ backendClient: { type: string; marker: string } }> = [];
   const { dispatchCommand } = await importFresh("./cli/dispatch.ts");
   const dispatchPlugin = (args) => {
     received.push(args);
@@ -152,6 +155,7 @@ test("plugin CLI dispatch forwards its resolved backend client into plugin dispa
       hasInstalledPlugin: async () => true,
     });
     assert.deepEqual(result, { ok: true });
+    assert.ok(received[0]);
     assert.equal(received[0].backendClient.marker, "from-cli");
   } finally {
     await rmTempProject(projectDir);

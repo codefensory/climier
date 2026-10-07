@@ -23,16 +23,35 @@ import { importFresh } from "./helpers.mjs";
 
 const ACTOR = "codex-worker";
 
+type RequestInput = Record<string, unknown>;
+type CodedError = { code?: string; message?: string };
+
+function asCodedError(error: unknown): CodedError {
+  return error && typeof error === "object" ? error as CodedError : {};
+}
+
 async function importNoteProvider() {
   return importFresh("../src/providers/core/note.ts");
 }
 
-function makeSnapshot({ nodes = {}, edges = [], initiatives = { foo: { desc: "x" } }, log = [] } = {}) {
+function makeSnapshot({ nodes = {}, edges = [], initiatives = { foo: { desc: "x" } }, log = [] }: {
+  nodes?: Record<string, unknown>;
+  edges?: Array<{ from: string; to: string; type: string }>;
+  initiatives?: Record<string, { desc: string }>;
+  log?: unknown[];
+} = {}) {
   return { version: 2, initiatives, nodes, edges, log };
 }
 
-function makeRequest({ input, action = "note.add", actor = ACTOR, if_revision } = {}) {
-  const request = { action, actor, input };
+function makeRequest({ input, action = "note.add", actor = ACTOR, if_revision }: {
+  input?: unknown;
+  action?: string;
+  actor?: string;
+  if_revision?: number;
+} = {}) {
+  const request: { action: string; actor: string; input: RequestInput; if_revision?: number } = {
+    action, actor, input: input as RequestInput,
+  };
   if (if_revision !== undefined) {
     request.if_revision = if_revision;
   }
@@ -56,15 +75,15 @@ function makeTaskNode(id, { revision = 1, notes = [] } = {}) {
 // nodes mirror the seed. Mirrors src/kernel/transaction.ts#updateNode
 // so the provider's apply is exercised end-to-end without touching
 
-function makeTxStub({ initialNodes = {} } = {}) {
-  const nodes = {};
+function makeTxStub({ initialNodes = {} }: { initialNodes?: Record<string, Record<string, unknown>> } = {}) {
+  const nodes: Record<string, Record<string, unknown>> = {};
   for (const [id, node] of Object.entries(initialNodes)) {
     const cloned = { ...node };
     delete cloned.revision;
     nodes[id] = cloned;
   }
   return {
-    calls: { updateNode: [], view: 0 },
+    calls: { updateNode: [] as Array<{ id: string; patch: Record<string, unknown> }>, view: 0 },
     nodes,
     getNode(id) {
       return nodes[id] ? { ...nodes[id] } : undefined;
@@ -96,9 +115,10 @@ function makeTxStub({ initialNodes = {} } = {}) {
 async function expectCode(fn, code) {
   try {
     await fn();
-  } catch (err) {
-    assert.equal(err.code, code, `expected ${code} got ${err.code}: ${err.message}`);
-    return err;
+  } catch (err: unknown) {
+    const error = asCodedError(err);
+    assert.equal(error.code, code, `expected ${code} got ${error.code}: ${error.message}`);
+    return error;
   }
   assert.fail(`expected throw with code ${code}`);
 }

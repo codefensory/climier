@@ -21,16 +21,33 @@ import { importFresh } from "./helpers.mjs";
 
 const ACTOR = "codex-worker";
 
+type Edge = { from: string; to: string; type: string };
+type RequestInput = Record<string, unknown>;
+type CodedError = { code?: string; message?: string };
+
+function asCodedError(error: unknown): CodedError {
+  return error && typeof error === "object" ? error as CodedError : {};
+}
+
 async function importEdgeProvider() {
   return importFresh("../src/providers/core/edge.ts");
 }
 
-function makeSnapshot({ nodes = {}, edges = [], initiatives = { foo: { desc: "x" } }, log = [] } = {}) {
+function makeSnapshot({ nodes = {}, edges = [], initiatives = { foo: { desc: "x" } }, log = [] }: {
+  nodes?: Record<string, unknown>;
+  edges?: Edge[];
+  initiatives?: Record<string, { desc: string }>;
+  log?: unknown[];
+} = {}) {
   return { version: 2, initiatives, nodes, edges, log };
 }
 
-function makeRequest({ input, action = "edge.add", actor = ACTOR } = {}) {
-  return { action, actor, input };
+function makeRequest({ input, action = "edge.add", actor = ACTOR }: {
+  input?: unknown;
+  action?: string;
+  actor?: string;
+} = {}) {
+  return { action, actor, input: input as RequestInput };
 }
 
 function makeTaskNode(id, revision = 1) {
@@ -49,7 +66,7 @@ function makeTaskNode(id, revision = 1) {
 // validation in src/kernel/transaction.ts#addEdge so the provider's
 // happy path is exercised end-to-end without exercising real tx state.
 function makeTxStub({ nodes = {} } = {}) {
-  const addedEdges = [];
+  const addedEdges: Edge[] = [];
   return {
     calls: { addEdge: 0, view: 0 },
     addedEdges,
@@ -86,9 +103,10 @@ function makeTxStub({ nodes = {} } = {}) {
 async function expectCode(fn, code) {
   try {
     await fn();
-  } catch (err) {
-    assert.equal(err.code, code, `expected ${code} got ${err.code}: ${err.message}`);
-    return err;
+  } catch (err: unknown) {
+    const error = asCodedError(err);
+    assert.equal(error.code, code, `expected ${code} got ${error.code}: ${error.message}`);
+    return error;
   }
   assert.fail(`expected throw with code ${code}`);
 }

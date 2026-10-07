@@ -4,6 +4,8 @@ import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, importFresh, readState as readRawState } from "../../helpers.mjs";
 import { seedState, freshApi } from "./fixtures.mjs";
 
+type TestError = { code?: string; details: Record<string, unknown>; message?: string };
+
 test("api.data.node.set requires agent identity (MISSING_AGENT when empty)", async () => {
   const dir = await createTempProject();
   try {
@@ -11,7 +13,7 @@ test("api.data.node.set requires agent identity (MISSING_AGENT when empty)", asy
     const api = await freshApi(dir, { agent: "" });
     await assert.rejects(
       api.data.node.set("T1", { foo: 1 }),
-      (err) => err && err.code === "MISSING_AGENT",
+      (err: TestError) => err && err.code === "MISSING_AGENT",
     );
   } finally {
     await rmTempProject(dir);
@@ -25,7 +27,7 @@ test("api.data.project.set requires agent identity (MISSING_AGENT when empty)", 
     const api = await freshApi(dir, { agent: "" });
     await assert.rejects(
       api.data.project.set("k", 1),
-      (err) => err && err.code === "MISSING_AGENT",
+      (err: TestError) => err && err.code === "MISSING_AGENT",
     );
   } finally {
     await rmTempProject(dir);
@@ -170,7 +172,7 @@ test("api.data.node.set rejects when the node does not exist (NODE_NOT_FOUND)", 
     const api = await freshApi(dir);
     await assert.rejects(
       api.data.node.set("NOPE", { foo: 1 }),
-      (err) => err && err.code === "NODE_NOT_FOUND",
+      (err: TestError) => err && err.code === "NODE_NOT_FOUND",
     );
   } finally {
     await rmTempProject(dir);
@@ -219,13 +221,13 @@ test("api.data rejects non-JSON values before state or log mutation", async () =
     await seedState(dir);
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
     const before = await readRawState(dir);
-    const invalid = [undefined, NaN, Infinity, 1n, new Map([["x", 1]]), new Date()];
-    const circular = {};
+    const invalid: unknown[] = [undefined, NaN, Infinity, 1n, new Map([["x", 1]]), new Date()];
+    const circular: Record<string, unknown> = {};
     circular.self = circular;
     invalid.push(circular);
     for (const value of invalid) {
-      await assert.rejects(api.data.node.set("T1", value), (err) => err && err.code === "PLUGIN_DATA_INVALID");
-      await assert.rejects(api.data.project.set("bad", value), (err) => err && err.code === "PLUGIN_DATA_INVALID");
+      await assert.rejects(api.data.node.set("T1", value), (err: TestError) => err && err.code === "PLUGIN_DATA_INVALID");
+      await assert.rejects(api.data.project.set("bad", value), (err: TestError) => err && err.code === "PLUGIN_DATA_INVALID");
     }
     const after = await readRawState(dir);
     assert.deepEqual(after.nodes, before.nodes);
@@ -346,11 +348,11 @@ test("createApi rejects calls to data.*.set without agent identity (agent must b
     const api = createApi({ projectDir: dir, agent: "", pluginId: "example.audit" });
     await assert.rejects(
       api.data.node.set("T1", { a: 1 }),
-      (err) => err && err.code === "MISSING_AGENT",
+      (err: TestError) => err && err.code === "MISSING_AGENT",
     );
     await assert.rejects(
       api.data.project.set("k", 1),
-      (err) => err && err.code === "MISSING_AGENT",
+      (err: TestError) => err && err.code === "MISSING_AGENT",
     );
   } finally {
     await rmTempProject(dir);

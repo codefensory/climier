@@ -5,6 +5,18 @@ import path from "node:path";
 import { createTempProject, rmTempProject, importFresh, readState as readRawState, installPolicyFixture, uninstallPolicyFixture, stateFilePath } from "../../helpers.mjs";
 import { seedState, freshApi, readyProject } from "./fixtures.mjs";
 
+type TestErrorDetails = {
+  [key: string]: unknown;
+  code?: string;
+  message?: string;
+  op?: string;
+  plugin_id?: string;
+  reason?: string;
+  cause?: TestError;
+  supported?: unknown[];
+};
+type TestError = { code?: string; details: TestErrorDetails; message?: string };
+
 function assertInitiativeCreated(out, after) {
   assert.ok(out && typeof out === "object", "kernel returned the typed result envelope");
   assert.equal(typeof out.result, "object", "typed envelope carries result");
@@ -58,7 +70,7 @@ test("api.core.run: non-object input throws PLUGIN_CORE_INVALID_OPERATION", asyn
     for (const bad of [null, undefined, "string", 1, true, []]) {
       await assert.rejects(
         api.core.run({ op: "task.create", input: bad }),
-        (err) => err && err.code === "PLUGIN_CORE_INVALID_OPERATION",
+        (err: TestError) => err && err.code === "PLUGIN_CORE_INVALID_OPERATION",
         `expected PLUGIN_CORE_INVALID_OPERATION for ${JSON.stringify(bad)}`,
       );
     }
@@ -75,7 +87,7 @@ test("api.core.run: unknown op throws PLUGIN_CORE_INVALID_OPERATION with support
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
     await assert.rejects(
       api.core.run({ op: "edge.unknown", input: {} }),
-      (err) =>
+      (err: TestError) =>
         err &&
         err.code === "PLUGIN_CORE_INVALID_OPERATION" &&
         err.details.op === "edge.unknown" &&
@@ -106,7 +118,7 @@ test("api.core.run: input.as is rejected with PLUGIN_CORE_INVALID_OPERATION and 
           as: "bob",
         },
       }),
-      (err) =>
+      (err: TestError) =>
         err &&
         err.code === "PLUGIN_CORE_INVALID_OPERATION" &&
         err.details.reason === "input.as is forbidden",
@@ -127,7 +139,7 @@ test("api.core.run: input._as is rejected (no alias sneaks past)", async () => {
         op: "task.take",
         input: { id: "T1", _as: "bob" },
       }),
-      (err) =>
+      (err: TestError) =>
         err &&
         err.code === "PLUGIN_CORE_INVALID_OPERATION" &&
         err.details.reason === "input.as is forbidden",
@@ -151,7 +163,7 @@ test("api.core.run: missing required field throws PLUGIN_CORE_ACTION_FAILED (pro
     // Missing --type is required by edge.add.
     await assert.rejects(
       api.core.run({ op: "edge.add", input: { from: "T-a", to: "T-b" } }),
-      (err) =>
+      (err: TestError) =>
         err &&
         err.code === "PLUGIN_CORE_ACTION_FAILED" &&
         err.details.op === "edge.add" &&
@@ -184,7 +196,7 @@ test("api.core.run: known op with empty input does not mutate state (provider-le
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
     await assert.rejects(
       api.core.run({ op: "task.create", input: {} }),
-      (err) =>
+      (err: TestError) =>
         err &&
         err.code === "PLUGIN_CORE_ACTION_FAILED" &&
         err.details.op === "task.create" &&
@@ -213,7 +225,7 @@ test("api.core.run: NODE_NOT_FOUND in the handler is wrapped as PLUGIN_CORE_ACTI
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
     await assert.rejects(
       api.core.run({ op: "task.take", input: { id: "T-not-here" } }),
-      (err) =>
+      (err: TestError) =>
         err &&
         err.code === "PLUGIN_CORE_ACTION_FAILED" &&
         err.details.op === "task.take" &&
@@ -257,7 +269,7 @@ test("api.core.run: an opaque core error (no code/details) is normalized to CORE
     // full cause-shape path against a real handler rejection below.
     await assert.rejects(
       api.core.run({ op: "task.take", input: { id: "T-bogus" } }),
-      (err) =>
+      (err: TestError) =>
         err &&
         err.code === "PLUGIN_CORE_ACTION_FAILED" &&
         err.details.cause &&
@@ -302,7 +314,7 @@ test("api.core.run: initiative.create without name is rejected with PLUGIN_CORE_
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
     await assert.rejects(
       api.core.run({ op: "initiative.create", input: { desc: "no name" } }),
-      (err) =>
+      (err: TestError) =>
         err &&
         err.code === "PLUGIN_CORE_ACTION_FAILED" &&
         err.details.op === "initiative.create" &&

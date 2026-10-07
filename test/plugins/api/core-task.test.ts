@@ -4,6 +4,9 @@ import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, importFresh, readState as readRawState } from "../../helpers.mjs";
 import { freshApi, readyProject } from "./fixtures.mjs";
 
+type TestErrorDetails = { [key: string]: unknown; code?: string; message?: string; op?: string; plugin_id?: string; cause?: TestError };
+type TestError = { code?: string; details: TestErrorDetails; message?: string };
+
 async function assertCreatedTaskResult(out, dir) {
   assert.ok(out && typeof out === "object", "kernel returned the typed result envelope");
   assert.equal(typeof out.result, "object", "typed envelope carries result");
@@ -77,7 +80,7 @@ test("api.core.run: input.as is dropped even though the handler call is made on 
     // Take with input.as present must reject BEFORE the lock.
     await assert.rejects(
       api.core.run({ op: "task.take", input: { id: "T-no-such", as: "bob" } }),
-      (err) =>
+      (err: TestError) =>
         err &&
         err.code === "PLUGIN_CORE_INVALID_OPERATION" &&
         err.details.reason === "input.as is forbidden",
@@ -254,7 +257,7 @@ test("api.core.run: task.cancel without --reason is rejected with PLUGIN_CORE_AC
     const api = await freshApi(dir, { agent: "alice", pluginId: "example.audit" });
     await assert.rejects(
       api.core.run({ op: "task.cancel", input: { id: "T-parity-cancel-no-reason" } }),
-      (err) =>
+      (err: TestError) =>
         err &&
         err.code === "PLUGIN_CORE_ACTION_FAILED" &&
         err.details.op === "task.cancel" &&
