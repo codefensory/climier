@@ -16,6 +16,17 @@ const cliLauncher = path.join(repoRoot, "bin", "climier.ts");
 const serverLauncher = path.join(repoRoot, "bin", "climier-server.ts");
 const password = "remote-e2e-password";
 
+type Health = { host: string; ok: boolean; port: number };
+type InteractiveResult = { code: number | null; stdout: string; stderr: string; body: { session: { origin: string } } };
+type Client = {
+  name: string;
+  projectDir: string;
+  home: string;
+  env: NodeJS.ProcessEnv;
+  password: string;
+  origin: string | null;
+};
+
 const sentinel = {
   version: 1,
   revision: 13,
@@ -41,7 +52,7 @@ async function writePrivateConfig(file, value) {
 }
 
 function clientEnvironment(home) {
-  const env = { ...process.env, CLIMIER_HOME: home };
+  const env: NodeJS.ProcessEnv = { ...process.env, CLIMIER_HOME: home };
   delete env.CLIMIER_TOKEN;
   return env;
 }
@@ -58,7 +69,7 @@ async function cli(projectDir, command, args, env) {
   return { ...result, body };
 }
 
-async function interactiveCli(projectDir, command, args, env, input) {
+async function interactiveCli(projectDir, command, args, env, input): Promise<InteractiveResult> {
   const commandLine = [process.execPath, cliLauncher, "--project", projectDir, command, ...args]
     .map(shellQuote).join(" ");
   return new Promise((resolve, reject) => {
@@ -95,8 +106,8 @@ async function interactiveCli(projectDir, command, args, env, input) {
   });
 }
 
-async function waitForHealth(child) {
-  return new Promise((resolve, reject) => {
+async function waitForHealth(child): Promise<Health> {
+  return new Promise<Health>((resolve, reject) => {
     let stdout = "";
     let stderr = "";
     const timer = setTimeout(() => reject(new Error(`server launcher health timeout: ${stderr}`)), 5_000);
@@ -106,7 +117,10 @@ async function waitForHealth(child) {
       if (newline < 0) {return;}
       clearTimeout(timer);
       try {resolve(JSON.parse(stdout.slice(0, newline)));}
-      catch (error) {reject(new Error(`server launcher returned invalid health JSON: ${error.message}`));}
+      catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        reject(new Error(`server launcher returned invalid health JSON: ${message}`));
+      }
     });
     child.stderr.setEncoding("utf8").on("data", (chunk) => {stderr += chunk;});
     child.once("error", (error) => {clearTimeout(timer); reject(error);});
@@ -120,7 +134,7 @@ async function waitForHealth(child) {
 async function stopChild(child) {
   if (child.exitCode !== null || child.signalCode !== null) {return;}
   child.kill("SIGTERM");
-  await new Promise((resolve, reject) => {
+  await new Promise<void>((resolve, reject) => {
     const timer = setTimeout(() => {
       child.kill("SIGKILL");
       reject(new Error("server launcher did not stop after SIGTERM"));
@@ -132,15 +146,16 @@ async function stopChild(child) {
 async function startResponseDroppingProxy(origin, t) {
   const proxy = createServer(async (request, response) => {
     try {
-      const chunks = [];
+      const chunks: Buffer[] = [];
       for await (const chunk of request) {chunks.push(chunk);}
-      const upstream = await fetch(new URL(request.url, origin), {
+      const requestUrl = request.url as string;
+      const upstream = await fetch(new URL(requestUrl, origin), {
         method: request.method,
-        headers: { ...request.headers, host: new URL(origin).host },
+        headers: { ...request.headers, host: new URL(origin).host } as unknown as RequestInit["headers"],
         body: chunks.length ? Buffer.concat(chunks) : undefined,
       });
       const body = Buffer.from(await upstream.arrayBuffer());
-      if (request.url.includes("/transfer/import") && upstream.ok) {
+      if (requestUrl.includes("/transfer/import") && upstream.ok) {
         response.destroy();
         return;
       }
@@ -150,12 +165,14 @@ async function startResponseDroppingProxy(origin, t) {
       response.destroy();
     }
   });
-  await new Promise((resolve, reject) => {
+  await new Promise<void>((resolve, reject) => {
     proxy.once("error", reject);
-    proxy.listen(0, "127.0.0.1", resolve);
+    proxy.listen(0, "127.0.0.1", () => resolve());
   });
-  t.after(() => new Promise((resolve) => proxy.close(resolve)));
-  return `http://127.0.0.1:${proxy.address().port}`;
+  t.after(() => new Promise<void>((resolve) => proxy.close(() => resolve())));
+  const address = proxy.address();
+  assert.ok(address && typeof address !== "string");
+  return `http://127.0.0.1:${address.port}`;
 }
 
 async function startConfiguredServer(root, passwordValue, t, port = 0) {
@@ -200,7 +217,7 @@ async function loginClient(client) {
   return { profileFile, token };
 }
 
-async function makeClient(root, name, homeName = `${name}-home`) {
+async function makeClient(root, name, homeName = `${name}-home`): Promise<Client> {
   const projectDir = path.join(root, name);
   const home = path.join(root, homeName);
   await fs.mkdir(projectDir, { recursive: true });
@@ -460,12 +477,14 @@ test("v1 transfer E2E never provisions via push and leaves baselines unchanged o
   await linkClient(timeoutClient, timeoutClient.origin);
   await loginClient(timeoutClient);
   assert.equal((await cli(timeoutClient.projectDir, "init", [], timeoutClient.env)).code, 0);
+  const timeoutOrigin = timeoutClient.origin;
+  assert.ok(timeoutOrigin);
   const timeoutBaseline = createRemoteTransferBaselineStore({ home: timeoutClient.home });
   const timedOutPush = await cli(timeoutClient.projectDir, "push", ["--as", "alice"], timeoutClient.env);
   assert.notEqual(timedOutPush.code, 0);
   assert.equal(timedOutPush.body.error.code, "REMOTE_REQUEST_FAILED");
   assert.equal(timedOutPush.body.error.details.remote_result_ambiguous, true);
-  assert.equal(await timeoutBaseline.get(new URL(timeoutClient.origin).origin, timeoutId), null);
+  assert.equal(await timeoutBaseline.get(new URL(timeoutOrigin).origin, timeoutId), null);
   const appliedDespiteTimeout = JSON.parse(await fs.readFile(path.join(remoteStateDirectory(root, timeoutId), "tasks.json"), "utf8"));
   assert.ok(appliedDespiteTimeout.nodes["T-timeout-source"]);
   assert.ok(appliedDespiteTimeout.log.some((entry) => entry.action === "transfer.push"));

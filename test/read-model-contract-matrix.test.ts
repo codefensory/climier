@@ -29,7 +29,7 @@ const consumerSources = {
   uiApi: new URL("../src/server/http/ui-api.ts", import.meta.url),
 };
 
-async function source(url) {
+async function source(url: URL): Promise<string> {
   return fs.readFile(url, "utf8");
 }
 
@@ -54,7 +54,7 @@ async function runCli(projectDir, command, query, positional) {
   const { spawn } = await import("node:child_process");
   const { fileURLToPath } = await import("node:url");
   const cli = fileURLToPath(new URL("../bin/climier.ts", import.meta.url));
-  const { code, stdout, stderr } = await new Promise((resolve, reject) => {
+  const { code, stdout, stderr } = await new Promise<{ code: number | null; stdout: string; stderr: string }>((resolve, reject) => {
     const child = spawn(process.execPath, [cli, ...args], { cwd: projectDir });
     let out = "";
     let err = "";
@@ -81,7 +81,7 @@ async function withParityEnvironment(run) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "climier-read-contract-matrix-"));
   const previousHome = process.env.CLIMIER_HOME;
   process.env.CLIMIER_HOME = path.join(root, "home");
-  const catalog = createProjectCatalog({ dataRoot: path.join(root, "catalog"), projectIds: ["matrix"] });
+  const catalog = createProjectCatalog({ dataRoot: path.join(root, "catalog") });
   const projectDir = await catalog.provisionProject("matrix");
   await initState({ projectDir });
   const authStore = await createServerAuthStore({ stateHome: path.join(root, "server-auth"), password: "fixture-password" });
@@ -91,16 +91,18 @@ async function withParityEnvironment(run) {
     authStore,
     async openProject(storagePath) { return { projectDir: storagePath }; },
   });
-  await new Promise((resolve, reject) => {
+  await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
     server.listen(0, "127.0.0.1", resolve);
   });
-  const baseUrl = `http://127.0.0.1:${server.address().port}`;
+  const address = server.address();
+  assert.ok(address && typeof address !== "string");
+  const baseUrl = `http://127.0.0.1:${address.port}`;
   try {
     await writeCanonicalState(projectDir, readModelParity.snapshot);
     await run({ baseUrl, projectDir, token });
   } finally {
-    await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     if (previousHome === undefined) {
       delete process.env.CLIMIER_HOME;
     } else {
@@ -157,7 +159,7 @@ test("canonical CLI and HTTP read owners match across every view fixture", async
       const query = entry.query ? `?${entry.query}` : "";
       const response = await fetch(`${baseUrl}/v1/projects/matrix/${entry.route}${query}`, { headers: authHeaders(token) });
       assert.equal(response.status, 200, `${entry.name}: HTTP ${JSON.stringify(await response.clone().json())}`);
-      const http = (await response.json()).result;
+      const http = (await response.json() as { result: Record<string, unknown> }).result;
       const cli = await runCli(projectDir, entry.command, entry.query, entry.positional);
       assert.deepEqual(
         entry.command === "status" ? normalizeStatusTimes(http) : http,

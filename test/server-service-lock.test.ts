@@ -9,13 +9,25 @@ async function tempStateHome() {
   return fs.mkdtemp(path.join(os.tmpdir(), "climier-server-lock-"));
 }
 
+function errorCode(error: unknown) {
+  return error && typeof error === "object" && "code" in error ? error.code : undefined;
+}
+
+function lockPid(error: unknown) {
+  if (!error || typeof error !== "object" || !("details" in error) || !error.details || typeof error.details !== "object"
+      || !("lock" in error.details) || !error.details.lock || typeof error.details.lock !== "object" || !("pid" in error.details.lock)) {
+    return undefined;
+  }
+  return error.details.lock.pid;
+}
+
 test("service lock rejects two concurrent holders and preserves the first lock", async () => {
   const stateHome = await tempStateHome();
   const first = await acquireServerServiceLock(stateHome, { pid: 111, now: () => new Date("2026-01-01T00:00:00.000Z") });
 
   await assert.rejects(
     () => acquireServerServiceLock(stateHome, { pid: 222 }),
-    (error) => error.code === "SERVER_ALREADY_RUNNING" && error.details.lock.pid === 111,
+    (error) => errorCode(error) === "SERVER_ALREADY_RUNNING" && lockPid(error) === 111,
   );
 
   const raw = JSON.parse(await fs.readFile(path.join(stateHome, ".server.lock"), "utf8"));
@@ -44,7 +56,7 @@ test("stale service lock fails closed and is not auto-removed", async () => {
 
   await assert.rejects(
     () => acquireServerServiceLock(stateHome, { pid: 222 }),
-    (error) => error.code === "SERVER_ALREADY_RUNNING" && error.details.lock.pid === stale.pid,
+    (error) => errorCode(error) === "SERVER_ALREADY_RUNNING" && lockPid(error) === stale.pid,
   );
   assert.deepEqual(JSON.parse(await fs.readFile(path.join(stateHome, ".server.lock"), "utf8")), stale);
   await fs.rm(stateHome, { recursive: true, force: true });

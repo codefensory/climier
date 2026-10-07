@@ -8,6 +8,10 @@ import { createProjectCatalog } from "../../../src/server/catalog/index.ts";
 import { createRemoteApiServer, PROTOCOL_VERSION } from "../../../src/server/http.ts";
 import { createLoginRateLimiter, loginClientAddress } from "../../../src/server/auth/login-rate-limiter.ts";
 
+async function errorCode(response: Response): Promise<string> {
+  return (await response.json() as { error: { code: string } }).error.code;
+}
+
 function authStore() {
   return Object.freeze({
     async login(password) {
@@ -30,12 +34,14 @@ async function withLoginServer(run) {
     authStore: authStore(),
     loginRateLimiter: createLoginRateLimiter({ now: () => now }),
   });
-  await new Promise((resolve, reject) => { server.once("error", reject); server.listen(0, "127.0.0.1", resolve); });
-  const baseUrl = `http://127.0.0.1:${server.address().port}`;
+  await new Promise<void>((resolve, reject) => { server.once("error", reject); server.listen(0, "127.0.0.1", () => resolve()); });
+  const address = server.address();
+  assert.ok(address && typeof address !== "string");
+  const baseUrl = `http://127.0.0.1:${address.port}`;
   try {
     await run({ baseUrl, advance: (ms) => { now += ms; } });
   } finally {
-    await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     await fs.rm(root, { recursive: true, force: true });
   }
 }
@@ -55,7 +61,7 @@ async function login(baseUrl, password, headers = {}) {
 async function failLogin(baseUrl, address = "203.0.113.10") {
   const response = await login(baseUrl, "wrong", { "x-forwarded-for": address });
   assert.equal(response.status, 401, JSON.stringify(await response.clone().json()));
-  assert.equal((await response.json()).error.code, "AUTH_INVALID");
+  assert.equal(await errorCode(response), "AUTH_INVALID");
 }
 
 test("login rate limit locks an address after five failures and expires after fifteen minutes", async () => {
@@ -66,12 +72,12 @@ test("login rate limit locks an address after five failures and expires after fi
 
     const locked = await login(baseUrl, "password", { "x-forwarded-for": "203.0.113.10" });
     assert.equal(locked.status, 429);
-    assert.equal((await locked.json()).error.code, "AUTH_RATE_LIMITED");
+    assert.equal(await errorCode(locked), "AUTH_RATE_LIMITED");
 
     advance(15 * 60 * 1000);
     const allowed = await login(baseUrl, "password", { "x-forwarded-for": "203.0.113.10" });
     assert.equal(allowed.status, 200, JSON.stringify(await allowed.clone().json()));
-    assert.equal((await allowed.json()).token, "login-token");
+    assert.equal((await allowed.json() as { token: string }).token, "login-token");
   });
 });
 
@@ -106,7 +112,7 @@ test("malformed forwarded input falls back to the loopback peer and cannot evade
     for (const malformed of ["not an ip", "203.0.113.30, 203.0.113.31"]) {
       const locked = await login(baseUrl, "password", { "x-forwarded-for": malformed });
       assert.equal(locked.status, 429);
-      assert.equal((await locked.json()).error.code, "AUTH_RATE_LIMITED");
+      assert.equal(await errorCode(locked), "AUTH_RATE_LIMITED");
     }
   });
 });

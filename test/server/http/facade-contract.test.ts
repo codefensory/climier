@@ -6,6 +6,10 @@ const { createRemoteApiServer, PROTOCOL_VERSION } = httpServer;
 import { createHttpCodec } from "../../../src/server/http/codec.ts";
 import { authHeaders, operation, withApi, withInitApi } from "./fixtures.mjs";
 
+async function errorCode(response: Response): Promise<string> {
+  return (await response.json() as { error: { code: string } }).error.code;
+}
+
 test("HTTP codec keeps path and body decoding contracts and receives the public protocol version", async () => {
   const codec = createHttpCodec({ protocolVersion: PROTOCOL_VERSION });
   assert.equal(codec.protocolVersion, PROTOCOL_VERSION);
@@ -82,7 +86,7 @@ async function assertLoginResponse(baseUrl) {
     });
     assert.equal(rejected.status, 426);
     assert.equal(rejected.headers.get("x-climier-protocol-version"), PROTOCOL_VERSION);
-    assert.equal((await rejected.json()).error.code, "PROTOCOL_VERSION_UNSUPPORTED");
+    assert.equal(await errorCode(rejected), "PROTOCOL_VERSION_UNSUPPORTED");
   }
 
   const loginHeaders = { "x-climier-protocol-version": PROTOCOL_VERSION, "content-type": "application/json" };
@@ -103,7 +107,7 @@ async function assertLoginResponse(baseUrl) {
   });
   assert.equal(wrong.status, 401);
   assert.equal(wrong.headers.get("x-climier-protocol-version"), PROTOCOL_VERSION);
-  assert.equal((await wrong.json()).error.code, "AUTH_INVALID");
+  assert.equal(await errorCode(wrong), "AUTH_INVALID");
 
   const retired = await fetch(`${baseUrl}/v2/auth/login`, {
     method: "POST",
@@ -112,7 +116,7 @@ async function assertLoginResponse(baseUrl) {
   });
   assert.equal(retired.status, 404);
   assert.equal(retired.headers.get("x-climier-protocol-version"), PROTOCOL_VERSION);
-  assert.equal((await retired.json()).error.code, "ROUTE_NOT_FOUND");
+  assert.equal(await errorCode(retired), "ROUTE_NOT_FOUND");
 }
 
 async function assertErrorResponse(baseUrl) {

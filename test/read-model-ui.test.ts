@@ -104,6 +104,7 @@ test("UI snapshot projection exposes the client contract without local paths", (
 test("UI node and activity projections preserve graph semantics and pagination", () => {
   const snapshot = fixture();
   const detail = projectUiNode({ snapshot, id: "task" });
+  assert.ok(detail);
   assert.equal(detail.node.id, "task");
   assert.deepEqual(detail.blocking.map(({ node, satisfied }) => [node.id, satisfied]), [["gate", true]]);
   assert.deepEqual(detail.dependents.map(({ node }) => node.id), ["dependent"]);
@@ -139,6 +140,12 @@ test("UI recent activity is capped at fifty entries", () => {
   }));
   const result = projectUiSnapshot({ snapshot, project: { id: "p" }, now: NOW });
   assert.equal(result.recent_activity.length, 50);
-  assert.equal(result.recent_activity[0].ts, snapshot.log.at(-1).ts);
-  assert.equal(result.recent_activity.at(-1).ts, snapshot.log.at(-50).ts);
+  const newest = snapshot.log.at(-1);
+  const oldest = snapshot.log.at(-50);
+  assert.ok(newest);
+  assert.ok(oldest);
+  assert.equal(result.recent_activity[0].ts, newest.ts);
+  const lastActivity = result.recent_activity.at(-1);
+  assert.ok(lastActivity);
+  assert.equal(lastActivity.ts, oldest.ts);
 });

@@ -30,7 +30,7 @@ async function withLogProject(run) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "climier-log-parity-"));
   const previousHome = process.env.CLIMIER_HOME;
   process.env.CLIMIER_HOME = path.join(root, "home");
-  const catalog = createProjectCatalog({ dataRoot: path.join(root, "catalog"), projectIds: ["log-parity"] });
+  const catalog = createProjectCatalog({ dataRoot: path.join(root, "catalog") });
   const projectDir = await catalog.provisionProject("log-parity");
   await initState({ projectDir });
   const authStore = await createServerAuthStore({ stateHome: path.join(root, "server-auth"), password: "fixture-password" });
@@ -40,15 +40,17 @@ async function withLogProject(run) {
     authStore,
     async openProject(storagePath) { return { projectDir: storagePath }; },
   });
-  await new Promise((resolve, reject) => {
+  await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
     server.listen(0, "127.0.0.1", resolve);
   });
+  const address = server.address();
+  assert.ok(address && typeof address !== "string");
   try {
     await writeCanonicalState(projectDir, snapshot);
-    await run({ baseUrl: `http://127.0.0.1:${server.address().port}`, projectDir, token });
+    await run({ baseUrl: `http://127.0.0.1:${address.port}`, projectDir, token });
   } finally {
-    await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     if (previousHome === undefined) {
       delete process.env.CLIMIER_HOME;
     } else {
@@ -86,7 +88,7 @@ test("log CLI and HTTP use the same pure filter, order, limit, and array project
     for (const entry of cases) {
       const response = await fetch(`${baseUrl}/v1/projects/log-parity/read/log${entry.query ? `?${entry.query}` : ""}`, { headers: authHeaders(token) });
       assert.equal(response.status, 200, JSON.stringify(await response.clone().json()));
-      const http = (await response.json()).result;
+      const http = (await response.json() as { result: unknown[] }).result;
       assert.ok(Array.isArray(http));
       assert.deepEqual(http, entry.expected, entry.query);
       assert.deepEqual(await cliLog(projectDir, entry.filters), entry.expected, entry.query);
@@ -97,7 +99,7 @@ test("log CLI and HTTP use the same pure filter, order, limit, and array project
 test("history matches the canonical node reference and ignores the pre-canonical fields", async () => {
 
   await withLogProject(async ({ baseUrl, projectDir, token }) => {
-    const http = await (await fetch(`${baseUrl}/v1/projects/log-parity/read/history/T-one`, { headers: authHeaders(token) })).json();
+    const http = await (await fetch(`${baseUrl}/v1/projects/log-parity/read/history/T-one`, { headers: authHeaders(token) })).json() as { result: { entries: Array<{ ts: string }> } };
     const entries = http.result.entries;
     assert.ok(Array.isArray(entries));
     assert.deepEqual(entries.map((entry) => entry.ts), ["2025-01-04T00:00:00.000Z"]);

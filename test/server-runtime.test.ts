@@ -25,6 +25,9 @@ function config(root, overrides = {}) {
   };
 }
 
+type RuntimeAuthStore = NonNullable<NonNullable<Parameters<typeof createServerRuntime>[1]>["authStore"]>;
+type RuntimeServer = NonNullable<ReturnType<typeof createServerRuntime>["server"]>;
+
 const authStore = Object.freeze({
   async login(password) {
     if (password !== "password") {
@@ -35,7 +38,7 @@ const authStore = Object.freeze({
     return "runtime-token";
   },
   async verifyBearer(token) { return token === "runtime-token"; },
-});
+}) as unknown as RuntimeAuthStore;
 
 async function writeConfig(root, value) {
   const file = path.join(root, "server.json");
@@ -117,7 +120,7 @@ test("private server config accepts every non-empty listen host without a networ
 test("server runtime resolves the packaged UI root and passes it to the server factory", async (t) => {
   const root = await makeRoot(t);
   let received;
-  const server = {};
+  const server = {} as RuntimeServer;
   const runtime = createServerRuntime(config(root), {
     authStore,
     serverFactory(options) {
@@ -162,7 +165,7 @@ test("launcher starts the configured server and reports its listening health", a
   });
   t.after(() => child.kill("SIGTERM"));
 
-  const line = await new Promise((resolve, reject) => {
+  const line = await new Promise<string>((resolve, reject) => {
     let stdout = "";
     let stderr = "";
     const timer = setTimeout(() => reject(new Error(`launcher did not report health: ${stderr}`)), 5_000);
@@ -184,7 +187,7 @@ test("launcher starts the configured server and reports its listening health", a
       reject(new Error(`launcher exited before health report (${code}): ${stderr}`));
     });
   });
-  const health = JSON.parse(line);
+  const health = JSON.parse(line) as { ok: boolean; host: string; port: number };
   assert.equal(health.ok, true);
   assert.equal(health.host, "127.0.0.1");
   assert.ok(Number.isInteger(health.port) && health.port > 0);
