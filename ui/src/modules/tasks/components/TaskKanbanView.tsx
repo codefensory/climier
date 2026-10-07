@@ -35,7 +35,7 @@ export function TaskKanbanView(props: TaskKanbanViewProps) {
   return (
     <div class="flex h-full min-h-[calc(100vh-180px)] w-full flex-col gap-3">
       <Show when={gates().length > 0}>
-        <section data-testid="tasks-gates" class="mx-3 shrink-0 overflow-hidden rounded-[10px] border border-line bg-white sm:mx-0">
+        <section data-testid="tasks-gates" class="mx-3 shrink-0 overflow-hidden rounded-[10px] border border-line bg-surface sm:mx-0">
           <GroupHeader group={gateGroup(gates())} />
           <div class="flex flex-col gap-2 bg-raised p-2 sm:flex-row sm:overflow-x-auto">
             <For each={gates()}>{(gate) => <div class="w-full sm:w-[300px] sm:min-w-[280px] sm:shrink-0"><KanbanCard task={gate} onOpen={props.onOpenTask} /></div>}</For>
@@ -44,7 +44,7 @@ export function TaskKanbanView(props: TaskKanbanViewProps) {
       </Show>
       <div data-testid="tasks-kanban-view" class="flex min-h-0 flex-1 flex-row items-stretch gap-3 overflow-x-auto pb-2">
         <For each={groups()}>{(group) => (
-          <section data-testid="kanban-column" data-status={group.status} data-group={group.key} class="flex w-[300px] min-w-[280px] max-w-[320px] shrink-0 flex-col overflow-hidden rounded-[10px] border border-line bg-white">
+          <section data-testid="kanban-column" data-status={group.status} data-group={group.key} class="flex w-[300px] min-w-[280px] max-w-[320px] shrink-0 flex-col overflow-hidden rounded-[10px] border border-line bg-surface">
             <GroupHeader group={group} />
             <div class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto bg-raised p-2"><For each={group.tasks}>{(task) => <KanbanCard task={task} onOpen={props.onOpenTask} />}</For></div>
           </section>

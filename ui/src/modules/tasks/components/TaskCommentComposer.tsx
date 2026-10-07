@@ -29,7 +29,7 @@ export function TaskCommentComposer(props: TaskCommentComposerProps) {
   };
 
   return (
-    <form onSubmit={submit} class="flex items-center gap-1 rounded-[10px] border border-line bg-white py-1 pr-1.5 pl-3 transition-colors focus-within:border-line-strong">
+    <form onSubmit={submit} class="flex items-center gap-1 rounded-[10px] border border-line bg-surface py-1 pr-1.5 pl-3 transition-colors focus-within:border-line-strong">
       <input
         type="text"
         value={value()}
