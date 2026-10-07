@@ -1,5 +1,6 @@
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
+import tailwindcss from "@tailwindcss/vite";
 import solid from "vite-plugin-solid";
 import storybookTest from "@storybook/addon-vitest/vitest-plugin";
 
@@ -47,7 +48,7 @@ export default defineConfig({
         },
       },
       {
-        plugins: [solid()],
+        plugins: [solid(), tailwindcss()],
         test: {
           name: "unit",
           include: ["src/**/*.test.@(ts|tsx)"],
