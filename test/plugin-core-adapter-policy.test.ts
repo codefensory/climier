@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import * as helpers from "./plugin-core-adapter-helpers.mjs";
+import * as helpers from "./plugin-core-adapter-helpers.ts";
 
 // 8. policy — selection outside lock, decision inside, errors preserved
 

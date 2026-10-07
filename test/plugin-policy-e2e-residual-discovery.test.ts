@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { FIXTURE_ID, FIXTURE_COMMAND, withFreshEnv, cli, baseClimierJson, writeClimierJson, installPolicyFixture } from "./plugin-policy-e2e-residual-helpers.mjs";
+import { FIXTURE_ID, FIXTURE_COMMAND, withFreshEnv, cli, baseClimierJson, writeClimierJson, installPolicyFixture } from "./plugin-policy-e2e-residual-helpers.ts";
 
 test("e2e: install — fixture installs under CLIMIER_HOME and dispatches by command namespace", async () => {
   await withFreshEnv(async ({ home, projectDir }) => {

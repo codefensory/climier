@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { importFresh } from "./helpers.ts";
-import { commandOnlyFixture, policyFailureForField, policyFixture, withEnv, writePlugin } from "./plugin-policy-foundation-helpers.mjs";
+import { commandOnlyFixture, policyFailureForField, policyFixture, withEnv, writePlugin } from "./plugin-policy-foundation-helpers.ts";
 
 const DESCRIPTOR_MODULE = "../src/plugins/descriptor.ts";
 const LOADER_MODULE = "../src/plugins/loader.ts";

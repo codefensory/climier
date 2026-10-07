@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import * as helpers from "./plugin-core-adapter-helpers.mjs";
+import * as helpers from "./plugin-core-adapter-helpers.ts";
 
 // 5. run — fixed actor + pluginId on the wire (end-to-end, real kernel)
 

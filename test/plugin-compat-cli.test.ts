@@ -12,7 +12,7 @@ import {
   assertPluginDataPreserved,
   runCli,
   writeCanonicalState,
-} from "./plugin-compat-helpers.mjs";
+} from "./plugin-compat-helpers.ts";
 
 test("CLI: init --force preserves root plugins via bin", async () => {
   const dir = await createTempProject();

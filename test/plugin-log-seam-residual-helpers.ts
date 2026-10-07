@@ -1,6 +1,8 @@
 import { importFresh } from "./helpers.ts";
 
-export async function submitAcceptTask(dir, id, options = {}) {
+type SubmitOptions = { as?: string; note?: string; pluginId?: string };
+
+export async function submitAcceptTask(dir, id, options: SubmitOptions = {}) {
   const { as = "alice", note = "done", pluginId } = options;
   const { default: submit } = await importFresh("./cli/commands/submit.ts");
   const { default: accept } = await importFresh("./cli/commands/accept.ts");

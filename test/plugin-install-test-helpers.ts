@@ -12,6 +12,28 @@ export const RESERVED_MODULE = "../src/cli/commands/reserved-namespaces.ts";
 export const INSTALL_MODULE = "../src/cli/commands/install.ts";
 export const UNINSTALL_MODULE = "../src/cli/commands/uninstall.ts";
 
+type FixtureOverrides = {
+  id?: string;
+  command?: string;
+  entry?: string;
+  npmName?: string;
+  version?: string;
+  dirName?: string;
+  skipDescriptor?: boolean;
+  entryCode?: string;
+  extraPkg?: Record<string, unknown>;
+};
+
+type CapturedError = {
+  code: string;
+  message: string;
+  details: Record<string, unknown>;
+};
+
+function isNodeError(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && "code" in error;
+}
+
 export async function freshEnv(prefix = "climier-plugin-test") {
   const home = await fs.mkdtemp(path.join(os.tmpdir(), prefix + "-"));
   const prev = process.env.CLIMIER_HOME;
@@ -35,7 +57,7 @@ export async function mkdirp(directory) {
   await fs.mkdir(directory, { recursive: true });
 }
 
-function fixtureDescriptor(overrides) {
+function fixtureDescriptor(overrides: FixtureOverrides): Record<string, unknown> {
   const defaults = { id: "test.plugin", command: "test-cmd", entry: "./climier.mjs", api: 1 };
   return Object.fromEntries(Object.keys(defaults).map((key) => [
     key,
@@ -43,8 +65,8 @@ function fixtureDescriptor(overrides) {
   ]));
 }
 
-function fixturePackageJson(overrides, descriptor) {
-  const pkg = {
+function fixturePackageJson(overrides: FixtureOverrides, descriptor: Record<string, unknown>): Record<string, unknown> {
+  const pkg: Record<string, unknown> = {
     name: overrides.npmName || "test-plugin",
     version: overrides.version || "1.0.0",
     type: "module",
@@ -55,12 +77,12 @@ function fixturePackageJson(overrides, descriptor) {
   return { ...pkg, ...overrides.extraPkg };
 }
 
-function fixtureEntryCode(overrides) {
+function fixtureEntryCode(overrides: FixtureOverrides): string {
   return overrides.entryCode ||
     `export default {\n  commands: {\n    "hello": (args, ctx) => ({ ok: true, message: "hello" }),\n  },\n};\n`;
 }
 
-export async function createFixturePackage(dir, overrides = {}) {
+export async function createFixturePackage(dir: string, overrides: FixtureOverrides = {}) {
   const pkgDir = path.join(dir, overrides.dirName || "test-plugin");
   await mkdirp(pkgDir);
   const descriptor = fixtureDescriptor(overrides);
@@ -85,7 +107,7 @@ export async function listStagingDirs(env) {
   try {
     return await fs.readdir(await stagingRoot(env));
   } catch (error) {
-    if (error.code === "ENOENT") {
+    if (isNodeError(error) && error.code === "ENOENT") {
       return [];
     }
     throw error;
@@ -100,12 +122,12 @@ export function requireTestModule(modulePath) {
   return createRequire(import.meta.url)(modulePath);
 }
 
-export function captureError(fn) {
+export function captureError(fn: () => unknown): CapturedError | null {
   try {
     fn();
     return null;
   } catch (error) {
-    return error;
+    return error as CapturedError;
   }
 }
 

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readState, runCli, installPolicyFixture, uninstallPolicyFixture } from "./helpers.ts";
-import { cli, entriesForAction, initAndSeed, installAndTake, withFreshEnv, writeClimierJson } from "./plugin-policy-seam-lifecycle-helpers.mjs";
+import { cli, entriesForAction, initAndSeed, installAndTake, withFreshEnv, writeClimierJson } from "./plugin-policy-seam-lifecycle-helpers.ts";
 
 test("seam-take: take on a free task with no policy installed succeeds (defaults core, abstain)", async () => {
   await withFreshEnv(async ({ projectDir }) => {

@@ -7,6 +7,8 @@ import {
   runCli,
 } from "./helpers.ts";
 
+type RunOptions = { cwd?: string };
+
 export async function withFreshEnv(body) {
   const home = await fs.mkdtemp(path.join(os.tmpdir(), "climier-seam-dag-"));
   const projectDir = await createTempProject();
@@ -34,11 +36,11 @@ export async function withFreshEnv(body) {
   }
 }
 
-export function runCliRaw(args, { cwd } = {}) {
+export function runCliRaw(args, { cwd }: RunOptions = {}) {
   return runCli(args, { cwd });
 }
 
-export async function cli(args, { cwd } = {}) {
+export async function cli(args, { cwd }: RunOptions = {}) {
   const result = await runCliRaw(args, { cwd });
   if (result.code !== 0) {
     throw new Error(

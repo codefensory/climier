@@ -6,7 +6,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import { importFresh } from "./helpers.ts";
-import { INSTALL_MODULE, freshEnv, createFixturePackage, listStagingDirs } from "./plugin-install-test-helpers.mjs";
+import { INSTALL_MODULE, freshEnv, createFixturePackage, listStagingDirs } from "./plugin-install-test-helpers.ts";
 
 type PluginTestError = { code: string };
 

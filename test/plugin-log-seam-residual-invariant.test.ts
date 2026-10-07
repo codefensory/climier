@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, importFresh, readState } from "./helpers.ts";
-import { initProject, seedOpenTask, runLoggedHandlers } from "./plugin-log-seam-residual-helpers.mjs";
+import { initProject, seedOpenTask, runLoggedHandlers } from "./plugin-log-seam-residual-helpers.ts";
 
 test("plugin-log-seam: handlers still observe withLock → updateState → append order (one log per handler call)", async () => {
   const dir = await createTempProject();

@@ -14,7 +14,7 @@ import {
   submitAcceptTask,
   installPolicyFixture,
   uninstallPolicyFixture,
-} from "./plugin-compat-helpers.mjs";
+} from "./plugin-compat-helpers.ts";
 
 test("add-task preserves root plugins and existing per-node plugins", async () => {
   const dir = await createTempProject();

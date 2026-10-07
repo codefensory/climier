@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { installPolicyFixture } from "./helpers.ts";
-import { runCliRaw } from "./plugin-policy-seam-dag-helpers.mjs";
-import { baseClimierJson, buildEnvNamespace, cli, initProject, recorded, registerInitiative, withFreshEnv } from "./plugin-policy-seam-dag-helpers.mjs";
+import { runCliRaw } from "./plugin-policy-seam-dag-helpers.ts";
+import { baseClimierJson, buildEnvNamespace, cli, initProject, recorded, registerInitiative, withFreshEnv } from "./plugin-policy-seam-dag-helpers.ts";
 
 test("seam-dag: add-task with no policy installed mutates and logs (defaults core)", async () => {
   await withFreshEnv(async ({ projectDir }) => {

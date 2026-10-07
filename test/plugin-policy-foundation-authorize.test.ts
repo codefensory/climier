@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importFresh } from "./helpers.ts";
-import { withEnv } from "./plugin-policy-foundation-helpers.mjs";
+import { withEnv } from "./plugin-policy-foundation-helpers.ts";
 
 const POLICY_MODULE = "../src/plugins/policy.ts";
 const ERRORS_MODULE = "../src/plugins/errors.ts";

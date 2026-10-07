@@ -7,9 +7,9 @@ import path from "node:path";
 import os from "node:os";
 import { pathToFileURL } from "node:url";
 import { importFresh } from "./helpers.ts";
-import { requireTestModule as require } from "./plugin-install-test-helpers.mjs";
-import { captureError as capture } from "./plugin-install-test-helpers.mjs";
-import { DESCRIPTOR_MODULE } from "./plugin-install-test-helpers.mjs";
+import { requireTestModule as require } from "./plugin-install-test-helpers.ts";
+import { captureError as capture } from "./plugin-install-test-helpers.ts";
+import { DESCRIPTOR_MODULE } from "./plugin-install-test-helpers.ts";
 
 type PluginTestError = { code: string; message: string; details: Record<string, unknown> };
 

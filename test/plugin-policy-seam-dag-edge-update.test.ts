@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { installPolicyFixture } from "./helpers.ts";
-import { initProject } from "./plugin-policy-seam-dag-helpers.mjs";
-import { baseClimierJson, buildEnvNamespace, cli, hasBlocksEdge, recorded, registerInitiative, runCliRaw, withFreshEnv } from "./plugin-policy-seam-dag-helpers.mjs";
+import { initProject } from "./plugin-policy-seam-dag-helpers.ts";
+import { baseClimierJson, buildEnvNamespace, cli, hasBlocksEdge, recorded, registerInitiative, runCliRaw, withFreshEnv } from "./plugin-policy-seam-dag-helpers.ts";
 
 test("seam-dag: add-edge with no policy installed mutates", async () => {
   await withFreshEnv(async ({ projectDir }) => {

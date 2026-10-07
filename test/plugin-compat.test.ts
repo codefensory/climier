@@ -15,7 +15,7 @@ import {
   seedPluginData,
   assertPluginDataPreserved,
   fsp_writeFile,
-} from "./plugin-compat-helpers.mjs";
+} from "./plugin-compat-helpers.ts";
 
 test("writeCanonicalState preserves `plugins` (root) and `nodes[id].plugins` on round-trip", async () => {
   const dir = await createTempProject();

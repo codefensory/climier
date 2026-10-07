@@ -2,7 +2,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { FIXTURE_COMMAND, withFreshEnv, cli, runCli, writeClimierJson, installPolicyFixture } from "./plugin-policy-e2e-residual-helpers.mjs";
+import { FIXTURE_COMMAND, withFreshEnv, cli, runCli, writeClimierJson, installPolicyFixture } from "./plugin-policy-e2e-residual-helpers.ts";
 
 test("e2e: authorize — allow mode returns {decision:'allow'}", async () => {
   await withFreshEnv(async ({ projectDir }) => {

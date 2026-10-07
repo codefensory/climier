@@ -12,7 +12,7 @@ import {
   writeCanonicalState,
   seedPluginFixture,
   submitAcceptTask,
-} from "./plugin-compat-helpers.mjs";
+} from "./plugin-compat-helpers.ts";
 
 test("deriveV2 does not consume `plugins` or `nodes[id].plugins` (ready/blocked unchanged)", async () => {
   const withoutPlugins = {

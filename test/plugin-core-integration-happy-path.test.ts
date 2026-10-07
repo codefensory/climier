@@ -13,7 +13,7 @@ import {
   acceptFirstTask,
   addNoteToSecondTask,
   assertFullSliceState,
-} from "./plugin-core-integration-helpers.mjs";
+} from "./plugin-core-integration-helpers.ts";
 
 test("plugin-core-integration: api.core.version is 1 and api.core.run is a function", async () => {
   const dir = await createTempProject();

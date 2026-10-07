@@ -40,7 +40,16 @@ export function snapshotDir(dir) {
   return path.join(path.dirname(stateFilePath(dir)), "snapshots");
 }
 
-export function baseState() {
+type PluginState = {
+  version: number;
+  nodes: Record<string, Record<string, unknown>>;
+  edges: Array<Record<string, unknown>>;
+  initiatives: Record<string, Record<string, unknown>>;
+  log: Array<Record<string, unknown>>;
+  [key: string]: unknown;
+};
+
+export function baseState(): PluginState {
   return {
     version: 1,
     nodes: {
@@ -98,7 +107,10 @@ export function seedPluginData(state) {
   }
 }
 
-export async function seedPluginFixture(dir, mutate) {
+export async function seedPluginFixture(
+  dir,
+  mutate?: (state: ReturnType<typeof baseState>) => void,
+) {
   const base = baseState();
   if (typeof mutate === "function") {
     mutate(base);

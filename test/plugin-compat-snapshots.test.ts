@@ -16,7 +16,7 @@ import {
   snapshotDir,
   submitAcceptTask,
   writeCanonicalState,
-} from "./plugin-compat-helpers.mjs";
+} from "./plugin-compat-helpers.ts";
 
 test("createSnapshot preserves `plugins` and `nodes[id].plugins` in raw bytes", async () => {
   const dir = await createTempProject();

@@ -3,6 +3,22 @@ import os from "node:os";
 import path from "node:path";
 import { createTempProject } from "./helpers.ts";
 
+type PolicyOptions = {
+  id?: string;
+  command?: string;
+  npmName?: string;
+  entryCode?: string;
+  appliesMode?: string;
+  authorizeMode?: string;
+  reason?: string;
+  appliesExtra?: string;
+  authorizeExtra?: string;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
 export async function freshHome(prefix = "climier-policy-test") {
   const home = await fs.mkdtemp(path.join(os.tmpdir(), prefix + "-"));
   const projectDir = await createTempProject();
@@ -53,8 +69,9 @@ export async function withEnv(body, prefix = "climier-policy-test") {
   }
 }
 
-export async function writePlugin(home, opts) {
+export async function writePlugin(home: string, opts: PolicyOptions & { entryCode: string }) {
   const id = opts.id ?? opts.command;
+  if (!id) throw new TypeError("writePlugin: id or command is required");
   const command = opts.command ?? id;
   const installedDir = path.join(home, "plugins", "installed", id);
   await fs.mkdir(installedDir, { recursive: true });
@@ -76,7 +93,7 @@ export async function writePlugin(home, opts) {
   return installedDir;
 }
 
-export function policyFixture(opts = {}) {
+export function policyFixture(opts: PolicyOptions = {}) {
   const appliesMode = opts.appliesMode ?? "true";
   const authorizeMode = opts.authorizeMode ?? "allow";
   const reason = JSON.stringify(opts.reason ?? "deny reason");
@@ -119,7 +136,10 @@ export function commandOnlyFixture() {
   );
 }
 
-export function policyFailureForField(field) {
-  return (err) =>
-    err.code === "PLUGIN_LOAD_FAILED" && err.details && err.details.field === field;
+export function policyFailureForField(field: string) {
+  return (err: unknown) =>
+    isRecord(err) &&
+    err.code === "PLUGIN_LOAD_FAILED" &&
+    isRecord(err.details) &&
+    err.details.field === field;
 }

@@ -2,9 +2,9 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { requireTestModule as require } from "./plugin-install-test-helpers.mjs";
-import { captureError as capture } from "./plugin-install-test-helpers.mjs";
-import { RESERVED_MODULE } from "./plugin-install-test-helpers.mjs";
+import { requireTestModule as require } from "./plugin-install-test-helpers.ts";
+import { captureError as capture } from "./plugin-install-test-helpers.ts";
+import { RESERVED_MODULE } from "./plugin-install-test-helpers.ts";
 
 test("reserved-namespaces: list contains every core CLI command and is unique", () => {
   const { RESERVED_NAMESPACES, assertNoReservedCollision } = require(RESERVED_MODULE);

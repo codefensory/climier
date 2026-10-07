@@ -10,7 +10,7 @@ import {
   rejectSpoofedActor,
   rejectNonObjectCoreInput,
   taskInput,
-} from "./plugin-core-integration-helpers.mjs";
+} from "./plugin-core-integration-helpers.ts";
 
 type ErrorDetails = Record<string, unknown> & {
   op?: string;

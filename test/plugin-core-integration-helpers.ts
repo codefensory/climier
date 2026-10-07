@@ -6,6 +6,12 @@ import {
   readState,
 } from "./helpers.ts";
 
+type RecordValue = Record<string, unknown>;
+
+function isRecord(value: unknown): value is RecordValue {
+  return typeof value === "object" && value !== null;
+}
+
 // Shared setup for the core API integration cases.
 export async function initProject(dir, initiatives = ["plugin-platform"]) {
   const { default: init } = await importFresh("./cli/commands/init.ts");
@@ -151,12 +157,13 @@ export async function assertFullSliceState(dir) {
 export async function rejectUnknownCoreOperation(api) {
   await assert.rejects(
     api.core.run({ op: "task.delete", input: { id: "T-hist" } }),
-    (err) =>
-      err &&
-      err.code === "PLUGIN_CORE_INVALID_OPERATION" &&
-      err.details.op === "task.delete" &&
-      err.details.reason === "unknown operation" &&
-      err.details.plugin_id === "example.core",
+    (err) => {
+      if (!isRecord(err) || !isRecord(err.details)) return false;
+      return err.code === "PLUGIN_CORE_INVALID_OPERATION" &&
+        err.details.op === "task.delete" &&
+        err.details.reason === "unknown operation" &&
+        err.details.plugin_id === "example.core";
+    },
     "unknown op must be rejected as PLUGIN_CORE_INVALID_OPERATION",
   );
 }
@@ -175,7 +182,8 @@ export async function rejectSpoofedActor(api) {
       },
     }),
     (err) =>
-      err &&
+      isRecord(err) &&
+      isRecord(err.details) &&
       err.code === "PLUGIN_CORE_INVALID_OPERATION" &&
       err.details.reason === "input.as is forbidden",
   );
@@ -185,7 +193,8 @@ export async function rejectNonObjectCoreInput(api) {
   await assert.rejects(
     api.core.run({ op: "task.create", input: null }),
     (err) =>
-      err &&
+      isRecord(err) &&
+      isRecord(err.details) &&
       err.code === "PLUGIN_CORE_INVALID_OPERATION" &&
       err.details.reason === "input must be an object",
   );

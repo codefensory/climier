@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import * as helpers from "./plugin-core-adapter-helpers.mjs";
+import * as helpers from "./plugin-core-adapter-helpers.ts";
 
 // 1. createCore — module shape (no state, no kernel)
 

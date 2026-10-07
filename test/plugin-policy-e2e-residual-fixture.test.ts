@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { FIXTURE_ID, FIXTURE_COMMAND, POLICY_FIXTURE_DIR } from "./plugin-policy-e2e-residual-helpers.mjs";
+import { FIXTURE_ID, FIXTURE_COMMAND, POLICY_FIXTURE_DIR } from "./plugin-policy-e2e-residual-helpers.ts";
 
 test("fixture: package.json declares descriptor, type module, and no runtime dependencies", async () => {
   const pkgRaw = await fs.readFile(path.join(POLICY_FIXTURE_DIR, "package.json"), "utf8");

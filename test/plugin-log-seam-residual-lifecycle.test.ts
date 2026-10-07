@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, importFresh, readState, writeCanonicalState } from "./helpers.ts";
-import { submitAcceptTask, initProject, seedOpenTask, lastLog } from "./plugin-log-seam-residual-helpers.mjs";
+import { submitAcceptTask, initProject, seedOpenTask, lastLog } from "./plugin-log-seam-residual-helpers.ts";
 
 test("accept (task): CLI call writes accept log entry without plugin_id", async () => {
   const dir = await createTempProject();

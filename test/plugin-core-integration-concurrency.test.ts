@@ -8,7 +8,7 @@ import {
   taskInput,
   assertParallelCreates,
   assertParallelLogs,
-} from "./plugin-core-integration-helpers.mjs";
+} from "./plugin-core-integration-helpers.ts";
 
 test("plugin-core-integration: two plugins calling core.run in parallel land both writes intact", async () => {
   const dir = await createTempProject();

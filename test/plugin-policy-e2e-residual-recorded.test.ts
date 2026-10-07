@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { FIXTURE_ID, FIXTURE_COMMAND, withFreshEnv, cli, writeClimierJson, installPolicyFixture, uninstallPolicyFixture } from "./plugin-policy-e2e-residual-helpers.mjs";
+import { FIXTURE_ID, FIXTURE_COMMAND, withFreshEnv, cli, writeClimierJson, installPolicyFixture, uninstallPolicyFixture } from "./plugin-policy-e2e-residual-helpers.ts";
 
 test("e2e: recorded — authorize persists last invocation for audit", async () => {
   await withFreshEnv(async ({ projectDir }) => {

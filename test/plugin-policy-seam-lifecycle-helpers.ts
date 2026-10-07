@@ -66,7 +66,7 @@ export async function baseClimierJson(projectDir) {
   });
 }
 
-export async function initAndSeed({ projectDir, mode }) {
+export async function initAndSeed({ projectDir, mode }: { projectDir: string; mode?: string }) {
   if (mode !== undefined) {
     await writeClimierJson(projectDir, {
       version: 1,

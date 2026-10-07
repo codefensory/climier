@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { importFresh, installPolicyFixture } from "./helpers.ts";
-import { baseClimierJson, buildEnvNamespace, cli, initProject, missingInitiativeError, recorded, registerInitiative, runCliRaw, withFreshEnv } from "./plugin-policy-seam-dag-helpers.mjs";
+import { baseClimierJson, buildEnvNamespace, cli, initProject, missingInitiativeError, recorded, registerInitiative, runCliRaw, withFreshEnv } from "./plugin-policy-seam-dag-helpers.ts";
 
 test("seam-dag: deprecate-knowledge with policy=deny returns POLICY_DENIED without mutating state", async () => {
   await withFreshEnv(async ({ projectDir }) => {
