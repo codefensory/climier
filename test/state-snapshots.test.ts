@@ -15,6 +15,17 @@ import { createTempProject, rmTempProject, importFresh, stateFilePath, writeCano
 
 const SNAPSHOT_ID_PATTERN = /^(\d{8}T\d{9}Z)-(force-init|corrupt-recovery|pre-restore)-([0-9a-f]{8})$/;
 
+type FixtureNode = { id?: string; revision?: number; [key: string]: unknown };
+type FixtureState = {
+  version: number;
+  revision: number;
+  nodes: Record<string, FixtureNode>;
+  edges: Array<Record<string, string>>;
+  initiatives: Record<string, Record<string, unknown>>;
+  log: Array<Record<string, unknown>>;
+  [key: string]: unknown;
+};
+
 function snapshotDir(dir) {
   return path.join(path.dirname(stateFilePath(dir)), "snapshots");
 }
@@ -23,8 +34,8 @@ function rawReadback(dir, id) {
   return fs.readFile(path.join(snapshotDir(dir), `${id}.json`));
 }
 
-async function seedCanonicalFixture(dir, mutate) {
-  const base = { version: 1, revision: 0, nodes: {}, edges: [], initiatives: {}, log: [] };
+async function seedCanonicalFixture(dir, mutate: (state: FixtureState) => void = () => {}) {
+  const base: FixtureState = { version: 1, revision: 0, nodes: {}, edges: [], initiatives: {}, log: [] };
   if (typeof mutate === "function") {
     mutate(base);
   }
@@ -92,7 +103,7 @@ test("createSnapshot: id matches the ADR format <UTC YYYYMMDDTHHmmssSSS Z>-<reas
     await seedCanonicalFixture(dir);
     const meta = await createSnapshot(dir, "force-init");
     assert.match(meta.id, SNAPSHOT_ID_PATTERN);
-    const m = meta.id.match(SNAPSHOT_ID_PATTERN);
+    const m = meta.id.match(SNAPSHOT_ID_PATTERN)!;
     const year = parseInt(m[1].slice(0, 4), 10);
     assert.ok(year >= 2024 && year <= 2100, `expected plausible year; got ${year}`);
     assert.equal(m[2], "force-init");
@@ -300,7 +311,7 @@ test("listSnapshots: excludes snapshots with corrupt metadata (unparseable JSON)
     await createSnapshot(dir, "force-init");
     const entries = await fs.readdir(snapshotDir(dir));
     const metaFile = entries.find((e) => e.endsWith(".meta.json"));
-    await fs.writeFile(path.join(snapshotDir(dir), metaFile), "{ not json");
+    await fs.writeFile(path.join(snapshotDir(dir), metaFile!), "{ not json");
     const out = await listSnapshots(dir);
     assert.deepEqual(out, []);
   } finally {
@@ -316,7 +327,7 @@ test("listSnapshots: excludes snapshots where meta.id does not match filename", 
     await createSnapshot(dir, "force-init");
     const entries = await fs.readdir(snapshotDir(dir));
     const metaFile = entries.find((e) => e.endsWith(".meta.json"));
-    const metaPath = path.join(snapshotDir(dir), metaFile);
+    const metaPath = path.join(snapshotDir(dir), metaFile!);
     const meta = JSON.parse(await fs.readFile(metaPath, "utf8"));
     meta.id = "tampered-id";
     await fs.writeFile(metaPath, JSON.stringify(meta));

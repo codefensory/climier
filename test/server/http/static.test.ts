@@ -15,20 +15,21 @@ async function makeRoot(t) {
   return root;
 }
 
-async function listen(server) {
-  await new Promise((resolve, reject) => {
+async function listen(server): Promise<string> {
+  await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
     server.listen(0, "127.0.0.1", resolve);
   });
   const address = server.address();
+  assert.ok(address && typeof address !== "string");
   return `http://127.0.0.1:${address.port}`;
 }
 
-async function requestRaw(baseUrl, requestPath) {
+async function requestRaw(baseUrl: string, requestPath: string): Promise<{ status: number | undefined; headers: http.IncomingHttpHeaders; body: Buffer }> {
   const address = new URL(baseUrl);
   return new Promise((resolve, reject) => {
     const request = http.request({ hostname: address.hostname, port: address.port, path: requestPath }, (response) => {
-      const chunks = [];
+      const chunks: Buffer[] = [];
       response.on("data", (chunk) => chunks.push(chunk));
       response.on("end", () => resolve({ status: response.statusCode, headers: response.headers, body: Buffer.concat(chunks) }));
     });
@@ -53,7 +54,7 @@ test("HTTP server serves the SPA safely with static headers and fallback", async
   const catalog = createProjectCatalog({ dataRoot: path.join(root, "catalog") });
   const server = createRemoteApiServer({ catalog, authStore: testAuthStore, uiRoot });
   const baseUrl = await listen(server);
-  t.after(() => new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve())));
+  t.after(() => new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve())));
 
   const html = await fetch(`${baseUrl}/`);
   assert.equal(html.status, 200);

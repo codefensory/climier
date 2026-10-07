@@ -5,6 +5,9 @@ import assert from "node:assert/strict";
 import pathModule from "node:path";
 import { createTempProject, rmTempProject, importFresh, stateFilePath } from "./helpers.mjs";
 
+type StateError = { code?: string; message: string; details?: { version?: number; file?: string; hint?: string } };
+type FenceCase = [string, Record<string, number>, RegExp];
+
 test("readState returns null if file missing", async () => {
   const { readState } = await importFresh("./storage/state.ts");
   const dir = await createTempProject();
@@ -86,14 +89,15 @@ test("readState classifies pre-release v1 structure before checking its version"
     let caught;
     try { await readState(dir); } catch (e) { caught = e; }
     assert.ok(caught, "readState should throw on a v1 file");
-    assert.equal(caught.code, "PRE_RELEASE_STATE_UNSUPPORTED");
-    assert.ok(caught.details, "must expose structured details");
-    assert.equal(caught.details.version, 1);
-    assert.equal(caught.details.file, file);
-    assert.match(caught.details.hint || "", /climier migrate/i);
-    assert.match(caught.message, /pre-release/i);
-    assert.match(caught.message, /climier migrate/i);
-    assert.doesNotMatch(caught.message, /init --force/i);
+    const stateError = caught as StateError;
+    assert.equal(stateError.code, "PRE_RELEASE_STATE_UNSUPPORTED");
+    assert.ok(stateError.details, "must expose structured details");
+    assert.equal(stateError.details!.version, 1);
+    assert.equal(stateError.details!.file, file);
+    assert.match(stateError.details!.hint || "", /climier migrate/i);
+    assert.match(stateError.message, /pre-release/i);
+    assert.match(stateError.message, /climier migrate/i);
+    assert.doesNotMatch(stateError.message, /init --force/i);
   } finally { await rmTempProject(dir); }
 });
 
@@ -107,7 +111,7 @@ test("unknown future schema version is rejected on read and write", async () => 
     await fs.writeFile(file, JSON.stringify({ version: 6, nodes: {}, edges: [], initiatives: {}, log: [] }), "utf8");
     let caught;
     try { await readState(dir); } catch (e) { caught = e; }
-    assert.equal(caught.code, "CLIMIER_INCOMPATIBLE_VERSION");
+    assert.equal((caught as StateError).code, "CLIMIER_INCOMPATIBLE_VERSION");
     await assert.rejects(writeState(dir, { version: 6, nodes: {}, edges: [], initiatives: {}, log: [], revision: 0 }),
       { code: "CLIMIER_INCOMPATIBLE_VERSION" });
   } finally { await rmTempProject(dir); }
@@ -123,7 +127,7 @@ test("readState accepts canonical v1 state when its revision ledger is present",
     const canonical = { ...fenced, version: 1 };
     await fs.writeFile(stateFile(dir), JSON.stringify(canonical), "utf8");
 
-    const read = await readState(dir);
+    const read = await readState(dir) as { version: number; fence_generation?: number; nodes: unknown };
     assert.equal(read.version, 1);
     assert.ok(Number.isInteger(read.fence_generation));
     assert.deepEqual(read.nodes, canonical.nodes);
@@ -133,17 +137,21 @@ test("readState accepts canonical v1 state when its revision ledger is present",
 test("readState rejects canonical v1 state without fence or ledger", async (t) => {
   const { readState } = await importFresh("./storage/state.ts");
   const fs = await import("node:fs/promises");
-  for (const [name, extra, reason] of [
+  const cases: FenceCase[] = [
     ["no fence", {}, /fence_generation/i],
     ["no ledger", { fence_generation: 1 }, /revision-ledger/],
-  ]) {
+  ];
+  for (const [name, extra, reason] of cases) {
     await t.test(name, async () => {
       const dir = await createTempProject();
       try {
         const file = stateFilePath(dir);
         await fs.mkdir(pathModule.dirname(file), { recursive: true });
         await fs.writeFile(file, JSON.stringify({ version: 1, nodes: {}, edges: [], initiatives: {}, log: [], ...extra }), "utf8");
-        await assert.rejects(readState(dir), (error) => error.code === "CLIMIER_NONCANONICAL_STATE" && reason.test(error.message));
+        await assert.rejects(readState(dir), (error) => {
+          const stateError = error as StateError;
+          return stateError.code === "CLIMIER_NONCANONICAL_STATE" && reason.test(stateError.message);
+        });
       } finally { await rmTempProject(dir); }
     });
   }
@@ -169,7 +177,7 @@ test("writeState rejects a v1-shaped object with a clear error", async () => {
     let caught;
     try { await writeState(dir, v1); } catch (e) { caught = e; }
     assert.ok(caught, "writeState must reject the pre-canonical shape");
-    assert.match(caught.message, /pre-canonical|run climier migrate/i);
+    assert.match((caught as StateError).message, /pre-canonical|run climier migrate/i);
   } finally { await rmTempProject(dir); }
 });
 
@@ -181,7 +189,7 @@ test("writeState rejects a v2 object missing the v2 collections", async () => {
     let caught;
     try { await writeState(dir, bad); } catch (e) { caught = e; }
     assert.ok(caught, "writeState must reject missing collections");
-    assert.match(caught.message, /missing (initiatives|log) collection/);
+    assert.match((caught as StateError).message, /missing (initiatives|log) collection/);
   } finally { await rmTempProject(dir); }
 });
 
@@ -225,7 +233,10 @@ test("canonical-only reader rejects versions 2 through 5 while retaining classif
         await bootstrapFencedState(dir);
         const shape = { version, nodes: {}, edges: [], initiatives: {}, log: [], ...(version === 5 ? { fence_generation: 1 } : {}) };
         await fs.writeFile(stateFile(dir), JSON.stringify(shape), "utf8");
-        await assert.rejects(readState(dir), (error) => error.code === "CLIMIER_INCOMPATIBLE_VERSION" && /climier migrate/i.test(error.message));
+        await assert.rejects(readState(dir), (error) => {
+          const stateError = error as StateError;
+          return stateError.code === "CLIMIER_INCOMPATIBLE_VERSION" && /climier migrate/i.test(stateError.message);
+        });
         assert.equal(classifyStateShape(shape).kind, version === 5 ? "fenced-legacy" : "legacy");
       } finally { await rmTempProject(dir); }
     });

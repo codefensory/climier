@@ -13,7 +13,27 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createTempProject, rmTempProject, importFresh, readState as readRawState, writeCanonicalState, runCli } from "./helpers.mjs";
 
-async function bootstrapProject(dir, initName) {
+type Extra = {
+  title?: string;
+  initiative?: string;
+  body?: string;
+  purpose?: string;
+  "resolution-mode"?: string;
+  status?: string;
+  choice?: string;
+  rationale?: string;
+  acceptance?: string;
+  "blocked-by"?: string;
+  domain?: string;
+  tags?: string;
+  "knowledge-type"?: string;
+  mitigation?: string;
+};
+
+type TestError = { code?: string; details?: { field?: string; id?: string }; message: string };
+const asTestError = (error: unknown): TestError => error as TestError;
+
+async function bootstrapProject(dir, initName = "work") {
   if (initName === undefined) {initName = "work";}
   const { default: init } = await importFresh("./cli/commands/init.ts");
   const { default: addInitiative } = await importFresh("./cli/commands/add-initiative.ts");
@@ -21,7 +41,7 @@ async function bootstrapProject(dir, initName) {
   await addInitiative({ statePath: dir, flags: { desc: "test" }, positional: [initName] });
 }
 
-async function addGate(dir, id, extra) {
+async function addGate(dir, id, extra: Extra = {}) {
   extra = extra || {};
   const { default: addNode } = await importFresh("./cli/commands/add-node.ts");
   return addNode({
@@ -42,7 +62,7 @@ async function addGate(dir, id, extra) {
   });
 }
 
-async function addTask(dir, id, extra) {
+async function addTask(dir, id, extra: Extra = {}) {
   extra = extra || {};
   const { default: addNode } = await importFresh("./cli/commands/add-node.ts");
   return addNode({
@@ -63,7 +83,7 @@ async function addTask(dir, id, extra) {
   });
 }
 
-async function addKnowledge(dir, id, extra) {
+async function addKnowledge(dir, id, extra: Extra = {}) {
   extra = extra || {};
   const { default: addNode } = await importFresh("./cli/commands/add-node.ts");
   return addNode({
@@ -82,19 +102,19 @@ async function addKnowledge(dir, id, extra) {
   });
 }
 
-async function statusOf(dir, flags) {
+async function statusOf(dir, flags = {}) {
   flags = flags || {};
   const { default: status } = await importFresh("./cli/commands/status.ts");
   return status({ statePath: dir, flags, positional: [] });
 }
 
-async function deprecateOf(dir, id, flags) {
+async function deprecateOf(dir, id, flags: Record<string, unknown> = {}) {
   flags = flags || {};
   const { default: deprecate } = await importFresh("./cli/commands/deprecate-knowledge.ts");
   return deprecate({ statePath: dir, positional: [id], flags });
 }
 
-async function historyOf(dir, id, flags) {
+async function historyOf(dir, id, flags: Record<string, unknown> = {}) {
   flags = flags || {};
   const { default: hist } = await importFresh("./cli/commands/history.ts");
   return hist({ statePath: dir, positional: [id], flags });
@@ -414,7 +434,7 @@ test("deprecate-knowledge: missing --reason throws MISSING_FIELD", async () => {
     await addKnowledge(dir, "K-1", { domain: "auth" });
     await assert.rejects(
       deprecateOf(dir, "K-1", { as: "alice" }),
-      (err) => err.code === "MISSING_FIELD" && err.details.field === "reason",
+      (err) => asTestError(err).code === "MISSING_FIELD" && asTestError(err).details!.field === "reason",
     );
   } finally { await rmTempProject(dir); }
 });
@@ -430,7 +450,7 @@ test("deprecate-knowledge: missing --as throws MISSING_AGENT", async () => {
     delete process.env.CLIMIER_AGENT;
     await assert.rejects(
       deprecateOf(dir, "K-1", { reason: "x" }),
-      (err) => err.code === "MISSING_AGENT",
+      (err) => asTestError(err).code === "MISSING_AGENT",
     );
   } finally {
     if (prev !== undefined) {process.env.CLIMIER_AGENT = prev;}
@@ -445,7 +465,7 @@ test("deprecate-knowledge: rejects non-knowledge node with INVALID_EDGE_KIND", a
     await addTask(dir, "T-1", { title: "task" });
     await assert.rejects(
       deprecateOf(dir, "T-1", { reason: "x", as: "alice" }),
-      (err) => err.code === "INVALID_EDGE_KIND" && /knowledge/.test(err.message),
+      (err) => asTestError(err).code === "INVALID_EDGE_KIND" && /knowledge/.test(asTestError(err).message),
     );
   } finally { await rmTempProject(dir); }
 });
@@ -456,7 +476,7 @@ test("deprecate-knowledge: unknown id throws NODE_NOT_FOUND", async () => {
     await bootstrapProject(dir);
     await assert.rejects(
       deprecateOf(dir, "K-missing", { reason: "x", as: "alice" }),
-      (err) => err.code === "NODE_NOT_FOUND" && err.details.id === "K-missing",
+      (err) => asTestError(err).code === "NODE_NOT_FOUND" && asTestError(err).details!.id === "K-missing",
     );
   } finally { await rmTempProject(dir); }
 });
@@ -516,7 +536,7 @@ test("history: missing id is a clear error", async () => {
     await bootstrapProject(dir);
     await assert.rejects(
       historyOf(dir, undefined, {}),
-      (err) => /history/.test(err.message) && /id/i.test(err.message),
+      (err) => /history/.test(asTestError(err).message) && /id/i.test(asTestError(err).message),
     );
   } finally { await rmTempProject(dir); }
 });

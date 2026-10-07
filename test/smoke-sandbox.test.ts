@@ -35,6 +35,7 @@ const SENTINEL_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "climier-sandbox-sen
 // (notably state-resilience-regression.test.mjs, which also wraps the helper
 // and runs in parallel under `npm test`).
 const PRIVATE_TMPDIR = fs.mkdtempSync(path.join(os.tmpdir(), "climier-smoke-test-"));
+type RunResult = { stdout: string; stderr: string; code: number | null; signal?: NodeJS.Signals | null };
 
 function sentinelEnv() {
   // Force CLIMIER_HOME to a known safe temp dir. The helper must override
@@ -60,8 +61,8 @@ function privateSmokeHomeRe() {
   return new RegExp("^" + escaped + "/climier-smoke-[^/]+/home$");
 }
 
-function runHelper(args, env = {}) {
-  return new Promise((resolve) => {
+function runHelper(args: string[], env: NodeJS.ProcessEnv = {}): Promise<RunResult> {
+  return new Promise<RunResult>((resolve) => {
     const proc = spawn("bash", [HELPER, "--", ...args], {
       cwd: ROOT,
       env: { ...sentinelEnv(), ...env },
@@ -144,11 +145,12 @@ test("smoke-sandbox.sh: does not touch the real ~/.climier", async () => {
     // Real ~/.climier is untouched: no tasks.json was created under the
     // sentinel home either, because the helper redirects CLIMIER_HOME.
     const sentinelProjects = path.join(SENTINEL_HOME, "projects");
-    let entries = [];
+    let entries: string[] = [];
     try {
       entries = fs.readdirSync(sentinelProjects);
     } catch (e) {
-      if (e.code !== "ENOENT") {
+      const error = e as NodeJS.ErrnoException;
+      if (error.code !== "ENOENT") {
         throw e;
       }
     }
@@ -184,7 +186,7 @@ test("smoke-sandbox.sh: cleans up sandbox on TERM", async () => {
   );
   // Wait until the wrapped command starts; the sandbox directory appears
   // before the helper installs its signal trap.
-  let appeared = null;
+  let appeared: string[] | null = null;
   for (let i = 0; i < 100 && !appeared; i++) {
     await new Promise((r) => setTimeout(r, 20));
     const now = listSmokeSandboxes().filter((n) => !before.has(n));
@@ -194,8 +196,9 @@ test("smoke-sandbox.sh: cleans up sandbox on TERM", async () => {
   }
   assert.ok(appeared, "wrapped command should start inside the sandbox");
   // Kill the whole process group so the inner sleep also terminates.
+  assert.ok(proc.pid !== undefined);
   process.kill(-proc.pid, "SIGTERM");
-  await new Promise((resolve) => proc.on("close", () => resolve()));
+  await new Promise<void>((resolve) => proc.on("close", () => resolve()));
   await new Promise((r) => setTimeout(r, 50));
   const leftover = listSmokeSandboxes().filter((n) => !before.has(n));
   assert.equal(leftover.length, 0, `leftover sandboxes after TERM: ${leftover.join(",")}`);

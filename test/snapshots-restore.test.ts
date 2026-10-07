@@ -39,6 +39,17 @@ import {
 
 const SNAPSHOT_ID_PATTERN = /^(\d{8}T\d{9}Z)-(force-init|corrupt-recovery|pre-restore)-([0-9a-f]{8})$/;
 
+type FixtureNode = { id?: string; title?: string; revision?: number; [key: string]: unknown };
+type FixtureState = {
+  version: number;
+  revision: number;
+  nodes: Record<string, FixtureNode>;
+  edges: Array<Record<string, string>>;
+  initiatives: Record<string, Record<string, unknown>>;
+  log: Array<Record<string, unknown>>;
+  [key: string]: unknown;
+};
+
 function snapshotDir(dir) {
   return path.join(path.dirname(stateFilePath(dir)), "snapshots");
 }
@@ -47,20 +58,20 @@ function rawBytes(dir, id) {
   return fs.readFile(path.join(snapshotDir(dir), `${id}.json`));
 }
 
-async function seedCanonicalFixture(dir, mutate) {
-  const base = { version: 1, revision: 0, nodes: {}, edges: [], initiatives: {}, log: [] };
+async function seedCanonicalFixture(dir, mutate: (state: FixtureState) => void = () => {}) {
+  const base: FixtureState = { version: 1, revision: 0, nodes: {}, edges: [], initiatives: {}, log: [] };
   if (typeof mutate === "function") {
     mutate(base);
   }
   await writeCanonicalState(dir, base);
-  return readState(dir);
+  return readState(dir) as Promise<FixtureState>;
 }
 
-function hasOneRestoreEntry(state) {
+function hasOneRestoreEntry(state: FixtureState) {
   return state.log.filter((entry) => entry.action === "restore").length === 1;
 }
 
-function assertRebasedNodes(actual, expected) {
+function assertRebasedNodes(actual: Record<string, FixtureNode>, expected: Record<string, FixtureNode>) {
   assert.deepEqual(
     Object.fromEntries(Object.entries(actual).map(([id, node]) => {
       const { revision: _revision, ...data } = node;
@@ -202,7 +213,7 @@ test("snapshots command: excludes snapshots with corrupt metadata", async () => 
     await createSnapshot(dir, "force-init");
     const entries = await fs.readdir(snapshotDir(dir));
     const metaFile = entries.find((e) => e.endsWith(".meta.json"));
-    await fs.writeFile(path.join(snapshotDir(dir), metaFile), "{ not json");
+    await fs.writeFile(path.join(snapshotDir(dir), metaFile!), "{ not json");
     const out = await snapshots({ statePath: dir, flags: {}, positional: [] });
     assert.deepEqual(out, { snapshots: [] });
   } finally {

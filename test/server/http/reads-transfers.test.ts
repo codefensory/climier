@@ -8,6 +8,31 @@ import * as readModel from "../../../src/read-model/index.ts";
 import { readState, runCli, writeCanonicalState } from "../../helpers.mjs";
 import { authHeaders, operation, withApi } from "./fixtures.mjs";
 
+type TestState = {
+  revision: number;
+  nodes: Record<string, { plugins?: unknown; [key: string]: unknown }>;
+  log: Array<{ action?: string; agent?: string; [key: string]: unknown }>;
+  [key: string]: unknown;
+};
+type TransferPayload = {
+  version: number;
+  initiatives: Record<string, unknown>;
+  nodes: Record<string, { plugins?: unknown; claim?: { by: string }; [key: string]: unknown }>;
+  edges: unknown[];
+  log: unknown[];
+  plugins?: unknown;
+};
+type TransferBody = {
+  ok: boolean;
+  result: { revision: number; payload: TransferPayload; [key: string]: unknown };
+  error?: { code: string; details?: Record<string, unknown> };
+};
+type ReadBody = { result: Record<string, unknown>; error?: { code: string; details?: Record<string, unknown> } };
+async function bodyOf(response: Response): Promise<TransferBody> {
+  return await response.json() as TransferBody;
+}
+
+type QueryValue = string | string[];
 
 function readApiState() {
   return {
@@ -39,8 +64,8 @@ function readApiState() {
   };
 }
 
-function queryArgs(query) {
-  const args = [];
+function queryArgs(query: string): string[] {
+  const args: string[] = [];
   for (const [key, value] of new URLSearchParams(query)) {
     if (key === "all") {
       if (value === "true" || value === "") {
@@ -56,14 +81,14 @@ function queryArgs(query) {
   return args;
 }
 
-async function cliCommand(projectDir, command, query = "", positional = []) {
+async function cliCommand(projectDir: string, command: string, query = "", positional: string[] = []) {
   const args = ["--project", projectDir, command, ...positional, ...queryArgs(query)];
   const result = await runCli(args);
   assert.equal(result.code, 0, result.stdout || result.stderr);
   return JSON.parse(result.stdout);
 }
 
-async function cliStatus(projectDir, query = "") {
+async function cliStatus(projectDir: string, query = "") {
   return cliCommand(projectDir, "status", query);
 }
 
@@ -107,7 +132,7 @@ test("HTTP status read matches the complete CLI projection and all nine exact fi
     for (const query of queries) {
       const response = await fetch(`${baseUrl}/v1/projects/project-a/read/status${query ? `?${query}` : ""}`, { headers: authHeaders() });
       assert.equal(response.status, 200, `${query}: ${JSON.stringify(await response.clone().json())}`);
-      const body = await response.json();
+      const body = await response.json() as ReadBody;
       assert.deepEqual(normalizeStatusTimes(body.result), normalizeStatusTimes(await cliStatus(projectDirs[0], query)), query);
       assert.deepEqual(Object.keys(body.result).slice(0, 5), ["summary", "tasks", "gates", "knowledge_count", "alerts"]);
     }
@@ -117,7 +142,7 @@ test("HTTP status read matches the complete CLI projection and all nine exact fi
 test("HTTP typed read routes match the CLI output from the same state snapshot", async () => {
   await withApi(async ({ baseUrl, projectDirs }) => {
     await writeCanonicalState(projectDirs[0], readApiState());
-    const routes = [
+    const routes: Array<[string, string, string, string[]]> = [
       ["read/context/T-ready", "context", "as=alice&staleMs=0", ["T-ready"]],
       ["read/show/T-ready", "show", "", ["T-ready"]],
       ["read/history/T-progress", "history", "limit=1", ["T-progress"]],
@@ -129,7 +154,7 @@ test("HTTP typed read routes match the CLI output from the same state snapshot",
     for (const [route, command, query, positional] of routes) {
       const response = await fetch(`${baseUrl}/v1/projects/project-a/${route}${query ? `?${query}` : ""}`, { headers: authHeaders() });
       assert.equal(response.status, 200, `${route}: ${JSON.stringify(await response.clone().json())}`);
-      assert.deepEqual((await response.json()).result, await cliCommand(projectDirs[0], command, query, positional), route);
+      assert.deepEqual((await response.json() as ReadBody).result, await cliCommand(projectDirs[0], command, query, positional), route);
     }
   });
 });
@@ -140,7 +165,7 @@ test("HTTP typed read routes reject unknown, repeated, and invalid query paramet
     for (const query of ["claimedBy=alice", "kind=task&kind=gate", "limit=-1", "stale-ms=nope", "all=maybe", "as=alice&as=bob"]) {
       const response = await fetch(`${baseUrl}/v1/projects/project-a/read/status?${query}`, { headers: authHeaders() });
       assert.equal(response.status, 400, query);
-      assert.equal((await response.json()).error.code, "INVALID_QUERY", query);
+      assert.equal((await response.json() as { error: { code: string } }).error.code, "INVALID_QUERY", query);
     }
   });
 });
@@ -148,13 +173,13 @@ test("HTTP typed read routes reject unknown, repeated, and invalid query paramet
 test("HTTP v1 exports a consistent snapshot and imports it with the remote revision", async () => {
   await withApi(async ({ baseUrl, projectDirs }) => {
     await writeCanonicalState(projectDirs[0], readApiState());
-    const source = await readState(projectDirs[0]);
-    const destination = await readState(projectDirs[1]);
+    const source = await readState(projectDirs[0]) as TestState;
+    const destination = await readState(projectDirs[1]) as TestState;
 
     const exported = await fetch(`${baseUrl}/v1/projects/project-a/transfer/export`, { headers: authHeaders() });
     assert.equal(exported.status, 200);
     assert.equal(exported.headers.get("x-climier-protocol-version"), PROTOCOL_VERSION);
-    const exportBody = await exported.json();
+    const exportBody = await bodyOf(exported);
     assert.equal(exportBody.ok, true);
     assert.equal(exportBody.result.revision, source.revision);
     assert.equal(exportBody.result.payload.version, source.version);
@@ -162,7 +187,7 @@ test("HTTP v1 exports a consistent snapshot and imports it with the remote revis
     assert.equal(Object.hasOwn(exportBody.result.payload, "revision"), false);
     assert.equal(Object.hasOwn(exportBody.result.payload, "fence_generation"), false);
     assert.equal(Object.hasOwn(exportBody.result.payload.nodes["T-progress"], "revision"), false);
-    assert.equal(exportBody.result.payload.nodes["T-progress"].claim.by, "alice");
+    assert.equal(exportBody.result.payload.nodes["T-progress"].claim!.by, "alice");
     assert.deepEqual(exportBody.result.payload.plugins, { transferFixture: { value: true } });
     assert.deepEqual(exportBody.result.payload.nodes["T-progress"].plugins, { transferFixture: { value: 2 } });
 
@@ -172,8 +197,8 @@ test("HTTP v1 exports a consistent snapshot and imports it with the remote revis
       body: JSON.stringify({ payload: exportBody.result.payload, actor: "alice" }),
     });
     assert.equal(imported.status, 200, JSON.stringify(await imported.clone().json()));
-    const importBody = await imported.json();
-    const firstInstall = await readState(projectDirs[1]);
+    const importBody = await bodyOf(imported);
+    const firstInstall = await readState(projectDirs[1]) as TestState;
     assert.equal(importBody.ok, true);
     assert.equal(importBody.result.revision, firstInstall.revision);
     assert.deepEqual(Object.keys(importBody.result), ["revision"]);
@@ -192,8 +217,8 @@ test("HTTP v1 exports a consistent snapshot and imports it with the remote revis
       }),
     });
     assert.equal(casImport.status, 200, JSON.stringify(await casImport.clone().json()));
-    const installed = await readState(projectDirs[1]);
-    assert.equal((await casImport.json()).result.revision, installed.revision);
+    const installed = await readState(projectDirs[1]) as TestState;
+    assert.equal((await bodyOf(casImport)).result.revision, installed.revision);
 
     const stale = await fetch(`${baseUrl}/v1/projects/project-b/transfer/import`, {
       method: "POST",
@@ -205,9 +230,9 @@ test("HTTP v1 exports a consistent snapshot and imports it with the remote revis
       }),
     });
     assert.equal(stale.status, 409);
-    const staleBody = await stale.json();
-    assert.equal(staleBody.error.code, "TRANSFER_REMOTE_CHANGED");
-    assert.deepEqual(staleBody.error.details, { expected: destination.revision, current: installed.revision });
+    const staleBody = await bodyOf(stale);
+    assert.equal(staleBody.error!.code, "TRANSFER_REMOTE_CHANGED");
+    assert.deepEqual(staleBody.error!.details, { expected: destination.revision, current: installed.revision });
 
     const unknownBase = await fetch(`${baseUrl}/v1/projects/project-b/transfer/import`, {
       method: "POST",
@@ -215,7 +240,7 @@ test("HTTP v1 exports a consistent snapshot and imports it with the remote revis
       body: JSON.stringify({ payload: exportBody.result.payload, actor: "alice" }),
     });
     assert.equal(unknownBase.status, 409);
-    assert.equal((await unknownBase.json()).error.code, "TRANSFER_BASE_UNKNOWN");
+    assert.equal((await unknownBase.json() as { error: { code: string } }).error.code, "TRANSFER_BASE_UNKNOWN");
 
     const forced = await fetch(`${baseUrl}/v1/projects/project-b/transfer/import`, {
       method: "POST",
@@ -223,7 +248,7 @@ test("HTTP v1 exports a consistent snapshot and imports it with the remote revis
       body: JSON.stringify({ payload: exportBody.result.payload, actor: "alice", force: true }),
     });
     assert.equal(forced.status, 200, JSON.stringify(await forced.clone().json()));
-    const forcedBody = await forced.json();
+    const forcedBody = await bodyOf(forced);
     assert.ok(forcedBody.result.revision > installed.revision);
     const forceState = await readState(projectDirs[1]);
     assert.ok(forceState.log.some((entry) => entry.action === "transfer.push" && entry.agent === "alice"));
@@ -232,7 +257,7 @@ test("HTTP v1 exports a consistent snapshot and imports it with the remote revis
 
 test("HTTP reads module receives snapshot query, route, dependencies, and clock explicitly", () => {
   const { httpError } = createHttpCodec({ protocolVersion: PROTOCOL_VERSION });
-  const calls = [];
+  const calls: Array<[string, unknown]> = [];
   const reads = createHttpReads({
     httpError,
     routing: { decodeURIComponent },
@@ -240,11 +265,12 @@ test("HTTP reads module receives snapshot query, route, dependencies, and clock 
     deps: {
       ...readModel,
       projectStatusView(args) { calls.push(["status", args]); return { marker: "injected-status" }; },
-    },
+    } as unknown as NonNullable<Parameters<typeof createHttpReads>[0]>["deps"],
     clock: () => 1234,
   });
 
   const route = reads.matchReadRoute("read/status");
+  assert.ok(route);
   assert.equal(route.kind, "status");
   const parsedQuery = reads.parseReadQuery(new URL("http://localhost/read/status?limit=2"), route);
   assert.deepEqual(parsedQuery, { limit: 2 });
@@ -255,7 +281,7 @@ test("HTTP reads module receives snapshot query, route, dependencies, and clock 
 
 test("HTTP context reads preserve NODE_NOT_FOUND adapter error details", () => {
   const { httpError } = createHttpCodec({ protocolVersion: PROTOCOL_VERSION });
-  const calls = [];
+  const calls: unknown[] = [];
   const reads = createHttpReads({
     httpError,
     routing: { decodeURIComponent },
@@ -266,7 +292,7 @@ test("HTTP context reads preserve NODE_NOT_FOUND adapter error details", () => {
         calls.push(args);
         return null;
       },
-    },
+    } as unknown as NonNullable<Parameters<typeof createHttpReads>[0]>["deps"],
     clock: () => 1234,
   });
   const route = reads.matchReadRoute("read/context/missing-node");

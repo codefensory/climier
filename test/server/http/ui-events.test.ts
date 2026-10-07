@@ -6,6 +6,30 @@ import { test } from "node:test";
 import { ledgerFile } from "../../../src/storage/ledger.ts";
 import { createUiEvents } from "../../../src/server/http/ui-events.ts";
 import { authHeaders, withApi } from "./fixtures.mjs";
+type ErrorBody = { error: { code: string } };
+async function errorCode(response: Response): Promise<string> {
+  return (await response.json() as ErrorBody).error.code;
+}
+
+type MockWatcher = {
+  started: number;
+  closed: number;
+  subscribe(listener: (revision: number) => void): () => boolean;
+  start(): void;
+  close(): void;
+  emit(revision: number): void;
+};
+type MockResponse = EventEmitter & {
+  writes: string[];
+  writableEnded: boolean;
+  destroyed: boolean;
+  status?: number;
+  headers?: Record<string, string>;
+  writeHead(status: number, headers: Record<string, string>): void;
+  flushHeaders(): void;
+  write(data: string): boolean;
+  end(): void;
+};
 
 async function writeRevision(file, revision) {
   const ledger = JSON.parse(await fs.readFile(file, "utf8"));
@@ -32,7 +56,8 @@ test("UI events authenticate, send heartbeats, and emit only changed revisions",
     assert.equal(response.status, 200);
     assert.equal(response.headers.get("content-type"), "text/event-stream");
     assert.equal(response.headers.get("x-climier-protocol-version"), "1");
-    const reader = response.body.getReader();
+    const reader = response.body?.getReader();
+    assert.ok(reader);
     const first = await reader.read();
     assert.equal(new TextDecoder().decode(first.value), ": heartbeat\n\n");
 
@@ -52,32 +77,32 @@ test("UI events authenticate, send heartbeats, and emit only changed revisions",
 });
 
 test("UI events share a project watcher and close it after the last client", async () => {
-  const watchers = [];
+  const watchers: MockWatcher[] = [];
   const events = createUiEvents({
     heartbeatMs: 5,
     authorize() {},
     getProject() { return { projectDir: "/tmp/project" }; },
     readSnapshot() { return { revision: 1 }; },
     createWatcher() {
-      const listeners = new Set();
-      const watcher = {
+      const listeners = new Set<(revision: number) => void>();
+      const watcher: MockWatcher = {
         started: 0,
         closed: 0,
-        subscribe(listener) {
+        subscribe(listener: (revision: number) => void) {
           listeners.add(listener);
           return () => listeners.delete(listener);
         },
         start() { watcher.started += 1; },
         close() { watcher.closed += 1; },
-        emit(revision) { for (const listener of listeners) listener(revision); },
+        emit(revision: number) { for (const listener of listeners) listener(revision); },
       };
       watchers.push(watcher);
       return watcher;
     },
-  });
+  } as unknown as Parameters<typeof createUiEvents>[0]);
 
-  function response() {
-    const value = new EventEmitter();
+  function response(): MockResponse {
+    const value = new EventEmitter() as MockResponse;
     value.writes = [];
     value.writableEnded = false;
     value.destroyed = false;
@@ -92,8 +117,8 @@ test("UI events share a project watcher and close it after the last client", asy
   const request2 = new EventEmitter();
   const response1 = response();
   const response2 = response();
-  await events.handle({ request: request1, response: response1, projectId: "project" });
-  await events.handle({ request: request2, response: response2, projectId: "project" });
+  await events.handle({ request: request1, response: response1 as unknown as NonNullable<Parameters<typeof events.handle>[0]>["response"], projectId: "project" });
+  await events.handle({ request: request2, response: response2 as unknown as NonNullable<Parameters<typeof events.handle>[0]>["response"], projectId: "project" });
   assert.equal(watchers.length, 1);
   assert.equal(watchers[0].started, 1);
   await new Promise((resolve) => setTimeout(resolve, 15));
@@ -115,6 +140,6 @@ test("UI events preserve auth and project errors before opening a stream", async
       headers: { "x-climier-protocol-version": "1" },
     });
     assert.equal(unauthenticated.status, 401);
-    assert.equal((await unauthenticated.json()).error.code, "AUTH_REQUIRED");
+    assert.equal(await errorCode(unauthenticated), "AUTH_REQUIRED");
   });
 });
