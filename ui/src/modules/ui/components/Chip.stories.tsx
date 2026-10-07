@@ -27,7 +27,7 @@ type Story = StoryObj<ChipProps>;
 export const Playground: Story = {
   args: { background: "var(--color-tone-green-bg)", color: "var(--color-tone-green-ink)", children: "Design" },
   render: (args) => (
-    <div class="bg-white p-6">
+    <div class="bg-surface p-6">
       <Chip {...args} />
     </div>
   ),
@@ -36,7 +36,7 @@ export const Playground: Story = {
 /** Los cuatro tonos de la paleta curada, que son los que puede devolver `taskLabel()`. */
 export const Palette: Story = {
   render: () => (
-    <div class="flex flex-wrap items-center gap-3 bg-white p-6">
+    <div class="flex flex-wrap items-center gap-3 bg-surface p-6">
       {(
         [
           ["green", "Design"],
@@ -59,7 +59,7 @@ export const Palette: Story = {
  */
 export const LongLabel: Story = {
   render: () => (
-    <div class="flex max-w-[240px] flex-wrap items-center gap-3 bg-white p-6">
+    <div class="flex max-w-[240px] flex-wrap items-center gap-3 bg-surface p-6">
       <Chip background="var(--color-tone-blue-bg)" color="var(--color-tone-blue-ink)">
         Infraestructura y despliegues
       </Chip>

@@ -37,7 +37,7 @@ const Host = (props: { group?: TaskGroupBy }) => {
   const [group, setGroup] = createSignal<TaskGroupBy>(props.group ?? "status");
   const [open, setOpen] = createSignal(false);
   return (
-    <div class="flex justify-end bg-white p-4">
+    <div class="flex justify-end bg-surface p-4">
       <GroupMenu group={group()} onGroup={setGroup} isOpen={open} onOpen={() => setOpen(true)} onClose={() => setOpen(false)} />
     </div>
   );

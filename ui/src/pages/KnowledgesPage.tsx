@@ -61,11 +61,11 @@ export function KnowledgesPage() {
         </div>
         <section aria-hidden={overlay() && !!selectedKnowledge()} inert={overlay() && !!selectedKnowledge()} class="min-h-0 min-w-0 overflow-y-auto min-[1280px]:col-start-1 min-[1280px]:row-start-2">
           <Show when={groups().length > 0} fallback={<p class="px-4 py-8 text-center text-[13px] text-muted">No knowledges match these filters.</p>}>
-            <div role="listbox" aria-label="Knowledges" class="divide-y divide-hairline">
+            <div class="divide-y divide-hairline">
               <For each={groups()}>{(group) => (
                 <section role="group" aria-label={group.label} data-testid="knowledge-group" data-group={group.key}>
                   <GroupHeader group={group} />
-                  <div class="divide-y divide-hairline [&_[data-testid=knowledge-row]>div:last-child]:w-max">
+                  <div role="listbox" aria-label={`${group.label} knowledges`} class="divide-y divide-hairline [&_[data-testid=knowledge-row]>div:last-child]:w-max">
                     <For each={group.knowledges}>{(knowledge) => <KnowledgeRow knowledge={knowledge} selected={selectedKnowledge()?.id === knowledge.id} onSelect={url.setSelection} />}</For>
                   </div>
                 </section>

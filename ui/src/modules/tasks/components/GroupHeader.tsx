@@ -4,7 +4,7 @@ import SecurityCheckIcon from "@hugeicons/core-free-icons/SecurityCheckIcon";
 import Task01Icon from "@hugeicons/core-free-icons/Task01Icon";
 import Target01Icon from "@hugeicons/core-free-icons/Target01Icon";
 import { Show, Switch, Match } from "solid-js";
-import { HugeIcon, tint } from "../../core";
+import { HugeIcon } from "../../core";
 import { Chip } from "../../ui";
 import { taskTag } from "../data/tags";
 import { StatusGlyph } from "./StatusGlyph";
@@ -56,11 +56,11 @@ function GroupGlyph(props: { glyph: TaskGroupGlyph }) {
  * promedio del trabajo vigente del grupo (lo terminado cuenta, lo cancelado no). `GroupHeader` sólo
  * lo dibuja.
  *
- * Fondo y borde inferior salen del mismo `color` del grupo con `tint()` a distinta intensidad.
+ * Fondo y borde inferior mezclan el color del grupo con la superficie del tema a distinta intensidad.
  */
 export function GroupHeader(props: GroupHeaderProps) {
   return (
-    <div class="flex min-h-[40px] items-center gap-2.5 border-b border-hairline px-4 py-2" style={{ "background-color": tint(props.group.color, 7), "border-bottom-color": tint(props.group.color, 15) }}>
+    <div class="flex min-h-[40px] items-center gap-2.5 border-b border-hairline px-4 py-2" style={{ "background-color": `color-mix(in srgb, ${props.group.color} 7%, var(--color-surface))`, "border-bottom-color": `color-mix(in srgb, ${props.group.color} 15%, var(--color-surface))` }}>
       <Show when={props.collapsible}>
         <HugeIcon icon={ArrowRight01Icon} class="disclosure-chevron h-3.5 w-3.5 shrink-0 text-muted transition-transform" strokeWidth="1.8" />
       </Show>

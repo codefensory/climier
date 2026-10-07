@@ -17,10 +17,11 @@ const meta = {
 export default meta;
 type Story = StoryObj<Record<string, unknown>>;
 
-const Host = (props: { path?: string }) => <StoryShell path={props.path ?? "/knowledges"}><div class="bg-white"><KnowledgesPage /></div></StoryShell>;
+const Host = (props: { path?: string }) => <StoryShell path={props.path ?? "/knowledges"}><div class="bg-surface"><KnowledgesPage /></div></StoryShell>;
 const sampleKnowledge = () => projectKnowledgeRegistry(snapshot)[0]!;
 
 export const Playground: Story = { render: () => <Host /> };
+export const Dark: Story = { globals: { theme: "dark" }, render: () => <Host /> };
 
 /** Status segments are data-driven: the fixture offers Active and Deprecated, but no Superseded. */
 export const StatusFilterFlow: Story = {
@@ -61,10 +62,10 @@ export const Toolbar: Story = {
 export const RegistryRow: Story = {
   render: () => {
     const knowledge = sampleKnowledge();
-    return <div class="mx-auto max-w-[900px] p-6"><div role="listbox" aria-label="Knowledges" class="overflow-hidden rounded-[10px] border border-line bg-white"><div role="group" aria-label={knowledge.initiative ?? "No initiative"}><KnowledgeRow knowledge={knowledge} selected={false} onSelect={() => undefined} /></div></div></div>;
+    return <div class="mx-auto max-w-[900px] p-6"><div role="listbox" aria-label="Knowledges" class="overflow-hidden rounded-[10px] border border-line bg-surface"><div role="group" aria-label={knowledge.initiative ?? "No initiative"}><KnowledgeRow knowledge={knowledge} selected={false} onSelect={() => undefined} /></div></div></div>;
   },
 };
 
 export const DetailPanel: Story = {
-  render: () => <div class="min-h-screen bg-canvas p-6"><div class="mx-auto h-[754px] w-[380px] overflow-hidden rounded-[10px] border border-line bg-white"><KnowledgeEgoPanel knowledge={sampleKnowledge()} onSelect={() => undefined} /></div></div>,
+  render: () => <div class="min-h-screen bg-canvas p-6"><div class="mx-auto h-[754px] w-[380px] overflow-hidden rounded-[10px] border border-line bg-surface"><KnowledgeEgoPanel knowledge={sampleKnowledge()} onSelect={() => undefined} /></div></div>,
 };

@@ -128,12 +128,12 @@ function fanOutDetail(gate: GateRecord) {
 
 const PanelFrame = (props: { children: import("solid-js").JSX.Element }) => (
   <div class="flex min-h-screen items-start justify-center bg-canvas p-6">
-    <div class="h-[754px] w-[380px] overflow-hidden rounded-[10px] border border-line bg-white">{props.children}</div>
+    <div class="h-[754px] w-[380px] overflow-hidden rounded-[10px] border border-line bg-surface">{props.children}</div>
   </div>
 );
 
 const DetailFrame = (props: { children: import("solid-js").JSX.Element }) => (
-  <div class="min-h-screen bg-white px-6 py-7 sm:px-8 lg:px-10">{props.children}</div>
+  <div class="min-h-screen bg-surface px-6 py-7 sm:px-8 lg:px-10">{props.children}</div>
 );
 
 function AccessibleGateRow(props: { gate: GateRecord }) {
@@ -153,10 +153,10 @@ export const FanOut30: Story = {
     return (
       <div class="min-h-screen bg-canvas p-6">
         <div class="mx-auto flex max-w-[760px] flex-col gap-6">
-          <div class="overflow-hidden rounded-[10px] border border-line bg-white [&_[data-testid=gate-row]>div:last-child]:w-max">
+          <div class="overflow-hidden rounded-[10px] border border-line bg-surface [&_[data-testid=gate-row]>div:last-child]:w-max">
             <AccessibleGateRow gate={gate} />
           </div>
-          <div class="h-[754px] w-[380px] overflow-hidden rounded-[10px] border border-line bg-white">
+          <div class="h-[754px] w-[380px] overflow-hidden rounded-[10px] border border-line bg-surface">
             <GateEgoPanel gate={gate} detailHref={`/gates/${gate.id}`} onOpen={() => undefined} />
           </div>
         </div>
@@ -206,7 +206,7 @@ export const FourTaskNoDownstreamGate: Story = {
   args: { gate: makeFanOutGate(4, 0) },
   render: (args) => {
     const gate = args.gate ?? makeFanOutGate(4, 0);
-    return <div class="mx-auto max-w-[760px] p-6"><div class="overflow-hidden rounded-[10px] border border-line bg-white [&_[data-testid=gate-row]>div:last-child]:w-max"><AccessibleGateRow gate={gate} /></div></div>;
+    return <div class="mx-auto max-w-[760px] p-6"><div class="overflow-hidden rounded-[10px] border border-line bg-surface [&_[data-testid=gate-row]>div:last-child]:w-max"><AccessibleGateRow gate={gate} /></div></div>;
   },
 };
 
@@ -248,10 +248,10 @@ export const ThreeDigitFanOut: Story = {
     return (
       <div class="min-h-screen bg-canvas p-6">
         <div class="mx-auto flex max-w-[760px] flex-col gap-6">
-          <div class="overflow-hidden rounded-[10px] border border-line bg-white [&_[data-testid=gate-row]>div:last-child]:w-max">
+          <div class="overflow-hidden rounded-[10px] border border-line bg-surface [&_[data-testid=gate-row]>div:last-child]:w-max">
             <AccessibleGateRow gate={gate} />
           </div>
-          <div class="h-[754px] w-[380px] overflow-hidden rounded-[10px] border border-line bg-white">
+          <div class="h-[754px] w-[380px] overflow-hidden rounded-[10px] border border-line bg-surface">
             <GateEgoPanel gate={gate} detailHref={`/gates/${gate.id}`} onOpen={() => undefined} />
           </div>
         </div>

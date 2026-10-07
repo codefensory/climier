@@ -21,7 +21,7 @@ export default meta;
 type Story = StoryObj<TaskCountsProps>;
 
 const Frame = (props: { children: import("solid-js").JSX.Element }) => (
-  <div class="bg-white px-5 py-3">{props.children}</div>
+  <div class="bg-surface px-5 py-3">{props.children}</div>
 );
 
 export const Playground: Story = {

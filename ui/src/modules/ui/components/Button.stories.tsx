@@ -44,7 +44,7 @@ export const Playground: Story = {
 /** Las cinco variantes juntas. */
 export const Variants: Story = {
   render: () => (
-    <div class="space-y-4 bg-white p-6">
+    <div class="space-y-4 bg-surface p-6">
       <Row label="ghost · disparador de toolbar">
         <Button variant="ghost">Sort</Button>
       </Row>
@@ -73,7 +73,7 @@ export const Variants: Story = {
  */
 export const GhostStates: Story = {
   render: () => (
-    <div class="space-y-4 bg-white p-6">
+    <div class="space-y-4 bg-surface p-6">
       <Row label="idle · sin nada aplicado">
         <Button variant="ghost">Sort</Button>
       </Row>
@@ -90,7 +90,7 @@ export const GhostStates: Story = {
 /** Los dos estados de `segment`: el activo se pinta blanco con una sombra de 1px. */
 export const SegmentStates: Story = {
   render: () => (
-    <div class="space-y-4 bg-white p-6">
+    <div class="space-y-4 bg-surface p-6">
       <Row label="control segmentado completo">
         <div class="flex shrink-0 items-center gap-[3px] rounded-[10px] bg-subtle p-[3px]">
           <Button variant="segment" state="active">List</Button>
@@ -115,14 +115,14 @@ export const SegmentStates: Story = {
  */
 export const ExtraClassFirst: Story = {
   render: () => (
-    <div class="space-y-4 bg-white p-6">
+    <div class="space-y-4 bg-surface p-6">
       <Row label="sin class extra">
         <Button variant="ghost">Filter</Button>
       </Row>
       <Row label='class="relative" + badge'>
         <Button variant="ghost" class="relative">
           Filter
-          <span aria-hidden="true" class="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full border border-white bg-muted px-1 text-[10px] font-semibold leading-none text-white">2</span>
+          <span aria-hidden="true" class="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full border border-surface bg-muted px-1 text-[10px] font-semibold leading-none text-on-strong">2</span>
         </Button>
       </Row>
     </div>
@@ -132,7 +132,7 @@ export const ExtraClassFirst: Story = {
 /** Foco por teclado. `ghost` y `segment` usan `outline-offset-1`; `icon` y `outline`, `offset-2`. */
 export const FocusRing: Story = {
   render: () => (
-    <div class="space-y-4 bg-white p-6">
+    <div class="space-y-4 bg-surface p-6">
       <p class="text-[12px] text-muted">Tabular para ver el anillo de foco de cada variante.</p>
       <Row label="ghost">
         <Button variant="ghost">Sort</Button>
@@ -156,7 +156,7 @@ export const FocusRing: Story = {
 /** Deshabilitado, tal como lo usa `Clear all`: el primitivo no lo estiliza, lo estiliza el llamador. */
 export const Disabled: Story = {
   render: () => (
-    <div class="space-y-4 bg-white p-6">
+    <div class="space-y-4 bg-surface p-6">
       <Row label="outline deshabilitado">
         <Button variant="outline" disabled>This week</Button>
       </Row>

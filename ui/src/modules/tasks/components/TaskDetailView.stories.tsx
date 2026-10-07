@@ -22,7 +22,7 @@ export default meta;
 type Story = StoryObj<TaskDetailViewProps>;
 
 const Frame = (props: { children: import("solid-js").JSX.Element }) => (
-  <div class="min-h-screen bg-white px-6 py-7 sm:px-8 lg:px-10">{props.children}</div>
+  <div class="min-h-screen bg-surface px-6 py-7 sm:px-8 lg:px-10">{props.children}</div>
 );
 
 const richDetail = () => makeTaskDetail({

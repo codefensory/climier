@@ -10,8 +10,9 @@ const meta = {
 
 export default meta;
 type Story = StoryObj<Record<string, unknown>>;
-const Host = () => <StoryShell><div class="min-h-screen bg-white"><HomePage /></div></StoryShell>;
+const Host = () => <StoryShell><div class="min-h-screen bg-surface"><HomePage /></div></StoryShell>;
 
 export const Playground: Story = { render: () => <Host /> };
+export const Dark: Story = { globals: { theme: "dark" }, render: () => <Host /> };
 export const Narrow: Story = { globals: { viewport: { value: "narrow" } }, render: () => <Host /> };
 export const Wide: Story = { globals: { viewport: { value: "wide" } }, render: () => <Host /> };
