@@ -20,19 +20,23 @@ import { HugeIcon } from "../../core";
  * Devolver los extremos en vez de recibir `option` y ramificar adentro no es una concesión: es lo que
  * evita que el primitivo tenga que conocer `sortFields`, `groupFields` y `FilterOption` a la vez.
  */
+export type MenuOptionRole = "option" | "menuitemradio";
+
 export type MenuOptionProps = {
   selected: boolean;
   onSelect: () => void;
   leading?: JSX.Element;
   label: JSX.Element;
+  role?: MenuOptionRole;
 };
 
 export function MenuOption(props: MenuOptionProps) {
   return (
     <button
       type="button"
-      role="option"
-      aria-selected={props.selected}
+      role={props.role ?? "option"}
+      aria-selected={props.role === "menuitemradio" ? undefined : props.selected}
+      aria-checked={props.role === "menuitemradio" ? props.selected : undefined}
       onClick={props.onSelect}
       class="flex min-h-8 w-full items-center gap-2 rounded-[7px] px-2 text-left text-[12px] text-ink-soft transition hover:bg-canvas focus-visible:bg-canvas focus-visible:outline-none"
     >

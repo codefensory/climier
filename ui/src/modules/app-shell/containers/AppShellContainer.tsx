@@ -2,12 +2,14 @@ import Task01Icon from "@hugeicons/core-free-icons/Task01Icon";
 import { For, Show } from "solid-js";
 import type { JSX } from "solid-js";
 import { Portal } from "solid-js/web";
+import climierLogoDark from "../../../assets/climier-logo-dark.png";
 import climierLogo from "../../../assets/climier-logo.png";
-import { HugeIcon, useSession } from "../../core";
+import { HugeIcon, useSession, useTheme } from "../../core";
 import { NavGlyph } from "../components/NavGlyph";
 import { ProjectIcon } from "../components/ProjectIcon";
 import { ShowSidebarButton } from "../components/ShowSidebarButton";
 import { SidebarControlIcon } from "../components/SidebarControlIcon";
+import { ThemeControl } from "../components/ThemeControl";
 import { SidebarHeading } from "../components/SidebarHeading";
 import { SidebarRow } from "../components/SidebarRow";
 import { appNavigation } from "../data/navigation";
@@ -38,6 +40,7 @@ export function AppShellContainer(props: AppShellContainerProps) {
   } = useShell();
   const projectData = useProjectData();
   const session = useSession();
+  const theme = useTheme();
 
   return (
     <div data-testid="dashboard-layout" class="min-h-screen w-full overflow-hidden bg-canvas font-sans text-ink">
@@ -46,7 +49,7 @@ export function AppShellContainer(props: AppShellContainerProps) {
           <div class="sidebar-nav-track">
             <aside data-testid="app-sidebar" aria-label="App sidebar" aria-hidden={shellHidden()} inert={shellHidden()} class="app-sidebar flex h-screen w-[248px] shrink-0 flex-col overflow-hidden px-3 pt-2 pb-2 antialiased">
               <header data-testid="app-brand" class="flex h-9 items-center gap-2 pl-[5px] pr-0">
-                <img src={climierLogo} alt="Climier" class="h-[26px] w-auto shrink-0" />
+                <img src={theme.resolved() === "dark" ? climierLogoDark : climierLogo} alt="Climier" class="h-[26px] w-auto shrink-0" />
                 <span class="min-w-0 flex-1" aria-hidden="true" />
                 <Button variant="icon" data-testid="app-sidebar-toggle" aria-label={isCompact() ? "Close navigation" : "Hide sidebar"} onClick={hideSidebar}><SidebarControlIcon /></Button>
               </header>
@@ -87,6 +90,7 @@ export function AppShellContainer(props: AppShellContainerProps) {
         <div classList={{ "main-content-frame": true, "drawer-content-shift": isCompact() && drawerOpen() }}>
           <div data-testid="tasks-breadcrumb" class="tasks-shell-breadcrumb flex h-9 items-center gap-3 px-4">
             <ShowSidebarButton visible={shellHidden} onShow={showSidebar} />
+            <ThemeControl />
             <nav aria-label="Breadcrumb" class="flex min-w-0 flex-1 items-center gap-2 text-[13px]">
               <Show when={activeView() === "Tasks"} fallback={<span class="truncate font-medium text-ink">{activeView()}</span>}>
                 <span class="flex shrink-0 items-center gap-1.5 text-muted"><HugeIcon icon={Task01Icon} class="h-4 w-4 shrink-0" />Tasks</span>

@@ -35,7 +35,7 @@ export { Markdown } from "./components/Markdown";
 export type { MarkdownProps } from "./components/Markdown";
 
 export { MenuOption } from "./components/MenuOption";
-export type { MenuOptionProps } from "./components/MenuOption";
+export type { MenuOptionProps, MenuOptionRole } from "./components/MenuOption";
 
 export { PopoverSurface } from "./components/PopoverSurface";
 export type { PopoverSurfaceProps, PopoverVariant } from "./components/PopoverSurface";

@@ -32,8 +32,8 @@ export type PopoverSurfaceProps = {
   open: boolean;
   left: number;
   top: number;
-  /** `listbox` para los menús, `dialog` para el panel. */
-  role: "listbox" | "dialog";
+  /** `listbox` para los menús de opciones, `menu` para los menús de acciones, `dialog` para el panel. */
+  role: "listbox" | "menu" | "dialog";
   label: string;
   id?: string;
   testId?: string;
