@@ -39,9 +39,9 @@ export type ButtonState = "idle" | "open" | "applied" | "active";
 const VARIANT_CLASS: Record<ButtonVariant, string> = {
   ghost: "flex h-8 items-center gap-1.5 rounded-[8px] px-1.5 text-[13px] transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ink sm:px-2.5",
   segment: "flex h-7 items-center gap-1.5 rounded-[8px] px-2 text-[13px] transition-colors focus-visible:outline-2 focus-visible:outline-ink sm:px-2.5",
-  icon: "flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] text-muted transition hover:bg-white/70 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
+  icon: "flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] text-muted transition hover:bg-hover hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
   outline: "shrink-0 rounded-[8px] border border-line px-3 py-2 text-[13px] font-medium text-muted transition hover:bg-sunken hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
-  solid: "shrink-0 rounded-[8px] bg-ink px-4 py-2 text-[13px] font-medium text-white transition hover:bg-ink-soft",
+  solid: "shrink-0 rounded-[8px] bg-ink px-4 py-2 text-[13px] font-medium text-on-strong transition hover:bg-ink-soft",
 };
 
 /**
@@ -62,7 +62,7 @@ const STATE_CLASS: Record<ButtonVariant, Partial<Record<ButtonState, string>>> =
   },
   segment: {
     idle: "text-muted hover:text-ink",
-    active: "bg-white text-ink shadow-[0_1px_2px_rgb(0_0_0_/_6%)]",
+    active: "bg-surface text-ink shadow-[var(--elevation-control)]",
   },
   icon: {},
   outline: {},

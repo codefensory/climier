@@ -21,10 +21,10 @@ export type PopoverVariant = "menuWide" | "menuNarrow" | "menuFit" | "panel";
  * de opciones cuando se abre dentro del panel.
  */
 const SURFACE_CLASS: Record<PopoverVariant, string> = {
-  menuWide: "fixed z-[110] w-[220px] max-h-64 min-w-[156px] overflow-y-auto rounded-[10px] border border-line bg-white p-1 shadow-[0_8px_24px_rgb(0_0_0_/_10%)] origin-top-left",
-  menuNarrow: "fixed z-[110] w-[180px] max-h-64 min-w-[156px] overflow-y-auto rounded-[10px] border border-line bg-white p-1 shadow-[0_8px_24px_rgb(0_0_0_/_10%)] origin-top-left",
-  menuFit: "fixed z-[110] max-h-64 min-w-[156px] overflow-y-auto rounded-[10px] border border-line bg-white p-1 shadow-[0_8px_24px_rgb(0_0_0_/_10%)] origin-top-left",
-  panel: "fixed z-[100] w-[min(560px,calc(100vw-24px))] max-h-[min(70vh,560px)] overflow-y-auto rounded-[14px] border border-line bg-white p-3 pt-2 shadow-[0_8px_24px_rgb(0_0_0_/_10%)] origin-top-right",
+  menuWide: "fixed z-[110] w-[220px] max-h-64 min-w-[156px] overflow-y-auto rounded-[10px] border border-line bg-overlay p-1 shadow-[var(--elevation-overlay)] origin-top-left",
+  menuNarrow: "fixed z-[110] w-[180px] max-h-64 min-w-[156px] overflow-y-auto rounded-[10px] border border-line bg-overlay p-1 shadow-[var(--elevation-overlay)] origin-top-left",
+  menuFit: "fixed z-[110] max-h-64 min-w-[156px] overflow-y-auto rounded-[10px] border border-line bg-overlay p-1 shadow-[var(--elevation-overlay)] origin-top-left",
+  panel: "fixed z-[100] w-[min(560px,calc(100vw-24px))] max-h-[min(70vh,560px)] overflow-y-auto rounded-[14px] border border-line bg-overlay p-3 pt-2 shadow-[var(--elevation-overlay)] origin-top-right",
 };
 
 export type PopoverSurfaceProps = {
