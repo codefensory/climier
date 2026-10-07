@@ -3,11 +3,30 @@ import fs from "node:fs/promises";
 import test from "node:test";
 import { createTempProject, rmTempProject } from "./helpers.mjs";
 import { STATE_SCHEMA_VERSION, stateFile } from "../src/storage/state.ts";
-import { ledgerFile, bootstrapFencedState, replaceFencedStateUnderLock, readFencedState, commitFencedStateUnderLock } from "../src/storage/ledger.ts";
+import { ledgerFile, bootstrapFencedState, replaceFencedStateUnderLock, readFencedState as readFencedStateRaw, commitFencedStateUnderLock } from "../src/storage/ledger.ts";
 import { withLock } from "../src/storage/lock.ts";
-import { captureTransferSource, installTransferDestination, transferState } from "../src/kernel/transfer.ts";
+import { captureTransferSource as captureTransferSourceRaw, installTransferDestination as installTransferDestinationRaw, transferState as transferStateRaw } from "../src/kernel/transfer.ts";
 
-function projectState(overrides = {}) {
+type NodeRecord = { id: string; kind: string; subkind?: string; status?: string; revision: number; title?: string; claim?: { by?: string }; plugins?: Record<string, unknown>; [key: string]: unknown };
+type LogEntry = { action: string; agent?: string; ts?: string; replaced_revision?: number | null; [key: string]: unknown };
+type State = { version: number; fence_generation: number; revision: number; nodes: Record<string, NodeRecord>; edges: Array<Record<string, string>>; initiatives: Record<string, unknown>; log: LogEntry[]; plugins?: Record<string, unknown> };
+type Captured = { revision: number; payload: State };
+type Ledger = { high_water_revision: number; fence_generation: number; commit_pending: null | unknown };
+
+function readFencedState(projectDir: string): Promise<State> {
+  return readFencedStateRaw(projectDir) as Promise<State>;
+}
+function captureTransferSource(request: Parameters<typeof captureTransferSourceRaw>[0]): Promise<Captured> {
+  return captureTransferSourceRaw(request) as Promise<Captured>;
+}
+function installTransferDestination(request: Parameters<typeof installTransferDestinationRaw>[0]): Promise<State> {
+  return installTransferDestinationRaw(request) as Promise<State>;
+}
+function transferState(request: Parameters<typeof transferStateRaw>[0]): Promise<State> {
+  return transferStateRaw(request) as Promise<State>;
+}
+
+function projectState(overrides: Record<string, unknown> = {}): State {
   return {
     version: STATE_SCHEMA_VERSION,
     fence_generation: 1,
@@ -19,7 +38,7 @@ function projectState(overrides = {}) {
     initiatives: { demo: { desc: "demo" } },
     log: [{ action: "source-event", agent: "author" }],
     ...overrides,
-  };
+  } as State;
 }
 
 async function withProjects() {
@@ -35,26 +54,26 @@ async function withProjects() {
   };
 }
 
-async function initialize(projectDir, state = projectState()) {
+async function initialize(projectDir: string, state: State | null = projectState()) {
   await bootstrapFencedState(projectDir);
   if (state) {
     await withLock(projectDir, (lockContext) => replaceFencedStateUnderLock(lockContext, state));
   }
 }
 
-async function rawState(projectDir) {
-  return JSON.parse(await fs.readFile(stateFile(projectDir), "utf8"));
+async function rawState(projectDir: string): Promise<State> {
+  return JSON.parse(await fs.readFile(stateFile(projectDir), "utf8")) as State;
 }
 
-async function rawLedger(projectDir) {
-  return JSON.parse(await fs.readFile(ledgerFile(projectDir), "utf8"));
+async function rawLedger(projectDir: string): Promise<Ledger> {
+  return JSON.parse(await fs.readFile(ledgerFile(projectDir), "utf8")) as Ledger;
 }
 
-function rebaseNodeRevisions(nodes, revision) {
+function rebaseNodeRevisions(nodes: Record<string, NodeRecord>, revision: number): Record<string, NodeRecord> {
   return Object.fromEntries(Object.entries(nodes).map(([id, node]) => [id, { ...node, revision }]));
 }
 
-const runTransfer = (sourceProjectDir, destinationProjectDir, options = {}) => transferState({
+const runTransfer = (sourceProjectDir: string, destinationProjectDir: string, options: Parameters<typeof transferStateRaw>[0] = {}) => transferState({
   sourceProjectDir,
   destinationProjectDir,
   actor: "alice",
@@ -96,9 +115,9 @@ test("kernel destination install adds exactly one direction-specific event", asy
     });
     assert.deepEqual(result.log.slice(0, -1), [{ action: "source-event", agent: "author" }]);
     assert.equal(result.log.filter((entry) => entry.action.startsWith("transfer.")).length, 1);
-    assert.equal(result.log.at(-1).action, "transfer.pull");
-    assert.equal(result.log.at(-1).agent, "alice");
-    assert.equal(result.log.at(-1).replaced_revision, null);
+    assert.equal(result.log.at(-1)!.action, "transfer.pull");
+    assert.equal(result.log.at(-1)!.agent, "alice");
+    assert.equal(result.log.at(-1)!.replaced_revision, null);
   } finally { await cleanup(); }
 });
 
@@ -128,9 +147,9 @@ test("kernel transfer bootstraps absent destination and replaces its log with so
     assert.equal(result.nodes.T1.title, "source");
     assert.deepEqual(result.log.slice(0, -1), [{ action: "source-event", agent: "author" }]);
     assert.equal(result.log.length, 2);
-    assert.equal(result.log.at(-1).action, "transfer.push");
-    assert.equal(result.log.at(-1).agent, "alice");
-    assert.ok(result.log.at(-1).ts);
+    assert.equal(result.log.at(-1)!.action, "transfer.push");
+    assert.equal(result.log.at(-1)!.agent, "alice");
+    assert.ok(result.log.at(-1)!.ts);
     assert.equal(result.fence_generation, 1);
     assert.ok(result.revision > 0);
     assert.ok(Object.values(result.nodes).every((node) => node.revision === result.revision));
@@ -196,8 +215,8 @@ test("kernel transfer force is absolute, replaces plugin destinations, and rebas
     assert.equal((await rawLedger(destinationDir)).fence_generation, before.fence_generation);
     assert.equal(result.log.length, 2);
     assert.equal(result.log[0].action, "source-event");
-    assert.equal(result.log.at(-1).action, "transfer.push");
-    assert.equal(result.log.at(-1).replaced_revision, before.revision);
+    assert.equal(result.log.at(-1)!.action, "transfer.push");
+    assert.equal(result.log.at(-1)!.replaced_revision, before.revision);
   } finally { await cleanup(); }
 });
 
@@ -261,10 +280,10 @@ test("kernel transfer expected-revision race permits one atomic install", async 
     const results = await Promise.allSettled([install(), install()]);
     assert.equal(results.filter((result) => result.status === "fulfilled").length, 1);
     assert.equal(results.filter((result) => result.status === "rejected").length, 1);
-    assert.equal(results.find((result) => result.status === "rejected").reason.code, "CLIMIER_TRANSFER_REVISION_MISMATCH");
+    assert.equal(results.find((result) => result.status === "rejected")!.reason.code, "CLIMIER_TRANSFER_REVISION_MISMATCH");
     const finalState = await readFencedState(destinationDir);
     assert.equal(finalState.log.filter((entry) => entry.action === "transfer.push").length, 1);
-    assert.equal(finalState.log.at(-1).replaced_revision, expectedRevision);
+    assert.equal(finalState.log.at(-1)!.replaced_revision, expectedRevision);
   } finally { await cleanup(); }
 });
 
@@ -311,7 +330,7 @@ test("kernel transfer create-only race serializes and only one caller installs",
       runTransfer(sourceDir, destinationDir),
     ]);
     assert.equal(results.filter((result) => result.status === "fulfilled").length, 1);
-    const rejected = results.find((result) => result.status === "rejected");
+    const rejected = results.find((result) => result.status === "rejected")!;
     assert.equal(rejected.reason.code, "CLIMIER_TRANSFER_DESTINATION_NOT_PRISTINE");
     const finalState = await readFencedState(destinationDir);
     assert.equal(finalState.log.filter((entry) => entry.action === "transfer.push").length, 1);

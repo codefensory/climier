@@ -7,22 +7,33 @@ import {
   rmTempProject,
   importFresh,
   writeCanonicalState,
-  readState,
+  readState as readStateRaw,
   stateFilePath,
 } from "./helpers.mjs";
 
-async function snapshotDir(projectDir) {
+type NodeRecord = { id: string; kind: string; subkind?: string; status?: string; [key: string]: unknown };
+type State = { version: number; revision: number; fence_generation?: number; nodes: Record<string, NodeRecord>; edges: unknown[]; initiatives: Record<string, unknown>; log: Array<Record<string, unknown>>; plugins?: Record<string, unknown> };
+type OperationResult = { result: { seeded?: unknown; snapshot: { id: string; reason: string } } };
+type ErrorLike = { code?: string; message?: string };
+function errorLike(error: unknown): ErrorLike {
+  return (typeof error === "object" && error !== null ? error : {}) as ErrorLike;
+}
+function readState(projectDir: string): Promise<State> {
+  return readStateRaw(projectDir) as Promise<State>;
+}
+
+async function snapshotDir(projectDir: string) {
   const { snapshotDir: getSnapshotDir } = await importFresh("./storage/state.ts");
   return getSnapshotDir(projectDir);
 }
 
-const baseState = () => ({ version: 1, revision: 0, nodes: {}, edges: [], initiatives: {}, log: [] });
+const baseState = (): State => ({ version: 1, revision: 0, nodes: {}, edges: [], initiatives: {}, log: [] });
 
 test("kernel state.init bootstraps an absent state through the kernel", async () => {
   const dir = await createTempProject();
   try {
     const { initState } = await importFresh("./kernel/state-operations.ts");
-    const out = await initState({ projectDir: dir });
+    const out: OperationResult = await initState({ projectDir: dir });
     assert.equal(out.result.seeded, null);
     const state = await readState(dir);
     assert.equal(state.version, 1);
@@ -50,7 +61,7 @@ test("kernel state.init_force rejects policy before snapshot or write", async ()
         actor: "alice",
         policyAction: { decide: async () => ({ decision: "deny", reason: "no" }) },
       }),
-      (err) => err.code === "POLICY_DENIED",
+      (err) => errorLike(err).code === "POLICY_DENIED",
     );
     assert.equal(await fs.readFile(stateFilePath(dir), "utf8"), before);
     assert.deepEqual(await fs.readdir(await snapshotDir(dir)).catch(() => []), []);
@@ -65,7 +76,7 @@ test("kernel state.init_force snapshots and resets while preserving root plugins
     original.plugins = { demo: { enabled: true } };
     original.nodes.keep = { id: "keep", kind: "resolvable", subkind: "task", status: "open" };
     await writeCanonicalState(dir, original);
-    const out = await initState({ projectDir: dir, force: true, actor: "alice" });
+    const out: OperationResult = await initState({ projectDir: dir, force: true, actor: "alice" });
     const state = await readState(dir);
     assert.deepEqual(state.nodes, {});
     assert.deepEqual(state.plugins, original.plugins);
@@ -86,11 +97,12 @@ test("kernel state.restore validates before pre-snapshot and restores with one l
     const { createSnapshot } = await importFresh("./storage/state.ts");
     const target = await createSnapshot(dir, "force-init");
     await initState({ projectDir: dir, force: true, actor: "alice" });
-    const out = await restoreState({ projectDir: dir, snapshotId: target.id, actor: "recovery" });
+    const out: OperationResult = await restoreState({ projectDir: dir, snapshotId: target.id, actor: "recovery" });
     const restored = await readState(dir);
     assert.ok(restored.nodes.keep);
-    assert.equal(restored.log.at(-1).action, "restore");
-    assert.equal(restored.log.at(-1).snapshot_id, target.id);
+    const lastLog = restored.log.at(-1)!;
+    assert.equal(lastLog.action, "restore");
+    assert.equal(lastLog.snapshot_id, target.id);
     assert.equal(out.result.snapshot.id, target.id);
     const entries = await fs.readdir(await snapshotDir(dir));
     assert.equal(entries.filter((name) => name.endsWith(".meta.json")).length, 3);
@@ -116,9 +128,9 @@ test("kernel state.restore rejects a historical v2 snapshot and points at climie
     // conversion this cut removes, so restore refuses and names the way out.
     await assert.rejects(
       () => restoreState({ projectDir: dir, snapshotId: target.id, actor: "recovery" }),
-      (err) => err.message.includes(target.id)
-        && /canonical v1/.test(err.message)
-        && /climier migrate/.test(err.message),
+      (err) => (errorLike(err).message ?? "").includes(target.id)
+        && /canonical v1/.test(errorLike(err).message ?? "")
+        && /climier migrate/.test(errorLike(err).message ?? ""),
     );
     assert.equal(JSON.parse(await fs.readFile(stateFilePath(dir), "utf8")).version, 2);
   } finally { await rmTempProject(dir); }
@@ -171,7 +183,7 @@ test("kernel state.restore rejects malformed v5 snapshot before policy or pre-sn
         actor: "alice",
         policyAction: { decide: async () => { policyCalls += 1; return { decision: "allow" }; } },
       }),
-      (err) => err.code === "INVALID_STATUS",
+      (err) => errorLike(err).code === "INVALID_STATUS",
     );
     assert.equal(policyCalls, 0);
     assert.equal(await fs.readFile(stateFilePath(dir), "utf8"), before);
@@ -189,7 +201,7 @@ test("kernel state.restore rejects malformed target without writing or snapshott
     await fs.writeFile(path.join(dirPath, "bad.json"), "not json");
     await fs.writeFile(path.join(dirPath, "bad.meta.json"), JSON.stringify({ id: "bad" }));
     const before = await fs.readFile(stateFilePath(dir), "utf8");
-    await assert.rejects(() => restoreState({ projectDir: dir, snapshotId: "bad", actor: "alice" }), (err) => err.code === "INVALID_STATUS");
+    await assert.rejects(() => restoreState({ projectDir: dir, snapshotId: "bad", actor: "alice" }), (err) => errorLike(err).code === "INVALID_STATUS");
     assert.equal(await fs.readFile(stateFilePath(dir), "utf8"), before);
     assert.deepEqual((await fs.readdir(dirPath)).toSorted(), ["bad.json", "bad.meta.json"]);
   } finally { await rmTempProject(dir); }
@@ -203,7 +215,7 @@ test("kernel state.init_force recovers future state by snapshotting raw bytes", 
     const raw = JSON.stringify({ version, nodes: {}, edges: [], initiatives: {}, log: [] });
     await fs.mkdir(path.dirname(stateFilePath(dir)), { recursive: true });
     await fs.writeFile(stateFilePath(dir), raw, "utf8");
-    const out = await initState({ projectDir: dir, force: true, actor: "alice" });
+    const out: OperationResult = await initState({ projectDir: dir, force: true, actor: "alice" });
     assert.equal((await readState(dir)).version, 1);
     assert.equal(out.result.snapshot.reason, "force-init");
     const files = await fs.readdir(await snapshotDir(dir));
@@ -249,7 +261,7 @@ test("kernel state.init recovers corrupt bytes through an existing fenced ledger
     await fs.writeFile(stateFilePath(dir), corruptRaw);
     let policyCalls = 0;
 
-    const out = await initState({
+    const out: OperationResult = await initState({
       projectDir: dir,
       policyAction: { decide: async () => { policyCalls += 1; return { decision: "deny" }; } },
     });
@@ -289,7 +301,7 @@ test("kernel ordinary providers reject future state while trusted init keeps ver
         },
         policyAction: { decide: async () => { policyCalls += 1; return { decision: "allow" }; } },
       }),
-      (err) => err.code === "CLIMIER_INCOMPATIBLE_VERSION",
+      (err) => errorLike(err).code === "CLIMIER_INCOMPATIBLE_VERSION",
     );
     assert.equal(prepareCalls, 0);
     assert.equal(policyCalls, 0);
@@ -297,7 +309,7 @@ test("kernel ordinary providers reject future state while trusted init keeps ver
     // Trusted init also leaves future versions recoverable through its explicit force path.
     await assert.rejects(
       () => initState({ projectDir: dir, actor: "alice" }),
-      (err) => err.code === "CLIMIER_INCOMPATIBLE_VERSION",
+      (err) => errorLike(err).code === "CLIMIER_INCOMPATIBLE_VERSION",
     );
   } finally { await rmTempProject(dir); }
 });

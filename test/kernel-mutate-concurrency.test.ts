@@ -20,9 +20,16 @@ async function importKernel() {
   return importFresh("./kernel/mutate.ts");
 }
 
+type NodeRecord = { id: string; kind: string; subkind: string; title: string; initiative: string; status: string; revision: number };
+type FencedState = { revision: number; nodes: Record<string, NodeRecord>; edges: unknown[]; initiatives: Record<string, unknown>; log: Array<Record<string, unknown>> };
+type ErrorLike = { code?: string; message?: string };
+function errorLike(error: unknown): ErrorLike {
+  return (typeof error === "object" && error !== null ? error : {}) as ErrorLike;
+}
+
 // Fixture: two independent nodes in the same project
 
-async function bootstrap(dir) {
+async function bootstrap(dir: string): Promise<FencedState> {
   await writeStateHelper(dir, {
     version: 1,
     nodes: {
@@ -33,7 +40,7 @@ async function bootstrap(dir) {
     initiatives: { kernel: { desc: "kernel", created_at: "2026-01-01T00:00:00.000Z" } },
     log: [],
   });
-  return bootstrapFencedState(dir);
+  return await bootstrapFencedState(dir) as FencedState;
 }
 
 // updateProvider — a simple per-node title update. Different ids in the
@@ -89,9 +96,9 @@ test("kernel.mutate: two concurrent independent mutations on the same project bo
     for (const r of settled) {
       if (r.status === "rejected") {
         assert.notEqual(
-          r.reason && r.reason.code,
+          errorLike(r.reason).code,
           "INVALID_EXECUTION_CONTRACT",
-          `concurrent mutate was falsely flagged as nested: ${r.reason && r.reason.message}`,
+          `concurrent mutate was falsely flagged as nested: ${errorLike(r.reason).message}`,
         );
       }
     }
@@ -127,14 +134,14 @@ test("kernel.mutate: many concurrent independent mutations on the same project a
     // 6 disjoint nodes; each mutate targets one node. With the old
     // module-level nestedDepth guard only the first mutate would
     // actually run; the other 5 would all throw INVALID_EXECUTION_CONTRACT.
-    const base = { version: 1, nodes: {}, edges: [], initiatives: { kernel: { desc: "kernel", created_at: "2026-01-01T00:00:00.000Z" } }, log: [] };
+    const base: { version: number; nodes: Record<string, NodeRecord>; edges: unknown[]; initiatives: Record<string, unknown>; log: unknown[] } = { version: 1, nodes: {}, edges: [], initiatives: { kernel: { desc: "kernel", created_at: "2026-01-01T00:00:00.000Z" } }, log: [] };
     for (let i = 0; i < 6; i += 1) {
       base.nodes[`Tn-${i}`] = { id: `Tn-${i}`, kind: "resolvable", subkind: "task", title: `Tn-${i}-orig`, initiative: "kernel", status: "open", revision: 1 };
     }
     await writeStateHelper(dir, base);
-    const fenced = await bootstrapFencedState(dir);
+    const fenced = await bootstrapFencedState(dir) as FencedState;
 
-    const reqs = [];
+    const reqs: Promise<unknown>[] = [];
     for (let i = 0; i < 6; i += 1) {
       const id = `Tn-${i}`;
       reqs.push(mutate({
@@ -147,8 +154,8 @@ test("kernel.mutate: many concurrent independent mutations on the same project a
     // No INVALID_EXECUTION_CONTRACT may leak from the reentrancy guard.
     for (const r of settled) {
       if (r.status === "rejected") {
-        assert.notEqual(r.reason && r.reason.code, "INVALID_EXECUTION_CONTRACT",
-          `concurrent mutate was falsely flagged as nested: ${r.reason && r.reason.message}`);
+        assert.notEqual(errorLike(r.reason).code, "INVALID_EXECUTION_CONTRACT",
+          `concurrent mutate was falsely flagged as nested: ${errorLike(r.reason).message}`);
       }
     }
     // All six must succeed (disjoint targets, matching if_revision).
@@ -176,7 +183,7 @@ test("kernel.mutate: provider.apply calling kernel.mutate on the same chain is r
   const dir = await createTempProject();
   try {
     const fenced = await bootstrap(dir);
-    let innerCaught = null;
+    let innerCaught: unknown = null;
     // Outer mutate updates T1; inside apply we attempt a nested mutate
     // on T2. The inner call must be rejected by the same-chain guard;
 
@@ -205,8 +212,8 @@ test("kernel.mutate: provider.apply calling kernel.mutate on the same chain is r
       },
     });
     assert.ok(innerCaught, "inner mutate must reject");
-    assert.equal(innerCaught.code, "INVALID_EXECUTION_CONTRACT", "inner rejected with INVALID_EXECUTION_CONTRACT");
-    assert.match(innerCaught.message, /nested kernel\.mutate/i);
+    assert.equal(errorLike(innerCaught).code, "INVALID_EXECUTION_CONTRACT", "inner rejected with INVALID_EXECUTION_CONTRACT");
+    assert.match(errorLike(innerCaught).message ?? "", /nested kernel\.mutate/i);
     const after = await readStateHelper(dir);
     assert.equal(after.nodes.T1.title, "T1-outer-done", "outer apply did mutate T1");
     assert.equal(after.nodes.T1.revision, fenced.revision + 1, "T1 revision bumped once by the outer mutate");
@@ -229,7 +236,7 @@ test("kernel.mutate: same-chain nested mutate via awaited microtask is still rej
   const dir = await createTempProject();
   try {
     const fenced = await bootstrap(dir);
-    let innerCaught = null;
+    let innerCaught: unknown = null;
     await mutate({
       projectDir: dir,
       request: { action: "task.update", actor: "alice", input: {}, if_revision: { kind: "single", id: "T1", value: fenced.nodes.T1.revision } },
@@ -257,7 +264,7 @@ test("kernel.mutate: same-chain nested mutate via awaited microtask is still rej
       },
     });
     assert.ok(innerCaught, "nested mutate via microtask must reject");
-    assert.equal(innerCaught.code, "INVALID_EXECUTION_CONTRACT");
+    assert.equal(errorLike(innerCaught).code, "INVALID_EXECUTION_CONTRACT");
     const after = await readStateHelper(dir);
     assert.equal(after.nodes.T1.title, "T1-outer");
     assert.equal(after.nodes.T2.title, "T2-title", "T2 untouched");

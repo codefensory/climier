@@ -196,7 +196,7 @@ test("contract: storage errors have a stable structured code", async () => {
   try {
     await runCli(["--project", dir, "init"]);
     const projectId = JSON.parse(await fs.promises.readFile(path.join(dir, ".climier.json"), "utf8")).project_id;
-    const stateFile = path.join(process.env.CLIMIER_HOME, "projects", projectId, "tasks.json");
+    const stateFile = path.join(process.env.CLIMIER_HOME!, "projects", projectId, "tasks.json");
     await fs.promises.writeFile(stateFile, "{not-json}", "utf8");
     const r = await runCli(["--project", dir, "status"]);
     assert.equal(r.code, 1);

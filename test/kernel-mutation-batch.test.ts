@@ -5,17 +5,33 @@ import fs from "node:fs/promises";
 import {
   createTempProject,
   rmTempProject,
-  readState as readStateHelper,
+  readState as readStateRaw,
   writeCanonicalState as writeStateHelper,
   stateFilePath,
 } from "./helpers.mjs";
-import { createBuiltinOperationRegistry, executeBatch } from "../src/application/operations/index.ts";
+import { createBuiltinOperationRegistry, executeBatch as executeBatchRaw } from "../src/application/operations/index.ts";
 import { mutate } from "../src/kernel/mutate.ts";
 import { bootstrapFencedState } from "../src/storage/ledger.ts";
 
 const registry = createBuiltinOperationRegistry();
 
-async function verifyCanonicalBatch(dir, readFencedState) {
+type NodeRecord = { id: string; revision: number; title?: string };
+type Edge = { from: string; to: string; type: string };
+type LogEntry = { action?: string; agent?: string; operations: Array<{ op: string }> };
+type State = { version: number; fence_generation: number; revision: number; nodes: Record<string, NodeRecord>; edges: Edge[]; log: LogEntry[] };
+type BatchResult = { ok: boolean; revision_before: number; revision_after: number; results: Array<Record<string, unknown>> };
+type ErrorLike = { code?: string; details?: Record<string, unknown> };
+function errorLike(error: unknown): ErrorLike {
+  return (typeof error === "object" && error !== null ? error : {}) as ErrorLike;
+}
+function readStateHelper(dir: string): Promise<State> {
+  return readStateRaw(dir) as Promise<State>;
+}
+function executeBatch(args: Parameters<typeof executeBatchRaw>[0]): Promise<BatchResult> {
+  return executeBatchRaw(args) as Promise<BatchResult>;
+}
+
+async function verifyCanonicalBatch(dir: string, readFencedState: (dir: string) => Promise<State>) {
   const out = await executeBatch({
     projectDir: dir,
     actor: "alice",
@@ -62,7 +78,8 @@ test("core batch starts from canonical state and persists through the fenced com
   const dir = await createTempProject();
   try {
     await bootstrap(dir);
-    const { readFencedState } = await import("../src/storage/ledger.ts");
+    const { readFencedState: rawReadFencedState } = await import("../src/storage/ledger.ts");
+    const readFencedState = rawReadFencedState as (dir: string) => Promise<State>;
     await verifyCanonicalBatch(dir, readFencedState);
 
     const secondDir = await createTempProject();
@@ -168,10 +185,12 @@ test("core batch rolls back every draft change when a later operation fails", as
         source: { registry, mutate },
       }),
       (error) => {
-        assert.equal(error.code, "BATCH_OPERATION_FAILED");
-        assert.equal(error.details.operation_index, 3);
-        assert.equal(error.details.op, "edge.add");
-        assert.equal(error.details.cause.code, "DUPLICATE_EDGE");
+        const failure = errorLike(error);
+        const details = failure.details as { operation_index?: number; op?: string; cause?: { code?: string } } | undefined;
+        assert.equal(failure.code, "BATCH_OPERATION_FAILED");
+        assert.equal(details?.operation_index, 3);
+        assert.equal(details?.op, "edge.add");
+        assert.equal(details?.cause?.code, "DUPLICATE_EDGE");
         return true;
       },
     );
@@ -227,7 +246,7 @@ test("core batch checks global CAS before preparing any operation", async () => 
         operations: [{ op: "not-built-in", input: {} }],
         source: { registry: customRegistry, mutate },
       }),
-      (error) => error.code === "STATE_REVISION_CONFLICT",
+      (error) => errorLike(error).code === "STATE_REVISION_CONFLICT",
     );
     assert.equal(prepared, false);
   } finally {

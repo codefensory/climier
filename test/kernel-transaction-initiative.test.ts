@@ -21,7 +21,12 @@ import { createTransaction } from "../src/kernel/transaction.ts";
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const SRC_FILE = path.resolve(currentDir, "..", "src", "kernel", "transaction.ts");
 
-function baseSnapshot() {
+type ErrorLike = { code?: string; details?: { name?: string; field?: string } };
+function errorLike(error: unknown): ErrorLike {
+  return (typeof error === "object" && error !== null ? error : {}) as ErrorLike;
+}
+
+function baseSnapshot(): { version: number; nodes: Record<string, unknown>; edges: unknown[]; initiatives: Record<string, { desc: string; created_at?: string }>; log: unknown[] } {
   return {
     version: 2,
     nodes: {},
@@ -64,7 +69,7 @@ test("createTransaction: getInitiative returns undefined for unknown names", () 
   const tx = createTransaction(baseSnapshot());
   assert.equal(tx.getInitiative("missing"), undefined);
   assert.equal(tx.getInitiative(""), undefined);
-  assert.equal(tx.getInitiative(null), undefined);
+  assert.equal(tx.getInitiative(null as unknown as string), undefined);
 });
 
 test("createTransaction: createInitiative registers a new initiative in the draft", () => {
@@ -102,8 +107,8 @@ test("createTransaction: createInitiative rejects duplicates (snapshot + draft)"
   } catch (err) {
     caught = err;
   }
-  assert.equal(caught.code, "ID_CONFLICT");
-  assert.equal(caught.details.name, "kernel");
+  assert.equal(errorLike(caught).code, "ID_CONFLICT");
+  assert.equal(errorLike(caught).details?.name, "kernel");
 
   // After a successful createInitiative, repeating the same name is also rejected.
   tx.createInitiative({ name: "auth", desc: "first" });
@@ -113,18 +118,18 @@ test("createTransaction: createInitiative rejects duplicates (snapshot + draft)"
   } catch (err) {
     caught2 = err;
   }
-  assert.equal(caught2.code, "ID_CONFLICT");
-  assert.equal(caught2.details.name, "auth");
+  assert.equal(errorLike(caught2).code, "ID_CONFLICT");
+  assert.equal(errorLike(caught2).details?.name, "auth");
 });
 
 test("createTransaction: createInitiative validates name and input", () => {
   const tx = createTransaction(baseSnapshot());
   // Missing input object.
-  assert.throws(() => tx.createInitiative(), (err) => err.code === "MISSING_FIELD" && err.details.field === "input");
+  assert.throws(() => tx.createInitiative(undefined as unknown as { name: string }), (err) => errorLike(err).code === "MISSING_FIELD" && errorLike(err).details?.field === "input");
   // Missing name.
-  assert.throws(() => tx.createInitiative({ desc: "no name" }), (err) => err.code === "MISSING_FIELD" && err.details.field === "name");
+  assert.throws(() => tx.createInitiative({ desc: "no name" }), (err) => errorLike(err).code === "MISSING_FIELD" && errorLike(err).details?.field === "name");
   // Empty name.
-  assert.throws(() => tx.createInitiative({ name: "", desc: "empty name" }), (err) => err.code === "MISSING_FIELD" && err.details.field === "name");
+  assert.throws(() => tx.createInitiative({ name: "", desc: "empty name" }), (err) => errorLike(err).code === "MISSING_FIELD" && errorLike(err).details?.field === "name");
   // Non-string desc is coerced to empty string (matches add-initiative
   // behaviour where --desc "" is the default).
   const returned = tx.createInitiative({ name: "ok", desc: undefined });
@@ -142,16 +147,16 @@ test("view: includes initiatives (snapshot + draft)", () => {
   });
   // isolation: mutating view must not affect the draft.
   view.initiatives.auth.desc = "tampered";
-  assert.equal(tx.getInitiative("auth").desc, "auth migration");
+  assert.equal(tx.getInitiative("auth")!.desc, "auth migration");
 });
 
 test("isolation: mutating view() does not affect the draft initiatives", () => {
   const tx = createTransaction(baseSnapshot());
-  const view = tx.view();
+  const view = tx.view() as { initiatives: Record<string, { desc?: string; created_at?: string }> };
   delete view.initiatives.kernel;
   view.initiatives["leak"] = { desc: "leak" };
   view.initiatives.kernel = { desc: "tampered" };
-  const fresh = tx.view();
+  const fresh = tx.view() as { initiatives: Record<string, { desc?: string; created_at?: string }> };
   assert.deepEqual(fresh.initiatives.kernel, { desc: "kernel initiative", created_at: "2026-01-01T00:00:00.000Z" });
   assert.equal(fresh.initiatives.leak, undefined);
 });
@@ -165,7 +170,7 @@ test("isolation: input to createInitiative is not mutated by the kernel", () => 
 });
 
 test("isolation: createTransaction tolerates missing initiatives in the snapshot", () => {
-  const tx = createTransaction({ version: 2, nodes: {}, edges: [], log: [] });
+  const tx = createTransaction({ version: 2, nodes: {}, edges: [], log: [] } as Parameters<typeof createTransaction>[0]);
   assert.equal(tx.getInitiative("anything"), undefined);
   const view = tx.view();
   assert.deepEqual(view.initiatives, {});

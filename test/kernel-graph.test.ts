@@ -14,20 +14,38 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importFresh } from "./helpers.mjs";
 
-function makeState(nodes = {}, edges = []) {
+type Edge = { from: string; to: string; type: string };
+type State = { version: number; nodes?: Record<string, Record<string, string>>; edges?: Edge[] | null | string; log: unknown[] };
+type GraphModule = {
+  edgesArray: (state: State) => Edge[];
+  incoming: (state: State, id: string, type?: string) => Edge[];
+  outgoing: (state: State, id: string, type?: string) => Edge[];
+  relations: (state: State, id: string, type?: string) => Edge[];
+};
+type EdgesModule = { blocksEdge: (from: string, to: string) => Edge };
+
+function makeState(nodes: Record<string, Record<string, string>> = {}, edges: Edge[] = []): State {
   return { version: 2, nodes, edges, log: [] };
+}
+
+async function graphModule(): Promise<GraphModule> {
+  return await importFresh("../src/kernel/graph.ts") as GraphModule;
+}
+
+async function edgesModule(): Promise<EdgesModule> {
+  return await importFresh("../src/kernel/edges.ts") as EdgesModule;
 }
 
 // --- edgesArray (defensive accessor) ------------------------------------
 
 test("edgesArray: returns the edges array verbatim when present", async () => {
-  const { edgesArray } = await importFresh("../src/kernel/graph.ts");
+  const { edgesArray } = await graphModule();
   const edges = [{ from: "A", to: "B", type: "BLOCKS" }];
   assert.deepEqual(edgesArray({ version: 2, edges, log: [] }), edges);
 });
 
 test("edgesArray: returns [] when edges field is missing or wrong type", async () => {
-  const { edgesArray } = await importFresh("../src/kernel/graph.ts");
+  const { edgesArray } = await graphModule();
   assert.deepEqual(edgesArray({ version: 2, log: [] }), []);
   assert.deepEqual(edgesArray({ version: 2, edges: null, log: [] }), []);
   assert.deepEqual(edgesArray({ version: 2, edges: "not-array", log: [] }), []);
@@ -36,7 +54,7 @@ test("edgesArray: returns [] when edges field is missing or wrong type", async (
 // --- incoming -----------------------------------------------------------
 
 test("incoming: returns edges whose 'to' matches the id (no type filter)", async () => {
-  const { incoming } = await importFresh("../src/kernel/graph.ts");
+  const { incoming } = await graphModule();
   const state = makeState({}, [
     { from: "A", to: "B", type: "BLOCKS" },
     { from: "C", to: "B", type: "SUPERSEDES" },
@@ -51,7 +69,7 @@ test("incoming: returns edges whose 'to' matches the id (no type filter)", async
 });
 
 test("incoming: filters by type when provided", async () => {
-  const { incoming } = await importFresh("../src/kernel/graph.ts");
+  const { incoming } = await graphModule();
   const state = makeState({}, [
     { from: "A", to: "B", type: "BLOCKS" },
     { from: "C", to: "B", type: "SUPERSEDES" },
@@ -62,7 +80,7 @@ test("incoming: filters by type when provided", async () => {
 });
 
 test("incoming: empty / missing edges yields []", async () => {
-  const { incoming } = await importFresh("../src/kernel/graph.ts");
+  const { incoming } = await graphModule();
   assert.deepEqual(incoming({ version: 2, log: [] }, "X"), []);
   assert.deepEqual(incoming({ version: 2, edges: [], log: [] }, "X"), []);
 });
@@ -70,7 +88,7 @@ test("incoming: empty / missing edges yields []", async () => {
 // --- outgoing -----------------------------------------------------------
 
 test("outgoing: returns edges whose 'from' matches the id (no type filter)", async () => {
-  const { outgoing } = await importFresh("../src/kernel/graph.ts");
+  const { outgoing } = await graphModule();
   const state = makeState({}, [
     { from: "A", to: "B", type: "BLOCKS" },
     { from: "A", to: "C", type: "SUPERSEDES" },
@@ -85,7 +103,7 @@ test("outgoing: returns edges whose 'from' matches the id (no type filter)", asy
 });
 
 test("outgoing: filters by type when provided", async () => {
-  const { outgoing } = await importFresh("../src/kernel/graph.ts");
+  const { outgoing } = await graphModule();
   const state = makeState({}, [
     { from: "A", to: "B", type: "BLOCKS" },
     { from: "A", to: "C", type: "SUPERSEDES" },
@@ -96,7 +114,7 @@ test("outgoing: filters by type when provided", async () => {
 });
 
 test("outgoing: empty / missing edges yields []", async () => {
-  const { outgoing } = await importFresh("../src/kernel/graph.ts");
+  const { outgoing } = await graphModule();
   assert.deepEqual(outgoing({ version: 2, log: [] }, "X"), []);
   assert.deepEqual(outgoing({ version: 2, edges: [], log: [] }, "X"), []);
 });
@@ -104,7 +122,7 @@ test("outgoing: empty / missing edges yields []", async () => {
 // --- relations ----------------------------------------------------------
 
 test("relations: returns outgoing edges of a given type", async () => {
-  const { relations } = await importFresh("../src/kernel/graph.ts");
+  const { relations } = await graphModule();
   const state = makeState({}, [
     { from: "A", to: "B", type: "INFORMS" },
     { from: "A", to: "C", type: "INFORMS" },
@@ -116,7 +134,7 @@ test("relations: returns outgoing edges of a given type", async () => {
 });
 
 test("relations: requires a type argument (no implicit type)", async () => {
-  const { relations } = await importFresh("../src/kernel/graph.ts");
+  const { relations } = await graphModule();
   const state = makeState({}, [
     { from: "A", to: "B", type: "BLOCKS" },
     { from: "A", to: "C", type: "SUPERSEDES" },
@@ -129,7 +147,7 @@ test("relations: requires a type argument (no implicit type)", async () => {
 // --- determinism -------------------------------------------------------
 
 test("traversals: preserve snapshot insertion order (deterministic)", async () => {
-  const { incoming, outgoing, edgesArray } = await importFresh("../src/kernel/graph.ts");
+  const { incoming, outgoing, edgesArray } = await graphModule();
   // Insertion order is fixed: 1, 2, 3.
   const state = makeState({}, [
     { from: "A", to: "Z", type: "BLOCKS" },
@@ -163,13 +181,13 @@ test("traversals: preserve snapshot insertion order (deterministic)", async () =
 // --- integration with kernel/edges.blocksEdge --------------------------
 
 test("integration: blocksEdge + incoming + outgoing cooperate for BLOCKS direction", async () => {
-  const { blocksEdge } = await importFresh("../src/kernel/edges.ts");
-  const { incoming, outgoing } = await importFresh("../src/kernel/graph.ts");
+  const { blocksEdge } = await edgesModule();
+  const { incoming, outgoing } = await graphModule();
 
   // other. The kernel traversals must answer each direction independently.
   const edge1 = blocksEdge("G1", "T");
   const edge2 = blocksEdge("G2", "T");
-  const edge3 = { from: "G2", to: "G1", type: "SUPERSEDES" };
+  const edge3: Edge = { from: "G2", to: "G1", type: "SUPERSEDES" };
   const state = makeState(
     { G1: { id: "G1", kind: "resolvable", subkind: "gate" }, G2: { id: "G2", kind: "resolvable", subkind: "gate" }, T: { id: "T", kind: "resolvable", subkind: "task" } },
     [edge1, edge2, edge3],

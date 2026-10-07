@@ -3,6 +3,11 @@ import assert from "node:assert/strict";
 
 import { checkPrecondition, selectPrecondition } from "../src/kernel/mutation/preconditions.ts";
 
+type ErrorLike = { code?: string; details?: Record<string, number | string> };
+function errorLike(error: unknown): ErrorLike {
+  return (typeof error === "object" && error !== null ? error : {}) as ErrorLike;
+}
+
 const snapshot = {
   nodes: {
     T1: { id: "T1", revision: 3 },
@@ -42,21 +47,21 @@ test("mutation preconditions: request CAS takes precedence over plan CAS", () =>
 test("mutation preconditions: malformed and conflicting revisions keep exact errors", () => {
   assert.throws(
     () => checkPrecondition({ kind: "single", id: "T1", value: 2 }, snapshot, "kernel.mutate(task.update)"),
-    (error) => error.code === "REVISION_CONFLICT" &&
-      error.details.id === "T1" &&
-      error.details.expected === 2 &&
-      error.details.current === 3,
+    (error) => errorLike(error).code === "REVISION_CONFLICT" &&
+      errorLike(error).details?.id === "T1" &&
+      errorLike(error).details?.expected === 2 &&
+      errorLike(error).details?.current === 3,
   );
   assert.throws(
     () => checkPrecondition({ kind: "multi", values: { T1: 3, T2: 99 } }, snapshot, "kernel.mutate(task.update)"),
-    (error) => error.code === "REVISION_CONFLICT" &&
-      error.details.id === "T2" &&
-      error.details.expected === 99 &&
-      error.details.current === 7,
+    (error) => errorLike(error).code === "REVISION_CONFLICT" &&
+      errorLike(error).details?.id === "T2" &&
+      errorLike(error).details?.expected === 99 &&
+      errorLike(error).details?.current === 7,
   );
   assert.throws(
     () => checkPrecondition({ kind: "unexpected" }, snapshot, "kernel.mutate(task.update)"),
-    (error) => error.code === "INVALID_EXECUTION_CONTRACT" &&
-      error.details.field === "if_revision.kind",
+    (error) => errorLike(error).code === "INVALID_EXECUTION_CONTRACT" &&
+      errorLike(error).details?.field === "if_revision.kind",
   );
 });
