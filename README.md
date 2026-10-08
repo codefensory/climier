@@ -282,6 +282,7 @@ Canonical `BLOCKS` direction is `{ from: blocker, to: blocked, type: "BLOCKS" }`
 | `initiatives` | List registered initiatives plus unregistered initiative values still present in nodes. |
 | `log [--limit N] [--action X] [--agent X] [--node X]` | Audit log. |
 | `snapshots` | List recoverable snapshots captured under `<state-dir>/snapshots/`, newest first. Each entry carries `id`, `created_at`, `reason` (`force-init`, `corrupt-recovery`, `pre-restore`), `bytes`, and `sha256`. Only complete pairs (raw + metadata) appear; orphans are excluded. |
+| `urls [--initiative X] [--id NODE] [--port N] [--origin URL]` | Print deep links to the web UI; local links are marked `local_only` and work while `climier ui` runs on this machine. |
 | `ui [--port N] [--open=true\|false]` | Start the local read-only web UI (board, node context, activity) and open it in the browser. **Experimental**: it is a local subproject with separate dependencies and is excluded from the published tarball. If it is not installed, the command returns an actionable error. |
 
 ### Task lifecycle
