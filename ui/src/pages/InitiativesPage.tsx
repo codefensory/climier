@@ -22,8 +22,14 @@ type InitiativeRow = {
 
 const SETTLED = new Set(["done", "canceled", "archived"]);
 
-/** Resumen por iniciativa, derivado del board (tasks + gates). */
-function initiativeRows(snapshot: ClimierSnapshot): InitiativeRow[] {
+/**
+ * Resumen por iniciativa, derivado del board (tasks + gates).
+ *
+ * Una iniciativa sin tasks ni gates vigentes no es trabajo: se registró al crearla y todavía no tiene
+ * nada, así que no se lista (antes aparecía en 0% y ensuciaba la vista y los contadores del encabezado).
+ * Una gate abierta sola sí cuenta como trabajo y mantiene la iniciativa visible.
+ */
+export function initiativeRows(snapshot: ClimierSnapshot): InitiativeRow[] {
   const board = projectBoard(snapshot);
   return Object.keys(snapshot.initiatives)
     .map((name) => {
@@ -42,6 +48,7 @@ function initiativeRows(snapshot: ClimierSnapshot): InitiativeRow[] {
         progress: groupProgress([...tasks, ...gates]),
       };
     })
+    .filter((row) => row.total > 0 || row.gates > 0)
     // Orden por `Updated` descendente: lo último que se movió arriba. Sin actividad (`""`) al final.
     .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt) || right.total - left.total || left.name.localeCompare(right.name));
 }
