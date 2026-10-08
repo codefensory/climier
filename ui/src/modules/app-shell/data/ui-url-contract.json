@@ -1,0 +1,45 @@
+{
+  "routes": {
+    "home": "/",
+    "tasks": "/tasks",
+    "gates": "/gates",
+    "knowledges": "/knowledges",
+    "initiatives": "/initiatives",
+    "projects": "/projects"
+  },
+  "linked_routes": {
+    "home": "/",
+    "tasks": "/tasks",
+    "gates": "/gates",
+    "knowledges": "/knowledges",
+    "initiatives": "/initiatives"
+  },
+  "detail": {
+    "task": "/tasks/:id",
+    "gate": "/gates/:id",
+    "knowledge_param": "knowledge",
+    "gate_param": "gate"
+  },
+  "filter_wire": {
+    "initiative_plain": {
+      "c": [
+        {
+          "f": "initiative",
+          "o": "is",
+          "v": ["auth-migration"]
+        }
+      ],
+      "g": []
+    },
+    "initiative_special": {
+      "c": [
+        {
+          "f": "initiative",
+          "o": "is",
+          "v": ["diseño UI/UX"]
+        }
+      ],
+      "g": []
+    }
+  }
+}

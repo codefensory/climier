@@ -9,6 +9,7 @@ import { projectSearchView } from "./search.ts";
 import { projectContextView } from "./context.ts";
 import { projectSnapshot } from "./snapshot.ts";
 import { projectUiActivity, projectUiNode, projectUiSnapshot } from "./ui.ts";
+import { buildUiUrls, encodeInitiativeFilter } from "./urls.ts";
 import type { ReadModelLogEntry, ReadModelSnapshot } from "./types.ts";
 
 interface LogFilters {
@@ -72,6 +73,8 @@ export {
   projectUiSnapshot,
   projectUiNode,
   projectUiActivity,
+  buildUiUrls,
+  encodeInitiativeFilter,
   deriveV2,
   isSatisfiedV2,
   gateProjection,
