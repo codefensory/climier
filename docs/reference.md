@@ -195,6 +195,8 @@ Backlog tasks are a separate pool. They stay `backlog`, not `ready`, until they 
 
 ## Local web UI (experimental)
 
+`climier urls [--initiative X] [--id NODE] [--port N] [--origin URL]` prints UI deep links. Local links are marked `local_only` and work while `climier ui` runs on this machine.
+
 `climier ui [--port N] [--open=true|false]` starts the local read-only board and
 opens it in the browser. It is experimental: it lives in the `ui/` subproject
 with its own dependencies, reads the schema-1 state through the CLI's own
