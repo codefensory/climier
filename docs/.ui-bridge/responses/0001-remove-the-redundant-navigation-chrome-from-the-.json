@@ -1,0 +1,23 @@
+{
+  "id": "0001",
+  "status": "done",
+  "filesChanged": [
+    "src/lib/layout.shared.tsx",
+    "src/routes/docs/$.tsx",
+    "src/components/docs-chrome.tsx"
+  ],
+  "summary": "Removed the shared top-level navigation links and docs sidebar banner/footer, leaving the existing logo, GitHub, search, and fumadocs controls intact.",
+  "choices": [],
+  "hygiene": {
+    "commands": [
+      "bun -e TypeScript API check scoped to src/lib/layout.shared.tsx and src/routes/docs/$.tsx (failed before diagnostics: ts.sys unavailable)",
+      "bun run typecheck -- src/lib/layout.shared.tsx 'src/routes/docs/$.tsx' (TypeScript 7 rejected explicit files with TS5112)"
+    ],
+    "result": "unavailable"
+  },
+  "openQuestions": [
+    "The installed TypeScript 7 checker could not run file-scoped: its CLI rejects explicit files when tsconfig.json is present, and its API was unavailable in Bun. The full-project `bun run typecheck` was not run because it is not scoped to the changed files."
+  ],
+  "blockedReason": null,
+  "notVerified": true
+}

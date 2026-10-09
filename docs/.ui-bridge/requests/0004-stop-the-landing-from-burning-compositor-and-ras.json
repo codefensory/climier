@@ -1,0 +1,105 @@
+{
+  "id": "0004",
+  "createdAt": "2026-10-09T17:34:38.374Z",
+  "status": "open",
+  "source": "ui-visual-director",
+  "goal": "Stop the landing from burning compositor and raster work that nobody can see, so scrolling is smooth",
+  "context": "Measured with a real compositor trace (Chrome DevTools Protocol Tracing, 1440x900 at deviceScaleFactor 2, full-page scroll over ~3.4s, and 3s idle windows). Raster is NOT the bottleneck on the main thread (layout is 0 during scroll), but two things make the compositor do a large amount of avoidable work while the user scrolls. EVIDENCE 1 — the dot field. RasterTask totals during one full-page scroll: `.landing-dots` with its full-page mask = 254ms across 232 raster tasks; same dots with the mask removed = 131ms/125 tasks (-48%); mask removed AND the layer bounded to 1400px = 67ms (-74%); a viewport-sized fixed dot layer keeping the mask = 45ms (-82%). Paint duration over the same scroll: 67ms with the current dots. The single full-height masked element (.landing-dots is 1430x3246; at DPR 2 that is 2860x6492, i.e. a mask texture on the order of 74 MB) is the dominant raster cost of the page. EVIDENCE 2 — the demo animations. With the demo panel scrolled fully out of view and the page otherwise IDLE for 3s, the compositor is asked for 229 begin-frames; with `.landing-pulse` and `.landing-caret` disabled it drops to 97 (-58%). During the scroll itself: 221 begin-frames with the animations running vs 155 without. And Paint over the scroll drops from 67ms to 1ms when the demo animations are off — because `landing-flip` animates `box-shadow`, a paint property, forcing main-thread repaints on every phase change. So four infinite animations keep running while invisible (verified: document.getAnimations() reports 3x landing-pulse + 1x landing-caret still 'running' with the panel at top:-2214), and a paint-property animation runs on a 3-5s timer. Result on a real machine: the compositor never idles, so scroll frames compete with work for content that is off-screen — perceived as micro-stutter.",
+  "referenceImage": null,
+  "targets": [
+    {
+      "selector": ".landing-dots",
+      "intent": "Keep the dot canvas texture and its veil exactly as they read today, but stop the page paying a full-height masked composited layer for it. The fade must survive at every scroll position and the texture must look unchanged at the top, in the 'How the graph stays honest' region and near the band. Any technique is acceptable provided the rendered result is visually indistinguishable; a bounded layer and/or dropping the mask pass are the known-good directions, and a viewport-anchored treatment is allowed only if the fade still reads correctly while scrolling.",
+      "notes": "Today it is one absolutely positioned element with inset:0, a repeating radial-gradient background and a linear-gradient mask-image; its height equals the page content height. If you replace the mask with a background-coloured overlay to produce the fade, note the overlay has to paint above the dots and below the page sections."
+    },
+    {
+      "selector": "the DagDemo panel (figure.landing-panel) and its animation classes: .landing-pulse, .landing-caret, .landing-progress, .landing-flip, .landing-output",
+      "intent": "No animation may keep running for a panel that is off-screen, and no animation may animate a paint property. The panel already tracks its own on-screen state for the phase timer (an IntersectionObserver in the component), so reuse that signal rather than adding a new one. The infinite loops (the pulsing claim dot inside the graph and in the pool pills, and the terminal caret) and the step-rail fill must stop when the panel is out of view and resume coherently when it comes back. The status 'flip' must stop being a box-shadow paint animation and become something the compositor can handle on its own (for example a pseudo-element whose opacity and transform are animated), without changing how the beat looks.",
+      "notes": "Do not delete the animations or the design — fix their cost. Critical: pausing must never leave a broken state. When the panel scrolls back into view nothing may be frozen mid-transition (a flip stuck at half its ring, a progress bar stuck at 40 percent, an opacity mid-fade). Finite one-shot animations may simply be allowed to finish rather than be paused. prefers-reduced-motion handling must keep working."
+    }
+  ],
+  "constraints": [
+    "Do not change layout, spacing, colour, type, radii or copy. This round changes what the page computes while scrolling, not what it looks like.",
+    "Do not remove the dot texture, the demo, or any animation from the design — only their cost.",
+    "No new dependency, no JS animation library, no requestAnimationFrame loop of your own.",
+    "Do not touch docs/content/**, docs/src/assets/fonts/**, docs/src/lib/layout.shared.tsx, docs/src/routes/docs/$.tsx, docs/src/styles/theme.css, or the CLI.",
+    "Hygiene: run `cd docs && bun run typecheck` and `cd docs && bun run test` (both exist) and report the exact commands and results in hygiene."
+  ],
+  "designTokens": {},
+  "acceptanceCriteria": [
+    "With the demo panel fully scrolled out of view, document.getAnimations() reports ZERO running landing-* animations.",
+    "A 3s idle window with the panel off-screen produces at least 40 percent fewer compositor begin-frames than today (baseline 229 per 3s).",
+    "One full-page scroll at 1440x900 / DPR 2 produces RasterTask total <= 90ms (today 254ms) and Paint total <= 15ms (today 67ms).",
+    "With the panel on screen the demo still pulses, blinks, fills the step rail and flashes the status flip the way it does today, with the same timings.",
+    "After scrolling the panel out of view and back, no element is left mid-transition: no half-drawn flip ring, no frozen progress bar, no stuck opacity.",
+    "The dot texture and its veil are visually indistinguishable from today at the top of the page, in the 'How the graph stays honest' section and near the brand band.",
+    "`cd docs && bun run typecheck` exits 0 and `cd docs && bun run test` passes, and `cd docs && bun run build` still succeeds."
+  ],
+  "qualityChecks": [
+    "The fix is the simplest one that removes the cost — a visibility gate plus a compositor-friendly flip, not a new animation system.",
+    "The IntersectionObserver signal already present in the component is reused instead of introducing a second visibility mechanism or a scroll listener.",
+    "No `will-change` sprinkled around as a band-aid, and no new compositing layers created to 'fix' a raster problem.",
+    "Nothing is left in the stylesheet that no longer has an effect (for example an animation class that is now always paused, or a mask rule replaced elsewhere).",
+    "The chosen fade technique does not depend on the page background colour in a way that breaks in dark mode."
+  ],
+  "regressionChecks": [
+    "Landing /: hero, dot texture and its veil, the status panel at several scroll offsets, the three invariant specimens, the lifecycle section, the brand band and the footer are unchanged in appearance.",
+    "The demo still advances through take/submit/accept on its own when on screen, and the play/pause and restart buttons still work.",
+    "Dark mode: dots and the demo panel still read correctly.",
+    "Narrow viewport (390x844): the dot texture, the stacked graph and the mobile step rail are unchanged.",
+    "prefers-reduced-motion: the landing still renders without animation work."
+  ],
+  "visualGaps": [
+    {
+      "area": "dot field",
+      "selector": ".landing-dots",
+      "observed": "One full-page-height element (1430x3246; 2860x6492 at DPR 2) with a repeating radial-gradient background AND a linear-gradient mask, so every scroll step pays a mask pass over the whole page. RasterTask 254ms over one scroll at DPR 2.",
+      "expected": "Same texture and veil at a fraction of the cost: RasterTask <= 90ms, no full-page mask pass.",
+      "severity": "high",
+      "axis": "regression"
+    },
+    {
+      "area": "demo panel off-screen",
+      "selector": "figure.landing-panel .landing-pulse, .landing-caret",
+      "observed": "Four infinite animations keep running while the panel is completely out of view: 229 compositor begin-frames per 3s of pure idle, 221 per scroll vs 155 without them.",
+      "expected": "No animation running for an off-screen panel; >=40 percent fewer begin-frames when idle and off-screen.",
+      "severity": "high",
+      "axis": "regression"
+    },
+    {
+      "area": "status flip",
+      "selector": "the landing-flip class on the status pills",
+      "observed": "Animates box-shadow, a paint property, so every phase change forces a main-thread repaint (Paint totals 67ms over one scroll).",
+      "expected": "The same visual beat implemented so the compositor can run it without a main-thread paint.",
+      "severity": "medium",
+      "axis": "regression"
+    }
+  ],
+  "doNotTouch": [
+    "docs/content/**",
+    "docs/src/assets/fonts/**",
+    "docs/src/lib/layout.shared.tsx",
+    "docs/src/routes/docs/$.tsx",
+    "docs/src/styles/theme.css",
+    "ui/**"
+  ],
+  "budget": {
+    "maxFiles": 4,
+    "maxRoundsLeft": 2
+  },
+  "responseTemplate": {
+    "id": "0004",
+    "status": "done",
+    "filesChanged": [],
+    "summary": "",
+    "choices": [],
+    "hygiene": {
+      "commands": [],
+      "result": "clean"
+    },
+    "openQuestions": [],
+    "blockedReason": null,
+    "notVerified": true
+  },
+  "responseFile": ".ui-bridge/responses/0004-stop-the-landing-from-burning-compositor-and-ras.json"
+}

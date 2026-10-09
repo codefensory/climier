@@ -1,0 +1,60 @@
+                                       ┃
+                                       ┃
+                                       ┃
+[Context]
+  ~/.pi/agent/APPEND_SYSTEM.md,
+~/dev/climier/AGENTS.md
+
+[Skills]
+  archify, archify-review, climier,
+climier-flow, climier-ui,
+diagnose-crash, ego-browser, impeccable,
+initiative-execution, issue-creation,
+omarchy, spec-pipeline, subagents,
+ui-crafter, ui-visual-director
+
+[Extensions]
+
+@99percentpeople/pi-thinking-fold:index.
+min.js, @gotgenes/pi-subagents:src,
+@javargasm/pi-usage-bars:usage-bars,
+axet.ts, climier-flow.ts, fx-ui.ts,
+herdr-agent-state.ts, pi-web-access:dist
+
+
+────────────────────────────────────────
+ Package Updates Available
+ Package updates are available. Run pi
+ update --extensions
+ Packages:
+ - @gotgenes/pi-subagents
+────────────────────────────────────────
+
+ ▎ You are the ui-crafter (UI
+   implementer) for project
+   /home/yeferson/dev/climier/docs.
+   Read your skill and the protocol
+   contract now:
+   1. /home/yeferson/.agents/skills/ui-c
+      rafter/SKILL.md
+   2. /home/yeferson/.agents/skills/ui-c
+      rafter/references/contract.md
+      Do not modify any file yet.
+      Reply with exactly: READY
+      ui-crafter
+  │ Read   ~/.agents/skills/ui-crafter/…
+  │ Read   ~/.agents/skills/ui-crafter/…
+
+ Thought for 0.5s  (ctrl+t to expand)
+  │ Read   ~/.agents/skills/ui-crafter/…
+  │ Read   ~/.agents/skills/ui-crafter/…
+
+ READY ui-crafter
+
+  · 4s
+
+╭──────────────────────────────────────╮
+│ ▎                                    │
+╰──────────────────────────────────────╯
+  ◆ deepseek-flash  $0.002 · 3% / 1.0M
+  docs · feature/docs-site

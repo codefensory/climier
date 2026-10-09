@@ -1,0 +1,28 @@
+{
+  "id": "0003-control-a",
+  "label": "control-a",
+  "round": 3,
+  "url": "http://localhost:3005/",
+  "title": "Climier — Coordinate work with confidence",
+  "path": "/home/yeferson/dev/climier/docs/.ui-bridge/shots/0003-control-a.png",
+  "snapshotPath": "/home/yeferson/dev/climier/docs/.ui-bridge/snapshots/0003-control-a.txt",
+  "fullPage": true,
+  "settle": 1200,
+  "clip": null,
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "size": "315.9 KB",
+  "page": {
+    "url": "http://localhost:3005/",
+    "title": "Climier — Coordinate work with confidence",
+    "w": 390,
+    "h": 844,
+    "sx": 0,
+    "sy": 0,
+    "pw": 380,
+    "ph": 5973
+  },
+  "at": "2026-10-09T17:28:13.503Z"
+}

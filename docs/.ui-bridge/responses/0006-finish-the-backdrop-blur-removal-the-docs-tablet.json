@@ -1,0 +1,22 @@
+{
+  "id": "0006",
+  "status": "done",
+  "filesChanged": [
+    "src/styles/app.css"
+  ],
+  "summary": "Added the tablet/mobile TOC popover header to the existing targeted sticky-bar override group. It now uses the opaque page-background token with both backdrop-filter properties set to none; no layout or interaction styles changed.",
+  "choices": [
+    "Used #nd-docs-layout [class*='grid-area:toc-popover'] > header.backdrop-blur-sm to target the missed header through its specific wrapper, without affecting other popovers or the search dialog."
+  ],
+  "hygiene": {
+    "commands": [
+      "cd /home/yeferson/dev/climier/docs && timeout 300 bun run typecheck"
+    ],
+    "result": "clean"
+  },
+  "openQuestions": [
+    "Typecheck passed (tsc --noEmit, exit 0). No CSS formatter/linter is configured. Tests, build, computed-style scans, and visual checks were not run under the crafter-turn restrictions; please include them in the director's QA pass."
+  ],
+  "blockedReason": null,
+  "notVerified": true
+}

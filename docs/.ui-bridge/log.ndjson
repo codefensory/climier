@@ -1,0 +1,47 @@
+{"at":"2026-10-09T17:10:17.238Z","event":"init","projectRoot":"/home/yeferson/dev/climier/docs","url":"http://localhost:3005"}
+{"at":"2026-10-09T17:10:25.315Z","event":"connect","target":{"name":"ui-crafter","paneId":"w4:p1S","status":"idle","cwd":"/home/yeferson/dev/climier/docs"},"source":"started","handshakeOk":true}
+{"at":"2026-10-09T17:10:25.549Z","event":"browser-start","mode":"headless","spaceId":379}
+{"at":"2026-10-09T17:10:34.432Z","event":"capture","id":"0000-before-landing","png":"/home/yeferson/dev/climier/docs/.ui-bridge/shots/0000-before-landing.png","url":"http://localhost:3005/"}
+{"at":"2026-10-09T17:10:39.245Z","event":"capture","id":"0000-before-docs","png":"/home/yeferson/dev/climier/docs/.ui-bridge/shots/0000-before-docs.png","url":"http://localhost:3005/docs/getting-started/quickstart"}
+{"at":"2026-10-09T17:10:43.193Z","event":"capture","id":"0000-before-docs-cli","png":"/home/yeferson/dev/climier/docs/.ui-bridge/shots/0000-before-docs-cli.png","url":"http://localhost:3005/docs/reference/cli"}
+{"at":"2026-10-09T17:16:03.801Z","event":"request","id":"0001","goal":"Remove the redundant navigation chrome from the docs sidebar and the header nav, on both the docs layout and the landing","file":"/home/yeferson/dev/climier/docs/.ui-bridge/requests/0001-remove-the-redundant-navigation-chrome-from-the-.json"}
+{"at":"2026-10-09T17:17:51.911Z","event":"capture","id":"0001-after1-landing","png":"/home/yeferson/dev/climier/docs/.ui-bridge/shots/0001-after1-landing.png","url":"http://localhost:3005/"}
+{"at":"2026-10-09T17:17:54.302Z","event":"capture","id":"0001-after1-docs","png":"/home/yeferson/dev/climier/docs/.ui-bridge/shots/0001-after1-docs.png","url":"http://localhost:3005/docs/getting-started/quickstart"}
+{"at":"2026-10-09T17:18:27.146Z","event":"capture","id":"0001-after1-docs-narrow","png":"/home/yeferson/dev/climier/docs/.ui-bridge/shots/0001-after1-docs-narrow.png","url":"http://localhost:3005/docs/getting-started/quickstart"}
+{"at":"2026-10-09T17:18:29.732Z","event":"capture","id":"0001-after1-landing-narrow","png":"/home/yeferson/dev/climier/docs/.ui-bridge/shots/0001-after1-landing-narrow.png","url":"http://localhost:3005/"}
+{"at":"2026-10-09T17:19:13.701Z","event":"round-end","round":1,"status":"done","metrics":null}
+{"at":"2026-10-09T17:21:24.593Z","event":"request","id":"0002","goal":"Stop blocking the site's first paint on a third-party font chain: no external CSS @import, warm the font origins, and keep the same three typefaces rendering","file":"/home/yeferson/dev/climier/docs/.ui-bridge/requests/0002-stop-blocking-the-site-s-first-paint-on-a-third-.json"}
+{"at":"2026-10-09T17:23:55.339Z","event":"capture","id":"0002-before3-landing","png":"/home/yeferson/dev/climier/docs/.ui-bridge/shots/0002-before3-landing.png","url":"http://localhost:3005/"}
+{"at":"2026-10-09T17:23:58.246Z","event":"capture","id":"0002-before3-docs","png":"/home/yeferson/dev/climier/docs/.ui-bridge/shots/0002-before3-docs.png","url":"http://localhost:3005/docs/getting-started/quickstart"}
+{"at":"2026-10-09T17:24:01.414Z","event":"round-end","round":2,"status":"done","metrics":null}
+{"at":"2026-10-09T17:24:01.594Z","event":"request","id":"0003","goal":"Serve the three typefaces from the site's own origin so the first paint never waits on a third-party stylesheet","file":"/home/yeferson/dev/climier/docs/.ui-bridge/requests/0003-serve-the-three-typefaces-from-the-site-s-own-or.json"}
+{"at":"2026-10-09T17:26:06.670Z","event":"capture","id":"0003-after3-landing","png":"/home/yeferson/dev/climier/docs/.ui-bridge/shots/0003-after3-landing.png","url":"http://localhost:3005/"}
+{"at":"2026-10-09T17:26:09.428Z","event":"capture","id":"0003-after3-docs","png":"/home/yeferson/dev/climier/docs/.ui-bridge/shots/0003-after3-docs.png","url":"http://localhost:3005/docs/getting-started/quickstart"}
+{"at":"2026-10-09T17:27:38.966Z","event":"capture","id":"0003-after3-docs-cli","png":"/home/yeferson/dev/climier/docs/.ui-bridge/shots/0003-after3-docs-cli.png","url":"http://localhost:3005/docs/reference/plugins"}
+{"at":"2026-10-09T17:27:42.079Z","event":"capture","id":"0003-after3-landing-narrow","png":"/home/yeferson/dev/climier/docs/.ui-bridge/shots/0003-after3-landing-narrow.png","url":"http://localhost:3005/"}
+{"at":"2026-10-09T17:28:13.504Z","event":"capture","id":"0003-control-a","png":"/home/yeferson/dev/climier/docs/.ui-bridge/shots/0003-control-a.png","url":"http://localhost:3005/"}
+{"at":"2026-10-09T17:28:16.500Z","event":"capture","id":"0003-control-b","png":"/home/yeferson/dev/climier/docs/.ui-bridge/shots/0003-control-b.png","url":"http://localhost:3005/"}
+{"at":"2026-10-09T17:28:30.800Z","event":"round-end","round":3,"status":"done","metrics":null}
+{"at":"2026-10-09T17:28:34.353Z","event":"browser-stop","mode":"headless","pid":null}
+{"at":"2026-10-09T17:31:01.645Z","event":"browser-start","mode":"headless","spaceId":386}
+{"at":"2026-10-09T17:34:27.182Z","event":"request","id":"0004","goal":"Stop the landing from burning compositor and raster work that nobody can see, so scrolling is smooth","file":"/home/yeferson/dev/climier/docs/.ui-bridge/requests/0004-stop-the-landing-from-burning-compositor-and-ras.json"}
+{"at":"2026-10-09T17:34:29.723Z","event":"stale-crafter","peer":{"role":"crafter","name":"ui-crafter","paneId":"w4:p1S","cwd":"/home/yeferson/dev/climier/docs","model":null,"skillPath":"/home/yeferson/.agents/skills/ui-crafter/SKILL.md","source":"started","registeredAt":"2026-10-09T17:10:25.314Z"}}
+{"at":"2026-10-09T17:34:36.274Z","event":"connect","target":{"name":"ui-crafter","paneId":"w4:p1T","status":"idle","cwd":"/home/yeferson/dev/climier/docs"},"source":"started","handshakeOk":true}
+{"at":"2026-10-09T17:34:38.376Z","event":"request","id":"0004","goal":"Stop the landing from burning compositor and raster work that nobody can see, so scrolling is smooth","file":"/home/yeferson/dev/climier/docs/.ui-bridge/requests/0004-stop-the-landing-from-burning-compositor-and-ras.json"}
+{"at":"2026-10-09T17:51:13.395Z","event":"round-end","round":4,"status":"done","metrics":null}
+{"at":"2026-10-09T17:51:13.501Z","event":"request","id":"0005","goal":"Remove the always-on backdrop blur from the sticky chrome, which forces the compositor to re-blur the page on every scroll frame","file":"/home/yeferson/dev/climier/docs/.ui-bridge/requests/0005-remove-the-always-on-backdrop-blur-from-the-stic.json"}
+{"at":"2026-10-09T17:57:45.573Z","event":"round-end","round":5,"status":"continue","metrics":null}
+{"at":"2026-10-09T17:58:00.785Z","event":"request","id":"0006","goal":"Finish the backdrop-blur removal: the docs tablet/mobile TOC popover header was missed and still blurs the page while scrolling","file":"/home/yeferson/dev/climier/docs/.ui-bridge/requests/0006-finish-the-backdrop-blur-removal-the-docs-tablet.json"}
+{"at":"2026-10-09T18:01:33.680Z","event":"round-end","round":6,"status":"done","metrics":null}
+{"at":"2026-10-09T18:01:34.137Z","event":"browser-stop","mode":"headless","pid":null}
+{"at":"2026-10-09T18:10:51.840Z","event":"init","projectRoot":"/home/yeferson/dev/climier/docs","url":"http://localhost:3005"}
+{"at":"2026-10-09T18:10:51.879Z","event":"stale-crafter","peer":{"role":"crafter","name":"ui-crafter","paneId":"w4:p1T","cwd":"/home/yeferson/dev/climier/docs","model":null,"skillPath":"/home/yeferson/.agents/skills/ui-crafter/SKILL.md","source":"started","registeredAt":"2026-10-09T17:34:36.273Z"}}
+{"at":"2026-10-09T18:10:59.971Z","event":"connect","target":{"name":"ui-crafter","paneId":"w4:p1V","status":"idle","cwd":"/home/yeferson/dev/climier/docs"},"source":"started","handshakeOk":true}
+{"at":"2026-10-09T18:11:02.159Z","event":"browser-start","mode":"headless","spaceId":388}
+{"at":"2026-10-09T18:11:04.925Z","event":"capture","id":"0006-0007-before-landing","png":"/home/yeferson/dev/climier/docs/.ui-bridge/shots/0006-0007-before-landing.png","url":"http://localhost:3005/"}
+{"at":"2026-10-09T18:13:59.714Z","event":"round-end","round":6,"status":"continue","metrics":null}
+{"at":"2026-10-09T18:14:02.941Z","event":"request","id":"0007","goal":"Rebuild the landing demo panel so a first-time visitor can actually read and understand one complete example of what Climier does","file":"/home/yeferson/dev/climier/docs/.ui-bridge/requests/0007-rebuild-the-landing-demo-panel-so-a-first-time-v.json"}
+{"at":"2026-10-09T18:27:19.264Z","event":"round-end","round":7,"status":"continue","metrics":null}
+{"at":"2026-10-09T18:27:19.437Z","event":"request","id":"0008","goal":"Finish the demo panel: make the counters account for every node in every beat, and make the panel fit a narrow viewport","file":"/home/yeferson/dev/climier/docs/.ui-bridge/requests/0008-finish-the-demo-panel-make-the-counters-account-.json"}
+{"at":"2026-10-09T18:38:17.156Z","event":"round-end","round":8,"status":"done","metrics":null}
+{"at":"2026-10-09T18:38:20.691Z","event":"browser-stop","mode":"headless","pid":null}

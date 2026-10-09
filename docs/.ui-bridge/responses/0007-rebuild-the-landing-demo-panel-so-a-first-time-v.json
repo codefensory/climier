@@ -1,0 +1,29 @@
+{
+  "id": "0007",
+  "status": "done",
+  "filesChanged": [
+    "src/components/landing/dag-demo.tsx"
+  ],
+  "summary": "Rebuilt the demo as a readable, accumulating take-submit-accept story with compact complete JSON summaries, a labelled append-only log, a distinct gate dependency, and a lifecycle selector that identifies the current step. Increased the panel's internal graph height and type scale while keeping the existing framing command, controls, copy, nodes, and theme tokens.",
+  "choices": [
+    "Used 10s, 10s, and 12s holds so each beat remains readable and the accepted state is visible before the sequence restarts.",
+    "Rendered unsatisfied BLOCKS edges as dashed and the satisfied edge as a solid brand line; distinguished the gate with a dashed neutral card and explicit BLOCKS labels on mobile."
+  ],
+  "hygiene": {
+    "commands": [
+      "cd /home/yeferson/dev/climier/docs && ./node_modules/.bin/prettier --write src/components/landing/dag-demo.tsx",
+      "cd /home/yeferson/dev/climier/docs && ./node_modules/.bin/tsc --noEmit --strict --esModuleInterop --jsx react-jsx --module ESNext --moduleResolution Bundler --lib DOM,DOM.Iterable,ES2022 --types vite/client --isolatedModules --resolveJsonModule --skipLibCheck --target ES2022 --allowJs --forceConsistentCasingInFileNames src/components/landing/dag-demo.tsx",
+      "cd /home/yeferson/dev/climier/docs && ./node_modules/.bin/tsc --ignoreConfig --noEmit --strict --esModuleInterop --jsx react-jsx --module ESNext --moduleResolution Bundler --lib DOM,DOM.Iterable,ES2022 --types vite/client --isolatedModules --resolveJsonModule --skipLibCheck --target ES2022 --allowJs --forceConsistentCasingInFileNames src/components/landing/dag-demo.tsx",
+      "cd /home/yeferson/dev/climier/docs && ./node_modules/.bin/prettier --single-quote --write src/components/landing/dag-demo.tsx",
+      "cd /home/yeferson/dev/climier/docs && ./node_modules/.bin/tsc --ignoreConfig --noEmit --strict --esModuleInterop --jsx react-jsx --module ESNext --moduleResolution Bundler --lib DOM,DOM.Iterable,ES2022 --types vite/client --isolatedModules --resolveJsonModule --skipLibCheck --target ES2022 --allowJs --forceConsistentCasingInFileNames src/components/landing/dag-demo.tsx"
+    ],
+    "result": "fixed"
+  },
+  "openQuestions": [
+    "The first file-scoped tsc attempt returned TS5112 because TypeScript 7 requires --ignoreConfig when a file path is supplied; the rerun passed.",
+    "The project-wide test, build, and typecheck scripts were not run: this turn prohibited tests/builds and required checks to be scoped to edited files. The final file-scoped typecheck passed.",
+    "Applied, not visually verified."
+  ],
+  "blockedReason": null,
+  "notVerified": true
+}

@@ -10,21 +10,6 @@ export function baseOptions(): BaseLayoutProps {
       url: '/',
     },
     githubUrl: GITHUB_URL,
-    links: [
-      {
-        text: 'Docs',
-        url: '/docs',
-        active: 'nested-url',
-      },
-      {
-        text: 'Quickstart',
-        url: '/docs/getting-started/quickstart',
-      },
-      {
-        text: 'CLI reference',
-        url: '/docs/reference/cli',
-      },
-    ],
   };
 }
 

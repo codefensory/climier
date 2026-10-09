@@ -1,0 +1,285 @@
+[p1 "Quickstart — Climier" | space "ui-review: docs"(379): 1 managed, 0 untracked — p1* "Quickstart — Climier"]
+rootwebarea "Quickstart — Climier" [ref=4411]
+generic [ref=4412]
+  banner [ref=4413]
+    link "Climier" href="/" [ref=4414, loc=href:/]
+    button "Open Search" [ref=4415]
+    button "Open Sidebar" [ref=4416]
+  generic [ref=4417]
+    banner [ref=4418]
+      button "0.2 Quickstart 1. Initialize a project" [ref=4419]
+        progressbar [ref=4420]
+  main [ref=4421]
+    article [ref=4422]
+      heading "Quickstart" [ref=4423]
+        statictext "Quickstart" [ref=4424]
+          inlinetextbox "Quickstart"
+      paragraph [ref=4425]
+        statictext "Initialize a project, create an initiative, and add a ready task." [ref=4426]
+          inlinetextbox "Initialize a project, create an initiative,"
+          inlinetextbox "and add a ready task."
+statictext "Climier" [ref=4427]
+  inlinetextbox "Climier"
+statictext "Getting started" [ref=4428]
+  inlinetextbox "Getting started"
+paragraph [ref=4429]
+  statictext "This walkthrough creates a small project with one task. Run the commands from the directory that should hold the project's" [ref=4430]
+    inlinetextbox "This walkthrough creates a small project with"
+    inlinetextbox "one task. Run the commands from the"
+    inlinetextbox "directory that should hold the project's"
+  code [ref=4431]
+    statictext ".climier.json" [ref=4432]
+      inlinetextbox ".climier.json"
+  statictext "file." [ref=4433]
+    inlinetextbox "file."
+heading "1. Initialize a project Copy Anchor Link" [ref=4434]
+  link "1. Initialize a project" href="#1-initialize-a-project" [ref=4435]
+    statictext "1. Initialize a project" [ref=4436]
+      inlinetextbox "1. Initialize a project"
+  button "Copy Anchor Link" [ref=4437]
+paragraph [ref=4438]
+  statictext "Create a directory and initialize Climier:" [ref=4439]
+    inlinetextbox "Create a directory and initialize Climier:"
+figure [ref=4440]
+  generic [ref=4441]
+    button "Copy Text" [ref=4442]
+  generic [ref=4443]
+paragraph [ref=4444]
+  code [ref=4445]
+    statictext "init" [ref=4446]
+      inlinetextbox "init"
+  statictext "creates the project metadata and the live schema-1 state. The live state is shared by checkouts through Climier's storage directory; you normally only commit" [ref=4447]
+    inlinetextbox "creates the project metadata and the"
+    inlinetextbox "live schema-1 state. The live state is shared by"
+    inlinetextbox "checkouts through Climier's storage directory;"
+    inlinetextbox "you normally only commit"
+  code [ref=4448]
+    statictext ".climier.json" [ref=4449]
+      inlinetextbox ".climier.json"
+  statictext "with your project." [ref=4450]
+    inlinetextbox "with"
+    inlinetextbox "your project."
+heading "2. Add an initiative Copy Anchor Link" [ref=4451]
+  link "2. Add an initiative" href="#2-add-an-initiative" [ref=4452]
+    statictext "2. Add an initiative" [ref=4453]
+      inlinetextbox "2. Add an initiative"
+  button "Copy Anchor Link" [ref=4454]
+paragraph [ref=4455]
+  statictext "An initiative groups related work. The" [ref=4456]
+    inlinetextbox "An initiative groups related work. The"
+  code [ref=4457]
+    statictext "--as" [ref=4458]
+      inlinetextbox "--as"
+  statictext "value records who performs the mutation:" [ref=4459]
+    inlinetextbox "value records who performs the mutation:"
+figure [ref=4460]
+  generic [ref=4461]
+    button "Copy Text" [ref=4462]
+  generic [ref=4463]
+heading "3. Add a task Copy Anchor Link" [ref=4464]
+  link "3. Add a task" href="#3-add-a-task" [ref=4465]
+    statictext "3. Add a task" [ref=4466]
+      inlinetextbox "3. Add a task"
+  button "Copy Anchor Link" [ref=4467]
+paragraph [ref=4468]
+  statictext "Create a task with an explicit body, acceptance criteria, and dependency list. An empty" [ref=4469]
+    inlinetextbox "Create a task with an explicit body,"
+    inlinetextbox "acceptance criteria, and dependency list. An"
+    inlinetextbox "empty"
+  code [ref=4470]
+    statictext "--blocked-by" [ref=4471]
+      inlinetextbox "--blocked-by"
+  statictext "means that this first task has no blockers:" [ref=4472]
+    inlinetextbox "means that this first task"
+    inlinetextbox "has no blockers:"
+figure [ref=4473]
+  generic [ref=4474]
+    button "Copy Text" [ref=4475]
+  generic [ref=4476]
+paragraph [ref=4477]
+  statictext "A task with no unsatisfied blockers is ready to claim." [ref=4478]
+    inlinetextbox "A task with no unsatisfied blockers is ready to"
+    inlinetextbox "claim."
+  code [ref=4479]
+    statictext "ready" [ref=4480]
+      inlinetextbox "ready"
+  statictext "and" [ref=4481]
+    inlinetextbox "and"
+  code [ref=4482]
+    statictext "blocked" [ref=4483]
+      inlinetextbox "blocked"
+  statictext "are derived from the graph; they are not statuses that you set manually." [ref=4484]
+    inlinetextbox "are derived from"
+    inlinetextbox "the graph; they are not statuses that you set"
+    inlinetextbox "manually."
+heading "4. Inspect the task Copy Anchor Link" [ref=4485]
+  link "4. Inspect the task" href="#4-inspect-the-task" [ref=4486]
+    statictext "4. Inspect the task" [ref=4487]
+      inlinetextbox "4. Inspect the task"
+  button "Copy Anchor Link" [ref=4488]
+paragraph [ref=4489]
+  statictext "See the project overview, then inspect the task contract:" [ref=4490]
+    inlinetextbox "See the project overview, then inspect the task"
+    inlinetextbox "contract:"
+figure [ref=4491]
+  generic [ref=4492]
+    button "Copy Text" [ref=4493]
+  generic [ref=4494]
+paragraph [ref=4495]
+  code [ref=4496]
+    statictext "status" [ref=4497]
+      inlinetextbox "status"
+  statictext "shows the ready pool and summary counts." [ref=4498]
+    inlinetextbox "shows the ready pool and summary"
+    inlinetextbox "counts."
+  code [ref=4499]
+    statictext "context" [ref=4500]
+      inlinetextbox "context"
+  statictext "focuses on one node and shows its blockers, scoped information, and actions available to the current actor." [ref=4501]
+    inlinetextbox "focuses on one node and"
+    inlinetextbox "shows its blockers, scoped information, and"
+    inlinetextbox "actions available to the current actor."
+heading "Continue the workflow Copy Anchor Link" [ref=4502]
+  link "Continue the workflow" href="#continue-the-workflow" [ref=4503]
+    statictext "Continue the workflow" [ref=4504]
+      inlinetextbox "Continue the workflow"
+  button "Copy Anchor Link" [ref=4505]
+paragraph [ref=4506]
+  statictext "Follow" [ref=4507]
+    inlinetextbox "Follow"
+  link "Core workflow" href="/docs/getting-started/quickstart" [ref=4508]
+    statictext "Core workflow" [ref=4509]
+      inlinetextbox "Core workflow"
+  statictext "to claim the task, submit it for review, and accept it. The" [ref=4510]
+    inlinetextbox "to claim the task, submit"
+    inlinetextbox "it for review, and accept it. The"
+  link "CLI reference" href="/docs/reference/cli" [ref=4511, loc=href:/docs/reference/cli]
+    statictext "CLI reference" [ref=4512]
+      inlinetextbox "CLI reference"
+  statictext "documents every option without repeating the full contract here." [ref=4513]
+    inlinetextbox "documents every option without repeating the"
+    inlinetextbox "full contract here."
+link "Install Climier Install the Climier CLI and verify that it is ready to use." href="/docs/getting-started/install" [ref=4514]
+  paragraph [ref=4515]
+    statictext "Install the Climier CLI and verify that it is ready to use." [ref=4516]
+      inlinetextbox "Install the Climier CLI and verify that it is ready"
+      inlinetextbox "to use."
+link "Core workflow Move a ready task from inspection through claim, submission, and acceptance." href="/docs/getting-started/core-workflow" [ref=4517]
+  paragraph [ref=4518]
+    statictext "Move a ready task from inspection through claim, submission, and acceptance." [ref=4519]
+      inlinetextbox "Move a ready task from inspection through"
+      inlinetextbox "claim, submission, and acceptance."
+statictext "Quickstart" [ref=4520]
+  inlinetextbox "Quickstart"
+statictext "1. Initialize a project" [ref=4521]
+  inlinetextbox "1. Initialize a project"
+paragraph [ref=4522]
+  statictext "Install Climier" [ref=4523]
+    inlinetextbox "Install Climier"
+paragraph [ref=4524]
+  statictext "Core workflow" [ref=4525]
+    inlinetextbox "Core workflow"
+statictext "Copy Anchor Link" [ref=4526]
+  inlinetextbox "Copy Anchor Link"
+code [ref=4527]
+statictext "Copy Anchor Link" [ref=4528]
+  inlinetextbox "Copy Anchor Link"
+code [ref=4529]
+statictext "Copy Anchor Link" [ref=4530]
+  inlinetextbox "Copy Anchor Link"
+code [ref=4531]
+statictext "Copy Anchor Link" [ref=4532]
+  inlinetextbox "Copy Anchor Link"
+code [ref=4533]
+statictext "Copy Anchor Link" [ref=4534]
+  inlinetextbox "Copy Anchor Link"
+statictext "Copy Text" [ref=4535]
+  inlinetextbox "Copy Text"
+statictext "mkdir" [ref=4536]
+  inlinetextbox "mkdir"
+statictext "climier-demo" [ref=4537]
+  inlinetextbox "climier-demo"
+statictext "cd" [ref=4538]
+  inlinetextbox "cd"
+statictext "climier-demo" [ref=4539]
+  inlinetextbox "climier-demo"
+statictext "climier" [ref=4540]
+  inlinetextbox "climier"
+statictext "init" [ref=4541]
+  inlinetextbox "init"
+statictext "Copy Text" [ref=4542]
+  inlinetextbox "Copy Text"
+statictext "climier" [ref=4543]
+  inlinetextbox "climier"
+statictext "add-initiative" [ref=4544]
+  inlinetextbox "add-initiative"
+statictext "demo" [ref=4545]
+  inlinetextbox "demo"
+statictext "\\" [ref=4546]
+  inlinetextbox "\\"
+statictext "--desc" [ref=4547]
+  inlinetextbox "--desc"
+statictext "\"Learn the Climier workflow\"" [ref=4548]
+  inlinetextbox "\"Learn the Climier workflow\""
+statictext "\\" [ref=4549]
+  inlinetextbox "\\"
+statictext "--as" [ref=4550]
+  inlinetextbox "--as"
+statictext "alice" [ref=4551]
+  inlinetextbox "alice"
+statictext "Copy Text" [ref=4552]
+  inlinetextbox "Copy Text"
+statictext "climier" [ref=4553]
+  inlinetextbox "climier"
+statictext "add-task" [ref=4554]
+  inlinetextbox "add-task"
+statictext "T-example-1" [ref=4555]
+  inlinetextbox "T-example-1"
+statictext "\\" [ref=4556]
+  inlinetextbox "\\"
+statictext "--initiative" [ref=4557]
+  inlinetextbox "--initiative"
+statictext "demo" [ref=4558]
+  inlinetextbox "demo"
+statictext "\\" [ref=4559]
+  inlinetextbox "\\"
+statictext "--title" [ref=4560]
+  inlinetextbox "--title"
+statictext "\"Write the first task\"" [ref=4561]
+  inlinetextbox "\"Write the first task\""
+statictext "\\" [ref=4562]
+  inlinetextbox "\\"
+statictext "--body" [ref=4563]
+  inlinetextbox "--body"
+statictext "\"Complete the first piece of work in the demo project.\"" [ref=4564]
+  inlinetextbox "\"Complete the first piece of work in the demo project.\""
+statictext "\\" [ref=4565]
+  inlinetextbox "\\"
+statictext "--acceptance" [ref=4566]
+  inlinetextbox "--acceptance"
+statictext "\"The work is complete and its checks pass.\"" [ref=4567]
+  inlinetextbox "\"The work is complete and its checks pass.\""
+statictext "\\" [ref=4568]
+  inlinetextbox "\\"
+statictext "--blocked-by" [ref=4569]
+  inlinetextbox "--blocked-by"
+statictext "\"\"" [ref=4570]
+  inlinetextbox "\"\""
+statictext "\\" [ref=4571]
+  inlinetextbox "\\"
+statictext "--as" [ref=4572]
+  inlinetextbox "--as"
+statictext "alice" [ref=4573]
+  inlinetextbox "alice"
+statictext "Copy Text" [ref=4574]
+  inlinetextbox "Copy Text"
+statictext "climier" [ref=4575]
+  inlinetextbox "climier"
+statictext "status" [ref=4576]
+  inlinetextbox "status"
+statictext "climier" [ref=4577]
+  inlinetextbox "climier"
+statictext "context" [ref=4578]
+  inlinetextbox "context"
+statictext "T-example-1" [ref=4579]
+  inlinetextbox "T-example-1"

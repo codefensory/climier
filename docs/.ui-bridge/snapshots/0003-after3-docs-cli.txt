@@ -1,0 +1,2599 @@
+[p1 "Plugins V1 — Climier" | space "ui-review: docs"(379): 1 managed, 0 untracked — p1* "Plugins V1 — Climier"]
+rootwebarea "Plugins V1 — Climier" [ref=6192]
+generic [ref=6193]
+  generic [ref=6194]
+    complementary [ref=6195]
+      generic [ref=6196]
+  main [ref=6197]
+    article [ref=6198]
+      heading "Plugins V1" [ref=6199]
+        statictext "Plugins V1" [ref=6200]
+          inlinetextbox "Plugins V1"
+      paragraph [ref=6201]
+        statictext "Author, install, and verify a Climier Plugin API v1 plugin." [ref=6202]
+          inlinetextbox "Author, install, and verify a Climier Plugin API v1 plugin."
+  generic [ref=6203]
+    heading "On this page" [ref=6204]
+      statictext "On this page" [ref=6205]
+        inlinetextbox "On this page"
+    generic [ref=6206]
+      generic [ref=6207]
+        generic [ref=6208]
+          image [ref=6209]
+          generic [ref=6210]
+        link "1. The descriptor" href="#1-the-descriptor" [ref=6211]
+          image [ref=6212]
+          statictext "1. The descriptor" [ref=6213]
+            inlinetextbox "1. The descriptor"
+        link "2. The entrypoint" href="#2-the-entrypoint" [ref=6214]
+          image [ref=6215]
+          statictext "2. The entrypoint" [ref=6216]
+            inlinetextbox "2. The entrypoint"
+        link "Compiled binaries" href="#compiled-binaries" [ref=6217]
+          image [ref=6218]
+          statictext "Compiled binaries" [ref=6219]
+            inlinetextbox "Compiled binaries"
+        link "3. Plugin API v1 surface" href="#3-plugin-api-v1-surface" [ref=6220]
+          image [ref=6221]
+          statictext "3. Plugin API v1 surface" [ref=6222]
+            inlinetextbox "3. Plugin API v1 surface"
+        link "4. Persistence shape" href="#4-persistence-shape" [ref=6223]
+          image [ref=6224]
+          statictext "4. Persistence shape" [ref=6225]
+            inlinetextbox "4. Persistence shape"
+        link "5. Lifecycle: install / uninstall" href="#5-lifecycle-install--uninstall" [ref=6226]
+          image [ref=6227]
+          statictext "5. Lifecycle: install / uninstall" [ref=6228]
+            inlinetextbox "5. Lifecycle: install / uninstall"
+        link "6. Errors" href="#6-errors" [ref=6229]
+          image [ref=6230]
+          statictext "6. Errors" [ref=6231]
+            inlinetextbox "6. Errors"
+        link "7. Author's smoke" href="#7-authors-smoke" [ref=6232]
+          image [ref=6233]
+          statictext "7. Author's smoke" [ref=6234]
+            inlinetextbox "7. Author's smoke"
+        link "7.1 Foundation acceptance fixture" href="#71-foundation-acceptance-fixture" [ref=6235]
+          image [ref=6236]
+          statictext "7.1 Foundation acceptance fixture" [ref=6237]
+            inlinetextbox "7.1 Foundation acceptance fixture"
+        link "8. Limitations (V1, by design)" href="#8-limitations-v1-by-design" [ref=6238]
+          image [ref=6239]
+          statictext "8. Limitations (V1, by design)" [ref=6240]
+            inlinetextbox "8. Limitations (V1, by design)"
+        link "9. Policy plugins" href="#9-policy-plugins" [ref=6241]
+          image [ref=6242]
+          statictext "9. Policy plugins" [ref=6243]
+            inlinetextbox "9. Policy plugins"
+        link "9.1 Shape" href="#91-shape" [ref=6244]
+          image [ref=6245]
+          statictext "9.1 Shape" [ref=6246]
+            inlinetextbox "9.1 Shape"
+        link "9.2 Canonical actions" href="#92-canonical-actions" [ref=6247]
+          image [ref=6248]
+          statictext "9.2 Canonical actions" [ref=6249]
+            inlinetextbox "9.2 Canonical actions"
+        link "9.3 Discovery and selection" href="#93-discovery-and-selection" [ref=6250]
+          image [ref=6251]
+          statictext "9.3 Discovery and selection" [ref=6252]
+            inlinetextbox "9.3 Discovery and selection"
+        link "9.4 Authorisation under the lock" href="#94-authorisation-under-the-lock" [ref=6253]
+          image [ref=6254]
+          statictext "9.4 Authorisation under the lock" [ref=6255]
+            inlinetextbox "9.4 Authorisation under the lock"
+        link "9.5 Lifecycle and policy" href="#95-lifecycle-and-policy" [ref=6256]
+          image [ref=6257]
+          statictext "9.5 Lifecycle and policy" [ref=6258]
+            inlinetextbox "9.5 Lifecycle and policy"
+        link "9.6 Claim coordination (task.take / task.takeover)" href="#96-claim-coordination-tasktake--tasktakeover" [ref=6259]
+          image [ref=6260]
+          statictext "9.6 Claim coordination (task.take / task.takeover)" [ref=6261]
+            inlinetextbox "9.6 Claim coordination (task.take"
+            inlinetextbox "/ task.takeover)"
+        link "9.7 Errors" href="#97-errors" [ref=6262]
+          image [ref=6263]
+          statictext "9.7 Errors" [ref=6264]
+            inlinetextbox "9.7 Errors"
+        link "9.8 Out of scope (explicit non-goals)" href="#98-out-of-scope-explicit-non-goals" [ref=6265]
+          image [ref=6266]
+          statictext "9.8 Out of scope (explicit non-goals)" [ref=6267]
+            inlinetextbox "9.8 Out of scope (explicit non-"
+            inlinetextbox "goals)"
+link "Climier" href="/" [ref=6268]
+button "Collapse Sidebar" [ref=6269]
+button "Search Ctrl K" [ref=6270]
+  statictext "Search" [ref=6271]
+    inlinetextbox "Search"
+link "GitHub" href="https://github.com/codefensory/climier" [ref=6272, loc=href:https://github.com/codefensory/climier]
+  image [ref=6273]
+button "Toggle Theme" [ref=6274]
+statictext "Reference" [ref=6275]
+  inlinetextbox "Reference"
+paragraph [ref=6276]
+  statictext "How to author, install, and verify a Climier Plugin API v1 plugin." [ref=6277]
+    inlinetextbox "How to author, install, and verify a Climier Plugin API v1 plugin."
+paragraph [ref=6278]
+  statictext "This guide is the public reference for plugin authors. The compatibility contract is fixed by the public Plugin API v1 specification; implementation details live under" [ref=6279]
+    inlinetextbox "This guide is the public reference for plugin authors. The compatibility contract is fixed by the public Plugin API"
+    inlinetextbox "v1 specification; implementation details live under"
+  code [ref=6280]
+    statictext "src/plugins/" [ref=6281]
+      inlinetextbox "src/plugins/"
+  statictext "and are internal. The fastest way to see a working plugin is the fixture at" [ref=6282]
+    inlinetextbox "and are internal. The fastest way to see a"
+    inlinetextbox "working plugin is the fixture at"
+  code [ref=6283]
+    statictext "test/fixtures/sample-plugin/" [ref=6284]
+      inlinetextbox "test/fixtures/sample-plugin/"
+  statictext "and its smoke test" [ref=6285]
+    inlinetextbox "and its smoke test"
+  code [ref=6286]
+    statictext "test/plugin-integration.test.ts" [ref=6287]
+      inlinetextbox "test/plugin-"
+      inlinetextbox "integration.test.ts"
+  statictext "." [ref=6288]
+    inlinetextbox "."
+heading "1. The descriptor Copy Anchor Link" [ref=6289]
+  link "1. The descriptor" href="#1-the-descriptor" [ref=6290]
+    statictext "1. The descriptor" [ref=6291]
+      inlinetextbox "1. The descriptor"
+  button "Copy Anchor Link" [ref=6292]
+paragraph [ref=6293]
+  statictext "Every plugin declares its identity in its" [ref=6294]
+    inlinetextbox "Every plugin declares its identity in its"
+  code [ref=6295]
+    statictext "package.json" [ref=6296]
+      inlinetextbox "package.json"
+  statictext "under the" [ref=6297]
+    inlinetextbox "under the"
+  code [ref=6298]
+    statictext "climier" [ref=6299]
+      inlinetextbox "climier"
+  statictext "key:" [ref=6300]
+    inlinetextbox "key:"
+figure [ref=6301]
+  generic [ref=6302]
+    button "Copy Text" [ref=6303]
+  generic [ref=6304]
+generic [ref=6305]
+  table [ref=6306]
+    rowgroup [ref=6307]
+      row [ref=6308]
+        columnheader "Field" [ref=6309]
+          statictext "Field" [ref=6310]
+            inlinetextbox "Field"
+        columnheader "Meaning" [ref=6311]
+          statictext "Meaning" [ref=6312]
+            inlinetextbox "Meaning"
+paragraph [ref=6313]
+  statictext "The npm package name (" [ref=6314]
+    inlinetextbox "The npm package name ("
+  code [ref=6315]
+    statictext "package.json#name" [ref=6316]
+      inlinetextbox "package.json#name"
+  statictext ") is only the install source; it does not identify data and does not drive" [ref=6317]
+    inlinetextbox ") is only the install source; it does not identify data and does not"
+    inlinetextbox "drive"
+  code [ref=6318]
+    statictext "uninstall" [ref=6319]
+      inlinetextbox "uninstall"
+  statictext "." [ref=6320]
+    inlinetextbox "."
+heading "2. The entrypoint Copy Anchor Link" [ref=6321]
+  link "2. The entrypoint" href="#2-the-entrypoint" [ref=6322]
+    statictext "2. The entrypoint" [ref=6323]
+      inlinetextbox "2. The entrypoint"
+  button "Copy Anchor Link" [ref=6324]
+paragraph [ref=6325]
+  code [ref=6326]
+    statictext "entry" [ref=6327]
+      inlinetextbox "entry"
+  statictext "is loaded as an ESM module. The default export must be an object whose" [ref=6328]
+    inlinetextbox "is loaded as an ESM module. The default export must be an object whose"
+  code [ref=6329]
+    statictext "commands" [ref=6330]
+      inlinetextbox "commands"
+  statictext "field is an object of named handlers:" [ref=6331]
+    inlinetextbox "field is an object of"
+    inlinetextbox "named handlers:"
+figure [ref=6332]
+  generic [ref=6333]
+    button "Copy Text" [ref=6334]
+  generic [ref=6335]
+paragraph [ref=6336]
+  statictext "An optional" [ref=6337]
+    inlinetextbox "An optional"
+  code [ref=6338]
+    statictext "default.policy" [ref=6339]
+      inlinetextbox "default.policy"
+  statictext "field adds a policy plugin; see §9 for the contract." [ref=6340]
+    inlinetextbox "field adds a policy plugin; see §9 for the contract."
+  code [ref=6341]
+    statictext "commands" [ref=6342]
+      inlinetextbox "commands"
+  statictext "and" [ref=6343]
+    inlinetextbox "and"
+  code [ref=6344]
+    statictext "policy" [ref=6345]
+      inlinetextbox "policy"
+  statictext "are independent: a plugin may ship both, only one of them, or neither —" [ref=6346]
+    inlinetextbox "are"
+    inlinetextbox "independent: a plugin may ship both, only one of them, or neither —"
+  code [ref=6347]
+    statictext "importEntry" [ref=6348]
+      inlinetextbox "importEntry"
+  statictext "rejects a shape that mixes the two incorrectly." [ref=6349]
+    inlinetextbox "rejects a shape that mixes"
+    inlinetextbox "the two incorrectly."
+heading "Compiled binaries Copy Anchor Link" [ref=6350]
+  link "Compiled binaries" href="#compiled-binaries" [ref=6351]
+    statictext "Compiled binaries" [ref=6352]
+      inlinetextbox "Compiled binaries"
+  button "Copy Anchor Link" [ref=6353]
+paragraph [ref=6354]
+  statictext "The compiled" [ref=6355]
+    inlinetextbox "The compiled"
+  code [ref=6356]
+    statictext "climier" [ref=6357]
+      inlinetextbox "climier"
+  statictext "binary also loads installed plugin entrypoints from the filesystem." [ref=6358]
+    inlinetextbox "binary also loads installed plugin entrypoints from the filesystem."
+  code [ref=6359]
+    statictext "bun build --compile" [ref=6360]
+      inlinetextbox "bun build --compile"
+  statictext "embeds the host modules, but it does not embed anything under" [ref=6361]
+    inlinetextbox "embeds the host modules, but it does not embed anything under"
+  code [ref=6362]
+    statictext "$CLIMIER_HOME/plugins/installed" [ref=6363]
+      inlinetextbox "$CLIMIER_HOME/plugins/installed"
+  statictext "; the loader resolves the descriptor entry relative to its installed plugin directory and imports it as a runtime" [ref=6364]
+    inlinetextbox "; the"
+    inlinetextbox "loader resolves the descriptor entry relative to its installed plugin directory and imports it as a runtime"
+  code [ref=6365]
+    statictext "file:" [ref=6366]
+      inlinetextbox "file:"
+  statictext "URL. An installed" [ref=6367]
+    inlinetextbox "URL. An installed"
+  code [ref=6368]
+    statictext ".mjs" [ref=6369]
+      inlinetextbox ".mjs"
+  statictext "plugin therefore works without being present when the binary is built. The binary smoke test exercises this path for each release target in CI." [ref=6370]
+    inlinetextbox "plugin therefore works without being present when the binary is built. The binary smoke"
+    inlinetextbox "test exercises this path for each release target in CI."
+paragraph [ref=6371]
+  statictext "If a target-specific Bun runtime cannot load an external entrypoint, use the source launcher as a fallback with the same plugin home:" [ref=6372]
+    inlinetextbox "If a target-specific Bun runtime cannot load an external entrypoint, use the source launcher as a fallback with"
+    inlinetextbox "the same plugin home:"
+figure [ref=6373]
+  generic [ref=6374]
+    button "Copy Text" [ref=6375]
+  generic [ref=6376]
+paragraph [ref=6377]
+  statictext "A failed load returns" [ref=6378]
+    inlinetextbox "A failed load returns"
+  code [ref=6379]
+    statictext "PLUGIN_LOAD_FAILED" [ref=6380]
+      inlinetextbox "PLUGIN_LOAD_FAILED"
+  statictext "; its details include the absolute" [ref=6381]
+    inlinetextbox "; its details include the absolute"
+  code [ref=6382]
+    statictext "entry" [ref=6383]
+      inlinetextbox "entry"
+  statictext ", the" [ref=6384]
+    inlinetextbox ", the"
+  code [ref=6385]
+    statictext "entry_url" [ref=6386]
+      inlinetextbox "entry_url"
+  statictext ", and the underlying" [ref=6387]
+    inlinetextbox ", and the"
+    inlinetextbox "underlying"
+  code [ref=6388]
+    statictext "cause" [ref=6389]
+      inlinetextbox "cause"
+  statictext ", so a missing file or invalid ESM entrypoint can be corrected without guessing which plugin was read." [ref=6390]
+    inlinetextbox ", so a missing file or invalid ESM entrypoint can be corrected without guessing which plugin"
+    inlinetextbox "was read."
+paragraph [ref=6391]
+  statictext "Each handler receives:" [ref=6392]
+    inlinetextbox "Each handler receives:"
+list [ref=6393]
+  listitem [ref=6394]
+    listmarker "•" [ref=6395]
+    code [ref=6396]
+      statictext "args" [ref=6397]
+        inlinetextbox "args"
+    statictext ": an array of strings — the original CLI tokens with the namespace and subcommand removed, in their original order. Flags are still present in the array; the plugin parses them itself." [ref=6398]
+      inlinetextbox ": an array of strings — the original CLI tokens with the namespace and subcommand removed, in their"
+      inlinetextbox "original order. Flags are still present in the array; the plugin parses them itself."
+  listitem [ref=6399]
+    listmarker "•" [ref=6400]
+    code [ref=6401]
+      statictext "api" [ref=6402]
+        inlinetextbox "api"
+    statictext ": the Plugin API v1 host surface (see §3)." [ref=6403]
+      inlinetextbox ": the Plugin API v1 host surface (see §3)."
+paragraph [ref=6404]
+  statictext "The handler's return value is serialised to stdout as JSON. Thrown errors are wrapped into the structured envelope (see §6)." [ref=6405]
+    inlinetextbox "The handler's return value is serialised to stdout as JSON. Thrown errors are wrapped into the structured"
+    inlinetextbox "envelope (see §6)."
+heading "3. Plugin API v1 surface Copy Anchor Link" [ref=6406]
+  link "3. Plugin API v1 surface" href="#3-plugin-api-v1-surface" [ref=6407]
+    statictext "3. Plugin API v1 surface" [ref=6408]
+      inlinetextbox "3. Plugin API v1 surface"
+  button "Copy Anchor Link" [ref=6409]
+paragraph [ref=6410]
+  statictext "The public Plugin API v1 specification defines the public surface. The host guarantees" [ref=6411]
+    inlinetextbox "The public Plugin API v1 specification defines the public surface. The host guarantees"
+  code [ref=6412]
+    statictext "api.version === 1" [ref=6413]
+      inlinetextbox "api.version === 1"
+  statictext "and exposes only the following namespaces:" [ref=6414]
+    inlinetextbox "and"
+    inlinetextbox "exposes only the following namespaces:"
+figure [ref=6415]
+  generic [ref=6416]
+    button "Copy Text" [ref=6417]
+  generic [ref=6418]
+paragraph [ref=6419]
+  code [ref=6420]
+    statictext "api.*" [ref=6421]
+      inlinetextbox "api.*"
+  statictext "is the stable public plugin contract. Modules under" [ref=6422]
+    inlinetextbox "is the stable public plugin contract. Modules under"
+  code [ref=6423]
+    statictext "src/**" [ref=6424]
+      inlinetextbox "src/**"
+  statictext ", including" [ref=6425]
+    inlinetextbox ", including"
+  code [ref=6426]
+    statictext "src/plugins/**" [ref=6427]
+      inlinetextbox "src/plugins/**"
+  statictext ", are host internals: plugins must not import them, rely on their file layout, or treat their exports as public API." [ref=6428]
+    inlinetextbox ", are host"
+    inlinetextbox "internals: plugins must not import them, rely on their file layout, or treat their exports as public API."
+paragraph [ref=6429]
+  statictext "Identity rules:" [ref=6430]
+    inlinetextbox "Identity rules:"
+list [ref=6431]
+  listitem [ref=6432]
+    listmarker "•" [ref=6433]
+    code [ref=6434]
+      statictext "api.runtime.project_dir" [ref=6435]
+        inlinetextbox "api.runtime.project_dir"
+    statictext "is the effective project root. It is the first occurrence of" [ref=6436]
+      inlinetextbox "is the effective project root. It is the first occurrence of"
+    code [ref=6437]
+      statictext "--project" [ref=6438]
+        inlinetextbox "--project"
+    statictext "in argv, or" [ref=6439]
+      inlinetextbox "in argv, or"
+    code [ref=6440]
+      statictext "process.cwd()" [ref=6441]
+        inlinetextbox "process.cwd()"
+    statictext "when" [ref=6442]
+      inlinetextbox "when"
+    code [ref=6443]
+      statictext "--project" [ref=6444]
+        inlinetextbox "--project"
+    statictext "is missing." [ref=6445]
+      inlinetextbox "is missing."
+  listitem [ref=6446]
+    listmarker "•" [ref=6447]
+    code [ref=6448]
+      statictext "api.runtime.agent" [ref=6449]
+        inlinetextbox "api.runtime.agent"
+    statictext "is the first occurrence of" [ref=6450]
+      inlinetextbox "is the first occurrence of"
+    code [ref=6451]
+      statictext "--as" [ref=6452]
+        inlinetextbox "--as"
+    statictext ", or" [ref=6453]
+      inlinetextbox ", or"
+    code [ref=6454]
+      statictext "CLIMIER_AGENT" [ref=6455]
+        inlinetextbox "CLIMIER_AGENT"
+    statictext "from the environment, or the empty string. Empty is permitted at the surface level, but" [ref=6456]
+      inlinetextbox "from the environment, or the empty"
+      inlinetextbox "string. Empty is permitted at the surface level, but"
+    code [ref=6457]
+      statictext "data.*.set" [ref=6458]
+        inlinetextbox "data.*.set"
+    statictext "rejects it with" [ref=6459]
+      inlinetextbox "rejects it with"
+    code [ref=6460]
+      statictext "PLUGIN_HANDLER_FAILED" [ref=6461]
+        inlinetextbox "PLUGIN_HANDLER_FAILED"
+    statictext "(cause: \"agent required ...\")." [ref=6462]
+      inlinetextbox "(cause:"
+      inlinetextbox "\"agent required ...\")."
+  listitem [ref=6463]
+    listmarker "•" [ref=6464]
+    statictext "Handlers still receive every forwarded token in" [ref=6465]
+      inlinetextbox "Handlers still receive every forwarded token in"
+    code [ref=6466]
+      statictext "args" [ref=6467]
+        inlinetextbox "args"
+    statictext ", including any" [ref=6468]
+      inlinetextbox ", including any"
+    code [ref=6469]
+      statictext "--project" [ref=6470]
+        inlinetextbox "--project"
+    statictext "/" [ref=6471]
+      inlinetextbox "/"
+    code [ref=6472]
+      statictext "--as" [ref=6473]
+        inlinetextbox "--as"
+    statictext "flags the caller placed before or after the namespace. The host ignores those duplicates for runtime resolution;" [ref=6474]
+      inlinetextbox "flags the caller placed"
+      inlinetextbox "before or after the namespace. The host ignores those duplicates for runtime resolution;"
+    code [ref=6475]
+      statictext "api.runtime" [ref=6476]
+        inlinetextbox "api.runtime"
+    statictext "is authoritative." [ref=6477]
+      inlinetextbox "is"
+      inlinetextbox "authoritative."
+heading "4. Persistence shape Copy Anchor Link" [ref=6478]
+  link "4. Persistence shape" href="#4-persistence-shape" [ref=6479]
+    statictext "4. Persistence shape" [ref=6480]
+      inlinetextbox "4. Persistence shape"
+  button "Copy Anchor Link" [ref=6481]
+paragraph [ref=6482]
+  statictext "Plugin data lives in two optional, additive fields of the persisted state:" [ref=6483]
+    inlinetextbox "Plugin data lives in two optional, additive fields of the persisted state:"
+figure [ref=6484]
+  generic [ref=6485]
+    button "Copy Text" [ref=6486]
+  generic [ref=6487]
+list [ref=6488]
+  listitem [ref=6489]
+    listmarker "•" [ref=6490]
+    code [ref=6491]
+      statictext "plugins[<id>].data" [ref=6492]
+        inlinetextbox "plugins[<id>].data"
+    statictext "is the project-wide keyspace for the plugin." [ref=6493]
+      inlinetextbox "is the project-wide keyspace for the plugin."
+  listitem [ref=6494]
+    listmarker "•" [ref=6495]
+    code [ref=6496]
+      statictext "nodes[<id>].plugins[<id>].data" [ref=6497]
+        inlinetextbox "nodes[<id>].plugins[<id>].data"
+    statictext "is the per-node keyspace." [ref=6498]
+      inlinetextbox "is the per-node keyspace."
+  listitem [ref=6499]
+    listmarker "•" [ref=6500]
+    statictext "The two keyspaces (root" [ref=6501]
+      inlinetextbox "The two keyspaces (root"
+    code [ref=6502]
+      statictext "plugins" [ref=6503]
+        inlinetextbox "plugins"
+    statictext ", node-level" [ref=6504]
+      inlinetextbox ", node-level"
+    code [ref=6505]
+      statictext "plugins" [ref=6506]
+        inlinetextbox "plugins"
+    statictext ", plus node" [ref=6507]
+      inlinetextbox ", plus node"
+    code [ref=6508]
+      statictext "meta" [ref=6509]
+        inlinetextbox "meta"
+    statictext ") are disjoint." [ref=6510]
+      inlinetextbox ") are disjoint."
+    code [ref=6511]
+      statictext "data.*.set" [ref=6512]
+        inlinetextbox "data.*.set"
+    statictext "takes the project lock, modifies only the calling plugin's slice, and preserves every other slice." [ref=6513]
+      inlinetextbox "takes the"
+      inlinetextbox "project lock, modifies only the calling plugin's slice, and preserves every other slice."
+  listitem [ref=6514]
+    listmarker "•" [ref=6515]
+    code [ref=6516]
+      statictext "uninstall <id>" [ref=6517]
+        inlinetextbox "uninstall <id>"
+    statictext "removes the installed directory but does NOT purge data — reinstall restores the same surface." [ref=6518]
+      inlinetextbox "removes the installed directory but does NOT purge data — reinstall restores the same"
+      inlinetextbox "surface."
+  listitem [ref=6519]
+    listmarker "•" [ref=6520]
+    statictext "The DAG does not derive semantics from these fields; the host preserves them through every mutator, snapshot, and restore." [ref=6521]
+      inlinetextbox "The DAG does not derive semantics from these fields; the host preserves them through every mutator,"
+      inlinetextbox "snapshot, and restore."
+heading "5. Lifecycle: install / uninstall Copy Anchor Link" [ref=6522]
+  link "5. Lifecycle: install / uninstall" href="#5-lifecycle-install--uninstall" [ref=6523]
+    statictext "5. Lifecycle: install / uninstall" [ref=6524]
+      inlinetextbox "5. Lifecycle: install / uninstall"
+  button "Copy Anchor Link" [ref=6525]
+figure [ref=6526]
+  generic [ref=6527]
+    button "Copy Text" [ref=6528]
+  generic [ref=6529]
+paragraph [ref=6530]
+  statictext "Install takes a global lock at" [ref=6531]
+    inlinetextbox "Install takes a global lock at"
+  code [ref=6532]
+    statictext "$CLIMIER_HOME/plugins/.lock" [ref=6533]
+      inlinetextbox "$CLIMIER_HOME/plugins/.lock"
+  statictext ", runs" [ref=6534]
+    inlinetextbox ", runs"
+  code [ref=6535]
+    statictext "npm install --prefix <staging> <source>" [ref=6536]
+      inlinetextbox "npm install --prefix <staging> <source>"
+  statictext ", validates the descriptor, imports the entrypoint, and promotes the staging directory to" [ref=6537]
+    inlinetextbox ","
+    inlinetextbox "validates the descriptor, imports the entrypoint, and promotes the staging directory to"
+  code [ref=6538]
+    statictext "installed/<id>" [ref=6539]
+      inlinetextbox "installed/<id>"
+  statictext "via an atomic rename. Uninstall removes" [ref=6540]
+    inlinetextbox "via an"
+    inlinetextbox "atomic rename. Uninstall removes"
+  code [ref=6541]
+    statictext "installed/<id>" [ref=6542]
+      inlinetextbox "installed/<id>"
+  statictext "under the same lock." [ref=6543]
+    inlinetextbox "under the same lock."
+paragraph [ref=6544]
+  statictext "There is no central registry or manifest. Each" [ref=6545]
+    inlinetextbox "There is no central registry or manifest. Each"
+  code [ref=6546]
+    statictext "installed/<id>/" [ref=6547]
+      inlinetextbox "installed/<id>/"
+  statictext "directory contains its own" [ref=6548]
+    inlinetextbox "directory contains its own"
+  code [ref=6549]
+    statictext "node_modules" [ref=6550]
+      inlinetextbox "node_modules"
+  statictext "," [ref=6551]
+    inlinetextbox ","
+  code [ref=6552]
+    statictext "package.json" [ref=6553]
+      inlinetextbox "package.json"
+  statictext ", and entrypoint. The plugin list is derived from the directory contents." [ref=6554]
+    inlinetextbox ", and entrypoint. The plugin list is derived from the directory contents."
+heading "6. Errors Copy Anchor Link" [ref=6555]
+  link "6. Errors" href="#6-errors" [ref=6556]
+    statictext "6. Errors" [ref=6557]
+      inlinetextbox "6. Errors"
+  button "Copy Anchor Link" [ref=6558]
+paragraph [ref=6559]
+  statictext "Plugin errors use the structured envelope that core v2 commands already emit:" [ref=6560]
+    inlinetextbox "Plugin errors use the structured envelope that core v2 commands already emit:"
+figure [ref=6561]
+  generic [ref=6562]
+    button "Copy Text" [ref=6563]
+  generic [ref=6564]
+paragraph [ref=6565]
+  statictext "with exit code 1." [ref=6566]
+    inlinetextbox "with exit code 1."
+generic [ref=6567]
+  table [ref=6568]
+    rowgroup [ref=6569]
+      row [ref=6570]
+        columnheader "Code" [ref=6571]
+          statictext "Code" [ref=6572]
+            inlinetextbox "Code"
+        columnheader "When" [ref=6573]
+          statictext "When" [ref=6574]
+            inlinetextbox "When"
+paragraph [ref=6575]
+  statictext "If a handler throws an error that already has" [ref=6576]
+    inlinetextbox "If a handler throws an error that already has"
+  code [ref=6577]
+    statictext "code: \"PLUGIN_*\"" [ref=6578]
+      inlinetextbox "code: \"PLUGIN_*\""
+  statictext "and a" [ref=6579]
+    inlinetextbox "and a"
+  code [ref=6580]
+    statictext "details" [ref=6581]
+      inlinetextbox "details"
+  statictext "object, the host propagates it without rewrapping. A handler that wants a custom PLUGIN envelope can attach" [ref=6582]
+    inlinetextbox "object, the host propagates it"
+    inlinetextbox "without rewrapping. A handler that wants a custom PLUGIN envelope can attach"
+  code [ref=6583]
+    statictext "code" [ref=6584]
+      inlinetextbox "code"
+  statictext "and" [ref=6585]
+    inlinetextbox "and"
+  code [ref=6586]
+    statictext "details" [ref=6587]
+      inlinetextbox "details"
+  statictext "to its own" [ref=6588]
+    inlinetextbox "to its own"
+  code [ref=6589]
+    statictext "Error" [ref=6590]
+      inlinetextbox "Error"
+  statictext "." [ref=6591]
+    inlinetextbox "."
+heading "7. Author's smoke Copy Anchor Link" [ref=6592]
+  link "7. Author's smoke" href="#7-authors-smoke" [ref=6593]
+    statictext "7. Author's smoke" [ref=6594]
+      inlinetextbox "7. Author's smoke"
+  button "Copy Anchor Link" [ref=6595]
+paragraph [ref=6596]
+  statictext "Before publishing a plugin, run this smoke against a local copy:" [ref=6597]
+    inlinetextbox "Before publishing a plugin, run this smoke against a local copy:"
+list [ref=6598]
+  listitem [ref=6599]
+    listmarker "1." [ref=6600]
+    statictext "Pick a project (" [ref=6601]
+      inlinetextbox "Pick a project ("
+    code [ref=6602]
+      statictext "/tmp/smoke" [ref=6603]
+        inlinetextbox "/tmp/smoke"
+    statictext "), initialise it, and seed a task:" [ref=6604]
+      inlinetextbox "), initialise it, and seed a task:"
+    figure [ref=6605]
+      generic [ref=6606]
+        button "Copy Text" [ref=6607]
+      generic [ref=6608]
+  listitem [ref=6609]
+    listmarker "2." [ref=6610]
+    statictext "Install your plugin from its directory:" [ref=6611]
+      inlinetextbox "Install your plugin from its directory:"
+    figure [ref=6612]
+      generic [ref=6613]
+        button "Copy Text" [ref=6614]
+      generic [ref=6615]
+  listitem [ref=6616]
+    listmarker "3." [ref=6617]
+    statictext "Run each subcommand with" [ref=6618]
+      inlinetextbox "Run each subcommand with"
+    code [ref=6619]
+      statictext "--project" [ref=6620]
+        inlinetextbox "--project"
+    statictext "/" [ref=6621]
+      inlinetextbox "/"
+    code [ref=6622]
+      statictext "--as" [ref=6623]
+        inlinetextbox "--as"
+    statictext "placed in different orders; confirm" [ref=6624]
+      inlinetextbox "placed in different orders; confirm"
+    code [ref=6625]
+      statictext "api.runtime.project_dir" [ref=6626]
+        inlinetextbox "api.runtime.project_dir"
+    statictext "and" [ref=6627]
+      inlinetextbox "and"
+    code [ref=6628]
+      statictext "api.runtime.agent" [ref=6629]
+        inlinetextbox "api.runtime.agent"
+    statictext "carry the effective values regardless of position, and that the forwarded argv preserves the original token order with the namespace + subcommand stripped." [ref=6630]
+      inlinetextbox "carry the effective values regardless of position, and"
+      inlinetextbox "that the forwarded argv preserves the original token order with the namespace + subcommand stripped."
+  listitem [ref=6631]
+    listmarker "4." [ref=6632]
+    statictext "Call" [ref=6633]
+      inlinetextbox "Call"
+    code [ref=6634]
+      statictext "api.data.node.set" [ref=6635]
+        inlinetextbox "api.data.node.set"
+    statictext "and" [ref=6636]
+      inlinetextbox "and"
+    code [ref=6637]
+      statictext "api.data.project.set" [ref=6638]
+        inlinetextbox "api.data.project.set"
+    statictext ", then read back. Verify the persisted state:" [ref=6639]
+      inlinetextbox ", then read back. Verify the persisted state:"
+    list [ref=6640]
+      listitem [ref=6641]
+        listmarker "•" [ref=6642]
+        code [ref=6643]
+          statictext "nodes[<id>].plugins[<your.id>].data" [ref=6644]
+            inlinetextbox "nodes[<id>].plugins[<your.id>].data"
+        statictext "is set;" [ref=6645]
+          inlinetextbox "is set;"
+      listitem [ref=6646]
+        listmarker "•" [ref=6647]
+        code [ref=6648]
+          statictext "plugins[<your.id>].data" [ref=6649]
+            inlinetextbox "plugins[<your.id>].data"
+        statictext "is set;" [ref=6650]
+          inlinetextbox "is set;"
+      listitem [ref=6651]
+        listmarker "•" [ref=6652]
+        code [ref=6653]
+          statictext "log" [ref=6654]
+            inlinetextbox "log"
+        statictext "has entries with" [ref=6655]
+          inlinetextbox "has entries with"
+        code [ref=6656]
+          statictext "action: \"plugin-data-set\"" [ref=6657]
+            inlinetextbox "action: \"plugin-data-set\""
+        statictext "," [ref=6658]
+          inlinetextbox ","
+        code [ref=6659]
+          statictext "plugin_id" [ref=6660]
+            inlinetextbox "plugin_id"
+        statictext "," [ref=6661]
+          inlinetextbox ","
+        code [ref=6662]
+          statictext "scope" [ref=6663]
+            inlinetextbox "scope"
+        statictext ", and" [ref=6664]
+          inlinetextbox ", and"
+        code [ref=6665]
+          statictext "node_id" [ref=6666]
+            inlinetextbox "node_id"
+        statictext "/" [ref=6667]
+          inlinetextbox "/"
+        code [ref=6668]
+          statictext "key" [ref=6669]
+            inlinetextbox "key"
+        statictext "— but no" [ref=6670]
+          inlinetextbox "— but no"
+        code [ref=6671]
+          statictext "value" [ref=6672]
+            inlinetextbox "value"
+        statictext "field." [ref=6673]
+          inlinetextbox "field."
+  listitem [ref=6674]
+    listmarker "5." [ref=6675]
+    statictext "Verify secret safety: any string in your test value must NOT appear in any log entry's serialized form." [ref=6676]
+      inlinetextbox "Verify secret safety: any string in your test value must NOT appear in any log entry's serialized form."
+  listitem [ref=6677]
+    listmarker "6." [ref=6678]
+    statictext "Uninstall, reinstall, and re-read: the values persist across reinstall because" [ref=6679]
+      inlinetextbox "Uninstall, reinstall, and re-read: the values persist across reinstall because"
+    code [ref=6680]
+      statictext "uninstall" [ref=6681]
+        inlinetextbox "uninstall"
+    statictext "does not purge data." [ref=6682]
+      inlinetextbox "does not purge data."
+  listitem [ref=6683]
+    listmarker "7." [ref=6684]
+    statictext "Uninstall a second time after reinstall; the no-op removal still returns" [ref=6685]
+      inlinetextbox "Uninstall a second time after reinstall; the no-op removal still returns"
+    code [ref=6686]
+      statictext "uninstalled: true" [ref=6687]
+        inlinetextbox "uninstalled: true"
+    statictext "." [ref=6688]
+      inlinetextbox "."
+paragraph [ref=6689]
+  statictext "The smoke is automated in" [ref=6690]
+    inlinetextbox "The smoke is automated in"
+  code [ref=6691]
+    statictext "test/plugin-integration.test.ts" [ref=6692]
+      inlinetextbox "test/plugin-integration.test.ts"
+  statictext ". Use the fixture at" [ref=6693]
+    inlinetextbox ". Use the fixture at"
+  code [ref=6694]
+    statictext "test/fixtures/sample-plugin/" [ref=6695]
+      inlinetextbox "test/fixtures/sample-"
+      inlinetextbox "plugin/"
+  statictext "as a template for your own descriptor and entrypoint." [ref=6696]
+    inlinetextbox "as a template for your own descriptor and entrypoint."
+heading "7.1 Foundation acceptance fixture Copy Anchor Link" [ref=6697]
+  link "7.1 Foundation acceptance fixture" href="#71-foundation-acceptance-fixture" [ref=6698]
+    statictext "7.1 Foundation acceptance fixture" [ref=6699]
+      inlinetextbox "7.1 Foundation acceptance fixture"
+  button "Copy Anchor Link" [ref=6700]
+paragraph [ref=6701]
+  code [ref=6702]
+    statictext "test/fixtures/plugin-foundation/" [ref=6703]
+      inlinetextbox "test/fixtures/plugin-foundation/"
+  statictext "is the end-to-end public-contract fixture. Its entrypoint imports only Node standard-library modules and exercises the surface exclusively through" [ref=6704]
+    inlinetextbox "is the end-to-end public-contract fixture. Its entrypoint imports only"
+    inlinetextbox "Node standard-library modules and exercises the surface exclusively through"
+  code [ref=6705]
+    statictext "api.*" [ref=6706]
+      inlinetextbox "api.*"
+  statictext "; it must not import" [ref=6707]
+    inlinetextbox "; it must not import"
+  code [ref=6708]
+    statictext "src/**" [ref=6709]
+      inlinetextbox "src/**"
+  statictext "internals." [ref=6710]
+    inlinetextbox "internals."
+  code [ref=6711]
+    statictext "test/plugin-foundation-acceptance.test.ts" [ref=6712]
+      inlinetextbox "test/plugin-foundation-acceptance.test.ts"
+  statictext "verifies the complete shell and plugin flow:" [ref=6713]
+    inlinetextbox "verifies the complete shell and plugin flow:"
+list [ref=6714]
+  listitem [ref=6715]
+    listmarker "•" [ref=6716]
+    code [ref=6717]
+      statictext "foundation snapshot" [ref=6718]
+        inlinetextbox "foundation snapshot"
+    statictext "checks one coherent, deterministic snapshot and confirms that only the caller's plugin namespace is visible;" [ref=6719]
+      inlinetextbox "checks one coherent, deterministic snapshot and confirms that only the caller's plugin"
+      inlinetextbox "namespace is visible;"
+  listitem [ref=6720]
+    listmarker "•" [ref=6721]
+    code [ref=6722]
+      statictext "data-set" [ref=6723]
+        inlinetextbox "data-set"
+    statictext "," [ref=6724]
+      inlinetextbox ","
+    code [ref=6725]
+      statictext "data-get" [ref=6726]
+        inlinetextbox "data-get"
+    statictext ", and" [ref=6727]
+      inlinetextbox ", and"
+    code [ref=6728]
+      statictext "data-delete" [ref=6729]
+        inlinetextbox "data-delete"
+    statictext "cover JSON values, namespaced persistence, and idempotent deletion; logs remain redacted;" [ref=6730]
+      inlinetextbox "cover JSON values, namespaced persistence, and idempotent"
+      inlinetextbox "deletion; logs remain redacted;"
+  listitem [ref=6731]
+    listmarker "•" [ref=6732]
+    code [ref=6733]
+      statictext "runtime-write" [ref=6734]
+        inlinetextbox "runtime-write"
+    statictext "followed by" [ref=6735]
+      inlinetextbox "followed by"
+    code [ref=6736]
+      statictext "runtime-read" [ref=6737]
+        inlinetextbox "runtime-read"
+    statictext "proves the plugin-owned" [ref=6738]
+      inlinetextbox "proves the plugin-owned"
+    code [ref=6739]
+      statictext "api.runtime.dataDir" [ref=6740]
+        inlinetextbox "api.runtime.dataDir"
+    statictext "survives a fresh CLI process;" [ref=6741]
+      inlinetextbox "survives a fresh"
+      inlinetextbox "CLI process;"
+  listitem [ref=6742]
+    listmarker "•" [ref=6743]
+    code [ref=6744]
+      statictext "repair" [ref=6745]
+        inlinetextbox "repair"
+    statictext "," [ref=6746]
+      inlinetextbox ","
+    code [ref=6747]
+      statictext "rollback" [ref=6748]
+        inlinetextbox "rollback"
+    statictext ", and" [ref=6749]
+      inlinetextbox ", and"
+    code [ref=6750]
+      statictext "cas" [ref=6751]
+        inlinetextbox "cas"
+    statictext "cover atomic batch repair, rollback and stale revision rejection;" [ref=6752]
+      inlinetextbox "cover atomic batch repair, rollback and stale revision rejection;"
+    code [ref=6753]
+      statictext "api-cycle" [ref=6754]
+        inlinetextbox "api-cycle"
+    statictext "and" [ref=6755]
+      inlinetextbox "and"
+    code [ref=6756]
+      statictext "batch-cycle" [ref=6757]
+        inlinetextbox "batch-cycle"
+    statictext "preserve DAG cycle protection through the API; a core" [ref=6758]
+      inlinetextbox "preserve DAG cycle protection through the API; a core"
+    code [ref=6759]
+      statictext "add-edge" [ref=6760]
+        inlinetextbox "add-edge"
+    statictext "call covers the CLI path;" [ref=6761]
+      inlinetextbox "call covers the CLI path;"
+  listitem [ref=6762]
+    listmarker "•" [ref=6763]
+    statictext "the same test drives" [ref=6764]
+      inlinetextbox "the same test drives"
+    code [ref=6765]
+      statictext "state -> batch -> state" [ref=6766]
+        inlinetextbox "state -> batch -> state"
+    statictext ", using the state revision for a shell CAS." [ref=6767]
+      inlinetextbox ", using the state revision for a shell CAS."
+paragraph [ref=6768]
+  code [ref=6769]
+    statictext "test/plugin-foundation-concurrency.test.ts" [ref=6770]
+      inlinetextbox "test/plugin-foundation-concurrency.test.ts"
+  statictext "fans out independent" [ref=6771]
+    inlinetextbox "fans out independent"
+  code [ref=6772]
+    statictext "api.data.project.set" [ref=6773]
+      inlinetextbox "api.data.project.set"
+  statictext "calls through real CLI child processes and verifies that no project key or plugin attribution is lost. Run the focused checks with:" [ref=6774]
+    inlinetextbox "calls through real"
+    inlinetextbox "CLI child processes and verifies that no project key or plugin attribution is lost. Run the focused checks with:"
+figure [ref=6775]
+  generic [ref=6776]
+    button "Copy Text" [ref=6777]
+  generic [ref=6778]
+paragraph [ref=6779]
+  statictext "or use" [ref=6780]
+    inlinetextbox "or use"
+  code [ref=6781]
+    statictext "npm test" [ref=6782]
+      inlinetextbox "npm test"
+  statictext "for the full core suite." [ref=6783]
+    inlinetextbox "for the full core suite."
+heading "8. Limitations (V1, by design) Copy Anchor Link" [ref=6784]
+  link "8. Limitations (V1, by design)" href="#8-limitations-v1-by-design" [ref=6785]
+    statictext "8. Limitations (V1, by design)" [ref=6786]
+      inlinetextbox "8. Limitations (V1, by design)"
+  button "Copy Anchor Link" [ref=6787]
+list [ref=6788]
+  listitem [ref=6789]
+    listmarker "•" [ref=6790]
+    statictext "No hooks, events, execution orchestration, UI, permissions, secrets, or DAG/lifecycle semantics. A real need for any of these promotes" [ref=6791]
+      inlinetextbox "No hooks, events, execution orchestration, UI, permissions, secrets, or DAG/lifecycle semantics. A real need for"
+      inlinetextbox "any of these promotes"
+    code [ref=6792]
+      statictext "T-example-plugin-backlog" [ref=6793]
+        inlinetextbox "T-example-plugin-backlog"
+    statictext "." [ref=6794]
+      inlinetextbox "."
+  listitem [ref=6795]
+    listmarker "•" [ref=6796]
+    statictext "Plugin code runs with the user's permissions. There is no sandboxing, no timeout, no signing, and no protection against side effects triggered by" [ref=6797]
+      inlinetextbox "Plugin code runs with the user's permissions. There is no sandboxing, no timeout, no signing, and no"
+      inlinetextbox "protection against side effects triggered by"
+    code [ref=6798]
+      statictext "import" [ref=6799]
+        inlinetextbox "import"
+    statictext "-time code." [ref=6800]
+      inlinetextbox "-time code."
+  listitem [ref=6801]
+    listmarker "•" [ref=6802]
+    code [ref=6803]
+      statictext "data.*.set" [ref=6804]
+        inlinetextbox "data.*.set"
+    statictext "re-serialises the whole" [ref=6805]
+      inlinetextbox "re-serialises the whole"
+    code [ref=6806]
+      statictext "data" [ref=6807]
+        inlinetextbox "data"
+    statictext "slice for the calling plugin. Very large values rewrite the project state file in full; V1 leaves this cost to the author." [ref=6808]
+      inlinetextbox "slice for the calling plugin. Very large values rewrite the project"
+      inlinetextbox "state file in full; V1 leaves this cost to the author."
+  listitem [ref=6809]
+    listmarker "•" [ref=6810]
+    statictext "A new" [ref=6811]
+      inlinetextbox "A new"
+    code [ref=6812]
+      statictext "climier" [ref=6813]
+        inlinetextbox "climier"
+    statictext "invocation is a fresh Node process; the loader does not cache between invocations." [ref=6814]
+      inlinetextbox "invocation is a fresh Node process; the loader does not cache between invocations."
+heading "9. Policy plugins Copy Anchor Link" [ref=6815]
+  link "9. Policy plugins" href="#9-policy-plugins" [ref=6816]
+    statictext "9. Policy plugins" [ref=6817]
+      inlinetextbox "9. Policy plugins"
+  button "Copy Anchor Link" [ref=6818]
+paragraph [ref=6819]
+  statictext "Policy plugins extend the V1 contract with an optional authorisation face. A plugin MAY export" [ref=6820]
+    inlinetextbox "Policy plugins extend the V1 contract with an optional authorisation face. A plugin MAY export"
+  code [ref=6821]
+    statictext "default.policy = { applies?, authorize }" [ref=6822]
+      inlinetextbox "default.policy"
+      inlinetextbox "= { applies?, authorize }"
+  statictext "; if it does, the host selects the policy at runtime, asks it to" [ref=6823]
+    inlinetextbox "; if it does, the host selects the policy at runtime, asks it to"
+  emphasis [ref=6824]
+    statictext "authorise" [ref=6825]
+      inlinetextbox "authorise"
+  statictext "every mutating handler, and either lets the mutation proceed or rejects it with a structured" [ref=6826]
+    inlinetextbox "every"
+    inlinetextbox "mutating handler, and either lets the mutation proceed or rejects it with a structured"
+  code [ref=6827]
+    statictext "POLICY_*" [ref=6828]
+      inlinetextbox "POLICY_*"
+  statictext "error. The descriptor, install path, plugin id, and" [ref=6829]
+    inlinetextbox "error. The"
+    inlinetextbox "descriptor, install path, plugin id, and"
+  code [ref=6830]
+    statictext "api.*" [ref=6831]
+      inlinetextbox "api.*"
+  statictext "surface are unchanged." [ref=6832]
+    inlinetextbox "surface are unchanged."
+paragraph [ref=6833]
+  statictext "This section fixes the public contract. It does NOT promise authentication, composition, sandboxing, a dedicated timeout, or persistent auditing — those are explicitly out of scope for this contract." [ref=6834]
+    inlinetextbox "This section fixes the public contract. It does NOT promise authentication, composition, sandboxing, a"
+    inlinetextbox "dedicated timeout, or persistent auditing — those are explicitly out of scope for this contract."
+heading "9.1 Shape Copy Anchor Link" [ref=6835]
+  link "9.1 Shape" href="#91-shape" [ref=6836]
+    statictext "9.1 Shape" [ref=6837]
+      inlinetextbox "9.1 Shape"
+  button "Copy Anchor Link" [ref=6838]
+figure [ref=6839]
+  generic [ref=6840]
+    button "Copy Text" [ref=6841]
+  generic [ref=6842]
+paragraph [ref=6843]
+  code [ref=6844]
+    statictext "importEntry" [ref=6845]
+      inlinetextbox "importEntry"
+  statictext "accepts" [ref=6846]
+    inlinetextbox "accepts"
+  code [ref=6847]
+    statictext "default.policy" [ref=6848]
+      inlinetextbox "default.policy"
+  statictext "only when its shape is strict:" [ref=6849]
+    inlinetextbox "only when its shape is strict:"
+  code [ref=6850]
+    statictext "policy" [ref=6851]
+      inlinetextbox "policy"
+  statictext "is a plain object," [ref=6852]
+    inlinetextbox "is a plain object,"
+  code [ref=6853]
+    statictext "authorize" [ref=6854]
+      inlinetextbox "authorize"
+  statictext "is a function when present," [ref=6855]
+    inlinetextbox "is a"
+    inlinetextbox "function when present,"
+  code [ref=6856]
+    statictext "applies" [ref=6857]
+      inlinetextbox "applies"
+  statictext "is a function when present, and no field beyond those two exists. Violations fail the entire plugin load with" [ref=6858]
+    inlinetextbox "is a function when present, and no field beyond those two exists. Violations fail"
+    inlinetextbox "the entire plugin load with"
+  code [ref=6859]
+    statictext "PLUGIN_LOAD_FAILED" [ref=6860]
+      inlinetextbox "PLUGIN_LOAD_FAILED"
+  statictext "(carrying" [ref=6861]
+    inlinetextbox "(carrying"
+  code [ref=6862]
+    statictext "details.field" [ref=6863]
+      inlinetextbox "details.field"
+  statictext ") —" [ref=6864]
+    inlinetextbox ") —"
+  code [ref=6865]
+    statictext "commands" [ref=6866]
+      inlinetextbox "commands"
+  statictext "is not loaded either, so the host is never half-wired." [ref=6867]
+    inlinetextbox "is not loaded either, so"
+    inlinetextbox "the host is never half-wired."
+heading "9.2 Canonical actions Copy Anchor Link" [ref=6868]
+  link "9.2 Canonical actions" href="#92-canonical-actions" [ref=6869]
+    statictext "9.2 Canonical actions" [ref=6870]
+      inlinetextbox "9.2 Canonical actions"
+  button "Copy Anchor Link" [ref=6871]
+paragraph [ref=6872]
+  statictext "The policy contract lists the action names the seam sends to" [ref=6873]
+    inlinetextbox "The policy contract lists the action names the seam sends to"
+  code [ref=6874]
+    statictext "authorize" [ref=6875]
+      inlinetextbox "authorize"
+  statictext ":" [ref=6876]
+    inlinetextbox ":"
+figure [ref=6877]
+  generic [ref=6878]
+    button "Copy Text" [ref=6879]
+  generic [ref=6880]
+paragraph [ref=6881]
+  code [ref=6882]
+    statictext "*" [ref=6883]
+      inlinetextbox "*"
+  statictext "= internal to the seam; never exposed through the public plugin-core registry, never accepted as a" [ref=6884]
+    inlinetextbox "= internal to the seam; never exposed through the public plugin-core registry, never accepted as a"
+  code [ref=6885]
+    statictext "core.run({ op })" [ref=6886]
+      inlinetextbox "core.run({ op })"
+  statictext "argument. The public registry keeps the legacy" [ref=6887]
+    inlinetextbox "argument. The public registry keeps the legacy"
+  code [ref=6888]
+    statictext "task.update" [ref=6889]
+      inlinetextbox "task.update"
+  statictext "shape for backwards compatibility; the handler classifies by subkind inside" [ref=6890]
+    inlinetextbox "shape for backwards"
+    inlinetextbox "compatibility; the handler classifies by subkind inside"
+  code [ref=6891]
+    statictext "update.mjs" [ref=6892]
+      inlinetextbox "update.mjs"
+  statictext "and translates to" [ref=6893]
+    inlinetextbox "and translates to"
+  code [ref=6894]
+    statictext "task.update" [ref=6895]
+      inlinetextbox "task.update"
+  statictext "," [ref=6896]
+    inlinetextbox ","
+  code [ref=6897]
+    statictext "gate.update" [ref=6898]
+      inlinetextbox "gate.update"
+  statictext ", or" [ref=6899]
+    inlinetextbox ", or"
+  code [ref=6900]
+    statictext "knowledge.update" [ref=6901]
+      inlinetextbox "knowledge.update"
+  statictext "before the seam sees it." [ref=6902]
+    inlinetextbox "before the seam sees it."
+paragraph [ref=6903]
+  statictext "A plugin can only" [ref=6904]
+    inlinetextbox "A plugin can only"
+  code [ref=6905]
+    statictext "deny" [ref=6906]
+      inlinetextbox "deny"
+  statictext "an action it understands — the host does not interpret the response further than" [ref=6907]
+    inlinetextbox "an action it understands — the host does not interpret the response further than"
+  code [ref=6908]
+    statictext "allow" [ref=6909]
+      inlinetextbox "allow"
+  statictext "/" [ref=6910]
+    inlinetextbox "/"
+  code [ref=6911]
+    statictext "deny" [ref=6912]
+      inlinetextbox "deny"
+  statictext "/" [ref=6913]
+    inlinetextbox "/"
+  code [ref=6914]
+    statictext "abstain" [ref=6915]
+      inlinetextbox "abstain"
+  statictext ". Defaults core apply on" [ref=6916]
+    inlinetextbox ". Defaults core apply on"
+  code [ref=6917]
+    statictext "abstain" [ref=6918]
+      inlinetextbox "abstain"
+  statictext "and on no policy installed; see §9.5." [ref=6919]
+    inlinetextbox "and on no policy installed; see §9.5."
+heading "9.3 Discovery and selection Copy Anchor Link" [ref=6920]
+  link "9.3 Discovery and selection" href="#93-discovery-and-selection" [ref=6921]
+    statictext "9.3 Discovery and selection" [ref=6922]
+      inlinetextbox "9.3 Discovery and selection"
+  button "Copy Anchor Link" [ref=6923]
+paragraph [ref=6924]
+  code [ref=6925]
+    statictext "loadApplicablePolicy({ projectDir })" [ref=6926]
+      inlinetextbox "loadApplicablePolicy({ projectDir })"
+  statictext "runs once per mutating command, before the project lock:" [ref=6927]
+    inlinetextbox "runs once per mutating command, before the project lock:"
+list [ref=6928]
+  listitem [ref=6929]
+    listmarker "1." [ref=6930]
+    code [ref=6931]
+      statictext "readProjectConfig(projectDir)" [ref=6932]
+        inlinetextbox "readProjectConfig(projectDir)"
+    statictext "— reads" [ref=6933]
+      inlinetextbox "— reads"
+    code [ref=6934]
+      statictext ".climier.json" [ref=6935]
+        inlinetextbox ".climier.json"
+    statictext "raw, or" [ref=6936]
+      inlinetextbox "raw, or"
+    code [ref=6937]
+      statictext "{}" [ref=6938]
+        inlinetextbox "{}"
+    statictext "when the file is missing. The object is frozen before being passed to" [ref=6939]
+      inlinetextbox "when the file is missing. The object is"
+      inlinetextbox "frozen before being passed to"
+    code [ref=6940]
+      statictext "applies" [ref=6941]
+        inlinetextbox "applies"
+    statictext "." [ref=6942]
+      inlinetextbox "."
+  listitem [ref=6943]
+    listmarker "2." [ref=6944]
+    code [ref=6945]
+      statictext "loadInstalledPolicyPlugins()" [ref=6946]
+        inlinetextbox "loadInstalledPolicyPlugins()"
+    statictext "scans" [ref=6947]
+      inlinetextbox "scans"
+    code [ref=6948]
+      statictext "installed/*/package.json" [ref=6949]
+        inlinetextbox "installed/*/package.json"
+    statictext "for entries with a valid" [ref=6950]
+      inlinetextbox "for entries with a valid"
+    code [ref=6951]
+      statictext "default.policy" [ref=6952]
+        inlinetextbox "default.policy"
+    statictext ". Selection is NOT cached across commands — installing or uninstalling a policy plugin is observable on the next invocation." [ref=6953]
+      inlinetextbox "."
+      inlinetextbox "Selection is NOT cached across commands — installing or uninstalling a policy plugin is observable on the"
+      inlinetextbox "next invocation."
+  listitem [ref=6954]
+    listmarker "3." [ref=6955]
+    statictext "For each candidate:" [ref=6956]
+      inlinetextbox "For each candidate:"
+    list [ref=6957]
+      listitem [ref=6958]
+        listmarker "•" [ref=6959]
+        code [ref=6960]
+          statictext "applies" [ref=6961]
+            inlinetextbox "applies"
+        statictext "absent → always a candidate." [ref=6962]
+          inlinetextbox "absent → always a candidate."
+      listitem [ref=6963]
+        listmarker "•" [ref=6964]
+        code [ref=6965]
+          statictext "applies(projectConfig)" [ref=6966]
+            inlinetextbox "applies(projectConfig)"
+        statictext "present → invoked once with the frozen config; truthy means applicable." [ref=6967]
+          inlinetextbox "present → invoked once with the frozen config; truthy means applicable."
+  listitem [ref=6968]
+    listmarker "4." [ref=6969]
+    statictext "Exactly one applicable policy → returned to the handler." [ref=6970]
+      inlinetextbox "Exactly one applicable policy → returned to the handler."
+  listitem [ref=6971]
+    listmarker "5." [ref=6972]
+    statictext "Zero applicable → handler receives" [ref=6973]
+      inlinetextbox "Zero applicable → handler receives"
+    code [ref=6974]
+      statictext "null" [ref=6975]
+        inlinetextbox "null"
+    statictext "and applies defaults core." [ref=6976]
+      inlinetextbox "and applies defaults core."
+  listitem [ref=6977]
+    listmarker "6." [ref=6978]
+    statictext "Two or more applicable →" [ref=6979]
+      inlinetextbox "Two or more applicable →"
+    code [ref=6980]
+      statictext "POLICY_CONFLICT" [ref=6981]
+        inlinetextbox "POLICY_CONFLICT"
+    statictext ". Details carry both the installed" [ref=6982]
+      inlinetextbox ". Details carry both the installed"
+    code [ref=6983]
+      statictext "plugin_ids" [ref=6984]
+        inlinetextbox "plugin_ids"
+    statictext "and their" [ref=6985]
+      inlinetextbox "and their"
+    code [ref=6986]
+      statictext "namespaces" [ref=6987]
+        inlinetextbox "namespaces"
+    statictext "." [ref=6988]
+      inlinetextbox "."
+heading "9.4 Authorisation under the lock Copy Anchor Link" [ref=6989]
+  link "9.4 Authorisation under the lock" href="#94-authorisation-under-the-lock" [ref=6990]
+    statictext "9.4 Authorisation under the lock" [ref=6991]
+      inlinetextbox "9.4 Authorisation under the lock"
+  button "Copy Anchor Link" [ref=6992]
+paragraph [ref=6993]
+  statictext "The decision runs INSIDE the handler's existing" [ref=6994]
+    inlinetextbox "The decision runs INSIDE the handler's existing"
+  code [ref=6995]
+    statictext "withLock(projectDir)" [ref=6996]
+      inlinetextbox "withLock(projectDir)"
+  statictext ", against a snapshot taken from the read state:" [ref=6997]
+    inlinetextbox ", against a snapshot taken from the read"
+    inlinetextbox "state:"
+figure [ref=6998]
+  generic [ref=6999]
+    button "Copy Text" [ref=7000]
+  generic [ref=7001]
+paragraph [ref=7002]
+  statictext "The snapshot is a defensive copy of" [ref=7003]
+    inlinetextbox "The snapshot is a defensive copy of"
+  code [ref=7004]
+    statictext "nodes" [ref=7005]
+      inlinetextbox "nodes"
+  statictext "," [ref=7006]
+    inlinetextbox ","
+  code [ref=7007]
+    statictext "edges" [ref=7008]
+      inlinetextbox "edges"
+  statictext ", and" [ref=7009]
+    inlinetextbox ", and"
+  code [ref=7010]
+    statictext "initiatives" [ref=7011]
+      inlinetextbox "initiatives"
+  statictext ". Plugins MUST treat it as read-only — the host does not enforce immutability for performance, but a mutation will not be persisted and may corrupt the live read." [ref=7012]
+    inlinetextbox ". Plugins MUST treat it as read-only — the"
+    inlinetextbox "host does not enforce immutability for performance, but a mutation will not be persisted and may corrupt the"
+    inlinetextbox "live read."
+paragraph [ref=7013]
+  code [ref=7014]
+    statictext "authorizeAction" [ref=7015]
+      inlinetextbox "authorizeAction"
+  statictext "returns:" [ref=7016]
+    inlinetextbox "returns:"
+generic [ref=7017]
+  table [ref=7018]
+    rowgroup [ref=7019]
+      row [ref=7020]
+        columnheader "Policy outcome" [ref=7021]
+          statictext "Policy outcome" [ref=7022]
+            inlinetextbox "Policy outcome"
+        columnheader "Decision shape" [ref=7023]
+          statictext "Decision shape" [ref=7024]
+            inlinetextbox "Decision shape"
+        columnheader "Handler behaviour" [ref=7025]
+          statictext "Handler behaviour" [ref=7026]
+            inlinetextbox "Handler behaviour"
+paragraph [ref=7027]
+  statictext "The seam does NOT cache decisions across calls; each mutation re-runs the full selection + authorisation. The seam does NOT introduce a new lock; it runs on the handler's critical path." [ref=7028]
+    inlinetextbox "The seam does NOT cache decisions across calls; each mutation re-runs the full selection + authorisation. The"
+    inlinetextbox "seam does NOT introduce a new lock; it runs on the handler's critical path."
+heading "9.5 Lifecycle and policy Copy Anchor Link" [ref=7029]
+  link "9.5 Lifecycle and policy" href="#95-lifecycle-and-policy" [ref=7030]
+    statictext "9.5 Lifecycle and policy" [ref=7031]
+      inlinetextbox "9.5 Lifecycle and policy"
+  button "Copy Anchor Link" [ref=7032]
+paragraph [ref=7033]
+  statictext "The core task lifecycle is explicit." [ref=7034]
+    inlinetextbox "The core task lifecycle is explicit."
+  code [ref=7035]
+    statictext "take" [ref=7036]
+      inlinetextbox "take"
+  statictext "claims a ready task," [ref=7037]
+    inlinetextbox "claims a ready task,"
+  code [ref=7038]
+    statictext "submit" [ref=7039]
+      inlinetextbox "submit"
+  statictext "records its handoff for review, and" [ref=7040]
+    inlinetextbox "records its handoff for review, and"
+  code [ref=7041]
+    statictext "accept" [ref=7042]
+      inlinetextbox "accept"
+  statictext "or" [ref=7043]
+    inlinetextbox "or"
+  code [ref=7044]
+    statictext "reject" [ref=7045]
+      inlinetextbox "reject"
+  statictext "records the review outcome." [ref=7046]
+    inlinetextbox "records the review outcome."
+  code [ref=7047]
+    statictext "submitted" [ref=7048]
+      inlinetextbox "submitted"
+  statictext "is not terminal and never satisfies a" [ref=7049]
+    inlinetextbox "is not terminal and never satisfies a"
+  code [ref=7050]
+    statictext "BLOCKS" [ref=7051]
+      inlinetextbox "BLOCKS"
+  statictext "edge; only acceptance moves a task to" [ref=7052]
+    inlinetextbox "edge; only"
+    inlinetextbox "acceptance moves a task to"
+  code [ref=7053]
+    statictext "done" [ref=7054]
+      inlinetextbox "done"
+  statictext ". Rejection returns it to" [ref=7055]
+    inlinetextbox ". Rejection returns it to"
+  code [ref=7056]
+    statictext "open" [ref=7057]
+      inlinetextbox "open"
+  statictext "with an audit reason." [ref=7058]
+    inlinetextbox "with an audit reason."
+  code [ref=7059]
+    statictext "resolve" [ref=7060]
+      inlinetextbox "resolve"
+  statictext "is exclusively the gate operation and requires a gate choice and rationale." [ref=7061]
+    inlinetextbox "is exclusively the"
+    inlinetextbox "gate operation and requires a gate choice and rationale."
+paragraph [ref=7062]
+  statictext "Policy plugins may allow, deny, or abstain on the canonical actions listed in §9.2. With no applicable policy, or when a policy abstains, the core applies its state transition rules. The" [ref=7063]
+    inlinetextbox "Policy plugins may allow, deny, or abstain on the canonical actions listed in §9.2. With no applicable policy, or"
+    inlinetextbox "when a policy abstains, the core applies its state transition rules. The"
+  code [ref=7064]
+    statictext "--as <agent>" [ref=7065]
+      inlinetextbox "--as <agent>"
+  statictext "value is an opaque audit tag; it does not authenticate a caller or create a role." [ref=7066]
+    inlinetextbox "value is an opaque audit"
+    inlinetextbox "tag; it does not authenticate a caller or create a role."
+  code [ref=7067]
+    statictext "context.allowed_actions" [ref=7068]
+      inlinetextbox "context.allowed_actions"
+  statictext "therefore describes state-available actions rather than an authorization matrix. A policy can add authorization rules by returning" [ref=7069]
+    inlinetextbox "therefore describes state-"
+    inlinetextbox "available actions rather than an authorization matrix. A policy can add authorization rules by returning"
+  code [ref=7070]
+    statictext "deny" [ref=7071]
+      inlinetextbox "deny"
+  statictext ", but the host does not infer them from actor names." [ref=7072]
+    inlinetextbox ", but"
+    inlinetextbox "the host does not infer them from actor names."
+heading "9.6 Claim coordination (task.take / task.takeover) Copy Anchor Link" [ref=7073]
+  link "9.6 Claim coordination (task.take / task.takeover)" href="#96-claim-coordination-tasktake--tasktakeover" [ref=7074]
+    statictext "9.6 Claim coordination (task.take / task.takeover)" [ref=7075]
+      inlinetextbox "9.6 Claim coordination (task.take / task.takeover)"
+  button "Copy Anchor Link" [ref=7076]
+paragraph [ref=7077]
+  code [ref=7078]
+    statictext "take" [ref=7079]
+      inlinetextbox "take"
+  statictext "is the one core coordination invariant: claims are serialized inside the project lock. A free task is classified as" [ref=7080]
+    inlinetextbox "is the one core coordination invariant: claims are serialized inside the project lock. A free task is classified"
+    inlinetextbox "as"
+  code [ref=7081]
+    statictext "task.take" [ref=7082]
+      inlinetextbox "task.take"
+  statictext "; a task already claimed by another actor is classified internally as" [ref=7083]
+    inlinetextbox "; a task already claimed by another actor is classified internally as"
+  code [ref=7084]
+    statictext "task.takeover" [ref=7085]
+      inlinetextbox "task.takeover"
+  statictext "; a repeat take by the same actor is idempotent. A policy may deny a takeover, but it cannot produce two simultaneous claims." [ref=7086]
+    inlinetextbox "; a repeat take"
+    inlinetextbox "by the same actor is idempotent. A policy may deny a takeover, but it cannot produce two simultaneous claims."
+  code [ref=7087]
+    statictext "task.takeover" [ref=7088]
+      inlinetextbox "task.takeover"
+  statictext "is internal to the seam and is never a public CLI command." [ref=7089]
+    inlinetextbox "is internal to the seam and is never a public CLI command."
+  code [ref=7090]
+    statictext "release" [ref=7091]
+      inlinetextbox "release"
+  statictext "clears a claim without submitting the task." [ref=7092]
+    inlinetextbox "clears a claim without"
+    inlinetextbox "submitting the task."
+heading "9.7 Errors Copy Anchor Link" [ref=7093]
+  link "9.7 Errors" href="#97-errors" [ref=7094]
+    statictext "9.7 Errors" [ref=7095]
+      inlinetextbox "9.7 Errors"
+  button "Copy Anchor Link" [ref=7096]
+generic [ref=7097]
+  table [ref=7098]
+    rowgroup [ref=7099]
+      row [ref=7100]
+        columnheader "Code" [ref=7101]
+          statictext "Code" [ref=7102]
+            inlinetextbox "Code"
+        columnheader "When" [ref=7103]
+          statictext "When" [ref=7104]
+            inlinetextbox "When"
+paragraph [ref=7105]
+  statictext "Denials and errors do NOT add a state-log entry in this version The error envelope is the audit trail." [ref=7106]
+    inlinetextbox "Denials and errors do NOT add a state-log entry in this version The error envelope is the audit trail."
+heading "9.8 Out of scope (explicit non-goals) Copy Anchor Link" [ref=7107]
+  link "9.8 Out of scope (explicit non-goals)" href="#98-out-of-scope-explicit-non-goals" [ref=7108]
+    statictext "9.8 Out of scope (explicit non-goals)" [ref=7109]
+      inlinetextbox "9.8 Out of scope (explicit non-goals)"
+  button "Copy Anchor Link" [ref=7110]
+paragraph [ref=7111]
+  statictext "The policy contract carves out what policy plugins do not provide today. These limitations are documented here so authors do not assume otherwise:" [ref=7112]
+    inlinetextbox "The policy contract carves out what policy plugins do not provide today. These limitations are documented"
+    inlinetextbox "here so authors do not assume otherwise:"
+list [ref=7113]
+  listitem [ref=7114]
+    listmarker "•" [ref=7115]
+    strong [ref=7116]
+      statictext "No authentication." [ref=7117]
+        inlinetextbox "No authentication."
+    statictext [ref=7118]
+      inlinetextbox
+    code [ref=7119]
+      statictext "actor" [ref=7120]
+        inlinetextbox "actor"
+    statictext "is the literal" [ref=7121]
+      inlinetextbox "is the literal"
+    code [ref=7122]
+      statictext "--as" [ref=7123]
+        inlinetextbox "--as"
+    statictext "/" [ref=7124]
+      inlinetextbox "/"
+    code [ref=7125]
+      statictext "CLIMIER_AGENT" [ref=7126]
+        inlinetextbox "CLIMIER_AGENT"
+    statictext "string. The host does not verify identity." [ref=7127]
+      inlinetextbox "string. The host does not verify identity."
+  listitem [ref=7128]
+    listmarker "•" [ref=7129]
+    strong [ref=7130]
+      statictext "No composition." [ref=7131]
+        inlinetextbox "No composition."
+    statictext "When more than one policy is applicable, the seam returns" [ref=7132]
+      inlinetextbox "When more than one policy is applicable, the seam returns"
+    code [ref=7133]
+      statictext "POLICY_CONFLICT" [ref=7134]
+        inlinetextbox "POLICY_CONFLICT"
+    statictext ". There is no priority, merge, or chain logic." [ref=7135]
+      inlinetextbox ". There is no"
+      inlinetextbox "priority, merge, or chain logic."
+  listitem [ref=7136]
+    listmarker "•" [ref=7137]
+    strong [ref=7138]
+      statictext "No sandboxing." [ref=7139]
+        inlinetextbox "No sandboxing."
+    statictext "The plugin's" [ref=7140]
+      inlinetextbox "The plugin's"
+    code [ref=7141]
+      statictext "authorize" [ref=7142]
+        inlinetextbox "authorize"
+    statictext "runs in-process, with the user's permissions, with access to the host's module cache and the filesystem. Plugins MUST NOT write to state files directly." [ref=7143]
+      inlinetextbox "runs in-process, with the user's permissions, with access to the host's"
+      inlinetextbox "module cache and the filesystem. Plugins MUST NOT write to state files directly."
+  listitem [ref=7144]
+    listmarker "•" [ref=7145]
+    strong [ref=7146]
+      statictext "No dedicated timeout." [ref=7147]
+        inlinetextbox "No dedicated timeout."
+    statictext "A slow policy holds the project lock for the duration of its" [ref=7148]
+      inlinetextbox "A slow policy holds the project lock for the duration of its"
+    code [ref=7149]
+      statictext "authorize" [ref=7150]
+        inlinetextbox "authorize"
+    statictext ". The host does not cancel long-running policies; if you need a cap, enforce it inside your own" [ref=7151]
+      inlinetextbox ". The host does"
+      inlinetextbox "not cancel long-running policies; if you need a cap, enforce it inside your own"
+    code [ref=7152]
+      statictext "authorize" [ref=7153]
+        inlinetextbox "authorize"
+    statictext "." [ref=7154]
+      inlinetextbox "."
+  listitem [ref=7155]
+    listmarker "•" [ref=7156]
+    strong [ref=7157]
+      statictext "No persistent auditing." [ref=7158]
+        inlinetextbox "No persistent auditing."
+    statictext "Denials do not append to the state log. The JSON error is the only record." [ref=7159]
+      inlinetextbox "Denials do not append to the state log. The JSON error is the only record."
+link "CLI Reference Every Climier command, flag, JSON envelope, and exit code." href="/docs/reference/cli" [ref=7160]
+  paragraph [ref=7161]
+    statictext "Every Climier command, flag, JSON envelope, and exit code." [ref=7162]
+      inlinetextbox "Every Climier command, flag, JSON envelope, and exit"
+      inlinetextbox "code."
+link "Operating a Climier remote server Run an authenticated Climier remote server as the source of truth for a project." href="/docs/reference/self-hosting" [ref=7163]
+  paragraph [ref=7164]
+    statictext "Run an authenticated Climier remote server as the source of truth for a project." [ref=7165]
+      inlinetextbox "Run an authenticated Climier remote server as the"
+      inlinetextbox "source of truth for a project."
+statictext "Climier" [ref=7166]
+  inlinetextbox "Climier"
+generic [ref=7167]
+  statictext "Ctrl" [ref=7168]
+    inlinetextbox "Ctrl"
+generic [ref=7169]
+  statictext "K" [ref=7170]
+    inlinetextbox "K"
+link "Climier documentation" href="/docs" [ref=7171, loc=href:/docs]
+button "Getting started" [ref=7172]
+button "Concepts" [ref=7173]
+button "Guides" [ref=7174]
+button "Reference" [ref=7175]
+generic [ref=7176]
+paragraph [ref=7177]
+  statictext "CLI Reference" [ref=7178]
+    inlinetextbox "CLI Reference"
+paragraph [ref=7179]
+  statictext "Operating a Climier remote server" [ref=7180]
+    inlinetextbox "Operating a Climier remote server"
+statictext "Climier documentation" [ref=7181]
+  inlinetextbox "Climier documentation"
+statictext "Getting started" [ref=7182]
+  inlinetextbox "Getting started"
+statictext "Concepts" [ref=7183]
+  inlinetextbox "Concepts"
+statictext "Guides" [ref=7184]
+  inlinetextbox "Guides"
+statictext "Reference" [ref=7185]
+  inlinetextbox "Reference"
+link "CLI Reference" href="/docs/reference/cli" [ref=7186]
+link "Plugins V1" href="/docs/reference/plugins" [ref=7187, loc=href:/docs/reference/plugins]
+link "Operating a Climier remote server" href="/docs/reference/self-hosting" [ref=7188]
+link "Web UI" href="/docs/reference/web-ui" [ref=7189, loc=href:/docs/reference/web-ui]
+statictext "Copy Anchor Link" [ref=7190]
+  inlinetextbox "Copy Anchor Link"
+code [ref=7191]
+row [ref=7192]
+  cell "id" [ref=7193]
+    code [ref=7194]
+      statictext "id" [ref=7195]
+        inlinetextbox "id"
+  cell "Plugin identity. Must match ^[A-Za-z0-9][A-Za-z0-9._-]*$. Unique across installed plugins. Persisted as the key for plugin data and the argument of climier uninstall <id>." [ref=7196]
+    statictext "Plugin identity. Must match" [ref=7197]
+      inlinetextbox "Plugin identity. Must match"
+    code [ref=7198]
+      statictext "^[A-Za-z0-9][A-Za-z0-9._-]*$" [ref=7199]
+        inlinetextbox "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    statictext ". Unique across installed plugins. Persisted as the key for plugin data and the argument of" [ref=7200]
+      inlinetextbox ". Unique across installed plugins. Persisted as the"
+      inlinetextbox "key for plugin data and the argument of"
+    code [ref=7201]
+      statictext "climier uninstall <id>" [ref=7202]
+        inlinetextbox "climier uninstall <id>"
+    statictext "." [ref=7203]
+      inlinetextbox "."
+row [ref=7204]
+  cell "command" [ref=7205]
+    code [ref=7206]
+      statictext "command" [ref=7207]
+        inlinetextbox "command"
+  cell "CLI namespace. Cannot collide with a reserved core namespace (see §6)." [ref=7208]
+    statictext "CLI namespace. Cannot collide with a reserved core namespace (see §6)." [ref=7209]
+      inlinetextbox "CLI namespace. Cannot collide with a reserved core namespace (see §6)."
+row [ref=7210]
+  cell "entry" [ref=7211]
+    code [ref=7212]
+      statictext "entry" [ref=7213]
+        inlinetextbox "entry"
+  cell "Path, relative to the package root, to the ESM entrypoint that exports default.commands." [ref=7214]
+    statictext "Path, relative to the package root, to the ESM entrypoint that exports" [ref=7215]
+      inlinetextbox "Path, relative to the package root, to the ESM entrypoint that exports"
+    code [ref=7216]
+      statictext "default.commands" [ref=7217]
+        inlinetextbox "default.commands"
+    statictext "." [ref=7218]
+      inlinetextbox "."
+row [ref=7219]
+  cell "api" [ref=7220]
+    code [ref=7221]
+      statictext "api" [ref=7222]
+        inlinetextbox "api"
+  cell "Required numeric Plugin API major. The current host supports exactly 1; another value fails with PLUGIN_API_INCOMPATIBLE before the entrypoint is imported. If the descriptor is incompatible, update the plugin descriptor to api: 1, rebuild the plugin, and reinstall it." [ref=7223]
+    statictext "Required numeric Plugin API major. The current host supports exactly" [ref=7224]
+      inlinetextbox "Required numeric Plugin API major. The current host supports exactly"
+    code [ref=7225]
+      statictext "1" [ref=7226]
+        inlinetextbox "1"
+    statictext "; another value fails with" [ref=7227]
+      inlinetextbox "; another value fails with"
+    code [ref=7228]
+      statictext "PLUGIN_API_INCOMPATIBLE" [ref=7229]
+        inlinetextbox "PLUGIN_API_INCOMPATIBLE"
+    statictext "before the entrypoint is imported. If the descriptor is incompatible, update the plugin descriptor to" [ref=7230]
+      inlinetextbox "before the entrypoint is imported. If the descriptor is incompatible, update the"
+      inlinetextbox "plugin descriptor to"
+    code [ref=7231]
+      statictext "api: 1" [ref=7232]
+        inlinetextbox "api: 1"
+    statictext ", rebuild the plugin, and reinstall it." [ref=7233]
+      inlinetextbox ", rebuild the plugin, and reinstall it."
+statictext "Copy Anchor Link" [ref=7234]
+  inlinetextbox "Copy Anchor Link"
+code [ref=7235]
+statictext "Copy Anchor Link" [ref=7236]
+  inlinetextbox "Copy Anchor Link"
+code [ref=7237]
+statictext "Copy Anchor Link" [ref=7238]
+  inlinetextbox "Copy Anchor Link"
+code [ref=7239]
+statictext "Copy Anchor Link" [ref=7240]
+  inlinetextbox "Copy Anchor Link"
+code [ref=7241]
+statictext "Copy Anchor Link" [ref=7242]
+  inlinetextbox "Copy Anchor Link"
+code [ref=7243]
+statictext "Copy Anchor Link" [ref=7244]
+  inlinetextbox "Copy Anchor Link"
+code [ref=7245]
+row [ref=7246]
+  cell "PLUGIN_INVALID_DESCRIPTOR" [ref=7247]
+    code [ref=7248]
+      statictext "PLUGIN_INVALID_DESCRIPTOR" [ref=7249]
+        inlinetextbox "PLUGIN_INVALID_DESCRIPTOR"
+  cell "descriptor shape, id regex, or reserved-namespace collision." [ref=7250]
+    statictext "descriptor shape, id regex, or reserved-namespace collision." [ref=7251]
+      inlinetextbox "descriptor shape, id regex, or reserved-namespace collision."
+row [ref=7252]
+  cell "PLUGIN_API_INCOMPATIBLE" [ref=7253]
+    code [ref=7254]
+      statictext "PLUGIN_API_INCOMPATIBLE" [ref=7255]
+        inlinetextbox "PLUGIN_API_INCOMPATIBLE"
+  cell "climier.api is absent, malformed, or is not the exact supported major 3; validation happens before entrypoint import." [ref=7256]
+    code [ref=7257]
+      statictext "climier.api" [ref=7258]
+        inlinetextbox "climier.api"
+    statictext "is absent, malformed, or is not the exact supported major" [ref=7259]
+      inlinetextbox "is absent, malformed, or is not the exact supported major"
+    code [ref=7260]
+      statictext "3" [ref=7261]
+        inlinetextbox "3"
+    statictext "; validation happens before entrypoint import." [ref=7262]
+      inlinetextbox "; validation"
+      inlinetextbox "happens before entrypoint import."
+row [ref=7263]
+  cell "PLUGIN_LOAD_FAILED" [ref=7264]
+    code [ref=7265]
+      statictext "PLUGIN_LOAD_FAILED" [ref=7266]
+        inlinetextbox "PLUGIN_LOAD_FAILED"
+  cell "ESM import failed or default.commands missing." [ref=7267]
+    statictext "ESM import failed or" [ref=7268]
+      inlinetextbox "ESM import failed or"
+    code [ref=7269]
+      statictext "default.commands" [ref=7270]
+        inlinetextbox "default.commands"
+    statictext "missing." [ref=7271]
+      inlinetextbox "missing."
+row [ref=7272]
+  cell "PLUGIN_ID_CONFLICT" [ref=7273]
+    code [ref=7274]
+      statictext "PLUGIN_ID_CONFLICT" [ref=7275]
+        inlinetextbox "PLUGIN_ID_CONFLICT"
+  cell "id or command already installed." [ref=7276]
+    statictext "id or command already installed." [ref=7277]
+      inlinetextbox "id or command already installed."
+row [ref=7278]
+  cell "PLUGIN_NPM_UNAVAILABLE" [ref=7279]
+    code [ref=7280]
+      statictext "PLUGIN_NPM_UNAVAILABLE" [ref=7281]
+        inlinetextbox "PLUGIN_NPM_UNAVAILABLE"
+  cell "npm is not on PATH or --version fails." [ref=7282]
+    code [ref=7283]
+      statictext "npm" [ref=7284]
+        inlinetextbox "npm"
+    statictext "is not on PATH or" [ref=7285]
+      inlinetextbox "is not on PATH or"
+    code [ref=7286]
+      statictext "--version" [ref=7287]
+        inlinetextbox "--version"
+    statictext "fails." [ref=7288]
+      inlinetextbox "fails."
+row [ref=7289]
+  cell "PLUGIN_NPM_FAILED" [ref=7290]
+    code [ref=7291]
+      statictext "PLUGIN_NPM_FAILED" [ref=7292]
+        inlinetextbox "PLUGIN_NPM_FAILED"
+  cell "npm install --prefix ... returned non-zero." [ref=7293]
+    code [ref=7294]
+      statictext "npm install --prefix ..." [ref=7295]
+        inlinetextbox "npm install --prefix ..."
+    statictext "returned non-zero." [ref=7296]
+      inlinetextbox "returned non-zero."
+row [ref=7297]
+  cell "PLUGIN_SUBCOMMAND_NOT_FOUND" [ref=7298]
+    code [ref=7299]
+      statictext "PLUGIN_SUBCOMMAND_NOT_FOUND" [ref=7300]
+        inlinetextbox "PLUGIN_SUBCOMMAND_NOT_FOUND"
+  cell "namespace is installed but the subcommand is missing or unknown." [ref=7301]
+    statictext "namespace is installed but the subcommand is missing or unknown." [ref=7302]
+      inlinetextbox "namespace is installed but the subcommand is missing or unknown."
+row [ref=7303]
+  cell "PLUGIN_HANDLER_FAILED" [ref=7304]
+    code [ref=7305]
+      statictext "PLUGIN_HANDLER_FAILED" [ref=7306]
+        inlinetextbox "PLUGIN_HANDLER_FAILED"
+  cell "the handler rejected (sync throw or async reject); details carry plugin_id, namespace, subcommand, and cause." [ref=7307]
+    statictext "the handler rejected (sync throw or async reject); details carry" [ref=7308]
+      inlinetextbox "the handler rejected (sync throw or async reject); details carry"
+    code [ref=7309]
+      statictext "plugin_id" [ref=7310]
+        inlinetextbox "plugin_id"
+    statictext "," [ref=7311]
+      inlinetextbox ","
+    code [ref=7312]
+      statictext "namespace" [ref=7313]
+        inlinetextbox "namespace"
+    statictext "," [ref=7314]
+      inlinetextbox ","
+    code [ref=7315]
+      statictext "subcommand" [ref=7316]
+        inlinetextbox "subcommand"
+    statictext ", and" [ref=7317]
+      inlinetextbox ", and"
+    code [ref=7318]
+      statictext "cause" [ref=7319]
+        inlinetextbox "cause"
+    statictext "." [ref=7320]
+      inlinetextbox "."
+statictext "Copy Anchor Link" [ref=7321]
+  inlinetextbox "Copy Anchor Link"
+statictext "Copy Anchor Link" [ref=7322]
+  inlinetextbox "Copy Anchor Link"
+code [ref=7323]
+statictext "Copy Anchor Link" [ref=7324]
+  inlinetextbox "Copy Anchor Link"
+statictext "Copy Anchor Link" [ref=7325]
+  inlinetextbox "Copy Anchor Link"
+statictext "Copy Anchor Link" [ref=7326]
+  inlinetextbox "Copy Anchor Link"
+code [ref=7327]
+statictext "Copy Anchor Link" [ref=7328]
+  inlinetextbox "Copy Anchor Link"
+code [ref=7329]
+statictext "Copy Anchor Link" [ref=7330]
+  inlinetextbox "Copy Anchor Link"
+statictext "Copy Anchor Link" [ref=7331]
+  inlinetextbox "Copy Anchor Link"
+code [ref=7332]
+row [ref=7333]
+  cell "policy === null" [ref=7334]
+    code [ref=7335]
+      statictext "policy === null" [ref=7336]
+        inlinetextbox "policy === null"
+  cell "{ decision: \"abstain\" }" [ref=7337]
+    code [ref=7338]
+      statictext "{ decision: \"abstain\" }" [ref=7339]
+        inlinetextbox "{ decision: \"abstain\" }"
+  cell "defaults core" [ref=7340]
+    statictext "defaults core" [ref=7341]
+      inlinetextbox "defaults core"
+row [ref=7342]
+  cell "authorize returns { decision: \"allow\" }" [ref=7343]
+    code [ref=7344]
+      statictext "authorize" [ref=7345]
+        inlinetextbox "authorize"
+    statictext "returns" [ref=7346]
+      inlinetextbox "returns"
+    code [ref=7347]
+      statictext "{ decision: \"allow\" }" [ref=7348]
+        inlinetextbox "{ decision: \"allow\" }"
+  cell "{ decision: \"allow\" }" [ref=7349]
+    code [ref=7350]
+      statictext "{ decision: \"allow\" }" [ref=7351]
+        inlinetextbox "{ decision: \"allow\" }"
+  cell "mutation proceeds" [ref=7352]
+    statictext "mutation proceeds" [ref=7353]
+      inlinetextbox "mutation proceeds"
+row [ref=7354]
+  cell "authorize returns { decision: \"deny\", reason }" [ref=7355]
+    code [ref=7356]
+      statictext "authorize" [ref=7357]
+        inlinetextbox "authorize"
+    statictext "returns" [ref=7358]
+      inlinetextbox "returns"
+    code [ref=7359]
+      statictext "{ decision: \"deny\", reason }" [ref=7360]
+        inlinetextbox "{ decision: \"deny\", reason }"
+  cell "{ decision: \"deny\", reason }" [ref=7361]
+    code [ref=7362]
+      statictext "{ decision: \"deny\", reason }" [ref=7363]
+        inlinetextbox "{ decision: \"deny\", reason }"
+  cell "handler throws POLICY_DENIED" [ref=7364]
+    statictext "handler throws" [ref=7365]
+      inlinetextbox "handler throws"
+    code [ref=7366]
+      statictext "POLICY_DENIED" [ref=7367]
+        inlinetextbox "POLICY_DENIED"
+row [ref=7368]
+  cell "authorize returns { decision: \"abstain\" }" [ref=7369]
+    code [ref=7370]
+      statictext "authorize" [ref=7371]
+        inlinetextbox "authorize"
+    statictext "returns" [ref=7372]
+      inlinetextbox "returns"
+    code [ref=7373]
+      statictext "{ decision: \"abstain\" }" [ref=7374]
+        inlinetextbox "{ decision: \"abstain\" }"
+  cell "{ decision: \"abstain\" }" [ref=7375]
+    code [ref=7376]
+      statictext "{ decision: \"abstain\" }" [ref=7377]
+        inlinetextbox "{ decision: \"abstain\" }"
+  cell "defaults core" [ref=7378]
+    statictext "defaults core" [ref=7379]
+      inlinetextbox "defaults core"
+row [ref=7380]
+  cell "authorize throws or returns a malformed shape" [ref=7381]
+    code [ref=7382]
+      statictext "authorize" [ref=7383]
+        inlinetextbox "authorize"
+    statictext "throws or returns a malformed shape" [ref=7384]
+      inlinetextbox "throws or returns a malformed shape"
+  cell "—" [ref=7385]
+    statictext "—" [ref=7386]
+      inlinetextbox "—"
+  cell "handler throws POLICY_ERROR" [ref=7387]
+    statictext "handler throws" [ref=7388]
+      inlinetextbox "handler throws"
+    code [ref=7389]
+      statictext "POLICY_ERROR" [ref=7390]
+        inlinetextbox "POLICY_ERROR"
+statictext "Copy Anchor Link" [ref=7391]
+  inlinetextbox "Copy Anchor Link"
+statictext "Copy Anchor Link" [ref=7392]
+  inlinetextbox "Copy Anchor Link"
+statictext "Copy Anchor Link" [ref=7393]
+  inlinetextbox "Copy Anchor Link"
+row [ref=7394]
+  cell "POLICY_LOAD_FAILED" [ref=7395]
+    code [ref=7396]
+      statictext "POLICY_LOAD_FAILED" [ref=7397]
+        inlinetextbox "POLICY_LOAD_FAILED"
+  cell "plugin export shape invalid at install/load time (re-uses the existing PluginLoadFailed plumbing)." [ref=7398]
+    statictext "plugin export shape invalid at install/load time (re-uses the existing" [ref=7399]
+      inlinetextbox "plugin export shape invalid at install/load time (re-uses the existing"
+    code [ref=7400]
+      statictext "PluginLoadFailed" [ref=7401]
+        inlinetextbox "PluginLoadFailed"
+    statictext "plumbing)." [ref=7402]
+      inlinetextbox "plumbing)."
+row [ref=7403]
+  cell "POLICY_ERROR" [ref=7404]
+    code [ref=7405]
+      statictext "POLICY_ERROR" [ref=7406]
+        inlinetextbox "POLICY_ERROR"
+  cell "applies or authorize threw, returned a non-object, or returned an unknown decision. details.cause_message carries the original cause." [ref=7407]
+    code [ref=7408]
+      statictext "applies" [ref=7409]
+        inlinetextbox "applies"
+    statictext "or" [ref=7410]
+      inlinetextbox "or"
+    code [ref=7411]
+      statictext "authorize" [ref=7412]
+        inlinetextbox "authorize"
+    statictext "threw, returned a non-object, or returned an unknown" [ref=7413]
+      inlinetextbox "threw, returned a non-object, or returned an unknown"
+    code [ref=7414]
+      statictext "decision" [ref=7415]
+        inlinetextbox "decision"
+    statictext "." [ref=7416]
+      inlinetextbox "."
+    code [ref=7417]
+      statictext "details.cause_message" [ref=7418]
+        inlinetextbox "details.cause_message"
+    statictext "carries the original cause." [ref=7419]
+      inlinetextbox "carries the original cause."
+row [ref=7420]
+  cell "POLICY_DENIED" [ref=7421]
+    code [ref=7422]
+      statictext "POLICY_DENIED" [ref=7423]
+        inlinetextbox "POLICY_DENIED"
+  cell "authorize returned { decision: \"deny\" }. details carries plugin_id, op, action, reason, actor. State and log are untouched." [ref=7424]
+    code [ref=7425]
+      statictext "authorize" [ref=7426]
+        inlinetextbox "authorize"
+    statictext "returned" [ref=7427]
+      inlinetextbox "returned"
+    code [ref=7428]
+      statictext "{ decision: \"deny\" }" [ref=7429]
+        inlinetextbox "{ decision: \"deny\" }"
+    statictext "." [ref=7430]
+      inlinetextbox "."
+    code [ref=7431]
+      statictext "details" [ref=7432]
+        inlinetextbox "details"
+    statictext "carries" [ref=7433]
+      inlinetextbox "carries"
+    code [ref=7434]
+      statictext "plugin_id" [ref=7435]
+        inlinetextbox "plugin_id"
+    statictext "," [ref=7436]
+      inlinetextbox ","
+    code [ref=7437]
+      statictext "op" [ref=7438]
+        inlinetextbox "op"
+    statictext "," [ref=7439]
+      inlinetextbox ","
+    code [ref=7440]
+      statictext "action" [ref=7441]
+        inlinetextbox "action"
+    statictext "," [ref=7442]
+      inlinetextbox ","
+    code [ref=7443]
+      statictext "reason" [ref=7444]
+        inlinetextbox "reason"
+    statictext "," [ref=7445]
+      inlinetextbox ","
+    code [ref=7446]
+      statictext "actor" [ref=7447]
+        inlinetextbox "actor"
+    statictext ". State and log are untouched." [ref=7448]
+      inlinetextbox ". State and log are untouched."
+row [ref=7449]
+  cell "POLICY_CONFLICT" [ref=7450]
+    code [ref=7451]
+      statictext "POLICY_CONFLICT" [ref=7452]
+        inlinetextbox "POLICY_CONFLICT"
+  cell "more than one installed policy applies to the project. details carries plugin_ids and namespaces." [ref=7453]
+    statictext "more than one installed policy" [ref=7454]
+      inlinetextbox "more than one installed policy"
+    code [ref=7455]
+      statictext "applies" [ref=7456]
+        inlinetextbox "applies"
+    statictext "to the project." [ref=7457]
+      inlinetextbox "to the project."
+    code [ref=7458]
+      statictext "details" [ref=7459]
+        inlinetextbox "details"
+    statictext "carries" [ref=7460]
+      inlinetextbox "carries"
+    code [ref=7461]
+      statictext "plugin_ids" [ref=7462]
+        inlinetextbox "plugin_ids"
+    statictext "and" [ref=7463]
+      inlinetextbox "and"
+    code [ref=7464]
+      statictext "namespaces" [ref=7465]
+        inlinetextbox "namespaces"
+    statictext "." [ref=7466]
+      inlinetextbox "."
+statictext "Copy Anchor Link" [ref=7467]
+  inlinetextbox "Copy Anchor Link"
+statictext "CLI Reference" [ref=7468]
+  inlinetextbox "CLI Reference"
+statictext "Plugins V1" [ref=7469]
+  inlinetextbox "Plugins V1"
+statictext "Operating a Climier remote server" [ref=7470]
+  inlinetextbox "Operating a Climier remote"
+  inlinetextbox "server"
+statictext "Web UI" [ref=7471]
+  inlinetextbox "Web UI"
+statictext "Copy Text" [ref=7472]
+  inlinetextbox "Copy Text"
+statictext "{" [ref=7473]
+  inlinetextbox "{"
+statictext "\"climier\"" [ref=7474]
+  inlinetextbox "\"climier\""
+statictext ": {" [ref=7475]
+  inlinetextbox ": {"
+statictext "\"id\"" [ref=7476]
+  inlinetextbox "\"id\""
+statictext ":" [ref=7477]
+  inlinetextbox ":"
+statictext "\"example.audit\"" [ref=7478]
+  inlinetextbox "\"example.audit\""
+statictext "," [ref=7479]
+  inlinetextbox ","
+statictext "\"command\"" [ref=7480]
+  inlinetextbox "\"command\""
+statictext ":" [ref=7481]
+  inlinetextbox ":"
+statictext "\"audit\"" [ref=7482]
+  inlinetextbox "\"audit\""
+statictext "," [ref=7483]
+  inlinetextbox ","
+statictext "\"entry\"" [ref=7484]
+  inlinetextbox "\"entry\""
+statictext ":" [ref=7485]
+  inlinetextbox ":"
+statictext "\"./climier.mjs\"" [ref=7486]
+  inlinetextbox "\"./climier.mjs\""
+statictext "," [ref=7487]
+  inlinetextbox ","
+statictext "\"api\"" [ref=7488]
+  inlinetextbox "\"api\""
+statictext ":" [ref=7489]
+  inlinetextbox ":"
+statictext "1" [ref=7490]
+  inlinetextbox "1"
+statictext "}" [ref=7491]
+  inlinetextbox "}"
+statictext "}" [ref=7492]
+  inlinetextbox "}"
+statictext "Copy Text" [ref=7493]
+  inlinetextbox "Copy Text"
+statictext "// climier.mjs" [ref=7494]
+  inlinetextbox "// climier.mjs"
+statictext "export" [ref=7495]
+  inlinetextbox "export"
+statictext "default" [ref=7496]
+  inlinetextbox "default"
+statictext "{" [ref=7497]
+  inlinetextbox "{"
+statictext "commands: {" [ref=7498]
+  inlinetextbox "commands: {"
+statictext "ping" [ref=7499]
+  inlinetextbox "ping"
+statictext "(" [ref=7500]
+  inlinetextbox "("
+statictext "args" [ref=7501]
+  inlinetextbox "args"
+statictext "," [ref=7502]
+  inlinetextbox ","
+statictext "api" [ref=7503]
+  inlinetextbox "api"
+statictext ") {" [ref=7504]
+  inlinetextbox ") {"
+statictext "return" [ref=7505]
+  inlinetextbox "return"
+statictext "{ ok:" [ref=7506]
+  inlinetextbox "{ ok:"
+statictext "true" [ref=7507]
+  inlinetextbox "true"
+statictext ", runtime: api.runtime };" [ref=7508]
+  inlinetextbox ", runtime: api.runtime };"
+statictext "}," [ref=7509]
+  inlinetextbox "},"
+statictext "async" [ref=7510]
+  inlinetextbox "async"
+statictext "audit" [ref=7511]
+  inlinetextbox "audit"
+statictext "(" [ref=7512]
+  inlinetextbox "("
+statictext "args" [ref=7513]
+  inlinetextbox "args"
+statictext "," [ref=7514]
+  inlinetextbox ","
+statictext "api" [ref=7515]
+  inlinetextbox "api"
+statictext ") {" [ref=7516]
+  inlinetextbox ") {"
+statictext "const" [ref=7517]
+  inlinetextbox "const"
+statictext "status" [ref=7518]
+  inlinetextbox "status"
+statictext "=" [ref=7519]
+  inlinetextbox "="
+statictext "await" [ref=7520]
+  inlinetextbox "await"
+statictext "api.query." [ref=7521]
+  inlinetextbox "api.query."
+statictext "status" [ref=7522]
+  inlinetextbox "status"
+statictext "();" [ref=7523]
+  inlinetextbox "();"
+statictext "return" [ref=7524]
+  inlinetextbox "return"
+statictext "{ ok:" [ref=7525]
+  inlinetextbox "{ ok:"
+statictext "true" [ref=7526]
+  inlinetextbox "true"
+statictext ", summary: status.summary };" [ref=7527]
+  inlinetextbox ", summary: status.summary };"
+statictext "}," [ref=7528]
+  inlinetextbox "},"
+statictext "}," [ref=7529]
+  inlinetextbox "},"
+statictext "};" [ref=7530]
+  inlinetextbox "};"
+statictext "Copy Text" [ref=7531]
+  inlinetextbox "Copy Text"
+statictext "CLIMIER_HOME" [ref=7532]
+  inlinetextbox "CLIMIER_HOME"
+statictext "=" [ref=7533]
+  inlinetextbox "="
+statictext "\"" [ref=7534]
+  inlinetextbox "\""
+statictext "$HOME" [ref=7535]
+  inlinetextbox "$HOME"
+statictext "/.climier\"" [ref=7536]
+  inlinetextbox "/.climier\""
+statictext "bun" [ref=7537]
+  inlinetextbox "bun"
+statictext "bin/climier.ts" [ref=7538]
+  inlinetextbox "bin/climier.ts"
+statictext "--project" [ref=7539]
+  inlinetextbox "--project"
+statictext "." [ref=7540]
+  inlinetextbox "."
+statictext "--as" [ref=7541]
+  inlinetextbox "--as"
+statictext "me" [ref=7542]
+  inlinetextbox "me"
+statictext "audit" [ref=7543]
+  inlinetextbox "audit"
+statictext "ping" [ref=7544]
+  inlinetextbox "ping"
+statictext "Copy Text" [ref=7545]
+  inlinetextbox "Copy Text"
+statictext "api.version" [ref=7546]
+  inlinetextbox "api.version"
+statictext "// 1 — compatibility marker for the complete host API" [ref=7547]
+  inlinetextbox "// 1 — compatibility marker for the complete host API"
+statictext "api.runtime" [ref=7548]
+  inlinetextbox "api.runtime"
+statictext ".project_dir" [ref=7549]
+  inlinetextbox ".project_dir"
+statictext "// string — --project value, or process.cwd()" [ref=7550]
+  inlinetextbox "// string — --project value, or process.cwd()"
+statictext ".agent" [ref=7551]
+  inlinetextbox ".agent"
+statictext "// string — --as value, or CLIMIER_AGENT env var, or \"\"" [ref=7552]
+  inlinetextbox "// string — --as value, or CLIMIER_AGENT env var, or \"\""
+statictext "api.query" [ref=7553]
+  inlinetextbox "api.query"
+statictext "." [ref=7554]
+  inlinetextbox "."
+statictext "node" [ref=7555]
+  inlinetextbox "node"
+statictext "(id)" [ref=7556]
+  inlinetextbox "(id)"
+statictext "// raw node, read without taking the project lock" [ref=7557]
+  inlinetextbox "// raw node, read without taking the project lock"
+statictext "." [ref=7558]
+  inlinetextbox "."
+statictext "context" [ref=7559]
+  inlinetextbox "context"
+statictext "(id)" [ref=7560]
+  inlinetextbox "(id)"
+statictext "// context view; allowed_actions is scoped to api.runtime.agent" [ref=7561]
+  inlinetextbox "// context view; allowed_actions is scoped to api.runtime.agent"
+statictext "." [ref=7562]
+  inlinetextbox "."
+statictext "status" [ref=7563]
+  inlinetextbox "status"
+statictext "(options" [ref=7564]
+  inlinetextbox "(options"
+statictext "?" [ref=7565]
+  inlinetextbox "?"
+statictext ")" [ref=7566]
+  inlinetextbox ")"
+statictext "// status summary; same flags as `climier status`" [ref=7567]
+  inlinetextbox "// status summary; same flags as `climier status`"
+statictext "." [ref=7568]
+  inlinetextbox "."
+statictext "history" [ref=7569]
+  inlinetextbox "history"
+statictext "(id, opts" [ref=7570]
+  inlinetextbox "(id, opts"
+statictext "?" [ref=7571]
+  inlinetextbox "?"
+statictext ")" [ref=7572]
+  inlinetextbox ")"
+statictext "// history entries for a node" [ref=7573]
+  inlinetextbox "// history entries for a node"
+statictext "api.data" [ref=7574]
+  inlinetextbox "api.data"
+statictext ".node" [ref=7575]
+  inlinetextbox ".node"
+statictext "." [ref=7576]
+  inlinetextbox "."
+statictext "get" [ref=7577]
+  inlinetextbox "get"
+statictext "(id)" [ref=7578]
+  inlinetextbox "(id)"
+statictext "// the calling plugin's data slice (undefined if missing)" [ref=7579]
+  inlinetextbox "// the calling plugin's data slice (undefined if missing)"
+statictext "." [ref=7580]
+  inlinetextbox "."
+statictext "set" [ref=7581]
+  inlinetextbox "set"
+statictext "(id, value)" [ref=7582]
+  inlinetextbox "(id, value)"
+statictext "// under the project lock; preserves meta and other plugins" [ref=7583]
+  inlinetextbox "// under the project lock; preserves meta and other plugins"
+statictext ".project" [ref=7584]
+  inlinetextbox ".project"
+statictext "." [ref=7585]
+  inlinetextbox "."
+statictext "get" [ref=7586]
+  inlinetextbox "get"
+statictext "(key)" [ref=7587]
+  inlinetextbox "(key)"
+statictext "// the calling plugin's data slot for the project key" [ref=7588]
+  inlinetextbox "// the calling plugin's data slot for the project key"
+statictext "." [ref=7589]
+  inlinetextbox "."
+statictext "set" [ref=7590]
+  inlinetextbox "set"
+statictext "(key, value)" [ref=7591]
+  inlinetextbox "(key, value)"
+statictext "// under the project lock; preserves nodes[id].plugins" [ref=7592]
+  inlinetextbox "// under the project lock; preserves nodes[id].plugins"
+statictext "api.core" [ref=7593]
+  inlinetextbox "api.core"
+statictext ".version" [ref=7594]
+  inlinetextbox ".version"
+statictext "// core operation contract version" [ref=7595]
+  inlinetextbox "// core operation contract version"
+statictext "." [ref=7596]
+  inlinetextbox "."
+statictext "run" [ref=7597]
+  inlinetextbox "run"
+statictext "({ op, input })" [ref=7598]
+  inlinetextbox "({ op, input })"
+statictext "." [ref=7599]
+  inlinetextbox "."
+statictext "batch" [ref=7600]
+  inlinetextbox "batch"
+statictext "({ if_state_revision, operations })" [ref=7601]
+  inlinetextbox "({ if_state_revision, operations })"
+statictext "Copy Text" [ref=7602]
+  inlinetextbox "Copy Text"
+statictext "{" [ref=7603]
+  inlinetextbox "{"
+statictext "\"version\"" [ref=7604]
+  inlinetextbox "\"version\""
+statictext ":" [ref=7605]
+  inlinetextbox ":"
+statictext "2" [ref=7606]
+  inlinetextbox "2"
+statictext "," [ref=7607]
+  inlinetextbox ","
+statictext "\"plugins\"" [ref=7608]
+  inlinetextbox "\"plugins\""
+statictext ": {" [ref=7609]
+  inlinetextbox ": {"
+statictext "\"example.audit\"" [ref=7610]
+  inlinetextbox "\"example.audit\""
+statictext ": {" [ref=7611]
+  inlinetextbox ": {"
+statictext "\"data\"" [ref=7612]
+  inlinetextbox "\"data\""
+statictext ": {" [ref=7613]
+  inlinetextbox ": {"
+statictext "\"last-run\"" [ref=7614]
+  inlinetextbox "\"last-run\""
+statictext ":" [ref=7615]
+  inlinetextbox ":"
+statictext "\"2026-08-26T22:00:00Z\"" [ref=7616]
+  inlinetextbox "\"2026-08-26T22:00:00Z\""
+statictext "}" [ref=7617]
+  inlinetextbox "}"
+statictext "}" [ref=7618]
+  inlinetextbox "}"
+statictext "}," [ref=7619]
+  inlinetextbox "},"
+statictext "\"nodes\"" [ref=7620]
+  inlinetextbox "\"nodes\""
+statictext ": {" [ref=7621]
+  inlinetextbox ": {"
+statictext "\"T1\"" [ref=7622]
+  inlinetextbox "\"T1\""
+statictext ": {" [ref=7623]
+  inlinetextbox ": {"
+statictext "\"id\"" [ref=7624]
+  inlinetextbox "\"id\""
+statictext ":" [ref=7625]
+  inlinetextbox ":"
+statictext "\"T1\"" [ref=7626]
+  inlinetextbox "\"T1\""
+statictext "," [ref=7627]
+  inlinetextbox ","
+statictext "\"plugins\"" [ref=7628]
+  inlinetextbox "\"plugins\""
+statictext ": {" [ref=7629]
+  inlinetextbox ": {"
+statictext "\"example.audit\"" [ref=7630]
+  inlinetextbox "\"example.audit\""
+statictext ": {" [ref=7631]
+  inlinetextbox ": {"
+statictext "\"data\"" [ref=7632]
+  inlinetextbox "\"data\""
+statictext ": {" [ref=7633]
+  inlinetextbox ": {"
+statictext "\"verdict\"" [ref=7634]
+  inlinetextbox "\"verdict\""
+statictext ":" [ref=7635]
+  inlinetextbox ":"
+statictext "\"ok\"" [ref=7636]
+  inlinetextbox "\"ok\""
+statictext "," [ref=7637]
+  inlinetextbox ","
+statictext "\"findings\"" [ref=7638]
+  inlinetextbox "\"findings\""
+statictext ": [] }" [ref=7639]
+  inlinetextbox ": [] }"
+statictext "}" [ref=7640]
+  inlinetextbox "}"
+statictext "}" [ref=7641]
+  inlinetextbox "}"
+statictext "}" [ref=7642]
+  inlinetextbox "}"
+statictext "}" [ref=7643]
+  inlinetextbox "}"
+statictext "}" [ref=7644]
+  inlinetextbox "}"
+statictext "Copy Text" [ref=7645]
+  inlinetextbox "Copy Text"
+statictext "# Install from a local path or a registry name." [ref=7646]
+  inlinetextbox "# Install from a local path or a registry name."
+statictext "climier" [ref=7647]
+  inlinetextbox "climier"
+statictext "install" [ref=7648]
+  inlinetextbox "install"
+statictext "<" [ref=7649]
+  inlinetextbox "<"
+statictext "sourc" [ref=7650]
+  inlinetextbox "sourc"
+statictext "e" [ref=7651]
+  inlinetextbox "e"
+statictext ">" [ref=7652]
+  inlinetextbox ">"
+statictext "# Uninstall by id. Does not purge data." [ref=7653]
+  inlinetextbox "# Uninstall by id. Does not purge data."
+statictext "climier" [ref=7654]
+  inlinetextbox "climier"
+statictext "uninstall" [ref=7655]
+  inlinetextbox "uninstall"
+statictext "<" [ref=7656]
+  inlinetextbox "<"
+statictext "i" [ref=7657]
+  inlinetextbox "i"
+statictext "d" [ref=7658]
+  inlinetextbox "d"
+statictext ">" [ref=7659]
+  inlinetextbox ">"
+statictext "Copy Text" [ref=7660]
+  inlinetextbox "Copy Text"
+statictext "{" [ref=7661]
+  inlinetextbox "{"
+statictext "\"ok\"" [ref=7662]
+  inlinetextbox "\"ok\""
+statictext ":" [ref=7663]
+  inlinetextbox ":"
+statictext "false" [ref=7664]
+  inlinetextbox "false"
+statictext "," [ref=7665]
+  inlinetextbox ","
+statictext "\"error\"" [ref=7666]
+  inlinetextbox "\"error\""
+statictext ": {" [ref=7667]
+  inlinetextbox ": {"
+statictext "\"code\"" [ref=7668]
+  inlinetextbox "\"code\""
+statictext ":" [ref=7669]
+  inlinetextbox ":"
+statictext "\"PLUGIN_XXX\"" [ref=7670]
+  inlinetextbox "\"PLUGIN_XXX\""
+statictext "," [ref=7671]
+  inlinetextbox ","
+statictext "\"message\"" [ref=7672]
+  inlinetextbox "\"message\""
+statictext ":" [ref=7673]
+  inlinetextbox ":"
+statictext "\"...\"" [ref=7674]
+  inlinetextbox "\"...\""
+statictext "," [ref=7675]
+  inlinetextbox ","
+statictext "\"details\"" [ref=7676]
+  inlinetextbox "\"details\""
+statictext ": {" [ref=7677]
+  inlinetextbox ": {"
+statictext "..." [ref=7678]
+  inlinetextbox "..."
+statictext "} } }" [ref=7679]
+  inlinetextbox "} } }"
+statictext "Copy Text" [ref=7680]
+  inlinetextbox "Copy Text"
+statictext "node" [ref=7681]
+  inlinetextbox "node"
+statictext "--test" [ref=7682]
+  inlinetextbox "--test"
+statictext "test/plugin-foundation-acceptance.test.ts" [ref=7683]
+  inlinetextbox "test/plugin-foundation-acceptance.test.ts"
+statictext "\\" [ref=7684]
+  inlinetextbox "\\"
+statictext "test/plugin-foundation-concurrency.test.ts" [ref=7685]
+  inlinetextbox "test/plugin-foundation-concurrency.test.ts"
+statictext "Copy Text" [ref=7686]
+  inlinetextbox "Copy Text"
+statictext "// climier.mjs" [ref=7687]
+  inlinetextbox "// climier.mjs"
+statictext "export" [ref=7688]
+  inlinetextbox "export"
+statictext "default" [ref=7689]
+  inlinetextbox "default"
+statictext "{" [ref=7690]
+  inlinetextbox "{"
+statictext "policy: {" [ref=7691]
+  inlinetextbox "policy: {"
+statictext "// Optional. Returns true when this policy applies to the current" [ref=7692]
+  inlinetextbox "// Optional. Returns true when this policy applies to the current"
+statictext "// project config; false (or absent) means \"always applies\"." [ref=7693]
+  inlinetextbox "// project config; false (or absent) means \"always applies\"."
+statictext "// Receives the frozen raw `.climier.json` object (or `{}` when" [ref=7694]
+  inlinetextbox "// Receives the frozen raw `.climier.json` object (or `{}` when"
+statictext "// missing). MUST be a pure function over its input." [ref=7695]
+  inlinetextbox "// missing). MUST be a pure function over its input."
+statictext "async" [ref=7696]
+  inlinetextbox "async"
+statictext "applies" [ref=7697]
+  inlinetextbox "applies"
+statictext "(" [ref=7698]
+  inlinetextbox "("
+statictext "projectConfig" [ref=7699]
+  inlinetextbox "projectConfig"
+statictext ") { … }," [ref=7700]
+  inlinetextbox ") { … },"
+statictext "// Required when `default.policy` is exported. Receives the" [ref=7701]
+  inlinetextbox "// Required when `default.policy` is exported. Receives the"
+statictext "// action + snapshot under the lock; returns one of:" [ref=7702]
+  inlinetextbox "// action + snapshot under the lock; returns one of:"
+statictext "// { decision: \"allow\" }" [ref=7703]
+  inlinetextbox "// { decision: \"allow\" }"
+statictext "// { decision: \"deny\", reason: \"<human readable>\" }" [ref=7704]
+  inlinetextbox "// { decision: \"deny\", reason: \"<human readable>\" }"
+statictext "// { decision: \"abstain\" }" [ref=7705]
+  inlinetextbox "// { decision: \"abstain\" }"
+statictext "// Any other return is a POLICY_ERROR. Throwing is a POLICY_ERROR." [ref=7706]
+  inlinetextbox "// Any other return is a POLICY_ERROR. Throwing is a POLICY_ERROR."
+statictext "async" [ref=7707]
+  inlinetextbox "async"
+statictext "authorize" [ref=7708]
+  inlinetextbox "authorize"
+statictext "({" [ref=7709]
+  inlinetextbox "({"
+statictext "action" [ref=7710]
+  inlinetextbox "action"
+statictext "," [ref=7711]
+  inlinetextbox ","
+statictext "actor" [ref=7712]
+  inlinetextbox "actor"
+statictext "," [ref=7713]
+  inlinetextbox ","
+statictext "target" [ref=7714]
+  inlinetextbox "target"
+statictext "," [ref=7715]
+  inlinetextbox ","
+statictext "snapshot" [ref=7716]
+  inlinetextbox "snapshot"
+statictext "," [ref=7717]
+  inlinetextbox ","
+statictext "projectDir" [ref=7718]
+  inlinetextbox "projectDir"
+statictext "," [ref=7719]
+  inlinetextbox ","
+statictext "projectConfig" [ref=7720]
+  inlinetextbox "projectConfig"
+statictext "}) { … }," [ref=7721]
+  inlinetextbox "}) { … },"
+statictext "}," [ref=7722]
+  inlinetextbox "},"
+statictext "};" [ref=7723]
+  inlinetextbox "};"
+statictext "Copy Text" [ref=7724]
+  inlinetextbox "Copy Text"
+statictext "task.create task.take task.takeover* task.submit" [ref=7725]
+  inlinetextbox "task.create task.take task.takeover* task.submit"
+statictext "task.accept task.reject task.release task.reopen" [ref=7726]
+  inlinetextbox "task.accept task.reject task.release task.reopen"
+statictext "task.cancel task.update" [ref=7727]
+  inlinetextbox "task.cancel task.update"
+statictext "gate.create gate.resolve gate.reopen gate.cancel" [ref=7728]
+  inlinetextbox "gate.create gate.resolve gate.reopen gate.cancel"
+statictext "gate.update" [ref=7729]
+  inlinetextbox "gate.update"
+statictext "knowledge.create knowledge.deprecate knowledge.update" [ref=7730]
+  inlinetextbox "knowledge.create knowledge.deprecate knowledge.update"
+statictext "initiative.create edge.add note.add" [ref=7731]
+  inlinetextbox "initiative.create edge.add note.add"
+statictext "state.restore* state.init_force*" [ref=7732]
+  inlinetextbox "state.restore* state.init_force*"
+statictext "Copy Text" [ref=7733]
+  inlinetextbox "Copy Text"
+statictext "const" [ref=7734]
+  inlinetextbox "const"
+statictext "decision" [ref=7735]
+  inlinetextbox "decision"
+statictext "=" [ref=7736]
+  inlinetextbox "="
+statictext "await" [ref=7737]
+  inlinetextbox "await"
+statictext "authorizeAction" [ref=7738]
+  inlinetextbox "authorizeAction"
+statictext "({" [ref=7739]
+  inlinetextbox "({"
+statictext "policy," [ref=7740]
+  inlinetextbox "policy,"
+statictext "// loadApplicablePolicy result, or null" [ref=7741]
+  inlinetextbox "// loadApplicablePolicy result, or null"
+statictext "action," [ref=7742]
+  inlinetextbox "action,"
+statictext "// canonical action from §9.2" [ref=7743]
+  inlinetextbox "// canonical action from §9.2"
+statictext "actor," [ref=7744]
+  inlinetextbox "actor,"
+statictext "// --as / CLIMIER_AGENT (never empty for mutators)" [ref=7745]
+  inlinetextbox "// --as / CLIMIER_AGENT (never empty for mutators)"
+statictext "target," [ref=7746]
+  inlinetextbox "target,"
+statictext "// { id, kind, subkind, status?, claim? }" [ref=7747]
+  inlinetextbox "// { id, kind, subkind, status?, claim? }"
+statictext "snapshot," [ref=7748]
+  inlinetextbox "snapshot,"
+statictext "// read-only view of state under the lock" [ref=7749]
+  inlinetextbox "// read-only view of state under the lock"
+statictext "projectDir," [ref=7750]
+  inlinetextbox "projectDir,"
+statictext "projectConfig," [ref=7751]
+  inlinetextbox "projectConfig,"
+statictext "// frozen raw .climier.json (or {})" [ref=7752]
+  inlinetextbox "// frozen raw .climier.json (or {})"
+statictext "});" [ref=7753]
+  inlinetextbox "});"
+code [ref=7754]
+code [ref=7755]
+statictext "Copy Text" [ref=7756]
+  inlinetextbox "Copy Text"
+statictext "mkdir" [ref=7757]
+  inlinetextbox "mkdir"
+statictext "-p" [ref=7758]
+  inlinetextbox "-p"
+statictext "/tmp/smoke" [ref=7759]
+  inlinetextbox "/tmp/smoke"
+statictext "&&" [ref=7760]
+  inlinetextbox "&&"
+statictext "cd" [ref=7761]
+  inlinetextbox "cd"
+statictext "/tmp/smoke" [ref=7762]
+  inlinetextbox "/tmp/smoke"
+statictext "climier" [ref=7763]
+  inlinetextbox "climier"
+statictext "--project" [ref=7764]
+  inlinetextbox "--project"
+statictext "." [ref=7765]
+  inlinetextbox "."
+statictext "init" [ref=7766]
+  inlinetextbox "init"
+statictext "climier" [ref=7767]
+  inlinetextbox "climier"
+statictext "--project" [ref=7768]
+  inlinetextbox "--project"
+statictext "." [ref=7769]
+  inlinetextbox "."
+statictext "--as" [ref=7770]
+  inlinetextbox "--as"
+statictext "me" [ref=7771]
+  inlinetextbox "me"
+statictext "add-task" [ref=7772]
+  inlinetextbox "add-task"
+statictext "T-smoke" [ref=7773]
+  inlinetextbox "T-smoke"
+statictext "\\" [ref=7774]
+  inlinetextbox "\\"
+statictext "--initiative" [ref=7775]
+  inlinetextbox "--initiative"
+statictext "my-initiative" [ref=7776]
+  inlinetextbox "my-initiative"
+statictext "--title" [ref=7777]
+  inlinetextbox "--title"
+statictext "\"smoke target\"" [ref=7778]
+  inlinetextbox "\"smoke target\""
+statictext "\\" [ref=7779]
+  inlinetextbox "\\"
+statictext "--body" [ref=7780]
+  inlinetextbox "--body"
+statictext "\"smoke\"" [ref=7781]
+  inlinetextbox "\"smoke\""
+statictext "--acceptance" [ref=7782]
+  inlinetextbox "--acceptance"
+statictext "\"round-trip ok\"" [ref=7783]
+  inlinetextbox "\"round-trip ok\""
+statictext "Copy Text" [ref=7784]
+  inlinetextbox "Copy Text"
+statictext "climier" [ref=7785]
+  inlinetextbox "climier"
+statictext "--project" [ref=7786]
+  inlinetextbox "--project"
+statictext "." [ref=7787]
+  inlinetextbox "."
+statictext "install" [ref=7788]
+  inlinetextbox "install"
+statictext "/path/to/your-plugin" [ref=7789]
+  inlinetextbox "/path/to/your-plugin"

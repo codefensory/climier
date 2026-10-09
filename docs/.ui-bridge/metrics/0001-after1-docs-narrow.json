@@ -1,0 +1,28 @@
+{
+  "id": "0001-after1-docs-narrow",
+  "label": "after1-docs-narrow",
+  "round": 1,
+  "url": "http://localhost:3005/docs/getting-started/quickstart",
+  "title": "Quickstart — Climier",
+  "path": "/home/yeferson/dev/climier/docs/.ui-bridge/shots/0001-after1-docs-narrow.png",
+  "snapshotPath": "/home/yeferson/dev/climier/docs/.ui-bridge/snapshots/0001-after1-docs-narrow.txt",
+  "fullPage": true,
+  "settle": 1200,
+  "clip": null,
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "size": "146.8 KB",
+  "page": {
+    "url": "http://localhost:3005/docs/getting-started/quickstart",
+    "title": "Quickstart — Climier",
+    "w": 390,
+    "h": 844,
+    "sx": 0,
+    "sy": 0,
+    "pw": 380,
+    "ph": 2496
+  },
+  "at": "2026-10-09T17:18:27.142Z"
+}

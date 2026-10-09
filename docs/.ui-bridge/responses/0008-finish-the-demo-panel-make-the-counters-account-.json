@@ -1,0 +1,25 @@
+{
+  "id": "0008",
+  "status": "done",
+  "filesChanged": [
+    "src/components/landing/dag-demo.tsx"
+  ],
+  "summary": "Added the missing done counter to the accept beat and compacted the narrow layout: the framing command is followed by counters and controls in a two-row header, mobile node titles sit beside their status pills, and vertical spacing is reduced without hiding content or lowering the 12px type floor.",
+  "choices": [
+    "Per-beat node totals: take = 1 in progress + 2 blocked + 1 open gate = 4; submit = 1 submitted + 2 blocked + 1 open gate = 4; accept = 1 done + 1 ready + 1 blocked + 1 open gate = 4.",
+    "On mobile, moved each BLOCKS target beside its node ID to preserve the relationship while removing a separate row from the cards."
+  ],
+  "hygiene": {
+    "commands": [
+      "cd /home/yeferson/dev/climier/docs && ./node_modules/.bin/prettier --single-quote --write src/components/landing/dag-demo.tsx",
+      "cd /home/yeferson/dev/climier/docs && ./node_modules/.bin/tsc --ignoreConfig --noEmit --strict --esModuleInterop --jsx react-jsx --module ESNext --moduleResolution Bundler --lib DOM,DOM.Iterable,ES2022 --types vite/client --isolatedModules --resolveJsonModule --skipLibCheck --target ES2022 --allowJs --forceConsistentCasingInFileNames src/components/landing/dag-demo.tsx"
+    ],
+    "result": "clean"
+  },
+  "openQuestions": [
+    "The live 390px/768px measurements were not checked; this change was applied but not visually verified.",
+    "Project-wide typecheck, tests, and build were not run because this turn prohibited tests/builds and required checks to be scoped to edited files; the scoped TypeScript check passed."
+  ],
+  "blockedReason": null,
+  "notVerified": true
+}

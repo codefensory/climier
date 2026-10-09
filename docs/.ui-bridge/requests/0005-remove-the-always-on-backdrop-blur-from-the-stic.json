@@ -1,0 +1,96 @@
+{
+  "id": "0005",
+  "createdAt": "2026-10-09T17:51:13.499Z",
+  "status": "open",
+  "source": "ui-visual-director",
+  "goal": "Remove the always-on backdrop blur from the sticky chrome, which forces the compositor to re-blur the page on every scroll frame",
+  "context": "Found by inventorying computed styles on the live pages (this is library chrome, so it is not in our own stylesheets). On the landing there is exactly ONE element with a backdrop-filter: the sticky header's inner bar, `#nd-nav > div`, computed `backdrop-filter: blur(16px)`, 1430x57 CSS px, `position: sticky; top: 0; z-40`, with `background-color: oklab(... / 0.8)` — i.e. 80 percent opaque. It comes from fumadocs-ui's home header slot (`backdrop-blur-lg` in node_modules/fumadocs-ui/dist/layouts/home/slots/header.js). On the docs pages there are more: a sticky `header#nd-subnav` with blur(8px), a header that already has an opaque `bg-fd-background` AND blur(8px) (the blur can have no effect there), and four 24x25 copy chips with `backdrop-blur-lg` sitting inside code blocks, i.e. inside scrolling content. Why this matters and why it was invisible until now: a backdrop-filter on a full-width sticky element over scrolling content makes the compositor re-sample and re-blur the backdrop region on EVERY frame while the user scrolls. This headless environment cannot see that cost at all — its compositor draw path is stubbed (CompositeLayers=0, DrawFrame=0 in every trace) — so every previous measurement I ran on this page was blind to exactly this kind of cost. What can be measured here is software raster, where the same comparison over a 40-step wheel scroll at DPR 2 gave 17.6ms as-is vs 14.9ms without the blur and 8.1ms with an opaque background; single sample, so treat it as a direction, not a number. The decisive fact is different: I captured the header at three scroll positions where the bar sits over the dotted canvas, over the brand band and over the spec section, in light and dark mode, and removing the blur AND making the background opaque is PIXEL-IDENTICAL to today — normalized RMSE exactly 0, diffRatio 0, at fuzz 0, in all twelve comparisons. An 80 percent opaque bar over a flat canvas has nothing visible left to blur.",
+  "referenceImage": null,
+  "targets": [
+    {
+      "selector": "#nd-nav > div (the landing sticky header bar; computed backdrop-filter: blur(16px))",
+      "intent": "No backdrop blur on the sticky header. Give it the page background as a solid colour so the blur is provably unnecessary rather than merely disabled, keeping the existing bottom border and the sticky bar reading exactly as it does now.",
+      "notes": "Verified equivalent: opaque background + no blur renders identically to today at scroll 900/1500/2760 in light and dark. Keep the height, the border, the z-index and the sticky behaviour untouched. This is fumadocs' class, so the fix belongs in our own stylesheet as an override rather than a patch to node_modules."
+    },
+    {
+      "selector": "the docs sticky chrome: header#nd-subnav and the header that carries both bg-fd-background and backdrop-blur-sm, plus the absolute copy chips with backdrop-blur-lg inside code blocks",
+      "intent": "Drop the backdrop blur from the docs chrome as well. Where the element already paints an opaque background the blur does nothing but still costs a backdrop pass; where it does not, the background should become the page background like the landing header. The copy chips must stay legible over code blocks and keep their position, size and hover and focus states.",
+      "notes": "Do not change any layout, colour token, size, radius or copy. Do not restyle the code blocks themselves."
+    }
+  ],
+  "constraints": [
+    "Zero elements on / or anywhere under /docs/** may have a computed backdrop-filter other than none once you are done — verify it, do not assume it.",
+    "Do not patch node_modules and do not add a dependency. Override from our own stylesheet.",
+    "Do not change layout, spacing, colour tokens, type, radii or copy; the header and the chips must look the same as today.",
+    "Keep the header's bottom border, its sticky positioning and its z-index; keep focus-visible outlines on the chips.",
+    "Hygiene: run `cd docs && bun run typecheck` and `cd docs && bun run test` and report the exact commands and results in hygiene."
+  ],
+  "designTokens": {},
+  "acceptanceCriteria": [
+    "On / and on /docs/getting-started/quickstart, a scan of every element's computed backdropFilter reports none for all of them.",
+    "The landing header renders pixel-identical to today at scroll offsets 900, 1500 and 2760, in light and dark mode (I verified this is achievable: RMSE 0 at fuzz 0 in all twelve comparisons).",
+    "The docs copy chips are still visible and legible over a code block, in the same position, and still respond to hover and keyboard focus.",
+    "The landing header is still a sticky bar with its bottom border, and the page still scrolls under it.",
+    "`cd docs && bun run typecheck` exits 0, `cd docs && bun run test` passes, and `cd docs && bun run build` succeeds."
+  ],
+  "qualityChecks": [
+    "The override is the smallest one that removes the blur from all of them — one targeted rule per element family, not a blunt `*` reset that would also kill legitimate blurs in modals or menus.",
+    "Do not remove blurs that are genuinely needed and never appear over scrolling content (for example the search dialog).",
+    "No dead CSS left behind and no `!important` where specificity does not require it.",
+    "The header's text contrast did not drop — an opaque background must not make the muted nav text harder to read in either theme."
+  ],
+  "regressionChecks": [
+    "Landing /: header at several scroll offsets, the dotted canvas, the brand band, the demo panel, the footer.",
+    "Docs /docs/getting-started/quickstart: header, sidebar, code blocks and their copy chips, the TOC, and the pagination cards.",
+    "Docs /docs/reference/cli: a long page with many code blocks still scrolls and renders correctly.",
+    "Dark mode on both the landing and a docs page.",
+    "Narrow viewport (390x844): the landing header, and the docs search trigger and menu button.",
+    "The search dialog still opens and its own backdrop treatment is unchanged."
+  ],
+  "visualGaps": [
+    {
+      "area": "landing sticky header",
+      "selector": "#nd-nav > div",
+      "observed": "Always-on backdrop-filter: blur(16px) on a 1430x57 sticky full-width bar over scrolling content — a per-frame backdrop re-blur that the headless compositor here cannot even measure. Also 17.6ms vs 8.1ms of software raster over a 40-step wheel scroll at DPR 2 with an opaque background.",
+      "expected": "No blur, opaque page background, identical rendering.",
+      "severity": "high",
+      "axis": "regression"
+    },
+    {
+      "area": "docs chrome",
+      "selector": "header#nd-subnav, the bg-fd-background header, and the code-block copy chips",
+      "observed": "Blur(8px) on a header that already paints an opaque background (pure waste), plus four 24x25 blur(16px) chips inside scrolling content.",
+      "expected": "No backdrop-filter anywhere in the docs chrome; same appearance and behaviour.",
+      "severity": "medium",
+      "axis": "regression"
+    }
+  ],
+  "doNotTouch": [
+    "docs/content/**",
+    "docs/src/assets/fonts/**",
+    "docs/src/lib/layout.shared.tsx",
+    "docs/src/routes/docs/$.tsx",
+    "docs/src/styles/theme.css",
+    "node_modules/**",
+    "ui/**"
+  ],
+  "budget": {
+    "maxFiles": 2,
+    "maxRoundsLeft": 2
+  },
+  "responseTemplate": {
+    "id": "0005",
+    "status": "done",
+    "filesChanged": [],
+    "summary": "",
+    "choices": [],
+    "hygiene": {
+      "commands": [],
+      "result": "clean"
+    },
+    "openQuestions": [],
+    "blockedReason": null,
+    "notVerified": true
+  },
+  "responseFile": ".ui-bridge/responses/0005-remove-the-always-on-backdrop-blur-from-the-stic.json"
+}

@@ -1,0 +1,21 @@
+[ui-crafter] UI change request 0002
+
+Project root: /home/yeferson/dev/climier/docs
+Request file (read this first): /home/yeferson/dev/climier/docs/.ui-bridge/requests/0002-stop-blocking-the-site-s-first-paint-on-a-third-.json
+Response file (write this when done): /home/yeferson/dev/climier/docs/.ui-bridge/responses/0002-stop-blocking-the-site-s-first-paint-on-a-third-.json
+
+If the ui-crafter skill is not loaded in this session yet, read it now: /home/yeferson/.agents/skills/ui-crafter/SKILL.md
+Contract and schema: /home/yeferson/.agents/skills/ui-crafter/references/contract.md
+
+Rules for this turn:
+- Apply ONLY the UI changes described in the request file, as the smallest diff that achieves them.
+- HYGIENE (allowed, expected): after your edits and before writing the response, run the project's formatter/linter, and a fast type check if there is one, ALWAYS with explicit paths to the files you touched (e.g. `bunx biome check --write <files>`). Never a repo-wide --write, never a file you did not change. Report it in the response's `hygiene` field (commands + result: clean|fixed|errors|skipped|unavailable).
+- Do NOT fix lint findings that live outside your own diff: report them in openQuestions.
+- Do NOT run tests, builds, dev servers, package installs, or any check of how the result looks. Hygiene is not verification.
+- Do NOT run git add/commit/push, do NOT touch lockfiles, configs, or non-UI files.
+- Do NOT add dependencies and do NOT restructure unrelated code.
+- Reuse the project's existing design tokens, components, and conventions.
+- Write the response JSON to the response file path above (schema: responseTemplate in the request).
+
+Then reply in at most 3 lines: "0002 | <done|blocked|rejected> | <files changed>".
+Do not paste diffs.

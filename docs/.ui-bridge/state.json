@@ -1,0 +1,166 @@
+{
+  "phase": "done",
+  "round": 8,
+  "pendingRequest": "0008",
+  "lastRequest": "0008",
+  "lastResponse": "0008",
+  "lastShot": "/home/yeferson/dev/climier/docs/.ui-bridge/shots/0006-0007-before-landing.png",
+  "lastMetrics": null,
+  "openGaps": [
+    {
+      "area": "accept beat counters",
+      "selector": "figure.landing-panel header ul (the counter pills)",
+      "observed": "In the accept beat the pills read 1 ready, 1 blocked, 1 open gates, which sums to 3, while the graph shows 4 nodes with one of them marked done. Measured in all three beats: take shows in progress 1 + blocked 2 + open 1 = 4 and matches; submit shows submitted 1 + blocked 2 + open 1 = 4 and matches; accept shows done 1 + ready 1 + blocked 1 + open 1 = 4 in the graph but only 3 in the pills. The done node stops being counted exactly when the beat is teaching that acceptance is what satisfies the blocker.",
+      "expected": "Every beat accounts for every node in the graph. The real status summary includes a done counter, so the accept beat should carry one and the three beats should each sum to the four nodes shown.",
+      "severity": "medium",
+      "axis": "clarity"
+    },
+    {
+      "area": "panel height on narrow viewports",
+      "selector": "figure.landing-panel at 390 and 768",
+      "observed": "1089px tall at 390x844, which is 1.29 viewport heights, and 923px at 768x900, just over one viewport. At 390 the header alone is 152px tall because the framing command, the three pills and the rev counter with its two controls wrap onto three rows.",
+      "expected": "The panel fits within roughly one viewport at 390 so the example can be taken in without scrolling past it, with the header using one or two rows and the framing command still visible.",
+      "severity": "medium",
+      "axis": "layout"
+    },
+    {
+      "area": "mobile node cards",
+      "selector": "figure.landing-panel mobile card rows",
+      "observed": "On the 390 layout the status pill is pushed to the far right of each full-width card, leaving a wide empty run between the node title and its pill on all four cards, and the rev counter with its two controls sits alone on its own right-aligned row below the pills.",
+      "expected": "A tighter mobile card where the title and its pill read as one unit rather than two ends of a wide empty row.",
+      "severity": "low",
+      "axis": "layout"
+    }
+  ],
+  "history": [
+    {
+      "round": 1,
+      "requestId": "0001",
+      "status": "done",
+      "normalizedRmse": null,
+      "filesChanged": [
+        "src/lib/layout.shared.tsx",
+        "src/routes/docs/$.tsx"
+      ],
+      "filesChangedSource": "snapshot-delta",
+      "note": "docs chrome declutter converged: nav links, banner and custom footer removed; typecheck 0; docs/landing/dark/mobile verified",
+      "at": "2026-10-09T17:19:13.700Z"
+    },
+    {
+      "round": 2,
+      "requestId": "0002",
+      "status": "done",
+      "normalizedRmse": null,
+      "filesChanged": [
+        ".source/browser.ts",
+        ".source/dynamic.ts",
+        ".source/server.ts",
+        "src/routes/__root.tsx",
+        "src/styles/app.css"
+      ],
+      "filesChangedSource": "snapshot-delta",
+      "note": "font load path: external @import removed, sheets now parallel; self-hosting deferred to round 3",
+      "at": "2026-10-09T17:24:01.414Z"
+    },
+    {
+      "round": 3,
+      "requestId": "0003",
+      "status": "done",
+      "normalizedRmse": null,
+      "filesChanged": [
+        "src/assets/fonts/dm-sans-latin.woff2",
+        "src/assets/fonts/jetbrains-mono-latin.woff2",
+        "src/assets/fonts/manrope-latin.woff2",
+        "src/routes/__root.tsx",
+        "src/styles/app.css"
+      ],
+      "filesChangedSource": "snapshot-delta",
+      "note": "self-hosted the three variable faces; build verified under default and /climier base, prod serve shows 1 fetch per face, 0 third-party, CLS 0, pixels identical",
+      "at": "2026-10-09T17:28:30.800Z"
+    },
+    {
+      "round": 4,
+      "requestId": "0004",
+      "status": "done",
+      "normalizedRmse": null,
+      "filesChanged": [
+        "src/components/landing/dag-demo.tsx",
+        "src/styles/app.css"
+      ],
+      "filesChangedSource": "snapshot-delta",
+      "note": "animation gating PROVEN: 224 -> 20 compositor begin-frames per 3s idle off-screen (11x), 3 reps zero variance, 0 running animations off-screen. Dot-veil and flip-ring changes are pixel-identical (light+dark, 5 offsets, fuzz 0) but my earlier raster numbers for them were a warm-up artifact and are withdrawn.",
+      "at": "2026-10-09T17:51:13.394Z"
+    },
+    {
+      "round": 5,
+      "requestId": "0005",
+      "status": "continue",
+      "normalizedRmse": null,
+      "filesChanged": [
+        "src/styles/app.css"
+      ],
+      "filesChangedSource": "snapshot-delta",
+      "note": "backdrop blur removed from landing bar + subnav + chips and verified pixel-identical; one docs tablet/mobile TOC header missed, corrective round 0006 sent",
+      "at": "2026-10-09T17:57:45.572Z"
+    },
+    {
+      "round": 6,
+      "requestId": "0006",
+      "status": "done",
+      "normalizedRmse": null,
+      "filesChanged": [
+        "src/styles/app.css"
+      ],
+      "filesChangedSource": "snapshot-delta",
+      "note": "all four backdrop-filter holders removed; scan reports 0 blurred elements on / and 3 docs pages at 5 viewports; TOC bar pixel-identical at 1024/768/390 light+dark (fuzz 0); typecheck 0, docs tests 6/6, build ok, root targeted 8/8",
+      "at": "2026-10-09T18:01:33.680Z"
+    },
+    {
+      "round": 6,
+      "requestId": "0006",
+      "status": "continue",
+      "normalizedRmse": null,
+      "filesChanged": [
+        "src/styles/app.css"
+      ],
+      "filesChangedSource": "snapshot-delta",
+      "note": "round 6 closed: backdrop-blur removal verified pixel-identical; new round 7 commissioned for the landing demo panel redesign",
+      "at": "2026-10-09T18:13:59.713Z"
+    },
+    {
+      "round": 7,
+      "requestId": "0007",
+      "status": "continue",
+      "normalizedRmse": null,
+      "filesChanged": [
+        "src/components/landing/dag-demo.tsx"
+      ],
+      "filesChangedSource": "snapshot-delta",
+      "note": "round 7 PASS on compliance and quality: type floor 12px, complete JSON, 9.4/9.4/11.2s beats, pause holds 15s, accumulating log, gate no longer nested, panel 385->523. Open: accept-beat counters sum to 3 of 4 nodes, mobile panel 1.29 viewports.",
+      "at": "2026-10-09T18:27:19.263Z"
+    },
+    {
+      "round": 8,
+      "requestId": "0008",
+      "status": "done",
+      "normalizedRmse": null,
+      "filesChanged": [
+        "src/components/landing/dag-demo.tsx"
+      ],
+      "filesChangedSource": "snapshot-delta",
+      "note": "round 8 verified: all three beats now sum to 4 pills = 4 graph nodes (accept gained the done counter); 390 height 1089->893px (1.06 viewports, target was 860, accepted as below-low); 768 889px (0.99 vp); type floor 12px held; no ellipsis; log still accumulates; framing command visible at 390; typecheck 0, docs tests 6/6, build ok",
+      "at": "2026-10-09T18:38:17.155Z"
+    }
+  ],
+  "startedAt": "2026-10-09T17:10:17.238Z",
+  "updatedAt": "2026-10-09T18:38:17.156Z",
+  "lastScope": {
+    "id": "0008",
+    "filesChanged": [
+      "src/components/landing/dag-demo.tsx"
+    ],
+    "removed": [],
+    "source": "snapshot-delta",
+    "at": "2026-10-09T18:31:14.219Z"
+  }
+}

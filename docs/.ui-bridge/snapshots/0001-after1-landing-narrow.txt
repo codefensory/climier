@@ -1,0 +1,643 @@
+[p1 "Climier — Coordinate work with confidence" | space "ui-review: docs"(379): 1 managed, 0 untracked — p1* "Climier — Coordinate work with confidence"]
+rootwebarea "Climier — Coordinate work with confidence" [ref=4580]
+main [ref=4581]
+  sectionheader "Main" [ref=4582]
+  generic [ref=4583]
+    generic [ref=4584]
+      generic [ref=4585]
+    generic [ref=4586]
+    generic [ref=4587]
+      list [ref=4588]
+        listitem [ref=4589]
+        listitem [ref=4590]
+        listitem [ref=4591]
+        listitem [ref=4592]
+      descriptionlist [ref=4593]
+    generic [ref=4594]
+  sectionfooter [ref=4595]
+generic [ref=4596]
+  navigation [ref=4597]
+    link "Climier" href="/" [ref=4598, loc=href:/]
+statictext "Climier" [ref=4599]
+  inlinetextbox "Climier"
+paragraph [ref=4600]
+  statictext "A JSON-first task DAG for coordinating work, decisions, and knowledge across agents and humans." [ref=4601]
+    inlinetextbox "A JSON-first task DAG for coordinating work,"
+    inlinetextbox "decisions, and knowledge across agents and"
+    inlinetextbox "humans."
+paragraph [ref=4602]
+  statictext "Get started" [ref=4603]
+    inlinetextbox "Get started"
+list [ref=4604]
+  listitem [ref=4605]
+    link "Install" href="/docs/getting-started/install" [ref=4606, loc=href:/docs/getting-started/install]
+      statictext "Install" [ref=4607]
+        inlinetextbox "Install"
+  listitem [ref=4608]
+    link "Quickstart" href="/docs/getting-started/quickstart" [ref=4609]
+      statictext "Quickstart" [ref=4610]
+        inlinetextbox "Quickstart"
+  listitem [ref=4611]
+    link "Core workflow" href="/docs/getting-started/core-workflow" [ref=4612, loc=href:/docs/getting-started/core-workflow]
+      statictext "Core workflow" [ref=4613]
+        inlinetextbox "Core workflow"
+paragraph [ref=4614]
+  statictext "Concepts" [ref=4615]
+    inlinetextbox "Concepts"
+list [ref=4616]
+  listitem [ref=4617]
+    link "Tasks" href="/docs/concepts/tasks" [ref=4618, loc=href:/docs/concepts/tasks]
+      statictext "Tasks" [ref=4619]
+        inlinetextbox "Tasks"
+  listitem [ref=4620]
+    link "Gates" href="/docs/concepts/gates" [ref=4621, loc=href:/docs/concepts/gates]
+      statictext "Gates" [ref=4622]
+        inlinetextbox "Gates"
+  listitem [ref=4623]
+    link "Knowledge" href="/docs/concepts/knowledge" [ref=4624, loc=href:/docs/concepts/knowledge]
+      statictext "Knowledge" [ref=4625]
+        inlinetextbox "Knowledge"
+paragraph [ref=4626]
+  statictext "Reference" [ref=4627]
+    inlinetextbox "Reference"
+list [ref=4628]
+  listitem [ref=4629]
+    link "CLI" href="/docs/reference/cli" [ref=4630, loc=href:/docs/reference/cli]
+      statictext "CLI" [ref=4631]
+        inlinetextbox "CLI"
+  listitem [ref=4632]
+    link "Plugins" href="/docs/reference/plugins" [ref=4633, loc=href:/docs/reference/plugins]
+      statictext "Plugins" [ref=4634]
+        inlinetextbox "Plugins"
+  listitem [ref=4635]
+    link "Self-hosting" href="/docs/reference/self-hosting" [ref=4636, loc=href:/docs/reference/self-hosting]
+      statictext "Self-hosting" [ref=4637]
+        inlinetextbox "Self-hosting"
+statictext "©" [ref=4638]
+  inlinetextbox "©"
+statictext "2026" [ref=4639]
+  inlinetextbox "2026"
+statictext "Climier. MIT licensed." [ref=4640]
+  inlinetextbox "Climier. MIT licensed."
+link "codefensory/climier" href="https://github.com/codefensory/climier" [ref=4641]
+  statictext "codefensory/climier" [ref=4642]
+    inlinetextbox "codefensory/climier"
+heading "How the graph stays honest." [ref=4643]
+  statictext "How the graph stays honest." [ref=4644]
+    inlinetextbox "How the graph"
+    inlinetextbox "stays honest."
+paragraph [ref=4645]
+  statictext "Climier keeps one snapshot, one write path, and one derivation. Nothing else is allowed to become a second source of truth." [ref=4646]
+    inlinetextbox "Climier keeps one snapshot, one write path,"
+    inlinetextbox "and one derivation. Nothing else is allowed"
+    inlinetextbox "to become a second source of truth."
+article [ref=4647]
+article [ref=4648]
+article [ref=4649]
+link "Read the derivation rules" href="/docs/concepts/edges-and-status" [ref=4650, loc=href:/docs/concepts/edges-and-status]
+  statictext "Read the derivation rules" [ref=4651]
+    inlinetextbox "Read the derivation rules"
+link "See the state shape" href="/docs/concepts/state-and-storage" [ref=4652, loc=href:/docs/concepts/state-and-storage]
+  statictext "See the state shape" [ref=4653]
+    inlinetextbox "See the state shape"
+heading "The lifecycle, once." [ref=4654]
+  statictext "The lifecycle, once." [ref=4655]
+    inlinetextbox "The lifecycle, once."
+paragraph [ref=4656]
+  statictext "Four persisted states, each written by one command. Everything the graph reports is derived from where a node sits on this line." [ref=4657]
+    inlinetextbox "Four persisted states, each written by one"
+    inlinetextbox "command. Everything the graph reports is"
+    inlinetextbox "derived from where a node sits on this line."
+heading "From an empty directory to a ready task." [ref=4658]
+  statictext "From an empty directory to a ready task." [ref=4659]
+    inlinetextbox "From an empty directory"
+    inlinetextbox "to a ready task."
+paragraph [ref=4660]
+  statictext "Eleven lines, no server, no account. The same commands work in a terminal, a script, or an agent — they all read the same JSON." [ref=4661]
+    inlinetextbox "Eleven lines, no server, no account. The same"
+    inlinetextbox "commands work in a terminal, a script, or an"
+    inlinetextbox "agent — they all read the same JSON."
+link "Start the quickstart" href="/docs/getting-started/quickstart" [ref=4662]
+  statictext "Start the quickstart" [ref=4663]
+    inlinetextbox "Start the quickstart"
+statictext "terminal" [ref=4664]
+  inlinetextbox "terminal"
+button "Copy the quickstart commands" [ref=4665]
+  generic [ref=4666]
+    statictext "Copy" [ref=4667]
+      inlinetextbox "Copy"
+generic [ref=4668]
+  code [ref=4669]
+    generic [ref=4670]
+      statictext "# requires Bun 1.4+" [ref=4671]
+        inlinetextbox "# requires Bun 1.4+"
+    generic [ref=4672]
+      statictext "$" [ref=4673]
+        inlinetextbox "$"
+      statictext "bun add --global climier" [ref=4674]
+        inlinetextbox "bun add --global climier"
+    generic [ref=4675]
+      statictext "$" [ref=4676]
+        inlinetextbox "$"
+      statictext "mkdir climier-demo && cd climier-demo" [ref=4677]
+        inlinetextbox "mkdir climier-demo && cd climier-demo"
+    generic [ref=4678]
+      statictext "$" [ref=4679]
+        inlinetextbox "$"
+      statictext "climier init" [ref=4680]
+        inlinetextbox "climier init"
+    generic [ref=4681]
+      statictext "$" [ref=4682]
+        inlinetextbox "$"
+      statictext "climier add-initiative demo --as alice" [ref=4683]
+        inlinetextbox "climier add-initiative demo --as alice"
+    generic [ref=4684]
+      statictext "$" [ref=4685]
+        inlinetextbox "$"
+      statictext "climier add-task T-example-1 --initiative demo \\" [ref=4686]
+        inlinetextbox "climier add-task T-example-1 --initiative demo \\"
+    generic [ref=4687]
+      statictext [ref=4688]
+        inlinetextbox
+      statictext "--title \"Write the first task\" \\" [ref=4689]
+        inlinetextbox "--title \"Write the first task\" \\"
+    generic [ref=4690]
+      statictext [ref=4691]
+        inlinetextbox
+      statictext "--body \"Complete the first piece of work in the demo project.\" \\" [ref=4692]
+        inlinetextbox "--body \"Complete the first piece of work in the demo project.\" \\"
+    generic [ref=4693]
+      statictext [ref=4694]
+        inlinetextbox
+      statictext "--acceptance \"The work is complete and its checks pass.\" \\" [ref=4695]
+        inlinetextbox "--acceptance \"The work is complete and its checks pass.\" \\"
+    generic [ref=4696]
+      statictext [ref=4697]
+        inlinetextbox
+      statictext "--blocked-by \"\" --as alice" [ref=4698]
+        inlinetextbox "--blocked-by \"\" --as alice"
+    generic [ref=4699]
+      statictext "$" [ref=4700]
+        inlinetextbox "$"
+      statictext "climier status" [ref=4701]
+        inlinetextbox "climier status"
+button "Open Search" [ref=4702]
+generic [ref=4703]
+  button "Toggle Menu" [ref=4704]
+heading "Coordinate work with confidence." [ref=4705]
+  statictext "Coordinate work with" [ref=4706]
+    inlinetextbox "Coordinate work"
+    inlinetextbox "with"
+  statictext "confidence." [ref=4707]
+    inlinetextbox "confidence."
+paragraph [ref=4708]
+  statictext "Climier is a durable task DAG for coordinating work, decisions, and knowledge across agents, sessions, and humans. Every change is validated, committed, and logged atomically." [ref=4709]
+    inlinetextbox "Climier is a durable task DAG for"
+    inlinetextbox "coordinating work, decisions, and"
+    inlinetextbox "knowledge across agents, sessions, and"
+    inlinetextbox "humans. Every change is validated,"
+    inlinetextbox "committed, and logged atomically."
+link "Start the quickstart" href="/docs/getting-started/quickstart" [ref=4710]
+  statictext "Start the quickstart" [ref=4711]
+    inlinetextbox "Start the quickstart"
+link "Source" href="https://github.com/codefensory/climier" [ref=4712]
+  statictext "Source" [ref=4713]
+    inlinetextbox "Source"
+code [ref=4714]
+  statictext "bun add --global climier" [ref=4715]
+    inlinetextbox "bun add --global climier"
+button "Copy the install command" [ref=4716]
+  generic [ref=4717]
+    statictext "Copy" [ref=4718]
+      inlinetextbox "Copy"
+figure [ref=4719]
+  figcaption [ref=4720]
+    statictext "A four-node Climier graph in the initiative “auth”. The task T-auth-0 is taken, submitted, and accepted. Acceptance is what satisfies its blocker edge and derives T-auth-1 as ready; submission does not." [ref=4721]
+      inlinetextbox "A four-node Climier graph in the initiative “auth”. The task T-auth-0 is taken, submitted, and accepted. Acceptance is what satisfies its blocker edge and derives T-auth-1 as ready; submission does not."
+  list [ref=4722]
+    listitem [ref=4723]
+      button "Step 1: climier take T-auth-0 --as alice" [ref=4724]
+    listitem [ref=4725]
+      button "Step 2: climier submit T-auth-0 --note \"Contract reviewed in #34\"" [ref=4726]
+    listitem [ref=4727]
+      button "Step 3: climier accept T-auth-0 --as reviewer" [ref=4728]
+heading "Ready and blocked are derived, never stored." [ref=4729]
+  statictext "Ready and blocked are derived, never stored." [ref=4730]
+    inlinetextbox "Ready and blocked are"
+    inlinetextbox "derived, never stored."
+paragraph [ref=4731]
+  statictext "The snapshot keeps one lifecycle value per node." [ref=4732]
+    inlinetextbox "The snapshot keeps one lifecycle value per"
+    inlinetextbox "node."
+  statictext "ready" [ref=4733]
+    inlinetextbox "ready"
+  statictext "and" [ref=4734]
+    inlinetextbox "and"
+  statictext "blocked" [ref=4735]
+    inlinetextbox "blocked"
+  statictext "are recomputed from the graph on every read, so a reported status cannot drift away from the work behind it." [ref=4736]
+    inlinetextbox "are recomputed from"
+    inlinetextbox "the graph on every read, so a reported status"
+    inlinetextbox "cannot drift away from the work behind it."
+statictext "incoming BLOCKS edge" [ref=4737]
+  inlinetextbox "incoming BLOCKS edge"
+statictext "satisfied when" [ref=4738]
+  inlinetextbox "satisfied when"
+table [ref=4739]
+  rowgroup [ref=4740]
+    row [ref=4741]
+      columnheader "blocker kind" [ref=4742]
+        statictext "blocker kind" [ref=4743]
+          inlinetextbox "blocker kind"
+      columnheader "satisfied when" [ref=4744]
+        statictext "satisfied when" [ref=4745]
+          inlinetextbox "satisfied when"
+paragraph [ref=4746]
+  statictext "submitted" [ref=4747]
+    inlinetextbox "submitted"
+  statictext "waits for validation. It never satisfies a blocker, no matter how long the review takes." [ref=4748]
+    inlinetextbox "waits for validation. It never satisfies a"
+    inlinetextbox "blocker, no matter how long the review takes."
+heading "Every mutation is one locked, atomic commit." [ref=4749]
+  statictext "Every mutation is one locked, atomic commit." [ref=4750]
+    inlinetextbox "Every mutation is one"
+    inlinetextbox "locked, atomic commit."
+paragraph [ref=4751]
+  statictext "State, revision ledger, and audit log land together under a single project lock. Two writers serialize instead of interleaving, and the log can never describe a state that was not written." [ref=4752]
+    inlinetextbox "State, revision ledger, and audit log land"
+    inlinetextbox "together under a single project lock. Two"
+    inlinetextbox "writers serialize instead of interleaving, and the"
+    inlinetextbox "log can never describe a state that was not"
+    inlinetextbox "written."
+generic [ref=4753]
+  statictext "~/.climier/projects/<id>/" [ref=4754]
+    inlinetextbox "~/.climier/projects/<id>/"
+descriptionlist [ref=4755]
+paragraph [ref=4756]
+  statictext "One lock per project, so writers serialize instead of racing. Add" [ref=4757]
+    inlinetextbox "One lock per project, so writers serialize instead of"
+    inlinetextbox "racing. Add"
+  statictext "--if-revision N" [ref=4758]
+    inlinetextbox "--if-revision N"
+  statictext "and the write fails when the node moved since you read it." [ref=4759]
+    inlinetextbox "and the write fails"
+    inlinetextbox "when the node moved since you read it."
+heading "Every claim names its actor, and stale ones surface." [ref=4760]
+  statictext "Every claim names its actor, and stale ones surface." [ref=4761]
+    inlinetextbox "Every claim names its actor,"
+    inlinetextbox "and stale ones surface."
+paragraph [ref=4762]
+  statictext "Mutating commands record who acted. A claim is visible to the whole project, and a claim held too long raises an alert instead of silently squatting on ready work." [ref=4763]
+    inlinetextbox "Mutating commands record who acted. A claim"
+    inlinetextbox "is visible to the whole project, and a claim held"
+    inlinetextbox "too long raises an alert instead of silently"
+    inlinetextbox "squatting on ready work."
+statictext "climier status --stale-ms 1800000" [ref=4764]
+  inlinetextbox "climier status --stale-ms 1800000"
+statictext "exit 0" [ref=4765]
+  inlinetextbox "exit 0"
+statictext "severity: warning" [ref=4766]
+  inlinetextbox "severity: warning"
+generic [ref=4767]
+  code [ref=4768]
+    generic [ref=4769]
+      statictext "{" [ref=4770]
+        inlinetextbox "{"
+    generic [ref=4771]
+      statictext [ref=4772]
+        inlinetextbox
+      statictext "\"alerts\":" [ref=4773]
+        inlinetextbox "\"alerts\":"
+      statictext [ref=4774]
+        inlinetextbox
+      statictext "[" [ref=4775]
+        inlinetextbox "["
+    generic [ref=4776]
+      statictext [ref=4777]
+        inlinetextbox
+      statictext "{" [ref=4778]
+        inlinetextbox "{"
+      statictext [ref=4779]
+        inlinetextbox
+      statictext "\"kind\":" [ref=4780]
+        inlinetextbox "\"kind\":"
+      statictext [ref=4781]
+        inlinetextbox
+      statictext "\"stale-claim\"" [ref=4782]
+        inlinetextbox "\"stale-claim\""
+      statictext "," [ref=4783]
+        inlinetextbox ","
+    generic [ref=4784]
+      statictext [ref=4785]
+        inlinetextbox
+      statictext "\"severity\":" [ref=4786]
+        inlinetextbox "\"severity\":"
+      statictext [ref=4787]
+        inlinetextbox
+      statictext "\"warning\"" [ref=4788]
+        inlinetextbox "\"warning\""
+      statictext "," [ref=4789]
+        inlinetextbox ","
+    generic [ref=4790]
+      statictext [ref=4791]
+        inlinetextbox
+      statictext "\"task_id\":" [ref=4792]
+        inlinetextbox "\"task_id\":"
+      statictext [ref=4793]
+        inlinetextbox
+      statictext "\"T-auth-3\"" [ref=4794]
+        inlinetextbox "\"T-auth-3\""
+      statictext "," [ref=4795]
+        inlinetextbox ","
+    generic [ref=4796]
+      statictext [ref=4797]
+        inlinetextbox
+      statictext "\"claimed_by\":" [ref=4798]
+        inlinetextbox "\"claimed_by\":"
+      statictext [ref=4799]
+        inlinetextbox
+      statictext "\"bob\"" [ref=4800]
+        inlinetextbox "\"bob\""
+      statictext "," [ref=4801]
+        inlinetextbox ","
+      statictext [ref=4802]
+        inlinetextbox
+      statictext "…" [ref=4803]
+        inlinetextbox "…"
+      statictext [ref=4804]
+        inlinetextbox
+      statictext "}" [ref=4805]
+        inlinetextbox "}"
+    generic [ref=4806]
+      statictext [ref=4807]
+        inlinetextbox
+      statictext "]" [ref=4808]
+        inlinetextbox "]"
+    generic [ref=4809]
+      statictext "}" [ref=4810]
+        inlinetextbox "}"
+paragraph [ref=4811]
+  statictext "Narrow the read with" [ref=4812]
+    inlinetextbox "Narrow the read with"
+  statictext "--claimed-by alice" [ref=4813]
+    inlinetextbox "--claimed-by alice"
+  statictext ". Counts stay global: a claim is visible to everyone, not only to the agent that took it." [ref=4814]
+    inlinetextbox "."
+    inlinetextbox "Counts stay global: a claim is visible to everyone,"
+    inlinetextbox "not only to the agent that took it."
+term "reject submitted → open" [ref=4815]
+definition [ref=4816]
+  statictext "climier reject T-1 --reason \"…\"" [ref=4817]
+    inlinetextbox "climier reject T-1 --reason \"…\""
+term "release in_progress → open" [ref=4818]
+definition [ref=4819]
+  statictext "climier release T-1" [ref=4820]
+    inlinetextbox "climier release T-1"
+term "cancel any → canceled" [ref=4821]
+definition [ref=4822]
+  statictext "climier cancel T-1 --reason \"…\"" [ref=4823]
+    inlinetextbox "climier cancel T-1 --reason \"…\""
+statictext "Climier" [ref=4824]
+  inlinetextbox "Climier"
+statictext "climier" [ref=4825]
+  inlinetextbox "climier"
+statictext "status --initiative auth" [ref=4826]
+  inlinetextbox "status --initiative auth"
+list [ref=4827]
+  listitem [ref=4828]
+    statictext "in progress" [ref=4829]
+      inlinetextbox "in progress"
+  listitem [ref=4830]
+    statictext "blocked" [ref=4831]
+      inlinetextbox "blocked"
+  listitem [ref=4832]
+    statictext "open gates" [ref=4833]
+      inlinetextbox "open gates"
+statictext "rev" [ref=4834]
+  inlinetextbox "rev"
+statictext "5" [ref=4835]
+  inlinetextbox "5"
+button "Pause the graph sequence" [ref=4836]
+button "Restart the graph sequence" [ref=4837]
+generic [ref=4838]
+generic [ref=4839]
+generic [ref=4840]
+generic [ref=4841]
+paragraph [ref=4842]
+  statictext "alice holds the claim on the blocker. Nothing downstream moves yet." [ref=4843]
+    inlinetextbox "alice holds the claim on the blocker. Nothing"
+    inlinetextbox "downstream moves yet."
+statictext "climier take T-auth-0 --as alice" [ref=4844]
+  inlinetextbox "climier take T-auth-0 --as alice"
+generic [ref=4845]
+  code [ref=4846]
+    generic [ref=4847]
+      statictext "{" [ref=4848]
+        inlinetextbox "{"
+    generic [ref=4849]
+      statictext [ref=4850]
+        inlinetextbox
+      statictext "\"node\":" [ref=4851]
+        inlinetextbox "\"node\":"
+      statictext [ref=4852]
+        inlinetextbox
+      statictext "{" [ref=4853]
+        inlinetextbox "{"
+    generic [ref=4854]
+      statictext [ref=4855]
+        inlinetextbox
+      statictext "\"id\":" [ref=4856]
+        inlinetextbox "\"id\":"
+      statictext [ref=4857]
+        inlinetextbox
+      statictext "\"T-auth-0\"" [ref=4858]
+        inlinetextbox "\"T-auth-0\""
+      statictext "," [ref=4859]
+        inlinetextbox ","
+      statictext [ref=4860]
+        inlinetextbox
+      statictext "\"status\":" [ref=4861]
+        inlinetextbox "\"status\":"
+      statictext [ref=4862]
+        inlinetextbox
+      statictext "\"in_progress\"" [ref=4863]
+        inlinetextbox "\"in_progress\""
+      statictext "," [ref=4864]
+        inlinetextbox ","
+      statictext [ref=4865]
+        inlinetextbox
+      statictext "…" [ref=4866]
+        inlinetextbox "…"
+    generic [ref=4867]
+      statictext [ref=4868]
+        inlinetextbox
+      statictext "}," [ref=4869]
+        inlinetextbox "},"
+    generic [ref=4870]
+      statictext [ref=4871]
+        inlinetextbox
+      statictext "\"freshly_claimed\":" [ref=4872]
+        inlinetextbox "\"freshly_claimed\":"
+      statictext "true" [ref=4873]
+        inlinetextbox "true"
+    generic [ref=4874]
+      statictext "}" [ref=4875]
+        inlinetextbox "}"
+statictext "log · append-only" [ref=4876]
+  inlinetextbox "log · append-only"
+list [ref=4877]
+  listitem [ref=4878]
+  listitem [ref=4879]
+row [ref=4880]
+  cell "task" [ref=4881]
+    statictext "task" [ref=4882]
+      inlinetextbox "task"
+  cell "done or archived" [ref=4883]
+    statictext "done or archived" [ref=4884]
+      inlinetextbox "done or archived"
+row [ref=4885]
+  cell "gate" [ref=4886]
+    statictext "gate" [ref=4887]
+      inlinetextbox "gate"
+  cell "resolved, or superseded by a resolved gate" [ref=4888]
+    statictext "resolved, or superseded by a resolved gate" [ref=4889]
+      inlinetextbox "resolved, or superseded"
+      inlinetextbox "by a resolved gate"
+row [ref=4890]
+  cell "knowledge" [ref=4891]
+    statictext "knowledge" [ref=4892]
+      inlinetextbox "knowledge"
+  cell "never" [ref=4893]
+    statictext "never" [ref=4894]
+      inlinetextbox "never"
+row [ref=4895]
+  cell "missing node or cycle" [ref=4896]
+    statictext "missing node or cycle" [ref=4897]
+      inlinetextbox "missing node"
+      inlinetextbox "or cycle"
+  cell "never" [ref=4898]
+    statictext "never" [ref=4899]
+      inlinetextbox "never"
+term ".lock" [ref=4900]
+  statictext ".lock" [ref=4901]
+    inlinetextbox ".lock"
+definition [ref=4902]
+  statictext "held for one write" [ref=4903]
+    inlinetextbox "held for one write"
+term "tasks.json" [ref=4904]
+  statictext "tasks.json" [ref=4905]
+    inlinetextbox "tasks.json"
+definition [ref=4906]
+  statictext "rev 7" [ref=4907]
+    inlinetextbox "rev 7"
+term "revision-ledger.json" [ref=4908]
+  statictext "revision-ledger.json" [ref=4909]
+    inlinetextbox "revision-ledger.json"
+definition [ref=4910]
+  statictext "rev 7" [ref=4911]
+    inlinetextbox "rev 7"
+term "log" [ref=4912]
+  statictext "log" [ref=4913]
+    inlinetextbox "log"
+definition [ref=4914]
+  statictext "entry 7 appended" [ref=4915]
+    inlinetextbox "entry 7 appended"
+statictext "open" [ref=4916]
+  inlinetextbox "open"
+paragraph [ref=4917]
+  statictext "climier add-task T-1 …" [ref=4918]
+    inlinetextbox "climier add-task T-1 …"
+paragraph [ref=4919]
+  statictext "Registered. Ready when no blocker is unsatisfied." [ref=4920]
+    inlinetextbox "Registered. Ready when no blocker is"
+    inlinetextbox "unsatisfied."
+statictext "in_progress" [ref=4921]
+  inlinetextbox "in_progress"
+paragraph [ref=4922]
+  statictext "climier take T-1 --as alice" [ref=4923]
+    inlinetextbox "climier take T-1 --as alice"
+paragraph [ref=4924]
+  statictext "One claimant. The claim is stamped and visible." [ref=4925]
+    inlinetextbox "One claimant. The claim is stamped and"
+    inlinetextbox "visible."
+statictext "submitted" [ref=4926]
+  inlinetextbox "submitted"
+paragraph [ref=4927]
+  statictext "climier submit T-1 --note \"…\"" [ref=4928]
+    inlinetextbox "climier submit T-1 --note \"…\""
+paragraph [ref=4929]
+  statictext "Under review. Downstream stays blocked." [ref=4930]
+    inlinetextbox "Under review. Downstream stays blocked."
+statictext "done" [ref=4931]
+  inlinetextbox "done"
+paragraph [ref=4932]
+  statictext "climier accept T-1 --as reviewer" [ref=4933]
+    inlinetextbox "climier accept T-1 --as reviewer"
+paragraph [ref=4934]
+  statictext "Accepted. Downstream BLOCKS edges are satisfied." [ref=4935]
+    inlinetextbox "Accepted. Downstream BLOCKS edges are"
+    inlinetextbox "satisfied."
+statictext "reject" [ref=4936]
+  inlinetextbox "reject"
+statictext "submitted → open" [ref=4937]
+  inlinetextbox "submitted → open"
+statictext "release" [ref=4938]
+  inlinetextbox "release"
+statictext "in_progress → open" [ref=4939]
+  inlinetextbox "in_progress → open"
+statictext "cancel" [ref=4940]
+  inlinetextbox "cancel"
+statictext "any → canceled" [ref=4941]
+  inlinetextbox "any → canceled"
+statictext "T-auth-0" [ref=4942]
+  inlinetextbox "T-auth-0"
+paragraph [ref=4943]
+  statictext "Session contract" [ref=4944]
+    inlinetextbox "Session contract"
+statictext "in progress" [ref=4945]
+  inlinetextbox "in progress"
+statictext "T-auth-1" [ref=4946]
+  inlinetextbox "T-auth-1"
+paragraph [ref=4947]
+  statictext "Session store" [ref=4948]
+    inlinetextbox "Session store"
+statictext "blocked" [ref=4949]
+  inlinetextbox "blocked"
+statictext "G-auth-prod" [ref=4950]
+  inlinetextbox "G-auth-prod"
+paragraph [ref=4951]
+  statictext "Cutover approval" [ref=4952]
+    inlinetextbox "Cutover approval"
+statictext "open" [ref=4953]
+  inlinetextbox "open"
+statictext "↳ blocks" [ref=4954]
+  inlinetextbox "↳ blocks"
+statictext "T-auth-2" [ref=4955]
+  inlinetextbox "T-auth-2"
+statictext "T-auth-2" [ref=4956]
+  inlinetextbox "T-auth-2"
+paragraph [ref=4957]
+  statictext "Production cutover" [ref=4958]
+    inlinetextbox "Production cutover"
+statictext "blocked" [ref=4959]
+  inlinetextbox "blocked"
+statictext "1" [ref=4960]
+  inlinetextbox "1"
+statictext "2" [ref=4961]
+  inlinetextbox "2"
+statictext "1" [ref=4962]
+  inlinetextbox "1"
+statictext "5" [ref=4963]
+  inlinetextbox "5"
+statictext "take" [ref=4964]
+  inlinetextbox "take"
+statictext "alice" [ref=4965]
+  inlinetextbox "alice"
+statictext "T-auth-0" [ref=4966]
+  inlinetextbox "T-auth-0"
+statictext "take" [ref=4967]
+  inlinetextbox "take"
+statictext "submit" [ref=4968]
+  inlinetextbox "submit"
+statictext "accept" [ref=4969]
+  inlinetextbox "accept"

@@ -2,6 +2,8 @@ import { createRootRoute, HeadContent, Outlet, Scripts } from '@tanstack/react-r
 import * as React from 'react';
 import { RootProvider } from 'fumadocs-ui/provider/tanstack';
 import { NotFound } from '@/components/not-found';
+import dmSansFont from '@/assets/fonts/dm-sans-latin.woff2?url';
+import manropeFont from '@/assets/fonts/manrope-latin.woff2?url';
 import appCss from '@/styles/app.css?url';
 
 const searchApi = `${import.meta.env.BASE_URL}api/search`;
@@ -31,6 +33,20 @@ export const Route = createRootRoute({
       { name: 'twitter:image', content: `${base}og.png` },
     ],
     links: [
+      {
+        rel: 'preload',
+        href: dmSansFont,
+        as: 'font',
+        type: 'font/woff2',
+        crossOrigin: 'anonymous',
+      },
+      {
+        rel: 'preload',
+        href: manropeFont,
+        as: 'font',
+        type: 'font/woff2',
+        crossOrigin: 'anonymous',
+      },
       { rel: 'stylesheet', href: appCss },
       { rel: 'icon', href: `${base}favicon.ico`, sizes: 'any' },
       { rel: 'icon', type: 'image/svg+xml', href: `${base}favicon.svg` },

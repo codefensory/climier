@@ -11,7 +11,6 @@ import {
 } from 'fumadocs-ui/layouts/docs/page';
 import { docs, source } from '@/lib/source';
 import { baseOptions } from '@/lib/layout.shared';
-import { SidebarBanner, SidebarFooter } from '@/components/docs-chrome';
 import { useMDXComponents } from '@/components/mdx';
 
 export const Route = createFileRoute('/docs/$')({
@@ -71,7 +70,6 @@ function Page() {
     <DocsLayout
       {...baseOptions()}
       tree={pageTree}
-      sidebar={{ banner: <SidebarBanner />, footer: <SidebarFooter /> }}
     >
       <Suspense>
         <Content path={path} />

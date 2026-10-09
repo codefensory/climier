@@ -1,0 +1,34 @@
+[
+  {
+    "area": "docs sidebar top",
+    "selector": "#nd-sidebar a[href=\"/docs\"], #nd-sidebar a[href=\"/docs/getting-started/quickstart\"], #nd-sidebar a[href=\"/docs/reference/cli\"]",
+    "observed": "Three full-width rows (Docs / Quickstart / CLI reference) sit above \"Climier documentation\", duplicating the page tree directly below them. On the Quickstart page both Docs and Quickstart render an active pill at once.",
+    "expected": "No duplicated top-level nav rows; the sidebar starts at the root link + page tree.",
+    "severity": "medium",
+    "axis": "coherence"
+  },
+  {
+    "area": "docs sidebar banner",
+    "selector": "#nd-sidebar a.group.mt-1.flex",
+    "observed": "\"New to Climier? / Get a ready task in four commands with the quickstart guide.\" banner occupies the prime sidebar slot above the tree.",
+    "expected": "Removed; the tree is the first thing under search.",
+    "severity": "medium",
+    "axis": "layout"
+  },
+  {
+    "area": "docs sidebar footer",
+    "selector": "#nd-sidebar div.flex.flex-col.gap-2.text-\\[13px\\]",
+    "observed": "Custom footer with text links \"GitHub\" and \"CLI reference\" plus \"MIT licensed · v1.0\". GitHub is already in the header and in fumadocs' own sidebar pill; CLI reference is already in the Reference tree; v1.0 is a hardcoded version that will go stale.",
+    "expected": "Removed entirely, keeping fumadocs' own control pill (GitHub icon + theme toggle).",
+    "severity": "low",
+    "axis": "coherence"
+  },
+  {
+    "area": "landing header",
+    "selector": "#nd-nav ul",
+    "observed": "Landing header repeats the same three links next to the hero CTA that already leads to the quickstart.",
+    "expected": "Header keeps logo + search + theme + GitHub only.",
+    "severity": "low",
+    "axis": "coherence"
+  }
+]

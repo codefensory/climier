@@ -1,0 +1,31 @@
+{
+  "id": "0004",
+  "status": "done",
+  "filesChanged": [
+    "src/styles/app.css",
+    "src/components/landing/dag-demo.tsx"
+  ],
+  "summary": "The dot field is no longer a masked full-height layer: the veil is now the top background layer of the same element over its own canvas colour, with the pattern repeating exactly as before, so the fade is unchanged while the page-sized mask texture and its extra tile passes are gone. The demo's ambient loops (claim dots, caret, step-rail fill) are gated by the panel's existing IntersectionObserver signal, and the status flip moved from a box-shadow (paint) to a ring pseudo-element that fades on opacity.",
+  "choices": [
+    "Veil as a background layer on .landing-dots instead of a new overlay node: paint order stays dots -> veil -> sections, no extra DOM, and the ramp is stop-for-stop equivalent to the old mask (alphas 0 / 0 / 0.22 / 0.55 / 1 at 0 / 30 / 55 / 80 / 100).",
+    "Added background-color: var(--color-fd-background) to .landing-dots (same convention as .climier-dots), so the veil blends into a known base instead of whatever is behind the layer, and the pattern starts at the same origin/phase as today.",
+    "Flip ring is a ::after with inset:-4px, border-radius:inherit and the same 4px / 30% brand border, fading 1 -> 0 over the same 800ms cubic-bezier(0.22,1,0.36,1); the spread collapse was the paint cost, so the ring stays 4px and dissolves. The previous box-shadow also tinted pills whose own background is transparent (the 'open' gate pill); the ring reproduces the halo only.",
+    "Gated only the infinite loops and the step-rail fill with animation:none via a .landing-offscreen class on the panel (reusing the observer's `visible`), and let one-shot rise/output/flip finish: pausing a finite fill left the bar mid-way while the phase timer restarted its full hold, and dropping the one-shots would have replayed the console on every re-entry.",
+    "Dropped .landing-flip from the prefers-reduced-motion list (the animation now lives on the pseudo-element) and added .landing-flip::after there instead, so reduced motion still disables the beat.",
+    "Left the duplicate 'landing-panel' class at the DagDemo call site as it was; only the off-screen modifier was appended."
+  ],
+  "hygiene": {
+    "commands": [
+      "cd /home/yeferson/dev/climier/docs && bun run typecheck"
+    ],
+    "result": "clean"
+  },
+  "openQuestions": [
+    "Raster target: dropping the mask pass is worth the -48% you measured (254ms -> ~131ms of .landing-dots raster), which is a large cut but probably not <=90ms. The only remaining lever is bound the painted area, and every bound I can derive without a second visibility signal is either a percentage/px magic number that can surface as a gap above the band on some widths, or it removes dots from the Invariants/Lifecycle gutters (page ~1400-2730), which the fidelity checkpoint forbids. Whole-page painter: veil gradient (cheap, analytic) + pattern tile (the residual). Say which trade you want and I will apply it in one edit: (a) accept ~131ms, (b) clip the pattern to the region hidden behind the opaque band (layout-derived from a wrapper around Hero/Invariants/Lifecycle, ~-15%, but it compresses the veil ramp and dims the Lifecycle dots), or (c) an explicit bound with the dot field stopping below a chosen page offset.",
+    "The request's hygiene list also asks for `bun run test` and `bun run build`; the ui-crafter boundary only allows a formatter/type check, so I ran neither. Please run `cd docs && bun run test` (and the build) - both should be unaffected since no test or config file changed.",
+    "The veil is theme-aware only through the token: it assumes the landing canvas is exactly --color-fd-background (verified in light mode at four scroll positions, canvas #f6f6f6). Dark mode is the one case I could not read from the existing shots - please confirm the dark landing still matches, since the element is now opaque in the token colour.",
+    "One deliberate behaviour change beyond the cost fix: when the panel is off screen the step-rail fill is dropped (falling back to a full bar, exactly like the reduced-motion path) and restarts from 0 with the phase timer when the panel returns. Today the bar keeps filling while the timer is paused, so it sits full for the whole hold on re-entry. Flagging it in case you want the old (incoherent) read instead."
+  ],
+  "blockedReason": null,
+  "notVerified": true
+}

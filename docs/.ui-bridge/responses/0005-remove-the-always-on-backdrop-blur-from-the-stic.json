@@ -1,0 +1,23 @@
+{
+  "id": "0005",
+  "status": "done",
+  "filesChanged": [
+    "src/styles/app.css"
+  ],
+  "summary": "Removed backdrop filters from the landing sticky bar, docs sticky headers, and code-block copy controls using targeted overrides. The headers and chips now use the existing page-background token as an opaque surface; borders, positioning, dimensions, and control states are unchanged.",
+  "choices": [
+    "Targeted #nd-nav's inner blur bar, #nd-subnav, the docs TOC header, and direct copy-action children of #nd-page code-block figures; left other blur treatments such as dialogs untouched.",
+    "Used --color-fd-background for opaque surfaces, including the copy-action chips, so they remain legible without backdrop sampling in either theme."
+  ],
+  "hygiene": {
+    "commands": [
+      "cd /home/yeferson/dev/climier/docs && timeout 300 bun run typecheck"
+    ],
+    "result": "clean"
+  },
+  "openQuestions": [
+    "Typecheck passed (tsc --noEmit, exit 0). No CSS formatter/linter script is configured, so none was run. Tests, build, computed-style scanning, and visual checks were not run under the crafter-turn restrictions; please run the requested test/build and verify computed styles and visual states in the director's QA pass."
+  ],
+  "blockedReason": null,
+  "notVerified": true
+}

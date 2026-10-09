@@ -1,0 +1,62 @@
+{
+  "id": "0006",
+  "goal": "Finish the backdrop-blur removal: the docs tablet/mobile TOC popover header was missed and still blurs the page while scrolling",
+  "context": "Round 0005 removed the always-on backdrop blur from the landing sticky bar, from #nd-subnav and from the code-block copy chips, and those are verified clean (the landing scan now reports zero blurred elements, and the header is pixel-identical to before at three scroll offsets in light and dark). One blurred header survived and the scan only finds it below 1280px. At 1440 and 1280 it is 0x0, but at 1024 it is 746x41, at 768 it is 490x41 and at 390 it is 390x41. Its exact DOM path is: div#nd-docs-layout (grid overflow-x-clip) > div (sticky, top from --fd-docs-row-2, z-10, grid-area toc-popover) > header.border-b.backdrop-blur-sm.transition-colors. The element that round 0005 targeted (a header.backdrop-blur-sm inside #nd-toc) is a different node, which is why this one was missed. Its computed background is oklab(... with 0.8 alpha), i.e. 80 percent opaque, and its parent is position: sticky, so on tablet and phone this bar sits over the content the user is scrolling and re-blurs it every frame. It is the bar that reads Quickstart 1. Initialize a project above the article on narrow viewports.",
+  "targets": [
+    {
+      "selector": "div#nd-docs-layout [grid-area=toc-popover] > header.border-b.backdrop-blur-sm (the sticky div directly under #nd-docs-layout whose grid-area is toc-popover)",
+      "intent": "Add this header to the same treatment already applied to the other sticky bars: no backdrop-filter, and the opaque page background instead of the eighty percent translucent one, so the blur is provably unnecessary. Keep its bottom border, its height, its sticky parent behaviour and its contents.",
+      "notes": "This is the last holder of a backdrop-filter in the docs chrome. After this change a computed-style scan of every element on / and on /docs/** at 1440, 1280, 1024, 768 and 390 must report none. Do not touch the search dialog's own treatment."
+    }
+  ],
+  "constraints": [
+    "Do not change layout, spacing, colour tokens, type, radii or copy; this bar must look the same as today.",
+    "Do not patch node_modules and do not add a dependency — extend the existing override block in our stylesheet.",
+    "Do not remove or weaken the blur of the search dialog or of any popover that is not this sticky bar.",
+    "Do not regress the three targets already fixed in round 0005 (the landing bar, #nd-subnav, the copy chips).",
+    "Hygiene: run `cd docs && bun run typecheck` and `cd docs && bun run test` and report the exact commands and results in hygiene."
+  ],
+  "acceptanceCriteria": [
+    "At 1024x768, 768x900 and 390x844, an element scan on /docs/getting-started/quickstart reports zero elements whose computed backdropFilter is not none.",
+    "At 1440x900 and 1280x800 the scan still reports zero, including the zero-size element that is hidden at those widths.",
+    "This bar renders pixel-identical to today at 1024, 768 and 390, in light and dark mode, at a scroll offset where content passes under it.",
+    "The landing header, #nd-subnav and the code-block copy chips are unchanged from the verified round-0005 state.",
+    "The search dialog still opens and keeps its own background treatment.",
+    "`cd docs && bun run typecheck` exits 0, `cd docs && bun run test` passes, and `cd docs && bun run build` succeeds."
+  ],
+  "qualityChecks": [
+    "The selector is as narrow as the existing ones so it cannot leak onto unrelated sticky bars or popovers.",
+    "The override block stays readable — extend it in place rather than scattering a second block of near-duplicate rules.",
+    "No `!important` added where specificity does not require it."
+  ],
+  "regressionChecks": [
+    "Docs at 1024, 768 and 390 in light and dark: the header stack at the top of the page (search trigger, menu button and this TOC bar) is unchanged.",
+    "Docs at 1440: the subnav header and the TOC header are unchanged.",
+    "Landing /: the sticky header is unchanged.",
+    "Scrolling the docs page on a narrow viewport still shows the TOC bar in the right place."
+  ],
+  "visualGaps": [
+    {
+      "area": "docs tablet/mobile TOC bar",
+      "selector": "div#nd-docs-layout [grid-area=toc-popover] > header.backdrop-blur-sm",
+      "observed": "Still carries backdrop-filter: blur(8px) while visible at 1024 (746x41), 768 (490x41) and 390 (390x41), over a sticky 80 percent opaque bar that content scrolls beneath.",
+      "expected": "No backdrop-filter anywhere in the docs chrome; this bar pixel-identical with an opaque page background.",
+      "severity": "medium",
+      "axis": "regression"
+    }
+  ],
+  "doNotTouch": [
+    "docs/content/**",
+    "docs/src/assets/fonts/**",
+    "docs/src/lib/layout.shared.tsx",
+    "docs/src/routes/docs/$.tsx",
+    "docs/src/components/landing/**",
+    "docs/src/styles/theme.css",
+    "node_modules/**",
+    "ui/**"
+  ],
+  "budget": {
+    "maxFiles": 1,
+    "maxRoundsLeft": 1
+  }
+}
