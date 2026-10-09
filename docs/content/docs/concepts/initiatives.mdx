@@ -1,0 +1,58 @@
+---
+title: Initiatives
+description: Group related tasks, gates, and knowledge under a named objective.
+---
+
+An initiative is a named scope for related work. It has a name, optional description, and creation timestamp. Tasks, gates, and knowledge nodes normally reference a registered initiative, which makes views and scoped guidance easier to understand.
+
+An initiative is not a task and has no ready, blocked, or satisfied state. Its nodes retain their own lifecycle states, and dependencies may cross initiative boundaries. Registering an initiative or grouping a node never satisfies a `BLOCKS` edge; only the rules for the blocker node can do that.
+
+## Register before adding nodes
+
+Create an initiative first:
+
+```bash
+climier add-initiative publishing \
+  --desc "Prepare and release the public documentation" \
+  --as alice
+```
+
+Then attach nodes to it:
+
+```bash
+climier add-task draft-homepage \
+  --initiative publishing \
+  --title "Draft the homepage" \
+  --body "Write the first public homepage draft." \
+  --acceptance "The draft meets its acceptance criteria." \
+  --blocked-by "" \
+  --as alice
+
+climier add-knowledge editorial-guidance \
+  --initiative publishing \
+  --title "Use concise headings" \
+  --body "Headings should describe the reader's task." \
+  --scope-initiatives publishing \
+  --as alice
+```
+
+Node creation fails when the initiative name is not registered, unless the explicit unregistered-initiative escape hatch is used. Duplicate initiative names are rejected, so a spelling mistake does not silently create a second project area.
+
+## Initiative views
+
+Use the initiative listing to see the group and its counts:
+
+```bash
+climier initiatives
+climier status --initiative publishing
+```
+
+The status view derives each task independently. For example, `draft-homepage` can be `ready` while another publishing task is `blocked` by an open gate. A submitted task remains `submitted` and does not satisfy a dependent task until accepted; an active knowledge node contributes context but never satisfies a dependency.
+
+Dependencies can cross initiatives when that reflects the real graph. If a publishing task waits for a gate in a security initiative, the incoming `BLOCKS` edge still points from the security gate to the publishing task. The task becomes ready only when that gate is satisfied, regardless of the initiative filter used to display it.
+
+## Keeping the scope useful
+
+Use initiatives for durable objectives rather than temporary ownership. Use domains and tags for technical or topical filtering, and use knowledge scopes when guidance should apply to several initiatives. This keeps `status`, `context`, and knowledge matches useful without changing the underlying satisfaction rules.
+
+See [Tasks](./tasks), [Gates](./gates), and [Knowledge](./knowledge) for the node-specific states, and [State and storage](./state-and-storage) for how initiatives are represented in a project snapshot.

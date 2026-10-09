@@ -1,0 +1,65 @@
+---
+title: State and storage
+description: Understand the canonical project snapshot, revisions, and durable writes.
+---
+
+Climier keeps project metadata separate from the live coordination state. The project directory contains `.climier.json`, which identifies the project. The live state is stored in Climier's storage area so multiple checkouts can coordinate against the same project record.
+
+## Canonical state shape
+
+`init` creates schema 1. A simplified snapshot looks like this:
+
+```json
+{
+  "version": 1,
+  "fence_generation": 1,
+  "revision": 4,
+  "initiatives": {
+    "publishing": {
+      "desc": "Prepare the public documentation",
+      "created_at": "2026-01-01T00:00:00.000Z"
+    }
+  },
+  "nodes": {
+    "publish-docs": {
+      "id": "publish-docs",
+      "kind": "resolvable",
+      "subkind": "task",
+      "title": "Publish documentation",
+      "status": "open",
+      "revision": 1
+    }
+  },
+  "edges": [],
+  "log": []
+}
+```
+
+The required top-level fields are `version`, `fence_generation`, `revision`, `initiatives`, `nodes`, `edges`, and `log`. Nodes contain durable fields such as lifecycle status, acceptance criteria, claims, and resolutions. The graph and initiative collections are part of the same snapshot.
+
+## Persisted versus derived data
+
+The snapshot stores the task's lifecycle value (`open`, `in_progress`, `submitted`, `done`, `canceled`, or `archived`) and an optional backlog flag. It does not store `ready` or `blocked` as authoritative task states. Those values are derived from the current `BLOCKS` graph and blocker satisfaction. A task whose node says `status: "open"` can therefore be reported as `ready` or `blocked` without mutating the file.
+
+For example, this open task with no incoming blockers derives as ready:
+
+```bash
+climier context publish-docs
+```
+
+The response includes the persisted node and a separate `derived_status` field. If a gate is later added as an unsatisfied blocker, the same persisted task can derive as blocked. See [Edges and derived status](./edges-and-status) for the calculation and [Tasks](./tasks) for the lifecycle meanings.
+
+## Revisions and safe writes
+
+The project `revision` advances with mutations. Nodes also carry revisions for focused optimistic checks; `update --if-revision N` refuses to overwrite a node changed since the caller read it. `fence_generation` and the revision ledger protect the canonical state across committed writes.
+
+Mutations are serialized with the project lock and commit the state, ledger, and audit log as one atomic operation. This prevents two writers from interleaving updates and keeps the log consistent with the state. Read commands such as `status`, `context`, `show`, and `state` do not change the snapshot.
+
+Use the CLI as the write interface rather than editing the live JSON. For a safe inspection of the raw snapshot:
+
+```bash
+climier state
+climier status --all
+```
+
+If a project was created by an older format, use the explicit `migrate` command during a controlled migration window. `init --force` resets a project; it is not a conversion mechanism.

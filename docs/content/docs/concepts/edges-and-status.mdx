@@ -1,0 +1,65 @@
+---
+title: Edges and derived status
+description: Connect nodes with typed edges and understand how ready and blocked are calculated.
+---
+
+Climier stores a directed graph. An edge has `from`, `to`, and `type`; the type determines how it affects history or dependency satisfaction. The allowed types are:
+
+| Type | Direction | Meaning |
+| --- | --- | --- |
+| `BLOCKS` | blocker → blocked node | The first node must be satisfied before the second can become ready. |
+| `SUPERSEDES` | replacement → older node | The newer node replaces the older node while preserving history. |
+| `DERIVED_FROM` | new node → source node | The new node records where its context or work originated. |
+
+The natural-language flag `--blocked-by dependency` creates `BLOCKS` from `dependency` to the new task. Blockers are therefore incoming edges to the blocked task, not outgoing edges from it.
+
+## What counts as satisfied
+
+The graph evaluates a `BLOCKS` edge according to the blocker’s kind:
+
+- A task is satisfied at `done` or `archived`; `submitted` is not enough.
+- A gate is satisfied at `resolved`.
+- A superseded gate is satisfied only when following its successor chain reaches a resolved gate.
+- Knowledge never satisfies a blocking edge.
+- A missing node or a cycle is unsatisfied.
+
+A `BLOCKS` edge must connect resolvable nodes. Self-edges, missing endpoints, duplicate exact edges, and invalid edge types are rejected.
+
+## How task status is derived
+
+For an open task, Climier checks the incoming `BLOCKS` edges:
+
+1. If the task has `backlog: true`, it is in the `backlog` pool.
+2. Otherwise, if every blocker is satisfied, its derived status is `ready`.
+3. If any blocker is unsatisfied, its derived status is `blocked`.
+4. Persisted lifecycle states such as `in_progress`, `submitted`, `done`, and `canceled` take precedence over these two derived pools.
+
+This calculation runs from the current snapshot. It is not a value that callers should edit directly.
+
+## Example: read the graph's result
+
+The following graph has an unresolved gate and a task waiting on it:
+
+```json
+{
+  "nodes": {
+    "security-review": { "subkind": "gate", "status": "open" },
+    "publish-docs": { "subkind": "task", "status": "open" }
+  },
+  "edges": [
+    { "from": "security-review", "to": "publish-docs", "type": "BLOCKS" }
+  ]
+}
+```
+
+Run:
+
+```bash
+climier status --all
+```
+
+The task appears in `tasks.blocked`, because the incoming gate is not satisfied. After `climier resolve security-review --choice approved --rationale "Review complete." --as alice`, the same task appears in `tasks.ready`. Once it is taken, it moves to `in_progress`; once submitted, it moves to `submitted`; only acceptance moves it to `done` and makes it a satisfied blocker for downstream work.
+
+Use `climier add-edge` for an explicit relationship and `climier remove-edge` to remove the exact relationship. Prefer the higher-level create commands when creating tasks, gates, or knowledge because they validate the fields and dependency intent together.
+
+Cycles are deliberately safe: if task A blocks task B and task B blocks task A, neither task becomes ready. Inspect the incoming blockers with `climier context <id>` and correct the graph rather than manually assigning a status.
