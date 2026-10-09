@@ -88,7 +88,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: climier-${{ matrix.name }}
-          path: dist/*
+          path: dist/climier-${{ matrix.name }}${{ matrix.extension }}
           if-no-files-found: error
           retention-days: 14
 
@@ -100,11 +100,20 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           path: dist
           merge-multiple: true
-      - name: Publish GitHub release
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - name: Generate release manifest
+        run: bun scripts/manifest.ts --version "${GITHUB_REF_NAME#v}" --channel stable --dist dist --out dist/manifest.json
+      - name: Generate release checksums
+        working-directory: dist
+        run: sha256sum climier-linux-x64 climier-linux-arm64 climier-darwin-x64 climier-darwin-arm64 climier-windows-x64.exe > SHA256SUMS
+      - name: Attach assets to GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes
+        run: gh release upload "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --clobber
