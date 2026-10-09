@@ -57,6 +57,12 @@ function forbiddenRootsFor(boundary) {
   return BOUNDARY_ROOTS.filter((root) => root !== boundary.name && !boundary.allowedRoots.includes(root));
 }
 
+function isUndeclaredRoot({ targetFile }) {
+  return targetFile.includes(path.sep)
+    && boundaryRoot(targetFile) === undefined
+    && targetFile !== "../package.json";
+}
+
 function boundaryRoot(targetFile) {
   return BOUNDARY_ROOTS.find((root) => (
     targetFile === root || targetFile.startsWith(`${root}${path.sep}`)
@@ -81,9 +87,7 @@ for (const boundary of BOUNDARIES) {
       forbiddenRoots: forbiddenRootsFor(boundary),
     }), []);
 
-    const undeclaredRoots = imports.filter(({ targetFile }) => (
-      targetFile.includes(path.sep) && boundaryRoot(targetFile) === undefined
-    ));
+    const undeclaredRoots = imports.filter(isUndeclaredRoot);
     assert.deepEqual(undeclaredRoots, [], `${boundary.name} imports an undeclared root`);
   });
 }

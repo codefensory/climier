@@ -174,6 +174,27 @@ export const GENERATED_COMMAND_FLAGS = {
   "search": [
     "all"
   ],
+  "server": [
+    "config",
+    "env-file",
+    "probe-bind",
+    "strict",
+    "root",
+    "host",
+    "port",
+    "data-root",
+    "state-home",
+    "ui-root",
+    "service-user",
+    "service-name",
+    "unit",
+    "allow-missing-paths",
+    "dry-run",
+    "force",
+    "rotate-password",
+    "print-secret",
+    "yes"
+  ],
   "show": [],
   "snapshots": [],
   "state": [],
@@ -221,6 +242,15 @@ export const GENERATED_COMMAND_FLAGS = {
     "scope-node-ids",
     "if-revision",
     "as"
+  ],
+  "urls": [
+    "initiative",
+    "id",
+    "port",
+    "origin"
+  ],
+  "version": [
+    "json"
   ]
 } as const;
 
