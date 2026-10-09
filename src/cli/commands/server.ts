@@ -44,5 +44,6 @@ export default async function server(context: CommandContext) {
     const module = await import("./server/init.ts");
     return module.default({ ...context, positional: [] });
   }
-  throw usageError(`subcommand '${subcommand}' is not available yet`);
+  const module = await import("./server/setup.ts");
+  return module.default({ ...context, positional: [] });
 }
