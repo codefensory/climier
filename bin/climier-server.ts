@@ -6,37 +6,55 @@ function usage() {
   process.exitCode = 2;
 }
 
-function checkArguments(argv: string[]) {
-  let configPath;
-  let envFile;
-  let probeBind = false;
-  let strict = false;
-  for (let index = 0; index < argv.length; index += 1) {
-    const argument = argv[index];
-    if (argument === "--check") {
-      const value = argv[++index];
-      if (!value || value.startsWith("--")) return null;
-      configPath = value;
-    } else if (argument === "--env-file") {
-      const value = argv[++index];
-      if (!value || value.startsWith("--")) return null;
-      envFile = value;
-    } else if (argument === "--probe-bind" || argument === "--probe-bind=true") {
-      probeBind = true;
-    } else if (argument === "--probe-bind=false") {
-      probeBind = false;
-    } else if (argument === "--strict" || argument === "--strict=true") {
-      strict = true;
-    } else if (argument === "--strict=false") {
-      strict = false;
-    } else {
+const VALUE_OPTIONS = new Map([
+  ["--check", "configPath"],
+  ["--env-file", "envFile"],
+]);
+const BOOLEAN_OPTIONS = new Map([
+  ["--probe-bind", { key: "probeBind", value: true }],
+  ["--probe-bind=true", { key: "probeBind", value: true }],
+  ["--probe-bind=false", { key: "probeBind", value: false }],
+  ["--strict", { key: "strict", value: true }],
+  ["--strict=true", { key: "strict", value: true }],
+  ["--strict=false", { key: "strict", value: false }],
+]);
+
+function parseArgument(argv: string[], index: number) {
+  const argument = argv[index];
+  const valueKey = VALUE_OPTIONS.get(argument);
+  if (valueKey !== undefined) {
+    const value = argv[index + 1];
+    if (!value || value.startsWith("--")) {
       return null;
     }
+    return { nextIndex: index + 1, options: { [valueKey]: value } };
   }
-  if (typeof configPath !== "string" || configPath.length === 0) {
+  const option = BOOLEAN_OPTIONS.get(argument);
+  if (option === undefined) {
     return null;
   }
-  return { configPath, envFile, probeBind, strict };
+  return { nextIndex: index, options: { [option.key]: option.value } };
+}
+
+function checkArguments(argv: string[]) {
+  const options: { configPath?: string; envFile?: string; probeBind: boolean; strict: boolean } = {
+    configPath: undefined,
+    envFile: undefined,
+    probeBind: false,
+    strict: false,
+  };
+  for (let index = 0; index < argv.length; index += 1) {
+    const parsed = parseArgument(argv, index);
+    if (parsed === null) {
+      return null;
+    }
+    Object.assign(options, parsed.options);
+    index = parsed.nextIndex;
+  }
+  if (!options.configPath) {
+    return null;
+  }
+  return options;
 }
 
 const argv = process.argv.slice(2);
