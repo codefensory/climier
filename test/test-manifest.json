@@ -19246,6 +19246,48 @@
       "disposition": "keep"
     },
     {
+      "path": "test/release-plan.test.ts",
+      "name": "release-plan: bumps semver versions",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/release-plan.test.ts",
+      "name": "release-plan: classifies feature, fix, breaking, and documentation commits",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/release-plan.test.ts",
+      "name": "release-plan: docs-only changes never drive a release, even when typed feat",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/release-plan.test.ts",
+      "name": "release-plan: only paths outside docs/ are release-worthy",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/release-plan.test.ts",
+      "name": "release-plan: plans a patch release and flags a docs-only change set",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/release-plan.test.ts",
+      "name": "release-plan: renders grouped changelog sections with breaking markers",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/release-plan.test.ts",
+      "name": "release-plan: selects the highest applicable semver bump",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
       "path": "test/release-script.test.ts",
       "name": "release: accepts a changelog with the version section and rejects a missing one",
       "ordinal": 1,

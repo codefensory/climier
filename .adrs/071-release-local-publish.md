@@ -45,6 +45,14 @@ puede, y el operador ya tiene esa sesion en su maquina.
 6. **Volver a publicar desde CI queda como opcion documentada**: requiere npm
    Trusted Publishing (OIDC) contra un workflow con `id-token: write`, recien
    despues de que exista la primera version. No se implementa en esta decision.
+7. **Seleccion de version y alcance**: el corte propone la version con
+   `scripts/release-plan.ts` a partir de los commits posteriores al ultimo tag:
+   breaking -> major, `feat` -> minor, `fix`/`perf` -> patch. Un commit suma al
+   bump solo si toca al menos un path **fuera de `docs/`**. Los cambios que solo
+   tocan `docs/` no bumpean ni habilitan una release; el sitio se despliega por
+   `.github/workflows/docs.yml`. El planner alimenta el skill de release
+   (`.agents/skills/climier-release/`) que audita README/AGENTS/docs, actualiza
+   `package.json` y `CHANGELOG.md`, y luego publica.
 
 ## Consecuencias
 
@@ -64,6 +72,9 @@ puede, y el operador ya tiene esa sesion en su maquina.
    `.github/workflows/ci.yml`.
 3. **Documentar el corte y el bootstrap** — archivos: `README.md`,
    `docs/reference.md`.
+4. **Planner de version y skill de release** — archivos:
+   `scripts/release-plan.ts`, `test/release-plan.test.ts`,
+   `.agents/skills/climier-release/SKILL.md`.
 
 ## Onboarding breve para crear tasks
 
@@ -80,3 +91,6 @@ puede, y el operador ya tiene esa sesion en su maquina.
   `SHA256SUMS`, crea el Release si falta y sube los assets.
 - `npm view climier version` devuelve la version publicada y coincide con
   `git tag -l` y `gh release view`.
+- `scripts/release-plan.ts` propone el bump correcto y devuelve
+  `releaseWorthy: false` cuando el rango solo toca `docs/`, aunque los commits
+  esten etiquetados `feat`.

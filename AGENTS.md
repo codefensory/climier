@@ -496,6 +496,7 @@ This repository carries the portable agent workflow used by the Climier-based pr
   - `climier-flow` — task execution through the `climier_flow` tool; sourced from the climier-flow repository (`skills/climier-flow/`).
   - `initiative-execution` — opt-in initiative coordination; sourced from the climier-flow repository.
 - `.agents/skills/spec-pipeline/` — opt-in RFC → review → ADR → tasks pipeline; stays project-local because it writes `.decisions/` and `.adrs/`.
+- `.agents/skills/climier-release/` — release cut from `main`: version proposal, docs audit, `package.json`/`CHANGELOG` update, then `bun run release`. Docs-only changes never drive a release.
 - `.pi/agents/rfc-reviewer.md` — RFC/ADR review prompt used by the spec pipeline.
 - `.pi/APPEND_SYSTEM.md` — project routing and policy cues appended to Pi's built-in system prompt.
 - `CLIMIER-CHEATSHEET.md` — quick Climier and Pi Flow tool reference.
