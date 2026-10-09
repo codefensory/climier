@@ -67,7 +67,7 @@ test("generates private config, a 32-byte base64url secret, directories, and a u
   assert.equal(Buffer.from(secret, "base64url").byteLength, 32);
   assert.match(await fs.readFile(path.join(root, "climier-server.service"), "utf8"), /EnvironmentFile=/u);
 
-  for (const file of ["server.json", "server.env"]) {
+  for (const file of ["server.json", "server.env", "climier-server.service"]) {
     assert.equal((await fs.stat(path.join(root, file))).mode & 0o777, 0o600);
   }
   for (const directory of ["data", "state"]) {
@@ -84,6 +84,14 @@ test("is idempotent, creates only a missing artifact, and rotates only the secre
   assert.equal(second.changed, false);
   assert.equal(second.secret.written, false);
   assert.deepEqual(second.created, []);
+  assert.equal((await fs.stat(path.join(root, "climier-server.service"))).mode & 0o777, 0o600);
+
+  await fs.chmod(path.join(root, "climier-server.service"), 0o644);
+  await assert.rejects(generateServerArtifacts(options(root)), { code: "SERVER_CONFIG_EXISTS" });
+  const forcedModeRepair = await generateServerArtifacts(options(root, { force: true }));
+  assert.equal(forcedModeRepair.changed, true);
+  assert.deepEqual(forcedModeRepair.created, ["climier-server.service"]);
+  assert.equal((await fs.stat(path.join(root, "climier-server.service"))).mode & 0o777, 0o600);
 
   await fs.rm(path.join(root, "climier-server.service"));
   const missing = await generateServerArtifacts(options(root));

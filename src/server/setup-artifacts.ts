@@ -234,7 +234,8 @@ export async function generateServerArtifacts(options: SetupOptions): Promise<Se
     try { return sameConfig(JSON.parse(configArtifact.content ?? ""), config); } catch { return false; }
   })());
   const expectedUnit = unitPath ? renderSystemdUnit({ root, dataRoot, stateHome, serviceUser: options.serviceUser }) : undefined;
-  const unitMatches = Boolean(unitPath && unitArtifact.regular && unitArtifact.content === expectedUnit);
+  const unitMatches = Boolean(unitPath && unitArtifact.regular && unitArtifact.mode === 0o600
+    && unitArtifact.content === expectedUnit);
   const envMatches = Boolean(envArtifact.regular && envArtifact.mode === 0o600 && existingEnvironment !== null
     && (options.maxBodyBytes === undefined || existingEnvironment.maxBodyBytes === options.maxBodyBytes));
   const configAction = actionFor(configArtifact, configMatches, options.force === true);
@@ -271,7 +272,7 @@ export async function generateServerArtifacts(options: SetupOptions): Promise<Se
     }
     if (configAction === "create") { await writeAtomically(configPath, configText); }
     if (envAction === "create") { await writeAtomically(envPath, envText); }
-    if (unitPath && unitAction === "create") { await writeAtomically(unitPath, expectedUnit!, 0o644); }
+    if (unitPath && unitAction === "create") { await writeAtomically(unitPath, expectedUnit!, 0o600); }
   }
 
   const changed = !options.dryRun && created.length > 0;
