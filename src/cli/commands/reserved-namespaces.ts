@@ -36,6 +36,7 @@ export const RESERVED_NAMESPACES = Object.freeze([
   "remove-edge",
 
   "init",
+  "server",
   "restore",
   "ui",
   "urls",
