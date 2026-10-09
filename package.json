@@ -21,6 +21,7 @@
   "scripts": {
     "test": "bun test/run-core-tests.ts",
     "typecheck": "bunx tsc -p tsconfig.json",
+    "build:ui": "bun install --cwd ui --frozen-lockfile && bun run --cwd ui build",
     "build:binary": "bun scripts/build-binary.ts",
     "test:watch": "bun test --watch test/",
     "test:concurrent": "bun test test/take.test.ts test/take-by-id.test.ts test/adversarial.test.ts",
@@ -29,7 +30,7 @@
     "surface:check": "bun scripts/check-retired-surfaces.ts",
     "smoke:pack": "bun install --cwd ui --frozen-lockfile && bun run --cwd ui build && bun scripts/smoke-packed.ts",
     "lint:cut": "oxlint bin scripts src/cli/commands/ui.ts src/cli/dispatch.ts test/package.test.ts test/retired-surfaces.test.ts",
-    "prepublishOnly": "bun run test && bun run surface:check && bun run lint:cut && bun run pack:check",
+    "prepublishOnly": "bun run build:ui && node -e \"const fs=require('fs');const tag=process.env.RELEASE_TAG?.replace(/^v/,'');const version=JSON.parse(fs.readFileSync('package.json','utf8')).version;if(!tag||tag!==version){console.error('RELEASE_TAG must match package.json version');process.exit(1)}\" && bun run test && bun run surface:check && bun run lint:cut && bun run pack:check",
     "lint": "oxlint src bin test"
   },
   "devDependencies": {

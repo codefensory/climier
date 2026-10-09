@@ -42,6 +42,13 @@ test("package: published files include the built UI", () => {
   assert.ok(pkg.files.includes("ui/dist"), "the published file allowlist must include ui/dist");
 });
 
+test("package: publish gate builds the UI before packaging", () => {
+  const pkg = readPackage();
+  assert.equal(pkg.scripts["build:ui"], "bun install --cwd ui --frozen-lockfile && bun run --cwd ui build");
+  assert.match(String(pkg.scripts.prepublishOnly), /bun run build:ui/);
+  assert.match(String(pkg.scripts.prepublishOnly), /RELEASE_TAG/);
+});
+
 test("package: every published bin entry uses the Bun shebang", () => {
   const pkg = readPackage();
   for (const [name, relativePath] of Object.entries(pkg.bin)) {
