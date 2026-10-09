@@ -3,18 +3,6 @@
 All notable changes to this project are documented here. The format follows
 Keep a Changelog.
 
-## [Unreleased]
-
-- **Breaking:** removed `CLIMIER_ALLOW_INSECURE_REMOTE_HTTP` and
-  `CLIMIER_SERVER_ALLOW_TAILSCALE_HTTP`. Remote HTTP is no longer gated by an
-  environment variable, and listener binding is the operator's responsibility;
-  `login`, `link`, and remote `init` emit a structured transport warning that
-  can be suppressed with `--no-warnings`.
-- Cut the first supported remote wire as Remote v1 (`/v1` with protocol header
-  `1`), with two-client E2E coverage and a packed-artifact smoke.
-- Remote checkout metadata now stores only backend type and URL; manual
-  `push`/`pull` transfers remain explicit and fail closed without fallback.
-
 ## [1.0.0] - 2026-09-28
 
 This is the first clean Climier release. It is the first version intended for
@@ -86,3 +74,12 @@ these call sites as follows:
   owner is stopped before removing a lock, as documented in the runbook.
 - README, reference, agent notes, and the cheatsheet now describe the schema-1
   state, remote server, ledger, and current command surface.
+- **Breaking:** removed `CLIMIER_ALLOW_INSECURE_REMOTE_HTTP` and
+  `CLIMIER_SERVER_ALLOW_TAILSCALE_HTTP`. Remote HTTP is no longer gated by an
+  environment variable, and listener binding is the operator's responsibility;
+  `login`, `link`, and remote `init` emit a structured transport warning that
+  can be suppressed with `--no-warnings`.
+- Remote checkout metadata now stores only backend type and URL; manual
+  `push`/`pull` transfers remain explicit and fail closed without fallback.
+- Cut the first supported remote wire as Remote v1 (`/v1` with protocol header
+  `1`), with two-client E2E coverage and a packed-artifact smoke.
