@@ -22,7 +22,12 @@ async function writeServerFiles(root, { password = "a sufficiently random passwo
   await fs.writeFile(path.join(root, "server.env"), `CLIMIER_SERVER_PASSWORD=${password}\n`, { mode: 0o600 });
 }
 
-function runServer(root, args, options = {}) {
+type ServerRunOptions = Parameters<typeof runCli>[0] & {
+  output?: string[];
+  exitCode?: number;
+};
+
+function runServer(root: string, args: string[], options: ServerRunOptions = {}) {
   return runCli({
     argv: ["--project", root, "server", ...args],
     write: (value) => options.output?.push(String(value)),
@@ -35,7 +40,7 @@ test("server is a reserved built-in namespace and is advertised", () => {
   assert.ok(RESERVED_NAMESPACES.includes("server"));
   assert.ok(KNOWN_COMMANDS.includes("server"));
   assert.ok(COMMANDS.server);
-  assert.throws(() => assertNoReservedCollision("server"), (error) => error.code === "PLUGIN_INVALID_DESCRIPTOR");
+  assert.throws(() => assertNoReservedCollision("server"), (error: { code?: string }) => error.code === "PLUGIN_INVALID_DESCRIPTOR");
   assert.match(HELP_TEXT, /server/);
   assert.match(HELP_TEXT, /server doctor/);
 });

@@ -34,6 +34,14 @@ function statuses(result) {
   return result.checks.map(({ id, status }) => ({ id, status }));
 }
 
+type PreflightResult = Awaited<ReturnType<typeof checkServerConfig>>;
+
+function checkById(result: PreflightResult, id: string) {
+  const found = result.checks.find((check) => check.id === id);
+  assert.ok(found, `missing preflight check: ${id}`);
+  return found;
+}
+
 test("checkServerConfig reports unsafe config files and config shape failures", async (t) => {
   const root = await makeRoot(t);
   const valid = config(root);
@@ -49,7 +57,7 @@ test("checkServerConfig reports unsafe config files and config shape failures", 
   const legacy = await writeConfig(root, { ...valid, credentials: [], projectIds: [] }, "legacy.json");
   const legacyResult = await checkServerConfig({ configPath: legacy, env: { CLIMIER_SERVER_PASSWORD: "password" } });
   assert.equal(legacyResult.ok, false);
-  assert.match(legacyResult.checks.find((check) => check.id === "config-keys").detail, /SERVER_LEGACY_CONFIG/u);
+  assert.match(checkById(legacyResult, "config-keys").detail, /SERVER_LEGACY_CONFIG/u);
 
   const relative = await writeConfig(root, { ...valid, stateHome: "relative" }, "relative.json");
   const relativeResult = await checkServerConfig({ configPath: relative, env: { CLIMIER_SERVER_PASSWORD: "password" } });
@@ -74,7 +82,7 @@ test("checkServerConfig validates the secret, max body, UI build, and strict war
 
   const missingSecret = await checkServerConfig({ configPath: file, env: {} });
   assert.equal(missingSecret.ok, false);
-  assert.match(missingSecret.checks.find((check) => check.id === "secret").detail, /SERVER_SECRET_MISSING/u);
+  assert.match(checkById(missingSecret, "secret").detail, /SERVER_SECRET_MISSING/u);
 
   const invalidBody = await checkServerConfig({
     configPath: file,
@@ -84,11 +92,11 @@ test("checkServerConfig validates the secret, max body, UI build, and strict war
 
   const warning = await checkServerConfig({ configPath: file, env: { CLIMIER_SERVER_PASSWORD: "password" } });
   assert.equal(warning.ok, true);
-  assert.equal(warning.checks.find((check) => check.id === "ui-root").status, "warn");
+  assert.equal(checkById(warning, "ui-root").status, "warn");
 
   const strict = await checkServerConfig({ configPath: file, env: { CLIMIER_SERVER_PASSWORD: "password" }, strict: true });
   assert.equal(strict.ok, false);
-  assert.equal(strict.checks.find((check) => check.id === "ui-root").status, "fail");
+  assert.equal(checkById(strict, "ui-root").status, "fail");
 });
 
 test("checkServerConfig parses strict env files and ignores the process environment", async (t) => {
@@ -109,7 +117,7 @@ test("checkServerConfig parses strict env files and ignores the process environm
     await fs.writeFile(envFile, contents, { mode: 0o600 });
     const invalid = await checkServerConfig({ configPath: file, envFile, env: {} });
     assert.equal(invalid.ok, false, contents);
-    assert.equal(invalid.checks.find((check) => check.id === "env-file").status, "fail");
+    assert.equal(checkById(invalid, "env-file").status, "fail");
   }
 });
 
@@ -127,11 +135,11 @@ test("probe-bind is opt-in and reports an occupied port as a warning or strict f
 
   const probe = await checkServerConfig({ configPath: file, env, probeBind: true });
   assert.equal(probe.ok, true);
-  assert.equal(probe.checks.find((check) => check.id === "bind").status, "warn");
+  assert.equal(checkById(probe, "bind").status, "warn");
 
   const strict = await checkServerConfig({ configPath: file, env, probeBind: true, strict: true });
   assert.equal(strict.ok, false);
-  assert.equal(strict.checks.find((check) => check.id === "bind").status, "fail");
+  assert.equal(checkById(strict, "bind").status, "fail");
 });
 
 test("climier-server --check exits without creating runtime directories", async (t) => {

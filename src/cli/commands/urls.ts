@@ -1,6 +1,6 @@
 import path from "node:path";
 
-import { buildUiUrls } from "../../read-model/urls.ts";
+import { buildUiUrls, type UiUrlNode } from "../../read-model/urls.ts";
 import { throwV2 } from "../../contracts/errors.ts";
 import { stateFile, readState } from "../../storage/state.ts";
 import type { CommandContext } from "./contracts.ts";
@@ -83,6 +83,10 @@ function missingNode(id: string): never {
   throwV2("NODE_NOT_FOUND", `urls: node ${id} not found`, { id });
 }
 
+function normalizeUrlNode(node: NonNullable<UrlTarget["node"]>): UiUrlNode {
+  return { ...node, kind: node.kind ?? "task" };
+}
+
 async function resolveRemoteTarget({ initiative, id, backendClient }: UrlTarget & { id?: string; backendClient: NonNullable<CommandContext["backendClient"]> }): Promise<UrlTarget> {
   if (initiative !== undefined) {
     const result = await backendClient.readInitiatives({ all: true }) as { initiatives?: Array<{ name?: unknown }> } | null;
@@ -156,7 +160,12 @@ export default async function urlsCommand({ projectDir, statePath, projectConfig
       backend: remote ? "remote" : "local",
       project_id: projectId,
       local_only: !remote,
-      urls: buildUiUrls({ origin, projectId, ...target }),
+      urls: buildUiUrls({
+        origin,
+        projectId,
+        initiative: target.initiative,
+        node: target.node ? normalizeUrlNode(target.node) : undefined,
+      }),
     },
   };
 }

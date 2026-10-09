@@ -220,7 +220,7 @@ export async function checkServerConfig(optionsOrPath: CheckOptions | string = {
           checks.push(check("config-shape", "fail", failureDetail("INVALID_SERVER_CONFIG", "configuration must be a JSON object"), "Use a JSON object with listen, dataRoot, stateHome, and optional uiRoot."));
         } else {
           const legacyKeys = Object.keys(value).filter((key) => key === "credentials" || key === "projectIds");
-          const unknownKeys = Object.keys(value).filter((key) => !CONFIG_FIELDS.has(key) && !legacyKeys.includes(key));
+          const unknownKeys = Object.keys(value).filter((key) => !CONFIG_FIELDS.has(key) && !legacyKeys.some((legacyKey) => legacyKey === key));
           if (legacyKeys.length > 0) {
             checks.push(check("config-keys", "fail", failureDetail("SERVER_LEGACY_CONFIG", `legacy keys are not supported: ${legacyKeys.join(", ")}`), "Remove credentials and projectIds and use the current server configuration shape."));
           } else if (unknownKeys.length > 0) {

@@ -49,7 +49,9 @@ test("source-link upgrade prints instructions without fetching or editing files"
   try {
     delete process.env.CLIMIER_UPDATE_REPOSITORY;
     const result = await upgrade(context(project, { version: "1.0.0" }));
-    assert.equal(result.distribution, "source-link");
+    if (!("instructions" in result)) {
+      throw new Error(`expected source-link distribution, got ${result.distribution}`);
+    }
     assert.equal(result.updated, false);
     assert.match(result.instructions, /not updated automatically/);
   } finally {
@@ -84,7 +86,14 @@ test("upgrade check reports the manifest schema and update availability", async 
   const project = await fs.mkdtemp(path.join(os.tmpdir(), "climier-upgrade-check-"));
   const oldDistribution = process.env.CLIMIER_DISTRIBUTION;
   const oldRepository = process.env.CLIMIER_UPDATE_REPOSITORY;
-  const server = Bun.serve({
+  type BunServeOptions = {
+    port: number;
+    fetch(request: { url: string }): unknown;
+  };
+  const bun = (globalThis as typeof globalThis & {
+    Bun: { serve(options: BunServeOptions): { port: number; stop(): void } };
+  }).Bun;
+  const server = bun.serve({
     port: 0,
     fetch(request) {
       if (new URL(request.url).pathname !== "/releases/latest/download/manifest.json") return new Response("not found", { status: 404 });
@@ -103,6 +112,9 @@ test("upgrade check reports the manifest schema and update availability", async 
     process.env.CLIMIER_DISTRIBUTION = "binary";
     process.env.CLIMIER_UPDATE_REPOSITORY = `http://127.0.0.1:${server.port}`;
     const result = await upgrade(context(project, { check: true }));
+    if (!("checked" in result)) {
+      throw new Error("expected upgrade check result");
+    }
     assert.deepEqual({
       latest_version: result.latest_version,
       update_available: result.update_available,
