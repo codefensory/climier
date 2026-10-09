@@ -84,27 +84,41 @@ function createLocalUiEvents() {
 // Same shape the hosted catalog returns. Unreadable states stay in the catalog with
 // neutral counters so one bad project cannot blank the whole board; the snapshot
 // request for that project surfaces the real error.
+function localProjectUpdatedAt(projectId) {
+  try {
+    return fsSync.statSync(stateFileForProjectId(projectId)).mtime.toISOString();
+  } catch {
+    return null;
+  }
+}
+
+async function localProjectState(projectId) {
+  try {
+    return await readStateByProjectId(projectId) as ReadModelSnapshot | null;
+  } catch {
+    return null;
+  }
+}
+
+function localProjectRevision(state: ReadModelSnapshot | null) {
+  return state && Number.isInteger(state.revision) ? state.revision : 0;
+}
+
+function localProjectNodeCount(state: ReadModelSnapshot | null) {
+  if (!state || !state.nodes || typeof state.nodes !== "object" || Array.isArray(state.nodes)) {
+    return 0;
+  }
+  return Object.keys(state.nodes).length;
+}
+
 async function localProjectSummary(projectId) {
-  let updatedAt: string | null = null;
-  try {
-    updatedAt = fsSync.statSync(stateFileForProjectId(projectId)).mtime.toISOString();
-  } catch {
-    // A ledger-only project has no state file yet.
-  }
-  let state: ReadModelSnapshot | null = null;
-  try {
-    state = await readStateByProjectId(projectId) as ReadModelSnapshot | null;
-  } catch {
-    // Surfaced when the node/snapshot route reads this project.
-  }
+  const state = await localProjectState(projectId);
   return {
     project_id: projectId,
     name: projectId,
-    revision: state && Number.isInteger(state.revision) ? state.revision : 0,
-    node_count: state && state.nodes && typeof state.nodes === "object" && !Array.isArray(state.nodes)
-      ? Object.keys(state.nodes).length
-      : 0,
-    updated_at: updatedAt,
+    revision: localProjectRevision(state),
+    node_count: localProjectNodeCount(state),
+    updated_at: localProjectUpdatedAt(projectId),
   };
 }
 
@@ -122,23 +136,31 @@ async function handleHealth(request, response) {
   return true;
 }
 
-async function handleLocalUiApi(request, response, { uiApi, uiEvents, projectId }) {
-  const url = new URL(request.url || "/", "http://localhost");
-  if (url.pathname === "/v1/auth/login") {
-    if (request.method !== "POST") {
-      throw routeNotFound();
-    }
-    // Loopback-only adapter: the hosted contract is answered without credentials.
-    send(response, 200, { ok: true, token: `local-${projectId}`, token_type: "Bearer", expires_in_days: 30 });
-    return;
+async function handleLocalLogin(request, response, projectId) {
+  if (request.method !== "POST") {
+    throw routeNotFound();
   }
-  if (url.pathname === "/v1/projects") {
-    if (request.method !== "GET") {
-      throw routeNotFound();
-    }
-    send(response, 200, { projects: await listLocalProjectSummaries() });
-    return;
+  send(response, 200, { ok: true, token: `local-${projectId}`, token_type: "Bearer", expires_in_days: 30 });
+}
+
+async function handleLocalProjects(request, response) {
+  if (request.method !== "GET") {
+    throw routeNotFound();
   }
+  send(response, 200, { projects: await listLocalProjectSummaries() });
+}
+
+async function sendLocalSnapshot({ request, response, uiApi, projectId }) {
+  const result = await uiApi.readSnapshotResponse({ request, projectId });
+  response.writeHead(result.status, {
+    ...result.headers,
+    ...(result.status === 304 ? { "content-length": "0" } : {}),
+    "x-climier-protocol-version": PROTOCOL_VERSION,
+  });
+  response.end(result.body ?? undefined);
+}
+
+async function handleLocalProject({ request, response, url, uiApi, uiEvents }) {
   if (request.method !== "GET") {
     throw routeNotFound();
   }
@@ -155,23 +177,25 @@ async function handleLocalUiApi(request, response, { uiApi, uiEvents, projectId 
     throw routeNotFound();
   }
   if (route.kind === "snapshot") {
-    const result = await uiApi.readSnapshotResponse({ request, projectId: parsed.projectId });
-    response.writeHead(result.status, {
-      ...result.headers,
-      ...(result.status === 304 ? { "content-length": "0" } : {}),
-      "x-climier-protocol-version": PROTOCOL_VERSION,
-    });
-    response.end(result.body ?? undefined);
+    await sendLocalSnapshot({ request, response, uiApi, projectId: parsed.projectId });
     return;
   }
   const query = uiApi.parseQuery(url, route);
-  const result = await uiApi.read({
-    request,
-    projectId: parsed.projectId,
-    route,
-    query,
-  });
+  const result = await uiApi.read({ request, projectId: parsed.projectId, route, query });
   send(response, 200, { ok: true, result });
+}
+
+async function handleLocalUiApi(request, response, { uiApi, uiEvents, projectId }) {
+  const url = new URL(request.url || "/", "http://localhost");
+  if (url.pathname === "/v1/auth/login") {
+    await handleLocalLogin(request, response, projectId);
+    return;
+  }
+  if (url.pathname === "/v1/projects") {
+    await handleLocalProjects(request, response);
+    return;
+  }
+  await handleLocalProject({ request, response, url, uiApi, uiEvents });
 }
 
 export function createLocalUiServer({ projectDir, uiRoot = UI_ROOT, indexFile = "index.html", clock = Date.now }: UiOptions) {
@@ -233,8 +257,8 @@ function ensureBuild(uiRoot) {
 }
 
 function browserCommand(url: string): [string, string[]] {
-  if (process.platform === "darwin") return ["open", [url]];
-  if (process.platform === "win32") return ["cmd", ["/c", "start", "", url]];
+  if (process.platform === "darwin") { return ["open", [url]]; }
+  if (process.platform === "win32") { return ["cmd", ["/c", "start", "", url]]; }
   return ["xdg-open", [url]];
 }
 
@@ -245,28 +269,34 @@ function openBrowser(url) {
   child.unref();
 }
 
+function uiPort(value) {
+  const port = typeof value === "string" ? parseInt(value, 10) : Number.NaN;
+  return Number.isInteger(port) && port >= 0 ? port : DEFAULT_PORT;
+}
+
+async function startUiServer(options) {
+  try {
+    return await startLocalUiServer(options);
+  } catch (caught) {
+    const error = asCaughtError(caught);
+    if (error.code === "EADDRINUSE") {
+      throw new Error(`ui: port ${options.port} is already in use; pick another with --port <n>`, { cause: caught });
+    }
+    throw error;
+  }
+}
+
 export default async function uiCommand(ctx: CommandContext & { uiRoot?: string }) {
   const projectDir = ctx.projectDir;
   const open = ctx.flags.open !== "false" && ctx.flags.open !== false;
-  const port = typeof ctx.flags.port === "string" ? parseInt(ctx.flags.port, 10) : Number.NaN;
-  const finalPort = Number.isInteger(port) && port >= 0 ? port : DEFAULT_PORT;
+  const finalPort = uiPort(ctx.flags.port);
   const uiRoot = ctx.uiRoot || UI_ROOT;
 
   await readState(projectDir);
   ensureBuild(uiRoot);
+  const started = await startUiServer({ projectDir, uiRoot, port: finalPort });
 
-  let started;
-  try {
-    started = await startLocalUiServer({ projectDir, uiRoot, port: finalPort });
-  } catch (caught) {
-    const error = asCaughtError(caught);
-    if (error.code === "EADDRINUSE") {
-      throw new Error(`ui: port ${finalPort} is already in use; pick another with --port <n>`, { cause: error });
-    }
-    throw error;
-  }
-
-  if (open) openBrowser(started.url);
+  if (open) { openBrowser(started.url); }
 
   const result = {
     ui: {
