@@ -1,4 +1,3 @@
-import { readdirSync } from 'node:fs';
 import path from 'node:path';
 import react from '@vitejs/plugin-react';
 import { tanstackStart } from '@tanstack/react-start/plugin/vite';
@@ -6,37 +5,15 @@ import { fumadocsMdx } from 'fumadocs-mdx/vite';
 import { nitro } from 'nitro/vite';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vite';
-
-function normalizeBasePath(value = process.env.DOCS_BASE_PATH ?? '/') {
-  const trimmed = value.trim();
-  if (!trimmed || trimmed === '/') return '';
-  return `/${trimmed.replace(/^\/+|\/+$/g, '')}`;
-}
-
-function markdownFiles(directory: string): string[] {
-  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
-    const filePath = path.join(directory, entry.name);
-    if (entry.isDirectory()) return markdownFiles(filePath);
-    if (!/\.(?:md|mdx)$/i.test(entry.name)) return [];
-    return [filePath];
-  });
-}
-
-function prerenderPaths(basePath = '') {
-  const contentRoot = path.resolve('content/docs');
-  const paths = new Set([`${basePath}/`]);
-  for (const filePath of markdownFiles(contentRoot)) {
-    const relative = path.relative(contentRoot, filePath).replaceAll(path.sep, '/');
-    const slug = relative
-      .replace(/\.(?:md|mdx)$/i, '')
-      .replace(/(^|\/)index$/, '');
-    paths.add(`${basePath}/docs${slug ? `/${slug}` : ''}`);
-  }
-  return [...paths].map((path) => ({ path }));
-}
+import {
+  dropBareBaseRoute,
+  normalizeBasePath,
+  prerenderRoutes,
+  publicBasePath,
+} from './scripts/site-paths.mjs';
 
 const basePath = normalizeBasePath();
-const publicBase = `${basePath}/`;
+const publicBase = publicBasePath(basePath);
 
 export default defineConfig({
   base: publicBase,
@@ -54,8 +31,19 @@ export default defineConfig({
     react(),
     nitro({
       preset: 'github-pages',
+      // `baseURL` is what makes a project Pages site deployable: the prerenderer
+      // requests `baseURL + route` and writes `withoutBase(fileName)`, so the
+      // artifact root holds `index.html` and `docs/` directly while every URL
+      // stays under the project path. Left at `/`, the whole site nests inside a
+      // second `<project>/` directory and the deployed root has no `index.html`.
+      baseURL: publicBase,
+      hooks: {
+        'prerender:routes': (routes) => {
+          dropBareBaseRoute(routes, basePath);
+        },
+      },
       prerender: {
-        routes: prerenderPaths(basePath).map(({ path }) => path),
+        routes: prerenderRoutes(basePath, path.resolve('content/docs')),
         crawlLinks: true,
       },
     }),
