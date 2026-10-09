@@ -2374,6 +2374,12 @@
       "disposition": "keep"
     },
     {
+      "path": "test/architecture/import-boundaries.test.ts",
+      "name": "upgrade matches the declared architectural graph",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
       "path": "test/backend-config.test.mjs",
       "name": "backend config defaults to local and accepts explicit local config",
       "ordinal": 1,
@@ -2454,6 +2460,36 @@
       "disposition": "keep"
     },
     {
+      "path": "test/backend-remote-reads.test.ts",
+      "name": "backend-remote-reads: readLog accepts options present with undefined values and sends no query",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/backend-remote-reads.test.ts",
+      "name": "backend-remote-reads: readLog builds the full query from limit, action, agent and node",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/backend-remote-reads.test.ts",
+      "name": "backend-remote-reads: readLog rejects an option outside the accepted set",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/backend-remote-reads.test.ts",
+      "name": "backend-remote-reads: readLog rejects the pre-canonical task option the server does not accept",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/backend-remote-reads.test.ts",
+      "name": "backend-remote-reads: readLog sends the node option as the wire node parameter",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
       "path": "test/batch-cli.test.mjs",
       "name": "batch CLI keeps the state unchanged when a later operation fails",
       "ordinal": 1,
@@ -2718,10 +2754,40 @@
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/bugs.test.mjs"
+    },
+    {
+      "path": "test/check-commit-msg.test.ts",
+      "name": "CLIMIER_COMMIT_NO_TASK skips node validation but keeps conventional format",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/check-commit-msg.test.ts",
+      "name": "commit messages distinguish an unknown node from an unreachable DAG",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/check-commit-msg.test.ts",
+      "name": "commit messages require a supported type and a DAG node",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/check-commit-msg.test.ts",
+      "name": "merge, revert, autosquash, and release commits are exempt",
+      "ordinal": 1,
+      "disposition": "keep"
     },
     {
       "path": "test/ci-workflow.test.ts",
       "name": "darwin-x64 binary job uses a supported Intel macOS runner",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/ci-workflow.test.ts",
+      "name": "tag releases generate and idempotently upload the five release assets",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -6554,6 +6620,24 @@
       "replacement": "keep while the guard is required"
     },
     {
+      "path": "test/install-script.test.ts",
+      "name": "install.sh: downloads, verifies, installs, and leaves a working climier",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/install-script.test.ts",
+      "name": "install.sh: rejects an invalid checksum before touching the destination",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/install-script.test.ts",
+      "name": "install.sh: rejects Windows with manual binary installation instructions",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
       "path": "test/internal-capabilities.test.mjs",
       "name": "internal-caps: addNodeInternal with allowUnregisteredInitiative=true accepts an unregistered initiative",
       "ordinal": 1,
@@ -10238,6 +10322,48 @@
       "move_from": "test/log.test.mjs"
     },
     {
+      "path": "test/manifest-client.test.ts",
+      "name": "manifest client fails closed when the network is unavailable",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/manifest-client.test.ts",
+      "name": "manifest client reads the stable manifest from the latest download endpoint",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/manifest-client.test.ts",
+      "name": "manifest client reports an available stable update",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/manifest-client.test.ts",
+      "name": "manifest client selects the highest stable version and excludes prereleases",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/manifest-client.test.ts",
+      "name": "manifest client turns a request timeout into UPDATE_CHECK_UNREACHABLE",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/manifest.test.ts",
+      "name": "manifest: generates a v1 release manifest for every supported platform",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/manifest.test.ts",
+      "name": "manifest: rejects an incomplete dist before writing output",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
       "path": "test/migrate-fenced.test.mjs",
       "name": "fenced migrate preserves node CAS, advances state and ledger revisions, logs once, and is idempotent",
       "ordinal": 1,
@@ -10483,6 +10609,24 @@
     {
       "path": "test/package.test.ts",
       "name": "package: every published bin entry uses the Bun shebang",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/package.test.ts",
+      "name": "package: publish gate builds the UI before packaging",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/package.test.ts",
+      "name": "package: published files include the built UI",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/package.test.ts",
+      "name": "package: README documents Bun-only runtime usage",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -19078,6 +19222,30 @@
       "move_from": "test/read-model.test.mjs"
     },
     {
+      "path": "test/release-please.test.ts",
+      "name": "release workflow delegates PR, tag, and GitHub Release creation to release-please",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/release-please.test.ts",
+      "name": "release workflow supports a manual publish of an existing tag",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/release-please.test.ts",
+      "name": "release-please config uses node releases with versioned tags and changelog sections",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/release-please.test.ts",
+      "name": "release-please starts from the package's bootstrap version",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
       "path": "test/remote-v1-capability-inventory.test.mjs",
       "name": "remote-v1 inventory matches the fixture, manifest, and provider catalog",
       "ordinal": 1,
@@ -19518,6 +19686,60 @@
       "move_from": "test/server-catalog.test.mjs"
     },
     {
+      "path": "test/server-command.test.ts",
+      "name": "server doctor exits one when a preflight check fails",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server-command.test.ts",
+      "name": "server doctor is local even for a remote checkout",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server-command.test.ts",
+      "name": "server doctor uses root server artifacts and returns preflight JSON",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server-command.test.ts",
+      "name": "server is a reserved built-in namespace and is advertised",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server-command.test.ts",
+      "name": "server rejects unknown subcommands with its valid subcommand list",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server-init.test.ts",
+      "name": "server init can print the secret only when explicitly requested",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server-init.test.ts",
+      "name": "server init dry-run reports actions without writing and real init is private",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server-init.test.ts",
+      "name": "server init is idempotent, protects the secret, and supports force and rotation",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server-init.test.ts",
+      "name": "server init remains local for a remote checkout",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
       "path": "test/server-operations-e2e.test.ts",
       "name": "v1 remote E2E links and logs in two clients, isolates project IDs, and fails closed",
       "ordinal": 1,
@@ -19532,6 +19754,36 @@
     {
       "path": "test/server-operations-e2e.test.ts",
       "name": "v1 transfer E2E never provisions via push and leaves baselines unchanged on failure or ambiguous timeout",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server-preflight.test.ts",
+      "name": "checkServerConfig parses strict env files and ignores the process environment",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server-preflight.test.ts",
+      "name": "checkServerConfig reports unsafe config files and config shape failures",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server-preflight.test.ts",
+      "name": "checkServerConfig validates the secret, max body, UI build, and strict warnings",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server-preflight.test.ts",
+      "name": "climier-server --check exits without creating runtime directories",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server-preflight.test.ts",
+      "name": "probe-bind is opt-in and reports an occupied port as a warning or strict failure",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -19690,6 +19942,72 @@
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/server-service-lock.test.mjs"
+    },
+    {
+      "path": "test/server-setup-artifacts.test.ts",
+      "name": "generates private config, a 32-byte base64url secret, directories, and a unit",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server-setup-artifacts.test.ts",
+      "name": "is idempotent, creates only a missing artifact, and rotates only the secret",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server-setup-artifacts.test.ts",
+      "name": "renders a hardened systemd unit without an implicit service user",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server-setup-artifacts.test.ts",
+      "name": "reports conflicts without writing and dry-run does not create paths",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server-setup-artifacts.test.ts",
+      "name": "reports ownership work without executing privileged commands",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server-setup-artifacts.test.ts",
+      "name": "warns when the recorded invoker is root",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server-setup-docs.test.ts",
+      "name": "remote server docs describe the generated setup path",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server-setup.test.ts",
+      "name": "server setup and init expose the same options in the command help",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server-setup.test.ts",
+      "name": "server setup collects init options from a TTY and delegates artifact generation",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server-setup.test.ts",
+      "name": "server setup is routed locally and rejects a real non-TTY invocation",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server-setup.test.ts",
+      "name": "server setup rejects non-TTY input before reading and enumerates init flags",
+      "ordinal": 1,
+      "disposition": "keep"
     },
     {
       "path": "test/server/http/auth-validation.test.mjs",
@@ -19970,6 +20288,18 @@
     {
       "path": "test/server/http/projects.test.ts",
       "name": "GET /v1/projects returns an empty catalog without creating the data root",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server/http/reads-log-query.test.ts",
+      "name": "server read log accepts the canonical node parameter and rejects the pre-canonical task parameter",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server/http/reads-log-query.test.ts",
+      "name": "server read routes: the codec and the read handler agree on kind, id and allowed query parameters",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -24382,6 +24712,84 @@
       "move_from": "test/update.test.mjs"
     },
     {
+      "path": "test/upgrade.test.ts",
+      "name": "binary installation verifies the digest before replacing the target",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/upgrade.test.ts",
+      "name": "source-link upgrade prints instructions without fetching or editing files",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/upgrade.test.ts",
+      "name": "upgrade check reports the manifest schema and update availability",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/upgrade.test.ts",
+      "name": "upgrade refuses to run while the project lock is present",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/urls-projection.test.ts",
+      "name": "buildUiUrls adds initiative and node deep links to the base catalog",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/urls-projection.test.ts",
+      "name": "buildUiUrls projects the fixture's linked route catalog",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/urls-projection.test.ts",
+      "name": "the initiative filter encoder matches both fixture wire cases",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/urls-projection.test.ts",
+      "name": "the projection keeps URL parameter order and encoding deterministic",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/urls.test.ts",
+      "name": "urls is wired into the public CLI surface",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/urls.test.ts",
+      "name": "urls rejects invalid combinations and missing targets",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/urls.test.ts",
+      "name": "urls resolves task, gate, and knowledge deep links",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/urls.test.ts",
+      "name": "urls returns the local UI links and initiative deep link",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/urls.test.ts",
+      "name": "urls validates remote targets through the selected backend",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
       "path": "test/v1-restore-transfer.test.mjs",
       "name": "push reports canonical v1 numbering in the transfer payload",
       "ordinal": 1,
@@ -27037,6 +27445,30 @@
       "category": "guard",
       "motive": "seeds 2, 3 and 4 sources for read compatibility and a version 6 source to prove the refusal",
       "replacement": "keep while the guard is required"
+    },
+    {
+      "path": "test/version.test.ts",
+      "name": "--version remains plain strict-semver output",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/version.test.ts",
+      "name": "distribution detection classifies binary, npm, source-link, and one-off installs",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/version.test.ts",
+      "name": "version --json exposes the release metadata contract",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/version.test.ts",
+      "name": "version command prints the package version by default",
+      "ordinal": 1,
+      "disposition": "keep"
     },
     {
       "path": "test/worker-start-scripts.test.mjs",

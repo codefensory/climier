@@ -140,7 +140,7 @@ function readInitiatives(request: RemoteRequest, options: unknown): Promise<unkn
 }
 
 function readLog(request: RemoteRequest, options: unknown): Promise<unknown> {
-  const allowed = ["limit", "action", "agent", "task", "decision"];
+  const allowed = ["limit", "action", "agent", "node"];
   const types = Object.fromEntries(allowed.map((key) => [key, { kind: key === "limit" ? "non-negative-integer" : "string" }])) as Record<string, ReadType>;
   return getRead({
     method: "readLog", options, allowed, types,
