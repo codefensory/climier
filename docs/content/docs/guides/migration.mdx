@@ -1,0 +1,74 @@
+---
+title: Migrate existing state
+description: Inspect and import older project state without resetting or losing the source.
+---
+
+Climier's canonical state is schema 1. Older projects must be imported explicitly because migration also establishes the revision ledger used by safe writes. Migration is an operational change: schedule a short window, stop every writer, and keep a backup before committing it.
+
+## Decide whether migration is needed
+
+From a project checkout, first make sure the metadata points to the project you intend to inspect:
+
+```bash
+climier status
+climier state
+```
+
+A canonical project can be read normally. If a command reports that the state is not canonical or asks you to run `migrate`, do not work around the error by editing the state file. The reader deliberately refuses unknown or incomplete forms.
+
+For a single checkout, inspect without writing:
+
+```bash
+climier --project /path/to/checkout migrate --dry-run
+```
+
+To inspect every project under the configured Climier home, use the all-project report:
+
+```bash
+climier migrate --all --dry-run
+```
+
+A dry run reports each project form and does not create migration output. Review errors and the number of nodes and log entries before scheduling the import. If the projects live under a non-default storage home, run the same command with that `CLIMIER_HOME` value:
+
+```bash
+CLIMIER_HOME=/srv/climier-state climier migrate --all --dry-run
+```
+
+## Prepare the migration window
+
+1. Tell all agents and operators to stop mutations.
+2. Stop services or automation that can write the same projects.
+3. Take a consistent backup of the state directory, including `tasks.json` and any existing revision ledger.
+4. Save the dry-run output and confirm that the selected storage home is the one being backed up.
+
+A migration is not a merge. It imports the existing project into the canonical representation; it does not combine two copies of a project. Do not run `init --force`: that command is a destructive reset, not an import tool.
+
+## Import the state
+
+After every writer is stopped and the backup is complete, run the same scope without `--dry-run`:
+
+```bash
+climier migrate --all
+```
+
+For one checkout instead:
+
+```bash
+climier --project /path/to/checkout migrate
+```
+
+The importer takes the project lock, validates the source, creates the migration backup, and commits the canonical state and revision ledger. If the command returns an error, preserve the backup and error output; do not delete state or repeatedly retry an uncertain operation.
+
+## Verify the result
+
+Check the migrated project through the CLI rather than reading or rewriting its live JSON:
+
+```bash
+climier --project /path/to/checkout status --all
+climier --project /path/to/checkout state
+climier --project /path/to/checkout history publish-docs --limit 10
+```
+
+Confirm that initiatives, nodes, edges, and log entries are present, and that tasks still derive as `ready` or `blocked` for the same dependency reasons. Run one authorized read and one deliberately chosen mutation only after the verification review, then return the project to its normal writers.
+
+If the migration was interrupted, rerun the dry run first. A pending migration is a recovery state, not a reason to use `init --force`. For remote deployments, stop the server and follow the backup and rollback procedure in the [remote server runbook](/docs/generated/remote-server) before importing.
