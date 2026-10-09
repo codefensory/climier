@@ -25,9 +25,15 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
       - name: Install docs dependencies
         working-directory: docs
         run: bun install --frozen-lockfile
+      - name: Test docs tooling
+        working-directory: docs
+        run: bun run test
       - name: Typecheck docs
         working-directory: docs
         run: bun run typecheck

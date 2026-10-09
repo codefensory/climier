@@ -1,7 +1,23 @@
-/* Fumadocs roles mapped from the central palette in ui/src/styles/tokens.css. */
+/*
+ * Fumadocs roles mapped from the central palette in ui/src/styles/tokens.css.
+ *
+ * The `--color-fd-*` block below is a parity contract with the UI design tokens
+ * (`src/styles/theme-parity.test.ts` reads both files). Keep the mapping exact.
+ * The Climier brand accent (`--color-brand*`) has no UI token yet; it comes from
+ * the logo mark (#004cfd light mark, #6f9dff dark mark) and is intentionally
+ * additive so the parity contract stays intact.
+ */
 @theme {
   --font-sans: "DM Sans", sans-serif;
   --font-display: "Manrope", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+
+  /* Brand accent utilities: text-brand, bg-brand, border-brand, … */
+  --color-brand: #004cfd;
+  --color-brand-strong: #003fd1;
+  --color-brand-soft: #e9efff;
+  --color-brand-foreground: #ffffff;
+  --color-brand-contrast: #6f9dff;
 }
 
 :root {
@@ -27,6 +43,10 @@
   --color-fd-success: #667557;
   --color-fd-warning: #8c6850;
   --color-fd-error: #a4473f;
+
+  /* Reading surface + chrome accents. */
+  --docs-dot: #d9dee4;
+  --docs-brand-soft: #e9efff;
 }
 
 [data-theme="dark"], .dark {
@@ -53,4 +73,13 @@
   --color-fd-success: #a9bf93;
   --color-fd-warning: #d3a983;
   --color-fd-error: #e0998f;
+
+  --color-brand: #6f9dff;
+  --color-brand-strong: #93b7ff;
+  --color-brand-soft: #16223c;
+  --color-brand-foreground: #0e0e11;
+  --color-brand-contrast: #004cfd;
+
+  --docs-dot: #23282e;
+  --docs-brand-soft: #16223c;
 }

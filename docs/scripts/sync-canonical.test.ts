@@ -39,6 +39,18 @@ test('syncs every canonical document into the reference docs collection', async 
   await assertCanonicalFresh(root);
 });
 
+test('drops the redundant leading H1 so the page title is rendered once', async () => {
+  const root = await fixture();
+  await syncCanonical(root);
+
+  for (const entry of CANONICAL_FILES) {
+    const output = await readFile(path.join(root, outputPath(entry)), 'utf8');
+    const body = output.slice(output.indexOf('\n---\n') + 5).trimStart();
+    assert.doesNotMatch(body, /^#\s/m, `${entry.output} must not repeat the frontmatter title as a heading`);
+    assert.match(body, /^Canonical body for /);
+  }
+});
+
 test('freshness check rejects a stale reference document', async () => {
   const root = await fixture();
   await syncCanonical(root);

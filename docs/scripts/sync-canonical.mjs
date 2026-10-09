@@ -9,16 +9,19 @@ export const CANONICAL_FILES = [
     source: 'docs/reference.md',
     output: 'docs/content/docs/reference/cli.mdx',
     title: 'CLI Reference',
+    description: 'Every Climier command, flag, JSON envelope, and exit code.',
   },
   {
     source: 'docs/PLUGINS.md',
     output: 'docs/content/docs/reference/plugins.mdx',
     title: 'Plugins V1',
+    description: 'Author, install, and verify a Climier Plugin API v1 plugin.',
   },
   {
     source: 'docs/remote-server.md',
     output: 'docs/content/docs/reference/self-hosting.mdx',
     title: 'Operating a Climier remote server',
+    description: 'Run an authenticated Climier remote server as the source of truth for a project.',
   },
 ];
 
@@ -27,11 +30,23 @@ export function outputPath(entry) {
 }
 
 function frontmatter(entry) {
-  return `---\ntitle: ${entry.title}\n---\n\n`;
+  const description = entry.description ? `description: ${entry.description}\n` : '';
+  return `---\ntitle: ${entry.title}\n${description}---\n\n`;
+}
+
+/**
+ * Drop a leading level-1 heading from the canonical source.
+ *
+ * The docs collection renders the page title from frontmatter, so the source's
+ * own `# Title` line would show up as a duplicate. Only the first heading is
+ * removed, and only when it is the first non-empty line.
+ */
+function stripLeadingTitle(source) {
+  return source.replace(/^\s*#\s+[^\n]*\n+/, '');
 }
 
 function outputContent(entry, source) {
-  return `${frontmatter(entry)}${source}`;
+  return `${frontmatter(entry)}${stripLeadingTitle(source)}`;
 }
 
 async function expectedContent(rootDir, entry) {

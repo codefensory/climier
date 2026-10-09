@@ -13,6 +13,7 @@
     "prerender": "bun run build",
     "start": "vite preview --outDir .output/public",
     "preview": "vite preview --outDir .output/public",
+    "test": "node --test",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

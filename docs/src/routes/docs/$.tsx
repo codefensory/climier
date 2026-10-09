@@ -11,10 +11,21 @@ import {
 } from 'fumadocs-ui/layouts/docs/page';
 import { docs, source } from '@/lib/source';
 import { baseOptions } from '@/lib/layout.shared';
+import { SidebarBanner, SidebarFooter } from '@/components/docs-chrome';
 import { useMDXComponents } from '@/components/mdx';
 
 export const Route = createFileRoute('/docs/$')({
   component: Page,
+  head: ({ params }: { params: { _splat?: string } }) => {
+    const slugs = params._splat?.split('/').filter(Boolean) ?? [];
+    const page = source.getPage(slugs);
+    return {
+      meta: [
+        { title: page ? `${page.data.title} — Climier` : 'Climier documentation' },
+        ...(page?.data.description ? [{ name: 'description', content: page.data.description }] : []),
+      ],
+    };
+  },
   loader: async ({ params }) => {
     const slugs = params._splat?.split('/').filter(Boolean) ?? [];
     const data = await loadPage({ data: slugs });
@@ -57,7 +68,11 @@ function Page() {
   const { path, pageTree } = useFumadocsLoader(Route.useLoaderData());
 
   return (
-    <DocsLayout {...baseOptions()} tree={pageTree}>
+    <DocsLayout
+      {...baseOptions()}
+      tree={pageTree}
+      sidebar={{ banner: <SidebarBanner />, footer: <SidebarFooter /> }}
+    >
       <Suspense>
         <Content path={path} />
       </Suspense>

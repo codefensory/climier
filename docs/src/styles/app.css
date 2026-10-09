@@ -1,7 +1,16 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Manrope:wght@500;600;700;800&display=swap");
 @import 'tailwindcss';
 @import 'fumadocs-ui/css/neutral.css';
 @import 'fumadocs-ui/css/preset.css';
 @import './theme.css';
+
+/*
+ * next-themes (mounted by Fumadocs' RootProvider) toggles `class="dark"` on
+ * <html>; the docs also accept an explicit `data-theme` attribute. Wire the
+ * `dark:` variant to both so Tailwind utilities follow the in-app toggle rather
+ * than only the OS preference.
+ */
+@custom-variant dark (&:where(.dark, .dark *, [data-theme="dark"], [data-theme="dark"] *));
 
 html {
   scrollbar-gutter: stable;
@@ -10,4 +19,216 @@ html {
 html > body[data-scroll-locked] {
   margin-right: 0 !important;
   --removed-body-scroll-bar-size: 0px !important;
+}
+
+/* ── Brand ──────────────────────────────────────────────────────────────── */
+
+/* Theme-aware wordmark. Kept in CSS so it resolves before React hydrates. */
+.climier-logo-dark {
+  display: none;
+}
+
+.dark .climier-logo-light {
+  display: none;
+}
+
+.dark .climier-logo-dark {
+  display: block;
+}
+
+/* The signature Climier canvas texture, reused from ui/src/styles/style.css. */
+.climier-dots {
+  background-color: var(--color-fd-background);
+  background-image: radial-gradient(circle, var(--docs-dot) 1px, transparent 1.2px);
+  background-size: 26px 26px;
+}
+
+/* ── Chrome ─────────────────────────────────────────────────────────────── */
+
+/* Sidebar: dotted canvas panel, the same surface the UI shell uses. */
+#nd-sidebar,
+#nd-sidebar-mobile {
+  background-color: var(--color-fd-background);
+  background-image: radial-gradient(circle, var(--docs-dot) 1px, transparent 1.2px);
+  background-size: 26px 26px;
+  /* Scope the primary role to the brand accent: active nav entries (text,
+   * tint and indicator bar) and focus rings pick it up from one place. */
+  --color-fd-primary: var(--color-brand);
+}
+
+#nd-sidebar {
+  border-inline-end-color: var(--color-fd-border);
+}
+
+/* Reading column becomes the raised surface; the dotted sidebar stays canvas. */
+#nd-docs-layout {
+  background-color: var(--color-fd-card);
+}
+
+#nd-toc {
+  --color-fd-primary: var(--color-brand);
+}
+
+/* Home header: brand accent for the active nav link. */
+#nd-nav {
+  --color-fd-primary: var(--color-brand);
+}
+
+/* Sidebar search reads as a quiet chip, matching the UI shell. */
+#nd-sidebar button[class*='bg-fd-secondary'] {
+  background-color: var(--color-fd-muted);
+  border-color: transparent;
+}
+
+/* ── Reading surface ────────────────────────────────────────────────────── */
+
+#nd-page .prose {
+  --tw-prose-links: var(--color-brand);
+  --tw-prose-headings: var(--color-fd-foreground);
+  --tw-prose-code: var(--color-fd-foreground);
+}
+
+#nd-page .prose a,
+.prose a {
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+
+#nd-page h1,
+#nd-page h2,
+#nd-page h3,
+#nd-page h4,
+#nd-toc a {
+  font-family: var(--font-display);
+  letter-spacing: -0.015em;
+}
+
+#nd-page h1 {
+  letter-spacing: -0.03em;
+}
+
+#nd-toc a {
+  font-family: var(--font-sans);
+  letter-spacing: 0;
+}
+
+/* Inline code, code blocks and kbd pick up the mono face. */
+#nd-page :not(pre) > code,
+#nd-page kbd,
+.prose :not(pre) > code {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+}
+
+/* ── Landing page ───────────────────────────────────────────────────────── */
+
+#nd-home-layout {
+  position: relative;
+  overflow-x: clip;
+}
+
+/* Fading dot field behind the hero, echoing the app canvas. */
+.landing-dots {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(circle, var(--docs-dot) 1px, transparent 1.2px);
+  background-size: 26px 26px;
+  -webkit-mask-image: radial-gradient(ellipse 70% 65% at 50% -8%, #000 30%, transparent 78%);
+  mask-image: radial-gradient(ellipse 70% 65% at 50% -8%, #000 30%, transparent 78%);
+}
+
+/* Soft brand halo behind the hero headline. */
+.landing-glow::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: -30% 10% auto 10%;
+  height: 420px;
+  background: radial-gradient(ellipse at center, color-mix(in oklab, var(--color-brand) 22%, transparent), transparent 70%);
+  filter: blur(8px);
+  pointer-events: none;
+}
+
+.landing-eyebrow {
+  border: 1px solid var(--color-fd-border);
+  background: color-mix(in oklab, var(--color-fd-card) 70%, transparent);
+  backdrop-filter: blur(6px);
+}
+
+.landing-card {
+  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1), border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.landing-card:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in oklab, var(--color-brand) 40%, var(--color-fd-border));
+  box-shadow: 0 1px 3px rgb(0 0 0 / 5%), 0 10px 30px -12px color-mix(in oklab, var(--color-brand) 35%, transparent);
+}
+
+.landing-terminal {
+  background: var(--color-fd-card);
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 5%),
+    0 20px 50px -24px color-mix(in oklab, var(--color-brand) 45%, transparent);
+}
+
+@keyframes landing-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.landing-rise {
+  animation: landing-rise 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.landing-rise-1 {
+  animation-delay: 60ms;
+}
+
+.landing-rise-2 {
+  animation-delay: 120ms;
+}
+
+.landing-rise-3 {
+  animation-delay: 180ms;
+}
+
+.landing-rise-4 {
+  animation-delay: 260ms;
+}
+
+/* ── Scrollbars ─────────────────────────────────────────────────────────── */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-fd-border) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--color-fd-border);
+  border-radius: 9999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--color-fd-ring);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-rise,
+  .landing-card {
+    animation: none;
+    transition: none;
+  }
 }
