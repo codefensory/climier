@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import {
   CANONICAL_FILES,
   assertCanonicalFresh,
-  generatedPath,
+  outputPath,
   syncCanonical,
 } from './sync-canonical.mjs';
 
@@ -21,26 +21,30 @@ async function fixture() {
   return root;
 }
 
-test('syncs every canonical document into the generated docs collection', async () => {
+test('syncs every canonical document into the reference docs collection', async () => {
   const root = await fixture();
 
   const result = await syncCanonical(root);
 
-  assert.equal(result.files.length, 3);
+  assert.deepEqual(result.files, [
+    'docs/content/docs/reference/cli.mdx',
+    'docs/content/docs/reference/plugins.mdx',
+    'docs/content/docs/reference/self-hosting.mdx',
+  ]);
   for (const entry of CANONICAL_FILES) {
-    const output = await readFile(path.join(root, generatedPath(entry)), 'utf8');
+    const output = await readFile(path.join(root, outputPath(entry)), 'utf8');
     assert.match(output, /^---\ntitle: /);
     assert.match(output, new RegExp(`Canonical body for ${entry.source.replace(/[.*+?^${}()|[\\]\\]/g, '\\\\$&')}`));
   }
   await assertCanonicalFresh(root);
 });
 
-test('freshness check rejects a stale generated document', async () => {
+test('freshness check rejects a stale reference document', async () => {
   const root = await fixture();
   await syncCanonical(root);
 
-  const stalePath = path.join(root, generatedPath(CANONICAL_FILES[0]));
-  await writeFile(stalePath, `${await readFile(stalePath, 'utf8')}\nStale generated content.\n`);
+  const stalePath = path.join(root, outputPath(CANONICAL_FILES[0]));
+  await writeFile(stalePath, `${await readFile(stalePath, 'utf8')}\nStale reference content.\n`);
 
   await assert.rejects(
     () => assertCanonicalFresh(root),
@@ -48,11 +52,11 @@ test('freshness check rejects a stale generated document', async () => {
   );
 });
 
-test('freshness check rejects a missing generated document', async () => {
+test('freshness check rejects a missing reference document', async () => {
   const root = await fixture();
   await syncCanonical(root);
 
-  const missingPath = path.join(root, generatedPath(CANONICAL_FILES[1]));
+  const missingPath = path.join(root, outputPath(CANONICAL_FILES[1]));
   await unlink(missingPath);
 
   await assert.rejects(

@@ -12,7 +12,9 @@ docs/node_modules/
 docs/dist/
 docs/.tanstack/
 docs/.source/
-docs/content/docs/generated/
+docs/content/docs/reference/cli.mdx
+docs/content/docs/reference/plugins.mdx
+docs/content/docs/reference/self-hosting.mdx
 docs/.output/
 docs/.nitro/
 docs/.vercel/

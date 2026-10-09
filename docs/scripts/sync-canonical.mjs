@@ -4,27 +4,25 @@ import { fileURLToPath } from 'node:url';
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 export const DEFAULT_ROOT = path.resolve(SCRIPT_DIR, '../..');
-export const GENERATED_ROOT = 'docs/content/docs/generated';
-
 export const CANONICAL_FILES = [
   {
     source: 'docs/reference.md',
-    output: `${GENERATED_ROOT}/reference.mdx`,
+    output: 'docs/content/docs/reference/cli.mdx',
     title: 'CLI Reference',
   },
   {
     source: 'docs/PLUGINS.md',
-    output: `${GENERATED_ROOT}/PLUGINS.mdx`,
+    output: 'docs/content/docs/reference/plugins.mdx',
     title: 'Plugins V1',
   },
   {
     source: 'docs/remote-server.md',
-    output: `${GENERATED_ROOT}/remote-server.mdx`,
+    output: 'docs/content/docs/reference/self-hosting.mdx',
     title: 'Operating a Climier remote server',
   },
 ];
 
-export function generatedPath(entry) {
+export function outputPath(entry) {
   return entry.output;
 }
 
@@ -32,13 +30,13 @@ function frontmatter(entry) {
   return `---\ntitle: ${entry.title}\n---\n\n`;
 }
 
-function generatedContent(entry, source) {
+function outputContent(entry, source) {
   return `${frontmatter(entry)}${source}`;
 }
 
 async function expectedContent(rootDir, entry) {
   const source = await readFile(path.join(rootDir, entry.source), 'utf8');
-  return generatedContent(entry, source);
+  return outputContent(entry, source);
 }
 
 function staleError(entry) {
@@ -53,14 +51,14 @@ export async function syncCanonical(rootDir = DEFAULT_ROOT) {
   const files = [];
 
   for (const entry of CANONICAL_FILES) {
-    const output = path.join(resolvedRoot, generatedPath(entry));
+    const output = path.join(resolvedRoot, outputPath(entry));
     const content = await expectedContent(resolvedRoot, entry);
     await mkdir(path.dirname(output), { recursive: true });
 
     const temporary = `${output}.${process.pid}.${Date.now()}.tmp`;
     await writeFile(temporary, content, 'utf8');
     await rename(temporary, output);
-    files.push(generatedPath(entry));
+    files.push(outputPath(entry));
   }
 
   return { rootDir: resolvedRoot, files };
@@ -73,7 +71,7 @@ export async function assertCanonicalFresh(rootDir = DEFAULT_ROOT) {
     const expected = await expectedContent(resolvedRoot, entry);
     let actual;
     try {
-      actual = await readFile(path.join(resolvedRoot, generatedPath(entry)), 'utf8');
+      actual = await readFile(path.join(resolvedRoot, outputPath(entry)), 'utf8');
     } catch (error) {
       if (error.code === 'ENOENT') throw staleError(entry);
       throw error;
@@ -82,7 +80,7 @@ export async function assertCanonicalFresh(rootDir = DEFAULT_ROOT) {
     if (actual !== expected) throw staleError(entry);
   }
 
-  return { rootDir: resolvedRoot, files: CANONICAL_FILES.map(generatedPath) };
+  return { rootDir: resolvedRoot, files: CANONICAL_FILES.map(outputPath) };
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

@@ -5,6 +5,6 @@ export function baseOptions(): BaseLayoutProps {
     nav: {
       title: 'Climier',
     },
-    githubUrl: 'https://github.com/climier/climier',
+    githubUrl: 'https://github.com/codefensory/climier',
   };
 }
