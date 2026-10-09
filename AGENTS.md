@@ -201,6 +201,56 @@ Cycles in the DAG must not crash. The derivation keeps cycle members blocked. Un
 7. **Task lifecycle.** `climierflow` owns implementation, review, submission, and acceptance transitions. `resolve` is reserved for gates; `release`, `reopen`, and `cancel` remain administrative lifecycle operations.
 8. **No boolean flags before the command.** The CLI parser treats `--force init` as `--force=init`. New boolean flags must be used as `--flag=true` or after the command. Document any new boolean flag with this caveat.
 9. **English only in code, but the CLI output tolerates any UTF-8.** Titles, bodies, notes, and any free-text field can be in any language. Don't filter or escape based on locale.
+10. **Commits follow the contract.** Conventional Commits plus the DAG node id in the subject; `.githooks/commit-msg` rejects anything else. See the `## Commits` section below.
+
+## Commits
+
+Every commit in this repository follows Conventional Commits and names the DAG node
+it implements. `.githooks/commit-msg` (logic in `scripts/check-commit-msg.ts`) rejects
+a commit that breaks this.
+
+```
+<type>(<scope>)!?: <subject> [<node-id>]
+```
+
+- `<type>`: mandatory, lowercase, one of `feat fix docs style refactor perf test build ci chore revert`.
+- `<scope>`: optional and free-form, no parentheses inside; `feat(cli): ...`.
+- `!`: optional, marks a breaking change, and goes before the colon; `feat(state)!: ...`.
+- `<subject>`: mandatory, separated from the type by `: `.
+- `[<node-id>]`: mandatory, at the end of the **first line**, separated by a space. It must
+  resolve in this project's DAG (`climier show <id>`); `T-re-commit-msg-hook` and
+  `G-adr062-commit-contract` are valid, an invented id is not.
+- Only the first line is validated. Details go in the body after a blank line.
+
+Exempt from both the format and the node id: `Merge ...` (the runner's integrator
+commits), `Revert "..."`, `fixup!`/`squash!`/`amend!`, and release commits
+(`release: vX.Y.Z`, `chore(release): ...`).
+
+Escapes:
+
+- `git commit --no-verify` skips the hook entirely.
+- `CLIMIER_COMMIT_NO_TASK=1` keeps the format checks and skips only the DAG lookup, for
+  commits that legitimately have no node (tooling, offline).
+
+Installation is explicit, never on `prepare`: `bun run setup:hooks` sets
+`git config core.hooksPath .githooks`. Without that config the hook is inert; the
+`commitlint` job in CI still fails a non-conventional commit in a pull request, and the
+`commit-audit` job reports commits without a node id on `main` without blocking, so
+`--no-verify` remains a real escape.
+
+Errors are `INVALID_FORMAT` (bad format, or a missing node id), `NODE_NOT_FOUND` (the id
+is not in the DAG) and `DAG_UNREACHABLE` (the id could not be checked: offline, missing
+credentials, timeout). Override the binary used for the lookup with `CLIMIER_BIN`.
+
+```
+feat(cli): add climier upgrade --check [T-re-upgrade-command]
+fix(install): abort on a mismatched sha256 without writing [T-re-installer]
+feat(state)!: stop reading the pre-migration state [G-adr062-commit-contract]
+```
+
+The runner (`climier-flow`) runs its Worker and validatorCommit agents inside a worktree
+of this repository and loads this file (`noContextFiles: false`), so those agents create
+their task commit with the same format.
 
 ## How to add a command or operation
 
