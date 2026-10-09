@@ -82,6 +82,38 @@ From this repo during development:
 bun bin/climier.ts --help
 ```
 
+### Commit contract (contributors)
+
+Commits in this repository use the following subject format:
+
+```text
+<type>(<scope>)!?: <subject> [<node-id>]
+```
+
+`type` must be one of `feat`, `fix`, `docs`, `style`, `refactor`, `perf`,
+`test`, `build`, `ci`, `chore`, or `revert`. The scope and breaking-change
+marker (`!`) are optional; `[<node-id>]` is required and must identify a node
+in the project DAG. For example:
+
+```text
+feat(cli): add a task export command [T-re-upgrade-command]
+fix(install): abort on a mismatched sha256 without writing [T-re-installer]
+```
+
+Enable the versioned local hook explicitly in a checkout:
+
+```bash
+bun run setup:hooks
+```
+
+This sets `core.hooksPath` to `.githooks`; installing the package does not enable
+it automatically. The hook exempts `Merge ...`, `Revert "..."`,
+`fixup!`/`squash!`/`amend!`, and release subjects (`release: v...` and
+`chore(release): ...`). When a local exception is necessary, `git commit
+--no-verify` skips the hook, while `CLIMIER_COMMIT_NO_TASK=1` skips only DAG node
+lookup and still enforces the conventional format. Pull requests are checked
+by commitlint in CI; the main-branch node audit is report-only.
+
 ## Agent skill
 
 A portable [agent skill](https://skills.sh) for operating the climier DAG lives

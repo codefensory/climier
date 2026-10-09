@@ -40,6 +40,46 @@ Remote v1 accepts HTTP and HTTPS origins. The operator owns the server listener 
 
 If you only need the quickstart, use `README.md`. If you need the actual contract, use this file.
 
+## Commit messages
+
+Repository commits use this subject format:
+
+```text
+<type>(<scope>)!?: <subject> [<node-id>]
+```
+
+The allowed types are `feat`, `fix`, `docs`, `style`, `refactor`, `perf`,
+`test`, `build`, `ci`, `chore`, and `revert`. `scope` and `!` are optional;
+`[<node-id>]` is mandatory for ordinary commits and must resolve with
+`climier show <node-id>`. Examples:
+
+```text
+feat(cli): add a task export command [T-re-upgrade-command]
+fix(install): abort on a mismatched sha256 without writing [T-re-installer]
+```
+
+Enable the repository hook explicitly after checking out the repository:
+
+```bash
+bun run setup:hooks
+```
+
+That command sets `core.hooksPath` to `.githooks`. Hook installation is not part
+of `prepare`, so installing the package does not change a consumer's Git
+configuration.
+
+The hook exempts these subjects:
+
+- `Merge ...`
+- `Revert "..."`
+- `fixup! ...`, `squash! ...`, and `amend! ...`
+- release commits beginning with `release: v...` or `chore(release): ...`
+
+The explicit escapes are `git commit --no-verify`, which skips the local hook,
+and `CLIMIER_COMMIT_NO_TASK=1`, which skips only DAG node lookup while retaining
+format validation. CI still runs commitlint for pull requests; the main-branch
+node-id audit reports missing IDs without blocking the push.
+
 ## State shape
 
 `init` creates the canonical schema-1 state with this shape. The reader accepts only this form. Existing projects must be imported with `climier migrate` during the release window; never use `init --force` as an import operation:
