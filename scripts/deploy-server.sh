@@ -31,7 +31,7 @@ usage() {
 Optional variables:
   CLIMIER_DEPLOY_ENV       env file to source
   CLIMIER_DEPLOY_CONFIG    remote server.json (default: <root>/server.json)
-  CLIMIER_DEPLOY_BINARY    remote binary path (default: <root>/climier-server)
+  CLIMIER_DEPLOY_BINARY    remote binary path (default: <root>/climier)
   CLIMIER_DEPLOY_UI_ROOT   remote absolute UI root (default: <root>/ui/dist)
   CLIMIER_DEPLOY_HEALTH_URL URL to probe (default: CLIMIER_DEPLOY_URL/)
 
@@ -76,7 +76,7 @@ REMOTE_PATH=${CLIMIER_DEPLOY_REMOTE#*:}
 }
 
 CLIMIER_DEPLOY_CONFIG=${CLIMIER_DEPLOY_CONFIG:-$REMOTE_PATH/server.json}
-CLIMIER_DEPLOY_BINARY=${CLIMIER_DEPLOY_BINARY:-$REMOTE_PATH/climier-server}
+CLIMIER_DEPLOY_BINARY=${CLIMIER_DEPLOY_BINARY:-$REMOTE_PATH/climier}
 CLIMIER_DEPLOY_UI_ROOT=${CLIMIER_DEPLOY_UI_ROOT:-$REMOTE_PATH/ui/dist}
 [[ "$CLIMIER_DEPLOY_UI_ROOT" == /* ]] || {
   echo "deploy-server: CLIMIER_DEPLOY_UI_ROOT must be an absolute remote path" >&2
@@ -107,7 +107,7 @@ set -f
 TARGET_NAME=${CLIMIER_DEPLOY_TARGET#bun-}
 BINARY_SUFFIX=
 [[ "$TARGET_NAME" == windows-* ]] && BINARY_SUFFIX=.exe
-BINARY="dist/climier-server-$TARGET_NAME$BINARY_SUFFIX"
+BINARY="dist/climier-$TARGET_NAME$BINARY_SUFFIX"
 DIST="$ROOT/ui/dist"
 INDEX="$DIST/index.html"
 

@@ -173,10 +173,8 @@ async function main() {
     if (installed.code !== 0) {throw new Error(`bun add tarball failed: ${installed.stderr}`);}
     const packageRoot = path.join(prefix, "node_modules", "climier");
     const climier = path.join(prefix, "node_modules", ".bin", "climier");
-    const serverBin = path.join(prefix, "node_modules", ".bin", "climier-server");
     await fs.access(packageRoot);
     await fs.access(climier);
-    await fs.access(serverBin);
 
     const version = await command(climier, ["--version"], { cwd: root });
     const strictSemver = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(?:0|[1-9]\d*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\n?$/;
@@ -230,7 +228,7 @@ async function main() {
       dataRoot,
       stateHome,
     }, null, 2)}\n`, { mode: 0o600 });
-    server = spawn(serverBin, [configFile], {
+    server = spawn(climier, ["server", "run", configFile], {
       cwd: root,
       env: { ...process.env, CLIMIER_HOME: launcherHome, CLIMIER_SERVER_PASSWORD: serverPassword },
       stdio: ["ignore", "pipe", "pipe"],

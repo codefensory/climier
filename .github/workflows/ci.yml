@@ -80,8 +80,6 @@ jobs:
         run: |
           suffix="${{ matrix.extension }}"
           cli="dist/climier-${{ matrix.name }}$suffix"
-          server="dist/climier-server-${{ matrix.name }}$suffix"
-          test -f "$server"
           "$cli" --version
           project="$RUNNER_TEMP/climier-binary-smoke"
           plugin_home="$RUNNER_TEMP/climier-binary-plugin-home"

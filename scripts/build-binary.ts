@@ -22,7 +22,6 @@ const targets: Readonly<Record<string, BuildTarget>> = Object.freeze({
 
 const entrypoints = Object.freeze([
   { name: "climier", path: path.join(root, "bin", "climier.ts") },
-  { name: "climier-server", path: path.join(root, "bin", "climier-server.ts") },
 ]);
 
 function optionValue(args: string[], name: string): string | undefined {
@@ -63,7 +62,7 @@ function targetName(value: string): string {
 
 function outputPath(outputDir: string, binaryName: string, selectedTarget: string | undefined, explicitOutfile: string | undefined): string {
   if (explicitOutfile) {
-    return binaryName === "climier" ? explicitOutfile : `${explicitOutfile.replace(/(?:\.exe)?$/, "")}-server${selectedTarget && targets[selectedTarget].executableSuffix ? ".exe" : ""}`;
+    return explicitOutfile;
   }
   const suffix = selectedTarget ? `-${selectedTarget}` : "";
   let extension = "";

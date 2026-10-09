@@ -13,7 +13,6 @@ import { runCli, writeCanonicalState } from "./helpers.ts";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const cliLauncher = path.join(repoRoot, "bin", "climier.ts");
-const serverLauncher = path.join(repoRoot, "bin", "climier-server.ts");
 const password = "remote-e2e-password";
 
 type Health = { host: string; ok: boolean; port: number };
@@ -182,7 +181,7 @@ async function startConfiguredServer(root, passwordValue, t, port = 0) {
     dataRoot: path.join(root, "server-data"),
     stateHome: path.join(root, "server-home"),
   });
-  const child = spawn(process.execPath, [serverLauncher, configFile], {
+  const child = spawn(process.execPath, [cliLauncher, "server", "run", configFile], {
     env: { ...process.env, CLIMIER_SERVER_PASSWORD: passwordValue, CLIMIER_HOME: path.join(root, "launcher-home") },
     stdio: ["ignore", "pipe", "pipe"],
   });

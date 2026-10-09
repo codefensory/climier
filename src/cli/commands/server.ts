@@ -1,7 +1,8 @@
 import type { CommandContext } from "./contracts.ts";
 
-const SUBCOMMANDS = Object.freeze(["init", "doctor", "setup"]);
+const SUBCOMMANDS = Object.freeze(["init", "doctor", "setup", "run"]);
 const DOCTOR_FLAGS = new Set(["config", "env-file", "probe-bind", "strict"]);
+const RUN_FLAGS = new Set<string>();
 
 export const knownFlags = [
   "config", "env-file", "probe-bind", "strict",
@@ -24,17 +25,7 @@ function validateDoctorFlags(flags: CommandContext["flags"]) {
   }
 }
 
-export default async function server(context: CommandContext) {
-  const [subcommand, ...extra] = context.positional;
-  if (typeof subcommand !== "string" || !SUBCOMMANDS.includes(subcommand)) {
-    throw usageError(
-      `unknown subcommand '${subcommand ?? ""}' (valid subcommands: ${SUBCOMMANDS.join(", ")})`,
-      { subcommand: subcommand ?? null },
-    );
-  }
-  if (extra.length > 0) {
-    throw usageError("does not accept extra positional arguments", { positional: extra });
-  }
+async function runSubcommand(context: CommandContext, subcommand: string, positional: string[]) {
   if (subcommand === "doctor") {
     validateDoctorFlags(context.flags);
     const module = await import("./server/doctor.ts");
@@ -44,6 +35,31 @@ export default async function server(context: CommandContext) {
     const module = await import("./server/init.ts");
     return module.default({ ...context, positional: [] });
   }
+  if (subcommand === "run") {
+    const unsupported = Object.keys(context.flags).filter((key) => !RUN_FLAGS.has(key) && key !== "project" && key !== "no-warnings");
+    if (unsupported.length > 0) {
+      throw usageError(`run: unknown flag --${unsupported[0]}`, { flag: unsupported[0] });
+    }
+    if (positional.length !== 1) {
+      throw usageError("run requires exactly one private configuration path", { positional });
+    }
+    const module = await import("./server/run.ts");
+    return module.default({ ...context, positional });
+  }
   const module = await import("./server/setup.ts");
   return module.default({ ...context, positional: [] });
+}
+
+export default async function server(context: CommandContext) {
+  const [subcommand, ...extra] = context.positional;
+  if (typeof subcommand !== "string" || !SUBCOMMANDS.includes(subcommand)) {
+    throw usageError(
+      `unknown subcommand '${subcommand ?? ""}' (valid subcommands: ${SUBCOMMANDS.join(", ")})`,
+      { subcommand: subcommand ?? null },
+    );
+  }
+  if (subcommand !== "run" && extra.length > 0) {
+    throw usageError("does not accept extra positional arguments", { positional: extra });
+  }
+  return runSubcommand(context, subcommand, extra);
 }

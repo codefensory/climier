@@ -2,8 +2,8 @@
 
 This runbook documents one setup path for a Remote v1 server. The server is the
 source of truth for a linked project; a checkout stores only its project ID and
-server origin. The path uses the packaged `climier` and `climier-server`
-commands and does not depend on deployment scripts outside the package.
+server origin. The path uses the single packaged `climier` command and does not
+depend on deployment scripts outside the package.
 
 ## One setup path: generate, check, start, connect
 
@@ -38,9 +38,10 @@ climier server init --root /srv/climier \
 
 The default `--unit systemd` creates
 `/srv/climier/climier-server.service`. `server init` never installs, enables,
-or starts it. If the binary is not at `/srv/climier/climier-server`, place the
-packaged `climier-server` binary there or choose a root that contains the
-binary; `init` does not install binaries. Use `--service-user <user>` only when
+or starts it. The generated unit resolves the installed `climier` executable
+without using an npm shim; standalone installs use the current binary and npm
+installs use their Bun runtime plus the packaged CLI entrypoint. Use
+`--service-user <user>` only when
 the service identity is an explicit operator choice. `init` reports the
 required ownership commands but does not run `chown`, `chmod`, `sudo`, or other
 privileged operations.
@@ -54,17 +55,9 @@ to resolve writable paths before the server starts.
 
 ### Preflight before binding
 
-Run either preflight surface after generating the files. Both use the same
-checks and do not start the server, acquire the service lock, or create the
-runtime directories. `climier-server --check` should name the generated env
-file explicitly:
-
-```sh
-climier-server --check /srv/climier/server.json \
-  --env-file /srv/climier/server.env
-```
-
-From the setup root, `climier server doctor` uses `server.json` and
+Run preflight after generating the files. It uses the same checks and does
+not start the server, acquire the service lock, or create the runtime
+directories. From the setup root, `climier server doctor` uses `server.json` and
 `server.env` by default. Otherwise pass `--config` and `--env-file` (and put the
 global project flag before the command):
 
@@ -103,7 +96,7 @@ contains only simple assignments and is private:
 set -a
 . /srv/climier/server.env
 set +a
-/srv/climier/climier-server /srv/climier/server.json
+climier server run /srv/climier/server.json
 ```
 
 Do not print, copy into command arguments, or commit the generated server secret.
@@ -166,7 +159,7 @@ and proxy policy. For TLS on the same host, a trusted reverse proxy can forward
 to a loopback upstream:
 
 ```text
-client -- HTTPS --> trusted TLS proxy -- loopback HTTP --> climier-server
+client -- HTTPS --> trusted TLS proxy -- loopback HTTP --> climier server
 ```
 
 If remote clients connect directly over HTTP, the login password and bearer are

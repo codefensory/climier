@@ -7,7 +7,7 @@ import path from "node:path";
 import test from "node:test";
 
 import { generateServerArtifacts } from "../src/server/setup-artifacts.ts";
-import { renderSystemdUnit } from "../src/server/systemd-unit.ts";
+import { renderSystemdUnit, resolveServerExecStart } from "../src/server/systemd-unit.ts";
 import { parseServerRuntimeConfig } from "../src/server/runtime-config.ts";
 
 async function makeRoot(t) {
@@ -25,16 +25,42 @@ function options(root, overrides = {}) {
   };
 }
 
+test("does not resolve a binary module path before distribution detection", () => {
+  assert.equal(
+    resolveServerExecStart({
+      root: "/srv/climier",
+      dataRoot: "/srv/climier/data",
+      stateHome: "/srv/climier/state",
+      distribution: "binary",
+      modulePath: "/$bunfs/root/climier",
+      runtimePath: "/usr/local/bin/climier",
+    }),
+    "/usr/local/bin/climier server run /srv/climier/server.json",
+  );
+});
+
 test("renders a hardened systemd unit without an implicit service user", () => {
   const root = "/srv/climier";
   const unit = renderSystemdUnit({
     root,
     dataRoot: "/srv/climier/data",
     stateHome: "/srv/climier/state",
+    distribution: "binary",
+    runtimePath: "/usr/local/bin/climier",
   });
 
   assert.match(unit, /^\[Unit\]/mu);
-  assert.match(unit, /ExecStart=\/srv\/climier\/climier-server \/srv\/climier\/server\.json/u);
+  assert.match(unit, /ExecStart=\/usr\/local\/bin\/climier server run \/srv\/climier\/server\.json/u);
+  assert.doesNotMatch(unit, /climier-server(?:\.ts)?\s/u);
+
+  const npmUnit = renderSystemdUnit({
+    root,
+    dataRoot: "/srv/climier/data",
+    stateHome: "/srv/climier/state",
+    distribution: "npm",
+    runtimePath: "/usr/local/bin/bun",
+  });
+  assert.match(npmUnit, /ExecStart=\/usr\/local\/bin\/bun .*\/bin\/climier\.ts server run \/srv\/climier\/server\.json/u);
   assert.match(unit, /EnvironmentFile=\/srv\/climier\/server\.env/u);
   assert.match(unit, /Restart=on-failure/u);
   assert.match(unit, /NoNewPrivileges=true/u);

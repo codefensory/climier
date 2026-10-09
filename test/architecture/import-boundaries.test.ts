@@ -32,10 +32,11 @@ const BOUNDARIES = [
   {
     name: "server",
     directory: "src/server",
-    allowedRoots: ["application", "kernel", "read-model", "storage"],
+    allowedRoots: ["application", "kernel", "read-model", "storage", "upgrade"],
     documentedEdges: [
       { edge: "server -> kernel", source: "ADR-032: transfers dispatch through kernel/transfer port" },
       { edge: "server -> read-model", source: "ADR-032: the narrow boundary test does not restrict read-model" },
+      { edge: "server -> upgrade", source: "ADR-065: systemd reuses distribution classification" },
     ],
   },
   {
@@ -47,7 +48,7 @@ const BOUNDARIES = [
   {
     name: "bin",
     directory: "bin",
-    allowedRoots: ["cli", "server"],
+    allowedRoots: ["cli"],
     collectOptions: { sourceRootDirectory: ".", targetRootDirectory: "src" },
   },
 ];
@@ -93,7 +94,7 @@ for (const boundary of BOUNDARIES) {
   });
 }
 
-test("the table declares the five adapter edges approved by ADR-013 and ADR-032", () => {
+test("the table declares the adapter edges approved by ADR-013, ADR-032, and ADR-065", () => {
   assert.deepEqual(
     BOUNDARIES.flatMap(({ documentedEdges = [] }) => documentedEdges.map(({ edge }) => edge)),
     [
@@ -102,6 +103,7 @@ test("the table declares the five adapter edges approved by ADR-013 and ADR-032"
       "plugins -> read-model",
       "server -> kernel",
       "server -> read-model",
+      "server -> upgrade",
     ],
   );
   // A documented edge is normative, not a tolerated exception: it must also be an

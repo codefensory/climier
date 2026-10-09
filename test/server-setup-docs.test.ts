@@ -13,7 +13,8 @@ test("remote server docs describe the generated setup path", async () => {
 
   assert.match(doc, /climier server init/u);
   assert.match(doc, /climier server doctor/u);
-  assert.match(doc, /climier-server --check/u);
+  assert.match(doc, /climier server run \/srv\/climier\/server\.json/u);
+  assert.doesNotMatch(doc, /\bclimier-server(?:\.ts)?\s/u);
   assert.match(doc, /--unit none/u);
   assert.match(doc, /--allow-missing-paths/u);
   assert.match(doc, /--rotate-password/u);

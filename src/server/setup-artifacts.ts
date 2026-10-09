@@ -7,6 +7,7 @@ import path from "node:path";
 
 import { parseServerRuntimeConfig } from "./runtime-config.ts";
 import { renderSystemdUnit } from "./systemd-unit.ts";
+import type { Distribution } from "../upgrade/distribution.ts";
 import { errorProperties, type ServerError } from "./types.ts";
 
 const DEFAULT_HOST = "127.0.0.1";
@@ -35,6 +36,9 @@ export type SetupOptions = {
   force?: boolean;
   rotatePassword?: boolean;
   printSecret?: boolean;
+  distribution?: Distribution;
+  modulePath?: string;
+  runtimePath?: string;
 };
 
 export type SetupResult = {
@@ -233,7 +237,15 @@ export async function generateServerArtifacts(options: SetupOptions): Promise<Se
   const configMatches = Boolean(configArtifact.regular && configArtifact.mode === 0o600 && (() => {
     try { return sameConfig(JSON.parse(configArtifact.content ?? ""), config); } catch { return false; }
   })());
-  const expectedUnit = unitPath ? renderSystemdUnit({ root, dataRoot, stateHome, serviceUser: options.serviceUser }) : undefined;
+  const expectedUnit = unitPath ? renderSystemdUnit({
+    root,
+    dataRoot,
+    stateHome,
+    serviceUser: options.serviceUser,
+    distribution: options.distribution,
+    modulePath: options.modulePath,
+    runtimePath: options.runtimePath,
+  }) : undefined;
   const unitMatches = Boolean(unitPath && unitArtifact.regular && unitArtifact.mode === 0o600
     && unitArtifact.content === expectedUnit);
   const envMatches = Boolean(envArtifact.regular && envArtifact.mode === 0o600 && existingEnvironment !== null
@@ -291,7 +303,7 @@ export async function generateServerArtifacts(options: SetupOptions): Promise<Se
     warnings,
     next: unitPath
       ? [`systemctl daemon-reload`, `systemctl enable --now ${path.basename(unitPath)}`]
-      : [`climier-server ${configPath}`],
+      : [`climier server run ${configPath}`],
   };
   if (options.dryRun) { result.actions = actions; }
   return result;

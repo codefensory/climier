@@ -142,14 +142,16 @@ test("probe-bind is opt-in and reports an occupied port as a warning or strict f
   assert.equal(checkById(strict, "bind").status, "fail");
 });
 
-test("climier-server --check exits without creating runtime directories", async (t) => {
+test("server doctor exits without creating runtime directories", async (t) => {
   const root = await makeRoot(t);
   const dataRoot = path.join(root, "catalog");
   const stateHome = path.join(root, "state-home");
   const file = await writeConfig(root, config(root, { dataRoot, stateHome }));
-  const launcher = new URL("../bin/climier-server.ts", import.meta.url);
+  const envFile = path.join(root, "server.env");
+  await fs.writeFile(envFile, "CLIMIER_SERVER_PASSWORD=password\n", { mode: 0o600 });
+  const launcher = new URL("../bin/climier.ts", import.meta.url);
   const result = await new Promise<{ code: number; stdout: string; stderr: string }>((resolve, reject) => {
-    const child = spawn("bun", [launcher.pathname, "--check", file], {
+    const child = spawn(process.execPath, [launcher.pathname, "server", "doctor", "--config", file, "--env-file", envFile], {
       env: { ...process.env, CLIMIER_SERVER_PASSWORD: "password" },
       stdio: ["ignore", "pipe", "pipe"],
     });

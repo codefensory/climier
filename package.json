@@ -14,8 +14,7 @@
   ],
   "type": "module",
   "bin": {
-    "climier": "./bin/climier.ts",
-    "climier-server": "./bin/climier-server.ts"
+    "climier": "./bin/climier.ts"
   },
   "main": "bin/climier.ts",
   "scripts": {

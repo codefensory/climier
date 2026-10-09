@@ -155,11 +155,11 @@ test("server runtime rejects a project directory with conflicting metadata", asy
   await assert.rejects(runtime.openProject(projectDir, { projectId: "alpha", create: true }), { code: "UNTRUSTED_PROJECT_METADATA" });
 });
 
-test("launcher starts the configured server and reports its listening health", async (t) => {
+test("server run starts the configured server and reports its listening health", async (t) => {
   const root = await makeRoot(t);
   const configPath = await writeConfig(root, config(root));
-  const launcher = new URL("../bin/climier-server.ts", import.meta.url);
-  const child = spawn(process.execPath, [launcher.pathname, configPath], {
+  const launcher = new URL("../bin/climier.ts", import.meta.url);
+  const child = spawn(process.execPath, [launcher.pathname, "server", "run", configPath], {
     stdio: ["ignore", "pipe", "pipe"],
     env: { ...process.env, CLIMIER_SERVER_PASSWORD: "password" },
   });
@@ -168,7 +168,7 @@ test("launcher starts the configured server and reports its listening health", a
   const line = await new Promise<string>((resolve, reject) => {
     let stdout = "";
     let stderr = "";
-    const timer = setTimeout(() => reject(new Error(`launcher did not report health: ${stderr}`)), 5_000);
+    const timer = setTimeout(() => reject(new Error(`server run did not report health: ${stderr}`)), 5_000);
     child.stdout.setEncoding("utf8").on("data", (chunk) => {
       stdout += chunk;
       const newline = stdout.indexOf("\n");
@@ -184,7 +184,7 @@ test("launcher starts the configured server and reports its listening health", a
     });
     child.once("exit", (code) => {
       clearTimeout(timer);
-      reject(new Error(`launcher exited before health report (${code}): ${stderr}`));
+      reject(new Error(`server run exited before health report (${code}): ${stderr}`));
     });
   });
   const health = JSON.parse(line) as { ok: boolean; host: string; port: number };
@@ -192,7 +192,8 @@ test("launcher starts the configured server and reports its listening health", a
   assert.equal(health.host, "127.0.0.1");
   assert.ok(Number.isInteger(health.port) && health.port > 0);
   child.kill("SIGTERM");
-  await new Promise((resolve) => child.once("exit", resolve));
+  const exitCode = await new Promise<number | null>((resolve) => child.once("exit", (code) => resolve(code)));
+  assert.equal(exitCode, 0);
 });
 
 test("runtime serves the configured UI root through the remote server", async (t) => {

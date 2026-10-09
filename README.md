@@ -293,9 +293,9 @@ start the service (or run it in the foreground), then connect a checkout:
 
 ```sh
 climier server init --root /srv/climier
-climier-server --check /srv/climier/server.json --env-file /srv/climier/server.env
 climier --project /srv/climier server doctor
-# Start the generated unit, or use --unit none and launch climier-server directly.
+# Start the generated unit, or use --unit none and run the foreground command:
+climier server run /srv/climier/server.json
 climier link https://climier.example.test
 climier login --server https://climier.example.test
 climier init
@@ -307,9 +307,9 @@ systemd unit by default; it does not install or start the unit. Use
 `--allow-missing-paths` when storage paths will be provided later. Secrets are
 never printed unless the unsafe `--print-secret` flag is explicit. Rotate with
 `climier server init --root /srv/climier --rotate-password`, then preflight and
-restart; clients must log in again. `server doctor` and `climier-server --check`
-share pre-bind checks, but doctor cannot detect drift in a unit already
-installed in systemd. Login reads the password from a TTY and stores only the
+restart; clients must log in again. `server doctor` performs the pre-bind
+checks but cannot detect drift in a unit already installed in systemd. Login
+reads the password from a TTY and stores only the
 bearer in the local credential profile by origin.
 
 Linking does not upload an existing local DAG; use the explicit experimental

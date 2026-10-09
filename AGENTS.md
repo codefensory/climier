@@ -28,8 +28,9 @@ directly, and every mutation enters through the `kernel/mutate.ts` facade
 (`plugins/` and `server/` included). Both shapes are approved: ADR-013 §5 lets
 the plugin host consume kernel, providers and read-model, ADR-032 keeps server
 transfers on the kernel port, and the enforcement table in
-`test/architecture/import-boundaries.test.ts` declares those five edges as
-normative allowed roots. `read-model/` is a pure transversal module. `kernel/`,
+`test/architecture/import-boundaries.test.ts` declares those six edges as
+normative allowed roots. `read-model/` is a pure transversal module; server's
+sixth edge reuses the pure distribution classifier from `upgrade/`. `kernel/`,
 `providers/`, and `read-model/` must not import adapters (`cli/`, `plugins/`, or
 `server`). `providers/` and `read-model/` must not import `storage/`. The kernel
 must not know about application or adapters.

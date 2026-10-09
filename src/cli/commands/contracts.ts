@@ -49,6 +49,7 @@ export type CommandContext = {
   backendClient?: CliBackendClient;
   source?: SourceInput;
   pluginId?: string;
+  write?: (value: string) => void;
 };
 
 export type CommandModule = {

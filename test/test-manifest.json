@@ -2369,7 +2369,7 @@
     },
     {
       "path": "test/architecture/import-boundaries.test.ts",
-      "name": "the table declares the five adapter edges approved by ADR-013 and ADR-032",
+      "name": "the table declares the adapter edges approved by ADR-013, ADR-032, and ADR-065",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -19777,7 +19777,7 @@
     },
     {
       "path": "test/server-preflight.test.ts",
-      "name": "climier-server --check exits without creating runtime directories",
+      "name": "server doctor exits without creating runtime directories",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -19789,7 +19789,7 @@
     },
     {
       "path": "test/server-runtime.test.mjs",
-      "name": "launcher starts the configured server and reports its listening health",
+      "name": "server run starts the configured server and reports its listening health",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/server-runtime.test.mjs"
@@ -19831,7 +19831,7 @@
     },
     {
       "path": "test/server-runtime.test.ts",
-      "name": "launcher starts the configured server and reports its listening health",
+      "name": "server run starts the configured server and reports its listening health",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/server-runtime.test.mjs"

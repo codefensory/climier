@@ -1,10 +1,17 @@
+import fsSync from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { detectDistribution, type Distribution } from "../upgrade/distribution.ts";
 
 export type SystemdUnitOptions = {
   root: string;
   dataRoot: string;
   stateHome: string;
   serviceUser?: string;
+  distribution?: Distribution;
+  modulePath?: string;
+  runtimePath?: string;
 };
 
 function requiredPath(value: unknown, name: string): string {
@@ -12,6 +19,28 @@ function requiredPath(value: unknown, name: string): string {
     throw new TypeError(`systemd unit: ${name} must be an absolute path`);
   }
   return path.resolve(value);
+}
+
+function modulePath(options: SystemdUnitOptions): string {
+  return fsSync.realpathSync(options.modulePath ?? fileURLToPath(import.meta.url));
+}
+
+function cliCommand(configPath: string, options: SystemdUnitOptions): string {
+  const executable = requiredPath(options.runtimePath ?? process.execPath, "runtimePath");
+  const distribution = options.distribution ?? (options.modulePath === undefined
+    ? detectDistribution()
+    : detectDistribution({ modulePath: options.modulePath }));
+  if (distribution === "binary") {
+    return [executable, "server", "run", configPath].join(" ");
+  }
+  const packageRoot = path.resolve(path.dirname(modulePath(options)), "../..");
+  return [executable, path.join(packageRoot, "bin", "climier.ts"), "server", "run", configPath].join(" ");
+}
+
+/** Resolve the executable command used by generated units without relying on an npm shim. */
+export function resolveServerExecStart(options: SystemdUnitOptions): string {
+  const root = requiredPath(options.root, "root");
+  return cliCommand(path.join(root, "server.json"), options);
 }
 
 /** Render the unit without installing, enabling, or starting it. */
@@ -26,7 +55,7 @@ export function renderSystemdUnit(options: SystemdUnitOptions): string {
     "",
     "[Service]",
     "Type=simple",
-    `ExecStart=${path.join(root, "climier-server")} ${path.join(root, "server.json")}`,
+    `ExecStart=${resolveServerExecStart({ ...options, root })}`,
     `EnvironmentFile=${path.join(root, "server.env")}`,
     "Restart=on-failure",
     "NoNewPrivileges=true",

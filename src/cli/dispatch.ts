@@ -360,7 +360,7 @@ async function runCliWithOptions(options: CliRunOptions = {}) {
 
   const parsed = parseArgv(args);
   const projectDir = resolveProject({ project: parsed.flags.project as string | undefined });
-  const context = { ...parsed, projectDir, statePath: projectDir } as CommandContext;
+  const context = { ...parsed, projectDir, statePath: projectDir, write } as CommandContext;
   return executeParsedCli({ parsed, context, source, backendClientFactory, dispatchCommandFn, write, exit });
 }
 
