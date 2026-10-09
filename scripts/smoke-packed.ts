@@ -179,8 +179,14 @@ async function main() {
     await fs.access(serverBin);
 
     const version = await command(climier, ["--version"], { cwd: root });
-    if (version.code !== 0 || !/^\d+\.\d+\.\d+\n?$/.test(version.stdout)) {
+    const strictSemver = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-(?:0|[1-9]\d*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\n?$/;
+    if (version.code !== 0 || !strictSemver.test(version.stdout)) {
       throw new Error(`installed climier --version failed: ${version.code} ${version.stdout} ${version.stderr}`);
+    }
+    const versionJson = await command(climier, ["version", "--json"], { cwd: root });
+    const metadata = jsonOutput<Record<string, unknown>>(versionJson, "installed version --json");
+    if (versionJson.code !== 0 || metadata.version !== version.stdout.trim() || metadata.distribution !== "npm") {
+      throw new Error(`installed version --json returned invalid metadata: ${versionJson.code} ${JSON.stringify(metadata)} ${versionJson.stderr}`);
     }
 
     const localProject = path.join(root, "local-project");

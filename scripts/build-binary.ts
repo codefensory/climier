@@ -11,7 +11,6 @@ type BuildTarget = {
 };
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const packageJson = JSON.parse(await fs.readFile(path.join(root, "package.json"), "utf8")) as { version: string };
 
 const targets: Readonly<Record<string, BuildTarget>> = Object.freeze({
   "linux-x64": { bunTarget: "bun-linux-x64", executableSuffix: "" },
@@ -97,7 +96,7 @@ for (const entrypoint of entrypoints) {
     "--compile",
     ...(selectedTarget ? ["--target", targets[selectedTarget].bunTarget] : []),
     "--define",
-    `CLIMIER_BUILD_VERSION=${JSON.stringify(packageJson.version)}`,
+    `CLIMIER_DISTRIBUTION=${JSON.stringify("binary")}`,
     "--outfile",
     output,
     ...passthroughArgs,
