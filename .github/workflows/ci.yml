@@ -120,6 +120,8 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+      - name: Include the installer
+        run: cp scripts/install.sh dist/install.sh
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.2

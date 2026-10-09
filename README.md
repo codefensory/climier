@@ -82,26 +82,42 @@ Because repo metadata is separate from live mutable state, multiple worktrees or
 
 ## Install
 
-Requires Bun 1.4+.
+Two channels, same `climier` command: the npm package (requires Bun 1.4+) and a
+self-contained standalone binary (no runtime). Windows uses the binary only.
 
-Install the npm package with Bun:
+Install from npm with Bun:
 
 ```bash
 bun add --global climier
 climier --version
 ```
 
-Or run without a global install:
+Or install the standalone binary (Linux and macOS):
+
+```bash
+curl -fsSL https://github.com/codefensory/climier/releases/latest/download/install.sh | sh
+```
+
+The installer verifies the release SHA-256 and writes to `~/.local/bin`
+(override with `CLIMIER_INSTALL_DIR`, pin with `CLIMIER_VERSION`). On Windows,
+download `climier-windows-x64.exe` from the
+[latest release](https://github.com/codefensory/climier/releases/latest).
+
+Run without installing, or from this repo during development:
 
 ```bash
 bunx climier --help
-```
-
-From this repo during development:
-
-```bash
 bun bin/climier.ts --help
 ```
+
+Update an installed CLI (it detects the install channel):
+
+```bash
+climier upgrade --check
+climier upgrade
+```
+
+Full guide: [`docs/content/docs/getting-started/install.mdx`](docs/content/docs/getting-started/install.mdx).
 
 ### Commit contract (contributors)
 

@@ -1,42 +1,95 @@
 ---
 title: Install Climier
-description: Install the Climier CLI and verify that it is ready to use.
+description: Install the Climier CLI from npm or as a standalone binary, verify it, and keep it updated.
 ---
 
-Climier is a JSON-first command-line tool for coordinating tasks, decisions, and knowledge in a project DAG. This guide uses [Bun](https://bun.sh/), which is required for the supported installation path.
+Climier is a JSON-first command-line tool for coordinating tasks, decisions, and knowledge in a project DAG. It ships through two channels that expose the same `climier` command:
+
+- the **npm package**, which runs on [Bun](https://bun.sh/);
+- a **standalone binary**, self-contained with no runtime dependency.
+
+Pick one. The rest of this guide uses `climier`.
 
 ## Requirements
 
-Install Bun 1.4 or newer, then check the version:
+- **npm package**: Bun 1.4 or newer. The published bin is a Bun entrypoint, so it runs with the Bun runtime.
+- **Standalone binary**: none. The binary is self-contained.
+
+Windows is supported through the standalone binary only. The npm package and the shell installer target Linux and macOS.
+
+Verify Bun when you use the npm channel:
 
 ```bash
 bun --version
 ```
 
-## Install globally
-
-Install the CLI for regular use:
+## Install from npm
 
 ```bash
 bun add --global climier
 ```
 
-Confirm that the command is available:
+## Install the standalone binary
+
+### Installer (Linux and macOS)
 
 ```bash
-climier --version
-climier --help
+curl -fsSL https://github.com/codefensory/climier/releases/latest/download/install.sh | sh
 ```
+
+The installer detects the platform, downloads the matching binary, verifies its SHA-256 against the release checksums, and writes `climier` to `~/.local/bin`. If that directory is not on your `PATH`, it prints the line to add.
+
+| Variable | Effect |
+|---|---|
+| `CLIMIER_INSTALL_DIR` | Destination directory (default `~/.local/bin`). |
+| `CLIMIER_VERSION` | Install a specific version instead of `latest`, for example `1.0.0`. |
+
+A failed checksum aborts the install without writing the binary.
+
+### Manual download
+
+Download the binary for your platform from the [latest release](https://github.com/codefensory/climier/releases/latest):
+
+| Platform | Asset |
+|---|---|
+| Linux x64 | `climier-linux-x64` |
+| Linux arm64 | `climier-linux-arm64` |
+| macOS x64 | `climier-darwin-x64` |
+| macOS arm64 | `climier-darwin-arm64` |
+| Windows x64 | `climier-windows-x64.exe` |
+
+```bash
+chmod +x climier-linux-x64
+mv climier-linux-x64 ~/.local/bin/climier
+```
+
+`SHA256SUMS` in the same release lists the expected checksum of every asset; `manifest.json` is the machine-readable index used by `climier upgrade`.
 
 ## Run without installing
 
-For a one-off command, use `bunx` instead:
+For a one-off command with the npm package, use `bunx`:
 
 ```bash
 bunx climier --help
 ```
 
-The rest of this guide uses `climier`. Replace it with `bunx climier` if you are trying the CLI without a global installation.
+## Verify the installation
+
+```bash
+climier --version
+climier version --json
+```
+
+`climier version --json` reports `distribution` (`npm`, `binary`, or `source-link`) and the state schema the build reads.
+
+## Update
+
+```bash
+climier upgrade --check    # compare against the published manifest, change nothing
+climier upgrade            # install the latest version for this channel
+```
+
+The command is channel-aware: the npm install delegates to the owning package manager, and the binary install verifies the new checksum and replaces the executable atomically. Pin or downgrade explicitly with `climier upgrade --version <X.Y.Z>`. A checkout (`source-link`) and one-off executions do not update themselves.
 
 ## Next step
 

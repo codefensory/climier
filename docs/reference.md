@@ -914,6 +914,33 @@ unless `--no-warnings` is supplied; see
 [`docs/remote-server.md`](remote-server.md) for transport, backup, rotation,
 transfers, and stale-lock recovery.
 
+## Install and upgrade
+
+`climier` ships as an npm package (Bun runtime) and as self-contained binaries
+for `linux-x64`, `linux-arm64`, `darwin-x64`, `darwin-arm64`, and `windows-x64`.
+The documentation site's install guide covers both channels, the checksummed
+one-line installer, and manual downloads.
+
+### `upgrade [--check] [--version <X.Y.Z>]`
+
+Operator command: it does not mutate the DAG and does not need `--as`. It reads
+the published release manifest and follows the install channel:
+
+- `binary`: downloads the asset, verifies its SHA-256, and replaces the running
+  executable atomically (a `.old` swap on Windows).
+- `npm`: delegates to the owning package manager; it never edits `node_modules`
+  by hand.
+- `source-link`: does not auto-update; it prints the git instructions.
+- `one-off`: fails with `UPGRADE_UNSUPPORTED_DISTRIBUTION`.
+
+`--check` reports the comparison without changing anything and never reports the
+install as current when the manifest is unreachable
+(`UPDATE_CHECK_UNREACHABLE`). `--version` pins an explicit upgrade or downgrade;
+a downgrade without it fails with `UPGRADE_DOWNGRADE_REQUIRES_VERSION`. If the
+manifest declares a newer `state_schema`, the result carries a migration warning
+and points to `climier migrate`. An active runner execution blocks the upgrade
+with `UPGRADE_FLOW_ACTIVE`.
+
 ## Low-level semantics worth knowing
 
 - every created node starts at `revision: 1`
