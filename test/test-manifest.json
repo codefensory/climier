@@ -2793,6 +2793,12 @@
     },
     {
       "path": "test/ci-workflow.test.ts",
+      "name": "release binaries are built only for version tags, not on every push",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/ci-workflow.test.ts",
       "name": "tag releases create the release when missing and idempotently upload the five assets",
       "ordinal": 1,
       "disposition": "keep"

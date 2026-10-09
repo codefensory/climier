@@ -9,8 +9,22 @@ test("the commit contract is enforced locally, not in CI", () => {
   assert.doesNotMatch(workflow, /commit-audit/);
 });
 
+function jobBlock(name: string): string {
+  const marker = `\n  ${name}:\n`;
+  const start = workflow.indexOf(marker);
+  assert.ok(start >= 0, `missing job ${name}`);
+  const body = workflow.slice(start + marker.length);
+  const next = body.search(/\n  \S[^\n]*:\n/);
+  return next === -1 ? body : body.slice(0, next);
+}
+
 test("darwin-x64 binary job uses a supported Intel macOS runner", () => {
   assert.match(workflow, /- name: darwin-x64\s+os: macos-15-intel\s+target: bun-darwin-x64/);
+});
+
+test("release binaries are built only for version tags, not on every push", () => {
+  assert.match(jobBlock("binaries"), /if:\s*startsWith\(github\.ref, 'refs\/tags\/v'\)/);
+  assert.match(jobBlock("test"), /run: bun run build:binary/);
 });
 
 test("tag releases create the release when missing and idempotently upload the five assets", () => {

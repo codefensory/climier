@@ -25,6 +25,8 @@ jobs:
       - run: bun run surface:check
       - run: bun run smoke:pack
       - run: bun run pack:check
+      - name: Compile smoke (host target)
+        run: bun run build:binary
 
   public-docs:
     name: public docs guardrail
@@ -41,6 +43,7 @@ jobs:
 
   binaries:
     name: binary (${{ matrix.name }})
+    if: startsWith(github.ref, 'refs/tags/v')
     needs: test
     runs-on: ${{ matrix.os }}
     strategy:
