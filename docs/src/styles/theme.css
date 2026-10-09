@@ -1,0 +1,85 @@
+/*
+ * Fumadocs roles mapped from the central palette in ui/src/styles/tokens.css.
+ *
+ * The `--color-fd-*` block below is a parity contract with the UI design tokens
+ * (`src/styles/theme-parity.test.ts` reads both files). Keep the mapping exact.
+ * The Climier brand accent (`--color-brand*`) has no UI token yet; it comes from
+ * the logo mark (#004cfd light mark, #6f9dff dark mark) and is intentionally
+ * additive so the parity contract stays intact.
+ */
+@theme {
+  --font-sans: "DM Sans", sans-serif;
+  --font-display: "Manrope", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+
+  /* Brand accent utilities: text-brand, bg-brand, border-brand, … */
+  --color-brand: #004cfd;
+  --color-brand-strong: #003fd1;
+  --color-brand-soft: #e9efff;
+  --color-brand-foreground: #ffffff;
+  --color-brand-contrast: #6f9dff;
+}
+
+:root {
+  color-scheme: light;
+
+  --color-fd-background: #f6f6f6;
+  --color-fd-foreground: #111111;
+  --color-fd-muted: #f4f4f4;
+  --color-fd-muted-foreground: #737373;
+  --color-fd-card: #ffffff;
+  --color-fd-card-foreground: #111111;
+  --color-fd-popover: #ffffff;
+  --color-fd-popover-foreground: #111111;
+  --color-fd-border: #e6e6e6;
+  --color-fd-primary: #111111;
+  --color-fd-primary-foreground: #ffffff;
+  --color-fd-secondary: #f4f4f4;
+  --color-fd-secondary-foreground: #111111;
+  --color-fd-accent: #eaeaea;
+  --color-fd-accent-foreground: #111111;
+  --color-fd-ring: #d8d8d8;
+  --color-fd-info: #60738d;
+  --color-fd-success: #667557;
+  --color-fd-warning: #8c6850;
+  --color-fd-error: #a4473f;
+
+  /* Reading surface + chrome accents. */
+  --docs-dot: #d9dee4;
+  --docs-brand-soft: #e9efff;
+}
+
+[data-theme="dark"], .dark {
+  color-scheme: dark;
+
+  --color-fd-background: #0e0e11;
+  --color-fd-foreground: #f2f2f2;
+  --color-fd-muted: #232327;
+  --color-fd-muted-foreground: #a0a0a0;
+  --color-fd-card: #18181b;
+  --color-fd-card-foreground: #f2f2f2;
+  --color-fd-popover: #18181b;
+  --color-fd-popover-foreground: #f2f2f2;
+  --color-fd-border: #2c2c31;
+  --color-fd-primary: #f2f2f2;
+  /* Intentional contrast mapping: ui canvas is the dark primary foreground. */
+  --color-fd-primary-foreground: #0e0e11;
+  --color-fd-secondary: #232327;
+  --color-fd-secondary-foreground: #f2f2f2;
+  --color-fd-accent: #2e2e33;
+  --color-fd-accent-foreground: #f2f2f2;
+  --color-fd-ring: #3d3d43;
+  --color-fd-info: #9fb2cd;
+  --color-fd-success: #a9bf93;
+  --color-fd-warning: #d3a983;
+  --color-fd-error: #e0998f;
+
+  --color-brand: #6f9dff;
+  --color-brand-strong: #93b7ff;
+  --color-brand-soft: #16223c;
+  --color-brand-foreground: #0e0e11;
+  --color-brand-contrast: #004cfd;
+
+  --docs-dot: #23282e;
+  --docs-brand-soft: #16223c;
+}

@@ -54,8 +54,8 @@ The allowed types are `feat`, `fix`, `docs`, `style`, `refactor`, `perf`,
 `climier show <node-id>`. Examples:
 
 ```text
-feat(cli): add a task export command [T-re-upgrade-command]
-fix(install): abort on a mismatched sha256 without writing [T-re-installer]
+feat(cli): add a task export command [T-example-export]
+fix(install): abort on a mismatched sha256 without writing [T-example-installer]
 ```
 
 Enable the repository hook explicitly after checking out the repository:
@@ -77,8 +77,8 @@ The hook exempts these subjects:
 
 The explicit escapes are `git commit --no-verify`, which skips the local hook,
 and `CLIMIER_COMMIT_NO_TASK=1`, which skips only DAG node lookup while retaining
-format validation. CI still runs commitlint for pull requests; the main-branch
-node-id audit reports missing IDs without blocking the push.
+format validation. The contract is enforced locally only: CI does not validate
+commit messages.
 
 ## State shape
 
@@ -905,8 +905,8 @@ credential profile; `logout` removes that local entry. A checkout with a retired
 protocol marker fails with `REMOTE_CONFIG_OUTDATED` before auth or local state
 I/O; relink it to the configured URL to clean the metadata. `init` may provision
 an absent remote project, while reads and writes never create storage implicitly.
-The server requires `CLIMIER_SERVER_PASSWORD`, a service-lifetime lock, and
-a durable auth file; its bind address and transport are operator-managed.
+The server requires a generated secret, a service-lifetime lock, and a durable
+auth file; its bind address and transport are operator-managed.
 Successful HTTP non-loopback `login`, `link`, and remote `init` operations warn
 unless `--no-warnings` is supplied; see
 [`docs/remote-server.md`](remote-server.md) for transport, backup, rotation,

@@ -1,0 +1,89 @@
+---
+title: Coordinate multiple agents
+description: Share a project safely across agents, sessions, and checkouts.
+---
+
+Climier keeps the project metadata in the checkout and the live coordination state in shared storage. That split lets several agents or people work from different sessions without keeping the plan in one conversation. Each actor should use a stable name with `--as`, inspect the graph before acting, and let the task lifecycle provide the handoff.
+
+## Start with one shared view
+
+From a checkout that contains the project's `.climier.json`, inspect the ready pool and then the contract for a specific task:
+
+```bash
+climier status
+climier context publish-docs
+```
+
+`status` shows all in-progress work by default. Use `--claimed-by` when you need to narrow the view to one actor:
+
+```bash
+climier status --claimed-by alice
+```
+
+Read the task's blockers, acceptance criteria, scoped knowledge, and allowed actions before claiming it. `ready` and `blocked` are derived from the graph, so do not infer readiness from an old message or from a task's persisted `open` state.
+
+## Claim before editing
+
+Only claim a task after its context reports that it is ready. The claim is serialized with other mutations, so two actors racing for the same task cannot both win:
+
+```bash
+climier take publish-docs --as alice
+climier context publish-docs
+```
+
+The context now identifies `alice` and the claim time. A second actor should choose another ready task rather than editing the same work. Keep code ownership in the repository's normal review workflow; Climier coordinates the work contract and its state, not uncommitted files.
+
+## Make handoffs explicit
+
+Record useful progress as a note, then submit one concise evidence summary when implementation is ready:
+
+```bash
+climier add-note publish-docs "Docs and link checks pass locally." --as alice
+climier submit publish-docs \
+  --note "Implementation complete; verification commands pass." \
+  --as alice
+```
+
+Submission is a handoff, not acceptance. A reviewer can inspect the change and accept it:
+
+```bash
+climier accept publish-docs --as reviewer
+climier history publish-docs
+```
+
+If the work needs changes, the reviewer should reject it with an actionable reason. The task returns to the open pool and can be claimed again after the feedback is addressed:
+
+```bash
+climier reject publish-docs \
+  --reason "Add evidence for the migration check." \
+  --as reviewer
+```
+
+Use `release` when an actor is no longer able to continue and the work must return to the pool without being accepted. Do not use `cancel` to make a task look complete: cancellation does not satisfy dependent work.
+
+## Divide work by dependencies
+
+An orchestrator can create independent tasks with explicit blockers. A task that depends on a gate or another task should name that dependency at creation time; downstream agents can then rely on `status` instead of coordinating readiness in chat. Resolve gates separately:
+
+```bash
+climier resolve release-review \
+  --choice approved \
+  --rationale "The release checklist is complete." \
+  --as reviewer
+climier status
+```
+
+Only a resolved gate or an accepted task satisfies a `BLOCKS` edge. A submitted task still waits for validation, so it must not be used as evidence that dependent work is unblocked. See [Edges and derived status](../concepts/edges-and-status) for the satisfaction rules.
+
+## Shared checkouts and remote projects
+
+Multiple local checkouts can coordinate when they preserve the same project metadata and use the same Climier storage home. A remote project has an additional login and transfer boundary; `link` selects the backend but does not upload local work. For remote setup and transfer safeguards, see the [remote server runbook](/docs/reference/self-hosting).
+
+Before ending a session, leave a note or submit the task so the next actor can see what was done:
+
+```bash
+climier context publish-docs
+climier log --node publish-docs --limit 10
+```
+
+The audit log is the durable handoff. It should explain the important state changes without requiring another agent to reconstruct them from chat history.

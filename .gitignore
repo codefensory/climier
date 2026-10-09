@@ -5,8 +5,18 @@ dist/
 ui/node_modules/
 ui/dist/
 ui/storybook-static/
-ui/.ui-bridge/
+.ui-bridge/
 ui/dom/
 ui/.logs/
+docs/node_modules/
+docs/dist/
+docs/.tanstack/
+docs/.source/
+docs/content/docs/reference/cli.mdx
+docs/content/docs/reference/plugins.mdx
+docs/content/docs/reference/self-hosting.mdx
+docs/.output/
+docs/.nitro/
+docs/.vercel/
 
 .deploy.env

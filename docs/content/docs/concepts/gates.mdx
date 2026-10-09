@@ -1,0 +1,71 @@
+---
+title: Gates
+description: Represent decisions, approvals, and external dependencies in the task graph.
+---
+
+A gate is a resolvable node for a decision or prerequisite that is not implementation work. Its `purpose` can describe a decision, approval, external dependency, or research. A gate has a title and body like a task, belongs to an initiative, and can block tasks through a `BLOCKS` edge.
+
+## Gate states
+
+| State | Meaning | Satisfies `BLOCKS`? |
+| --- | --- | --- |
+| `open` | The decision or prerequisite still needs attention. | No |
+| `resolved` | A choice and rationale were recorded. | Yes |
+| `superseded` | A newer gate replaced this one. | Only through a successor chain that ends in `resolved` |
+| `canceled` | The gate was stopped without resolving it. | No |
+
+A gate does not become a `ready` task and cannot be claimed with `take`. An open gate is visible in the status view and can be resolved directly. A task that has an incoming edge from an open gate is derived as `blocked`.
+
+## Resolving a gate
+
+Resolution records both the selected `choice` and the explanatory `rationale`:
+
+```bash
+climier add-gate security-review \
+  --initiative publishing \
+  --title "Choose the security review outcome" \
+  --body "Confirm whether the release may proceed." \
+  --purpose approval \
+  --as alice
+
+climier add-task publish-docs \
+  --initiative publishing \
+  --title "Publish documentation" \
+  --body "Publish the approved documentation." \
+  --acceptance "Readers can access the published documentation." \
+  --blocked-by security-review \
+  --as alice
+
+climier resolve security-review \
+  --choice approved \
+  --rationale "The review found no release-blocking issue." \
+  --as alice
+```
+
+The resolution changes the gate to `resolved`. A subsequent `climier context publish-docs` shows its blocker as satisfied and derives the task as `ready`. The command returns the gate and the dependents whose readiness changed, so the transition is observable without guessing from the title.
+
+Resolving an already resolved gate is rejected. To correct an accepted decision, reopen it with a reason and resolve it again with a new choice and rationale:
+
+```bash
+climier reopen security-review \
+  --reason "The review scope changed." \
+  --as alice
+```
+
+Reopening removes the stored resolution and makes dependent tasks blocked again until the gate is resolved.
+
+## Replacing a gate
+
+When the question changes, create a successor gate with `--supersedes`. Climier marks the old gate as `superseded` and rewires its incoming blocking relationships to the replacement. A superseded gate is not automatically satisfied: its chain must end at a resolved successor. This prevents replacing an unresolved approval from silently unblocking work.
+
+```bash
+climier add-gate security-review-v2 \
+  --initiative publishing \
+  --title "Reassess the security review" \
+  --body "Use the updated release scope." \
+  --purpose approval \
+  --supersedes security-review \
+  --as alice
+```
+
+See [Tasks](./tasks) for the other side of the dependency and [Edges and derived status](./edges-and-status) for the canonical edge direction.

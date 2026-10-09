@@ -37,6 +37,27 @@ At heart, `climier` is a small state machine around a project DAG:
 
 It is a CLI, JSON-first, stdlib-only, and meant to be scriptable.
 
+## Documentation
+
+The public documentation site lives in the standalone [`docs/`](docs/) subproject.
+Its content is organized by audience and task:
+
+- [Getting started](docs/content/docs/getting-started/) — install Climier and complete the first workflow.
+- [Concepts](docs/content/docs/concepts/) — tasks, gates, knowledge, initiatives, and state.
+- [Guides](docs/content/docs/guides/) — multi-agent work, migration, and troubleshooting.
+- [Reference](docs/content/docs/reference/) — the CLI, plugins, hosting, and web UI.
+
+The canonical Markdown references remain at [`docs/reference.md`](docs/reference.md),
+[`docs/PLUGINS.md`](docs/PLUGINS.md), and
+[`docs/remote-server.md`](docs/remote-server.md); their paths are part of the
+published package. To work on the site locally:
+
+```bash
+cd docs
+bun install --frozen-lockfile
+bun run dev
+```
+
 ## Good use cases
 
 ### 1. One agent, many sessions
@@ -111,8 +132,8 @@ it automatically. The hook exempts `Merge ...`, `Revert "..."`,
 `fixup!`/`squash!`/`amend!`, and release subjects (`release: v...` and
 `chore(release): ...`). When a local exception is necessary, `git commit
 --no-verify` skips the hook, while `CLIMIER_COMMIT_NO_TASK=1` skips only DAG node
-lookup and still enforces the conventional format. Pull requests are checked
-by commitlint in CI; the main-branch node audit is report-only.
+lookup and still enforces the conventional format. The commit contract is
+enforced locally only: CI does not validate commit messages.
 
 ## Agent skill
 
@@ -177,7 +198,7 @@ bun run build
 
 The build writes `ui/dist/index.html` and hashed assets. `ui/dist` is included in the published package; generated `ui/node_modules`, `ui/dist`, Storybook output, and local harness output are ignored by git.
 
-See [`docs/climier-ui.md`](docs/climier-ui.md) for the UI model, local server, and hosted API contract.
+See the [web UI guide](docs/content/docs/reference/web-ui.mdx) for the UI model, local server, and hosted API contract.
 
 ## Core concepts
 

@@ -38,6 +38,11 @@ must not know about application or adapters.
 
 ```
 bin/climier.ts                       # Thin executable wrapper around cli/dispatch.mjs
+docs/                                 # Standalone public documentation site and canonical references
+  package.json, bun.lock              # Site-only dependencies and reproducible lockfile
+  content/docs/                       # Public site pages grouped by getting-started, concepts, guides, and reference
+  reference.md, PLUGINS.md, remote-server.md # Canonical published Markdown paths
+  scripts/                            # Canonical sync and public-surface checks
 src/
   application/operations/              # Registry, built-in catalog, and shared operation composition
     index.mjs                          # Public Application Operations boundary
@@ -72,6 +77,7 @@ src/
 
 Boundary rules:
 
+- `docs/` is a public documentation subproject. Keep the three canonical Markdown files at their existing paths, and put new site content under `docs/content/docs/`. The root package remains CLI-only; site dependencies stay in `docs/`.
 - `cli/commands/` owns argv validation, actor resolution, adapter-specific
   defaults, and the public JSON envelope. It does not own state, locks, logs,
   revisions, or domain rules.
@@ -188,7 +194,7 @@ Cycles in the DAG must not crash. The derivation keeps cycle members blocked. Un
 
 ## Hard rules for contributing
 
-1. **No new runtime dependencies for the CLI.** Stdlib only. The `ui/` directory is an exception by design: it is a self-contained subproject (own `package.json`, `node_modules`, `dist/`) for the local web UI (Express server + Solid/Tailwind frontend). `climier ui` imports `ui/server/server.mjs`, which resolves its deps from `ui/node_modules`; the CLI package itself gains no runtime deps. If you think you need a package in `bin/`/`src/`, you almost certainly don't.
+1. **No new runtime dependencies for the CLI.** Stdlib only. The `ui/` directory is an exception by design: it is a self-contained subproject (own `package.json`, `node_modules`, `dist/`) for the local web UI (Express server + Solid/Tailwind frontend). `climier ui` imports `ui/server/server.mjs`, which resolves its deps from `ui/node_modules`; the CLI package itself gains no runtime deps. The `docs/` directory is a second self-contained exception: its own `package.json`, lockfile, dependencies, and build output belong to the public documentation site and must not add runtime dependencies to the root package. If you think you need a package in `bin/`/`src/`, you almost certainly don't.
 2. **TDD strict.** Write the failing test first, then make it pass. The test suite is the spec. Exception: the `ui/` subproject does not require TDD nor changes to `test/`; it does require verification proportional to the blast radius, explicit (named command, observed output, or manual check), and documented in the commit body, the PR description, or a `climier add-note`. The TDD rule still applies to everything outside `ui/`.
 3. **No silent failures.** Every error path either throws with a clear message or has a tested behavior. If you find yourself "handling" an error by logging and continuing, write a test that documents the behavior, or change the code to fail loud.
 4. **Schema validation on write.** `writeState` rejects states missing `nodes`/`edges`/`initiatives`/`log`. Don't relax this without a test that says why.
@@ -233,10 +239,9 @@ Escapes:
   commits that legitimately have no node (tooling, offline).
 
 Installation is explicit, never on `prepare`: `bun run setup:hooks` sets
-`git config core.hooksPath .githooks`. Without that config the hook is inert; the
-`commitlint` job in CI still fails a non-conventional commit in a pull request, and the
-`commit-audit` job reports commits without a node id on `main` without blocking, so
-`--no-verify` remains a real escape.
+`git config core.hooksPath .githooks`. Without that config the hook is inert, so
+`--no-verify` remains a real escape. The contract is enforced **locally only**: CI does
+not validate commit messages.
 
 Errors are `INVALID_FORMAT` (bad format, or a missing node id), `NODE_NOT_FOUND` (the id
 is not in the DAG) and `DAG_UNREACHABLE` (the id could not be checked: offline, missing

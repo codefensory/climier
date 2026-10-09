@@ -1,0 +1,174 @@
+---
+title: Web UI
+description: A visual guide to browsing projects, tasks, gates, initiatives, and knowledge in Climier.
+---
+
+The Climier web UI is a read-only view of a project. It helps you understand the current task graph without combining several command outputs. The CLI remains the place to create nodes, change their lifecycle, and record durable notes.
+
+The UI always shows the project selected in the project switcher. Its data comes from the same project state as the CLI, so `ready`, `blocked`, claims, relationships, and activity should be read as Climier concepts rather than as separate UI labels.
+
+## Start with the application shell
+
+The left sidebar contains the main views:
+
+- **Home** — a short project overview.
+- **Tasks** — active and historical tasks, with list and board views.
+- **Knowledges** — reusable knowledge and its coverage.
+- **Gates** — decisions, approvals, research items, and external dependencies.
+- **Initiatives** — work grouped by initiative.
+
+The project switcher near the top of the sidebar changes the project being displayed. The breadcrumb repeats the selected project when you are looking at tasks. Use the theme control to choose the available light or dark appearance.
+
+If the connection is not current, the shell shows **Offline** or **Stale**, the last update time when it is known, and a **Retry** control. Treat the displayed snapshot as a previous reading until the connection is current again.
+
+## Home
+
+Home is a quick orientation view. Its summary includes:
+
+- **Open tasks**, which counts tasks that are not closed;
+- **Nodes**, which counts the nodes represented in the project;
+- **Completed**, which counts accepted work.
+
+Use Home to answer “what is the size and general state of this project?” For decisions about a particular task, open **Tasks**. For a broader view of relationships and history, use the other sections in the sidebar.
+
+## Tasks
+
+Tasks is the main work view. Each task row or card can show its title, status, node ID, tags, note and reference counts, dependents, claim, and most recent activity. Select a task to open its context.
+
+### Choose a task view
+
+The view switcher changes between:
+
+- **List**, which is useful for scanning titles, metadata, and recent activity;
+- **Board**, which groups work by its current status.
+
+The board can show groups such as **In Progress**, **Ready**, **Submitted**, **Blocked**, **Backlog**, and **Done**. Historical `canceled` and `archived` work can also appear when the selected scope includes it. A gate may be shown with the work it affects, but it is still a gate, not a task.
+
+The status is meaningful:
+
+- **Ready** means an open task has no unsatisfied `BLOCKS` dependency and is not in the backlog.
+- **Blocked** means at least one incoming blocker is unsatisfied.
+- **Backlog** is an explicitly deferred open task.
+- **In Progress** means a task has an active claim.
+- **Submitted** means the work is waiting for validation; it does not satisfy downstream dependencies.
+- **Done** means the work was accepted.
+- **Canceled** and **Archived** are historical outcomes.
+
+`Ready` and `Blocked` are derived from the graph. They are not buttons for manually moving a card between columns.
+
+### Scope, sorting, grouping, and filters
+
+The task toolbar provides three scopes:
+
+- **Active** for current work;
+- **Closed** for completed or canceled work;
+- **All** for the complete task set.
+
+Use **Sort** to change the order, **Group** to organize the board, and **Filter** to narrow the set. Filter fields are built from the selected project, so useful values such as initiatives, domains, tags, and claimed actors come from the data that is actually present.
+
+Select a row or card with a pointer or keyboard to open the task context. The whole row or card is the link; you do not need to target a small icon.
+
+## Reading a task context
+
+A task context explains both the task contract and its place in the graph. The header shows the title, node ID, current status, and last activity. Use the **Markdown** and **Raw** controls to switch between a readable rendering and the stored text.
+
+### Specification and acceptance
+
+The main column starts with the task body. When acceptance criteria exist, the **Acceptance** section displays them separately so that the expected outcome is not confused with background information.
+
+The properties column can show:
+
+- status;
+- tags;
+- the actor holding the claim, including a **stale** marker when the claim is old;
+- initiative and domain;
+- revision.
+
+A revision identifies the version of the node that the UI read. It is useful when comparing a context view with a later CLI result.
+
+### Blocking and dependents
+
+**Blocked by** lists incoming `BLOCKS` relationships. Each entry shows whether the blocker is satisfied. Remember the direction: the listed node blocks the task you are reading.
+
+**Dependents** lists nodes reached from the current node. These are the tasks or gates that may be affected by this node, and each relationship keeps its edge type visible. Open a related task or gate to follow the graph, then use the back link to return.
+
+A task with no blockers is not necessarily ready: it can still be in progress, submitted, done, canceled, or in the backlog. Read the status together with the blocker list.
+
+### Knowledge
+
+When scoped knowledge applies to the task, the **Knowledge** section shows its type, title, text, and the scope match that brought it into context. A match may come from the node, its domain, a tag, or its initiative. Deprecated knowledge is labeled so that it is not mistaken for current guidance.
+
+### Activity and references
+
+**Activity** is the task timeline. It can include creation, claims, releases, submissions, acceptance or rejection, updates, links, and other lifecycle events. Each event identifies the actor and a relative time; use the surrounding task details to interpret what changed.
+
+The **References** section distinguishes references stored on the node from document names detected in the task text or notes. An empty section means no references were found; it does not mean that the task has no useful background.
+
+The note field at the end of the activity section is a convenient UI interaction. Use the CLI when a note must be part of the durable project record.
+
+## Gates
+
+Gates represent work that must be decided, approved, researched, or supplied by an external dependency. They can block tasks, but they do not follow the task claim-and-accept lifecycle.
+
+The Gates view provides:
+
+- a search field for gate titles and IDs;
+- status filters for **All**, **Open**, **Resolved**, **Superseded**, and **Canceled** when those values exist;
+- grouping controls;
+- a summary of the visible gates, open gates, downstream tasks, and activity threads.
+
+Open gates are the most useful place to look when work is blocked. Select a row to open its side panel, or open the gate detail view for the full context.
+
+### Gate context
+
+Gate context explains:
+
+- the purpose and current status;
+- the recorded choice and rationale when resolved;
+- nodes that block the gate;
+- downstream gates;
+- tasks that may become available when the gate is satisfied;
+- background text;
+- any supersession chain;
+- activity and references.
+
+A resolved gate can satisfy a `BLOCKS` relationship. A gate that is merely open, even if it has no blockers of its own, is still an open decision or dependency.
+
+## Knowledges
+
+Knowledge nodes hold information that should be reusable across work. They are not tasks and do not become ready or satisfy a `BLOCKS` edge.
+
+The Knowledges view provides:
+
+- status filters for **All**, **Active**, **Superseded**, and **Deprecated**;
+- search by title or node ID;
+- grouping controls;
+- coverage information showing how many resolvable nodes have matching knowledge.
+
+The summary may also show supersession chains and initiatives without knowledge. Select a row to inspect its side panel, including the knowledge type, body, mitigation, scope, status, and related coverage. A deprecated or superseded entry remains useful as history, but should not be treated as current guidance without checking its replacement.
+
+## Initiatives
+
+Initiatives group related tasks and gates. The Initiatives view shows the initiatives that have work, with:
+
+- task totals and open task counts;
+- blocked task counts;
+- gate counts;
+- the most recent update;
+- a progress indicator.
+
+Select an initiative to open Tasks with that initiative already filtered. Use **Show completed** to include initiatives whose work is complete. Progress is a summary for orientation; inspect individual task statuses and gate decisions before making a coordination decision.
+
+## A practical reading sequence
+
+When you need to understand one piece of work, use this sequence:
+
+1. Open **Home** to see whether the project has current work or a stale connection.
+2. Open **Tasks** and choose the appropriate scope, view, and filters.
+3. Read the task's status and **Blocked by** list before interpreting its position on the board.
+4. Review **Acceptance**, claim information, activity, and references.
+5. Follow a blocker or dependent to inspect the surrounding graph.
+6. Check **Knowledge** for scoped information and **Gates** for unresolved decisions.
+7. Use the CLI for any change that must be recorded in the project.
+
+This sequence keeps the visual summary, the node context, and the dependency graph aligned with the same Climier vocabulary.

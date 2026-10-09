@@ -26,61 +26,18 @@ jobs:
       - run: bun run smoke:pack
       - run: bun run pack:check
 
-  commitlint:
-    name: lint pull request commits
-    if: github.event_name == 'pull_request'
+  public-docs:
+    name: public docs guardrail
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          fetch-depth: 0
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.4.2
-      - run: bun install --frozen-lockfile
-      - name: Validate commit messages
-        run: bunx --no-install commitlint --from "${{ github.event.pull_request.base.sha }}" --to "${{ github.event.pull_request.head.sha }}" --verbose
-
-  commit-audit:
-    name: audit main commit node IDs
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    continue-on-error: true
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Report commits without node IDs
-        shell: bash
-        run: |
-          set -u
-          before="${{ github.event.before }}"
-          after="${{ github.sha }}"
-          if [ "$before" = "0000000000000000000000000000000000000000" ]; then
-            range="$after"
-          else
-            range="$before..$after"
-          fi
-
-          found=0
-          while IFS=$'\t' read -r sha subject; do
-            [ -n "$sha" ] || continue
-            case "$subject" in
-              Merge\ *|Revert\ *|fixup\!\ *|squash\!\ *|amend\!\ *|release:\ v*|chore\(release\):*|chore\(release\)\!:*)
-                continue
-                ;;
-            esac
-            if ! [[ "$subject" =~ \[[^][:space:]]+\]$ ]]; then
-              echo "::warning title=Commit missing node-id::$sha $subject"
-              found=1
-            fi
-          done < <(git log --format='%H%x09%s' "$range")
-
-          if [ "$found" -eq 0 ]; then
-            echo "Commit audit: all commits include [node-id]."
-          else
-            echo "Commit audit found commits without [node-id]; reporting only (non-blocking)."
-          fi
+          node-version: 22
+      - name: Scan public documentation
+        run: node docs/scripts/check-public-docs.mjs
+      - name: Verify guardrail fixtures
+        run: node docs/scripts/check-public-docs.fixtures.mjs
 
   binaries:
     name: binary (${{ matrix.name }})

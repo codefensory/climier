@@ -1,0 +1,115 @@
+---
+title: Troubleshooting
+description: Diagnose blocked work, failed commands, stale claims, and storage problems.
+---
+
+Start with the structured CLI output. Successful commands return data; failures include an error code and message. Do not infer a fix from a task title or from an old status report: inspect the current project and node first.
+
+## A task is blocked or not ready
+
+Run both views:
+
+```bash
+climier status --all
+climier context publish-docs
+```
+
+In `context`, inspect `blocking` and `allowed_actions`. Common causes are:
+
+- an incoming `BLOCKS` edge points to an open gate or unfinished task;
+- the task is in `backlog` and was intentionally held out of the ready pool;
+- another actor already claimed it (`in_progress`);
+- it is `submitted` and waiting for review; or
+- the graph contains an unknown dependency or a cycle.
+
+Resolve the cause instead of changing a derived status. For an open gate, record the decision and rationale, then check the dependent task again:
+
+```bash
+climier resolve release-review \
+  --choice approved \
+  --rationale "The required review is complete." \
+  --as reviewer
+climier context publish-docs
+```
+
+A submitted task does not satisfy a dependency. The reviewer must accept it before downstream work can become ready.
+
+## Someone else owns the task
+
+Use the global in-progress view and the task context to identify the active claim:
+
+```bash
+climier status --claimed-by alice
+climier context publish-docs
+```
+
+If the owner is still working, choose another task or coordinate a handoff. If the owner cannot continue, that actor or an authorized administrator can release the claim:
+
+```bash
+climier release publish-docs --as alice
+```
+
+A stale claim is an alert, not proof that the process is dead. Confirm with the actor before releasing it. When a task has been accepted, create a correction task rather than rewriting the accepted record.
+
+## A mutation timed out on the lock
+
+Mutations use a lock beside the shared state. A timeout can mean another writer is still active or that a process stopped while holding the lock. Inspect the project and running processes before touching the file:
+
+```bash
+climier status
+ps -ef | grep '[c]limier'
+```
+
+Climier does not automatically steal an old lock. If no legitimate writer is running, back up the project storage and remove only the stale lock file, then retry the original command:
+
+```bash
+rm "$CLIMIER_HOME/projects/<project-id>/.lock"
+climier status
+```
+
+The default storage home is `~/.climier` when `CLIMIER_HOME` is unset. Never remove a lock while a writer may still be active, and do not delete `tasks.json` or the revision ledger as a shortcut.
+
+## State is not canonical
+
+Errors mentioning an old schema, a missing revision ledger, or a non-canonical state require an explicit migration. Inspect first and stop all writers:
+
+```bash
+climier migrate --all --dry-run
+climier migrate --all
+```
+
+Use `--project /path/to/checkout` before `migrate` for a single project. Never use `init --force` to convert existing data; it resets the project. See [Migrate existing state](./migration) for the backup and verification sequence.
+
+## The audit trail does not show expected work
+
+Read the node history and then the project log:
+
+```bash
+climier history publish-docs --limit 20
+climier log --node publish-docs --limit 20
+```
+
+If a command failed, its state change and audit entry should not be treated as committed. Re-run a read command to establish the current revision before attempting a mutation. For an update made from an older read, use `--if-revision` so a concurrent change is rejected rather than overwritten.
+
+## Remote connection failures
+
+For a remote project, first distinguish authentication, configuration, and transport failures. Run a read-only command, inspect the reported error code, and verify the configured origin before changing data:
+
+```bash
+climier login --server https://climier.example.test
+climier status
+```
+
+Common boundaries include an invalid login, an outdated remote configuration, a failed request, an unsupported operation, or another server already using the configured state home. Do not fall back to a local project or force a transfer when the destination is uncertain. Use the [remote server runbook](/docs/reference/self-hosting) for preflight, backup, and transfer recovery.
+
+## Check the basics
+
+When a diagnosis is unclear, collect a small, reproducible report without including secrets:
+
+```bash
+climier --version
+climier status --all
+climier context publish-docs
+```
+
+Include the command, error code, project revision, and relevant node state in the report. Never include passwords, bearer tokens, private environment files, or the contents of the live state when a summary is sufficient.

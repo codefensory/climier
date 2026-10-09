@@ -1,0 +1,59 @@
+---
+title: Quickstart
+description: Initialize a project, create an initiative, and add a ready task.
+---
+
+This walkthrough creates a small project with one task. Run the commands from the directory that should hold the project's `.climier.json` file.
+
+## 1. Initialize a project
+
+Create a directory and initialize Climier:
+
+```bash
+mkdir climier-demo
+cd climier-demo
+climier init
+```
+
+`init` creates the project metadata and the live schema-1 state. The live state is shared by checkouts through Climier's storage directory; you normally only commit `.climier.json` with your project.
+
+## 2. Add an initiative
+
+An initiative groups related work. The `--as` value records who performs the mutation:
+
+```bash
+climier add-initiative demo \
+  --desc "Learn the Climier workflow" \
+  --as alice
+```
+
+## 3. Add a task
+
+Create a task with an explicit body, acceptance criteria, and dependency list. An empty `--blocked-by` means that this first task has no blockers:
+
+```bash
+climier add-task T-example-1 \
+  --initiative demo \
+  --title "Write the first task" \
+  --body "Complete the first piece of work in the demo project." \
+  --acceptance "The work is complete and its checks pass." \
+  --blocked-by "" \
+  --as alice
+```
+
+A task with no unsatisfied blockers is ready to claim. `ready` and `blocked` are derived from the graph; they are not statuses that you set manually.
+
+## 4. Inspect the task
+
+See the project overview, then inspect the task contract:
+
+```bash
+climier status
+climier context T-example-1
+```
+
+`status` shows the ready pool and summary counts. `context` focuses on one node and shows its blockers, scoped information, and actions available to the current actor.
+
+## Continue the workflow
+
+Follow [Core workflow](./core-workflow) to claim the task, submit it for review, and accept it. The [CLI reference](/docs/reference/cli) documents every option without repeating the full contract here.

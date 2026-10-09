@@ -1,0 +1,437 @@
+@import 'tailwindcss';
+@import 'fumadocs-ui/css/neutral.css';
+@import 'fumadocs-ui/css/preset.css';
+@import './theme.css';
+
+/* Google Fonts: SIL Open Font License (OFL). */
+@font-face {
+  font-family: 'DM Sans';
+  src: url('../assets/fonts/dm-sans-latin.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Manrope';
+  src: url('../assets/fonts/manrope-latin.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 500 800;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('../assets/fonts/jetbrains-mono-latin.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 400 500;
+  font-display: swap;
+}
+
+/*
+ * next-themes (mounted by Fumadocs' RootProvider) toggles `class="dark"` on
+ * <html>; the docs also accept an explicit `data-theme` attribute. Wire the
+ * `dark:` variant to both so Tailwind utilities follow the in-app toggle rather
+ * than only the OS preference.
+ */
+@custom-variant dark (&:where(.dark, .dark *, [data-theme="dark"], [data-theme="dark"] *));
+
+html {
+  scrollbar-gutter: stable;
+}
+
+html > body[data-scroll-locked] {
+  margin-right: 0 !important;
+  --removed-body-scroll-bar-size: 0px !important;
+}
+
+/* ── Brand ──────────────────────────────────────────────────────────────── */
+
+/* Theme-aware wordmark. Kept in CSS so it resolves before React hydrates. */
+.climier-logo-dark {
+  display: none;
+}
+
+.dark .climier-logo-light {
+  display: none;
+}
+
+.dark .climier-logo-dark {
+  display: block;
+}
+
+/* The signature Climier canvas texture, reused from ui/src/styles/style.css. */
+.climier-dots {
+  background-color: var(--color-fd-background);
+  background-image: radial-gradient(circle, var(--docs-dot) 1px, transparent 1.2px);
+  background-size: 26px 26px;
+}
+
+/* ── Chrome ─────────────────────────────────────────────────────────────── */
+
+/* Sidebar: dotted canvas panel, the same surface the UI shell uses. */
+#nd-sidebar,
+#nd-sidebar-mobile {
+  background-color: var(--color-fd-background);
+  background-image: radial-gradient(circle, var(--docs-dot) 1px, transparent 1.2px);
+  background-size: 26px 26px;
+  /* Scope the primary role to the brand accent: active nav entries (text,
+   * tint and indicator bar) and focus rings pick it up from one place. */
+  --color-fd-primary: var(--color-brand);
+}
+
+#nd-sidebar {
+  border-inline-end-color: var(--color-fd-border);
+}
+
+/* Reading column becomes the raised surface; the dotted sidebar stays canvas. */
+#nd-docs-layout {
+  background-color: var(--color-fd-card);
+}
+
+#nd-toc {
+  --color-fd-primary: var(--color-brand);
+}
+
+/* Home header: brand accent for the active nav link. */
+#nd-nav {
+  --color-fd-primary: var(--color-brand);
+}
+
+/* Fumadocs blurs these sticky bars over a flat page canvas. An opaque canvas
+ * surface removes the per-frame backdrop pass without changing their appearance. */
+#nd-nav > div.backdrop-blur-lg,
+#nd-subnav,
+#nd-toc header.backdrop-blur-sm,
+#nd-docs-layout [class*='grid-area:toc-popover'] > header.backdrop-blur-sm {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background-color: var(--color-fd-background);
+}
+
+/* Keep the code-block copy control legible without sampling the scrolled code. */
+#nd-page figure.shiki > .backdrop-blur-lg {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background-color: var(--color-fd-background);
+}
+
+/* Sidebar search reads as a quiet chip, matching the UI shell. */
+#nd-sidebar button[class*='bg-fd-secondary'] {
+  background-color: var(--color-fd-muted);
+  border-color: transparent;
+}
+
+/* ── Reading surface ────────────────────────────────────────────────────── */
+
+#nd-page .prose {
+  --tw-prose-links: var(--color-brand);
+  --tw-prose-headings: var(--color-fd-foreground);
+  --tw-prose-code: var(--color-fd-foreground);
+}
+
+#nd-page .prose a,
+.prose a {
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+
+#nd-page h1,
+#nd-page h2,
+#nd-page h3,
+#nd-page h4,
+#nd-toc a {
+  font-family: var(--font-display);
+  letter-spacing: -0.015em;
+}
+
+#nd-page h1 {
+  letter-spacing: -0.03em;
+}
+
+#nd-toc a {
+  font-family: var(--font-sans);
+  letter-spacing: 0;
+}
+
+/* Inline code, code blocks and kbd pick up the mono face. */
+#nd-page :not(pre) > code,
+#nd-page kbd,
+.prose :not(pre) > code {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+}
+
+/* ── Landing page ───────────────────────────────────────────────────────── */
+
+#nd-home-layout {
+  position: relative;
+  overflow-x: clip;
+}
+
+:root {
+  /* Hairline highlight on the top edge of a raised surface. */
+  --landing-edge: rgb(255 255 255 / 0.75);
+}
+
+[data-theme='dark'],
+.dark {
+  --landing-edge: rgb(255 255 255 / 0.07);
+}
+
+/* Light-mode tone floor: the landing sits on the canvas, where the shared muted
+ * role drops to ~4.3:1 for paragraph text and the pill tones sit under 4.5:1 at
+ * their small sizes. Dark mode already passes, so this is scoped to light. */
+:root:not(.dark):not([data-theme='dark']) #nd-home-layout {
+  --color-fd-muted-foreground: #5f5f5f;
+  --color-fd-success: #4f5c42;
+  --color-fd-warning: #7a5940;
+}
+
+/* Dot field: the app canvas, carried across the whole landing. The veil is the
+ * top background layer, not a mask: a mask over a full-height layer makes the
+ * engine rasterize a page-sized mask texture and re-tile the field on every
+ * scroll step. Blended over the element's own canvas colour, the same ramp
+ * reads identically at a fraction of the raster cost. */
+.landing-dots {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-color: var(--color-fd-background);
+  background-image:
+    linear-gradient(
+      to bottom,
+      transparent 0%,
+      transparent 30%,
+      color-mix(in oklab, var(--color-fd-background) 22%, transparent) 55%,
+      color-mix(in oklab, var(--color-fd-background) 55%, transparent) 80%,
+      var(--color-fd-background) 100%
+    ),
+    radial-gradient(
+      circle,
+      color-mix(in oklab, var(--docs-dot) 74%, var(--color-fd-muted-foreground) 26%) 1px,
+      transparent 1.2px
+    );
+  background-size:
+    100% 100%,
+    26px 26px;
+  background-repeat: no-repeat, repeat;
+}
+
+/* Brand light entering from the top edge. The peak sits above the masthead, so
+ * the type lands on the falloff and never on the bright core. */
+/* One whisper of brand light under the header, so the top of the page reads as a
+ * lit edge rather than a haze. It is gone before the masthead starts. */
+.landing-glow {
+  position: absolute;
+  inset: -8rem 0 auto 0;
+  height: 20rem;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse 62% 58% at 50% 24%,
+    color-mix(in oklab, var(--color-brand) 9%, transparent),
+    transparent 74%
+  );
+}
+
+/* The panel is the product, so its frame stays crisp: a hairline, a lit top
+ * edge, and neutral depth. No tinted halo. */
+.landing-panel {
+  background: var(--color-fd-card);
+  box-shadow:
+    inset 0 1px 0 var(--landing-edge),
+    0 1px 2px rgb(0 0 0 / 5%),
+    0 22px 44px -28px rgb(0 0 0 / 16%);
+}
+
+/* The page's one color field: a soft brand ground, so the section reads as brand
+ * without a saturated slab competing with the neutral panels. */
+.landing-band {
+  background: var(--color-brand-soft);
+  color: var(--color-fd-foreground);
+}
+
+/* Secondary copy on the brand field takes the hue, never the neutral gray. */
+.landing-band-lede {
+  color: color-mix(in oklab, var(--color-brand) 55%, var(--color-fd-foreground));
+}
+
+/* The status flip: one authored beat when a derived value changes. The ring is
+ * a pseudo-element, so the beat costs opacity instead of box-shadow: animating
+ * a paint property forced a main-thread repaint on every phase change. */
+@keyframes landing-flip {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.landing-flip {
+  position: relative;
+}
+
+.landing-flip::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border: 4px solid color-mix(in oklab, var(--color-brand) 30%, transparent);
+  border-radius: inherit;
+  pointer-events: none;
+  animation: landing-flip 800ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes landing-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.78);
+  }
+}
+
+.landing-pulse {
+  animation: landing-pulse 1.9s ease-in-out infinite;
+}
+
+/* Terminal caret: present only while the session is playing. */
+@keyframes landing-caret {
+  0%,
+  45% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.landing-caret {
+  animation: landing-caret 1.1s steps(1, end) infinite;
+}
+
+/* Command output arriving line by line. */
+@keyframes landing-output-line {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.landing-output {
+  animation: landing-output-line 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Step rail: the active step fills over the phase's own hold time. */
+@keyframes landing-fill {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.landing-progress {
+  animation-name: landing-fill;
+  animation-timing-function: linear;
+  animation-fill-mode: both;
+}
+
+/* Ambient motion belongs to a panel you can see: off screen the loops kept the
+ * compositor awake for content nobody was looking at. Dropping the fill too
+ * lets it restart in step with the phase timer when the panel comes back. */
+.landing-offscreen .landing-pulse,
+.landing-offscreen .landing-caret,
+.landing-offscreen .landing-progress {
+  animation: none;
+}
+
+.landing-offscreen .landing-progress {
+  width: 100%;
+}
+
+@keyframes landing-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.landing-rise {
+  animation: landing-rise 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.landing-rise-1 {
+  animation-delay: 60ms;
+}
+
+.landing-rise-2 {
+  animation-delay: 150ms;
+}
+
+.landing-rise-3 {
+  animation-delay: 240ms;
+}
+
+.landing-rise-4 {
+  animation-delay: 330ms;
+}
+
+/* Browser surfaces are part of the design; keep them on the landing palette. */
+#nd-home-layout ::selection {
+  background: color-mix(in oklab, var(--color-brand) 26%, transparent);
+}
+
+#nd-home-layout:focus-within {
+  caret-color: var(--color-brand);
+}
+
+/* ── Scrollbars ─────────────────────────────────────────────────────────── */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-fd-border) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--color-fd-border);
+  border-radius: 9999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--color-fd-ring);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-rise,
+  .landing-flip::after,
+  .landing-pulse,
+  .landing-caret,
+  .landing-output,
+  .landing-progress {
+    animation: none;
+  }
+
+  /* Without the fill animation the active step still reads as the current one. */
+  .landing-progress {
+    width: 100%;
+  }
+}

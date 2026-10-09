@@ -3,8 +3,8 @@
 How to author, install, and verify a Climier Plugin API v1 plugin.
 
 This guide is the public reference for plugin authors. The compatibility
-contract is fixed by ADR-021 (`.adrs/021-plugin-foundation-public-api.md`);
-implementation details live under `src/plugins/` and are internal. The
+contract is fixed by the public Plugin API v1 specification; implementation
+details live under `src/plugins/` and are internal. The
 fastest way to see a working plugin is the fixture at
 `test/fixtures/sample-plugin/` and its smoke test
 `test/plugin-integration.test.ts`.
@@ -55,8 +55,8 @@ export default {
 };
 ```
 
-An optional `default.policy` field adds a policy plugin (ADR-007); see
-§9 for the contract. `commands` and `policy` are independent: a plugin
+An optional `default.policy` field adds a policy plugin; see §9 for the
+contract. `commands` and `policy` are independent: a plugin
 may ship both, only one of them, or neither — `importEntry` rejects a
 shape that mixes the two incorrectly.
 
@@ -93,7 +93,7 @@ errors are wrapped into the structured envelope (see §6).
 
 ## 3. Plugin API v1 surface
 
-ADR-038 §Decision 9 defines the public surface. The host guarantees
+The public Plugin API v1 specification defines the public surface. The host guarantees
 `api.version === 1` and exposes only the following namespaces:
 
 ```js
@@ -297,7 +297,7 @@ or use `npm test` for the full core suite.
 
 - No hooks, events, execution orchestration, UI, permissions, secrets, or
   DAG/lifecycle semantics. A real need for any of these promotes
-  `T-plugin-v2-rfc-backlog`.
+  `T-example-plugin-backlog`.
 - Plugin code runs with the user's permissions. There is no sandboxing,
   no timeout, no signing, and no protection against side effects
   triggered by `import`-time code.
@@ -307,7 +307,7 @@ or use `npm test` for the full core suite.
 - A new `climier` invocation is a fresh Node process; the loader does
   not cache between invocations.
 
-## 9. Policy plugins (ADR-007 / ADR-008)
+## 9. Policy plugins
 
 Policy plugins extend the V1 contract with an optional authorisation
 face. A plugin MAY export `default.policy = { applies?, authorize }`;
@@ -319,8 +319,7 @@ unchanged.
 
 This section fixes the public contract. It does NOT promise
 authentication, composition, sandboxing, a dedicated timeout, or
-persistent auditing — those are explicitly out of scope (ADR-007
-§"Decisión", ADR-008 §"Negativas").
+persistent auditing — those are explicitly out of scope for this contract.
 
 ### 9.1 Shape
 
@@ -355,8 +354,8 @@ loaded either, so the host is never half-wired.
 
 ### 9.2 Canonical actions
 
-ADR-008 §"Acciones canónicas" lists the action names the seam sends
-to `authorize`:
+The policy contract lists the action names the seam sends to
+`authorize`:
 
 ```text
 task.create    task.take        task.takeover*   task.submit
@@ -437,8 +436,7 @@ be persisted and may corrupt the live read.
 
 The seam does NOT cache decisions across calls; each mutation re-runs
 the full selection + authorisation. The seam does NOT introduce a
-new lock; it runs on the handler's critical path (ADR-008
-§"Seam por handler").
+new lock; it runs on the handler's critical path.
 
 ### 9.5 Lifecycle and policy
 
@@ -477,14 +475,12 @@ without submitting the task.
 | `POLICY_CONFLICT` | more than one installed policy `applies` to the project. `details` carries `plugin_ids` and `namespaces`. |
 
 Denials and errors do NOT add a state-log entry in this version
-(ADR-008 §"Contexto, help y auditoría"). The error envelope is the
-audit trail.
+The error envelope is the audit trail.
 
 ### 9.8 Out of scope (explicit non-goals)
 
-ADR-007 §"Decisión" + ADR-008 §"Negativas" carve out what policy
-plugins do not provide today. Documenting them here so authors do
-not assume otherwise:
+The policy contract carves out what policy plugins do not provide today.
+These limitations are documented here so authors do not assume otherwise:
 
 - **No authentication.** `actor` is the literal `--as` /
   `CLIMIER_AGENT` string. The host does not verify identity.

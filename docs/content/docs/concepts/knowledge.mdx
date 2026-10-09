@@ -1,0 +1,58 @@
+---
+title: Knowledge
+description: Capture scoped guidance that informs work without becoming a blocker.
+---
+
+Knowledge is a first-class node for durable guidance, constraints, gotchas, or other context that should be discoverable while work is planned. It belongs to an initiative and can carry a `knowledge_type`, mitigation, domain, tags, references, and metadata.
+
+Knowledge has its own lifecycle:
+
+- `active` knowledge is available to matching context views.
+- `deprecated` knowledge remains in the record with a reason and deprecation metadata, but it should not be treated as current guidance.
+
+Knowledge is intentionally different from a task or gate. It never satisfies a `BLOCKS` edge, and `BLOCKS` edges cannot use knowledge as an endpoint. A task therefore remains `ready` or `blocked` according to its resolvable blockers, whether or not matching knowledge exists.
+
+## Scope and matching
+
+Every knowledge node must declare at least one scope dimension:
+
+| Scope | Matches when |
+| --- | --- |
+| `node_ids` | The target node has the listed id. |
+| `domains` | The target has one of the listed domains. |
+| `tags` | The target shares at least one tag. |
+| `initiatives` | The target belongs to one of the listed initiatives. |
+
+Matches are ranked from most specific to least specific: node id, domain, tag, then initiative. A context view reports matching knowledge and the scope that caused each match, so an actor can tell why guidance was included.
+
+## Example: guidance without a dependency
+
+Record a timeout constraint for work in the `api` domain:
+
+```bash
+climier add-knowledge api-timeout-guidance \
+  --initiative publishing \
+  --title "API calls need an explicit timeout" \
+  --body "Every outbound API request must set a timeout." \
+  --knowledge-type constraint \
+  --mitigation "Use the shared request helper with its timeout option." \
+  --scope-domains api \
+  --as alice
+
+climier update publish-docs --domain api --as alice
+climier context publish-docs
+```
+
+The context result includes `api-timeout-guidance` under `knowledge`, along with its matching scope. The task's `derived_status` is still determined only by its task lifecycle, backlog flag, and incoming blockers. This makes guidance visible without allowing a note or a stale rule to unblock work.
+
+When guidance is no longer valid, deprecate it instead of deleting the record:
+
+```bash
+climier deprecate-knowledge api-timeout-guidance \
+  --reason "The API client now enforces the timeout automatically." \
+  --as alice
+```
+
+The deprecation is auditable and context views can alert readers that a matching item is deprecated. Use `search` to find knowledge; pass `--all` when historical, deprecated entries are needed.
+
+Knowledge can also be superseded by a newer knowledge node. Supersedence preserves the history while making the newer guidance the one readers should follow. For dependency behavior, continue to [Edges and derived status](./edges-and-status); for the persisted representation, see [State and storage](./state-and-storage).

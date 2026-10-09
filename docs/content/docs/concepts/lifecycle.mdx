@@ -1,0 +1,69 @@
+---
+title: Lifecycle
+description: Move work from readiness through ownership, review, and acceptance.
+---
+
+Climier records a durable handoff between the people and tools coordinating work. The lifecycle separates implementation from review so a submission is visible without being mistaken for completed work.
+
+## The task flow
+
+1. **Inspect.** Run `status` for the project view and `context <id>` for blockers, matching knowledge, claims, and allowed actions. A task must be derived as `ready` before it can be claimed.
+2. **Claim.** `take <id> --as <agent>` records the actor and claim timestamp and moves the task to `in_progress`. Claims are serialized, so another actor cannot take the same work simultaneously.
+3. **Implement.** The actor performs the work and can add notes as durable progress or evidence.
+4. **Submit.** `submit <id> --note "..." --as <agent>` clears the active claim, stores the submission metadata, and moves the task to `submitted`.
+5. **Review.** A reviewer either accepts the submitted work or rejects it with a reason.
+6. **Continue or finish.** `accept` moves the task to `done`, which satisfies its downstream `BLOCKS` edges. `reject` returns it to `open` so it can be corrected and claimed again.
+
+Here is a compact, observable handoff:
+
+```bash
+climier status
+climier context publish-docs
+climier take publish-docs --as alice
+
+# Alice performs the work, then records the handoff.
+climier add-note publish-docs "Checks pass locally." --as alice
+climier submit publish-docs \
+  --note "Implementation and checks are complete." \
+  --as alice
+
+# A reviewer records the outcome.
+climier accept publish-docs --as reviewer
+climier context publish-docs
+```
+
+After submission, `context publish-docs` reports `derived_status: "submitted"`; it is not claimable and does not satisfy a dependent task. After acceptance it reports `done`, and a dependent task may become `ready`. If the reviewer rejects the work, the task returns to `open`, not to `done`:
+
+```bash
+climier reject publish-docs \
+  --reason "Add evidence for the accessibility check." \
+  --as reviewer
+```
+
+## Gates are resolved separately
+
+A gate is not implementation work, so it does not use the task claim/submit/accept sequence. Resolve it with an explicit choice and rationale:
+
+```bash
+climier resolve release-review \
+  --choice approved \
+  --rationale "The release criteria are met." \
+  --as reviewer
+```
+
+A resolved gate satisfies its `BLOCKS` edges and can make dependent tasks derive as `ready`. Reopen it when the decision must be corrected; the dependent tasks become blocked until a new resolution is recorded.
+
+## Administrative transitions
+
+Use the explicit administrative commands when normal work needs intervention:
+
+- `release` removes an active claim and returns the task to `open` without accepting it.
+- `reopen` moves an accepted task from `done` to `open`, or a resolved gate back to `open`, with a reason.
+- `cancel` terminates a resolvable node without satisfying it.
+- `deprecate-knowledge` moves knowledge from `active` to `deprecated` while retaining its reason and history.
+
+These transitions do not bypass satisfaction rules. A canceled task without a satisfying successor remains an unsatisfied blocker; a deprecated knowledge item never becomes a blocker or a source of satisfaction. For the full state vocabulary, see [Tasks](./tasks), [Gates](./gates), and [Knowledge](./knowledge).
+
+## Evidence and history
+
+Every mutation is recorded with the state change in the audit log. Use `history <id>` to inspect the changes for one node and `log` for the project-wide stream. This gives reviewers evidence for why a task became done, why a gate was resolved, or why guidance was deprecated without relying on undocumented conversations.

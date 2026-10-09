@@ -1,0 +1,83 @@
+---
+title: Tasks
+description: Model actionable work and the rules that make a task ready or blocked.
+---
+
+A task is an actionable unit of work. It is a resolvable node: it has a title, body, acceptance criteria, and an initiative, and it can be claimed by one actor at a time. Optional fields such as a definition, domain, tags, references, and metadata add context without changing the dependency model.
+
+## Persisted task states
+
+The task lifecycle is stored on the node:
+
+| State | Meaning |
+| --- | --- |
+| `open` | The task is not currently claimed. Its derived status can be `ready` or `blocked`. |
+| `in_progress` | An actor has claimed the task. The claim contains the actor and timestamp. |
+| `submitted` | The actor handed the work to a reviewer. It is not claimable and does not satisfy dependencies. |
+| `done` | The submitted work was accepted. This satisfies an incoming `BLOCKS` dependency. |
+| `canceled` | The work was explicitly stopped without being accepted. |
+| `archived` | The task is retained as historical work and satisfies dependencies. |
+
+`ready`, `blocked`, and `backlog` are derived views rather than task lifecycle values. A task marked with `backlog: true` stays in the backlog pool even when all of its blockers are satisfied.
+
+## Readiness and satisfaction
+
+A task is **ready** when it is an open, non-backlog task and every incoming `BLOCKS` edge points to a satisfied blocker. It is **blocked** when at least one incoming blocker is unsatisfied. The same task can move between these derived views when another node changes; no manual `ready` flag is needed.
+
+A task satisfies a `BLOCKS` edge only after it reaches `done` or `archived`. In particular, `submitted` means “waiting for validation,” not “complete.” An unknown blocker and a cycle are treated as unsatisfied, so malformed or incomplete graphs remain blocked instead of becoming accidentally claimable.
+
+## Example: a dependency becomes ready
+
+Create a task that waits for a review gate:
+
+```bash
+climier add-initiative publishing \
+  --desc "Prepare the public release" \
+  --as alice
+
+climier add-gate release-review \
+  --initiative publishing \
+  --title "Review release" \
+  --body "Confirm the release checklist." \
+  --purpose approval \
+  --as alice
+
+climier add-task publish-docs \
+  --initiative publishing \
+  --title "Publish documentation" \
+  --body "Publish the reviewed documentation." \
+  --acceptance "The documentation is available to readers." \
+  --blocked-by release-review \
+  --as alice
+```
+
+Before the gate is resolved, `climier status` places `publish-docs` in `tasks.blocked`. Resolve the gate and inspect the resulting readiness:
+
+```bash
+climier resolve release-review \
+  --choice approved \
+  --rationale "The release checklist is complete." \
+  --as alice
+
+climier context publish-docs
+```
+
+The context view now reports `derived_status: "ready"` and allows `claim`. The gate is satisfied because it is `resolved`; the task itself will satisfy downstream work only after its implementation is accepted.
+
+## Creating and claiming work
+
+`--blocked-by` is required when creating a task so that dependency intent is explicit. Pass an empty value when there are no blockers:
+
+```bash
+climier add-task first-check \
+  --initiative publishing \
+  --title "Run the first check" \
+  --body "Run the project's checks." \
+  --acceptance "All required checks pass." \
+  --blocked-by "" \
+  --as alice
+
+climier take first-check --as alice
+```
+
+Use [`context`](./lifecycle) to inspect blockers, claims, matching knowledge, and allowed actions before changing work. See [Edges and derived status](./edges-and-status) for the graph rules that produce `ready` and `blocked`.
