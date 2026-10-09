@@ -19,10 +19,8 @@ jobs:
       - id: release
         uses: googleapis/release-please-action@v4
         with:
-          release-type: node
-          package-name: climier
+          config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
-          include-v-in-tag: true
           token: ${{ secrets.GITHUB_TOKEN }}
 
   publish-npm:
