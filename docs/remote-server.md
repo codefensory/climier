@@ -1,61 +1,148 @@
 # Operating a Climier remote server
 
-This runbook covers the Remote v1 single-host deployment. The server is the
-only source of truth for a linked remote project; the repository checkout
-contains only its project ID and the server origin. Node.js 20 or newer and no
-runtime packages beyond Node's standard library are required.
+This runbook documents one setup path for a Remote v1 server. The server is the
+source of truth for a linked project; a checkout stores only its project ID and
+server origin. The path uses the packaged `climier` and `climier-server`
+commands and does not depend on deployment scripts outside the package.
 
-## Configure one private server
+## One setup path: generate, check, start, connect
 
-Keep the JSON configuration outside the checkout, readable only by the service
-account. It contains no password, bearer, project allowlist, or project data:
+Run `server init` on the host that will own the private configuration. It writes
+`server.json`, `server.env`, and, by default, a systemd unit. The configuration
+contains no password; `server.env` contains a freshly generated 32-byte
+base64url secret. All three files are written with mode `0600` and the data and
+state directories are created with mode `0700` unless path creation is
+explicitly deferred.
 
-```json
-{
-  "listen": { "host": "127.0.0.1", "port": 43127 },
-  "dataRoot": "/srv/climier/data",
-  "stateHome": "/srv/climier/state"
-}
-```
-
-This example uses loopback, but `listen.host` is an operator choice: Climier
-accepts any non-empty host string and leaves binding and network exposure to the
-operating system and the operator. Set the password through the service manager
-or private environment file, never as a command argument and never in JSON:
+Start with a dry run when choosing paths. It reports the files and actions but
+writes neither artifacts nor directories:
 
 ```sh
-export CLIMIER_SERVER_PASSWORD='<high-entropy-password>'
-/path/to/climier-server /srv/climier/private/server.json
+climier server init --root /srv/climier \
+  --host 127.0.0.1 --port 43127 \
+  --data-root /srv/climier/data \
+  --state-home /srv/climier/state \
+  --ui-root /srv/climier/ui/dist \
+  --dry-run
 ```
 
-The launcher prints one JSON health line. A missing password, malformed listener,
-legacy `credentials`/`projectIds` fields, or corrupt auth file fails before the
-listener accepts requests. An address rejected by the operating system fails at
-bind time. Keep `dataRoot`, `stateHome`, and the configuration directory owned
-by the service account.
+Generate the artifacts with the same options, omitting `--dry-run`:
 
-The API body limit defaults to 1,048,576 bytes. For large snapshot transfers,
-set `CLIMIER_SERVER_MAX_BODY_BYTES` in the private service environment to an
-integer from 1 through 33,554,432, sized to the expected DAG. The cap remains
-bounded; invalid values prevent the server from starting.
+```sh
+climier server init --root /srv/climier \
+  --host 127.0.0.1 --port 43127 \
+  --data-root /srv/climier/data \
+  --state-home /srv/climier/state \
+  --ui-root /srv/climier/ui/dist
+```
 
-The first start creates `stateHome/remote-auth.json` with a password verifier
-and bearer hashes. On POSIX, the directory is `0700` and the auth file is
-`0600`; bearer tokens are never stored in clear text. A password change replaces
-the verifier and clears all sessions before the server listens again. Every
-client must log in again after rotation.
+The default `--unit systemd` creates
+`/srv/climier/climier-server.service`. `server init` never installs, enables,
+or starts it. If the binary is not at `/srv/climier/climier-server`, place the
+packaged `climier-server` binary there or choose a root that contains the
+binary; `init` does not install binaries. Use `--service-user <user>` only when
+the service identity is an explicit operator choice. `init` reports the
+required ownership commands but does not run `chown`, `chmod`, `sudo`, or other
+privileged operations.
+
+Use `--unit none` when a container or a foreground process supplies its own
+process supervisor. This still generates `server.json` and `server.env`, but no
+unit file. Use `--allow-missing-paths` when generating the artifacts before
+`dataRoot` or `stateHome` is mounted or created by the runtime; it prevents
+`init` from creating those directories. The later preflight must still be able
+to resolve writable paths before the server starts.
+
+### Preflight before binding
+
+Run either preflight surface after generating the files. Both use the same
+checks and do not start the server, acquire the service lock, or create the
+runtime directories. `climier-server --check` should name the generated env
+file explicitly:
+
+```sh
+climier-server --check /srv/climier/server.json \
+  --env-file /srv/climier/server.env
+```
+
+From the setup root, `climier server doctor` uses `server.json` and
+`server.env` by default. Otherwise pass `--config` and `--env-file` (and put the
+global project flag before the command):
+
+```sh
+climier --project /srv/climier server doctor
+# Optional: add --probe-bind; add --strict to make bind/UI warnings fail.
+```
+
+The env file is parsed as strict `KEY=VALUE` data; it is not executed as a
+shell script. The checks cover configuration shape and permissions, storage
+paths, the secret, the optional UI root, and the bounded body-size setting.
+`--probe-bind` is opt-in because it briefly opens the configured address;
+without `--strict`, port and missing-UI findings are warnings. Neither check
+proves that systemd is delivering the `EnvironmentFile`, and `doctor` does not
+detect drift between the generated unit and a unit already installed in
+systemd. Inspect the installed unit separately when changing it.
+
+### Start the service or run in the foreground
+
+For the generated systemd unit, apply any `pending` ownership commands from
+`server init`, then install the unit file using the path reported by `files.unit`
+and start it:
+
+```sh
+sudo install -m 600 /srv/climier/climier-server.service \
+  /etc/systemd/system/climier-server.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now climier-server.service
+```
+
+For `--unit none`, a foreground launch must provide the generated secret to the
+process environment without putting it in argv or logs. The generated env file
+contains only simple assignments and is private:
+
+```sh
+set -a
+. /srv/climier/server.env
+set +a
+/srv/climier/climier-server /srv/climier/server.json
+```
+
+Do not print, copy into command arguments, or commit `CLIMIER_SERVER_PASSWORD`.
+`--print-secret` is intentionally the sole exception for controlled recovery or
+handoff; it is unsafe and should not be used in routine setup. To rotate it,
+stop the service, run `climier server init --root /srv/climier --rotate-password`,
+run preflight again, and start the service. Rotation
+rewrites only the secret, invalidates existing sessions, and requires every
+client to log in again; it does not require `--force`.
+
+### Connect a client checkout
+
+After the service is reachable, configure a checkout. `link` and `login` are
+client-side operations; `login` reads the password interactively from a TTY.
+Read the secret through a protected administrative channel rather than putting
+it in shell history, environment variables, output, or logs:
+
+```sh
+climier link https://climier.example.test
+climier login --server https://climier.example.test
+climier init
+```
+
+`init` here provisions the server-side project. It does not upload an existing
+local DAG. Use the explicit transfer commands documented below when a complete
+snapshot transfer is required. `server init`, `server doctor`, and `server setup`
+are local host operations and remain available when the checkout is linked to a
+remote backend.
 
 ## Serving the web UI
 
-The server also serves the built Solid UI at the origin root (non-`/v1`
-`GET`/`HEAD`) with SPA fallback, immutable caching for `/assets/*`, and
-`no-cache` for `index.html`. `/v1/*` keeps its JSON contract and never returns
-`index.html`.
+The server serves the built Solid UI at the origin root (non-`/v1` `GET`/`HEAD`)
+with SPA fallback, immutable caching for `/assets/*`, and `no-cache` for
+`index.html`. `/v1/*` keeps its JSON contract and never returns `index.html`.
 
-The root defaults to `<package>/ui/dist`; set `uiRoot` to an absolute path in
-the server JSON to override it. If the build is missing, `/` answers `503` with
-a short hint and the API keeps working. Build the bundle before starting the
-service:
+The root defaults to `<package>/ui/dist`; set `--ui-root` during `server init`
+to use an absolute path elsewhere. If the build is missing, `/` answers `503`
+with a short hint while the API keeps working. Build the bundle with the
+package's documented UI commands before starting the service:
 
 ```sh
 cd ui
@@ -63,61 +150,9 @@ bun install --frozen-lockfile
 bun run build
 ```
 
-### Deploy the compiled server and UI
-
-The supported deployment procedure ships a compiled server binary and the
-static UI bundle; the host does not need Bun, Node.js, a checkout, or UI
-runtime dependencies. The old out-of-tree deployment patch is retired: the
-operator controls the listener address through `listen.host`, and the service
-runs the binary built from the repository revision being deployed.
-
-Prepare the host once with a private `server.json`, a systemd unit, and an
-absolute deployment root. The unit's `ExecStart` must point at the deployed
-binary and config, for example:
-
-```ini
-[Service]
-ExecStart=/srv/climier/climier-server /srv/climier/server.json
-```
-
-Set `uiRoot` in that config to the path where the script will install the UI.
-The script defaults to `/srv/climier/ui/dist` when the remote root is
-`/srv/climier`; it updates and validates this field before restarting:
-
-```json
-{
-  "listen": { "host": "100.64.0.10", "port": 43127 },
-  "dataRoot": "/srv/climier/data",
-  "stateHome": "/srv/climier/state",
-  "uiRoot": "/srv/climier/ui/dist"
-}
-```
-
-Copy `scripts/deploy-server.env.example` to the gitignored `.deploy.env` and
-set the SSH destination, Bun target, systemd unit, and origin. Supported
-binary targets include `linux-x64`, `linux-arm64`, `darwin-x64`,
-`darwin-arm64`, and `windows-x64`; the target must match the service host.
-Then run:
-
-```sh
-scripts/deploy-server.sh
-scripts/deploy-server.sh --check
-```
-
-A deployment runs `bun run build:binary --target "$CLIMIER_DEPLOY_TARGET"`,
-builds `ui/dist`, copies the binary and bundle over SSH, ensures the remote
-`server.json` has the explicit absolute `uiRoot`, restarts the unit, and
-checks the service health URL plus the hashed UI asset byte for byte. `--check`
-only reads local build artifacts and remote state; it reports drift without
-copying files, changing `server.json`, or restarting the service. If the
-origin is only reachable from the server, set `CLIMIER_DEPLOY_HEALTH_URL` and
-`CLIMIER_DEPLOY_URL` to URLs that the host can access. Do not run the real
-production deployment from an implementation task; use `bash -n`, `--help`,
-and `--check` with a test host or missing configuration for local validation.
-
 The SPA authenticates with the same `POST /v1/auth/login` password; it lists
 projects with `GET /v1/projects` and reads one project with
-`/v1/projects/:id/ui/snapshot`, `/ui/nodes/:nodeId`, `/ui/activity`, and the
+`/v1/projects/:id/ui/snapshot`, `/ui/nodes/:nodeId`, `/ui/activity`, and
 `/ui/events` SSE stream (revision notifications; the client revalidates the
 snapshot with `ETag`).
 
@@ -249,12 +284,13 @@ secret and the original DAG data. Stop the server before restoring. Never use
 `init --force`, delete a project state, or restore a ledger without its matching
 state file as a recovery shortcut.
 
-To rotate the password, stop the service, provide the new
-`CLIMIER_SERVER_PASSWORD`, and start it against the same `stateHome`. The
-server durably writes the new verifier and an empty session list before
-listening. Existing bearers fail closed; each client must run `login` again.
-If startup or persistence fails, do not report a successful rotation or reopen
-the proxy.
+To rotate the password, stop the service and run
+`climier server init --root /srv/climier --rotate-password`. Run the preflight,
+then start the service against the same `stateHome`. The generated secret stays
+in the private `server.env`; it is never printed by default. The server durably
+writes the new verifier and an empty session list before listening. Existing
+bearers fail closed; each client must run `login` again. If startup or
+persistence fails, do not report a successful rotation or reopen the proxy.
 
 If `remote-auth.json` is corrupt, stop the service and take a backup first.
 Move only that file aside, then restart with the intended password. The server

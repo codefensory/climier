@@ -239,7 +239,40 @@ Full reference: `docs/reference.md`.
 
 ### Remote v1
 
-A remote checkout uses `backend: { type: "remote", url }` and the Remote v1 HTTP contract (`/v1` with `X-Climier-Protocol-Version: 1`). Run `climier link <origin>`, `climier login`, then `climier init` to provision its server-side project. Login reads the password from a TTY and stores the bearer in the local credential profile by origin. Linking does not upload an existing local DAG; use the explicit experimental `push`/`pull` commands for complete manual transfers. The server requires `CLIMIER_SERVER_PASSWORD`; the operator chooses the listener address, transport, and any TLS or private-network exposure. HTTP origins are accepted, but `login`, `link`, and remote `init` warn when credentials travel without transport encryption; pass `--no-warnings` to suppress those non-blocking warnings. HTTPS remains recommended, and normal requests never fall back to local state. See [`docs/remote-server.md`](docs/remote-server.md) for transfer workflows, rotation, backups, stale-lock recovery, and auth-file recovery.
+Set up a host through one path: generate private server artifacts, preflight them,
+start the service (or run it in the foreground), then connect a checkout:
+
+```sh
+climier server init --root /srv/climier
+climier-server --check /srv/climier/server.json --env-file /srv/climier/server.env
+climier --project /srv/climier server doctor
+# Start the generated unit, or use --unit none and launch climier-server directly.
+climier link https://climier.example.test
+climier login --server https://climier.example.test
+climier init
+```
+
+`server init` generates `server.json`, the private `server.env` secret, and a
+systemd unit by default; it does not install or start the unit. Use
+`--unit none` for a container or foreground supervisor and
+`--allow-missing-paths` when storage paths will be provided later. Secrets are
+never printed unless the unsafe `--print-secret` flag is explicit. Rotate with
+`climier server init --root /srv/climier --rotate-password`, then preflight and
+restart; clients must log in again. `server doctor` and `climier-server --check`
+share pre-bind checks, but doctor cannot detect drift in a unit already
+installed in systemd. Login reads the password from a TTY and stores only the
+bearer in the local credential profile by origin.
+
+Linking does not upload an existing local DAG; use the explicit experimental
+`push`/`pull` commands for complete manual transfers. The server requires
+`CLIMIER_SERVER_PASSWORD`; the operator chooses the listener address, transport,
+and any TLS or private-network exposure. HTTP origins are accepted, but `login`,
+`link`, and remote `init` warn when credentials travel without transport
+encryption; pass `--no-warnings` to suppress those non-blocking warnings. HTTPS
+remains recommended, and normal requests never fall back to local state. See
+[`docs/remote-server.md`](docs/remote-server.md) for the complete setup path,
+transfer workflows, rotation, backups, stale-lock recovery, and auth-file
+recovery.
 
 ### Manual offline transfers
 
