@@ -243,6 +243,10 @@ export const GENERATED_COMMAND_FLAGS = {
     "if-revision",
     "as"
   ],
+  "upgrade": [
+    "check",
+    "version"
+  ],
   "urls": [
     "initiative",
     "id",
