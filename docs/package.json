@@ -7,9 +7,12 @@
   "packageManager": "bun@1.4.2",
   "scripts": {
     "dev": "vite dev",
-    "build": "vite build",
-    "start": "vite preview",
-    "preview": "vite preview",
+    "sync:canonical": "bun scripts/sync-canonical.mjs",
+    "search:build": "bun scripts/build-search.mjs",
+    "build": "bun run sync:canonical && vite build && bun run search:build",
+    "prerender": "bun run build",
+    "start": "vite preview --outDir .output/public",
+    "preview": "vite preview --outDir .output/public",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -32,6 +35,7 @@
     "nitro": "3.0.260903-beta",
     "tailwindcss": "4.3.3",
     "typescript": "7.0.2",
-    "vite": "8.3.2"
+    "vite": "8.3.2",
+    "zbsearch": "4.0.1"
   }
 }

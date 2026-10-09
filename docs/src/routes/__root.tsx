@@ -3,6 +3,8 @@ import * as React from 'react';
 import { RootProvider } from 'fumadocs-ui/provider/tanstack';
 import appCss from '@/styles/app.css?url';
 
+const searchApi = `${import.meta.env.BASE_URL}api/search`;
+
 export const Route = createRootRoute({
   head: () => ({
     meta: [
@@ -22,7 +24,7 @@ function RootComponent() {
         <HeadContent />
       </head>
       <body className="flex min-h-screen flex-col">
-        <RootProvider>
+        <RootProvider search={{ options: { type: 'static', api: searchApi } }}>
           <Outlet />
         </RootProvider>
         <Scripts />
