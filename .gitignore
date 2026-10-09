@@ -8,5 +8,12 @@ ui/storybook-static/
 ui/.ui-bridge/
 ui/dom/
 ui/.logs/
+docs/node_modules/
+docs/dist/
+docs/.tanstack/
+docs/.source/
+docs/.output/
+docs/.nitro/
+docs/.vercel/
 
 .deploy.env
