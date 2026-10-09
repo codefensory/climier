@@ -5,7 +5,7 @@ dist/
 ui/node_modules/
 ui/dist/
 ui/storybook-static/
-ui/.ui-bridge/
+.ui-bridge/
 ui/dom/
 ui/.logs/
 docs/node_modules/
