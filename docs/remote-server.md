@@ -14,6 +14,16 @@ base64url secret. All three files are written with mode `0600` and the data and
 state directories are created with mode `0700` unless path creation is
 explicitly deferred.
 
+`server init` is idempotent over matching artifacts: an existing `server.json`,
+env file, and unit that already match the requested options are left untouched,
+and a plain re-run never rotates an existing password. A new secret is generated
+only when the env file is absent or when `--rotate-password` is passed; an
+existing, structurally valid env file is adopted verbatim, including a value the
+operator chose by hand. `--force` recreates only the artifacts that conflict
+with the requested options and still adopts the existing password; it can only
+mint a new secret when the env file is structurally invalid and therefore has no
+value to adopt. Intended rotation is always `--rotate-password`.
+
 Start with a dry run when choosing paths. It reports the files and actions but
 writes neither artifacts nor directories:
 
@@ -45,6 +55,14 @@ installs use their Bun runtime plus the packaged CLI entrypoint. Use
 the service identity is an explicit operator choice. `init` reports the
 required ownership commands but does not run `chown`, `chmod`, `sudo`, or other
 privileged operations.
+
+The generated unit hardens the service with `ProtectSystem=strict`,
+`ProtectHome=true`, and `ReadWritePaths` limited to `dataRoot` and `stateHome`.
+Choose the root and the `climier` installation outside `/home` and `/root`; a
+root hidden by `ProtectHome` leaves the service unable to read its own
+configuration, env file, or executable. A unit created before the single-binary
+runtime still points at the retired launcher and must be regenerated so its
+`ExecStart` uses `climier server run`.
 
 Use `--unit none` when a container or a foreground process supplies its own
 process supervisor. This still generates `server.json` and `server.env`, but no
@@ -98,6 +116,11 @@ set -a
 set +a
 climier server run /srv/climier/server.json
 ```
+
+`server run` binds, prints a single JSON line
+`{"ok":true,"host":"<host>","port":<port>}` on stdout, and stays in the
+foreground; `SIGINT` and `SIGTERM` close the listener. Treat that line, or the
+unit's journal, as the startup confirmation.
 
 Do not print, copy into command arguments, or commit the generated server secret.
 `--print-secret` is intentionally the sole exception for controlled recovery or

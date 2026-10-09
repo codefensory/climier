@@ -905,8 +905,10 @@ credential profile; `logout` removes that local entry. A checkout with a retired
 protocol marker fails with `REMOTE_CONFIG_OUTDATED` before auth or local state
 I/O; relink it to the configured URL to clean the metadata. `init` may provision
 an absent remote project, while reads and writes never create storage implicitly.
-The server requires a generated secret, a service-lifetime lock, and a durable
-auth file; its bind address and transport are operator-managed.
+The server requires a private password, a service-lifetime lock, and a durable
+auth file; `server init` generates the password or adopts an existing,
+operator-chosen value, and only `--rotate-password` rotates it. Its bind address
+and transport are operator-managed.
 Successful HTTP non-loopback `login`, `link`, and remote `init` operations warn
 unless `--no-warnings` is supplied; see
 [`docs/remote-server.md`](remote-server.md) for transport, backup, rotation,

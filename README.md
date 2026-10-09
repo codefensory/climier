@@ -305,7 +305,12 @@ climier init
 systemd unit by default; it does not install or start the unit. Use
 `--unit none` for a container or foreground supervisor and
 `--allow-missing-paths` when storage paths will be provided later. Secrets are
-never printed unless the unsafe `--print-secret` flag is explicit. Rotate with
+never printed unless the unsafe `--print-secret` flag is explicit. A plain
+re-run adopts an existing env and preserves its password; only
+`--rotate-password` rotates it. `climier server run` prints
+`{"ok":true,"host":...,"port":...}` after binding and then serves in the
+foreground. The generated unit sets `ProtectHome=true`, so keep the root outside
+`/home`. Rotate with
 `climier server init --root /srv/climier --rotate-password`, then preflight and
 restart; clients must log in again. `server doctor` performs the pre-bind
 checks but cannot detect drift in a unit already installed in systemd. Login
