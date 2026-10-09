@@ -189,6 +189,20 @@ async function main() {
       throw new Error(`installed version --json returned invalid metadata: ${versionJson.code} ${JSON.stringify(metadata)} ${versionJson.stderr}`);
     }
 
+    const sourceVersion = await command("bun", [path.join(repoRoot, "bin", "climier.ts"), "version", "--json"], { cwd: repoRoot });
+    const sourceMetadata = jsonOutput<Record<string, unknown>>(sourceVersion, "source-link version --json");
+    if (sourceVersion.code !== 0 || sourceMetadata.distribution !== "source-link") {
+      throw new Error(`checkout version --json returned invalid metadata: ${sourceVersion.code} ${JSON.stringify(sourceMetadata)} ${sourceVersion.stderr}`);
+    }
+
+    const oneOffRoot = path.join(root, "one-off");
+    await fs.cp(packageRoot, oneOffRoot, { recursive: true });
+    const oneOffVersion = await command("bun", [path.join(oneOffRoot, "bin", "climier.ts"), "version", "--json"], { cwd: root });
+    const oneOffMetadata = jsonOutput<Record<string, unknown>>(oneOffVersion, "one-off version --json");
+    if (oneOffVersion.code !== 0 || oneOffMetadata.distribution !== "one-off") {
+      throw new Error(`copied package version --json returned invalid metadata: ${oneOffVersion.code} ${JSON.stringify(oneOffMetadata)} ${oneOffVersion.stderr}`);
+    }
+
     const localProject = path.join(root, "local-project");
     const clientHome = path.join(root, "client-home");
     const clientEnv = { ...process.env, CLIMIER_HOME: clientHome };
