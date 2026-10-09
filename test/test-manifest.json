@@ -2793,7 +2793,7 @@
     },
     {
       "path": "test/ci-workflow.test.ts",
-      "name": "tag releases generate and idempotently upload the five release assets",
+      "name": "tag releases create the release when missing and idempotently upload the five assets",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -19234,26 +19234,38 @@
       "move_from": "test/read-model.test.mjs"
     },
     {
-      "path": "test/release-please.test.ts",
-      "name": "release workflow delegates PR, tag, and GitHub Release creation to release-please",
+      "path": "test/release-local.test.ts",
+      "name": "package.json exposes the local release script",
       "ordinal": 1,
       "disposition": "keep"
     },
     {
-      "path": "test/release-please.test.ts",
-      "name": "release workflow supports a manual publish of an existing tag",
+      "path": "test/release-local.test.ts",
+      "name": "release-please and the CI npm publish are retired",
       "ordinal": 1,
       "disposition": "keep"
     },
     {
-      "path": "test/release-please.test.ts",
-      "name": "release-please config uses node releases with versioned tags and changelog sections",
+      "path": "test/release-script.test.ts",
+      "name": "release: accepts a changelog with the version section and rejects a missing one",
       "ordinal": 1,
       "disposition": "keep"
     },
     {
-      "path": "test/release-please.test.ts",
-      "name": "release-please starts from the package's bootstrap version",
+      "path": "test/release-script.test.ts",
+      "name": "release: decides whether to create, reuse, or worktree the release tag",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/release-script.test.ts",
+      "name": "release: derives the tag and npm dist-tag from the version",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/release-script.test.ts",
+      "name": "release: parses flags and rejects unknown arguments",
       "ordinal": 1,
       "disposition": "keep"
     },

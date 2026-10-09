@@ -26,6 +26,7 @@
     "test:concurrent": "bun test test/take.test.ts test/take-by-id.test.ts test/adversarial.test.ts",
     "setup:hooks": "git config core.hooksPath .githooks",
     "pack:check": "bun pm pack --dry-run > /dev/null",
+    "release": "bun scripts/release.ts",
     "surface:check": "bun scripts/check-retired-surfaces.ts",
     "smoke:pack": "bun install --cwd ui --frozen-lockfile && bun run --cwd ui build && bun scripts/smoke-packed.ts",
     "lint:cut": "oxlint bin scripts src/cli/commands/ui.ts src/cli/dispatch.ts test/package.test.ts test/retired-surfaces.test.ts",

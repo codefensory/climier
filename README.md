@@ -502,25 +502,29 @@ climier --project . init --force=true
 
 ## Release checklist
 
-The v1.0.0 release is the first clean publication. The owner performs the
-external tag and publish; the implementation chain leaves the repository ready
-for those actions:
+The release owner cuts from a clean `main` with the local script; CI does not
+publish to npm. `npm publish` needs an interactive 2FA session (`npm login`),
+which a repository token cannot replace:
 
-1. install or link the release binary and stop all writers, the UI, and the
-   remote server;
-2. review `climier migrate --all --dry-run`, then run `climier migrate --all`;
-3. verify every project with `climier --project <checkout> status` and one
-   authorized operation;
-4. run `bun test`, `bun run surface:check`, `bun run lint:cut`,
-   `bun run pack:check`, and `bun run smoke:pack`;
-5. inspect `bun pm pack --dry-run` and confirm the CHANGELOG has one dated
-   `[1.0.0]` section and an empty `[Unreleased]` section;
-6. push the release commit and wait for CI on that exact commit: the matrix
-   runs the test suite, the retired-surface check, the packed smoke, and the
-   pack check. A local green run does not substitute for it;
-7. create tag `v1.0.0` on the commit CI verified and run `bun publish` only
-   after the checks and the import rehearsal pass. The package is published
-   to the npm registry; the tag and the publish are the release owner's actions.
+1. rehearse the storage import: install or link the release binary and stop all
+   writers, the UI, and the remote server; review `climier migrate --all
+   --dry-run`, then run `climier migrate --all`; verify every project with
+   `climier --project <checkout> status` and one authorized operation;
+2. bump `package.json.version` and add the matching dated `CHANGELOG.md`
+   section, then commit and push to `main`;
+3. run `bun run release --dry-run` on that commit. It validates the checkout
+   and runs the full gate: `build:ui`, `typecheck`, `test`, `surface:check`,
+   `lint:cut`, `pack:check`, and `smoke:pack`;
+4. run `bun run release`. It creates or reuses the `v<version>` tag, publishes
+   to npm with the `latest` (or `next`) dist-tag, and verifies
+   `npm view climier@<version>`. npm prompts for the one-time code;
+5. watch CI on the pushed tag: the matrix builds the five binaries plus
+   `manifest.json` and `SHA256SUMS`, creates the GitHub Release if it is
+   missing, and attaches the assets. Confirm with `gh release view v<version>`;
+6. when `v<version>` already exists at another commit (the `v1.0.0` bootstrap
+   published from the frozen tag), the script runs the gate and publishes
+   inside a worktree checked out at that tag, so the tarball matches the
+   Release.
 
 The complete server shutdown, import, stale-lock recovery, and rollback
 procedure is in [`docs/remote-server.md`](docs/remote-server.md).

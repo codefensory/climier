@@ -1,6 +1,6 @@
 # ADR-071: Publicacion local en npm y recorte del release automation
 
-- Gate: `G-adr071-release-local-publish` · Enmienda: ADR-063 (no lo complementa: lo supersede) · Estado: borrador
+- Gate: `G-adr071-release-local-publish` · Enmienda: ADR-063 (no lo complementa: lo supersede) · Estado: aprobado
 - Fecha: 2026-10-09
 
 ## Contexto
