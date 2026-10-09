@@ -6,7 +6,7 @@ const DOCTOR_FLAGS = new Set(["config", "env-file", "probe-bind", "strict"]);
 export const knownFlags = [
   "config", "env-file", "probe-bind", "strict",
   "root", "host", "port", "data-root", "state-home", "ui-root",
-  "service-user", "unit", "allow-missing-paths", "dry-run", "force",
+  "service-user", "service-name", "unit", "allow-missing-paths", "dry-run", "force",
   "rotate-password", "print-secret", "yes",
 ];
 
@@ -38,6 +38,10 @@ export default async function server(context: CommandContext) {
   if (subcommand === "doctor") {
     validateDoctorFlags(context.flags);
     const module = await import("./server/doctor.ts");
+    return module.default({ ...context, positional: [] });
+  }
+  if (subcommand === "init") {
+    const module = await import("./server/init.ts");
     return module.default({ ...context, positional: [] });
   }
   throw usageError(`subcommand '${subcommand}' is not available yet`);
