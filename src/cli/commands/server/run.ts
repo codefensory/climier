@@ -66,12 +66,16 @@ export default async function run({ positional, write }: CommandContext): Promis
     throw new Error("server run: runtime did not expose a listening address");
   }
 
+  // Install the signal handlers before reporting the bound address: a supervisor
+  // that reads the health line and immediately sends SIGTERM must land on our
+  // handler, not on the default action that exits with a signal.
+  const shutdown = waitForShutdown(runtime);
   const health = JSON.stringify({ ok: true, host: address.address, port: address.port });
   if (write) {
     write(health);
   } else {
     process.stdout.write(`${health}\n`);
   }
-  await waitForShutdown(runtime);
+  await shutdown;
   return undefined;
 }
