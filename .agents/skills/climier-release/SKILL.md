@@ -1,6 +1,6 @@
 ---
 name: climier-release
-description: "Corta una release de climier desde main: analiza los commits desde el ultimo tag, propone la version semver (los cambios solo de docs/ NO cuentan), audita README, AGENTS.md y docs contra los cambios, actualiza package.json y CHANGELOG, y publica en npm con bun run release. Usar cuando pidan release, nueva version, cortar/cortar una release, preparar release, actualizar CHANGELOG, o publicar en npm."
+description: "Corta una release de climier desde main: analiza los commits desde el ultimo tag, propone la version semver (solo src/, bin/ y ui/ cuentan; docs, skills, .pi, tests, .github y scripts no), audita README, AGENTS.md y docs contra los cambios, actualiza package.json y CHANGELOG, y publica en npm con bun run release. Usar cuando pidan release, nueva version, cortar/cortar una release, preparar release, actualizar CHANGELOG, o publicar en npm."
 ---
 
 # climier-release — de main a npm
@@ -16,14 +16,25 @@ main verde -> analizar -> proponer -> auditar docs -> aplicar -> commit -> publi
 
 ## Regla de oro
 
-**Los cambios que solo tocan `docs/` NO cuentan como release.** Ni bumpean la
-version ni justifican publicar. El sitio de documentacion se despliega solo por
-`.github/workflows/docs.yml` al pushear `docs/**`. El planner ya implementa esto:
-un commit suma al bump solo si toca al menos un path fuera de `docs/` y su tipo
-es `feat` (minor), `fix`/`perf` (patch) o es breaking (major).
+**Solo los cambios de producto cuentan como release.** Un commit suma al bump
+solo si toca al menos un path de producto y su tipo es `feat` (minor),
+`fix`/`perf` (patch) o es breaking (major). Los paths de producto son:
 
-Cualquier otro tipo (`docs`, `chore`, `ci`, `test`, `style`, `build`, `refactor`)
-aparece en el CHANGELOG pero no mueve la version.
+- `src/**` — CLI, server, kernel, providers, storage, plugins.
+- `bin/**` — entrypoint publicado (`bin/climier.ts`).
+- `ui/**` — fuente del UI (se empaqueta como `ui/dist`).
+
+Todo lo demas queda fuera del bump aunque este etiquetado `feat`/`fix`:
+`docs/`, `.pi/`, `.agents/`, `skills/`, `.adrs/`, `.decisions/`, `test/`,
+`scripts/`, `.github/`, el `package.json` raiz (scripts de tooling, `engines`,
+`files`) y los markdown raiz (`README.md`, `AGENTS.md`, `CLIMIER-CHEATSHEET.md`,
+`CHANGELOG.md`, `LICENSE`). El sitio de documentacion se despliega solo por
+`.github/workflows/docs.yml`. Si hiciera falta que un cambio de empaquetado
+suelte release, se le agrega `package.json` al allowlist del planner.
+
+Un rango que no toca producto devuelve `releaseWorthy: false` y **no hay
+release**: ni version nueva ni publish. El CHANGELOG solo lista commits de
+producto; el resto aparece en `excluded` con el motivo.
 
 ## Precondiciones
 
@@ -43,7 +54,8 @@ bun scripts/release-plan.ts --base v1.0.0
 ```
 
 Devuelve JSON con `baseTag`, `baseVersion`, `bump`, `nextVersion`,
-`releaseWorthy`, `docsOnly`, `changelog` y la clasificacion commit por commit.
+`releaseWorthy`, `excluded`, `changelog` y la clasificacion commit por commit
+(`touchesProduct`, `releaseWorthy`).
 Revisa la clasificacion: corrige tipos mal etiquetados en la fuente (no en el
 plan) y confirma si el cambio rompe compatibilidad.
 
@@ -61,8 +73,8 @@ Presenta al usuario, corto y explicito:
 Espera confirmacion antes de mutar, salvo que el usuario haya pedido
 explicitamente cortar la release de una.
 
-Si `releaseWorthy` es `false`: **no hay release**. Informa que solo hubo cambios
-de documentacion/chore y termina (el sitio ya se despliega por su cuenta).
+Si `releaseWorthy` es `false`: **no hay release**. Informa que el rango no toca
+producto (`src/`, `bin/`, `ui/`) y termina; la documentacion se despliega sola.
 
 ## Paso 3 — Auditar documentacion
 
@@ -149,8 +161,8 @@ agrega nota con la verificacion.
 
 ## Casos especiales
 
-- **Solo docs**: `releaseWorthy: false`. No hay release; termina. El push a
-  `main` ya desplego el sitio.
+- **Solo docs o tooling**: `releaseWorthy: false`. No hay release; termina. El
+  push a `main` ya desplego el sitio.
 - **Tag congelado (bootstrap)**: si `v<version>` ya existe en otro commit
   (v1.0.0), el script corre gate y publish dentro de un worktree de ese tag para
   que el tarball coincida con el GitHub Release. No se mueve el tag.

@@ -2,10 +2,12 @@
 /* oxlint-disable complexity -- linear planner: git parsing plus a fixed classification order. */
 // Proposes the next release from the commits after the last tag.
 //
-// Documentation-only changes never drive a release: a commit counts toward the
-// bump only when it touches at least one path outside docs/ and its type is
-// feat (minor), fix/perf (patch), or any breaking change (major). This keeps
-// the published docs site (docs.yml) independent from npm releases.
+// Only product changes drive a release. A commit counts toward the bump when it
+// touches at least one shipped code path (src/, bin/, ui/) and its type is feat
+// (minor), fix/perf (patch), or it is a breaking change (major). Documentation,
+// agent tooling (.pi/, .agents/, skills/), decision records, tests, CI, release
+// scripts and packaging-only edits to package.json never drive a release, so a
+// docs-only range deploys through docs.yml without touching npm.
 
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -26,8 +28,16 @@ export type ClassifiedCommit = {
   scope?: string;
   description: string;
   breaking: boolean;
+  touchesProduct: boolean;
   releaseWorthy: boolean;
   section: string;
+};
+
+export type ExcludedCommit = {
+  sha: string;
+  type: string;
+  description: string;
+  reason: string;
 };
 
 export type ReleasePlan = {
@@ -36,7 +46,7 @@ export type ReleasePlan = {
   bump: Bump;
   nextVersion: string;
   releaseWorthy: boolean;
-  docsOnly: boolean;
+  excluded: ExcludedCommit[];
   changelog: string;
   commits: ClassifiedCommit[];
 };
@@ -60,8 +70,10 @@ const SECTIONS: Readonly<Record<string, string>> = Object.freeze({
 const CONVENTIONAL = /^(?<type>[a-z]+)(?:\((?<scope>[^)]*)\))?(?<breaking>!)?: (?<description>.+)$/u;
 const BREAKING_FOOTER = /^BREAKING[ -]CHANGE:/mu;
 
-export function isDocsPath(file: string): boolean {
-  return file === "docs" || file.startsWith("docs/");
+const PRODUCT_ROOTS = Object.freeze(["src/", "bin/", "ui/"]);
+
+export function isProductPath(file: string): boolean {
+  return PRODUCT_ROOTS.some((root) => file.startsWith(root));
 }
 
 export function classifyCommit(commit: CommitInput): ClassifiedCommit {
@@ -70,7 +82,7 @@ export function classifyCommit(commit: CommitInput): ClassifiedCommit {
   const scope = match?.groups?.scope;
   const description = (match?.groups?.description ?? commit.subject).replace(/\s*\[(?:T|G|K)-[^\]]+\]\s*$/u, "");
   const breaking = Boolean(match?.groups?.breaking) || BREAKING_FOOTER.test(commit.body);
-  const touchesCode = commit.files.some((file) => !isDocsPath(file));
+  const touchesProduct = commit.files.some(isProductPath);
   const bumpType = BUMP_TYPES[type];
   return {
     sha: commit.sha,
@@ -78,7 +90,8 @@ export function classifyCommit(commit: CommitInput): ClassifiedCommit {
     ...(scope ? { scope } : {}),
     description,
     breaking,
-    releaseWorthy: touchesCode && (breaking || bumpType !== undefined),
+    touchesProduct,
+    releaseWorthy: touchesProduct && (breaking || bumpType !== undefined),
     section: SECTIONS[type] ?? "Other Changes",
   };
 }
@@ -127,15 +140,25 @@ export function renderChangelog(commits: ClassifiedCommit[], repository = "https
 export function planRelease({ baseTag, baseVersion, commits, repository }: { baseTag?: string | null; baseVersion: string; commits: CommitInput[]; repository?: string }): ReleasePlan {
   const classified = commits.map(classifyCommit);
   const bump = selectBump(classified);
-  const docsOnly = classified.length > 0 && commits.every((commit) => commit.files.length > 0 && commit.files.every(isDocsPath));
+  const worthy = classified.filter((commit) => commit.releaseWorthy);
+  const excluded = classified
+    .filter((commit) => !commit.releaseWorthy)
+    .map((commit) => ({
+      sha: commit.sha,
+      type: commit.type,
+      description: commit.description,
+      reason: commit.touchesProduct
+        ? `type '${commit.type}' does not drive a release`
+        : "no product paths (src/, bin/, ui/)",
+    }));
   return {
     baseTag: baseTag ?? null,
     baseVersion,
     bump,
     nextVersion: bumpVersion(baseVersion, bump),
     releaseWorthy: bump !== "none",
-    docsOnly,
-    changelog: renderChangelog(classified, repository),
+    excluded,
+    changelog: renderChangelog(worthy, repository),
     commits: classified,
   };
 }

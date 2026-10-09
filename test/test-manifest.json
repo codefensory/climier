@@ -19247,6 +19247,18 @@
     },
     {
       "path": "test/release-plan.test.ts",
+      "name": "release-plan: a non-product range proposes no release",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/release-plan.test.ts",
+      "name": "release-plan: agent tooling, decision docs, tests and scripts never drive a release",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/release-plan.test.ts",
       "name": "release-plan: bumps semver versions",
       "ordinal": 1,
       "disposition": "keep"
@@ -19259,19 +19271,13 @@
     },
     {
       "path": "test/release-plan.test.ts",
-      "name": "release-plan: docs-only changes never drive a release, even when typed feat",
+      "name": "release-plan: only shipped code paths count (src/, bin/, ui/)",
       "ordinal": 1,
       "disposition": "keep"
     },
     {
       "path": "test/release-plan.test.ts",
-      "name": "release-plan: only paths outside docs/ are release-worthy",
-      "ordinal": 1,
-      "disposition": "keep"
-    },
-    {
-      "path": "test/release-plan.test.ts",
-      "name": "release-plan: plans a patch release and flags a docs-only change set",
+      "name": "release-plan: plans a patch release and reports excluded non-product commits",
       "ordinal": 1,
       "disposition": "keep"
     },

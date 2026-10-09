@@ -48,11 +48,13 @@ puede, y el operador ya tiene esa sesion en su maquina.
 7. **Seleccion de version y alcance**: el corte propone la version con
    `scripts/release-plan.ts` a partir de los commits posteriores al ultimo tag:
    breaking -> major, `feat` -> minor, `fix`/`perf` -> patch. Un commit suma al
-   bump solo si toca al menos un path **fuera de `docs/`**. Los cambios que solo
-   tocan `docs/` no bumpean ni habilitan una release; el sitio se despliega por
-   `.github/workflows/docs.yml`. El planner alimenta el skill de release
-   (`.agents/skills/climier-release/`) que audita README/AGENTS/docs, actualiza
-   `package.json` y `CHANGELOG.md`, y luego publica.
+   bump solo si toca al menos un **path de producto** (`src/`, `bin/` o `ui/`).
+   Todo lo demas queda fuera del bump aunque este etiquetado `feat`/`fix`:
+   `docs/`, `.pi/`, `.agents/`, `skills/`, `.adrs/`, `.decisions/`, `test/`,
+   `scripts/`, `.github/`, el `package.json` raiz y los markdown raiz. El sitio
+   se despliega por `.github/workflows/docs.yml` sin release. El planner alimenta
+   el skill de release (`.agents/skills/climier-release/`) que audita
+   README/AGENTS/docs, actualiza `package.json` y `CHANGELOG.md`, y luego publica.
 
 ## Consecuencias
 
@@ -92,5 +94,6 @@ puede, y el operador ya tiene esa sesion en su maquina.
 - `npm view climier version` devuelve la version publicada y coincide con
   `git tag -l` y `gh release view`.
 - `scripts/release-plan.ts` propone el bump correcto y devuelve
-  `releaseWorthy: false` cuando el rango solo toca `docs/`, aunque los commits
-  esten etiquetados `feat`.
+  `releaseWorthy: false` cuando el rango no toca `src/`, `bin/` ni `ui/`, aunque
+  los commits esten etiquetados `feat` (p. ej. cambios en `docs/`, `.agents/`,
+  `scripts/` o `package.json`).
