@@ -1,11 +1,11 @@
-# ADR-044: `climier urls` — origen, validación y superficie read-only
+# ADR-070: `climier urls` — origen, validación y superficie read-only
 
 - Gate: `G-adr44` · Deriva de: `G-cli-urls-rfc` · Estado: borrador
 - Fecha: 2026-10-08
 
 ## Contexto
 
-El RFC (`.decisions/G-cli-urls-rfc.md`) aprueba un comando read-only que devuelve deep links de la UI. ADR-043 fija el contrato de URLs y `buildUiUrls()` en `src/read-model/urls.ts`. Falta decidir el adapter: de dónde sale el origen, qué se valida, qué forma tiene la salida y cómo se cablea en el CLI.
+El RFC (`.decisions/G-cli-urls-rfc.md`) aprueba un comando read-only que devuelve deep links de la UI. ADR-069 fija el contrato de URLs y `buildUiUrls()` en `src/read-model/urls.ts`. Falta decidir el adapter: de dónde sale el origen, qué se valida, qué forma tiene la salida y cómo se cablea en el CLI.
 
 Datos del repo que mandan:
 
@@ -100,14 +100,14 @@ Regla de composición del array, sin casos especiales: **siempre** la lista base
 
 ## Plan de implementacion
 
-1. Adapter `urls` + flags/validación/origen/resolución de `project_id` — `src/cli/commands/urls.ts` (usa `buildUiUrls` de ADR-043).
+1. Adapter `urls` + flags/validación/origen/resolución de `project_id` — `src/cli/commands/urls.ts` (usa `buildUiUrls` de ADR-069).
 2. Wiring — `src/cli/dispatch.ts`, `src/cli/commands/reserved-namespaces.ts`, `README.md`, `docs/reference.md`.
 3. Test de integración del comando — `test/urls.test.ts` con `runCliInProcess` de `test/cli-harness.ts` (harness local) y el patrón remoto de `test/cli-remote-read-routing.test.ts`.
 
 ## Onboarding breve para crear tasks
 
 - [x] Onboarding realizado:
-  - **Alcance**: un adapter + wiring + un test de integración. La proyección pura ya está en la task de ADR-043.
+  - **Alcance**: un adapter + wiring + un test de integración. La proyección pura ya está en la task de ADR-069.
   - **Corte**: una sola task. No se parte porque el wiring sin adapter no tiene comportamiento observable y viceversa; el acceptance cubre ambos.
   - **Ambigüedades resueltas**: la lista base siempre está presente (regla única); `local_only` es booleano y no un string libre; los errores de `.climier.json` los emite `parseBackendConfig` (`REMOTE_CONFIG_OUTDATED`, etc.) y no se re-envuelven.
 
@@ -116,7 +116,7 @@ Regla de composición del array, sin casos especiales: **siempre** la lista base
 - `node --test test/urls.test.ts` verde.
 - Comportamiento observable, todos en `test/urls.test.ts`:
   - proyecto local inicializado: `urls` devuelve 5 links base con `backend: "local"`, `local_only: true` y `?project=` presente en cada uno;
-  - `--initiative <nombre con espacios/UTF-8>`: 6 links, el último con `kind: "tasks"` y el `filter` percent-encoded que el fixture de ADR-043 fija;
+  - `--initiative <nombre con espacios/UTF-8>`: 6 links, el último con `kind: "tasks"` y el `filter` percent-encoded que el fixture de ADR-069 fija;
   - `--id` sobre task, gate y knowledge: `kind`/ruta correctos, y la `label` de knowledge dice selección;
   - `--initiative` inexistente → `INITIATIVE_NOT_FOUND`; `--id` inexistente → `NODE_NOT_FOUND`; `--port 0`, `--port abc`, `--origin` con `--port`, `--initiative` con `--id`, y un posicional → `CLI_USAGE_ERROR`;
   - proyecto con `backend.type === "remote"`: origen = `backend.url`, `local_only: false`, y la validación usa `readInitiatives`/`readNode` del backend (sin tocar el state local).

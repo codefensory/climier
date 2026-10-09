@@ -1,4 +1,4 @@
-# ADR-043: contrato de deep links de la UI y proyección pura de URLs
+# ADR-069: contrato de deep links de la UI y proyección pura de URLs
 
 - Gate: `G-adr43` · Deriva de: `G-cli-urls-rfc` · Estado: borrador
 - Fecha: 2026-10-08
@@ -32,7 +32,7 @@ Paths relativos al origen, siempre bajo el `#` del `HashRouter` (`ui/src/App.tsx
 
 ### 2. Scope de proyecto
 
-Toda URL lleva `?project=<project_id>`. El `project_id` lo resuelve el adapter (ADR-044); esta proyección sólo lo recibe.
+Toda URL lleva `?project=<project_id>`. El `project_id` lo resuelve el adapter (ADR-070); esta proyección sólo lo recibe.
 
 ### 3. Wire del filtro (contrato con `filterTreeParam.ts`)
 
@@ -62,7 +62,7 @@ buildUiUrls({ origin, projectId, initiative?, node? }) => Array<{ kind, label, u
 - `node` es `{ id, kind, subkind? }` **ya resuelto** por el adapter; el módulo no lee estado ni valida.
 - `kind` ∈ `home | tasks | gates | knowledges | initiatives | task | gate | knowledge`.
 - Para `knowledge` la `label` aclara que es selección (`"knowledge <id> (selection in the knowledges list)"`), porque no existe ruta de detalle.
-- Devuelve **sólo el array de links**. El origen, `backend`, `project_id` y `local_only` los compone el adapter (ADR-044).
+- Devuelve **sólo el array de links**. El origen, `backend`, `project_id` y `local_only` los compone el adapter (ADR-070).
 - Se re-exporta desde `src/read-model/index.ts` (mismo patrón que `projectUiSnapshot`).
 - Labels en inglés, igual que la UI y el resto del `HELP_TEXT`.
 
@@ -110,7 +110,7 @@ Cambiar un lado sin el otro hace fallar un test. Ésta es la guarda que el revie
 
 - [x] Onboarding realizado:
   - **Alcance**: contrato + proyección pura + guardas. Nada de CLI, nada de red.
-  - **Corte**: (a) fixture + proyección + test CLI; (b) guardas UI. Son dos tasks porque (b) toca `ui/` (runner/arnés distinto) y puede ejecutarse en paralelo con la task del comando `urls` (ADR-044) una vez que (a) mergeó. (b) depende de (a) por el fixture.
+  - **Corte**: (a) fixture + proyección + test CLI; (b) guardas UI. Son dos tasks porque (b) toca `ui/` (runner/arnés distinto) y puede ejecutarse en paralelo con la task del comando `urls` (ADR-070) una vez que (a) mergeó. (b) depende de (a) por el fixture.
   - **Ambigüedades resueltas**: los labels son strings libres (no parte del contrato verificado); el fixture incluye `projects` en `routes` aunque el CLI no lo linkee, justamente para que el test de la UI detecte cambios en `navPaths`.
 
 ## Verificacion
