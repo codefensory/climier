@@ -22,6 +22,7 @@
     "src/application/**/*.ts",
     "src/plugins/**/*.ts",
     "src/server/**/*.ts",
+    "src/upgrade/**/*.ts",
     "src/cli/**/*.ts",
     "bin/**/*.ts",
     "scripts/**/*.ts",
