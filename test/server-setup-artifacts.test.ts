@@ -177,3 +177,39 @@ test("warns when the recorded invoker is root", async (t) => {
   const result = await generateServerArtifacts(options(root, { invokerUser: "root" }));
   assert.ok(result.warnings.some((warning) => warning.includes("running as root")));
 });
+
+test("adopts an existing environment whose password the operator chose", async (t) => {
+  const root = await makeRoot(t);
+  await generateServerArtifacts(options(root));
+  const envPath = path.join(root, "server.env");
+  await fs.writeFile(envPath, "CLIMIER_SERVER_PASSWORD=abcd\n");
+  await fs.rm(path.join(root, "climier-server.service"));
+
+  const result = await generateServerArtifacts(options(root));
+
+  assert.equal(await fs.readFile(envPath, "utf8"), "CLIMIER_SERVER_PASSWORD=abcd\n");
+  assert.equal(result.secret.written, false);
+  assert.deepEqual(result.created, ["climier-server.service"]);
+});
+
+test("keeps generating a strong secret when the operator rotates the password", async (t) => {
+  const root = await makeRoot(t);
+  await generateServerArtifacts(options(root));
+  const envPath = path.join(root, "server.env");
+  await fs.writeFile(envPath, "CLIMIER_SERVER_PASSWORD=abcd\n");
+
+  const rotated = await generateServerArtifacts(options(root, { rotatePassword: true }));
+
+  const value = /^CLIMIER_SERVER_PASSWORD=([^\n]+)$/mu.exec(await fs.readFile(envPath, "utf8"))?.[1];
+  assert.match(value ?? "", /^[A-Za-z0-9_-]{43}$/u);
+  assert.equal(rotated.secret.written, true);
+});
+
+test("rejects an environment that is not a flat list of single assignments", async (t) => {
+  const root = await makeRoot(t);
+  await generateServerArtifacts(options(root));
+  const envPath = path.join(root, "server.env");
+  await fs.writeFile(envPath, "CLIMIER_SERVER_PASSWORD=abcd\nnot an assignment\n");
+
+  await assert.rejects(generateServerArtifacts(options(root)), { code: "SERVER_CONFIG_EXISTS" });
+});

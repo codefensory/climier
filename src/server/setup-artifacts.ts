@@ -14,7 +14,6 @@ const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 43_127;
 const DEFAULT_UNIT = "climier-server.service";
 const PASSWORD_BYTES = 32;
-const PASSWORD_PATTERN = /^[A-Za-z0-9_-]{43}$/u;
 
 export type ArtifactAction = "create" | "none" | "conflict";
 
@@ -107,8 +106,10 @@ function parseEnvironment(content: string | undefined): ParsedEnvironment | null
     const assignment = /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/u.exec(line);
     if (!assignment) { return null; }
     if (assignment[1] === "CLIMIER_SERVER_PASSWORD") {
-      if (password !== undefined || !PASSWORD_PATTERN.test(assignment[2])) { return null; }
-      if (Buffer.from(assignment[2], "base64url").byteLength !== PASSWORD_BYTES) { return null; }
+      // An existing password is the operator's choice: adopt it verbatim. The
+      // strong format applies only to generated ones; preflight warns about a
+      // low-entropy value instead of blocking on it.
+      if (password !== undefined || assignment[2].length === 0) { return null; }
       password = assignment[2];
     } else if (assignment[1] === "CLIMIER_SERVER_MAX_BODY_BYTES") {
       if (maxBodyBytes !== undefined || !/^\d+$/u.test(assignment[2])) { return null; }

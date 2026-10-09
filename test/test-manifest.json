@@ -19957,6 +19957,12 @@
     },
     {
       "path": "test/server-setup-artifacts.test.ts",
+      "name": "adopts an existing environment whose password the operator chose",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server-setup-artifacts.test.ts",
       "name": "does not resolve a binary module path before distribution detection",
       "ordinal": 1,
       "disposition": "keep"
@@ -19970,6 +19976,18 @@
     {
       "path": "test/server-setup-artifacts.test.ts",
       "name": "is idempotent, creates only a missing artifact, and rotates only the secret",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server-setup-artifacts.test.ts",
+      "name": "keeps generating a strong secret when the operator rotates the password",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server-setup-artifacts.test.ts",
+      "name": "rejects an environment that is not a flat list of single assignments",
       "ordinal": 1,
       "disposition": "keep"
     },
