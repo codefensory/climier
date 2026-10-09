@@ -3,6 +3,13 @@ name: release
 on:
   push:
     branches: [main]
+  # Bootstrap and recovery path: publish a tag that already exists in GitHub.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing version tag to publish (for example, v1.0.0)
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -11,6 +18,7 @@ permissions:
 jobs:
   release-please:
     name: create release
+    if: ${{ github.event_name == 'push' }}
     runs-on: ubuntu-latest
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
@@ -25,17 +33,26 @@ jobs:
 
   publish-npm:
     name: publish npm package
-    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    # The push path is gated by release-please; workflow_dispatch is manual only.
+    if: >-
+      ${{ always() &&
+        ((github.event_name == 'push' &&
+          needs.release-please.result == 'success' &&
+          needs.release-please.outputs.release_created == 'true') ||
+         github.event_name == 'workflow_dispatch') }}
     needs: release-please
     runs-on: ubuntu-latest
+    concurrency:
+      group: npm-publish-${{ github.event_name == 'workflow_dispatch' && inputs.tag || needs.release-please.outputs.tag_name }}
+      cancel-in-progress: false
     env:
-      RELEASE_TAG: ${{ needs.release-please.outputs.tag_name }}
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || needs.release-please.outputs.tag_name }}
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.release-please.outputs.tag_name }}
+          ref: ${{ env.RELEASE_TAG }}
           fetch-depth: 0
       - uses: oven-sh/setup-bun@v2
         with:
