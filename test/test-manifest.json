@@ -2198,6 +2198,12 @@
       "move_from": "test/application-operations.test.mjs"
     },
     {
+      "path": "test/architecture/adr-numbering.test.ts",
+      "name": "ADR numeric prefixes are unique",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
       "path": "test/architecture/import-boundaries.test.mjs",
       "name": "HTTP extracted modules do not open projects",
       "ordinal": 1,
@@ -2369,7 +2375,7 @@
     },
     {
       "path": "test/architecture/import-boundaries.test.ts",
-      "name": "the table declares the adapter edges approved by ADR-013, ADR-032, and ADR-065",
+      "name": "the table declares the adapter edges approved by ADR-013, ADR-032, and ADR-068",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -2788,6 +2794,12 @@
     {
       "path": "test/ci-workflow.test.ts",
       "name": "tag releases generate and idempotently upload the five release assets",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/ci-workflow.test.ts",
+      "name": "the commit contract is enforced locally, not in CI",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -19777,22 +19789,15 @@
     },
     {
       "path": "test/server-preflight.test.ts",
-      "name": "server doctor exits without creating runtime directories",
-      "ordinal": 1,
-      "disposition": "keep"
-    },
-    {
-      "path": "test/server-preflight.test.ts",
       "name": "probe-bind is opt-in and reports an occupied port as a warning or strict failure",
       "ordinal": 1,
       "disposition": "keep"
     },
     {
-      "path": "test/server-runtime.test.mjs",
-      "name": "server run starts the configured server and reports its listening health",
+      "path": "test/server-preflight.test.ts",
+      "name": "server doctor exits without creating runtime directories",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/server-runtime.test.mjs"
+      "disposition": "keep"
     },
     {
       "path": "test/server-runtime.test.mjs",
@@ -19817,6 +19822,13 @@
     },
     {
       "path": "test/server-runtime.test.mjs",
+      "name": "server run starts the configured server and reports its listening health",
+      "ordinal": 1,
+      "disposition": "move",
+      "move_from": "test/server-runtime.test.mjs"
+    },
+    {
+      "path": "test/server-runtime.test.mjs",
       "name": "server runtime pins state home and writes trusted hash-safe project metadata",
       "ordinal": 1,
       "disposition": "move",
@@ -19825,13 +19837,6 @@
     {
       "path": "test/server-runtime.test.mjs",
       "name": "server runtime rejects a project directory with conflicting metadata",
-      "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/server-runtime.test.mjs"
-    },
-    {
-      "path": "test/server-runtime.test.ts",
-      "name": "server run starts the configured server and reports its listening health",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/server-runtime.test.mjs"
@@ -19877,6 +19882,13 @@
     {
       "path": "test/server-runtime.test.ts",
       "name": "runtime startup binds state home once and listens on configured address",
+      "ordinal": 1,
+      "disposition": "move",
+      "move_from": "test/server-runtime.test.mjs"
+    },
+    {
+      "path": "test/server-runtime.test.ts",
+      "name": "server run starts the configured server and reports its listening health",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/server-runtime.test.mjs"
@@ -19942,6 +19954,12 @@
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/server-service-lock.test.mjs"
+    },
+    {
+      "path": "test/server-setup-artifacts.test.ts",
+      "name": "does not resolve a binary module path before distribution detection",
+      "ordinal": 1,
+      "disposition": "keep"
     },
     {
       "path": "test/server-setup-artifacts.test.ts",

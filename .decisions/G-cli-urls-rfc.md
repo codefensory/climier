@@ -101,7 +101,7 @@ Todas llevan `?project=<project_id>`. Cada entrada de salida lleva `kind` (`home
 
 ## Riesgos y open questions
 
-- **El wire del filtro es contrato implícito de la UI** (`filterTreeParam.ts`). Si la UI cambia su encoder, el CLI se desincroniza en silencio y los links abren un board sin filtro (el decoder descarta condiciones inválidas). → ADR-043: congelar rutas y wire en un fixture único y cubrirlo con un test de contrato en cada lado.
+- **El wire del filtro es contrato implícito de la UI** (`filterTreeParam.ts`). Si la UI cambia su encoder, el CLI se desincroniza en silencio y los links abren un board sin filtro (el decoder descarta condiciones inválidas). → ADR-069: congelar rutas y wire en un fixture único y cubrirlo con un test de contrato en cada lado.
 - **La URL local sólo responde con `climier ui` corriendo.** El comando no debe levantar nada ni sondear puertos. → `backend: "local"` + `local_only: true` + default de puerto; `--port` refleja un `climier ui --port N`.
 - **En remoto la UI pide credenciales en el browser** aunque el CLI tenga token válido. → documentar; no es responsabilidad del comando.
 
@@ -124,5 +124,5 @@ Tres lentes, una nota consolidada cada una (`G-cli-urls-rfc`), sin bloqueos. Pre
 
 ## ADRs derivados (se completa al aprobar)
 
-- [ ] ADR-043: contrato de deep links de la UI y proyección pura de URLs → `.adrs/043-ui-deep-link-contract.md`
-- [ ] ADR-044: `climier urls` — origen, validación y superficie read-only → `.adrs/044-climier-urls-command.md`
+- [ ] ADR-069: contrato de deep links de la UI y proyección pura de URLs → `.adrs/069-ui-deep-link-contract.md`
+- [ ] ADR-070: `climier urls` — origen, validación y superficie read-only → `.adrs/070-climier-urls-command.md`

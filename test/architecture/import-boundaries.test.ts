@@ -36,7 +36,7 @@ const BOUNDARIES = [
     documentedEdges: [
       { edge: "server -> kernel", source: "ADR-032: transfers dispatch through kernel/transfer port" },
       { edge: "server -> read-model", source: "ADR-032: the narrow boundary test does not restrict read-model" },
-      { edge: "server -> upgrade", source: "ADR-065: systemd reuses distribution classification" },
+      { edge: "server -> upgrade", source: "ADR-068: systemd reuses distribution classification" },
     ],
   },
   {
@@ -94,7 +94,7 @@ for (const boundary of BOUNDARIES) {
   });
 }
 
-test("the table declares the adapter edges approved by ADR-013, ADR-032, and ADR-065", () => {
+test("the table declares the adapter edges approved by ADR-013, ADR-032, and ADR-068", () => {
   assert.deepEqual(
     BOUNDARIES.flatMap(({ documentedEdges = [] }) => documentedEdges.map(({ edge }) => edge)),
     [

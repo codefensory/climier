@@ -1,4 +1,4 @@
-# ADR-065: Un solo binario para el runtime remoto
+# ADR-068: Un solo binario para el runtime remoto
 
 - Estado: aprobado
 - Enmienda: ADR-060 (no lo supersede); también actualiza el `ExecStart` decidido en ADR-059
