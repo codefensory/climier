@@ -19,7 +19,7 @@ writes neither artifacts nor directories:
 
 ```sh
 climier server init --root /srv/climier \
-  --host 127.0.0.1 --port 43127 \
+  --host localhost --port 43127 \
   --data-root /srv/climier/data \
   --state-home /srv/climier/state \
   --ui-root /srv/climier/ui/dist \
@@ -30,7 +30,7 @@ Generate the artifacts with the same options, omitting `--dry-run`:
 
 ```sh
 climier server init --root /srv/climier \
-  --host 127.0.0.1 --port 43127 \
+  --host localhost --port 43127 \
   --data-root /srv/climier/data \
   --state-home /srv/climier/state \
   --ui-root /srv/climier/ui/dist
@@ -106,7 +106,7 @@ set +a
 /srv/climier/climier-server /srv/climier/server.json
 ```
 
-Do not print, copy into command arguments, or commit `CLIMIER_SERVER_PASSWORD`.
+Do not print, copy into command arguments, or commit the generated server secret.
 `--print-secret` is intentionally the sole exception for controlled recovery or
 handoff; it is unsafe and should not be used in routine setup. To rotate it,
 stop the service, run `climier server init --root /srv/climier --rotate-password`,
@@ -305,74 +305,12 @@ verify that the recorded PID and service are gone, back up `stateHome`, remove
 only that lock, and restart. Never auto-delete a lock while another process may
 be active.
 
-## Live cutover from the retired wire
-
-Cutting a linked deployment over to Remote v1 is a manual, single-window
-operation; no runner or task performs it. It assumes one host serving the API
-under a service manager and one or more linked checkouts.
-
-Preflight, over an administrative channel rather than client metadata:
-
-- Inventory the process and listener that answer the origin; when a reverse
-  proxy is in front, confirm it has no upstream or alias for the retired
-  routes. Never infer the server from `.climier.json`.
-- Record the deployed server revision, the stable CLI revision, and whether the
-  server worktree carries local patches.
-- Stop every writer and record hashes of `tasks.json`, `revision-ledger.json`,
-  `stateHome/remote-auth.json`, and the catalog metadata.
-
-Window:
-
-1. Back up the server code path, the private config directory (`dataRoot`,
-   `stateHome`, `server.json`, and the service environment), and the exact
-   `.climier.json` of each active checkout.
-2. Stop the server and confirm the service lock is released.
-3. Deploy the v1 server, preserving any deployment-only patch, and leave it
-   stopped.
-4. Update the stable CLI to the same revision.
-5. Clean each checkout with `link <configured-url>`; `link` is metadata-only and
-   must reach its adapter without selecting a backend.
-6. Start the server and confirm the health line, a protocol header of `1` on
-   every response, `426` when that header is absent or different, and `404` for
-   the retired routes.
-7. Run `login` only if the origin or credentials changed, then only read-only
-   commands; re-read the step-0 hashes and require them to be unchanged.
-
-Rollback: stop the writers, restore the backed-up server code and private
-config, restore the exact `.climier.json` (a retired-wire CLI rejects metadata
-without `backend.protocol`), and compare the state hashes again. Never restore
-or migrate the DAG as part of the rollback, and never run `init`, `push`, or
-`pull` on the active project during the cutover. A deployment that listens on a
-private-network address is an operator choice; review its TLS, overlay,
-firewall, and proxy configuration and keep deployment configuration versioned
-rather than relying on an uncommitted worktree patch.
-
 ## Verification and failure boundaries
 
-Run the server operations E2E with an isolated Remote v1 server; it verifies
-two-client isolation, auth/no-fallback, remote provisioning, the offline
-transfer cycle, revision conflicts, both force directions, state/plugin/claim
-preservation, ledger continuity, and an ambiguous dropped transfer response:
-
-```sh
-timeout -k 10s 180s node --test test/server-operations-e2e.test.ts
-```
-
-Run the packed-artifact smoke with temporary homes; it installs the package,
-provisions a Remote v1 server, and executes push and pull without the retired
-`CLIMIER_TOKEN` or legacy route fallback:
-
-```sh
-timeout -k 10s 180s npm run smoke:pack
-```
-
-The full required checks are:
-
-```sh
-timeout -k 10s 300s npm test
-timeout -k 10s 180s npm run surface:check
-timeout -k 10s 180s git diff --check
-```
+Before accepting a deployment, rerun the preflight checks described above and
+confirm that the generated paths are writable by the service identity. For a
+linked client, verify `login`, a read-only command, and one authenticated
+write against a disposable project before serving production data.
 
 A failed request must not mutate a local sentinel or silently retry against
 local state. Check the structured `error.code`; common boundaries are
