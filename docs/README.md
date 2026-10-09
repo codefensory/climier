@@ -49,6 +49,9 @@ source GitHub ignores it and keeps the domain in the repository settings.
 `node scripts/check-pages-artifact.mjs` checks a built artifact for the shape a
 deployed site needs: a root `index.html` with assets under the base path, one
 file per prerendered route, `api/search`, `.nojekyll`, and no second copy of the
-base directory. `node scripts/check-pages-artifact.fixtures.mjs` covers the same
-checker with positive and negative fixtures, and `scripts/site-paths.mjs` holds
-the base path and route contract shared by the build and both guardrails.
+base directory. It also rejects application source that calls a runtime server
+function (`createServerFn`): the artifact is served without a runtime, so a
+client-side navigation would get the host's 404 document instead of data.
+`node scripts/check-pages-artifact.fixtures.mjs` covers the same checker with
+positive and negative fixtures, and `scripts/site-paths.mjs` holds the base path
+and route contract shared by the build and both guardrails.

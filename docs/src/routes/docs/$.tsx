@@ -1,7 +1,5 @@
 import { createFileRoute, notFound } from '@tanstack/react-router';
 import { Suspense, use } from 'react';
-import { createServerFn } from '@tanstack/react-start';
-import { useFumadocsLoader } from 'fumadocs-core/source/client';
 import { DocsLayout } from 'fumadocs-ui/layouts/docs';
 import {
   DocsBody,
@@ -25,25 +23,19 @@ export const Route = createFileRoute('/docs/$')({
       ],
     };
   },
+  // Resolved from data bundled with the client, never through a server function:
+  // the site is a static Pages artifact, so a client-side navigation has no RPC
+  // endpoint to call and would fail with the host's 404 page.
   loader: async ({ params }) => {
     const slugs = params._splat?.split('/').filter(Boolean) ?? [];
-    const data = await loadPage({ data: slugs });
-    await docs.getPage(data.path)?.preload();
-    return data;
-  },
-});
-
-const loadPage = createServerFn({ method: 'GET' })
-  .validator((slugs: string[]) => slugs)
-  .handler(async ({ data: slugs }) => {
     const page = source.getPage(slugs);
     if (!page) throw notFound();
 
-    return {
-      path: page.path,
-      pageTree: await source.serializePageTree(source.getPageTree()),
-    };
-  });
+    await docs.getPage(page.path)?.preload();
+
+    return { path: page.path, pageTree: source.getPageTree() };
+  },
+});
 
 function Content({ path }: { path: string }) {
   const page = docs.getPage(path);
@@ -64,7 +56,7 @@ function Content({ path }: { path: string }) {
 }
 
 function Page() {
-  const { path, pageTree } = useFumadocsLoader(Route.useLoaderData());
+  const { path, pageTree } = Route.useLoaderData();
 
   return (
     <DocsLayout

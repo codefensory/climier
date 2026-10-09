@@ -1,4 +1,4 @@
-import { readFile, stat } from 'node:fs/promises';
+import { readFile, readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -14,6 +14,7 @@ const DOCS_ROOT = path.resolve(SCRIPT_DIR, '..');
 
 export const DEFAULT_ARTIFACT_ROOT = path.join(DOCS_ROOT, '.output/public');
 export const DEFAULT_CONTENT_ROOT = path.join(DOCS_ROOT, 'content/docs');
+export const DEFAULT_SOURCE_ROOT = path.join(DOCS_ROOT, 'src');
 
 async function readFileIfPresent(filePath) {
   try {
@@ -37,6 +38,40 @@ async function pathExists(filePath) {
 }
 
 /**
+ * App code that calls the runtime `/_serverFn/` endpoint works on a server
+ * deployment and fails on a static host, which answers the call with its own 404
+ * document. The framework runtime always carries that URL, so the guardrail
+ * checks the application source instead of the bundles.
+ */
+async function collectFiles(directory, extensions) {
+  let entries;
+  try {
+    entries = await readdir(directory, { withFileTypes: true });
+  } catch (error) {
+    if (error.code === 'ENOENT') return [];
+    throw error;
+  }
+
+  const files = [];
+  for (const entry of entries) {
+    const filePath = path.join(directory, entry.name);
+    if (entry.isDirectory()) files.push(...(await collectFiles(filePath, extensions)));
+    else if (entry.isFile() && extensions.some((extension) => entry.name.endsWith(extension))) files.push(filePath);
+  }
+  return files;
+}
+
+async function serverFunctionSources(sourceRoot) {
+  const files = await collectFiles(sourceRoot, ['.ts', '.tsx', '.js', '.jsx', '.mjs']);
+  const offenders = [];
+  for (const file of files) {
+    const contents = await readFile(file, 'utf8');
+    if (/\bcreateServerFn\b/.test(contents)) offenders.push(path.relative(sourceRoot, file).split(path.sep).join('/'));
+  }
+  return offenders;
+}
+
+/**
  * A GitHub Pages artifact is served with its root mapped onto the project path,
  * so the checks below are what "the deployed URL works" reduces to on disk: a
  * real `index.html` at the root, no second copy of the base directory, a file
@@ -44,7 +79,7 @@ async function pathExists(filePath) {
  */
 export async function checkPagesArtifact(
   rootDir = DEFAULT_ARTIFACT_ROOT,
-  { basePath = '', contentRoot = DEFAULT_CONTENT_ROOT } = {},
+  { basePath = '', contentRoot = DEFAULT_CONTENT_ROOT, sourceRoot = DEFAULT_SOURCE_ROOT } = {},
 ) {
   const resolvedRoot = path.resolve(rootDir);
   const publicBase = publicBasePath(basePath);
@@ -98,6 +133,14 @@ export async function checkPagesArtifact(
     report('MISSING_NOJEKYLL', '.nojekyll', 'GitHub Pages drops files under _-prefixed asset names without .nojekyll');
   }
 
+  for (const file of await serverFunctionSources(sourceRoot)) {
+    report(
+      'SERVER_FUNCTION_SOURCE',
+      file,
+      'a prerendered artifact has no runtime, so a createServerFn call cannot be answered in the browser',
+    );
+  }
+
   return { rootDir: resolvedRoot, basePath, violations };
 }
 
@@ -121,6 +164,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     await checkPagesArtifact(process.argv[2] || DEFAULT_ARTIFACT_ROOT, {
       basePath: normalizeBasePath(),
       contentRoot: DEFAULT_CONTENT_ROOT,
+      sourceRoot: DEFAULT_SOURCE_ROOT,
     }),
   );
 }
