@@ -155,6 +155,12 @@ curl -sL https://github.com/codefensory/climier/releases/latest/download/manifes
 climier upgrade --check                 # una instalacion existente ve el canal
 ```
 
+npm escanea una version nueva antes de exponerla, asi que entre `npm publish` y
+`npm view` hay una ventana de varios minutos; en un paquete nuevo npm crea un
+placeholder publico `0.0.0-stage` mientras procesa (es de npm, no es tuyo). La
+linea `+ climier@X.Y.Z` del publish es la senal autoritativa: el script reintenta
+`npm view` hasta ~5 min y, si aun no aparece, avisa sin fallar.
+
 Reporta: version publicada, URL de npm, Release y assets, y el resultado del CI
 del tag. Si la release tenia tarea en el DAG, dejala aceptada por el runner o
 agrega nota con la verificacion.
@@ -171,6 +177,10 @@ agrega nota con la verificacion.
 - **Migracion de estado**: si cambia el esquema, antes del publish hay que
   ensayar `climier migrate --all --dry-run` con todos los writers parados y
   seguir `docs/remote-server.md`.
+- **Ventana de procesamiento de npm**: una version recien publicada no es
+  instalable de inmediato (escaneo + indice). No confundir con un fallo: el
+  `+ climier@X.Y.Z` del publish ya confirmo. En paquetes nuevos puede quedar el
+  placeholder `0.0.0-stage`; `latest` es lo que importa.
 - **Recuperacion**: si el CI del tag falla en los assets, re-ejecuta el workflow;
   la subida es idempotente (`--clobber`). Si npm ya tiene la version, el script
   aborta solo.

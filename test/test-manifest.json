@@ -19318,6 +19318,12 @@
       "disposition": "keep"
     },
     {
+      "path": "test/release-script.test.ts",
+      "name": "release: treats a not-yet-indexed version as pending, not as a failure",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
       "path": "test/remote-v1-capability-inventory.test.mjs",
       "name": "remote-v1 inventory matches the fixture, manifest, and provider catalog",
       "ordinal": 1,

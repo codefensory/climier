@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   assertChangelogHasVersion,
+  classifyPublishVerification,
   decideTagAction,
   distTagFor,
   parseReleaseArgs,
@@ -27,6 +28,12 @@ test("release: decides whether to create, reuse, or worktree the release tag", (
   assert.equal(decideTagAction({ headCommit: "aaaa" }), "create");
   assert.equal(decideTagAction({ existingCommit: "aaaa", headCommit: "aaaa" }), "reuse");
   assert.equal(decideTagAction({ existingCommit: "bbbb", headCommit: "aaaa" }), "worktree");
+});
+
+test("release: treats a not-yet-indexed version as pending, not as a failure", () => {
+  assert.equal(classifyPublishVerification("1.0.0", "1.0.0"), "verified");
+  assert.equal(classifyPublishVerification(undefined, "1.0.0"), "pending");
+  assert.equal(classifyPublishVerification("0.0.0-stage", "1.0.0"), "pending");
 });
 
 test("release: parses flags and rejects unknown arguments", () => {

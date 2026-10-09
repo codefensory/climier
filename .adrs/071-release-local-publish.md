@@ -92,7 +92,11 @@ puede, y el operador ya tiene esa sesion en su maquina.
 - En un tag `v*`, `ci.yml` construye los 5 binarios, genera `manifest.json` y
   `SHA256SUMS`, crea el Release si falta y sube los assets.
 - `npm view climier version` devuelve la version publicada y coincide con
-  `git tag -l` y `gh release view`.
+  `git tag -l` y `gh release view`. npm escanea e indexa una version nueva antes
+  de exponerla (varios minutos; `0.0.0-stage` es el placeholder de npm para un
+  paquete nuevo), asi que el script reintenta `npm view` y solo avisa si aun no
+  aparece en vez de fallar. La linea `+ climier@X.Y.Z` del publish es la senal
+  autoritativa.
 - `scripts/release-plan.ts` propone el bump correcto y devuelve
   `releaseWorthy: false` cuando el rango no toca `src/`, `bin/` ni `ui/`, aunque
   los commits esten etiquetados `feat` (p. ej. cambios en `docs/`, `.agents/`,

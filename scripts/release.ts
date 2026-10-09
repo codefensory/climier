@@ -19,6 +19,9 @@ export type ReleaseOptions = {
   distTag?: DistTag;
 };
 
+const VERIFY_ATTEMPTS = 60;
+const VERIFY_DELAY_MS = 5_000;
+
 const RELEASE_GATE: ReadonlyArray<readonly [string, string[]]> = Object.freeze([
   ["bun", ["install", "--frozen-lockfile"]],
   ["bun", ["run", "build:ui"]],
@@ -59,6 +62,13 @@ export function distTagFor(version: string): DistTag {
 export function decideTagAction({ existingCommit, headCommit }: { existingCommit?: string; headCommit: string }): TagAction {
   if (!existingCommit) { return "create"; }
   return existingCommit === headCommit ? "reuse" : "worktree";
+}
+
+// npm scans and indexes a new version before the registry exposes it, so the
+// version can take minutes to appear after a successful publish. The publish
+// success line is authoritative; the view is only a best-effort confirmation.
+export function classifyPublishVerification(observed: string | undefined, version: string): "verified" | "pending" {
+  return observed === version ? "verified" : "pending";
 }
 
 export function assertChangelogHasVersion(version: string, changelog: string): void {
@@ -119,6 +129,10 @@ function tryRun(command: string, args: string[], options: RunOptions = {}): stri
   });
   if (result.error || result.status !== 0) { return undefined; }
   return (result.stdout ?? "").trim() || undefined;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function readVersion(root: string): string {
@@ -213,11 +227,19 @@ async function main(): Promise<void> {
         run("git", ["push", "origin", `refs/tags/${tag}`], { cwd: repoRoot });
         process.stderr.write(`release: pushed ${tag}; CI will build binaries and create the GitHub Release\n`);
       }
-      const published = tryRun("npm", ["view", `climier@${version}`, "version"], { capture: true });
-      if (published !== version) {
-        throw new Error(`release: npm did not report climier@${version} after publish (got '${published ?? "nothing"}')`);
+      let observed = tryRun("npm", ["view", `climier@${version}`, "version"], { capture: true });
+      let attempt = 0;
+      while (classifyPublishVerification(observed, version) !== "verified" && attempt < VERIFY_ATTEMPTS) {
+        attempt += 1;
+        process.stderr.write(`release: waiting for npm to index climier@${version} (${attempt}/${VERIFY_ATTEMPTS}); npm scans a new version before it is public\n`);
+        await sleep(VERIFY_DELAY_MS);
+        observed = tryRun("npm", ["view", `climier@${version}`, "version"], { capture: true });
       }
-      process.stderr.write(`release: verified https://www.npmjs.com/package/climier/v/${version}\n`);
+      if (classifyPublishVerification(observed, version) === "verified") {
+        process.stderr.write(`release: verified https://www.npmjs.com/package/climier/v/${version}\n`);
+      } else {
+        process.stderr.write(`release: climier@${version} was published but npm has not indexed it yet; confirm later with 'npm view climier version'\n`);
+      }
     } else {
       process.stderr.write("release: dry run complete; nothing was published or pushed\n");
     }
