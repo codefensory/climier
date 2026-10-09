@@ -1,0 +1,43 @@
+---
+title: Install Climier
+description: Install the Climier CLI and verify that it is ready to use.
+---
+
+Climier is a JSON-first command-line tool for coordinating tasks, decisions, and knowledge in a project DAG. This guide uses [Bun](https://bun.sh/), which is required for the supported installation path.
+
+## Requirements
+
+Install Bun 1.4 or newer, then check the version:
+
+```bash
+bun --version
+```
+
+## Install globally
+
+Install the CLI for regular use:
+
+```bash
+bun add --global climier
+```
+
+Confirm that the command is available:
+
+```bash
+climier --version
+climier --help
+```
+
+## Run without installing
+
+For a one-off command, use `bunx` instead:
+
+```bash
+bunx climier --help
+```
+
+The rest of this guide uses `climier`. Replace it with `bunx climier` if you are trying the CLI without a global installation.
+
+## Next step
+
+Continue to [Quickstart](./quickstart) to initialize a project and add your first task. For exact flags, result shapes, and exit codes, see the [CLI reference](/docs/reference/cli).

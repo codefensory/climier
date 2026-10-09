@@ -1,0 +1,74 @@
+---
+title: Core workflow
+description: Move a ready task from inspection through claim, submission, and acceptance.
+---
+
+A task moves through a simple handoff: inspect it, claim it, do the work, submit evidence, and let a reviewer accept or reject it. Continue with `T-example-1` from the [Quickstart](./quickstart).
+
+## 1. Check what is ready
+
+Start with the project overview:
+
+```bash
+climier status
+```
+
+Look for `T-example-1` in the ready tasks. If it is blocked, inspect the reason before doing anything else:
+
+```bash
+climier context T-example-1
+```
+
+A context view identifies unsatisfied blockers and the actions allowed for the actor. A task is not ready while an incoming `BLOCKS` dependency is unsatisfied.
+
+## 2. Claim the task
+
+After confirming that the task is ready, claim it:
+
+```bash
+climier take T-example-1 --as alice
+```
+
+The claim prevents another actor from taking the same task and changes its persisted lifecycle state to `in_progress`. Use `context` again when you need the task contract while working:
+
+```bash
+climier context T-example-1
+```
+
+## 3. Submit the work
+
+When the implementation and its checks are complete, hand it to a reviewer with a concise evidence note:
+
+```bash
+climier submit T-example-1 \
+  --note "Implementation complete; checks pass." \
+  --as alice
+```
+
+Submission changes the task to `submitted`. A submitted task is waiting for validation and does not satisfy downstream blockers yet.
+
+## 4. Accept the submission
+
+A reviewer inspects the work and records acceptance:
+
+```bash
+climier accept T-example-1 --as reviewer
+```
+
+Acceptance changes the task to `done`. A done task satisfies its downstream `BLOCKS` edges. Check the result:
+
+```bash
+climier status
+climier context T-example-1
+```
+
+## If review finds a problem
+
+A reviewer can return submitted work to the open pool with `reject`, including a reason. The implementer can then claim the task again after addressing the feedback. See the [CLI reference](/docs/reference/cli) for rejection, release, and other lifecycle commands.
+
+## What to remember
+
+- `status` is the project-level view; `context` is the task-level view.
+- `--as` identifies the actor for mutating commands.
+- `submit` records a handoff; only `accept` makes the task `done`.
+- Read the [task concepts](/docs/concepts/tasks) and [lifecycle concepts](/docs/concepts/lifecycle) pages for the model behind this workflow.
