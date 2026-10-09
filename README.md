@@ -132,8 +132,8 @@ it automatically. The hook exempts `Merge ...`, `Revert "..."`,
 `fixup!`/`squash!`/`amend!`, and release subjects (`release: v...` and
 `chore(release): ...`). When a local exception is necessary, `git commit
 --no-verify` skips the hook, while `CLIMIER_COMMIT_NO_TASK=1` skips only DAG node
-lookup and still enforces the conventional format. Pull requests are checked
-by commitlint in CI; the main-branch node audit is report-only.
+lookup and still enforces the conventional format. The commit contract is
+enforced locally only: CI does not validate commit messages.
 
 ## Agent skill
 

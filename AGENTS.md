@@ -239,10 +239,9 @@ Escapes:
   commits that legitimately have no node (tooling, offline).
 
 Installation is explicit, never on `prepare`: `bun run setup:hooks` sets
-`git config core.hooksPath .githooks`. Without that config the hook is inert; the
-`commitlint` job in CI still fails a non-conventional commit in a pull request, and the
-`commit-audit` job reports commits without a node id on `main` without blocking, so
-`--no-verify` remains a real escape.
+`git config core.hooksPath .githooks`. Without that config the hook is inert, so
+`--no-verify` remains a real escape. The contract is enforced **locally only**: CI does
+not validate commit messages.
 
 Errors are `INVALID_FORMAT` (bad format, or a missing node id), `NODE_NOT_FOUND` (the id
 is not in the DAG) and `DAG_UNREACHABLE` (the id could not be checked: offline, missing

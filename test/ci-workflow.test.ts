@@ -4,6 +4,11 @@ import { readFileSync } from "node:fs";
 
 const workflow = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
 
+test("the commit contract is enforced locally, not in CI", () => {
+  assert.doesNotMatch(workflow, /commitlint/);
+  assert.doesNotMatch(workflow, /commit-audit/);
+});
+
 test("darwin-x64 binary job uses a supported Intel macOS runner", () => {
   assert.match(workflow, /- name: darwin-x64\s+os: macos-15-intel\s+target: bun-darwin-x64/);
 });

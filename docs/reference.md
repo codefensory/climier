@@ -77,8 +77,8 @@ The hook exempts these subjects:
 
 The explicit escapes are `git commit --no-verify`, which skips the local hook,
 and `CLIMIER_COMMIT_NO_TASK=1`, which skips only DAG node lookup while retaining
-format validation. CI still runs commitlint for pull requests; the main-branch
-node-id audit reports missing IDs without blocking the push.
+format validation. The contract is enforced locally only: CI does not validate
+commit messages.
 
 ## State shape
 
