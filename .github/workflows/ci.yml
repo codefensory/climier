@@ -26,6 +26,19 @@ jobs:
       - run: bun run smoke:pack
       - run: bun run pack:check
 
+  public-docs:
+    name: public docs guardrail
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Scan public documentation
+        run: node docs/scripts/check-public-docs.mjs
+      - name: Verify guardrail fixtures
+        run: node docs/scripts/check-public-docs.fixtures.mjs
+
   commitlint:
     name: lint pull request commits
     if: github.event_name == 'pull_request'
