@@ -39,6 +39,7 @@ export type ManifestClientOptions = {
 
 export type ManifestClient = {
   fetchManifest: () => Promise<ReleaseManifest>;
+  fetchManifestForVersion: (version: string) => Promise<ReleaseManifest>;
 };
 
 export type UpdateCheck = {
@@ -205,12 +206,13 @@ async function requestManifestResponse({
   }
 }
 
-async function requestStableManifest({
+async function requestManifest({
   repository,
   timeoutMs,
   fetchImpl,
-}: Required<Pick<ManifestClientOptions, "repository" | "timeoutMs" | "fetchImpl">>): Promise<ReleaseManifest> {
-  const url = `${repositoryUrl(repository)}${STABLE_MANIFEST_PATH}`;
+  manifestPath = STABLE_MANIFEST_PATH,
+}: Required<Pick<ManifestClientOptions, "repository" | "timeoutMs" | "fetchImpl">> & { manifestPath?: string }): Promise<ReleaseManifest> {
+  const url = `${repositoryUrl(repository)}${manifestPath}`;
   const controller = new AbortController();
   let timedOut = false;
   let timeout!: ReturnType<typeof setTimeout>;
@@ -246,12 +248,27 @@ export function createManifestClient(options: ManifestClientOptions = {}): Manif
   const fetchImpl = options.fetchImpl ?? fetch;
   validateTimeout(timeoutMs);
   return Object.freeze({
-    fetchManifest: () => requestStableManifest({ repository, timeoutMs, fetchImpl }),
+    fetchManifest: () => requestManifest({ repository, timeoutMs, fetchImpl }),
+    fetchManifestForVersion: (version: string) => {
+      if (!parseVersion(version)) {
+        throw invalidManifest("requested version must be valid semver", { version });
+      }
+      return requestManifest({
+        repository,
+        timeoutMs,
+        fetchImpl,
+        manifestPath: `/releases/download/v${encodeURIComponent(version)}/manifest.json`,
+      });
+    },
   });
 }
 
 export async function fetchLatestManifest(options: ManifestClientOptions = {}): Promise<ReleaseManifest> {
   return createManifestClient(options).fetchManifest();
+}
+
+export async function fetchVersionManifest(version: string, options: ManifestClientOptions = {}): Promise<ReleaseManifest> {
+  return createManifestClient(options).fetchManifestForVersion(version);
 }
 
 export const fetchStableManifest = fetchLatestManifest;

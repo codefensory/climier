@@ -16,7 +16,7 @@ test("reserved-namespaces: list contains every core CLI command and is unique", 
     "search", "history", "show", "update", "add-note", "add-initiative",
     "add-task", "add-gate", "add-knowledge", "deprecate-knowledge", "add-node",
     "add-edge", "initiatives", "log", "init", "snapshots", "restore", "ui",
-    "help", "version", "install", "uninstall",
+    "help", "version", "upgrade", "install", "uninstall",
   ];
   for (const c of required) {
     assert.ok(RESERVED_NAMESPACES.includes(c), `missing core command '${c}'`);

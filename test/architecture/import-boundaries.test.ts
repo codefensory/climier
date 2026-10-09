@@ -41,8 +41,9 @@ const BOUNDARIES = [
   {
     name: "cli",
     directory: "src/cli",
-    allowedRoots: ["application", "contracts", "kernel", "plugins", "providers", "read-model", "server", "storage"],
+    allowedRoots: ["application", "contracts", "kernel", "plugins", "providers", "read-model", "server", "storage", "upgrade"],
   },
+  { name: "upgrade", directory: "src/upgrade", allowedRoots: ["contracts"] },
   {
     name: "bin",
     directory: "bin",
