@@ -12,6 +12,7 @@ type PackageJson = {
   version: string;
   engines: Record<string, string>;
   bin: Record<string, string>;
+  files: string[];
   repository?: unknown;
   homepage?: unknown;
   bugs?: unknown;
@@ -27,6 +28,18 @@ test("package: bun test uses the bounded core runner", () => {
   assert.deepEqual(pkg.engines, { bun: ">=1.4" });
   assert.equal(existsSync(path.join(repoRoot, "package-lock.json")), false);
   assert.equal(existsSync(path.join(repoRoot, "bun.lock")), true);
+});
+
+test("package: README documents Bun-only runtime usage", () => {
+  const readme = readFileSync(path.join(repoRoot, "README.md"), "utf8");
+  assert.match(readme, /Bun 1\.4\+/);
+  assert.doesNotMatch(readme, /\bnpx\b/i);
+  assert.doesNotMatch(readme, /Node 20\+/i);
+});
+
+test("package: published files include the built UI", () => {
+  const pkg = readPackage();
+  assert.ok(pkg.files.includes("ui/dist"), "the published file allowlist must include ui/dist");
 });
 
 test("package: every published bin entry uses the Bun shebang", () => {

@@ -61,26 +61,22 @@ Because repo metadata is separate from live mutable state, multiple worktrees or
 
 ## Install
 
-Requires Node 20+, or Bun 1.3+ as an alternative runtime.
+Requires Bun 1.4+.
+
+Install the npm package with Bun:
 
 ```bash
-npm install -g climier
+bun add --global climier
 climier --version
 ```
 
 Or run without a global install:
 
 ```bash
-npx climier --help
+bunx climier --help
 ```
 
 From this repo during development:
-
-```bash
-node bin/climier.ts --help
-```
-
-Bun remains available as an alternative by invoking it explicitly:
 
 ```bash
 bun bin/climier.ts --help
@@ -92,7 +88,7 @@ A portable [agent skill](https://skills.sh) for operating the climier DAG lives
 in [`skills/climier/`](./skills/climier/). Install it for your coding agent with:
 
 ```bash
-npx skills add codefensory/climier
+bunx skills add codefensory/climier
 ```
 
 In Pi, install it from a git source with `pi install git:<repo-url>` or link it
@@ -457,17 +453,16 @@ for those actions:
 2. review `climier migrate --all --dry-run`, then run `climier migrate --all`;
 3. verify every project with `climier --project <checkout> status` and one
    authorized operation;
-4. run `npm test`, `npm run surface:check`, `npm run lint:cut`,
-   `npm run pack:check`, and `npm run smoke:pack`;
-5. inspect `npm pack --dry-run` and confirm the CHANGELOG has one dated
+4. run `bun test`, `bun run surface:check`, `bun run lint:cut`,
+   `bun run pack:check`, and `bun run smoke:pack`;
+5. inspect `bun pm pack --dry-run` and confirm the CHANGELOG has one dated
    `[1.0.0]` section and an empty `[Unreleased]` section;
 6. push the release commit and wait for CI on that exact commit: the matrix
    runs the test suite, the retired-surface check, the packed smoke, and the
-   pack check on Node 20 and 24. A local green run does not substitute for it;
-7. create tag `v1.0.0` on the commit CI verified and run `npm publish` only
-   after the checks and the import rehearsal pass. `npm publish` needs an
-   authenticated registry session; the tag and the publish are the release
-   owner's actions.
+   pack check. A local green run does not substitute for it;
+7. create tag `v1.0.0` on the commit CI verified and run `bun publish` only
+   after the checks and the import rehearsal pass. The package is published
+   to the npm registry; the tag and the publish are the release owner's actions.
 
 The complete server shutdown, import, stale-lock recovery, and rollback
 procedure is in [`docs/remote-server.md`](docs/remote-server.md).
