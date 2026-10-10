@@ -3,6 +3,21 @@
 All notable changes to this project are documented here. The format follows
 Keep a Changelog.
 
+## [1.1.0] - 2026-10-10
+
+### Features
+
+- **cli:** name projects with a display name and rename command ([a81c494](https://github.com/codefensory/climier/commit/a81c4945c39e22a6fd670df563fd48ff6b4b483a))
+
+The project display name is now first-class. `climier rename "<name>"` and
+`link --name "<name>"` label a project in the CLI, the server catalog, and the
+web UI without changing its opaque `project_id`; the name lives in the
+checkout's `.climier.json` and in `~/.climier/projects/<id>/project.json`, and a
+project provisioned before names existed adopts one on first contact through
+`POST /v1/projects/:id/rename` and the `x-climier-project-name` header. No
+state migration is required: the canonical schema stays 1 and older binaries
+ignore the extra field.
+
 ## [1.0.1] - 2026-10-09
 
 ### Bug Fixes
