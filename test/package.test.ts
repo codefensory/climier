@@ -24,7 +24,7 @@ function readPackage(): PackageJson {
 test("package: bun test uses the bounded core runner", () => {
   const pkg = readPackage();
   assert.equal(pkg.scripts.test, "bun test/run-core-tests.ts");
-  assert.equal(pkg.version, "1.1.0");
+  assert.equal(pkg.version, "1.2.0");
   assert.deepEqual(pkg.engines, { bun: ">=1.4" });
   assert.deepEqual(pkg.bin, { climier: "./bin/climier.ts" });
   assert.equal(existsSync(path.join(repoRoot, "package-lock.json")), false);
