@@ -43,9 +43,14 @@ test("package: published files include the built UI", () => {
   assert.ok(pkg.files.includes("ui/dist"), "the published file allowlist must include ui/dist");
 });
 
-test("package: publish gate builds the UI before packaging", () => {
+test("package: release smoke builds the UI and checks a compiled binary", () => {
   const pkg = readPackage();
   assert.equal(pkg.scripts["build:ui"], "bun install --cwd ui --frozen-lockfile && bun run --cwd ui build");
+  assert.match(String(pkg.scripts["smoke:pack"]), /bun install --cwd ui --frozen-lockfile/);
+  assert.match(String(pkg.scripts["smoke:pack"]), /bun run --cwd ui build/);
+  const packedSmoke = readFileSync(path.join(repoRoot, "scripts/smoke-packed.ts"), "utf8");
+  assert.match(packedSmoke, /build:binary/u);
+  assert.match(packedSmoke, /smokeBinary/u);
   assert.match(String(pkg.scripts.prepublishOnly), /bun run build:ui/);
   assert.match(String(pkg.scripts.prepublishOnly), /RELEASE_TAG/);
 });

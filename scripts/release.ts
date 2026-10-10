@@ -38,7 +38,7 @@ const USAGE = `usage: bun run release [--dry-run] [--skip-gate] [--tag latest|ne
 Cuts the release named by package.json:
   1. validates the checkout (clean, main, pushed, CHANGELOG section, npm session)
   2. runs the release gate (install, build:ui, typecheck, test, surface:check,
-     lint:cut, pack:check, smoke:pack)
+     lint:cut, pack:check, smoke:pack including packaged npm and standalone binary UI checks)
   3. publishes to npm with RELEASE_TAG set (prompts for the 2FA one-time code)
   4. creates and pushes the v<version> tag, then verifies the published version
 

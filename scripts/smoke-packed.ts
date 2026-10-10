@@ -8,6 +8,7 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
+import { smokeBinary } from "./smoke-binary.ts";
 
 const execFileAsync = promisify(execFile);
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -289,7 +290,11 @@ async function main() {
     if (!/<!doctype html>/i.test(uiHtml) || !/assets\//.test(uiHtml)) {
       throw new Error(`installed ui served an unexpected entry document: ${uiHtml.slice(0, 300)}`);
     }
-    console.log("packed smoke: version, local init/status, Remote v1 init, push/pull transfer, and packaged UI startup passed");
+    const binary = path.join(root, process.platform === "win32" ? "climier.exe" : "climier");
+    const binaryBuild = await command("bun", ["run", "build:binary", "--", "--outfile", binary]);
+    if (binaryBuild.code !== 0) {throw new Error(`standalone binary build failed: ${binaryBuild.stderr}`);}
+    await smokeBinary(binary);
+    console.log("packed smoke: version, local init/status, Remote v1 init, push/pull transfer, packaged UI, and standalone binary UI passed");
   } finally {
     await stopServer(uiChild);
     await stopServer(server);

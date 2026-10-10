@@ -32,7 +32,6 @@ climier server init --root /srv/climier \
   --host localhost --port 43127 \
   --data-root /srv/climier/data \
   --state-home /srv/climier/state \
-  --ui-root /srv/climier/ui/dist \
   --dry-run
 ```
 
@@ -42,8 +41,7 @@ Generate the artifacts with the same options, omitting `--dry-run`:
 climier server init --root /srv/climier \
   --host localhost --port 43127 \
   --data-root /srv/climier/data \
-  --state-home /srv/climier/state \
-  --ui-root /srv/climier/ui/dist
+  --state-home /srv/climier/state
 ```
 
 The default `--unit systemd` creates
@@ -176,14 +174,18 @@ remote backend.
 
 ## Serving the web UI
 
-The server serves the built Solid UI at the origin root (non-`/v1` `GET`/`HEAD`)
-with SPA fallback, immutable caching for `/assets/*`, and `no-cache` for
-`index.html`. `/v1/*` keeps its JSON contract and never returns `index.html`.
+The server serves the UI at the origin root (non-`/v1` `GET`/`HEAD`) with SPA
+fallback, immutable caching for `/assets/*`, and `no-cache` for `index.html`.
+`/v1/*` keeps its JSON contract and never returns `index.html`.
 
-The root defaults to `<package>/ui/dist`; set `--ui-root` during `server init`
-to use an absolute path elsewhere. If the build is missing, `/` answers `503`
-with a short hint while the API keeps working. Build the bundle with the
-package's documented UI commands before starting the service:
+A standalone binary includes the built UI and serves it without a separate
+source checkout or UI directory. npm distributions use their packaged UI, while
+source-link distributions use local `ui/dist` by default. The `uiRoot` setting is
+optional and should only be set to serve a custom UI build from an absolute path.
+If the selected UI build is unavailable, `/` answers `503` with a short hint while
+the API keeps working.
+When building a source-link distribution, create the bundle before starting the
+service:
 
 ```sh
 cd ui
@@ -339,10 +341,11 @@ state file as a recovery shortcut.
 The configuration stores absolute paths, so relocating a server is one pass:
 
 1. stop the service and confirm that no writer is running;
-2. copy the state, data, and UI directories, the configuration, the environment
-   file, and the executable the unit runs, preserving ownership and modes;
-3. rewrite `dataRoot`, `stateHome`, and `uiRoot` in `server.json`, keeping it a
-   regular file with mode `0600`;
+2. copy the state and data directories, configuration, environment file, and
+   executable the unit runs, preserving ownership and modes; copy an external UI
+   directory only when `uiRoot` points to it;
+3. rewrite `dataRoot`, `stateHome`, and `uiRoot` (if configured) in `server.json`,
+   keeping it a regular file with mode `0600`;
 4. install the unit from the new root and start the service;
 5. run `climier server doctor` and verify the served UI and one authenticated
    read. Every project must report the revision it had before the move.

@@ -24,7 +24,12 @@ test("darwin-x64 binary job uses a supported Intel macOS runner", () => {
 
 test("release binaries are built only for version tags, not on every push", () => {
   assert.match(jobBlock("binaries"), /if:\s*startsWith\(github\.ref, 'refs\/tags\/v'\)/);
-  assert.match(jobBlock("test"), /run: bun run build:binary/);
+  const testJob = jobBlock("test");
+  assert.ok(testJob.indexOf("bun run build:ui") < testJob.indexOf("bun run build:binary"), "compile smoke must build ui/dist before compiling");
+  assert.match(testJob, /bun scripts\/smoke-binary\.ts dist\/climier/u);
+  const binaryJob = jobBlock("binaries");
+  assert.ok(binaryJob.indexOf("bun run --cwd ui build") < binaryJob.indexOf("bun run build:binary"), "tag binaries must embed the built UI");
+  assert.ok(binaryJob.includes('bun scripts/smoke-binary.ts "$cli"'));
 });
 
 test("tag releases create the release when missing and idempotently upload the five assets", () => {

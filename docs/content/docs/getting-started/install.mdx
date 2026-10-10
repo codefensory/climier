@@ -6,7 +6,7 @@ description: Install the Climier CLI from npm or as a standalone binary, verify 
 Climier is a JSON-first command-line tool for coordinating tasks, decisions, and knowledge in a project DAG. It ships through two channels that expose the same `climier` command:
 
 - the **npm package**, which runs on [Bun](https://bun.sh/);
-- a **standalone binary**, self-contained with no runtime dependency.
+- a **standalone binary**, self-contained with no runtime dependency; it includes the web UI.
 
 Pick one. The rest of this guide uses `climier`.
 
@@ -83,6 +83,12 @@ climier version --json
 ```
 
 `climier version --json` reports `distribution` (`binary`, `npm`, `source-link`, or `one-off`) and the state schema the build reads.
+
+## Start the web UI
+
+Run `climier ui` from a project to open its local, read-only web UI. The standalone binary already contains the UI bundle, so it does not need the source checkout or a separate UI build. npm and source-link installs serve the packaged or locally built `ui/dist` bundle.
+
+For a self-hosted remote server, the standalone binary also serves the embedded UI at `/`. `uiRoot` is optional; set it only when serving a custom UI build instead of the bundled one. See [Self-hosting](/docs/reference/self-hosting) for server setup.
 
 ## Update
 
