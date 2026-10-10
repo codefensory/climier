@@ -914,6 +914,79 @@ unless `--no-warnings` is supplied; see
 [`docs/remote-server.md`](remote-server.md) for transport, backup, rotation,
 transfers, and stale-lock recovery.
 
+## Server commands
+
+The `server` namespace manages the host that serves a project DAG to remote
+clients. Its commands are local-host operations: they do not read or write
+project state, do not take `--as`, and stay available in a checkout that is
+linked to a remote backend.
+
+### `server init [--root P] [--host H] [--port N] [--data-root P] [--state-home P] [--ui-root P] [--service-user U] [--service-name N] [--unit systemd|none] [--allow-missing-paths] [--dry-run] [--force] [--rotate-password] [--print-secret] [--yes]`
+
+Generates the artifacts a host needs to run the server: a private configuration,
+an environment file holding the server secret, and a service unit. `--root` is
+required; the listen address defaults to loopback on port `43127`, the storage
+paths default to `<root>/data` and `<root>/state`, and the unit file defaults to
+`<root>/climier-server.service`.
+
+- the configuration `server.json` (`0600`) carries `listen`, `dataRoot`,
+  `stateHome`, and an optional `uiRoot`, and every path is absolute;
+- the environment file `server.env` (`0600`) carries the server credential and
+  an optional request body-size limit;
+- storage paths are created with mode `0700` when missing, and
+  `--allow-missing-paths` defers creating them for a mount or volume that
+  appears later;
+- `--unit systemd` (the default) also writes the unit file, while `--unit none`
+  writes configuration and environment only, for a container or a foreground
+  process supervisor.
+
+`init` never installs, enables, or starts the unit, and never runs `chown`,
+`chmod`, or `sudo`: with `--service-user <user>` it adds `User=`/`Group=` to the
+unit and reports the ownership commands the operator must apply.
+
+Re-running with the same options over matching artifacts changes nothing. A
+missing artifact is created and the others are preserved; an artifact that
+conflicts with the requested options fails with `SERVER_CONFIG_EXISTS` and writes
+nothing. `--force` recreates conflicting artifacts and keeps the existing
+password, and only `--rotate-password` mints a new secret, invalidating every
+session. `--print-secret` writes the secret to stdout and is unsafe outside
+controlled recovery. `--dry-run` reports the actions without writing.
+
+The generated unit supervises the process and nothing else: `ExecStart` runs the
+installed `climier` executable with `server run <configuration>`,
+`EnvironmentFile` names the generated environment file, and `Restart=on-failure`
+is the only resilience policy. Hardening, the service identity, and the listener
+ordering are the operator's policy and belong in a systemd drop-in, so the root
+may live anywhere the service identity can read and write.
+
+### `server doctor [--config P] [--env-file P] [--probe-bind] [--strict]`
+
+Runs the same pre-bind checks as `server init` without creating directories,
+taking the service lock, or binding the address: configuration shape and
+permissions, storage paths, the secret, the optional UI root, and the body-size
+limit. It returns structured checks with `status` and `fix`. Without `--config`
+it reads `server.json` from the project root and, without `--env-file`, the
+matching `server.env` that the unit delivers. `--probe-bind` briefly opens the
+configured address, and its findings are warnings unless `--strict` is passed.
+`doctor` cannot prove that a service manager delivered the environment file, and
+it does not detect drift in an installed unit.
+
+### `server setup`
+
+Interactive front end over `server init`: it asks for the same options and calls
+the same code path. Without a TTY it fails with `CLI_USAGE_ERROR` and lists the
+flags to pass instead.
+
+### `server run <configuration>`
+
+Binds the configured address, prints `{"ok":true,"host":"<host>","port":<port>}`
+on stdout, and then serves in the foreground; `SIGINT` and `SIGTERM` close the
+listener. The process holds a service-lifetime lock in `stateHome`, so a second
+process pointed at the same state fails with `SERVER_ALREADY_RUNNING`.
+
+Artifacts, service installation, the client handoff, backup, rotation, and
+recovery are documented in [`docs/remote-server.md`](remote-server.md).
+
 ## Install and upgrade
 
 `climier` ships as an npm package (Bun runtime) and as self-contained binaries
@@ -927,7 +1000,8 @@ Operator command: it does not mutate the DAG and does not need `--as`. It reads
 the published release manifest and follows the install channel:
 
 - `binary`: downloads the asset, verifies its SHA-256, and replaces the running
-  executable atomically (a `.old` swap on Windows).
+  executable atomically (a `.old` swap on Windows); a running server keeps the
+  previous executable until its service restarts.
 - `npm`: delegates to the owning package manager; it never edits `node_modules`
   by hand.
 - `source-link`: does not auto-update; it prints the git instructions.

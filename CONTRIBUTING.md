@@ -30,6 +30,24 @@ Keep changes focused and include tests or documentation when behavior changes.
 Preserve the CLI's JSON output contract and the documented paths of canonical
 reference files. Do not commit generated dependencies or build output.
 
+## Remote server deployment
+
+Packaged hosts set up their server with `climier server init`, documented in
+[`docs/remote-server.md`](docs/remote-server.md). Deploying a compiled build from
+a checkout is maintenance tooling:
+
+```bash
+scripts/deploy-server.sh --check   # report drift, change nothing
+scripts/deploy-server.sh           # build, copy, reconfigure, restart, verify
+```
+
+Options come from `CLIMIER_DEPLOY_*` variables; `--help` lists them and their
+defaults. The script sources `CLIMIER_DEPLOY_ENV` (or the first existing
+candidate between `.deploy.env` and `$XDG_CONFIG_HOME/climier/deploy.env`) after
+reading the environment, so a configured file overrides exported variables. Read
+the effective `CLIMIER_DEPLOY_BINARY` and `CLIMIER_DEPLOY_UI_ROOT`, or point
+`CLIMIER_DEPLOY_ENV` at your own file, instead of trusting an exported value.
+
 ## Commit messages
 
 Use a concise [Conventional Commits](https://www.conventionalcommits.org/)

@@ -48,7 +48,8 @@ climier server init --root /srv/climier \
 
 The default `--unit systemd` creates
 `/srv/climier/climier-server.service`. `server init` never installs, enables,
-or starts it. The generated unit resolves the installed `climier` executable
+or starts it, and never installs `climier` itself: install the CLI on the host
+first. The generated unit resolves that installed executable
 without using an npm shim; standalone installs use the current binary and npm
 installs use their Bun runtime plus the packaged CLI entrypoint. Use
 `--service-user <user>` only when
@@ -62,9 +63,26 @@ The generated unit only supervises the process: `Type=simple`, `ExecStart`,
 constrain where the root lives; hardening (`ProtectSystem`, `ProtectHome`,
 `ReadWritePaths`), the service identity, and the listener ordering
 (`After=`/`Wants=` for a private overlay such as `tailscaled.service`) are the
-operator's policy and belong in a systemd drop-in. A unit created before the
-single-binary runtime still points at the retired launcher and must be
-regenerated so its `ExecStart` uses `climier server run`.
+operator's policy and belong in a systemd drop-in. Keep the two consistent:
+hardening that hides a path the service needs leaves it unable to read its own
+configuration or write state.
+
+```ini
+# /etc/systemd/system/climier-server.service.d/10-host.conf
+[Unit]
+After=network-online.target tailscaled.service
+Wants=network-online.target tailscaled.service
+
+[Service]
+UMask=0077
+RestartSec=3
+TimeoutStopSec=30
+```
+
+Run `sudo systemctl daemon-reload` after editing a drop-in, then restart the
+unit. A unit created before the single-binary runtime still points at the
+retired launcher and must be regenerated so its `ExecStart` uses
+`climier server run`.
 
 Use `--unit none` when a container or a foreground process supplies its own
 process supervisor. This still generates `server.json` and `server.env`, but no
@@ -107,6 +125,11 @@ sudo install -m 600 /srv/climier/climier-server.service \
 sudo systemctl daemon-reload
 sudo systemctl enable --now climier-server.service
 ```
+
+`climier upgrade` replaces the executable the unit runs, and a running server
+keeps the executable it started with: restart the service so it picks up the new
+binary. If an upgrade reports that the state schema changed, complete the
+migration while every writer is stopped before restarting the service.
 
 For `--unit none`, a foreground launch must provide the generated secret to the
 process environment without putting it in argv or logs. The generated env file
@@ -301,6 +324,22 @@ consistent filesystem or service-level snapshot. Protect the backup as both a
 secret and the original DAG data. Stop the server before restoring. Never use
 `init --force`, delete a project state, or restore a ledger without its matching
 state file as a recovery shortcut.
+
+### Relocating the root
+
+The configuration stores absolute paths, so relocating a server is one pass:
+
+1. stop the service and confirm that no writer is running;
+2. copy the state, data, and UI directories, the configuration, the environment
+   file, and the executable the unit runs, preserving ownership and modes;
+3. rewrite `dataRoot`, `stateHome`, and `uiRoot` in `server.json`, keeping it a
+   regular file with mode `0600`;
+4. install the unit from the new root and start the service;
+5. run `climier server doctor` and verify the served UI and one authenticated
+   read. Every project must report the revision it had before the move.
+
+Never copy `stateHome` while the service is running: the lock, the projects, and
+the ledgers move together.
 
 To rotate the password, stop the service and run
 `climier server init --root /srv/climier --rotate-password`. Run the preflight,

@@ -93,6 +93,12 @@ climier upgrade            # install the latest version for this channel
 
 The command is channel-aware: the npm install delegates to the owning package manager, and the binary install verifies the new checksum and replaces the executable atomically. Pin or downgrade explicitly with `climier upgrade --version <X.Y.Z>`. A checkout (`source-link`) and one-off executions do not update themselves.
 
+A running server keeps the executable it started with: restart its service after
+upgrading so it picks up the new binary, and complete any state migration while
+every writer is stopped before restarting it. Upgrading an install that lives in
+a root-owned directory, such as `/usr/local/bin`, needs the privileges that can
+write there.
+
 ## Next step
 
 Continue to [Quickstart](./quickstart) to initialize a project and add your first task. For exact flags, result shapes, and exit codes, see the [CLI reference](/docs/reference/cli).
