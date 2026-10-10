@@ -117,7 +117,7 @@ test("private server config accepts every non-empty listen host without a networ
   }
 });
 
-test("server runtime resolves the packaged UI root and passes it to the server factory", async (t) => {
+test("server runtime leaves UI root configurable and passes the packaged UI source to the server factory", async (t) => {
   const root = await makeRoot(t);
   let received;
   const server = {} as RuntimeServer;
@@ -131,8 +131,9 @@ test("server runtime resolves the packaged UI root and passes it to the server f
   const packageUiRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "ui", "dist");
 
   assert.equal(runtime.server, server);
-  assert.equal(runtime.config.uiRoot, packageUiRoot);
-  assert.equal(received.uiRoot, packageUiRoot);
+  assert.equal(runtime.config.uiRoot, undefined);
+  assert.equal(received.uiRoot, undefined);
+  assert.deepEqual(await received.uiSource, { kind: "fs", root: packageUiRoot });
 });
 
 test("server runtime pins state home and writes trusted hash-safe project metadata", async (t) => {

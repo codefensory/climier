@@ -86,6 +86,14 @@ const outputDir = path.resolve(root, optionValue(originalArgs, "--output-dir") ?
 const requestedOutfile = optionValue(originalArgs, "--outfile");
 const explicitOutfile = requestedOutfile ? path.resolve(root, requestedOutfile) : undefined;
 const passthroughArgs = removeOption(removeOption(removeOption(originalArgs, "--target"), "--output-dir"), "--outfile");
+const uiIndex = path.join(root, "ui", "dist", "index.html");
+try {
+  if (!(await fs.stat(uiIndex)).isFile()) {
+    throw new Error();
+  }
+} catch {
+  throw new Error(`build-binary: UI build is missing at ${uiIndex}; run \`bun run build:ui\` before building the standalone binary`);
+}
 await fs.mkdir(outputDir, { recursive: true });
 
 for (const entrypoint of entrypoints) {
@@ -93,6 +101,8 @@ for (const entrypoint of entrypoints) {
   const args = [
     "build",
     "--compile",
+    "--asset",
+    "ui/dist",
     ...(selectedTarget ? ["--target", targets[selectedTarget].bunTarget] : []),
     "--define",
     `CLIMIER_DISTRIBUTION=${JSON.stringify("binary")}`,

@@ -13,7 +13,7 @@ type BaseDependencies = { catalog: Catalog; authStore: AuthStore; openProject: (
 type ServerDependencies = BaseDependencies & { uiApi: ReturnType<typeof createUiApi>; uiEvents: ReturnType<typeof createUiEvents> };
 type OperationSourceOptions = NonNullable<Parameters<typeof createOperationSource>[0]>;
 type MutateFn = NonNullable<OperationSourceOptions["mutate"]>;
-type ServerOptions = { catalog?: Catalog; authStore?: AuthStore; openProject?: BaseDependencies["openProject"]; operationSource?: (() => Promise<SourceInput>) | SourceInput; source?: SourceInput; registry?: OperationSourceOptions["registry"]; mutate?: MutateFn; selectPolicy?: OperationSourceOptions["loadPolicy"]; authorizeAction?: OperationSourceOptions["authorize"]; loginRateLimiter?: RateLimiter; uiRoot?: string; indexFile?: string };
+type ServerOptions = { catalog?: Catalog; authStore?: AuthStore; openProject?: BaseDependencies["openProject"]; operationSource?: (() => Promise<SourceInput>) | SourceInput; source?: SourceInput; registry?: OperationSourceOptions["registry"]; mutate?: MutateFn; selectPolicy?: OperationSourceOptions["loadPolicy"]; authorizeAction?: OperationSourceOptions["authorize"]; loginRateLimiter?: RateLimiter; uiRoot?: string; uiSource?: PackagedUi | Promise<PackagedUi>; indexFile?: string };
 type Route = { login?: boolean; projects?: boolean; projectId?: string; route: string };
 type MatchedRoute = { projectsRoute: boolean; operationRoute: boolean; initRoute: boolean; renameRoute: boolean; transferRoute: string | null; read: unknown; events: unknown; ui: unknown };
 
@@ -33,6 +33,7 @@ import { createHttpCodec } from "./http/codec.ts";
 import { createStaticHandler } from "./http/static.ts";
 import { createUiApi } from "./http/ui-api.ts";
 import { createUiEvents } from "./http/ui-events.ts";
+import { resolvePackagedUi, type PackagedUi } from "./packaged-ui.ts";
 
 const PROTOCOL_VERSION = "1";
 const { httpError, errorStatus, jsonError, send, parseProjectPath, readJsonBody } = createHttpCodec({ protocolVersion: PROTOCOL_VERSION });
@@ -586,6 +587,7 @@ export function createRemoteApiServer({
   authorizeAction,
   loginRateLimiter = createLoginRateLimiter(),
   uiRoot,
+  uiSource,
   indexFile = "index.html",
 }: ServerOptions = {}) {
   const getOperationSource: () => Promise<SourceInput> = typeof operationSourceFactory === "function"
@@ -607,7 +609,9 @@ export function createRemoteApiServer({
   validateServerDependencies(dependencies);
   dependencies.uiApi = createRemoteUiApi(dependencies);
   dependencies.uiEvents = createRemoteUiEvents(dependencies);
-  const staticHandler = uiRoot === undefined ? null : createStaticHandler({ root: uiRoot, indexFile });
+  const staticHandler = uiRoot === undefined
+    ? createStaticHandler({ source: uiSource ?? resolvePackagedUi(), indexFile })
+    : createStaticHandler({ root: uiRoot, indexFile });
   let bunServer;
   let closePromise;
   const listeners = new Map();

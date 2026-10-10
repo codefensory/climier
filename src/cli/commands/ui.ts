@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 
 import { createHttpCodec } from "../../server/http/codec.ts";
 import { createStaticHandler } from "../../server/http/static.ts";
+import { resolvePackagedUi, type PackagedUi } from "../../server/packaged-ui.ts";
 import { createUiApi } from "../../server/http/ui-api.ts";
 import { createUiEvents } from "../../server/http/ui-events.ts";
 import { ledgerFileForProjectId, readStateByProjectId } from "../../storage/ledger.ts";
@@ -16,7 +17,7 @@ import { asCaughtError } from "../../contracts/errors.ts";
 import type { CommandContext } from "./contracts.ts";
 import type { ReadModelSnapshot } from "../../read-model/types.ts";
 
-type UiOptions = { projectDir: string; uiRoot?: string; indexFile?: string; port?: number; clock?: () => number; names?: WorkspaceNameIndex };
+type UiOptions = { projectDir: string; uiRoot?: string; uiSource?: PackagedUi; indexFile?: string; port?: number; clock?: () => number; names?: WorkspaceNameIndex };
 type WorkspaceNameIndex = Map<string, string>;
 
 export const knownFlags = ["port", "open"];
@@ -273,12 +274,14 @@ async function handleLocalUiApi(request, response, { uiApi, uiEvents, projectId,
   await handleLocalProject({ request, response, url, uiApi, uiEvents });
 }
 
-export function createLocalUiServer({ projectDir, uiRoot = UI_ROOT, indexFile = "index.html", clock = Date.now, names = new Map() }: UiOptions) {
+export function createLocalUiServer({ projectDir, uiRoot, uiSource, indexFile = "index.html", clock = Date.now, names = new Map() }: UiOptions) {
   if (typeof projectDir !== "string" || projectDir.length === 0) {
     throw new TypeError("ui: projectDir is required");
   }
   const projectId = localProjectId(projectDir);
-  const staticHandler = createStaticHandler({ root: uiRoot, indexFile });
+  const staticHandler = uiSource
+    ? createStaticHandler({ source: uiSource, indexFile })
+    : createStaticHandler({ root: uiRoot ?? UI_ROOT, indexFile });
   const uiApi = createLocalUiApi({ clock, names });
   const uiEvents = createLocalUiEvents({ names });
   const dependencies = { uiApi, uiEvents, projectId, names };
@@ -298,9 +301,10 @@ export function createLocalUiServer({ projectDir, uiRoot = UI_ROOT, indexFile = 
   });
 }
 
-export async function startLocalUiServer({ projectDir, uiRoot = UI_ROOT, indexFile = "index.html", port = DEFAULT_PORT, clock = Date.now }: UiOptions) {
+export async function startLocalUiServer({ projectDir, uiRoot, uiSource, indexFile = "index.html", port = DEFAULT_PORT, clock = Date.now }: UiOptions) {
   const names = await discoverWorkspaceNames(projectDir);
-  const server = createLocalUiServer({ projectDir, uiRoot, indexFile, clock, names });
+  const resolvedUiSource = uiSource ?? (uiRoot === undefined ? await resolvePackagedUi() : { kind: "fs" as const, root: uiRoot });
+  const server = createLocalUiServer({ projectDir, uiRoot, uiSource: resolvedUiSource, indexFile, clock, names });
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
     server.listen(port, LOOPBACK_HOST, () => resolve());
@@ -366,11 +370,15 @@ export default async function uiCommand(ctx: CommandContext & { uiRoot?: string 
   const projectDir = ctx.projectDir;
   const open = ctx.flags.open !== "false" && ctx.flags.open !== false;
   const finalPort = uiPort(ctx.flags.port);
-  const uiRoot = ctx.uiRoot || UI_ROOT;
 
   await readState(projectDir);
-  ensureBuild(uiRoot);
-  const started = await startUiServer({ projectDir, uiRoot, port: finalPort });
+  const uiSource: PackagedUi = ctx.uiRoot
+    ? { kind: "fs", root: ctx.uiRoot }
+    : await resolvePackagedUi();
+  if (uiSource.kind === "fs") {
+    ensureBuild(uiSource.root);
+  }
+  const started = await startUiServer({ projectDir, uiSource, port: finalPort });
 
   if (open) { openBrowser(started.url); }
 

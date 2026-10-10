@@ -1,10 +1,14 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { errorProperties } from "../types.ts";
+import type { PackagedUi } from "../packaged-ui.ts";
 
 const CACHE_CONTROL_ASSET = "public, max-age=31536000, immutable";
 const CACHE_CONTROL_HTML = "no-cache";
 const MISSING_BUILD_MESSAGE = "Climier UI build is not available. Run `npm run build` in ui/ and restart the server.\n";
+
+type StaticSource = PackagedUi | Map<string, Uint8Array> | Promise<PackagedUi | Map<string, Uint8Array>>;
+type StaticHandlerOptions = { root?: string; files?: Map<string, Uint8Array>; source?: StaticSource; indexFile?: string };
 
 const CONTENT_TYPES = new Map([
   [".avif", "image/avif"],
@@ -39,6 +43,13 @@ function configuredPath(root, value) {
     throw new TypeError("server static: indexFile must be inside root");
   }
   return path.relative(root, candidate);
+}
+
+function configuredEmbeddedPath(value) {
+  if (path.isAbsolute(value) || value.includes("\0") || value.split(/[\\/]/u).includes("..")) {
+    throw new TypeError("server static: indexFile must be inside root");
+  }
+  return value.split(/[\\/]/u).filter(Boolean).join("/");
 }
 
 function requestPath(request) {
@@ -114,27 +125,42 @@ function contentType(file) {
   return CONTENT_TYPES.get(path.extname(file).toLowerCase()) || "application/octet-stream";
 }
 
-async function sendFile(request, response, file, { asset }) {
-  const body = await fs.readFile(file);
+function sendBytes(request, response, body: Uint8Array, file, { asset }) {
   const type = contentType(file);
   response.writeHead(200, {
     "cache-control": asset ? CACHE_CONTROL_ASSET : type === "text/html; charset=utf-8" ? CACHE_CONTROL_HTML : "no-cache",
     "content-length": String(body.byteLength),
     "content-type": type,
   });
-  response.end(request.method === "HEAD" ? undefined : body);
+  response.end(request.method === "HEAD" ? undefined : Buffer.from(body));
 }
 
-export function createStaticHandler({ root, indexFile = "index.html" }: { root?: string; indexFile?: string } = {}) {
-  if (typeof root !== "string" || root.length === 0) {
-    throw new TypeError("server static: root is required");
+async function sendFile(request, response, file, options) {
+  sendBytes(request, response, await fs.readFile(file), file, options);
+}
+
+export function createStaticHandler({ root, files, source, indexFile = "index.html" }: StaticHandlerOptions = {}) {
+  const staticSource: StaticSource | undefined = source ?? (files
+    ? { kind: "embedded", files }
+    : typeof root === "string" && root.length > 0
+      ? { kind: "fs", root }
+      : undefined);
+  if (!staticSource) {
+    throw new TypeError("server static: root or source is required");
   }
   if (typeof indexFile !== "string" || indexFile.length === 0) {
     throw new TypeError("server static: indexFile is required");
   }
 
-  const configuredRoot = path.resolve(root);
-  const indexRelative = configuredPath(configuredRoot, indexFile);
+  const configuredRoot = typeof root === "string" && root.length > 0
+    ? path.resolve(root)
+    : staticSource instanceof Promise || staticSource instanceof Map
+      ? null
+      : staticSource.kind === "fs"
+        ? path.resolve(staticSource.root)
+        : null;
+  const indexRelative = configuredRoot === null ? null : configuredPath(configuredRoot, indexFile);
+  const indexKey = indexRelative === null ? configuredEmbeddedPath(indexFile) : null;
 
   return async function handleStatic(request, response) {
     if (request.method !== "GET" && request.method !== "HEAD") {
@@ -142,7 +168,7 @@ export function createStaticHandler({ root, indexFile = "index.html" }: { root?:
     }
 
     const pathname = requestPath(request);
-    if (pathname === null || pathname === "/v1" || pathname.startsWith("/v1/")) {
+    if (pathname === null || /^\/v\d+(?:\/|$)/u.test(pathname)) {
       return false;
     }
     if (!pathname.startsWith("/") || isUnsafePath(pathname)) {
@@ -150,9 +176,40 @@ export function createStaticHandler({ root, indexFile = "index.html" }: { root?:
       return true;
     }
 
+    const resolvedSource = await staticSource;
+    const selectedSource = resolvedSource instanceof Map ? { kind: "embedded" as const, files: resolvedSource } : resolvedSource;
+    if (selectedSource.kind === "embedded") {
+      const relativePath = pathname.replace(/^\//u, "").replaceAll("\\", "/");
+      const direct = selectedSource.files.get(relativePath);
+      let body = direct;
+      let file = relativePath;
+      if (!body && path.extname(pathname) !== "") {
+        notFound(response);
+        return true;
+      }
+      if (!body) {
+        body = selectedSource.files.get(indexKey ?? configuredEmbeddedPath(indexFile));
+        file = indexKey ?? configuredEmbeddedPath(indexFile);
+        if (!body) {
+          if (pathname === "/") {
+            missingBuild(response, request.method);
+          } else {
+            notFound(response);
+          }
+          return true;
+        }
+      }
+      sendBytes(request, response, body, file, {
+        asset: direct !== undefined && pathname.startsWith("/assets/"),
+      });
+      return true;
+    }
+
+    const fsRoot = configuredRoot ?? path.resolve(selectedSource.root);
+    const fsIndexRelative = indexRelative ?? configuredPath(fsRoot, indexFile);
     let realRoot;
     try {
-      realRoot = await fs.realpath(configuredRoot);
+      realRoot = await fs.realpath(fsRoot);
     } catch {
       if (pathname === "/") {
         missingBuild(response, request.method);
@@ -180,7 +237,7 @@ export function createStaticHandler({ root, indexFile = "index.html" }: { root?:
       return true;
     }
     if (!file) {
-      const fallback = await resolveFile(path.join(realRoot, indexRelative), realRoot);
+      const fallback = await resolveFile(path.join(realRoot, fsIndexRelative), realRoot);
       if (fallback.kind !== "file") {
         if (pathname === "/" && fallback.kind === "missing") {
           missingBuild(response, request.method);

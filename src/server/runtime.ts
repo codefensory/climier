@@ -1,7 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { createProjectCatalog } from "./catalog/index.ts";
 import { createRemoteApiServer } from "./http.ts";
@@ -9,6 +8,7 @@ import { loadServerRuntimeConfig, parseServerRuntimeConfig } from "./runtime-con
 import { createServerAuthStore } from "./auth/server-auth-store.ts";
 import { acquireServerServiceLock } from "./service-lock.ts";
 import { errorProperties } from "./types.ts";
+import { resolvePackagedUi } from "./packaged-ui.ts";
 
 type RuntimeOptions = {
   serverFactory?: typeof createRemoteApiServer;
@@ -19,8 +19,6 @@ type RuntimeOptions = {
   now?: () => Date;
   authTestHooks?: { beforeRename?: (temporary: string, target: string) => Promise<void> };
 };
-
-const DEFAULT_UI_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "ui", "dist");
 
 function runtimeError(code, message) {
   return Object.assign(new Error(`server runtime: ${message}`), { code });
@@ -142,11 +140,17 @@ function createOpenProject({ catalog, pinnedHome }: { catalog: ReturnType<typeof
 
 export function createServerRuntime(rawConfig: unknown, { serverFactory = createRemoteApiServer, authStore }: RuntimeOptions = {}) {
   const parsedConfig = parseServerRuntimeConfig(rawConfig);
-  const config = Object.freeze({ ...parsedConfig, uiRoot: parsedConfig.uiRoot ?? DEFAULT_UI_ROOT });
+  const config = parsedConfig;
   const pinnedHome = pinStateHome(config.stateHome);
   const catalog = createProjectCatalog({ dataRoot: config.dataRoot });
   const openProject = createOpenProject({ catalog, pinnedHome });
-  const server = authStore ? serverFactory({ catalog, authStore, openProject, uiRoot: config.uiRoot }) : null;
+  const server = authStore ? serverFactory({
+    catalog,
+    authStore,
+    openProject,
+    uiRoot: config.uiRoot,
+    uiSource: config.uiRoot === undefined ? resolvePackagedUi() : undefined,
+  }) : null;
   return Object.freeze({ config, catalog, openProject, server, stateHome: pinnedHome.path, authStore });
 }
 
