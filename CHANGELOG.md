@@ -3,6 +3,29 @@
 All notable changes to this project are documented here. The format follows
 Keep a Changelog.
 
+## [1.2.0] - 2026-10-10
+
+### Features
+
+- **ui:** embed UI assets in binary ([dfeaca7](https://github.com/codefensory/climier/commit/dfeaca7fe42b0930a3a8ebd67e845fa0f80ab9ae))
+- **ui:** order ready before in progress in task status groups ([ef61b3f](https://github.com/codefensory/climier/commit/ef61b3f1e847b0a49f371f2511c14c8d42a5bf3f))
+
+### Refactoring
+
+- **storage:** retire v1 migration path ([4bb1f9e](https://github.com/codefensory/climier/commit/4bb1f9ee71dd7aa217927b721fefe0aa8ad3df9b))
+
+The standalone binary now embeds the web UI bundle: `climier ui` and a
+self-hosted server serve it without the source checkout or a separate UI build,
+and `uiRoot` is optional for adopting a custom build. npm and source-link
+installs keep serving the packaged or locally built `ui/dist`.
+
+The one-time `migrate` command is retired. The on-disk state stays schema **1**,
+so projects already on a canonical schema-1 state need no migration and keep
+working unchanged. A project still on a pre-release or legacy state form can no
+longer be imported by the CLI: preserve its files and restore a verified backup
+or contact the maintainer, and remember `init --force` is a destructive reset
+that never converts state.
+
 ## [1.1.0] - 2026-10-10
 
 ### Features
