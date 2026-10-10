@@ -409,6 +409,24 @@ node bin/climier.ts --project /tmp/testproj init
 node bin/climier.ts --project /tmp/testproj status
 ```
 
+## Deploying a remote server
+
+`scripts/deploy-server.sh` is the repo-local path for a standalone server host: it
+builds the target binary and `ui/dist`, copies both over SSH, points
+`server.json.uiRoot` at the copied UI root, restarts the unit, and verifies the
+served index and hashed asset byte for byte. `scripts/deploy-server.sh --check`
+reports drift without changing anything. Configuration resolves from
+`CLIMIER_DEPLOY_ENV`, `<repo>/.deploy.env`, or
+`$XDG_CONFIG_HOME/climier/deploy.env`, and a sourced env file wins over exported
+variables: read `CLIMIER_DEPLOY_BINARY` and `CLIMIER_DEPLOY_UI_ROOT` before
+deploying over a running unit. `scripts/` is not part of the npm package.
+
+`climier upgrade` plus a service restart is the in-place path. The running
+process keeps the executable it started with, and an explicit `uiRoot` never
+follows the release, so the served UI stays whatever that directory holds
+(`climier server doctor` does not report that drift). Dropping the `uiRoot` key
+makes the server serve the UI embedded in the binary.
+
 ## Output contract
 
 The CLI is **JSON-only**. There is no `--json` flag (it's the default), no text mode, no `printers` map. Every command prints a single JSON value to stdout. Errors are JSON to stdout too, with non-zero exit. Humans pipe through `jq`.

@@ -126,8 +126,14 @@ sudo systemctl enable --now climier-server.service
 
 `climier upgrade` replaces the executable the unit runs, and a running server
 keeps the executable it started with: restart the service so it picks up the new
-binary. If an upgrade reports that the required state schema differs from the
-installed release, follow only a release-specific, supported transition plan;
+binary. A standalone binary serves the UI bundled in that executable, so a
+restart also updates the served UI. An explicit `uiRoot` never follows a
+release: that directory keeps whatever build it holds until you replace it or
+stop configuring it, and `doctor` only checks that it contains `index.html`, so
+it does not report the drift. Drop the `uiRoot` key to serve the bundled build,
+or refresh the directory from the same release. If an upgrade reports that the
+required state schema differs from the installed release, follow only a
+release-specific, supported transition plan;
 this CLI has no general-purpose state importer. Preserve backups and keep all
 writers on a compatible release until the plan is clear. For legacy or
 incomplete state without such a plan, stop and contact the maintainer rather
