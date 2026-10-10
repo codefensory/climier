@@ -68,3 +68,59 @@ test("GET /v1/projects returns an empty catalog without creating the data root",
     await assert.rejects(fs.access(dataRoot), { code: "ENOENT" });
   });
 });
+
+test("POST /v1/projects/:id/rename updates the catalog name and validates input", async () => {
+  await withApi(async ({ baseUrl }) => {
+    const renamed = await fetch(`${baseUrl}/v1/projects/project-a/rename`, {
+      method: "POST",
+      headers: authHeaders({ "content-type": "application/json" }),
+      body: JSON.stringify({ name: "  Alpha   Renombrado  " }),
+    });
+    assert.equal(renamed.status, 200);
+    assert.deepEqual(await renamed.json(), {
+      ok: true,
+      result: { project: { id: "project-a", name: "Alpha Renombrado" } },
+    });
+
+    const catalog = await fetch(`${baseUrl}/v1/projects`, { headers: authHeaders() });
+    const body = await catalog.json() as ProjectsBody;
+    assert.equal(body.projects.find(({ project_id: projectId }) => projectId === "project-a")!.name, "Alpha Renombrado");
+    assert.equal(body.projects.find(({ project_id: projectId }) => projectId === "project-b")!.name, null);
+
+    const invalid = await fetch(`${baseUrl}/v1/projects/project-a/rename`, {
+      method: "POST",
+      headers: authHeaders({ "content-type": "application/json" }),
+      body: JSON.stringify({ name: "   " }),
+    });
+    assert.equal(invalid.status, 422);
+    assert.equal(await errorCode(invalid), "INVALID_PROJECT_NAME");
+
+    const unknown = await fetch(`${baseUrl}/v1/projects/ghost/rename`, {
+      method: "POST",
+      headers: authHeaders({ "content-type": "application/json" }),
+      body: JSON.stringify({ name: "Ghost" }),
+    });
+    assert.equal(unknown.status, 404);
+    assert.equal(await errorCode(unknown), "UNKNOWN_PROJECT");
+  });
+});
+
+test("an authenticated CLI request adopts the project name header into the catalog", async () => {
+  await withApi(async ({ baseUrl }) => {
+    const status = await fetch(`${baseUrl}/v1/projects/project-a/read/status`, {
+      headers: authHeaders({ "x-climier-project-name": encodeURIComponent("Nombre Local") }),
+    });
+    assert.equal(status.status, 200);
+
+    const catalog = await fetch(`${baseUrl}/v1/projects`, { headers: authHeaders() });
+    const body = await catalog.json() as ProjectsBody;
+    assert.equal(body.projects.find(({ project_id: projectId }) => projectId === "project-a")!.name, "Nombre Local");
+    assert.equal(body.projects.find(({ project_id: projectId }) => projectId === "project-b")!.name, null);
+
+    const invalid = await fetch(`${baseUrl}/v1/projects/project-a/read/status`, {
+      headers: authHeaders({ "x-climier-project-name": "not%ZZ" }),
+    });
+    assert.equal(invalid.status, 400);
+    assert.equal(await errorCode(invalid), "INVALID_PROJECT_NAME");
+  });
+});

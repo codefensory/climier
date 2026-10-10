@@ -121,7 +121,8 @@ export const GENERATED_COMMAND_FLAGS = {
   ],
   "install": [],
   "link": [
-    "replace"
+    "replace",
+    "name"
   ],
   "log": [
     "limit",
@@ -158,6 +159,7 @@ export const GENERATED_COMMAND_FLAGS = {
     "type",
     "as"
   ],
+  "rename": [],
   "reopen": [
     "as",
     "reason"

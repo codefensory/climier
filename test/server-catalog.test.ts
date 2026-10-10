@@ -192,3 +192,18 @@ test("openProject upgrades legacy catalog metadata once and preserves it on repe
   await runtime.openProject(projectDir, { projectId: "legacy" });
   assert.equal(await fs.readFile(metadataFile, "utf8"), upgraded);
 });
+
+test("catalog provisions and renames a project's display name", async (t) => {
+  const dataRoot = await makeRoot(t);
+  const catalog = createProjectCatalog({ dataRoot });
+
+  await catalog.provisionProject("alpha", { name: "  Alpha   One  " });
+  assert.equal((await catalog.listProjects())[0].name, "Alpha One");
+
+  await catalog.setProjectName("alpha", "Alpha Renamed");
+  assert.equal((await catalog.listProjects())[0].name, "Alpha Renamed");
+
+  await assert.rejects(catalog.setProjectName("missing", "Nope"), (error: { code?: string }) => error.code === "UNKNOWN_PROJECT");
+  await assert.rejects(catalog.setProjectName("alpha", "   "), (error: { code?: string }) => error.code === "INVALID_PROJECT_NAME");
+  await assert.rejects(catalog.provisionProject("beta", { name: "x".repeat(121) }), (error: { code?: string }) => error.code === "INVALID_PROJECT_NAME");
+});

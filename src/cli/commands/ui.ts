@@ -1,4 +1,5 @@
 import fsSync from "node:fs";
+import fsp from "node:fs/promises";
 import { createServer } from "node:http";
 import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
@@ -10,12 +11,13 @@ import { createUiApi } from "../../server/http/ui-api.ts";
 import { createUiEvents } from "../../server/http/ui-events.ts";
 import { ledgerFileForProjectId, readStateByProjectId } from "../../storage/ledger.ts";
 import { climierHome } from "../../storage/paths.ts";
-import { listProjectIds, readState, stateFile, stateFileForProjectId } from "../../storage/state.ts";
+import { listProjectIds, readProjectName, readState, stateFile, stateFileForProjectId } from "../../storage/state.ts";
 import { asCaughtError } from "../../contracts/errors.ts";
 import type { CommandContext } from "./contracts.ts";
 import type { ReadModelSnapshot } from "../../read-model/types.ts";
 
-type UiOptions = { projectDir: string; uiRoot?: string; indexFile?: string; port?: number; clock?: () => number };
+type UiOptions = { projectDir: string; uiRoot?: string; indexFile?: string; port?: number; clock?: () => number; names?: WorkspaceNameIndex };
+type WorkspaceNameIndex = Map<string, string>;
 
 export const knownFlags = ["port", "open"];
 
@@ -27,12 +29,82 @@ const UI_DIR = path.resolve(
   "..", "..", "..", "ui",
 );
 export const UI_ROOT = path.join(UI_DIR, "dist");
+const WORKSPACE_DISCOVERY_MAX_DEPTH = 2;
+const WORKSPACE_DISCOVERY_MAX_DIRECTORIES = 2000;
+const WORKSPACE_DISCOVERY_SKIP = new Set(["node_modules", "dist", "build", "target", ".next", ".output", ".venv", ".cache", ".git"]);
 const { errorStatus, httpError, jsonError, parseProjectPath, send } = createHttpCodec({
   protocolVersion: PROTOCOL_VERSION,
 });
 
 function localProjectId(projectDir) {
   return path.basename(path.dirname(stateFile(projectDir)));
+}
+
+async function readWorkspaceProjectId(directory) {
+  try {
+    const parsed = JSON.parse(await fsp.readFile(path.join(directory, ".climier.json"), "utf8"));
+    return parsed && typeof parsed === "object" && typeof parsed.project_id === "string" && parsed.project_id.trim()
+      ? parsed.project_id
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * `climier ui` is often launched from a workspace root that is not itself a
+ * project (for example `~/dev`). Index the `.climier.json` files below it so
+ * every local project can show the repository directory name instead of its
+ * opaque storage id. Read-only: the index lives in memory for this server.
+ * Shallowest wins so a shared project id resolves to the checkout, not a
+ * worktree copy.
+ */
+async function readWorkspaceEntries(directory) {
+  try {
+    return await fsp.readdir(directory, { withFileTypes: true });
+  } catch {
+    return null;
+  }
+}
+
+async function workspaceCandidate(entries, directory, depth) {
+  if (!entries.some((entry) => entry.isFile() && entry.name === ".climier.json")) { return null; }
+  const projectId = await readWorkspaceProjectId(directory);
+  if (!projectId) { return null; }
+  return { projectId, candidate: { depth, directory, name: path.basename(directory) } };
+}
+
+/** Shallowest wins, then the shorter path, then the alphabetically first name. */
+function betterNameCandidate(incumbent, candidate) {
+  if (!incumbent) { return true; }
+  if (candidate.depth !== incumbent.depth) { return candidate.depth < incumbent.depth; }
+  if (candidate.directory.length !== incumbent.directory.length) { return candidate.directory.length < incumbent.directory.length; }
+  return candidate.name.localeCompare(incumbent.name) < 0;
+}
+
+function enqueueWorkspaceChildren(queue, entries, current) {
+  if (current.depth >= WORKSPACE_DISCOVERY_MAX_DEPTH) { return; }
+  for (const entry of entries) {
+    if (!entry.isDirectory() || entry.isSymbolicLink()) { continue; }
+    if (entry.name.startsWith(".") || WORKSPACE_DISCOVERY_SKIP.has(entry.name)) { continue; }
+    queue.push({ directory: path.join(current.directory, entry.name), depth: current.depth + 1 });
+  }
+}
+
+async function discoverWorkspaceNames(rootDir) {
+  const best = new Map();
+  const queue: Array<{ directory: string; depth: number }> = [{ directory: path.resolve(rootDir), depth: 0 }];
+  let visited = 0;
+  while (queue.length > 0 && visited < WORKSPACE_DISCOVERY_MAX_DIRECTORIES) {
+    const current = queue.shift() as { directory: string; depth: number };
+    visited += 1;
+    const entries = await readWorkspaceEntries(current.directory);
+    if (entries === null) { continue; }
+    const found = await workspaceCandidate(entries, current.directory, current.depth);
+    if (found && betterNameCandidate(best.get(found.projectId), found.candidate)) { best.set(found.projectId, found.candidate); }
+    enqueueWorkspaceChildren(queue, entries, current);
+  }
+  return new Map<string, string>([...best].map(([projectId, entry]) => [projectId, entry.name]));
 }
 
 function requestPath(request) {
@@ -51,30 +123,33 @@ function routeNotFound() {
   return httpError("ROUTE_NOT_FOUND", "server http: route was not found", undefined, 404);
 }
 
-function localProjectRef(projectId) {
-  return { id: projectId, name: projectId, projectDir: path.join(climierHome(), "projects", projectId) };
+function localProjectRef(projectId, name) {
+  return { id: projectId, name, projectDir: path.join(climierHome(), "projects", projectId) };
 }
 
-async function resolveLocalProject(projectId) {
+async function resolveLocalProject(projectId, names: WorkspaceNameIndex = new Map()) {
   if (typeof projectId !== "string" || projectId.length === 0) {
     return null;
   }
-  return (await listProjectIds()).includes(projectId) ? localProjectRef(projectId) : null;
+  if (!(await listProjectIds()).includes(projectId)) {
+    return null;
+  }
+  return localProjectRef(projectId, (await readProjectName(projectId)) ?? names.get(projectId) ?? projectId);
 }
 
-function createLocalUiApi({ clock }) {
+function createLocalUiApi({ clock, names = new Map() }) {
   return createUiApi({
     authorize: async () => {},
-    getProject: (projectId) => resolveLocalProject(projectId),
+    getProject: (projectId) => resolveLocalProject(projectId, names),
     readSnapshot: (project) => readStateByProjectId((project as unknown as { id: string }).id),
     clock,
   });
 }
 
-function createLocalUiEvents() {
+function createLocalUiEvents({ names = new Map() }) {
   return createUiEvents({
     authorize: async () => {},
-    getProject: (projectId) => resolveLocalProject(projectId),
+    getProject: (projectId) => resolveLocalProject(projectId, names),
     readSnapshot: (project) => readStateByProjectId((project as unknown as { id: string }).id),
     resolveLedger: ({ projectId }: { projectId: string }) => ledgerFileForProjectId(projectId),
     protocolVersion: PROTOCOL_VERSION,
@@ -111,20 +186,20 @@ function localProjectNodeCount(state: ReadModelSnapshot | null) {
   return Object.keys(state.nodes).length;
 }
 
-async function localProjectSummary(projectId) {
+async function localProjectSummary(projectId, names: WorkspaceNameIndex = new Map()) {
   const state = await localProjectState(projectId);
   return {
     project_id: projectId,
-    name: projectId,
+    name: (await readProjectName(projectId)) ?? names.get(projectId) ?? projectId,
     revision: localProjectRevision(state),
     node_count: localProjectNodeCount(state),
     updated_at: localProjectUpdatedAt(projectId),
   };
 }
 
-async function listLocalProjectSummaries() {
+async function listLocalProjectSummaries(names: WorkspaceNameIndex = new Map()) {
   const ids = await listProjectIds();
-  return Promise.all(ids.map((projectId) => localProjectSummary(projectId)));
+  return Promise.all(ids.map((projectId) => localProjectSummary(projectId, names)));
 }
 
 async function handleHealth(request, response) {
@@ -143,11 +218,11 @@ async function handleLocalLogin(request, response, projectId) {
   send(response, 200, { ok: true, token: `local-${projectId}`, token_type: "Bearer", expires_in_days: 30 });
 }
 
-async function handleLocalProjects(request, response) {
+async function handleLocalProjects(request, response, names: WorkspaceNameIndex = new Map()) {
   if (request.method !== "GET") {
     throw routeNotFound();
   }
-  send(response, 200, { projects: await listLocalProjectSummaries() });
+  send(response, 200, { projects: await listLocalProjectSummaries(names) });
 }
 
 async function sendLocalSnapshot({ request, response, uiApi, projectId }) {
@@ -185,28 +260,28 @@ async function handleLocalProject({ request, response, url, uiApi, uiEvents }) {
   send(response, 200, { ok: true, result });
 }
 
-async function handleLocalUiApi(request, response, { uiApi, uiEvents, projectId }) {
+async function handleLocalUiApi(request, response, { uiApi, uiEvents, projectId, names = new Map() }) {
   const url = new URL(request.url || "/", "http://localhost");
   if (url.pathname === "/v1/auth/login") {
     await handleLocalLogin(request, response, projectId);
     return;
   }
   if (url.pathname === "/v1/projects") {
-    await handleLocalProjects(request, response);
+    await handleLocalProjects(request, response, names);
     return;
   }
   await handleLocalProject({ request, response, url, uiApi, uiEvents });
 }
 
-export function createLocalUiServer({ projectDir, uiRoot = UI_ROOT, indexFile = "index.html", clock = Date.now }: UiOptions) {
+export function createLocalUiServer({ projectDir, uiRoot = UI_ROOT, indexFile = "index.html", clock = Date.now, names = new Map() }: UiOptions) {
   if (typeof projectDir !== "string" || projectDir.length === 0) {
     throw new TypeError("ui: projectDir is required");
   }
   const projectId = localProjectId(projectDir);
   const staticHandler = createStaticHandler({ root: uiRoot, indexFile });
-  const uiApi = createLocalUiApi({ clock });
-  const uiEvents = createLocalUiEvents();
-  const dependencies = { uiApi, uiEvents, projectId };
+  const uiApi = createLocalUiApi({ clock, names });
+  const uiEvents = createLocalUiEvents({ names });
+  const dependencies = { uiApi, uiEvents, projectId, names };
 
   return createServer(async (request, response) => {
     try {
@@ -224,7 +299,8 @@ export function createLocalUiServer({ projectDir, uiRoot = UI_ROOT, indexFile = 
 }
 
 export async function startLocalUiServer({ projectDir, uiRoot = UI_ROOT, indexFile = "index.html", port = DEFAULT_PORT, clock = Date.now }: UiOptions) {
-  const server = createLocalUiServer({ projectDir, uiRoot, indexFile, clock });
+  const names = await discoverWorkspaceNames(projectDir);
+  const server = createLocalUiServer({ projectDir, uiRoot, indexFile, clock, names });
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
     server.listen(port, LOOPBACK_HOST, () => resolve());

@@ -12,7 +12,7 @@ interface SnapshotBody {
   ok: boolean;
   result: { project: { id: string; name: string; revision: number; generated_at: string }; nodes: Record<string, unknown> };
 }
-type CatalogProject = { project_id: string; revision: number; node_count: number; updated_at?: string | null };
+type CatalogProject = { project_id: string; name: string; revision: number; node_count: number; updated_at?: string | null };
 type CatalogBody = { projects: CatalogProject[] };
 type LoginBody = { ok: boolean; token_type: string };
 type ErrorBody = { error: { code: string } };
@@ -64,7 +64,7 @@ test("climier ui serves the local SPA and UI projections without Express or bear
   assert.equal(body.ok, true);
   assert.deepEqual(body.result.project, {
     id: projectId,
-    name: projectId,
+    name: path.basename(root),
     revision: 1,
     generated_at: body.result.project.generated_at,
   });
@@ -146,6 +146,8 @@ test("climier ui catalog lists every local project, not only the launch project"
   const catalog = await (await fetch(`${started.url}/v1/projects`)).json();
   const projects = Object.fromEntries((catalog as CatalogBody).projects.map((project) => [project.project_id, project]));
   assert.deepEqual(Object.keys(projects).toSorted(), ["proj-a", "proj-b"]);
+  assert.equal(projects["proj-a"].name, "project-a", "discovery names the launch checkouts");
+  assert.equal(projects["proj-b"].name, "project-b");
   assert.equal(projects["proj-a"].node_count, 0);
   assert.equal(projects["proj-b"].node_count, 1);
 
@@ -248,4 +250,41 @@ test("ui keeps corrupt-state errors before starting the local server", async () 
     else process.env.CLIMIER_HOME = oldHome;
     await fs.rm(root, { recursive: true, force: true });
   }
+});
+
+test("climier ui names projects discovered under the launch workspace", async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "climier-ui-discovery-"));
+  const home = path.join(root, "home");
+  const uiRoot = path.join(root, "dist");
+  await fs.mkdir(uiRoot, { recursive: true });
+  await fs.writeFile(path.join(uiRoot, "index.html"), "<!doctype html><main>local UI</main>\n");
+  const workspace = path.join(root, "workspace");
+  const alpha = path.join(workspace, "alpha-repo");
+  const beta = path.join(workspace, "beta-repo");
+  const worktree = path.join(workspace, "nested", "alpha-worktree");
+  for (const [dir, id] of [[alpha, "proj-alpha"], [beta, "proj-beta"], [worktree, "proj-alpha"]]) {
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(path.join(dir, ".climier.json"), `${JSON.stringify({ version: 1, project_id: id })}\n`);
+  }
+
+  const previousHome = process.env.CLIMIER_HOME;
+  process.env.CLIMIER_HOME = home;
+  t.after(async () => {
+    if (previousHome === undefined) delete process.env.CLIMIER_HOME;
+    else process.env.CLIMIER_HOME = previousHome;
+    await fs.rm(root, { recursive: true, force: true });
+  });
+  await initState({ projectDir: alpha });
+  await initState({ projectDir: beta });
+
+  const started = await startLocalUiServer({ projectDir: workspace, uiRoot, port: 0 });
+  t.after(() => closeServer(started.server));
+
+  const catalog = await (await fetch(`${started.url}/v1/projects`)).json() as CatalogBody;
+  const byId = Object.fromEntries(catalog.projects.map((project) => [project.project_id, project.name]));
+  assert.equal(byId["proj-alpha"], "alpha-repo", "the shallowest checkout wins over a nested worktree");
+  assert.equal(byId["proj-beta"], "beta-repo");
+
+  const snapshot = await (await fetch(`${started.url}/v1/projects/proj-alpha/ui/snapshot`)).json() as SnapshotBody;
+  assert.equal(snapshot.result.project.name, "alpha-repo");
 });

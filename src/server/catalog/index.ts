@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { isValidProjectName, normalizeProjectName } from "../../contracts/project-name.ts";
 import { errorProperties, isRecord } from "../types.ts";
 
 type ProjectMetadata = {
@@ -30,6 +31,13 @@ function validateProjectId(projectId) {
       || Buffer.byteLength(projectId, "utf8") > 256 || hasControlCharacter(projectId)) {
     throw contractError("INVALID_PROJECT_ID", "project ID must be a non-empty bounded opaque identifier");
   }
+}
+
+function requireProjectName(name) {
+  if (!isValidProjectName(name)) {
+    throw contractError("INVALID_PROJECT_NAME", "project name must be a non-empty string of at most 120 characters");
+  }
+  return normalizeProjectName(name) as string;
 }
 
 function projectDirectoryName(projectId) {
@@ -180,12 +188,25 @@ export function createProjectCatalog({ dataRoot }: { dataRoot?: string } = {}) {
 
   async function provisionProject(projectId: string, { name }: { name?: string } = {}) {
     validateProjectId(projectId);
-    if (name !== undefined && typeof name !== "string") {
-      throw contractError("INVALID_PROJECT_NAME", "project name must be a string");
-    }
+    const normalizedName = name === undefined ? undefined : requireProjectName(name);
     const projectDir = await ensureConfinedDirectory(rootPath, storagePathFor(projectId), { create: true });
-    await createMetadataIfMissing(projectDir, projectId, name);
+    await createMetadataIfMissing(projectDir, projectId, normalizedName);
     return projectDir;
+  }
+
+  async function setProjectName(projectId: string, name: string) {
+    validateProjectId(projectId);
+    const normalizedName = requireProjectName(name);
+    const projectDir = await ensureConfinedDirectory(rootPath, storagePathFor(projectId), { create: false });
+    const metadataFile = path.join(projectDir, PROJECT_METADATA_FILE);
+    const metadata = validListedMetadata(await readMetadataForListing(metadataFile), path.basename(projectDir));
+    if (!metadata) {
+      throw contractError("UNKNOWN_PROJECT", "project metadata is not initialized");
+    }
+    if (metadata.name !== normalizedName) {
+      await fs.writeFile(metadataFile, `${JSON.stringify({ ...metadata, name: normalizedName }, null, 2)}\n`, { mode: 0o600 });
+    }
+    return normalizedName;
   }
 
   async function listProjects(): Promise<ListedProject[]> {
@@ -237,5 +258,5 @@ export function createProjectCatalog({ dataRoot }: { dataRoot?: string } = {}) {
     return projects.sort((left, right) => left.source_project_id.localeCompare(right.source_project_id));
   }
 
-  return Object.freeze({ resolveProject, provisionProject, listProjects });
+  return Object.freeze({ resolveProject, provisionProject, setProjectName, listProjects });
 }

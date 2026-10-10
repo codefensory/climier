@@ -7,6 +7,7 @@ import path from "node:path";
 import { withLock, assertActiveLockContext, getActiveLockContext } from "./lock.ts";
 import { climierHome, projectMetaFile } from "./paths.ts";
 import { validateStateInvariants } from "../contracts/state-invariants.ts";
+import { normalizeProjectName } from "../contracts/project-name.ts";
 import type { ProjectState } from "../contracts/domain.ts";
 
 function readProjectMetaSync(projectDir) {
@@ -85,17 +86,98 @@ async function hasAny(...files) {
   return false;
 }
 
+function defaultProjectName(projectDir) {
+  const base = path.basename(path.resolve(projectDir));
+  return normalizeProjectName(base) ?? defaultProjectId(projectDir);
+}
+
+async function writeProjectMetaFile(projectDir, meta) {
+  const file = projectMetaFile(projectDir);
+  await fs.mkdir(path.dirname(file), { recursive: true });
+  await fs.writeFile(file, JSON.stringify(meta, null, 2) + "\n", "utf8");
+}
+
+/** Path of the local display-name sidecar kept beside a project's state. */
+export function projectNameFile(projectId) {
+  return path.join(climierHome(), "projects", projectId, "project.json");
+}
+
+/** Read the stored display name for a project id; null when unset or unreadable. */
+export async function readProjectName(projectId) {
+  if (typeof projectId !== "string" || !projectId.trim()) { return null; }
+  let raw;
+  try {
+    raw = await fs.readFile(projectNameFile(projectId), "utf8");
+  } catch (rawCaughtValue: unknown) {
+    const error = asCaughtError(rawCaughtValue);
+    if (error.code === "ENOENT") { return null; }
+    throw error;
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || parsed.project_id !== projectId) { return null; }
+    return normalizeProjectName(parsed.name);
+  } catch {
+    return null;
+  }
+}
+
+/** Persist a project's display name beside its state, atomically. */
+export async function writeProjectName(projectId, name) {
+  const normalized = normalizeProjectName(name);
+  if (!normalized) { throw new Error("state: project name must be a non-empty string"); }
+  const file = projectNameFile(projectId);
+  await fs.mkdir(path.dirname(file), { recursive: true, mode: 0o700 });
+  const temporary = `${file}.tmp-${process.pid}-${crypto.randomBytes(6).toString("hex")}`;
+  await fs.writeFile(temporary, JSON.stringify({ version: 1, project_id: projectId, name: normalized }, null, 2) + "\n", "utf8");
+  await fs.rename(temporary, file);
+}
+
+async function ensureStoredProjectName(projectId, name) {
+  if (await readProjectName(projectId) === name) { return; }
+  await writeProjectName(projectId, name);
+}
+
 export async function ensureProjectMeta(projectDir) {
   const existing = readProjectMetaSync(projectDir);
-  if (existing) { return existing; }
-  const file = projectMetaFile(projectDir);
+  if (existing) {
+    const name = normalizeProjectName(existing.name) ?? defaultProjectName(projectDir);
+    await ensureStoredProjectName(existing.project_id, name);
+    return existing;
+  }
   const meta = {
     version: 1,
     project_id: defaultProjectId(projectDir),
   };
-  await fs.mkdir(path.dirname(file), { recursive: true });
-  await fs.writeFile(file, JSON.stringify(meta, null, 2) + "\n", "utf8");
+  await writeProjectMetaFile(projectDir, meta);
+  await ensureStoredProjectName(meta.project_id, defaultProjectName(projectDir));
   return meta;
+}
+
+/** Record an explicit display name into the repo metadata and the state sidecar. */
+export async function setProjectMetaName(projectDir, name) {
+  const existing = readProjectMetaSync(projectDir);
+  if (!existing) {
+    throw new Error(`state: project metadata at ${projectMetaFile(projectDir)} is missing; run climier init first`);
+  }
+  const normalized = normalizeProjectName(name);
+  if (!normalized) { throw new Error("state: project name must be a non-empty string"); }
+  await writeProjectMetaFile(projectDir, { ...existing, name: normalized });
+  await ensureStoredProjectName(existing.project_id, normalized);
+  return { ...existing, name: normalized };
+}
+
+/**
+ * Register the display name a project is known by locally. Every command resolves
+ * the repo metadata, so this backfills the name for projects created before names
+ * existed without an extra user action.
+ */
+export async function syncProjectDisplayName(projectDir, projectConfig) {
+  const projectId = typeof projectConfig?.project_id === "string" ? projectConfig.project_id.trim() : "";
+  if (!projectId) { return null; }
+  const name = normalizeProjectName(projectConfig.name) ?? defaultProjectName(projectDir);
+  await ensureStoredProjectName(projectId, name);
+  return name;
 }
 
 export const STATE_SCHEMA_VERSION = 1;

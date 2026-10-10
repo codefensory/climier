@@ -25,6 +25,7 @@ export type CliBackendClient = BackendClient & {
   insecureRemoteHttp?: boolean;
   operationSource?: Promise<SourceInput>;
   init: () => Promise<{ seeded?: unknown }>;
+  renameProject?: (name: string) => Promise<unknown>;
   readStatus: (filters: Record<string, unknown>) => Promise<unknown>;
   readContext: (options: Record<string, unknown>) => Promise<unknown>;
   readHistory: (options: Record<string, unknown>) => Promise<unknown>;

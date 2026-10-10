@@ -12,6 +12,7 @@ import { parseArgv, formatError, formatOutput } from "./dispatch-parser.ts";
 export { COMMANDS, HELP_TEXT, KNOWN_COMMANDS, PACKAGE_VERSION } from "./dispatch-constants.ts";
 export { parseArgv, formatError, formatOutput } from "./dispatch-parser.ts";
 import { resolveProject, projectMetaFile } from "../storage/paths.ts";
+import { syncProjectDisplayName } from "../storage/state.ts";
 import { createBackendClient } from "../application/operations/index.ts";
 import { getOperationSource } from "../operation-source.ts";
 import { asCaughtError, exitCodeForError, normalizeCliError } from "../contracts/errors.ts";
@@ -293,6 +294,7 @@ async function completeOperationSource(source, backendClient) {
 
 async function addBackendContext(context, { source, backendClientFactory }) {
   const projectConfig = readProjectConfig(context.projectDir);
+  await syncProjectDisplayName(context.projectDir, projectConfig);
   const localSource = await operationSourceForContext(source, isRemoteProjectConfig(projectConfig));
   const backendClient = backendClientFactory({
     projectDir: context.projectDir,

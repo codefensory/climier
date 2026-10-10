@@ -1,9 +1,10 @@
 import fs from "node:fs/promises";
+import { isValidProjectName, normalizeProjectName } from "../contracts/project-name.ts";
 import { errorProperties, type Headers, type ServerError } from "./types.ts";
 import type { SourceInput } from "../application/types.ts";
 
 type Project = { projectDir: string; source_project_id?: string; name?: string | null; id?: string; [key: string]: unknown };
-type Catalog = { resolveProject: (id: string) => Promise<string>; provisionProject: (id: string) => Promise<string>; listProjects: () => Promise<Project[]> };
+type Catalog = { resolveProject: (id: string) => Promise<string>; provisionProject: (id: string, options?: { name?: string }) => Promise<string>; setProjectName: (id: string, name: string) => Promise<string>; listProjects: () => Promise<Project[]> };
 type AuthStore = { verifyBearer: (token: string) => Promise<boolean>; login: (password: string) => Promise<string> };
 type RateLimiter = { assertAllowed: (key: string) => void; recordFailure: (key: string) => void; recordSuccess: (key: string) => void };
 type HttpRequest = { method: string; url?: string; headers: Headers; socket?: { remoteAddress?: string }; once?: (event: string, listener: () => void) => unknown; [Symbol.asyncIterator](): AsyncIterator<Buffer> };
@@ -14,7 +15,7 @@ type OperationSourceOptions = NonNullable<Parameters<typeof createOperationSourc
 type MutateFn = NonNullable<OperationSourceOptions["mutate"]>;
 type ServerOptions = { catalog?: Catalog; authStore?: AuthStore; openProject?: BaseDependencies["openProject"]; operationSource?: (() => Promise<SourceInput>) | SourceInput; source?: SourceInput; registry?: OperationSourceOptions["registry"]; mutate?: MutateFn; selectPolicy?: OperationSourceOptions["loadPolicy"]; authorizeAction?: OperationSourceOptions["authorize"]; loginRateLimiter?: RateLimiter; uiRoot?: string; indexFile?: string };
 type Route = { login?: boolean; projects?: boolean; projectId?: string; route: string };
-type MatchedRoute = { projectsRoute: boolean; operationRoute: boolean; initRoute: boolean; transferRoute: string | null; read: unknown; events: unknown; ui: unknown };
+type MatchedRoute = { projectsRoute: boolean; operationRoute: boolean; initRoute: boolean; renameRoute: boolean; transferRoute: string | null; read: unknown; events: unknown; ui: unknown };
 
 import { dispatchOperationRequest, validateOperationRequest } from "./http/operations.ts";
 import { createOperationSource } from "../operation-source.ts";
@@ -45,8 +46,9 @@ const reads = createHttpReads({
 
 function validateServerDependencies({ catalog, openProject, getOperationSource, authStore }: BaseDependencies) {
   if (!catalog || typeof catalog.resolveProject !== "function"
-      || typeof catalog.provisionProject !== "function" || typeof catalog.listProjects !== "function") {
-    throw new TypeError("server http: catalog with resolveProject, provisionProject, and listProjects is required");
+      || typeof catalog.provisionProject !== "function" || typeof catalog.setProjectName !== "function"
+      || typeof catalog.listProjects !== "function") {
+    throw new TypeError("server http: catalog with resolveProject, provisionProject, setProjectName, and listProjects is required");
   }
   if (typeof openProject !== "function") {
     throw new TypeError("server http: openProject must be a function");
@@ -175,8 +177,59 @@ function validateInitBody(body) {
     if (field === "force" || field === "reset") {
       throw httpError("REMOTE_UNSUPPORTED_OPERATION", `server http: init option '${field}' is not supported remotely`, { field }, 400);
     }
+    if (field === "name") {
+      if (!isValidProjectName(body.name)) {
+        throw httpError("INVALID_PROJECT_NAME", "server http: name must be a non-empty string of at most 120 characters", { field }, 422);
+      }
+      continue;
+    }
     throw httpError("INVALID_REQUEST", `server http: init field '${field}' is not allowed`, { field }, 400);
   }
+}
+
+function requestedProjectName(request) {
+  const raw = request.headers["x-climier-project-name"];
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  if (typeof value !== "string" || value.length === 0) {
+    return null;
+  }
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    throw httpError("INVALID_PROJECT_NAME", "server http: project name header is not valid URL encoding", { header: "x-climier-project-name" }, 400);
+  }
+}
+
+// The CLI stamps its local display name on every authenticated request, so a
+// project provisioned before names existed adopts one on first contact.
+async function adoptRequestedProjectName(request, route, matched, dependencies) {
+  if (matched.projectsRoute || matched.ui || matched.events
+      || typeof route.projectId !== "string" || route.projectId.length === 0) {
+    return;
+  }
+  const name = requestedProjectName(request);
+  if (name === null) {
+    return;
+  }
+  if (!isValidProjectName(name)) {
+    throw httpError("INVALID_PROJECT_NAME", "server http: project name must be a non-empty string of at most 120 characters", { header: "x-climier-project-name" }, 422);
+  }
+  await dependencies.catalog.setProjectName(route.projectId, name);
+}
+
+function validateRenameBody(body) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    throw httpError("INVALID_REQUEST", "server http: rename request must be a JSON object", { field: "body" }, 400);
+  }
+  for (const field of Object.keys(body)) {
+    if (field !== "name") {
+      throw httpError("INVALID_REQUEST", `server http: rename field '${field}' is not allowed`, { field }, 400);
+    }
+  }
+  if (!isValidProjectName(body.name)) {
+    throw httpError("INVALID_PROJECT_NAME", "server http: name must be a non-empty string of at most 120 characters", { field: "name" }, 422);
+  }
+  return { name: normalizeProjectName(body.name) };
 }
 
 function isOperationRoute(request, route) {
@@ -191,6 +244,7 @@ function matchRequestRoute(request, route, uiApi, uiEvents) {
   const projectsRoute = route.projects === true;
   const operationRoute = isOperationRoute(request, route);
   const initRoute = isInitRoute(request, route);
+  const renameRoute = request.method === "POST" && route.route === "rename";
   const transferRoute = request.method === "GET" && route.route === "transfer/export"
     ? "transfer/export"
     : request.method === "POST" && route.route === "transfer/import"
@@ -199,8 +253,8 @@ function matchRequestRoute(request, route, uiApi, uiEvents) {
   const read = request.method === "GET" ? reads.matchReadRoute(route.route) : null;
   const events = request.method === "GET" ? uiEvents.matchRoute(route.route) : null;
   const ui = request.method === "GET" ? uiApi.matchRoute(route.route) : null;
-  if (projectsRoute || read || events || ui || operationRoute || initRoute || transferRoute) {
-    return { projectsRoute, operationRoute, initRoute, transferRoute, read, events, ui };
+  if (projectsRoute || read || events || ui || operationRoute || initRoute || renameRoute || transferRoute) {
+    return { projectsRoute, operationRoute, initRoute, renameRoute, transferRoute, read, events, ui };
   }
   if (route.route.startsWith("transfer/") || route.route.startsWith("files/") || route.route === "snapshot" || route.route === "read/snapshot") {
     throw httpError("ROUTE_NOT_FOUND", "server http: route was not found", undefined, 404);
@@ -209,13 +263,16 @@ function matchRequestRoute(request, route, uiApi, uiEvents) {
 }
 
 async function readRequestInput(request, route, matched, uiApi) {
-  let body = null;
+  let body: unknown = null;
   if (matched.operationRoute) {
     body = validateOperationRequest(await readJsonBody(request), { manifest: remoteV1Manifest, httpError });
   }
   if (matched.initRoute) {
     body = await readJsonBody(request);
     validateInitBody(body);
+  }
+  if (matched.renameRoute) {
+    body = validateRenameBody(await readJsonBody(request));
   }
   if (matched.transferRoute === "transfer/import") {
     body = validateTransferRequest(await readJsonBody(request), httpError);
@@ -304,7 +361,15 @@ async function sendRouteResult({ response, route, matched, body, query, project,
   }
   if (matched.initRoute) {
     const result = await handleInit(project.projectDir);
+    if (body?.name !== undefined) {
+      await dependencies.catalog.setProjectName(route.projectId, body.name);
+    }
     send(response, 200, { ok: true, result });
+    return;
+  }
+  if (matched.renameRoute) {
+    const name = await dependencies.catalog.setProjectName(route.projectId, body.name);
+    send(response, 200, { ok: true, result: { project: { id: route.projectId, name } } });
     return;
   }
   if (matched.operationRoute) {
@@ -367,6 +432,7 @@ async function handleRequest(request, response, dependencies) {
   const project = matched.projectsRoute || matched.ui || matched.events
     ? null
     : await openAuthorizedProject(request, route, matched.initRoute, dependencies);
+  await adoptRequestedProjectName(request, route, matched, dependencies);
   await sendRouteResult({ response, route, matched, body, query, project, dependencies, request });
 }
 

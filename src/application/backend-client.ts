@@ -1,4 +1,6 @@
 import { parseBackendConfig } from "./backend-config.ts";
+import path from "node:path";
+import { normalizeProjectName } from "../contracts/project-name.ts";
 import { executeBatch, executeOperation } from "./operations/execute.ts";
 import { remoteV1Manifest } from "./operations/remote-v1-manifest.ts";
 import { createCredentialStore } from "../storage/credential-profile.ts";
@@ -93,11 +95,12 @@ type RemoteOperations = {
   executeOperation(options?: OperationCall): Promise<unknown>;
   executeBatch(options?: OperationCall): Promise<unknown>;
   init(): Promise<unknown>;
+  renameProject(name: string): Promise<unknown>;
   exportTransfer(): Promise<TransferExport>;
   importTransfer(options: TransferImportOptions): Promise<unknown>;
 };
 
-function createRemoteOperations(request: RemoteRequest): RemoteOperations {
+function createRemoteOperations(request: RemoteRequest, { projectName }: { projectName?: string } = {}): RemoteOperations {
   return {
     async executeOperation(options: OperationCall = {}) {
       validateRemoteOperation(options.operation);
@@ -110,7 +113,10 @@ function createRemoteOperations(request: RemoteRequest): RemoteOperations {
       return request({ method: "POST", route: "operations", body: { operation: "core.batch", actor: options.actor, input } });
     },
     init() {
-      return request({ method: "POST", route: "init", body: {} });
+      return request({ method: "POST", route: "init", body: projectName === undefined ? {} : { name: projectName } });
+    },
+    renameProject(name: string) {
+      return request({ method: "POST", route: "rename", body: { name } });
     },
     async exportTransfer() {
       return validateTransferExport(await request({ method: "GET", route: "transfer/export" }));
@@ -127,12 +133,13 @@ function createRemoteOperations(request: RemoteRequest): RemoteOperations {
 function createRemoteTransport(options: {
   backend: RemoteBackend;
   projectId: string;
+  projectName?: string;
   tokenProvider: (origin: string) => Promise<string | null>;
   timeoutMs: number;
 }): RemoteOperations & ReturnType<typeof createRemoteReadMethods> {
   const request = createRemoteRequest(options);
   return Object.freeze({
-    ...createRemoteOperations(request),
+    ...createRemoteOperations(request, { projectName: options.projectName }),
     ...createRemoteReadMethods(request),
   });
 }
@@ -171,9 +178,11 @@ function createSelectedBackendClient({
 }): BackendClient & Record<string, unknown> {
   if (backend.type === "local") {return createLocalBackendClient({ projectDir, source });}
   const projectId = validateRemoteClientOptions(projectConfig);
+  const projectName = normalizeProjectName(projectConfig.name) ?? path.basename(path.resolve(projectDir));
   const transport = createRemoteTransport({
     backend,
     projectId,
+    projectName,
     tokenProvider: async (origin) => {
       const token = await credentialStore.get(origin);
       return typeof token === "string" ? token : null;

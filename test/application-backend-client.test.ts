@@ -14,6 +14,8 @@ type TestBackendClient = BackendClient & {
   exportTransfer: () => Promise<unknown>;
   importTransfer: (options: Record<string, unknown>) => Promise<unknown>;
   readStatus: () => Promise<unknown>;
+  init: () => Promise<unknown>;
+  renameProject: (name: string) => Promise<unknown>;
 };
 type TestError = { code?: string; status?: number; details?: Record<string, unknown> };
 
@@ -170,6 +172,36 @@ test("remote client exports and imports transfers through authenticated v1 endpo
       protocol: "1",
       body: { payload, actor: "alice", force: true },
     },
+  ]);
+});
+
+test("remote client sends the project display name on init, rename, and every request", async () => {
+  const requests: Array<Record<string, unknown>> = [];
+  await withServer(async (request, response) => {
+    requests.push({ method: request.method, url: request.url, name: request.headers["x-climier-project-name"], body: request.method === "GET" ? undefined : await readJson(request) });
+    jsonResponse(response, { ok: true });
+  }, async (origin) => {
+    const stored = createBackendClient({
+      projectDir: "/repos/plataforma-interna",
+      projectConfig: { ...remoteConfig(origin), name: "Plataforma Interna" },
+      credentialStore: asCredentialStore({ async get() { return "profile-token"; } }),
+    });
+    await stored.init();
+    await stored.renameProject("Nuevo Nombre");
+    await stored.readStatus();
+
+    const derived = createBackendClient({
+      projectDir: "/repos/plataforma-interna",
+      projectConfig: remoteConfig(origin),
+      credentialStore: asCredentialStore({ async get() { return "profile-token"; } }),
+    });
+    await derived.init();
+  });
+  assert.deepEqual(requests, [
+    { method: "POST", url: "/v1/projects/project%2Fopaque/init", name: "Plataforma%20Interna", body: { name: "Plataforma Interna" } },
+    { method: "POST", url: "/v1/projects/project%2Fopaque/rename", name: "Plataforma%20Interna", body: { name: "Nuevo Nombre" } },
+    { method: "GET", url: "/v1/projects/project%2Fopaque/read/status", name: "Plataforma%20Interna", body: undefined },
+    { method: "POST", url: "/v1/projects/project%2Fopaque/init", name: "plataforma-interna", body: { name: "plataforma-interna" } },
   ]);
 });
 

@@ -32,7 +32,7 @@ const BOUNDARIES = [
   {
     name: "server",
     directory: "src/server",
-    allowedRoots: ["application", "kernel", "read-model", "storage", "upgrade"],
+    allowedRoots: ["application", "contracts", "kernel", "read-model", "storage", "upgrade"],
     documentedEdges: [
       { edge: "server -> kernel", source: "ADR-032: transfers dispatch through kernel/transfer port" },
       { edge: "server -> read-model", source: "ADR-032: the narrow boundary test does not restrict read-model" },

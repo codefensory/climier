@@ -10,6 +10,7 @@ type RequestOptionsInput = {
   body?: unknown;
   token: string | null | undefined;
   signal: AbortSignal;
+  projectName?: string;
 };
 
 function clientError(code: string, message: string, details?: Record<string, unknown>): CodedApplicationError {
@@ -24,12 +25,13 @@ function remoteUrl({ baseUrl, projectId, route }: { baseUrl: string; projectId: 
   return `${base}/v1/projects/${encodeURIComponent(projectId)}/${route}`;
 }
 
-function requestOptions({ method, body, token, signal }: RequestOptionsInput): RequestInit {
+function requestOptions({ method, body, token, signal, projectName }: RequestOptionsInput): RequestInit {
   const headers: Record<string, string> = {
     accept: "application/json",
     "x-climier-protocol-version": REMOTE_PROTOCOL_VERSION,
   };
   if (token) {headers.authorization = `Bearer ${token}`;}
+  if (projectName !== undefined) {headers["x-climier-project-name"] = encodeURIComponent(projectName);}
   const options: RequestInit = { method, headers, signal };
   if (body !== undefined) {
     headers["content-type"] = "application/json";
@@ -136,11 +138,13 @@ function validateResponse(response: Response, envelope: unknown): unknown {
 export function createRemoteRequest({
   backend,
   projectId,
+  projectName,
   tokenProvider,
   timeoutMs,
 }: {
   backend: { url: string };
   projectId: string;
+  projectName?: string;
   tokenProvider: (origin: string) => Promise<string | null>;
   timeoutMs: number;
 }): RemoteRequest {
@@ -150,7 +154,7 @@ export function createRemoteRequest({
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const options = requestOptions({ method, body, token, signal: controller.signal });
+      const options = requestOptions({ method, body, token, signal: controller.signal, projectName });
       const response = await fetchResponse(url, options, controller, timeoutMs);
       validateProtocolVersion(response, { transferImport: method === "POST" && route === "transfer/import" });
       const envelope = await parseResponse(response, controller, timeoutMs);

@@ -3,14 +3,16 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import { parseBackendConfig } from "../../application/backend-config.ts";
+import { isValidProjectName, normalizeProjectName } from "../../contracts/project-name.ts";
 import { projectMetaFile } from "../../storage/paths.ts";
+import { syncProjectDisplayName } from "../../storage/state.ts";
 import { asCaughtError } from "../../contracts/errors.ts";
 import type { CommandContext } from "./contracts.ts";
 import { warningField } from "./warnings.ts";
 
-type LinkMetadata = { version?: unknown; project_id?: unknown; backend?: { type?: unknown; url?: unknown } } & Record<string, unknown>;
+type LinkMetadata = { version?: unknown; project_id?: unknown; name?: unknown; backend?: { type?: unknown; url?: unknown } } & Record<string, unknown>;
 
-export const knownFlags = ["replace"];
+export const knownFlags = ["replace", "name"];
 
 function linkError(code, message, details) {
   const error = new Error(message);
@@ -67,11 +69,12 @@ function currentRemoteOrigin(meta: LinkMetadata): string | null {
   return typeof meta.backend.url === "string" ? normalizedRemoteBackend(meta.backend.url).url : null;
 }
 
-function updatedMetadata(meta: LinkMetadata, backend: { type: "remote"; url: string }): LinkMetadata {
+function updatedMetadata(meta: LinkMetadata, backend: { type: "remote"; url: string }, name: string | null | undefined): LinkMetadata {
   return {
     ...meta,
     version: Number.isInteger(meta.version) ? meta.version : 1,
     project_id: typeof meta.project_id === "string" && meta.project_id.trim() ? meta.project_id : newProjectId(),
+    ...(name === undefined ? {} : { name }),
     backend,
   };
 }
@@ -79,6 +82,10 @@ function updatedMetadata(meta: LinkMetadata, backend: { type: "remote"; url: str
 export default async function link({ positional, flags = {}, projectDir }: CommandContext) {
   if (positional.length !== 1) {throw usage("expected exactly one origin", { positional_count: positional.length });}
   const replace = normalizeReplace(flags.replace);
+  if (flags.name !== undefined && !isValidProjectName(flags.name)) {
+    throw usage("name must be a non-empty string of at most 120 characters", { flag: "name" });
+  }
+  const requestedName = flags.name === undefined ? undefined : normalizeProjectName(flags.name);
   const backend = normalizedRemoteBackend(positional[0]);
   const file = projectMetaFile(projectDir);
   const meta = await readMetadata(file);
@@ -90,11 +97,13 @@ export default async function link({ positional, flags = {}, projectDir }: Comma
     });
   }
 
-  const next = updatedMetadata(meta, backend);
+  const next = updatedMetadata(meta, backend, requestedName);
   await fs.mkdir(path.dirname(file), { recursive: true });
   await fs.writeFile(file, JSON.stringify(next, null, 2) + "\n", "utf8");
+  await syncProjectDisplayName(projectDir, next);
+  const name = normalizeProjectName(next.name);
   return {
-    project: { project_id: next.project_id, backend: next.backend },
+    project: { project_id: next.project_id, ...(name === null ? {} : { name }), backend: next.backend },
     ...warningField("link", backend.url, flags),
   };
 }
