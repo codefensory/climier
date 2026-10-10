@@ -26,8 +26,10 @@ servicio y quien posee los directorios.
 - `ExecStart=<root>/climier-server <root>/server.json`.
 - `EnvironmentFile=<root>/server.env`.
 - `Restart=on-failure`.
-- Hardening acorde al estado: `NoNewPrivileges=true`, `PrivateTmp=true`,
-  `ProtectSystem=strict`, `ProtectHome=true`, `ReadWritePaths=<dataRoot> <stateHome>`.
+- **Sin hardening** (enmienda 2026-10-10): el generador no emite
+  `NoNewPrivileges`, `PrivateTmp`, `ProtectSystem`, `ProtectHome` ni
+  `ReadWritePaths`. Endurecer el servicio y elegir donde vive es del operador;
+  ver la enmienda al final.
 - `User=`/`Group=` **solo** cuando se pasa `--service-user <user>`. Sin el flag no
   se agrega `User=`, de modo que el unit no corre como root por decision implicita
   de `init`.
@@ -85,5 +87,18 @@ Sin dependencias de runtime nuevas (renderizado por template de strings).
   `User=climier` y reporta los `chown`/`chmod` pendientes.
 - `--unit none` no escribe unit y la salida JSON lo refleja.
 - `dataRoot`/`stateHome` inexistentes se crean `0700`; existentes no se alteran.
-- El unit referencia `ReadWritePaths` con `dataRoot` y `stateHome` absolutos.
+- El unit no emite hardening; `dataRoot` y `stateHome` conservan la validacion de
+  ruta absoluta aunque el unit ya no los use.
 - `doctor` reporta `fail` si el binario o el unit esperado no existen.
+
+## Enmienda (2026-10-10)
+
+La decision 2 cambio: el unit generado **no** endurece el servicio. El hardening
+se revirtio porque imponia politica de seguridad y de ubicacion a nombre de
+climier: con `ProtectHome=true` el unit solo arrancaba con la raiz fuera de
+`/home` y `/root`, y `ProtectSystem=strict` obligaba a un `ReadWritePaths`
+exacto, sin que nada lo advirtiera en codigo. Ahora el operador endurece con un
+drop-in de systemd (`ProtectSystem`, `ProtectHome`, `ReadWritePaths` y el
+ordering del listener), y `init` no opina sobre la ubicacion: no agrega checks
+ni warnings por una raiz bajo `$HOME` o `/root`. El defecto, la evidencia
+empirica y la decision estan en `T-server-unit-home-root-sandbox`.

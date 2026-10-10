@@ -46,8 +46,12 @@ export function resolveServerExecStart(options: SystemdUnitOptions): string {
 /** Render the unit without installing, enabling, or starting it. */
 export function renderSystemdUnit(options: SystemdUnitOptions): string {
   const root = requiredPath(options.root, "root");
-  const dataRoot = requiredPath(options.dataRoot, "dataRoot");
-  const stateHome = requiredPath(options.stateHome, "stateHome");
+  // The generated unit supervises the process only: hardening, the service
+  // identity, and the listener ordering are the operator's, applied through a
+  // systemd drop-in. dataRoot and stateHome keep their path validation even
+  // though the unit no longer consumes them.
+  requiredPath(options.dataRoot, "dataRoot");
+  requiredPath(options.stateHome, "stateHome");
   const lines = [
     "[Unit]",
     "Description=Climier server",
@@ -58,11 +62,6 @@ export function renderSystemdUnit(options: SystemdUnitOptions): string {
     `ExecStart=${resolveServerExecStart({ ...options, root })}`,
     `EnvironmentFile=${path.join(root, "server.env")}`,
     "Restart=on-failure",
-    "NoNewPrivileges=true",
-    "PrivateTmp=true",
-    "ProtectSystem=strict",
-    "ProtectHome=true",
-    `ReadWritePaths=${dataRoot} ${stateHome}`,
   ];
   if (options.serviceUser !== undefined) {
     if (typeof options.serviceUser !== "string" || !/^\S+$/u.test(options.serviceUser)) {

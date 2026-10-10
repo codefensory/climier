@@ -39,7 +39,7 @@ test("does not resolve a binary module path before distribution detection", () =
   );
 });
 
-test("renders a hardened systemd unit without an implicit service user", () => {
+test("renders a supervision-only systemd unit without hardening or an implicit service user", () => {
   const root = "/srv/climier";
   const unit = renderSystemdUnit({
     root,
@@ -63,11 +63,12 @@ test("renders a hardened systemd unit without an implicit service user", () => {
   assert.match(npmUnit, /ExecStart=\/usr\/local\/bin\/bun .*\/bin\/climier\.ts server run \/srv\/climier\/server\.json/u);
   assert.match(unit, /EnvironmentFile=\/srv\/climier\/server\.env/u);
   assert.match(unit, /Restart=on-failure/u);
-  assert.match(unit, /NoNewPrivileges=true/u);
-  assert.match(unit, /PrivateTmp=true/u);
-  assert.match(unit, /ProtectSystem=strict/u);
-  assert.match(unit, /ProtectHome=true/u);
-  assert.match(unit, /ReadWritePaths=\/srv\/climier\/data \/srv\/climier\/state/u);
+  assert.match(unit, /After=network\.target/u);
+  assert.doesNotMatch(unit, /NoNewPrivileges/u);
+  assert.doesNotMatch(unit, /PrivateTmp/u);
+  assert.doesNotMatch(unit, /ProtectSystem/u);
+  assert.doesNotMatch(unit, /ProtectHome/u);
+  assert.doesNotMatch(unit, /ReadWritePaths/u);
   assert.doesNotMatch(unit, /^User=/mu);
 
   assert.match(renderSystemdUnit({ ...options(root), serviceUser: "climier" }), /^User=climier$/mu);

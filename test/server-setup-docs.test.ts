@@ -22,12 +22,14 @@ test("remote server docs describe the generated setup path", async () => {
   assert.match(doc, /adopted verbatim/u);
   assert.match(doc, /plain re-run never rotates/u);
   assert.match(doc, /\{"ok":true,"host":"<host>","port":<port>\}/u);
-  assert.match(doc, /ProtectHome=true/u);
+  assert.doesNotMatch(doc, /ProtectHome=true/u);
+  assert.match(doc, /drop-in/u);
   assert.match(doc, /drift.*unit|unit.*drift/isu);
   assert.doesNotMatch(doc, /deploy-server(?:\.sh|\.env)/u);
   assert.match(readmeText, /climier server init/u);
   assert.match(readmeText, /climier server doctor/u);
   assert.match(readmeText, /--rotate-password/u);
-  assert.match(readmeText, /ProtectHome=true/u);
+  assert.doesNotMatch(readmeText, /ProtectHome=true/u);
+  assert.match(readmeText, /drop-in/u);
   assert.doesNotMatch(readmeText, /deploy-server|launchd/u);
 });

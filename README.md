@@ -325,8 +325,9 @@ never printed unless the unsafe `--print-secret` flag is explicit. A plain
 re-run adopts an existing env and preserves its password; only
 `--rotate-password` rotates it. `climier server run` prints
 `{"ok":true,"host":...,"port":...}` after binding and then serves in the
-foreground. The generated unit sets `ProtectHome=true`, so keep the root outside
-`/home`. Rotate with
+foreground. The generated unit only supervises the process; hardening, the
+service identity, and the listener ordering are the operator's policy, applied
+with a systemd drop-in. Rotate with
 `climier server init --root /srv/climier --rotate-password`, then preflight and
 restart; clients must log in again. `server doctor` performs the pre-bind
 checks but cannot detect drift in a unit already installed in systemd. Login

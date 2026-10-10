@@ -56,13 +56,15 @@ the service identity is an explicit operator choice. `init` reports the
 required ownership commands but does not run `chown`, `chmod`, `sudo`, or other
 privileged operations.
 
-The generated unit hardens the service with `ProtectSystem=strict`,
-`ProtectHome=true`, and `ReadWritePaths` limited to `dataRoot` and `stateHome`.
-Choose the root and the `climier` installation outside `/home` and `/root`; a
-root hidden by `ProtectHome` leaves the service unable to read its own
-configuration, env file, or executable. A unit created before the single-binary
-runtime still points at the retired launcher and must be regenerated so its
-`ExecStart` uses `climier server run`.
+The generated unit only supervises the process: `Type=simple`, `ExecStart`,
+`EnvironmentFile`, `Restart=on-failure`, and `User=`/`Group=` when
+`--service-user` is explicit. It does not harden the service and does not
+constrain where the root lives; hardening (`ProtectSystem`, `ProtectHome`,
+`ReadWritePaths`), the service identity, and the listener ordering
+(`After=`/`Wants=` for a private overlay such as `tailscaled.service`) are the
+operator's policy and belong in a systemd drop-in. A unit created before the
+single-binary runtime still points at the retired launcher and must be
+regenerated so its `ExecStart` uses `climier server run`.
 
 Use `--unit none` when a container or a foreground process supplies its own
 process supervisor. This still generates `server.json` and `server.env`, but no
