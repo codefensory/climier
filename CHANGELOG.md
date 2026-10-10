@@ -3,6 +3,22 @@
 All notable changes to this project are documented here. The format follows
 Keep a Changelog.
 
+## [1.0.1] - 2026-10-09
+
+### Bug Fixes
+
+- **server:** stop emitting systemd hardening from server init ([279d8b7](https://github.com/codefensory/climier/commit/279d8b722faf98f22cade5f86d23527df2b4ab8d))
+- **server:** install shutdown handlers before reporting health ([eb27f52](https://github.com/codefensory/climier/commit/eb27f52f549cd5661a96dbc2764d80a89800d1a3))
+- **server:** adopt the operator password in an existing server env ([69aaab5](https://github.com/codefensory/climier/commit/69aaab5a1ab86f250dc17107e129d0d56e1df80c))
+
+The generated systemd unit now only supervises the process: `NoNewPrivileges`,
+`PrivateTmp`, `ProtectSystem`, `ProtectHome`, and `ReadWritePaths` are gone, so a
+root under `/home` works and hardening belongs in an operator drop-in. Units
+already installed are not modified; regenerate and reinstall the artifact only
+to adopt the new contract. `server init` also adopts an existing operator-chosen
+`CLIMIER_SERVER_PASSWORD` verbatim, and the server installs its shutdown
+handlers before reporting health.
+
 ## [1.0.0] - 2026-09-28
 
 This is the first clean Climier release. It is the first version intended for
