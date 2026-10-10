@@ -43,8 +43,8 @@ const STATUS_LABELS: Record<BoardStatus, string> = {
  * y completo cuando lo hay.
  */
 export const statusOrder: TaskStatusOption[] = [
-  { status: "in_progress", label: STATUS_LABELS.in_progress, color: STATUS_TOKENS.in_progress },
   { status: "ready", label: STATUS_LABELS.ready, color: STATUS_TOKENS.ready },
+  { status: "in_progress", label: STATUS_LABELS.in_progress, color: STATUS_TOKENS.in_progress },
   { status: "submitted", label: STATUS_LABELS.submitted, color: STATUS_TOKENS.submitted },
   { status: "blocked", label: STATUS_LABELS.blocked, color: STATUS_TOKENS.blocked },
   { status: "backlog", label: STATUS_LABELS.backlog, color: STATUS_TOKENS.backlog },
