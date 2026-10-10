@@ -12,7 +12,6 @@ export const RESERVED_NAMESPACES = Object.freeze([
   "log",
   "snapshots",
   "state",
-  "migrate",
   "batch",
 
   "take",

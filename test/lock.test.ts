@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createTempProject, rmTempProject, importFresh, lockFilePath, writeCanonicalState } from "./helpers.ts";
+import { createTempProject, rmTempProject, importFresh, lockFilePath, stateFilePath, writeCanonicalState } from "./helpers.ts";
 import { commitFencedStateUnderLock, readFencedStateUnderLock } from "../src/storage/ledger.ts";
 
 type FencedState = { version: number; revision: number; log: Array<{ action: string }> };
@@ -183,6 +183,34 @@ test("stale lock recovery requires verified manual removal before schema-1 opera
     assert.equal(last.action, "stale-lock-recovery-test");
   } finally {
     await rmTempProject(dir);
+  }
+});
+
+test("project-id locks contend with the project writer lock", async () => {
+  const { withLock, withProjectIdLock } = await importFresh("./storage/lock.ts");
+  const projectDir = await createTempProject();
+  let releaseWriter!: () => void;
+  const writerGate = new Promise<void>((resolve) => { releaseWriter = resolve; });
+  try {
+    const projectId = path.basename(path.dirname(stateFilePath(projectDir)));
+    let writerReady!: () => void;
+    const ready = new Promise<void>((resolve) => { writerReady = resolve; });
+    const writer = withLock(projectDir, async () => {
+      writerReady();
+      await writerGate;
+    });
+    await ready;
+
+    let acquired = false;
+    const idLock = withProjectIdLock(projectId, async () => { acquired = true; }, { timeoutMs: 1000, retryEveryMs: 10 });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    assert.equal(acquired, false);
+    releaseWriter();
+    await Promise.all([writer, idLock]);
+    assert.equal(acquired, true);
+  } finally {
+    releaseWriter();
+    await rmTempProject(projectDir);
   }
 });
 

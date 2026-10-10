@@ -35,6 +35,20 @@ test("provider allowlists retain kind-specific fields", () => {
   assert.ok(!UPDATE_PATCH_KEYS.task.includes("purpose"));
 });
 
+test("the one-time state importer is absent from the CLI and storage", async () => {
+  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+  assert.ok(!KNOWN_COMMANDS.includes("migrate"));
+  const { HELP_TEXT } = await import("../src/cli/dispatch.ts");
+  assert.doesNotMatch(HELP_TEXT, /\bmigrate\b/i);
+  for (const relative of [
+    "src/cli/commands/migrate.ts",
+    "src/storage/migrate.ts",
+    "src/storage/migrate-detection.ts",
+  ]) {
+    await assert.rejects(fs.access(path.join(root, relative)), { code: "ENOENT" });
+  }
+});
+
 test("manual transfer CLI and remote v1 manifest remain registered", async () => {
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
   assert.ok(KNOWN_COMMANDS.includes("login"));

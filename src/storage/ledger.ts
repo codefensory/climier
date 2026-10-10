@@ -108,7 +108,7 @@ async function finishLedgerRead(lockContext: LockContext, ledger: BootstrapLedge
     return finishPendingCommit({ statePath, ledgerPath, ledger, rawState, opts });
   }
   if (!ledger.commit_pending && !ledger.bootstrap_pending && !ledger.recovery_pending && !ledger.replace_pending && parsedState.version !== 1) {
-    throw new ClimierError("CLIMIER_INCOMPATIBLE_VERSION", "ledger: state is not canonical version 1; run climier migrate");
+    throw new ClimierError("CLIMIER_INCOMPATIBLE_VERSION", "ledger: state is not canonical version 1; restore a verified backup or contact the maintainer.");
   }
   await cleanOrphanCommitStages(statePath);
   const state = parsedState;

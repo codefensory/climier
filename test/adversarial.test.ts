@@ -866,7 +866,7 @@ describe("init --force on existing state", () => {
       const code = typeof data.error === "string" ? null : data.error && data.error.code;
       const msg = typeof data.error === "string" ? data.error : (data.error && data.error.message);
       assert.equal(code, "STORAGE_ERROR");
-      assert.match(msg, /PRE_RELEASE_STATE_UNSUPPORTED|climier migrate/i);
+      assert.match(msg, /PRE_RELEASE_STATE_UNSUPPORTED|restore a verified backup/i);
       assert.doesNotMatch(msg, /init --force/i);
       // Rejection leaves the pre-release shape untouched.
       const s = await readRawState(dir);

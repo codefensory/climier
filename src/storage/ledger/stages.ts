@@ -45,7 +45,7 @@ export function isSchemaMigratedState(state: StateLike, ledger: LedgerLike): boo
 
 export function assertFencedState(state: StateLike, ledger: LedgerLike): void {
   if (!state || !isFencedStateVersion(state.version)) {
-    throw new ClimierError("CLIMIER_INCOMPATIBLE_VERSION", "ledger: state is not canonical version 1; run climier migrate");
+    throw new ClimierError("CLIMIER_INCOMPATIBLE_VERSION", "ledger: state is not canonical version 1; restore a verified backup or contact the maintainer.");
   }
   if (state.fence_generation !== ledger.fence_generation
       || !Number.isInteger(state.revision) || state.revision !== ledger.high_water_revision

@@ -202,6 +202,23 @@ test("CLI: unknown command returns a structured usage error", async () => {
   }
 });
 
+test("CLI: retired state importer is unknown and absent from help", async () => {
+  const dir = await createTempProject();
+  try {
+    const help = await runCli(["--project", dir, "--help"]);
+    assert.equal(help.code, 0, help.stderr);
+    assert.doesNotMatch(help.stdout, /\bmigrate\b/i);
+
+    const result = await runCli(["--project", dir, "migrate"]);
+    assert.equal(result.code, 2, result.stdout);
+    const data = JSON.parse(result.stdout);
+    assert.equal(data.ok, false);
+    assert.match(data.error.message, /unknown command 'migrate'/);
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
 test("CLI: remote auth and link commands are advertised and dispatchable", async () => {
   const dir = await createTempProject();
   try {

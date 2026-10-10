@@ -117,7 +117,7 @@ async function readCanonicalDestinationWithoutLedger(projectDir) {
     const cause = asCaughtError(rawCaughtValue); throw transferError("CLIMIER_TRANSFER_INVALID_DESTINATION", `transfer: destination state is corrupt: ${cause.message}`);
   }}
   if (state?.version !== STATE_SCHEMA_VERSION || !Number.isInteger(state.fence_generation)) {
-    throw transferError("CLIMIER_TRANSFER_INVALID_DESTINATION", `transfer: destination state at ${statePath} is not canonical version ${STATE_SCHEMA_VERSION}; run climier migrate`);
+    throw transferError("CLIMIER_TRANSFER_INVALID_DESTINATION", `transfer: destination state at ${statePath} is not canonical version ${STATE_SCHEMA_VERSION}; restore a verified backup or contact the maintainer.`);
   }
   validateStateInvariants(state, "transfer.destination");
   return state;
