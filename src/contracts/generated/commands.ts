@@ -136,10 +136,6 @@ export const GENERATED_COMMAND_FLAGS = {
   "logout": [
     "server"
   ],
-  "migrate": [
-    "all",
-    "dry-run"
-  ],
   "pull": [
     "as",
     "force"

@@ -68,13 +68,13 @@ test("readState delegates canonical state validation to the fenced ledger reader
   });
 });
 
-test("readState rejects versions 2 through 5 and directs explicit migration", async (t) => {
+test("readState rejects versions 2 through 5 with recovery guidance", async (t) => {
   for (const version of [2, 3, 4, 5]) {
     await t.test(`version ${version}`, async () => {
       await withProject(async (projectDir) => {
         await seedCanonicalState(projectDir);
         await fs.writeFile(stateFile(projectDir), `${JSON.stringify(legacyState(version), null, 2)}\n`, "utf8");
-        await assert.rejects(readState(projectDir), (error: unknown) => error instanceof Error && error.code === "CLIMIER_INCOMPATIBLE_VERSION" && /climier migrate/i.test(error.message));
+        await assert.rejects(readState(projectDir), (error: unknown) => error instanceof Error && error.code === "CLIMIER_INCOMPATIBLE_VERSION" && /restore a verified backup/i.test(error.message));
       });
     });
   }

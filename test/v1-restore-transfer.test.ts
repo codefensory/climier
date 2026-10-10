@@ -52,7 +52,7 @@ for (const version of [2, 3, 4, 5]) {
         (rawError) => {
           const error = asCaughtError(rawError);
           return error.message.includes(file)
-            && error.message.includes("climier migrate")
+            && error.message.includes("restore a verified backup")
             && error.details?.path === file
             && error.details?.id === id;
         },

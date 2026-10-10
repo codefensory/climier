@@ -915,7 +915,7 @@ test("CLI: pre-release states are rejected with structural migration guidance", 
     const out = JSON.parse(r.stdout);
     assert.equal(out.ok, false);
     const message = out.error.message || out.error;
-    assert.match(message, /PRE_RELEASE_STATE_UNSUPPORTED|climier migrate/i);
+    assert.match(message, /PRE_RELEASE_STATE_UNSUPPORTED|restore a verified backup/i);
     assert.doesNotMatch(message, /init --force/i);
   } finally { await rmTempProject(dir); }
 });

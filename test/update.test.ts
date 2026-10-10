@@ -303,7 +303,7 @@ test("update: rejects a pre-release state with migration guidance", async () => 
     } catch (e) { caught = e; }
     assert.ok(caught, "should have thrown");
     assert.equal(caught.code, "PRE_RELEASE_STATE_UNSUPPORTED");
-    assert.match(caught.message, /climier migrate/i);
+    assert.match(caught.message, /restore a verified backup/i);
     assert.doesNotMatch(caught.message, /init --force/i);
   } finally { await rmTempProject(dir); }
 });

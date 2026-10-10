@@ -10,6 +10,8 @@ import { validateStateInvariants } from "../contracts/state-invariants.ts";
 import { normalizeProjectName } from "../contracts/project-name.ts";
 import type { ProjectState } from "../contracts/domain.ts";
 
+const STATE_RECOVERY_HINT = "Preserve the project files; restore a verified backup or contact the maintainer.";
+
 function readProjectMetaSync(projectDir) {
   const file = projectMetaFile(projectDir);
   if (!fsSync.existsSync(file)) { return null; }
@@ -231,7 +233,7 @@ export function emptyState(): ProjectState {
 const READABLE_STATE_KINDS = new Set(["canonical"]);
 
 
-// for migrate detection, but never grants those forms read acceptance.
+// Structural classification supports precise errors but never grants older forms read acceptance.
 export function assertReadableState(state, commandName) {
   if (!state) { return; }
   const shape = classifyStateShape(state);
@@ -266,13 +268,13 @@ async function parseStateFile(projectDir, file, raw) {
     throw stateShapeError("CLIMIER_INVALID_STATE_FORMAT", `state: file at ${file} is not a JSON object`, { file });
   }
   if (shape.kind === "pre-release") {
-    throw stateShapeError("PRE_RELEASE_STATE_UNSUPPORTED", `state: pre-release state at ${file} has tasks/decisions/gotchas without nodes; run climier migrate`, {
-      file, version: state.version, hint: "Run climier migrate to import this pre-release state.",
+    throw stateShapeError("PRE_RELEASE_STATE_UNSUPPORTED", `state: pre-release state at ${file} has tasks/decisions/gotchas without nodes. ${STATE_RECOVERY_HINT}`, {
+      file, version: state.version, hint: STATE_RECOVERY_HINT,
     });
   }
   if (shape.kind === "legacy" || shape.kind === "fenced-legacy") {
-    throw stateShapeError("CLIMIER_INCOMPATIBLE_VERSION", `state: file at ${file} is not a canonical version ${STATE_SCHEMA_VERSION} state; run climier migrate`, {
-      file, version: state.version, hint: "Run climier migrate to import this state.",
+    throw stateShapeError("CLIMIER_INCOMPATIBLE_VERSION", `state: file at ${file} is not a canonical version ${STATE_SCHEMA_VERSION} state. ${STATE_RECOVERY_HINT}`, {
+      file, version: state.version, hint: STATE_RECOVERY_HINT,
     });
   }
   if (shape.kind === "incompatible") { rejectFutureWritableVersion(state, file); }
@@ -283,8 +285,8 @@ async function parseStateFile(projectDir, file, raw) {
     });
   }
   if (shape.kind === "noncanonical") {
-    throw stateShapeError("CLIMIER_NONCANONICAL_STATE", `state: version 1 file at ${file} is not canonical (${shape.reason}); run climier migrate`, {
-      file, version: STATE_SCHEMA_VERSION, reason: shape.reason, hint: "Run climier migrate to create a canonical state.",
+    throw stateShapeError("CLIMIER_NONCANONICAL_STATE", `state: version 1 file at ${file} is not canonical (${shape.reason}). ${STATE_RECOVERY_HINT}`, {
+      file, version: STATE_SCHEMA_VERSION, reason: shape.reason, hint: STATE_RECOVERY_HINT,
     });
   }
   if (shape.kind === "canonical") {
@@ -294,8 +296,8 @@ async function parseStateFile(projectDir, file, raw) {
   {
     const error = asCaughtError(rawCaughtValue);
       if (error.code === "ENOENT") {
-        throw stateShapeError("CLIMIER_NONCANONICAL_STATE", `state: version 1 file at ${file} is not canonical (revision-ledger.json is missing); run climier migrate`, {
-          file, version: STATE_SCHEMA_VERSION, reason: "revision-ledger.json is missing", hint: "Run climier migrate to create a canonical state.",
+        throw stateShapeError("CLIMIER_NONCANONICAL_STATE", `state: version 1 file at ${file} is not canonical (revision-ledger.json is missing). ${STATE_RECOVERY_HINT}`, {
+          file, version: STATE_SCHEMA_VERSION, reason: "revision-ledger.json is missing", hint: STATE_RECOVERY_HINT,
         });
       }
       throw error;
@@ -303,7 +305,7 @@ async function parseStateFile(projectDir, file, raw) {
   }}
     return readFencedState(projectDir);
   }
-  throw stateShapeError("CLIMIER_INCOMPATIBLE_VERSION", `state: file at ${file} is not a canonical version ${STATE_SCHEMA_VERSION} state; run climier migrate`, { file, version: state.version, hint: "Run climier migrate to import this state." });
+  throw stateShapeError("CLIMIER_INCOMPATIBLE_VERSION", `state: file at ${file} is not a canonical version ${STATE_SCHEMA_VERSION} state. ${STATE_RECOVERY_HINT}`, { file, version: state.version, hint: STATE_RECOVERY_HINT });
 }
 
 export async function readState(projectDir) {
@@ -371,8 +373,8 @@ async function assertUnledgeredWriteAllowed(lockContext, projectDir, targetState
 function rejectUnsupportedWriteVersion(state, file) {
   if (state?.version === STATE_SCHEMA_VERSION) {
     if (classifyStateShape(state).kind === "pre-release") {
-      throw stateShapeError("PRE_RELEASE_STATE_UNSUPPORTED", `state: ${file} holds a pre-canonical state (tasks/decisions/gotchas without nodes); run climier migrate`, {
-        file, hint: "Run climier migrate to import this state.",
+      throw stateShapeError("PRE_RELEASE_STATE_UNSUPPORTED", `state: ${file} holds a pre-canonical state (tasks/decisions/gotchas without nodes). ${STATE_RECOVERY_HINT}`, {
+        file, hint: STATE_RECOVERY_HINT,
       });
     }
     throw ledgerRequired("state: canonical states require the revision ledger commit API");
@@ -392,7 +394,7 @@ async function readStateForUpdate(file) {
 }
 
 function rejectFutureWritableVersion(state, file) {
-  const error = new Error(`state: file at ${file} has version ${state?.version} but this climier only understands schema version ${STATE_SCHEMA_VERSION}; run climier migrate`);
+  const error = new Error(`state: file at ${file} has version ${state?.version} but this climier only understands schema version ${STATE_SCHEMA_VERSION}. ${STATE_RECOVERY_HINT}`);
   error.code = "CLIMIER_INCOMPATIBLE_VERSION";
   throw error;
 }
@@ -403,8 +405,8 @@ function assertWritableStateVersion(state, file) {
   if (state.version > STATE_SCHEMA_VERSION && !CLASSIFIABLE_NONCANONICAL_VERSIONS.has(state.version)) { rejectFutureWritableVersion(state, file); }
   if (!Number.isInteger(state.version)) { rejectFutureWritableVersion(state, file); }
   if (CLASSIFIABLE_NONCANONICAL_VERSIONS.has(state.version)) {
-    throw stateShapeError("CLIMIER_INCOMPATIBLE_VERSION", `state: file at ${file} has legacy version ${state.version}; run climier migrate`, {
-      file, version: state.version, hint: "Run climier migrate to import this state.",
+    throw stateShapeError("CLIMIER_INCOMPATIBLE_VERSION", `state: file at ${file} has legacy version ${state.version}. ${STATE_RECOVERY_HINT}`, {
+      file, version: state.version, hint: STATE_RECOVERY_HINT,
     });
   }
 }

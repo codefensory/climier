@@ -181,9 +181,10 @@ tasks de producto que la habilitaron ya las cerro el runner.
   que el tarball coincida con el GitHub Release. No se mueve el tag.
 - **Prerelease**: el script usa `--tag next`; el `manifest.json` de CI usa
   `--channel stable` fijo, asi que en v1 el canal soportado es **stable**.
-- **Migracion de estado**: si cambia el esquema, antes del publish hay que
-  ensayar `climier migrate --all --dry-run` con todos los writers parados y
-  seguir `docs/remote-server.md`.
+- **Esquema de estado**: compara el `state_schema` anunciado con el que
+  soporta el binario instalado. No publiques una release que requiera una
+  transicion sin un plan de cambio y rollback especifico, probado y documentado;
+  el importador puntual del corte v1 ya fue retirado.
 - **Ventana de procesamiento de npm**: una version recien publicada no es
   instalable de inmediato (escaneo + indice). No confundir con un fallo: el
   `+ climier@X.Y.Z` del publish ya confirmo. En paquetes nuevos puede quedar el

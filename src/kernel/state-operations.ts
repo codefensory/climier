@@ -39,7 +39,7 @@ function parseSnapshotJson(raw, id) {
 
 function validateSnapshotVersion(parsed, id, snapshotPath) {
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed) || parsed.version !== 1) {
-    throwV2("INVALID_STATUS", `state.restore: snapshot ${snapshotPath} (id ${id}) is not a canonical v1 state; run climier migrate`, {
+    throwV2("INVALID_STATUS", `state.restore: snapshot ${snapshotPath} (id ${id}) is not a canonical v1 state; restore a verified backup or contact the maintainer.`, {
       id,
       path: snapshotPath,
       version: parsed && parsed.version,

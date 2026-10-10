@@ -62,4 +62,4 @@ climier state
 climier status --all
 ```
 
-If a project was created by an older format, use the explicit `migrate` command during a controlled migration window. `init --force` resets a project; it is not a conversion mechanism.
+The one-time schema-1 import window for older projects is complete, and its importer is no longer shipped. If older or incomplete state is discovered, preserve the project files and restore a verified canonical backup or contact the maintainer. `init --force` is a destructive reset, not a conversion or recovery mechanism.

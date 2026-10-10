@@ -82,7 +82,7 @@ function migrationInfo(manifest: ReleaseManifest) {
   return {
     state_schema: manifest.state_schema,
     migration_required: required,
-    ...(required ? { migration_warning: `This release requires state schema ${manifest.state_schema}; run climier migrate before using it.` } : {}),
+    ...(required ? { migration_warning: `This release requires state schema ${manifest.state_schema}; review its release notes before upgrading.` } : {}),
   };
 }
 

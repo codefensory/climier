@@ -1781,6 +1781,12 @@
     },
     {
       "path": "test/application-backend-client.test.ts",
+      "name": "remote client sends the project display name on init, rename, and every request",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/application-backend-client.test.ts",
       "name": "remote client uses protocol v1 and only the profile bearer for its origin",
       "ordinal": 1,
       "disposition": "keep"
@@ -2805,6 +2811,12 @@
     },
     {
       "path": "test/ci-workflow.test.ts",
+      "name": "tag releases publish the changelog section as the release body",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/ci-workflow.test.ts",
       "name": "the commit contract is enforced locally, not in CI",
       "ordinal": 1,
       "disposition": "keep"
@@ -3109,6 +3121,12 @@
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/cli-dispatch.test.mjs"
+    },
+    {
+      "path": "test/cli-dispatch.test.ts",
+      "name": "CLI: retired state importer is unknown and absent from help",
+      "ordinal": 1,
+      "disposition": "keep"
     },
     {
       "path": "test/cli-dispatch.test.ts",
@@ -4508,6 +4526,12 @@
     },
     {
       "path": "test/command-ui.test.ts",
+      "name": "climier ui names projects discovered under the launch workspace",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/command-ui.test.ts",
       "name": "climier ui serves the local SPA and UI projections without Express or bearer auth",
       "ordinal": 1,
       "disposition": "move",
@@ -5448,6 +5472,18 @@
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/edges.test.mjs"
+    },
+    {
+      "path": "test/embedded-ui-release.test.ts",
+      "name": "installation and self-hosting docs explain the standalone UI and optional custom root",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/embedded-ui-release.test.ts",
+      "name": "standalone UI decision records its gate and embedded asset strategy",
+      "ordinal": 1,
+      "disposition": "keep"
     },
     {
       "path": "test/errors.test.mjs",
@@ -6636,6 +6672,12 @@
       "category": "guard",
       "motive": "asserts legacy writeState schema validation and rejection; valid fixture uses writeCanonicalState",
       "replacement": "keep while the guard is required"
+    },
+    {
+      "path": "test/install-script.test.ts",
+      "name": "install docs: the one-line installer matches a POSIX shell",
+      "ordinal": 1,
+      "disposition": "keep"
     },
     {
       "path": "test/install-script.test.ts",
@@ -8213,7 +8255,7 @@
     },
     {
       "path": "test/kernel-state-operations.test.mjs",
-      "name": "kernel state.restore rejects a historical v2 snapshot and points at climier migrate",
+      "name": "kernel state.restore rejects a historical v2 snapshot with recovery guidance",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/kernel-state-operations.test.mjs"
@@ -8297,7 +8339,7 @@
     },
     {
       "path": "test/kernel-state-operations.test.ts",
-      "name": "kernel state.restore rejects a historical v2 snapshot and points at climier migrate",
+      "name": "kernel state.restore rejects a historical v2 snapshot with recovery guidance",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/kernel-state-operations.test.mjs"
@@ -10229,6 +10271,12 @@
     },
     {
       "path": "test/lock.test.ts",
+      "name": "project-id locks contend with the project writer lock",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/lock.test.ts",
       "name": "stale lock recovery requires verified manual removal before schema-1 operation resumes",
       "ordinal": 1,
       "disposition": "move",
@@ -10385,183 +10433,235 @@
       "path": "test/migrate-fenced.test.mjs",
       "name": "fenced migrate preserves node CAS, advances state and ledger revisions, logs once, and is idempotent",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/migrate-fenced.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "The one-time importer and its dedicated tests are retired after the completed schema-1 cutover.",
+      "coverage_removed": true
     },
     {
       "path": "test/migrate-fenced.test.mjs",
       "name": "migrate --dry-run does not write a fenced project",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/migrate-fenced.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "The one-time importer and its dedicated tests are retired after the completed schema-1 cutover.",
+      "coverage_removed": true
     },
     {
       "path": "test/migrate-fenced.test.mjs",
       "name": "migrate refuses an incompatible version without modifying state or ledger",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/migrate-fenced.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "The one-time importer and its dedicated tests are retired after the completed schema-1 cutover.",
+      "coverage_removed": true
     },
     {
       "path": "test/migrate-fenced.test.ts",
       "name": "fenced migrate preserves node CAS, advances state and ledger revisions, logs once, and is idempotent",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/migrate-fenced.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "The one-time importer and its dedicated tests are retired after the completed schema-1 cutover.",
+      "coverage_removed": true
     },
     {
       "path": "test/migrate-fenced.test.ts",
       "name": "migrate --dry-run does not write a fenced project",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/migrate-fenced.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "The one-time importer and its dedicated tests are retired after the completed schema-1 cutover.",
+      "coverage_removed": true
     },
     {
       "path": "test/migrate-fenced.test.ts",
       "name": "migrate refuses an incompatible version without modifying state or ledger",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/migrate-fenced.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "The one-time importer and its dedicated tests are retired after the completed schema-1 cutover.",
+      "coverage_removed": true
     },
     {
       "path": "test/migrate-old-forms.test.mjs",
       "name": "boundary: a fenced legacy marker is refused and migrate adopts it without touching the bytes first",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/migrate-old-forms.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "The one-time importer and its dedicated tests are retired after the completed schema-1 cutover.",
+      "coverage_removed": true
     },
     {
       "path": "test/migrate-old-forms.test.mjs",
       "name": "boundary: the reader refuses the legacy bytes that migrate then imports in place",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/migrate-old-forms.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "The one-time importer and its dedicated tests are retired after the completed schema-1 cutover.",
+      "coverage_removed": true
     },
     {
       "path": "test/migrate-old-forms.test.mjs",
       "name": "legacy migration backs up source and reports old migration_pending while continuing sweep",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/migrate-old-forms.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "The one-time importer and its dedicated tests are retired after the completed schema-1 cutover.",
+      "coverage_removed": true
     },
     {
       "path": "test/migrate-old-forms.test.mjs",
       "name": "legacy v2, v3, and v4 imports normalize gates and create the initial fence",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/migrate-old-forms.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "The one-time importer and its dedicated tests are retired after the completed schema-1 cutover.",
+      "coverage_removed": true
     },
     {
       "path": "test/migrate-old-forms.test.mjs",
       "name": "prehistoric import writes a canonical empty state readable by status",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/migrate-old-forms.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "The one-time importer and its dedicated tests are retired after the completed schema-1 cutover.",
+      "coverage_removed": true
     },
     {
       "path": "test/migrate-old-forms.test.mjs",
       "name": "SIGKILL at each bootstrap publication boundary resumes to a readable consistent state",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/migrate-old-forms.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "The one-time importer and its dedicated tests are retired after the completed schema-1 cutover.",
+      "coverage_removed": true
     },
     {
       "path": "test/migrate-old-forms.test.ts",
       "name": "boundary: a fenced legacy marker is refused and migrate adopts it without touching the bytes first",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/migrate-old-forms.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "The one-time importer and its dedicated tests are retired after the completed schema-1 cutover.",
+      "coverage_removed": true
     },
     {
       "path": "test/migrate-old-forms.test.ts",
       "name": "boundary: the reader refuses the legacy bytes that migrate then imports in place",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/migrate-old-forms.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "The one-time importer and its dedicated tests are retired after the completed schema-1 cutover.",
+      "coverage_removed": true
     },
     {
       "path": "test/migrate-old-forms.test.ts",
       "name": "legacy migration backs up source and reports old migration_pending while continuing sweep",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/migrate-old-forms.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "The one-time importer and its dedicated tests are retired after the completed schema-1 cutover.",
+      "coverage_removed": true
     },
     {
       "path": "test/migrate-old-forms.test.ts",
       "name": "legacy v2, v3, and v4 imports normalize gates and create the initial fence",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/migrate-old-forms.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "The one-time importer and its dedicated tests are retired after the completed schema-1 cutover.",
+      "coverage_removed": true
     },
     {
       "path": "test/migrate-old-forms.test.ts",
       "name": "prehistoric import writes a canonical empty state readable by status",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/migrate-old-forms.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "The one-time importer and its dedicated tests are retired after the completed schema-1 cutover.",
+      "coverage_removed": true
     },
     {
       "path": "test/migrate-old-forms.test.ts",
       "name": "SIGKILL at each bootstrap publication boundary resumes to a readable consistent state",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/migrate-old-forms.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "The one-time importer and its dedicated tests are retired after the completed schema-1 cutover.",
+      "coverage_removed": true
     },
     {
       "path": "test/migrate.test.mjs",
       "name": "migrate --all --dry-run reports the four on-disk forms without changing bytes",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/migrate.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "The one-time importer and its dedicated tests are retired after the completed schema-1 cutover.",
+      "coverage_removed": true
     },
     {
       "path": "test/migrate.test.mjs",
       "name": "migrate --all reports corrupt projects and continues with failure exit",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/migrate.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "The one-time importer and its dedicated tests are retired after the completed schema-1 cutover.",
+      "coverage_removed": true
     },
     {
       "path": "test/migrate.test.mjs",
       "name": "migrate rejects --as",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/migrate.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "The one-time importer and its dedicated tests are retired after the completed schema-1 cutover.",
+      "coverage_removed": true
     },
     {
       "path": "test/migrate.test.mjs",
       "name": "project-id lock contends with the writer lock for the same storage project",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/migrate.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "The one-time importer and its dedicated tests are retired after the completed schema-1 cutover.",
+      "coverage_removed": true
     },
     {
       "path": "test/migrate.test.ts",
       "name": "migrate --all --dry-run reports the four on-disk forms without changing bytes",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/migrate.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "The one-time importer and its dedicated tests are retired after the completed schema-1 cutover.",
+      "coverage_removed": true
     },
     {
       "path": "test/migrate.test.ts",
       "name": "migrate --all reports corrupt projects and continues with failure exit",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/migrate.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "The one-time importer and its dedicated tests are retired after the completed schema-1 cutover.",
+      "coverage_removed": true
     },
     {
       "path": "test/migrate.test.ts",
       "name": "migrate rejects --as",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/migrate.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "The one-time importer and its dedicated tests are retired after the completed schema-1 cutover.",
+      "coverage_removed": true
     },
     {
       "path": "test/migrate.test.ts",
       "name": "project-id lock contends with the writer lock for the same storage project",
       "ordinal": 1,
-      "disposition": "move",
-      "move_from": "test/migrate.test.mjs"
+      "disposition": "delete",
+      "category": "retired-surface",
+      "reason": "The one-time importer and its dedicated tests are retired after the completed schema-1 cutover.",
+      "coverage_removed": true
     },
     {
       "path": "test/npm-shim.test.mjs",
@@ -10632,12 +10732,6 @@
     },
     {
       "path": "test/package.test.ts",
-      "name": "package: publish gate builds the UI before packaging",
-      "ordinal": 1,
-      "disposition": "keep"
-    },
-    {
-      "path": "test/package.test.ts",
       "name": "package: published files include the built UI",
       "ordinal": 1,
       "disposition": "keep"
@@ -10645,6 +10739,12 @@
     {
       "path": "test/package.test.ts",
       "name": "package: README documents Bun-only runtime usage",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/package.test.ts",
+      "name": "package: release smoke builds the UI and checks a compiled binary",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -10671,7 +10771,7 @@
     },
     {
       "path": "test/plugin-binary-loader.test.ts",
-      "name": "compiled binary loads an installed external .mjs plugin",
+      "name": "compiled binary embeds its UI and loads an installed external .mjs plugin",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -16394,6 +16494,54 @@
       "move_from": "test/plugins/api/runtime-query.test.mjs"
     },
     {
+      "path": "test/project-name.test.ts",
+      "name": "an explicit metadata name wins over the directory name",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/project-name.test.ts",
+      "name": "climier link --name records the explicit name",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/project-name.test.ts",
+      "name": "climier rename rejects missing or invalid input and missing metadata",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/project-name.test.ts",
+      "name": "climier rename sets the explicit name in metadata and in the state sidecar",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/project-name.test.ts",
+      "name": "every command backfills the display name without rewriting .climier.json",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/project-name.test.ts",
+      "name": "init names the project after its checkout directory",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/project-name.test.ts",
+      "name": "project name normalization collapses whitespace, drops blanks, and caps length",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/project-name.test.ts",
+      "name": "writeProjectName/readProjectName round-trip and reject a foreign id",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
       "path": "test/project-storage.test.mjs",
       "name": "storage: init uses the global state path",
       "ordinal": 1,
@@ -19252,6 +19400,36 @@
       "disposition": "keep"
     },
     {
+      "path": "test/release-notes.test.ts",
+      "name": "extractChangelogSection rejects a missing version, a heading-only section, and a prefix match",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/release-notes.test.ts",
+      "name": "extractChangelogSection returns the released section with its heading and stops at the next release",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/release-notes.test.ts",
+      "name": "renderReleaseNotes appends the compare link only when a base tag and repository are known",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/release-notes.test.ts",
+      "name": "renderReleaseNotes fails loudly when the changelog has no section for the version",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/release-notes.test.ts",
+      "name": "the repository CHANGELOG documents the version in package.json",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
       "path": "test/release-plan.test.ts",
       "name": "release-plan: a non-product range proposes no release",
       "ordinal": 1,
@@ -19484,6 +19662,12 @@
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/retired-surfaces.test.mjs"
+    },
+    {
+      "path": "test/retired-surfaces.test.ts",
+      "name": "the one-time state importer is absent from the CLI and storage",
+      "ordinal": 1,
+      "disposition": "keep"
     },
     {
       "path": "test/search.test.mjs",
@@ -19722,6 +19906,12 @@
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/server-catalog.test.mjs"
+    },
+    {
+      "path": "test/server-catalog.test.ts",
+      "name": "catalog provisions and renames a project's display name",
+      "ordinal": 1,
+      "disposition": "keep"
     },
     {
       "path": "test/server-catalog.test.ts",
@@ -19967,6 +20157,12 @@
     },
     {
       "path": "test/server-runtime.test.ts",
+      "name": "server runtime leaves UI root configurable and passes the packaged UI source to the server factory",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server-runtime.test.ts",
       "name": "server runtime pins state home and writes trusted hash-safe project metadata",
       "ordinal": 1,
       "disposition": "move",
@@ -19978,12 +20174,6 @@
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/server-runtime.test.mjs"
-    },
-    {
-      "path": "test/server-runtime.test.ts",
-      "name": "server runtime resolves the packaged UI root and passes it to the server factory",
-      "ordinal": 1,
-      "disposition": "keep"
     },
     {
       "path": "test/server-service-lock.test.mjs",
@@ -20065,7 +20255,7 @@
     },
     {
       "path": "test/server-setup-artifacts.test.ts",
-      "name": "renders a hardened systemd unit without an implicit service user",
+      "name": "renders a supervision-only systemd unit without hardening or an implicit service user",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -20084,6 +20274,12 @@
     {
       "path": "test/server-setup-artifacts.test.ts",
       "name": "warns when the recorded invoker is root",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server-setup-docs.test.ts",
+      "name": "reference and install guide document the server host surface",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -20383,6 +20579,12 @@
     },
     {
       "path": "test/server/http/projects.test.ts",
+      "name": "an authenticated CLI request adopts the project name header into the catalog",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server/http/projects.test.ts",
       "name": "GET /v1/projects lists indexed projects without opening a project",
       "ordinal": 1,
       "disposition": "keep"
@@ -20396,6 +20598,12 @@
     {
       "path": "test/server/http/projects.test.ts",
       "name": "GET /v1/projects returns an empty catalog without creating the data root",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server/http/projects.test.ts",
+      "name": "POST /v1/projects/:id/rename updates the catalog name and validates input",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -20488,8 +20696,38 @@
       "disposition": "keep"
     },
     {
+      "path": "test/server/http/static-memory.test.ts",
+      "name": "memory static source reports a missing index as unavailable",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server/http/static-memory.test.ts",
+      "name": "memory static source serves the SPA and assets with the filesystem cache contract",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
       "path": "test/server/http/static.test.ts",
       "name": "HTTP server serves the SPA safely with static headers and fallback",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server/packaged-ui.test.ts",
+      "name": "packaged UI resolver reads binary assets into a memoized in-memory map",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server/packaged-ui.test.ts",
+      "name": "packaged UI resolver reads Bun's flattened directory asset layout",
+      "ordinal": 1,
+      "disposition": "keep"
+    },
+    {
+      "path": "test/server/packaged-ui.test.ts",
+      "name": "packaged UI resolver selects filesystem distributions and memoizes the result",
       "ordinal": 1,
       "disposition": "keep"
     },
@@ -23329,7 +23567,7 @@
     },
     {
       "path": "test/storage-state-read-v5.test.mjs",
-      "name": "readState rejects versions 2 through 5 and directs explicit migration",
+      "name": "readState rejects versions 2 through 5 with recovery guidance",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/storage-state-read-v5.test.mjs"
@@ -23371,7 +23609,7 @@
     },
     {
       "path": "test/storage-state-read-v5.test.ts",
-      "name": "readState rejects versions 2 through 5 and directs explicit migration",
+      "name": "readState rejects versions 2 through 5 with recovery guidance",
       "ordinal": 1,
       "disposition": "move",
       "move_from": "test/storage-state-read-v5.test.mjs"

@@ -517,7 +517,7 @@ async function bootstrapLocked(projectDir: string, opts: BootstrapOptions, handl
   if (rawState === null) {
     return createInitialBootstrap({ statePath, ledgerPath, prepared: fencedInitialState({ version: STATE_SCHEMA_VERSION, nodes: {}, edges: [], initiatives: {}, log: [], revision: 0 }), opts });
   }
-  throw new ClimierError("CLIMIER_INCOMPATIBLE_VERSION", `ledger.bootstrap: existing state at ${statePath} is not canonical version ${STATE_SCHEMA_VERSION}; run climier migrate`);
+  throw new ClimierError("CLIMIER_INCOMPATIBLE_VERSION", `ledger.bootstrap: existing state at ${statePath} is not canonical version ${STATE_SCHEMA_VERSION}; restore a verified backup or contact the maintainer.`);
 }
 
 

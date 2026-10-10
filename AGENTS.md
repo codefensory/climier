@@ -123,11 +123,11 @@ ledger:
 ```
 
 Every writer also maintains `revision-ledger.json` beside the state. The ledger,
-lock, state, and log are committed atomically. Projects written before this
-cut must go through `climier migrate --all --dry-run` and `climier migrate
---all` with every writer stopped; the import and rollback order is in
-`docs/remote-server.md`. `init --force` is a deliberate reset only, never a
-migration path.
+lock, state, and log are committed atomically. The one-time schema-1 import
+window is complete and the importer is retired. Current releases accept only
+canonical schema-1 state; if older or incomplete files are found, preserve the
+project files and restore a verified canonical backup or contact the maintainer.
+`init --force` is a deliberate reset only.
 
 The project's human-facing **display name** is separate from the opaque
 `project_id`. It lives in the checkout's `.climier.json` (`name`, written by
@@ -199,7 +199,6 @@ Cycles in the DAG must not crash. The derivation keeps cycle members blocked. Un
 | `link <origin> [--replace=true] [--name "<name>"]` | `cli/commands/link.ts` | yes | required |
 | `rename "<name>"` | `cli/commands/rename.ts` | yes (project metadata; local + linked server) | no |
 | `login [--server <origin>]` / `logout [--server <origin>]` | `cli/commands/login.ts`, `cli/commands/logout.ts` | yes | required |
-| `migrate [--project <dir>] [--all] [--dry-run]` | `cli/commands/migrate.ts` | yes unless dry-run | required for import |
 | `ui [--port N] [--open=true\|false]` (experimental) | `cli/commands/ui.ts` (serves `ui/dist`) | no (read-only) | no |
 
 ## Hard rules for contributing
@@ -385,7 +384,7 @@ When you fix a bug, write a test that reproduces it BEFORE the fix. The test goe
 - **`status --status DONE` (uppercase) works in `tasks` style filters.** Case-insensitive.
 - **`status --staleMs 0` marks all in_progress as stale.** `staleMs: 0` is valid and means "everything in_progress is stale".
 - **`status` is global by default for in_progress.** `tasks.in_progress` and `summary.in_progress` include every in_progress task in scope, regardless of caller. `--claimed-by <agent>` is the only way to narrow claims; `--as` is an identity tag for `context` and is intentionally not a filter for `status`. Stale-claim alerts follow the same rule.
-- **`init --force` is destructive reset behavior**, not migration. It must never be used to convert a pre-cut project; import with `migrate` after stopping every writer.
+- **`init --force` is destructive reset behavior.** It must never be used to convert or recover an existing project; preserve the files and use a verified canonical backup or contact the maintainer.
 - **`add-task --blocked-by NONEXISTENT` fails** with a clear error. State validation only runs when the state file exists (so empty projects can still bootstrap).
 - **The state file is owned by the script.** `writeState` validates the schema. Don't write to the file from outside the CLI — even tests should go through `updateState`/`writeState` (or write valid schemas).
 - **`status` returns an empty `tasks` / `gates` shape for an empty state, never throws.** New code that consumes `status` should preserve this.

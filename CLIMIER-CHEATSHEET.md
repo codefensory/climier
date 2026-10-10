@@ -15,8 +15,7 @@ Errors are JSON to stdout with a structured shape:
 
 - `climier init` — create the empty state file for this project (one-time per machine).
 - `climier init --force` — full reset to empty state (after backing up); never use it to import an existing project.
-- `climier migrate --all --dry-run` — inspect every pre-cut project without writing.
-- `climier migrate --all` — import the project park after stopping all writers; verify each project before restart.
+- The one-time schema-1 import window is complete and the importer is retired. For an older or incomplete state, preserve all project files and restore a verified canonical backup or contact the maintainer; never use `init --force` to recover data.
 
 ## Orient / read
 

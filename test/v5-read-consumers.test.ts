@@ -134,7 +134,7 @@ test("read consumers reject legacy state versions with a migration hint", async 
         await assert.rejects(read(version), (rawError) => {
           const error = asCaughtError(rawError);
           assert.ok(["CLIMIER_INCOMPATIBLE_VERSION", "CLIMIER_STATE_NOT_READABLE"].includes(error.code ?? ""));
-          assert.match(error.message, /climier migrate/i);
+          assert.match(error.message, /restore a verified backup/i);
           return true;
         });
       }

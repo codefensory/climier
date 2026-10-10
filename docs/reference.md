@@ -82,7 +82,7 @@ commit messages.
 
 ## State shape
 
-`init` creates the canonical schema-1 state with this shape. The reader accepts only this form. Existing projects must be imported with `climier migrate` during the release window; never use `init --force` as an import operation:
+`init` creates the canonical schema-1 state with this shape. The reader accepts only this form. The one-time import window for pre-canonical projects has completed and its tool is retired. If older or incomplete state is found, preserve the project files and restore a verified canonical backup or contact the maintainer; never use `init --force` to convert or recover data:
 
 ```js
 {
@@ -875,18 +875,6 @@ Use `init --force` only for an intentional reset of the project, never to
 convert an existing project. For a pre-cut project, use the ordered import in
 [`docs/remote-server.md`](remote-server.md).
 
-### `migrate [--all] [--dry-run]`
-
-The importer is a one-time release operation for projects written before the
-schema-1 cut. `--dry-run` reports each project's detected form without writing;
-`--all` scans every project under `CLIMIER_HOME`. For a real import, stop all
-writers, the UI, and the remote server first, then run the
-dry-run and `climier migrate --all`. The importer backs up each project before
-changing it.
-Verify every project with `climier --project <checkout> status` before restarting
-writers. See [`docs/remote-server.md`](remote-server.md) for rollback and stale
-lock recovery.
-
 ### `state`
 
 Returns the deterministic current core projection. It is read-only and does not
@@ -1027,9 +1015,9 @@ the published release manifest and follows the install channel:
 install as current when the manifest is unreachable
 (`UPDATE_CHECK_UNREACHABLE`). `--version` pins an explicit upgrade or downgrade;
 a downgrade without it fails with `UPGRADE_DOWNGRADE_REQUIRES_VERSION`. If the
-manifest declares a newer `state_schema`, the result carries a migration warning
-and points to `climier migrate`. An active runner execution blocks the upgrade
-with `UPGRADE_FLOW_ACTIVE`.
+manifest declares a newer `state_schema`, the result sets `migration_required`
+and advises reviewing the release notes before upgrading. An active runner
+execution blocks the upgrade with `UPGRADE_FLOW_ACTIVE`.
 
 ## Low-level semantics worth knowing
 

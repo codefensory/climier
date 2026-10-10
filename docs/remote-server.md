@@ -126,8 +126,12 @@ sudo systemctl enable --now climier-server.service
 
 `climier upgrade` replaces the executable the unit runs, and a running server
 keeps the executable it started with: restart the service so it picks up the new
-binary. If an upgrade reports that the state schema changed, complete the
-migration while every writer is stopped before restarting the service.
+binary. If an upgrade reports that the required state schema differs from the
+installed release, follow only a release-specific, supported transition plan;
+this CLI has no general-purpose state importer. Preserve backups and keep all
+writers on a compatible release until the plan is clear. For legacy or
+incomplete state without such a plan, stop and contact the maintainer rather
+than resetting or editing the project files.
 
 For `--unit none`, a foreground launch must provide the generated secret to the
 process environment without putting it in argv or logs. The generated env file
@@ -247,9 +251,9 @@ indexed by origin in the local profile. `logout` removes the local copy; it does
 not revoke the server hash.
 
 Linking an existing local checkout preserves its project ID but does not upload
-or merge its local DAG. Remote `init` provisions the server-side project; it is
-not a migration. Transfers are separate, explicit snapshot operations described
-below. Changing an origin requires `climier link <new-origin> --replace=true`;
+or merge its local DAG. Remote `init` provisions the server-side project; it does
+not copy a local DAG. Transfers are separate, explicit snapshot operations
+described below. Changing an origin requires `climier link <new-origin> --replace=true`;
 it keeps the project ID but does not copy data between servers.
 
 The project's display name is separate from its `project_id`. `link --name

@@ -94,9 +94,9 @@ test("readState classifies pre-release v1 structure before checking its version"
     assert.ok(stateError.details, "must expose structured details");
     assert.equal(stateError.details!.version, 1);
     assert.equal(stateError.details!.file, file);
-    assert.match(stateError.details!.hint || "", /climier migrate/i);
+    assert.match(stateError.details!.hint || "", /restore a verified backup/i);
     assert.match(stateError.message, /pre-release/i);
-    assert.match(stateError.message, /climier migrate/i);
+    assert.match(stateError.message, /restore a verified backup/i);
     assert.doesNotMatch(stateError.message, /init --force/i);
   } finally { await rmTempProject(dir); }
 });
@@ -177,7 +177,7 @@ test("writeState rejects a v1-shaped object with a clear error", async () => {
     let caught;
     try { await writeState(dir, v1); } catch (e) { caught = e; }
     assert.ok(caught, "writeState must reject the pre-canonical shape");
-    assert.match((caught as StateError).message, /pre-canonical|run climier migrate/i);
+    assert.match((caught as StateError).message, /pre-canonical|restore a verified backup/i);
   } finally { await rmTempProject(dir); }
 });
 
@@ -235,7 +235,7 @@ test("canonical-only reader rejects versions 2 through 5 while retaining classif
         await fs.writeFile(stateFile(dir), JSON.stringify(shape), "utf8");
         await assert.rejects(readState(dir), (error) => {
           const stateError = error as StateError;
-          return stateError.code === "CLIMIER_INCOMPATIBLE_VERSION" && /climier migrate/i.test(stateError.message);
+          return stateError.code === "CLIMIER_INCOMPATIBLE_VERSION" && /restore a verified backup/i.test(stateError.message);
         });
         assert.equal(classifyStateShape(shape).kind, version === 5 ? "fenced-legacy" : "legacy");
       } finally { await rmTempProject(dir); }

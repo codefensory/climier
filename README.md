@@ -298,7 +298,7 @@ no `--json` flag. JSON is the default.
 
 ## Command reference
 
-`init` creates a canonical schema-1 state with `{ initiatives, nodes, edges, log }` plus the revision-ledger fields. Import existing projects first with `climier migrate --all --dry-run` and then `climier migrate --all`, while every writer is stopped; see [`docs/remote-server.md`](docs/remote-server.md) for the storage backup and recovery procedure. `init --force` is only a deliberate reset of a project, never an import mechanism. The creation flow uses `add-task`, `add-gate`, and `add-knowledge`; `add-node` and `add-edge` are low-level escape hatches.
+`init` creates a canonical schema-1 state with `{ initiatives, nodes, edges, log }` plus the revision-ledger fields. The one-time schema-1 import window for existing projects is complete, and its importer is not part of the current CLI. Current releases accept only canonical state. If older or incomplete state files are found, preserve the project files and restore a verified canonical backup or contact the maintainer; never use `init --force` to convert or recover existing data. The creation flow uses `add-task`, `add-gate`, and `add-knowledge`; `add-node` and `add-edge` are low-level escape hatches.
 
 Full reference: `docs/reference.md`.
 
@@ -419,7 +419,6 @@ Claims are serialized under the project lock. `release`, `reopen`, and
 | `rename "<name>"` | Set the project's display name — the label the UI shows instead of the opaque `project_id`. Defaults to the checkout directory name; syncs to a linked server. |
 | `login [--server <origin>]` / `logout [--server <origin>]` | Authenticate through a TTY and manage the local bearer profile; the token is never printed. |
 | `push --as <agent>` / `pull --as <agent>` | **EXPERIMENTAL / UNSAFE** complete manual DAG transfers. `--force` replaces the entire destination; back up first. |
-| `migrate [--all] [--dry-run]` | Inspect or import pre-cut projects while all writers are stopped. |
 | `deprecate-knowledge <id> --reason "<text>" --as <agent>` | Soft-delete a knowledge node (`status="deprecated"`). |
 | `update <id> ... --as <agent>` | Edit node fields such as title, body, definition, acceptance, domain, backlog, tags, or refs. |
 | `add-note <id> "<text>" --as <agent>` | Append a note thread entry to any node. |
@@ -524,10 +523,10 @@ The release owner cuts from a clean `main` with the local script; CI does not
 publish to npm. `npm publish` needs an interactive 2FA session (`npm login`),
 which a repository token cannot replace:
 
-1. rehearse the storage import: install or link the release binary and stop all
-   writers, the UI, and the remote server; review `climier migrate --all
-   --dry-run`, then run `climier migrate --all`; verify every project with
-   `climier --project <checkout> status` and one authorized operation;
+1. verify the release's declared state schema against the installed release
+   and its notes. If the schema changes, do not upgrade until that release has
+   an explicit, supported state-transition plan; preserve backups and keep all
+   writers on the compatible binary until then;
 2. bump `package.json.version` and add the matching dated `CHANGELOG.md`
    section, then commit and push to `main`;
 3. run `bun run release --dry-run` on that commit. It validates the checkout
@@ -545,8 +544,7 @@ which a repository token cannot replace:
    inside a worktree checked out at that tag, so the tarball matches the
    Release.
 
-The complete server shutdown, import, stale-lock recovery, and rollback
-procedure is in [`docs/remote-server.md`](docs/remote-server.md).
+The v1 cutover and backup procedure is recorded in [`docs/remote-server.md`](docs/remote-server.md); it is historical guidance for an already completed import window, not a current CLI operation.
 
 ## License
 

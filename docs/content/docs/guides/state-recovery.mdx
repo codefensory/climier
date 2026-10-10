@@ -1,0 +1,24 @@
+---
+title: Older or incomplete state
+description: Recovery guidance for state files outside the canonical schema.
+---
+
+Climier's current release accepts only canonical schema 1. The one-time import
+window for older projects ended with the v1 cutover, and its importer is not
+part of the current CLI.
+
+If a project reports an older, incomplete, or otherwise non-canonical state:
+
+1. Stop every writer for that project, including the local UI and remote server.
+2. Preserve the complete project directory and its backups without editing or
+   deleting files.
+3. Do not use `init --force`; it resets data and does not convert old state.
+4. Restore a verified canonical schema-1 backup, or contact the maintainer for
+   recovery guidance. Do not point a pre-cut binary at an imported project;
+   older releases can misclassify canonical state and offer a destructive reset.
+
+For an upgrade that requires a different state schema, follow only the
+release-specific supported transition plan. Do not upgrade writers until the
+required state transition and rollback procedure are clear. See the [remote
+server runbook](/docs/reference/self-hosting) for service shutdown and backup
+practices.

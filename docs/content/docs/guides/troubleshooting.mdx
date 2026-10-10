@@ -71,14 +71,7 @@ The default storage home is `~/.climier` when `CLIMIER_HOME` is unset. Never rem
 
 ## State is not canonical
 
-Errors mentioning an old schema, a missing revision ledger, or a non-canonical state require an explicit migration. Inspect first and stop all writers:
-
-```bash
-climier migrate --all --dry-run
-climier migrate --all
-```
-
-Use `--project /path/to/checkout` before `migrate` for a single project. Never use `init --force` to convert existing data; it resets the project. See [Migrate existing state](./migration) for the backup and verification sequence.
+The one-time schema-1 import window is complete and its importer is retired. If an old schema, missing revision ledger, or non-canonical state is found, stop all writers and preserve the complete project files and backups. Do not edit the state or use `init --force`; it resets data rather than repairing it. Restore a verified canonical backup or contact the maintainer. See [Older or incomplete state](./state-recovery) for recovery guidance.
 
 ## The audit trail does not show expected work
 

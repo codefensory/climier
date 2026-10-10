@@ -109,7 +109,7 @@ test("kernel state.restore validates before pre-snapshot and restores with one l
   } finally { await rmTempProject(dir); }
 });
 
-test("kernel state.restore rejects a historical v2 snapshot and points at climier migrate", async () => {
+test("kernel state.restore rejects a historical v2 snapshot with recovery guidance", async () => {
   const dir = await createTempProject();
   try {
     const { restoreState } = await importFresh("./kernel/state-operations.ts");
@@ -130,7 +130,7 @@ test("kernel state.restore rejects a historical v2 snapshot and points at climie
       () => restoreState({ projectDir: dir, snapshotId: target.id, actor: "recovery" }),
       (err) => (errorLike(err).message ?? "").includes(target.id)
         && /canonical v1/.test(errorLike(err).message ?? "")
-        && /climier migrate/.test(errorLike(err).message ?? ""),
+        && /restore a verified backup/.test(errorLike(err).message ?? ""),
     );
     assert.equal(JSON.parse(await fs.readFile(stateFilePath(dir), "utf8")).version, 2);
   } finally { await rmTempProject(dir); }

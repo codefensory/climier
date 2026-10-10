@@ -38,23 +38,22 @@ handlers before reporting health.
 
 This is the first clean Climier release. It is the first version intended for
 production use; no earlier npm release established a compatibility contract.
-The on-disk project state is schema **1**. The new binary does not read or
-write older state forms, so existing projects must be imported before any
-writer uses this release. Follow [`docs/remote-server.md`](docs/remote-server.md)
-for the ordered, backed-up import and rollback procedure. Do not point an older
-binary at an imported project: it may classify the state as prehistorical and
-suggest `init --force`, which can erase the project.
+The on-disk project state is schema **1**. The one-time cutover imported and
+verified the existing project park before writers resumed, with a complete
+backup retained for each project. The import tool was temporary and is not
+part of the current CLI. Do not point an older binary at an imported project:
+it may classify the state as prehistorical and suggest `init --force`, which
+can erase the project. The ordered cutover and rollback record is in
+[`docs/remote-server.md`](docs/remote-server.md).
 
-### Migration before first use
+### Completed v1 cutover
 
-1. Link or install this v1 binary and verify it can read the project metadata.
-2. Stop every writer sharing the state home: the control plane, the UI, all
-   runner executions, and any remote server instance.
-3. Run `climier migrate --all --dry-run` and review every project report.
-4. Run `climier migrate --all`; the importer writes a complete per-project
-   backup before changing state.
-5. Verify every project with `climier --project <checkout> status` and one
-   authorized read or mutation before reopening writers.
+The v1 release window installed the schema-1 binary, stopped every writer
+sharing the state home (control plane, UI, runner executions, and remote
+servers), inspected and imported all projects, then verified each project with
+a read and mutation before writers resumed. The retired one-time import command
+is deliberately omitted from the current command reference; it is not a
+recovery mechanism for newly discovered older data.
 
 ### Removed compatibility surface
 
@@ -78,8 +77,9 @@ these call sites as follows:
   `gotcha` fields. Query by the canonical node id with `history <id>` or
   `log --node <id>`.
 - The historical `--force init` ordering is removed. Write `climier init
-  --force` with the command first, and use `migrate` rather than force-init to
-  import an existing project.
+  --force` with the command first; `init --force` is a destructive reset, not
+  a conversion or recovery mechanism. Preserve old or incomplete state files
+  and restore a verified canonical backup or contact the maintainer.
 - Unknown commands and flags now return the structured JSON usage envelope with
   `error.code` and `error.details`; callers must branch on the code, not parse
   message text. Module aliases (`parseArgs`, `dispatch`, and `main`) are gone;
