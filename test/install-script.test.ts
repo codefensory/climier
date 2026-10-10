@@ -43,7 +43,7 @@ async function withFixture(run: (fixture: { root: string; installDir: string; ba
 
 function runInstaller(env: Record<string, string>, pathPrefix?: string): Promise<{ status: number | null; stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
-    const child = spawn("bash", [installer], {
+    const child = spawn("sh", [installer], {
       cwd: root,
       env: {
         ...process.env,
@@ -78,6 +78,10 @@ test("install.sh: downloads, verifies, installs, and leaves a working climier", 
     }, fakeBin);
     assert.equal(result.status, 0, result.stderr);
     assert.equal(result.stderr, "");
+    assert.ok(
+      result.stdout.includes(`export PATH="${installDir}:$PATH"`),
+      "the installer prints the PATH line to add when the directory is not on PATH",
+    );
     const version = spawnSync(path.join(installDir, "climier"), ["--version"], { encoding: "utf8" });
     assert.equal(version.status, 0);
     assert.equal(version.stdout, "climier 2.0.0\n");
@@ -103,6 +107,19 @@ test("install.sh: rejects an invalid checksum before touching the destination", 
     assert.equal(await readFile(path.join(installDir, "climier"), "utf8"), "existing installation\n");
     assert.equal(binary.toString(), "#!/bin/sh\nprintf '%s\\n' 'climier 2.0.0'\n");
   });
+});
+
+test("install docs: the one-line installer matches a POSIX shell", async () => {
+  const [installGuide, readme, script] = await Promise.all([
+    readFile(path.join(root, "docs/content/docs/getting-started/install.mdx"), "utf8"),
+    readFile(path.join(root, "README.md"), "utf8"),
+    readFile(installer, "utf8"),
+  ]);
+  assert.equal(script.split("\n", 1)[0], "#!/bin/sh");
+  for (const text of [installGuide, readme]) {
+    assert.match(text, /releases\/latest\/download\/install\.sh \| sh/u);
+    assert.doesNotMatch(text, /install\.sh \| bash/u);
+  }
 });
 
 test("install.sh: rejects Windows with manual binary installation instructions", async () => {

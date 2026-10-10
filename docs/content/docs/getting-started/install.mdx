@@ -37,7 +37,7 @@ bun add --global climier
 curl -fsSL https://github.com/codefensory/climier/releases/latest/download/install.sh | sh
 ```
 
-The installer detects the platform, downloads the matching binary, verifies its SHA-256 against the release checksums, and writes `climier` to `~/.local/bin`. If that directory is not on your `PATH`, it prints the line to add.
+The installer detects the platform, downloads the matching binary, verifies its SHA-256 against the release checksums, and writes `climier` to `~/.local/bin`. If that directory is not on your `PATH`, it prints the `export PATH=...` line to add.
 
 | Variable | Effect |
 |---|---|
@@ -58,12 +58,14 @@ Download the binary for your platform from the [latest release](https://github.c
 | macOS arm64 | `climier-darwin-arm64` |
 | Windows x64 | `climier-windows-x64.exe` |
 
+On Windows, rename the downloaded `climier-windows-x64.exe` to `climier.exe` and add its folder to your `PATH`. On Linux and macOS:
+
 ```bash
 chmod +x climier-linux-x64
 mv climier-linux-x64 ~/.local/bin/climier
 ```
 
-`SHA256SUMS` in the same release lists the expected checksum of every asset; `manifest.json` is the machine-readable index used by `climier upgrade`.
+`SHA256SUMS` in the same release lists the expected checksum of every platform binary; `manifest.json` is the machine-readable index used by `climier upgrade`.
 
 ## Run without installing
 
@@ -80,7 +82,7 @@ climier --version
 climier version --json
 ```
 
-`climier version --json` reports `distribution` (`npm`, `binary`, or `source-link`) and the state schema the build reads.
+`climier version --json` reports `distribution` (`binary`, `npm`, `source-link`, or `one-off`) and the state schema the build reads.
 
 ## Update
 

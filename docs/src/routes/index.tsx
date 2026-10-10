@@ -5,7 +5,7 @@ import { CopyButton } from '@/components/landing/code';
 import { DagDemo } from '@/components/landing/dag-demo';
 import { ArrowRight, GithubIcon } from '@/components/landing/icons';
 import { Invariants, Lifecycle, Quickstart } from '@/components/landing/sections';
-import { GITHUB_URL, baseOptions } from '@/lib/layout.shared';
+import { GITHUB_URL, baseOptions, homeOptions } from '@/lib/layout.shared';
 
 const INSTALL_COMMAND = 'bun add --global climier';
 
@@ -25,7 +25,7 @@ export const Route = createFileRoute('/')({
 
 function Home() {
   return (
-    <HomeLayout {...baseOptions()}>
+    <HomeLayout {...homeOptions()}>
       <div className="relative flex-1">
         <div className="landing-dots" aria-hidden="true" />
         <Hero />
@@ -79,6 +79,18 @@ function Hero() {
               <CopyButton value={INSTALL_COMMAND} label="Copy the install command" />
             </div>
           </div>
+
+          <p className="landing-rise landing-rise-3 mt-3 text-[13px] text-fd-muted-foreground">
+            Prefer no runtime? Use the{' '}
+            <Link
+              to="/docs/$"
+              params={{ _splat: 'getting-started/install' }}
+              className="font-medium text-fd-foreground underline decoration-fd-border underline-offset-4 transition-colors hover:text-brand"
+            >
+              standalone binary
+            </Link>
+            .
+          </p>
         </div>
 
         <div className="landing-rise landing-rise-4 mt-10 sm:mt-12">

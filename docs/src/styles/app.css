@@ -330,33 +330,12 @@ html > body[data-scroll-locked] {
   animation: landing-output-line 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-/* Step rail: the active step fills over the phase's own hold time. */
-@keyframes landing-fill {
-  from {
-    transform: scaleX(0);
-  }
-  to {
-    transform: scaleX(1);
-  }
-}
-
-.landing-progress {
-  animation-name: landing-fill;
-  animation-timing-function: linear;
-  animation-fill-mode: both;
-}
-
 /* Ambient motion belongs to a panel you can see: off screen the loops kept the
- * compositor awake for content nobody was looking at. Dropping the fill too
- * lets it restart in step with the phase timer when the panel comes back. */
+ * compositor awake for content nobody was looking at. Dropping the animation
+ * lets it restart in step with the session when the panel comes back. */
 .landing-offscreen .landing-pulse,
-.landing-offscreen .landing-caret,
-.landing-offscreen .landing-progress {
+.landing-offscreen .landing-caret {
   animation: none;
-}
-
-.landing-offscreen .landing-progress {
-  width: 100%;
 }
 
 @keyframes landing-rise {
@@ -425,13 +404,7 @@ html > body[data-scroll-locked] {
   .landing-flip::after,
   .landing-pulse,
   .landing-caret,
-  .landing-output,
-  .landing-progress {
+  .landing-output {
     animation: none;
-  }
-
-  /* Without the fill animation the active step still reads as the current one. */
-  .landing-progress {
-    width: 100%;
   }
 }

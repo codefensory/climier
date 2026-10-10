@@ -120,12 +120,17 @@ State shape: `{ version: 1, initiatives, nodes, edges, log }`.
 
 ## Setup (first time only)
 
-If `climier` is not on PATH:
+If `climier` is not on PATH, install it through either channel:
 
 ```bash
-# From the climier repo
-cd ~/Dev/climier && npm link
+# npm channel (requires Bun 1.4+)
+bun add --global climier
+
+# or standalone binary, no runtime (Linux and macOS)
+curl -fsSL https://github.com/codefensory/climier/releases/latest/download/install.sh | sh
 ```
+
+From a checkout without installing, run `bun bin/climier.ts` in place of `climier`.
 
 If `~/.climier/projects/<project_id>/tasks.json` does not exist yet (no agent has run `init` from this repo on this machine):
 

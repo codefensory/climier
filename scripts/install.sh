@@ -1,6 +1,8 @@
-#!/usr/bin/env bash
+#!/bin/sh
 
-set -euo pipefail
+# POSIX sh: this installer is served as `curl ... | sh`, so it must not use
+# bash-only options (pipefail is unavailable on Debian/Ubuntu dash).
+set -eu
 
 say_error() {
   printf 'install.sh: %s\n' "$*" >&2
@@ -112,5 +114,5 @@ mv -f "$staged_target" "$target"
 printf 'Installed climier to %s\n' "$target"
 case ":${PATH:-}:" in
   *:"$install_dir":*) ;;
-  *) printf 'Add %s to PATH to run climier.\n' "$install_dir" ;;
+  *) printf 'Add %s to PATH to run climier:\n  export PATH="%s:$PATH"\n' "$install_dir" "$install_dir" ;;
 esac
