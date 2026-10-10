@@ -106,6 +106,7 @@ Verificar: <comando>." \
 - La spec vive en el ADR; el body de la task es puntero + archivos + acceptance. El runner recibe ese contrato y ejecuta la task con el contexto del DAG, iniciado en Pi mediante `climier_flow` (`action: "run"`).
 - Antes de delegar, traza cada requisito verificable de las secciones del ADR cubiertas por una task hasta una task owner y un check de acceptance. Ningún punto de `Verificación` queda huérfano; controles operativos como rate limits también necesitan cobertura explícita.
 - Para migraciones de contratos públicos, busca referencias existentes a rutas, headers, env vars, comandos y formatos retirados, incluyendo tests/fixtures y scripts de smoke registrados. Asigna su migración a un scope/acceptance o deja explícito por qué no cambian; un E2E nuevo no sustituye esa cobertura.
+- Nada de tasks de release: no se crean tasks para cortar version, tag, publish ni lanzamiento. Las releases las corta el maintainer a mano; el DAG solo trackea el trabajo de producto o CI que las habilita.
 - Una task = un cambio principal + acceptance verificable. "Y ademas" → otra task.
 - Las dependencias del DAG deben ser reales y salir del alcance decidido, no de un plan generado por el onboarding.
 - Las ejecuciones deben respetar el scope de paths y las dependencias del DAG; no se solapan cambios incompatibles.

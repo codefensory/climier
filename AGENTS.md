@@ -506,6 +506,7 @@ This repository carries the portable agent workflow used by the Climier-based pr
   - `initiative-execution` — opt-in initiative coordination; sourced from the climier-flow repository.
 - `.agents/skills/spec-pipeline/` — opt-in RFC → review → ADR → tasks pipeline; stays project-local because it writes `.decisions/` and `.adrs/`.
 - `.agents/skills/climier-release/` — release cut from `main`: version proposal, docs audit, `package.json`/`CHANGELOG` update, then `bun run release`. Only product changes under `src/`, `bin/` and `ui/` drive a release; docs, skills, `.pi/`, tests, `.github/`, `scripts/` and the root `package.json` do not.
+- **Releases are manual.** Do not create DAG tasks for releasing — cutting a version, tagging, publishing to npm, or launching a version. The maintainer cuts every release by hand with the `climier-release` skill. The DAG tracks the product or CI work that enables a release, never the release operation itself; never register a release task for the runner.
 - `.pi/agents/rfc-reviewer.md` — RFC/ADR review prompt used by the spec pipeline.
 - `.pi/APPEND_SYSTEM.md` — project routing and policy cues appended to Pi's built-in system prompt.
 - `CLIMIER-CHEATSHEET.md` — quick Climier and Pi Flow tool reference.

@@ -10,3 +10,4 @@ Pi appends this file to its built-in system prompt. Keep this file append-only: 
 - Use the global `initiative-execution` skill only when initiative-wide coordination is explicitly selected.
 - Use the project `spec-pipeline` skill only when a real decision warrants RFC/review/ADR planning; its long-form docs live in `.decisions/` and `.adrs/`.
 - In Pi, use `climier_flow` with `action: "run"`, `"resume"`, `"restart"`, `"cancel"`, `"status"`, or `"list"`.
+- Never create release tasks in this DAG: the maintainer cuts versions, tags, publishes and launches by hand. Register only the product or CI work that enables a release.

@@ -14,6 +14,13 @@ checklist.
 main verde -> analizar -> proponer -> auditar docs -> aplicar -> commit -> publicar -> CI adjunta binarios
 ```
 
+## Release manual, sin task en el DAG
+
+Las releases de este repo las corta el maintainer a mano con este skill. No se
+crean tasks en el DAG para cortar version, tag, publish ni lanzamiento, y no se
+delegan al runner: el corte exige 2FA y credenciales de operador. El DAG solo
+trackea el trabajo de producto o CI que habilita una release.
+
 ## Regla de oro
 
 **Solo los cambios de producto cuentan como release.** Un commit suma al bump
@@ -162,8 +169,8 @@ linea `+ climier@X.Y.Z` del publish es la senal autoritativa: el script reintent
 `npm view` hasta ~5 min y, si aun no aparece, avisa sin fallar.
 
 Reporta: version publicada, URL de npm, Release y assets, y el resultado del CI
-del tag. Si la release tenia tarea en el DAG, dejala aceptada por el runner o
-agrega nota con la verificacion.
+del tag. La release no tiene task en el DAG: el reporte va al usuario, y las
+tasks de producto que la habilitaron ya las cerro el runner.
 
 ## Casos especiales
 
