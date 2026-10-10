@@ -34,3 +34,10 @@ test("tag releases create the release when missing and idempotently upload the f
   assert.match(workflow, /gh release create "\$GITHUB_REF_NAME" --repo "\$GITHUB_REPOSITORY"/);
   assert.match(workflow, /gh release upload "\$GITHUB_REF_NAME" dist\/\* --repo "\$GITHUB_REPOSITORY" --clobber/);
 });
+
+test("tag releases publish the changelog section as the release body", () => {
+  const release = jobBlock("release");
+  assert.doesNotMatch(release, /--generate-notes/);
+  assert.match(release, /bun scripts\/release-notes\.ts --version "\$\{GITHUB_REF_NAME#v\}" --out RELEASE_NOTES\.md --repository "\$GITHUB_REPOSITORY"/);
+  assert.match(release, /gh release create "\$GITHUB_REF_NAME" --repo "\$GITHUB_REPOSITORY" --title "\$GITHUB_REF_NAME" --notes-file RELEASE_NOTES\.md/);
+});
