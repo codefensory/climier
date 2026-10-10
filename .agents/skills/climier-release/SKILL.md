@@ -150,7 +150,7 @@ empujado y se reintenta limpio.
 
 ```sh
 npm view climier version
-gh release view v<nextVersion>          # CI crea el Release y sube binarios+manifest+SHA256SUMS
+gh release view v<nextVersion>          # CI crea el Release (cuerpo = seccion del CHANGELOG + link de comparacion) y sube binarios+manifest+SHA256SUMS
 curl -sL https://github.com/codefensory/climier/releases/latest/download/manifest.json | head
 climier upgrade --check                 # una instalacion existente ve el canal
 ```

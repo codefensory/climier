@@ -538,7 +538,8 @@ which a repository token cannot replace:
    `npm view climier@<version>`. npm prompts for the one-time code;
 5. watch CI on the pushed tag: the matrix builds the five binaries plus
    `manifest.json` and `SHA256SUMS`, creates the GitHub Release if it is
-   missing, and attaches the assets. Confirm with `gh release view v<version>`;
+   missing — its body is the version's `CHANGELOG.md` section plus the compare
+   link — and attaches the assets. Confirm with `gh release view v<version>`;
 6. when `v<version>` already exists at another commit (the `v1.0.0` bootstrap
    published from the frozen tag), the script runs the gate and publishes
    inside a worktree checked out at that tag, so the tarball matches the
