@@ -3,6 +3,18 @@
 All notable changes to this project are documented here. The format follows
 Keep a Changelog.
 
+## [1.2.1] - 2026-10-10
+
+### Bug Fixes
+
+- **server:** skip unsupported directory fsync on Windows ([59b5590](https://github.com/codefensory/climier/commit/59b55903afa2fc813e743bac210aade185afcd29))
+
+`climier server run` aborted on Windows with `STORAGE_ERROR: EPERM: operation
+not permitted, fsync`. The server auth store fsynced its state directory
+through a helper that lacked the Windows guard the storage ledger already
+applies; directory fsync is now skipped on Windows, so the server and the
+standalone binary start there.
+
 ## [1.2.0] - 2026-10-10
 
 ### Features
