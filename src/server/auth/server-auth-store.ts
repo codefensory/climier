@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { errorProperties, isRecord, type ServerError } from "../types.ts";
+import { syncDirectory } from "../../storage/ledger/stages.ts";
 
 const scrypt = promisify(crypto.scrypt) as (password: string, salt: string, keylen: number, options: object) => Promise<Buffer>;
 const AUTH_FILE = "remote-auth.json";
@@ -13,8 +14,11 @@ const SCRYPT_OPTIONS = { N: 16_384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
 type AuthVerifier = { algorithm: string; salt: string; key: string };
 type AuthSession = { token_hash: string; expires_at: string };
 type AuthState = { version: 1; password_verifier: AuthVerifier; sessions: AuthSession[] };
-type AuthTestHooks = { beforeRename?: (temporary: string, target: string) => Promise<void> };
-type AuthStoreOptions = { stateHome?: string; password?: string; now?: () => Date; testHooks?: AuthTestHooks };
+type AuthTestHooks = {
+  beforeRename?: (temporary: string, target: string) => Promise<void>;
+  fsyncDirectory?: (directory: string) => Promise<void> | void;
+};
+type AuthStoreOptions = { stateHome?: string; password?: string; now?: () => Date; testHooks?: AuthTestHooks; platform?: NodeJS.Platform };
 
 function codedError(code: string, message: string, details?: unknown) {
   const error = new Error(message) as ServerError;
@@ -66,16 +70,17 @@ async function verifyPassword(password: string, verifier: AuthVerifier | undefin
   return timingSafeEqualHex(candidate.key, verifier.key);
 }
 
-async function fsyncPath(targetPath) {
-  const handle = await fs.open(targetPath, "r");
-  try {
-    await handle.sync();
-  } finally {
-    await handle.close();
+async function fsyncDirectory(directory: string, platform: NodeJS.Platform, hooks?: AuthTestHooks): Promise<void> {
+  // Windows cannot fsync a directory handle; the file contents are already synced.
+  if (platform === "win32") { return; }
+  if (hooks?.fsyncDirectory) {
+    await hooks.fsyncDirectory(directory);
+    return;
   }
+  await syncDirectory(directory, platform);
 }
 
-async function writeAuthFileDurably(file: string, state: AuthState, testHooks?: AuthTestHooks) {
+async function writeAuthFileDurably(file: string, state: AuthState, testHooks: AuthTestHooks | undefined, platform: NodeJS.Platform) {
   const dir = path.dirname(file);
   await fs.mkdir(dir, { recursive: true, mode: 0o700 });
   await fs.chmod(dir, 0o700).catch((error) => {
@@ -91,11 +96,11 @@ async function writeAuthFileDurably(file: string, state: AuthState, testHooks?: 
   } finally {
     await handle.close();
   }
-  await fsyncPath(dir);
+  await fsyncDirectory(dir, platform, testHooks);
   await testHooks?.beforeRename?.(tmp, file);
   await fs.rename(tmp, file);
   await fs.chmod(file, 0o600).catch(() => {});
-  await fsyncPath(dir);
+  await fsyncDirectory(dir, platform, testHooks);
 }
 
 async function readAuthFile(file: string): Promise<AuthState | null> {
@@ -129,19 +134,21 @@ class ServerAuthStore {
   file: string;
   state: AuthState;
   now: () => Date;
+  platform: NodeJS.Platform;
   testHooks?: AuthTestHooks;
   queue: Promise<void>;
 
-  constructor({ file, state, now, testHooks }: { file: string; state: AuthState; now: () => Date; testHooks?: AuthTestHooks }) {
+  constructor({ file, state, now, testHooks, platform }: { file: string; state: AuthState; now: () => Date; testHooks?: AuthTestHooks; platform: NodeJS.Platform }) {
     this.file = file;
     this.state = state;
     this.now = now;
+    this.platform = platform;
     this.testHooks = testHooks;
     this.queue = Promise.resolve();
   }
 
   async persist(nextState) {
-    await writeAuthFileDurably(this.file, nextState, this.testHooks);
+    await writeAuthFileDurably(this.file, nextState, this.testHooks, this.platform);
     this.state = nextState;
   }
 
@@ -175,7 +182,7 @@ class ServerAuthStore {
   }
 }
 
-export async function createServerAuthStore({ stateHome, password, now = () => new Date(), testHooks }: AuthStoreOptions = {}) {
+export async function createServerAuthStore({ stateHome, password, now = () => new Date(), testHooks, platform = process.platform }: AuthStoreOptions = {}) {
   if (typeof stateHome !== "string" || !stateHome.trim()) {
     throw new TypeError("server auth: stateHome is required");
   }
@@ -186,15 +193,15 @@ export async function createServerAuthStore({ stateHome, password, now = () => n
   const existing = await readAuthFile(file);
   if (!existing) {
     const state: AuthState = { version: 1, password_verifier: await passwordVerifier(password), sessions: [] };
-    await writeAuthFileDurably(file, state, testHooks);
-    return new ServerAuthStore({ file, state, now, testHooks });
+    await writeAuthFileDurably(file, state, testHooks, platform);
+    return new ServerAuthStore({ file, state, now, testHooks, platform });
   }
   if (await verifyPassword(password, existing.password_verifier)) {
-    return new ServerAuthStore({ file, state: existing, now, testHooks });
+    return new ServerAuthStore({ file, state: existing, now, testHooks, platform });
   }
   const rotated: AuthState = { version: 1, password_verifier: await passwordVerifier(password), sessions: [] };
-  await writeAuthFileDurably(file, rotated, testHooks);
-  return new ServerAuthStore({ file, state: rotated, now, testHooks });
+  await writeAuthFileDurably(file, rotated, testHooks, platform);
+  return new ServerAuthStore({ file, state: rotated, now, testHooks, platform });
 }
 
 export { AUTH_FILE, SESSION_TTL_MS };

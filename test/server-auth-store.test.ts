@@ -113,6 +113,33 @@ test("crash before rename leaves the previous auth file usable and new token inv
   assert.equal((await readAuthFile(stateHome)).sessions.length, 1);
 });
 
+test("auth store skips the directory fsync on win32 and fsyncs elsewhere", async () => {
+  const failingFsync = () => {
+    throw Object.assign(new Error("EPERM: operation not permitted, fsync"), { code: "EPERM" });
+  };
+
+  const linuxHome = await tempStateHome();
+  await assert.rejects(
+    () => createServerAuthStore({
+      stateHome: linuxHome,
+      password: "pw",
+      platform: "linux",
+      testHooks: { fsyncDirectory: failingFsync },
+    }),
+    (error) => errorCode(error) === "EPERM",
+  );
+
+  const windowsHome = await tempStateHome();
+  const auth = await createServerAuthStore({
+    stateHome: windowsHome,
+    password: "pw",
+    platform: "win32",
+    testHooks: { fsyncDirectory: failingFsync },
+  });
+  assert.equal(typeof (await auth.login("pw")), "string");
+  assert.equal((await readAuthFile(windowsHome)).sessions.length, 1);
+});
+
 test("corrupt auth file fails closed", async () => {
   const stateHome = await tempStateHome();
   await fs.mkdir(stateHome, { recursive: true });
