@@ -387,7 +387,7 @@ Canonical `BLOCKS` direction is `{ from: blocker, to: blocked, type: "BLOCKS" }`
 | `log [--limit N] [--action X] [--agent X] [--node X]` | Audit log. |
 | `snapshots` | List recoverable snapshots captured under `<state-dir>/snapshots/`, newest first. Each entry carries `id`, `created_at`, `reason` (`force-init`, `corrupt-recovery`, `pre-restore`), `bytes`, and `sha256`. Only complete pairs (raw + metadata) appear; orphans are excluded. |
 | `urls [--initiative X] [--id NODE] [--port N] [--origin URL]` | Print deep links to the web UI; local links are marked `local_only` and work while `climier ui` runs on this machine. |
-| `ui [--port N] [--open=true\|false]` | Start the local read-only web UI (board, node context, activity) and open it in the browser. **Experimental**: it is a local subproject with separate dependencies and is excluded from the published tarball. If it is not installed, the command returns an actionable error. |
+| `ui [--port N] [--open=true\|false]` | Start the local read-only web UI (board, node context, activity) and open it in the browser. Projects are labeled by their `rename` name or, when launched from a workspace root, by the checkout directory found below it. **Experimental**: it is a local subproject with separate dependencies and is excluded from the published tarball. If it is not installed, the command returns an actionable error. |
 
 ### Task lifecycle
 
@@ -415,7 +415,8 @@ Claims are serialized under the project lock. `release`, `reopen`, and
 | `restore <snapshot-id> --as <agent>` | Replace the live state with a validated schema-1 snapshot under the recovery path and a pre-restore snapshot. A policy plugin may restrict the actor; invalid or incomplete snapshots fail without mutating state. |
 | `cancel <id> --reason "<text>" --as <agent>` | Terminate a task without resolving from `open`, `in_progress` or `submitted`. |
 | `batch --file <json> --as <agent>` / `batch --stdin --as <agent>` | Execute several operations atomically. |
-| `link <origin> [--replace=true]` | Select a Remote v1 origin while preserving the checkout project ID; does not copy a DAG. |
+| `link <origin> [--replace=true] [--name "<name>"]` | Select a Remote v1 origin while preserving the checkout project ID; does not copy a DAG. `--name` also sets the project's display name. |
+| `rename "<name>"` | Set the project's display name — the label the UI shows instead of the opaque `project_id`. Defaults to the checkout directory name; syncs to a linked server. |
 | `login [--server <origin>]` / `logout [--server <origin>]` | Authenticate through a TTY and manage the local bearer profile; the token is never printed. |
 | `push --as <agent>` / `pull --as <agent>` | **EXPERIMENTAL / UNSAFE** complete manual DAG transfers. `--force` replaces the entire destination; back up first. |
 | `migrate [--all] [--dry-run]` | Inspect or import pre-cut projects while all writers are stopped. |

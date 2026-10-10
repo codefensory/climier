@@ -250,9 +250,18 @@ not a migration. Transfers are separate, explicit snapshot operations described
 below. Changing an origin requires `climier link <new-origin> --replace=true`;
 it keeps the project ID but does not copy data between servers.
 
+The project's display name is separate from its `project_id`. `link --name
+"<name>"` records it while linking, and `rename "<name>"` changes it later; both
+normalize whitespace and cap the name at 120 characters, and neither alters the
+ID, the DAG, or the stored data. On a linked checkout `rename` also updates the
+server catalog through `POST /v1/projects/:id/rename`, and every authenticated
+request carries the local name in `x-climier-project-name`, so a project
+provisioned before names existed adopts one on first contact without a separate
+command. The server catalogs the name; it never derives storage keys from it.
+
 If a checkout is cloned, preserve its `.climier.json` project ID and run
-`login` on the new machine. The canonical remote metadata contains only the
-backend type and complete URL. A checkout carrying a retired protocol marker
+`login` on the new machine. The canonical remote metadata contains the backend
+type, the complete URL, and an optional display `name`. A checkout carrying a retired protocol marker
 fails with `REMOTE_CONFIG_OUTDATED` before authentication or local state I/O;
 run `link <configured-origin>` to clean it, using `--replace=true` only when
 changing the URL.

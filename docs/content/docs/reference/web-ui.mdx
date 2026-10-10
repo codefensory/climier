@@ -17,7 +17,7 @@ The left sidebar contains the main views:
 - **Gates** — decisions, approvals, research items, and external dependencies.
 - **Initiatives** — work grouped by initiative.
 
-The project switcher near the top of the sidebar changes the project being displayed. The breadcrumb repeats the selected project when you are looking at tasks. Use the theme control to choose the available light or dark appearance.
+The project switcher near the top of the sidebar changes the project being displayed. Each entry is labeled with the project's display name (`climier rename "<name>"`, or `link --name`), or with its checkout directory name when no name is set; the opaque `project_id` stays available as the tooltip. When `climier ui` starts from a workspace root instead of a single checkout, it labels the projects it finds below it from their `.climier.json` files. The breadcrumb repeats the selected project when you are looking at tasks. Use the theme control to choose the available light or dark appearance.
 
 If the connection is not current, the shell shows **Offline** or **Stale**, the last update time when it is known, and a **Retry** control. Treat the displayed snapshot as a previous reading until the connection is current again.
 

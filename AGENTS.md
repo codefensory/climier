@@ -129,6 +129,14 @@ cut must go through `climier migrate --all --dry-run` and `climier migrate
 `docs/remote-server.md`. `init --force` is a deliberate reset only, never a
 migration path.
 
+The project's human-facing **display name** is separate from the opaque
+`project_id`. It lives in the checkout's `.climier.json` (`name`, written by
+`rename`/`link --name`), is mirrored to `~/.climier/projects/<id>/project.json`
+so id-keyed readers (the local UI) can resolve it, and is synced to a linked
+server's catalog through `POST /v1/projects/:id/rename` and the
+`x-climier-project-name` request header. Without an explicit name the checkout
+directory name is used.
+
 `status: "ready"` and `"blocked"` are **derived** from the DAG. They are NOT persisted. Persisted statuses on tasks are `open` (default), `in_progress`, `submitted`, `done`, `canceled`. `submitted` is waiting for validation and never satisfies `BLOCKS`; only `done` and `archived` do. `done` means implementation accepted. Gates additionally use `resolved` / `superseded`. Knowledge uses `active` / `deprecated`.
 
 The CLI surface is a single set of commands. `init` always creates the schema above.
@@ -188,10 +196,11 @@ Cycles in the DAG must not crash. The derivation keeps cycle members blocked. Un
 | `state` | `cli/commands/state.ts` | no (read-only) | no |
 | `restore <id> --as <agent>` | `cli/commands/restore.ts` | yes (locked; canonical schema-1 snapshot; pre-snapshot) | required |
 | `batch --file <json> --as <agent>` / `batch --stdin --as <agent>` | `cli/commands/batch.ts` | yes | required |
-| `link <origin> [--replace=true]` | `cli/commands/link.ts` | yes | required |
+| `link <origin> [--replace=true] [--name "<name>"]` | `cli/commands/link.ts` | yes | required |
+| `rename "<name>"` | `cli/commands/rename.ts` | yes (project metadata; local + linked server) | no |
 | `login [--server <origin>]` / `logout [--server <origin>]` | `cli/commands/login.ts`, `cli/commands/logout.ts` | yes | required |
 | `migrate [--project <dir>] [--all] [--dry-run]` | `cli/commands/migrate.ts` | yes unless dry-run | required for import |
-| `ui [--port N] [--open=true\|false]` (experimental) | `cli/commands/ui.mjs` (starts `ui/server/server.mjs`) | no (read-only) | no |
+| `ui [--port N] [--open=true\|false]` (experimental) | `cli/commands/ui.ts` (serves `ui/dist`) | no (read-only) | no |
 
 ## Hard rules for contributing
 

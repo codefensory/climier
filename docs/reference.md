@@ -257,8 +257,12 @@ server requires a bearer.
 `climier ui` is launched from a project root (`--project`) and starts the
 loopback server; the launch project only identifies the process (and the token
 label). The catalog reads every local project by id, lock-safe and without a
-project root. A project whose state is unreadable stays in the catalog with
-neutral counters; opening it surfaces the real error.
+project root. A project's display name comes from the `rename` sidecar
+(`$CLIMIER_HOME/projects/<id>/project.json`) or, when `climier ui` is launched
+from a workspace root such as `~/dev`, from an in-memory index of the
+`.climier.json` files found below it (two levels, shallowest wins). The index is
+read-only. A project whose state is unreadable stays in the catalog with neutral
+counters; opening it surfaces the real error.
 
 ## Agent identity
 
@@ -896,9 +900,21 @@ DAG transfer commands; the linked server-side project remains authoritative for
 normal operations. The low-level `remove-edge <from> <to> --type ...` operation
 is idempotent and removes only one exact edge.
 
+### `rename "<name>"`
+
+`rename "<name>"` sets the project's display name: the label the local and
+hosted UIs show in the project switcher instead of the opaque `project_id`. The
+default is the checkout directory name, recorded automatically on first contact;
+`rename` overrides it in `.climier.json`, in the local state directory, and, on
+a linked checkout, in the server catalog through
+`POST /v1/projects/:id/rename`. Names collapse whitespace and are bounded to 120
+characters. Every authenticated remote request also carries the local name in
+`x-climier-project-name`, so a project provisioned before names existed adopts
+one on first contact without a separate command.
+
 ### Remote v1 authentication
 
-`link <origin> [--replace=true]` records the remote type and complete URL while
+`link <origin> [--replace=true] [--name "<name>"]` records the remote type and complete URL while
 preserving the checkout project ID. `login [--server <origin>]` reads a password
 from a TTY without echo and stores only the origin-indexed bearer in the local
 credential profile; `logout` removes that local entry. A checkout with a retired
