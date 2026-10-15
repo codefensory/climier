@@ -16,6 +16,9 @@ type PackageJson = {
   repository?: unknown;
   homepage?: unknown;
   bugs?: unknown;
+  dependencies?: unknown;
+  optionalDependencies?: unknown;
+  peerDependencies?: unknown;
 };
 function readPackage(): PackageJson {
   return JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8")) as PackageJson;
@@ -53,6 +56,15 @@ test("package: release smoke builds the UI and checks a compiled binary", () => 
   assert.match(packedSmoke, /smokeBinary/u);
   assert.match(String(pkg.scripts.prepublishOnly), /bun run build:ui/);
   assert.match(String(pkg.scripts.prepublishOnly), /RELEASE_TAG/);
+});
+
+test("package: the CLI ships no runtime dependencies", () => {
+  const pkg = readPackage();
+  // The root package is stdlib-only by design; ui/ and docs/ carry their own
+  // manifests, so a runtime dependency here can only be an accident.
+  assert.equal(pkg.dependencies, undefined, "the CLI must stay stdlib-only");
+  assert.equal(pkg.optionalDependencies, undefined, "the CLI must stay stdlib-only");
+  assert.equal(pkg.peerDependencies, undefined, "the CLI must stay stdlib-only");
 });
 
 test("package: every published bin entry uses the Bun shebang", () => {
