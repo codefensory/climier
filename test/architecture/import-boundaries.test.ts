@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 
 import {
   collectRelativeImports,
@@ -19,6 +19,15 @@ const BOUNDARIES = [
   { name: "providers", directory: "src/providers", allowedRoots: ["contracts", "kernel"] },
   { name: "read-model", directory: "src/read-model", allowedRoots: ["kernel", "providers"] },
   { name: "application", directory: "src/application", allowedRoots: ["contracts", "kernel", "providers", "storage"] },
+  // Composition root at the root of src/: it joins the application layer with
+  // plugins/policy.ts, an edge no directory boundary permits. Declared here
+  // because a module directly under src/ is otherwise invisible to this table.
+  {
+    name: "operation-source.ts",
+    directory: "src",
+    allowedRoots: ["application", "contracts", "plugins"],
+    collectOptions: { recursive: false },
+  },
   {
     name: "plugins",
     directory: "src/plugins",
@@ -32,7 +41,7 @@ const BOUNDARIES = [
   {
     name: "server",
     directory: "src/server",
-    allowedRoots: ["application", "contracts", "kernel", "read-model", "storage", "upgrade"],
+    allowedRoots: ["application", "contracts", "kernel", "read-model", "storage", "upgrade", "operation-source.ts"],
     documentedEdges: [
       { edge: "server -> kernel", source: "ADR-032: transfers dispatch through kernel/transfer port" },
       { edge: "server -> read-model", source: "ADR-032: the narrow boundary test does not restrict read-model" },
@@ -42,7 +51,7 @@ const BOUNDARIES = [
   {
     name: "cli",
     directory: "src/cli",
-    allowedRoots: ["application", "contracts", "kernel", "plugins", "providers", "read-model", "server", "storage", "upgrade"],
+    allowedRoots: ["application", "contracts", "kernel", "plugins", "providers", "read-model", "server", "storage", "upgrade", "operation-source.ts"],
   },
   { name: "upgrade", directory: "src/upgrade", allowedRoots: ["contracts"] },
   {
@@ -94,9 +103,13 @@ for (const boundary of BOUNDARIES) {
   });
 }
 
+function declaredDocumentedEdges(): string[] {
+  return BOUNDARIES.flatMap(({ documentedEdges = [] }) => documentedEdges.map(({ edge }) => edge));
+}
+
 test("the table declares the adapter edges approved by ADR-013, ADR-032, and ADR-068", () => {
   assert.deepEqual(
-    BOUNDARIES.flatMap(({ documentedEdges = [] }) => documentedEdges.map(({ edge }) => edge)),
+    declaredDocumentedEdges(),
     [
       "plugins -> kernel",
       "plugins -> providers",
@@ -223,4 +236,49 @@ test("scanner ignores comments and strings while inspecting dynamic imports", ()
     "../providers/task/index.ts",
     "../kernel/graph.ts",
   ]);
+});
+
+// A module sitting directly in src/ belongs to no directory boundary, so the
+// per-boundary tests above never inspect it: not its outbound imports, and not
+// the inbound imports other boundaries make to it.
+test("every module at the root of src is a declared boundary", async () => {
+  const entries = await readdir("src", { withFileTypes: true });
+  const rootModules = entries
+    .filter((entry) => entry.isFile() && (entry.name.endsWith(".ts") || entry.name.endsWith(".mjs")))
+    .map((entry) => entry.name);
+  assert.deepEqual(
+    rootModules.filter((name) => !BOUNDARY_ROOTS.includes(name)),
+    [],
+    "a module at the root of src must be declared in BOUNDARIES",
+  );
+});
+
+test("a prohibited import from a declared src-root module is detected", async () => {
+  const boundary = BOUNDARIES.find(({ name }) => name === "operation-source.ts");
+  assert.ok(boundary, "the src-root composition root must be declared in BOUNDARIES");
+  const imports = await collectRelativeImports(boundary.directory, boundary.collectOptions);
+  assert.ok(imports.length > 0, "the src-root boundary should have imports to inspect");
+
+  const injected = [...imports, { sourceFile: boundary.name, targetFile: "storage/state.ts" }];
+  assert.deepEqual(
+    findBoundaryViolations(injected, {
+      sourceRoot: boundary.name,
+      forbiddenRoots: forbiddenRootsFor(boundary),
+    }).map(({ targetFile }) => targetFile),
+    ["storage/state.ts"],
+    "an outbound edge from the src-root module must be checked like any other",
+  );
+
+  // Inbound visibility: a boundary that does not allow the root module must be
+  // flagged when it imports it, exactly like any other declared root.
+  const restrictive = BOUNDARIES.find(({ name }) => name === "providers");
+  assert.ok(restrictive);
+  assert.deepEqual(
+    findBoundaryViolations([{ sourceFile: "providers/probe.ts", targetFile: boundary.name }], {
+      sourceRoot: restrictive.name,
+      forbiddenRoots: forbiddenRootsFor(restrictive),
+    }).map(({ targetFile }) => targetFile),
+    [boundary.name],
+    "an import into the src-root module must be declared by the importing boundary",
+  );
 });

@@ -104,7 +104,7 @@ async function createLockFile(lockPathname: string): Promise<void> {
   await file.close();
 }
 
-async function acquireLockFile(lockPathname: string, { timeoutMs, retryEveryMs }: Required<LockOptions>): Promise<void> {
+async function acquireLockFile(lockPathname: string, { timeoutMs, retryEveryMs }: Required<LockOptions>, label = "lock"): Promise<void> {
   const start = Date.now();
   let attempt = 0;
   while (true) {
@@ -112,18 +112,40 @@ async function acquireLockFile(lockPathname: string, { timeoutMs, retryEveryMs }
       await createLockFile(lockPathname);
       return;
     } catch (rawCaughtValue: unknown) {
-  {
-    const error = asCaughtError(rawCaughtValue);
+      const error = asCaughtError(rawCaughtValue);
       if (error.code !== "EEXIST") {
         throw error;
       }
       if (Date.now() - start > timeoutMs) {
-        throw new Error(`lock: timeout acquiring ${lockPathname} after ${timeoutMs}ms`, { cause: error });
+        throw new Error(`${label}: timeout acquiring ${lockPathname} after ${timeoutMs}ms`, { cause: rawCaughtValue });
       }
       await sleep(Math.min(retryEveryMs * Math.max(1, attempt), 200));
       attempt++;
+    }
+  }
+}
 
-  }}
+async function releaseLockFile(lockPathname: string): Promise<void> {
+  try {
+    await fs.unlink(lockPathname);
+  } catch {
+    // A lock is released best effort: a missing file already means released.
+  }
+}
+
+// Serializes an arbitrary lock path with the same create-exclusive spin loop the
+// project lock uses, without registering a project capability. Use it only for a
+// resource that is not project state; state mutations go through `withLock`.
+export async function withFileLock<T>(lockPathname: string, label: string, fn: () => Promise<T>, opts: LockOptions = {}): Promise<T> {
+  const options: Required<LockOptions> = {
+    timeoutMs: opts.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+    retryEveryMs: opts.retryEveryMs ?? RETRY_BASE_MS,
+  };
+  await acquireLockFile(lockPathname, options, label);
+  try {
+    return await fn();
+  } finally {
+    await releaseLockFile(lockPathname);
   }
 }
 
@@ -136,17 +158,25 @@ async function runWithLockContext<T>(projectDir: string, lockPathname: string, f
     return await activeProjectLock.run({ lockContexts }, () => fn(lockContext));
   } finally {
     expireLockContext(lockContext);
-    try {
-      await fs.unlink(lockPathname);
-    } catch {
-      // Ignore a missing lock file while preserving the operation result.
-    }
+    await releaseLockFile(lockPathname);
   }
 }
 
+function isPathComponent(projectId: unknown): boolean {
+  if (typeof projectId !== "string" || !projectId.trim()) {
+    return false;
+  }
+  if (projectId === "." || projectId === "..") {
+    return false;
+  }
+  if (path.basename(projectId) !== projectId) {
+    return false;
+  }
+  return !projectId.includes(path.sep) && !projectId.includes("\\");
+}
+
 export async function withProjectIdLock<T>(projectId: string, fn: LockCallback<T>, opts: LockOptions = {}): Promise<T> {
-  if (typeof projectId !== "string" || !projectId.trim() || projectId === "." || projectId === ".."
-      || path.basename(projectId) !== projectId || projectId.includes(path.sep) || projectId.includes("\\")) {
+  if (!isPathComponent(projectId)) {
     throw new TypeError("lock: project_id must be a non-empty path component");
   }
   const home = path.resolve(process.env.CLIMIER_HOME || path.join(process.env.HOME || ".", ".climier"));

@@ -6,7 +6,7 @@ const IDENTIFIER = /[$\w]/u;
 type Token = { type: "string" | "identifier" | "punctuation"; value: string; line: number };
 type TokenResult = { token?: Token; index: number; line: number };
 type ImportRecord = { sourceFile: string; targetFile: string; specifier?: string };
-type CollectOptions = { sourceRootDirectory?: string; targetRootDirectory?: string };
+type CollectOptions = { sourceRootDirectory?: string; targetRootDirectory?: string; recursive?: boolean };
 
 function isIdentifierStart(character) {
   return Boolean(character) && (character === "_" || character === "$" || /[A-Za-z]/u.test(character));
@@ -205,13 +205,15 @@ export function relativeImportSpecifiers(source: string): string[] {
   return specifiers.filter((specifier) => specifier.startsWith("."));
 }
 
-async function sourceFiles(directory: string): Promise<string[]> {
+async function sourceFiles(directory: string, recursive: boolean): Promise<string[]> {
   const entries = await readdir(directory, { withFileTypes: true });
   const files: string[] = [];
   for (const entry of entries) {
     const entryPath = path.join(directory, entry.name);
     if (entry.isDirectory()) {
-      files.push(...await sourceFiles(entryPath));
+      if (recursive) {
+        files.push(...await sourceFiles(entryPath, recursive));
+      }
     } else if (entry.isFile() && (entry.name.endsWith(".ts") || entry.name.endsWith(".mjs"))) {
       files.push(entryPath);
     }
@@ -219,27 +221,32 @@ async function sourceFiles(directory: string): Promise<string[]> {
   return files.toSorted();
 }
 
+function resolveSourceRoot(directory: string, sourceDirectory: string, sourceRootDirectory?: string): string {
+  if (sourceRootDirectory !== undefined) {
+    return path.resolve(sourceRootDirectory);
+  }
+  let candidate = sourceDirectory;
+  while (path.basename(candidate) !== "src") {
+    const parent = path.dirname(candidate);
+    if (parent === candidate) {
+      throw new Error(`collectRelativeImports: ${directory} is not under src`);
+    }
+    candidate = parent;
+  }
+  return candidate;
+}
+
 export async function collectRelativeImports(directory: string, {
   sourceRootDirectory,
   targetRootDirectory,
+  recursive = true,
 }: CollectOptions = {}): Promise<ImportRecord[]> {
   const sourceDirectory = path.resolve(directory);
-  let sourceRoot = sourceRootDirectory === undefined
-    ? sourceDirectory
-    : path.resolve(sourceRootDirectory);
-  if (sourceRootDirectory === undefined) {
-    while (path.basename(sourceRoot) !== "src") {
-      const parent = path.dirname(sourceRoot);
-      if (parent === sourceRoot) {
-        throw new Error(`collectRelativeImports: ${directory} is not under src`);
-      }
-      sourceRoot = parent;
-    }
-  }
+  const sourceRoot = resolveSourceRoot(directory, sourceDirectory, sourceRootDirectory);
   const targetRoot = targetRootDirectory === undefined
     ? sourceRoot
     : path.resolve(targetRootDirectory);
-  const files = await sourceFiles(sourceDirectory);
+  const files = await sourceFiles(sourceDirectory, recursive);
   const imports: ImportRecord[] = [];
 
   for (const file of files) {
