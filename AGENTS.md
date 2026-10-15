@@ -6,9 +6,9 @@ This file tells you how the code is organized, the rules you must follow, and th
 
 ## What this repo is
 
-- A Node CLI. No runtime dependencies, stdlib only.
+- A Bun CLI (`engines.bun >= 1.4`, `#!/usr/bin/env bun`). No runtime dependencies; Node stdlib only.
 - ESM modules (`"type": "module"` in `package.json`).
-- Tests run with `node --test` (stdlib).
+- Tests use `node:test`; `npm test` runs them through the sharded Bun runner.
 - Entry point: `bin/climier.ts`. Library code: `src/`. Tests: `test/`.
 - The CLI resolves a project root (CWD by default, `--project <dir>` to override), reads `<project>/.climier.json`, and then operates on the matching live state file under `~/.climier/projects/<project-id>/tasks.json`.
 
@@ -38,39 +38,41 @@ must not know about application or adapters.
 ### Source layout
 
 ```
-bin/climier.ts                       # Thin executable wrapper around cli/dispatch.mjs
+bin/climier.ts                       # Thin executable wrapper around cli/dispatch.ts
 docs/                                 # Standalone public documentation site and canonical references
   package.json, bun.lock              # Site-only dependencies and reproducible lockfile
   content/docs/                       # Public site pages grouped by getting-started, concepts, guides, and reference
   reference.md, PLUGINS.md, remote-server.md # Canonical published Markdown paths
   scripts/                            # Canonical sync and public-surface checks
 src/
+  operation-source.ts                  # Composition root: joins application/ with plugins/policy.ts
   application/operations/              # Registry, built-in catalog, and shared operation composition
-    index.mjs                          # Public Application Operations boundary
-    execute.mjs                        # Lookup, request construction, policy selection, one kernel call
-    registry.mjs                       # Immutable process-local operation/provider index
-    builtins.mjs                       # Canonical task/gate/knowledge/core operation catalog
+    index.ts                           # Public Application Operations boundary
+    execute.ts                         # Lookup, request construction, policy selection, one kernel call
+    registry.ts                        # Immutable process-local operation/provider index
+    builtins.ts                        # Canonical task/gate/knowledge/core operation catalog
   kernel/                              # Transaction, graph, mutation frontier, and state operations
-    mutate.mjs                         # Stable mutate facade; owns lock/re-entrancy boundary
-    transaction.mjs                    # In-memory draft transaction
-    graph.mjs, edges.mjs               # DAG traversal and edge semantics
-    state-operations.mjs               # Typed project/plugin state operations
+    mutate.ts                          # Stable mutate facade; owns lock/re-entrancy boundary
+    transaction.ts                     # In-memory draft transaction
+    graph.ts, edges.ts                 # DAG traversal and edge semantics
+    state-operations.ts                # Typed project/plugin state operations
     mutation/                          # Validation, preconditions, diffs, revisions, log entry, apply
   providers/                           # Pure task, gate, knowledge, and core domain operations
     task/, gate/, knowledge/, core/     # prepare/apply providers and read semantics
     plugin-data/                       # Typed plugin-scoped state providers
   read-model/                          # Pure status, blocking, knowledge, and informing projections
   storage/                             # Project metadata, canonical state, ledger, locks, snapshots, and logs
-    paths.mjs, state.mjs                # Project resolution and schema-1 state guards/read helpers
-    lock.mjs, log.mjs                   # Locking and log primitives
-    ledger/                              # Revision fence, migration, recovery, and atomic commits
+    paths.ts, state.ts                 # Project resolution and schema-1 state guards/read helpers
+    lock.ts, log.ts                    # Locking and log primitives
+    ledger/                            # Revision fence, migration, recovery, and atomic commits
   server/                              # Authenticated remote HTTP runtime and typed API projections
   plugins/                             # Plugin host, discovery, policy, and compatibility adapters
   cli/
-    actor.mjs                          # CLI actor resolution from flags/environment
-    dispatch.mjs                       # argv parsing, command/plugin routing, output/error handling
-    commands/                           # One CLI adapter per command; parses flags and maps envelopes
+    actor.ts                           # CLI actor resolution from flags/environment
+    dispatch.ts                        # argv parsing, command/plugin routing, output/error handling
+    commands/                          # One CLI adapter per command; parses flags and maps envelopes
   contracts/                           # Error contracts and compatibility-only public facades
+  upgrade/                             # Distribution detection and in-place upgrade and install
  test/
   helpers.ts                          # createTempProject, rmTempProject, runCli/runCliSpawn, importFresh
   *.test.ts                             # Tests, one per module/feature
@@ -203,7 +205,7 @@ Cycles in the DAG must not crash. The derivation keeps cycle members blocked. Un
 
 ## Hard rules for contributing
 
-1. **No new runtime dependencies for the CLI.** Stdlib only. The `ui/` directory is an exception by design: it is a self-contained subproject (own `package.json`, `node_modules`, `dist/`) for the local web UI (Express server + Solid/Tailwind frontend). `climier ui` imports `ui/server/server.mjs`, which resolves its deps from `ui/node_modules`; the CLI package itself gains no runtime deps. The `docs/` directory is a second self-contained exception: its own `package.json`, lockfile, dependencies, and build output belong to the public documentation site and must not add runtime dependencies to the root package. If you think you need a package in `bin/`/`src/`, you almost certainly don't.
+1. **No new runtime dependencies for the CLI.** Stdlib only. The `ui/` directory is an exception by design: it is a self-contained subproject (own `package.json`, `node_modules`, `dist/`) for the local web UI (Solid/Tailwind, built by Vite). Vite bundles its dependencies into the static `ui/dist` output, which the CLI serves through `src/server/packaged-ui.ts` and the `src/server/http/` modules; the CLI package itself gains no runtime deps. The `docs/` directory is a second self-contained exception: its own `package.json`, lockfile, dependencies, and build output belong to the public documentation site and must not add runtime dependencies to the root package. If you think you need a package in `bin/`/`src/`, you almost certainly don't.
 2. **TDD strict.** Write the failing test first, then make it pass. The test suite is the spec. Exception: the `ui/` subproject does not require TDD nor changes to `test/`; it does require verification proportional to the blast radius, explicit (named command, observed output, or manual check), and documented in the commit body, the PR description, or a `climier add-note`. The TDD rule still applies to everything outside `ui/`.
 3. **No silent failures.** Every error path either throws with a clear message or has a tested behavior. If you find yourself "handling" an error by logging and continuing, write a test that documents the behavior, or change the code to fail loud.
 4. **Schema validation on write.** `writeState` rejects states missing `nodes`/`edges`/`initiatives`/`log`. Don't relax this without a test that says why.
@@ -298,7 +300,7 @@ Do not put domain rules or persistence in the CLI layer.
 1. **Test first.** Add `test/<name>.test.ts` or the appropriate integration
    test. Cover the public happy path, validation/permission errors, missing
    state, and one edge case.
-2. **Implement `src/cli/commands/<name>.mjs`.** Export the async command
+2. **Implement `src/cli/commands/<name>.ts`.** Export the async command
    adapter and its `knownFlags`. Parse positional arguments and flags, resolve
    the actor with `src/cli/actor.ts`, normalize only CLI-specific input, and
    invoke the canonical Application Operation or read-model projection.
@@ -345,7 +347,7 @@ Do not put domain rules or persistence in the CLI layer.
 
 - `npm test` runs the whole suite; there is no separate UI suite to skip.
 - For changes limited to `/ui`, the subproject's own checks are enough: `(cd ui && npm run build)` and any manual check you document. The root suite still applies to everything outside `/ui`.
-- `ui/server/` consumes CLI state and read-only helpers. If a change crosses that boundary or changes a shared CLI contract, run the relevant targeted CLI tests too; use `npm test` when the blast radius warrants it. The UI is experimental and carries no root test suite.
+- `ui/` consumes CLI state through the HTTP API the CLI serves (`src/server/http/ui-api.ts`, `ui-events.ts`, and the `/v1/projects/:id/ui/*` routes). If a change moves that contract or a shared CLI read helper, run the relevant targeted CLI tests too; use `npm test` when the blast radius warrants it. The UI is experimental and carries no root test suite.
 - `npm run test:concurrent` runs the multi-agent race tests in isolation.
 - Each test uses a temp dir (see `helpers.ts`) so tests don't interfere.
 - `importFresh()` re-imports modules fresh between tests (defeats the module cache); use it when you need clean state.
