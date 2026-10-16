@@ -3,6 +3,16 @@
 All notable changes to this project are documented here. The format follows
 Keep a Changelog.
 
+## [1.3.0] - 2026-10-16
+
+### Features
+
+- **ui:** keep the board view in the browser and hide completed initiatives (#13) ([b9093e9](https://github.com/codefensory/climier/commit/b9093e9f5b16e976a1b301c7875b5ecf682e05d7))
+
+### Bug Fixes
+
+- **architecture:** close the src-root gap in the boundary ratchet (#12) ([83a3b33](https://github.com/codefensory/climier/commit/83a3b335507d3ff21a41c6cc0db1bafc1b6de321))
+
 ## [1.2.1] - 2026-10-10
 
 ### Bug Fixes
