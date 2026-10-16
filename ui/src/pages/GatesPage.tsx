@@ -31,9 +31,19 @@ export function GatesPage() {
   });
   const visibleGates = createMemo(() => queryMatches().filter((gate) => url.status() === "all" || gate.status === url.status()));
   const groups = createMemo(() => groupGateRecords(visibleGates(), url.group()));
+  /**
+   * Iniciativa terminada: no le queda ninguna gate pendiente.
+   *
+   * El 100% es el mismo que dibuja la barra del `GroupHeader` (`groupGateRecords` cuenta resueltas y
+   * superseded), así que lo que se oculta es exactamente lo que el grupo muestra como 100%.
+   */
+  const completedGroups = createMemo(() => url.group() === "initiative" ? groups().filter((group) => group.progress >= 100) : []);
+  const visibleGroups = createMemo(() => url.group() === "initiative" && !url.showCompleted() ? groups().filter((group) => group.progress < 100) : groups());
+  /** Gates efectivamente listadas: los contadores del encabezado siguen lo visible, no el registry completo. */
+  const listedGates = createMemo(() => visibleGroups().flatMap((group) => group.gates));
   const selectedGate = createMemo(() => registry().find((gate) => gate.id === url.selection()));
-  const uniqueDownstreamTasks = createMemo(() => new Set(visibleGates().flatMap((gate) => gate.impactedTasks.map((task) => task.id))).size);
-  const threads = createMemo(() => gateThreadCount(currentSnapshot(), new Set(visibleGates().map((gate) => gate.id))));
+  const uniqueDownstreamTasks = createMemo(() => new Set(listedGates().flatMap((gate) => gate.impactedTasks.map((task) => task.id))).size);
+  const threads = createMemo(() => gateThreadCount(currentSnapshot(), new Set(listedGates().map((gate) => gate.id))));
 
   const gateDetailHref = (id: string) => `/gates/${encodeURIComponent(id)}${location.search}`;
   const openGate = (id: string) => navigate(gateDetailHref(id));
@@ -51,11 +61,24 @@ export function GatesPage() {
   return (
     <PageFrame header={toolbar()}>
       <div data-testid="gates-content" class="relative grid min-h-0 min-w-0 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] overflow-hidden min-[1024px]:h-[var(--page-frame-content-height)] min-[1280px]:grid-rows-[auto_minmax(0,1fr)] min-[1280px]:grid-cols-[minmax(640px,1fr)_380px]">
-        <p class="px-4 pb-3 pt-4 text-[14px] text-muted min-[1280px]:col-start-1 min-[1280px]:row-start-1">{visibleGates().length} gates · {visibleGates().filter((gate) => gate.status === "open").length} open · {uniqueDownstreamTasks()} distinct tasks downstream · {threads()} threads</p>
+        <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-4 pb-3 pt-4 min-[1280px]:col-start-1 min-[1280px]:row-start-1">
+          <p class="text-[14px] text-muted">{listedGates().length} gates · {listedGates().filter((gate) => gate.status === "open").length} open · {uniqueDownstreamTasks()} distinct tasks downstream · {threads()} threads</p>
+          <Show when={completedGroups().length > 0}>
+            <button
+              type="button"
+              data-testid="gates-show-completed"
+              aria-expanded={url.showCompleted()}
+              onClick={() => url.setShowCompleted(!url.showCompleted())}
+              class="rounded-[10px] px-2 py-1 text-[12px] text-muted transition-colors hover:bg-raised hover:text-ink focus-visible:outline-2 focus-visible:outline-ink"
+            >
+              {url.showCompleted() ? "Show less" : `Show ${completedGroups().length} completed`}
+            </button>
+          </Show>
+        </div>
         <section aria-hidden={overlay() && !!selectedGate()} inert={overlay() && !!selectedGate()} class="min-h-0 min-w-0 overflow-y-auto min-[1280px]:col-start-1 min-[1280px]:row-start-2">
-          <Show when={groups().length > 0} fallback={<p class="px-4 py-8 text-center text-[13px] text-muted">No gates match these filters.</p>}>
+          <Show when={visibleGroups().length > 0} fallback={<p class="px-4 py-8 text-center text-[13px] text-muted">{completedGroups().length > 0 ? "All initiatives are complete." : "No gates match these filters."}</p>}>
             <div class="divide-y divide-hairline">
-              <For each={groups()}>{(group) => (
+              <For each={visibleGroups()}>{(group) => (
                 <section role="group" aria-label={group.label} data-testid="gate-group" data-group={group.key}>
                   <GroupHeader group={group} />
                   <div role="listbox" aria-label={`${group.label} gates`} class="divide-y divide-hairline [&_[data-testid=gate-row]>div:last-child]:w-max">
