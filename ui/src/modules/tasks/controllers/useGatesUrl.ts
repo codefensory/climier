@@ -13,14 +13,17 @@ export function useGatesUrl() {
     return value === "purpose" || value === "chain" ? value : "initiative";
   });
   const selection = createMemo(() => one(params.gate) ?? "");
+  /** Las iniciativas terminadas arrancan ocultas: sin el param, el registry sólo muestra gates pendientes. */
+  const showCompleted = createMemo(() => one(params.completed) === "1");
 
   const setStatus = (value: string) => setSearchParams({ status: value === "all" ? null : value }, { replace: true });
   const setQuery = (value: string) => setSearchParams({ query: value || null }, { replace: true });
   const setGroup = (value: GateGroupMode) => setSearchParams({ group: value === "initiative" ? null : value }, { replace: true });
+  const setShowCompleted = (value: boolean) => setSearchParams({ completed: value ? "1" : null }, { replace: true });
   const setSelection = (value: string) => {
     if (selection() === value) return;
     setSearchParams({ gate: value || null }, { replace: false });
   };
 
-  return { status, query, group, selection, setStatus, setQuery, setGroup, setSelection };
+  return { status, query, group, showCompleted, selection, setStatus, setQuery, setGroup, setShowCompleted, setSelection };
 }

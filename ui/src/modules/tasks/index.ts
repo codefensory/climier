@@ -103,7 +103,7 @@ export type { TaskFiltersController, UseTaskFiltersOptions } from "./controllers
 export { usePopoverMenu } from "./controllers/usePopoverMenu";
 export type { UsePopoverMenuOptions } from "./controllers/usePopoverMenu";
 
-export { useTasksUrl, DEFAULT_TASK_SORT } from "./controllers/useTasksUrl";
+export { useTasksUrl, DEFAULT_TASK_SORT, TASKS_VIEW_STORAGE_KEY } from "./controllers/useTasksUrl";
 export type { TasksUrl } from "./controllers/useTasksUrl";
 
 export { useGatesUrl } from "./controllers/useGatesUrl";

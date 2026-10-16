@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
 import { expect, userEvent, waitFor } from "storybook/test";
+import { TASKS_VIEW_STORAGE_KEY, type TaskView } from "../modules/tasks";
 import { StoryShell } from "../test-utils/StoryShell";
 import { must } from "../test-utils/story";
 import { TasksPage } from "./TasksPage";
@@ -7,13 +8,11 @@ import { TasksPage } from "./TasksPage";
 /**
  * Tasks: toolbar + board, con el estado del board real.
  *
- * Desde la Fase 8b ese estado es **la URL**: `useTasksUrl()` lee y escribe los search params, así que la
- * página no se puede montar sin router (tira al leer la location). Antes era `TasksBoardProvider`, que hacía
- * el mismo trabajo —sobrevivir al cambio de vista— con estado en memoria.
- *
- * Esto hace que la story sea más simple y más honesta a la vez: en vez de montar un provider y después
- * clickear para llegar a kanban, la story **arranca en la URL de kanban**, que es exactamente lo que hace
- * un link compartido.
+ * Ese estado tiene dos casas. Alcance, orden, agrupación y filtros son **la URL** (una consulta que se
+ * comparte y se recarga, `useTasksUrl()`), así que la página no se puede montar sin router. La **vista**
+ * es una preferencia del navegador, en `localStorage`: cambiarla no navega, así que el botón de atrás no
+ * la pisa. Por eso las stories que arrancan en kanban siembran el storage en vez de escribir un
+ * search param, y la que prueba el camino verifica que la URL **no** cambie.
  */
 const meta = {
   title: "Pages/TasksPage",
@@ -25,9 +24,9 @@ export default meta;
 
 type Story = StoryObj<Record<string, unknown>>;
 
-/** Monta la página en `/tasks`. El `path` del `StoryShell` es la URL con la que arranca. */
-const Host = (props: { path?: string }) => (
-  <StoryShell path={props.path ?? "/tasks"}>
+/** Monta la página en `/tasks`. El `storage` del `StoryShell` es la preferencia con la que arranca. */
+const Host = (props: { path?: string; view?: TaskView }) => (
+  <StoryShell path={props.path ?? "/tasks"} storage={props.view ? { [TASKS_VIEW_STORAGE_KEY]: props.view } : undefined}>
     <div class="bg-surface">
       <TasksPage />
     </div>
@@ -45,7 +44,7 @@ export const DarkList: Story = {
 
 export const DarkKanban: Story = {
   globals: { theme: "dark", viewport: { value: "wide" } },
-  render: () => <Host path="/tasks?view=kanban" />,
+  render: () => <Host view="kanban" />,
   play: async () => {
     const segments = [...document.querySelectorAll<HTMLElement>('[data-testid="tasks-view-switch"] button')];
     const kanban = must(segments.find((button) => button.textContent?.trim() === "Kanban") ?? null, "el segmento Kanban");
@@ -55,15 +54,14 @@ export const DarkKanban: Story = {
 };
 
 /**
- * Kanban por URL, sin clickear nada.
+ * Kanban guardado, sin clickear nada.
  *
- * Es el caso que la Fase 8b hace posible: antes, llegar a kanban requería interactuar (el provider no
- * aceptaba un valor inicial y agregarle uno habría sido API sólo para las stories). Ahora es un estado que
- * se puede escribir en la barra de direcciones, y la story lo verifica de las dos maneras: el switch dice
- * Kanban y el board **es** kanban.
+ * Es el estado que sobrevive a recargar y a irse a otra vista: el usuario ya eligió kanban, así que la
+ * página tiene que abrir en kanban aunque la URL sea `#/tasks` a secas. Se verifica de las dos maneras: el
+ * switch dice Kanban y el board **es** kanban.
  */
 export const Kanban: Story = {
-  render: () => <Host path="/tasks?view=kanban" />,
+  render: () => <Host view="kanban" />,
   play: async () => {
     const segments = [...document.querySelectorAll<HTMLElement>('[data-testid="tasks-view-switch"] button')];
     const kanban = must(segments.find((button) => button.textContent?.trim() === "Kanban") ?? null, "el segmento Kanban");
@@ -73,11 +71,12 @@ export const Kanban: Story = {
 };
 
 /**
- * Cambia a kanban con un click real y verifica las dos mitades: el switch y la URL.
+ * Cambia a kanban con un click real y verifica las dos mitades: el board cambia y la **URL no**.
  *
- * La story de arriba prueba el estado; esta prueba el camino. Y agrega la aserción que valida la premisa de
- * la fase: que el click **escriba la URL** — si el board cambia pero la URL no, el estado no se puede
- * compartir, que es la mitad del punto.
+ * Es el contrato que reemplaza al de la Fase 8b: antes el click escribía `?view=kanban` y ahora escribe la
+ * preferencia del navegador. Las dos aserciones importan —si el board cambia pero la URL cambia también,
+ * el atrás vuelve a decidir la vista; si la URL no cambia pero el storage no se escribe, la elección se
+ * pierde al recargar—.
  */
 export const KanbanFlow: Story = {
   render: () => <Host />,
@@ -88,7 +87,8 @@ export const KanbanFlow: Story = {
     await userEvent.click(kanban);
     await waitFor(() => expect(kanban.getAttribute("aria-pressed")).toBe("true"));
     await waitFor(() => expect(document.querySelector('[data-testid="tasks-kanban-view"]')).not.toBeNull());
-    await waitFor(() => expect(window.location.hash).toBe("#/tasks?view=kanban"));
+    await waitFor(() => expect(window.localStorage.getItem(TASKS_VIEW_STORAGE_KEY)).toBe("kanban"));
+    await expect(window.location.hash).toBe("#/tasks");
   },
 };
 

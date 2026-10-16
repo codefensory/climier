@@ -23,6 +23,9 @@ export type KanbanCardProps = {
  *
  * El contenedor es un `<div>` y no un `<article>`: cuando la tarjeta es accionable lleva
  * `role="button"`, y `article` no admite ese rol (axe lo reporta como `aria-allowed-role`).
+ *
+ * El título es `h3`, igual que la fila de la lista: el rótulo de las columnas no es un heading, así que
+ * un `h4` acá saltaba de nivel bajo el `h2` del sidebar (axe: `heading-order`).
  */
 export function KanbanCard(props: KanbanCardProps) {
   const open = () => props.onOpen?.(props.task);
@@ -39,7 +42,7 @@ export function KanbanCard(props: KanbanCardProps) {
       <Show when={props.task.kind === "gate"}>
         <span class="w-fit rounded-[5px] bg-tone-amber-bg px-1.5 py-[2px] text-[10px] font-medium tracking-wide text-tone-amber-ink uppercase">Gate{props.task.purpose ? ` · ${props.task.purpose}` : ""}</span>
       </Show>
-      <h4 class="text-[13px] font-medium leading-[18px] text-ink">{props.task.title}</h4>
+      <h3 class="text-[13px] font-medium leading-[18px] text-ink">{props.task.title}</h3>
       <Show when={props.task.description}><p class="line-clamp-2 text-[12px] leading-[17px] text-muted">{props.task.description}</p></Show>
       <TaskTags task={props.task} />
       <Show when={props.task.claimedBy}>
