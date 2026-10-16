@@ -1387,6 +1387,70 @@ vigente: cuando haya backend, entra con `services/` + `controllers/` por módulo
 
 ---
 
+### Fase 8c — La vista del board, preferencia del navegador
+
+**Hecho** (corrige la mitad de la Fase 8 que no resistió el uso real).
+
+```text
+src/modules/tasks/controllers/useTasksUrl.ts   la vista sale de la URL y va a localStorage
+src/modules/tasks/index.ts                     exporta TASKS_VIEW_STORAGE_KEY (lo siembran las stories)
+src/test-utils/StoryShell.tsx                  resetStoryStorage() + prop storage
+src/modules/tasks/components/KanbanCard.tsx    h4 → h3 (heading-order, ver el hallazgo)
+src/pages/TasksPage.stories.tsx                Kanban/DarkKanban siembran storage; KanbanFlow verifica la URL
+src/App.stories.tsx                            ViewPreferenceSurvives: atrás/adelante y vuelta por el sidebar
+```
+
+#### Decisión: la vista es una preferencia, no una consulta
+
+`view` salió de los search params: `localStorage` con la clave `climier-ui:tasks-view`, leída al montar
+(`list` si no hay nada) y escrita en cada `setView`. Cambiar de lista a kanban **no navega**, así que el
+botón de atrás no cambia la vista y volver a Tasks la conserva.
+
+En la URL, el estado del board quedaba repartido entre entradas del historial: cambiar a kanban escribía
+`?view=kanban` **reemplazando** la entrada, pero cualquier navegación posterior a `/tasks` sin el param —el
+link del sidebar, atrás, abrir un detalle y volver— caía en lista. Alcance, orden, agrupación y filtros son
+otra cosa: describen una consulta sobre los datos, una URL compartida tiene que reproducirla, y por eso se
+quedan donde estaban.
+
+No hay provider: la preferencia es un `createSignal` dentro de `useTasksUrl` y `localStorage` es la
+persistencia. El default (`list`) no se siembra — la ausencia de clave ya significa lista.
+
+#### Qué se descartó: leer `?view=kanban` como semilla
+
+Conservaba links viejos y no costaba nada… salvo la parte que importa: con la preferencia en kanban, el
+atrás a una URL sin el param tendría **dos** fuentes para el mismo valor y alguien tiene que ganar. Si gana
+la URL, vuelve el bug; si gana el storage, ¿para qué se lee? Una URL vieja con `?view=kanban` queda inerte,
+y el param no se limpia solo porque limpiarlo sería escribir la URL en el toggle que se acaba de sacar de
+ahí.
+
+#### Hallazgo: el `h4` de la tarjeta de kanban rompía el orden de headings
+
+`ViewPreferenceSurvives` fue la primera story en renderizar el kanban **dentro del shell**, y axe
+(`heading-order`) marcó la tarjeta: el rótulo de grupo del sidebar es `h2` y la tarjeta era `h4`, salteando
+`h3`. Las filas de la lista ya usaban `h3`; la tarjeta de kanban ahora también. Estaba latente porque las
+stories de kanban montaban `TasksPage` suelta, sin sidebar.
+
+#### Fuga entre stories (la cuarta de la misma clase)
+
+`localStorage` sobrevive entre stories igual que la URL: una story que cambia a kanban se la dejaba puesta a
+la siguiente. `StoryShell` ahora limpia las claves conocidas en cada montaje (`resetStoryStorage`) y acepta
+un mapa `storage` para las que necesitan arrancar con una preferencia **ya guardada**, que es como `Kanban`
+y `DarkKanban` muestran "el usuario ya eligió kanban" sin simular el click.
+
+#### Resultado — verificado
+
+| Comprobación | Resultado |
+|---|---|
+| `bun run test:run` | **243/243** (54 archivos), incluida `ViewPreferenceSurvives` |
+| `KanbanFlow` | board kanban · `#/tasks` sin cambios · `climier-ui:tasks-view=kanban` |
+| `ViewPreferenceSurvives` | Tasks (lista) → Kanban → Home → atrás → Tasks **en kanban** → adelante y Tasks → kanban |
+| `bun run typecheck` · `build` · `check:colors` | en verde |
+
+**Aceptación:** cambiar lista ↔ kanban no toca la URL ✅ · la elección sobrevive a irse y volver, al botón de
+atrás y a recargar ✅ · cada story arranca con URL y preferencia conocidas ✅
+
+---
+
 ### Fase 9 — Cuando toque (no ahora)
 
 Los dos triggers que quedan:
@@ -1416,6 +1480,7 @@ profundos de la API v5.
 | 6 | tsconfig + scripts | bajo | ✅ **hecho** — un error en una story deja el build verde y `typecheck` rojo |
 | 7 | Vitest + a11y | medio | ✅ **hecho** — 135/135, 0 violaciones a11y, y encontró 2 bugs reales |
 | 8 | Router | **alto** | ✅ **hecho** — URLs compartibles; 1 bloque de DOM cambiado a propósito; `solid-query` no entra sin backend |
+| 8c | La vista del board, preferencia del navegador | bajo | ✅ **hecho** — 243/243; la URL no cambia al alternar lista/kanban y el atrás no la pisa |
 
 Las fases 2→4 son mecánicas y siguen el mismo patrón, por lo que se pueden paralelizar **una vez que
 la Fase 2 fije la convención**: prop types exportados, `index.ts` explícito, story co-locada.

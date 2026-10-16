@@ -1,38 +1,25 @@
 import { useSearchParams } from "@solidjs/router";
-import { createMemo } from "solid-js";
+import { createMemo, createSignal } from "solid-js";
+import type { StorageLike } from "../../core";
 import { groupFields, sortFields } from "../data/sorting";
 import type { ClimierSnapshot } from "../data/climier/contract";
 import { decodeFilterTree, encodeFilterTree } from "../utils/filterTreeParam";
 import type { FilterGroup, TaskGroupBy, TaskScope, TaskSort, TaskSortKey, TaskView } from "../types";
 
 /**
- * Estado de presentación del board (vista, alcance, orden, agrupación y filtros) **en la URL**.
+ * Estado de presentación del board: la **vista** es una preferencia del navegador, el resto (alcance,
+ * orden, agrupación y filtros) vive en la URL.
  *
- * Reemplaza a `TasksBoardProvider`: la URL es la fuente de verdad, así que no hay nada que sincronizar y
- * los cinco parámetros se comportan igual — a diferencia de antes, que vista/orden/grupo vivían en un
- * provider por encima del switch de vistas y sobrevivían a navegar, mientras el árbol de filtros vivía
- * dentro de `TasksToolbar` y se perdía. Esa asimetría era el hallazgo de la Fase 5 y esto la cierra.
+ * La vista se cambia sin navegar: no escribe ningún search param, así que atrás/adelante no la pisan y
+ * volver a Tasks la conserva. Los otros cuatro describen una consulta concreta sobre los datos —una URL
+ * compartida tiene que poder reproducirla— y por eso siguen en la URL, con los defaults (`active`,
+ * `updated:desc`, `status`) sin escribir y `replace: true`, porque cambiar un filtro no es navegar.
  *
- * ### Consecuencia que hay que decir en voz alta
+ * El costo de tenerla en `localStorage`: una URL vieja con `?view=kanban` queda inerte. Leerla como semilla
+ * habría dejado dos fuentes para el mismo valor, y el atrás —que restaura una URL sin el param— volvería a
+ * decidir la vista, que es exactamente lo que se está sacando.
  *
- * Ahora **ninguno de los cinco sobrevive** a irse a otra vista y volver: `Home` es `/` y `Tasks` es
- * `/tasks`, así que el estado del board se queda en `/tasks` con su URL. Es el mismo comportamiento que ya
- * tenía el filtro, extendido al estado completo del board: coherente, y una URL compartida siempre reproduce lo que se ve.
- * Si se quisiera que sobreviva, el cambio es que los links del sidebar lleven el search actual
- * (`navigate(path + location.search)`), y esa es una decisión de producto, no una limitación técnica.
- *
- * ### Los defaults no ensucian la URL
- *
- * `list`, `active`, `updated:desc` y `status` son los valores iniciales, así que no se escriben: `/tasks` ya
- * significa eso. Un `null` en el setter es lo que `useSearchParams` interpreta como "sacá esta clave".
- *
- * ### `replace` y no `push`
- *
- * Cambiar un filtro no es navegar. Con `push`, el botón de atrás dejaría de salir del board y pasaría a ser
- * un deshacer de cada click (abrir el menú, elegir un campo, elegir un valor). Los clicks del sidebar sí
- * empujan, porque eso sí es navegación.
- *
- * ### Los cuatro son `createMemo`
+ * ### Los cuatro de la URL son `createMemo`
  *
  * Porque devuelven objetos y arrays nuevos en cada lectura. Sin memo, cada lectura del árbol daría objetos
  * distintos y el `<For>` de las condiciones recrearía las filas en cada acceso — y el árbol se lee muchas
@@ -41,16 +28,23 @@ import type { FilterGroup, TaskGroupBy, TaskScope, TaskSort, TaskSortKey, TaskVi
 export function useTasksUrl(snapshot: () => ClimierSnapshot) {
   const [query, setSearchParams] = useSearchParams();
 
-  /** Sólo se trabaja con params de una sola aparición (`?view=a&view=b` se ignora). */
+  /** Sólo se trabaja con params de una sola aparición (`?scope=a&scope=b` se ignora). */
   const one = (param: string | string[] | undefined) => (typeof param === "string" ? param : undefined);
 
-  const view = (): TaskView => (one(query.view) === "kanban" ? "kanban" : "list");
+  const [view, setViewSignal] = createSignal<TaskView>(readStoredView());
   const scope = createMemo<TaskScope>(() => decodeScope(one(query.scope)));
   const sort = createMemo<TaskSort>(() => decodeSort(one(query.sort)));
   const group = createMemo<TaskGroupBy>(() => decodeGroup(one(query.group)));
   const filterTree = createMemo<FilterGroup>(() => decodeFilterTree(one(query.filter), snapshot()));
 
-  const setView = (next: TaskView) => setSearchParams({ view: next === "list" ? null : next }, { replace: true });
+  const setView = (next: TaskView) => {
+    setViewSignal(next);
+    try {
+      browserStorage()?.setItem(TASKS_VIEW_STORAGE_KEY, next);
+    } catch {
+      // Un storage bloqueado no puede impedir cambiar la vista en esta sesión.
+    }
+  };
 
   const setScope = (next: TaskScope) => setSearchParams({ scope: next === "active" ? null : next }, { replace: true });
 
@@ -72,7 +66,26 @@ export function useTasksUrl(snapshot: () => ClimierSnapshot) {
 
 export type TasksUrl = ReturnType<typeof useTasksUrl>;
 
+export const TASKS_VIEW_STORAGE_KEY = "climier-ui:tasks-view";
+
 export const DEFAULT_TASK_SORT: TaskSort = { key: "updated", dir: "desc" };
+
+function browserStorage(): StorageLike | null {
+  try {
+    return typeof window === "undefined" ? null : window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+/** Sin preferencia guardada (o con storage bloqueado) la vista es la lista, que es el default del board. */
+function readStoredView(): TaskView {
+  try {
+    return browserStorage()?.getItem(TASKS_VIEW_STORAGE_KEY) === "kanban" ? "kanban" : "list";
+  } catch {
+    return "list";
+  }
+}
 
 function decodeSort(raw: string | undefined): TaskSort {
   if (!raw) return { ...DEFAULT_TASK_SORT };

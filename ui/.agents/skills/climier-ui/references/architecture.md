@@ -56,7 +56,8 @@ no se puede reusar entre montajes (es un bug en Solid).
 
 | Tipo | Dónde | Ejemplo |
 |---|---|---|
-| URL | rutas y search params | vista activa, `?panel=settings`, `view`/`sort`/`group`/`filter` |
+| URL | rutas y search params | vista activa, `?panel=settings`, `sort`/`group`/`filter` del board |
+| `localStorage` | preferencias del navegador | vista del board (`climier-ui:tasks-view`), tema, token |
 | Provider | `ShellProvider` | sidebar colapsada, drawer, `activeItem`, proyecto |
 | Local | `createSignal` | menú abierto, posición de popover, árbol de filtros en una story |
 
@@ -65,13 +66,14 @@ habría que sincronizar en los dos sentidos (click → signal → URL y URL → 
 estado que se desincroniza. Atrás/adelante y un link pegado a mano funcionan sin código extra porque no hay
 nada que sincronizar.
 
-El estado del board vive en la URL (`useTasksUrl`): vista, orden, agrupación y árbol de filtros. No hay
-provider del board. Los defaults (`list`, `updated:desc`, `status`) **no** se escriben; un `null` en
-`setSearchParams` borra la clave. Los cambios del board usan `replace: true`.
+El estado del board (`useTasksUrl`) tiene dos casas: la **vista** es una preferencia en `localStorage`
+(cambiarla no navega, así que atrás no la pisa) y el orden, la agrupación y el árbol de filtros viven en la
+URL. No hay provider del board. Los defaults de la URL (`updated:desc`, `status`) **no** se escriben; un
+`null` en `setSearchParams` borra la clave. Los cambios del board usan `replace: true`.
 
-Consecuencia documentada: ninguno de los cuatro sobrevive a irse a otra vista y volver, porque el estado se
-queda en la URL de `/tasks`. Si se quisiera que sobreviva, los links del sidebar tendrían que llevar el
-search actual (decisión de producto, no limitación técnica).
+Consecuencia documentada: orden, agrupación y filtros no sobreviven a irse a otra vista y volver, porque el
+estado se queda en la URL de `/tasks`. Si se quisiera que sobreviva, los links del sidebar tendrían que
+llevar el search actual (decisión de producto, no limitación técnica).
 
 ### El árbol de filtros en la URL
 

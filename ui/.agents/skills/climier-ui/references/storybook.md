@@ -42,8 +42,10 @@ esto y no un bug.
   montar sin provider ni router.
 - Datos con `makeTask()` / `makeFilterTree()` de `data/fixtures.ts`, nunca JSX en `args`.
 - Las stories que necesitan router (porque leen la URL o `useShell()`) se envuelven en `<StoryShell>`
-  de `src/test-utils/StoryShell.tsx`, y el estado inicial se pasa por `path` (`"/tasks?view=kanban"`). Eso
-  reemplaza a los viejos `initialTree`/valores iniciales inventados sólo para stories.
+  de `src/test-utils/StoryShell.tsx`. El estado inicial va por `path` para lo que vive en la URL
+  (`"/tasks?sort=priority:desc"`) y por `storage` para las preferencias del navegador
+  (`{ [TASKS_VIEW_STORAGE_KEY]: "kanban" }`). Eso reemplaza a los viejos `initialTree`/valores iniciales
+  inventados sólo para stories.
 
 ### `play`: los tres errores que cuestan una hora
 
@@ -71,6 +73,10 @@ Una story que navega deja el hash puesto y la siguiente arranca ahí. Por eso `A
 `loader` que llama a `resetStoryUrl("/")` antes de montar. Va en `loaders` y no en un decorador porque los
 loaders corren **antes** de construir el árbol (y una story puede pisarlos, que es como `DeepLink` prueba un
 link profundo).
+
+Lo mismo vale para `localStorage`: una story que cambia la vista del board a kanban deja la preferencia
+puesta para la siguiente. `resetStoryStorage()` (en el mismo `StoryShell.tsx`) limpia las claves conocidas
+en cada montaje, y el `loader` de `App` también la llama.
 
 El viewport por defecto del corredor, además, **no** es `initialGlobals.viewport`: si alguna opción de
 viewport tiene `type: "mobile"`, esa gana. Por eso los tres (`narrow` 639, `compact` 1023, `wide` 1440) están
