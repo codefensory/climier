@@ -44,6 +44,8 @@ The view switcher changes between:
 
 The board can show groups such as **In Progress**, **Ready**, **Submitted**, **Blocked**, **Backlog**, and **Done**. Historical `canceled` and `archived` work can also appear when the selected scope includes it. A gate may be shown with the work it affects, but it is still a gate, not a task.
 
+The List/Board choice is a browser preference: it is remembered across visits and does not change the URL, so the back button never switches it.
+
 The status is meaningful:
 
 - **Ready** means an open task has no unsatisfied `BLOCKS` dependency and is not in the backlog.
@@ -116,6 +118,8 @@ The Gates view provides:
 - status filters for **All**, **Open**, **Resolved**, **Superseded**, and **Canceled** when those values exist;
 - grouping controls;
 - a summary of the visible gates, open gates, downstream tasks, and activity threads.
+
+When gates are grouped by initiative, an initiative with no open gate is complete and starts hidden; the **Show N completed** control above the list reveals completed initiatives, and that revealed state is kept in the URL (`?completed=1`).
 
 Open gates are the most useful place to look when work is blocked. Select a row to open its side panel, or open the gate detail view for the full context.
 
