@@ -8,7 +8,7 @@ import { gateResolveProvider } from "../../providers/gate/lifecycle.ts";
 import { executeRemoteDomain, nodeFromMutation } from "./internal/domain-routing.ts";
 import type { CliFlags, CommandContext } from "./contracts.ts";
 
-export const knownFlags = ["as", "note", "choice", "rationale"];
+export const knownFlags = ["as", "choice", "rationale"];
 
 function validateGateTarget(node, id) {
   if (node && (node.kind !== "resolvable" || node.subkind !== "gate")) {
@@ -106,7 +106,7 @@ export default async function resolve({
   }
   const agent = resolveAgent(flags, "resolve");
   const dir = projectDir || statePath;
-  const input: Record<string, unknown> = { id, note: flags.note, choice: flags.choice, rationale: flags.rationale, actor: agent };
+  const input: Record<string, unknown> = { id, choice: flags.choice, rationale: flags.rationale, actor: agent };
   const remote = await resolveRemotely({ backendClient, agent, id, input });
   if (remote) {
     return remote;

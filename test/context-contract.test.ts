@@ -822,3 +822,28 @@ test("context: --project and unknown flags are rejected by the known-flags guard
   assert.ok(mod.knownFlags.includes("as"));
   assert.ok(mod.knownFlags.includes("staleMs"));
 });
+
+test("context: allowed_actions for a non-choice gate names the bare resolve", async () => {
+  const { default: context } = await importFresh("./cli/commands/context.ts");
+  const dir = await createTempProject();
+  try {
+    await writeCanonicalState(dir, {
+      ...baseState(),
+      nodes: {
+        "G-labor": {
+          id: "G-labor",
+          kind: "resolvable",
+          subkind: "gate",
+          title: "X",
+          revision: 1,
+          status: "open",
+          resolution_mode: "labor",
+        },
+      },
+    });
+    const out = await context({ statePath: dir, positional: ["G-labor"], flags: { as: "alice" } });
+    assert.equal(out.allowed_actions[0], "resolve");
+  } finally {
+    await rmTempProject(dir);
+  }
+});

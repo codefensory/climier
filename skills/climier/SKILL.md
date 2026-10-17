@@ -25,6 +25,7 @@ This skill covers **using the CLI to read and curate the graph**. Executing a ta
 4. **Read the scoped knowledge and gate resolutions that `context` shows you.** They are domain traps the team has already paid for; ignore them at your own risk.
 5. **Curate the contract before work starts.** Fix a wrong body or acceptance with `update`; record the reasoning with `add-note`. Use `--if-revision N` for optimistic concurrency.
 6. **Register the initiative before building its graph.** `add-task`/`add-gate`/`add-knowledge` fail with `INITIATIVE_NOT_FOUND` otherwise (see Setup).
+7. **Never hand-edit or reset state to recover it.** Snapshots are written around `init --force`, corrupt-state recovery, and every `restore` (which snapshots the file it replaces). Use `snapshots` + `restore` when one exists; `init --force` is a deliberate reset that discards the DAG.
 
 ## Operator commands
 
@@ -38,6 +39,8 @@ climier show <id>
 climier search "<query>"
 climier initiatives --all
 climier log --limit 20
+climier snapshots       # newest first; written by init --force, corrupt recovery, restore
+climier state           # deterministic core projection of the current state
 
 # Create or curate the graph
 climier add-initiative <name> --desc "..." --as <agent>
@@ -46,6 +49,7 @@ climier add-gate <id> ... --as <agent>
 climier add-knowledge <id> ... --as <agent>
 climier update <id> ... --as <agent>
 climier add-note <id> "..." --as <agent>
+climier remove-edge <from> <to> --type BLOCKS --as <agent>
 climier resolve <gate-id> --choice "..." --rationale "..." --as <agent>
 climier reopen <id> --reason "..." --as <agent>
 ```
@@ -54,7 +58,7 @@ climier reopen <id> --reason "..." --as <agent>
 
 `update` and `add-note` are for keeping the spec and the trail alive while work is in progress. Different semantics, different permissions:
 
-- **`update` (any agent)**: edit a node's *spec* (`--title`, `--body`, `--definition`, `--acceptance`, `--domain`, `--backlog`, `--meta`, `--scope-*`, `--tags`, `--refs`, etc.). Bumps `revision`. Add `--if-revision N` to reject the update if the stored revision differs (cheap optimistic concurrency). Common use: refining a task before execution, or cleaning up a stale spec.
+- **`update` (any agent)**: edit a node's *spec* (`--title`, `--body`, `--definition`, `--acceptance`, `--initiative`, `--domain`, `--backlog`, `--tags`, `--refs`, `--meta`; gate-only `--purpose`, `--resolution-mode`, `--mitigation`; knowledge-only `--knowledge-type`, `--scope-domains`, `--scope-initiatives`, `--scope-tags`, `--scope-node-ids`). Bumps `revision`. Add `--if-revision N` to reject the update if the stored revision differs (cheap optimistic concurrency). Common use: refining a task before execution, or cleaning up a stale spec.
 - **`add-note` (any agent)**: append a timestamped `{ts, agent, text}` entry to the node's `notes[]` thread. Any status. Append-only by design. Common use: recording context for future readers, attaching operator evidence, or leaving a comment on anything.
 
 ## Writing durable DAG content
@@ -112,7 +116,7 @@ Execution of a ready task is not a Climier command; it is launched through the `
 - If `.climier.json` declares `backend: { "type": "remote", "url": "..." }`, the state lives on that server and the CLI routes every read and mutation there. Do not assume a local `tasks.json` exists; inspect `.climier.json` first.
 - Multiple machines with the same repo checkout share the `.climier.json` but each have their own state file (this is by design — agents are local processes, state is the shared truth on the host that runs them).
 
-State shape: `{ version: 1, initiatives, nodes, edges, log }`.
+State shape: `{ version: 1, fence_generation, revision, initiatives, nodes, edges, log }`. `revision` is the optimistic-concurrency fence used by `--if-revision`; a ledger beside the state file records it.
 
 - `nodes`: tasks (resolvable labor), gates (resolvable decisions/approvals/external deps/research), knowledge (durable facts).
 - `edges`: typed (`BLOCKS`, `SUPERSEDES`, `DERIVED_FROM`). Only `BLOCKS` affects readiness — `to` is blocked by `from`. The CLI surfaces `BLOCKS` from the dependent's POV as `--blocked-by`: `--blocked-by G-y` means "this node is blocked by G-y", and stores the canonical edge `{from: "G-y", to: <this node>, type: "BLOCKS"}`.
@@ -139,7 +143,7 @@ If `~/.climier/projects/<project_id>/tasks.json` does not exist yet (no agent ha
 climier init
 ```
 
-`init` no longer accepts a `--seed` flag (removed in climier 1.0). Storage is NOT in the repo and NOT under git's purview; the repo only commits `.climier.json`.
+`init` no longer accepts a `--seed` flag (removed in climier 1.0). `init --force` is an authorised reset and therefore requires `--as <agent>`; plain `init` does not. Storage is NOT in the repo and NOT under git's purview; the repo only commits `.climier.json`.
 
 ### Bootstrap an initiative (required before any add-*)
 
@@ -162,7 +166,7 @@ $ climier take T-auth-7 --as ghost-agent
   "ok": false,
   "error": {
     "code": "ALREADY_CLAIMED",
-    "message": "take: node T-auth-7 is claimed by claude-auth",
+    "message": "take: task 'T-auth-7' is already claimed",
     "details": { "id": "T-auth-7", "owner": "claude-auth" }
   }
 }
@@ -179,6 +183,11 @@ The codes an agent will see:
 - `INVALID_STATUS` — node isn't in a status that allows this transition (e.g. `resolve` on a resolved gate).
 - `REVISION_CONFLICT` — `update --if-revision N` failed because the stored revision differs.
 - `INVALID_EDGE_TYPE` / `INVALID_EDGE_KIND` / `SELF_EDGE` / `CYCLE_DETECTED` / `DUPLICATE_EDGE` / `INVALID_EDGE_TARGET` — edge problems.
+- `CLI_USAGE_ERROR` — unknown flag or bad argv (exit code 2). `details.valid_flags` lists what the command accepts; read it instead of guessing.
+- `NOT_OWNER` — the actor does not hold the claim that `submit`/`accept` requires.
+- `INVALID_EXECUTION_CONTRACT` — the node kind does not support that operation (e.g. `accept` on a gate, `--choice` on a non-choice gate).
+- `STATE_REVISION_CONFLICT` — a `batch` CAS against the whole-state revision failed; re-read and retry.
+- `CLIMIER_CORRUPT_STATE` / `CLIMIER_LEDGER_*` — storage refused the file. Stop mutating, run `climier snapshots`, and restore a verified snapshot; never hand-edit state.
 
 Branch on `error.code`, not on `error.message`.
 
@@ -214,7 +223,7 @@ Tasks stay blocked until `D9` is resolved. When the operator reads one with `con
 
 Why a gate, not a task: gates have a `purpose` (`decision`, `approval`, `external-dependency`, `research`) that maps naturally to "research findings + chosen approach", they resolve with a `--choice` + `--rationale` (which discourages trivial research), and the choice becomes a permanent record of *why* we picked one path.
 
-Gates have no claim lifecycle — anyone with `--as` can `resolve` a gate. Use `add-gate --supersedes <old-id>` to retire an older gate atomically (the old gate becomes `superseded`, downstream `BLOCKS` edges are rewired to the new gate).
+Gates have no claim lifecycle — anyone with `--as` can `resolve` a gate. A gate whose `resolution_mode` is `choice` (the default) requires `--choice` and `--rationale`; any other mode (`labor`, `approval`, `external`) resolves with the bare command and stores `resolution: null`. `context` names the right form in `allowed_actions`. Use `add-gate --supersedes <old-id>` to retire an older gate atomically (the old gate becomes `superseded`, downstream `BLOCKS` edges are rewired to the new gate).
 
 ## Quick reference
 
@@ -222,26 +231,34 @@ Every command prints a single JSON value to stdout. There is no `--json` flag an
 
 | Command | Purpose | Requires `--as` |
 |---|---|---|
-| `status [--initiative X] [--kind task\|gate\|knowledge] [--claimed-by X] [--stale-ms N] [--limit N] [--all]` | Global view: `summary` (ready/in_progress/blocked/backlog/open_gates/active_knowledge), task buckets, open gates, stale-claim alerts. `--all` adds done/canceled/resolved/superseded/deprecated. | no |
-| `context <id> [--as X] [--staleMs N]` | Agent-first view: `node`, `derived_status`, `revision`, `claim`, `blocking[]`, `knowledge[]` (scoped), `informing[]`, `alerts[]`, `allowed_actions[]`. | no (optional `--as` to scope `allowed_actions`) |
+| `status [--initiative X] [--kind task\|gate\|knowledge] [--status X] [--domain X] [--claimed-by X] [--stale-ms N] [--limit N] [--all]` | Global view: `summary` (ready/in_progress/submitted/blocked/backlog/open_gates/active_knowledge), task buckets, open gates, stale-claim alerts. `--all` adds done/canceled/resolved/superseded/deprecated. | no |
+| `context <id> [--as <agent>] [--staleMs N]` | Agent-first view: `node`, `derived_status`, `revision`, `claim`, `blocking[]`, `knowledge[]` (scoped), `informing[]`, `alerts[]`, `allowed_actions[]`. `--staleMs` is camelCase here; `status` uses `--stale-ms`. | no |
 | `show <id>` | Print the raw node by id. Returns `{ type, node }`. | no |
 | `history <id> [--limit N]` | Log entries that reference a node. | no |
 | `search "<query>" [--all]` | Search active knowledge by id/title/body/mitigation/domain/tags/refs/meta. `--all` includes deprecated. | no |
 | `initiatives [--all]` | List registered initiatives with usage counts. `--all` includes zero-node initiatives. | no |
 | `log [--limit N] [--action X] [--agent X] [--node X]` | Show the audit log, filterable. Logs use `node:` (not `task:`/`decision:`). | no |
-| `resolve <G> --choice "<text>" --rationale "<text>" --as <agent>` | Resolve a gate; tasks never use this command. | yes |
+| `resolve <id> [--choice "<text>"] [--rationale "<text>"] --as <agent>` | Resolve a gate. Both flags are required for `resolution_mode: choice` (the default) and rejected for `labor`/`approval`/`external` gates, which resolve without a recorded decision (`resolution: null`). Tasks never use this command. | yes |
 | `reopen <id> --reason "<text>" --as <agent>` | Administrative correction of a task or resolved gate; not runner recovery. | yes |
 | `cancel <id> --reason "<text>" --as <agent>` | Administrative termination of a node; not a substitute for runner recovery. | yes |
-| `update <id> [--title X] [--body "..."] [--definition "..."] [--acceptance "..."] [--domain Y] [--backlog true\|false] [--scope-* ...] [--meta '{...}'] [--if-revision N] --as <agent>` | Edit a node. Bumps `revision`. `--if-revision N` for optimistic concurrency. | yes |
-| `add-note <id> "<text>" --as <agent>` | Append a timestamped note to the node's `notes[]` thread. Any status. Append-only. | yes |
-| `add-task [id] --initiative X --title "..." --body "..." --acceptance "..." --blocked-by A,B [--definition ...] [--domain ...] [--backlog true] --as <agent>` | Add a task. Requires `--body`, `--acceptance` and `--blocked-by` (pass `--blocked-by ""` for none). Omit `id` to auto-allocate (`T-xxxxxxxx`). | yes |
-| `add-gate [id] --initiative X --title "..." --body "..." --purpose decision\|approval\|external-dependency\|research [--blocked-by A,B] [--supersedes OLD] --as <agent>` | Add a gate (decision/approval/research/etc). `--supersedes OLD` rewires downstream BLOCKS edges and marks the old gate superseded atomically. | yes |
-| `add-knowledge [id] --initiative X --title "..." --body "..." [--scope-domains X] [--scope-initiatives X] [--scope-tags X] [--scope-node-ids X] [--mitigation "..."] [--supersedes OLD] --as <agent>` | Register a knowledge node. At least one `--scope-*` is required. | yes |
+| `update <id> [--title X] [--body "..."] [--definition "..."] [--acceptance "..."] [--initiative X] [--domain Y] [--tags a,b] [--refs a,b] [--meta '{...}'] [--backlog true\|false] [--purpose X] [--resolution-mode X] [--mitigation "..."] [--knowledge-type X] [--scope-domains X] [--scope-initiatives X] [--scope-tags X] [--scope-node-ids X] [--if-revision N] --as <agent>` | Edit a node. Bumps `revision`; `--if-revision N` is optimistic concurrency. Flags that do not apply to the node kind are rejected. | yes |
+| `add-note <id> "<text>" [--if-revision N] --as <agent>` | Append a timestamped note to the node's `notes[]` thread. Any status. Append-only. | yes |
+| `add-task [id] --initiative X --title "..." --body "..." --acceptance "..." --blocked-by A,B [--domain Y] [--tags a,b] [--refs a,b] [--meta '{...}'] [--derived-from A,B] --as <agent>` | Add a task. Requires `--body`, `--acceptance` and `--blocked-by` (pass `--blocked-by ""` for none). Omit `id` to auto-allocate (`T-xxxxxxxx`). `--supersedes` is gate/knowledge only and fails on tasks. | yes |
+| `add-gate [id] --initiative X --title "..." --body "..." --purpose decision\|approval\|external-dependency\|research [--resolution-mode choice\|labor\|...] [--blocked-by A,B] [--derived-from A,B] [--domain Y] [--tags a,b] [--refs a,b] [--meta '{...}'] [--supersedes OLD] --as <agent>` | Add a gate. `--supersedes OLD` rewires downstream BLOCKS edges and marks the old gate superseded atomically. | yes |
+| `add-knowledge [id] --initiative X --title "..." --body "..." [--scope-domains X] [--scope-initiatives X] [--scope-tags X] [--scope-node-ids X] [--knowledge-type X] [--mitigation "..."] [--domain Y] [--tags a,b] [--refs a,b] [--meta '{...}'] [--derived-from A,B] [--supersedes OLD] --as <agent>` | Register a knowledge node. At least one `--scope-*` is required. | yes |
 | `add-initiative <name> [--desc "..."] --as <agent>` | Register an initiative. Duplicates are rejected with `ID_CONFLICT`. | yes |
 | `deprecate-knowledge <id> --reason "<text>" --as <agent>` | Soft-delete a knowledge node (`status="deprecated"`). | yes |
-| `add-node <id> --kind resolvable\|knowledge --title "..." [--subkind task\|gate] [--blocked-by A,B] [--derived-from A,B] [--refs a,b] [--meta '{...}'] [--initiative X] ...` | Escape hatch: low-level node creation. Prefer `add-task` / `add-gate` / `add-knowledge`. | yes |
+| `take` / `submit` / `accept` / `reject` / `release` | Task lifecycle. They exist in the CLI, but the `climier-flow` runner owns them; see the `climier-flow` skill. | yes |
+| `link <origin> [--replace=true] [--name "<name>"]`, `login`, `logout`, `push`, `pull` | Remote backend. `push`/`pull` are EXPERIMENTAL and `--force` replaces the whole destination DAG. | mixed |
+| `add-node <id> --kind resolvable\|knowledge --title "..." [--subkind task\|gate] [--initiative X] [--body "..."] [--status X] [--domain Y] [--tags a,b] [--refs a,b] [--meta '{...}'] [--definition "..."] [--acceptance "..."] [--purpose X] [--resolution-mode X] [--choice "..."] [--rationale "..."] [--knowledge-type X] [--mitigation "..."] [--scope-* X] [--backlog true\|false] [--blocked-by A,B] [--derived-from A,B] [--supersedes OLD] --as <agent>` | Escape hatch: low-level node creation. Prefer `add-task` / `add-gate` / `add-knowledge`. | yes |
 | `add-edge <from> <to> --type BLOCKS\|SUPERSEDES\|DERIVED_FROM --as <agent>` | Escape hatch: low-level edge CRUD. Rejects self-edges, cycles, duplicates. | yes |
-| `init [--force]` | Create `.climier.json` and the project's live state. The `--seed` flag was removed in climier 1.0. | no |
+| `remove-edge <from> <to> --type BLOCKS\|SUPERSEDES\|DERIVED_FROM --as <agent>` | Idempotently remove one exact edge (the counterpart of `add-edge`). | yes |
+| `snapshots` | List recoverable snapshots, newest first. They are created by `init --force`, corrupt-state recovery, and every `restore` (which snapshots the file it replaces). | no |
+| `state` | Deterministic projection of the current core state (`revision`, nodes, edges, initiatives). | no |
+| `restore <snapshot-id> --as <agent>` | Replace live state with that snapshot's bytes. Validates schema 1 first and snapshots the current state before changing it. | yes |
+| `batch --file <json> \| --stdin --as <agent>` | Apply several operations atomically with one lock and one revision. | yes |
+| `rename "<name>"` | Set the project display name locally (mirrored to a linked server). | no |
+| `init [--force] [--as <agent>]` | Create `.climier.json` and the project's live state. `--as` is required with `--force` (authorised reset). The `--seed` flag was removed in climier 1.0. | no (yes with `--force`) |
 
 ## Output: JSON only
 
@@ -271,17 +288,18 @@ The convention for return shapes is principled (stable across versions):
 
 ## If the JSON gets corrupted or out of sync
 
-`readState` returns `null` when the file is missing. To rebuild from scratch:
+`readState` returns `null` when the file is missing. Use the recovery ladder:
 
 ```bash
-# Backup first (the state file is at ~/.climier/projects/<id>/tasks.json)
-cp ~/.climier/projects/<project_id>/tasks.json ~/.climier/projects/<project_id>/tasks.json.bak
-
-# Reset (only if you're sure; this loses log entries)
-climier init --force
+climier snapshots                 # init --force, corrupt recovery, and restore captures
+climier restore <snapshot-id> --as <agent>
 ```
 
-The CLI also auto-recovers a corrupt JSON on `init --force` (or even without `--force` if the existing state is unreadable). Always backup first.
+`restore` validates that the snapshot is canonical schema 1, takes a pre-restore snapshot of the current file, and runs under the lock — so a restore is itself reversible. `climier state` is the cheapest way to confirm the file parses. A wrong or older schema is rejected, not converted.
+
+There is no per-mutation history: `snapshots` only holds `init --force`, corrupt-recovery, and pre-restore captures. A valid-but-wrong mutation is not reverted for you; correct it with `update`, `reopen`, `cancel`, or `remove-edge`, and keep your own backups if you need point-in-time recovery.
+
+Last resort, only for an unrecoverable file: back up `~/.climier/projects/<project_id>/tasks.json` by hand, then `climier init --force --as <agent>`. That is a deliberate reset: nodes, edges, and log are discarded, and it captures a snapshot first, so the discarded file stays recoverable. Unreadable JSON (a parse error) is the only thing `init` repairs without `--force`.
 
 ## Common pitfalls
 

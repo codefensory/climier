@@ -537,14 +537,18 @@ Resolves an open gate as part of DAG curation; it is not a task lifecycle transi
 
 Required:
 
-- `--choice "..."`
-- `--rationale "..."`
 - `--as <agent>`
+
+`--choice "..."` and `--rationale "..."` are required when the gate's
+`resolution_mode` is `choice` (the default) and rejected for any other mode
+(`labor`, `approval`, `external`, ...). A non-choice gate closes without a
+recorded decision and persists `resolution: null`; a missing `resolution_mode`
+keeps the `choice` semantics.
 
 A second resolve of an already resolved gate fails. To correct an accepted
 decision, use `reopen` first and then resolve it again with explicit choice and
-rationale. The operation stores `resolution: { choice, rationale }` and computes
-newly ready dependents.
+rationale. A choice resolution stores `resolution: { choice, rationale }` and
+computes newly ready dependents.
 
 Output shape:
 
