@@ -3,6 +3,20 @@
 All notable changes to this project are documented here. The format follows
 Keep a Changelog.
 
+## [1.3.1] - 2026-10-17
+
+### Bug Fixes
+
+- **cli:** document every command flag and close non-choice gates ([f589677](https://github.com/codefensory/climier/commit/f589677a382a241cd1bcf4c8564b463ed80f41a0))
+
+`climier --help` listed a subset of the flags each command accepts; it now
+documents the full set. `climier resolve` also accepts the gates it used to
+reject: a gate whose `resolution_mode` is not `choice` (`labor`, `approval`,
+`external`) closes without `--choice`/`--rationale` and stores
+`resolution: null`, while `choice` gates (the default, including gates written
+without the field) still require both. The dead `resolve --note` flag is gone:
+it was accepted and silently discarded, and now fails with `CLI_USAGE_ERROR`.
+
 ## [1.3.0] - 2026-10-16
 
 ### Features
