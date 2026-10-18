@@ -15,4 +15,4 @@ export const GENERATED_CATALOG = {
   operations: GENERATED_OPERATIONS,
 } as const;
 
-export const GENERATED_CATALOG_FINGERPRINT = "afda0cf5e54d1dd69ec0f0d2039e1e18208301fd4973b7f376583d1c1f31d6c8" as const;
+export const GENERATED_CATALOG_FINGERPRINT = "1ecb837f80f57f7adebfc401a4bacf863d6454335edf53d0d1278783df1453a7" as const;

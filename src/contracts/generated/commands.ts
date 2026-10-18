@@ -162,7 +162,6 @@ export const GENERATED_COMMAND_FLAGS = {
   ],
   "resolve": [
     "as",
-    "note",
     "choice",
     "rationale"
   ],

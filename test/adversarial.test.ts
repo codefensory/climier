@@ -494,8 +494,8 @@ describe("concurrency: two operations on the same node serialize cleanly", () =>
     try {
       await addTaskNode(dir, "T-a");
       await takeNode(dir, "T-a", "alice");
-      const a = runCliSpawn(["--project", dir, "resolve", "T-a", "--note", "from alice", "--as", "alice"]);
-      const b = runCliSpawn(["--project", dir, "resolve", "T-a", "--note", "from bob", "--as", "bob"]);
+      const a = runCliSpawn(["--project", dir, "resolve", "T-a", "--as", "alice"]);
+      const b = runCliSpawn(["--project", dir, "resolve", "T-a", "--as", "bob"]);
       const [ra, rb] = await Promise.all([a, b]);
       assert.equal(ra.code, 1);
       assert.equal(rb.code, 1);

@@ -310,3 +310,36 @@ test("tx rejects patches that try to seed revision (kernel contract)", async () 
   );
   void plan;
 });
+
+test("gate.resolve closes a non-choice gate without a recorded decision", async () => {
+  const snapshot = baseSnapshot();
+  const before = structuredClone(snapshot);
+  const { plan, view, result } = await runResolve(snapshot, { id: "G-LABOR" });
+  assert.equal(plan.logAction, "resolve");
+  assert.equal(plan.choice, undefined);
+  assert.deepEqual(plan.logFields, {});
+  assert.equal(view.nodes["G-LABOR"].status, "resolved");
+  assert.equal(view.nodes["G-LABOR"].resolution, null);
+  assert.equal(result.resolution, null);
+  assert.deepEqual(snapshot, before);
+});
+
+test("gate.resolve treats a missing resolution_mode as 'choice'", async () => {
+  const snapshot = baseSnapshot();
+  snapshot.nodes["G-DEFAULT"] = {
+    id: "G-DEFAULT", kind: "resolvable", subkind: "gate", title: "Legacy gate",
+    body: "B", initiative: "work", status: "open", purpose: "decision", revision: 1,
+  };
+  const { view } = await runResolve(snapshot, { id: "G-DEFAULT", choice: "yes", rationale: "legacy" });
+  assert.deepEqual(view.nodes["G-DEFAULT"].resolution, { choice: "yes", rationale: "legacy" });
+});
+
+test("gate.resolve rejects partial decision text on a non-choice gate", async () => {
+  const snapshot = baseSnapshot();
+  for (const input of [{ id: "G-LABOR", choice: "x" }, { id: "G-LABOR", rationale: "y" }]) {
+    await assert.rejects(
+      gateResolveProvider.prepare({ snapshot, input }),
+      (err) => caughtError(err).code === "INVALID_EXECUTION_CONTRACT",
+    );
+  }
+});

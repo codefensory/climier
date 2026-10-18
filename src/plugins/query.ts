@@ -144,19 +144,22 @@ function taskActions(derivedStatus: string, anonymous: boolean): string[] {
     : [];
 }
 
-function openGateActions(anonymous: boolean): string[] {
-  return ["resolve --choice <X> --rationale <Y>", "add-note", "supersede", ...(anonymous ? [] : ["cancel"] )];
+function openGateActions(node: ReadModelNode, anonymous: boolean): string[] {
+  const resolve = (node.resolution_mode || "choice") === "choice"
+    ? "resolve --choice <X> --rationale <Y>"
+    : "resolve";
+  return [resolve, "add-note", "supersede", ...(anonymous ? [] : ["cancel"] )];
 }
 
-const GATE_ACTIONS: Record<string, (anonymous: boolean) => string[]> = {
+const GATE_ACTIONS: Record<string, (node: ReadModelNode, anonymous: boolean) => string[]> = {
   open: openGateActions,
   resolved: () => ["reopen", "supersede"],
   superseded: () => ["add-note"],
 };
 
-function gateActions(derivedStatus: string, anonymous: boolean): string[] {
+function gateActions(node: ReadModelNode, derivedStatus: string, anonymous: boolean): string[] {
   return Object.hasOwn(GATE_ACTIONS, derivedStatus)
-    ? GATE_ACTIONS[derivedStatus](anonymous)
+    ? GATE_ACTIONS[derivedStatus](node, anonymous)
     : [];
 }
 
@@ -168,7 +171,7 @@ function allowedActions(node: ReadModelNode | undefined, derivedStatus: string, 
   if (node.kind === "resolvable") {
     return node.subkind === "task"
       ? taskActions(derivedStatus, anonymous)
-      : gateActions(derivedStatus, anonymous);
+      : gateActions(node, derivedStatus, anonymous);
   }
   if (node.kind === "knowledge") {
     return (node.status || "active") === "active"

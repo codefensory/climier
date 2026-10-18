@@ -410,7 +410,7 @@ Claims are serialized under the project lock. `release`, `reopen`, and
 | `accept <id> --as <agent>` | Accept submitted work and transition it to `done`. |
 | `reject <id> --reason "..." --as <agent>` | Return submitted work to `open` with a reason. |
 | `release <id> --as <agent>` | Explicit administrative claim release. |
-| `resolve <id> --choice "<text>" --rationale "<text>" --as <agent>` | Resolve an open gate. |
+| `resolve <id> [--choice "<text>"] [--rationale "<text>"] --as <agent>` | Resolve an open gate. Both flags are required for a `resolution_mode` of `choice` (the default) and rejected for any other mode, which resolves without a recorded decision. |
 | `reopen <id> --reason "<text>" --as <agent>` | Roll a `done` task back to `open` for correction, subject to policy. |
 | `restore <snapshot-id> --as <agent>` | Replace the live state with a validated schema-1 snapshot under the recovery path and a pre-restore snapshot. A policy plugin may restrict the actor; invalid or incomplete snapshots fail without mutating state. |
 | `cancel <id> --reason "<text>" --as <agent>` | Terminate a task without resolving from `open`, `in_progress` or `submitted`. |

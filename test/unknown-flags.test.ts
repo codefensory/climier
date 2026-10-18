@@ -39,7 +39,7 @@ test("CLI: resolve --foo exits non-zero with JSON error on stdout", async () => 
     const id = await seedV2(dir);
     const take = await runCli(["--project", dir, "take", id, "--as", "alice"]);
     assert.equal(take.code, 0, take.stderr);
-    const r = await runCli(["--project", dir, "resolve", id, "--note", "shipped", "--as", "alice", "--foo", "bar"]);
+    const r = await runCli(["--project", dir, "resolve", id, "--choice", "shipped", "--rationale", "r", "--as", "alice", "--foo", "bar"]);
     assert.notEqual(r.code, 0);
     const data = JSON.parse(r.stdout);
     assert.equal(data.ok, false);

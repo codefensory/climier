@@ -216,21 +216,31 @@ function requireTargetGate(node, id, command) {
 }
 
 
+function gateResolutionMode(node) {
+  // create always persists "choice"; a hand-written gate without the field
+  // keeps the historical choice semantics.
+  return node.resolution_mode || "choice";
+}
+
 function validateChoiceResolution(node, id, command) {
-  if (node.resolution_mode !== "choice") {
+  if (gateResolutionMode(node) !== "choice") {
     throwV2(
       "INVALID_EXECUTION_CONTRACT",
-      `${command}: choice/rationale are only applicable to gates with resolution_mode 'choice' (got '${node.resolution_mode || "open"}')`,
+      `${command}: choice/rationale are only applicable to gates with resolution_mode 'choice' (got '${gateResolutionMode(node)}')`,
       { id, resolution_mode: node.resolution_mode || null, field: "choice" },
     );
   }
+}
+
+function resolutionPatch(choice, rationale) {
+  return choice === undefined ? null : { choice, rationale };
 }
 
 function applyResolutionPatch(tx, plan) {
   // updateNode never carries revision (transaction.mjs enforces).
   tx.updateNode(plan.target.id, {
     status: "resolved",
-    resolution: { choice: plan.choice, rationale: plan.rationale },
+    resolution: resolutionPatch(plan.choice, plan.rationale),
   });
 }
 
@@ -255,13 +265,21 @@ export async function prepareGateResolve({ snapshot, input }) {
   const command = RESOLVE_OP;
   const payload = readSnapshot(input);
   const id = requireNonEmptyString(payload, "id", command);
-  const choice = requireNonEmptyString(payload, "choice", command);
-  const rationale = requireNonEmptyString(payload, "rationale", command);
 
   const nodes = readSnapshotNodes(snapshot);
   const edges = readSnapshotEdges(snapshot);
   const node = loadTargetGate(snapshot, id, command, { allowedStatuses: RESOLVABLE_STATUSES });
-  validateChoiceResolution(node, id, command);
+
+  // Only a choice gate records a decision. Any other mode (labor, approval,
+  // external) closes the gate on its own terms and carries no choice text.
+  let choice;
+  let rationale;
+  if (gateResolutionMode(node) === "choice") {
+    choice = requireNonEmptyString(payload, "choice", command);
+    rationale = requireNonEmptyString(payload, "rationale", command);
+  } else if (payload.choice !== undefined || payload.rationale !== undefined) {
+    validateChoiceResolution(node, id, command);
+  }
 
   // Validate the gate's own revision before declaring the plan; the
   // declared affected is just [id] because lifecycle providers don't
@@ -277,7 +295,7 @@ export async function prepareGateResolve({ snapshot, input }) {
   projectedNodes[id] = {
     ...node,
     status: "resolved",
-    resolution: { choice, rationale },
+    resolution: resolutionPatch(choice, rationale),
   };
   const projectedEdges = edges;
   const projectedGraph = { nodes: projectedNodes, edges: projectedEdges };
@@ -289,7 +307,7 @@ export async function prepareGateResolve({ snapshot, input }) {
     policyAction: { action: RESOLVE_POLICY },
     logAction: RESOLVE_LOG,
     logNote: id,
-    logFields: { choice, rationale },
+    logFields: choice === undefined ? {} : { choice, rationale },
     affected,
     if_revisions: ifRevisions,
     node: null,
@@ -314,7 +332,7 @@ export async function applyGateResolve({ tx, plan, snapshot }) {
   return {
     result: {
       node: tx.getNode(plan.target.id),
-      resolution: { choice: plan.choice, rationale: plan.rationale },
+      resolution: resolutionPatch(plan.choice, plan.rationale),
     },
     effects: {
       newly_ready: newlyReady,

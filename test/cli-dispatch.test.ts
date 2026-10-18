@@ -332,7 +332,7 @@ test("CLI: resolve on a ready task is rejected without mutation", async () => {
     assert.equal(seed.code, 0, seed.stderr);
     const seedId = JSON.parse(seed.stdout).node.id;
 
-    r = await runCli(["--project", dir, "resolve", seedId, "--note", "resolved from ready", "--as", "alice"]);
+    r = await runCli(["--project", dir, "resolve", seedId, "--as", "alice"]);
     assert.equal(r.code, 1);
     const data = JSON.parse(r.stdout);
     assert.equal(data.ok, false);

@@ -76,10 +76,10 @@ function taskAllowedActions(derivedStatus: string, identified: boolean): string[
   return taskActionsByStatus(derivedStatus, identified);
 }
 
-function gateAllowedActions(derivedStatus: string, identified: boolean): string[] {
+function gateAllowedActions(node: ReadModelNode, derivedStatus: string, identified: boolean): string[] {
   if (derivedStatus === "open") {
     return [
-      "resolve --choice <X> --rationale <Y>",
+      (node.resolution_mode || "choice") === "choice" ? "resolve --choice <X> --rationale <Y>" : "resolve",
       "add-note",
       "supersede",
       ...(identified ? ["cancel"] : []),
@@ -109,7 +109,7 @@ function contextAllowedActions(node: ReadModelNode, derivedStatus: string, ident
     return taskAllowedActions(derivedStatus, identified);
   }
   if (node.kind === "resolvable" && node.subkind === "gate") {
-    return gateAllowedActions(derivedStatus, identified);
+    return gateAllowedActions(node, derivedStatus, identified);
   }
   if (node.kind === "knowledge") {
     return knowledgeAllowedActions(node);
