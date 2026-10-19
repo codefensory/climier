@@ -35,7 +35,7 @@ async function readCommitStage(stagePath, pending) {
   }
   const destination = readJson(raw, "commit stage") as CommitState;
   const expectedRevision = pending.high_water_revision;
-  if ((!isFencedStateVersion(destination.version) && (!pending.schema_only_migration
+  if ((!isFencedStateVersion(destination.version) && (pending.schema_only_migration !== true
       || !isSchemaMigratedState(destination, { fence_generation: pending.fence_generation, high_water_revision: pending.high_water_revision })))
       || !Number.isInteger(destination.fence_generation)
       || destination.fence_generation !== pending.fence_generation
@@ -61,7 +61,7 @@ async function cleanOrphanCommitStages(statePath) {
 
 function assertCommitSource(rawState, pending, ledger) {
   const source = readJson(rawState, "commit source state") as CommitState;
-  if (pending.schema_only_migration) {
+  if (pending.schema_only_migration === true) {
     try {
       assertFencedMigrationSource(source, { ...ledger, high_water_revision: pending.source_high_water_revision });
     } catch (rawCaughtValue: unknown) {
@@ -104,7 +104,7 @@ function assertInstalledCommit(rawState, pending) {
       || sha256(rawState) !== pending.destination_sha256) {
     throw fingerprintMismatch("installed destination does not match pending commit");
   }
-  if (pending.schema_only_migration) {
+  if (pending.schema_only_migration === true) {
     assertSchemaMigratedState(destination, { fence_generation: pending.fence_generation, high_water_revision: pending.high_water_revision }, expectedRevision);
   } else {
     assertFencedState(destination, {
@@ -132,7 +132,7 @@ async function finishPendingCommit({ statePath, ledgerPath, ledger, rawState, op
   const sourceHash = sha256(rawState);
   let schemaSource;
   if (sourceHash === pending.source_sha256) {
-    if (pending.schema_only_migration) {
+    if (pending.schema_only_migration === true) {
       schemaSource = await readSchemaMigrationSource({ rawState, pending, ledger });
     }
     rawState = await installPendingCommitSource({
@@ -147,7 +147,7 @@ async function finishPendingCommit({ statePath, ledgerPath, ledger, rawState, op
     throw fingerprintMismatch("state fingerprint diverged from pending commit; explicit recovery is required");
   }
   const destination = assertInstalledCommit(rawState, pending);
-  if (pending.schema_only_migration && schemaSource) {
+  if (pending.schema_only_migration === true && schemaSource) {
     assertSchemaMigrationDestination(
       schemaSource,
       destination,
@@ -341,7 +341,7 @@ async function installStagedCommit({ statePath, destinationRaw, opts }) {
 
 async function readSchemaMigrationSource({ rawState, pending, ledger }) {
   const source = readJson(rawState, "schema migration source state") as CommitState;
-  if (!pending.schema_only_migration
+  if (pending.schema_only_migration !== true
       || pending.high_water_revision !== pending.source_high_water_revision + 1
       || ledger.high_water_revision !== pending.high_water_revision) {
     throw fingerprintMismatch("schema-only migration reservation does not advance exactly one state revision");

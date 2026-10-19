@@ -6,6 +6,7 @@ import path from "node:path";
 import { ClimierError } from "../../contracts/errors.ts";
 import { isFencedStateVersion } from "../state.ts";
 import { validateStateInvariants } from "../../contracts/state-invariants.ts";
+import { structurallyEqual } from "../../contracts/structural-equality.ts";
 
 export type NodeRecord = { revision?: number; [key: string]: unknown };
 export type StateLike = { version?: number; fence_generation?: number; revision?: number; nodes?: Record<string, NodeRecord>; log?: Array<Record<string, unknown>>; [key: string]: unknown };
@@ -75,9 +76,9 @@ export function assertSchemaMigrationDestination(source: StateLike, destination:
   const { version: _destinationVersion, revision: _destinationRevision, log: _destinationLog, ...destinationData } = destination;
   const sourceLog = source.log || [];
   const destinationLog = destination.log || [];
-  if (JSON.stringify(sourceData) !== JSON.stringify(destinationData)
+  if (!structurallyEqual(sourceData, destinationData)
       || destinationLog.length !== sourceLog.length + 1
-      || JSON.stringify(destinationLog.slice(0, -1)) !== JSON.stringify(sourceLog)) {
+      || !structurallyEqual(destinationLog.slice(0, -1), sourceLog)) {
     throw new ClimierError("CLIMIER_LEDGER_STATE_MISMATCH", "ledger: schema migration changed data outside schema, revision, and migration log");
   }
   for (const [id, node] of Object.entries(source.nodes || {})) {
