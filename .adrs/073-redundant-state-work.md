@@ -93,11 +93,19 @@ medido). El resto es trabajo evitable.
 
 ## Verificación
 
+Por task (verificable dentro del worktree, sin depender de fixtures externos):
+
 - `npm test` verde, incluidos `test/take.test.ts`, `test/concurrent-takes.test.ts`
-  y los tests de ledger/recovery.
-- Sobre el fixture de 6 MB: `add-note` ≤ 120 ms y `status` ≤ 45 ms (medidos con
-  `date +%s%N` alrededor del comando, tres corridas).
-- Contadores del test de regresión: ≤ 2 parses del estado y ≤ 2× el tamaño del
-  estado en bytes serializados por mutación.
-- Salida de `status`, `context` y `history` byte-idéntica contra la captura
-  previa al cambio.
+  y los tests de ledger/recovery. `npm run typecheck` verde.
+- Test de regresión con contadores (`test/state-work-budget.test.ts`): una
+  mutación parsea el estado ≤ 2 veces y serializa ≤ 2× su tamaño en bytes; un
+  `status` parsea ≤ 2 veces.
+- Equivalencia funcional: el estado resultante de una secuencia de operaciones
+  (`take`, `submit`, `accept`, `add-note`, `update`, `add-edge`) es idéntico al
+  de `main`; la salida de `status`, `context` y `history` no cambia.
+
+Del orquestador (fuera del runner, sobre un estado real de ~6 MB, después del
+merge; no es criterio de acceptance de ninguna task porque el fixture es estado
+de proyecto y la medición de reloj es ruidosa):
+
+- `add-note` ≤ 120 ms y `status` ≤ 45 ms, tres corridas con `date +%s%N`.
