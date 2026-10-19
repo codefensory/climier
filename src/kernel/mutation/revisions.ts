@@ -2,13 +2,14 @@
 // This module owns revision assignment and node comparison. It performs no
 // I/O, so the kernel can finalize a draft without coupling revision semantics
 // to locking or persistence.
+import { structurallyEqual } from "../../contracts/structural-equality.ts";
 
 function deepEqualValue(a, b) {
   if (a === b) {return true;}
   if (typeof a !== typeof b) {return false;}
   if (!a || !b || typeof a !== "object") {return a === b;}
   try {
-    return JSON.stringify(a) === JSON.stringify(b);
+    return structurallyEqual(a, b);
   } catch {
     return false;
   }
