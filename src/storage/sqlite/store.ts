@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { asCaughtError } from "../../contracts/errors.ts";
@@ -19,18 +20,63 @@ type SqliteState = Record<string, unknown> & {
   log: unknown[];
 };
 
+function bodyHash(body: string): string {
+  return crypto.createHash("sha256").update(body).digest("hex");
+}
+
+function nodeWithoutBodyText(node: Record<string, unknown>) {
+  // Keep the key in place so hydrated schema-1 JSON retains its original property order.
+  return { ...node, body: null };
+}
+
+function storeBody(database, hash: string, body: string, knownBodies: Map<string, string>) {
+  if (knownBodies.has(hash)) {
+    if (knownBodies.get(hash) !== body) { throw new Error(`storage: body hash collision for ${hash}`); }
+    return;
+  }
+  database.query("INSERT INTO node_body (hash, body) VALUES (?, ?) ON CONFLICT(hash) DO NOTHING").run(hash, body);
+  const stored = database.query("SELECT body FROM node_body WHERE hash = ?").get(hash);
+  if (stored?.body !== body) { throw new Error(`storage: body hash collision for ${hash}`); }
+  knownBodies.set(hash, body);
+}
+
+function hasBodyHashColumn(database): boolean {
+  return database.query("PRAGMA table_info(nodes)").all().some(({ name }) => name === "body_hash");
+}
+
+function migrateInlineBodies(database) {
+  const rows = database.query("SELECT id, data, body_hash FROM nodes ORDER BY position").all();
+  const knownBodies = new Map<string, string>();
+  const updateNode = database.query("UPDATE nodes SET data = ?, body_hash = ? WHERE id = ?");
+  for (const row of rows) {
+    const node = JSON.parse(row.data);
+    if (!node || typeof node !== "object" || Array.isArray(node) || typeof node.body !== "string") { continue; }
+    const hash = bodyHash(node.body);
+    storeBody(database, hash, node.body, knownBodies);
+    updateNode.run(JSON.stringify(nodeWithoutBodyText(node)), hash, row.id);
+  }
+}
+
 async function openDatabase(file: string) {
   const { Database } = await import(SQLITE_MODULE);
   const database = new Database(file, { create: true });
-  database.exec(SQLITE_PRAGMAS);
-  const { user_version: schemaVersion } = database.query("PRAGMA user_version").get();
-  if (schemaVersion !== 0 && schemaVersion !== SQLITE_SCHEMA_VERSION) {
+  try {
+    database.exec(SQLITE_PRAGMAS);
+    const { user_version: schemaVersion } = database.query("PRAGMA user_version").get();
+    if (schemaVersion !== 0 && schemaVersion !== 1 && schemaVersion !== SQLITE_SCHEMA_VERSION) {
+      throw new Error(`storage: unsupported SQLite schema version ${schemaVersion}`);
+    }
+    database.transaction(() => {
+      database.exec(SQLITE_SCHEMA);
+      if (!hasBodyHashColumn(database)) { database.exec("ALTER TABLE nodes ADD COLUMN body_hash TEXT"); }
+      if (schemaVersion < SQLITE_SCHEMA_VERSION) { migrateInlineBodies(database); }
+      database.exec(`PRAGMA user_version = ${SQLITE_SCHEMA_VERSION}`);
+    })();
+    return database;
+  } catch (error) {
     database.close();
-    throw new Error(`storage: unsupported SQLite schema version ${schemaVersion}`);
+    throw error;
   }
-  database.exec(SQLITE_SCHEMA);
-  if (schemaVersion === 0) { database.exec(`PRAGMA user_version = ${SQLITE_SCHEMA_VERSION}`); }
-  return database;
 }
 
 function assertCanonicalState(state: unknown, command: string): asserts state is SqliteState {
@@ -51,7 +97,25 @@ function readRows(database, table: string, key: string) {
   return database.query(`SELECT ${key}, data FROM ${table} ORDER BY position`).all();
 }
 
-function readStateInTransaction(database): SqliteState | null {
+function readNodes(database, includeBodies: boolean): Record<string, unknown> {
+  const nodes = Object.fromEntries(database.query("SELECT id, data, body_hash FROM nodes ORDER BY position").all()
+    .map(({ id, data, body_hash }) => [id, { node: JSON.parse(data), bodyHash: body_hash }]));
+  if (includeBodies) {
+    const bodies = new Map<string, string>();
+    for (const { bodyHash: hash } of Object.values(nodes) as Array<{ node: Record<string, unknown>; bodyHash: string | null }>) {
+      if (hash === null || bodies.has(hash)) { continue; }
+      const stored = database.query("SELECT body FROM node_body WHERE hash = ?").get(hash);
+      if (!stored) { throw new Error(`storage: missing body with content hash ${hash}`); }
+      bodies.set(hash, stored.body);
+    }
+    for (const value of Object.values(nodes) as Array<{ node: Record<string, unknown>; bodyHash: string | null }>) {
+      if (value.bodyHash !== null) { value.node.body = bodies.get(value.bodyHash); }
+    }
+  }
+  return Object.fromEntries(Object.entries(nodes).map(([id, { node }]) => [id, node]));
+}
+
+function readStateInTransaction(database, { includeBodies = true }: { includeBodies?: boolean } = {}): SqliteState | null {
   const metadata = Object.fromEntries(database.query("SELECT key, value FROM meta").all()
     .map(({ key, value }) => [key, JSON.parse(value)]));
   if (metadata.version === undefined) { return null; }
@@ -60,7 +124,7 @@ function readStateInTransaction(database): SqliteState | null {
     version: metadata.version,
     ...(metadata.fence_generation === undefined ? {} : { fence_generation: metadata.fence_generation }),
     revision: metadata.revision,
-    nodes: Object.fromEntries(readRows(database, "nodes", "id").map(({ id, data }) => [id, JSON.parse(data)])),
+    nodes: readNodes(database, includeBodies),
     edges: readRows(database, "edges", "position").map(({ data }) => JSON.parse(data)),
     initiatives: Object.fromEntries(readRows(database, "initiatives", "name").map(({ name, data }) => [name, JSON.parse(data)])),
     log: readRows(database, "log", "position").map(({ data }) => JSON.parse(data)),
@@ -72,9 +136,27 @@ function readStateInTransaction(database): SqliteState | null {
   return state;
 }
 
-function replaceRows(database, state: SqliteState) {
-  database.exec("DELETE FROM meta; DELETE FROM nodes; DELETE FROM edges; DELETE FROM initiatives; DELETE FROM log;");
-  const insertMeta = database.prepare("INSERT INTO meta (key, value) VALUES (?, ?)");
+function contentAddressedNode(database, value: unknown, knownBodies: Map<string, string>) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) { return { data: value, hash: null }; }
+  const node = value as Record<string, unknown>;
+  if (typeof node.body !== "string") { return { data: value, hash: null }; }
+  const hash = bodyHash(node.body);
+  storeBody(database, hash, node.body, knownBodies);
+  return { data: nodeWithoutBodyText(node), hash };
+}
+
+function replaceNodes(database, nodes: Record<string, unknown>) {
+  const knownBodies = new Map<string, string>();
+  const insert = database.prepare("INSERT INTO nodes (id, position, data, body_hash) VALUES (?, ?, ?, ?)");
+  Object.entries(nodes).forEach(([id, value], position) => {
+    const { data, hash } = contentAddressedNode(database, value, knownBodies);
+    insert.run(id, position, JSON.stringify(data), hash);
+  });
+  database.exec("DELETE FROM node_body WHERE hash NOT IN (SELECT body_hash FROM nodes WHERE body_hash IS NOT NULL)");
+}
+
+function replaceMetadata(database, state: SqliteState) {
+  const insert = database.prepare("INSERT INTO meta (key, value) VALUES (?, ?)");
   const extras = Object.fromEntries(Object.entries(state).filter(([key]) => !META_FIELDS.has(key) && !COLLECTIONS.has(key)));
   for (const [key, value] of Object.entries({
     version: state.version,
@@ -82,11 +164,13 @@ function replaceRows(database, state: SqliteState) {
     revision: state.revision,
     extras,
     [ROOT_ORDER_KEY]: Object.keys(state),
-  })) {
-    insertMeta.run(key, JSON.stringify(value));
-  }
-  const insertNode = database.prepare("INSERT INTO nodes (id, position, data) VALUES (?, ?, ?)");
-  Object.entries(state.nodes).forEach(([id, node], position) => insertNode.run(id, position, JSON.stringify(node)));
+  })) { insert.run(key, JSON.stringify(value)); }
+}
+
+function replaceRows(database, state: SqliteState) {
+  database.exec("DELETE FROM meta; DELETE FROM nodes; DELETE FROM edges; DELETE FROM initiatives; DELETE FROM log;");
+  replaceMetadata(database, state);
+  replaceNodes(database, state.nodes);
   const insertEdge = database.prepare("INSERT INTO edges (position, data) VALUES (?, ?)");
   state.edges.forEach((edge, position) => insertEdge.run(position, JSON.stringify(edge)));
   const insertInitiative = database.prepare("INSERT INTO initiatives (name, position, data) VALUES (?, ?, ?)");
@@ -95,7 +179,7 @@ function replaceRows(database, state: SqliteState) {
   state.log.forEach((entry, position) => insertLog.run(position, JSON.stringify(entry)));
 }
 
-export async function readSqliteState(file: string) {
+export async function readSqliteState(file: string, options: { includeBodies?: boolean } = {}) {
   try {
     await fs.access(file);
   } catch (rawCaughtValue: unknown) {
@@ -105,7 +189,7 @@ export async function readSqliteState(file: string) {
   }
   const database = await openDatabase(file);
   try {
-    return database.transaction(() => readStateInTransaction(database))();
+    return database.transaction(() => readStateInTransaction(database, options))();
   } finally {
     database.close();
   }

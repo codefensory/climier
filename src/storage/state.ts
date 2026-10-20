@@ -328,15 +328,15 @@ async function parseStateFile(projectDir, file, raw) {
   throw stateShapeError("CLIMIER_INCOMPATIBLE_VERSION", `state: file at ${file} is not a canonical version ${STATE_SCHEMA_VERSION} state. ${STATE_RECOVERY_HINT}`, { file, version: state.version, hint: STATE_RECOVERY_HINT });
 }
 
-async function readSqliteBackendState(projectDir) {
+async function readSqliteBackendState(projectDir, options) {
   const { readSqliteState } = await import("./sqlite/store.ts");
-  const state = await readSqliteState(sqliteStateFile(projectDir));
+  const state = await readSqliteState(sqliteStateFile(projectDir), options);
   if (state === null) { await assertNoUnimportedJsonState(projectDir); }
   return state;
 }
 
-export async function readState(projectDir) {
-  if (stateBackend() === "sqlite") { return readSqliteBackendState(projectDir); }
+export async function readState(projectDir, options: { includeBodies?: boolean } = {}) {
+  if (stateBackend() === "sqlite") { return readSqliteBackendState(projectDir, options); }
   const file = stateFile(projectDir);
   let raw;
   try {

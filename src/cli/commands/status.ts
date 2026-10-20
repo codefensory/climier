@@ -81,7 +81,7 @@ async function readRemoteStatus(flags, backendClient) {
 }
 
 async function readLocalStatus(statePath, flags) {
-  const snapshot = await readState(statePath) as ReadModelSnapshot | null;
+  const snapshot = await readState(statePath, { includeBodies: false }) as ReadModelSnapshot | null;
   if (!snapshot) {return emptyResult();}
   const filters = {
     initiative: flags.initiative || undefined,
