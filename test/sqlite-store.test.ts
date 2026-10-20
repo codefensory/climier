@@ -140,6 +140,15 @@ test("SQLite backend supports normal CLI creation, mutation, reads, and export",
     result = await runCli(["--project", dir, "state"], { env });
     assert.equal(result.code, 0, result.stdout);
     assert.ok(JSON.parse(result.stdout).nodes["T-sqlite"]);
+
+    const { listProjectIds, stateFile, sqliteStateFile } = await import("../src/storage/state.ts");
+    const jsonFile = stateFile(dir);
+    const sqliteFile = sqliteStateFile(dir);
+    await fs.access(sqliteFile);
+    await assert.rejects(fs.access(jsonFile), { code: "ENOENT" });
+    await assert.rejects(fs.access(path.join(path.dirname(jsonFile), "revision-ledger.json")), { code: "ENOENT" });
+    await assert.rejects(fs.access(path.join(path.dirname(jsonFile), ".lock")), { code: "ENOENT" });
+    await withBackend("sqlite", async () => assert.ok((await listProjectIds()).includes(path.basename(path.dirname(sqliteFile)))));
   } finally {
     await rmTempProject(dir);
   }

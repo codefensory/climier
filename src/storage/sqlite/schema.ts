@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS log (position INTEGER PRIMARY KEY, data TEXT NOT NULL
 `;
 
 export const SQLITE_PRAGMAS = `
+PRAGMA busy_timeout = 5000;
 PRAGMA journal_mode = WAL;
 PRAGMA synchronous = NORMAL;
-PRAGMA busy_timeout = 5000;
 `;

@@ -3,7 +3,8 @@ import { asCaughtError } from "../../../contracts/errors.ts";
 
 import fs from "node:fs/promises";
 import path from "node:path";
-import { readState, stateFile, createSnapshot, isFencedStateVersion } from "../../../storage/state.ts";
+import { readState, stateFile, sqliteStateFile, createSnapshot, isFencedStateVersion } from "../../../storage/state.ts";
+import { stateBackend } from "../../../storage/paths.ts";
 import { bootstrapFencedStateUnderLock, recoverFencedStateUnderLock, replaceFencedStateUnderLock } from "../../../storage/ledger.ts";
 import { prepareLogEntry } from "../../../storage/log.ts";
 import { throwV2 } from "../../../contracts/errors.ts";
@@ -116,6 +117,13 @@ function stateSnapshot({ currentState, raw, exists, stateError, fencedLedger }: 
 }
 
 async function loadMutationSnapshot(projectDir, statePath) {
+  if (stateBackend() === "sqlite") {
+    const currentState = await readState(projectDir) as Record<string, unknown> | null;
+    return {
+      snapshot: stateSnapshot({ currentState, raw: null, exists: currentState !== null, stateError: null, fencedLedger: false }),
+      currentState,
+    };
+  }
   const file = await inspectStateFile(statePath);
   const fencedLedger = await hasFencedLedger(statePath);
   const loaded = await loadCurrentState(projectDir, file.exists);
@@ -163,7 +171,26 @@ async function recoverCorruptFencedState({ plan, snapshot, lockContext, projectD
   };
 }
 
-async function persistState({ lockContext, projectDir, fencedCurrentState, fencedCorrupt, nextState }) {
+async function persistState({ lockContext, projectDir, currentState, fencedCurrentState, fencedCorrupt, nextState }) {
+  if (stateBackend() === "sqlite") {
+    const current = currentState as Record<string, any> | null;
+    const candidate = nextState as Record<string, any>;
+    const nodes = candidate.nodes as Record<string, Record<string, unknown>>;
+    const highWater = Math.max(
+      current && Number.isInteger(current.revision) ? current.revision as number : 0,
+      Number.isInteger(candidate.revision) ? candidate.revision : 0,
+      ...Object.values(nodes || {}).map((node) => Number.isInteger(node.revision) ? node.revision as number : 0),
+    ) + 1;
+    const state = {
+      ...candidate,
+      fence_generation: current?.fence_generation ?? candidate.fence_generation ?? 1,
+      revision: highWater,
+      nodes: Object.fromEntries(Object.entries(nodes || {}).map(([id, node]) => [id, { ...node, revision: highWater }])),
+    };
+    const { writeSqliteState } = await import("../../../storage/sqlite/store.ts");
+    await writeSqliteState(sqliteStateFile(projectDir), state);
+    return;
+  }
   if (fencedCurrentState) {
     await replaceFencedStateUnderLock(lockContext, nextState, { projectDir });
     return;
@@ -250,6 +277,7 @@ async function finishStateMutation({ plan, snapshot, lockContext, projectDir, ap
   await persistState({
     lockContext,
     projectDir,
+    currentState,
     fencedCurrentState: Boolean(currentState && isFencedStateVersion(currentState.version)),
     fencedCorrupt: snapshot.fencedCorrupt,
     nextState,

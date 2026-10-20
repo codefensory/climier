@@ -1,6 +1,6 @@
 import { asCaughtError } from "../contracts/errors.ts";
-// Durable, project-local revision fence bootstrap. The API intentionally does
-// not wire itself into mutation callers; callers must migrate to fenced commits
+// JSON keeps the durable project-local revision fence; SQLite commits directly
+// through the store transaction and uses this module only as a compatibility facade.
 
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -46,27 +46,86 @@ function runRecoveryProtocol(lockContext: LockContext, candidate: unknown, opts:
 }
 
 
-async function syncSqliteStateAt(file: string, state: unknown): Promise<unknown> {
-  if (stateBackend() !== "sqlite" || !state || typeof state !== "object") { return state; }
+function sqliteFileFor(projectDir?: string, lockContext?: LockContext): string {
+  if (projectDir) {
+    return sqliteStateFileForProjectId(path.basename(path.dirname(stateFile(projectDir))));
+  }
+  if (lockContext) {
+    const { statePath } = getActiveLockContext(lockContext);
+    return sqliteStateFileForProjectId(path.basename(path.dirname(statePath)));
+  }
+  throw new Error("ledger: SQLite operation requires a project context");
+}
+
+async function readSqlite(file: string): Promise<unknown> {
+  const { readSqliteState } = await import("./sqlite/store.ts");
+  return readSqliteState(file);
+}
+
+async function writeSqlite(file: string, state: unknown): Promise<unknown> {
   const { writeSqliteState } = await import("./sqlite/store.ts");
-  await writeSqliteState(file, state);
+  return writeSqliteState(file, state);
+}
+
+async function replaceSqlite(file: string, candidate: unknown): Promise<unknown> {
+  const current = await readSqlite(file) as Record<string, any> | null;
+  const state = candidate as Record<string, any>;
+  const nodes = (state?.nodes || {}) as Record<string, Record<string, unknown>>;
+  const highWater = Math.max(
+    current && Number.isInteger(current.revision) ? current.revision : 0,
+    Number.isInteger(state?.revision) ? state.revision : 0,
+    ...Object.values(nodes).map((node) => Number.isInteger(node.revision) ? node.revision as number : 0),
+  ) + 1;
+  return writeSqlite(file, {
+    ...state,
+    fence_generation: current?.fence_generation ?? state?.fence_generation ?? 1,
+    revision: highWater,
+    nodes: Object.fromEntries(Object.entries(nodes).map(([id, node]) => [id, { ...node, revision: highWater }])),
+  });
+}
+
+async function bootstrapSqlite(file: string, initialState: unknown, replaceExisting = false): Promise<unknown> {
+  const current = await readSqlite(file) as Record<string, any> | null;
+  if (current && !replaceExisting) {
+    throw new ClimierError("CLIMIER_FENCED_BOOTSTRAP_EXISTS", "ledger.bootstrap: state or revision ledger already exists; refusing to overwrite it");
+  }
+  const candidate = initialState as Record<string, any> | null;
+  if (!candidate || typeof candidate !== "object" || Array.isArray(candidate) || candidate.version !== 1) {
+    throw new ClimierError("CLIMIER_UNSUPPORTED_SOURCE_VERSION", `ledger.bootstrap: unsupported initial state version ${(candidate as Record<string, any> | null)?.version}`);
+  }
+  const candidateNodes = (candidate.nodes || {}) as Record<string, Record<string, unknown>>;
+  const highWater = Math.max(
+    current && Number.isInteger(current.revision) ? current.revision : 0,
+    Number.isInteger(candidate.revision) ? candidate.revision : 0,
+    ...Object.values(candidateNodes).map((node) => Number.isInteger(node.revision) ? node.revision as number : 0),
+  ) + 1;
+  const state = {
+    ...candidate,
+    fence_generation: current?.fence_generation ?? candidate.fence_generation ?? 1,
+    revision: highWater,
+    nodes: Object.fromEntries(Object.entries(candidateNodes).map(([id, node]) => [id, { ...node, revision: highWater }])),
+  };
+  await writeSqlite(file, state);
   return state;
 }
 
-async function syncLockedSqliteState(lockContext: LockContext, state: unknown): Promise<unknown> {
-  const { statePath } = getActiveLockContext(lockContext);
-  return syncSqliteStateAt(sqliteStateFileForProjectId(path.basename(path.dirname(statePath))), state);
-}
-
 export async function recoverFencedStateUnderLock(lockContext: LockContext, candidate: unknown, opts: LedgerOptions = {}): Promise<unknown> {
+  if (stateBackend() === "sqlite") {
+    const file = sqliteFileFor(opts.projectDir, lockContext);
+    return candidate === undefined ? readSqlite(file) : writeSqlite(file, candidate);
+  }
   assertActiveLockContext(lockContext, opts.projectDir);
-  return syncLockedSqliteState(lockContext, await runRecoveryProtocol(lockContext, candidate, opts));
+  return runRecoveryProtocol(lockContext, candidate, opts);
 }
 
 /** Replace a valid fenced state with an explicitly authorized restore candidate under the active lock. */
 export async function replaceFencedStateUnderLock(lockContext: LockContext, candidate: unknown, opts: LedgerOptions = {}): Promise<unknown> {
+  if (stateBackend() === "sqlite") {
+    const file = sqliteFileFor(opts.projectDir, lockContext);
+    return candidate === undefined ? readSqlite(file) : replaceSqlite(file, candidate);
+  }
   assertActiveLockContext(lockContext, opts.projectDir);
-  return syncLockedSqliteState(lockContext, await replaceUnderActiveLock(lockContext, candidate, opts));
+  return replaceUnderActiveLock(lockContext, candidate, opts);
 }
 
 /**
@@ -75,14 +134,22 @@ export async function replaceFencedStateUnderLock(lockContext: LockContext, cand
  * crash-recovery tests and are not used by production callers.
  */
 export async function bootstrapFencedState(projectDir: string, opts: LedgerOptions = {}): Promise<unknown> {
-  return withLock(projectDir, async (lockContext) => syncLockedSqliteState(lockContext,
-    await bootstrapLocked(projectDir, opts, { finishPendingCommit, cleanOrphanCommitStages })), opts.lockOptions);
+  if (stateBackend() === "sqlite") {
+    const file = sqliteFileFor(projectDir);
+    const { withSqliteTransaction } = await import("./sqlite/store.ts");
+    const { emptyState } = await import("./state.ts");
+    return withSqliteTransaction(file, () => bootstrapSqlite(file, emptyState(), opts.replaceExisting === true));
+  }
+  return withLock(projectDir, (lockContext) => bootstrapLocked(projectDir, opts, { finishPendingCommit, cleanOrphanCommitStages }), opts.lockOptions);
 }
 
 /** Create a new fenced project while the caller holds its project lock. */
 export async function bootstrapFencedStateUnderLock(lockContext: LockContext, initialState: unknown, opts: LedgerOptions = {}): Promise<unknown> {
+  if (stateBackend() === "sqlite") {
+    return bootstrapSqlite(sqliteFileFor(opts.projectDir, lockContext), initialState, opts.replaceExisting === true);
+  }
   assertActiveLockContext(lockContext, opts.projectDir);
-  return syncLockedSqliteState(lockContext, await bootstrapInitialUnderLock(lockContext, initialState, opts));
+  return bootstrapInitialUnderLock(lockContext, initialState, opts);
 }
 
 async function readValidatedLedger(ledgerPath: string): Promise<BootstrapLedger> {
@@ -154,12 +221,14 @@ async function readFencedStateUnderLockProtocol(lockContext: LockContext, opts: 
 }
 
 export async function readFencedStateUnderLock(lockContext: LockContext, opts: LedgerOptions = {}): Promise<unknown> {
+  if (stateBackend() === "sqlite") { return readSqlite(sqliteFileFor(opts.projectDir, lockContext)); }
   assertActiveLockContext(lockContext, opts.projectDir);
-  return syncLockedSqliteState(lockContext, await readFencedStateUnderLockProtocol(lockContext, opts));
+  return readFencedStateUnderLockProtocol(lockContext, opts);
 }
 
 /** Read a v5 state only when its durable project ledger agrees with it. */
 export async function readFencedState(projectDir: string, opts: LedgerOptions = {}): Promise<unknown> {
+  if (stateBackend() === "sqlite") { return readSqlite(sqliteFileFor(projectDir)); }
   return withCurrentProjectLock(projectDir, (lockContext) => readFencedStateUnderLock(lockContext, opts), opts.lockOptions);
 }
 
@@ -170,6 +239,7 @@ export async function readFencedState(projectDir: string, opts: LedgerOptions = 
  * never creates the project directory.
  */
 export async function readStateByProjectId(projectId) {
+  if (stateBackend() === "sqlite") { return readSqlite(sqliteStateFileForProjectId(projectId)); }
   const statePath = stateFileForProjectId(projectId);
   const ledgerPath = ledgerFileForProjectId(projectId);
   const [hasState, hasLedger] = await Promise.all([fileExists(statePath), fileExists(ledgerPath)]);
@@ -178,7 +248,8 @@ export async function readStateByProjectId(projectId) {
 }
 
 /** Commit a candidate under the active lock, preserving the public facade. */
-export async function commitFencedStateUnderLock(lockContext, candidate, opts = {}) {
+export async function commitFencedStateUnderLock(lockContext, candidate, opts: Record<string, unknown> = {}) {
+  if (stateBackend() === "sqlite") { return writeSqlite(sqliteFileFor(opts.projectDir as string | undefined, lockContext), candidate); }
   assertActiveLockContext(lockContext);
-  return syncLockedSqliteState(lockContext, await commitProtocol(lockContext, candidate, opts));
+  return commitProtocol(lockContext, candidate, opts);
 }

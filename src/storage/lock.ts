@@ -1,10 +1,11 @@
 import { asCaughtError } from "../contracts/errors.ts";
-// lock.mjs: file lock for atomic mutating operations.
+// lock.mjs: project serialization boundary (file lock for JSON, SQLite transaction for SQLite).
 import fs from "node:fs/promises";
 import path from "node:path";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { codedError } from "../contracts/errors.ts";
-import { stateFile } from "./state.ts";
+import { sqliteStateFile, stateFile } from "./state.ts";
+import { stateBackend } from "./paths.ts";
 
 const RETRY_BASE_MS = 25;
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -135,7 +136,7 @@ async function releaseLockFile(lockPathname: string): Promise<void> {
 
 // Serializes an arbitrary lock path with the same create-exclusive spin loop the
 // project lock uses, without registering a project capability. Use it only for a
-// resource that is not project state; state mutations go through `withLock`.
+// resource that is not project state; state mutations go through `withMutationBoundary`.
 export async function withFileLock<T>(lockPathname: string, label: string, fn: () => Promise<T>, opts: LockOptions = {}): Promise<T> {
   const options: Required<LockOptions> = {
     timeoutMs: opts.timeoutMs ?? DEFAULT_TIMEOUT_MS,
@@ -189,6 +190,14 @@ export async function withProjectIdLock<T>(projectId: string, fn: LockCallback<T
   await fs.mkdir(storageProjectDir, { recursive: true });
   await acquireLockFile(pathname, options);
   return runWithLockContext(storageProjectDir, pathname, fn, path.join(storageProjectDir, "tasks.json"));
+}
+
+export async function withMutationBoundary<T>(projectDir: string, fn: (lockContext: object | null) => T | PromiseLike<T>, opts: LockOptions = {}): Promise<T> {
+  if (stateBackend() === "sqlite") {
+    const { withSqliteTransaction } = await import("./sqlite/store.ts");
+    return withSqliteTransaction(sqliteStateFile(projectDir), async () => await fn(null));
+  }
+  return withLock(projectDir, (lockContext) => fn(lockContext), opts);
 }
 
 export async function withLock<T>(projectDir: string, fn: LockCallback<T>, opts: LockOptions = {}): Promise<T> {

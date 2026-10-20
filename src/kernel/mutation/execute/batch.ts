@@ -223,7 +223,7 @@ export async function executeBatchMutation({ projectDir, lockContext, request, b
   const revisionAfter = diff.changed ? deriveNextStateRevision(snapshot, diff.nextNodes) : snapshot.revision;
   if (diff.changed) {
     const persistedState = buildPersistedBatchState({ snapshot, draftView, diff, results, plans, request, pluginId, revisionAfter });
-    await commitFencedStateUnderLock(lockContext, persistedState, { sourceSnapshot });
+    await commitFencedStateUnderLock(lockContext, persistedState, { projectDir, sourceSnapshot });
   }
   return { ok: true, revision_before: revisionBefore, revision_after: revisionAfter, results };
 }

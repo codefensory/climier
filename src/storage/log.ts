@@ -19,7 +19,7 @@ import { asCaughtError } from "../contracts/errors.ts";
 import { emptyState, stateFile } from "./state.ts";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { withLock } from "./lock.ts";
+import { withMutationBoundary } from "./lock.ts";
 import {
   bootstrapFencedStateUnderLock,
   commitFencedStateUnderLock,
@@ -77,10 +77,10 @@ function validateAppendEntry(entry, commandName = "append") {
 export async function append(projectDir, entry) {
   validateAppendEntry(entry, "append");
   const preparedEntry = prepareLogEntry(entry);
-  return withLock(projectDir, async (lockContext) => {
+  return withMutationBoundary(projectDir, async (lockContext) => {
     let state;
     try {
-      state = await readFencedStateUnderLock(lockContext, { projectDir });
+      state = await readFencedStateUnderLock(lockContext as object, { projectDir });
     } catch (rawCaughtValue: unknown) {
   {
     const error = asCaughtError(rawCaughtValue);
@@ -103,14 +103,14 @@ export async function append(projectDir, entry) {
   }}
       if (hasLedger) { throw new Error("append: cannot initialize over a corrupt ledger-backed state"); }
       if (hasState) { throw new Error("append: cannot initialize over a corrupt state without explicit recovery"); }
-      return bootstrapFencedStateUnderLock(lockContext, state, { projectDir });
+      return bootstrapFencedStateUnderLock(lockContext as object, state, { projectDir });
     }
     const next = {
       ...state,
       revision: state.revision + 1,
       log: [...(Array.isArray(state.log) ? state.log : []), preparedEntry],
     };
-    return commitFencedStateUnderLock(lockContext, next, { projectDir });
+    return commitFencedStateUnderLock(lockContext as object, next, { projectDir });
   });
 }
 

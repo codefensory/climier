@@ -153,15 +153,15 @@ function createPersistedState({ snapshot, draftView, diff, request, pluginId, ta
   return { persistedState, logEntry };
 }
 
-async function persistMutation({ mayBootstrap, lockContext, persistedState, sourceSnapshot }) {
+async function persistMutation({ projectDir, mayBootstrap, lockContext, persistedState, sourceSnapshot }) {
   if (mayBootstrap) {
-    await bootstrapFencedStateUnderLock(lockContext, persistedState);
+    await bootstrapFencedStateUnderLock(lockContext, persistedState, { projectDir });
     return;
   }
-  await commitFencedStateUnderLock(lockContext, persistedState, { sourceSnapshot });
+  await commitFencedStateUnderLock(lockContext, persistedState, { projectDir, sourceSnapshot });
 }
 
-async function commitMutation({ snapshot, draftView, diff, request, pluginId, lockContext, mayBootstrap, plan, sourceSnapshot }) {
+async function commitMutation({ projectDir, snapshot, draftView, diff, request, pluginId, lockContext, mayBootstrap, plan, sourceSnapshot }) {
   const targetNextRevision = deriveTargetRevision(snapshot, plan, diff.created, diff.updated);
   const { persistedState, logEntry } = createPersistedState({
     snapshot,
@@ -171,7 +171,7 @@ async function commitMutation({ snapshot, draftView, diff, request, pluginId, lo
     pluginId,
     targetNextRevision,
   });
-  await persistMutation({ mayBootstrap, lockContext, persistedState, sourceSnapshot });
+  await persistMutation({ projectDir, mayBootstrap, lockContext, persistedState, sourceSnapshot });
   return logEntry;
 }
 
@@ -191,7 +191,7 @@ export async function executeProviderMutation({ projectDir, lockContext, request
   validateDraftStructural(draftView, commandName);
   const diff = computeMutationDiff(snapshot, draftView, tx.getDirtyIds(), tx.getDirtyEdgeChanges());
   const isIdempotent = !mayBootstrap && diff.isIdempotent;
-  const logEntry = isIdempotent ? null : await commitMutation({ snapshot, draftView, diff, request, pluginId, lockContext, mayBootstrap, plan, sourceSnapshot });
+  const logEntry = isIdempotent ? null : await commitMutation({ projectDir, snapshot, draftView, diff, request, pluginId, lockContext, mayBootstrap, plan, sourceSnapshot });
   return {
     result: outcome.result,
     effects: outcome.effects,

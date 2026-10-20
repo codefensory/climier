@@ -2,9 +2,10 @@ import { asCaughtError } from "../contracts/errors.ts";
 import fs from "node:fs/promises";
 import { validateStateInvariants } from "../contracts/state-invariants.ts";
 import { prepareLogEntry } from "./log.ts";
-import { withLock } from "./lock.ts";
+import { withMutationBoundary } from "./lock.ts";
 import { ledgerFile, bootstrapFencedStateUnderLock, readFencedStateUnderLock, replaceFencedStateUnderLock } from "./ledger.ts";
-import { STATE_SCHEMA_VERSION, stateFile } from "./state.ts";
+import { readState, STATE_SCHEMA_VERSION, stateFile } from "./state.ts";
+import { stateBackend } from "./paths.ts";
 
 export const TRANSFER_PAYLOAD_VERSION = STATE_SCHEMA_VERSION;
 
@@ -157,8 +158,10 @@ function destinationState(payload: TransferPayload, current: TransferState | nul
 
 /** Capture the application snapshot and its revision from one locked state read. */
 export async function captureTransferSource(projectDir: string): Promise<{ payload: TransferPayload; revision: number }> {
-  return withLock(projectDir, async (lockContext) => {
-    const state = await readFencedStateUnderLock(lockContext);
+  return withMutationBoundary(projectDir, async (lockContext) => {
+    const state = stateBackend() === "sqlite"
+      ? await readState(projectDir)
+      : await readFencedStateUnderLock(lockContext as object);
     if (!state) {
       throw transferError("CLIMIER_TRANSFER_INVALID_SOURCE", "transfer: source project has no state");
     }
@@ -182,18 +185,32 @@ export async function installTransferDestination(projectDir: string, payload: un
   }
   if (typeof force !== "boolean") {throw new Error("transfer: force must be boolean");}
 
-  return withLock(projectDir, async (lockContext) => {
+  return withMutationBoundary(projectDir, async (lockContext) => {
+    if (stateBackend() === "sqlite") {
+      const current = await readState(projectDir) as TransferState | null;
+      if (!current) {
+        if (expectedRevision !== undefined && !force) { assertExpectedRevision(null, expectedRevision); }
+        return bootstrapFencedStateUnderLock(lockContext as object, destinationState(payload, null, actor, direction), { projectDir });
+      }
+      if (!force) {
+        if (expectedRevision !== undefined) { assertExpectedRevision(current, expectedRevision); }
+        else if (!isPristine(current)) {
+          throw transferError("CLIMIER_TRANSFER_DESTINATION_NOT_PRISTINE", "transfer: destination is not pristine; an expected revision or explicit force is required");
+        }
+      }
+      return replaceFencedStateUnderLock(lockContext as object, destinationState(payload, current, actor, direction), { projectDir });
+    }
     const statePath = stateFile(projectDir);
     const hasState = await exists(statePath);
     const hasLedger = await exists(ledgerFile(projectDir));
     if (!hasState && !hasLedger) {
       if (expectedRevision !== undefined && !force) {assertExpectedRevision(null, expectedRevision);}
-      return bootstrapFencedStateUnderLock(lockContext, destinationState(payload, null, actor, direction));
+      return bootstrapFencedStateUnderLock(lockContext as object, destinationState(payload, null, actor, direction));
     }
     if (hasState && !hasLedger) {
       await readCanonicalDestinationWithoutLedger(projectDir);
     }
-    const current = await readFencedStateUnderLock(lockContext) as TransferState | null;
+    const current = await readFencedStateUnderLock(lockContext as object) as TransferState | null;
     if (!current) {
       throw transferError("CLIMIER_TRANSFER_INVALID_DESTINATION", "transfer: destination ledger exists without state");
     }
@@ -204,6 +221,6 @@ export async function installTransferDestination(projectDir: string, payload: un
         throw transferError("CLIMIER_TRANSFER_DESTINATION_NOT_PRISTINE", "transfer: destination is not pristine; an expected revision or explicit force is required");
       }
     }
-    return replaceFencedStateUnderLock(lockContext, destinationState(payload, current, actor, direction));
+    return replaceFencedStateUnderLock(lockContext as object, destinationState(payload, current, actor, direction));
   });
 }

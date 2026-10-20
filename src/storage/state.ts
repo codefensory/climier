@@ -4,7 +4,7 @@ import crypto from "node:crypto";
 import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { withLock, assertActiveLockContext, getActiveLockContext } from "./lock.ts";
+import { withLock, withMutationBoundary, assertActiveLockContext, getActiveLockContext } from "./lock.ts";
 import { climierHome, projectMetaFile, sqliteStateFileForProjectId, stateBackend } from "./paths.ts";
 import { validateStateInvariants } from "../contracts/state-invariants.ts";
 import { normalizeProjectName } from "../contracts/project-name.ts";
@@ -69,7 +69,7 @@ async function assertNoUnimportedJsonState(projectDir) {
   }
 }
 
-/** Project ids with a state or a ledger in the project storage root, sorted. */
+/** Project ids with active storage in the project root, sorted. */
 export async function listProjectIds() {
   const projectsDir = path.join(climierHome(), "projects");
   let entries;
@@ -86,9 +86,9 @@ export async function listProjectIds() {
   for (const entry of entries) {
     if (!entry.isDirectory()) { continue; }
     const dir = path.join(projectsDir, entry.name);
-    if (await hasAny(path.join(dir, "tasks.json"), path.join(dir, "revision-ledger.json"))) {
-      ids.push(entry.name);
-    }
+    const stateFiles = [path.join(dir, "tasks.json"), path.join(dir, "revision-ledger.json")];
+    if (stateBackend() === "sqlite") { stateFiles.push(path.join(dir, "state.sqlite")); }
+    if (await hasAny(...stateFiles)) { ids.push(entry.name); }
   }
   return ids.slice().sort();
 }
@@ -463,7 +463,7 @@ async function updateStateUnderLock(projectDir, lockContext, mutator) {
 export async function updateState(projectDir, mutator) {
   if (stateBackend() === "sqlite") {
     const { readSqliteState, updateSqliteState } = await import("./sqlite/store.ts");
-    return withLock(projectDir, async () => {
+    return withMutationBoundary(projectDir, async () => {
       if (await readSqliteState(sqliteStateFile(projectDir)) === null) { await assertNoUnimportedJsonState(projectDir); }
       return updateSqliteState(sqliteStateFile(projectDir), mutator);
     });
@@ -515,7 +515,9 @@ export async function createSnapshot(projectDir, reason) {
   if (!VALID_SNAPSHOT_REASONS.has(reason)) { throw new Error(`createSnapshot: invalid reason '${reason}' (allowed: ${[...VALID_SNAPSHOT_REASONS].join(", ")})`); }
   const statePath = stateFile(projectDir);
 
-  const raw = await fs.readFile(statePath);
+  const raw = stateBackend() === "sqlite"
+    ? Buffer.from(`${JSON.stringify(await readState(projectDir), null, 2)}\n`, "utf8")
+    : await fs.readFile(statePath);
   const dir = snapshotDir(projectDir);
   await fs.mkdir(dir, { recursive: true });
   await tryChmod(dir, 0o700);
@@ -594,7 +596,7 @@ async function writeStateUnderLock(projectDir, lockContext, state) {
 export async function writeState(projectDir, state) {
   if (stateBackend() === "sqlite") {
     const { readSqliteState, writeSqliteState } = await import("./sqlite/store.ts");
-    return withLock(projectDir, async () => {
+    return withMutationBoundary(projectDir, async () => {
       if (await readSqliteState(sqliteStateFile(projectDir)) === null) { await assertNoUnimportedJsonState(projectDir); }
       return writeSqliteState(sqliteStateFile(projectDir), state);
     });

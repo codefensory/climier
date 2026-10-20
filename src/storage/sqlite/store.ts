@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { asCaughtError } from "../../contracts/errors.ts";
 import { validateStateInvariants } from "../../contracts/state-invariants.ts";
 import { SQLITE_PRAGMAS, SQLITE_SCHEMA, SQLITE_SCHEMA_VERSION } from "./schema.ts";
@@ -9,6 +10,8 @@ const SQLITE_MODULE = "bun:sqlite";
 const COLLECTIONS = new Set(["nodes", "edges", "initiatives", "log"]);
 const META_FIELDS = new Set(["version", "fence_generation", "revision"]);
 const ROOT_ORDER_KEY = "__root_order";
+const sqliteTransaction = new AsyncLocalStorage<{ file: string; database: any }>();
+const sqliteQueues = new Map<string, Promise<void>>();
 
 type SqliteState = Record<string, unknown> & {
   version: number;
@@ -66,6 +69,7 @@ async function openDatabase(file: string) {
     if (schemaVersion !== 0 && schemaVersion !== 1 && schemaVersion !== SQLITE_SCHEMA_VERSION) {
       throw new Error(`storage: unsupported SQLite schema version ${schemaVersion}`);
     }
+    if (schemaVersion === SQLITE_SCHEMA_VERSION && hasBodyHashColumn(database)) { return database; }
     database.transaction(() => {
       database.exec(SQLITE_SCHEMA);
       if (!hasBodyHashColumn(database)) { database.exec("ALTER TABLE nodes ADD COLUMN body_hash TEXT"); }
@@ -113,6 +117,51 @@ function readNodes(database, includeBodies: boolean): Record<string, unknown> {
     }
   }
   return Object.fromEntries(Object.entries(nodes).map(([id, { node }]) => [id, node]));
+}
+
+function activeDatabase(file: string) {
+  const active = sqliteTransaction.getStore();
+  if (active && active.file !== path.resolve(file)) { throw new Error("storage: cannot access another SQLite project inside an active transaction"); }
+  return active?.database;
+}
+
+async function withProcessQueue<T>(file: string, operation: () => Promise<T>): Promise<T> {
+  const key = path.resolve(file);
+  const previous = sqliteQueues.get(key) ?? Promise.resolve();
+  let release!: () => void;
+  const current = new Promise<void>((resolve) => { release = resolve; });
+  sqliteQueues.set(key, current);
+  await previous;
+  try { return await operation(); }
+  finally {
+    release();
+    if (sqliteQueues.get(key) === current) { sqliteQueues.delete(key); }
+  }
+}
+
+export async function withSqliteTransaction<T>(file: string, operation: () => Promise<T>): Promise<T> {
+  const active = activeDatabase(file);
+  if (active) { return operation(); }
+  return withProcessQueue(file, async () => {
+    await fs.mkdir(path.dirname(file), { recursive: true });
+    const database = await openDatabase(file);
+    let transactionStarted = false;
+    try {
+      database.exec("BEGIN IMMEDIATE");
+      transactionStarted = true;
+      const result = await sqliteTransaction.run({ file: path.resolve(file), database }, operation);
+      database.exec("COMMIT");
+      transactionStarted = false;
+      return result;
+    } catch (error) {
+      if (transactionStarted) {
+        try { database.exec("ROLLBACK"); } catch {}
+      }
+      throw error;
+    } finally {
+      database.close();
+    }
+  });
 }
 
 function readStateInTransaction(database, { includeBodies = true }: { includeBodies?: boolean } = {}): SqliteState | null {
@@ -180,6 +229,8 @@ function replaceRows(database, state: SqliteState) {
 }
 
 export async function readSqliteState(file: string, options: { includeBodies?: boolean } = {}) {
+  const active = activeDatabase(file);
+  if (active) { return readStateInTransaction(active, options); }
   try {
     await fs.access(file);
   } catch (rawCaughtValue: unknown) {
@@ -197,37 +248,29 @@ export async function readSqliteState(file: string, options: { includeBodies?: b
 
 export async function writeSqliteState(file: string, state: unknown) {
   assertCanonicalState(state, "writeState");
-  await fs.mkdir(path.dirname(file), { recursive: true });
-  const database = await openDatabase(file);
-  try {
-    database.transaction(() => replaceRows(database, state))();
-  } finally {
-    database.close();
+  const active = activeDatabase(file);
+  if (active) {
+    replaceRows(active, state);
+    return state;
   }
-  return state;
+  return withSqliteTransaction(file, async () => writeSqliteState(file, state));
 }
 
 export async function updateSqliteState(file: string, mutator: (state: Record<string, unknown>) => Record<string, unknown>) {
-  await fs.mkdir(path.dirname(file), { recursive: true });
-  const database = await openDatabase(file);
-  try {
-    return database.transaction(() => {
-      const current = readStateInTransaction(database) || {
-        version: 1,
-        fence_generation: 1,
-        revision: 0,
-        nodes: {},
-        edges: [],
-        initiatives: {},
-        log: [],
-      };
-      const next = mutator({ ...current });
-      if (next === undefined) { throw new Error("updateState mutator must return the new state object"); }
-      assertCanonicalState(next, "state.update");
-      replaceRows(database, next);
-      return next;
-    })();
-  } finally {
-    database.close();
-  }
+  const active = activeDatabase(file);
+  if (!active) { return withSqliteTransaction(file, () => updateSqliteState(file, mutator)); }
+  const current = readStateInTransaction(active) || {
+    version: 1,
+    fence_generation: 1,
+    revision: 0,
+    nodes: {},
+    edges: [],
+    initiatives: {},
+    log: [],
+  };
+  const next = mutator({ ...current });
+  if (next === undefined) { throw new Error("updateState mutator must return the new state object"); }
+  assertCanonicalState(next, "state.update");
+  replaceRows(active, next);
+  return next;
 }

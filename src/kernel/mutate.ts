@@ -5,7 +5,7 @@
 // compatibility with kernel tests and internal callers.
 
 import { AsyncLocalStorage } from "node:async_hooks";
-import { withLock } from "../storage/lock.ts";
+import { withMutationBoundary } from "../storage/lock.ts";
 import { throwV2 } from "../contracts/errors.ts";
 import {
   commandLabel,
@@ -107,18 +107,17 @@ export async function mutate(args: { projectDir: string; request: Record<string,
     );
   }
 
-  return nestedDepthStorage.run(parentDepth + 1, () =>
-    withLock(projectDir, (lockContext) => executeMutation({
-      projectDir,
-      lockContext,
-      request,
-      provider,
-      policyAction,
-      pluginId,
-      stateOperation,
-      batch,
-    })),
-  );
+  const runMutation = (lockContext) => executeMutation({
+    projectDir,
+    lockContext,
+    request,
+    provider,
+    policyAction,
+    pluginId,
+    stateOperation,
+    batch,
+  });
+  return nestedDepthStorage.run(parentDepth + 1, () => withMutationBoundary(projectDir, runMutation));
 }
 
 const kernelInternals = Object.freeze({

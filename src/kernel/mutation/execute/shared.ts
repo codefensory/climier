@@ -4,6 +4,7 @@ import { asCaughtError } from "../../../contracts/errors.ts";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { classifyStateShape, readState, stateFile } from "../../../storage/state.ts";
+import { stateBackend } from "../../../storage/paths.ts";
 import { readFencedStateUnderLock } from "../../../storage/ledger.ts";
 import { readJson } from "../../../storage/ledger/stages.ts";
 import { throwV2 } from "../../../contracts/errors.ts";
@@ -372,6 +373,9 @@ async function ledgerHasPendingOperation(statePath) {
 }
 
 export async function readMutationSnapshotUnderLock(lockContext: object, projectDir: string) {
+  if (stateBackend() === "sqlite") {
+    return { state: await readState(projectDir), raw: null };
+  }
   const statePath = stateFile(projectDir);
   const rawBytes = await readRawState(projectDir);
   const raw = rawBytes?.toString("utf8") ?? null;
