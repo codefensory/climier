@@ -56,6 +56,59 @@ function isState(value: unknown): value is Record<string, unknown> {
     && state.initiatives !== undefined && state.log !== undefined;
 }
 
+async function measureStateWork(projectDir: string, run: () => Promise<unknown>) {
+  const stateBytes = (await fs.readFile(stateFilePath(projectDir))).byteLength;
+  const originalParse = JSON.parse;
+  const originalStringify = JSON.stringify;
+  const originalStructuredClone = globalThis.structuredClone;
+  const work = { stateParses: 0, stateParseBytes: 0, stringifyCalls: 0, stringifiedBytes: 0, structuredClones: 0 };
+  JSON.parse = function (text, reviver) {
+    const result = originalParse.call(this, text, reviver);
+    if (isState(result)) {
+      work.stateParses += 1;
+      work.stateParseBytes += Buffer.byteLength(String(text));
+    }
+    return result;
+  };
+  JSON.stringify = function (value, replacer, space) {
+    const result = originalStringify.call(this, value, replacer, space);
+    work.stringifyCalls += 1;
+    if (result !== undefined) { work.stringifiedBytes += Buffer.byteLength(result); }
+    return result;
+  };
+  globalThis.structuredClone = function <T>(value: T, options?: Parameters<typeof originalStructuredClone>[1]): T {
+    work.structuredClones += 1;
+    return originalStructuredClone.call(this, value, options) as T;
+  };
+  try {
+    return { result: await run(), stateBytes, work };
+  } finally {
+    JSON.parse = originalParse;
+    JSON.stringify = originalStringify;
+    globalThis.structuredClone = originalStructuredClone;
+  }
+}
+
+function assertWorkBudget(operation: string, work, stateBytes: number, budget) {
+  assert.ok(work.stateParses <= budget.stateParses,
+    `${operation}: expected at most ${budget.stateParses} state parses, observed ${work.stateParses}`);
+  assert.ok(work.stateParseBytes <= budget.parseBytes * stateBytes,
+    `${operation}: expected at most ${budget.parseBytes}x state bytes parsed, observed ${work.stateParseBytes} / ${stateBytes}`);
+  assert.ok(work.stringifyCalls <= budget.stringifyCalls,
+    `${operation}: expected at most ${budget.stringifyCalls} JSON.stringify calls, observed ${work.stringifyCalls}`);
+  assert.ok(work.stringifiedBytes <= budget.stringifyBytes * stateBytes,
+    `${operation}: expected at most ${budget.stringifyBytes}x state bytes stringified, observed ${work.stringifiedBytes} / ${stateBytes}`);
+  assert.ok(work.structuredClones <= budget.structuredClones,
+    `${operation}: expected at most ${budget.structuredClones} structuredClone calls, observed ${work.structuredClones}`);
+}
+
+// Measured read debt: each route parses the canonical state twice; context and history clone once.
+const READ_BUDGETS = {
+  status: { stateParses: 2, parseBytes: 2, stringifyCalls: 1, stringifyBytes: 1, structuredClones: 0 },
+  context: { stateParses: 2, parseBytes: 2, stringifyCalls: 1, stringifyBytes: 1, structuredClones: 1 },
+  history: { stateParses: 2, parseBytes: 2, stringifyCalls: 1, stringifyBytes: 1, structuredClones: 1 },
+};
+
 test("one mutation stays within the state JSON parse and serialization budget", async () => {
   const { mutate } = await importFresh("../src/kernel/mutate.ts");
   await withProject(async (projectDir) => {
@@ -63,36 +116,45 @@ test("one mutation stays within the state JSON parse and serialization budget", 
       ...baseState(),
       plugins: { "budget.fixture": { data: "x".repeat(128 * 1024) } },
     });
-    const statePath = stateFilePath(projectDir);
-    const stateBytes = (await fs.readFile(statePath)).byteLength;
-    const originalParse = JSON.parse;
-    const originalStringify = JSON.stringify;
-    let stateParses = 0;
-    let stateSerializedBytes = 0;
-    JSON.parse = function (text, reviver) {
-      const result = originalParse.call(this, text, reviver);
-      if (isState(result)) { stateParses += 1; }
-      return result;
-    };
-    JSON.stringify = function (value, replacer, space) {
-      const result = originalStringify.call(this, value, replacer, space);
-      if (isState(value)) { stateSerializedBytes += Buffer.byteLength(result); }
-      return result;
-    };
-    try {
-      await mutate({
-        projectDir,
-        request: { action: "task.update", actor: "worker", input: {} },
-        provider: updateProvider(),
-      });
-    } finally {
-      JSON.parse = originalParse;
-      JSON.stringify = originalStringify;
-    }
-    assert.ok(stateParses <= 2, `expected at most 2 state parses, observed ${stateParses}`);
-    assert.ok(stateSerializedBytes <= 2 * stateBytes,
-      `expected at most ${2 * stateBytes} serialized state bytes, observed ${stateSerializedBytes}`);
+    const measured = await measureStateWork(projectDir, () => mutate({
+      projectDir,
+      request: { action: "task.update", actor: "worker", input: {} },
+      provider: updateProvider(),
+    }));
+    // Before ADR-073, add-note measured 17 state parses (49.8 MB, ~7x the state size), 5,544 JSON.stringify calls (16.6 MB, ~2.8x), and 3,043 structuredClone calls (5.8 MB).
+    // The current mutation also uses nine structured clones; retain that measured ceiling.
+    assertWorkBudget("mutation", measured.work, measured.stateBytes, {
+      stateParses: 2,
+      parseBytes: 2,
+      stringifyCalls: 4,
+      stringifyBytes: 2,
+      structuredClones: 9,
+    });
     assert.equal((await readState(projectDir)).nodes.T1.title, "after");
+  });
+});
+
+test("status, context, and history stay within state work budgets", async () => {
+  const [status, context, history] = await Promise.all([
+    importFresh("../src/cli/commands/status.ts"),
+    importFresh("../src/cli/commands/context.ts"),
+    importFresh("../src/cli/commands/history.ts"),
+  ]);
+  await withProject(async (projectDir) => {
+    await writeCanonicalState(projectDir, {
+      ...baseState(),
+      plugins: { "budget.fixture": { data: "x".repeat(128 * 1024) } },
+    });
+    const routes = [
+      ["status", () => status.default({ statePath: projectDir, flags: {} })],
+      ["context", () => context.default({ statePath: projectDir, positional: ["T1"], flags: {} })],
+      ["history", () => history.default({ statePath: projectDir, positional: ["T1"], flags: {} })],
+    ] as const;
+    for (const [name, run] of routes) {
+      const measured = await measureStateWork(projectDir, run);
+      assertWorkBudget(name, measured.work, measured.stateBytes, READ_BUDGETS[name]);
+      assert.ok(measured.result, `${name}: expected a read result`);
+    }
   });
 });
 
