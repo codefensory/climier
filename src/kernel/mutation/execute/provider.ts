@@ -8,7 +8,7 @@ import { buildLogEntry } from "../log-entry.ts";
 import {
   checkStateRevision,
   freezePlan,
-  readMutationStateUnderLock,
+  readMutationSnapshotUnderLock,
   runPolicy,
   checkPrecondition,
   selectPrecondition,
@@ -153,15 +153,15 @@ function createPersistedState({ snapshot, draftView, diff, request, pluginId, ta
   return { persistedState, logEntry };
 }
 
-async function persistMutation({ mayBootstrap, lockContext, persistedState }) {
+async function persistMutation({ mayBootstrap, lockContext, persistedState, sourceSnapshot }) {
   if (mayBootstrap) {
     await bootstrapFencedStateUnderLock(lockContext, persistedState);
     return;
   }
-  await commitFencedStateUnderLock(lockContext, persistedState);
+  await commitFencedStateUnderLock(lockContext, persistedState, { sourceSnapshot });
 }
 
-async function commitMutation({ snapshot, draftView, diff, request, pluginId, lockContext, mayBootstrap, plan }) {
+async function commitMutation({ snapshot, draftView, diff, request, pluginId, lockContext, mayBootstrap, plan, sourceSnapshot }) {
   const targetNextRevision = deriveTargetRevision(snapshot, plan, diff.created, diff.updated);
   const { persistedState, logEntry } = createPersistedState({
     snapshot,
@@ -171,7 +171,7 @@ async function commitMutation({ snapshot, draftView, diff, request, pluginId, lo
     pluginId,
     targetNextRevision,
   });
-  await persistMutation({ mayBootstrap, lockContext, persistedState });
+  await persistMutation({ mayBootstrap, lockContext, persistedState, sourceSnapshot });
   return logEntry;
 }
 
@@ -181,8 +181,8 @@ async function applyProviderMutation({ provider, tx, plan, request, snapshot, co
 }
 
 export async function executeProviderMutation({ projectDir, lockContext, request, provider, policyAction, pluginId, commandName }) {
-  const loadedState = await readMutationStateUnderLock(lockContext, projectDir);
-  const { snapshot, mayBootstrap } = initialSnapshot(loadedState, request, provider, commandName);
+  const sourceSnapshot = await readMutationSnapshotUnderLock(lockContext, projectDir);
+  const { snapshot, mayBootstrap } = initialSnapshot(sourceSnapshot.state, request, provider, commandName);
   const plan = await prepareMutationPlan({ provider, snapshot, request, pluginId, commandName });
   await runPolicy({ policyAction, snapshot, plan, request, commandName });
   const tx = createTransaction(snapshot);
@@ -191,7 +191,7 @@ export async function executeProviderMutation({ projectDir, lockContext, request
   validateDraftStructural(draftView, commandName);
   const diff = computeMutationDiff(snapshot, draftView);
   const isIdempotent = !mayBootstrap && diff.isIdempotent;
-  const logEntry = isIdempotent ? null : await commitMutation({ snapshot, draftView, diff, request, pluginId, lockContext, mayBootstrap, plan });
+  const logEntry = isIdempotent ? null : await commitMutation({ snapshot, draftView, diff, request, pluginId, lockContext, mayBootstrap, plan, sourceSnapshot });
   return {
     result: outcome.result,
     effects: outcome.effects,

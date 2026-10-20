@@ -17,7 +17,9 @@ function ledgerFile(statePath) {
   return path.join(path.dirname(statePath), "revision-ledger.json");
 }
 
-async function readCommitStage(stagePath, pending) {
+const knownOrReadJson = (known, raw, label) => known ?? readJson(raw, label);
+
+async function readCommitStage(stagePath, pending, knownDestination) {
   let raw;
   try {
     raw = await fs.readFile(stagePath, "utf8");
@@ -33,7 +35,7 @@ async function readCommitStage(stagePath, pending) {
   if (sha256(raw) !== pending.destination_sha256) {
     throw fingerprintMismatch("commit stage does not match the pending destination fingerprint");
   }
-  const destination = readJson(raw, "commit stage") as CommitState;
+  const destination = knownOrReadJson(knownDestination, raw, "commit stage") as CommitState;
   const expectedRevision = pending.high_water_revision;
   if ((!isFencedStateVersion(destination.version) && (pending.schema_only_migration !== true
       || !isSchemaMigratedState(destination, { fence_generation: pending.fence_generation, high_water_revision: pending.high_water_revision })))
@@ -96,8 +98,8 @@ async function installPendingCommitSource({ statePath, rawState, pending, ledger
   return stagedDestination;
 }
 
-function assertInstalledCommit(rawState, pending) {
-  const destination = readJson(rawState, "committed state") as CommitState;
+function assertInstalledCommit(rawState, pending, knownDestination) {
+  const destination = knownOrReadJson(knownDestination, rawState, "committed state") as CommitState;
   const expectedRevision = pending.high_water_revision;
   if (destination.fence_generation !== pending.fence_generation
       || destination.revision !== expectedRevision
@@ -125,10 +127,10 @@ async function clearPendingCommit({ stagePath, ledgerPath, ledger, pending, opts
   await syncDirectory(path.dirname(stagePath));
 }
 
-async function finishPendingCommit({ statePath, ledgerPath, ledger, rawState, opts = {} }) {
+async function finishPendingCommit({ statePath, ledgerPath, ledger, rawState, opts = {}, destinationState = undefined }) {
   const pending = ledger.commit_pending;
   const stagePath = commitStagePath(statePath, pending.stage_id);
-  const stagedDestination = await readCommitStage(stagePath, pending);
+  const stagedDestination = await readCommitStage(stagePath, pending, destinationState);
   const sourceHash = sha256(rawState);
   let schemaSource;
   if (sourceHash === pending.source_sha256) {
@@ -146,7 +148,7 @@ async function finishPendingCommit({ statePath, ledgerPath, ledger, rawState, op
   } else if (sourceHash !== pending.destination_sha256) {
     throw fingerprintMismatch("state fingerprint diverged from pending commit; explicit recovery is required");
   }
-  const destination = assertInstalledCommit(rawState, pending);
+  const destination = assertInstalledCommit(rawState, pending, destinationState);
   if (pending.schema_only_migration === true && schemaSource) {
     assertSchemaMigrationDestination(
       schemaSource,
@@ -299,8 +301,8 @@ async function recoverPendingCommitState({ statePath, ledgerPath, ledger, rawSta
   throw new Error("ledger.commit: pending commit recovery completed; retry against the recovered state");
 }
 
-async function stageCommit({ statePath, ledgerPath, ledger, rawState, candidate, candidateNodeMax, opts }) {
-  const schemaMigrationCommit = schemaOnlyMigration(readJson(rawState, "fenced state") as CommitState, candidate, ledger);
+async function stageCommit({ statePath, ledgerPath, ledger, rawState, current, candidate, candidateNodeMax, opts, destinationState = undefined }) {
+  const schemaMigrationCommit = schemaOnlyMigration(current, candidate, ledger);
   const highWater = schemaMigrationCommit
     ? candidate.revision
     : Math.max(ledger.high_water_revision, candidate.revision, candidateNodeMax);
@@ -316,7 +318,7 @@ async function stageCommit({ statePath, ledgerPath, ledger, rawState, candidate,
     ...(schemaMigrationCommit ? { schema_only_migration: true } : {}),
   };
   await writePendingCommitStage({ stagePath, ledgerPath, statePath, ledger, pending, destinationRaw, opts });
-  return finishPendingCommit({ statePath, ledgerPath, ledger, rawState: destinationRaw, opts });
+  return finishPendingCommit({ statePath, ledgerPath, ledger, rawState: destinationRaw, opts, destinationState });
 }
 
 async function writePendingCommitStage({ stagePath, ledgerPath, statePath, ledger, pending, destinationRaw, opts }) {
@@ -357,7 +359,7 @@ async function readSchemaMigrationSource({ rawState, pending, ledger }) {
   return source;
 }
 
-export async function commitFencedStateUnderLock(lockContext, candidate, opts = {}) {
+export async function commitFencedStateUnderLock(lockContext, candidate, opts: Record<string, unknown> & { sourceSnapshot?: { raw: Buffer; state: CommitState } } = {}) {
   assertActiveLockContext(lockContext);
   const { statePath } = getActiveLockContext(lockContext);
   const ledgerPath = ledgerFile(statePath);
@@ -366,16 +368,22 @@ export async function commitFencedStateUnderLock(lockContext, candidate, opts = 
   const ledger = await readRequiredCommitLedger(ledgerPath) as CommitLedger;
   assertValidLedger(ledger);
   await recoverPendingCommitPrerequisite({ statePath, ledgerPath, ledger });
-  const rawState = await fs.readFile(statePath, "utf8");
+  const sourceSnapshot = opts.sourceSnapshot;
+  const hasSourceSnapshot = sourceSnapshot && Buffer.isBuffer(sourceSnapshot.raw);
+  const rawState = hasSourceSnapshot
+    ? sourceSnapshot.raw.toString("utf8")
+    : await fs.readFile(statePath, "utf8");
   await recoverPendingCommitState({ statePath, ledgerPath, ledger, rawState, opts });
-  const current = readJson(rawState, "fenced state") as CommitState;
+  const current = hasSourceSnapshot
+    ? sourceSnapshot.state as CommitState
+    : readJson(rawState, "fenced state") as CommitState;
   if (schemaOnlyMigration(current, candidate, ledger)) {
     assertFencedMigrationSource(current, ledger);
   } else {
     assertFencedState(current, ledger);
   }
   const candidateNodeMax = validateCommitCandidate(candidate, current, ledger);
-  return stageCommit({ statePath, ledgerPath, ledger, rawState, candidate, candidateNodeMax, opts });
+  return stageCommit({ statePath, ledgerPath, ledger, rawState, current, candidate, candidateNodeMax, opts, destinationState: candidate });
 }
 
 export { cleanOrphanCommitStages, finishPendingCommit };

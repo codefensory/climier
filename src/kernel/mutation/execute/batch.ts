@@ -16,7 +16,7 @@ import {
   cloneBatchValue,
   normalizeLogFields,
   operationLabel,
-  readMutationStateUnderLock,
+  readMutationSnapshotUnderLock,
   runPolicy,
   validateBatchOperation,
   freezePlan,
@@ -207,7 +207,8 @@ function buildPersistedBatchState({ snapshot, draftView, diff, results, plans, r
 
 export async function executeBatchMutation({ projectDir, lockContext, request, batch, policyAction, pluginId }) {
   const commandName = "core.batch";
-  const snapshot = await readMutationStateUnderLock(lockContext, projectDir) as Record<string, unknown> & { version: number; revision: number };
+  const sourceSnapshot = await readMutationSnapshotUnderLock(lockContext, projectDir);
+  const snapshot = sourceSnapshot.state as Record<string, unknown> & { version: number; revision: number };
   if (!snapshot || typeof snapshot !== "object" || !isFencedStateVersion(snapshot.version)) {
     throw new Error(`${commandName}: state file missing or not canonical (run init first)`);
   }
@@ -222,7 +223,7 @@ export async function executeBatchMutation({ projectDir, lockContext, request, b
   const revisionAfter = diff.changed ? deriveNextStateRevision(snapshot, diff.nextNodes) : snapshot.revision;
   if (diff.changed) {
     const persistedState = buildPersistedBatchState({ snapshot, draftView, diff, results, plans, request, pluginId, revisionAfter });
-    await commitFencedStateUnderLock(lockContext, persistedState);
+    await commitFencedStateUnderLock(lockContext, persistedState, { sourceSnapshot });
   }
   return { ok: true, revision_before: revisionBefore, revision_after: revisionAfter, results };
 }
