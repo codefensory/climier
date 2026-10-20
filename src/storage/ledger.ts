@@ -5,6 +5,7 @@ import { asCaughtError } from "../contracts/errors.ts";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { stateFile, stateFileForProjectId } from "./state.ts";
+import { sqliteStateFileForProjectId, stateBackend } from "./paths.ts";
 import { withLock, withCurrentProjectLock, withProjectIdLock, assertActiveLockContext, getActiveLockContext } from "./lock.ts";
 import { ClimierError } from "../contracts/errors.ts";
 import type { ProjectState } from "../contracts/domain.ts";
@@ -45,15 +46,27 @@ function runRecoveryProtocol(lockContext: LockContext, candidate: unknown, opts:
 }
 
 
+async function syncSqliteStateAt(file: string, state: unknown): Promise<unknown> {
+  if (stateBackend() !== "sqlite" || !state || typeof state !== "object") { return state; }
+  const { writeSqliteState } = await import("./sqlite/store.ts");
+  await writeSqliteState(file, state);
+  return state;
+}
+
+async function syncLockedSqliteState(lockContext: LockContext, state: unknown): Promise<unknown> {
+  const { statePath } = getActiveLockContext(lockContext);
+  return syncSqliteStateAt(sqliteStateFileForProjectId(path.basename(path.dirname(statePath))), state);
+}
+
 export async function recoverFencedStateUnderLock(lockContext: LockContext, candidate: unknown, opts: LedgerOptions = {}): Promise<unknown> {
   assertActiveLockContext(lockContext, opts.projectDir);
-  return runRecoveryProtocol(lockContext, candidate, opts);
+  return syncLockedSqliteState(lockContext, await runRecoveryProtocol(lockContext, candidate, opts));
 }
 
 /** Replace a valid fenced state with an explicitly authorized restore candidate under the active lock. */
 export async function replaceFencedStateUnderLock(lockContext: LockContext, candidate: unknown, opts: LedgerOptions = {}): Promise<unknown> {
   assertActiveLockContext(lockContext, opts.projectDir);
-  return replaceUnderActiveLock(lockContext, candidate, opts);
+  return syncLockedSqliteState(lockContext, await replaceUnderActiveLock(lockContext, candidate, opts));
 }
 
 /**
@@ -62,12 +75,14 @@ export async function replaceFencedStateUnderLock(lockContext: LockContext, cand
  * crash-recovery tests and are not used by production callers.
  */
 export async function bootstrapFencedState(projectDir: string, opts: LedgerOptions = {}): Promise<unknown> {
-  return withLock(projectDir, () => bootstrapLocked(projectDir, opts, { finishPendingCommit, cleanOrphanCommitStages }), opts.lockOptions);
+  return withLock(projectDir, async (lockContext) => syncLockedSqliteState(lockContext,
+    await bootstrapLocked(projectDir, opts, { finishPendingCommit, cleanOrphanCommitStages })), opts.lockOptions);
 }
 
 /** Create a new fenced project while the caller holds its project lock. */
 export async function bootstrapFencedStateUnderLock(lockContext: LockContext, initialState: unknown, opts: LedgerOptions = {}): Promise<unknown> {
-  return bootstrapInitialUnderLock(lockContext, initialState, opts);
+  assertActiveLockContext(lockContext, opts.projectDir);
+  return syncLockedSqliteState(lockContext, await bootstrapInitialUnderLock(lockContext, initialState, opts));
 }
 
 async function readValidatedLedger(ledgerPath: string): Promise<BootstrapLedger> {
@@ -117,7 +132,7 @@ async function finishLedgerRead(lockContext: LockContext, ledger: BootstrapLedge
 }
 
 
-export async function readFencedStateUnderLock(lockContext: LockContext, opts: LedgerOptions = {}): Promise<unknown> {
+async function readFencedStateUnderLockProtocol(lockContext: LockContext, opts: LedgerOptions = {}): Promise<unknown> {
   assertActiveLockContext(lockContext, opts.projectDir);
   const { statePath } = getActiveLockContext(lockContext);
   const ledgerPath = path.join(path.dirname(statePath), "revision-ledger.json");
@@ -136,6 +151,11 @@ export async function readFencedStateUnderLock(lockContext: LockContext, opts: L
     return finishPendingBootstrap({ statePath, ledgerPath, ledger });
   }
   return finishLedgerRead(lockContext, ledger, { statePath, ledgerPath }, opts);
+}
+
+export async function readFencedStateUnderLock(lockContext: LockContext, opts: LedgerOptions = {}): Promise<unknown> {
+  assertActiveLockContext(lockContext, opts.projectDir);
+  return syncLockedSqliteState(lockContext, await readFencedStateUnderLockProtocol(lockContext, opts));
 }
 
 /** Read a v5 state only when its durable project ledger agrees with it. */
@@ -159,5 +179,6 @@ export async function readStateByProjectId(projectId) {
 
 /** Commit a candidate under the active lock, preserving the public facade. */
 export async function commitFencedStateUnderLock(lockContext, candidate, opts = {}) {
-  return commitProtocol(lockContext, candidate, opts);
+  assertActiveLockContext(lockContext);
+  return syncLockedSqliteState(lockContext, await commitProtocol(lockContext, candidate, opts));
 }

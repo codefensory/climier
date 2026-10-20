@@ -5,7 +5,7 @@ import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { withLock, assertActiveLockContext, getActiveLockContext } from "./lock.ts";
-import { climierHome, projectMetaFile } from "./paths.ts";
+import { climierHome, projectMetaFile, sqliteStateFileForProjectId, stateBackend } from "./paths.ts";
 import { validateStateInvariants } from "../contracts/state-invariants.ts";
 import { normalizeProjectName } from "../contracts/project-name.ts";
 import type { ProjectState } from "../contracts/domain.ts";
@@ -47,6 +47,26 @@ export function stateFile(projectDir) {
 /** State path for a project known only by its id (the storage dir name). */
 export function stateFileForProjectId(projectId) {
   return globalStateFile(projectId);
+}
+
+export function sqliteStateFile(projectDir) {
+  const statePath = stateFile(projectDir);
+  return sqliteStateFileForProjectId(path.basename(path.dirname(statePath)));
+}
+
+async function assertNoUnimportedJsonState(projectDir) {
+  const directory = path.dirname(stateFile(projectDir));
+  for (const file of [stateFile(projectDir), path.join(directory, "revision-ledger.json")]) {
+    try {
+      await fs.access(file);
+      const error = new Error(`state: SQLite backend is selected but JSON storage exists at ${file}; automatic import is disabled`);
+      error.code = "CLIMIER_SQLITE_MIGRATION_REQUIRED";
+      throw error;
+    } catch (rawCaughtValue: unknown) {
+      const error = asCaughtError(rawCaughtValue);
+      if (error.code !== "ENOENT") { throw error; }
+    }
+  }
 }
 
 /** Project ids with a state or a ledger in the project storage root, sorted. */
@@ -308,7 +328,15 @@ async function parseStateFile(projectDir, file, raw) {
   throw stateShapeError("CLIMIER_INCOMPATIBLE_VERSION", `state: file at ${file} is not a canonical version ${STATE_SCHEMA_VERSION} state. ${STATE_RECOVERY_HINT}`, { file, version: state.version, hint: STATE_RECOVERY_HINT });
 }
 
+async function readSqliteBackendState(projectDir) {
+  const { readSqliteState } = await import("./sqlite/store.ts");
+  const state = await readSqliteState(sqliteStateFile(projectDir));
+  if (state === null) { await assertNoUnimportedJsonState(projectDir); }
+  return state;
+}
+
 export async function readState(projectDir) {
+  if (stateBackend() === "sqlite") { return readSqliteBackendState(projectDir); }
   const file = stateFile(projectDir);
   let raw;
   try {
@@ -433,6 +461,13 @@ async function updateStateUnderLock(projectDir, lockContext, mutator) {
 }
 
 export async function updateState(projectDir, mutator) {
+  if (stateBackend() === "sqlite") {
+    const { readSqliteState, updateSqliteState } = await import("./sqlite/store.ts");
+    return withLock(projectDir, async () => {
+      if (await readSqliteState(sqliteStateFile(projectDir)) === null) { await assertNoUnimportedJsonState(projectDir); }
+      return updateSqliteState(sqliteStateFile(projectDir), mutator);
+    });
+  }
   return withLock(projectDir, (lockContext) => updateStateUnderLock(projectDir, lockContext, mutator));
 }
 
@@ -557,6 +592,13 @@ async function writeStateUnderLock(projectDir, lockContext, state) {
 }
 
 export async function writeState(projectDir, state) {
+  if (stateBackend() === "sqlite") {
+    const { readSqliteState, writeSqliteState } = await import("./sqlite/store.ts");
+    return withLock(projectDir, async () => {
+      if (await readSqliteState(sqliteStateFile(projectDir)) === null) { await assertNoUnimportedJsonState(projectDir); }
+      return writeSqliteState(sqliteStateFile(projectDir), state);
+    });
+  }
   return withLock(projectDir, (lockContext) => writeStateUnderLock(projectDir, lockContext, state));
 }
 
