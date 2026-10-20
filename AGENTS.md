@@ -481,6 +481,12 @@ Each shell-tool invocation is independent: a `cd` from one invocation does not
 carry into the next. Every runner worktree command must prefix the path with
 `cd <worktree> &&` (or use absolute paths) and verify `pwd` plus the branch in
 that same invocation. Never run worktree tests from the main checkout.
+**A fresh worktree has no `node_modules`.** `git worktree add` materializes only
+tracked files, so run `bun install --frozen-lockfile` inside the worktree before
+any test; `test/types-drift.test.ts` needs the `ts-morph` devDependency and the
+suite fails without it. Do not delete `node_modules` when you finish a task in a
+shared worktree: the validator runs the suite in that same worktree, and a
+missing dependency turns a correct change into an environment FAIL.
 Tests must be bounded and targeted. Use the repository core test runner or an
 explicit file list with a timeout; do not use `--test-skip-pattern` as a way to
 exclude files.
