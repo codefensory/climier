@@ -194,7 +194,10 @@ export const GENERATED_COMMAND_FLAGS = {
   ],
   "show": [],
   "snapshots": [],
-  "state": [],
+  "state": [
+    "as",
+    "yes"
+  ],
   "status": [
     "initiative",
     "kind",
