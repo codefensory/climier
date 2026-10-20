@@ -88,10 +88,10 @@ function hasStructuralChanges({ created, updated, addedEdges, removedEdges, remo
     initiativeDiff.created.length > 0 || initiativeDiff.updated.length > 0;
 }
 
-function computeMutationDiff(snapshot, draftView) {
-  const { next: nextNodes, removed: removedNodes, created, updated } = assignRevisionsAndDiff(snapshot, draftView);
-  const { added: addedEdges, removed: removedEdges } = computeEdgeDiff(snapshot.edges || [], draftView.edges || []);
-  const initiativeDiff = computeInitiativeDiff(snapshot.initiatives || {}, draftView.initiatives || {});
+function computeMutationDiff(snapshot, draftView, dirtyIds, dirtyEdgeChanges) {
+  const { next: nextNodes, removed: removedNodes, created, updated } = assignRevisionsAndDiff(snapshot, draftView, dirtyIds.nodes);
+  const { added: addedEdges, removed: removedEdges } = computeEdgeDiff(snapshot.edges || [], draftView.edges || [], dirtyEdgeChanges);
+  const initiativeDiff = computeInitiativeDiff(snapshot.initiatives || {}, draftView.initiatives || {}, dirtyIds.initiatives);
   const pluginsBefore = normalizePlugins(snapshot.plugins);
   const pluginsAfter = normalizePlugins(draftView.plugins);
   const pluginsChanged = !deepEqualNodes(pluginsBefore, pluginsAfter);
@@ -189,7 +189,7 @@ export async function executeProviderMutation({ projectDir, lockContext, request
   const outcome = await applyProviderMutation({ provider, tx, plan, request, snapshot, commandName });
   const draftView = tx.view({ includePlugins: true });
   validateDraftStructural(draftView, commandName);
-  const diff = computeMutationDiff(snapshot, draftView);
+  const diff = computeMutationDiff(snapshot, draftView, tx.getDirtyIds(), tx.getDirtyEdgeChanges());
   const isIdempotent = !mayBootstrap && diff.isIdempotent;
   const logEntry = isIdempotent ? null : await commitMutation({ snapshot, draftView, diff, request, pluginId, lockContext, mayBootstrap, plan, sourceSnapshot });
   return {

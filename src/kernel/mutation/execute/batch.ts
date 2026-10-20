@@ -155,10 +155,10 @@ function entityChanges(diff, initiativeDiff, pluginsChanged) {
     diff.removedNodes.length > 0 || initiativeDiff.created.length > 0 || initiativeDiff.updated.length > 0 || pluginsChanged;
 }
 
-function diffBatch(snapshot, draftView) {
-  const nodeDiff = assignRevisionsAndDiff(snapshot, draftView);
-  const edgeDiff = computeEdgeDiff(snapshot.edges || [], draftView.edges || []);
-  const initiativeDiff = computeInitiativeDiff(snapshot.initiatives || {}, draftView.initiatives || {});
+function diffBatch(snapshot, draftView, dirtyIds, dirtyEdgeChanges) {
+  const nodeDiff = assignRevisionsAndDiff(snapshot, draftView, dirtyIds.nodes);
+  const edgeDiff = computeEdgeDiff(snapshot.edges || [], draftView.edges || [], dirtyEdgeChanges);
+  const initiativeDiff = computeInitiativeDiff(snapshot.initiatives || {}, draftView.initiatives || {}, dirtyIds.initiatives);
   const { pluginsAfter, pluginsChanged } = pluginChanges(snapshot, draftView);
   const diff = {
     nextNodes: nodeDiff.next,
@@ -218,7 +218,7 @@ export async function executeBatchMutation({ projectDir, lockContext, request, b
   const { results, plans } = await executeOperations({ operations, request, batch, policyAction, pluginId, tx, snapshot });
   const draftView = tx.view({ includePlugins: true });
   validateDraftStructural(draftView, commandName);
-  const diff = diffBatch(snapshot, draftView);
+  const diff = diffBatch(snapshot, draftView, tx.getDirtyIds(), tx.getDirtyEdgeChanges());
   const revisionBefore = snapshot.revision;
   const revisionAfter = diff.changed ? deriveNextStateRevision(snapshot, diff.nextNodes) : snapshot.revision;
   if (diff.changed) {
