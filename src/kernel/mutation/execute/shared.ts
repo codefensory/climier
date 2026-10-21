@@ -248,6 +248,6 @@ export function validateBatchOperation(raw, index) {
   return { op: raw.op, input: cloneBatchValue(raw.input) };
 }
 
-export async function readMutationSnapshotUnderLock(_lockContext: object | null, projectDir: string) {
+export async function readMutationSnapshot(projectDir: string) {
   return { state: await readState(projectDir), raw: null };
 }

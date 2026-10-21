@@ -2,13 +2,13 @@
 //
 
 //
-//   restore:  resolve actor → read target (raw + meta) → withLock →
+//   restore:  resolve actor → read target (raw + meta) → SQLite transaction →
 //             validate target (no side effects) →
 //             authorize("state.restore") →
 //             createSnapshot("pre-restore") → write → log
 //
 //   init --force: resolve actor → ensureProjectMeta → read projectConfig →
-//             withLock → authorize("state.init_force") →
+//             SQLite transaction → authorize("state.init_force") →
 //             createSnapshot("force-init") → writeState fresh
 //
 // Invariants locked down here:

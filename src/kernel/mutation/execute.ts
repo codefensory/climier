@@ -5,18 +5,17 @@ import { executeStateMutation } from "./execute/state.ts";
 import { executeProviderMutation } from "./execute/provider.ts";
 
 /**
- * Run the complete mutation pipeline. The caller must hold the project lock.
- * This facade intentionally performs no lock acquisition.
+ * Run the complete mutation pipeline inside its SQLite transaction.
  */
-export async function executeMutation({ projectDir, lockContext, request, provider, policyAction, pluginId, stateOperation, batch }) {
+export async function executeMutation({ projectDir, request, provider, policyAction, pluginId, stateOperation, batch }) {
   const commandName = validateMutationArguments({ request, provider, stateOperation, batch });
   if (batch !== undefined) {
-    return executeBatchMutation({ projectDir, lockContext, request, batch, policyAction, pluginId });
+    return executeBatchMutation({ projectDir, request, batch, policyAction, pluginId });
   }
   if (stateOperation !== undefined) {
     return executeStateMutation({ projectDir, request, stateOperation, policyAction, pluginId });
   }
-  return executeProviderMutation({ projectDir, lockContext, request, provider, policyAction, pluginId, commandName });
+  return executeProviderMutation({ projectDir, request, provider, policyAction, pluginId, commandName });
 }
 
 

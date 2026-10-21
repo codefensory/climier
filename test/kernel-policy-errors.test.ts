@@ -324,7 +324,7 @@ test("kernel.mutate: decide() returning abstain proceeds with the mutation", asy
   assert.equal(after.nodes.T1.title, "mutated"); assert.equal(after.log.length, 1);
 });
 
-test("kernel.mutate: same-chain nested mutate still rejected with INVALID_EXECUTION_CONTRACT (AsyncLocalStorage guard preserved)", async (t) => {
+test("kernel.mutate: nested mutation is rejected inside an active SQLite transaction", async (t) => {
   const { mutate } = await importKernel();
   const dir = await createTrackedProject(t);
   await bootstrap(dir);
@@ -362,5 +362,5 @@ test("kernel.mutate: same-chain nested mutate still rejected with INVALID_EXECUT
   assert.equal(nestedError.code, "INVALID_EXECUTION_CONTRACT");
   assert.match(nestedError.message, /nested kernel\.mutate/i);
   const after = await readStateHelper(dir);
-  assert.equal(after.nodes.T1.title, "T1-title", "T1 untouched — nested call rejected before any tx"); assert.equal(after.log.length, 0);
+  assert.equal(after.nodes.T1.title, "T1-title", "T1 untouched — nested call rejected before a second transaction"); assert.equal(after.log.length, 0);
 });

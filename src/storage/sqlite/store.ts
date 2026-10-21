@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { AsyncLocalStorage } from "node:async_hooks";
-import { asCaughtError } from "../../contracts/errors.ts";
+import { asCaughtError, codedError } from "../../contracts/errors.ts";
 import { validateStateInvariants } from "../../contracts/state-invariants.ts";
 import { SQLITE_PRAGMAS, SQLITE_SCHEMA, SQLITE_SCHEMA_VERSION } from "./schema.ts";
 
@@ -115,9 +115,6 @@ function assertCanonicalState(state: unknown, command: string): asserts state is
   if (candidate.version !== 1) {
     throw new Error(`${command}: SQLite store requires canonical schema-1 state`);
   }
-  if (Object.hasOwn(candidate, "fence_generation")) {
-    throw new Error(`${command}: fence_generation is not part of canonical SQLite state`);
-  }
   validateStateInvariants(candidate, command);
 }
 
@@ -164,8 +161,13 @@ async function withProcessQueue<T>(file: string, operation: () => Promise<T>): P
 }
 
 export async function withSqliteTransaction<T>(file: string, operation: () => Promise<T>): Promise<T> {
-  const active = activeDatabase(file);
-  if (active) { return operation(); }
+  if (activeDatabase(file)) {
+    throw codedError(
+      "INVALID_EXECUTION_CONTRACT",
+      "kernel.mutate: nested kernel.mutate is rejected (the kernel is single-entry; providers must not mutate)",
+      { field: "mutate", depth: 2 },
+    );
+  }
   return withProcessQueue(file, async () => {
     await fs.mkdir(path.dirname(file), { recursive: true });
     const database = await openDatabase(file);
@@ -193,7 +195,6 @@ function readStateInTransaction(database, { includeBodies = true }: { includeBod
     .map(({ key, value }) => [key, JSON.parse(value)]));
   if (metadata.version === undefined) { return null; }
   const extras = { ...metadata.extras };
-  delete extras.fence_generation;
   const values = {
     ...extras,
     version: metadata.version,
@@ -231,7 +232,7 @@ function replaceNodes(database, nodes: Record<string, unknown>) {
 
 function replaceMetadata(database, state: SqliteState) {
   const insert = database.prepare("INSERT INTO meta (key, value) VALUES (?, ?)");
-  const extras = Object.fromEntries(Object.entries(state).filter(([key]) => !META_FIELDS.has(key) && !COLLECTIONS.has(key) && key !== "fence_generation"));
+  const extras = Object.fromEntries(Object.entries(state).filter(([key]) => !META_FIELDS.has(key) && !COLLECTIONS.has(key)));
   for (const [key, value] of Object.entries({
     version: state.version,
     revision: state.revision,

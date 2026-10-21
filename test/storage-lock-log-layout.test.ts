@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-for (const moduleName of ["lock", "log"]) {
+for (const moduleName of ["log"]) {
   test(`${moduleName} storage has a canonical module and no root shim`, async () => {
     const storageModule = path.join(ROOT, "src", "storage", `${moduleName}.ts`);
     const rootModule = path.join(ROOT, "src", `${moduleName}.ts`);
@@ -15,3 +15,7 @@ for (const moduleName of ["lock", "log"]) {
     await assert.rejects(() => fs.access(rootModule), { code: "ENOENT" });
   });
 }
+
+test("project storage lock module is retired", async () => {
+  await assert.rejects(() => fs.access(path.join(ROOT, "src", "storage", "lock.ts")), { code: "ENOENT" });
+});

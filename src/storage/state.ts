@@ -3,7 +3,6 @@ import crypto from "node:crypto";
 import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { withMutationBoundary } from "./lock.ts";
 import { climierHome, projectMetaFile, sqliteStateFileForProjectId } from "./paths.ts";
 import { validateStateInvariants } from "../contracts/state-invariants.ts";
 import { normalizeProjectName } from "../contracts/project-name.ts";
@@ -278,9 +277,9 @@ export async function readStateByProjectId(id: string, options: { includeBodies?
 }
 
 export async function updateState(projectDir, mutator) {
-  const { readSqliteState, updateSqliteState } = await import("./sqlite/store.ts");
-  return withMutationBoundary(projectDir, async () => {
-    const file = stateFile(projectDir);
+  const { readSqliteState, updateSqliteState, withSqliteTransaction } = await import("./sqlite/store.ts");
+  const file = stateFile(projectDir);
+  return withSqliteTransaction(file, async () => {
     if (await readSqliteState(file) === null) { await assertExplicitMigrationRequired(projectDir); }
     return updateSqliteState(file, mutator);
   });
@@ -362,9 +361,9 @@ export async function listSnapshots(projectDir) {
 }
 
 export async function writeState(projectDir, state) {
-  const { readSqliteState, writeSqliteState } = await import("./sqlite/store.ts");
-  return withMutationBoundary(projectDir, async () => {
-    const file = stateFile(projectDir);
+  const { readSqliteState, writeSqliteState, withSqliteTransaction } = await import("./sqlite/store.ts");
+  const file = stateFile(projectDir);
+  return withSqliteTransaction(file, async () => {
     if (await readSqliteState(file) === null) { await assertExplicitMigrationRequired(projectDir); }
     return writeSqliteState(file, state);
   });

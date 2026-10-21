@@ -7,7 +7,7 @@
 //   1. Two child_process can drive the same project state at the same
 //      time: one through the V2 plugin fixture (api.core.run), one
 
-//   2. The withLock → updateState → append invariant holds across
+//   2. The SQLite transaction → updateState → append invariant holds across
 //      processes — every committed state transition lands intact, no
 //      lost writes, no interleaving inside any single log entry.
 //   3. Plugin attribution (plugin_id in log) is exclusive to plugin-

@@ -1,14 +1,5 @@
-// test/kernel-mutate-concurrency.test.mjs — concurrency contract for
-// kernel.mutate. Covers the regression in
-
-// nestedDepth counter rejected two independent concurrent mutations on
-
-// AsyncLocalStorage so reentrancy is tracked per async chain; only
-// direct nested calls from the same chain are still rejected.
-//
-// Each test uses importKernel() (= importFresh) so the AsyncLocalStorage
-// instance is fresh per test, preserving the existing test reset
-// contract documented in src/kernel/mutate.ts.
+// Concurrency contract for kernel.mutate: SQLite transactions serialize
+// same-project writes while rejecting nested transaction entry.
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -43,7 +34,7 @@ async function bootstrap(dir: string): Promise<FencedState> {
 
 // updateProvider — a simple per-node title update. Different ids in the
 // same bootstrap state mean two concurrent mutates on the same project
-// touch disjoint nodes and should both succeed under withLock.
+// touch disjoint nodes and should both succeed under SQLite transactions.
 function updateProvider({ id, newTitle }) {
   return {
     prepare: async ({ snapshot }) => {
@@ -70,10 +61,8 @@ test("kernel.mutate: two concurrent independent mutations on the same project bo
   try {
     const fenced = await bootstrap(dir);
     // Fire both at the same time. Each targets a different node with a
-    // matching if_revision. With the old module-level nestedDepth guard,
-
-    // reaching withLock. With the AsyncLocalStorage fix, each chain has
-    // its own depth=0→1 and withLock serialises the writes.
+    // matching if_revision. SQLite must distinguish independent concurrent
+    // calls from nested transaction entry.
     const req1 = mutate({
       projectDir: dir,
       request: { action: "task.update", actor: "alice", input: {}, if_revision: { kind: "single", id: "T1", value: fenced.nodes.T1.revision } },
@@ -111,7 +100,7 @@ test("kernel.mutate: two concurrent independent mutations on the same project bo
       [4, 5],
       "both disjoint updates receive consecutive revisions above the seeded nodes",
     );
-    assert.equal(after.log.length, 2, "both writes persisted in order (serialised by withLock)");
+    assert.equal(after.log.length, 2, "both writes persisted in order (serialized by SQLite transactions)");
     // Both log entries carry the matching action / node / revision.
     const actions = after.log.map((e) => e.action).toSorted();
     assert.deepEqual(actions, ["task.update", "task.update"]);
@@ -129,9 +118,7 @@ test("kernel.mutate: many concurrent independent mutations on the same project a
   const { mutate } = await importKernel();
   const dir = await createTempProject();
   try {
-    // 6 disjoint nodes; each mutate targets one node. With the old
-    // module-level nestedDepth guard only the first mutate would
-    // actually run; the other 5 would all throw INVALID_EXECUTION_CONTRACT.
+    // 6 disjoint nodes; each concurrent mutation targets one node and must persist.
     const base: { version: number; nodes: Record<string, NodeRecord>; edges: unknown[]; initiatives: Record<string, unknown>; log: unknown[] } = { version: 1, nodes: {}, edges: [], initiatives: { kernel: { desc: "kernel", created_at: "2026-01-01T00:00:00.000Z" } }, log: [] };
     for (let i = 0; i < 6; i += 1) {
       base.nodes[`Tn-${i}`] = { id: `Tn-${i}`, kind: "resolvable", subkind: "task", title: `Tn-${i}-orig`, initiative: "kernel", status: "open", revision: 1 };
@@ -172,8 +159,7 @@ test("kernel.mutate: many concurrent independent mutations on the same project a
   }
 });
 
-// Regression preserved: provider.apply → kernel.mutate on same chain
-// still rejected (the only legitimate use of the guard)
+// Nested writes are rejected because an active SQLite transaction cannot be re-entered.
 
 // oxlint-disable-next-line max-lines-per-function -- Keep this bounded regression test and its full assertions intact.
 test("kernel.mutate: provider.apply calling kernel.mutate on the same chain is rejected with INVALID_EXECUTION_CONTRACT", async () => {
@@ -183,7 +169,7 @@ test("kernel.mutate: provider.apply calling kernel.mutate on the same chain is r
     const fenced = await bootstrap(dir);
     let innerCaught: unknown = null;
     // Outer mutate updates T1; inside apply we attempt a nested mutate
-    // on T2. The inner call must be rejected by the same-chain guard;
+    // on T2. The inner call must be rejected by the active transaction;
 
     await mutate({
       projectDir: dir,

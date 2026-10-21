@@ -441,7 +441,7 @@ describe("history: tokenization matches whole id only", () => {
 
 //
 // Two processes operating on the same node should serialize cleanly via
-// the file lock. The contract: one wins, the other observes the new
+// the SQLite transaction. The contract: one wins, the other observes the new
 // state. No partial writes. No torn revisions. No lost log entries.
 
 describe("concurrency: two operations on the same node serialize cleanly", () => {

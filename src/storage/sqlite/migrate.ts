@@ -3,8 +3,7 @@ import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { asCaughtError } from "../../contracts/errors.ts";
 import { jsonStateFile, readJsonStateForMigration, sqliteStateFile } from "../state.ts";
-import { withLock } from "../lock.ts";
-import { readSqliteState, writeSqliteState } from "./store.ts";
+import { readSqliteState, withSqliteTransaction, writeSqliteState } from "./store.ts";
 
 async function ensureVerifiedBackup(file: string, backupFile: string, rawState: Buffer) {
   let handle;
@@ -50,10 +49,9 @@ async function validatedJsonSource(projectDir: string, jsonFile: string) {
   return { raw, state };
 }
 
-async function existingSqliteState(sqliteFile: string) {
-  const exists = await fileExists(sqliteFile);
-  const state = exists ? await readSqliteState(sqliteFile) : null;
-  if (exists && state === null) {
+async function existingSqliteState(sqliteFile: string, existedBeforeTransaction: boolean) {
+  const state = await readSqliteState(sqliteFile);
+  if (existedBeforeTransaction && state === null) {
     throw new Error(`state migrate: SQLite file at ${sqliteFile} contains no canonical state; refusing to overwrite it`);
   }
   return state;
@@ -66,13 +64,14 @@ function assertSqliteMatches(sqliteState: unknown, jsonState: unknown, sqliteFil
 }
 
 export async function migrateJsonStateToSqlite(projectDir: string) {
-  return withLock(projectDir, async () => {
+  const sqliteFile = sqliteStateFile(projectDir);
+  const existedBeforeTransaction = await fileExists(sqliteFile);
+  return withSqliteTransaction(sqliteFile, async () => {
     const jsonFile = jsonStateFile(projectDir);
-    const sqliteFile = sqliteStateFile(projectDir);
     const backupFile = `${jsonFile}.sqlite-backup`;
     const { raw, state } = await validatedJsonSource(projectDir, jsonFile);
     await ensureVerifiedBackup(jsonFile, backupFile, raw);
-    const currentState = await existingSqliteState(sqliteFile);
+    const currentState = await existingSqliteState(sqliteFile, existedBeforeTransaction);
     if (currentState !== null) {
       assertSqliteMatches(currentState, state, sqliteFile);
       return { migrated: false, backup: backupFile, database: sqliteFile };

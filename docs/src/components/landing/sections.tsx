@@ -57,10 +57,8 @@ function DerivationSpecimen() {
 }
 
 const COMMIT_FILES = [
-  { path: '.lock', value: 'held for one write' },
-  { path: 'tasks.json', value: 'rev 7' },
-  { path: 'revision-ledger.json', value: 'rev 7' },
-  { path: 'log', value: 'entry 7 appended' },
+  { path: 'state.sqlite', value: 'state + revision + log' },
+  { path: 'BEGIN IMMEDIATE', value: 'one atomic transaction' },
 ];
 
 function CommitSpecimen() {
@@ -78,7 +76,7 @@ function CommitSpecimen() {
         ))}
       </dl>
       <p className="border-t border-fd-border bg-fd-muted/40 px-4 py-3 text-[12.5px] leading-5 text-fd-muted-foreground">
-        One lock per project, so writers serialize instead of racing. Add{' '}
+        SQLite serializes project writers. State, revision, and audit log commit together; add{' '}
         <span className="font-mono text-fd-foreground">--if-revision N</span> and the write fails when the node moved
         since you read it.
       </p>
@@ -139,11 +137,11 @@ const INVARIANTS: { title: string; body: ReactNode; specimen: ReactNode }[] = [
     specimen: <DerivationSpecimen />,
   },
   {
-    title: 'Every mutation is one locked, atomic commit.',
+    title: 'Every mutation is one atomic SQLite commit.',
     body: (
       <>
-        State, revision ledger, and audit log land together under a single project lock. Two writers serialize instead of
-        interleaving, and the log can never describe a state that was not written.
+        SQLite serializes writers with <span className="font-mono text-[13px]">BEGIN IMMEDIATE</span>. State, project
+        revision, and audit log commit together, so the log can never describe a state that was not written.
       </>
     ),
     specimen: <CommitSpecimen />,

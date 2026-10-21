@@ -32,6 +32,5 @@ export const rawLaneDeclarations: Record<string, RawLaneDeclaration> = {
   "test/state.test.ts": importerSource("seeds schema-1 tasks.json for explicit migrate and guards runtime writes from legacy JSON state"),
   "test/test-manifest.test.ts": mentionOnly("carries the lane detector's fixture text; the file writes no state"),
   "test/initiatives.test.ts": guard("asserts legacy writeState schema validation and rejection; valid fixture uses writeCanonicalState"),
-  "test/lock.test.ts": guard("creates stale lock-file fixtures to verify project-id writer-lock contention"),
   "test/v5-read-consumers.test.ts": guard("seeds 2, 3 and 4 sources for read compatibility and a version 6 source to prove the refusal"),
 };

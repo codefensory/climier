@@ -4,7 +4,7 @@ import crypto from "node:crypto";
 import fsp from "node:fs/promises";
 import path from "node:path";
 
-import { createTempProject, jsonStateFilePath, rmTempProject, runCli, stateFilePath, writeLegacyJsonState } from "./helpers.ts";
+import { createTempProject, jsonStateFilePath, readState, rmTempProject, runCli, stateFilePath, writeLegacyJsonState } from "./helpers.ts";
 
 function fixture() {
   return {
@@ -118,6 +118,24 @@ test("state migrate backs up and imports schema-1 JSON with a reproducible expor
     assert.deepEqual(JSON.parse(exported.stdout), JSON.parse(firstExport));
     const status = await cli(dir, ["status"]);
     assert.equal(status.code, 0, status.stdout);
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("state migrate strips retired fence_generation from SQLite state and export", async () => {
+  const dir = await createTempProject();
+  try {
+    await writeLegacyJsonState(dir, { ...fixture(), fence_generation: 7 });
+    const migrated = await cli(dir, ["state", "migrate", "--as", "worker", "--yes"]);
+    assert.equal(migrated.code, 0, `${migrated.stderr}\n${migrated.stdout}`);
+
+    const state = await readState(dir);
+    assert.equal(Object.hasOwn(state, "fence_generation"), false);
+
+    const exported = await cli(dir, ["state", "export"]);
+    assert.equal(exported.code, 0, exported.stdout);
+    assert.equal(Object.hasOwn(JSON.parse(exported.stdout), "fence_generation"), false);
   } finally {
     await rmTempProject(dir);
   }

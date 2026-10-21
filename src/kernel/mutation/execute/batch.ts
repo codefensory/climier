@@ -16,7 +16,7 @@ import {
   cloneBatchValue,
   normalizeLogFields,
   operationLabel,
-  readMutationSnapshotUnderLock,
+  readMutationSnapshot,
   runPolicy,
   validateBatchOperation,
   freezePlan,
@@ -204,9 +204,9 @@ function buildPersistedBatchState({ snapshot, draftView, diff, results, plans, r
   return persistedState;
 }
 
-export async function executeBatchMutation({ projectDir, lockContext, request, batch, policyAction, pluginId }) {
+export async function executeBatchMutation({ projectDir, request, batch, policyAction, pluginId }) {
   const commandName = "core.batch";
-  const sourceSnapshot = await readMutationSnapshotUnderLock(lockContext, projectDir);
+  const sourceSnapshot = await readMutationSnapshot(projectDir);
   const snapshot = sourceSnapshot.state as Record<string, unknown> & { version: number; revision: number };
   if (!snapshot || typeof snapshot !== "object" || !isCanonicalStateVersion(snapshot.version)) {
     throw new Error(`${commandName}: state file missing or not canonical (run init first)`);
