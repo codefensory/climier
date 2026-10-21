@@ -201,7 +201,10 @@ async function measure(fixture: Fixture, iterations: number) {
   const workspace = makeWorkspace(fixture);
   const snapshot = await readSqliteState(workspace.sqliteFile) as Record<string, any>;
   const registry = createBuiltinOperationRegistry();
-  const probeId = Object.keys(snapshot.nodes ?? {})[Math.min(5, Object.keys(snapshot.nodes ?? {}).length - 1)];
+  // The probe must be a task: gates and knowledge reject task.update/add-note preconditions.
+  const probeId = Object.values(snapshot.nodes ?? {})
+    .filter((node: any) => node?.kind === "resolvable" && node?.subkind === "task")
+    .map((node: any) => node.id)[0] ?? Object.keys(snapshot.nodes ?? {})[0];
   const acceptState = structuredClone(snapshot);
   const acceptTarget = (Object.values(acceptState.nodes ?? {}) as Array<Record<string, any>>).find((node) =>
     node.kind === "resolvable" && node.subkind === "task",
