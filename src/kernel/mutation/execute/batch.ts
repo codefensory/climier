@@ -2,10 +2,11 @@ import { asCaughtError } from "../../../contracts/errors.ts";
 
 
 import { isCanonicalStateVersion, sqliteStateFile } from "../../../storage/state.ts";
-import { writeSqliteState } from "../../../storage/sqlite/store.ts";
+import { readSqliteMutationMetadata, writeSqliteMutation } from "../../../storage/sqlite/store.ts";
 import { throwV2 } from "../../../contracts/errors.ts";
 import { prepareLogEntry } from "../../../storage/log.ts";
 import { createTransaction } from "../../transaction.ts";
+import { readDeclaredBatchMutationSnapshot } from "./closure.ts";
 import {
   batchOperationError,
   batchSnapshot,
@@ -30,11 +31,13 @@ import {
 import { deriveNextStateRevision } from "../revisions.ts";
 import { validateDraftStructural } from "../validation.ts";
 
-function validateOperations(rawOperations) {
+type BatchOperation = { op: string; input: Record<string, unknown> };
+
+function validateOperations(rawOperations): BatchOperation[] {
   if (!Array.isArray(rawOperations) || rawOperations.length === 0) {
     throwV2("INVALID_EXECUTION_CONTRACT", "core.batch: operations must be a non-empty array", { field: "operations" });
   }
-  const operations: unknown[] = [];
+  const operations: BatchOperation[] = [];
   for (let index = 0; index < rawOperations.length; index += 1) {
     try {
       operations.push(validateBatchOperation(rawOperations[index], index));
@@ -168,7 +171,7 @@ function diffBatch(snapshot, draftView, dirtyIds, dirtyEdgeChanges) {
     addedEdges: edgeDiff.added,
     removedEdges: edgeDiff.removed,
   };
-  return { ...diff, initiativeDiff, pluginsAfter, changed: entityChanges(diff, initiativeDiff, pluginsChanged) };
+  return { ...diff, initiativeDiff, pluginsAfter, pluginsChanged, changed: entityChanges(diff, initiativeDiff, pluginsChanged) };
 }
 
 function buildPersistedBatchState({ snapshot, draftView, diff, results, plans, request, pluginId, revisionAfter }) {
@@ -206,23 +209,56 @@ function buildPersistedBatchState({ snapshot, draftView, diff, results, plans, r
 
 export async function executeBatchMutation({ projectDir, request, batch, policyAction, pluginId }) {
   const commandName = "core.batch";
-  const sourceSnapshot = await readMutationSnapshot(projectDir);
-  const snapshot = sourceSnapshot.state as Record<string, unknown> & { version: number; revision: number };
-  if (!snapshot || typeof snapshot !== "object" || !isCanonicalStateVersion(snapshot.version)) {
+  const metadata = await readSqliteMutationMetadata(sqliteStateFile(projectDir));
+  let fullSnapshot = metadata?.closureSafe === false ? await readMutationSnapshot(projectDir) : null;
+  const header = fullSnapshot?.state || (metadata ? { version: metadata.version, revision: metadata.revision } : null);
+  if (!header || typeof header !== "object" || !isCanonicalStateVersion(header.version)) {
     throw new Error(`${commandName}: state file missing or not canonical (run init first)`);
   }
-  checkStateRevision(request.if_state_revision, snapshot, commandName);
+  checkStateRevision(request.if_state_revision, header, commandName);
   const operations = validateOperations(request.input && request.input.operations);
+  let sourceSnapshot: Awaited<ReturnType<typeof readMutationSnapshot>> | undefined = fullSnapshot || undefined;
+  if (!sourceSnapshot && policyAction?.pluginId) {
+    sourceSnapshot = await readMutationSnapshot(projectDir);
+  }
+  if (!sourceSnapshot) {
+    sourceSnapshot = await readDeclaredBatchMutationSnapshot(projectDir, operations, batch.registry);
+  }
+  if (!sourceSnapshot) { sourceSnapshot = await readMutationSnapshot(projectDir); }
+  const snapshot = sourceSnapshot.state as Record<string, unknown> & { version: number; revision: number };
   const tx = createTransaction(snapshot);
   const { results, plans } = await executeOperations({ operations, request, batch, policyAction, pluginId, tx, snapshot });
   const draftView = tx.view({ includePlugins: true });
   validateDraftStructural(draftView, commandName);
   const diff = diffBatch(snapshot, draftView, tx.getDirtyIds(), tx.getDirtyEdgeChanges());
   const revisionBefore = snapshot.revision;
-  const revisionAfter = diff.changed ? deriveNextStateRevision(snapshot, diff.nextNodes) : snapshot.revision;
+  const revisionAfter = diff.changed
+    ? Math.max(deriveNextStateRevision(snapshot, diff.nextNodes), metadata?.maximumNodeRevision || 0)
+    : snapshot.revision;
   if (diff.changed) {
     const persistedState = buildPersistedBatchState({ snapshot, draftView, diff, results, plans, request, pluginId, revisionAfter });
-    await writeSqliteState(sqliteStateFile(projectDir), persistedState, snapshot);
+    const rootMutation = diff.pluginsChanged ? {
+      rootExtras: Object.fromEntries(Object.entries(persistedState).filter(([key]) =>
+        !["version", "revision", "nodes", "edges", "initiatives", "log"].includes(key))),
+      rootOrder: Object.keys(persistedState),
+    } : {};
+    const changedNodes = [...diff.created, ...diff.updated] as Array<{ id: string; node: Record<string, unknown> }>;
+    const changedInitiatives = [...diff.initiativeDiff.created, ...diff.initiativeDiff.updated] as Array<{
+      name: string;
+      initiative: Record<string, unknown>;
+    }>;
+    await writeSqliteMutation(sqliteStateFile(projectDir), {
+      previousRevision: snapshot.revision,
+      revision: revisionAfter,
+      nodes: {
+        upsert: Object.fromEntries(changedNodes.map(({ id, node }) => [id, node])),
+        remove: diff.removedNodes,
+      },
+      edges: { add: diff.addedEdges, remove: diff.removedEdges },
+      initiatives: { upsert: Object.fromEntries(changedInitiatives.map(({ name, initiative }) => [name, initiative])) },
+      logEntry: persistedState.log[persistedState.log.length - 1],
+      ...rootMutation,
+    });
   }
   return { ok: true, revision_before: revisionBefore, revision_after: revisionAfter, results };
 }

@@ -8,7 +8,10 @@ import type {
 } from "../../contracts/operations.ts";
 
 const ADMITTED_KINDS = Object.freeze(["task", "gate", "knowledge", "core"] as const);
-const ADMITTED_SNAPSHOT_CLOSURES = Object.freeze(["task", "task.create", "task.accept"] as const);
+const ADMITTED_SNAPSHOT_CLOSURES = Object.freeze([
+  "task", "task.create", "task.accept", "gate", "gate.create", "knowledge", "knowledge.create",
+  "edge", "initiative", "plugin-data.node", "plugin-data.project",
+] as const);
 type RegistryEntry = OperationEntry;
 
 function asError(code: string, message: string, details?: Record<string, unknown>): Error {

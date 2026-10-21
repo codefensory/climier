@@ -734,9 +734,10 @@ function validateSqliteMutationStructure(database): boolean {
   return true;
 }
 
-export async function readSqliteMutationMetadata(file: string) {
+export async function readSqliteMutationMetadata(file: string, { includeExtras = false }: { includeExtras?: boolean } = {}) {
   return withReadTransaction(file, null, (database) => {
-    const rows = database.query("SELECT key, value FROM meta WHERE key IN ('version', 'revision', ?, ?)").all(ROOT_ORDER_KEY, MAX_NODE_REVISION_KEY);
+    const extrasFilter = includeExtras ? ", 'extras'" : "";
+    const rows = database.query(`SELECT key, value FROM meta WHERE key IN ('version', 'revision', ?, ?${extrasFilter})`).all(ROOT_ORDER_KEY, MAX_NODE_REVISION_KEY);
     const metadata = Object.fromEntries(rows.map(({ key, value }) => [key, JSON.parse(value)]));
     if (metadata.version === undefined) { return null; }
     if (metadata.version !== 1) { throw new Error("storage: SQLite store requires canonical schema-1 state"); }
@@ -768,6 +769,7 @@ export async function readSqliteMutationMetadata(file: string) {
       revision: metadata.revision,
       maximumNodeRevision,
       rootOrder: Array.isArray(metadata[ROOT_ORDER_KEY]) ? metadata[ROOT_ORDER_KEY] : null,
+      extras: includeExtras && metadata.extras && typeof metadata.extras === "object" && !Array.isArray(metadata.extras) ? metadata.extras : {},
       closureSafe,
     };
   });
@@ -974,6 +976,12 @@ export async function readSqliteMutationEdges(file: string, ids: string[], direc
   });
 }
 
+export async function readSqliteMutationBlocksEdges(file: string) {
+  return withReadTransaction(file, [], (database) => database.query(
+    "SELECT position, data FROM edges WHERE edge_type = 'BLOCKS' ORDER BY position",
+  ).all().map(({ position, data }) => ({ position, edge: JSON.parse(data) })));
+}
+
 export async function readSqliteInitiativeNames(file: string): Promise<string[]> {
   return withReadTransaction(file, [], (database) => database.query("SELECT name FROM initiatives ORDER BY position")
     .all().map(({ name }) => name));
@@ -1077,6 +1085,8 @@ export async function writeSqliteMutation(file: string, mutation: {
   edges: { add?: unknown[]; remove?: unknown[] };
   initiatives: { upsert?: Record<string, unknown>; remove?: string[] };
   logEntry: unknown;
+  rootExtras?: Record<string, unknown>;
+  rootOrder?: string[];
 }) {
   const database = activeDatabase(file);
   if (!database) { throw new Error("kernel mutation writes require an active SQLite transaction"); }
@@ -1166,12 +1176,31 @@ export async function writeSqliteMutation(file: string, mutation: {
     .run(JSON.stringify(mutation.revision));
   database.query("INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
     .run(MAX_NODE_REVISION_KEY, JSON.stringify(maximumNodeRevisionAfterMutation));
+  if (mutation.rootExtras) {
+    database.query("INSERT INTO meta (key, value) VALUES ('extras', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
+      .run(JSON.stringify(mutation.rootExtras));
+    if (mutation.rootOrder) {
+      database.query("INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
+        .run(ROOT_ORDER_KEY, JSON.stringify(mutation.rootOrder));
+    }
+  }
 
+  const previousExtras = metadata.extras && typeof metadata.extras === "object" && !Array.isArray(metadata.extras)
+    ? metadata.extras as Record<string, unknown>
+    : {};
+  const rootExtras = mutation.rootExtras;
+  const rootSet = rootExtras
+    ? Object.fromEntries(Object.entries(rootExtras).filter(([key, value]) =>
+      JSON.stringify(previousExtras[key]) !== JSON.stringify(value)))
+    : {};
+  const rootRemove = rootExtras
+    ? Object.keys(previousExtras).filter((key) => !Object.hasOwn(rootExtras, key))
+    : [];
   const delta: Record<string, unknown> = {
     from_revision: mutation.previousRevision,
     revision: mutation.revision,
-    set: {},
-    remove: [],
+    set: rootSet,
+    remove: rootRemove,
     nodes: { upsert: nodeUpserts, remove: nodeRemovals },
     initiatives: { upsert: initiativeUpserts, remove: initiativeRemovals },
     log: { append: [mutation.logEntry] },

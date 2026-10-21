@@ -65,7 +65,13 @@ function taskEntries() {
 }
 
 function gateEntries() {
-  return entriesFromIds(GATE_OPERATION_IDS, gateProviders, GATE_PROVIDER_KIND, "gate");
+  return entriesFromIds(GATE_OPERATION_IDS, gateProviders, GATE_PROVIDER_KIND, "gate", {
+    "gate.create": "gate.create",
+    "gate.update": "gate",
+    "gate.resolve": "gate",
+    "gate.reopen": "gate",
+    "gate.cancel": "gate",
+  } satisfies Record<string, SnapshotClosure>);
 }
 
 function knowledgeEntries() {
@@ -83,7 +89,12 @@ function knowledgeEntries() {
     if (!provider || typeof provider !== "object" || typeof provider.prepare !== "function" || typeof provider.apply !== "function") {
       throw asError("REGISTRY_BUILTIN_PROVIDER_INVALID", `bootstrapBuiltins: knowledge factory for ${id} did not return { prepare, apply }`, { id });
     }
-    return { id, kind: "knowledge", provider };
+    return {
+      id,
+      kind: "knowledge",
+      provider,
+      snapshotClosure: id === "knowledge.create" ? "knowledge.create" : "knowledge",
+    };
   });
 }
 
@@ -91,7 +102,12 @@ function coreEntries() {
   return entriesFromIds(CORE_OPERATION_IDS, {
     "edge.add": edgeAddProvider, "edge.remove": edgeRemoveProvider, "note.add": noteAddProvider,
     "initiative.create": initiativeCreateProvider,
-  }, "core", "core", { "note.add": "task" }).map(({ id, kind, provider, snapshotClosure }) => {
+  }, "core", "core", {
+    "edge.add": "edge",
+    "edge.remove": "edge",
+    "note.add": "task",
+    "initiative.create": "initiative",
+  }).map(({ id, kind, provider, snapshotClosure }) => {
     if (typeof provider !== "object" || typeof provider.prepare !== "function" || typeof provider.apply !== "function") {
       throw asError("REGISTRY_BUILTIN_PROVIDER_MISSING", `bootstrapBuiltins: core provider for ${id} is not { prepare, apply }`, { id });
     }

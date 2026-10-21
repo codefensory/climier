@@ -97,7 +97,7 @@ function computeMutationDiff(snapshot, draftView, dirtyIds, dirtyEdgeChanges) {
   const pluginsChanged = !deepEqualNodes(pluginsBefore, pluginsAfter);
   const changes = { created, updated, addedEdges, removedEdges, removedNodes, initiativeDiff };
   const isIdempotent = !hasStructuralChanges(changes) && !pluginsChanged;
-  return { nextNodes, removedNodes, created, updated, addedEdges, removedEdges, initiativeDiff, pluginsAfter, isIdempotent };
+  return { nextNodes, removedNodes, created, updated, addedEdges, removedEdges, initiativeDiff, pluginsAfter, pluginsChanged, isIdempotent };
 }
 
 function finalNodesForSnapshot(snapshot, nextNodes) {
@@ -171,6 +171,11 @@ async function commitMutation({ projectDir, snapshot, draftView, diff, request, 
     const initiativeUpsert = Object.fromEntries([...diff.initiativeDiff.created, ...diff.initiativeDiff.updated]
       .map(({ name, initiative }) => [name, initiative]));
     const revision = Math.max(persistedState.revision, closure.maximumNodeRevision || 0);
+    const rootMutation = diff.pluginsChanged ? {
+      rootExtras: Object.fromEntries(Object.entries(persistedState).filter(([key]) =>
+        !["version", "revision", "nodes", "edges", "initiatives", "log"].includes(key))),
+      rootOrder: Object.keys(persistedState),
+    } : {};
     await writeSqliteMutation(sqliteStateFile(projectDir), {
       previousRevision: snapshot.revision,
       revision,
@@ -178,6 +183,7 @@ async function commitMutation({ projectDir, snapshot, draftView, diff, request, 
       edges: { add: diff.addedEdges, remove: diff.removedEdges },
       initiatives: { upsert: initiativeUpsert },
       logEntry,
+      ...rootMutation,
     });
   } else {
     await persistMutation({ projectDir, persistedState, previousState: snapshot });

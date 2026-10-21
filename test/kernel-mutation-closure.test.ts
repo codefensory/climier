@@ -6,6 +6,7 @@ import { createBuiltinOperationRegistry } from "../src/application/operations/bu
 import { buildRegistry } from "../src/application/operations/registry.ts";
 import { executeOperation } from "../src/application/operations/execute.ts";
 import { mutate } from "../src/kernel/mutate.ts";
+import { pluginDataNodeSetProvider, pluginDataProjectSetProvider } from "../src/providers/plugin-data/index.ts";
 import { applyRemoteChanges } from "../src/application/backend-remote-reads.ts";
 import { readSqliteChangesSince, SQLITE_EDGE_INVARIANT_RULES } from "../src/storage/sqlite/store.ts";
 import { STATE_EDGE_INVARIANT_RULES } from "../src/contracts/state-invariants.ts";
@@ -36,15 +37,126 @@ const stateFixture = {
 
 const SQLITE_MODULE = "bun:sqlite";
 
-const coveredOperations = [
-  "task.create", "task.update", "note.add", "task.take", "task.submit", "task.accept",
-  "task.reject", "task.release", "task.reopen", "task.cancel",
-];
-
-test("built-in task and note operations declare an explicit mutation closure", () => {
+test("every built-in mutation declares an explicit snapshot closure", () => {
   const registry = createBuiltinOperationRegistry();
-  for (const operation of coveredOperations) {
+  for (const operation of registry.ops) {
     assert.ok(registry.lookup(operation)?.snapshotClosure, `${operation} has a closure declaration`);
+  }
+});
+
+test("remaining operation closures activate and include graph, scope, initiative, and plugin roots", async () => {
+  const dir = await createTempProject();
+  try {
+    await writeCanonicalState(dir, {
+      version: 1,
+      revision: 9,
+      nodes: {
+        T1: { id: "T1", kind: "resolvable", subkind: "task", title: "task", initiative: "core", domain: "db", tags: ["sqlite"], status: "open", revision: 4 },
+        T2: { id: "T2", kind: "resolvable", subkind: "task", title: "dependent", initiative: "core", status: "open", revision: 5 },
+        G1: { id: "G1", kind: "resolvable", subkind: "gate", title: "gate", initiative: "core", status: "open", revision: 6 },
+        G2: { id: "G2", kind: "resolvable", subkind: "gate", title: "replacement gate", initiative: "core", status: "resolved", revision: 7 },
+        K1: { id: "K1", kind: "knowledge", title: "knowledge", initiative: "core", domain: "db", tags: ["sqlite"], status: "active", revision: 8, scope: { domains: ["db"], initiatives: ["core"], tags: ["sqlite"], node_ids: ["T1"] } },
+        K2: { id: "K2", kind: "knowledge", title: "new knowledge", initiative: "core", domain: "db", tags: ["sqlite"], status: "active", revision: 9, scope: { domains: ["db"], initiatives: [], tags: [], node_ids: [] } },
+        UNRELATED: { id: "UNRELATED", kind: "resolvable", subkind: "task", title: "unrelated", initiative: "other", status: "open", revision: 2 },
+      },
+      edges: [
+        { from: "G1", to: "T2", type: "BLOCKS" },
+        { from: "T1", to: "T2", type: "BLOCKS" },
+        { from: "G2", to: "G1", type: "SUPERSEDES" },
+        { from: "K2", to: "K1", type: "SUPERSEDES" },
+      ],
+      initiatives: { core: { desc: "core" }, other: { desc: "other" } },
+      plugins: { "example.metrics": { data: { keep: true } } },
+      log: [{ action: "seed" }],
+    });
+    const registry = createBuiltinOperationRegistry();
+    const operationInputs: Record<string, Record<string, unknown>> = {
+      "task.create": { id: "T-new", initiative: "core", blocked_by: ["T1"] },
+      "task.update": { id: "T1", changes: { title: "updated" } },
+      "task.take": { id: "T1" }, "task.submit": { id: "T1" }, "task.accept": { id: "T1" },
+      "task.reject": { id: "T1" }, "task.release": { id: "T1" }, "task.reopen": { id: "T1" },
+      "task.cancel": { id: "T1" }, "note.add": { id: "T1" },
+      "gate.create": { id: "G-new", initiative: "core", supersedes: "G1", blocked_by: ["T1"] },
+      "gate.update": { id: "G1", changes: { title: "updated" } },
+      "gate.resolve": { id: "G1" }, "gate.reopen": { id: "G1" }, "gate.cancel": { id: "G1" },
+      "knowledge.create": { id: "K-new", initiative: "core", domain: "db", tags: ["sqlite"], supersedes: "K1" },
+      "knowledge.update": { id: "K1", changes: { title: "updated" } },
+      "knowledge.deprecate": { id: "K1" },
+      "edge.add": { from: "T1", to: "T2", type: "BLOCKS" },
+      "edge.remove": { from: "T1", to: "T2", type: "BLOCKS" },
+      "initiative.create": { name: "new-initiative" },
+    };
+    for (const operation of registry.ops) {
+      const entry = registry.lookup(operation)!;
+      const result = await readMutationSnapshot(dir, entry.snapshotClosure, { action: operation, input: operationInputs[operation] });
+      assert.ok(result.closure, `${operation} used its declared closure`);
+    }
+
+    const gate = registry.lookup("gate.resolve")!;
+    const gateSnapshot = await readMutationSnapshot(dir, gate.snapshotClosure, { action: "gate.resolve", input: { id: "G1" } });
+    assert.deepEqual(Object.keys(gateSnapshot.state.nodes).toSorted(), ["G1", "G2", "K1", "K2", "T1", "T2"]);
+    const knowledge = registry.lookup("knowledge.deprecate")!;
+    const knowledgeSnapshot = await readMutationSnapshot(dir, knowledge.snapshotClosure, { action: "knowledge.deprecate", input: { id: "K1" } });
+    assert.deepEqual(Object.keys(knowledgeSnapshot.state.nodes).toSorted(), ["K1", "K2"]);
+    const edge = registry.lookup("edge.add")!;
+    const edgeSnapshot = await readMutationSnapshot(dir, edge.snapshotClosure, { action: "edge.add", input: { from: "T1", to: "T2", type: "BLOCKS" } });
+    assert.ok(["T1", "T2", "G1", "G2"].every((id) => edgeSnapshot.state.nodes[id]));
+    assert.equal(edgeSnapshot.state.nodes.UNRELATED, undefined);
+    const initiative = registry.lookup("initiative.create")!;
+    const initiativeSnapshot = await readMutationSnapshot(dir, initiative.snapshotClosure, { action: "initiative.create", input: { name: "new" } });
+    assert.deepEqual(initiativeSnapshot.state.nodes, {});
+    assert.deepEqual(initiativeSnapshot.state.initiatives, { core: {}, other: {} });
+
+    const nodePlugin = await readMutationSnapshot(dir, "plugin-data.node", {
+      action: "plugin-data.node.set", input: { id: "T1" },
+    });
+    assert.deepEqual(Object.keys(nodePlugin.state.nodes), ["T1"]);
+    const projectPlugin = await readMutationSnapshot(dir, "plugin-data.project", {
+      action: "plugin-data.project.set", input: { key: "counter" },
+    });
+    assert.deepEqual(projectPlugin.state.plugins, { "example.metrics": { data: { keep: true } } });
+  } finally {
+    await rmTempProject(dir);
+  }
+});
+
+test("edge.add closure follows long BLOCKS paths so cycle errors match full snapshots", async () => {
+  const dir = await createTempProject();
+  try {
+    const state = {
+      version: 1,
+      revision: 4,
+      nodes: Object.fromEntries(["A", "B", "C", "D", "UNRELATED"].map((id, index) => [id, {
+        id, kind: "resolvable", subkind: "task", title: id, initiative: "core", status: "open", revision: index + 1,
+      }])),
+      edges: [
+        { from: "B", to: "C", type: "BLOCKS" },
+        { from: "C", to: "D", type: "BLOCKS" },
+        { from: "D", to: "A", type: "BLOCKS" },
+      ],
+      initiatives: { core: { desc: "core" } },
+      log: [],
+    };
+    await writeCanonicalState(dir, state);
+    const registry = createBuiltinOperationRegistry();
+    const { state: closure } = await readMutationSnapshot(dir, "edge", {
+      action: "edge.add", input: { from: "A", to: "B", type: "BLOCKS" },
+    });
+    assert.deepEqual(closure.edges, state.edges);
+    assert.equal(closure.nodes.UNRELATED, undefined);
+    await assert.rejects(executeOperation({
+      projectDir: dir,
+      actor: "alice",
+      operation: "edge.add",
+      input: { from: "A", to: "B", type: "BLOCKS" },
+      source: { registry, mutate },
+    }), (error: { code?: string; details?: Record<string, unknown> }) => {
+      assert.equal(error.code, "CYCLE_DETECTED");
+      assert.deepEqual(error.details?.cycle, ["A", "B", "C", "D", "A"]);
+      return true;
+    });
+  } finally {
+    await rmTempProject(dir);
   }
 });
 
@@ -506,6 +618,106 @@ test("a 52-operation sequence is byte-identical with full and declared snapshots
     const changes = await readSqliteChangesSince((await import("./helpers.ts")).stateFilePath(fastDir), baseState.revision);
     const replayed = applyRemoteChanges(baseState, changes);
     assert.equal(JSON.stringify(replayed), JSON.stringify(fastState));
+  } finally {
+    globalThis.Date = originalDate;
+    await rmTempProject(fastDir);
+    await rmTempProject(fullDir);
+  }
+});
+
+test("gate, knowledge, edge, initiative, and plugin closures are byte-identical to full snapshots", async () => {
+  const fastDir = await createTempProject();
+  const fullDir = await createTempProject();
+  const baseState = {
+    version: 1,
+    revision: 3,
+    nodes: {
+      G: { id: "G", kind: "resolvable", subkind: "gate", title: "decision", initiative: "core", resolution_mode: "choice", status: "open", revision: 3 },
+      T: { id: "T", kind: "resolvable", subkind: "task", title: "task", initiative: "core", domain: "db", tags: ["sqlite"], status: "open", revision: 3 },
+      D: { id: "D", kind: "resolvable", subkind: "task", title: "dependent", initiative: "core", status: "open", revision: 3 },
+      B: { id: "B", kind: "resolvable", subkind: "task", title: "satisfied blocker", initiative: "core", status: "done", revision: 3 },
+      K1: { id: "K1", kind: "knowledge", title: "old guidance", initiative: "core", domain: "db", tags: ["sqlite"], status: "active", revision: 3, scope: { domains: ["db"], initiatives: ["core"], tags: ["sqlite"], node_ids: [] } },
+      K2: { id: "K2", kind: "knowledge", title: "new guidance", initiative: "core", domain: "db", tags: ["sqlite"], status: "active", revision: 3, scope: { domains: ["db"], initiatives: [], tags: [], node_ids: [] } },
+      E1: { id: "E1", kind: "resolvable", subkind: "task", title: "edge source", initiative: "core", status: "open", revision: 3 },
+      E2: { id: "E2", kind: "resolvable", subkind: "task", title: "edge target", initiative: "core", status: "open", revision: 3 },
+    },
+    edges: [
+      { from: "G", to: "D", type: "BLOCKS" },
+      { from: "B", to: "D", type: "BLOCKS" },
+      { from: "K2", to: "K1", type: "SUPERSEDES" },
+      { from: "E1", to: "E2", type: "DERIVED_FROM" },
+    ],
+    initiatives: { core: { desc: "core", created_at: "2026-01-01T00:00:00.000Z" } },
+    plugins: { "example.metrics": { data: { keep: true } } },
+    log: [],
+  };
+  const originalDate = globalThis.Date;
+  const fixedNow = "2026-10-21T18:00:00.000Z";
+  class FixedDate extends originalDate {
+    constructor(...args: any[]) { super(args.length > 0 ? args[0] : fixedNow); }
+    static now() { return originalDate.parse(fixedNow); }
+  }
+  try {
+    await writeCanonicalState(fastDir, baseState);
+    await writeCanonicalState(fullDir, baseState);
+    const registry = createBuiltinOperationRegistry();
+    const fullRegistry = buildRegistry(registry.ops.map((id) => {
+      const { kind, provider } = registry.lookup(id)!;
+      return { id, kind, provider };
+    }));
+    globalThis.Date = FixedDate as DateConstructor;
+    async function run(projectDir: string, operationRegistry: ReturnType<typeof createBuiltinOperationRegistry>, closure: boolean) {
+      const results: unknown[] = [];
+      const execute = (operation: string, input: Record<string, unknown>) => executeOperation({
+        projectDir,
+        actor: "alice",
+        operation,
+        input,
+        source: { registry: operationRegistry, mutate },
+      });
+      results.push(await execute("gate.resolve", { id: "G", choice: "ship", rationale: "verified" }));
+      results.push(await execute("gate.reopen", { id: "G", reason: "reconsider" }));
+      let state = await readState(projectDir);
+      results.push(await execute("gate.update", { id: "G", if_revision: state.nodes.G.revision, changes: { title: "revised decision" } }));
+      results.push(await execute("gate.cancel", { id: "G", reason: "decision withdrawn" }));
+      results.push(await execute("gate.create", {
+        id: "G-new", title: "replacement decision", body: "details", purpose: "decision",
+        initiative: "core", supersedes: "G",
+      }));
+      results.push(await execute("knowledge.deprecate", { id: "K1", reason: "replaced" }));
+      results.push(await execute("knowledge.update", { id: "K2", changes: { title: "revised guidance" } }));
+      results.push(await execute("knowledge.create", {
+        id: "K3", initiative: "core", title: "latest guidance", body: "details",
+        scope: { domains: ["db"] }, supersedes: "K1",
+      }));
+      results.push(await execute("edge.add", { from: "E2", to: "E1", type: "DERIVED_FROM" }));
+      results.push(await execute("edge.remove", { from: "E2", to: "E1", type: "DERIVED_FROM" }));
+      results.push(await execute("initiative.create", { name: "new-initiative", desc: "new" }));
+      results.push(await mutate({
+        projectDir,
+        request: { action: "plugin-data.node.set", actor: "alice", input: { id: "T", value: { local: true } } },
+        provider: pluginDataNodeSetProvider,
+        pluginId: "example.audit",
+        ...(closure ? { snapshotClosure: "plugin-data.node" as const } : {}),
+      }));
+      results.push(await mutate({
+        projectDir,
+        request: { action: "plugin-data.project.set", actor: "alice", input: { key: "count", value: 7 } },
+        provider: pluginDataProjectSetProvider,
+        pluginId: "example.audit",
+        ...(closure ? { snapshotClosure: "plugin-data.project" as const } : {}),
+      }));
+      return results;
+    }
+    const fastResults = await run(fastDir, registry, true);
+    const fullResults = await run(fullDir, fullRegistry, false);
+    globalThis.Date = originalDate;
+    assert.equal(JSON.stringify(fastResults), JSON.stringify(fullResults));
+    const fastState = await readState(fastDir);
+    const fullState = await readState(fullDir);
+    assert.equal(JSON.stringify(fastState), JSON.stringify(fullState));
+    const changes = await readSqliteChangesSince(stateFilePath(fastDir), baseState.revision);
+    assert.equal(JSON.stringify(applyRemoteChanges(baseState, changes)), JSON.stringify(fastState));
   } finally {
     globalThis.Date = originalDate;
     await rmTempProject(fastDir);
